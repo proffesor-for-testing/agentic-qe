@@ -8,16 +8,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Claim } from '../../../../src/agents/claim-verifier/interfaces';
 
 // Use vi.hoisted() so the mock fn is available when vi.mock factory runs (hoisted above imports).
-const { mockExecAsync } = vi.hoisted(() => ({
-  mockExecAsync: vi.fn(),
+const { mockExecFileAsync } = vi.hoisted(() => ({
+  mockExecFileAsync: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 vi.mock('node:util', () => ({
-  promisify: vi.fn(() => mockExecAsync),
+  promisify: vi.fn(() => mockExecFileAsync),
 }));
 
 vi.mock('node:fs/promises', () => ({
@@ -64,11 +64,11 @@ describe('TestBasedVerifier', () => {
     });
 
     it('should accept custom config values', () => {
-      // Arrange & Act
+      // Arrange & Act — testCommand must be in the allowlist
       const v = new TestBasedVerifier({
         rootDir: '/custom',
-        testCommand: 'npx vitest run',
-        coverageCommand: 'npx vitest run --coverage',
+        testCommand: 'npm run test:ci',
+        coverageCommand: 'npm run test:coverage',
         coverageReportPath: 'coverage/lcov.json',
         timeout: 120000,
       });
@@ -82,7 +82,7 @@ describe('TestBasedVerifier', () => {
     it('should classify claim with "pass" as test-results and verify when all pass', async () => {
       // Arrange
       const claim = makeClaim({ statement: 'All tests pass' });
-      mockExecAsync.mockResolvedValue({
+      mockExecFileAsync.mockResolvedValue({
         stdout: '42 passed',
         stderr: '',
       });
@@ -121,7 +121,7 @@ describe('TestBasedVerifier', () => {
     it('should classify claim with test + number as test-count type', async () => {
       // Arrange
       const claim = makeClaim({ statement: 'There are 100 tests in the suite' });
-      mockExecAsync.mockResolvedValue({
+      mockExecFileAsync.mockResolvedValue({
         stdout: '150 passed',
         stderr: '',
       });
@@ -139,7 +139,7 @@ describe('TestBasedVerifier', () => {
     it('should verify when actual test count meets claimed count', async () => {
       // Arrange
       const claim = makeClaim({ statement: 'Project has 30 tests' });
-      mockExecAsync.mockResolvedValue({
+      mockExecFileAsync.mockResolvedValue({
         stdout: '35 passed',
         stderr: '',
       });
@@ -155,7 +155,7 @@ describe('TestBasedVerifier', () => {
     it('should reject when actual count is below claimed count', async () => {
       // Arrange
       const claim = makeClaim({ statement: 'Project has 200 tests' });
-      mockExecAsync.mockResolvedValue({
+      mockExecFileAsync.mockResolvedValue({
         stdout: '50 passed',
         stderr: '',
       });
@@ -173,7 +173,7 @@ describe('TestBasedVerifier', () => {
     it('should reject pass claim when some tests fail', async () => {
       // Arrange
       const claim = makeClaim({ statement: 'All tests pass' });
-      mockExecAsync.mockResolvedValue({
+      mockExecFileAsync.mockResolvedValue({
         stdout: '20 passed | 5 failed',
         stderr: '',
       });
@@ -187,9 +187,9 @@ describe('TestBasedVerifier', () => {
     });
 
     it('should handle test execution failure gracefully', async () => {
-      // Arrange - runTests calls execAsync which throws
+      // Arrange - runTests calls execFileAsync which throws
       const claim = makeClaim({ statement: 'All tests pass' });
-      mockExecAsync.mockRejectedValue(new Error('npm test: command not found'));
+      mockExecFileAsync.mockRejectedValue(new Error('npm test: command not found'));
 
       // Act
       const result = await verifier.verify(claim);
@@ -332,7 +332,7 @@ describe('TestBasedVerifier', () => {
     it('should return safe error result when verify throws unexpectedly', async () => {
       // Arrange - runTests throws synchronously
       const claim = makeClaim({ statement: 'All tests pass' });
-      mockExecAsync.mockImplementation(() => {
+      mockExecFileAsync.mockImplementation(() => {
         throw new Error('Segmentation fault');
       });
 

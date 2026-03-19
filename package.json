@@ -65,9 +65,9 @@
     "mcp:validate": "echo 'MCP validation: All tools registered in MCP server' && exit 0",
     "mcp:report": "echo 'MCP Report: uses vitest for test reporting' && exit 0",
     "test:code-intelligence": "npm test -- --run tests/unit/domains/code-intelligence/ tests/unit/coordination/mincut/",
-    "verify:counts": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-counts.json'),JSON.stringify({status:'pass'}));console.log('Counts verification: PASS')\"",
-    "verify:agent-skills": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-agent-skills.json'),JSON.stringify({status:'pass'}));console.log('Agent skills verification: PASS')\"",
-    "verify:features": "node -e \"const fs=require('fs'),p=require('path');fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-features.json'),JSON.stringify({status:'pass'}));console.log('Features verification: PASS')\"",
+    "verify:counts": "node -e \"const fs=require('fs'),g=require('glob'),p=require('path');const src=g.globSync('src/**/*.ts',{ignore:'src/**/*.test.ts'});const tests=g.globSync('tests/**/*.test.ts');const agents=g.globSync('.claude/agents/v3/qe-*.md');const skills=g.globSync('.claude/skills/**/*.md');const ok=src.length>500&&tests.length>300;const r={status:ok?'pass':'fail',srcFiles:src.length,testFiles:tests.length,agents:agents.length,skills:skills.length};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-counts.json'),JSON.stringify(r,null,2));console.log('Counts:',JSON.stringify(r));if(!ok)process.exit(1)\"",
+    "verify:agent-skills": "node -e \"const fs=require('fs'),g=require('glob'),p=require('path');const agents=g.globSync('.claude/agents/v3/qe-*.md');const skills=g.globSync('.claude/skills/**/*.md');const missing=[];for(const a of agents){const name=p.basename(a,'.md');const hasSkill=skills.some(s=>s.includes(name.replace('qe-','')));if(!hasSkill)missing.push(name)}const ok=missing.length<agents.length/2;const r={status:ok?'pass':'fail',agents:agents.length,skills:skills.length,unmatchedAgents:missing.length,missing:missing.slice(0,10)};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-agent-skills.json'),JSON.stringify(r,null,2));console.log('Agent-Skills:',JSON.stringify(r));if(!ok)process.exit(1)\"",
+    "verify:features": "node -e \"const fs=require('fs'),p=require('path');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const hasBin=!!pkg.bin&&Object.keys(pkg.bin).length>=2;const hasExports=!!pkg.exports&&Object.keys(pkg.exports).length>=3;const cliBundleExists=fs.existsSync('dist/cli/bundle.js');const mcpBundleExists=fs.existsSync('dist/mcp/bundle.js');const ok=hasBin&&hasExports&&cliBundleExists&&mcpBundleExists;const r={status:ok?'pass':'fail',binCount:Object.keys(pkg.bin||{}).length,exportsCount:Object.keys(pkg.exports||{}).length,cliBundleExists,mcpBundleExists};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-features.json'),JSON.stringify(r,null,2));console.log('Features:',JSON.stringify(r));if(!ok)process.exit(1)\"",
     "test:contracts": "npm test -- --run tests/unit/domains/contract-testing/",
     "test:infrastructure": "npm test -- --run tests/unit/kernel/ tests/unit/shared/",
     "test:regression": "npm run test:unit",
@@ -129,7 +129,6 @@
   "license": "MIT",
   "dependencies": {
     "@claude-flow/guidance": "3.0.0-alpha.1",
-    "@faker-js/faker": "^10.2.0",
     "@ruvector/attention": "0.1.3",
     "@ruvector/gnn": "0.1.19",
     "@ruvector/learning-wasm": "^0.1.29",
@@ -183,6 +182,7 @@
     "markdown-it": ">=14.1.1"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^20.19.17",

@@ -163,6 +163,7 @@ try {
   await build({
     entryPoints: [join(__dirname, '..', 'src/mcp/entry.ts')],
     bundle: true,
+    minify: true,
     platform: 'node',
     format: 'esm',
     external: esmExternals,

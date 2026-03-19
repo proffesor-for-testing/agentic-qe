@@ -167,10 +167,10 @@ function registerStatsCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`stats failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -235,10 +235,10 @@ function registerConsolidateCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`consolidate failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -279,10 +279,10 @@ function registerExportCommand(learning: Command): void {
           writeFileSync(outputPath, JSON.stringify(exportData, null, 2), 'utf-8');
           printSuccess(`Exported ${patterns.length} patterns to ${outputPath}`);
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`export failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -339,10 +339,10 @@ function registerImportCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`import failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -362,7 +362,7 @@ function registerResetCommand(learning: Command): void {
         if (!options.confirm) {
           console.log(chalk.yellow('\n⚠️  This will reset your learning data.'));
           console.log(chalk.gray('    Use --confirm to proceed\n'));
-          process.exit(0);
+          return;
         }
 
         const projectRoot = findProjectRoot();
@@ -379,10 +379,10 @@ function registerResetCommand(learning: Command): void {
         }
 
         printSuccess('Learning data reset. Run "aqe init --auto" to reinitialize.\n');
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`reset failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -504,10 +504,10 @@ function registerExtractCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`extract failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -534,10 +534,10 @@ function registerDashboardCommand(learning: Command): void {
         tracker.close();
 
         if (options.json) printJson(dashboard); else displayDashboard(dashboard);
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`dashboard failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -574,10 +574,10 @@ function registerInfoCommand(learning: Command): void {
         console.log(chalk.bold('\nHooks:'));
         console.log('  Configure in .claude/settings.json');
         console.log('  Events: pre-edit, post-edit, pre-task, post-task, route\n');
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`info failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -646,10 +646,10 @@ function registerBackupCommand(learning: Command): void {
           }
           printSuccess(`Backup saved to: ${finalPath}\n`);
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`backup failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -690,10 +690,8 @@ function registerRestoreCommand(learning: Command): void {
         }
 
         if (existsSync(dbPath) && !options.force) {
-          printError(`Database already exists at: ${dbPath}`);
-          console.log(chalk.yellow('  Use --force to overwrite'));
           if (isCompressed && existsSync(restorePath)) await unlink(restorePath);
-          process.exit(1);
+          throw new Error(`Database already exists at: ${dbPath}. Use --force to overwrite`);
         }
 
         const targetDir = path.dirname(dbPath);
@@ -719,10 +717,10 @@ function registerRestoreCommand(learning: Command): void {
           console.log(`  Schema version: ${schemaVersion}`);
           printSuccess('Database restored successfully\n');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`restore failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -769,10 +767,13 @@ function registerVerifyCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(verificationResult.valid ? 0 : 1);
+        if (!verificationResult.valid) {
+          throw new Error(`Database verification failed: ${verificationResult.message}`);
+        }
+        return;
       } catch (error) {
         printError(`verify failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -850,10 +851,10 @@ function registerExportFullCommand(learning: Command): void {
           console.log(`  Export format: ${EXPORT_FORMAT_VERSION}`);
           printSuccess(`Exported to: ${outputPath}\n`);
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`export-full failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -938,10 +939,10 @@ function registerImportMergeCommand(learning: Command): void {
           }
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`import-merge failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -996,7 +997,7 @@ function registerDreamCommand(learning: Command): void {
             console.log('');
           }
           await engine.close();
-          process.exit(0);
+          return;
         }
 
         if (options.history) {
@@ -1014,7 +1015,7 @@ function registerDreamCommand(learning: Command): void {
             console.log('');
           }
           await engine.close();
-          process.exit(0);
+          return;
         }
 
         if (options.insights) {
@@ -1032,7 +1033,7 @@ function registerDreamCommand(learning: Command): void {
             console.log('');
           }
           await engine.close();
-          process.exit(0);
+          return;
         }
 
         if (options.apply) {
@@ -1042,8 +1043,8 @@ function registerDreamCommand(learning: Command): void {
           const pending = await engine.getPendingInsights(100);
           const insight = pending.find(i => i.id === insightId || i.id.startsWith(insightId));
 
-          if (!insight) { printError(`Insight not found: ${insightId}`); await engine.close(); process.exit(1); }
-          if (!insight.actionable) { printError(`Insight ${insightId} is not actionable`); await engine.close(); process.exit(1); }
+          if (!insight) { await engine.close(); throw new Error(`Insight not found: ${insightId}`); }
+          if (!insight.actionable) { await engine.close(); throw new Error(`Insight ${insightId} is not actionable`); }
 
           const result = await engine.applyInsight(insight.id);
           const reasoningBank = await initializeLearningSystem();
@@ -1061,7 +1062,10 @@ function registerDreamCommand(learning: Command): void {
             else printError(`Failed to apply insight: ${result.error}`);
           }
           await engine.close();
-          process.exit(result.success ? 0 : 1);
+          if (!result.success) {
+            throw new Error(`Failed to apply insight: ${result.error}`);
+          }
+          return;
         }
 
         // --- Run Dream Cycle ---
@@ -1137,11 +1141,11 @@ function registerDreamCommand(learning: Command): void {
         }
 
         await engine.close();
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`dream failed: ${error instanceof Error ? error.message : 'unknown'}`);
         if (error instanceof Error && error.stack) console.error(chalk.dim(error.stack));
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -1171,7 +1175,7 @@ function registerRepairCommand(learning: Command): void {
           } else {
             printSuccess('Database integrity check passed — no repair needed.');
           }
-          process.exit(0);
+          return;
         }
 
         printInfo(`Corruption detected: ${integrityResult.message}`);
@@ -1206,7 +1210,7 @@ function registerRepairCommand(learning: Command): void {
             console.log('  6. Swap repaired DB into place');
             console.log('');
           }
-          process.exit(0);
+          return;
         }
 
         // Step 3: Backup
@@ -1292,10 +1296,10 @@ function registerRepairCommand(learning: Command): void {
           console.log(`  Integrity:    ${chalk.green('OK')}`);
           console.log('');
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`repair failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }
@@ -1333,8 +1337,7 @@ function registerHealthCommand(learning: Command): void {
         const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
 
         if (!existsSync(dbPath)) {
-          printError('Database not found. Run "aqe init --auto" first.');
-          process.exit(1);
+          throw new Error('Database not found. Run "aqe init --auto" first.');
         }
 
         // Build regret data from captured experiences per domain
@@ -1381,7 +1384,7 @@ function registerHealthCommand(learning: Command): void {
 
         if (options.json) {
           printJson(healthSummary);
-          process.exit(0);
+          return;
         }
 
         // Display health dashboard
@@ -1391,7 +1394,7 @@ function registerHealthCommand(learning: Command): void {
         if (healthSummary.length === 0) {
           console.log(chalk.dim('  No domain data available. Run some QE tasks to generate learning data.'));
           console.log('');
-          process.exit(0);
+          return;
         }
 
         // Find the longest domain name for alignment
@@ -1423,10 +1426,10 @@ function registerHealthCommand(learning: Command): void {
         }
 
         console.log('');
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`health check failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 }

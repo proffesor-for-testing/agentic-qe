@@ -25,7 +25,7 @@ export const ALLOWED_TABLE_NAMES = new Set([
   'mincut_snapshots', 'mincut_history', 'mincut_weak_vertices',
   'mincut_alerts', 'mincut_healing_actions', 'mincut_observations',
   // SONA tables
-  'sona_patterns',
+  'sona_patterns', 'sona_fisher_matrices',
   // Feedback loop tables
   'test_outcomes', 'routing_outcomes', 'coverage_sessions',
   // Sync tables
@@ -38,7 +38,11 @@ export const ALLOWED_TABLE_NAMES = new Set([
   // Learning experience tables
   'captured_experiences', 'experience_applications',
   // Audit trail
-  'witness_chain',
+  'witness_chain', 'witness_chain_receipts', 'witness_chain_archive',
+  // Trajectory tables
+  'trajectories',
+  // Co-execution tables
+  'qe_agent_co_execution',
 ]);
 
 /**

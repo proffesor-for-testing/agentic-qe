@@ -39,9 +39,9 @@ describe('UnifiedMemoryManager.queryCount', () => {
   });
 
   it('should throw for disallowed table names', () => {
-    expect(() => um.queryCount('users')).toThrow('not in allowed list');
-    expect(() => um.queryCount('DROP TABLE kv_store')).toThrow('not in allowed list');
-    expect(() => um.queryCount('')).toThrow('not in allowed list');
+    expect(() => um.queryCount('users')).toThrow('not in the allowlist');
+    expect(() => um.queryCount('DROP TABLE kv_store')).toThrow('not in the allowlist');
+    expect(() => um.queryCount('')).toThrow('not in the allowlist');
   });
 
   it('should count rows in vectors table', () => {

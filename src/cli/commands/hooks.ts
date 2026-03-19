@@ -708,10 +708,10 @@ Examples:
           console.log(chalk.bold('\n💡 Guidance:'));
           printGuidance(result.guidance || []);
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`pre-edit failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -800,10 +800,10 @@ Examples:
             console.log(chalk.green(`  Patterns learned: ${result.patternsLearned}`));
           }
         }
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`post-edit failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -910,11 +910,10 @@ Examples:
           console.error(chalk.dim(`[hooks] route persist: ${persistError instanceof Error ? persistError.message : 'unknown'}`));
         }
 
-        // Exit cleanly after successful routing (prevents hanging on db cleanup)
-        process.exit(0);
+        return;
       } catch (error) {
         printError(`route failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -966,7 +965,7 @@ Examples:
         }
       } catch (error) {
         printError(`stats failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -1004,7 +1003,7 @@ Examples:
         }
       } catch (error) {
         printError(`list failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -1050,7 +1049,7 @@ Examples:
         }
       } catch (error) {
         printError(`emit failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -1108,7 +1107,7 @@ Examples:
         }
       } catch (error) {
         printError(`learn failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -1170,7 +1169,7 @@ Examples:
         }
       } catch (error) {
         printError(`search failed: ${error instanceof Error ? error.message : 'unknown'}`);
-        process.exit(1);
+        throw error;
       }
     });
 
@@ -1261,13 +1260,13 @@ Examples:
           console.log(chalk.dim(`  Dream scheduler: enabled (${dreamState.experienceCount} pending experiences)`));
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
-        // Don't fail the hook - just log and exit cleanly
+        // Don't fail the hook - just log and return cleanly
         if (options.json) {
           printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
         }
-        process.exit(0); // Exit cleanly even on error (continueOnError)
+        return; // Return cleanly even on error (continueOnError)
       }
     });
 
@@ -1331,13 +1330,13 @@ Examples:
           }
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
-        // Don't fail the hook - just exit cleanly
+        // Don't fail the hook - just return cleanly
         if (options.json) {
           printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
         }
-        process.exit(0);
+        return;
       }
     });
 
@@ -1383,12 +1382,12 @@ Examples:
           }
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
         if (options.json) {
           printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
         }
-        process.exit(0);
+        return;
       }
     });
 
@@ -1475,12 +1474,12 @@ Examples:
           }
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
         if (options.json) {
           printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
         }
-        process.exit(0);
+        return;
       }
     });
 
@@ -1537,7 +1536,7 @@ Examples:
           }
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
         // On error, allow (fail-open for non-critical guard)
         if (options.json) {
@@ -1548,7 +1547,7 @@ Examples:
             },
           });
         }
-        process.exit(0);
+        return;
       }
     });
 
@@ -1625,7 +1624,7 @@ Examples:
           }
         }
 
-        process.exit(0);
+        return;
       } catch (error) {
         // Fail-open on error
         if (options.json) {
@@ -1636,7 +1635,7 @@ Examples:
             },
           });
         }
-        process.exit(0);
+        return;
       }
     });
 
@@ -1722,12 +1721,12 @@ Examples:
         }
         // Silent in non-JSON mode to avoid cluttering output
 
-        process.exit(0);
+        return;
       } catch (error) {
         if (options.json) {
           printJson({ success: false, error: error instanceof Error ? error.message : 'unknown' });
         }
-        process.exit(0);
+        return;
       }
     });
 

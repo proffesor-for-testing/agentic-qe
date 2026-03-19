@@ -182,6 +182,7 @@ try {
   await build({
     entryPoints: [join(__dirname, '..', 'src/cli/index.ts')],
     bundle: true,
+    minify: true,
     platform: 'node',
     format: 'esm',
     external: esmExternals,

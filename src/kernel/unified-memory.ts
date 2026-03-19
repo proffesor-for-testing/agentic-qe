@@ -762,20 +762,12 @@ export class UnifiedMemoryManager {
 
   /**
    * Count rows in a table. Used by fleet_status to report learning metrics.
-   * Only allows known learning tables for safety.
+   * Uses the canonical ALLOWED_TABLE_NAMES from sql-safety.ts (single source of truth).
    */
   queryCount(table: string): number {
     this.ensureInitialized();
-    const ALLOWED_TABLES = [
-      'qe_patterns', 'captured_experiences', 'qe_trajectories',
-      'experience_applications', 'dream_cycles', 'dream_insights',
-      'concept_nodes', 'concept_edges', 'rl_q_values', 'vectors',
-      'kv_store', 'routing_outcomes', 'qe_pattern_usage',
-    ];
-    if (!ALLOWED_TABLES.includes(table)) {
-      throw new Error(`queryCount: table '${table}' not in allowed list`);
-    }
-    const row = this.db!.prepare(`SELECT COUNT(*) as c FROM ${table}`).get() as { c: number };
+    const validated = validateTableName(table);
+    const row = this.db!.prepare(`SELECT COUNT(*) as c FROM ${validated}`).get() as { c: number };
     return row.c;
   }
 
