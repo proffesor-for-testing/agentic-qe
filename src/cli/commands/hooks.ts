@@ -433,6 +433,23 @@ async function persistCommandExperience(opts: {
     }
     const db = um.getDatabase();
     const id = `cli-${Date.now()}-${randomUUID().slice(0, 8)}`;
+
+    // Compute quality based on context rather than binary success/fail.
+    // Duration-aware: fast successful ops get higher quality.
+    // Source-aware: post-task and post-edit are higher signal than post-command.
+    const durationMs = opts.durationMs || 0;
+    let quality: number;
+    if (opts.success) {
+      // Successful: base 0.7, bonus for fast execution (< 5s), bonus for high-signal sources
+      const speedBonus = durationMs > 0 && durationMs < 5000 ? 0.1 : 0;
+      const sourceBonus = opts.source.includes('post-task') ? 0.1 : opts.source.includes('post-edit') ? 0.05 : 0;
+      quality = Math.min(0.95, 0.7 + speedBonus + sourceBonus);
+    } else {
+      // Failed: base 0.3, but higher for post-task (still learned something)
+      const sourceBonus = opts.source.includes('post-task') ? 0.15 : opts.source.includes('post-edit') ? 0.1 : 0;
+      quality = Math.min(0.6, 0.3 + sourceBonus);
+    }
+
     db.prepare(`
       INSERT OR REPLACE INTO captured_experiences
         (id, task, agent, domain, success, quality, duration_ms,
@@ -444,8 +461,8 @@ async function persistCommandExperience(opts: {
       opts.agent,
       opts.domain,
       opts.success ? 1 : 0,
-      opts.success ? 0.7 : 0.3,
-      opts.durationMs || 0,
+      quality,
+      durationMs,
       opts.source
     );
   } catch (error) {

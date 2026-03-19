@@ -287,22 +287,17 @@ function getLearningMetrics(projectDir) {
     };
   }
 
-  // Consolidated V3 DB has BOTH old schema tables (migrated) and new V3 tables
-  // Read from ALL relevant tables for complete metrics
-
-  // Legacy patterns (migrated from root DB)
-  const legacyPatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM patterns')) || 0;
-  // V3 SONA patterns (new V3 neural patterns)
+  // Count only MEANINGFUL patterns — exclude benchmark junk, zero-usage noise
+  // QE patterns: only those with actual usage or non-default quality
+  const qePatterns = parseInt(sqlite3Query(dbPath,
+    "SELECT COUNT(*) FROM qe_patterns WHERE usage_count > 0 OR quality_score > 0 OR name NOT LIKE 'bench-%'")) || 0;
+  // SONA patterns (neural patterns from real task executions)
   const sonaPatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM sona_patterns')) || 0;
   // Synthesized patterns (dream-generated)
   const synthesized = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM synthesized_patterns')) || 0;
-  // QE patterns (v3 pattern store)
-  const qePatterns = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM qe_patterns')) || 0;
-  // KV store patterns (MCP-stored patterns)
-  const kvPatterns = parseInt(sqlite3Query(dbPath, "SELECT COUNT(*) FROM kv_store WHERE key LIKE '%pattern%'")) || 0;
 
-  // Total patterns = legacy + SONA + QE + KV patterns (deduplicated estimate)
-  const patterns = legacyPatterns + sonaPatterns + qePatterns + Math.floor(kvPatterns / 10);
+  // Total = real QE patterns + SONA (no inflated composites)
+  const patterns = qePatterns + sonaPatterns;
 
   // Learning experiences (migrated from root DB)
   const legacyExperiences = parseInt(sqlite3Query(dbPath, 'SELECT COUNT(*) FROM learning_experiences')) || 0;
