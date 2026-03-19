@@ -42,8 +42,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: 'npm' }
       - run: npm ci
+      - run: npm run build
       - name: Run handler tests
-        run: vitest run tests/unit/mcp/handlers/ --fileParallelism=false
+        run: npx vitest run tests/unit/mcp/handlers/ --fileParallelism=false
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -62,8 +63,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: 'npm' }
       - run: npm ci
+      - run: npm run build
       - name: Run security tests
-        run: vitest run tests/unit/mcp/security/ --fileParallelism=false
+        run: npx vitest run tests/unit/mcp/security/ --fileParallelism=false
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -82,9 +84,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: 'npm' }
       - run: npm ci
+      - run: npm run build
       - name: Run tools, transport, metrics tests
         run: >-
-          vitest run
+          npx vitest run
           tests/unit/mcp/tools/
           tests/unit/mcp/transport/
           tests/unit/mcp/metrics/
@@ -107,9 +110,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: 'npm' }
       - run: npm ci
+      - run: npm run build
       - name: Run root-level MCP tests
         run: >-
-          vitest run
+          npx vitest run
           tests/unit/mcp/mcp-server.test.ts
           tests/unit/mcp/mcp-performance-benchmark.test.ts
           tests/unit/mcp/tool-registry-security.test.ts
@@ -144,7 +148,7 @@ jobs:
 
       - name: Generate test report
         uses: dorny/test-reporter@v1
-        if: always()
+        if: always() && hashFiles('junit.xml') != ''
         with:
           name: MCP Integration Test Results
           path: 'junit.xml'
