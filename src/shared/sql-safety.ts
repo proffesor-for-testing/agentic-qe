@@ -40,7 +40,12 @@ export const ALLOWED_TABLE_NAMES = new Set([
   // Audit trail
   'witness_chain', 'witness_chain_receipts', 'witness_chain_archive',
   // Trajectory tables
-  'trajectories',
+  'trajectories', 'trajectory_steps',
+  // Pattern evolution tables
+  'pattern_evolution_events', 'pattern_relationships', 'pattern_versions',
+  // Learning/metrics tables
+  'learning_daily_snapshots', 'metrics_outcomes',
+  'experience_consolidation_log', 'qe_pattern_reuse',
   // Co-execution tables
   'qe_agent_co_execution',
 ]);
