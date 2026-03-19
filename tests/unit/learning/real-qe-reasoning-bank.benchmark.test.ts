@@ -321,7 +321,7 @@ describe('SQLite Persistence Benchmarks', () => {
       fs.unlinkSync(TEST_SQLITE_PATH);
     }
 
-    store = createSQLitePatternStore({ dbPath: TEST_SQLITE_PATH });
+    store = createSQLitePatternStore({ dbPath: TEST_SQLITE_PATH, useUnified: false });
     await store.initialize();
   });
 

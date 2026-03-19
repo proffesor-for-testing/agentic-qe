@@ -1,8 +1,5 @@
 name: Optimized CI
 
-# Optimized CI workflow targeting < 2 minute execution
-# Runs journey tests first (highest value), then contracts and critical infrastructure
-
 on:
   push:
     branches: [main, develop]
@@ -10,9 +7,11 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
+# On PRs: cancel stale runs when a new push arrives (old run is obsolete).
+# On main: never cancel — every push must run to completion for accurate CI signal.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -20,39 +19,117 @@ permissions:
   pull-requests: write
   checks: write
 
+# ─── Shared exclusions for journey test shards ───
+# The original test:journeys:ci command excludes these directories:
+#   browser, browser-integration, mcp, sync, learning, domains, llm, n8n, *.e2e.test.ts
+# By targeting specific subdirectories per shard, most exclusions are implicit.
+# Only the "remaining" shard needs explicit excludes.
+
 jobs:
-  # Fast path: Journey + Contract tests (primary quality signal)
-  fast-tests:
-    name: Fast Tests (Journey + Contract)
+  # ─── Journey Tests: 4 parallel shards ───
+  # Previously a single 25-min job that timed out. Now 4 shards of ~5-8 min each.
+
+  journey-governance:
+    name: Journey — Governance
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
-      - name: Run Journey Tests
-        id: journey-tests
-        run: npm run test:journeys:ci || echo "journey_failed=true" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run governance integration tests
+        run: npx vitest run tests/integration/governance/
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-        continue-on-error: true
 
-      - name: Run Contract Tests
-        id: contract-tests
-        if: always()
+  journey-ruvector-coordination:
+    name: Journey — RuVector + Coordination
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run ruvector + coordination integration tests
+        run: npx vitest run tests/integration/ruvector/ tests/integration/coordination/
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+
+  journey-root:
+    name: Journey — Root-level
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run root-level integration tests
+        run: |
+          # Run only test files directly in tests/integration/ (not in subdirectories)
+          FILES=$(find tests/integration -maxdepth 1 -name '*.test.ts' ! -name '*.e2e.test.ts' | sort)
+          if [ -n "$FILES" ]; then
+            npx vitest run $FILES
+          else
+            echo "No root-level integration tests found"
+          fi
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+
+  journey-remaining:
+    name: Journey — Remaining Subdirs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run remaining integration subdirectory tests
+        run: |
+          # Everything in tests/integration subdirs EXCEPT the ones covered by
+          # other shards (governance, ruvector, coordination) and the original
+          # exclusions (browser, mcp, sync, learning, domains, llm, n8n).
+          npx vitest run \
+            tests/integration/adapters/ \
+            tests/integration/cli/ \
+            tests/integration/code-intelligence/ \
+            tests/integration/feedback/ \
+            tests/integration/migration/ \
+            tests/integration/opencode/ \
+            tests/integration/parsers/ \
+            tests/integration/planning/ \
+            tests/integration/protocols/ \
+            tests/integration/requirements-validation/ \
+            tests/integration/rl-suite/ \
+            tests/integration/rvf/ \
+            tests/integration/security/ \
+            tests/integration/templates/ \
+            tests/integration/test-execution/ \
+            tests/integration/test-generation/ \
+            tests/integration/validation/
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+
+  # ─── Contract + Code Intelligence: separate parallel jobs ───
+
+  contract-tests:
+    name: Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run contract tests
         run: |
           if [ -d "tests/unit/domains/contract-testing" ] && [ "$(ls -A tests/unit/domains/contract-testing/*.test.ts 2>/dev/null)" ]; then
             npm run test:contracts
@@ -61,64 +138,35 @@ jobs:
           fi
         env:
           NODE_OPTIONS: '--max-old-space-size=512'
-        continue-on-error: true
 
-      - name: Run Code Intelligence Tests (MinCut/Graph Algorithms)
-        id: code-intelligence-tests
-        if: always()
+  code-intelligence-tests:
+    name: Code Intelligence Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - name: Run code intelligence tests
         run: npm run test:code-intelligence
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
           SKIP_INTEGRATION_TESTS: 'true'
-        continue-on-error: true
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: fast-test-results
-          path: junit.xml
-          retention-days: 7
+  # ─── Infrastructure tests (unchanged, already parallel) ───
 
-      - name: Check test results
-        if: always()
-        run: |
-          FAILED=0
-          if [ "${{ steps.journey-tests.outcome }}" != "success" ]; then
-            echo "Journey tests did not succeed (outcome: ${{ steps.journey-tests.outcome }})"
-            FAILED=1
-          fi
-          if [ "${{ steps.code-intelligence-tests.outcome }}" == "failure" ]; then
-            echo "Code Intelligence tests failed (MinCut/Graph algorithms)"
-            FAILED=1
-          fi
-          if [ "$FAILED" -eq 1 ]; then
-            exit 1
-          fi
-          echo "Fast tests passed (including Code Intelligence)"
-
-  # Infrastructure tests (can run in parallel)
   infrastructure-tests:
     name: Infrastructure Tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
       - name: Run Infrastructure Tests
         run: |
           if [ -d "tests/infrastructure" ] && [ "$(ls -A tests/infrastructure/*.test.ts 2>/dev/null)" ]; then
@@ -129,7 +177,6 @@ jobs:
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
         continue-on-error: true
-
       - name: Run Regression Tests
         run: |
           if [ -d "tests/regression" ] && [ "$(find tests/regression -name '*.test.ts' 2>/dev/null | head -1)" ]; then
@@ -141,12 +188,12 @@ jobs:
           NODE_OPTIONS: '--max-old-space-size=512'
         continue-on-error: true
 
-  # Postgres integration tests
+  # ─── Postgres integration tests (unchanged) ───
+
   integration-tests:
     name: Postgres Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -161,53 +208,32 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
       - name: Run Postgres integration tests
         run: npm run test:integration:pg
         env:
           POSTGRES_URL: postgresql://aqe_test:aqe_test@localhost:15432/aqe_test
           NODE_OPTIONS: '--max-old-space-size=1024'
 
-  # Performance gates
+  # ─── Performance gates (after journey shards complete) ───
+
   performance-gates:
     name: Performance Gates
     runs-on: ubuntu-latest
-    needs: fast-tests
-    if: always() && needs.fast-tests.result != 'cancelled'
+    needs: [journey-governance, journey-ruvector-coordination, journey-root, journey-remaining, contract-tests, code-intelligence-tests]
+    if: always() && !contains(needs.*.result, 'cancelled')
     timeout-minutes: 10
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
       - name: Run Performance Gates
         id: perf-gates
         run: |
@@ -215,15 +241,12 @@ jobs:
           echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
           cat perf-report.md
         continue-on-error: true
-
-      - name: Upload performance report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-report
           path: perf-report.md
           retention-days: 30
-
       - name: Check performance gate results
         if: always()
         run: |
@@ -234,58 +257,43 @@ jobs:
             echo "Performance gates passed with warnings"
           else
             echo "Performance gates failed (exit code: $EXIT_CODE)"
-            # Don't fail the build on performance warnings, only on failures
             if [ "$EXIT_CODE" -eq 1 ]; then
               exit 1
             fi
           fi
 
-  # Coverage analysis (runs after fast tests)
+  # ─── Coverage analysis (PRs only, after journey shards) ───
+
   coverage:
     name: Coverage Analysis
     runs-on: ubuntu-latest
-    needs: fast-tests
+    needs: [journey-governance, journey-ruvector-coordination, journey-root, journey-remaining]
     timeout-minutes: 10
-    if: always() && github.event_name == 'pull_request' && needs.fast-tests.result != 'cancelled'
-
+    if: always() && github.event_name == 'pull_request' && !contains(needs.*.result, 'cancelled')
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
         run: npm run test:coverage
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
         continue-on-error: true
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-report
           path: coverage/
           retention-days: 7
-
       - name: Check coverage thresholds
         if: always()
         run: |
           if [ -f "coverage/coverage-summary.json" ]; then
             COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
             echo "Line coverage: ${COVERAGE}%"
-
             if (( $(echo "$COVERAGE < 80" | bc -l) )); then
               echo "Coverage below 80% threshold"
             else
@@ -293,27 +301,20 @@ jobs:
             fi
           fi
 
-  # Test dashboard (summary job)
+  # ─── Test dashboard (summary) ───
+
   dashboard:
     name: Test Dashboard
     runs-on: ubuntu-latest
-    needs: [fast-tests, infrastructure-tests]
+    needs: [journey-governance, journey-ruvector-coordination, journey-root, journey-remaining, contract-tests, code-intelligence-tests, infrastructure-tests]
     if: always()
     timeout-minutes: 2
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
       - name: Generate Dashboard
-        run: |
-          node scripts/test-dashboard.cjs
-
+        run: node scripts/test-dashboard.cjs
       - name: Generate Migration Metrics
         run: |
           echo "# CI Test Metrics" > ci-metrics.md
@@ -334,7 +335,6 @@ jobs:
           echo "- Skipped tests: $skipped (target: 0)" >> ci-metrics.md
           echo "" >> ci-metrics.md
 
-          # Progress calculation
           baseline_files=426
           baseline_lines=208253
           files_reduced=$((baseline_files - total_files))
@@ -345,14 +345,11 @@ jobs:
           echo "- Lines reduced: $lines_reduced (-$((lines_reduced * 100 / baseline_lines))%)" >> ci-metrics.md
 
           cat ci-metrics.md
-
-      - name: Upload metrics
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ci-metrics
           path: ci-metrics.md
           retention-days: 30
-
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -369,7 +366,6 @@ jobs:
             ---
             *Generated by Optimized CI*`;
 
-            // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,

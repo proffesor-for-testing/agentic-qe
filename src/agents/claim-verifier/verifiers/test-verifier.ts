@@ -10,7 +10,7 @@
  * @module agents/claim-verifier/verifiers
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -22,7 +22,27 @@ import type {
 } from '../interfaces';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Allowlist of commands that may be executed for test verification.
+ * Only npm scripts are permitted — arbitrary shell commands are blocked (CWE-78).
+ */
+interface AllowedCommand {
+  readonly bin: string;
+  readonly args: readonly string[];
+}
+
+const ALLOWED_TEST_COMMANDS: ReadonlyMap<string, AllowedCommand> = new Map<string, AllowedCommand>([
+  ['npm test', { bin: 'npm', args: ['test'] }],
+  ['npm run test', { bin: 'npm', args: ['run', 'test'] }],
+  ['npm run test:unit', { bin: 'npm', args: ['run', 'test:unit'] }],
+  ['npm run test:unit:fast', { bin: 'npm', args: ['run', 'test:unit:fast'] }],
+  ['npm run test:ci', { bin: 'npm', args: ['run', 'test:ci'] }],
+  ['npm run test:coverage', { bin: 'npm', args: ['run', 'test:coverage'] }],
+  ['npm run test:e2e', { bin: 'npm', args: ['run', 'test:e2e'] }],
+  ['npm run test:safe', { bin: 'npm', args: ['run', 'test:safe'] }],
+]);
 
 /**
  * Configuration for test-based verification.
@@ -423,9 +443,17 @@ export class TestBasedVerifier {
 
   /**
    * Run tests and parse results.
+   * Uses execFile with an allowlist to prevent command injection (CWE-78).
    */
   private async runTests(): Promise<TestResults> {
-    const { stdout, stderr } = await execAsync(this.config.testCommand, {
+    const allowed = ALLOWED_TEST_COMMANDS.get(this.config.testCommand);
+    if (!allowed) {
+      throw new Error(
+        `Test command not in allowlist: "${this.config.testCommand}". Allowed: ${[...ALLOWED_TEST_COMMANDS.keys()].join(', ')}`
+      );
+    }
+
+    const { stdout, stderr } = await execFileAsync(allowed.bin, [...allowed.args], {
       cwd: this.config.rootDir,
       timeout: this.config.timeout,
     });

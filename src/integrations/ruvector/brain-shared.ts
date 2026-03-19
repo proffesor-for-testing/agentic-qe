@@ -20,6 +20,7 @@ import { createHash } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, openSync, writeSync, closeSync } from 'fs';
 import Database from 'better-sqlite3';
 import { ensureAllBrainTables } from './brain-table-ddl.js';
+import { validateTableName } from '../../shared/sql-safety.js';
 
 // --- Types ---
 
@@ -222,7 +223,8 @@ export function countRows(
   whereClause?: string, params?: unknown[]
 ): number {
   if (!tableExists(db, table)) return 0;
-  const sql = `SELECT COUNT(*) as cnt FROM ${table}${whereClause ? ` WHERE ${whereClause}` : ''}`;
+  const validated = validateTableName(table);
+  const sql = `SELECT COUNT(*) as cnt FROM ${validated}${whereClause ? ` WHERE ${whereClause}` : ''}`;
   const stmt = db.prepare(sql);
   const row = (params && params.length > 0 ? stmt.get(...params) : stmt.get()) as { cnt: number };
   return row.cnt;
@@ -233,7 +235,8 @@ export function queryAll(
   whereClause?: string, params?: unknown[]
 ): unknown[] {
   if (!tableExists(db, table)) return [];
-  const sql = `SELECT * FROM ${table}${whereClause ? ` WHERE ${whereClause}` : ''}`;
+  const validated = validateTableName(table);
+  const sql = `SELECT * FROM ${validated}${whereClause ? ` WHERE ${whereClause}` : ''}`;
   const stmt = db.prepare(sql);
   return (params && params.length > 0 ? stmt.all(...params) : stmt.all()) as unknown[];
 }
@@ -247,7 +250,8 @@ export function* queryIterator(
   whereClause?: string, params?: unknown[]
 ): Generator<unknown> {
   if (!tableExists(db, table)) return;
-  const sql = `SELECT * FROM ${table}${whereClause ? ` WHERE ${whereClause}` : ''}`;
+  const validated = validateTableName(table);
+  const sql = `SELECT * FROM ${validated}${whereClause ? ` WHERE ${whereClause}` : ''}`;
   const stmt = db.prepare(sql);
   const iter = params && params.length > 0 ? stmt.iterate(...params) : stmt.iterate();
   for (const row of iter) {
@@ -316,10 +320,11 @@ export function readJsonl<T = unknown>(
 
 /** Dynamically insert a row into any table using its column keys. */
 function dynamicInsert(db: Database.Database, tableName: string, row: Record<string, unknown>): void {
+  const validated = validateTableName(tableName);
   const keys = Object.keys(row);
   const cols = keys.join(', ');
   const placeholders = keys.map(() => '?').join(', ');
-  db.prepare(`INSERT INTO ${tableName} (${cols}) VALUES (${placeholders})`).run(
+  db.prepare(`INSERT INTO ${validated} (${cols}) VALUES (${placeholders})`).run(
     ...keys.map(k => row[k] ?? null)
   );
 }
@@ -328,10 +333,11 @@ function dynamicInsert(db: Database.Database, tableName: string, row: Record<str
 function dynamicUpdate(
   db: Database.Database, tableName: string, row: Record<string, unknown>, idColumn: string
 ): void {
+  const validated = validateTableName(tableName);
   const keys = Object.keys(row).filter(k => k !== idColumn);
   if (keys.length === 0) return;
   const sets = keys.map(k => `${k} = ?`).join(', ');
-  db.prepare(`UPDATE ${tableName} SET ${sets} WHERE ${idColumn} = ?`).run(
+  db.prepare(`UPDATE ${validated} SET ${sets} WHERE ${idColumn} = ?`).run(
     ...keys.map(k => row[k] ?? null), row[idColumn]
   );
 }
@@ -345,14 +351,15 @@ export function mergeGenericRow(
   idColumn: string, strategy: MergeStrategy,
   timestampColumn?: string, confidenceColumn?: string
 ): MergeResult {
-  if (!tableExists(db, tableName)) {
-    dynamicInsert(db, tableName, row);
+  const validated = validateTableName(tableName);
+  if (!tableExists(db, validated)) {
+    dynamicInsert(db, validated, row);
     return { imported: 1, skipped: 0, conflicts: 0 };
   }
-  const existing = db.prepare(`SELECT * FROM ${tableName} WHERE ${idColumn} = ?`)
+  const existing = db.prepare(`SELECT * FROM ${validated} WHERE ${idColumn} = ?`)
     .get(row[idColumn]) as Record<string, unknown> | undefined;
   if (!existing) {
-    dynamicInsert(db, tableName, row);
+    dynamicInsert(db, validated, row);
     return { imported: 1, skipped: 0, conflicts: 0 };
   }
   switch (strategy) {
@@ -363,7 +370,7 @@ export function mergeGenericRow(
       const existingTime = (existing[ts] as string) || '';
       const incomingTime = (row[ts] as string) || '';
       if (incomingTime > existingTime) {
-        dynamicUpdate(db, tableName, row, idColumn);
+        dynamicUpdate(db, validated, row, idColumn);
         return { imported: 1, skipped: 0, conflicts: 1 };
       }
       return { imported: 0, skipped: 1, conflicts: 1 };
@@ -372,7 +379,7 @@ export function mergeGenericRow(
       const cc = confidenceColumn || 'confidence';
       if (typeof row[cc] === 'number' && typeof existing[cc] === 'number') {
         if ((row[cc] as number) > (existing[cc] as number)) {
-          dynamicUpdate(db, tableName, row, idColumn);
+          dynamicUpdate(db, validated, row, idColumn);
           return { imported: 1, skipped: 0, conflicts: 1 };
         }
       }
@@ -391,14 +398,15 @@ export function mergeAppendOnlyRow(
   db: Database.Database, tableName: string,
   row: Record<string, unknown>, dedupColumns: readonly string[]
 ): MergeResult {
-  if (!tableExists(db, tableName)) {
-    dynamicInsert(db, tableName, row);
+  const validated = validateTableName(tableName);
+  if (!tableExists(db, validated)) {
+    dynamicInsert(db, validated, row);
     return { imported: 1, skipped: 0, conflicts: 0 };
   }
   const whereParts = dedupColumns.map(c => `${c} = ?`);
   const params = dedupColumns.map(c => row[c] ?? null);
   const existing = db.prepare(
-    `SELECT 1 FROM ${tableName} WHERE ${whereParts.join(' AND ')} LIMIT 1`
+    `SELECT 1 FROM ${validated} WHERE ${whereParts.join(' AND ')} LIMIT 1`
   ).get(...params);
   if (existing) {
     return { imported: 0, skipped: 1, conflicts: 1 };
@@ -406,7 +414,7 @@ export function mergeAppendOnlyRow(
   // Strip AUTOINCREMENT id column before insert
   const insertRow = { ...row };
   delete insertRow.id;
-  dynamicInsert(db, tableName, insertRow);
+  dynamicInsert(db, validated, insertRow);
   return { imported: 1, skipped: 0, conflicts: 0 };
 }
 

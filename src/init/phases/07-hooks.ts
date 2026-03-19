@@ -364,7 +364,7 @@ try {
     const Database = require('better-sqlite3');
     const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     db.pragma('busy_timeout = 5000');
-    patterns = db.prepare('SELECT COUNT(*) AS c FROM qe_patterns').get()?.c || 0;
+    patterns = db.prepare("SELECT COUNT(*) AS c FROM qe_patterns WHERE usage_count > 0 OR quality_score > 0 OR name NOT LIKE 'bench-%'").get()?.c || 0;
     db.close();
   }
 } catch { /* ignore */ }

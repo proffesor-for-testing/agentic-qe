@@ -11,9 +11,11 @@ on:
     branches: [main]
     paths:
       - 'n8n/workflows/**'
-  schedule:
-    # Daily regression at 6 AM UTC
-    - cron: '0 6 * * *'
+  # schedule:
+    # Daily regression at 6 AM UTC — disabled: workflow has 100% failure rate
+    # since at least 2026-03-15. Re-enable once N8N_API_KEY secret and n8n
+    # instance are configured. See issue #350.
+    # - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       environment:
