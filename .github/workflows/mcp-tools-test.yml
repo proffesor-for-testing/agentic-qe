@@ -23,78 +23,118 @@ on:
       - 'tests/integration/mcp/**'
       - 'package.json'
 
+# On PRs: cancel stale runs when a new push arrives (old run is obsolete).
+# On main: never cancel — every push must run to completion for accurate CI signal.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  mcp-unit-tests:
-    name: MCP Unit Tests (Batched)
+  # Split MCP unit tests into parallel shards by subdirectory.
+  # Previously ran as one sequential job hitting the 30-min timeout.
+  # Now each shard runs in ~8-12 min instead of ~25 min total.
+  mcp-unit-handlers:
+    name: MCP Units — Handlers
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Re-enabled in v2.5.4 with batched execution - Issue #39 resolved
-
+    timeout-minutes: 15
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: TypeScript pre-check
-        run: npm run typecheck
-        # Fail fast on type errors before running tests
-
-      - name: Run MCP unit tests (batched)
-        run: npm run test:mcp
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - name: Run handler tests
+        run: vitest run tests/unit/mcp/handlers/ --fileParallelism=false
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-        # Batched execution runs 7 batches sequentially to prevent OOM
-        # Each batch: core, coordination, memory, analysis, test-tools, security, other
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          files: ./coverage/coverage-final.json
-          flags: mcp-unit
-          name: mcp-unit-coverage
-          fail_ci_if_error: false
+          name: mcp-unit-handlers-results
+          path: junit.xml
+          retention-days: 14
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+  mcp-unit-security:
+    name: MCP Units — Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - name: Run security tests
+        run: vitest run tests/unit/mcp/security/ --fileParallelism=false
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mcp-unit-test-results
-          path: |
-            coverage/
-            test-results/
-            junit.xml
-          retention-days: 30
+          name: mcp-unit-security-results
+          path: junit.xml
+          retention-days: 14
+
+  mcp-unit-tools-transport:
+    name: MCP Units — Tools + Transport + Metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - name: Run tools, transport, metrics tests
+        run: >-
+          vitest run
+          tests/unit/mcp/tools/
+          tests/unit/mcp/transport/
+          tests/unit/mcp/metrics/
+          --fileParallelism=false
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-unit-tools-transport-results
+          path: junit.xml
+          retention-days: 14
+
+  mcp-unit-root:
+    name: MCP Units — Root Files
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - name: Run root-level MCP tests
+        run: >-
+          vitest run
+          tests/unit/mcp/mcp-server.test.ts
+          tests/unit/mcp/mcp-performance-benchmark.test.ts
+          tests/unit/mcp/tool-registry-security.test.ts
+          tests/unit/mcp/tool-scoping.test.ts
+          tests/unit/mcp/wrapped-domain-handlers.test.ts
+          --fileParallelism=false
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-unit-root-results
+          path: junit.xml
+          retention-days: 14
 
   mcp-integration-tests:
     name: MCP Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
 
       - name: Run MCP integration tests
         run: npm run test:mcp:integration
@@ -112,8 +152,7 @@ jobs:
           fail-on-error: false
           fail-on-empty: false
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mcp-integration-test-results
@@ -128,29 +167,17 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
 
       - name: Validate MCP tools
         run: npm run mcp:validate
-        # Note: Will report 35/54 tools missing tests (accurate)
-        # Validation script fixed to search subdirectories recursively
         continue-on-error: true
 
-      - name: Upload validation report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mcp-validation-report
@@ -161,8 +188,7 @@ jobs:
         run: npm run mcp:report
         if: always()
 
-      - name: Upload MCP report
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: mcp-report
@@ -172,7 +198,7 @@ jobs:
   mcp-summary:
     name: MCP Test Summary
     runs-on: ubuntu-latest
-    needs: [mcp-unit-tests, mcp-integration-tests, mcp-validation]
+    needs: [mcp-unit-handlers, mcp-unit-security, mcp-unit-tools-transport, mcp-unit-root, mcp-integration-tests, mcp-validation]
     if: always()
 
     steps:
@@ -202,13 +228,17 @@ jobs:
                 summary += `- Coverage: ${report.coverage}%\n\n`;
               }
             } catch (err) {
-              summary += '### Validation Results\n❌ Validation report not found\n\n';
+              summary += '### Validation Results\n- Validation report not found\n\n';
             }
 
-            summary += '### Test Results\n';
-            summary += '- ✅ Unit Tests: ${{ needs.mcp-unit-tests.result }}\n';
-            summary += '- ✅ Integration Tests: ${{ needs.mcp-integration-tests.result }}\n';
-            summary += '- ✅ Validation: ${{ needs.mcp-validation.result }}\n';
+            summary += '### Unit Test Results\n';
+            summary += '- Handlers: ${{ needs.mcp-unit-handlers.result }}\n';
+            summary += '- Security: ${{ needs.mcp-unit-security.result }}\n';
+            summary += '- Tools/Transport: ${{ needs.mcp-unit-tools-transport.result }}\n';
+            summary += '- Root: ${{ needs.mcp-unit-root.result }}\n\n';
+            summary += '### Other Results\n';
+            summary += '- Integration Tests: ${{ needs.mcp-integration-tests.result }}\n';
+            summary += '- Validation: ${{ needs.mcp-validation.result }}\n';
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,

@@ -4,9 +4,10 @@ name: Performance Benchmarks
 # Removed from push/PR to reduce CI costs (~70% cost savings)
 
 on:
-  # Weekly schedule - Sunday at 2 AM UTC
-  schedule:
-    - cron: '0 2 * * 0'
+  # Weekly schedule - Sunday at 2 AM UTC — disabled: benchmark suite fails
+  # consistently (missing benchmarks/suite.ts or dependencies). See #350.
+  # schedule:
+  #   - cron: '0 2 * * 0'
   # Run on releases for baseline updates
   release:
     types: [published]

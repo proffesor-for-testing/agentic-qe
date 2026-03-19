@@ -6,9 +6,10 @@ on:
     workflows: ["Publish to npm"]
     types: [completed]
 
-  # Weekly health check - Monday 6 AM UTC
-  schedule:
-    - cron: '0 6 * * 1'
+  # Weekly health check - Monday 6 AM UTC — disabled: collect-production-telemetry.sh
+  # fails (missing dependencies or config). Re-enable once script is fixed. See #350.
+  # schedule:
+  #   - cron: '0 6 * * 1'
 
   # Manual trigger
   workflow_dispatch:
