@@ -13,7 +13,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -39,6 +39,10 @@ describe('AdversarialDefense Integration - ADR-058 Phase 4', () => {
     adversarialDefenseIntegration.reset();
     await adversarialDefenseIntegration.initialize();
     trustAccumulatorIntegration.reset();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Injection Pattern Detection', () => {

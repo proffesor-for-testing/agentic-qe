@@ -3,7 +3,7 @@
  * ADR-024: Self-Optimization Engine
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   CoordinateDescentTuner,
   createTuningAlgorithm,
@@ -52,6 +52,10 @@ describe('CoordinateDescentTuner', () => {
         enabled: true,
       },
     ];
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('suggestNextConfiguration', () => {

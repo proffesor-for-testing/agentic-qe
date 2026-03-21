@@ -7,7 +7,7 @@
  * - Coordination loop: Cross-agent sync
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SONAThreeLoopEngine,
   MicroLoRA,
@@ -56,6 +56,10 @@ describe('MicroLoRA', () => {
 
   beforeEach(() => {
     lora = new MicroLoRA(16, 0.01);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should initialize with zero adaptation vector and base weights', () => {

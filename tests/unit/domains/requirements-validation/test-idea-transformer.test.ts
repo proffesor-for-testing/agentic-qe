@@ -5,7 +5,7 @@
  * This service CAN be tested programmatically (no LLM required).
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TestIdeaTransformerService,
   createTestIdeaTransformerService,
@@ -16,6 +16,10 @@ describe('TestIdeaTransformerService', () => {
 
   beforeEach(() => {
     service = createTestIdeaTransformerService();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('transform - API patterns', () => {

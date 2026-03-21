@@ -6,7 +6,7 @@
  * Cohen's d effect size and confidence scoring.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createVersionComparator,
   VersionComparator,
@@ -97,6 +97,10 @@ describe('VersionComparator', () => {
 
   beforeEach(() => {
     comparator = createVersionComparator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

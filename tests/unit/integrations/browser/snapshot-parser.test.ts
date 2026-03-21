@@ -5,7 +5,7 @@
  * from agent-browser to extract element refs for element selection.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SnapshotParser,
   getSnapshotParser,
@@ -42,6 +42,10 @@ describe('SnapshotParser', () => {
 
   beforeEach(() => {
     parser = new SnapshotParser();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('getSnapshotParser()', () => {

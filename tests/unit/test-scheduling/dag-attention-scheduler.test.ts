@@ -11,7 +11,7 @@
  * - Edge cases (no dependencies, linear chain, diamond pattern)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   DAGAttentionScheduler,
   createDAGAttentionScheduler,
@@ -127,6 +127,10 @@ describe('DAGAttentionScheduler', () => {
 
   beforeEach(() => {
     scheduler = new DAGAttentionScheduler();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

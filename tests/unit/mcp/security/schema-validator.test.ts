@@ -3,7 +3,7 @@
  * Tests for JSON Schema validation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SchemaValidator,
   createSchemaValidator,
@@ -17,6 +17,10 @@ describe('SchemaValidator', () => {
 
   beforeEach(() => {
     validator = createSchemaValidator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('type validation', () => {

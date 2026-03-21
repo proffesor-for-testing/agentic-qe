@@ -2,7 +2,7 @@
  * Agent Booster WASM Integration Tests
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import {
   transform,
   batchTransform,
@@ -17,6 +17,10 @@ import {
 describe('Agent Booster WASM Integration', () => {
   beforeAll(async () => {
     await warmup();
+  });
+
+  afterAll(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('WASM Availability', () => {

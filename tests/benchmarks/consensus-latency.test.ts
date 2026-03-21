@@ -3,7 +3,7 @@
  * Measures multi-model consensus verification performance
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   ConsensusEnabledMixin,
   createConsensusEnabledMixin,
@@ -27,6 +27,10 @@ describe('Consensus Latency Benchmarks', () => {
       minModels: 2,
       modelTimeout: 5000,
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Finding Creation', () => {

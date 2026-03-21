@@ -4,7 +4,7 @@
  * Tests for the programmatic QX analysis MCP tools.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { QXAnalyzeTool } from '../../../../src/mcp/tools/qx-analysis/analyze';
 import { QXHeuristicsEngine } from '../../../../src/mcp/tools/qx-analysis/heuristics-engine';
 import { OracleDetector } from '../../../../src/mcp/tools/qx-analysis/oracle-detector';
@@ -16,6 +16,10 @@ describe('QXHeuristicsEngine', () => {
 
   beforeEach(() => {
     engine = new QXHeuristicsEngine();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should apply all 23 heuristics by default', async () => {

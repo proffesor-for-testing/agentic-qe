@@ -9,7 +9,7 @@
  * - Provider format detection
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   DefaultPromptTranslator,
   createPromptTranslator,
@@ -149,6 +149,10 @@ describe('Translation Layer Integration Tests', () => {
 
     beforeEach(() => {
       translator = new DefaultPromptTranslator();
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should translate messages from Anthropic to OpenAI format', () => {

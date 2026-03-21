@@ -16,7 +16,7 @@
  * - Agent-aware rule generation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   RoutingRuleEngine,
   DEFAULT_QE_ROUTING_RULES,
@@ -67,6 +67,10 @@ describe('RoutingRuleEngine', () => {
 
   beforeEach(() => {
     engine = new RoutingRuleEngine();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

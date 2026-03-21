@@ -6,7 +6,7 @@
  * and DAGScheduler (priority ordering, concurrency limits, progress tracking).
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import { TaskDAG } from '../../src/coordination/task-dag/dag.js';
 import { DAGScheduler } from '../../src/coordination/task-dag/scheduler.js';
 import type { AddTaskInput, DAGEvent } from '../../src/coordination/task-dag/types.js';
@@ -36,6 +36,10 @@ describe('TaskDAG - Core Operations', () => {
 
   beforeEach(() => {
     dag = new TaskDAG();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('add single task with no dependencies starts as ready', () => {

@@ -8,7 +8,7 @@
  * @module tests/unit/learning/dream/spreading-activation-bounds
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SpreadingActivation,
   MAX_ACTIVATION_HISTORY_ENTRIES,
@@ -160,6 +160,10 @@ describe('SpreadingActivation History Bounds (Milestone 3.3)', () => {
     beforeEach(() => {
       graph = new MockConceptGraph(50, 3);
       activation = new SpreadingActivation(graph as any);
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should return history sizes via getHistorySizes()', () => {

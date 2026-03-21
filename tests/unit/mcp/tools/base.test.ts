@@ -3,7 +3,7 @@
  * Tests for the base MCP tool infrastructure per ADR-010
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../../../../src/mcp/tools/base';
 import { ToolResult } from '../../../../src/mcp/types';
 
@@ -98,6 +98,10 @@ describe('MCPToolBase', () => {
   beforeEach(() => {
     tool = new TestTool();
     failingTool = new FailingTool();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('properties', () => {

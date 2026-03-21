@@ -5,7 +5,7 @@
  * state tracking, reconnection handling, and history management.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   StateManager,
   createStateManager,
@@ -63,6 +63,10 @@ describe('StateManager', () => {
     manager = createStateManager({
       initialState: { count: 0, name: 'test' },
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ============================================================================

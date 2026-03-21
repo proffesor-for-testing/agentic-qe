@@ -3,7 +3,7 @@
  * ADR-022: Adaptive QE Agent Routing
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   RoutingFeedbackCollector,
   createRoutingFeedbackCollector,
@@ -15,6 +15,10 @@ describe('Routing Feedback Collector', () => {
 
   beforeEach(() => {
     collector = createRoutingFeedbackCollector(100);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   const createMockTask = (description: string): QETask => ({

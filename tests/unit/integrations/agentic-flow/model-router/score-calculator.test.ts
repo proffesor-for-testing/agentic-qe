@@ -12,7 +12,7 @@
  * @module tests/unit/integrations/agentic-flow/model-router/score-calculator
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   ScoreCalculator,
   createScoreCalculator,
@@ -67,6 +67,10 @@ describe('ScoreCalculator', () => {
 
   beforeEach(() => {
     calculator = createScoreCalculator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ============================================================================

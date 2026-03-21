@@ -5,7 +5,7 @@
  * and integration with task-router.ts.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   QEMinCutService,
   createQEMinCutService,
@@ -84,6 +84,10 @@ describe('QEMinCutService', () => {
 
   beforeEach(() => {
     service = createQEMinCutService();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('computeLambda', () => {

@@ -3,7 +3,7 @@
  * ADR-064, Phase 2C: Validates challenge strategies and DevilsAdvocate agent behavior
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   MissingEdgeCaseStrategy,
   FalsePositiveDetectionStrategy,
@@ -48,6 +48,10 @@ describe('MissingEdgeCaseStrategy', () => {
 
   beforeEach(() => {
     strategy = new MissingEdgeCaseStrategy();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('challenges when no error tests found', () => {

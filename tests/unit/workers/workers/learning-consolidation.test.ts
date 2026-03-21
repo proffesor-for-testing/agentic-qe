@@ -10,7 +10,7 @@
  * Unit tests focus on instantiation and lifecycle methods.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { LearningConsolidationWorker } from '../../../../src/workers/workers/learning-consolidation';
 
 describe('LearningConsolidationWorker', () => {
@@ -18,6 +18,10 @@ describe('LearningConsolidationWorker', () => {
 
   beforeEach(() => {
     worker = new LearningConsolidationWorker();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('instantiation', () => {

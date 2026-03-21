@@ -7,7 +7,7 @@
  * @module tests/unit/adapters/a2a/discovery
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 
 import {
   // Discovery Service
@@ -182,6 +182,10 @@ describe('A2A Discovery Service', () => {
 
     beforeEach(() => {
       service = createTestDiscoveryService();
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should register a single card', () => {

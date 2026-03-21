@@ -2,7 +2,7 @@
  * Tests for Adaptive Locator Service
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {
   AdaptiveLocatorService,
   computeSimilarity,
@@ -72,6 +72,11 @@ describe('FingerprintStore', () => {
   beforeEach(() => {
     store = new FingerprintStore(5);
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   it('stores and retrieves fingerprints', () => {
     const fp = makeFingerprint();

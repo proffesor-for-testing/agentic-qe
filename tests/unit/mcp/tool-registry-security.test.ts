@@ -3,7 +3,7 @@
  * Tests for input validation and sanitization in the tool registry
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { ToolRegistry, createToolRegistry } from '../../../src/mcp/tool-registry';
 import { ToolDefinition, ToolHandler, ToolResult } from '../../../src/mcp/types';
 
@@ -26,6 +26,10 @@ describe('Tool Registry Security (SEC-001)', () => {
 
   beforeEach(() => {
     registry = createToolRegistry();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Tool Name Validation', () => {

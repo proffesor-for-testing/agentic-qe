@@ -3,7 +3,7 @@
  * ADR-023: Quality Feedback Loop System
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TestOutcomeTracker,
   createTestOutcomeTracker,
@@ -15,6 +15,10 @@ describe('TestOutcomeTracker', () => {
 
   beforeEach(() => {
     tracker = createTestOutcomeTracker();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   function createOutcome(overrides: Partial<TestOutcome> = {}): TestOutcome {

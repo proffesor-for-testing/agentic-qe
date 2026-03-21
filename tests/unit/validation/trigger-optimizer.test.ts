@@ -4,7 +4,7 @@
  * false positive/negative risk scoring, and suggestion generation.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TriggerOptimizer,
   createTriggerOptimizer,
@@ -45,6 +45,10 @@ describe('TriggerOptimizer', () => {
 
   beforeEach(() => {
     optimizer = createTriggerOptimizer({ similarityThreshold: 0.6 });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

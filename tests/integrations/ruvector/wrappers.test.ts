@@ -10,7 +10,7 @@
  * - See: src/integrations/ruvector/TESTING_LIMITATIONS.md
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import {
   QEGNNEmbeddingIndex,
   initGNN,
@@ -45,6 +45,10 @@ describe.runIf(canTest.gnn)('@ruvector/gnn Wrapper - Real Integration', () => {
         M: 16,
         efConstruction: 200,
       });
+    });
+
+    afterAll(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should initialize index for code namespace', () => {

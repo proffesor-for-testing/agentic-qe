@@ -8,7 +8,7 @@
  * 4. Adapter round-trip latency is <500ms
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { AgentTeamsAdapter } from '../../src/coordination/agent-teams/adapter.js';
 import {
   extractTraceContext,
@@ -24,6 +24,10 @@ describe('ADR-064: Adapter Tracing Integration', () => {
     adapter.initialize();
     adapter.registerAgent('agent-a', 'test-generation');
     adapter.registerAgent('agent-b', 'test-generation');
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('sendMessage() encodes TraceContext into correlationId', () => {

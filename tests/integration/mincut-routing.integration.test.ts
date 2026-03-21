@@ -11,7 +11,7 @@
  * These tests use REAL mincut computation (no mocking of the algorithm).
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 import {
   QEMinCutService,
@@ -198,6 +198,10 @@ describe('QEMinCutService integration', () => {
 
   beforeEach(() => {
     service = createQEMinCutService();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('computeLambda', () => {

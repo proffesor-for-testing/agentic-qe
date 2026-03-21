@@ -2,7 +2,7 @@
  * Agentic QE v3 - Load Tester Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import { LoadTesterService } from '../../../../src/domains/chaos-resilience/services/load-tester';
 import { MemoryBackend, StoreOptions } from '../../../../src/kernel/interfaces';
 import {
@@ -105,6 +105,10 @@ describe('LoadTesterService', () => {
   beforeEach(() => {
     mockMemory = createMockMemory();
     service = new LoadTesterService(mockMemory);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('createTest', () => {

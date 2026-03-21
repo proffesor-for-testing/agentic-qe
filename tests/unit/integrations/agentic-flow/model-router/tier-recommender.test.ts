@@ -10,7 +10,7 @@
  * @module tests/unit/integrations/agentic-flow/model-router/tier-recommender
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TierRecommender,
   createTierRecommender,
@@ -59,6 +59,10 @@ describe('TierRecommender', () => {
 
     beforeEach(() => {
       recommender = createTierRecommender();
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('Tier 0 (Agent Booster) - complexity range [0, 10]', () => {

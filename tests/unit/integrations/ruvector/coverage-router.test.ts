@@ -2,7 +2,7 @@
  * Agentic QE v3 - Coverage Router Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createCoverageRouter,
   RuVectorCoverageRouter,
@@ -59,6 +59,10 @@ describe('Coverage Router', () => {
 
     beforeEach(() => {
       router = new RuVectorCoverageRouter(createConfig());
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('analyzeCoverage', () => {

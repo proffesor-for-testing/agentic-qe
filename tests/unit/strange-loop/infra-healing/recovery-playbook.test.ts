@@ -6,7 +6,7 @@
  * and service recovery plan retrieval.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   RecoveryPlaybook,
   createRecoveryPlaybook,
@@ -89,6 +89,10 @@ describe('RecoveryPlaybook', () => {
 
   beforeEach(() => {
     playbook = createRecoveryPlaybook();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

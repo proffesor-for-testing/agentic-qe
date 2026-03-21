@@ -3,7 +3,7 @@
  * Comprehensive tests for the ValidationOrchestrator and individual validators
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   ValidationOrchestrator,
   getOrchestrator,
@@ -88,6 +88,10 @@ describe('ValidationOrchestrator', () => {
 
     beforeEach(() => {
       orchestrator = new ValidationOrchestrator(false);
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should register a custom strategy', () => {

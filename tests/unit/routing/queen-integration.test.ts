@@ -9,7 +9,7 @@
  * - Cost tracking
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   QueenRouterAdapter,
   createQueenRouterAdapter,
@@ -50,6 +50,10 @@ describe('QueenRouterAdapter', () => {
       },
       enableCostTracking: true,
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

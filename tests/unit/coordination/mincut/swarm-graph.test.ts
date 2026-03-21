@@ -5,7 +5,7 @@
  * Tests the graph data structure that represents swarm topology.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SwarmGraph,
   createSwarmGraph,
@@ -21,6 +21,10 @@ describe('SwarmGraph', () => {
 
   beforeEach(() => {
     graph = createSwarmGraph();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

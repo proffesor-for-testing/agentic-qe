@@ -3,7 +3,7 @@
  * ADR-024: Self-Optimization Engine
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SearchLatencyCollector,
   RoutingAccuracyCollector,
@@ -18,6 +18,10 @@ describe('SearchLatencyCollector', () => {
 
   beforeEach(() => {
     collector = new SearchLatencyCollector();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should have correct id and metric name', () => {

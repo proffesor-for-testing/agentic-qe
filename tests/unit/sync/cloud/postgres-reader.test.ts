@@ -11,7 +11,7 @@
  * - Count queries
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import { PostgresReader, createPostgresReader } from '../../../../src/sync/cloud/postgres-reader.js';
 import type { CloudWriter, PullSource } from '../../../../src/sync/interfaces.js';
 
@@ -46,6 +46,11 @@ describe('PostgresReader', () => {
     mockWriter = createMockWriter();
     reader = createPostgresReader({ writer: mockWriter, environment: 'all' });
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   describe('sanitizeCloudTable', () => {
     it('should reject cloud table without dot separator', async () => {

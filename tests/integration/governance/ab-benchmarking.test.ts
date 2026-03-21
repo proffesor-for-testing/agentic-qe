@@ -14,7 +14,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -39,6 +39,10 @@ describe('A/B Benchmarking Framework - ADR-058 Phase 3', () => {
     governanceFlags.reset();
     abBenchmarkingFramework.reset();
     evolutionPipelineIntegration.reset();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Benchmark Creation', () => {

@@ -3,7 +3,7 @@
  * Tests the full consensus verification pipeline
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createTestConsensusEngine,
   createMockProvider,
@@ -94,6 +94,10 @@ describe('Consensus Engine Integration', () => {
       humanReviewThreshold: 0.7,
       enableSycophancyCheck: false, // Disable for base consensus tests (mock providers give identical votes)
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('end-to-end verification', () => {

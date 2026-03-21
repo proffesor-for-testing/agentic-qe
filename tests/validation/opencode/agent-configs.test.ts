@@ -8,7 +8,7 @@
  * - System prompt token budget
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import YAML from 'yaml';
@@ -80,6 +80,10 @@ describe('OpenCode Agent Config Validation', () => {
     agentFiles = fs.readdirSync(AGENTS_DIR)
       .filter((f) => f.startsWith('qe-') && f.endsWith('.yaml'))
       .map((f) => path.join(AGENTS_DIR, f));
+  });
+
+  afterAll(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // -------------------------------------------------------------------------
