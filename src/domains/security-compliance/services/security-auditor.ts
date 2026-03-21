@@ -10,6 +10,7 @@
  *   - security-auditor-reports.ts: Risk calculation, posture, recommendations
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -86,6 +87,8 @@ import {
 // ============================================================================
 // Security Auditor Service Implementation
 // ============================================================================
+
+const logger = LoggerFactory.create('security-compliance/security-auditor');
 
 export class SecurityAuditorService implements ISecurityAuditorService {
   private readonly config: SecurityAuditorConfig;
@@ -400,7 +403,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      console.error(`Failed to parse dependencies from ${manifest}:`, error);
+      logger.error(`Failed to parse dependencies from ${manifest}:`, error instanceof Error ? error : undefined);
     }
 
     return dependencies;
@@ -436,7 +439,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      console.error(`Failed to check vulnerabilities for ${dep.name}@${dep.version}:`, error);
+      logger.error(`Failed to check vulnerabilities for ${dep.name}@${dep.version}:`, error instanceof Error ? error : undefined);
     }
 
     return vulnerabilities;
@@ -589,7 +592,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      console.error(`Failed to get latest version for ${name}:`, error);
+      logger.error(`Failed to get latest version for ${name}:`, error instanceof Error ? error : undefined);
     }
 
     return 'unknown';
@@ -609,7 +612,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      console.error(`Failed to check deprecation for ${name}:`, error);
+      logger.error(`Failed to check deprecation for ${name}:`, error instanceof Error ? error : undefined);
     }
 
     return false;
@@ -689,7 +692,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       return { vulnerabilities, outdatedPackages, summary: { ...baseSummary, scanDurationMs } };
     } catch (error) {
-      console.error('Dependency scan failed:', error);
+      logger.error('Dependency scan failed:', error instanceof Error ? error : undefined);
       return {
         vulnerabilities: [],
         outdatedPackages: [],
@@ -718,7 +721,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         secretsFound.push(...secrets);
       }
     } catch (error) {
-      console.error('Secret scan failed:', error);
+      logger.error('Secret scan failed:', error instanceof Error ? error : undefined);
     }
 
     return { secretsFound, filesScanned };
@@ -747,7 +750,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         }
       }
     } catch (error) {
-      console.debug('[SecurityAuditor] Directory read error:', error instanceof Error ? error.message : error);
+      logger.debug('Directory read error:');
     }
 
     return files;
@@ -793,7 +796,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
       return Math.max(0, oldCount - newCount);
     } catch (error) {
-      console.error('Failed to count resolved vulnerabilities:', error);
+      logger.error('Failed to count resolved vulnerabilities:', error instanceof Error ? error : undefined);
       return 0;
     }
   }
@@ -840,7 +843,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       const sum = resolutionTimes.reduce((acc, time) => acc + time, 0);
       return Math.round(sum / resolutionTimes.length);
     } catch (error) {
-      console.error('Failed to calculate average resolution time:', error);
+      logger.error('Failed to calculate average resolution time:', error instanceof Error ? error : undefined);
       return 72;
     }
   }

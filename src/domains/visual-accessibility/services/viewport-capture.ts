@@ -12,6 +12,7 @@
  * @module domains/visual-accessibility/services/viewport-capture
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { FilePath } from '../../../shared/value-objects/index.js';
@@ -432,6 +433,8 @@ export interface SingleCaptureOptions {
  * );
  * ```
  */
+const logger = LoggerFactory.create('visual-accessibility/viewport-capture');
+
 export class ViewportCaptureService implements IViewportCaptureService {
   private readonly config: ViewportCaptureConfig;
   private readonly browserClient: IBrowserClient | null;
@@ -474,7 +477,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         }
       } catch (error) {
         // Non-critical: browser client acquisition failed
-        console.debug('[ViewportCapture] Browser client error:', error instanceof Error ? error.message : error);
+        logger.debug('Browser client error:');
       }
     }
 
@@ -685,7 +688,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
           return result;
         }
         // Log failure and try next option
-        console.warn(`[ViewportCapture] Browser client capture failed, trying Vibium`);
+        logger.warn(`Browser client capture failed, trying Vibium`);
       }
 
       // If Vibium client is available and has active session, use real browser capture
@@ -733,7 +736,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         });
       } else {
         // Log warning but continue with valid presets
-        console.warn(`[ViewportCapture] Unknown preset: ${name}`);
+        logger.warn(`Unknown preset: ${name}`);
       }
     }
 
@@ -825,7 +828,7 @@ export class ViewportCaptureService implements IViewportCaptureService {
         const viewportResult = await client.setViewport(viewport.width, viewport.height);
 
         if (!viewportResult.success) {
-          console.warn(`[ViewportCapture] setViewport failed: ${viewportResult.error?.message}`);
+          logger.warn(`setViewport failed: ${viewportResult.error?.message}`);
         }
 
         // Optionally set device preset for mobile viewports

@@ -6,6 +6,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import {
@@ -121,6 +122,9 @@ export interface LLMRequirementsAnalysis {
  *
  * ADR-051: Added LLM-powered requirements analysis for enhanced validation
  */
+
+const logger = LoggerFactory.create('requirements-validation/requirements-validator');
+
 export class RequirementsValidatorService implements IRequirementsValidationService {
   private readonly config: RequirementsValidatorConfig;
   private readonly memory: MemoryBackend;
@@ -238,13 +242,13 @@ Be specific and actionable in your suggestions.`,
           }
         } catch {
           // JSON parse failed - use basic analysis
-          console.warn('[RequirementsValidator] LLM response parsing failed');
+          logger.warn('LLM response parsing failed');
         }
       }
 
       return ok(this.getBasicAnalysis(requirements));
     } catch (error) {
-      console.warn('[RequirementsValidator] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed');
       return ok(this.getBasicAnalysis(requirements));
     }
   }

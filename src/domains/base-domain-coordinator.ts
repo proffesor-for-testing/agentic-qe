@@ -17,6 +17,7 @@
  * - subscribeToEvents(): domain-specific event subscriptions
  */
 
+import { LoggerFactory } from '../logging/index.js';
 import type { DomainName } from '../shared/types/index.js';
 import type { EventBus } from '../kernel/interfaces.js';
 
@@ -101,6 +102,9 @@ export interface BaseDomainCoordinatorConfig {
  * - onDispose(): domain-specific teardown
  * - subscribeToEvents(): domain-specific event subscriptions
  */
+
+const baseLogger = LoggerFactory.create('base-domain-coordinator');
+
 export abstract class BaseDomainCoordinator<
   TConfig extends BaseDomainCoordinatorConfig = BaseDomainCoordinatorConfig,
   TWorkflowType extends string = string,
@@ -167,10 +171,10 @@ export abstract class BaseDomainCoordinator<
     if (this.config.enableConsensus) {
       try {
         await this.consensusMixin.initializeConsensus();
-        console.log(`[${this.domainName}] Consensus engine initialized`);
+        baseLogger.info(`[${this.domainName}] Consensus engine initialized`);
       } catch (error) {
-        console.error(`[${this.domainName}] Failed to initialize consensus engine:`, error);
-        console.warn(`[${this.domainName}] Continuing without consensus verification`);
+        baseLogger.error(`[${this.domainName}] Failed to initialize consensus engine`, error instanceof Error ? error : undefined);
+        baseLogger.warn(`[${this.domainName}] Continuing without consensus verification`);
       }
     }
 
@@ -186,7 +190,7 @@ export abstract class BaseDomainCoordinator<
     try {
       await this.consensusMixin.disposeConsensus();
     } catch (error) {
-      console.error(`[${this.domainName}] Error disposing consensus engine:`, error);
+      baseLogger.error(`[${this.domainName}] Error disposing consensus engine`, error instanceof Error ? error : undefined);
     }
 
     // Dispose MinCut mixin (ADR-047)
@@ -223,7 +227,7 @@ export abstract class BaseDomainCoordinator<
 
   setMinCutBridge(bridge: QueenMinCutBridge): void {
     this.minCutMixin.setMinCutBridge(bridge);
-    console.log(`[${this.domainName}] MinCut bridge connected`);
+    baseLogger.info(`[${this.domainName}] MinCut bridge connected`);
   }
 
   isTopologyHealthy(): boolean {

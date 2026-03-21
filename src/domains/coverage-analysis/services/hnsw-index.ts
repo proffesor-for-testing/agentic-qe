@@ -19,6 +19,7 @@
  * @module coverage-analysis/hnsw-index
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { HnswAdapter } from '../../../kernel/hnsw-adapter.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
@@ -197,6 +198,9 @@ export interface HNSWIndexStats {
  * const similar = await index.search(queryEmbedding, 10);
  * ```
  */
+
+const logger = LoggerFactory.create('coverage-analysis/hnsw-index');
+
 export class HNSWIndex implements IHNSWIndex {
   private readonly config: HNSWIndexConfig;
   private readonly stats: MutableStats;
@@ -253,8 +257,8 @@ export class HNSWIndex implements IHNSWIndex {
       metric: adapterMetric,
     });
 
-    console.log(
-      `[HNSWIndex] HnswAdapter initialized: dimension=${this.config.dimensions}, ` +
+    logger.info(
+      `HnswAdapter initialized: dimension=${this.config.dimensions}, ` +
         `metric=${this.config.metric}, M=${this.config.M} (unified backend via ADR-071)`
     );
     this.initialized = true;

@@ -133,7 +133,7 @@ jobs:
       - name: Run contract tests
         run: |
           if [ -d "tests/unit/domains/contract-testing" ] && [ "$(ls -A tests/unit/domains/contract-testing/*.test.ts 2>/dev/null)" ]; then
-            npm run test:contracts
+            timeout 480 npm run test:contracts
           else
             echo "No contract tests found"
           fi
@@ -151,7 +151,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run code intelligence tests
-        run: npm run test:code-intelligence
+        run: timeout 480 npm run test:code-intelligence
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
           SKIP_INTEGRATION_TESTS: 'true'
@@ -216,7 +216,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run Postgres integration tests
-        run: npm run test:integration:pg
+        run: timeout 480 npm run test:integration:pg
         env:
           POSTGRES_URL: postgresql://aqe_test:aqe_test@localhost:15432/aqe_test
           NODE_OPTIONS: '--max-old-space-size=1024'
@@ -278,7 +278,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
-        run: npm run test:coverage
+        run: timeout 480 npm run test:coverage
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'

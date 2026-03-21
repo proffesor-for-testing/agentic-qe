@@ -6,6 +6,7 @@
  * cross-domain insights
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { DomainName } from '../../shared/types/index.js';
 import {
@@ -17,6 +18,8 @@ import type { ConsensusEnabledMixin } from '../../coordination/mixins/consensus-
 /**
  * Verify a pattern recommendation using multi-model consensus
  */
+const logger = LoggerFactory.create('learning-optimization/consensus');
+
 export async function verifyPatternRecommendation(
   pattern: { id: string; name: string; type: string; domain: DomainName },
   confidence: number,
@@ -36,10 +39,10 @@ export async function verifyPatternRecommendation(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Pattern recommendation '${pattern.name}' verified by consensus`);
+      logger.info(`Pattern recommendation '${pattern.name}' verified by consensus`);
       return true;
     }
-    console.warn(`[${domainName}] Pattern recommendation '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+    logger.warn(`Pattern recommendation '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
     return false;
   }
   return true;
@@ -67,10 +70,10 @@ export async function verifyOptimizationSuggestion(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Optimization suggestion for '${suggestion.metric}' verified by consensus`);
+      logger.info(`Optimization suggestion for '${suggestion.metric}' verified by consensus`);
       return true;
     }
-    console.warn(`[${domainName}] Optimization suggestion for '${suggestion.metric}' NOT verified`);
+    logger.warn(`Optimization suggestion for '${suggestion.metric}' NOT verified`);
     return false;
   }
   return true;
@@ -98,10 +101,10 @@ export async function verifyCrossDomainInsight(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Cross-domain insight verified by consensus for ${insight.targetDomains.length} target domains`);
+      logger.info(`Cross-domain insight verified by consensus for ${insight.targetDomains.length} target domains`);
       return true;
     }
-    console.warn(`[${domainName}] Cross-domain insight NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+    logger.warn(`Cross-domain insight NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
     return false;
   }
   return true;

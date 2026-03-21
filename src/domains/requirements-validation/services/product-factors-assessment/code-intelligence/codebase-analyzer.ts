@@ -13,6 +13,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { LoggerFactory } from '../../../../../logging/index.js';
 import {
   CodeIntelligenceResult,
   DetectedExternalSystem,
@@ -115,6 +116,9 @@ const EXTERNAL_SYSTEM_PATTERNS: Record<string, { type: DetectedExternalSystem['t
  *
  * Provides automated codebase analysis for SFDIPOT assessment.
  */
+
+const logger = LoggerFactory.create('requirements-validation/codebase-analyzer');
+
 export class CodebaseAnalyzer {
   private config: CodebaseAnalyzerConfig;
 
@@ -144,14 +148,14 @@ export class CodebaseAnalyzer {
     try {
       // Phase 1: Detect external systems from package.json
       if (this.config.detectExternalSystems) {
-        console.log('[CodebaseAnalyzer] Phase 1: Detecting external systems...');
+        logger.info('Phase 1: Detecting external systems...');
         result.externalSystems = await this.detectExternalSystems();
         result.metadata.externalSystemsDetected = result.externalSystems.length;
       }
 
       // Phase 2: Analyze component boundaries
       if (this.config.analyzeComponents) {
-        console.log('[CodebaseAnalyzer] Phase 2: Analyzing components...');
+        logger.info('Phase 2: Analyzing components...');
         const componentResult = await this.analyzeComponents();
         result.components = componentResult.components;
         result.relationships = componentResult.relationships;
@@ -160,21 +164,21 @@ export class CodebaseAnalyzer {
 
       // Phase 3: Analyze module coupling
       if (this.config.analyzeCoupling && result.components.length > 0) {
-        console.log('[CodebaseAnalyzer] Phase 3: Analyzing coupling...');
+        logger.info('Phase 3: Analyzing coupling...');
         result.couplingAnalysis = this.analyzeCoupling(result.components, result.relationships);
       }
 
       // Generate C4 diagrams
       if (this.config.generateC4Diagrams) {
-        console.log('[CodebaseAnalyzer] Generating C4 diagrams...');
+        logger.info('Generating C4 diagrams...');
         result.c4Diagrams = await this.generateC4Diagrams(result);
       }
 
       result.metadata.analysisTimeMs = Date.now() - startTime;
-      console.log(`[CodebaseAnalyzer] Analysis complete in ${result.metadata.analysisTimeMs}ms`);
+      logger.info(`Analysis complete in ${result.metadata.analysisTimeMs}ms`);
 
     } catch (error) {
-      console.error('[CodebaseAnalyzer] Analysis failed:', error);
+      logger.error('Analysis failed', error instanceof Error ? error : undefined);
       result.metadata.analysisTimeMs = Date.now() - startTime;
     }
 
@@ -198,7 +202,7 @@ export class CodebaseAnalyzer {
       try {
         await fs.access(packageJsonPath);
       } catch {
-        console.log('[CodebaseAnalyzer] No package.json found, skipping external system detection');
+        logger.info('No package.json found, skipping external system detection');
         return systems;
       }
 
@@ -224,7 +228,7 @@ export class CodebaseAnalyzer {
         }
       }
     } catch (error) {
-      console.error('[CodebaseAnalyzer] External system detection failed:', error);
+      logger.error('External system detection failed', error instanceof Error ? error : undefined);
     }
 
     return systems;
@@ -253,7 +257,7 @@ export class CodebaseAnalyzer {
         await fs.access(srcDir);
         analyzeDir = srcDir;
       } catch {
-        console.log('[CodebaseAnalyzer] No src directory, analyzing root');
+        logger.info('No src directory, analyzing root');
       }
 
       // Get top-level directories as components
@@ -296,7 +300,7 @@ export class CodebaseAnalyzer {
         }
       }
     } catch (error) {
-      console.error('[CodebaseAnalyzer] Component analysis failed:', error);
+      logger.error('Component analysis failed', error instanceof Error ? error : undefined);
     }
 
     return { components, relationships };
@@ -330,7 +334,7 @@ export class CodebaseAnalyzer {
         }
       } catch (error) {
         // Non-critical: permission errors when scanning directories
-        console.debug('[CodebaseAnalyzer] Directory scan error:', error instanceof Error ? error.message : error);
+        logger.debug(`Directory scan error: ${error instanceof Error ? error.message : error}`);
       }
     };
 
@@ -463,7 +467,7 @@ export class CodebaseAnalyzer {
         }
       }
     } catch (error) {
-      console.error('[CodebaseAnalyzer] Coupling analysis failed:', error);
+      logger.error('Coupling analysis failed', error instanceof Error ? error : undefined);
     }
 
     return couplingInfo;
@@ -509,7 +513,7 @@ export class CodebaseAnalyzer {
         diagrams.component = this.generateComponentDiagram(projectMetadata.name, result.components, result.relationships);
       }
     } catch (error) {
-      console.error('[CodebaseAnalyzer] C4 diagram generation failed:', error);
+      logger.error('C4 diagram generation failed', error instanceof Error ? error : undefined);
     }
 
     return diagrams;

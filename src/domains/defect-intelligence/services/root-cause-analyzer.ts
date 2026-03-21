@@ -5,6 +5,7 @@
  * ADR-051: LLM-enhanced root cause analysis for deeper insights
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
@@ -207,6 +208,9 @@ const ROOT_CAUSE_CATEGORIES: Record<
  *
  * ADR-051: Added LLM enhancement for AI-powered root cause analysis
  */
+
+const logger = LoggerFactory.create('defect-intelligence/root-cause-analyzer');
+
 export class RootCauseAnalyzerService implements IRootCauseAnalyzerService {
   private readonly config: RootCauseAnalyzerConfig;
   private readonly memory: MemoryBackend;
@@ -328,7 +332,7 @@ Return your analysis as JSON with this structure:
 
       return null;
     } catch (error) {
-      console.warn('[RootCauseAnalyzer] LLM analysis failed, falling back to heuristics:', error);
+      logger.warn('LLM analysis failed, falling back to heuristics');
       return null;
     }
   }

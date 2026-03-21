@@ -18,6 +18,7 @@
  * @module domains/test-generation/services/code-transform-integration
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import type { Result } from '../../../shared/types';
 import type { TransformType, TransformResult, IAgentBoosterAdapter } from '../../../integrations/agentic-flow';
 import { toErrorMessage } from '../../../shared/error-utils.js';
@@ -76,6 +77,8 @@ const TRANSFORM_PATTERNS: Record<TransformType, RegExp[]> = {
  * @param type - Transform type to check eligibility for
  * @returns True if code contains patterns suitable for this transform
  */
+const logger = LoggerFactory.create('test-generation/code-transform');
+
 export function isEligibleForTransform(code: string, type: TransformType): boolean {
   const patterns = TRANSFORM_PATTERNS[type];
   if (!patterns) return false;
@@ -231,7 +234,7 @@ export class CodeTransformService {
     this.metrics.totalTimeMs += durationMs;
 
     if (this.config.logMetrics) {
-      console.log(`[CodeTransformService] Applied ${appliedTransforms.length} transforms in ${durationMs}ms`);
+      logger.info(`Applied ${appliedTransforms.length} transforms in ${durationMs}ms`);
     }
 
     return {

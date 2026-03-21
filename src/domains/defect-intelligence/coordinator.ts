@@ -9,6 +9,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../logging/index.js';
 import { Result, err, ok, DomainName } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import {
@@ -135,6 +136,9 @@ type DefectWorkflowType = 'predict' | 'analyze' | 'regression' | 'cluster' | 'le
  * - Multi-model consensus for high-confidence predictions (MM-001)
  * - CQ-002: Extends BaseDomainCoordinator
  */
+
+const logger = LoggerFactory.create('defect-intelligence');
+
 export class DefectIntelligenceCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, DefectWorkflowType>
   implements IDefectIntelligenceCoordinator
@@ -252,7 +256,7 @@ export class DefectIntelligenceCoordinator
 
       // V3: Check topology health before proceeding
       if (this.config.enableMinCutAwareness && this.minCutMixin.shouldPauseOperations()) {
-        console.warn('[DefectIntelligence] Topology is critical, proceeding with caution');
+        logger.warn('Topology is critical, proceeding with caution');
       }
 
       // Check if we can spawn agents
@@ -376,7 +380,7 @@ export class DefectIntelligenceCoordinator
             }
           } catch (error) {
             // On consensus error, include original prediction
-            console.warn(`[DefectIntelligence] Consensus verification failed for ${prediction.file}:`, error);
+            logger.warn(`Consensus verification failed for ${prediction.file}`);
             verifiedPredictions.push(prediction);
           }
         } else {
@@ -485,7 +489,7 @@ export class DefectIntelligenceCoordinator
           };
         }
       } catch (error) {
-        console.warn(`[DefectIntelligence] Consensus verification failed for root cause:`, error);
+        logger.warn('Consensus verification failed for root cause');
       }
     }
 

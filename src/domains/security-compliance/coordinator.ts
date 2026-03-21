@@ -7,6 +7,7 @@
  * - QEFlashAttention: Fast vulnerability similarity matching
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
 import {
@@ -199,6 +200,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
 // Security & Compliance Coordinator Implementation
 // ============================================================================
 
+const logger = LoggerFactory.create('security-compliance');
+
 export class SecurityComplianceCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, SecurityWorkflowType>
   implements IExtendedSecurityComplianceCoordinator
@@ -305,15 +308,15 @@ export class SecurityComplianceCoordinator
               ...this.config.consensusEngineConfig,
             },
           });
-          console.log(`[SecurityCompliance] Multi-Model Consensus initialized with ${providers.length} providers`);
+          logger.info(`Multi-Model Consensus initialized with ${providers.length} providers`);
         } else {
-          console.warn('[SecurityCompliance] No model providers available for consensus verification');
+          logger.warn('No model providers available for consensus verification');
         }
       }
 
       this.rlInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize RL integrations:', error);
+      logger.error('Failed to initialize RL integrations:', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -354,20 +357,20 @@ export class SecurityComplianceCoordinator
         );
         // For security audits, we're the scan itself, so we just log the governance check
         if (!validation.allowed && this.securityGovernanceMixin.isStrictMode()) {
-          console.log(`[${this.domainName}] Security audit for auth code registered with governance`);
+          logger.info(`Security audit for auth code registered with governance`);
         }
       }
 
       // Self-healing: Check if operations should be paused due to critical topology
       if (this.minCutMixin.shouldPauseOperations()) {
-        console.warn(`[${this.domainName}] Security audit paused: topology is in critical state`);
+        logger.warn(`Security audit paused: topology is in critical state`);
         this.failWorkflow(workflowId, 'Topology is in critical state');
         return err(new Error('Security audit paused: topology is in critical state'));
       }
 
       // Self-healing: Log warning and potentially reduce scope when topology is degraded
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative audit strategy`);
+        logger.warn(`Topology degraded, using conservative audit strategy`);
         // Could reduce parallel operations, prioritize critical checks, etc.
       }
 
@@ -445,14 +448,14 @@ export class SecurityComplianceCoordinator
 
       // Self-healing: Check if operations should be paused due to critical topology
       if (this.minCutMixin.shouldPauseOperations()) {
-        console.warn(`[${this.domainName}] Security scan paused: topology is in critical state`);
+        logger.warn(`Security scan paused: topology is in critical state`);
         this.failWorkflow(workflowId, 'Topology is in critical state');
         return err(new Error('Security scan paused: topology is in critical state'));
       }
 
       // Self-healing: Log warning when topology is degraded
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, proceeding with conservative scan strategy`);
+        logger.warn(`Topology degraded, proceeding with conservative scan strategy`);
       }
 
       // Run scan based on type
@@ -494,14 +497,14 @@ export class SecurityComplianceCoordinator
 
       // Self-healing: Check if operations should be paused due to critical topology
       if (this.minCutMixin.shouldPauseOperations()) {
-        console.warn(`[${this.domainName}] Compliance validation paused: topology is in critical state`);
+        logger.warn(`Compliance validation paused: topology is in critical state`);
         this.failWorkflow(workflowId, 'Topology is in critical state');
         return err(new Error('Compliance validation paused: topology is in critical state'));
       }
 
       // Self-healing: Log warning when topology is degraded
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, proceeding with compliance validation`);
+        logger.warn(`Topology degraded, proceeding with compliance validation`);
       }
 
       // Get standard by ID and validate
@@ -542,14 +545,14 @@ export class SecurityComplianceCoordinator
 
       // Self-healing: Check if operations should be paused due to critical topology
       if (this.minCutMixin.shouldPauseOperations()) {
-        console.warn(`[${this.domainName}] Security posture assessment paused: topology is in critical state`);
+        logger.warn(`Security posture assessment paused: topology is in critical state`);
         this.failWorkflow(workflowId, 'Topology is in critical state');
         return err(new Error('Security posture assessment paused: topology is in critical state'));
       }
 
       // Self-healing: Log warning when topology is degraded
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, proceeding with security posture assessment`);
+        logger.warn(`Topology degraded, proceeding with security posture assessment`);
       }
 
       const result = await this.securityAuditor.getSecurityPosture();
@@ -632,7 +635,7 @@ export class SecurityComplianceCoordinator
       scored.sort((a, b) => b.score - a.score);
       return scored.map((s) => s.test);
     } catch (error) {
-      console.error('Failed to prioritize security tests:', error);
+      logger.error('Failed to prioritize security tests:', error instanceof Error ? error : undefined);
       return tests;
     }
   }
@@ -673,9 +676,9 @@ export class SecurityComplianceCoordinator
       };
 
       await this.dqnAlgorithm.train(experience);
-      console.log(`[DQN] Trained security audit with reward: ${reward.toFixed(3)}`);
+      logger.info(`Trained security audit with reward: ${reward.toFixed(3)}`);
     } catch (error) {
-      console.error('Failed to train DQN:', error);
+      logger.error('Failed to train DQN:', error instanceof Error ? error : undefined);
     }
   }
 
@@ -777,11 +780,11 @@ export class SecurityComplianceCoordinator
         const selfSimilarity = embeddings[i].reduce((sum, val, idx) => sum + val * outputSlice[idx], 0);
 
         if (selfSimilarity > 0.7) {
-          console.log(`[FlashAttention] High self-attention for vulnerability ${vulnerabilities[i].id}`);
+          logger.info(`High self-attention for vulnerability ${vulnerabilities[i].id}`);
         }
       }
     } catch (error) {
-      console.error('Failed to enhance vulnerability analysis:', error);
+      logger.error('Failed to enhance vulnerability analysis:', error instanceof Error ? error : undefined);
     }
   }
 
@@ -977,26 +980,26 @@ export class SecurityComplianceCoordinator
 
         if (result.success && result.value.verdict === 'verified') {
           // Finding confirmed by multiple models
-          console.log(`[${this.domainName}] Consensus VERIFIED: ${vuln.title} (confidence: ${(result.value.confidence * 100).toFixed(1)}%)`);
+          logger.info(`Consensus VERIFIED: ${vuln.title} (confidence: ${(result.value.confidence * 100).toFixed(1)}%)`);
           verified.push(vuln);
         } else if (result.success && result.value.verdict === 'disputed') {
           // Disputed findings still included but logged
-          console.log(`[${this.domainName}] Consensus DISPUTED: ${vuln.title} - including with lower confidence`);
+          logger.info(`Consensus DISPUTED: ${vuln.title} - including with lower confidence`);
           verified.push(vuln);
         } else {
           // Rejected by consensus - likely false positive
-          console.log(`[${this.domainName}] Consensus REJECTED: ${vuln.title} - likely false positive`);
+          logger.info(`Consensus REJECTED: ${vuln.title} - likely false positive`);
         }
       } catch (error) {
         // On consensus error, include the finding but log warning
-        console.warn(`[${this.domainName}] Consensus error verifying ${vuln.title}, including by default:`, error);
+        logger.warn(`Consensus error verifying ${vuln.title}, including by default:`);
         verified.push(vuln);
       }
     }
 
     const rejectedCount = highSeverity.length - verified.filter(v => v.severity === 'critical' || v.severity === 'high').length;
     if (rejectedCount > 0) {
-      console.log(`[${this.domainName}] Consensus filtered out ${rejectedCount} likely false positive(s)`);
+      logger.info(`Consensus filtered out ${rejectedCount} likely false positive(s)`);
     }
 
     return verified;

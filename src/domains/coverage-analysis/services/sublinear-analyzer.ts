@@ -17,6 +17,7 @@
  * @module coverage-analysis/sublinear-analyzer
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
@@ -197,6 +198,9 @@ export interface SublinearAnalyzerStats {
  * const similar = await analyzer.findSimilarPatterns(gap, 5);
  * ```
  */
+
+const logger = LoggerFactory.create('coverage-analysis/sublinear-analyzer');
+
 export class SublinearCoverageAnalyzer implements ISublinearCoverageAnalyzer {
   private readonly config: SublinearAnalyzerConfig;
   private readonly hnswIndex: IHNSWIndex;
@@ -340,7 +344,7 @@ export class SublinearCoverageAnalyzer implements ISublinearCoverageAnalyzer {
 
       // Verify performance target
       if (searchTimeMs > 100) {
-        console.warn(
+        logger.warn(
           `Sublinear search took ${searchTimeMs.toFixed(2)}ms, ` +
           `exceeding 100ms target for ${this.fileCount} files`
         );

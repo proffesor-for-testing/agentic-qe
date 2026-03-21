@@ -5,6 +5,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import {
@@ -118,6 +119,9 @@ const KNOWN_PATTERNS: Record<string, { indicators: string[]; prevention: string 
  * Pattern Learner Service Implementation
  * Learns and recognizes defect patterns using ML and heuristics
  */
+
+const logger = LoggerFactory.create('defect-intelligence/pattern-learner');
+
 export class PatternLearnerService implements IPatternLearnerService {
   private readonly config: PatternLearnerConfig;
   private readonly patternCache: Map<string, DefectPattern> = new Map();
@@ -153,7 +157,7 @@ export class PatternLearnerService implements IPatternLearnerService {
       this.config.flashAttentionConfig
     );
     this.flashAttentionAvailable = true;
-    console.log('[PatternLearnerService] Flash Attention initialized for defect matching');
+    logger.info('Flash Attention initialized for defect matching');
   }
 
   /**

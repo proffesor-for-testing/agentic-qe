@@ -3,6 +3,7 @@
  * Orchestrates the visual and accessibility testing workflows
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import {
@@ -136,6 +137,8 @@ type VisualAccessibilityWorkflowType = 'visual' | 'accessibility' | 'responsive'
 /**
  * CQ-002: Extends BaseDomainCoordinator
  */
+const logger = LoggerFactory.create('visual-accessibility');
+
 export class VisualAccessibilityCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, VisualAccessibilityWorkflowType>
   implements IVisualAccessibilityCoordinatorExtended
@@ -195,9 +198,9 @@ export class VisualAccessibilityCoordinator
           numWorkers: 4,
         });
         // First call to predict will initialize the algorithm
-        console.log('[visual-accessibility] A2C algorithm created successfully');
+        logger.info('A2C algorithm created successfully');
       } catch (error) {
-        console.error('[visual-accessibility] Failed to create A2C:', error);
+        logger.error('Failed to create A2C:', error instanceof Error ? error : undefined);
         throw new Error(`A2C creation failed: ${toErrorMessage(error)}`);
       }
     }
@@ -206,9 +209,9 @@ export class VisualAccessibilityCoordinator
     if (this.config.enableFlashAttention) {
       try {
         this.flashAttention = await createQEFlashAttention('test-similarity');
-        console.log('[visual-accessibility] QEFlashAttention initialized successfully');
+        logger.info('QEFlashAttention initialized successfully');
       } catch (error) {
-        console.error('[visual-accessibility] Failed to initialize Flash Attention:', error);
+        logger.error('Failed to initialize Flash Attention:', error instanceof Error ? error : undefined);
         throw new Error(`Flash Attention initialization failed: ${toErrorMessage(error)}`);
       }
     }
@@ -259,7 +262,7 @@ export class VisualAccessibilityCoordinator
 
       // V3: Check topology health before proceeding (ADR-047)
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn('[VisualAccessibility] Topology degraded, using conservative strategy');
+        logger.warn('Topology degraded, using conservative strategy');
       }
 
       // V3: Pause operations if topology is critical and configured to pause
@@ -314,7 +317,7 @@ export class VisualAccessibilityCoordinator
             url: t.url,
             viewport: t.viewport,
           }));
-          console.log(
+          logger.info(
             `[visual-accessibility] Using ${prioritizationResult.value.strategy} strategy for visual test order (confidence: ${prioritizationResult.value.confidence.toFixed(2)})`
           );
         }
@@ -437,7 +440,7 @@ export class VisualAccessibilityCoordinator
 
       // V3: Check topology health before proceeding (ADR-047)
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn('[VisualAccessibility] Topology degraded, using conservative strategy');
+        logger.warn('Topology degraded, using conservative strategy');
       }
 
       // V3: Pause operations if topology is critical and configured to pause
@@ -1263,7 +1266,7 @@ export class VisualAccessibilityCoordinator
         done: true,
       });
 
-      console.log(
+      logger.info(
         `[visual-accessibility] A2C prioritized ${tests.length} visual tests using ${strategy} strategy (confidence: ${prediction.confidence.toFixed(2)})`
       );
 
@@ -1273,7 +1276,7 @@ export class VisualAccessibilityCoordinator
         confidence: prediction.confidence,
       });
     } catch (error) {
-      console.error('[visual-accessibility] A2C prioritization failed:', error);
+      logger.error('A2C prioritization failed:', error instanceof Error ? error : undefined);
       // Return original tests on error (graceful degradation)
       return ok({
         orderedTests: tests.map((t) => ({ ...t, priority: t.priority ?? 5, reason: 'fallback' })),
@@ -1342,7 +1345,7 @@ export class VisualAccessibilityCoordinator
         imagePath: `image-${s.index}.png`,
       }));
     } catch (error) {
-      console.error('[visual-accessibility] Flash Attention similarity search failed:', error);
+      logger.error('Flash Attention similarity search failed:', error instanceof Error ? error : undefined);
       return this.cosineSimilarityFallback(targetImageEmbedding, imageEmbeddings, topK);
     }
   }
@@ -1393,9 +1396,9 @@ export class VisualAccessibilityCoordinator
         { namespace: 'visual-accessibility', persist: true }
       );
 
-      console.log(`[visual-accessibility] Stored visual pattern for ${url} at ${viewport.width}x${viewport.height}`);
+      logger.info(`Stored visual pattern for ${url} at ${viewport.width}x${viewport.height}`);
     } catch (error) {
-      console.error('[visual-accessibility] Failed to store visual pattern:', error);
+      logger.error('Failed to store visual pattern:', error instanceof Error ? error : undefined);
     }
   }
 

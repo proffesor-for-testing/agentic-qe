@@ -3,6 +3,7 @@
  * Implements ITestExecutionService for running test suites
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { spawn, ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -94,6 +95,8 @@ export interface ITestExecutionService {
 // ============================================================================
 // Test Executor Service
 // ============================================================================
+
+const logger = LoggerFactory.create('test-execution/test-executor');
 
 export class TestExecutorService implements ITestExecutionService {
   private readonly runResults = new Map<string, TestRunResult>();
@@ -380,7 +383,7 @@ Provide:
       });
       return response.content;
     } catch (error) {
-      console.warn('[TestExecutorService] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed:');
       return null;
     }
   }

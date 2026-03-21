@@ -7,6 +7,7 @@
  * Delegates to specialized services for TDD, property tests, and test data
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -130,6 +131,8 @@ export interface TestGeneratorDependencies {
  * ADR-XXX: Refactored to use Dependency Injection for better testability and flexibility
  * ADR-051: Added LLM enhancement for AI-powered test suggestions
  */
+const logger = LoggerFactory.create('test-generation/test-generator');
+
 export class TestGeneratorService implements ITestGenerationService {
   private readonly config: TestGeneratorConfig;
   private readonly memory: MemoryBackend;
@@ -208,7 +211,7 @@ export class TestGeneratorService implements ITestGenerationService {
             prompt = injection.promptContext + '\n\n' + prompt;
           }
         } catch (injectionError) {
-          console.warn('[TestGenerator] Edge case injection failed, continuing without it:', injectionError);
+          logger.warn('Edge case injection failed, continuing without it');
         }
       }
 
@@ -272,7 +275,7 @@ Return ONLY the enhanced test code, no explanations.`,
 
       return testCode;
     } catch (error) {
-      console.warn('[TestGenerator] LLM enhancement failed, using original:', error);
+      logger.warn('LLM enhancement failed, using original:');
       return testCode;
     }
   }
@@ -362,7 +365,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       return [];
     } catch (error) {
-      console.warn('[TestGenerator] LLM suggestion generation failed:', error);
+      logger.warn('LLM suggestion generation failed:');
       return [];
     }
   }

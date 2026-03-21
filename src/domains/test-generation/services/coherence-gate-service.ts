@@ -8,6 +8,7 @@
  * @module domains/test-generation/coherence-gate
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type {
@@ -145,6 +146,8 @@ export const DEFAULT_COHERENCE_GATE_CONFIG: TestGenerationCoherenceGateConfig = 
 /**
  * Error thrown when requirements have unresolvable contradictions
  */
+const logger = LoggerFactory.create('test-generation/coherence-gate');
+
 export class CoherenceError extends Error {
   constructor(
     message: string,
@@ -278,7 +281,7 @@ export class TestGenerationCoherenceGate {
         Date.now() - startTime
       );
     } catch (error) {
-      console.error('[TestGenerationCoherenceGate] Coherence check failed:', error);
+      logger.error('Coherence check failed:', error instanceof Error ? error : undefined);
 
       // Return fallback result - don't block on errors
       return {

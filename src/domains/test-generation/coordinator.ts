@@ -8,6 +8,7 @@
  * - DecisionTransformer for test case selection
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Result,
@@ -226,6 +227,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * - Consensus verification for high-stakes test design decisions
  * - Verifies test patterns, mock strategies, and edge cases
  */
+const logger = LoggerFactory.create('test-generation');
+
 export class TestGenerationCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, TestGenWorkflowType>
   implements ITestGenerationCoordinator
@@ -307,11 +310,11 @@ export class TestGenerationCoordinator
           patternClusters: 50,
           minConfidence: 0.5,
         });
-        console.log('[TestGenerationCoordinator] PersistentSONAEngine initialized for test-generation domain');
+        logger.info('PersistentSONAEngine initialized for test-generation domain');
       } catch (error) {
         // Log and continue - SONA is enhancement, not critical
-        console.error('[TestGenerationCoordinator] Failed to initialize PersistentSONAEngine:', error);
-        console.warn('[TestGenerationCoordinator] Continuing without SONA pattern persistence');
+        logger.error('Failed to initialize PersistentSONAEngine:', error instanceof Error ? error : undefined);
+        logger.warn('Continuing without SONA pattern persistence');
         this.qesona = null;
       }
     }
@@ -323,10 +326,10 @@ export class TestGenerationCoordinator
           this.config.flashAttentionWorkload,
           { dim: 384, strategy: 'flash', blockSize: 64 }
         );
-        console.log('[TestGenerationCoordinator] QEFlashAttention initialized for test-similarity');
+        logger.info('QEFlashAttention initialized for test-similarity');
       } catch (error) {
         // Graceful degradation: native module may not be available on all platforms
-        console.warn('[TestGenerationCoordinator] QEFlashAttention unavailable (optional native module), continuing without it:', toErrorMessage(error));
+        logger.warn('QEFlashAttention unavailable (optional native module), continuing without it');
         this.flashAttention = null;
       }
     }
@@ -339,10 +342,10 @@ export class TestGenerationCoordinator
           embeddingDim: 384,
         });
         // Note: DecisionTransformer will auto-initialize on first predict() call
-        console.log('[TestGenerationCoordinator] DecisionTransformer created for test case selection');
+        logger.info('DecisionTransformer created for test case selection');
       } catch (error) {
         // Graceful degradation: native module may not be available on all platforms
-        console.warn('[TestGenerationCoordinator] DecisionTransformer unavailable (optional native module), continuing without it:', toErrorMessage(error));
+        logger.warn('DecisionTransformer unavailable (optional native module), continuing without it');
         this.decisionTransformer = null;
       }
     }
@@ -415,7 +418,7 @@ export class TestGenerationCoordinator
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn('[TestGenerationCoordinator] Topology degraded, using conservative strategy');
+        logger.warn('Topology degraded, using conservative strategy');
         // Continue with reduced parallelism when topology is unhealthy
       }
 
@@ -443,12 +446,12 @@ export class TestGenerationCoordinator
               hookPatternIds.push(...(hookResult.data.patterns as string[]));
             }
             if (hookResult.guidance) {
-              console.log(`[TestGenerationCoordinator] Hook guidance: ${hookResult.guidance.join('; ')}`);
+              logger.info(`Hook guidance: ${hookResult.guidance.join('; ')}`);
             }
           }
         } catch (e) {
           // Hook failures are non-critical
-          console.debug('[TestGenerationCoordinator] PreTestGeneration hook failed:', e instanceof Error ? e.message : e);
+          logger.debug('PreTestGeneration hook failed:');
         }
       }
 
@@ -472,7 +475,7 @@ export class TestGenerationCoordinator
         const sonaPatterns = await this.adaptTestGenerationPatterns(request);
         if (sonaPatterns.length > 0) {
           adaptedPatterns = sonaPatterns;
-          console.log(`[TestGenerationCoordinator] Adapted ${sonaPatterns.length} patterns using QESONA`);
+          logger.info(`Adapted ${sonaPatterns.length} patterns using QESONA`);
         }
       }
 
@@ -502,14 +505,14 @@ export class TestGenerationCoordinator
         if (this.config.enableFlashAttention && this.flashAttention) {
           const similarTests = await this.findSimilarTests(result.value.tests);
           if (similarTests.length > 0) {
-            console.log(`[TestGenerationCoordinator] Found ${similarTests.length} similar tests using Flash Attention`);
+            logger.info(`Found ${similarTests.length} similar tests using Flash Attention`);
           }
         }
 
         // Use DecisionTransformer to prioritize generated tests
         if (this.config.enableDecisionTransformer && this.decisionTransformer) {
           const prioritizedTests = await this.prioritizeTestCases(result.value.tests, request);
-          console.log(`[TestGenerationCoordinator] Prioritized ${prioritizedTests.length} tests using DecisionTransformer`);
+          logger.info(`Prioritized ${prioritizedTests.length} tests using DecisionTransformer`);
         }
 
         // Publish events
@@ -902,7 +905,7 @@ export class TestGenerationCoordinator
       return;
     }
 
-    console.log(
+    logger.info(
       `[${this.domainName}] Received ${relevantInsights.length} relevant dream insights from cycle ${cycleId}`
     );
 
@@ -936,7 +939,7 @@ export class TestGenerationCoordinator
     insight: DreamCycleCompletedPayload['insights'][0],
     cycleId: string
   ): Promise<void> {
-    console.log(
+    logger.info(
       `[${this.domainName}] Applying dream insight: ${insight.description.slice(0, 100)}...`
     );
 
@@ -979,13 +982,13 @@ export class TestGenerationCoordinator
           }
         );
 
-        console.log(
+        logger.info(
           `[${this.domainName}] Created SONA pattern ${pattern.id} from dream insight`
         );
       } catch (error) {
-        console.error(
-          `[${this.domainName}] Failed to store dream insight pattern:`,
-          error
+        logger.error(
+          `[${this.domainName}] Failed to store dream insight pattern`,
+          error instanceof Error ? error : undefined
         );
       }
     }
@@ -1175,14 +1178,14 @@ export class TestGenerationCoordinator
       );
 
       if (adaptationResult.success && adaptationResult.pattern) {
-        console.log(`[TestGenerationCoordinator] QESONA adapted pattern with ${adaptationResult.similarity.toFixed(3)} similarity in ${adaptationResult.adaptationTimeMs.toFixed(2)}ms`);
+        logger.info(`QESONA adapted pattern with ${adaptationResult.similarity.toFixed(3)} similarity in ${adaptationResult.adaptationTimeMs.toFixed(2)}ms`);
         // Return pattern IDs from SONA adaptation
         return [adaptationResult.pattern.id];
       }
 
       return [];
     } catch (error) {
-      console.error('[TestGenerationCoordinator] QESONA pattern adaptation failed:', error);
+      logger.error('QESONA pattern adaptation failed:', error instanceof Error ? error : undefined);
       return [];
     }
   }
@@ -1239,9 +1242,9 @@ export class TestGenerationCoordinator
         }
       );
 
-      console.log(`[TestGenerationCoordinator] Stored test generation pattern ${pattern.id} in QESONA`);
+      logger.info(`Stored test generation pattern ${pattern.id} in QESONA`);
     } catch (error) {
-      console.error('[TestGenerationCoordinator] Failed to store pattern in QESONA:', error);
+      logger.error('Failed to store pattern in QESONA:', error instanceof Error ? error : undefined);
     }
   }
 
@@ -1298,7 +1301,7 @@ export class TestGenerationCoordinator
 
       return results;
     } catch (error) {
-      console.error('[TestGenerationCoordinator] Flash Attention similarity detection failed:', error);
+      logger.error('Flash Attention similarity detection failed:', error instanceof Error ? error : undefined);
       return [];
     }
   }
@@ -1335,7 +1338,7 @@ export class TestGenerationCoordinator
       // Get prediction from Decision Transformer
       const prediction: RLPrediction = await this.decisionTransformer.predict(state);
 
-      console.log(`[TestGenerationCoordinator] DecisionTransformer prediction: ${prediction.reasoning}`);
+      logger.info(`DecisionTransformer prediction: ${prediction.reasoning}`);
 
       // Prioritize tests based on prediction confidence
       // High confidence = prioritize tests based on action type
@@ -1346,7 +1349,7 @@ export class TestGenerationCoordinator
 
       return tests;
     } catch (error) {
-      console.error('[TestGenerationCoordinator] DecisionTransformer prioritization failed:', error);
+      logger.error('DecisionTransformer prioritization failed:', error instanceof Error ? error : undefined);
       return tests;
     }
   }
@@ -1458,10 +1461,10 @@ export class TestGenerationCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[TestGenerationCoordinator] Test pattern '${pattern.name}' verified by consensus`);
+        logger.info(`Test pattern '${pattern.name}' verified by consensus`);
         return true;
       }
-      console.warn(`[TestGenerationCoordinator] Test pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Test pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1492,10 +1495,10 @@ export class TestGenerationCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[TestGenerationCoordinator] Mock strategy for '${strategy.target}' verified by consensus`);
+        logger.info(`Mock strategy for '${strategy.target}' verified by consensus`);
         return true;
       }
-      console.warn(`[TestGenerationCoordinator] Mock strategy for '${strategy.target}' NOT verified`);
+      logger.warn(`Mock strategy for '${strategy.target}' NOT verified`);
       return false;
     }
     return true; // No consensus needed
@@ -1526,10 +1529,10 @@ export class TestGenerationCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[TestGenerationCoordinator] Edge case '${edgeCase.description.slice(0, 50)}...' verified by consensus`);
+        logger.info(`Edge case '${edgeCase.description.slice(0, 50)}...' verified by consensus`);
         return true;
       }
-      console.warn(`[TestGenerationCoordinator] Edge case NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Edge case NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed

@@ -10,6 +10,7 @@
  * @module domains/visual-accessibility/services/browser-security-scanner
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { BrowserResultAdapter } from '../../../adapters/browser-result-adapter.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
@@ -128,6 +129,8 @@ export interface BrowserSecurityScannerConfig {
  * Browser Security Scanner Service
  * Wraps @claude-flow/browser MCP security features with graceful fallback
  */
+const logger = LoggerFactory.create('visual-accessibility/browser-security-scanner');
+
 export class BrowserSecurityScanner {
   private initialized = false;
   private browserAvailable = false;
@@ -157,7 +160,7 @@ export class BrowserSecurityScanner {
     this.browserAvailable = hasMcpTools();
 
     if (this.config.verbose) {
-      console.log(`[BrowserSecurityScanner] MCP tools available: ${this.browserAvailable}`);
+      logger.info(`MCP tools available: ${this.browserAvailable}`);
     }
 
     this.initialized = true;
@@ -216,7 +219,7 @@ export class BrowserSecurityScanner {
       return this.fallbackValidateUrl(url);
     } catch (error) {
       if (this.config.verbose) {
-        console.error('[BrowserSecurityScanner] validateUrl error:', error);
+        logger.error('validateUrl error:', error instanceof Error ? error : undefined);
       }
       return this.fallbackValidateUrl(url);
     }
@@ -267,7 +270,7 @@ export class BrowserSecurityScanner {
       return this.fallbackDetectPhishing(url);
     } catch (error) {
       if (this.config.verbose) {
-        console.error('[BrowserSecurityScanner] detectPhishing error:', error);
+        logger.error('detectPhishing error:', error instanceof Error ? error : undefined);
       }
       return this.fallbackDetectPhishing(url);
     }
@@ -310,7 +313,7 @@ export class BrowserSecurityScanner {
       return this.fallbackScanForPII(content);
     } catch (error) {
       if (this.config.verbose) {
-        console.error('[BrowserSecurityScanner] scanForPII error:', error);
+        logger.error('scanForPII error:', error instanceof Error ? error : undefined);
       }
       return this.fallbackScanForPII(content);
     }

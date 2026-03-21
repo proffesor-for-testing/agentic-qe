@@ -3,6 +3,7 @@
  * Identifies and analyzes flaky tests from execution history
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { spawn } from 'child_process';
 import * as path from 'path';
@@ -185,6 +186,8 @@ interface JestJsonOutput {
 // ============================================================================
 // Flaky Detector Service
 // ============================================================================
+
+const logger = LoggerFactory.create('test-execution/flaky-detector');
 
 export class FlakyDetectorService implements IFlakyTestDetector {
   private readonly testHistory = new Map<string, TestExecutionRecord[]>();
@@ -598,7 +601,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       }
     } catch (error) {
       // Non-critical: not valid JSON, try other formats
-      console.debug('[FlakyDetector] Vitest JSON parse failed:', error instanceof Error ? error.message : error);
+      logger.debug('Vitest JSON parse failed:');
     }
 
     // Try to parse Jest JSON output
@@ -612,7 +615,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       }
     } catch (error) {
       // Non-critical: not Jest format
-      console.debug('[FlakyDetector] Jest JSON parse failed:', error instanceof Error ? error.message : error);
+      logger.debug('Jest JSON parse failed:');
     }
 
     // Try to parse TAP format

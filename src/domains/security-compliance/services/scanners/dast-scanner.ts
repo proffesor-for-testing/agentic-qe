@@ -3,6 +3,7 @@
  * Performs dynamic analysis of running applications to detect security vulnerabilities
  */
 
+import { LoggerFactory } from '../../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '@shared/types/index.js';
 import type {
@@ -59,6 +60,8 @@ import {
  * - No JavaScript execution (static response analysis only)
  * - No session management testing beyond cookie attributes
  */
+const logger = LoggerFactory.create('security-compliance/dast-scanner');
+
 export class DASTScanner {
   private readonly config: SecurityScannerConfig;
   private readonly memory: MemoryBackend;
@@ -282,7 +285,7 @@ export class DASTScanner {
       }
 
     } catch (error) {
-      console.error('DAST scan error:', error);
+      logger.error('DAST scan error:', error instanceof Error ? error : undefined);
     }
 
     return { vulnerabilities, crawledUrls };
@@ -359,7 +362,7 @@ export class DASTScanner {
       }
 
     } catch (error) {
-      console.error('Authenticated DAST scan error:', error);
+      logger.error('Authenticated DAST scan error:', error instanceof Error ? error : undefined);
     }
 
     return { vulnerabilities, crawledUrls };

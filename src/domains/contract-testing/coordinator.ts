@@ -5,6 +5,7 @@
  * CQ-002: Extends BaseDomainCoordinator for lifecycle deduplication
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent, type DomainName } from '../../shared/types/index.js';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
@@ -115,6 +116,8 @@ type ContractWorkflowType = 'verify' | 'compare' | 'import' | 'export';
  *
  * CQ-002: Extends BaseDomainCoordinator
  */
+const logger = LoggerFactory.create('contract-testing');
+
 export class ContractTestingCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, ContractWorkflowType>
   implements IContractTestingCoordinator
@@ -165,9 +168,9 @@ export class ContractTestingCoordinator
           hiddenLayers: [64, 64],
         });
         // First call to predict will initialize the algorithm
-        console.log('[contract-testing] SARSA algorithm created successfully');
+        logger.info('SARSA algorithm created successfully');
       } catch (error) {
-        console.error('[contract-testing] Failed to create SARSA:', error);
+        logger.error('Failed to create SARSA:', error instanceof Error ? error : undefined);
         throw new Error(`SARSA creation failed: ${toErrorMessage(error)}`);
       }
     }
@@ -182,11 +185,11 @@ export class ContractTestingCoordinator
           maxPatterns: 5000,
           minConfidence: 0.6,
         });
-        console.log('[contract-testing] PersistentSONAEngine initialized successfully');
+        logger.info('PersistentSONAEngine initialized successfully');
       } catch (error) {
         // Log and continue - SONA is enhancement, not critical
-        console.error('[contract-testing] Failed to initialize PersistentSONAEngine:', error);
-        console.warn('[contract-testing] Continuing without SONA pattern persistence');
+        logger.error('Failed to initialize PersistentSONAEngine:', error instanceof Error ? error : undefined);
+        logger.warn('Continuing without SONA pattern persistence');
         this.qesona = undefined;
       }
     }
@@ -285,7 +288,7 @@ export class ContractTestingCoordinator
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative verification strategy`);
+        logger.warn(`Topology degraded, using conservative verification strategy`);
         // Continue with reduced parallelism when topology is unhealthy
       }
 
@@ -321,7 +324,7 @@ export class ContractTestingCoordinator
         const prioritizationResult = await this.prioritizeContracts(contracts, prioritizationContext);
         if (prioritizationResult.success) {
           contracts = prioritizationResult.value.orderedContracts;
-          console.log(
+          logger.info(
             `[contract-testing] Using ${prioritizationResult.value.strategy} strategy for contract verification order (confidence: ${prioritizationResult.value.confidence.toFixed(2)})`
           );
         }
@@ -400,7 +403,7 @@ export class ContractTestingCoordinator
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative pre-release check`);
+        logger.warn(`Topology degraded, using conservative pre-release check`);
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -790,16 +793,15 @@ export class ContractTestingCoordinator
       } else if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         // YAML support would require a YAML parser
         // For now, log a warning and return null
-        console.warn('YAML contract files not yet supported:', path.value);
+        logger.warn('YAML contract files not yet supported:');
         return null;
       }
 
       // Try parsing as JSON anyway
       return safeJsonParse(content) as ApiContract;
     } catch (error) {
-      console.error(
-        `Failed to parse contract from ${path.value}:`,
-        toErrorMessage(error)
+      logger.error(
+        `Failed to parse contract from ${path.value}: ${toErrorMessage(error)}`
       );
       return null;
     }
@@ -810,7 +812,7 @@ export class ContractTestingCoordinator
     const result = await this.fileReader.readFile(path.value);
 
     if (!result.success) {
-      console.error(`Failed to read file ${path.value}:`, result.error);
+      logger.error(`Failed to read file ${path.value}:`, result.error);
       return null;
     }
 
@@ -1151,7 +1153,7 @@ export class ContractTestingCoordinator
         done: true,
       });
 
-      console.log(
+      logger.info(
         `[contract-testing] SARSA prioritized ${contracts.length} contracts using ${strategy} strategy (confidence: ${prediction.confidence.toFixed(2)})`
       );
 
@@ -1161,7 +1163,7 @@ export class ContractTestingCoordinator
         confidence: prediction.confidence,
       });
     } catch (error) {
-      console.error('[contract-testing] SARSA prioritization failed:', error);
+      logger.error('SARSA prioritization failed:', error instanceof Error ? error : undefined);
       // Return original contracts on error (graceful degradation)
       return ok({
         orderedContracts: contracts,
@@ -1255,9 +1257,9 @@ export class ContractTestingCoordinator
         }
       );
 
-      console.log(`[contract-testing] Stored pattern for contract ${contract.id} (success: ${validationSuccess}, quality: ${quality.toFixed(2)})`);
+      logger.info(`Stored pattern for contract ${contract.id} (success: ${validationSuccess}, quality: ${quality.toFixed(2)})`);
     } catch (error) {
-      console.error('[contract-testing] Failed to store contract pattern:', error);
+      logger.error('Failed to store contract pattern:', error instanceof Error ? error : undefined);
     }
   }
 
@@ -1304,7 +1306,7 @@ export class ContractTestingCoordinator
         const shouldValidate = adaptation.pattern.outcome.success;
         const strategy = adaptation.pattern.action.type;
 
-        console.log(
+        logger.info(
           `[contract-testing] QESONA adapted pattern for ${contract.id}: shouldValidate=${shouldValidate}, confidence=${adaptation.similarity.toFixed(2)}`
         );
 
@@ -1321,7 +1323,7 @@ export class ContractTestingCoordinator
         strategy: 'default',
       };
     } catch (error) {
-      console.error('[contract-testing] QESONA pattern adaptation failed:', error);
+      logger.error('QESONA pattern adaptation failed:', error instanceof Error ? error : undefined);
       return {
         shouldValidate: true,
         confidence: 0.5,
@@ -1405,10 +1407,10 @@ export class ContractTestingCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Contract violation verified by consensus`);
+        logger.info(`Contract violation verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Contract violation NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Contract violation NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1434,10 +1436,10 @@ export class ContractTestingCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Breaking change at '${change.path}' verified by consensus`);
+        logger.info(`Breaking change at '${change.path}' verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Breaking change NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Breaking change NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1463,10 +1465,10 @@ export class ContractTestingCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Schema incompatibility verified by consensus`);
+        logger.info(`Schema incompatibility verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Schema incompatibility NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Schema incompatibility NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed

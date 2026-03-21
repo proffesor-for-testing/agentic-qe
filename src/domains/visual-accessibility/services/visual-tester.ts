@@ -3,6 +3,7 @@
  * Implements visual regression testing with screenshot comparison
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { FilePath } from '../../../shared/value-objects/index.js';
@@ -72,6 +73,8 @@ export interface VisualTesterDependencies {
  * Visual Testing Service Implementation
  * Provides screenshot capture and comparison capabilities
  */
+const logger = LoggerFactory.create('visual-accessibility/visual-tester');
+
 export class VisualTesterService implements IVisualTestingService {
   private readonly config: VisualTesterConfig;
   private readonly memory: MemoryBackend;
@@ -323,9 +326,8 @@ export class VisualTesterService implements IVisualTestingService {
         }
 
         // Log fallback but don't fail - use deterministic instead
-        console.warn(
-          '[VisualTester] Browser comparison failed, falling back to deterministic:',
-          browserResult.error.message
+        logger.warn(
+          `Browser comparison failed, falling back to deterministic: ${browserResult.error.message}`
         );
       }
 
@@ -503,7 +505,7 @@ Provide:
       });
       return response.content;
     } catch (error) {
-      console.warn('[VisualTesterService] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed:');
       return null;
     }
   }

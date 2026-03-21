@@ -5,6 +5,7 @@
  * ADR-051: Added LLM integration for AI-powered deployment advice
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -121,6 +122,8 @@ interface DeploymentRecord {
  * - Rollback plan suggestions
  * - Post-deployment monitoring recommendations
  */
+const logger = LoggerFactory.create('quality-assessment/deployment-advisor');
+
 export class DeploymentAdvisorService implements IDeploymentAdvisorService {
   private config: DeploymentAdvisorConfig;
   private readonly memory: MemoryBackend;
@@ -241,11 +244,11 @@ Provide deployment advice specific to these metrics.`,
           }
         } catch {
           // JSON parse failed - return empty enhancement
-          console.warn('[DeploymentAdvisor] Failed to parse LLM response JSON');
+          logger.warn('Failed to parse LLM response JSON');
         }
       }
     } catch (error) {
-      console.warn('[DeploymentAdvisor] LLM advice generation failed:', error);
+      logger.warn('LLM advice generation failed:');
     }
 
     return {};

@@ -8,6 +8,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../logging/index.js';
 import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
 import { toError } from '../../shared/error-utils.js';
 import {
@@ -179,6 +180,9 @@ type RequirementsWorkflowType = 'analyze' | 'generate-artifacts' | 'validate-spr
 /**
  * CQ-002: Extends BaseDomainCoordinator
  */
+
+const logger = LoggerFactory.create('requirements-validation');
+
 export class RequirementsValidationCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, RequirementsWorkflowType>
   implements IRequirementsValidationCoordinator
@@ -260,9 +264,9 @@ export class RequirementsValidationCoordinator
             maxPatterns: 5000,
             minConfidence: 0.6,
           });
-          console.log('[RequirementsValidation] PersistentSONAEngine initialized for pattern learning');
+          logger.info('PersistentSONAEngine initialized for pattern learning');
         } catch (error) {
-          console.error('[RequirementsValidation] Failed to initialize PersistentSONAEngine:', error);
+          logger.error('Failed to initialize PersistentSONAEngine', error instanceof Error ? error : undefined);
           // Continue without SONA - it's optional
           this.sonaEngine = undefined;
         }
@@ -270,7 +274,7 @@ export class RequirementsValidationCoordinator
 
       this.rlInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize RL integrations:', error);
+      logger.error('Failed to initialize RL integrations', error instanceof Error ? error : undefined);
       throw error;
     }
   }
@@ -288,7 +292,7 @@ export class RequirementsValidationCoordinator
         await this.sonaEngine.close();
         this.sonaEngine = undefined;
       } catch (error) {
-        console.error('[RequirementsValidation] Error closing SONA engine:', error);
+        logger.error('Error closing SONA engine', error instanceof Error ? error : undefined);
       }
     }
   }
@@ -315,7 +319,7 @@ export class RequirementsValidationCoordinator
 
       // V3: Check topology health before proceeding (ADR-047)
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn('[RequirementsValidation] Topology degraded, using conservative strategy');
+        logger.warn('Topology degraded, using conservative strategy');
       }
 
       // V3: Pause operations if topology is critical and configured to pause
@@ -333,7 +337,7 @@ export class RequirementsValidationCoordinator
       if (this.config.enableSONA && this.sonaEngine) {
         const pattern = await this.adaptRequirementPattern(requirement);
         if (pattern.success && pattern.pattern) {
-          console.log(`[SONA] Adapted pattern with ${pattern.similarity.toFixed(3)} similarity`);
+          logger.info(`[SONA] Adapted pattern with ${pattern.similarity.toFixed(3)} similarity`);
         }
       }
 
@@ -442,7 +446,7 @@ export class RequirementsValidationCoordinator
         const prediction = await this.optimizeScenarioGeneration(requirement);
         if (prediction.success && prediction.value) {
           optimizedScenarioCount = this.extractScenarioCount(prediction.value);
-          console.log(`[PPO] Optimized scenario count to ${optimizedScenarioCount}`);
+          logger.info(`[PPO] Optimized scenario count to ${optimizedScenarioCount}`);
         }
       }
 
@@ -688,7 +692,7 @@ export class RequirementsValidationCoordinator
       scored.sort((a, b) => b.score - a.score);
       return scored.map((s) => s.scenario);
     } catch (error) {
-      console.error('Failed to optimize scenario ordering:', error);
+      logger.error('Failed to optimize scenario ordering', error instanceof Error ? error : undefined);
       return scenarios;
     }
   }
@@ -729,9 +733,9 @@ export class RequirementsValidationCoordinator
       };
 
       await this.ppoAlgorithm.train(experience);
-      console.log(`[PPO] Trained with reward: ${reward.toFixed(3)}`);
+      logger.info(`[PPO] Trained with reward: ${reward.toFixed(3)}`);
     } catch (error) {
-      console.error('Failed to train PPO:', error);
+      logger.error('Failed to train PPO', error instanceof Error ? error : undefined);
     }
   }
 
@@ -823,7 +827,7 @@ export class RequirementsValidationCoordinator
         similarity: result.similarity,
       };
     } catch (error) {
-      console.error('Failed to adapt requirement pattern:', error);
+      logger.error('Failed to adapt requirement pattern', error instanceof Error ? error : undefined);
       return { success: false, pattern: null, similarity: 0 };
     }
   }
@@ -871,9 +875,9 @@ export class RequirementsValidationCoordinator
         }
       );
 
-      console.log(`[SONA] Stored pattern ${pattern.id} for requirement ${requirement.id}`);
+      logger.info(`[SONA] Stored pattern ${pattern.id} for requirement ${requirement.id}`);
     } catch (error) {
-      console.error('Failed to store requirement pattern:', error);
+      logger.error('Failed to store requirement pattern', error instanceof Error ? error : undefined);
     }
   }
 

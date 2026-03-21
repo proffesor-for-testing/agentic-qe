@@ -3,6 +3,7 @@
  * Extracted from security-auditor.ts - Secret/credential detection
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import * as fs from 'fs/promises';
 import type { FilePath } from '../../../shared/value-objects/index.js';
 import type {
@@ -24,6 +25,8 @@ interface SecretPattern {
 /**
  * Get the comprehensive set of secret detection patterns
  */
+const logger = LoggerFactory.create('security-compliance/security-auditor-secrets');
+
 export function getSecretPatterns(): SecretPattern[] {
   return [
     // AWS Keys
@@ -268,7 +271,7 @@ export async function scanFileForSecrets(file: FilePath): Promise<DetectedSecret
       }
     }
   } catch (error) {
-    console.error(`Failed to scan file for secrets: ${file.value}`, error);
+    logger.error(`Failed to scan file for secrets: ${file.value}`, error instanceof Error ? error : undefined);
   }
 
   return secrets;

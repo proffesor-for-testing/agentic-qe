@@ -5,6 +5,7 @@
  * Contains: GNN embedding indexing, code embedding generation, GNN search
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import {
   QEGNNEmbeddingIndex,
   QEGNNIndexFactory,
@@ -20,6 +21,8 @@ import { FileReader } from '../../shared/io';
 /**
  * Initialize GNN for code graph embeddings
  */
+const logger = LoggerFactory.create('code-intelligence/gnn');
+
 export function initializeGNNIndex(domainKey: string): QEGNNEmbeddingIndex {
   initGNN();
   const gnnIndex = QEGNNIndexFactory.getInstance(domainKey, {
@@ -62,13 +65,13 @@ export async function indexCodeEmbeddings(
           gnnIndex.addEmbedding(embeddingObj);
         }
       } catch (error) {
-        console.error(`Failed to index ${path}:`, error);
+        logger.error(`Failed to index ${path}:`, error instanceof Error ? error : undefined);
       }
     }
 
-    console.log(`[GNN] Indexed ${paths.length} code embeddings`);
+    logger.info(`Indexed ${paths.length} code embeddings`);
   } catch (error) {
-    console.error('Failed to index code embeddings:', error);
+    logger.error('Failed to index code embeddings:', error instanceof Error ? error : undefined);
   }
 }
 
@@ -138,7 +141,7 @@ export async function searchCodeWithGNN(
       similarity: 1 - r.distance,
     }));
   } catch (error) {
-    console.error('Failed to search with GNN:', error);
+    logger.error('Failed to search with GNN:', error instanceof Error ? error : undefined);
     return [];
   }
 }
@@ -172,11 +175,11 @@ export async function enhanceImpactAnalysisWithGNN(
           namespace: 'code' as EmbeddingNamespace,
         });
 
-        console.log(`[GNN] Found ${similar.length} semantically similar files to ${changedFile}`);
+        logger.info(`Found ${similar.length} semantically similar files to ${changedFile}`);
       }
     }
   } catch (error) {
-    console.error('Failed to enhance impact analysis:', error);
+    logger.error('Failed to enhance impact analysis:', error instanceof Error ? error : undefined);
   }
 }
 

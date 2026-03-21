@@ -3,6 +3,7 @@
  * Implements intelligent retry logic for failed tests
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { Result, ok, err } from '../../../shared/types';
@@ -143,6 +144,8 @@ export type RetryCondition =
 // ============================================================================
 // Retry Handler Service
 // ============================================================================
+
+const logger = LoggerFactory.create('test-execution/retry-handler');
 
 export class RetryHandlerService implements IRetryHandler {
   private readonly retryHistory = new Map<string, RetryRecord[]>();
@@ -515,7 +518,7 @@ export class RetryHandlerService implements IRetryHandler {
       }
     } catch (error) {
       // Non-critical: package.json read errors during test runner detection
-      console.debug('[RetryHandler] package.json read failed:', error instanceof Error ? error.message : error);
+      logger.debug('package.json read failed:');
     }
 
     return null;

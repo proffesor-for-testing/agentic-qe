@@ -7,6 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
@@ -130,6 +131,9 @@ const DEFAULT_FEATURES: PredictionFeature[] = [
  *
  * ADR-051: Added LLM enhancement for AI-powered defect risk analysis
  */
+
+const logger = LoggerFactory.create('defect-intelligence/defect-predictor');
+
 export class DefectPredictorService implements IDefectPredictorService {
   private readonly config: DefectPredictorConfig;
   private readonly memory: MemoryBackend;
@@ -267,7 +271,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
       return null;
     } catch (error) {
-      console.warn('[DefectPredictor] LLM analysis failed, using heuristics only:', error);
+      logger.warn('LLM analysis failed, using heuristics only');
       return null;
     }
   }
@@ -701,7 +705,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
           return Math.max(0, Math.min(1, complexity));
         } catch (error) {
           // Non-critical: AST parse errors, using heuristics fallback
-          console.debug('[DefectPredictor] AST parse failed:', error instanceof Error ? error.message : error);
+          logger.debug(`AST parse failed: ${error instanceof Error ? error.message : error}`);
         }
       }
     }
@@ -1009,7 +1013,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       }
     } catch (error) {
       // Log but don't fail - return empty array
-      console.error(`Failed to analyze dependencies for ${file}:`, error);
+      logger.error(`Failed to analyze dependencies for ${file}`, error instanceof Error ? error : undefined);
     }
 
     return dependencies;

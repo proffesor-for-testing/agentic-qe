@@ -3,6 +3,7 @@
  * Extracted from security-auditor.ts - Static Application Security Testing
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -34,6 +35,8 @@ interface SASTVulnerabilityPattern {
 /**
  * Get the default SAST vulnerability patterns for JS/TS analysis
  */
+const logger = LoggerFactory.create('security-compliance/security-auditor-sast');
+
 export function getSASTVulnerabilityPatterns(): SASTVulnerabilityPattern[] {
   return [
     // SQL Injection patterns
@@ -274,7 +277,7 @@ export async function performSASTScan(
       }
     }
   } catch (error) {
-    console.error('SAST scan failed:', error);
+    logger.error('SAST scan failed:', error instanceof Error ? error : undefined);
   }
 
   const scanDurationMs = Date.now() - startTime;

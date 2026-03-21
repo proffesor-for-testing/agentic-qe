@@ -3,6 +3,7 @@
  * Orchestrates test execution workflow and publishes domain events
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../shared/types';
 import {
@@ -196,6 +197,8 @@ export interface ITestExecutionCoordinator extends TestExecutionAPI {
 // ============================================================================
 // Test Execution Coordinator
 // ============================================================================
+
+const logger = LoggerFactory.create('test-execution');
 
 export class TestExecutionCoordinator
   extends BaseDomainCoordinator<TestExecutionCoordinatorConfig>
@@ -505,7 +508,7 @@ export class TestExecutionCoordinator
     try {
       // ADR-047: Check topology health before expensive parallel operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, reducing parallel workers`);
+        logger.warn(`Topology degraded, reducing parallel workers`);
         // Reduce workers when topology is unhealthy
         request = { ...request, workers: Math.max(1, Math.floor(request.workers / 2)) };
       }
@@ -658,7 +661,7 @@ export class TestExecutionCoordinator
           );
 
           if (!isVerified) {
-            console.log(`[${this.domainName}] Flaky test '${flaky.testId}' not verified, skipping publication`);
+            logger.info(`Flaky test '${flaky.testId}' not verified, skipping publication`);
             continue; // Skip unverified flaky detections
           }
         }
@@ -733,7 +736,7 @@ export class TestExecutionCoordinator
       );
 
       if (!isStrategyVerified) {
-        console.warn(`[${this.domainName}] Retry strategy not verified, proceeding with reduced retries`);
+        logger.warn(`Retry strategy not verified, proceeding with reduced retries`);
         request = { ...request, maxRetries: Math.max(1, Math.floor(request.maxRetries / 2)) };
       }
     }
@@ -1178,10 +1181,10 @@ export class TestExecutionCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Flaky test '${test.testId}' classification verified by consensus`);
+        logger.info(`Flaky test '${test.testId}' classification verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Flaky test '${test.testId}' classification NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Flaky test '${test.testId}' classification NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1212,10 +1215,10 @@ export class TestExecutionCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Retry strategy verified by consensus`);
+        logger.info(`Retry strategy verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Retry strategy NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Retry strategy NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1246,10 +1249,10 @@ export class TestExecutionCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Failure analysis for '${analysis.testId}' verified by consensus`);
+        logger.info(`Failure analysis for '${analysis.testId}' verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Failure analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Failure analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed

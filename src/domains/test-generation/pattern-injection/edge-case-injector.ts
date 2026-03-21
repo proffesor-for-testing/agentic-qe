@@ -10,6 +10,7 @@
  * patterns discovered in past testing inform future test generation.
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import { generateRemediationHints } from '../../../learning/opd-remediation.js';
 import type { RemediationHint } from '../../../learning/opd-remediation.js';
@@ -64,6 +65,8 @@ interface RetrievedPattern {
  * Pulls function names, class names, import identifiers, and
  * common code patterns for pattern matching.
  */
+const logger = LoggerFactory.create('test-generation/edge-case-injector');
+
 export function extractKeywords(sourceCode: string): string[] {
   const keywords = new Set<string>();
 
@@ -178,7 +181,7 @@ export class EdgeCaseInjector {
       };
     } catch (error) {
       // Non-blocking: injection failure should never break test generation
-      console.warn('[EdgeCaseInjector] Failed to get injection context:', error);
+      logger.warn('Failed to get injection context:');
       return emptyResult;
     }
   }

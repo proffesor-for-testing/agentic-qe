@@ -3,6 +3,7 @@
  * Builds and queries knowledge graph for code relationships
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { TypeScriptParser } from '../../../shared/parsers';
 import { FileReader } from '../../../shared/io';
@@ -97,6 +98,8 @@ const DEFAULT_CONFIG: KnowledgeGraphConfig = {
  *
  * ADR-051: Added LLM enhancement for AI-powered knowledge extraction
  */
+const logger = LoggerFactory.create('code-intelligence/knowledge-graph');
+
 export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly config: KnowledgeGraphConfig;
   private readonly memory: MemoryBackend;
@@ -414,7 +417,7 @@ Be precise and only report high-confidence findings.`,
 
       return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
     } catch (error) {
-      console.warn('[KnowledgeGraph] LLM relationship extraction failed:', error);
+      logger.warn('LLM relationship extraction failed:');
       return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
     }
   }
@@ -543,7 +546,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
 
       return { enhancedResults: results, insights: [] };
     } catch (error) {
-      console.warn('[KnowledgeGraph] LLM query enhancement failed:', error);
+      logger.warn('LLM query enhancement failed:');
       return { enhancedResults: results, insights: [] };
     }
   }

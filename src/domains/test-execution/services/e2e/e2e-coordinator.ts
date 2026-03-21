@@ -8,6 +8,7 @@
  * @module test-execution/services/e2e/e2e-coordinator
  */
 
+import { LoggerFactory } from '../../../../logging/index.js';
 import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '@integrations/vibium';
 import type { IBrowserClient } from '@integrations/browser';
 import {
@@ -52,6 +53,8 @@ import { toErrorMessage } from '@shared/error-utils.js';
  * - Network interception and API mocking
  * - Device emulation for responsive testing
  */
+const logger = LoggerFactory.create('test-execution/e2e-coordinator');
+
 export class E2ETestRunnerService implements IE2ETestRunnerService {
   private readonly config: E2ERunnerConfig;
   private readonly orchestrator: BrowserOrchestrator;
@@ -355,7 +358,7 @@ export class E2ETestRunnerService implements IE2ETestRunnerService {
    */
   private log(message: string): void {
     if (this.config.verbose) {
-      console.log(`[E2ERunner] ${message}`);
+      logger.info(`${message}`);
     }
   }
 }

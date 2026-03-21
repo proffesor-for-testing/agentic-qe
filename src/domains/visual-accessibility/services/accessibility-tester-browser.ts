@@ -3,6 +3,7 @@
  * Extracted from accessibility-tester.ts - Browser-based auditing via agent-browser and Vibium
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import {
   AccessibilityReport,
@@ -79,6 +80,8 @@ export const WCAG_CRITERIA: Record<string, WCAGCriterion> = {
 /**
  * Check if client is an IAgentBrowserClient (has getSnapshot method)
  */
+const logger = LoggerFactory.create('visual-accessibility/accessibility-tester-browser');
+
 export function isAgentBrowserClient(client: IBrowserClient): client is IAgentBrowserClient {
   return client.tool === 'agent-browser' && 'getSnapshot' in client;
 }
@@ -437,7 +440,7 @@ export async function auditWithBrowserClient(
         const snapshotResult = await client.getSnapshot({ interactive: true });
         if (snapshotResult.success) {
           const elementCount = snapshotResult.value.interactiveElements.length;
-          console.debug(`[AccessibilityTester] Found ${elementCount} interactive elements`);
+          logger.debug(`Found ${elementCount} interactive elements`);
         }
       }
 

@@ -10,6 +10,7 @@
  * - Integration with graph-boundaries analyzer
  */
 
+import { LoggerFactory } from '../../../../logging/index.js';
 import { Result, ok, err, Severity, Priority } from '@shared/types';
 import type { MemoryBackend, StoreOptions } from '@kernel/interfaces';
 import { NomicEmbedder, type NomicEmbedderConfig } from '@shared/embeddings';
@@ -89,6 +90,8 @@ export interface IC4ModelService {
 /**
  * C4 Model Service for generating architecture diagrams
  */
+const logger = LoggerFactory.create('code-intelligence/c4-model');
+
 export class C4ModelService implements IC4ModelService {
   private readonly embedder: NomicEmbedder;
   private readonly config: Required<C4ModelServiceConfig>;
@@ -179,7 +182,7 @@ export class C4ModelService implements IC4ModelService {
           metadata.embedding = await this.embedder.embed(embeddingText);
         } catch (embedError) {
           // Non-fatal: continue without embedding
-          console.warn('[C4ModelService] Failed to generate embedding:', embedError);
+          logger.warn('Failed to generate embedding:');
         }
       }
 
@@ -267,7 +270,7 @@ export class C4ModelService implements IC4ModelService {
         try {
           metadata.embedding = await this.embedder.embed(embeddingText);
         } catch (embedError) {
-          console.warn('[C4ModelService] Failed to generate embedding:', embedError);
+          logger.warn('Failed to generate embedding:');
         }
       }
 
@@ -364,7 +367,7 @@ export class C4ModelService implements IC4ModelService {
         try {
           metadata.embedding = await this.embedder.embed(embeddingText);
         } catch (embedError) {
-          console.warn('[C4ModelService] Failed to generate embedding:', embedError);
+          logger.warn('Failed to generate embedding:');
         }
       }
 

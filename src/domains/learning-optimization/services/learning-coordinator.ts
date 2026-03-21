@@ -3,6 +3,7 @@
  * Orchestrates learning across all QE domains
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
@@ -74,6 +75,8 @@ export interface LearningCoordinatorDependencies {
  * Learning Coordinator Service
  * Implements pattern learning and experience mining capabilities
  */
+const logger = LoggerFactory.create('learning-optimization/learning-coordinator');
+
 export class LearningCoordinatorService
   implements IPatternLearningService, IExperienceMiningService
 {
@@ -115,7 +118,7 @@ export class LearningCoordinatorService
       'pattern-adaptation',
       customConfig
     );
-    console.log('[LearningCoordinatorService] FlashAttention initialized for pattern adaptation');
+    logger.info('FlashAttention initialized for pattern adaptation');
     return this.flashAttention;
   }
 
@@ -282,7 +285,7 @@ Provide:
       });
       return response.content;
     } catch (error) {
-      console.warn('[LearningCoordinatorService] LLM synthesis failed:', error);
+      logger.warn('LLM synthesis failed:');
       return null;
     }
   }

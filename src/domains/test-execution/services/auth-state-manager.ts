@@ -6,6 +6,7 @@
  * sessionStorage, and other browser state to skip login flows in tests.
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { mkdir, access, readdir, stat, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
 import type { AgentBrowserClient } from '../../../integrations/browser/agent-browser/client';
@@ -62,6 +63,8 @@ export interface AuthStateManagerConfig {
 /**
  * Auth state manager errors
  */
+const logger = LoggerFactory.create('test-execution/auth-state-manager');
+
 export class AuthStateError extends Error {
   constructor(
     message: string,
@@ -316,7 +319,7 @@ export class AuthStateManager {
       await unlink(statePath);
     } catch (error) {
       // Non-critical: file may not exist
-      console.debug('[AuthStateManager] State file removal skipped:', error instanceof Error ? error.message : error);
+      logger.debug('State file removal skipped:');
     }
 
     // Remove metadata file
@@ -324,7 +327,7 @@ export class AuthStateManager {
       await unlink(metaPath);
     } catch (error) {
       // Non-critical: file may not exist
-      console.debug('[AuthStateManager] Metadata file removal skipped:', error instanceof Error ? error.message : error);
+      logger.debug('Metadata file removal skipped:');
     }
 
     // Clear cache
