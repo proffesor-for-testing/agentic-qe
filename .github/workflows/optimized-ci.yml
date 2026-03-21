@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run governance integration tests
-        run: npx vitest run tests/integration/governance/
+        run: timeout 480 npx vitest run tests/integration/governance/ --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
@@ -55,7 +55,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run ruvector + coordination integration tests
-        run: npx vitest run tests/integration/ruvector/ tests/integration/coordination/
+        run: timeout 480 npx vitest run tests/integration/ruvector/ tests/integration/coordination/ --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
@@ -74,7 +74,7 @@ jobs:
           # Run only test files directly in tests/integration/ (not in subdirectories)
           FILES=$(find tests/integration -maxdepth 1 -name '*.test.ts' ! -name '*.e2e.test.ts' | sort)
           if [ -n "$FILES" ]; then
-            npx vitest run $FILES
+            timeout 480 npx vitest run $FILES --reporter=verbose
           else
             echo "No root-level integration tests found"
           fi
@@ -96,7 +96,7 @@ jobs:
           # Everything in tests/integration subdirs EXCEPT the ones covered by
           # other shards (governance, ruvector, coordination) and the original
           # exclusions (browser, mcp, sync, learning, domains, llm, n8n).
-          npx vitest run \
+          timeout 480 npx vitest run \
             tests/integration/adapters/ \
             tests/integration/cli/ \
             tests/integration/code-intelligence/ \
@@ -113,7 +113,8 @@ jobs:
             tests/integration/templates/ \
             tests/integration/test-execution/ \
             tests/integration/test-generation/ \
-            tests/integration/validation/
+            tests/integration/validation/ \
+            --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 

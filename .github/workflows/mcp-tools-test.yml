@@ -44,7 +44,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run handler tests
-        run: npx vitest run tests/unit/mcp/handlers/ --fileParallelism=false
+        run: timeout 480 npx vitest run tests/unit/mcp/handlers/ --fileParallelism=false --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -65,7 +65,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run security tests
-        run: npx vitest run tests/unit/mcp/security/ --fileParallelism=false
+        run: timeout 480 npx vitest run tests/unit/mcp/security/ --fileParallelism=false --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -87,11 +87,12 @@ jobs:
       - run: npm run build
       - name: Run tools, transport, metrics tests
         run: >-
-          npx vitest run
+          timeout 480 npx vitest run
           tests/unit/mcp/tools/
           tests/unit/mcp/transport/
           tests/unit/mcp/metrics/
           --fileParallelism=false
+          --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -113,13 +114,14 @@ jobs:
       - run: npm run build
       - name: Run root-level MCP tests
         run: >-
-          npx vitest run
+          timeout 480 npx vitest run
           tests/unit/mcp/mcp-server.test.ts
           tests/unit/mcp/mcp-performance-benchmark.test.ts
           tests/unit/mcp/tool-registry-security.test.ts
           tests/unit/mcp/tool-scoping.test.ts
           tests/unit/mcp/wrapped-domain-handlers.test.ts
           --fileParallelism=false
+          --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
       - uses: actions/upload-artifact@v4
@@ -141,7 +143,7 @@ jobs:
       - run: npm ci
 
       - name: Run MCP integration tests
-        run: npm run test:mcp:integration
+        run: timeout 480 npm run test:mcp:integration
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
         continue-on-error: true
