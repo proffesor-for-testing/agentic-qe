@@ -160,6 +160,7 @@ jobs:
       - name: Generate test report
         uses: dorny/test-reporter@v1
         if: always() && hashFiles('junit.xml') != ''
+        continue-on-error: true
         with:
           name: MCP Integration Test Results
           path: 'junit.xml'
