@@ -171,7 +171,7 @@ jobs:
       - name: Run Infrastructure Tests
         run: |
           if [ -d "tests/infrastructure" ] && [ "$(ls -A tests/infrastructure/*.test.ts 2>/dev/null)" ]; then
-            npm run test:infrastructure
+            timeout 480 npm run test:infrastructure
           else
             echo "No infrastructure tests found"
           fi
@@ -181,7 +181,7 @@ jobs:
       - name: Run Regression Tests
         run: |
           if [ -d "tests/regression" ] && [ "$(find tests/regression -name '*.test.ts' 2>/dev/null | head -1)" ]; then
-            npm run test:regression
+            timeout 480 npm run test:regression
           else
             echo "No regression tests found"
           fi
@@ -238,7 +238,7 @@ jobs:
       - name: Run Performance Gates
         id: perf-gates
         run: |
-          npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
+          timeout 480 npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
           echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
           cat perf-report.md
         continue-on-error: true

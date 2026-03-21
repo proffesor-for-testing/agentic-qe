@@ -180,7 +180,7 @@ jobs:
       - run: npm run build
 
       - name: Validate MCP tools
-        run: npm run mcp:validate
+        run: timeout 480 npm run mcp:validate
         continue-on-error: true
 
       - uses: actions/upload-artifact@v4
@@ -191,7 +191,7 @@ jobs:
           retention-days: 30
 
       - name: Generate MCP report
-        run: npm run mcp:report
+        run: timeout 480 npm run mcp:report
         if: always()
 
       - uses: actions/upload-artifact@v4
