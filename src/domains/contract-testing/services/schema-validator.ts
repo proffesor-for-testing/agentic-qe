@@ -6,7 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
-import { createSafeRegex } from '../../../mcp/security/validators/regex-safety-validator.js';
+import { createSafeRegex } from '../../../shared/security/regex-safety-validator.js';
 import { toError } from '../../../shared/error-utils.js';
 import type {
   ISchemaValidationService,

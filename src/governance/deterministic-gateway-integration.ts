@@ -12,7 +12,7 @@
 
 import { governanceFlags, isStrictMode, isDeterministicGatewayEnabled } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
-import { createSafeRegex } from '../mcp/security/validators/regex-safety-validator.js';
+import { createSafeRegex } from '../shared/security/regex-safety-validator.js';
 
 /**
  * Lazily loaded DeterministicToolGateway from @claude-flow/guidance.

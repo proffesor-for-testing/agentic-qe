@@ -27,7 +27,7 @@ import {
 } from '../interfaces';
 import * as net from 'net';
 import { execFile } from 'child_process';
-import { validateCommand } from '../../../mcp/security/cve-prevention';
+import { validateCommand } from '../../../shared/security/command-validator.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
