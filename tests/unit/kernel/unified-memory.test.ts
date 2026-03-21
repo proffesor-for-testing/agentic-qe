@@ -12,7 +12,7 @@
  * - Error handling
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -49,6 +49,7 @@ function cleanupTestDir(): void {
 
 describe('UnifiedMemoryManager', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     resetUnifiedMemory();
     cleanupTestDir();
     fs.mkdirSync(TEST_DB_DIR, { recursive: true });
@@ -57,6 +58,7 @@ describe('UnifiedMemoryManager', () => {
   afterEach(() => {
     resetUnifiedMemory();
     cleanupTestDir();
+    vi.useRealTimers();
   });
 
   // ===========================================================================
@@ -219,7 +221,7 @@ describe('UnifiedMemoryManager', () => {
 
         expect(await manager.kvGet<string>('key1')).toBe('value1');
 
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await vi.advanceTimersByTimeAsync(1100);
 
         expect(await manager.kvGet<string>('key1')).toBeUndefined();
       });
@@ -267,7 +269,7 @@ describe('UnifiedMemoryManager', () => {
       it('should return false for expired key', async () => {
         await manager.kvSet('key1', 'value1', 'default', 1);
 
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await vi.advanceTimersByTimeAsync(1100);
 
         const exists = await manager.kvExists('key1');
         expect(exists).toBe(false);
@@ -307,7 +309,7 @@ describe('UnifiedMemoryManager', () => {
         await manager.kvSet('key1', 'value1', 'default', 1);
         await manager.kvSet('key2', 'value2'); // No expiration
 
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await vi.advanceTimersByTimeAsync(1100);
 
         const cleaned = await manager.kvCleanupExpired();
 

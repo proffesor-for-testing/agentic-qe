@@ -3,19 +3,21 @@
  * Tests for CI-001 (count) and CI-002 (hasCodeIntelligenceIndex) methods
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { InMemoryBackend } from '../../../src/kernel/memory-backend';
 
 describe('InMemoryBackend', () => {
   let backend: InMemoryBackend;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
     backend = new InMemoryBackend();
     await backend.initialize();
   });
 
   afterEach(async () => {
     await backend.dispose();
+    vi.useRealTimers();
   });
 
   describe('count', () => {
@@ -56,7 +58,7 @@ describe('InMemoryBackend', () => {
       expect(count).toBe(2);
 
       // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await vi.advanceTimersByTimeAsync(1100);
 
       // Count again - only non-expired entry should be counted
       count = await backend.count('ttl-ns');

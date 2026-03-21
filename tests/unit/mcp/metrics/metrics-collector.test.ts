@@ -2,17 +2,19 @@
  * Tests for MetricsCollector - Real Metrics Collection
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MetricsCollector, createTaskTracker } from '../../../../src/mcp/metrics';
 
 describe('MetricsCollector', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     MetricsCollector.reset();
     MetricsCollector.initialize();
   });
 
   afterEach(() => {
     MetricsCollector.shutdown();
+    vi.useRealTimers();
   });
 
   describe('initialization', () => {
@@ -61,7 +63,7 @@ describe('MetricsCollector', () => {
       MetricsCollector.startTask('task-2', 'agent-1');
 
       // Wait a bit
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
 
       const duration = MetricsCollector.completeTask('task-2', true);
 
@@ -104,11 +106,11 @@ describe('MetricsCollector', () => {
 
     it('should calculate average time correctly', async () => {
       MetricsCollector.startTask('task-1', 'agent-time');
-      await new Promise((r) => setTimeout(r, 20));
+      await vi.advanceTimersByTimeAsync(20);
       MetricsCollector.completeTask('task-1', true);
 
       MetricsCollector.startTask('task-2', 'agent-time');
-      await new Promise((r) => setTimeout(r, 40));
+      await vi.advanceTimersByTimeAsync(40);
       MetricsCollector.completeTask('task-2', true);
 
       const stats = MetricsCollector.getAgentTaskStats('agent-time');
@@ -251,7 +253,7 @@ describe('MetricsCollector', () => {
     it('should return real durations when available', async () => {
       // Create some real task data
       MetricsCollector.startTask('task-1', 'agent-1');
-      await new Promise((r) => setTimeout(r, 30));
+      await vi.advanceTimersByTimeAsync(30);
       MetricsCollector.completeTask('task-1', true);
 
       const durations = MetricsCollector.getTestDurations(3);
@@ -282,11 +284,11 @@ describe('MetricsCollector', () => {
 
     it('should calculate average correctly', async () => {
       MetricsCollector.startTask('task-1', 'agent-1');
-      await new Promise((r) => setTimeout(r, 20));
+      await vi.advanceTimersByTimeAsync(20);
       MetricsCollector.completeTask('task-1', true);
 
       MetricsCollector.startTask('task-2', 'agent-1');
-      await new Promise((r) => setTimeout(r, 40));
+      await vi.advanceTimersByTimeAsync(40);
       MetricsCollector.completeTask('task-2', true);
 
       const avg = MetricsCollector.getAverageExecutionTime();
@@ -315,7 +317,7 @@ describe('MetricsCollector', () => {
 
     it('should return duration on complete', async () => {
       const tracker = createTaskTracker('duration-task', 'agent-1');
-      await new Promise((r) => setTimeout(r, 25));
+      await vi.advanceTimersByTimeAsync(25);
       const duration = tracker.complete(true);
 
       expect(duration).toBeGreaterThanOrEqual(20);

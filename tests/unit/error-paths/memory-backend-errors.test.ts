@@ -21,11 +21,13 @@ describe('Memory Backend Error Paths', () => {
   let memory: MockMemory;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     memory = createMockMemory();
   });
 
   afterEach(() => {
     memory.reset();
+    vi.useRealTimers();
   });
 
   // ===========================================================================
@@ -124,6 +126,7 @@ describe('Memory Backend Error Paths', () => {
       const readResult = await memory.get('rw-key');
       expect(readResult).toBe('initial');
 
+      await vi.advanceTimersByTimeAsync(50);
       await slowWrite;
       const finalResult = await memory.get('rw-key');
       expect(finalResult).toBe('updated');
@@ -142,7 +145,10 @@ describe('Memory Backend Error Paths', () => {
         });
       };
 
-      await expect(timeoutQuery()).rejects.toThrow('Query timeout exceeded');
+      const promise = timeoutQuery();
+      const assertion = expect(promise).rejects.toThrow('Query timeout exceeded');
+      await vi.advanceTimersByTimeAsync(100);
+      await assertion;
     });
 
     it('should handle connection pool exhaustion', async () => {
@@ -194,9 +200,10 @@ describe('Memory Backend Error Paths', () => {
       // Cancel immediately
       setTimeout(() => abortController.abort(), 10);
 
-      await expect(
-        cancelableOperation(abortController.signal)
-      ).rejects.toThrow('Operation cancelled');
+      const promise = cancelableOperation(abortController.signal);
+      const assertion = expect(promise).rejects.toThrow('Operation cancelled');
+      await vi.advanceTimersByTimeAsync(10);
+      await assertion;
     });
   });
 
@@ -542,7 +549,7 @@ describe('Memory Backend Error Paths', () => {
       await expect(callWithCircuitBreaker(failingOperation)).rejects.toThrow('Circuit breaker is open');
 
       // Wait for reset
-      await new Promise(resolve => setTimeout(resolve, resetTimeout + 10));
+      await vi.advanceTimersByTimeAsync(resetTimeout + 10);
 
       // Circuit should be closed, but operation still fails
       await expect(callWithCircuitBreaker(failingOperation)).rejects.toThrow('Service unavailable');
@@ -577,10 +584,13 @@ describe('Memory Backend Error Paths', () => {
       await expect(executeWithBulkhead(slowOperation)).rejects.toThrow('Bulkhead limit reached');
 
       // Wait for completion
+      await vi.advanceTimersByTimeAsync(50);
       await Promise.all([p1, p2]);
 
       // Now should succeed
-      const result = await executeWithBulkhead(slowOperation);
+      const p3 = executeWithBulkhead(slowOperation);
+      await vi.advanceTimersByTimeAsync(50);
+      const result = await p3;
       expect(result).toBe('done');
     });
   });

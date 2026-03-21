@@ -16,6 +16,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 describe('Unified Memory Manager Error Paths', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // ===========================================================================
   // Database Initialization Failures
   // ===========================================================================
@@ -395,11 +403,13 @@ describe('Unified Memory Manager Error Paths', () => {
       };
 
       // Start multiple initializations concurrently
-      await Promise.all([
+      const initPromises = Promise.all([
         initialize(),
         initialize(),
         initialize(),
       ]);
+      await vi.advanceTimersByTimeAsync(50);
+      await initPromises;
 
       expect(initialized).toBe(true);
     });
@@ -432,6 +442,7 @@ describe('Unified Memory Manager Error Paths', () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain('reset');
 
+      await vi.advanceTimersByTimeAsync(100);
       await opPromise;
     });
 
