@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run governance integration tests
-        run: bash scripts/ci-vitest-run.sh tests/integration/governance/ --reporter=verbose
+        run: timeout 480 npx vitest run tests/integration/governance/ --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
