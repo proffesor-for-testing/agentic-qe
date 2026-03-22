@@ -5,7 +5,7 @@
  * Uses synthetic pixel data rather than real images.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   CNNVisualRegression,
   cosineSimilarity,
@@ -122,6 +122,10 @@ describe('CNNVisualRegression', () => {
 
   beforeEach(() => {
     cnn = new CNNVisualRegression({ tryNativeBackend: false });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

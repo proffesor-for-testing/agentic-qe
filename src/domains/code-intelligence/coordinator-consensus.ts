@@ -5,6 +5,7 @@
  * Contains: consensus verification for code patterns, impact analysis, dependency mapping
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import {
   type DomainFinding,
@@ -15,6 +16,8 @@ import type { ConsensusEnabledMixin } from '../../coordination/mixins/consensus-
 /**
  * Verify a code pattern detection using multi-model consensus
  */
+const logger = LoggerFactory.create('code-intelligence/consensus');
+
 export async function verifyCodePatternDetection(
   pattern: { id: string; name: string; type: string; location: string },
   confidence: number,
@@ -34,10 +37,10 @@ export async function verifyCodePatternDetection(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Code pattern '${pattern.name}' verified by consensus`);
+      logger.info(`Code pattern '${pattern.name}' verified by consensus`);
       return true;
     }
-    console.warn(`[${domainName}] Code pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+    logger.warn(`Code pattern '${pattern.name}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
     return false;
   }
   return true;
@@ -65,10 +68,10 @@ export async function verifyImpactAnalysis(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Impact analysis verified by consensus (risk=${impact.riskLevel})`);
+      logger.info(`Impact analysis verified by consensus (risk=${impact.riskLevel})`);
       return true;
     }
-    console.warn(`[${domainName}] Impact analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+    logger.warn(`Impact analysis NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
     return false;
   }
   return true;
@@ -96,10 +99,10 @@ export async function verifyDependencyMapping(
   if (consensusMixin.requiresConsensus(finding)) {
     const result = await consensusMixin.verifyFinding(finding);
     if (result.success && result.value.verdict === 'verified') {
-      console.log(`[${domainName}] Dependency mapping verified by consensus`);
+      logger.info(`Dependency mapping verified by consensus`);
       return true;
     }
-    console.warn(`[${domainName}] Dependency mapping NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+    logger.warn(`Dependency mapping NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
     return false;
   }
   return true;

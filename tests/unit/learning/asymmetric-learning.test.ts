@@ -9,7 +9,7 @@
  * Structure follows Given-When-Then for every test case.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   AsymmetricLearningEngine,
   DEFAULT_ASYMMETRIC_CONFIG,
@@ -22,6 +22,10 @@ describe('AsymmetricLearningEngine', () => {
 
   beforeEach(() => {
     engine = new AsymmetricLearningEngine();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

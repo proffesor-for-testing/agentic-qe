@@ -11,6 +11,7 @@
  * @module domains/visual-accessibility/services/axe-core-integration
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type {
   AccessibilityReport,
@@ -429,6 +430,8 @@ const AXE_CORE_INJECTION_CHECK = `
 /**
  * Error thrown when axe-core injection fails
  */
+const logger = LoggerFactory.create('visual-accessibility/axe-core');
+
 export class AxeCoreInjectionError extends Error {
   constructor(message: string, public readonly cause?: Error) {
     super(message);
@@ -503,7 +506,7 @@ export async function injectAxeCore(
       }
 
       // CDN failed, log and continue to fallback
-      console.warn('Failed to load axe-core from CDN, attempting inline injection');
+      logger.warn('Failed to load axe-core from CDN, attempting inline injection');
     }
 
     // Fallback: Check if we have inline axe-core (would need to be bundled)

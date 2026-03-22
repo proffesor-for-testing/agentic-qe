@@ -44,6 +44,14 @@ interface ConsensusResult {
 }
 
 describe('Consensus Engine Error Paths', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // ===========================================================================
   // Model Provider Failures
   // ===========================================================================
@@ -313,9 +321,12 @@ describe('Consensus Engine Error Paths', () => {
       const timeout = 50; // Very short timeout to trigger failures
       const models = ['model-1', 'model-2', 'model-3'];
 
-      const results = await Promise.allSettled(
+      const resultsPromise = Promise.allSettled(
         models.map(m => queryWithTimeout(m, timeout))
       );
+
+      await vi.advanceTimersByTimeAsync(200);
+      const results = await resultsPromise;
 
       // Some may timeout, some may succeed
       const succeeded = results.filter(r => r.status === 'fulfilled');
@@ -352,12 +363,13 @@ describe('Consensus Engine Error Paths', () => {
         ]);
       };
 
-      await expect(
-        verifyWithOverallTimeout(
-          { id: 'f1', severity: 'high', title: 'Test', description: 'Test' },
-          50
-        )
-      ).rejects.toThrow('Verification timeout exceeded');
+      const promise = verifyWithOverallTimeout(
+        { id: 'f1', severity: 'high', title: 'Test', description: 'Test' },
+        50
+      );
+      const assertion = expect(promise).rejects.toThrow('Verification timeout exceeded');
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
     });
   });
 

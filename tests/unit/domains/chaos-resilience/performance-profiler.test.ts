@@ -2,7 +2,7 @@
  * Agentic QE v3 - Performance Profiler Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 
 // Mock secureRandom so we can control randomness in tests
 const mockSecureRandom = vi.fn(() => 0.5);
@@ -62,6 +62,11 @@ describe('PerformanceProfilerService', () => {
       recoveryCheckDelay: 50,
     });
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   describe('testRecovery', () => {
     it('should test service recovery and return result', async () => {

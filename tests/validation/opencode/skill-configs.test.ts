@@ -9,7 +9,7 @@
  * - Minimum step count per skill
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import YAML from 'yaml';
@@ -52,6 +52,10 @@ describe('OpenCode Skill Config Validation', () => {
     skillFiles = fs.readdirSync(SKILLS_DIR)
       .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
       .map((f) => path.join(SKILLS_DIR, f));
+  });
+
+  afterAll(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // -------------------------------------------------------------------------

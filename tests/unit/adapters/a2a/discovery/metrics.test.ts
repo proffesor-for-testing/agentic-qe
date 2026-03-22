@@ -4,7 +4,7 @@
  * @module tests/unit/adapters/a2a/discovery/metrics
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 import {
   MetricsCollector,
@@ -23,6 +23,10 @@ describe('MetricsCollector', () => {
 
   beforeEach(() => {
     metrics = createMetricsCollector();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('constructor', () => {

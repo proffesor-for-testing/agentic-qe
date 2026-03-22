@@ -5,7 +5,7 @@
  * Tests the minimum cut algorithms for swarm topology analysis.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   MinCutCalculator,
   createMinCutCalculator,
@@ -22,6 +22,10 @@ describe('MinCutCalculator', () => {
   beforeEach(() => {
     calculator = createMinCutCalculator();
     graph = createSwarmGraph();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

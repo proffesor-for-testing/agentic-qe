@@ -5,6 +5,7 @@
  * ADR-051: Added LLM-powered gap analysis for intelligent prioritization
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { toError } from '../../../shared/error-utils.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -113,6 +114,8 @@ const DEFAULT_CONFIG: GapDetectorConfig = {
 // ============================================================================
 // Service Implementation
 // ============================================================================
+
+const logger = LoggerFactory.create('coverage-analysis/gap-detector');
 
 export class GapDetectorService implements IGapDetectionService {
   private static readonly DEFAULT_MIN_COVERAGE = 80;
@@ -232,7 +235,7 @@ Return JSON in this exact format:
 
       return err(new Error('Empty response from LLM'));
     } catch (error) {
-      console.warn('[GapDetector] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed');
       return err(toError(error));
     }
   }

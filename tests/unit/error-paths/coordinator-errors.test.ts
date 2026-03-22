@@ -28,6 +28,7 @@ describe('Coordinator Error Paths', () => {
   let agentCoordinator: MockAgentCoordinator;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     eventBus = createMockEventBus();
     memory = createMockMemory();
     agentCoordinator = createMockAgentCoordinator();
@@ -37,6 +38,7 @@ describe('Coordinator Error Paths', () => {
     eventBus.reset();
     memory.reset();
     agentCoordinator.reset();
+    vi.useRealTimers();
   });
 
   // ===========================================================================
@@ -215,7 +217,9 @@ describe('Coordinator Error Paths', () => {
         // Never resolves
       });
 
-      const result = await executeWithTimeout(stuckWorkflow, 50);
+      const resultPromise = executeWithTimeout(stuckWorkflow, 50);
+      await vi.advanceTimersByTimeAsync(50);
+      const result = await resultPromise;
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -258,6 +262,7 @@ describe('Coordinator Error Paths', () => {
         expect(result.error.message).toContain('Max concurrent workflows');
       }
 
+      await vi.advanceTimersByTimeAsync(100);
       await Promise.all(promises);
     });
 
@@ -285,7 +290,9 @@ describe('Coordinator Error Paths', () => {
       // Cancel after 50ms
       setTimeout(() => abortController.abort(), 50);
 
-      const result = await cancellableWorkflow(abortController.signal);
+      const resultPromise = cancellableWorkflow(abortController.signal);
+      await vi.advanceTimersByTimeAsync(60);
+      const result = await resultPromise;
 
       expect(result.success).toBe(false);
       expect(cancelled).toBe(true);
@@ -528,7 +535,9 @@ describe('Coordinator Error Paths', () => {
         }
       };
 
-      const result = await disposeWithTimeout(50);
+      const resultPromise = disposeWithTimeout(50);
+      await vi.advanceTimersByTimeAsync(50);
+      const result = await resultPromise;
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.message).toContain('Disposal timeout');
@@ -662,7 +671,9 @@ describe('Coordinator Error Paths', () => {
         }
       };
 
-      const verified = await verifyWithTimeout({ type: 'test' }, 50);
+      const verifiedPromise = verifyWithTimeout({ type: 'test' }, 50);
+      await vi.advanceTimersByTimeAsync(50);
+      const verified = await verifiedPromise;
       expect(verified).toBe(true);
     });
   });

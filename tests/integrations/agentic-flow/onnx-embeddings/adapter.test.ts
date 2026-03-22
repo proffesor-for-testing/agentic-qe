@@ -2,7 +2,7 @@
  * Tests for ONNX Embeddings Adapter
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   ONNXEmbeddingsAdapter,
   createONNXEmbeddingsAdapter,
@@ -17,6 +17,10 @@ describe('ONNXEmbeddingsAdapter', () => {
   beforeEach(async () => {
     adapter = createONNXEmbeddingsAdapter({ autoInitialize: false });
     await adapter.initialize();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('initialization', () => {

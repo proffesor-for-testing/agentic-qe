@@ -6,7 +6,7 @@
  * infrastructure failures and should be re-run after recovery.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TestRerunManager,
   createTestRerunManager,
@@ -21,6 +21,10 @@ describe('TestRerunManager', () => {
 
   beforeEach(() => {
     manager = createTestRerunManager();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

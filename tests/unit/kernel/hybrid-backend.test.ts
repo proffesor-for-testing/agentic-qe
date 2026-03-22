@@ -18,6 +18,7 @@ import * as path from 'path';
 import { HybridMemoryBackend, type HybridBackendConfig } from '../../../src/kernel/hybrid-backend';
 import { resetUnifiedMemory } from '../../../src/kernel/unified-memory';
 
+
 // ============================================================================
 // Test Helpers
 // ============================================================================
@@ -58,6 +59,7 @@ describe('HybridMemoryBackend', () => {
   let backend: HybridMemoryBackend;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     // Ensure clean state
     resetUnifiedMemory();
     cleanupTestDir();
@@ -70,6 +72,7 @@ describe('HybridMemoryBackend', () => {
     }
     resetUnifiedMemory();
     cleanupTestDir();
+    vi.useRealTimers();
   });
 
   // ===========================================================================
@@ -211,7 +214,7 @@ describe('HybridMemoryBackend', () => {
         expect(value1).toBe('value1');
 
         // Wait for expiration
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await vi.advanceTimersByTimeAsync(1100);
 
         const value2 = await backend.get<string>('key1');
         expect(value2).toBeUndefined();
@@ -253,7 +256,7 @@ describe('HybridMemoryBackend', () => {
       it('should return false for expired key', async () => {
         await backend.set('key1', 'value1', { ttl: 1 });
 
-        await new Promise(resolve => setTimeout(resolve, 1100));
+        await vi.advanceTimersByTimeAsync(1100);
 
         const exists = await backend.has('key1');
         expect(exists).toBe(false);

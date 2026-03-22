@@ -10,7 +10,7 @@
  * - See: src/integrations/ruvector/TESTING_LIMITATIONS.md
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -42,6 +42,10 @@ describe.runIf(canTest.attention)('@ruvector/attention Wrapper - Real Integratio
         blockSize: 64,
       });
       await fa.initialize();
+    });
+
+    afterAll(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should create instance with workload', () => {

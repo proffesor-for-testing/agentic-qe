@@ -5,7 +5,7 @@
  * dense vector embeddings for HNSW-based similarity search.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   CoverageEmbedder,
   createCoverageEmbedder,
@@ -19,6 +19,10 @@ describe('CoverageEmbedder', () => {
 
   beforeEach(() => {
     embedder = createCoverageEmbedder();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('embedFileCoverage', () => {

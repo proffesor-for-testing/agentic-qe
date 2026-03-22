@@ -16,7 +16,7 @@
  * - Eventual consistency
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 
 import {
   // LWW Register
@@ -668,6 +668,10 @@ describe('CRDTStore', () => {
     store = createCRDTStore({ nodeId: 'test-node' });
   });
 
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
+  });
+
   describe('register management', () => {
     it('should create and get registers', () => {
       store.setRegister('config', { maxAgents: 100 });
@@ -1001,18 +1005,23 @@ describe('ConvergenceTracker', () => {
 
   describe('time tracking', () => {
     it('should track time since convergence', async () => {
-      const tracker = createConvergenceTracker();
+      vi.useFakeTimers();
+      try {
+        const tracker = createConvergenceTracker();
 
-      const store = createCRDTStore({ nodeId: 'node-1' });
-      tracker.recordNodeState('node-1', store.getState());
+        const store = createCRDTStore({ nodeId: 'node-1' });
+        tracker.recordNodeState('node-1', store.getState());
 
-      // Wait a bit - use 50ms to be more reliable across different environments
-      await new Promise((resolve) => setTimeout(resolve, 50));
+        // Advance fake time instead of real delay
+        await vi.advanceTimersByTimeAsync(50);
 
-      const timeSince = tracker.getTimeSinceConvergence();
-      expect(timeSince).not.toBeNull();
-      // Allow for some timing variance by checking >= 40ms instead of exact 50ms
-      expect(timeSince!).toBeGreaterThanOrEqual(40);
+        const timeSince = tracker.getTimeSinceConvergence();
+        expect(timeSince).not.toBeNull();
+        // Allow for some timing variance by checking >= 40ms instead of exact 50ms
+        expect(timeSince!).toBeGreaterThanOrEqual(40);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

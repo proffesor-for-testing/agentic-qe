@@ -2,7 +2,7 @@
  * Tests for AgentBrowserCommandExecutor
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { AgentBrowserCommandExecutor, isAgentBrowserAvailable } from '../../../../../src/integrations/browser/agent-browser/command-executor';
 
 describe('AgentBrowserCommandExecutor', () => {
@@ -14,6 +14,10 @@ describe('AgentBrowserCommandExecutor', () => {
       timeout: 10000,
       debug: false,
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Configuration', () => {

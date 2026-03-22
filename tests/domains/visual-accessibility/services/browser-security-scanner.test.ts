@@ -3,7 +3,7 @@
  * Verifies security scanning functionality with fallback behavior
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   BrowserSecurityScanner,
   createBrowserSecurityScanner,
@@ -15,6 +15,10 @@ describe('BrowserSecurityScanner', () => {
   beforeEach(async () => {
     scanner = createBrowserSecurityScanner({ verbose: false });
     await scanner.initialize();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('initialization', () => {

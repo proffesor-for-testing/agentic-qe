@@ -467,6 +467,21 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
   });
 
   describe('QEReasoningBank + RVF dual-writer integration', () => {
+    // Helper: guard native-heavy operations against hangs in CI.
+    // QEReasoningBank.initialize() loads HNSW indices and cross-domain transfers
+    // which can deadlock in native code where vitest's JS timeout is powerless.
+    async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+      let timer: ReturnType<typeof setTimeout>;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+      });
+      try {
+        return await Promise.race([promise, timeout]);
+      } finally {
+        clearTimeout(timer!);
+      }
+    }
+
     it('should accept a dual-writer via setRvfDualWriter and replicate storePattern embeddings', async () => {
       // Create a real in-memory SQLite for both the bank and the dual-writer
       const db = createTestDb();
@@ -481,37 +496,33 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
         mode: 'dual-write',
         dimensions: 384,
       });
-      await writer.initialize();
+      await withTimeout(writer.initialize(), 10000, 'writer.initialize');
 
       // Create ReasoningBank and wire dual-writer
       const bank = createQEReasoningBank(memStub);
-      await bank.initialize();
+      await withTimeout(bank.initialize(), 15000, 'bank.initialize');
       bank.setRvfDualWriter(writer);
 
       // Store a pattern — this should trigger dual-write internally
-      const result = await bank.storePattern({
+      const result = await withTimeout(bank.storePattern({
         patternType: 'workflow',
         name: 'Test RVF Integration',
         description: 'Verifies that storePattern replicates embeddings to RVF',
         template: { type: 'workflow', content: 'test', variables: [] },
         context: { tags: ['test'] },
-      });
+      }), 10000, 'bank.storePattern');
 
       expect(result.success).toBe(true);
 
       // Check that the RVF store received the embedding.
-      // The embedding might not be present if the model isn't loaded (no ONNX in test),
-      // so we check status for the RVF vector count.
       const status = writer.status();
-      // If ONNX embeddings were generated, RVF should have >= 1 vector
-      // If not (no model), both stores will have 0 embeddings — that's also valid
       expect(status.rvf).not.toBeNull();
 
       // Cleanup
-      await bank.dispose();
+      await bank.dispose().catch(() => {});
       writer.close();
       db.close();
-    }, 30000);
+    }, 45000);
 
     it('should survive dispose() closing the dual-writer', async () => {
       const db = createTestDb();
@@ -523,14 +534,14 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
         mode: 'dual-write',
         dimensions: 384,
       });
-      await writer.initialize();
+      await withTimeout(writer.initialize(), 10000, 'writer.initialize');
 
       const bank = createQEReasoningBank(memStub);
-      await bank.initialize();
+      await withTimeout(bank.initialize(), 15000, 'bank.initialize');
       bank.setRvfDualWriter(writer);
 
       // Dispose should close the dual-writer without error
-      await bank.dispose();
+      await withTimeout(bank.dispose(), 10000, 'bank.dispose');
 
       // Writer should be closed (status() would throw if we called it)
       // But the test DB should still be usable
@@ -538,7 +549,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       expect(cnt.ok).toBe(1);
 
       db.close();
-    });
+    }, 45000);
   });
 });
 

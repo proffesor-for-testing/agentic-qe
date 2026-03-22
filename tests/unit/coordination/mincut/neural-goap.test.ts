@@ -3,7 +3,7 @@
  * ADR-047: MinCut Self-Organizing QE Integration - Phase 5
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   GOAPController,
   createGOAPController,
@@ -312,6 +312,10 @@ describe('Neural GOAP Optimizer', () => {
 
     beforeEach(() => {
       planner = createNeuralPlanner();
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should create planner with default config', () => {

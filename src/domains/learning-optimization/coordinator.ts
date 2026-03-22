@@ -3,6 +3,7 @@
  * Orchestrates learning workflows across all QE domains
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
 import {
@@ -165,6 +166,8 @@ type LearningWorkflowType = 'learning-cycle' | 'optimization' | 'transfer' | 'ex
 /**
  * CQ-002: Extends BaseDomainCoordinator
  */
+const logger = LoggerFactory.create('learning-optimization');
+
 export class LearningOptimizationCoordinator
   extends BaseDomainCoordinator<LearningCoordinatorConfig, LearningWorkflowType>
   implements ILearningOptimizationCoordinator
@@ -225,11 +228,11 @@ export class LearningOptimizationCoordinator
         maxPatterns: 10000,
         minConfidence: 0.5,
       });
-      console.log('[LearningOptimizationCoordinator] PersistentSONAEngine initialized for pattern learning');
+      logger.info('PersistentSONAEngine initialized for pattern learning');
     } catch (error) {
       // SONA is an enhancement, not a hard requirement — degrade gracefully (#359)
-      console.error('[LearningOptimizationCoordinator] Failed to initialize PersistentSONAEngine:', error);
-      console.warn('[LearningOptimizationCoordinator] Continuing without SONA pattern persistence');
+      logger.error('Failed to initialize PersistentSONAEngine:', error instanceof Error ? error : undefined);
+      logger.warn('Continuing without SONA pattern persistence');
       this.sona = null;
     }
 
@@ -257,9 +260,9 @@ export class LearningOptimizationCoordinator
 
         await this.dreamScheduler.initialize();
         this.dreamScheduler.start();
-        console.log('[LearningOptimizationCoordinator] DreamScheduler initialized and started');
+        logger.info('DreamScheduler initialized and started');
       } catch (error) {
-        console.warn('[LearningOptimizationCoordinator] Failed to initialize DreamScheduler:', error);
+        logger.warn('Failed to initialize DreamScheduler:');
         // DreamScheduler is optional - continue without it
       }
     }
@@ -283,9 +286,9 @@ export class LearningOptimizationCoordinator
     if (this.dreamScheduler) {
       try {
         await this.dreamScheduler.dispose();
-        console.log('[LearningOptimizationCoordinator] DreamScheduler disposed');
+        logger.info('DreamScheduler disposed');
       } catch (error) {
-        console.error('[LearningOptimizationCoordinator] Error disposing DreamScheduler:', error);
+        logger.error('Error disposing DreamScheduler:', error instanceof Error ? error : undefined);
       }
       this.dreamScheduler = null;
     }
@@ -295,7 +298,7 @@ export class LearningOptimizationCoordinator
       try {
         await this.sona.close();
       } catch (error) {
-        console.error('[LearningOptimizationCoordinator] Error closing SONA engine:', error);
+        logger.error('Error closing SONA engine:', error instanceof Error ? error : undefined);
       }
     }
   }
@@ -322,7 +325,7 @@ export class LearningOptimizationCoordinator
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative strategy for learning cycle`);
+        logger.warn(`Topology degraded, using conservative strategy for learning cycle`);
         // Continue with reduced scope when topology is unhealthy
       }
 
@@ -447,7 +450,7 @@ export class LearningOptimizationCoordinator
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative optimization strategy`);
+        logger.warn(`Topology degraded, using conservative optimization strategy`);
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -546,7 +549,7 @@ export class LearningOptimizationCoordinator
 
       // ADR-047: Check topology health before cross-domain operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, limiting cross-domain transfer scope`);
+        logger.warn(`Topology degraded, limiting cross-domain transfer scope`);
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -1464,7 +1467,7 @@ export class LearningOptimizationCoordinator
         );
       }
 
-      console.log(
+      logger.info(
         `[LearningOptimizationCoordinator] Experience ${experience.id} transferred to ${relatedDomains.length} related domains`
       );
     }
@@ -1593,7 +1596,7 @@ export class LearningOptimizationCoordinator
 
     await this.eventBus.publish(event);
 
-    console.log(
+    logger.info(
       `[LearningOptimizationCoordinator] Published dream cycle completion: ${insights.length} insights for ${conceptsProcessed} concepts`
     );
   }

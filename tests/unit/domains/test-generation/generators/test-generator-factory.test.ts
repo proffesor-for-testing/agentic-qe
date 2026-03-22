@@ -3,7 +3,7 @@
  * Verifies the Strategy Pattern implementation for test generation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TestGeneratorFactory,
   createTestGenerator,
@@ -27,6 +27,10 @@ describe('TestGeneratorFactory', () => {
 
   beforeEach(() => {
     factory = new TestGeneratorFactory();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('create()', () => {

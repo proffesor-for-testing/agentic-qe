@@ -2,7 +2,7 @@
  * Agentic QE v3 - Graph Boundaries Analyzer Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createGraphBoundariesAnalyzer,
   RuVectorGraphBoundariesAnalyzer,
@@ -38,6 +38,10 @@ describe('Graph Boundaries Analyzer', () => {
 
     beforeEach(() => {
       analyzer = new RuVectorGraphBoundariesAnalyzer(createConfig());
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('analyzeBoundaries', () => {

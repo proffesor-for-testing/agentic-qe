@@ -3,7 +3,7 @@
  * ADR-035: STDP-based spike timing correlation for root cause analysis
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { CausalDiscoveryEngine } from '../../../src/causal-discovery/discovery-engine';
 import { TestEvent, TestEventType } from '../../../src/causal-discovery/types';
 
@@ -17,6 +17,10 @@ describe('CausalDiscoveryEngine', () => {
       learningRate: 0.05, // Higher learning rate for faster convergence
       timeWindow: 100, // Wider window
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('initialization', () => {

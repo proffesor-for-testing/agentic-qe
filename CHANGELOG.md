@@ -5,6 +5,18 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.5] - 2026-03-21
+
+### Fixed
+
+- **Both P1 items from v3.8.3 QE swarm analysis resolved** — Closes the highest-priority technical debt identified by the 10-agent parallel quality audit.
+- **401 console.* calls replaced with structured logger** — Domain layer now uses the structured logging framework at `src/logging/` instead of raw console calls, enabling log levels, structured output, and centralized log management (#374 P1 #8).
+- **hooks.ts decomposed from 1,108 lines into 9 handler modules** — Cyclomatic complexity reduced from CC=100 to manageable per-handler functions under `hooks-handlers/` (#374 P1 #10).
+- **104 test files missing afterEach cleanup** — Added proper cleanup to prevent test pollution and reduce flaky test indicators (#374 P2).
+- **11 test files using real setTimeout without fake timers** — Added `vi.useFakeTimers()` to eliminate timing-dependent flakiness (#374 P2).
+- **3 DDD boundary violations in security validators** — Moved validators from `mcp/security/` to `shared/security/` with re-exports for backward compatibility (#374 P2).
+- **CI timeout guards** — Added `timeout 480` to remaining 5 unguarded `npm run` commands and OS-level timeout guards for hanging tests (#350).
+
 ## [3.8.4] - 2026-03-19
 
 ### Fixed

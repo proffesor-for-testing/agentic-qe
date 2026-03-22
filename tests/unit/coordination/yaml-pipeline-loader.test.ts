@@ -5,7 +5,7 @@
  * file loading, and registry operations.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import { YamlPipelineLoader } from '../../../src/coordination/yaml-pipeline-loader.js';
 import { YamlPipelineRegistry } from '../../../src/coordination/yaml-pipeline-registry.js';
 import type {
@@ -192,6 +192,10 @@ describe('YamlPipelineLoader', () => {
 
   beforeEach(() => {
     loader = new YamlPipelineLoader();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

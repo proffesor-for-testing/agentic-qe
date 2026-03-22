@@ -10,7 +10,7 @@
  * - See: src/integrations/ruvector/TESTING_LIMITATIONS.md
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import type { RLState, RLAction, DomainName } from '../../../src/integrations/rl-suite/interfaces';
 import {
   QESONA,
@@ -75,6 +75,10 @@ describe.runIf(canTest.sona)('@ruvector/sona Wrapper - Real Integration', () => 
         hiddenDim: 256,
         embeddingDim: 256, // Must match for @ruvector/sona
       });
+    });
+
+    afterAll(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should create pattern from experience', () => {

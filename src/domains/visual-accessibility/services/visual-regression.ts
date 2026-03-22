@@ -20,6 +20,7 @@
  * @module domains/visual-accessibility/services/visual-regression
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { Result } from '../../../shared/types/index.js';
 import { ok, err } from '../../../shared/types/index.js';
@@ -299,6 +300,8 @@ export interface IVisualRegressionService {
  * );
  * ```
  */
+const logger = LoggerFactory.create('visual-accessibility/visual-regression');
+
 export class VisualRegressionService implements IVisualRegressionService {
   private readonly config: VisualRegressionConfig;
   private browserAvailable: boolean | null = null;
@@ -344,7 +347,7 @@ export class VisualRegressionService implements IVisualRegressionService {
         }
       } catch (error) {
         // Non-critical: browser client acquisition failed
-        console.debug('[VisualRegression] Browser client error:', error instanceof Error ? error.message : error);
+        logger.debug('Browser client error:');
       }
     }
 
@@ -864,7 +867,7 @@ export class VisualRegressionService implements IVisualRegressionService {
           if (clientCapture.success) {
             return clientCapture;
           }
-          console.warn(`[VisualRegression] Browser client capture failed, trying Vibium`);
+          logger.warn(`Browser client capture failed, trying Vibium`);
         }
 
         // Fall back to Vibium

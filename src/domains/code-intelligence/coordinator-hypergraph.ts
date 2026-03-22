@@ -6,6 +6,7 @@
  * coverage gaps, build from index, impact enhancement
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { Result, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import {
@@ -22,6 +23,8 @@ import type { ImpactRequest, ImpactAnalysis } from './interfaces';
 /**
  * Initialize V3 Hypergraph Engine for code intelligence
  */
+const logger = LoggerFactory.create('code-intelligence/hypergraph');
+
 export async function initializeHypergraph(
   hypergraphDbPath: string | undefined,
   enableGNN: boolean
@@ -47,7 +50,7 @@ export async function initializeHypergraph(
     enableVectorSearch: enableGNN,
   });
 
-  console.log(`[CodeIntelligence] Hypergraph Engine initialized at ${dbPath}`);
+  logger.info(`Hypergraph Engine initialized at ${dbPath}`);
   return { engine, db };
 }
 
@@ -62,7 +65,7 @@ export async function findUntestedFunctions(
   try {
     const untestedFunctions = await hypergraph.findUntestedFunctions();
 
-    console.log(
+    logger.info(
       `[CodeIntelligence] Found ${untestedFunctions.length} untested functions via hypergraph`
     );
 
@@ -85,7 +88,7 @@ export async function findUntestedFunctions(
     return { success: true, value: untestedFunctions };
   } catch (error) {
     const errorObj = toError(error);
-    console.error('[CodeIntelligence] Failed to find untested functions:', errorObj.message);
+    logger.error('Failed to find untested functions:');
     return err(errorObj);
   }
 }
@@ -106,7 +109,7 @@ export async function findImpactedTestsFromHypergraph(
   try {
     const impactedTests = await hypergraph.findImpactedTests(changedFiles);
 
-    console.log(
+    logger.info(
       `[CodeIntelligence] Found ${impactedTests.length} impacted tests for ` +
         `${changedFiles.length} changed files via hypergraph`
     );
@@ -130,7 +133,7 @@ export async function findImpactedTestsFromHypergraph(
     return { success: true, value: impactedTests };
   } catch (error) {
     const errorObj = toError(error);
-    console.error('[CodeIntelligence] Failed to find impacted tests:', errorObj.message);
+    logger.error('Failed to find impacted tests:');
     return err(errorObj);
   }
 }
@@ -147,7 +150,7 @@ export async function findCoverageGapsFromHypergraph(
   try {
     const coverageGaps = await hypergraph.findCoverageGaps(maxCoverage);
 
-    console.log(
+    logger.info(
       `[CodeIntelligence] Found ${coverageGaps.length} coverage gaps ` +
         `(functions with <=${maxCoverage}% coverage) via hypergraph`
     );
@@ -173,7 +176,7 @@ export async function findCoverageGapsFromHypergraph(
     return { success: true, value: coverageGaps };
   } catch (error) {
     const errorObj = toError(error);
-    console.error('[CodeIntelligence] Failed to find coverage gaps:', errorObj.message);
+    logger.error('Failed to find coverage gaps:');
     return err(errorObj);
   }
 }
@@ -189,13 +192,13 @@ export async function buildHypergraphFromIndex(
   publishEvents: boolean
 ): Promise<Result<HypergraphBuildResult, Error>> {
   try {
-    console.log(
+    logger.info(
       `[CodeIntelligence] Building hypergraph from ${indexResult.files.length} indexed files`
     );
 
     const buildResult = await hypergraph.buildFromIndexResult(indexResult);
 
-    console.log(
+    logger.info(
       `[CodeIntelligence] Hypergraph built: ` +
         `${buildResult.nodesCreated} nodes created, ` +
         `${buildResult.nodesUpdated} nodes updated, ` +
@@ -230,7 +233,7 @@ export async function buildHypergraphFromIndex(
     return { success: true, value: buildResult };
   } catch (error) {
     const errorObj = toError(error);
-    console.error('[CodeIntelligence] Failed to build hypergraph:', errorObj.message);
+    logger.error('Failed to build hypergraph:');
     return err(errorObj);
   }
 }
@@ -276,7 +279,7 @@ export async function enhanceImpactWithHypergraph(
       recommendations: newRecommendations,
     };
   } catch (error) {
-    console.error('[CodeIntelligence] Failed to enhance impact with hypergraph:', error);
+    logger.error('Failed to enhance impact with hypergraph:', error instanceof Error ? error : undefined);
     return baseAnalysis;
   }
 }

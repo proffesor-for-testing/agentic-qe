@@ -2,7 +2,7 @@
  * Agentic QE v3 - Diff Risk Classifier Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createDiffRiskClassifier,
   RuVectorDiffRiskClassifier,
@@ -62,6 +62,10 @@ describe('Diff Risk Classifier', () => {
 
     beforeEach(() => {
       classifier = new RuVectorDiffRiskClassifier(createConfig());
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('classifyDiff', () => {

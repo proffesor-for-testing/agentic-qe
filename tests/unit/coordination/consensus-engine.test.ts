@@ -3,7 +3,7 @@
  * Tests for multi-model consensus verification
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   ConsensusEngineImpl,
   createMockProvider,
@@ -84,6 +84,10 @@ describe('ConsensusEngine', () => {
         latencyMs: 120,
       }),
     ];
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('verify()', () => {

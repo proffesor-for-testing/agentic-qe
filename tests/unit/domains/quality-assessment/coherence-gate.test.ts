@@ -3,7 +3,7 @@
  * ADR-030: Comprehensive tests for lambda-coherence with 4-tier compute allocation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   // Types
   QualityLambda,
@@ -100,6 +100,10 @@ describe('LambdaCalculator', () => {
 
   beforeEach(() => {
     calculator = createLambdaCalculator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('calculate()', () => {

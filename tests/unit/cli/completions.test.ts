@@ -4,7 +4,7 @@
  * ADR-042: Version-Agnostic Naming Convention
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   generateCompletion,
   generateBashCompletion,
@@ -115,6 +115,10 @@ describe('Shell Completions', () => {
 
     beforeEach(() => {
       script = generateBashCompletion();
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     it('should generate valid bash script', () => {

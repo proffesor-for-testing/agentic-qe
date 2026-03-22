@@ -6,7 +6,7 @@
  * SAP RFC/BAPI, Salesforce, Payment Gateway, and WMS/ERP patterns.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,10 @@ describe('Enterprise Error Signatures', () => {
 
   beforeEach(() => {
     observer = createTestOutputObserver();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

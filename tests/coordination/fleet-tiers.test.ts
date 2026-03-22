@@ -6,7 +6,7 @@
  * custom overrides, escalation/de-escalation, and allocation.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   DEFAULT_TIER_CONFIGS,
   getDefaultTierConfig,
@@ -93,6 +93,10 @@ describe('Fleet Tiers - TierSelector', () => {
 
   beforeEach(() => {
     selector = new TierSelector();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should select smoke for a single-file commit', () => {

@@ -3,10 +3,11 @@
  * Implements IContractValidationService for API contract validation (Pact-style)
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
-import { createSafeRegex } from '../../../mcp/security/validators/regex-safety-validator.js';
+import { createSafeRegex } from '../../../shared/security/regex-safety-validator.js';
 import type {
   IContractValidationService,
   ApiContract,
@@ -102,6 +103,8 @@ interface CachedValidationReport extends ValidationReport {
  * Contract Validation Service Implementation
  * Validates API contracts against schemas and specifications
  */
+const logger = LoggerFactory.create('contract-testing/contract-validator');
+
 export class ContractValidatorService implements IContractValidationService {
   private readonly config: ContractValidatorConfig;
   private readonly memory: MemoryBackend;
@@ -169,7 +172,7 @@ Provide:
       });
       return response.content;
     } catch (error) {
-      console.warn('[ContractValidatorService] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed:');
       return null;
     }
   }

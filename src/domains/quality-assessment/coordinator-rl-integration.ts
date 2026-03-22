@@ -5,6 +5,7 @@
  * Contains: Actor-Critic RL, SONA pattern learning, Flash Attention initialization and methods
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import type { DomainName } from '../../shared/types/index.js';
 import type {
@@ -52,6 +53,8 @@ export interface QualityGateThresholds {
 /**
  * Initialize Actor-Critic RL for quality gate threshold tuning
  */
+const logger = LoggerFactory.create('quality-assessment/rl-integration');
+
 export async function initializeActorCritic(): Promise<ActorCriticAlgorithm> {
   try {
     const actorCritic = new ActorCriticAlgorithm({
@@ -85,11 +88,11 @@ export async function initializeQESONA(): Promise<PersistentSONAEngine | undefin
       minConfidence: 0.5,
       maxPatterns: 5000,
     });
-    console.log('[quality-assessment] PersistentSONAEngine initialized successfully');
+    logger.info('PersistentSONAEngine initialized successfully');
     return qesona;
   } catch (error) {
-    console.error('[quality-assessment] Failed to initialize PersistentSONAEngine:', error);
-    console.warn('[quality-assessment] Continuing without SONA pattern persistence');
+    logger.error('Failed to initialize PersistentSONAEngine:', error instanceof Error ? error : undefined);
+    logger.warn('Continuing without SONA pattern persistence');
     return undefined;
   }
 }
@@ -150,7 +153,7 @@ export async function tuneThresholdsWithRL(
       reasoning: prediction.reasoning ?? '',
     };
   } catch (error) {
-    console.error('RL threshold tuning failed:', error);
+    logger.error('RL threshold tuning failed:', error instanceof Error ? error : undefined);
     return null;
   }
 }
@@ -231,7 +234,7 @@ export async function trainActorCritic(
 
     await actorCritic.train(experience);
   } catch (error) {
-    console.error('Actor-Critic training failed:', error);
+    logger.error('Actor-Critic training failed:', error instanceof Error ? error : undefined);
   }
 }
 
@@ -280,7 +283,7 @@ export async function storeQualityPattern(
       }
     );
   } catch (error) {
-    console.error('Failed to store quality pattern in SONA:', error);
+    logger.error('Failed to store quality pattern in SONA:', error instanceof Error ? error : undefined);
   }
 }
 
@@ -327,7 +330,7 @@ export async function storeQualityAnalysisPattern(
       }
     );
   } catch (error) {
-    console.error('Failed to store quality analysis pattern in SONA:', error);
+    logger.error('Failed to store quality analysis pattern in SONA:', error instanceof Error ? error : undefined);
   }
 }
 
@@ -385,7 +388,7 @@ export async function enhanceWithSimilarityPatterns(
       recommendations: [...report.recommendations, ...additionalRecommendations],
     };
   } catch (error) {
-    console.error('Failed to enhance with similarity patterns:', error);
+    logger.error('Failed to enhance with similarity patterns:', error instanceof Error ? error : undefined);
     return null;
   }
 }

@@ -3,6 +3,7 @@
  * Orchestrates chaos engineering and resilience testing workflows
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainEvent } from '../../shared/types';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
@@ -128,6 +129,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  * Chaos Resilience Coordinator
  * Orchestrates chaos engineering workflows and coordinates with agents
  */
+const logger = LoggerFactory.create('chaos-resilience');
+
 export class ChaosResilienceCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, ChaosWorkflowType>
   implements IChaosResilienceCoordinatorExtended
@@ -185,9 +188,9 @@ export class ChaosResilienceCoordinator
           hiddenLayers: [64, 64],
         });
         // First call to predict will initialize the algorithm
-        console.log('[chaos-resilience] PolicyGradient algorithm created successfully');
+        logger.info('PolicyGradient algorithm created successfully');
       } catch (error) {
-        console.error('[chaos-resilience] Failed to create PolicyGradient:', error);
+        logger.error('Failed to create PolicyGradient:', error instanceof Error ? error : undefined);
         throw new Error(`PolicyGradient creation failed: ${toErrorMessage(error)}`);
       }
     }
@@ -202,11 +205,11 @@ export class ChaosResilienceCoordinator
           maxPatterns: 5000,
           minConfidence: 0.6,
         });
-        console.log('[chaos-resilience] PersistentSONAEngine initialized successfully');
+        logger.info('PersistentSONAEngine initialized successfully');
       } catch (error) {
         // Log and continue - SONA is enhancement, not critical
-        console.error('[chaos-resilience] Failed to initialize PersistentSONAEngine:', error);
-        console.warn('[chaos-resilience] Continuing without SONA pattern persistence');
+        logger.error('Failed to initialize PersistentSONAEngine:', error instanceof Error ? error : undefined);
+        logger.warn('Continuing without SONA pattern persistence');
         this.qesona = undefined;
       }
     }
@@ -253,7 +256,7 @@ export class ChaosResilienceCoordinator
 
       // ADR-047: Check topology health before running chaos experiments
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative chaos strategy`);
+        logger.warn(`Topology degraded, using conservative chaos strategy`);
         // Continue with reduced blast radius when topology is unhealthy
       }
 
@@ -350,7 +353,7 @@ export class ChaosResilienceCoordinator
 
       // ADR-047: Check topology health before running load tests
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative load test parameters`);
+        logger.warn(`Topology degraded, using conservative load test parameters`);
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -436,7 +439,7 @@ export class ChaosResilienceCoordinator
 
       // ADR-047: Check topology health before assessment
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, assessment may be limited`);
+        logger.warn(`Topology degraded, assessment may be limited`);
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -627,7 +630,7 @@ export class ChaosResilienceCoordinator
 
       // ADR-047: Check topology health before running strategic chaos
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, adjusting strategic chaos parameters`);
+        logger.warn(`Topology degraded, adjusting strategic chaos parameters`);
         // Continue but may need to reduce experiment scope
       }
 
@@ -649,7 +652,7 @@ export class ChaosResilienceCoordinator
       }
 
       const selectedExperiments = strategyResult.value.selectedExperiments;
-      console.log(
+      logger.info(
         `[chaos-resilience] Using ${strategyResult.value.strategy} strategy with ${selectedExperiments.length} experiments (confidence: ${strategyResult.value.confidence.toFixed(2)})`
       );
 
@@ -1283,7 +1286,7 @@ export class ChaosResilienceCoordinator
         done: true,
       });
 
-      console.log(
+      logger.info(
         `[chaos-resilience] PolicyGradient selected ${strategy} strategy for ${services.length} services (confidence: ${prediction.confidence.toFixed(2)})`
       );
 
@@ -1294,7 +1297,7 @@ export class ChaosResilienceCoordinator
         reasoning: prediction.reasoning || `PolicyGradient selected: ${strategy}`,
       });
     } catch (error) {
-      console.error('[chaos-resilience] PolicyGradient strategy selection failed:', error);
+      logger.error('PolicyGradient strategy selection failed:', error instanceof Error ? error : undefined);
       // Return default strategy on error (graceful degradation)
       return ok({
         strategy: 'fallback',
@@ -1422,9 +1425,9 @@ export class ChaosResilienceCoordinator
         }
       );
 
-      console.log(`[chaos-resilience] Stored resilience pattern for ${experiment.id} (validated: ${result.hypothesisValidated}, quality: ${quality.toFixed(2)})`);
+      logger.info(`Stored resilience pattern for ${experiment.id} (validated: ${result.hypothesisValidated}, quality: ${quality.toFixed(2)})`);
     } catch (error) {
-      console.error('[chaos-resilience] Failed to store resilience pattern:', error);
+      logger.error('Failed to store resilience pattern:', error instanceof Error ? error : undefined);
     }
   }
 
@@ -1474,7 +1477,7 @@ export class ChaosResilienceCoordinator
         const shouldRunChaos = adaptation.pattern.outcome.success;
         const recommendedFaults = this.getRecommendedFaults(adaptation.pattern.action.type);
 
-        console.log(
+        logger.info(
           `[chaos-resilience] QESONA adapted strategy for ${service.name}: shouldRun=${shouldRunChaos}, faults=${recommendedFaults.join(',')}, confidence=${adaptation.similarity.toFixed(2)}`
         );
 
@@ -1491,7 +1494,7 @@ export class ChaosResilienceCoordinator
         confidence: 0.5,
       };
     } catch (error) {
-      console.error('[chaos-resilience] QESONA strategy adaptation failed:', error);
+      logger.error('QESONA strategy adaptation failed:', error instanceof Error ? error : undefined);
       return {
         shouldRunChaos: context.environment !== 'production',
         recommendedFaults: ['latency', 'error'],
@@ -1622,10 +1625,10 @@ export class ChaosResilienceCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Chaos experiment '${experiment.name}' verified safe by consensus`);
+        logger.info(`Chaos experiment '${experiment.name}' verified safe by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Chaos experiment '${experiment.name}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Chaos experiment '${experiment.name}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1656,10 +1659,10 @@ export class ChaosResilienceCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Resilience assessment for '${assessment.service}' verified by consensus`);
+        logger.info(`Resilience assessment for '${assessment.service}' verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Resilience assessment for '${assessment.service}' NOT verified`);
+      logger.warn(`Resilience assessment for '${assessment.service}' NOT verified`);
       return false;
     }
     return true; // No consensus needed
@@ -1690,10 +1693,10 @@ export class ChaosResilienceCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Failure injection '${injection.faultType}' on '${injection.target}' verified safe by consensus`);
+        logger.info(`Failure injection '${injection.faultType}' on '${injection.target}' verified safe by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Failure injection '${injection.faultType}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Failure injection '${injection.faultType}' NOT verified safe: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed

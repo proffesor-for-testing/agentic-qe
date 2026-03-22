@@ -2,7 +2,7 @@
  * Agentic QE v3 - AST Complexity Analyzer Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createASTComplexityAnalyzer,
   RuVectorASTComplexityAnalyzer,
@@ -38,6 +38,10 @@ describe('AST Complexity Analyzer', () => {
 
     beforeEach(() => {
       analyzer = new RuVectorASTComplexityAnalyzer(createConfig());
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('analyzeFile', () => {

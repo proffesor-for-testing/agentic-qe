@@ -3,6 +3,7 @@
  * Comprehensive quality metrics analysis with trends and recommendations
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, QualityScore } from '../../../shared/types';
 import { CodeMetricsAnalyzer, getCodeMetricsAnalyzer } from '../../../shared/metrics';
@@ -94,6 +95,8 @@ const RATING_THRESHOLDS = {
  *
  * ADR-051: Added LLM enhancement for AI-powered quality insights
  */
+const logger = LoggerFactory.create('quality-assessment/quality-analyzer');
+
 export class QualityAnalyzerService implements IQualityAnalyzerService {
   private readonly config: QualityAnalyzerConfig;
   private readonly metricsAnalyzer: CodeMetricsAnalyzer;
@@ -209,7 +212,7 @@ Focus on:
 
       return null;
     } catch (error) {
-      console.warn('[QualityAnalyzer] LLM insights generation failed:', error);
+      logger.warn('LLM insights generation failed:');
       return null;
     }
   }
@@ -292,7 +295,7 @@ Focus on:
       }
       return null;
     } catch (error) {
-      console.warn('[QualityAnalyzer] Failed to parse LLM insights response:', error);
+      logger.warn('Failed to parse LLM insights response:');
       return null;
     }
   }

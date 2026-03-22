@@ -7,7 +7,7 @@
  * @module tests/unit/adapters/a2ui/renderer-component-builder
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 import {
   literal,
@@ -31,6 +31,10 @@ describe('ComponentBuilder', () => {
 
   beforeEach(() => {
     builder = createComponentBuilder();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Surface Lifecycle', () => {

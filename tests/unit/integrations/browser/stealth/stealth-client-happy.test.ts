@@ -5,7 +5,7 @@
  * navigation, element interaction, resource blocking, and cleanup.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 // Create mock page, context, browser objects
 const mockPage = {
@@ -54,6 +54,11 @@ describe('StealthBrowserClient (patchright available)', () => {
     vi.clearAllMocks();
     client = new StealthBrowserClient({ persistentContext: true });
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   it('isAvailable returns true', async () => {
     expect(await client.isAvailable()).toBe(true);

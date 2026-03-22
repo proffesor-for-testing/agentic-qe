@@ -3,7 +3,7 @@
  * ADR-033: Early Exit Testing
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   CoherenceEarlyExit,
   createEarlyExit,
@@ -23,6 +23,10 @@ describe('Coherence Early Exit Decision Engine', () => {
 
   beforeEach(() => {
     earlyExit = new CoherenceEarlyExit(DEFAULT_EXIT_CONFIG, 4);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ============================================================================

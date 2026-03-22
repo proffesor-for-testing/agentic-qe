@@ -10,7 +10,7 @@
  * - Verify (cloud vs local count comparison)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 // Mock all external dependencies before importing
 vi.mock('uuid', () => ({ v4: () => 'test-uuid-1234' }));
@@ -127,6 +127,11 @@ describe('PullSyncAgent', () => {
     mockLocalCounts = {};
     mockLocalWritten = {};
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   describe('pullAll', () => {
     it('should pull all enabled sources and report results', async () => {

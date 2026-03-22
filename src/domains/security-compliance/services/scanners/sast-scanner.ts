@@ -3,6 +3,7 @@
  * Performs static code analysis to detect security vulnerabilities
  */
 
+import { LoggerFactory } from '../../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '@shared/types/index.js';
 import type { FilePath } from '@shared/value-objects/index.js';
@@ -43,6 +44,8 @@ import {
  * SAST Scanner - Static Application Security Testing
  * Scans source code files for security vulnerabilities using pattern matching
  */
+const logger = LoggerFactory.create('security-compliance/sast-scanner');
+
 export class SASTScanner {
   private readonly config: SecurityScannerConfig;
   private readonly memory: MemoryBackend;
@@ -739,7 +742,7 @@ Provide detailed remediation advice specific to this code.`,
         }
       }
     } catch (error) {
-      console.warn('[SASTScanner] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed:');
     }
 
     return this.getDefaultRemediation(vuln);

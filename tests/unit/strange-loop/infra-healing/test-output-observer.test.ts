@@ -6,7 +6,7 @@
  * classification, deduplication, and vulnerability generation.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TestOutputObserver,
   createTestOutputObserver,
@@ -23,6 +23,10 @@ describe('TestOutputObserver', () => {
 
   beforeEach(() => {
     observer = createTestOutputObserver();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

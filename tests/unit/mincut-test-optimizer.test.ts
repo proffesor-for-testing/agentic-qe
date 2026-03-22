@@ -6,7 +6,7 @@
  * skippable tests, handles edge cases, and produces valid execution orders.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   MinCutTestOptimizerImpl,
   createMinCutTestOptimizer,
@@ -20,6 +20,10 @@ describe('MinCutTestOptimizer', () => {
 
   beforeEach(() => {
     optimizer = createMinCutTestOptimizer();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

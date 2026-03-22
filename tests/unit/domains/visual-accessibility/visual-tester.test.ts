@@ -2,7 +2,7 @@
  * Agentic QE v3 - Visual Tester Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import { VisualTesterService, VisualTesterConfig } from '../../../../src/domains/visual-accessibility/services/visual-tester';
 import { MemoryBackend, StoreOptions, VectorSearchResult } from '../../../../src/kernel/interfaces';
 import { Screenshot, Viewport } from '../../../../src/domains/visual-accessibility/interfaces';
@@ -68,6 +68,10 @@ describe('VisualTesterService', () => {
   beforeEach(() => {
     mockMemory = new MockMemoryBackend();
     service = new VisualTesterService({ memory: mockMemory });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('captureScreenshot', () => {

@@ -2,7 +2,7 @@
  * Agentic QE v3 - Q-Learning Router Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createQLearningRouter,
   RuVectorQLearningRouter,
@@ -55,6 +55,10 @@ describe('Q-Learning Router', () => {
 
     beforeEach(() => {
       router = new RuVectorQLearningRouter(createConfig());
+    });
+
+    afterEach(() => {
+      // Reset state to prevent leaks between tests
     });
 
     describe('routeTask', () => {

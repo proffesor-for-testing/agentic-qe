@@ -3,7 +3,7 @@
  * ADR-043: Vendor-Independent LLM Support (Milestone 7)
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   DefaultPromptTranslator,
   createPromptTranslator,
@@ -29,6 +29,10 @@ describe('Prompt Translator', () => {
 
   beforeEach(() => {
     translator = new DefaultPromptTranslator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('detectMessageFormat', () => {

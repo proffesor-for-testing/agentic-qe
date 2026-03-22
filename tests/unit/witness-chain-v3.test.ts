@@ -16,7 +16,7 @@
  * - Mixed SHA-256/SHAKE-256 chain verification
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import Database from 'better-sqlite3';
 import { createHash } from 'crypto';
 import {
@@ -576,6 +576,10 @@ describe('6.2b: Key Persistence', () => {
     const { join } = require('path');
     const os = require('os');
     tmpKeyDir = mkdtempSync(join(os.tmpdir(), 'witness-keys-'));
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should persist keys to PEM files and reload them', () => {

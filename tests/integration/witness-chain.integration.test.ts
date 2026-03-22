@@ -6,7 +6,7 @@
  * tamper detection, ordering under rapid appends, and concurrent access.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import {
   WitnessChain,
@@ -69,6 +69,12 @@ describe('WitnessChain Integration', () => {
     const ctx = await createInitializedChain();
     chain = ctx.chain;
     db = ctx.db;
+  });
+
+  afterEach(() => {
+    if (db) {
+      db.close();
+    }
   });
 
   // =========================================================================

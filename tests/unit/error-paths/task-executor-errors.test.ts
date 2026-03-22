@@ -47,6 +47,14 @@ interface TaskResult {
 }
 
 describe('Task Executor Error Paths', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // ===========================================================================
   // Handler Registration Errors
   // ===========================================================================
@@ -131,7 +139,10 @@ describe('Task Executor Error Paths', () => {
         setTimeout(() => resolve('done'), 1000);
       });
 
-      await expect(executeWithTimeout(longRunningTask, 50)).rejects.toThrow('timed out');
+      const promise = executeWithTimeout(longRunningTask, 50);
+      const assertion = expect(promise).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
     });
 
     it('should respect per-task timeout override', async () => {
@@ -182,7 +193,10 @@ describe('Task Executor Error Paths', () => {
         { id: '3', type: 'generate-tests', payload: {} },
       ];
 
-      const results = await executeBatch(tasks, 50);
+      const resultsPromise = executeBatch(tasks, 50);
+      // Advance enough to complete all timeouts (3 tasks * 200ms max)
+      await vi.advanceTimersByTimeAsync(1000);
+      const results = await resultsPromise;
 
       expect(results).toHaveLength(3);
       // Some might timeout due to random delay

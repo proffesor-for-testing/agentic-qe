@@ -3,7 +3,7 @@
  * ADR-035: STDP-based spike timing correlation for root cause analysis
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import { CausalWeightMatrix } from '../../../src/causal-discovery/weight-matrix';
 import { TestEvent, TestEventType } from '../../../src/causal-discovery/types';
 
@@ -12,6 +12,10 @@ describe('CausalWeightMatrix', () => {
 
   beforeEach(() => {
     matrix = new CausalWeightMatrix();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('initialization', () => {

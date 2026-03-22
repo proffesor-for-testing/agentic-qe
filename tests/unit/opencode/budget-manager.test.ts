@@ -12,7 +12,7 @@
  * - Reports budget breakdown by tool
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 
 // =============================================================================
 // Context Budget Manager Implementation (inline for testing)
@@ -143,6 +143,10 @@ describe('Context Budget Manager', () => {
   beforeEach(() => {
     // 2000 token budget (matching the default guidance.maxTokens config)
     budget = new ContextBudgetManager(2000);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // -------------------------------------------------------------------------

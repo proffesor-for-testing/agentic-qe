@@ -2,7 +2,7 @@
  * Agentic QE v3 - TypeScript Parser Unit Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TypeScriptParser,
   typescriptParser,
@@ -18,6 +18,10 @@ describe('TypeScriptParser', () => {
 
   beforeEach(() => {
     parser = new TypeScriptParser();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('parseFile', () => {

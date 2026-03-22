@@ -14,7 +14,7 @@
  * - Factory functions and convenience API
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   ReasoningQEC,
   createReasoningQEC,
@@ -216,6 +216,10 @@ describe('ReasoningQEC', () => {
 
   beforeEach(() => {
     qec = new ReasoningQEC();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

@@ -3,7 +3,7 @@
  * ADR-023: Quality Feedback Loop System
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   QualityScoreCalculator,
   createQualityScoreCalculator,
@@ -15,6 +15,10 @@ describe('QualityScoreCalculator', () => {
 
   beforeEach(() => {
     calculator = createQualityScoreCalculator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('calculateFromOutcome', () => {

@@ -3,6 +3,7 @@
  * Implements IResilienceTestingService for recovery, failover, and resilience testing
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import { HttpClient, createHttpClient } from '../../../shared/http';
@@ -51,6 +52,8 @@ const DEFAULT_CONFIG: PerformanceProfilerConfig = {
  * Performance Profiler Service Implementation
  * Tests system resilience, recovery, failover, circuit breakers, and rate limiting
  */
+const logger = LoggerFactory.create('chaos-resilience/performance-profiler');
+
 export class PerformanceProfilerService implements IResilienceTestingService {
   private readonly config: PerformanceProfilerConfig;
   private readonly httpClient: HttpClient;
@@ -530,11 +533,11 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         return;
       } catch (error) {
         // Non-critical: real chaos API unavailable, using simulation
-        console.debug('[PerformanceProfiler] Fault injection API failed:', error instanceof Error ? error.message : error);
+        logger.debug('Fault injection API failed:');
       }
     }
     // Simulation mode
-    console.log(`Injecting fault ${faultType} into service: ${service}`);
+    logger.info(`Injecting fault ${faultType} into service: ${service}`);
     await this.sleep(100);
   }
 
@@ -547,11 +550,11 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         return;
       } catch (error) {
         // Non-critical: real chaos API unavailable, using simulation
-        console.debug('[PerformanceProfiler] Fault removal API failed:', error instanceof Error ? error.message : error);
+        logger.debug('Fault removal API failed:');
       }
     }
     // Simulation mode
-    console.log(`Removing fault ${faultType} from service: ${service}`);
+    logger.info(`Removing fault ${faultType} from service: ${service}`);
     await this.sleep(50);
   }
 
@@ -580,7 +583,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         }
       } catch (error) {
         // Non-critical: real state capture unavailable, using memory snapshot
-        console.debug('[PerformanceProfiler] State capture API failed:', error instanceof Error ? error.message : error);
+        logger.debug('State capture API failed:');
       }
     }
 
@@ -672,7 +675,7 @@ export class PerformanceProfilerService implements IResilienceTestingService {
     try {
       this.httpClient.resetCircuit(service);
     } catch {
-      console.log(`Resetting circuit breaker for: ${service}`);
+      logger.info(`Resetting circuit breaker for: ${service}`);
     }
   }
 
@@ -685,10 +688,10 @@ export class PerformanceProfilerService implements IResilienceTestingService {
         return;
       } catch (error) {
         // Non-critical: real chaos API unavailable, using simulation
-        console.debug('[PerformanceProfiler] Error generation API failed:', error instanceof Error ? error.message : error);
+        logger.debug('Error generation API failed:');
       }
     }
-    console.log(`Generating error for: ${service}`);
+    logger.info(`Generating error for: ${service}`);
   }
 
   private async sendSuccessfulRequest(service: string): Promise<boolean> {

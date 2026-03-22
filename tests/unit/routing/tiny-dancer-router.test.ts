@@ -6,7 +6,7 @@
  * based on task complexity classification.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   TinyDancerRouter,
   createTinyDancerRouter,
@@ -21,6 +21,10 @@ describe('TinyDancerRouter', () => {
 
   beforeEach(() => {
     router = createTinyDancerRouter();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // Helper to create mock tasks

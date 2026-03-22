@@ -7,7 +7,7 @@
  * Target: 100% coverage on adapter logic
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   EventAdapter,
   createEventAdapter,
@@ -151,6 +151,10 @@ describe('EventAdapter', () => {
     adapter = createEventAdapter({
       defaultThreadId: 'test-thread',
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ============================================================================

@@ -10,7 +10,7 @@
  * Claude Code MUST spawn the qe-quality-criteria-recommender agent to get real analysis.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   QualityCriteriaService,
   createQualityCriteriaService,
@@ -27,6 +27,10 @@ describe('QualityCriteriaService', () => {
 
   beforeEach(() => {
     service = createQualityCriteriaService();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('analyze', () => {

@@ -4,7 +4,7 @@
  * Tests for flaky test detection and tracking.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   FlakyTestTracker,
   createFlakyTracker,
@@ -40,6 +40,10 @@ describe('FlakyTestTracker', () => {
       minRunsForFlakiness: 3,
       flakinessThreshold: 0.1,
     });
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

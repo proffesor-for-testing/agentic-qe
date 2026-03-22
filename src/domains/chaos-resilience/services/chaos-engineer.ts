@@ -3,6 +3,7 @@
  * Implements IChaosEngineeringService for fault injection and experiment execution
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { HttpClient } from '../../../shared/http';
 import {
@@ -26,7 +27,7 @@ import {
 } from '../interfaces';
 import * as net from 'net';
 import { execFile } from 'child_process';
-import { validateCommand } from '../../../mcp/security/cve-prevention';
+import { validateCommand } from '../../../shared/security/command-validator.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
@@ -95,6 +96,8 @@ interface ExperimentExecution {
  * Chaos Engineering Service Implementation
  * Manages chaos experiments, fault injection, and steady state verification
  */
+const logger = LoggerFactory.create('chaos-resilience/chaos-engineer');
+
 export class ChaosEngineerService implements IChaosEngineeringService {
   private readonly config: ChaosEngineerConfig;
   private readonly activeExperiments: Map<string, ExperimentExecution> = new Map();
@@ -130,7 +133,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
       // ADR-051: Get LLM analysis of experiment hypothesis if available
       const llmAnalysis = await this.analyzeExperimentWithLLM(experiment);
       if (llmAnalysis) {
-        console.log(`[ChaosEngineerService] LLM Analysis:\n${llmAnalysis}`);
+        logger.info(`LLM Analysis:\n${llmAnalysis}`);
       }
 
       // Store experiment
@@ -442,7 +445,7 @@ Provide:
       });
       return response.content;
     } catch (error) {
-      console.warn('[ChaosEngineerService] LLM analysis failed:', error);
+      logger.warn('LLM analysis failed:');
       return null;
     }
   }
@@ -579,7 +582,7 @@ Provide:
       });
 
       if (!result.success) {
-        console.log(`HTTP probe failed: ${probe.name} -> ${result.error.message}`);
+        logger.info(`HTTP probe failed: ${probe.name} -> ${result.error.message}`);
         return false;
       }
 
@@ -589,7 +592,7 @@ Provide:
       if (probe.expectedStatus !== undefined) {
         const passed = response.status === probe.expectedStatus;
         if (!passed) {
-          console.log(`HTTP probe ${probe.name}: expected status ${probe.expectedStatus}, got ${response.status}`);
+          logger.info(`HTTP probe ${probe.name}: expected status ${probe.expectedStatus}, got ${response.status}`);
         }
         return passed;
       }
@@ -597,7 +600,7 @@ Provide:
       // Default: any 2xx status is success
       return response.ok;
     } catch (error) {
-      console.log(`HTTP probe error: ${probe.name} -> ${toErrorMessage(error)}`);
+      logger.info(`HTTP probe error: ${probe.name} -> ${toErrorMessage(error)}`);
       return false;
     }
   }
@@ -610,7 +613,7 @@ Provide:
         const port = parseInt(portStr, 10);
 
         if (!host || isNaN(port)) {
-          console.log(`TCP probe invalid target: ${probe.target} (expected host:port)`);
+          logger.info(`TCP probe invalid target: ${probe.target} (expected host:port)`);
           resolve(false);
           return;
         }
@@ -620,7 +623,7 @@ Provide:
 
         const timer = setTimeout(() => {
           socket.destroy();
-          console.log(`TCP probe timeout: ${probe.name} -> ${probe.target}`);
+          logger.info(`TCP probe timeout: ${probe.name} -> ${probe.target}`);
           resolve(false);
         }, timeout);
 
@@ -633,11 +636,11 @@ Provide:
         socket.on('error', (err) => {
           clearTimeout(timer);
           socket.destroy();
-          console.log(`TCP probe error: ${probe.name} -> ${err.message}`);
+          logger.info(`TCP probe error: ${probe.name} -> ${err.message}`);
           resolve(false);
         });
       } catch (error) {
-        console.log(`TCP probe exception: ${probe.name} -> ${toErrorMessage(error)}`);
+        logger.info(`TCP probe exception: ${probe.name} -> ${toErrorMessage(error)}`);
         resolve(false);
       }
     });
@@ -666,8 +669,8 @@ Provide:
       // Validate command against whitelist to prevent injection (CWE-78)
       const validation = validateCommand(probe.target, ChaosEngineerService.ALLOWED_PROBE_COMMANDS);
       if (!validation.valid) {
-        console.log(`Command probe ${probe.name} blocked: ${validation.error}`);
-        console.log(`Blocked patterns: ${validation.blockedPatterns?.join(', ') || 'none'}`);
+        logger.info(`Command probe ${probe.name} blocked: ${validation.error}`);
+        logger.info(`Blocked patterns: ${validation.blockedPatterns?.join(', ') || 'none'}`);
         resolve(false);
         return;
       }
@@ -681,7 +684,7 @@ Provide:
       // Use execFile instead of exec to avoid shell interpretation
       execFile(executable, args, { timeout }, (error, stdout, _stderr) => {
         if (error) {
-          console.log(`Command probe failed: ${probe.name} -> ${error.message}`);
+          logger.info(`Command probe failed: ${probe.name} -> ${error.message}`);
           resolve(false);
           return;
         }
@@ -690,7 +693,7 @@ Provide:
         if (probe.expectedOutput !== undefined) {
           const passed = stdout.trim().includes(probe.expectedOutput);
           if (!passed) {
-            console.log(`Command probe ${probe.name}: output did not contain expected value`);
+            logger.info(`Command probe ${probe.name}: output did not contain expected value`);
           }
           resolve(passed);
           return;
@@ -712,13 +715,13 @@ Provide:
       });
 
       if (!result.success) {
-        console.log(`Metric probe failed: ${probe.name} -> ${result.error.message}`);
+        logger.info(`Metric probe failed: ${probe.name} -> ${result.error.message}`);
         return false;
       }
 
       const response = result.value;
       if (!response.ok) {
-        console.log(`Metric probe HTTP error: ${probe.name} -> ${response.status}`);
+        logger.info(`Metric probe HTTP error: ${probe.name} -> ${response.status}`);
         return false;
       }
 
@@ -735,7 +738,7 @@ Provide:
       }
 
       if (isNaN(metricValue)) {
-        console.log(`Metric probe ${probe.name}: could not parse metric value from response`);
+        logger.info(`Metric probe ${probe.name}: could not parse metric value from response`);
         return false;
       }
 
@@ -754,7 +757,7 @@ Provide:
 
       return true;
     } catch (error) {
-      console.log(`Metric probe error: ${probe.name} -> ${toErrorMessage(error)}`);
+      logger.info(`Metric probe error: ${probe.name} -> ${toErrorMessage(error)}`);
       return false;
     }
   }
@@ -785,30 +788,30 @@ Provide:
     // Latency injection is typically done at proxy/network level
     // For simulation, we store the config and check during probe execution
     const latencyMs = fault.parameters.latencyMs ?? 100;
-    console.log(`Latency injection configured: ${latencyMs}ms for ${fault.target.selector}`);
-    console.log(`Note: Actual latency injection requires network proxy (e.g., Toxiproxy, tc)`);
+    logger.info(`Latency injection configured: ${latencyMs}ms for ${fault.target.selector}`);
+    logger.info(`Note: Actual latency injection requires network proxy (e.g., Toxiproxy, tc)`);
     return ok(1);
   }
 
   private async injectError(fault: FaultInjection): Promise<Result<number>> {
     // Error injection typically requires proxy/service mesh
     const errorCode = fault.parameters.errorCode ?? 500;
-    console.log(`Error injection configured: ${errorCode} for ${fault.target.selector}`);
-    console.log(`Note: Actual error injection requires service mesh (e.g., Istio, Linkerd)`);
+    logger.info(`Error injection configured: ${errorCode} for ${fault.target.selector}`);
+    logger.info(`Note: Actual error injection requires service mesh (e.g., Istio, Linkerd)`);
     return ok(1);
   }
 
   private async injectTimeout(fault: FaultInjection): Promise<Result<number>> {
     // Timeout injection via proxy configuration
-    console.log(`Timeout injection configured for ${fault.target.selector}`);
-    console.log(`Note: Actual timeout injection requires network proxy configuration`);
+    logger.info(`Timeout injection configured for ${fault.target.selector}`);
+    logger.info(`Note: Actual timeout injection requires network proxy configuration`);
     return ok(1);
   }
 
   private async injectPacketLoss(fault: FaultInjection): Promise<Result<number>> {
     const lossPercent = fault.parameters.packetLossPercent ?? 10;
-    console.log(`Packet loss configured: ${lossPercent}% for ${fault.target.selector}`);
-    console.log(`Note: Actual packet loss requires tc/iptables (Linux) or similar`);
+    logger.info(`Packet loss configured: ${lossPercent}% for ${fault.target.selector}`);
+    logger.info(`Note: Actual packet loss requires tc/iptables (Linux) or similar`);
     return ok(1);
   }
 
@@ -818,7 +821,7 @@ Provide:
     const cores = fault.parameters.cores ?? 1;
     const duration = fault.duration;
 
-    console.log(`Injecting CPU stress: ${cpuPercent}% on ${cores} core(s) for ${duration}ms`);
+    logger.info(`Injecting CPU stress: ${cpuPercent}% on ${cores} core(s) for ${duration}ms`);
 
     // Create CPU-intensive work
     const startTime = Date.now();
@@ -850,7 +853,7 @@ Provide:
     const memoryBytes = fault.parameters.memoryBytes ?? 1024 * 1024 * 100; // 100MB default
     const memoryMB = Math.round(memoryBytes / (1024 * 1024));
 
-    console.log(`Injecting memory stress: ${memoryMB}MB allocation`);
+    logger.info(`Injecting memory stress: ${memoryMB}MB allocation`);
 
     try {
       // Allocate memory in chunks to avoid single large allocation issues
@@ -868,7 +871,7 @@ Provide:
       // Store reference to prevent garbage collection
       this.stressWorkers.set(fault.id, allocatedMemory as unknown as number[]);
 
-      console.log(`Memory stress active: ${allocatedMemory.length} chunks allocated`);
+      logger.info(`Memory stress active: ${allocatedMemory.length} chunks allocated`);
       return ok(1);
     } catch (error) {
       return err(new Error(`Failed to allocate memory: ${toErrorMessage(error)}`));
@@ -877,34 +880,34 @@ Provide:
 
   private async injectDiskStress(fault: FaultInjection): Promise<Result<number>> {
     // Disk stress would require file system operations
-    console.log(`Disk stress configured for ${fault.target.selector}`);
-    console.log(`Note: Actual disk stress requires file system write permissions`);
+    logger.info(`Disk stress configured for ${fault.target.selector}`);
+    logger.info(`Note: Actual disk stress requires file system write permissions`);
     return ok(1);
   }
 
   private async injectNetworkPartition(fault: FaultInjection): Promise<Result<number>> {
     // Network partition typically requires iptables or similar
-    console.log(`Network partition configured for ${fault.target.selector}`);
-    console.log(`Note: Actual network partition requires iptables/firewall rules`);
+    logger.info(`Network partition configured for ${fault.target.selector}`);
+    logger.info(`Note: Actual network partition requires iptables/firewall rules`);
     return ok(1);
   }
 
   private async injectDnsFailure(fault: FaultInjection): Promise<Result<number>> {
     // DNS failure injection via /etc/hosts or DNS server configuration
-    console.log(`DNS failure configured for ${fault.target.selector}`);
-    console.log(`Note: Actual DNS failure requires DNS server or /etc/hosts modification`);
+    logger.info(`DNS failure configured for ${fault.target.selector}`);
+    logger.info(`Note: Actual DNS failure requires DNS server or /etc/hosts modification`);
     return ok(1);
   }
 
   private async injectProcessKill(fault: FaultInjection): Promise<Result<number>> {
     // Process kill via system commands
     const processPattern = fault.target.selector;
-    console.log(`Process kill configured for pattern: ${processPattern}`);
-    console.log(`Note: Actual process kill requires appropriate permissions`);
+    logger.info(`Process kill configured for pattern: ${processPattern}`);
+    logger.info(`Note: Actual process kill requires appropriate permissions`);
 
     // In dry-run mode or without permissions, just log
     if (this.config.enableDryRun) {
-      console.log(`[DRY RUN] Would kill processes matching: ${processPattern}`);
+      logger.info(`Would kill processes matching: ${processPattern}`);
       return ok(0);
     }
 
@@ -912,7 +915,7 @@ Provide:
   }
 
   private async performFaultRemoval(fault: FaultInjection): Promise<void> {
-    console.log(`Removing fault: ${fault.id} (${fault.type})`);
+    logger.info(`Removing fault: ${fault.id} (${fault.type})`);
 
     // Clean up any active stress workers
     const worker = this.stressWorkers.get(fault.id);
@@ -1059,12 +1062,12 @@ Provide:
   private async rollbackExperiment(experiment: ChaosExperiment): Promise<void> {
     // Execute rollback steps in order
     for (const step of experiment.rollbackPlan.steps.sort((a, b) => a.order - b.order)) {
-      console.log(`Executing rollback step ${step.order}: ${step.action}`);
+      logger.info(`Executing rollback step ${step.order}: ${step.action}`);
 
       try {
         await this.executeRollbackAction(step.action, step.target, step.timeout);
       } catch (error) {
-        console.error(
+        logger.error(
           `Rollback step ${step.order} failed: ${toErrorMessage(error)}`
         );
         // Continue with other rollback steps even if one fails
@@ -1156,17 +1159,17 @@ Provide:
     if (actionLower.includes('remove') || actionLower.includes('clear')) {
       // Clear any remaining state
       if (target) {
-        console.log(`Clearing state for target: ${target}`);
+        logger.info(`Clearing state for target: ${target}`);
       }
     } else if (actionLower.includes('restart')) {
       // Restart service (log only - actual restart would require orchestration)
-      console.log(`Restart requested for: ${target || 'service'}`);
+      logger.info(`Restart requested for: ${target || 'service'}`);
     } else if (actionLower.includes('restore')) {
       // Restore to previous state
-      console.log(`Restore requested for: ${target || 'system'}`);
+      logger.info(`Restore requested for: ${target || 'system'}`);
     } else {
       // Log-only for description actions
-      console.log(`Rollback action logged: ${action}`);
+      logger.info(`Rollback action logged: ${action}`);
     }
 
     // Brief pause between actions

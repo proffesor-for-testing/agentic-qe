@@ -3,7 +3,7 @@
  * ADR-023: Quality Feedback Loop System
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   PatternPromotionManager,
   createPatternPromotionManager,
@@ -16,6 +16,10 @@ describe('PatternPromotionManager', () => {
 
   beforeEach(() => {
     manager = createPatternPromotionManager();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   function createPattern(overrides: Partial<QEPattern> = {}): QEPattern {

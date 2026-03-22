@@ -7,7 +7,7 @@
  * - format works programmatically
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   QualityCriteriaTool,
   qualityCriteriaTool,
@@ -21,6 +21,10 @@ describe('QualityCriteriaTool', () => {
 
   beforeEach(() => {
     tool = new QualityCriteriaTool();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('config', () => {

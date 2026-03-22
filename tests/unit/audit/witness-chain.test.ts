@@ -3,7 +3,7 @@
  * ADR-070: Witness Chain Audit Compliance
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import Database from 'better-sqlite3';
 import {
   createWitnessChain,
@@ -26,6 +26,12 @@ describe('WitnessChain', () => {
     db = new Database(':memory:');
     chain = createWitnessChain(db);
     await chain.initialize();
+  });
+
+  afterEach(() => {
+    if (db) {
+      db.close();
+    }
   });
 
   // --------------------------------------------------------------------------

@@ -3,7 +3,7 @@
  * ADR-064 Phase 4A: Multi-agent competing hypotheses for root cause analysis
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   HypothesisManager,
   createHypothesisManager,
@@ -53,6 +53,10 @@ describe('HypothesisManager', () => {
 
   beforeEach(() => {
     manager = new HypothesisManager();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

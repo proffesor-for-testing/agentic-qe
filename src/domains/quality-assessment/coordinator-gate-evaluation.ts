@@ -5,6 +5,7 @@
  * Contains: borderline detection, consensus verification for gates and deployments
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   GateEvaluationRequest,
@@ -23,6 +24,8 @@ import type { ConsensusEnabledMixin } from '../../coordination/mixins/consensus-
  * Check if a gate result is a borderline case.
  * A borderline case is when any metric is within the configured margin of its threshold.
  */
+const logger = LoggerFactory.create('quality-assessment/gate-evaluation');
+
 export function isBorderlineGateResult(
   metrics: QualityMetrics,
   thresholds: GateThresholds,
@@ -56,7 +59,7 @@ export function isBorderlineGateResult(
     const relativeDistance = Math.abs(metricValue - threshold) / threshold;
 
     if (relativeDistance < margin) {
-      console.log(`[quality-assessment] Borderline detected: ${metricKey}=${metricValue} (threshold=${threshold}, distance=${(relativeDistance * 100).toFixed(1)}%)`);
+      logger.info(`Borderline detected: ${metricKey}=${metricValue} (threshold=${threshold}, distance=${(relativeDistance * 100).toFixed(1)}%)`);
       return true;
     }
   }
@@ -98,12 +101,12 @@ export async function verifyGateVerdictWithConsensus(
     const consensusResult = await consensusMixin.verifyFinding(finding);
 
     if (!consensusResult.success) {
-      console.warn('[quality-assessment] Consensus verification failed:', (consensusResult as { success: false; error: Error }).error);
+      logger.warn('Consensus verification failed:');
       return null;
     }
 
     const consensus = consensusResult.value;
-    console.log(
+    logger.info(
       `[quality-assessment] Consensus for gate '${request.gateName}': ` +
       `verdict=${consensus.verdict}, confidence=${(consensus.confidence * 100).toFixed(1)}%`
     );
@@ -119,7 +122,7 @@ export async function verifyGateVerdictWithConsensus(
       consensusVerdict: string;
     };
   } catch (error) {
-    console.error('[quality-assessment] Consensus verification error:', error);
+    logger.error('Consensus verification error:', error instanceof Error ? error : undefined);
     return null;
   }
 }
@@ -169,12 +172,12 @@ export async function verifyDeploymentAdviceWithConsensus(
     const consensusResult = await consensusMixin.verifyFinding(finding);
 
     if (!consensusResult.success) {
-      console.warn('[quality-assessment] Consensus verification for deployment failed:', (consensusResult as { success: false; error: Error }).error);
+      logger.warn('Consensus verification for deployment failed:');
       return null;
     }
 
     const consensus = consensusResult.value;
-    console.log(
+    logger.info(
       `[quality-assessment] Consensus for deployment '${request.releaseCandidate}': ` +
       `verdict=${consensus.verdict}, confidence=${(consensus.confidence * 100).toFixed(1)}%`
     );
@@ -190,7 +193,7 @@ export async function verifyDeploymentAdviceWithConsensus(
       consensusVerdict: string;
     };
   } catch (error) {
-    console.error('[quality-assessment] Consensus verification error:', error);
+    logger.error('Consensus verification error:', error instanceof Error ? error : undefined);
     return null;
   }
 }

@@ -4,7 +4,7 @@
  * Tests for the 9 RL algorithms implementing ADR-040.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   createQERLSuite,
   QERLSuite,
@@ -106,6 +106,10 @@ describe('QERLSuite - Algorithm Retrieval', () => {
 
   beforeEach(() => {
     suite = createQERLSuite();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   it('should get algorithm by type', () => {

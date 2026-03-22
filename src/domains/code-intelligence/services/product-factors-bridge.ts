@@ -12,6 +12,7 @@
  * Event-driven architecture following V3 patterns.
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as fs from 'fs/promises';
@@ -172,6 +173,8 @@ export interface IProductFactorsBridge {
  *
  * Bridges code-intelligence C4 capabilities with product-factors-assessor.
  */
+const logger = LoggerFactory.create('code-intelligence/product-factors-bridge');
+
 export class ProductFactorsBridgeService
   implements IProductFactorsBridge, IC4DiagramGenerator
 {
@@ -234,7 +237,7 @@ export class ProductFactorsBridgeService
     event: DomainEvent
   ): Promise<void> {
     // Invalidate relevant caches when knowledge graph is updated
-    console.log(
+    logger.info(
       '[ProductFactorsBridge] Knowledge graph updated, considering cache invalidation'
     );
     // Note: We don't have project path in this event, so we rely on hash-based invalidation
@@ -246,7 +249,7 @@ export class ProductFactorsBridgeService
     // Track impacted files for potential cache invalidation
     const payload = event.payload as { changedFiles?: string[] };
     if (payload.changedFiles && payload.changedFiles.length > 0) {
-      console.log(
+      logger.info(
         `[ProductFactorsBridge] Impact analysis detected ${payload.changedFiles.length} changed files`
       );
     }
@@ -266,7 +269,7 @@ export class ProductFactorsBridgeService
       // Check cache first
       const cached = await this.getCachedDiagrams(request.projectPath);
       if (cached) {
-        console.log(
+        logger.info(
           `[ProductFactorsBridge] Returning cached C4 diagrams for ${request.projectPath}`
         );
         return ok(cached);
@@ -561,9 +564,9 @@ export class ProductFactorsBridgeService
         }
       }
     } catch (error) {
-      console.error(
-        '[ProductFactorsBridge] External system detection failed:',
-        error
+      logger.error(
+        'External system detection failed',
+        error instanceof Error ? error : undefined
       );
     }
 
@@ -646,7 +649,7 @@ export class ProductFactorsBridgeService
         }
       }
     } catch (error) {
-      console.error('[ProductFactorsBridge] Component analysis failed:', error);
+      logger.error('Component analysis failed:', error instanceof Error ? error : undefined);
     }
 
     return { components, relationships };
@@ -692,7 +695,7 @@ export class ProductFactorsBridgeService
         }
       } catch (error) {
         // Non-critical: permission errors when scanning directories
-        console.debug('[ProductFactorsBridge] Directory scan error:', error instanceof Error ? error.message : error);
+        logger.debug('Directory scan error:');
       }
     };
 
@@ -816,7 +819,7 @@ export class ProductFactorsBridgeService
         }
       }
     } catch (error) {
-      console.error('[ProductFactorsBridge] Coupling analysis failed:', error);
+      logger.error('Coupling analysis failed:', error instanceof Error ? error : undefined);
     }
 
     return couplingInfo;

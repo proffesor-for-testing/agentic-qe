@@ -6,7 +6,7 @@
  * - Health check: <5ms
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   SwarmGraph,
   createSwarmGraph,
@@ -67,6 +67,10 @@ describe('MinCut Performance Benchmarks', () => {
     graph = createSwarmGraph();
     calculator = createMinCutCalculator();
     monitor = createMinCutHealthMonitor(graph);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Graph Operations', () => {

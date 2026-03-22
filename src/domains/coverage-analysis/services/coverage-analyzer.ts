@@ -5,6 +5,7 @@
  * ADR-051: LLM-powered coverage analysis for intelligent gap detection
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import {
@@ -104,6 +105,8 @@ export interface RiskAssessment {
 // ============================================================================
 // Service Implementation
 // ============================================================================
+
+const logger = LoggerFactory.create('coverage-analysis/coverage-analyzer');
 
 export class CoverageAnalyzerService implements ICoverageAnalysisService {
   private static readonly DEFAULT_THRESHOLD = 80;
@@ -381,7 +384,7 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
       return this.getDefaultInsights();
     } catch (error) {
-      console.warn('[CoverageAnalyzer] LLM analysis failed, using defaults:', error);
+      logger.warn('LLM analysis failed, using defaults');
       return this.getDefaultInsights();
     }
   }
@@ -443,7 +446,7 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
         riskAssessment: this.normalizeRiskAssessment(parsed.riskAssessment),
       };
     } catch {
-      console.warn('[CoverageAnalyzer] Failed to parse LLM response as JSON');
+      logger.warn('Failed to parse LLM response as JSON');
       return this.getDefaultInsights();
     }
   }

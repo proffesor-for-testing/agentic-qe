@@ -7,6 +7,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { toError } from '../../../shared/error-utils.js';
@@ -163,6 +164,9 @@ export interface ICausalRootCauseAnalyzerService {
  * Uses STDP-based causal discovery to learn relationships between events
  * and provide intelligent root cause analysis.
  */
+
+const logger = LoggerFactory.create('defect-intelligence/causal-root-cause-analyzer');
+
 export class CausalRootCauseAnalyzerService implements ICausalRootCauseAnalyzerService {
   private readonly engine: CausalDiscoveryEngine;
   private readonly config: CausalRootCauseAnalyzerConfig;
@@ -186,7 +190,7 @@ export class CausalRootCauseAnalyzerService implements ICausalRootCauseAnalyzerS
     if (this.config.autoPersist) {
       const now = Date.now();
       if (now - this.lastPersist > this.config.persistIntervalMs) {
-        this.persist().catch(console.error);
+        this.persist().catch((e: unknown) => logger.error('Persist failed', e instanceof Error ? e : undefined));
         this.lastPersist = now;
       }
     }

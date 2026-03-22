@@ -3,6 +3,7 @@
  * Extracted from security-auditor.ts - Dynamic Application Security Testing
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import type {
@@ -19,6 +20,8 @@ import type {
  * Perform DAST scan using HTTP requests to test for vulnerabilities
  * Tests for common web vulnerabilities: XSS, SQL injection, security headers, etc.
  */
+const logger = LoggerFactory.create('security-compliance/security-auditor-dast');
+
 export async function performDASTScan(targetUrl: string): Promise<DASTResult> {
   const scanId = uuidv4();
   const startTime = Date.now();
@@ -267,7 +270,7 @@ export async function performDASTScan(targetUrl: string): Promise<DASTResult> {
     }
 
   } catch (error) {
-    console.error('DAST scan failed:', error);
+    logger.error('DAST scan failed:', error instanceof Error ? error : undefined);
   }
 
   const scanDurationMs = Date.now() - startTime;

@@ -2,7 +2,7 @@
  * Agentic QE v3 - Chaos Engineer Service Unit Tests
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 
 // Mock secureRandom so we can control randomness in tests
 const mockSecureRandom = vi.fn(() => 0.5);
@@ -129,6 +129,11 @@ describe('ChaosEngineerService', () => {
     mockMemory = createMockMemory();
     service = new ChaosEngineerService({ memory: mockMemory });
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   describe('createExperiment', () => {
     it('should create a valid experiment successfully', async () => {

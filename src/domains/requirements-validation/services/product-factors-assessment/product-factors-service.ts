@@ -8,6 +8,7 @@
  * requirements-validation domain coordinator.
  */
 
+import { LoggerFactory } from '../../../../logging/index.js';
 import {
   AssessmentInput,
   AssessmentOutput,
@@ -79,6 +80,9 @@ interface ParsedInput {
  * Implements SFDIPOT-based test idea generation without requiring BaseAgent.
  * This is a stateless service suitable for v3's domain-driven architecture.
  */
+
+const logger = LoggerFactory.create('requirements-validation/product-factors');
+
 export class ProductFactorsService {
   private readonly config: Required<ProductFactorsServiceConfig>;
 
@@ -128,7 +132,7 @@ export class ProductFactorsService {
    * Main entry point - Generate full Product Factors assessment
    */
   public async assess(input: AssessmentInput): Promise<AssessmentOutput> {
-    console.log('[ProductFactorsService] Starting Product Factors assessment...');
+    logger.info('Starting Product Factors assessment...');
 
     // Step 1: Parse input documents
     const parsedInput = await this.parseInput(input);
@@ -140,7 +144,7 @@ export class ProductFactorsService {
     let requirementsQualityScore: number | undefined;
     let requirementsQualityData: RequirementsQualityScore | undefined;
     if (this.config.enableBrutalHonesty && parsedInput.rawContent.length > 100) {
-      console.log('[ProductFactorsService] Running Bach mode BS detection on requirements...');
+      logger.info('Running Bach mode BS detection on requirements...');
 
       const reqAnalysis = this.sfdipotAnalyzer
         .getBrutalHonestyAnalyzer()
@@ -152,12 +156,12 @@ export class ProductFactorsService {
         const domainInfo = context.detectedDomains
           .map((d) => `${d.displayName} (${(d.confidence * 100).toFixed(0)}%)`)
           .join(', ');
-        console.log(`[ProductFactorsService] Detected domains: ${domainInfo}`);
+        logger.info(`Detected domains: ${domainInfo}`);
       }
 
       if (reqAnalysis.findings.length > 0) {
-        console.log(
-          `[ProductFactorsService] Requirements quality: ${reqAnalysis.score}/100 - ${reqAnalysis.verdict}`
+        logger.info(
+          `Requirements quality: ${reqAnalysis.score}/100 - ${reqAnalysis.verdict}`
         );
       }
     }
@@ -170,8 +174,8 @@ export class ProductFactorsService {
     let c4Diagrams: { context?: string; container?: string; component?: string } | undefined;
 
     if (input.codebaseRootDir && input.enableCodeIntelligence !== false) {
-      console.log(
-        `[ProductFactorsService] Running code intelligence analysis on ${input.codebaseRootDir}...`
+      logger.info(
+        `Running code intelligence analysis on ${input.codebaseRootDir}...`
       );
 
       try {
@@ -209,7 +213,7 @@ export class ProductFactorsService {
           );
         }
       } catch (error) {
-        console.warn('[ProductFactorsService] Code intelligence analysis failed:', error);
+        logger.warn('Code intelligence analysis failed');
       }
     }
 
@@ -274,8 +278,8 @@ export class ProductFactorsService {
       c4Diagrams,
     };
 
-    console.log(
-      `[ProductFactorsService] Assessment complete: ${testIdeas.length} test ideas, ${allQuestions.length} questions`
+    logger.info(
+      `Assessment complete: ${testIdeas.length} test ideas, ${allQuestions.length} questions`
     );
 
     return result;

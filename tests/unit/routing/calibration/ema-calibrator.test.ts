@@ -3,7 +3,7 @@
  * Validates EMA-based agent calibration for voting weights
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   EMACalibrator,
   DEFAULT_EMA_CONFIG,
@@ -15,6 +15,10 @@ describe('EMACalibrator', () => {
 
   beforeEach(() => {
     calibrator = new EMACalibrator();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('EMA convergence', () => {

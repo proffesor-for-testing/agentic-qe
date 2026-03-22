@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.8.5](v3.8.5.md) | 2026-03-21 | Both P1 items resolved, structured logging, hooks decomposition, test stability |
 | [v3.8.4](v3.8.4.md) | 2026-03-19 | P0 security fixes, DB corruption repair, 30-40% smaller bundles, CI parallelization |
 | [v3.8.3](v3.8.3.md) | 2026-03-18 | ADR-086 skill overhaul (84 skills), 5 new skills, 7 bug fixes |
 | [v3.8.2](v3.8.2.md) | 2026-03-17 | 8 bug fixes from user testing, validation pipeline helper, ruflo rebrand |

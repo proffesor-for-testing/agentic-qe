@@ -8,6 +8,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { LoggerFactory } from '../../logging/index.js';
 import { Result, ok, err, type DomainName } from '../../shared/types/index.js';
 import { createEvent } from '../../shared/events/domain-events.js';
 import type {
@@ -112,6 +113,8 @@ type EnterpriseWorkflowType = 'soap' | 'messaging' | 'rfc' | 'idoc' | 'odata' | 
 // Enterprise Integration Coordinator
 // ============================================================================
 
+const logger = LoggerFactory.create('enterprise-integration');
+
 export class EnterpriseIntegrationCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, EnterpriseWorkflowType>
   implements IEnterpriseIntegrationCoordinator
@@ -143,7 +146,7 @@ export class EnterpriseIntegrationCoordinator
 
   protected async onInitialize(): Promise<void> {
     this.subscribeToEvents();
-    console.log(`[${this.domainName}] Enterprise Integration Coordinator initialized`);
+    logger.info('Enterprise Integration Coordinator initialized');
   }
 
   protected async onDispose(): Promise<void> {
@@ -755,10 +758,10 @@ export class EnterpriseIntegrationCoordinator
     if (this.consensusMixin.requiresConsensus(domainFinding)) {
       const result = await this.consensusMixin.verifyFinding(domainFinding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Finding verified by consensus: ${finding.type}`);
+        logger.info(`Finding verified by consensus: ${finding.type}`);
         return true;
       }
-      console.warn(`[${this.domainName}] Finding NOT verified: ${finding.type}`);
+      logger.warn(`Finding NOT verified: ${finding.type}`);
       return false;
     }
     return true;
@@ -789,7 +792,7 @@ export class EnterpriseIntegrationCoordinator
     // Track middleware-related fault injection for correlation
     const payload = event.payload;
     if (payload?.targetService?.includes('middleware') || payload?.targetService?.includes('esb')) {
-      console.log(`[${this.domainName}] Middleware fault injection detected: ${payload.targetService}`);
+      logger.info(`Middleware fault injection detected: ${payload.targetService}`);
     }
   }
 }

@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run governance integration tests
-        run: npx vitest run tests/integration/governance/
+        run: timeout 480 npx vitest run tests/integration/governance/ --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
@@ -55,7 +55,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run ruvector + coordination integration tests
-        run: npx vitest run tests/integration/ruvector/ tests/integration/coordination/
+        run: bash scripts/ci-vitest-run.sh tests/integration/ruvector/ tests/integration/coordination/ --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
@@ -74,7 +74,7 @@ jobs:
           # Run only test files directly in tests/integration/ (not in subdirectories)
           FILES=$(find tests/integration -maxdepth 1 -name '*.test.ts' ! -name '*.e2e.test.ts' | sort)
           if [ -n "$FILES" ]; then
-            npx vitest run $FILES
+            bash scripts/ci-vitest-run.sh $FILES --reporter=verbose
           else
             echo "No root-level integration tests found"
           fi
@@ -96,7 +96,7 @@ jobs:
           # Everything in tests/integration subdirs EXCEPT the ones covered by
           # other shards (governance, ruvector, coordination) and the original
           # exclusions (browser, mcp, sync, learning, domains, llm, n8n).
-          npx vitest run \
+          bash scripts/ci-vitest-run.sh \
             tests/integration/adapters/ \
             tests/integration/cli/ \
             tests/integration/code-intelligence/ \
@@ -113,7 +113,8 @@ jobs:
             tests/integration/templates/ \
             tests/integration/test-execution/ \
             tests/integration/test-generation/ \
-            tests/integration/validation/
+            tests/integration/validation/ \
+            --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
 
@@ -132,7 +133,7 @@ jobs:
       - name: Run contract tests
         run: |
           if [ -d "tests/unit/domains/contract-testing" ] && [ "$(ls -A tests/unit/domains/contract-testing/*.test.ts 2>/dev/null)" ]; then
-            npm run test:contracts
+            timeout 480 npm run test:contracts
           else
             echo "No contract tests found"
           fi
@@ -150,7 +151,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run code intelligence tests
-        run: npm run test:code-intelligence
+        run: timeout 480 npm run test:code-intelligence
         env:
           NODE_OPTIONS: '--max-old-space-size=768'
           SKIP_INTEGRATION_TESTS: 'true'
@@ -170,7 +171,7 @@ jobs:
       - name: Run Infrastructure Tests
         run: |
           if [ -d "tests/infrastructure" ] && [ "$(ls -A tests/infrastructure/*.test.ts 2>/dev/null)" ]; then
-            npm run test:infrastructure
+            timeout 480 npm run test:infrastructure
           else
             echo "No infrastructure tests found"
           fi
@@ -180,7 +181,7 @@ jobs:
       - name: Run Regression Tests
         run: |
           if [ -d "tests/regression" ] && [ "$(find tests/regression -name '*.test.ts' 2>/dev/null | head -1)" ]; then
-            npm run test:regression
+            timeout 480 npm run test:regression
           else
             echo "No regression tests found"
           fi
@@ -215,7 +216,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run Postgres integration tests
-        run: npm run test:integration:pg
+        run: timeout 480 npm run test:integration:pg
         env:
           POSTGRES_URL: postgresql://aqe_test:aqe_test@localhost:15432/aqe_test
           NODE_OPTIONS: '--max-old-space-size=1024'
@@ -237,7 +238,7 @@ jobs:
       - name: Run Performance Gates
         id: perf-gates
         run: |
-          npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
+          timeout 480 npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
           echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
           cat perf-report.md
         continue-on-error: true
@@ -277,7 +278,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
-        run: npm run test:coverage
+        run: timeout 480 npm run test:coverage
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'

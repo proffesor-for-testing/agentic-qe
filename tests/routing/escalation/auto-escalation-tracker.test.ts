@@ -2,7 +2,7 @@
  * Auto-Escalation Tracker Tests
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   AutoEscalationTracker,
   DEFAULT_ESCALATION_CONFIG,
@@ -14,6 +14,10 @@ describe('AutoEscalationTracker', () => {
 
   beforeEach(() => {
     tracker = new AutoEscalationTracker();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('default config', () => {

@@ -4,6 +4,7 @@
  * Integrates Q-Learning for intelligent test prioritization
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { Result, ok, err, DomainName, Severity } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
@@ -145,6 +146,8 @@ export interface ICoverageAnalysisCoordinator extends CoverageAnalysisAPI {
 // ============================================================================
 // Coordinator Implementation
 // ============================================================================
+
+const logger = LoggerFactory.create('coverage-analysis');
 
 export class CoverageAnalysisCoordinator
   extends BaseDomainCoordinator<CoverageAnalysisCoordinatorConfig>
@@ -305,7 +308,7 @@ export class CoverageAnalysisCoordinator
         );
       }
     } catch (error) {
-      console.error('Failed to train Q-Learning model:', error);
+      logger.error('Failed to train Q-Learning model', error instanceof Error ? error : undefined);
     }
   }
 
@@ -521,7 +524,7 @@ export class CoverageAnalysisCoordinator
     try {
       // ADR-047: Check topology health before expensive analysis
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative analysis mode`);
+        logger.warn('Topology degraded, using conservative analysis mode');
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -551,7 +554,7 @@ export class CoverageAnalysisCoordinator
     try {
       // ADR-047: Check topology health before gap detection
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
-        console.warn(`[${this.domainName}] Topology degraded, using conservative gap detection`);
+        logger.warn('Topology degraded, using conservative gap detection');
       }
 
       // ADR-047: Check if operations should be paused due to critical topology
@@ -572,7 +575,7 @@ export class CoverageAnalysisCoordinator
             const isVerified = await this.verifyCoverageGap(gap, confidence);
 
             if (!isVerified) {
-              console.log(`[${this.domainName}] Coverage gap in '${gap.file}' not verified, skipping publication`);
+              logger.info(`Coverage gap in '${gap.file}' not verified, skipping publication`);
               continue;
             }
           }
@@ -621,7 +624,7 @@ export class CoverageAnalysisCoordinator
           );
 
           if (!isVerified) {
-            console.warn(`[${this.domainName}] Risk zone '${result.value.file}' not verified, downgrading severity`);
+            logger.warn(`Risk zone '${result.value.file}' not verified, downgrading severity`);
             // Downgrade the risk level if not verified
             return ok({
               ...result.value,
@@ -1075,10 +1078,10 @@ export class CoverageAnalysisCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Coverage gap in '${gap.file}' verified by consensus`);
+        logger.info(`Coverage gap in '${gap.file}' verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Coverage gap in '${gap.file}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Coverage gap in '${gap.file}' NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed
@@ -1109,10 +1112,10 @@ export class CoverageAnalysisCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Risk zone '${zone.file}' classification verified by consensus`);
+        logger.info(`Risk zone '${zone.file}' classification verified by consensus`);
         return true;
       }
-      console.warn(`[${this.domainName}] Risk zone '${zone.file}' classification NOT verified`);
+      logger.warn(`Risk zone '${zone.file}' classification NOT verified`);
       return false;
     }
     return true; // No consensus needed
@@ -1143,10 +1146,10 @@ export class CoverageAnalysisCoordinator
     if (this.consensusMixin.requiresConsensus(finding)) {
       const result = await this.consensusMixin.verifyFinding(finding);
       if (result.success && result.value.verdict === 'verified') {
-        console.log(`[${this.domainName}] Quality regression verified by consensus`);
+        logger.info('Quality regression verified by consensus');
         return true;
       }
-      console.warn(`[${this.domainName}] Quality regression NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
+      logger.warn(`Quality regression NOT verified: ${result.success ? result.value.verdict : result.error.message}`);
       return false;
     }
     return true; // No consensus needed

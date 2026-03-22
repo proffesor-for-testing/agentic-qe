@@ -10,7 +10,7 @@
  * tests skip gracefully when the directory is empty.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll} from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -26,6 +26,10 @@ describe('OpenCode Custom Tool Wrappers', () => {
     toolFiles = fs.readdirSync(TOOLS_DIR)
       .filter((f) => f.endsWith('.ts'))
       .map((f) => path.join(TOOLS_DIR, f));
+  });
+
+  afterAll(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // -------------------------------------------------------------------------

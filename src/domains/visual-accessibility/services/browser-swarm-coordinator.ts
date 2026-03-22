@@ -20,6 +20,7 @@
  * @module domains/visual-accessibility/services/browser-swarm-coordinator
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { FilePath } from '../../../shared/value-objects/index.js';
@@ -249,6 +250,8 @@ const DEFAULT_CONFIG: BrowserSwarmConfig = {
  * await coordinator.shutdown();
  * ```
  */
+const logger = LoggerFactory.create('visual-accessibility/browser-swarm');
+
 export class BrowserSwarmCoordinator {
   private readonly config: BrowserSwarmConfig;
   private readonly sessions: Map<string, BrowserSession> = new Map();
@@ -618,9 +621,9 @@ export class BrowserSwarmCoordinator {
             await session.client.dispose();
           } catch (error) {
             // Log but don't fail shutdown
-            console.error(
-              `[BrowserSwarm] Failed to close session ${session.id}:`,
-              error
+            logger.error(
+              `[BrowserSwarm] Failed to close session ${session.id}`,
+              error instanceof Error ? error : undefined
             );
           }
         }
@@ -759,7 +762,7 @@ export class BrowserSwarmCoordinator {
       const memoryUsage = this.estimateMemoryUsage();
 
       if (memoryUsage > this.config.memoryThresholdMB) {
-        console.warn(
+        logger.warn(
           `[BrowserSwarm] Memory usage ${memoryUsage.toFixed(2)}MB exceeds threshold ${this.config.memoryThresholdMB}MB. Degrading to sequential execution.`
         );
       }
@@ -776,7 +779,7 @@ export class BrowserSwarmCoordinator {
           { namespace: 'visual-accessibility', ttl: 3600 }
         )
         .catch((err) => {
-          console.error('[BrowserSwarm] Failed to store memory metrics:', err);
+          logger.error('Failed to store memory metrics:', err instanceof Error ? err : undefined);
         });
     }, 30000);
   }

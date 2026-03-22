@@ -11,7 +11,7 @@
  * Run explicitly with: npx vitest run tests/unit/integrations/browser/qe-dashboard.test.ts
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach} from 'vitest';
 import {
   WasmVectorStore,
   cosineSimilarity,
@@ -82,6 +82,10 @@ describe('WasmVectorStore', () => {
   beforeEach(async () => {
     store = new WasmVectorStore();
     await store.initialize();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------

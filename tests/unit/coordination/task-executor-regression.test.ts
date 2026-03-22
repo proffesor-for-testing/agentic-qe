@@ -6,7 +6,7 @@
  * task execution, and that they run in advisory (non-blocking) mode.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   DomainTaskExecutor,
   createTaskExecutor,
@@ -126,6 +126,11 @@ describe('TaskExecutor — Regression: coherence gate & reasoning QEC', () => {
       defaultFramework: 'vitest',
     });
   });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
 
   it('should execute tasks without coherence gate blocking (advisory mode)', async () => {
     const task = createTestTask();

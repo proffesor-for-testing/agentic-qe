@@ -20,6 +20,7 @@
  * @module domains/visual-accessibility/services/accessibility-tester
  */
 
+import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
@@ -105,6 +106,8 @@ const DEFAULT_CONFIG: AccessibilityTesterConfig = {
  * Accessibility Auditing Service Implementation
  * Provides WCAG 2.2 compliance checking with optional browser mode via Vibium
  */
+const logger = LoggerFactory.create('visual-accessibility/accessibility-tester');
+
 export class AccessibilityTesterService implements IAccessibilityAuditingService {
   private readonly config: AccessibilityTesterConfig;
   private readonly rules: AccessibilityRule[];
@@ -152,7 +155,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           return client;
         }
       } catch (error) {
-        console.debug('[AccessibilityTester] Browser client error:', error instanceof Error ? error.message : error);
+        logger.debug('Browser client error:');
       }
     }
 
@@ -181,7 +184,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
             return browserResult;
           }
           const errorMsg = getErrorMessage(browserResult);
-          console.warn(`Browser client audit failed: ${errorMsg}`);
+          logger.warn(`Browser client audit failed: ${errorMsg}`);
         }
 
         if (this.vibiumClient && isBrowserModeEnabled() && isAxeCoreEnabled()) {
@@ -193,7 +196,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
             return vibiumResult;
           }
           const errorMsg = getErrorMessage(vibiumResult);
-          console.warn(`Vibium audit failed, falling back to heuristic mode: ${errorMsg}`);
+          logger.warn(`Vibium audit failed, falling back to heuristic mode: ${errorMsg}`);
         }
       }
 
@@ -216,7 +219,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
         return browserResult;
       }
       const errorMsg = getErrorMessage(browserResult);
-      console.warn(`Browser mode element audit failed, falling back to heuristic mode: ${errorMsg}`);
+      logger.warn(`Browser mode element audit failed, falling back to heuristic mode: ${errorMsg}`);
     }
 
     return this.audit(url, {
@@ -314,7 +317,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           analyses = browserResult.value;
         } else {
           const errorMsg = getErrorMessage(browserResult);
-          console.warn(`Browser mode contrast check failed, falling back to heuristic mode: ${errorMsg}`);
+          logger.warn(`Browser mode contrast check failed, falling back to heuristic mode: ${errorMsg}`);
           analyses = analyzeContrastForElements(url);
         }
       } else {
@@ -392,7 +395,7 @@ export class AccessibilityTesterService implements IAccessibilityAuditingService
           report = browserResult.value;
         } else {
           const errorMsg = getErrorMessage(browserResult);
-          console.warn(`Browser mode keyboard check failed, falling back to heuristic mode: ${errorMsg}`);
+          logger.warn(`Browser mode keyboard check failed, falling back to heuristic mode: ${errorMsg}`);
           report = generateKeyboardReportWithHeuristics(url);
         }
       } else {

@@ -5,6 +5,7 @@
  * Contains: ClaimVerifier initialization, report/gate result verification
  */
 
+import { LoggerFactory } from '../../logging/index.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   ClaimVerifierService,
@@ -18,6 +19,8 @@ import type { GateResult, QualityReport } from './interfaces';
 /**
  * Initialize ClaimVerifier for report verification
  */
+const logger = LoggerFactory.create('quality-assessment/claim-verifier');
+
 export async function initializeClaimVerifier(
   claimVerifierRootDir?: string
 ): Promise<ClaimVerifierService> {
@@ -53,7 +56,7 @@ export async function verifyQualityReportClaims(
     const verification = await claimVerifier.verifyReport(qeReport);
 
     if (!verification.success) {
-      console.warn('[QualityAssessment] Claim verification failed:', verification.error);
+      logger.warn('Claim verification failed:');
       return report;
     }
 
@@ -66,7 +69,7 @@ export async function verifyQualityReportClaims(
       },
     };
   } catch (error) {
-    console.error('[QualityAssessment] Failed to verify report claims:', error);
+    logger.error('Failed to verify report claims:', error instanceof Error ? error : undefined);
     return report;
   }
 }
@@ -88,7 +91,7 @@ export async function verifyGateResultClaims(
     const verification = await claimVerifier.verifyReport(qeReport);
 
     if (!verification.success) {
-      console.warn('[QualityAssessment] Gate claim verification failed:', verification.error);
+      logger.warn('Gate claim verification failed:');
       return result;
     }
 
@@ -101,7 +104,7 @@ export async function verifyGateResultClaims(
       },
     };
   } catch (error) {
-    console.error('[QualityAssessment] Failed to verify gate claims:', error);
+    logger.error('Failed to verify gate claims:', error instanceof Error ? error : undefined);
     return result;
   }
 }

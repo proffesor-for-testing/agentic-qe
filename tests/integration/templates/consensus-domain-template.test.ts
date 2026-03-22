@@ -15,7 +15,7 @@
  * // tests/integration/domains/security-compliance/consensus-integration.test.ts
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import type { Mock } from 'vitest';
 
 // ============================================================================
@@ -185,6 +185,10 @@ describe('[DOMAIN_NAME] Consensus Integration', () => {
       { id: 'mock-gpt', name: 'Mock GPT', defaultAssessment: 'confirmed', defaultConfidence: 0.85 },
       { id: 'mock-gemini', name: 'Mock Gemini', defaultAssessment: 'confirmed', defaultConfidence: 0.8 },
     ]);
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // ==========================================================================

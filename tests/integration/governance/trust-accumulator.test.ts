@@ -11,7 +11,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   governanceFlags,
   DEFAULT_GOVERNANCE_FLAGS,
@@ -31,6 +31,10 @@ describe('TrustAccumulator Integration - ADR-058 Phase 2', () => {
     // Reset to defaults before each test
     governanceFlags.reset();
     trustAccumulatorIntegration.reset();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   describe('Trust Score Calculation', () => {

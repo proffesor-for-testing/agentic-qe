@@ -24,12 +24,14 @@ const mockConsole = {
 
 describe('Progress Indicators (ADR-041)', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(mockConsole.log);
     vi.spyOn(console, 'clear').mockImplementation(mockConsole.clear);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe('FleetProgressManager', () => {
@@ -250,9 +252,9 @@ describe('Progress Indicators (ADR-041)', () => {
       const estimator = new EtaEstimator(5);
 
       estimator.addSample(0);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
       estimator.addSample(25);
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
       estimator.addSample(50);
 
       const estimate = estimator.estimate(50);
@@ -280,7 +282,7 @@ describe('Progress Indicators (ADR-041)', () => {
 
     it('should get elapsed time', async () => {
       const estimator = new EtaEstimator();
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await vi.advanceTimersByTimeAsync(50);
       const elapsed = estimator.getElapsed();
       expect(elapsed).toBeGreaterThanOrEqual(45); // Allow some tolerance
     });

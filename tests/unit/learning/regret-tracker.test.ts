@@ -6,7 +6,7 @@
  * are learning over time by analyzing cumulative regret curves.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach} from 'vitest';
 import {
   RegretTracker,
   createRegretTracker,
@@ -77,6 +77,10 @@ describe('RegretTracker', () => {
 
   beforeEach(() => {
     tracker = new RegretTracker();
+  });
+
+  afterEach(() => {
+    // Reset state to prevent leaks between tests
   });
 
   // --------------------------------------------------------------------------
