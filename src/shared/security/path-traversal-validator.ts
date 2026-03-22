@@ -243,7 +243,7 @@ export class PathTraversalValidator implements IPathValidationStrategy {
     if (paths.length === 0) return '';
 
     return paths
-      .map(p => p.replace(/^\/+|\/+$/g, ''))
+      .map(p => p.replace(/^\/+/, '').replace(/\/+$/, ''))
       .filter(Boolean)
       .join('/');
   }

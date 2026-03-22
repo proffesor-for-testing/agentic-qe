@@ -41,7 +41,7 @@ export const SQL_INJECTION_PATTERNS = [
   /INSERT\s+INTO/i,
   /DROP\s+TABLE/i,
   /DELETE\s+FROM/i,
-  /UPDATE\s+.*\s+SET/i,
+  /UPDATE\s+\S+(?:\.\S+)*\s+SET/i,
   /EXEC(\s+|\()sp_/i,
   /xp_cmdshell/i,
 ];

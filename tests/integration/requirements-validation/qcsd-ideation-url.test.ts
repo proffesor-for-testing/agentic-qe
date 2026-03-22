@@ -252,9 +252,12 @@ describe('QCSD Ideation URL Integration', () => {
 
     // Save original fetch
     originalFetch = global.fetch;
+
+    vi.useFakeTimers();
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     // Restore original fetch
     global.fetch = originalFetch;
     await orchestrator.dispose();
@@ -312,7 +315,7 @@ describe('QCSD Ideation URL Integration', () => {
       // Poll for completion (with timeout)
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -359,7 +362,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -393,7 +396,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -424,7 +427,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -454,7 +457,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -480,7 +483,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -503,7 +506,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -548,7 +551,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -598,7 +601,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 100) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -628,7 +631,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 100) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -654,7 +657,7 @@ describe('QCSD Ideation URL Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }

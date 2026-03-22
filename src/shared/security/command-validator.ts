@@ -35,7 +35,7 @@ export const BLOCKED_COMMAND_PATTERNS = [
   /\|\|/,                    // Command chaining with OR
   /\|/,                      // Piping
   /`.*`/,                    // Backtick command substitution
-  /\$\(.*\)/,                // $() command substitution
+  /\$\([^)]*\)/,             // $() command substitution
   />\s*\/dev\/sd/i,          // Writing to block devices
   />\s*\/etc\//i,            // Writing to /etc
 ];

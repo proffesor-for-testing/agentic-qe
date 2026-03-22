@@ -192,9 +192,12 @@ describe('QCSD Refinement Swarm Integration', () => {
     orchestrator.registerWorkflow(createBDDTestWorkflow());
     orchestrator.registerWorkflow(createRequirementsTestWorkflow());
     orchestrator.registerWorkflow(createCrossPhaseTestWorkflow());
+
+    vi.useFakeTimers();
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await orchestrator.dispose();
     await plugin.dispose();
     vi.restoreAllMocks();
@@ -273,7 +276,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -314,7 +317,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -343,7 +346,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -375,7 +378,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -413,7 +416,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -452,7 +455,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -484,7 +487,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -528,7 +531,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -555,7 +558,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -585,7 +588,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
@@ -607,7 +610,7 @@ describe('QCSD Refinement Swarm Integration', () => {
       let status = orchestrator.getWorkflowStatus(executionId);
       let attempts = 0;
       while (status?.status === 'running' && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await vi.advanceTimersByTimeAsync(100);
         status = orchestrator.getWorkflowStatus(executionId);
         attempts++;
       }
