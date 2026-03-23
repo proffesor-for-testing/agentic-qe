@@ -105,7 +105,7 @@ function createMockAgentCoordinator(): AgentCoordinator {
 function createTempDbPath(): string {
   const tempDir = path.join('/tmp', 'agentic-qe-test', `test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   fs.mkdirSync(tempDir, { recursive: true });
-  return path.join(tempDir, 'hypergraph.db');
+  return path.join(tempDir, 'test-memory.db');
 }
 
 /**

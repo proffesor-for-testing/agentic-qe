@@ -375,7 +375,7 @@ export class CodeIntelligenceCoordinator
       const path = await import('path');
       const { findProjectRoot } = await import('../../kernel/unified-memory.js');
       const projectRoot = findProjectRoot();
-      const dbPath = this.config.hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'hypergraph.db');
+      const dbPath = this.config.hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db');
 
       // Ensure directory exists
       const dir = path.dirname(dbPath);
@@ -396,10 +396,21 @@ export class CodeIntelligenceCoordinator
 
       logger.info(`Hypergraph Engine initialized at ${dbPath}`);
     } catch (error) {
-      logger.error('Failed to initialize Hypergraph Engine:', error instanceof Error ? error : undefined);
+      const msg = error instanceof Error ? error.message : String(error);
+      logger.warn(`Hypergraph Engine initialization failed (feature degraded): ${msg}`);
       // Don't throw - hypergraph is optional, coordinator should still work
       this.hypergraph = undefined;
       this.hypergraphDb = undefined;
+
+      // Publish degradation event so health checks can surface it
+      if (this.config.publishEvents) {
+        const event = createEvent(
+          'code-intelligence.HypergraphDegraded',
+          'code-intelligence',
+          { reason: msg }
+        );
+        this.eventBus.publish(event).catch(() => {});
+      }
     }
   }
 
@@ -553,11 +564,27 @@ export class CodeIntelligenceCoordinator
           }
         }
 
-        this.updateWorkflowProgress(workflowId, 80);
+        this.updateWorkflowProgress(workflowId, 70);
 
         // Index content for semantic search
         if (request.paths.length > 0) {
           await this.indexForSemanticSearch(request.paths);
+        }
+
+        this.updateWorkflowProgress(workflowId, 85);
+
+        // V3: Rebuild hypergraph from indexed files (keeps hypergraph in sync with KG)
+        if (this.config.enableHypergraph && this.hypergraph && request.paths.length > 0) {
+          try {
+            const codeIndexResult = await this.buildCodeIndexResultFromPaths(request.paths);
+            if (codeIndexResult.files.length > 0) {
+              await this.hypergraph.buildFromIndexResult(codeIndexResult);
+              logger.info(`Hypergraph rebuilt from ${codeIndexResult.files.length} indexed files`);
+            }
+          } catch (hgError) {
+            // Non-fatal: hypergraph is supplementary to the core indexing pipeline
+            logger.warn(`Hypergraph rebuild skipped: ${hgError instanceof Error ? hgError.message : hgError}`);
+          }
         }
 
         this.updateWorkflowProgress(workflowId, 100);
@@ -1502,6 +1529,19 @@ export class CodeIntelligenceCoordinator
       return baseAnalysis;
     }
     return HypergraphHelpers.enhanceImpactWithHypergraph(this.hypergraph, request, baseAnalysis);
+  }
+
+  // ============================================================================
+  // Hypergraph Helpers
+  // ============================================================================
+
+  /**
+   * Build a CodeIndexResult from file paths using shared lightweight regex extraction.
+   * Used to keep hypergraph in sync when index() is called.
+   */
+  private async buildCodeIndexResultFromPaths(paths: string[]): Promise<CodeIndexResult> {
+    const { extractCodeIndex } = await import('../../shared/code-index-extractor.js');
+    return extractCodeIndex(paths);
   }
 
   // ============================================================================

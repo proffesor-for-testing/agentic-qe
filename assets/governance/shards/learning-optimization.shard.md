@@ -84,7 +84,7 @@ INVARIANT model_export_integrity:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/learning-optimization/`
+**Domain Source**: `src/domains/learning-optimization/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

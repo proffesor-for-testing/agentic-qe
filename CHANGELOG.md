@@ -5,6 +5,32 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.7] - 2026-03-23
+
+### Added
+
+- **Hypergraph CLI commands** — New `aqe hypergraph` subcommands (`stats`, `untested`, `impacted`, `gaps`) for querying the code knowledge hypergraph directly from the terminal.
+- **Hypergraph MCP tool** — `hypergraph_query` MCP tool exposes the same queries to AI agents, added to 5 agent role scopes.
+- **Code index extractor** — Shared async batched extractor for functions, classes, interfaces, arrow functions, and method definitions with 12 unit tests.
+- **Shell completions for hypergraph** — Bash, Zsh, Fish, and PowerShell completion support for hypergraph subcommands.
+
+### Fixed
+
+- **Unified hypergraph persistence** — Eliminated separate `hypergraph.db` file; all hypergraph data now persists in the unified `memory.db` alongside other QE tables.
+- **Stale governance shard paths** — Updated 12 governance shards + constitution from `v3/src/domains/` to `src/domains/`.
+- **Init phase 06 hypergraph bootstrap** — `aqe init --auto` now builds hypergraph tables during code intelligence initialization.
+- **Connection leak in CLI handler** — Added `ensureInitialized` guard and proper cleanup in hypergraph CLI handler.
+- **HypergraphDegraded event** — Coordinator now publishes degradation events on init failure for observability.
+
+## [3.8.6] - 2026-03-23
+
+### Fixed
+
+- **4 CodeQL ReDoS alerts resolved** — Eliminated all `js/polynomial-redos` high-severity vulnerabilities in security validators using negated character classes and unambiguous regex patterns.
+- **58 real setTimeout calls eliminated** — Replaced with `vi.useFakeTimers()` in the top 5 flaky test files for deterministic test execution.
+- **time-crystal.ts decomposed** — Split 1,714-line module into 6 focused modules (max 447 lines) with backward-compatible re-exports.
+- **qe-reasoning-bank.ts decomposed** — Split 1,941-line module into 7 focused modules (max 738 lines) with backward-compatible re-exports.
+
 ## [3.8.5] - 2026-03-21
 
 ### Fixed

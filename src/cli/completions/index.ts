@@ -216,6 +216,16 @@ export const COMMANDS = {
     description: 'V2 to V3 migration',
     options: ['--dry-run', '--backup', '--skip-memory', '--skip-patterns', '--skip-config', '--force'],
   },
+  // Hypergraph queries
+  hypergraph: {
+    description: 'Query the code knowledge hypergraph',
+    subcommands: {
+      stats: { options: ['--db'] },
+      untested: { options: ['--db', '--limit'] },
+      impacted: { options: ['--db'] },
+      gaps: { options: ['--db', '--max-coverage', '--limit'] },
+    },
+  },
   // Completions command (meta)
   completions: {
     description: 'Generate shell completions',
@@ -329,7 +339,7 @@ _aqe_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="init status health task agent domain protocol test coverage quality security code migrate completions"
+    local commands="init status health task agent domain protocol test coverage quality security code migrate hypergraph completions"
     local task_subcmds="submit list cancel status"
     local agent_subcmds="list spawn"
     local domain_subcmds="list health"
@@ -628,6 +638,23 @@ _aqe_completions() {
                     ;;
             esac
             ;;
+        hypergraph)
+            local hg_subcmds="stats untested impacted gaps"
+            case "\${words[2]}" in
+                stats|untested|gaps)
+                    COMPREPLY=( $(compgen -W "--db --limit --max-coverage" -- "$cur") )
+                    return
+                    ;;
+                impacted)
+                    COMPREPLY=( $(compgen -f -- "$cur") )
+                    return
+                    ;;
+                *)
+                    COMPREPLY=( $(compgen -W "$hg_subcmds" -- "$cur") )
+                    return
+                    ;;
+            esac
+            ;;
         migrate)
             COMPREPLY=( $(compgen -W "--dry-run --backup --skip-memory --skip-patterns --skip-config --force" -- "$cur") )
             return
@@ -709,6 +736,7 @@ _aqe() {
         'quality:Quality assessment'
         'security:Security scanning'
         'code:Code intelligence'
+        'hypergraph:Query the code knowledge hypergraph'
         'migrate:V2 to V3 migration'
         'completions:Generate shell completions'
     )
@@ -956,6 +984,20 @@ _aqe() {
                         '--depth[Analysis depth]:depth:(1 2 3 4 5)' \\
                         '--include-tests[Include test files]'
                     ;;
+                hypergraph)
+                    local -a hg_commands
+                    hg_commands=(
+                        'stats:Show hypergraph statistics'
+                        'untested:Find untested functions'
+                        'impacted:Find impacted tests'
+                        'gaps:Find coverage gaps'
+                    )
+                    _arguments -C \\
+                        '1:command:_describe command hg_commands' \\
+                        '--db[Database path]:path:_files' \\
+                        '--limit[Max results]:number:' \\
+                        '--max-coverage[Coverage threshold]:number:'
+                    ;;
                 migrate)
                     _arguments \\
                         '--dry-run[Preview migration without changes]' \\
@@ -1035,6 +1077,11 @@ complete -c aqe -n "__fish_use_subcommand" -a "coverage" -d "Coverage analysis"
 complete -c aqe -n "__fish_use_subcommand" -a "quality" -d "Quality assessment"
 complete -c aqe -n "__fish_use_subcommand" -a "security" -d "Security scanning"
 complete -c aqe -n "__fish_use_subcommand" -a "code" -d "Code intelligence"
+complete -c aqe -n "__fish_use_subcommand" -a "hypergraph" -d "Query the code knowledge hypergraph"
+complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "stats" -d "Show hypergraph statistics"
+complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "untested" -d "Find untested functions"
+complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "impacted" -d "Find impacted tests"
+complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "gaps" -d "Find coverage gaps"
 complete -c aqe -n "__fish_use_subcommand" -a "migrate" -d "V2 to V3 migration"
 complete -c aqe -n "__fish_use_subcommand" -a "completions" -d "Generate shell completions"
 
@@ -1240,6 +1287,7 @@ $script:AQE_COMMANDS = @{
     'quality' = 'Quality assessment'
     'security' = 'Security scanning'
     'code' = 'Code intelligence'
+    'hypergraph' = 'Query the code knowledge hypergraph'
     'migrate' = 'V2 to V3 migration'
     'completions' = 'Generate shell completions'
 }

@@ -39,6 +39,7 @@ const DEFAULT_SCOPES: Record<AgentRole, ToolScope> = {
       'test_execute_parallel',
       'coverage_analyze_sublinear',
       'code_index',
+      'hypergraph_query',
       'memory_query',
       'memory_retrieve',
       'model_route',
@@ -48,6 +49,7 @@ const DEFAULT_SCOPES: Record<AgentRole, ToolScope> = {
     allowed: [
       'coverage_analyze_sublinear',
       'code_index',
+      'hypergraph_query',
       'quality_assess',
       'memory_query',
       'memory_retrieve',
@@ -57,6 +59,7 @@ const DEFAULT_SCOPES: Record<AgentRole, ToolScope> = {
     allowed: [
       'security_scan_comprehensive',
       'code_index',
+      'hypergraph_query',
       'memory_query',
       'memory_retrieve',
     ],
@@ -66,6 +69,7 @@ const DEFAULT_SCOPES: Record<AgentRole, ToolScope> = {
       'quality_assess',
       'coverage_analyze_sublinear',
       'defect_predict',
+      'hypergraph_query',
       'memory_query',
       'memory_retrieve',
     ],
@@ -74,6 +78,7 @@ const DEFAULT_SCOPES: Record<AgentRole, ToolScope> = {
     allowed: [
       'defect_predict',
       'code_index',
+      'hypergraph_query',
       'memory_query',
       'memory_retrieve',
     ],
