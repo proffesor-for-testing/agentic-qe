@@ -121,7 +121,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 
@@ -236,7 +236,7 @@ describe('RuVectorServerClient', () => {
       // Simulate server starting
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started and listening')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started and listening')));
         }
       });
 
@@ -269,7 +269,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 
@@ -300,7 +300,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.on.mockImplementation((event: string, callback: (err: Error) => void) => {
         if (event === 'error') {
-          setTimeout(() => callback(new Error('spawn ENOENT')), 10);
+          process.nextTick(() => callback(new Error('spawn ENOENT')));
         }
       });
 
@@ -316,7 +316,7 @@ describe('RuVectorServerClient', () => {
       // Start server
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 
@@ -342,7 +342,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 
@@ -367,7 +367,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 
@@ -557,7 +557,7 @@ describe('RuVectorServerClient', () => {
 
       mockProcess.stdout.on.mockImplementation((event: string, callback: (data: Buffer) => void) => {
         if (event === 'data') {
-          setTimeout(() => callback(Buffer.from('Server started')), 10);
+          process.nextTick(() => callback(Buffer.from('Server started')));
         }
       });
 

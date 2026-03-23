@@ -107,7 +107,7 @@ const createMockFileWatcher = (config: AgentFileWatcherConfig): AgentFileWatcher
     async start(): Promise<void> {
       watching = true;
       // Simulate scanning directory
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await vi.advanceTimersByTimeAsync(10);
       emit('ready');
     },
 
@@ -199,7 +199,7 @@ const createMockHotReloadService = (): HotReloadService => {
       }
 
       // Simulate reload
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await Promise.resolve();
       emit('reloaded', { path });
       return true;
     },
@@ -210,7 +210,7 @@ const createMockHotReloadService = (): HotReloadService => {
       }
 
       // Simulate loading
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await Promise.resolve();
       loadedAgents.set(path, true);
       emit('added', { path });
       return true;
@@ -316,6 +316,7 @@ describe('A2A Agent File Watcher', () => {
   let watcher: ReturnType<typeof createMockFileWatcher>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     watcher = createMockFileWatcher({
       watchPath: '.claude/agents/v3',
       pattern: '**/*.md',
@@ -325,6 +326,7 @@ describe('A2A Agent File Watcher', () => {
 
   afterEach(() => {
     watcher.destroy();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -374,7 +376,7 @@ describe('A2A Agent File Watcher', () => {
       watcher._simulateFileAdd('.claude/agents/v3/qe-test-architect.md');
 
       // Wait for debounce
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(add).toHaveBeenCalledOnce();
       expect(add).toHaveBeenCalledWith(
@@ -392,7 +394,7 @@ describe('A2A Agent File Watcher', () => {
       watcher._simulateFileAdd('.claude/agents/v3/qe-test-architect.md');
       watcher._simulateFileChange('.claude/agents/v3/qe-test-architect.md');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(change).toHaveBeenCalled();
     });
@@ -402,10 +404,10 @@ describe('A2A Agent File Watcher', () => {
       watcher.on('unlink', unlink);
 
       watcher._simulateFileAdd('.claude/agents/v3/qe-test-architect.md');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       watcher._simulateFileUnlink('.claude/agents/v3/qe-test-architect.md');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(unlink).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -424,7 +426,7 @@ describe('A2A Agent File Watcher', () => {
       watcher._simulateFileChange('.claude/agents/v3/qe-test-architect.md');
       watcher._simulateFileChange('.claude/agents/v3/qe-test-architect.md');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       // Should only emit once after debounce
       expect(change).toHaveBeenCalledTimes(1);
@@ -435,7 +437,7 @@ describe('A2A Agent File Watcher', () => {
       watcher.on('add', add);
 
       watcher._simulateFileAdd('.claude/agents/v3/config.json');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(add).not.toHaveBeenCalled();
     });
@@ -450,7 +452,7 @@ describe('A2A Agent File Watcher', () => {
       watcher._simulateFileAdd('.claude/agents/v3/agent1.md');
       watcher._simulateFileAdd('.claude/agents/v3/agent2.md');
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       const files = watcher.getWatchedFiles();
       expect(files).toContain('.claude/agents/v3/agent1.md');
@@ -459,10 +461,10 @@ describe('A2A Agent File Watcher', () => {
 
     it('should remove deleted files from tracking', async () => {
       watcher._simulateFileAdd('.claude/agents/v3/agent1.md');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       watcher._simulateFileUnlink('.claude/agents/v3/agent1.md');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       const files = watcher.getWatchedFiles();
       expect(files).not.toContain('.claude/agents/v3/agent1.md');
@@ -477,7 +479,7 @@ describe('A2A Agent File Watcher', () => {
 
       await watcher.start();
       watcher._simulateFileAdd('.claude/agents/v3/agent.md');
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await vi.advanceTimersByTimeAsync(100);
 
       expect(listener).not.toHaveBeenCalled();
     });
@@ -880,6 +882,7 @@ describe('File Watcher + Hot Reload Integration', () => {
   let reloadService: HotReloadService;
 
   beforeEach(async () => {
+    vi.useFakeTimers();
     watcher = createMockFileWatcher({
       watchPath: '.claude/agents/v3',
       debounceMs: 50,
@@ -897,40 +900,42 @@ describe('File Watcher + Hot Reload Integration', () => {
       await reloadService.removeAgent(event.path);
     });
 
+    await vi.advanceTimersByTimeAsync(10); // advance past watcher.start() delay
     await watcher.start();
   });
 
   afterEach(() => {
     watcher.destroy();
     reloadService.destroy();
+    vi.useRealTimers();
   });
 
   it('should add agent when file is created', async () => {
     watcher._simulateFileAdd('.claude/agents/v3/new-agent.md');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.advanceTimersByTimeAsync(100);
 
     expect(reloadService.getLoadedAgents()).toContain('.claude/agents/v3/new-agent.md');
   });
 
   it('should reload agent when file changes', async () => {
     watcher._simulateFileAdd('.claude/agents/v3/agent.md');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.advanceTimersByTimeAsync(100);
 
     const reloaded = vi.fn();
     reloadService.on('reloaded', reloaded);
 
     watcher._simulateFileChange('.claude/agents/v3/agent.md');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.advanceTimersByTimeAsync(100);
 
     expect(reloaded).toHaveBeenCalled();
   });
 
   it('should remove agent when file is deleted', async () => {
     watcher._simulateFileAdd('.claude/agents/v3/agent.md');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.advanceTimersByTimeAsync(100);
 
     watcher._simulateFileUnlink('.claude/agents/v3/agent.md');
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.advanceTimersByTimeAsync(100);
 
     expect(reloadService.getLoadedAgents()).not.toContain('.claude/agents/v3/agent.md');
   });
