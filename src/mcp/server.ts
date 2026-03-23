@@ -42,6 +42,8 @@ import {
   handleDefectPredict,
   handleRequirementsValidate,
   handleCodeIndex,
+  // Hypergraph query handler
+  handleHypergraphQuery,
   // Memory handlers
   handleMemoryStore,
   handleMemoryRetrieve,
@@ -463,6 +465,24 @@ const DOMAIN_TOOLS: ToolEntry[] = [
       ],
     },
     handler: handleCodeIndex,
+  },
+
+  // Hypergraph Query
+  {
+    definition: {
+      name: 'mcp__agentic_qe__hypergraph_query',
+      description: 'Query the code knowledge hypergraph for untested functions, impacted tests, coverage gaps, and stats',
+      category: 'domain',
+      domain: 'code-intelligence',
+      lazyLoad: true,
+      parameters: [
+        { name: 'query', type: 'string', description: 'Query type: stats, untested, impacted, gaps', required: true },
+        { name: 'files', type: 'array', description: 'Changed files (required for "impacted" query)' },
+        { name: 'maxCoverage', type: 'number', description: 'Max coverage threshold for "gaps" query (default: 50)' },
+        { name: 'limit', type: 'number', description: 'Max results (default: 20)' },
+      ],
+    },
+    handler: handleHypergraphQuery,
   },
 
   // Validation Pipeline (BMAD-003)

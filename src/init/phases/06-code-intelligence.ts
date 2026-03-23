@@ -67,49 +67,59 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
 
   protected async run(context: InitContext): Promise<CodeIntelligenceResult> {
     const { projectRoot } = context;
+    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
 
-    const hasIndex = await this.checkCodeIntelligenceIndex(projectRoot);
-
-    if (!hasIndex) {
+    if (!existsSync(dbPath)) {
       context.services.log('  Building knowledge graph...');
       return await this.runCodeIntelligenceScan(projectRoot, context, false);
     }
 
-    // Delta scan: check for files modified since last index
-    const lastIndexedAt = await this.getLastIndexedAt(projectRoot);
-    if (!lastIndexedAt) {
-      const entryCount = await this.getKGEntryCount(projectRoot);
-      context.services.log(`  Using existing index (${entryCount} entries)`);
-      return { status: 'existing', entries: entryCount };
-    }
+    // Open a single DB connection for all pre-scan queries
+    const db = openDatabase(dbPath);
+    try {
+      const hasIndex = this.checkCodeIntelligenceIndex(db);
 
-    const changedFiles = await this.findChangedFiles(projectRoot, lastIndexedAt);
-    if (changedFiles.length === 0) {
-      const entryCount = await this.getKGEntryCount(projectRoot);
-      context.services.log(`  Index up to date (${entryCount} entries)`);
-      return { status: 'existing', entries: entryCount };
-    }
+      if (!hasIndex) {
+        db.close();
+        context.services.log('  Building knowledge graph...');
+        return await this.runCodeIntelligenceScan(projectRoot, context, false);
+      }
 
-    context.services.log(`  Delta scan: ${changedFiles.length} files changed since last index...`);
-    return await this.runCodeIntelligenceScan(projectRoot, context, true, changedFiles);
+      // Delta scan: check for files modified since last index
+      const lastIndexedAt = this.getLastIndexedAt(db);
+      if (!lastIndexedAt) {
+        const entryCount = this.getKGEntryCount(db);
+        db.close();
+        context.services.log(`  Using existing index (${entryCount} entries)`);
+        return { status: 'existing', entries: entryCount };
+      }
+
+      const entryCount = this.getKGEntryCount(db);
+      db.close();
+
+      const changedFiles = await this.findChangedFiles(projectRoot, lastIndexedAt);
+      if (changedFiles.length === 0) {
+        context.services.log(`  Index up to date (${entryCount} entries)`);
+        return { status: 'existing', entries: entryCount };
+      }
+
+      context.services.log(`  Delta scan: ${changedFiles.length} files changed since last index...`);
+      return await this.runCodeIntelligenceScan(projectRoot, context, true, changedFiles);
+    } catch (error) {
+      try { db.close(); } catch { /* ignore */ }
+      throw error;
+    }
   }
 
   /**
-   * Check if code intelligence index exists
+   * Check if code intelligence index exists (uses provided db connection)
    */
-  private async checkCodeIntelligenceIndex(projectRoot: string): Promise<boolean> {
-    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
-    if (!existsSync(dbPath)) {
-      return false;
-    }
-
+  private checkCodeIntelligenceIndex(db: ReturnType<typeof openDatabase>): boolean {
     try {
-      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace = 'code-intelligence:kg'
       `).get() as { count: number };
-      db.close();
       return result.count > 0;
     } catch {
       return false;
@@ -117,17 +127,14 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   }
 
   /**
-   * Get count of KG entries
+   * Get count of KG entries (uses provided db connection)
    */
-  private async getKGEntryCount(projectRoot: string): Promise<number> {
-    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+  private getKGEntryCount(db: ReturnType<typeof openDatabase>): number {
     try {
-      const db = openDatabase(dbPath);
       const result = db.prepare(`
         SELECT COUNT(*) as count FROM kv_store
         WHERE namespace LIKE 'code-intelligence:kg%'
       `).get() as { count: number };
-      db.close();
       return result.count;
     } catch {
       return 0;
@@ -196,6 +203,11 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         const entries = result.value.nodesCreated + result.value.edgesCreated;
         const label = incremental ? 'Delta indexed' : 'Indexed';
         context.services.log(`  ${label} ${entries} entries to ${dbPath}`);
+
+        // Also populate the hypergraph tables (hypergraph_nodes/hypergraph_edges)
+        // so CLI/MCP hypergraph queries work immediately after init
+        await this.buildHypergraph(dbPath, filesToIndex, context);
+
         return { status: 'indexed', entries };
       }
 
@@ -207,18 +219,50 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   }
 
   /**
-   * Read the indexedAt timestamp from KG metadata
+   * Build hypergraph from indexed files.
+   * Uses shared extractor to populate hypergraph_nodes/hypergraph_edges in memory.db.
    */
-  private async getLastIndexedAt(projectRoot: string): Promise<Date | null> {
-    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+  private async buildHypergraph(
+    dbPath: string,
+    filesToIndex: string[],
+    context: InitContext
+  ): Promise<void> {
     try {
+      const { extractCodeIndex } = await import('../../shared/code-index-extractor.js');
+      const { createHypergraphEngine } = await import('../../integrations/ruvector/hypergraph-engine.js');
       const db = openDatabase(dbPath);
+
+      const engine = await createHypergraphEngine({
+        db,
+        maxTraversalDepth: 10,
+        maxQueryResults: 1000,
+        enableVectorSearch: false,
+      });
+
+      const codeIndexResult = await extractCodeIndex(filesToIndex);
+      const buildResult = await engine.buildFromIndexResult(codeIndexResult);
+      db.close();
+
+      const total = buildResult.nodesCreated + buildResult.edgesCreated;
+      if (total > 0) {
+        context.services.log(`  Hypergraph: ${buildResult.nodesCreated} nodes, ${buildResult.edgesCreated} edges`);
+      }
+    } catch (error) {
+      // Non-fatal: hypergraph is supplementary
+      context.services.warn?.(`  Hypergraph build skipped: ${error}`);
+    }
+  }
+
+  /**
+   * Read the indexedAt timestamp from KG metadata (uses provided db connection)
+   */
+  private getLastIndexedAt(db: ReturnType<typeof openDatabase>): Date | null {
+    try {
       const row = db.prepare(`
         SELECT value FROM kv_store
         WHERE namespace = 'code-intelligence:kg'
           AND key = 'metadata:index'
       `).get() as { value: string } | undefined;
-      db.close();
 
       if (!row) return null;
       const metadata = safeJsonParse(row.value);

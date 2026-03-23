@@ -17,6 +17,7 @@ import {
   createDomainHandler,
   createProtocolHandler,
   createBrainHandler,
+  createHypergraphHandler,
 } from './handlers/index.js';
 
 // ============================================================================
@@ -113,6 +114,9 @@ export class CommandRegistry {
 
     // Brain export/import
     this.register(createBrainHandler(this.cleanupAndExit, this.ensureInitialized));
+
+    // Hypergraph queries
+    this.register(createHypergraphHandler(this.cleanupAndExit, this.ensureInitialized));
   }
 
   /**

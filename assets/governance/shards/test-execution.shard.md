@@ -72,7 +72,7 @@ INVARIANT retry_limit_enforcement:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/test-execution/`
+**Domain Source**: `src/domains/test-execution/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

@@ -80,7 +80,7 @@ INVARIANT mock_accuracy:
 
 ## Patterns
 
-**Domain Source**: `v3/src/domains/contract-testing/`
+**Domain Source**: `src/domains/contract-testing/`
 
 | Pattern | Location | Description |
 |---------|----------|-------------|

@@ -108,6 +108,13 @@ export {
   type ValidationPipelineResult,
 } from './validation-pipeline-handler.js';
 
+// Hypergraph query handler
+export {
+  handleHypergraphQuery,
+  type HypergraphQueryParams,
+  type HypergraphQueryResult,
+} from './hypergraph-handler.js';
+
 // Cross-phase handlers
 export {
   handleCrossPhaseStore,

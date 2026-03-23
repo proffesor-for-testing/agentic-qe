@@ -15,3 +15,4 @@ export { AgentHandler, createAgentHandler } from './agent-handler.js';
 export { DomainHandler, createDomainHandler } from './domain-handler.js';
 export { ProtocolHandler, createProtocolHandler } from './protocol-handler.js';
 export { BrainHandler, createBrainHandler } from './brain-handler.js';
+export { HypergraphHandler, createHypergraphHandler } from './hypergraph-handler.js';

@@ -34,7 +34,7 @@ export async function initializeHypergraph(
   const path = await import('path');
   const { findProjectRoot } = await import('../../kernel/unified-memory.js');
   const projectRoot = findProjectRoot();
-  const dbPath = hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'hypergraph.db');
+  const dbPath = hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db');
 
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
