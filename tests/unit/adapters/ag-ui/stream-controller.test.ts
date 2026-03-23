@@ -207,11 +207,15 @@ describe('StreamController Lifecycle', () => {
     });
 
     it('should calculate duration in metrics', async () => {
-      await new Promise((r) => setTimeout(r, 50));
+      vi.useFakeTimers();
+      controller = createStreamController(createTestConfig());
+      controller.start();
+      await vi.advanceTimersByTimeAsync(50);
       await controller.end();
 
       const metrics = controller.getMetrics();
       expect(metrics.durationMs).toBeGreaterThanOrEqual(45);
+      vi.useRealTimers();
     });
   });
 });
@@ -225,11 +229,13 @@ describe('StreamController Cancellation', () => {
   let adapter: ReturnType<typeof createEventAdapter>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     adapter = createEventAdapter();
   });
 
   afterEach(() => {
     controller?.dispose();
+    vi.useRealTimers();
   });
 
   describe('AbortController integration', () => {
@@ -242,7 +248,7 @@ describe('StreamController Cancellation', () => {
       controller.start();
 
       abortController.abort();
-      await new Promise((r) => setImmediate(r)); // Allow abort handler to run
+      await vi.advanceTimersByTimeAsync(0); // Allow abort handler to run
 
       expect(controller.isCancelled()).toBe(true);
     });
@@ -258,7 +264,7 @@ describe('StreamController Cancellation', () => {
       controller.start();
 
       abortController.abort();
-      await new Promise((r) => setTimeout(r, 10));
+      await vi.advanceTimersByTimeAsync(10);
 
       expect(onCancel).toHaveBeenCalled();
     });
@@ -274,7 +280,7 @@ describe('StreamController Cancellation', () => {
       controller.start();
 
       abortController.abort();
-      await new Promise((r) => setTimeout(r, 10));
+      await vi.advanceTimersByTimeAsync(10);
 
       expect(cancelSpy).toHaveBeenCalled();
     });
@@ -288,7 +294,7 @@ describe('StreamController Cancellation', () => {
         signal: abortController.signal,
       });
 
-      await new Promise((r) => setImmediate(r));
+      await vi.advanceTimersByTimeAsync(0);
 
       expect(controller.isCancelled()).toBe(true);
     });
@@ -387,8 +393,13 @@ describe('StreamController Cancellation', () => {
 describe('StreamController Buffering', () => {
   let controller: StreamController;
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
     controller?.dispose();
+    vi.useRealTimers();
   });
 
   describe('buffer interval', () => {
@@ -411,7 +422,7 @@ describe('StreamController Buffering', () => {
       expect(controller.getBufferSize()).toBe(2);
 
       // Wait for flush
-      await new Promise((r) => setTimeout(r, 60));
+      await vi.advanceTimersByTimeAsync(60);
 
       expect(events).toHaveLength(2);
       expect(controller.getBufferSize()).toBe(0);
@@ -507,11 +518,13 @@ describe('StreamController Event Flow', () => {
   let adapter: ReturnType<typeof createEventAdapter>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     adapter = createEventAdapter();
   });
 
   afterEach(() => {
     controller?.dispose();
+    vi.useRealTimers();
   });
 
   describe('push()', () => {
@@ -582,7 +595,7 @@ describe('StreamController Event Flow', () => {
       // Emit event through adapter
       adapter.emitRunStarted('thread-1', 'run-1');
 
-      await new Promise((r) => setTimeout(r, 20));
+      await vi.advanceTimersByTimeAsync(20);
 
       expect(events.some((e) => e.type === AGUIEventType.RUN_STARTED)).toBe(true);
     });
@@ -687,14 +700,16 @@ describe('StreamController Metrics', () => {
   });
 
   it('should calculate duration while streaming', async () => {
+    vi.useFakeTimers();
     const adapter = createEventAdapter();
     controller = createStreamController({ adapter });
     controller.start();
 
-    await new Promise((r) => setTimeout(r, 50));
+    await vi.advanceTimersByTimeAsync(50);
 
     const metrics = controller.getMetrics();
     expect(metrics.durationMs).toBeGreaterThanOrEqual(45);
+    vi.useRealTimers();
   });
 });
 
@@ -755,7 +770,8 @@ describe('streamEvents', () => {
     // Push some events and end
     controller.push(createMockEvent());
     controller.push(createMockEvent());
-    setTimeout(() => controller.end(), 20);
+    // Schedule end after events are consumed
+    process.nextTick(() => controller.end());
 
     for await (const event of streamEvents(controller)) {
       events.push(event);
@@ -821,6 +837,7 @@ describe('StreamController Dispose', () => {
 
 describe('StreamController Stress Tests', () => {
   it('should handle high throughput (1000+ events/sec)', async () => {
+    vi.useFakeTimers();
     const adapter = createEventAdapter();
     const controller = createStreamController({
       adapter,
@@ -832,21 +849,21 @@ describe('StreamController Stress Tests', () => {
     controller.start();
 
     // Push 1000 events rapidly
-    const startTime = Date.now();
+    const startTime = performance.now();
     for (let i = 0; i < 1000; i++) {
       controller.push(createMockEvent());
     }
+    const pushDuration = performance.now() - startTime;
 
     // Wait for all flushes
-    await new Promise((r) => setTimeout(r, 200));
+    await vi.advanceTimersByTimeAsync(200);
     controller.flush(); // Final flush
 
-    const duration = Date.now() - startTime;
-
     expect(receivedEvents.length).toBe(1000);
-    expect(duration).toBeLessThan(500); // Should be fast
+    expect(pushDuration).toBeLessThan(500); // Push throughput should be fast
 
     controller.dispose();
+    vi.useRealTimers();
   });
 
   it('should handle rapid start/cancel cycles', async () => {
