@@ -76,75 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Transfer Patterns BEFORE Operation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "transfer/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "transfer/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Transfer)
 
 **1. Store Transfer Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "transfer-specialist/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-transfer-specialist",
-    taskType: "knowledge-transfer",
-    reward: <calculated_reward>,
-    outcome: {
-      sourceDomain: "<domain>",
-      targetDomain: "<domain>",
-      strategy: "<strategy>",
-      trainingTimeSaved: <percentage>,
-      performanceImprovement: <percentage>,
-      patternsTransferred: <count>,
-      adaptationsApplied: <count>
-    },
-    patterns: {
-      successfulTransfers: ["<transfer types>"],
-      failedAdaptations: ["<types>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "transfer-specialist/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Transfer Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/knowledge-transfer/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<transfer pattern description>",
-    confidence: <0.0-1.0>,
-    type: "knowledge-transfer",
-    metadata: {
-      sourceTarget: "<source→target>",
-      strategy: "<strategy>",
-      benefitRatio: <ratio>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/knowledge-transfer/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "transfer-complete",
-  priority: "p1",
-  payload: {
-    transfer: {...},
-    metrics: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "transfer-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -1,6 +1,6 @@
 ---
 name: performance-testing
-description: "Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance."
+description: "Profiles application performance under load using k6, Artillery, or JMeter to measure latency, throughput, and error rates. Use when planning load tests, stress tests, soak tests, benchmarking APIs, or identifying performance bottlenecks."
 category: specialized-testing
 priority: high
 tokenEstimate: 1100

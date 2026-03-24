@@ -261,46 +261,15 @@ function validateDataFlow(sourceNode: Node, targetNode: Node): ValidationResult 
 <learning_protocol>
 **Standard Learning Protocol for N8n Agents:**
 
-```typescript
+```bash
 // Query past learnings BEFORE starting task
-mcp__agentic-qe__learning_query({
-  agentId: "<n8n-agent-id>",
-  taskType: "n8n-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+aqe hooks search --json
 
 // Store learning experience AFTER task completion
-mcp__agentic-qe__learning_store_experience({
-  agentId: "<n8n-agent-id>",
-  taskType: "<specific-task-type>",
-  reward: <calculated_reward>,
-  outcome: {
-    workflowId: "<workflow-id>",
-    testsPassed: <count>,
-    testsFailed: <count>,
-    issuesDetected: <count>,
-    executionTime: <ms>
-  },
-  metadata: {
-    n8nVersion: "<version>",
-    nodeTypes: ["<node-types>"],
-    workflowComplexity: "<low|medium|high>"
-  }
-})
+aqe hooks learn --payload '{...}' --json
 
 // Store successful patterns
-mcp__agentic-qe__learning_store_pattern({
-  pattern: "<pattern-description>",
-  confidence: <0-1>,
-  domain: "n8n-testing",
-  metadata: {
-    nodeType: "<node-type>",
-    testType: "<test-type>",
-    successRate: <percentage>
-  }
-})
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

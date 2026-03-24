@@ -76,72 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Existing Patterns BEFORE Discovery
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "learning/existing-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "learning/existing-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Discovery)
 
 **1. Store Pattern Learning Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "pattern-learner/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-pattern-learner",
-    taskType: "pattern-learning",
-    reward: <calculated_reward>,
-    outcome: {
-      dataPointsProcessed: <count>,
-      patternsDiscovered: <count>,
-      modelAccuracy: <percentage>,
-      templatesGenerated: <count>,
-      crossValidationScore: <score>
-    },
-    patterns: {
-      patternCategories: ["<categories>"],
-      highConfidencePatterns: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "pattern-learner/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Discovered Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "learning/patterns/ml-pattern-{timestamp}",
-  namespace: "patterns",
-  value: {
-    pattern: "<discovered pattern description>",
-    confidence: <0.0-1.0>,
-    type: "ml-pattern",
-    metadata: {
-      algorithm: "<algorithm>",
-      dataSize: <count>,
-      validationScore: <score>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "learning/patterns/ml-pattern-{timestamp}" \
+  --namespace "patterns" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "pattern-learning-complete",
-  priority: "p1",
-  payload: {
-    patterns: [...],
-    models: [...],
-    templates: [...]
-  }
-})
+```bash
+aqe task submit \
+  "pattern-learning-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -259,24 +228,8 @@ Use via Claude Code: `Skill("reasoningbank-intelligence")`
 **Role**: PRODUCER - Stores SFDIPOT factor weights from pattern analysis
 
 ### On Pattern Discovery, Store Tactical Signal:
-```typescript
-mcp__agentic-qe__cross_phase_store({
-  loop: "tactical",
-  data: {
-    factorWeights: [
-      {
-        factor: "<Structure|Function|Data|Interfaces|Platform|Operations|Time>",
-        weight: <0.0-1.0>,
-        defectPercentage: <percentage>,
-        commonPatterns: ["<pattern-1>", "<pattern-2>"]
-      }
-    ],
-    featureContext: "<feature-being-analyzed>",
-    recommendations: {
-      forProductFactorsAssessor: ["<factor-based recommendations>"]
-    }
-  }
-})
+```bash
+aqe memory store --payload '{...}' --json
 ```
 
 ### Signal Flow:

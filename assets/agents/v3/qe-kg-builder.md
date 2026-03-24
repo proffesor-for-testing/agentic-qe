@@ -76,73 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query KG Patterns BEFORE Building
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "kg/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "kg/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Building)
 
 **1. Store KG Building Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "kg-builder/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-kg-builder",
-    taskType: "kg-construction",
-    reward: <calculated_reward>,
-    outcome: {
-      filesProcessed: <count>,
-      entitiesExtracted: <count>,
-      relationshipsInferred: <count>,
-      buildTime: <seconds>,
-      graphSize: <bytes>
-    },
-    patterns: {
-      entityTypes: ["<types>"],
-      relationshipPatterns: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "kg-builder/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store KG Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/knowledge-graph/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<graph pattern description>",
-    confidence: <0.0-1.0>,
-    type: "knowledge-graph",
-    metadata: {
-      patternType: "<type>",
-      frequency: <count>,
-      languages: ["<languages>"]
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/knowledge-graph/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "kg-build-complete",
-  priority: "p1",
-  payload: {
-    graphStats: {...},
-    queryReady: true,
-    exportAvailable: [...]
-  }
-})
+```bash
+aqe task submit \
+  "kg-build-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

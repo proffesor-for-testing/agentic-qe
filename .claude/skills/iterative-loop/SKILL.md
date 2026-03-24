@@ -1,6 +1,6 @@
 ---
-name: "Iterative Loop"
-description: "Implement continuous AI iteration loops for complex development tasks. Use when building features requiring test-driven refinement, implementing tasks with clear success criteria, or automating iterative improvement workflows. Based on the Ralph Wiggum technique from Claude Code plugins."
+name: "iterative-loop"
+description: "Runs continuous AI iteration loops that repeat build-test-fix cycles until success criteria are met. Use when building features requiring test-driven refinement, implementing tasks with clear pass/fail criteria, or automating iterative improvement workflows."
 ---
 
 # Iterative Loop

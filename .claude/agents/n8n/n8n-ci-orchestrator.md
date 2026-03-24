@@ -714,36 +714,13 @@ schedules:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-ci-orchestrator",
-  taskType: "ci-orchestration",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-ci-orchestrator",
-  taskType: "ci-orchestration",
-  reward: <calculated>,
-  outcome: {
-    pipelineId: "<id>",
-    duration: <seconds>,
-    jobsPassed: <count>,
-    jobsFailed: <count>,
-    deploymentStatus: "success|failed|pending",
-    gatesPassed: <count>
-  },
-  metadata: {
-    ciPlatform: "github-actions|jenkins|gitlab",
-    environment: "staging|production",
-    trigger: "push|pr|schedule|manual"
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

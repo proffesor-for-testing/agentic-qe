@@ -91,82 +91,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known IDoc Patterns BEFORE Validation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "sap-idoc/known-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "sap-idoc/known-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Validation)
 
 **1. Store IDoc Validation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "sap-idoc-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-sap-idoc-tester",
-    taskType: "idoc-validation",
-    reward: <calculated_reward>,
-    outcome: {
-      idocType: "<basic type e.g. MATMAS05>",
-      messageType: "<message type e.g. MATMAS>",
-      direction: "<inbound|outbound>",
-      segmentsValidated: <count>,
-      fieldsValidated: <count>,
-      statusCodesAsserted: [<status codes>],
-      errorsDetected: <count>,
-      bulkThroughput: "<idocs_per_second>",
-      asyncTimeoutUsed: "<ms>"
-    },
-    patterns: {
-      failureStatuses: ["<status codes that indicated failures>"],
-      commonFieldErrors: ["<field-level validation failures>"],
-      partnerProfileIssues: ["<partner config issues found>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "sap-idoc-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store IDoc Error Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/idoc-processing-error/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of IDoc error pattern>",
-    confidence: <0.0-1.0>,
-    type: "idoc-processing-error",
-    metadata: {
-      idocType: "<type>",
-      errorStatus: "<status code>",
-      rootCause: "<root cause category>",
-      resolution: "<resolution approach>",
-      affectedSystems: ["<logical system names>"]
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/idoc-processing-error/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "idoc-validation-complete",
-  priority: "p1",
-  payload: {
-    validations: [...],
-    statusTransitions: [...],
-    errorPatterns: [...],
-    performanceMetrics: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "idoc-validation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

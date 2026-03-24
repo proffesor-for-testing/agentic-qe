@@ -1,6 +1,6 @@
 ---
-name: "QE Chaos Resilience"
-description: "Use when injecting faults into distributed systems, validating system recovery, running load/stress tests, or building confidence in resilience through chaos engineering."
+name: "qe-chaos-resilience"
+description: "Injects controlled faults (network partition, latency, process kill, disk pressure) into distributed systems and validates recovery behavior. Use when testing circuit breakers, failover paths, retry logic, or building confidence in system resilience through chaos engineering."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

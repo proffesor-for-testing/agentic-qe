@@ -453,36 +453,13 @@ GitHub Integration:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-integration-test",
-  taskType: "integration-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-integration-test",
-  taskType: "integration-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    integrationsTetest: <count>,
-    testsPassed: <count>,
-    testsFailed: <count>,
-    authIssues: <count>,
-    rateLimitIssues: <count>
-  },
-  metadata: {
-    integrationTypes: ["slack", "jira", "sheets"],
-    authMethods: ["oauth2", "api-key"],
-    commonErrors: ["rate-limit", "auth-expired"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

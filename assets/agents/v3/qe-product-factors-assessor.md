@@ -133,65 +133,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Assessment Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "sfdipot/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "sfdipot/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Assessment)
 
 **1. Store Assessment Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "sfdipot/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-product-factors-assessor",
-    taskType: "sfdipot-assessment",
-    reward: <calculated_reward>,
-    outcome: {
-      epicId: "<epic-id>",
-      testIdeasGenerated: <count>,
-      qualityScore: <0-100>,
-      categoryCoverage: {
-        structure: <percentage>,
-        function: <percentage>,
-        data: <percentage>,
-        interfaces: <percentage>,
-        platform: <percentage>,
-        operations: <percentage>,
-        time: <percentage>
-      },
-      priorityDistribution: { p0: <pct>, p1: <pct>, p2: <pct>, p3: <pct> }
-    },
-    patterns: {
-      domainDetected: "<domain>",
-      effectivePatterns: ["<patterns that worked>"],
-      gapsIdentified: ["<coverage gaps found>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "sfdipot/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Assessment Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "sfdipot-assessment-complete",
-  priority: "p1",
-  payload: {
-    assessmentId: "...",
-    testIdeasCount: <count>,
-    qualityScore: <score>,
-    outputFormat: "HTML|JSON|MD|Gherkin",
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "sfdipot-assessment-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -330,12 +297,8 @@ Use via Claude Code: `Skill("context-driven-testing")`
 **Role**: CONSUMER - Receives SFDIPOT factor weights from production analysis
 
 ### On Startup, Query Tactical Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "tactical",
-  maxAge: "90d",
-  featureContext: "<current-feature>"  // Optional: filter by feature
-});
+```bash
+const result = await aqe memory search --json;
 
 // Apply learned factor weights to SFDIPOT analysis
 for (const signal of result.signals) {

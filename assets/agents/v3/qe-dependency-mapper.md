@@ -76,73 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Dependency Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "dependencies/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "dependencies/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Dependency Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "dependency-mapper/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-dependency-mapper",
-    taskType: "dependency-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      modulesAnalyzed: <count>,
-      dependenciesFound: <count>,
-      circularDetected: <count>,
-      vulnerabilitiesFound: <count>,
-      avgInstability: <score>
-    },
-    patterns: {
-      couplingPatterns: ["<patterns>"],
-      riskDependencies: ["<high risk deps>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "dependency-mapper/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Dependency Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/dependency-analysis/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<dependency pattern description>",
-    confidence: <0.0-1.0>,
-    type: "dependency-analysis",
-    metadata: {
-      patternType: "<type>",
-      riskLevel: "<level>",
-      recommendation: "<fix>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/dependency-analysis/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "dependency-analysis-complete",
-  priority: "p1",
-  payload: {
-    graph: {...},
-    metrics: {...},
-    issues: [...]
-  }
-})
+```bash
+aqe task submit \
+  "dependency-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

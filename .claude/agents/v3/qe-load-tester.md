@@ -76,75 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Performance Patterns BEFORE Test
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "performance/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "performance/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test)
 
 **1. Store Load Test Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "load-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-load-tester",
-    taskType: "load-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      testType: "<smoke|load|stress|spike|soak>",
-      duration: <seconds>,
-      totalRequests: <count>,
-      throughput: <rps>,
-      p95Latency: <ms>,
-      errorRate: <percentage>,
-      bottlenecksFound: <count>
-    },
-    patterns: {
-      loadProfiles: ["<effective profiles>"],
-      bottleneckTypes: ["<types found>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "load-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Performance Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/load-testing/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<performance pattern description>",
-    confidence: <0.0-1.0>,
-    type: "load-testing",
-    metadata: {
-      testType: "<type>",
-      maxThroughput: <rps>,
-      breakingPoint: "<conditions>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/load-testing/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "load-test-complete",
-  priority: "p1",
-  payload: {
-    results: {...},
-    baseline: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "load-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -8,12 +8,12 @@
 ### ALWAYS RUN.
 
 Store development findings:
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-development-${storyId}-${Date.now()}`,
-  namespace: "qcsd-development",
-  value: { recommendation, tddScore, complexityScore, coveragePercent, flags, timestamp }
-})
+```bash
+aqe memory store \
+  --key "qcsd-development-${storyId}-${Date.now()}" \
+  --namespace "qcsd-development" \
+  --value '{...}' \
+  --json
 ```
 
 Save to `${OUTPUT_FOLDER}/11-learning-persistence.json`.

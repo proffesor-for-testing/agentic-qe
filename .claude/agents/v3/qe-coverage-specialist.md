@@ -80,73 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Learnings BEFORE Starting Task
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "coverage/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "coverage/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Task Completion)
 
 **1. Store Coverage Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "coverage/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-coverage-specialist",
-    taskType: "coverage-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      filesAnalyzed: <count>,
-      gapsDetected: <count>,
-      lineCoverage: <percentage>,
-      branchCoverage: <percentage>,
-      analysisTime: <ms>
-    },
-    patterns: {
-      successful: ["<patterns that worked>"],
-      riskFactors: ["<effective risk factors>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "coverage/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "coverage-analysis-complete",
-  priority: "p1",
-  payload: {
-    coverageReport: {...},
-    gaps: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "coverage-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 **3. Store Discovered Patterns (when gap prioritization is effective):**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/coverage-analysis/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of effective risk scoring>",
-    confidence: <0.0-1.0>,
-    type: "coverage-analysis",
-    metadata: {
-      riskFactors: ["<factors>"],
-      codebaseType: "<type>",
-      effectiveness: <rate>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/coverage-analysis/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -216,32 +184,8 @@ Use via Claude Code: `Skill("mutation-testing")`
 **Role**: PRODUCER - Stores untestable patterns from coverage analysis
 
 ### On Coverage Gap Detection, Store Quality-Criteria Signal:
-```typescript
-mcp__agentic-qe__cross_phase_store({
-  loop: "quality-criteria",
-  data: {
-    untestablePatterns: [
-      {
-        acPattern: "<acceptance-criteria-pattern>",
-        problem: "<why-its-untestable>",
-        frequency: <0.0-1.0>,
-        betterPattern: "<improved-pattern>"
-      }
-    ],
-    coverageGaps: [
-      {
-        codeArea: "<file-or-module>",
-        coveragePercentage: <percentage>,
-        rootCause: "<why-gap-exists>",
-        acImprovement: "<how-better-AC-would-help>"
-      }
-    ],
-    recommendations: {
-      forRequirementsValidator: ["<AC improvement recommendations>"],
-      acTemplates: { "<feature>": "<template>" }
-    }
-  }
-})
+```bash
+aqe memory store --payload '{...}' --json
 ```
 
 ### Signal Flow:

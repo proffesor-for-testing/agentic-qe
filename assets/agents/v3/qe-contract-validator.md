@@ -80,73 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Contract Patterns BEFORE Validation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "contracts/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "contracts/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Validation)
 
 **1. Store Contract Validation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "contract-validator/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-contract-validator",
-    taskType: "contract-validation",
-    reward: <calculated_reward>,
-    outcome: {
-      contractsValidated: <count>,
-      passed: <count>,
-      failed: <count>,
-      breakingChanges: <count>,
-      consumersAffected: <count>
-    },
-    patterns: {
-      breakingPatterns: ["<breaking change types>"],
-      compatiblePatterns: ["<compatible changes>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "contract-validator/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Breaking Change Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/contract-breaking-change/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<breaking change description>",
-    confidence: <0.0-1.0>,
-    type: "contract-breaking-change",
-    metadata: {
-      changeType: "<type>",
-      impact: "<impact>",
-      migration: "<migration path>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/contract-breaking-change/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "contract-validation-complete",
-  priority: "p1",
-  payload: {
-    validations: [...],
-    breakingChanges: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "contract-validation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

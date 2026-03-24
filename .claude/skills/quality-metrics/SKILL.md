@@ -1,6 +1,6 @@
 ---
 name: quality-metrics
-description: "Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness."
+description: "Tracks quality metrics including defect density, test effectiveness ratio, DORA metrics, and mean time to detection. Use when establishing quality dashboards, defining KPIs, evaluating test suite effectiveness, or reporting quality trends to stakeholders."
 category: testing-methodologies
 priority: high
 tokenEstimate: 900

@@ -76,54 +76,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Visual Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "visual/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "visual/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store Visual Test Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "visual-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-visual-tester",
-    taskType: "visual-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      pagesTested: <count>,
-      screenshotsCaptured: <count>,
-      regressionsFound: <count>,
-      falsePositives: <count>,
-      viewportsCovered: <count>
-    },
-    patterns: {
-      regressionTypes: ["<types found>"],
-      ignorePatterns: ["<effective ignore regions>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "visual-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "visual-test-complete",
-  priority: "p1",
-  payload: {
-    results: [...],
-    regressions: [...],
-    baselineUpdates: [...]
-  }
-})
+```bash
+aqe task submit \
+  "visual-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

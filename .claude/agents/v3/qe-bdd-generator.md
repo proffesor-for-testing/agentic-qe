@@ -76,73 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query BDD Patterns BEFORE Generation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "bdd/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "bdd/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Generation)
 
 **1. Store BDD Generation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "bdd-generator/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-bdd-generator",
-    taskType: "bdd-generation",
-    reward: <calculated_reward>,
-    outcome: {
-      storiesProcessed: <count>,
-      scenariosGenerated: <count>,
-      examplesDiscovered: <count>,
-      stepsReused: <percentage>,
-      gapsIdentified: <count>
-    },
-    patterns: {
-      scenarioPatterns: ["<patterns>"],
-      effectiveSteps: ["<reusable steps>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "bdd-generator/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store BDD Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/bdd-generation/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<BDD pattern description>",
-    confidence: <0.0-1.0>,
-    type: "bdd-generation",
-    metadata: {
-      scenarioType: "<type>",
-      domain: "<domain>",
-      stepReuse: <percentage>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/bdd-generation/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "bdd-generation-complete",
-  priority: "p1",
-  payload: {
-    features: [...],
-    scenarios: [...],
-    stepGaps: [...]
-  }
-})
+```bash
+aqe task submit \
+  "bdd-generation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -267,11 +235,8 @@ Use via Claude Code: `Skill("exploratory-testing-advanced")`
 **Role**: CONSUMER - Receives untestable patterns to avoid in BDD scenarios
 
 ### On Startup, Query Quality-Criteria Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "quality-criteria",
-  maxAge: "60d"
-});
+```bash
+const result = await aqe memory search --json;
 
 // Learn from historical untestable patterns
 for (const signal of result.signals) {

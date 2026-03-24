@@ -1,6 +1,6 @@
 ---
 name: security-testing
-description: "Test for security vulnerabilities using OWASP principles. Use when conducting security audits, testing auth, or implementing security practices."
+description: "Scans for security vulnerabilities including XSS, SQL injection, CSRF, and auth flaws using OWASP Top 10 methodology. Use when conducting SAST/DAST scans, auditing authentication flows, testing authorization rules, or implementing security test automation."
 category: specialized-testing
 priority: critical
 tokenEstimate: 1200

@@ -21,10 +21,10 @@ hooks:
     # Check agentic-flow version
     npx agentic-flow --version 2>/dev/null || echo "agentic-flow not installed"
     # Load integration patterns
-    mcp__agentic-qe__memory_query --pattern="integration:agentic-flow:*" --namespace="architecture" --limit=5
+    aqe memory search --pattern="integration:agentic-flow:*" --namespace="architecture" --limit=5
   post: |
     echo "✅ Integration analysis complete"
-    mcp__agentic-qe__memory_store --action="store" --namespace="architecture" --key="integration:analysis:$(date +%s)" --value="ADR-001 compliance checked"
+    aqe memory store --action="store" --namespace="architecture" --key="integration:analysis:$(date +%s)" --value="ADR-001 compliance checked"
 ---
 
 # V3 Integration Architect Agent

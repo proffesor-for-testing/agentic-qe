@@ -85,55 +85,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Gate Patterns BEFORE Evaluation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "quality-gate/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "quality-gate/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Gate Evaluation)
 
 **1. Store Gate Evaluation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "quality-gate/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-quality-gate",
-    taskType: "gate-evaluation",
-    reward: <calculated_reward>,
-    outcome: {
-      gateType: "<commit|pr|release|hotfix>",
-      passed: <boolean>,
-      score: <0-100>,
-      criteriaEvaluated: <count>,
-      overrideUsed: <boolean>
-    },
-    patterns: {
-      passFactors: ["<factors that helped pass>"],
-      failFactors: ["<factors that caused failure>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "quality-gate/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Gate Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "gate-evaluation-complete",
-  priority: "p0",
-  payload: {
-    gateId: "...",
-    verdict: "PASSED|FAILED|OVERRIDE",
-    metrics: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "gate-evaluation-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -210,32 +187,8 @@ Use via Claude Code: `Skill("compliance-testing")`
 **Role**: PRODUCER - Stores flaky test patterns and gate failures
 
 ### On Gate Failure or Flaky Detection, Store Operational Signal:
-```typescript
-mcp__agentic-qe__cross_phase_store({
-  loop: "operational",
-  data: {
-    flakyPatterns: [
-      {
-        pattern: "<flaky test pattern>",
-        frequency: <0.0-1.0>,
-        affectedTests: ["<test-file-1>", "<test-file-2>"],
-        rootCause: "<identified root cause>",
-        fix: "<recommended fix>"
-      }
-    ],
-    gateFailures: [
-      {
-        reason: "<failure reason>",
-        percentage: <metric-value>,
-        trend: "<increasing|stable|decreasing>"
-      }
-    ],
-    recommendations: {
-      forTestArchitect: ["<test architecture recommendations>"],
-      antiPatterns: ["<anti-patterns to avoid>"]
-    }
-  }
-})
+```bash
+aqe memory store --payload '{...}' --json
 ```
 
 ### Signal Flow:

@@ -77,71 +77,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Existing Knowledge BEFORE Learning Cycle
 
-```typescript
-mcp__agentic-qe__memory_query({
-  pattern: "learning/*",
-  namespace: "experiences"
-})
+```bash
+aqe memory search --pattern "learning/*" --namespace "experiences" --json
 ```
 
 ### Required Learning Actions (Call AFTER Learning Cycle)
 
 **1. Store Learning Coordination Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "learning-coordinator/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-learning-coordinator",
-    taskType: "learning-coordination",
-    reward: <calculated_reward>,
-    outcome: {
-      patternsDiscovered: <count>,
-      knowledgeSynthesized: <count>,
-      agentsImproved: <count>,
-      fleetPerformanceGain: <percentage>
-    },
-    meta: {
-      domainsProcessed: ["<domains>"],
-      transfersApplied: <count>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "learning-coordinator/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Discovered Patterns:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "learning/patterns/fleet-{timestamp}",
-  namespace: "patterns",
-  value: {
-    pattern: "<pattern description>",
-    confidence: <0.0-1.0>,
-    type: "fleet-learning",
-    metadata: {
-      sourceAgents: ["<agents>"],
-      applicableDomains: ["<domains>"],
-      effectiveness: <rate>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "learning/patterns/fleet-{timestamp}" \
+  --namespace "patterns" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Trigger Learning Consolidation:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "learning/cycles/consolidate-{timestamp}",
-  namespace: "learning",
-  value: {
-    action: "consolidate",
-    trajectoryIds: ["<recent trajectories>"],
-    timestamp: Date.now()
-  }
-})
+```bash
+aqe memory store \
+  --key "learning/cycles/consolidate-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -603,19 +603,12 @@ Just follow the skill phases below - uses Task() calls with run_in_background: t
 ```
 
 **Option B: MCP Tools**
-```javascript
+```bash
 // Initialize fleet for Ideation domains
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "coverage-analysis", "security-compliance"],
-  maxAgents: 6
-})
+aqe fleet init --json
 
 // Orchestrate ideation task
-mcp__agentic-qe__task_orchestrate({
-  task: "qcsd-ideation-analysis",
-  strategy: "parallel"
-})
+aqe task submit --json
 ```
 
 **Option C: CLI**
@@ -959,47 +952,31 @@ Specific, actionable recommendations to improve testability.
 
 If using MCP instead of Task tool:
 
-```javascript
+```bash
 // Option 1: Orchestrate via Queen Coordinator
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "coverage-analysis"],
-  maxAgents: 6,
-  lazyLoading: true
-})
+aqe fleet init --json
 
 // Submit tasks to specific domains
-mcp__agentic-qe__task_submit({
-  type: "quality-criteria-analysis",
-  priority: "p0",
-  payload: {
-    epicContent: epicContent,
-    outputFormat: "html",
-    htsmVersion: "6.3"
-  }
-})
+aqe task submit \
+  "quality-criteria-analysis" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
-mcp__agentic-qe__task_submit({
-  type: "risk-assessment",
-  priority: "p0",
-  payload: {
-    epicContent: epicContent,
-    riskCategories: ["technical", "business", "quality", "integration"]
-  }
-})
+aqe task submit \
+  "risk-assessment" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
-mcp__agentic-qe__task_submit({
-  type: "requirements-validation",
-  priority: "p0",
-  payload: {
-    acceptanceCriteria: acContent,
-    scoreTestability: true,
-    validateInvest: true
-  }
-})
+aqe task submit \
+  "requirements-validation" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
 // Check task status
-mcp__agentic-qe__task_list({ status: "pending" })
+aqe task list --json
 ```
 
 ### Alternative: CLI Execution
@@ -1462,30 +1439,20 @@ What authorization-specific quality criteria MUST be validated?
 
 ### Alternative: MCP Tools for Conditional Agents
 
-```javascript
+```bash
 // IF HAS_UI - Enable visual-accessibility domain
 if (HAS_UI) {
-  mcp__agentic-qe__accessibility_test({
-    url: targetUrl,  // if web-based
-    standard: "WCAG21AA"
-  })
+  aqe test accessibility --json
 }
 
 // IF HAS_SECURITY - Enable security-compliance domain
 if (HAS_SECURITY) {
-  mcp__agentic-qe__security_scan_comprehensive({
-    target: "src/",
-    sast: true,
-    dast: false  // No runtime yet in ideation
-  })
+  aqe security --json
 }
 
 // IF HAS_UX - Cross-domain analysis
 if (HAS_UX) {
-  mcp__agentic-qe__task_orchestrate({
-    task: "qx-analysis",
-    strategy: "adaptive"
-  })
+  aqe task submit --json
 }
 ```
 
@@ -1738,45 +1705,18 @@ Store ideation findings for:
 
 ### Option A: MCP Memory Tools (RECOMMENDED)
 
-```javascript
+```bash
 // Store ideation findings
-mcp__agentic-qe__memory_store({
-  key: `qcsd-ideation-${epicId}-${Date.now()}`,
-  namespace: "qcsd-ideation",
-  value: {
-    epicId: epicId,
-    epicName: epicName,
-    recommendation: recommendation,  // GO, CONDITIONAL, NO-GO
-    metrics: {
-      htsmCoverage: htsmCoverage,
-      testabilityScore: testabilityScore,
-      acCompleteness: acCompleteness,
-      criticalRisks: criticalRisks
-    },
-    domains: {
-      requirementsValidation: true,
-      coverageAnalysis: true,
-      securityCompliance: HAS_SECURITY,
-      visualAccessibility: HAS_UI,
-      crossDomain: HAS_UX
-    },
-    agentsInvoked: agentList,
-    timestamp: new Date().toISOString()
-  }
-})
+aqe memory store \
+  --namespace "qcsd-ideation" \
+  --payload '{...}' \
+  --json
 
 // Share learnings with learning coordinator for cross-domain patterns
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-ideation-swarm",
-  targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
-  knowledgeDomain: "ideation-patterns"
-})
+aqe memory share --json
 
 // Query previous ideation results for similar epics
-mcp__agentic-qe__memory_query({
-  pattern: "qcsd-ideation-*",
-  namespace: "qcsd-ideation"
-})
+aqe memory search --namespace "qcsd-ideation" --json
 ```
 
 ### Option B: CLI Memory Commands
@@ -1864,22 +1804,30 @@ If MCP/CLI not available, save to `.agentic-qe/`:
 
 ### MCP Tools Quick Reference
 
-```javascript
+```bash
 // Initialization
-mcp__agentic-qe__fleet_init({ topology: "hierarchical", enabledDomains: [...], maxAgents: 6 })
+aqe fleet init --json
 
 // Task submission
-mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
+aqe task submit \
+  "..." \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
+aqe task submit --json
 
 // Status
-mcp__agentic-qe__fleet_status({ verbose: true })
-mcp__agentic-qe__task_list({ status: "pending" })
+aqe fleet status --json
+aqe task list --json
 
 // Memory
-mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-ideation" })
-mcp__agentic-qe__memory_query({ pattern: "qcsd-*", namespace: "qcsd-ideation" })
-mcp__agentic-qe__memory_share({ sourceAgentId: "...", targetAgentIds: [...], knowledgeDomain: "..." })
+aqe memory store \
+  --key "..." \
+  --namespace "qcsd-ideation" \
+  --payload '{...}' \
+  --json
+aqe memory search --namespace "qcsd-ideation" --json
+aqe memory share --json
 ```
 
 ### CLI Quick Reference

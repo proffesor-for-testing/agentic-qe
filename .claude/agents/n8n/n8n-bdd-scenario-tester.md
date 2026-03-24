@@ -462,34 +462,13 @@ Generated documentation available at:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-bdd-scenario-tester",
-  taskType: "bdd-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-bdd-scenario-tester",
-  taskType: "bdd-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    scenariosGenerated: <count>,
-    scenariosPassed: <count>,
-    scenariosFailed: <count>,
-    requirementsCovered: <count>
-  },
-  metadata: {
-    patternTypes: ["webhook", "conditional", "integration"],
-    stakeholderFeedback: "positive|negative|neutral"
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

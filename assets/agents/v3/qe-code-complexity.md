@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Complexity Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "complexity/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "complexity/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Complexity Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "code-complexity/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-code-complexity",
-    taskType: "complexity-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      filesAnalyzed: <count>,
-      functionsAnalyzed: <count>,
-      avgCyclomatic: <value>,
-      avgCognitive: <value>,
-      hotspots: <count>,
-      maintainabilityIndex: <value>
-    },
-    patterns: {
-      highComplexityPatterns: ["<patterns>"],
-      effectiveRefactorings: ["<strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "code-complexity/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Complexity Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/code-complexity/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<complexity pattern description>",
-    confidence: <0.0-1.0>,
-    type: "code-complexity",
-    metadata: {
-      complexityType: "<type>",
-      threshold: <value>,
-      refactoring: "<strategy>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/code-complexity/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "complexity-analysis-complete",
-  priority: "p1",
-  payload: {
-    results: {...},
-    hotspots: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "complexity-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

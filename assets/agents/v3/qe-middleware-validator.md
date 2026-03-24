@@ -87,80 +87,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Middleware Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "middleware/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "middleware/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store Middleware Validation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "middleware-validator/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-middleware-validator",
-    taskType: "middleware-validation",
-    reward: <calculated_reward>,
-    outcome: {
-      flowsValidated: <count>,
-      routingRulesChecked: <count>,
-      transformationsTested: <count>,
-      mediationsTested: <count>,
-      errorFlowsCovered: <count>,
-      patternsValidated: <count>,
-      migrationChecks: <count>
-    },
-    patterns: {
-      middlewarePlatform: "<IIB_ACE|MuleSoft|SAP_PI_PO|SAP_CPI|TIBCO>",
-      routingIssues: ["<routing problems discovered>"],
-      transformErrors: ["<transformation errors found>"],
-      eipPatterns: ["<integration patterns validated>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "middleware-validator/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Middleware Failure Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/middleware-failure-pattern/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<middleware failure pattern description>",
-    confidence: <0.0-1.0>,
-    type: "middleware-failure-pattern",
-    metadata: {
-      platform: "<middleware platform>",
-      failureMode: "<routing|transformation|mediation|error-handling>",
-      flowName: "<affected flow>",
-      resolution: "<fix guidance>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/middleware-failure-pattern/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "middleware-validation-complete",
-  priority: "p1",
-  payload: {
-    flows: [...],
-    routingAnalysis: [...],
-    transformResults: [...],
-    mediationResults: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "middleware-validation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

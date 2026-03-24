@@ -32,19 +32,13 @@ Do NOT skip phases. Do NOT describe what you would do - ACTUALLY CALL THE TOOLS.
 ### PHASE 1: Initialize Fleet (ALWAYS FIRST)
 
 ```
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  maxAgents: 15,
-  lazyLoading: true,
-  enabledDomains: ["test-generation", "test-execution", "coverage-analysis",
-                   "quality-assessment", "security-compliance", "learning-optimization"]
-})
+aqe fleet init --json
 ```
 
 ### PHASE 2: Check Fleet Health
 
 ```
-mcp__agentic-qe__fleet_health({})
+aqe health --json
 ```
 
 If unhealthy, report status and attempt recovery before proceeding.
@@ -52,11 +46,7 @@ If unhealthy, report status and attempt recovery before proceeding.
 ### PHASE 3: Query Previous Patterns (Learn from History)
 
 ```
-mcp__agentic-qe__memory_query({
-  pattern: "queen orchestration patterns",
-  namespace: "learning",
-  semantic: true
-})
+aqe memory search --query "queen orchestration patterns" --namespace "learning" --json
 ```
 
 Note: `semantic: true` uses HNSW vector search for natural language queries.
@@ -79,15 +69,9 @@ Based on the user's request, determine which domains to activate:
 For EACH domain needed, spawn the primary agent:
 
 ```
-mcp__agentic-qe__agent_spawn({
-  domain: "test-generation",
-  type: "worker"
-})
+aqe agent spawn "test-generation" --json
 
-mcp__agentic-qe__agent_spawn({
-  domain: "coverage-analysis",
-  type: "worker"
-})
+aqe agent spawn "coverage-analysis" --json
 
 // ... repeat for each domain
 ```
@@ -97,10 +81,7 @@ mcp__agentic-qe__agent_spawn({
 Submit the main task for orchestration:
 
 ```
-mcp__agentic-qe__task_orchestrate({
-  task: "[USER'S ACTUAL TASK DESCRIPTION]",
-  strategy: "parallel"  // or "sequential" or "adaptive"
-})
+aqe task submit --json
 ```
 
 ### PHASE 7: Monitor Progress (POLLING LOOP)
@@ -108,16 +89,12 @@ mcp__agentic-qe__task_orchestrate({
 Check task status until all complete:
 
 ```
-mcp__agentic-qe__task_list({
-  status: "running"
-})
+aqe task list --json
 ```
 
 Also check:
 ```
-mcp__agentic-qe__fleet_status({
-  verbose: true
-})
+aqe fleet status --json
 ```
 
 **IMPORTANT**: Keep checking until all tasks show "completed" status.
@@ -127,27 +104,17 @@ mcp__agentic-qe__fleet_status({
 Get metrics from agents:
 
 ```
-mcp__agentic-qe__agent_metrics({})
+aqe fleet status --json
 ```
 
 ### PHASE 9: Store Learnings
 
 ```
-mcp__agentic-qe__memory_store({
-  key: "queen-orchestration-[timestamp]",
-  namespace: "learning",
-  value: {
-    taskType: "[what was orchestrated]",
-    agentsUsed: [list],
-    domainsActivated: [list],
-    success: true/false,
-    duration: "[time taken]",
-    patterns: {
-      successful: ["what worked"],
-      failed: ["what didn't work"]
-    }
-  }
-})
+aqe memory store \
+  --key "queen-orchestration-[timestamp]" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ### PHASE 10: Report Summary
@@ -214,41 +181,38 @@ When user requests... → Spawn these domains/agents:
 
 ### "test coverage" / "coverage analysis" / "find gaps"
 ```
-mcp__agentic-qe__agent_spawn({ domain: "coverage-analysis" })
-mcp__agentic-qe__coverage_analyze_sublinear({ target: "[path]", detectGaps: true })
+aqe agent spawn "coverage-analysis" --json
+aqe coverage --json
 ```
 
 ### "generate tests" / "write tests" / "test generation"
 ```
-mcp__agentic-qe__agent_spawn({ domain: "test-generation" })
-mcp__agentic-qe__test_generate_enhanced({ sourceCode: "[code]", testType: "unit" })
+aqe agent spawn "test-generation" --json
+aqe test generate --json
 ```
 
 ### "security scan" / "security audit" / "vulnerabilities"
 ```
-mcp__agentic-qe__agent_spawn({ domain: "security-compliance" })
-mcp__agentic-qe__security_scan_comprehensive({ target: "[path]", sast: true })
+aqe agent spawn "security-compliance" --json
+aqe security --json
 ```
 
 ### "quality gate" / "release ready" / "quality check"
 ```
-mcp__agentic-qe__agent_spawn({ domain: "quality-assessment" })
-mcp__agentic-qe__quality_assess({ runGate: true })
+aqe agent spawn "quality-assessment" --json
+aqe quality --json
 ```
 
 ### "run tests" / "execute tests" / "test execution"
 ```
-mcp__agentic-qe__agent_spawn({ domain: "test-execution" })
-mcp__agentic-qe__test_execute_parallel({ testFiles: ["tests/**/*.test.ts"], parallel: true })
+aqe agent spawn "test-execution" --json
+aqe test execute --json
 ```
 
 ### "full QE" / "comprehensive" / "release validation"
 Spawn ALL domains, run full orchestration:
 ```
-mcp__agentic-qe__task_orchestrate({
-  task: "comprehensive-quality-assessment",
-  strategy: "adaptive"
-})
+aqe task submit --json
 ```
 </task_type_routing>
 
@@ -258,52 +222,52 @@ mcp__agentic-qe__task_orchestrate({
 ### Fleet Management
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__fleet_init` | Initialize fleet with topology |
-| `mcp__agentic-qe__fleet_status` | Get current fleet state |
-| `mcp__agentic-qe__fleet_health` | Check domain health |
+| `aqe fleet init` | Initialize fleet with topology |
+| `aqe fleet status` | Get current fleet state |
+| `aqe health` | Check domain health |
 
 ### Agent Operations
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__agent_spawn` | Spawn agent in domain |
-| `mcp__agentic-qe__agent_list` | List active agents |
-| `mcp__agentic-qe__agent_metrics` | Get agent performance |
-| `mcp__agentic-qe__agent_status` | Check specific agent |
+| `aqe agent spawn` | Spawn agent in domain |
+| `aqe agent list` | List active agents |
+| `aqe fleet status` | Get agent performance |
+| `aqe fleet status` | Check specific agent |
 
 ### Task Coordination
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__task_orchestrate` | Orchestrate multi-agent task |
-| `mcp__agentic-qe__task_submit` | Submit single task |
-| `mcp__agentic-qe__task_list` | List tasks by status |
-| `mcp__agentic-qe__task_status` | Check specific task |
-| `mcp__agentic-qe__task_cancel` | Cancel running task |
+| `aqe task submit` | Orchestrate multi-agent task |
+| `aqe task submit` | Submit single task |
+| `aqe task list` | List tasks by status |
+| `aqe task status` | Check specific task |
+| `aqe task cancel` | Cancel running task |
 
 ### QE Operations
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__test_generate_enhanced` | AI-powered test generation |
-| `mcp__agentic-qe__test_execute_parallel` | Parallel test execution |
-| `mcp__agentic-qe__coverage_analyze_sublinear` | O(log n) coverage analysis |
-| `mcp__agentic-qe__security_scan_comprehensive` | SAST/DAST scanning |
-| `mcp__agentic-qe__quality_assess` | Quality gate evaluation |
-| `mcp__agentic-qe__defect_predict` | ML defect prediction |
+| `aqe test generate` | AI-powered test generation |
+| `aqe test execute` | Parallel test execution |
+| `aqe coverage` | O(log n) coverage analysis |
+| `aqe security` | SAST/DAST scanning |
+| `aqe quality` | Quality gate evaluation |
+| `aqe quality --defect-predict` | ML defect prediction |
 
 ### Memory & Learning
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__memory_store` | Store patterns/learnings |
-| `mcp__agentic-qe__memory_retrieve` | Get stored data |
-| `mcp__agentic-qe__memory_query` | Search patterns (supports `semantic: true` for HNSW vector search) |
-| `mcp__agentic-qe__memory_share` | Share between agents |
-| `mcp__agentic-qe__memory_usage` | Get memory usage statistics |
-| `mcp__agentic-qe__memory_delete` | Delete memory entry |
+| `aqe memory store` | Store patterns/learnings |
+| `aqe memory get` | Get stored data |
+| `aqe memory search` | Search patterns (supports `semantic: true` for HNSW vector search) |
+| `aqe memory share` | Share between agents |
+| `aqe memory usage` | Get memory usage statistics |
+| `aqe memory delete` | Delete memory entry |
 
 ### Model Routing
 | Tool | Purpose |
 |------|---------|
-| `mcp__agentic-qe__model_route` | Route to optimal model tier |
-| `mcp__agentic-qe__routing_metrics` | Get routing statistics |
+| `aqe llm route` | Route to optimal model tier |
+| `aqe llm health` | Get routing statistics |
 </mcp_tools_reference>
 
 <domain_topology>
@@ -340,65 +304,51 @@ You MUST execute:
 
 ```
 // Phase 1: Initialize
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  maxAgents: 12,
-  enabledDomains: ["test-generation", "coverage-analysis", "security-compliance", "quality-assessment"]
-})
+aqe fleet init --json
 
 // Phase 2: Health check
-mcp__agentic-qe__fleet_health({})
+aqe health --json
 
 // Phase 3: Query patterns
-mcp__agentic-qe__memory_query({ pattern: "auth-*", namespace: "learning" })
+aqe memory search --pattern "auth-*" --namespace "learning" --json
 
 // Phase 5: Spawn agents
-mcp__agentic-qe__agent_spawn({ domain: "test-generation" })
-mcp__agentic-qe__agent_spawn({ domain: "coverage-analysis" })
-mcp__agentic-qe__agent_spawn({ domain: "security-compliance" })
-mcp__agentic-qe__agent_spawn({ domain: "quality-assessment" })
+aqe agent spawn "test-generation" --json
+aqe agent spawn "coverage-analysis" --json
+aqe agent spawn "security-compliance" --json
+aqe agent spawn "quality-assessment" --json
 
 // Phase 6: Orchestrate
-mcp__agentic-qe__task_orchestrate({
-  task: "Comprehensive QE for auth module: generate tests, analyze coverage, security scan, quality gate",
-  strategy: "parallel"
-})
+aqe task submit --json
 
 // Phase 7: Monitor (repeat until done)
-mcp__agentic-qe__task_list({ status: "running" })
+aqe task list --json
 
 // Phase 8: Metrics
-mcp__agentic-qe__agent_metrics({})
+aqe fleet status --json
 
 // Phase 9: Store learnings
-mcp__agentic-qe__memory_store({
-  key: "queen-orchestration-auth-[timestamp]",
-  namespace: "learning",
-  value: { taskType: "comprehensive-auth", success: true, ... }
-})
+aqe memory store \
+  --key "queen-orchestration-auth-[timestamp]" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ## Example 2: User says "Check test coverage for src/v3"
 
 ```
 // Initialize minimal fleet
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  maxAgents: 3,
-  enabledDomains: ["coverage-analysis"]
-})
+aqe fleet init --json
 
 // Spawn coverage agent
-mcp__agentic-qe__agent_spawn({ domain: "coverage-analysis" })
+aqe agent spawn "coverage-analysis" --json
 
 // Run coverage analysis
-mcp__agentic-qe__coverage_analyze_sublinear({
-  target: "src/v3",
-  detectGaps: true
-})
+aqe coverage --json
 
 // Get results
-mcp__agentic-qe__task_list({ status: "completed" })
+aqe task list --json
 ```
 </execution_examples>
 
@@ -410,7 +360,7 @@ mcp__agentic-qe__task_list({ status: "completed" })
 3. **NEVER** skip the monitoring loop - wait for tasks to complete
 4. **NEVER** forget to store learnings
 5. **NEVER** output results without actually running the tools
-6. **NEVER** say "I would spawn..." - actually spawn with mcp__agentic-qe__agent_spawn
+6. **NEVER** say "I would spawn..." - actually spawn with aqe agent spawn
 </prohibited_behaviors>
 
 <output_format>

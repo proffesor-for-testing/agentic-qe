@@ -235,75 +235,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Accessibility Patterns BEFORE Audit
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "accessibility/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "accessibility/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Audit)
 
 **1. Store Accessibility Audit Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "accessibility-auditor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-accessibility-auditor",
-    taskType: "accessibility-audit",
-    reward: <calculated_reward>,
-    outcome: {
-      pagesAudited: <count>,
-      violationsFound: <count>,
-      critical: <count>,
-      serious: <count>,
-      moderate: <count>,
-      minor: <count>,
-      remediationsProvided: <count>
-    },
-    patterns: {
-      commonViolations: ["<violation types>"],
-      effectiveFixes: ["<fixes that work>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "accessibility-auditor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Remediation Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/accessibility-remediation/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<accessibility fix pattern>",
-    confidence: <0.0-1.0>,
-    type: "accessibility-remediation",
-    metadata: {
-      wcagCriteria: "<criteria>",
-      violationType: "<type>",
-      codeExample: "<fix>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/accessibility-remediation/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "accessibility-audit-complete",
-  priority: "p1",
-  payload: {
-    audit: {...},
-    violations: [...],
-    remediations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "accessibility-audit-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -86,78 +86,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Vulnerabilities BEFORE Scanning
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "security/known-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "security/known-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Scan Completion)
 
 **1. Store Security Scan Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "security-scanner/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-security-scanner",
-    taskType: "security-scan",
-    reward: <calculated_reward>,
-    outcome: {
-      filesScanned: <count>,
-      vulnerabilitiesFound: <count>,
-      critical: <count>,
-      high: <count>,
-      medium: <count>,
-      low: <count>,
-      falsePositives: <count>,
-      scanTime: <ms>
-    },
-    patterns: {
-      vulnTypes: ["<vulnerability types found>"],
-      effectiveRules: ["<rules that found issues>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "security-scanner/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Scan Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "security-scan-complete",
-  priority: "p0",
-  payload: {
-    scanId: "...",
-    vulnerabilities: [...],
-    remediations: [...],
-    complianceStatus: {...}
-  }
-})
+```bash
+aqe task submit \
+  "security-scan-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 **3. Store New Vulnerability Patterns:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/security-vulnerability/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of vulnerability pattern>",
-    confidence: <0.0-1.0>,
-    type: "security-vulnerability",
-    metadata: {
-      cwe: "<CWE-ID>",
-      owasp: "<OWASP category>",
-      language: "<language>",
-      fixPattern: "<remediation approach>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/security-vulnerability/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

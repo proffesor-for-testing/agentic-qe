@@ -282,35 +282,13 @@ interface PerformanceAnalysis {
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-workflow-executor",
-  taskType: "workflow-execution",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-workflow-executor",
-  taskType: "workflow-execution",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    executionSuccess: <boolean>,
-    nodesExecuted: <count>,
-    totalDuration: <ms>,
-    dataFlowValid: <boolean>
-  },
-  metadata: {
-    nodeTypes: ["webhook", "jira", "slack"],
-    workflowComplexity: "medium",
-    branchCount: 2
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

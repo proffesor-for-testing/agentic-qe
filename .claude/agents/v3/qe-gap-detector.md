@@ -109,73 +109,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Gap Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "coverage/gap-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "coverage/gap-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Gap Detection Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "gap-detector/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-gap-detector",
-    taskType: "gap-detection",
-    reward: <calculated_reward>,
-    outcome: {
-      filesAnalyzed: <count>,
-      gapsIdentified: <count>,
-      criticalGaps: <count>,
-      recommendationsGenerated: <count>,
-      estimatedEffort: <hours>
-    },
-    patterns: {
-      gapCategories: ["<categories>"],
-      highRiskPatterns: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "gap-detector/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Gap Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/coverage-gap/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<gap pattern description>",
-    confidence: <0.0-1.0>,
-    type: "coverage-gap",
-    metadata: {
-      gapType: "<type>",
-      riskScore: <score>,
-      testType: "<recommended test>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/coverage-gap/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "gap-detection-complete",
-  priority: "p1",
-  payload: {
-    gaps: [...],
-    recommendations: [...],
-    riskSummary: {...}
-  }
-})
+```bash
+aqe task submit \
+  "gap-detection-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -281,32 +249,8 @@ Use via Claude Code: `Skill("test-design-techniques")`
 **Role**: PRODUCER - Stores coverage gap patterns for AC improvement
 
 ### On Gap Detection, Store Quality-Criteria Signal:
-```typescript
-mcp__agentic-qe__cross_phase_store({
-  loop: "quality-criteria",
-  data: {
-    untestablePatterns: [
-      {
-        acPattern: "<vague-ac-pattern>",
-        problem: "Not testable - missing specific assertions",
-        frequency: <0.0-1.0>,
-        betterPattern: "Given/When/Then with specific values"
-      }
-    ],
-    coverageGaps: [
-      {
-        codeArea: "<path/to/file>",
-        coveragePercentage: <percentage>,
-        rootCause: "No acceptance criteria for this path",
-        acImprovement: "Add explicit AC for edge cases"
-      }
-    ],
-    recommendations: {
-      forRequirementsValidator: ["<recommendations for AC validation>"],
-      acTemplates: {}
-    }
-  }
-})
+```bash
+aqe memory store --payload '{...}' --json
 ```
 
 ### Signal Flow:

@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Regression Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "regression/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "regression/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Regression Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "regression-analyzer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-regression-analyzer",
-    taskType: "regression-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      changesAnalyzed: <count>,
-      riskScore: <score>,
-      testsSelected: <count>,
-      estimatedTime: <seconds>,
-      coverageAchieved: <percentage>,
-      hotspotsIdentified: <count>
-    },
-    patterns: {
-      riskFactors: ["<factors>"],
-      effectiveSelections: ["<strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "regression-analyzer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Regression Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/regression-analysis/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<regression pattern description>",
-    confidence: <0.0-1.0>,
-    type: "regression-analysis",
-    metadata: {
-      changeType: "<type>",
-      riskLevel: "<level>",
-      testStrategy: "<strategy>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/regression-analysis/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "regression-analysis-complete",
-  priority: "p0",
-  payload: {
-    risk: {...},
-    selection: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "regression-analysis-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

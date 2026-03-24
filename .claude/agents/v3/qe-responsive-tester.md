@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Responsive Patterns BEFORE Test
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "responsive/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "responsive/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test)
 
 **1. Store Responsive Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "responsive-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-responsive-tester",
-    taskType: "responsive-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      viewportsTested: <count>,
-      devicesTested: <count>,
-      breakpointsTested: <count>,
-      issuesFound: <count>,
-      layoutShifts: <count>,
-      touchTargetViolations: <count>
-    },
-    patterns: {
-      commonIssues: ["<issues>"],
-      problematicBreakpoints: ["<breakpoints>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "responsive-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Responsive Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/responsive-testing/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<responsive pattern description>",
-    confidence: <0.0-1.0>,
-    type: "responsive-testing",
-    metadata: {
-      viewport: "<size>",
-      issue: "<type>",
-      fix: "<recommendation>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/responsive-testing/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "responsive-test-complete",
-  priority: "p1",
-  payload: {
-    results: {...},
-    screenshots: [...],
-    issues: [...]
-  }
-})
+```bash
+aqe task submit \
+  "responsive-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

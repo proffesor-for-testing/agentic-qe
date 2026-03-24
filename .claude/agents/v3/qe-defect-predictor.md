@@ -77,73 +77,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Historical Models BEFORE Prediction
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "defect/prediction-model",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "defect/prediction-model" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Prediction)
 
 **1. Store Prediction Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "defect-predictor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-defect-predictor",
-    taskType: "defect-prediction",
-    reward: <calculated_reward>,
-    outcome: {
-      filesAnalyzed: <count>,
-      highRiskFiles: <count>,
-      predictedDefects: <count>,
-      modelAccuracy: <percentage>,
-      featureImportance: {...}
-    },
-    validation: {
-      truePositives: <count>,
-      falsePositives: <count>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "defect-predictor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Update Model with New Data:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/defect-prediction/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<defect pattern description>",
-    confidence: <0.0-1.0>,
-    type: "defect-prediction",
-    metadata: {
-      predictiveFeatures: ["<features>"],
-      defectType: "<type>",
-      accuracy: <rate>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/defect-prediction/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Prediction to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "defect-prediction-complete",
-  priority: "p1",
-  payload: {
-    predictions: [...],
-    riskScores: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "defect-prediction-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -240,29 +208,8 @@ Use via Claude Code: `Skill("mutation-testing")`
 **Role**: PRODUCER - Stores risk weights from production defect analysis
 
 ### On Completion, Store Strategic Signal:
-```typescript
-mcp__agentic-qe__cross_phase_store({
-  loop: "strategic",
-  data: {
-    riskWeights: [
-      {
-        category: "<defect-prone-area>",
-        weight: <0.0-1.0>,
-        confidence: <0.0-1.0>,
-        evidence: {
-          defectCount: <count>,
-          percentageOfTotal: <percentage>,
-          severityDistribution: { critical: <n>, high: <n>, medium: <n> },
-          timeRange: { start: "<date>", end: "<date>" }
-        }
-      }
-    ],
-    recommendations: {
-      forRiskAssessor: ["<recommendations for risk assessment>"],
-      forQualityCriteria: ["<recommendations for acceptance criteria>"]
-    }
-  }
-})
+```bash
+aqe memory store --payload '{...}' --json
 ```
 
 ### Signal Flow:

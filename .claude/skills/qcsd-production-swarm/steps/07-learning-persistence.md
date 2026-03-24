@@ -37,50 +37,22 @@ Store production findings for:
 
 You MUST execute this MCP call with actual values from the production analysis:
 
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-production-${releaseId}-${Date.now()}`,
-  namespace: "qcsd-production",
-  value: {
-    releaseId: releaseId,
-    releaseName: releaseName,
-    recommendation: recommendation,
-    metrics: {
-      doraScore: doraScore,
-      slaCompliance: slaCompliance,
-      incidentSeverity: incidentSeverity,
-      rcaCompleteness: rcaCompleteness,
-      defectTrend: defectTrend,
-      defectDensity: defectDensity,
-      regressionCount: regressionCount,
-      chaosResilience: chaosResilience,
-      middlewareHealth: middlewareHealth,
-      sapHealth: sapHealth,
-      sodCompliance: sodCompliance
-    },
-    flags: {
-      HAS_INFRASTRUCTURE_CHANGE: HAS_INFRASTRUCTURE_CHANGE,
-      HAS_PERFORMANCE_SLA: HAS_PERFORMANCE_SLA,
-      HAS_REGRESSION_RISK: HAS_REGRESSION_RISK,
-      HAS_RECURRING_INCIDENTS: HAS_RECURRING_INCIDENTS,
-      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
-      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
-      HAS_AUTHORIZATION: HAS_AUTHORIZATION
-    },
-    agentsInvoked: agentList,
-    timestamp: new Date().toISOString()
-  }
-})
+```bash
+aqe memory store \
+  --key "qcsd-production-${releaseId}-${Date.now()}" \
+  --namespace "qcsd-production" \
+  --value '{...}' \
+  --json
 ```
 
 **Step 2: Share learnings with feedback agents**
 
-```javascript
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-production-swarm",
-  targetAgentIds: ["qe-learning-coordinator", "qe-transfer-specialist"],
-  knowledgeDomain: "production-health-patterns"
-})
+```bash
+aqe memory share \
+  --from "qcsd-production-swarm" \
+  --to "qe-learning-coordinator,qe-transfer-specialist" \
+  --domain "production-health-patterns" \
+  --content '{...}' --json
 ```
 
 **Step 3: Save learning persistence record to output folder**
@@ -158,8 +130,8 @@ PRODUCES (for other phases):
 ### Validation Before Proceeding
 
 ```
-+-- Did I execute mcp__agentic-qe__memory_store with actual values?
-+-- Did I execute mcp__agentic-qe__memory_share to propagate learnings?
++-- Did I execute aqe memory store with actual values?
++-- Did I execute aqe memory share to propagate learnings?
 +-- Did I save 09-learning-persistence.json to the output folder?
 +-- Does the JSON contain the correct recommendation from Step 5?
 +-- Does the JSON contain actual metrics from Steps 2-4?

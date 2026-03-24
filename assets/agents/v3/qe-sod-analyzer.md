@@ -94,88 +94,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known SoD Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "sap-authorization/sod-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "sap-authorization/sod-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store SoD Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "sod-analyzer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-sod-analyzer",
-    taskType: "sod-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      usersAnalyzed: <count>,
-      rolesAnalyzed: <count>,
-      rulesEvaluated: <count>,
-      conflictsDetected: {
-        critical: <count>,
-        high: <count>,
-        medium: <count>,
-        low: <count>
-      },
-      compensatingControlsLinked: <count>,
-      remediationsProposed: <count>,
-      migrationDeltasFound: <count>,
-      auditTrailsGenerated: <count>
-    },
-    patterns: {
-      topConflictCategories: ["<most frequent conflict types>"],
-      overlyPermissiveRoles: ["<roles granting excessive access>"],
-      migrationRisks: ["<new conflicts introduced by migration>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "sod-analyzer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store SoD Conflict Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/sod-conflict-pattern/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of SoD conflict pattern>",
-    confidence: <0.0-1.0>,
-    type: "sod-conflict-pattern",
-    metadata: {
-      conflictCategory: "<financial|procurement|hr|basis>",
-      authObjects: ["<authorization objects involved>"],
-      transactions: ["<conflicting transaction codes>"],
-      riskLevel: "<critical|high|medium|low>",
-      remediationApproach: "<role split|org restriction|compensating control>",
-      complianceFramework: "<SOX|GDPR|both>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/sod-conflict-pattern/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "sod-analysis-complete",
-  priority: "p0",
-  payload: {
-    conflicts: [...],
-    riskSummary: {...},
-    remediations: [...],
-    auditTrail: {...},
-    complianceStatus: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "sod-analysis-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

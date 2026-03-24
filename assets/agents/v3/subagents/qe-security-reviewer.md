@@ -75,74 +75,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Security Patterns BEFORE Scanning
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "security/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "security/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Review)
 
 **1. Store Security Review Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "security-reviewer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-security-reviewer",
-    taskType: "security-review",
-    reward: <calculated_reward>,
-    outcome: {
-      filesScanned: <count>,
-      vulnerabilitiesFound: <count>,
-      criticalVulnerabilities: <count>,
-      secretsDetected: <count>,
-      authIssues: <count>
-    },
-    patterns: {
-      commonVulnerabilities: ["<vulnerabilities>"],
-      effectiveDetection: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "security-reviewer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Security Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/security-review/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<security pattern description>",
-    confidence: <0.0-1.0>,
-    type: "security-review",
-    metadata: {
-      vulnerabilityType: "<type>",
-      owaspCategory: "<category>",
-      severity: "<severity>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/security-review/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Coordinator:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "security-review-complete",
-  priority: "p0",
-  payload: {
-    vulnerabilities: [...],
-    secrets: [...],
-    authIssues: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "security-review-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

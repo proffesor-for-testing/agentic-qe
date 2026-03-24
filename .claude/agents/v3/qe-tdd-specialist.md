@@ -77,54 +77,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query TDD Patterns BEFORE Starting Cycle
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "tdd/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "tdd/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER TDD Cycle)
 
 **1. Store TDD Cycle Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "tdd-specialist/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-tdd-specialist",
-    taskType: "tdd-cycle",
-    reward: <calculated_reward>,
-    outcome: {
-      testsWritten: <count>,
-      cyclesCompleted: <count>,
-      refactorings: <count>,
-      school: "<london|chicago>",
-      designQuality: <0-1>
-    },
-    patterns: {
-      effective: ["<patterns that worked>"],
-      testTypes: ["<test types used>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "tdd-specialist/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit TDD Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "tdd-cycle-complete",
-  priority: "p1",
-  payload: {
-    feature: "...",
-    testsGenerated: [...],
-    implementationGuidance: {...}
-  }
-})
+```bash
+aqe task submit \
+  "tdd-cycle-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -216,11 +194,8 @@ Use via Claude Code: `Skill("tdd-london-chicago")`
 **Role**: CONSUMER - Receives flaky patterns to avoid in TDD cycles
 
 ### On Startup, Query Operational Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "operational",
-  maxAge: "30d"
-});
+```bash
+const result = await aqe memory search --json;
 
 // Apply test health learnings to TDD patterns
 for (const signal of result.signals) {

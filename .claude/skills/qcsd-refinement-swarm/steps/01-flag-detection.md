@@ -15,12 +15,8 @@ Before analyzing story content, retrieve the most recent Ideation phase signals 
 
 **MCP Method (preferred):**
 
-```javascript
-mcp__agentic-qe__memory_query({
-  pattern: "qcsd-ideation-*",
-  namespace: "qcsd-ideation",
-  limit: 1
-})
+```bash
+aqe memory search --pattern "qcsd-ideation-*" --namespace "qcsd-ideation" --limit 1 --json
 ```
 
 **CLI Fallback:**

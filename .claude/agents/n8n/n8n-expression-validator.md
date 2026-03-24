@@ -424,34 +424,13 @@ safe_patterns:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-expression-validator",
-  taskType: "expression-validation",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-expression-validator",
-  taskType: "expression-validation",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    expressionsValidated: <count>,
-    errorsFound: <count>,
-    warningsFound: <count>,
-    securityIssues: <count>
-  },
-  metadata: {
-    expressionTypes: ["data-access", "conditional", "transform"],
-    commonPatterns: ["optional-chaining", "nullish-coalescing"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

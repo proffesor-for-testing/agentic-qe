@@ -1,6 +1,6 @@
 ---
-name: "QE Requirements Validation"
-description: "Use when validating acceptance criteria, tracing requirements to tests, managing BDD scenarios, or ensuring complete requirements coverage before development."
+name: "qe-requirements-validation"
+description: "Validates acceptance criteria for testability, traces requirements to test cases, and generates BDD scenarios from user stories. Use when validating acceptance criteria, building requirements traceability matrices, managing Gherkin scenarios, or ensuring complete requirements coverage before development."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
