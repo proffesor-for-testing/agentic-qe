@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.8.8](v3.8.8.md) | 2026-03-24 | MCP-free agents, `aqe memory` CLI, WASM parsers, skill description improvements |
 | [v3.8.7](v3.8.7.md) | 2026-03-23 | Unified hypergraph persistence, CLI/MCP query tools, code index extractor |
 | [v3.8.6](v3.8.6.md) | 2026-03-23 | Security ReDoS fixes, flaky timer elimination, module decomposition |
 | [v3.8.5](v3.8.5.md) | 2026-03-21 | Both P1 items resolved, structured logging, hooks decomposition, test stability |
