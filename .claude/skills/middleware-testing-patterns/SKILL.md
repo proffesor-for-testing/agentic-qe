@@ -1,21 +1,6 @@
 ---
 name: middleware-testing-patterns
-description: "Enterprise middleware testing patterns for message routing, transformation, DLQ, protocol mediation, ESB error handling, and EIP patterns. Use when testing middleware layers, message brokers, ESBs, or integration buses."
-category: enterprise-integration
-priority: high
-tokenEstimate: 1800
-agents: [qe-middleware-validator, qe-message-broker-tester, qe-soap-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, contract-testing]
-quick_reference_card: true
-tags: [middleware, esb, soap, messaging, iib, mq, transformation, routing]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/middleware-testing-patterns.yaml
+description: "Test enterprise middleware message routing (content-based, header-based, recipient list), validate message transformations (JSON-to-XML, flat-file parsing), verify DLQ handling and retry exhaustion, exercise saga compensation patterns, and test SOAP-to-REST protocol mediation. Use when testing ESBs (IBM IIB/ACE, MuleSoft), message brokers (MQ, Kafka, RabbitMQ), or integration buses."
 ---
 
 # Middleware Testing Patterns

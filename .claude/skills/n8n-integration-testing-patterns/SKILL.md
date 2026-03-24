@@ -1,21 +1,6 @@
 ---
 name: n8n-integration-testing-patterns
-description: "API contract testing, authentication flows, rate limit handling, and error scenario coverage for n8n integrations with external services. Use when testing n8n node integrations."
-category: n8n-testing
-priority: high
-tokenEstimate: 1100
-agents: [n8n-integration-test]
-implementation_status: production
-optimization_version: 1.0
-last_optimized: 2025-12-15
-dependencies: []
-quick_reference_card: true
-tags: [n8n, integration, api, authentication, oauth, rate-limiting, testing]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/n8n-integration-testing-patterns.yaml
+description: "Test n8n node integrations with API contract validation, OAuth/API key authentication flows, rate limit handling, and error scenario coverage. Use when testing n8n node integrations, validating external service connections, or handling API auth flows."
 ---
 
 # n8n Integration Testing Patterns
@@ -454,74 +439,6 @@ const slackTestPatterns = {
   // Validate required scopes
   requiredScopes: ['chat:write', 'files:write', 'channels:read']
 };
-```
-
-### Google Sheets Integration
-
-```typescript
-const googleSheetsTestPatterns = {
-  // Test read operation
-  testReadRows: async (credentials, spreadsheetId) => {
-    return await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:Z10`,
-      { headers: { 'Authorization': `Bearer ${credentials.accessToken}` } }
-    );
-  },
-
-  // Test append operation
-  testAppendRow: async (credentials, spreadsheetId, values) => {
-    return await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:Z:append?valueInputOption=USER_ENTERED`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${credentials.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ values: [values] })
-      }
-    );
-  },
-
-  // Required scopes
-  requiredScopes: ['https://www.googleapis.com/auth/spreadsheets']
-};
-```
-
----
-
-## Test Report Template
-
-```markdown
-# Integration Test Report
-
-## Summary
-| Integration | Status | Auth | Operations | Errors |
-|-------------|--------|------|------------|--------|
-| Slack | PASS | OK | 4/4 | 0 |
-| Google Sheets | WARN | Expiring | 3/3 | 0 |
-| Jira | FAIL | OK | 2/4 | 2 |
-
-## Authentication Status
-- Slack: OAuth2 valid, expires in 28 days
-- Google Sheets: OAuth2 expires in 2 hours - REFRESH RECOMMENDED
-- Jira: API Key valid
-
-## Rate Limit Status
-| Integration | Limit | Used | Remaining |
-|-------------|-------|------|-----------|
-| Slack | 50/min | 12 | 38 |
-| Google Sheets | 100/min | 45 | 55 |
-| Jira | 100/min | 8 | 92 |
-
-## Failed Operations
-### Jira: Transition Issue
-- Error: Invalid transition for current state
-- Fix: Check workflow transitions in Jira
-
-## Recommendations
-1. Refresh Google Sheets OAuth token before expiration
-2. Fix Jira workflow transition logic
 ```
 
 ---

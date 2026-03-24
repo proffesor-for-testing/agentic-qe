@@ -1,21 +1,6 @@
 ---
 name: localization-testing
-description: "Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages, and cultural appropriateness. Use when launching in new markets or building multi-language products."
-category: specialized-testing
-priority: medium
-tokenEstimate: 800
-agents: [qe-test-generator, qe-test-executor, qe-visual-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [localization, i18n, l10n, translation, rtl, unicode, locale]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/localization-testing.yaml
+description: "Validate translation coverage, test locale-specific date/time/currency formats, verify RTL layout for Arabic and Hebrew, check Unicode character encoding, and detect hardcoded strings. Use when launching in new markets, adding language support, or building multi-language products."
 ---
 
 # Localization & Internationalization Testing

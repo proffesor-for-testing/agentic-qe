@@ -1,21 +1,6 @@
 ---
 name: security-testing
-description: "Test for security vulnerabilities using OWASP principles. Use when conducting security audits, testing auth, or implementing security practices."
-category: specialized-testing
-priority: critical
-tokenEstimate: 1200
-agents: [qe-security-scanner, qe-api-contract-validator, qe-quality-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [security, owasp, sast, dast, vulnerabilities, auth, injection]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/security-testing.yaml
+description: "Test OWASP Top 10 vulnerabilities with SAST/DAST scanning, injection attack tests, auth validation, and dependency auditing in CI/CD. Use when conducting security audits, testing authentication, or scanning for vulnerabilities."
 ---
 
 # Security Testing

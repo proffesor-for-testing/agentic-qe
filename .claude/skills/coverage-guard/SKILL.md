@@ -1,6 +1,6 @@
 ---
 name: coverage-guard
-description: "Use when you want to prevent coverage regressions during development. Activate with /coverage-guard to warn when coverage drops below threshold after code changes."
+description: "Monitor test coverage after every test run and warn when statement or branch coverage drops below configured thresholds. Hooks into Jest, Vitest, and npm test commands via PostToolUse hooks. Use when you want to prevent coverage regressions during development or enforce coverage gates in your workflow."
 user-invocable: true
 ---
 

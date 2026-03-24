@@ -1,18 +1,6 @@
 ---
-name: context-driven-testing
-description: "Apply context-driven testing principles where practices are chosen based on project context, not universal 'best practices'. Use when making testing decisions, questioning dogma, or adapting approaches to specific project needs."
-category: testing-methodologies
-priority: high
-tokenEstimate: 1100
-agents: [qe-fleet-commander, qe-regression-risk-analyzer, qe-requirements-validator, qe-quality-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [context-driven, rst, exploratory, heuristics, oracles, skilled-testing]
-trust_tier: 0
-validation:
+name: "context-driven-testing"
+description: "Analyze project context to choose testing practices, apply RST heuristics, run exploratory sessions, and adapt strategies to constraints. Use when making testing decisions or questioning 'best practice' dogma."
 ---
 
 # Context-Driven Testing
@@ -152,6 +140,8 @@ const contextFleet = await FleetManager.coordinate({
 
 ---
 
-## Remember
+## Skill Composition
 
-**With Agents:** Agents analyze context, adapt strategies, and learn what works in your situation. Use agents to scale context-driven thinking while maintaining human judgment for critical decisions.
+- **Risk assessment needed** — Use `/risk-based-testing` to quantify context-driven risk decisions
+- **Agent selection** — Use `/agentic-quality-engineering` for context-aware agent coordination
+- **Holistic view** — Use `/holistic-testing-pact` to adapt the holistic model to your context

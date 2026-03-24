@@ -1,21 +1,6 @@
 ---
 name: performance-testing
-description: "Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance."
-category: specialized-testing
-priority: high
-tokenEstimate: 1100
-agents: [qe-performance-tester, qe-quality-analyzer, qe-production-intelligence]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [performance, load-testing, stress-testing, scalability, k6, bottlenecks]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/performance-testing.yaml
+description: "Run load, stress, spike, and endurance tests with k6, define SLOs, identify bottlenecks, and integrate performance gates in CI/CD. Use when planning load tests, stress testing, or optimizing system performance."
 ---
 
 # Performance Testing

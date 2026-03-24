@@ -1,11 +1,6 @@
 ---
-name: "Validation Pipeline"
-description: "Use when validating requirements, code, or artifacts through structured gate enforcement with per-step scoring and pass/fail reports."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/validation-pipeline.yaml
+name: "validation-pipeline"
+description: "Run structured validation pipelines with sequential gate enforcement, per-step scoring, and weighted pass/fail reports for requirements documents. Use when validating requirements, assessing document completeness, or enforcing quality gates."
 ---
 
 # Validation Pipeline

@@ -1,21 +1,6 @@
 ---
 name: contract-testing
-description: "Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility testing. Use when testing API contracts or coordinating distributed teams."
-category: testing-methodologies
-priority: high
-tokenEstimate: 900
-agents: [qe-api-contract-validator, qe-test-generator, qe-security-scanner]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [contract, pact, consumer-driven, api, microservices, schema-validation]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/contract-testing.yaml
+description: "Implement consumer-driven contract testing with Pact, detect breaking API changes with semver recommendations, verify provider fulfillment of consumer contracts, and integrate contract validation into CI/CD pipelines. Use when testing microservices API contracts, coordinating distributed teams, or preventing breaking changes before deployment."
 ---
 
 # Contract Testing

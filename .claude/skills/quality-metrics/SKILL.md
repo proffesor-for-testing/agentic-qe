@@ -1,21 +1,6 @@
 ---
 name: quality-metrics
-description: "Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness."
-category: testing-methodologies
-priority: high
-tokenEstimate: 900
-agents: [qe-quality-analyzer, qe-test-executor, qe-coverage-analyzer, qe-production-intelligence, qe-quality-gate]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [metrics, dora, quality-gates, dashboards, kpis, measurement]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/quality-metrics.yaml
+description: "Track bug escape rate, MTTD, test effectiveness, and DORA metrics with quality gates and trend analysis. Use when building quality dashboards, defining KPIs, or evaluating test effectiveness."
 ---
 
 # Quality Metrics

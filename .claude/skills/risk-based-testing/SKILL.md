@@ -1,21 +1,6 @@
 ---
-name: risk-based-testing
-description: "Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions."
-category: testing-methodologies
-priority: high
-tokenEstimate: 1000
-agents: [qe-regression-risk-analyzer, qe-test-generator, qe-production-intelligence, qe-quality-gate]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [risk, prioritization, test-planning, coverage, impact-analysis]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/risk-based-testing.yaml
+name: "risk-based-testing"
+description: "Assess risk per component, prioritize testing effort by impact and probability, allocate coverage by risk score. Use when planning test strategy, allocating resources, or justifying coverage decisions."
 ---
 
 # Risk-Based Testing
@@ -161,6 +146,8 @@ const riskFleet = await FleetManager.coordinate({
 
 ---
 
-## Remember
+## Skill Composition
 
-**With Agents:** Agents calculate risk using ML on historical data, select risk-appropriate tests, and adjust scores from production feedback. Use agents to maintain dynamic risk profiles at scale.
+- **Context analysis** — Use `/context-driven-testing` for context-aware risk assessment
+- **Coverage gaps** — Use `/qe-coverage-analysis` to validate risk-based coverage targets
+- **Production data** — Use `/shift-right-testing` to feed production incidents into risk scores

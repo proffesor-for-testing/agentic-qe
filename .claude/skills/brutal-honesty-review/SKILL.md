@@ -1,20 +1,6 @@
 ---
 name: brutal-honesty-review
-description: "Unvarnished technical criticism combining Linus Torvalds' precision, Gordon Ramsay's standards, and James Bach's BS-detection. Use when code/tests need harsh reality checks, certification schemes smell fishy, or technical decisions lack rigor. No sugar-coating, just surgical truth about what's broken and why."
-category: quality-review
-priority: high
-tokenEstimate: 1200
-agents: [qe-code-reviewer, qe-quality-gate, qe-security-auditor]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [code-review, honesty, critical-thinking, technical-criticism, quality]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Deliver direct technical criticism with three modes: Torvalds (precision), Ramsay (standards), Bach (BS-detection) for code, tests, and architecture. Use when code needs harsh reality checks, technical decisions lack rigor, or honest quality assessment is required."
 ---
 
 # Brutal Honesty Review

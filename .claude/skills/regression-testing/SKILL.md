@@ -1,21 +1,6 @@
 ---
 name: regression-testing
-description: "Strategic regression testing with test selection, impact analysis, and continuous regression management. Use when verifying fixes don't break existing functionality, planning regression suites, or optimizing test execution for faster feedback."
-category: specialized-testing
-priority: high
-tokenEstimate: 1000
-agents: [qe-regression-risk-analyzer, qe-test-executor, qe-coverage-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [regression, test-selection, impact-analysis, ci-cd, change-based, risk-based]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/regression-testing.yaml
+description: "Select and execute regression tests using risk-based and change-based strategies with git diff impact analysis and smart test prioritization. Use when verifying fixes don't break existing functionality, planning regression suites, or optimizing test execution time."
 ---
 
 # Regression Testing

@@ -1,21 +1,6 @@
 ---
 name: enterprise-integration-testing
-description: "Use when testing enterprise integrations across SAP, middleware, WMS, or backend systems, validating E2E enterprise flows, testing SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), or enforcing cross-system quality gates."
-category: enterprise-integration
-priority: high
-tokenEstimate: 2000
-agents: [qe-soap-tester, qe-message-broker-tester, qe-sap-rfc-tester, qe-middleware-validator, qe-sap-idoc-tester, qe-odata-contract-tester, qe-sod-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, contract-testing, chaos-engineering-resilience]
-quick_reference_card: true
-tags: [enterprise, sap, esb, middleware, integration, e2e, order-to-cash]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/enterprise-integration-testing.yaml
+description: "Test enterprise integrations across SAP (RFC, BAPI, IDoc, OData, Fiori), middleware, and WMS with E2E flow validation and cross-system data consistency checks. Use when testing SAP integrations, validating Order-to-Cash flows, or enforcing enterprise quality gates."
 ---
 
 # Enterprise Integration Testing
@@ -142,41 +127,6 @@ describe('Order-to-Cash E2E Flow', () => {
       });
       return invoice.length > 0;
     }, { timeout: 30000, interval: 3000 });
-  });
-});
-```
-
-### Procure-to-Pay Flow
-```javascript
-describe('Procure-to-Pay E2E Flow', () => {
-  it('creates purchase requisition through to vendor payment', async () => {
-    // Step 1: Create Purchase Requisition
-    const prResult = await sapClient.call('BAPI_PR_CREATE', {
-      PRHEADER: { PR_TYPE: 'NB', CTRL_IND: '' },
-      PRHEADERX: { PR_TYPE: 'X' },
-      PRITEMS: [{ MATERIAL: 'MAT-RAW-100', QUANTITY: 500, UNIT: 'EA', PLANT: '1000' }]
-    });
-    expect(prResult.NUMBER).toBeDefined();
-    const prNumber = prResult.NUMBER;
-
-    // Step 2: Verify PR triggers sourcing (ME57 equivalent)
-    const sourcingResult = await sapClient.call('BAPI_PR_GETDETAIL', {
-      NUMBER: prNumber
-    });
-    expect(sourcingResult.PRITEM[0].PREQ_NO).toBe(prNumber);
-
-    // Step 3: Create Purchase Order from PR
-    const poResult = await sapClient.call('BAPI_PO_CREATE1', {
-      POHEADER: { COMP_CODE: '1000', DOC_TYPE: 'NB', VENDOR: 'VEND-500' },
-      POITEMS: [{ PO_ITEM: '00010', MATERIAL: 'MAT-RAW-100', QUANTITY: 500, PLANT: '1000' }]
-    });
-    expect(poResult.PO_NUMBER).toBeDefined();
-
-    // Step 4: Verify PO IDoc sent to vendor
-    const idocStatus = await sapClient.call('IDOC_STATUS_READ', {
-      DOCNUM: poResult.IDOC_NUMBER
-    });
-    expect(idocStatus.STATUS).toBe('03'); // Successfully sent
   });
 });
 ```
@@ -329,32 +279,6 @@ describe('SAP OData Service Testing', () => {
 });
 ```
 
-### Fiori Launchpad Testing
-```javascript
-describe('Fiori Launchpad App Testing', () => {
-  it('validates Fiori tile loads and displays correct data', async () => {
-    await page.goto(`${fioriLaunchpadUrl}#SalesOrder-manage`);
-
-    // Wait for OData call to complete
-    await page.waitForResponse(resp =>
-      resp.url().includes('API_SALES_ORDER_SRV') && resp.status() === 200
-    );
-
-    // Verify smart table loaded with data
-    const tableRows = await page.locator('table tbody tr');
-    expect(await tableRows.count()).toBeGreaterThan(0);
-
-    // Verify filter bar is functional
-    await page.fill('[data-sap-ui="filterField-SalesOrder"]', '1000000');
-    await page.click('[data-sap-ui="btnGo"]');
-
-    await page.waitForResponse(resp =>
-      resp.url().includes("$filter=SalesOrder eq '1000000'")
-    );
-  });
-});
-```
-
 ---
 
 ## Cross-System Data Validation
@@ -420,164 +344,42 @@ describe('Cross-System Data Consistency', () => {
 
 ## Enterprise Test Data Management
 
+**Key pattern**: Create test data in SAP (source of truth) via BAPIs, wait for replication to downstream systems, then teardown by setting deletion flags (SAP does not hard delete).
+
 ```javascript
-describe('Enterprise Test Data Strategy', () => {
-  // Master data setup - reusable across test suites
-  const masterDataFixture = {
-    async setup() {
-      // Create customer in SAP (source of truth)
-      const customer = await sapClient.call('BAPI_CUSTOMER_CREATE', {
-        PI_COPYREFERENCE: { SALESORG: '1000', DISTR_CHAN: '10' },
-        PI_PERSONALDATA: { FIRSTNAME: 'Test', LASTNAME: `Customer-${Date.now()}` }
-      });
-      await sapClient.call('BAPI_TRANSACTION_COMMIT', { WAIT: 'X' });
+// Setup: Create in SAP, wait for replication
+const customer = await sapClient.call('BAPI_CUSTOMER_CREATE', { /* ... */ });
+await sapClient.call('BAPI_TRANSACTION_COMMIT', { WAIT: 'X' });
+await waitFor(async () => (await wmsApi.get(`/customers/${customer.CUSTOMERNO}`)).status === 200, { timeout: 60000 });
 
-      // Wait for replication to downstream systems
-      await waitFor(async () => {
-        const wms = await wmsApi.get(`/customers/${customer.CUSTOMERNO}`);
-        return wms.status === 200;
-      }, { timeout: 60000 });
-
-      return { customerId: customer.CUSTOMERNO };
-    },
-
-    async teardown(customerId) {
-      // Mark customer for deletion (SAP does not hard delete)
-      await sapClient.call('BAPI_CUSTOMER_CHANGEFROMDATA', {
-        CUSTOMERNO: customerId,
-        PI_PERSONALDATA: { DELETION_FLAG: 'X' }
-      });
-      await sapClient.call('BAPI_TRANSACTION_COMMIT', { WAIT: 'X' });
-    }
-  };
-
-  let testCustomer;
-
-  beforeAll(async () => {
-    testCustomer = await masterDataFixture.setup();
-  });
-
-  afterAll(async () => {
-    await masterDataFixture.teardown(testCustomer.customerId);
-  });
-
-  it('uses properly replicated test customer', async () => {
-    const order = await api.post('/orders', {
-      customerId: testCustomer.customerId,
-      items: [{ sku: 'MAT-100', qty: 1 }]
-    });
-    expect(order.status).toBe(201);
-  });
-});
+// Teardown: Mark for deletion
+await sapClient.call('BAPI_CUSTOMER_CHANGEFROMDATA', { CUSTOMERNO: id, PI_PERSONALDATA: { DELETION_FLAG: 'X' } });
+await sapClient.call('BAPI_TRANSACTION_COMMIT', { WAIT: 'X' });
 ```
 
 ---
 
 ## Environment Strategy
 
-### Enterprise Environment Matrix
-| Environment | Purpose | Data | SAP Client | Access |
-|-------------|---------|------|------------|--------|
-| Sandbox (SBX) | Developer exploration | Sample data | 100 | Open |
-| Development (DEV) | Feature development | Synthetic | 200 | Dev team |
-| Integration (INT) | Cross-system testing | Controlled sets | 300 | QE + Dev |
-| Quality (QAS) | Release validation | Production-like | 400 | QE only |
-| Pre-Production (PRE) | Final verification | Masked production copy | 500 | Release team |
-| Production (PRD) | Live system | Real data | 600 | Operations |
-
-```javascript
-// Environment-aware test configuration
-const envConfig = {
-  INT: {
-    sapClient: '300',
-    sapHost: 'sap-int.company.com',
-    wmsHost: 'wms-int.company.com',
-    middlewareHost: 'esb-int.company.com',
-    testDataStrategy: 'synthetic', // Create and teardown
-    maxParallelTests: 5
-  },
-  QAS: {
-    sapClient: '400',
-    sapHost: 'sap-qas.company.com',
-    wmsHost: 'wms-qas.company.com',
-    middlewareHost: 'esb-qas.company.com',
-    testDataStrategy: 'reserved-sets', // Pre-allocated test data
-    maxParallelTests: 3
-  }
-};
-
-function getTestConfig() {
-  const env = process.env.TEST_ENVIRONMENT || 'INT';
-  return envConfig[env];
-}
-```
+| Environment | Purpose | SAP Client | Test Data |
+|-------------|---------|------------|-----------|
+| Integration (INT) | Cross-system testing | 300 | Synthetic (create/teardown) |
+| Quality (QAS) | Release validation | 400 | Pre-allocated reserved sets |
+| Pre-Production (PRE) | Final verification | 500 | Masked production copy |
 
 ---
 
 ## Enterprise Quality Gates
 
-### QCSD Flags for Enterprise Systems
-```javascript
-const enterpriseFlags = {
-  HAS_MIDDLEWARE: true,           // ESB/middleware in the flow
-  HAS_SAP_INTEGRATION: true,     // SAP RFC/BAPI/IDoc/OData calls
-  HAS_AUTHORIZATION: true,       // SoD and role-based access
-  HAS_CROSS_SYSTEM_DATA: true,   // Data replicated across systems
-  HAS_ASYNC_PROCESSING: true,    // IDoc, message queue, batch jobs
-  HAS_LEGACY_PROTOCOL: true      // SOAP, RFC, flat-file, EDI
-};
-```
-
 ### Release Readiness Criteria
-```javascript
-describe('Enterprise Release Readiness', () => {
-  it('passes all enterprise quality gates', async () => {
-    const gates = [
-      {
-        name: 'Cross-System Data Consistency',
-        check: async () => {
-          const results = await runDataReconciliation(['MAT-100', 'MAT-200']);
-          return results.every(r => r.consistent);
-        }
-      },
-      {
-        name: 'IDoc Processing Success Rate',
-        check: async () => {
-          const stats = await sapClient.call('IDOC_STATUS_SUMMARY', { PERIOD: 'LAST_24H' });
-          const successRate = stats.SUCCESS / stats.TOTAL;
-          return successRate >= 0.99; // 99% threshold
-        }
-      },
-      {
-        name: 'Middleware Error Rate',
-        check: async () => {
-          const errors = await middlewareMonitor.getErrorCount({ period: '24h' });
-          return errors < 10; // Less than 10 errors in 24h
-        }
-      },
-      {
-        name: 'SoD Violations',
-        check: async () => {
-          const violations = await sodAnalyzer.scan({ scope: 'changed-roles' });
-          return violations.critical === 0;
-        }
-      },
-      {
-        name: 'E2E Order Flow',
-        check: async () => {
-          const result = await runE2EOrderFlow();
-          return result.allStepsCompleted && result.duration < 120000; // Under 2 minutes
-        }
-      }
-    ];
 
-    for (const gate of gates) {
-      const passed = await gate.check();
-      expect(passed).toBe(true);
-    }
-  });
-});
-```
+| Gate | Threshold |
+|------|-----------|
+| Cross-System Data Consistency | All reconciled materials match |
+| IDoc Processing Success Rate | >= 99% in last 24h |
+| Middleware Error Rate | < 10 errors in 24h |
+| SoD Violations | 0 critical violations |
+| E2E Order Flow | Completes in < 2 minutes |
 
 ---
 
@@ -666,70 +468,15 @@ await Task("SoD Conflict Analysis", {
 
 ---
 
-## Agent Coordination Hints
-
-### Memory Namespace
-```
-aqe/enterprise-integration/
-  flows/              - E2E flow definitions and test results
-  sap/
-    rfc-results/      - RFC/BAPI test outcomes
-    idoc-results/     - IDoc processing validation
-    odata-contracts/  - OData $metadata snapshots and diffs
-  middleware/
-    routing/          - ESB routing test results
-    transforms/       - Transformation validation
-  cross-system/
-    reconciliation/   - Data consistency reports
-    master-data/      - Master data sync validation
-  authorization/
-    sod-reports/      - SoD conflict analysis results
-    role-testing/     - Role and permission test results
-  quality-gates/      - Enterprise release gate results
-```
-
-### Fleet Coordination
-```typescript
-const enterpriseFleet = await FleetManager.coordinate({
-  strategy: 'enterprise-integration',
-  agents: [
-    'qe-sap-rfc-tester',          // SAP function module testing
-    'qe-sap-idoc-tester',         // IDoc processing validation
-    'qe-odata-contract-tester',   // OData/Fiori service testing
-    'qe-soap-tester',             // SOAP/ESB endpoint testing
-    'qe-message-broker-tester',   // Message broker flows
-    'qe-middleware-validator',     // Middleware routing/transformation
-    'qe-sod-analyzer'             // Authorization and SoD
-  ],
-  topology: 'hierarchical'
-});
-
-await enterpriseFleet.execute({
-  flow: 'order-to-cash',
-  phases: [
-    { name: 'contract-validation', agents: ['qe-odata-contract-tester', 'qe-soap-tester'] },
-    { name: 'integration-testing', agents: ['qe-sap-rfc-tester', 'qe-sap-idoc-tester', 'qe-middleware-validator'] },
-    { name: 'e2e-validation', agents: ['qe-message-broker-tester'] },
-    { name: 'authorization-check', agents: ['qe-sod-analyzer'] }
-  ]
-});
-```
-
----
-
 ## Related Skills
-- [api-testing-patterns](../api-testing-patterns/) - REST/GraphQL API testing fundamentals
-- [contract-testing](../contract-testing/) - Consumer-driven contract testing with Pact
-- [middleware-testing-patterns](../middleware-testing-patterns/) - ESB, routing, transformation, DLQ
-- [wms-testing-patterns](../wms-testing-patterns/) - Warehouse management system testing
-- [chaos-engineering-resilience](../chaos-engineering-resilience/) - Fault injection for enterprise systems
-- [database-testing](../database-testing/) - Database integrity and migration testing
-- [security-testing](../security-testing/) - Security and authorization testing
+- [api-testing-patterns](../api-testing-patterns/) - REST/GraphQL API testing
+- [contract-testing](../contract-testing/) - Consumer-driven contracts
+- [middleware-testing-patterns](../middleware-testing-patterns/) - ESB, routing, DLQ
+- [wms-testing-patterns](../wms-testing-patterns/) - Warehouse management
+- [security-testing](../security-testing/) - Authorization testing
 
 ---
 
 ## Remember
 
-Enterprise integration testing is about verifying that independently correct systems work correctly together. No system is an island. Test each integration boundary with protocol-appropriate tools, validate cross-system data consistency, and always include authorization and SoD checks. The biggest risks are in the seams between systems, not within them.
-
-**With Agents:** Use specialized agents for each integration type (RFC, IDoc, OData, SOAP, messaging). Orchestrate them hierarchically: contract validation first, then integration testing, then E2E flows, then authorization. The enterprise fleet catches cross-system inconsistencies that single-system testing misses entirely.
+Enterprise integration testing verifies that independently correct systems work correctly together. The biggest risks are in the seams between systems. Test each boundary with protocol-appropriate tools, validate cross-system data consistency, and always include SoD checks.

@@ -1,8 +1,6 @@
 ---
 name: debug-loop
-description: "Use when debugging a failing test or runtime error with hypothesis-driven investigation, autonomous command validation, and systematic root cause elimination."
-trust_tier: 0
-domain: debugging
+description: "Debug failing tests and runtime errors through 5-phase hypothesis-driven investigation: reproduce, hypothesize, fix, verify, and regression test. Use when debugging a failing test, runtime error, or investigating root cause of unexpected behavior."
 ---
 
 # Debug Loop

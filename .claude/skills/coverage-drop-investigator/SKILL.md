@@ -1,6 +1,6 @@
 ---
 name: coverage-drop-investigator
-description: "Use when test coverage has dropped and you need to find which changes caused it and what tests to add. Traces coverage regressions to specific commits and files."
+description: "Investigate coverage regressions by comparing current coverage against baseline, identifying files with lowest coverage, mapping uncovered code to recent commits, and recommending targeted tests for uncovered functions and branches. Generates a structured coverage drop report. Use when test coverage has dropped and you need to find which changes caused it and what tests to add."
 user-invocable: true
 ---
 

@@ -1,23 +1,6 @@
 ---
 name: testability-scoring
-description: "AI-powered testability assessment using 10 principles of intrinsic testability with Playwright and optional Vibium integration. Evaluates web applications against Observability, Controllability, Algorithmic Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability, and Similarity. Use when assessing software testability, evaluating test readiness, identifying testability improvements, or generating testability reports."
-category: testing-methodologies
-priority: high
-tokenEstimate: 1100
-agents: [qe-quality-analyzer, qx-partner, qe-visual-tester]
-implementation_status: optimized
-optimization_version: 2.2
-last_optimized: 2025-12-12
-dependencies: []
-quick_reference_card: true
-tags: [testability, scoring, playwright, vibium, assessment, 10-principles, intrinsic-testability, james-bach, michael-bolton]
-contributor: "@fndlalit"
-vibium_integration: optional
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/testability-scoring.yaml
+description: "Run automated testability assessments against any URL using Playwright, scoring 10 intrinsic testability principles (Observability, Controllability, Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability, Similarity). Generates HTML reports with radar charts and prioritized improvement recommendations. Use when assessing software testability, evaluating test readiness, or generating testability reports."
 ---
 
 # Testability Scoring

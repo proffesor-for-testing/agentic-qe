@@ -1,21 +1,6 @@
 ---
 name: wms-testing-patterns
-description: "Warehouse Management System testing patterns for inventory operations, pick/pack/ship workflows, wave management, EDI X12/EDIFACT compliance, RF/barcode scanning, and WMS-ERP integration. Use when testing WMS platforms (Blue Yonder, Manhattan, SAP EWM)."
-category: enterprise-integration
-priority: high
-tokenEstimate: 1800
-agents: [qe-middleware-validator, qe-contract-validator, qe-sap-idoc-tester, qe-odata-contract-tester]
-implementation_status: optimized
-optimization_version: 2.0
-last_optimized: 2026-02-04
-dependencies: [api-testing-patterns, contract-testing, enterprise-integration-testing]
-quick_reference_card: true
-tags: [wms, warehouse, inventory, edi, pick-pack-ship, blue-yonder, manhattan, sap-ewm, rf-scanning]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/wms-testing-patterns.yaml
+description: "Test warehouse management inventory operations (receipt, putaway, cycle count), validate pick/pack/ship workflows end-to-end, verify EDI message processing (856 ASN, 940/945, 943/944), exercise RF/barcode scanning flows, and test WMS-ERP integration for inventory sync. Use when testing WMS platforms (Blue Yonder, Manhattan, SAP EWM) or warehouse automation systems."
 ---
 
 # WMS Testing Patterns

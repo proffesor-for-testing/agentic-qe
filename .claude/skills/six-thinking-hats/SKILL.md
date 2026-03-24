@@ -1,18 +1,6 @@
 ---
 name: six-thinking-hats
-description: "Apply Edward de Bono's Six Thinking Hats methodology to software testing for comprehensive quality analysis. Use when designing test strategies, conducting test retrospectives, analyzing test failures, evaluating testing approaches, or facilitating testing discussions. Each hat provides a distinct testing perspective: facts (White), risks (Black), benefits (Yellow), creativity (Green), emotions (Red), and process (Blue)."
-category: methodology
-priority: medium
-tokenEstimate: 1100
-agents: [qe-quality-analyzer, qe-regression-risk-analyzer, qe-test-generator]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [thinking, methodology, decision-making, collaboration, analysis]
-trust_tier: 0
-validation:
+description: "Apply Edward de Bono's Six Thinking Hats to software testing: gather metrics and data (White), assess risks and gaps (Black), identify strengths and quick wins (Yellow), brainstorm creative test approaches (Green), capture team gut feelings (Red), and synthesize action plans (Blue). Use when designing test strategies, conducting test retrospectives, analyzing test failures, or facilitating structured testing discussions."
 ---
 
 # Six Thinking Hats for Testing

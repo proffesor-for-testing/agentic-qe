@@ -1,21 +1,13 @@
 ---
-name: "AgentDB Performance Optimization"
+name: "agentdb-optimization"
 description: "Optimize AgentDB performance with quantization (4-32x memory reduction), HNSW indexing (150x faster search), caching, and batch operations. Use when optimizing memory usage, improving search speed, or scaling to millions of vectors."
 ---
 
 # AgentDB Performance Optimization
 
-## What This Skill Does
-
-Provides comprehensive performance optimization techniques for AgentDB vector databases. Achieve 150x-12,500x performance improvements through quantization, HNSW indexing, caching strategies, and batch operations. Reduce memory usage by 4-32x while maintaining accuracy.
-
-**Performance**: <100µs vector search, <1ms pattern retrieval, 2ms batch insert for 100 vectors.
-
 ## Prerequisites
 
-- Node.js 18+
-- AgentDB v1.0.7+ (via agentic-flow)
-- Existing AgentDB database or application
+- Node.js 18+, AgentDB v1.0.7+ (via agentic-flow)
 
 ---
 
@@ -497,13 +489,5 @@ const adapter = await createAgentDBAdapter({
 
 ## Learn More
 
-- **Quantization Paper**: docs/quantization-techniques.pdf
-- **HNSW Algorithm**: docs/hnsw-index.pdf
 - **GitHub**: https://github.com/ruvnet/agentic-flow/tree/main/packages/agentdb
 - **Website**: https://agentdb.ruv.io
-
----
-
-**Category**: Performance / Optimization
-**Difficulty**: Intermediate
-**Estimated Time**: 20-30 minutes

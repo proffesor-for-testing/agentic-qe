@@ -1,21 +1,6 @@
 ---
 name: api-testing-patterns
-description: "Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies."
-category: testing-methodologies
-priority: high
-tokenEstimate: 1200
-agents: [qe-api-contract-validator, qe-test-generator, qe-performance-tester, qe-security-scanner]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [api, rest, graphql, contract-testing, pact, integration, microservices]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/api-testing-patterns.yaml
+description: "Test REST and GraphQL APIs with contract testing, consumer-driven contracts (Pact), auth validation, and CI/CD integration. Use when testing APIs, designing API test strategies, or validating microservice contracts."
 ---
 
 # API Testing Patterns

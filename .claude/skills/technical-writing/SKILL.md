@@ -1,19 +1,6 @@
 ---
 name: technical-writing
-description: "Write clear, engaging technical content from real experience. Use when writing blog posts, documentation, tutorials, or technical articles."
-category: communication
-priority: medium
-tokenEstimate: 800
-agents: [qe-quality-analyzer, qe-api-contract-validator]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [writing, documentation, communication, blogs, tutorials]
-trust_tier: 1
-validation:
-  schema_path: schemas/output.json
+description: "Write clear technical content with specific examples, scannable structure, and audience-targeted messaging for developers, QE, or leadership. Use when writing blog posts, documentation, tutorials, or technical articles."
 ---
 
 # Technical Writing

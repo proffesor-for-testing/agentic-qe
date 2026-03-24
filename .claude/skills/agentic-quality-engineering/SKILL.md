@@ -1,19 +1,6 @@
 ---
-name: agentic-quality-engineering
-description: "Use when orchestrating QE agents, understanding PACT principles, configuring the AQE v3 fleet, or leveraging AI agents as force multipliers for quality work."
-category: qe-core
-priority: critical
-tokenEstimate: 1400
-agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-quality-analyzer, qe-performance-tester, qe-security-scanner, qe-requirements-validator, qe-production-intelligence, qe-fleet-commander, qe-deployment-readiness, qe-regression-risk-analyzer, qe-test-data-architect, qe-api-contract-validator, qe-flaky-test-hunter, qe-visual-tester, qe-chaos-engineer, qe-code-complexity, qx-partner]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [pact, agents, fleet, coordination, autonomous, foundational]
-trust_tier: 1
-validation:
-  schema_path: schemas/output.json
+name: "agentic-quality-engineering"
+description: "Orchestrate QE agents with PACT principles, configure the 19-agent fleet, coordinate multi-agent testing pipelines. Use when designing autonomous testing systems or scaling QE with AI agents."
 ---
 
 # Agentic Quality Engineering
@@ -335,4 +322,8 @@ agent_assignments:
 
 ---
 
-**Success Metric:** Deploy 10x more frequently with same or better quality through intelligent agent collaboration.
+## Skill Composition
+
+- **Risk focus** — Use `/risk-based-testing` for agent prioritization by risk
+- **PACT deep dive** — Use `/holistic-testing-pact` for PACT principles details
+- **Pipeline integration** — Use `/cicd-pipeline-qe-orchestrator` for pipeline-level agent coordination

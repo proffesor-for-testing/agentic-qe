@@ -1,13 +1,18 @@
 ---
-name: "V3 Security Overhaul"
-description: "Complete security architecture overhaul for claude-flow v3. Addresses critical CVEs (CVE-1, CVE-2, CVE-3) and implements secure-by-default patterns. Use for security-first v3 implementation."
+name: "v3-security-overhaul"
+description: "Remediate critical CVEs, implement input validation with Zod, add path sanitization and safe command execution. Use when performing security overhaul or implementing secure-by-default patterns."
 ---
 
 # V3 Security Overhaul
 
-## What This Skill Does
+## Workflow
 
-Orchestrates comprehensive security overhaul for claude-flow v3, addressing critical vulnerabilities and establishing security-first development practices using specialized v3 security agents.
+1. **Audit dependencies** — Run `npm audit` to identify vulnerable packages
+2. **Fix critical CVEs** — Update dependencies, replace weak crypto, remove hardcoded secrets
+3. **Implement validation** — Add Zod schemas at all input boundaries
+4. **Add path sanitization** — Prevent directory traversal in file operations
+5. **Secure execution** — Use `execFile` with `shell: false` for all subprocess calls
+6. **Verify** — Run security scans to confirm score meets 90/100 target
 
 ## Quick Start
 
@@ -80,3 +85,15 @@ const { stdout } = await execFile('git', [userInput], { shell: false });
 - **CVE Resolution**: 100% of critical vulnerabilities fixed
 - **Test Coverage**: >95% security-critical code
 - **Implementation**: All secure patterns documented and tested
+
+## Gotchas
+
+- Always run `npm audit --audit-level high` after dependency updates to confirm no new vulnerabilities introduced
+- bcrypt rounds of 12 add ~250ms per hash — acceptable for auth, too slow for bulk operations
+- `execFile` with `shell: false` breaks commands that rely on shell features (pipes, globbing) — refactor those to use Node.js APIs
+
+## Skill Composition
+
+- **Security testing** — Use `/security-testing` for ongoing SAST/DAST integration
+- **Pipeline gates** — Use `/cicd-pipeline-qe-orchestrator` for security gates in CI/CD
+- **Risk assessment** — Use `/risk-based-testing` to prioritize security-critical code paths

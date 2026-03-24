@@ -1,26 +1,20 @@
 ---
-name: "QE Chaos Resilience"
-description: "Use when injecting faults into distributed systems, validating system recovery, running load/stress tests, or building confidence in resilience through chaos engineering."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-chaos-resilience.yaml
+name: "qe-chaos-resilience"
+description: "Inject faults into distributed systems, run load/stress tests, validate recovery and circuit breakers. Use when testing system resilience or running chaos experiments."
 ---
 
 # QE Chaos Resilience
 
-## Purpose
+Run controlled chaos experiments to validate system resilience through fault injection, load testing, stress testing, and disaster recovery validation.
 
-Guide the use of v3's chaos engineering capabilities including controlled fault injection, load/stress testing, resilience validation, and disaster recovery testing.
+## Workflow
 
-## Activation
-
-- When testing system resilience
-- When performing chaos experiments
-- When load/stress testing
-- When validating disaster recovery
-- When testing circuit breakers
+1. **Define hypothesis** — What behavior do you expect under failure?
+2. **Configure safety controls** — Set blast radius, abort conditions, rollback triggers
+3. **Inject fault** — Run the experiment against the target service
+4. **Monitor metrics** — Track response time, error rate, throughput during experiment
+5. **Validate recovery** — Confirm the system recovers within SLA thresholds
+6. **Document findings** — Record severity, recommendations, and artifacts
 
 ## Quick Start
 
@@ -38,113 +32,36 @@ aqe chaos stress --endpoint /api/users --max-users 10000
 aqe chaos circuit-breaker --service payment-service
 ```
 
-## Agent Workflow
-
-```typescript
-// Chaos experiment
-Task("Run chaos experiment", `
-  Execute controlled chaos on api-service:
-  - Inject 500ms network latency
-  - Monitor service health metrics
-  - Verify circuit breaker activation
-  - Measure recovery time
-  - Document findings
-`, "qe-chaos-engineer")
-
-// Load testing
-Task("Performance load test", `
-  Run load test simulating Black Friday traffic:
-  - Ramp up to 10,000 concurrent users
-  - Maintain load for 30 minutes
-  - Monitor response times and error rates
-  - Identify bottlenecks
-  - Compare against SLAs
-`, "qe-load-tester")
-```
-
-## Chaos Experiments
-
-### 1. Fault Injection
+## Fault Injection Example
 
 ```typescript
 await chaosEngineer.injectFault({
   target: 'api-service',
-  fault: {
-    type: 'latency',
-    parameters: {
-      delay: '500ms',
-      jitter: '100ms',
-      percentage: 50
-    }
-  },
+  fault: { type: 'latency', parameters: { delay: '500ms', jitter: '100ms', percentage: 50 } },
   duration: '5m',
-  monitoring: {
-    metrics: ['response_time', 'error_rate', 'throughput'],
-    alerts: true
-  },
-  rollback: {
-    automatic: true,
-    trigger: 'error_rate > 10%'
-  }
+  monitoring: { metrics: ['response_time', 'error_rate', 'throughput'], alerts: true },
+  rollback: { automatic: true, trigger: 'error_rate > 10%' }
 });
 ```
 
-### 2. Load Testing
+## Load & Stress Testing
 
 ```typescript
+// Load test with SLA assertions
 await loadTester.execute({
   scenario: 'peak-traffic',
-  profile: {
-    rampUp: '5m',
-    steadyState: '30m',
-    rampDown: '5m'
-  },
-  users: {
-    initial: 100,
-    target: 5000,
-    pattern: 'linear'
-  },
-  assertions: {
-    p95_latency: '<500ms',
-    error_rate: '<1%',
-    throughput: '>1000rps'
-  }
+  profile: { rampUp: '5m', steadyState: '30m', rampDown: '5m' },
+  users: { initial: 100, target: 5000, pattern: 'linear' },
+  assertions: { p95_latency: '<500ms', error_rate: '<1%', throughput: '>1000rps' }
 });
-```
 
-### 3. Stress Testing
-
-```typescript
+// Stress test to find breaking point
 await loadTester.stressTest({
   endpoint: '/api/checkout',
   strategy: 'step-increase',
   steps: [100, 500, 1000, 2000, 5000],
   stepDuration: '5m',
-  findBreakingPoint: true,
-  monitoring: {
-    resourceUtilization: true,
-    databaseConnections: true,
-    memoryUsage: true
-  }
-});
-```
-
-### 4. Resilience Validation
-
-```typescript
-await resilienceTester.validate({
-  scenarios: [
-    'database-failover',
-    'cache-failure',
-    'external-service-timeout',
-    'pod-termination'
-  ],
-  expectations: {
-    gracefulDegradation: true,
-    automaticRecovery: true,
-    dataIntegrity: true,
-    recoveryTime: '<30s'
-  }
+  findBreakingPoint: true
 });
 ```
 
@@ -159,44 +76,6 @@ await resilienceTester.validate({
 | Disk Full | Fill disk space | Test disk errors |
 | Process Kill | Terminate process | Test recovery |
 
-## Chaos Report
-
-```typescript
-interface ChaosReport {
-  experiment: {
-    name: string;
-    target: string;
-    fault: FaultConfig;
-    duration: number;
-  };
-  results: {
-    hypothesis: string;
-    validated: boolean;
-    metrics: {
-      before: MetricSnapshot;
-      during: MetricSnapshot;
-      after: MetricSnapshot;
-    };
-    events: ChaosEvent[];
-    recovery: {
-      detected: boolean;
-      time: number;
-      automatic: boolean;
-    };
-  };
-  findings: {
-    severity: 'critical' | 'high' | 'medium' | 'low';
-    description: string;
-    recommendation: string;
-  }[];
-  artifacts: {
-    logs: string;
-    metrics: string;
-    traces: string;
-  };
-}
-```
-
 ## Safety Controls
 
 ```yaml
@@ -204,40 +83,27 @@ safety:
   blast_radius:
     max_affected_pods: 1
     max_affected_percentage: 10
-
   abort_conditions:
     - error_rate > 50%
     - p99_latency > 10s
     - service_unavailable
-
-  excluded_environments:
-    - production-critical
-
   required_approvals:
     production: 2
     staging: 0
 ```
 
-## SLA Validation
+## Agent Coordination
 
 ```typescript
-await resilienceTester.validateSLA({
-  slas: {
-    availability: 99.9,
-    p95_latency: 500,
-    error_rate: 0.1
-  },
-  period: '30d',
-  report: {
-    breaches: true,
-    trends: true,
-    projections: true
-  }
-});
+// Parallel chaos experiment workflow
+Task("Run chaos experiment", `
+  Inject 500ms latency on api-service, monitor health, verify circuit breaker, measure recovery
+`, "qe-chaos-engineer")
+
+Task("Performance load test", `
+  Simulate peak traffic: 10,000 concurrent users for 30 min, compare against SLAs
+`, "qe-load-tester")
 ```
 
-## Coordination
-
 **Primary Agents**: qe-chaos-engineer, qe-load-tester, qe-resilience-tester
-**Coordinator**: qe-chaos-coordinator
 **Related Skills**: qe-performance, security-testing

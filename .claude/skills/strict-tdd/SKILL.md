@@ -1,6 +1,6 @@
 ---
 name: strict-tdd
-description: "Use when enforcing TDD discipline — blocks writing production code unless a failing test exists first. Activate with /strict-tdd to enable session-scoped Red-Green-Refactor guardrail."
+description: "Enforce strict Red-Green-Refactor TDD discipline by blocking writes to production code (src/) unless a corresponding test file exists with a failing assertion. Registers a session-scoped PreToolUse hook on Write/Edit operations. Use when enforcing TDD discipline, preventing agents from writing test and implementation simultaneously, or enabling strict Red-Green-Refactor guardrails."
 user-invocable: true
 ---
 

@@ -1,20 +1,6 @@
 ---
 name: sherlock-review
-description: "Evidence-based investigative code review using deductive reasoning to determine what actually happened versus what was claimed. Use when verifying implementation claims, investigating bugs, validating fixes, or conducting root cause analysis. Elementary approach to finding truth through systematic observation."
-category: quality-review
-priority: high
-tokenEstimate: 1100
-agents: [qe-code-reviewer, qe-security-auditor, qe-performance-validator]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [investigation, evidence-based, code-review, root-cause, deduction]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Investigate code claims with evidence-based deductive reasoning, comparing actual behavior against PR descriptions and commit messages. Use when verifying implementation claims, investigating bugs, validating fixes, or conducting root cause analysis."
 ---
 
 # Sherlock Review

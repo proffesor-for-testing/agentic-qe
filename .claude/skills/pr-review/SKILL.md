@@ -1,8 +1,6 @@
 ---
-name: pr-review
-description: "Use when reviewing a GitHub PR for quality, scope correctness, trust tier compliance, or generating user-friendly review feedback."
-trust_tier: 0
-domain: code-review
+name: "pr-review"
+description: "Review GitHub PRs for code quality, scope correctness, trust tier compliance, and security issues. Generate actionable review feedback. Use when reviewing pull requests or validating AQE skill changes."
 ---
 
 # PR Review Workflow
@@ -59,3 +57,9 @@ gh pr review <pr-number> --body "review comments"
 - Be outcome-focused: what should the author do, not what's wrong
 - Group related comments together instead of posting many small ones
 - If approving with minor suggestions, use APPROVE with comments, not REQUEST_CHANGES
+
+## Skill Composition
+
+- **Quality metrics** — Use `/quality-metrics` to validate metric claims in PRs
+- **Risk assessment** — Use `/risk-based-testing` to evaluate risk of changes
+- **Coverage check** — Use `/qe-coverage-analysis` to verify coverage claims

@@ -1,21 +1,6 @@
 ---
 name: n8n-expression-testing
-description: "n8n expression syntax validation, context-aware testing, common pitfalls detection, and performance optimization. Use when validating n8n expressions and data transformations."
-category: n8n-testing
-priority: high
-tokenEstimate: 1000
-agents: [n8n-expression-validator]
-implementation_status: production
-optimization_version: 1.0
-last_optimized: 2025-12-15
-dependencies: []
-quick_reference_card: true
-tags: [n8n, expressions, javascript, data-transformation, validation]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/n8n-expression-testing.yaml
+description: "Validate n8n expression syntax, detect common pitfalls like undefined references and type coercion, and test data transformations with context-aware assertions. Use when validating n8n expressions, debugging data transformations, or optimizing expression performance."
 ---
 
 # n8n Expression Testing

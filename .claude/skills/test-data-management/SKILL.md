@@ -1,21 +1,6 @@
 ---
 name: test-data-management
-description: "Strategic test data generation, management, and privacy compliance. Use when creating test data, handling PII, ensuring GDPR/CCPA compliance, or scaling data generation for realistic testing scenarios."
-category: specialized-testing
-priority: high
-tokenEstimate: 1000
-agents: [qe-test-data-architect, qe-test-executor, qe-security-scanner]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [test-data, faker, synthetic, gdpr, pii, anonymization, factories]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/test-data-management.yaml
+description: "Generate synthetic test data with faker libraries, anonymize production snapshots, manage database transaction isolation for test cleanup, and scale data generation to 10k+ records/sec. Ensures GDPR/CCPA compliance for PII handling. Use when creating test datasets, handling sensitive data, or scaling data generation for performance testing."
 ---
 
 # Test Data Management

@@ -1,37 +1,20 @@
 ---
-name: "AgentDB Advanced Features"
-description: "Master advanced AgentDB features including QUIC synchronization, multi-database management, custom distance metrics, hybrid search, and distributed systems integration. Use when building distributed AI systems, multi-agent coordination, or advanced vector search applications."
+name: "agentdb-advanced"
+description: "Configure QUIC synchronization, multi-database sharding, custom distance metrics, and hybrid vector+metadata search in AgentDB. Use when building distributed AI systems, coordinating multi-agent databases, or implementing advanced vector search."
 ---
 
 # AgentDB Advanced Features
 
-## What This Skill Does
-
-Covers advanced AgentDB capabilities for distributed systems, multi-database coordination, custom distance metrics, hybrid search (vector + metadata), QUIC synchronization, and production deployment patterns. Enables building sophisticated AI systems with sub-millisecond cross-node communication and advanced search capabilities.
-
-**Performance**: <1ms QUIC sync, hybrid search with filters, custom distance metrics.
-
 ## Prerequisites
 
-- Node.js 18+
-- AgentDB v1.0.7+ (via agentic-flow)
-- Understanding of distributed systems (for QUIC sync)
-- Vector search fundamentals
+- Node.js 18+, AgentDB v1.0.7+ (via agentic-flow)
+- Understanding of distributed systems and vector search fundamentals
 
 ---
 
 ## QUIC Synchronization
 
-### What is QUIC Sync?
-
-QUIC (Quick UDP Internet Connections) enables sub-millisecond latency synchronization between AgentDB instances across network boundaries with automatic retry, multiplexing, and encryption.
-
-**Benefits**:
-- <1ms latency between nodes
-- Multiplexed streams (multiple operations simultaneously)
-- Built-in encryption (TLS 1.3)
-- Automatic retry and recovery
-- Event-based broadcasting
+QUIC enables sub-millisecond latency sync between AgentDB instances with multiplexed streams, TLS 1.3 encryption, and automatic retry.
 
 ### Enable QUIC Sync
 
@@ -113,14 +96,7 @@ const result = await adapter.retrieveWithReasoning(queryEmbedding, {
 });
 ```
 
-**Use Cases**:
-- Text embeddings (BERT, GPT, etc.)
-- Semantic search
-- Document similarity
-- Most general-purpose applications
-
-**Formula**: `cos(θ) = (A · B) / (||A|| × ||B||)`
-**Range**: [-1, 1] (1 = identical, -1 = opposite)
+**Best for**: text embeddings, semantic search, document similarity. Range: [-1, 1].
 
 ### Euclidean Distance (L2)
 
@@ -137,14 +113,7 @@ const result = await adapter.retrieveWithReasoning(queryEmbedding, {
 });
 ```
 
-**Use Cases**:
-- Image embeddings
-- Spatial data
-- Computer vision
-- When vector magnitude matters
-
-**Formula**: `d = √(Σ(ai - bi)²)`
-**Range**: [0, ∞] (0 = identical, ∞ = very different)
+**Best for**: image embeddings, spatial data, computer vision. Range: [0, infinity].
 
 ### Dot Product
 
@@ -161,13 +130,7 @@ const result = await adapter.retrieveWithReasoning(queryEmbedding, {
 });
 ```
 
-**Use Cases**:
-- Pre-normalized embeddings
-- Fast similarity computation
-- When vectors are already unit-length
-
-**Formula**: `dot = Σ(ai × bi)`
-**Range**: [-∞, ∞] (higher = more similar)
+**Best for**: pre-normalized embeddings, fast similarity computation.
 
 ### Custom Distance Metrics
 
@@ -333,16 +296,7 @@ const diverseResults = await adapter.retrieveWithReasoning(queryEmbedding, {
 });
 ```
 
-**MMR Parameters**:
-- `mmrLambda = 0`: Maximum relevance (may be redundant)
-- `mmrLambda = 0.5`: Balanced (default)
-- `mmrLambda = 1`: Maximum diversity (may be less relevant)
-
-**Use Cases**:
-- Search result diversification
-- Recommendation systems
-- Avoiding echo chambers
-- Exploratory search
+**MMR Lambda**: 0 = max relevance, 0.5 = balanced (default), 1 = max diversity.
 
 ---
 
@@ -499,52 +453,15 @@ AGENTDB_QUIC_PEERS=host1:4433,host2:4433
 
 ## Troubleshooting
 
-### Issue: QUIC sync not working
-
-```bash
-# Check firewall allows UDP port 4433
-sudo ufw allow 4433/udp
-
-# Verify peers are reachable
-ping host1
-
-# Check QUIC logs
-DEBUG=agentdb:quic node server.js
-```
-
-### Issue: Hybrid search returns no results
-
-```typescript
-// Relax filters
-const result = await adapter.retrieveWithReasoning(queryEmbedding, {
-  k: 100,  // Increase k
-  filters: {
-    // Remove or relax filters
-  },
-});
-```
-
-### Issue: Memory consolidation too aggressive
-
-```typescript
-// Disable automatic optimization
-const result = await adapter.retrieveWithReasoning(queryEmbedding, {
-  optimizeMemory: false,  // Disable auto-consolidation
-  k: 10,
-});
-```
+| Issue | Solution |
+|-------|----------|
+| QUIC sync not working | Check firewall allows UDP port 4433, verify peers reachable, enable debug: `DEBUG=agentdb:quic node server.js` |
+| Hybrid search returns no results | Increase k, relax or remove metadata filters |
+| Memory consolidation too aggressive | Set `optimizeMemory: false` in retrieval options |
 
 ---
 
 ## Learn More
 
-- **QUIC Protocol**: docs/quic-synchronization.pdf
-- **Hybrid Search**: docs/hybrid-search-guide.md
 - **GitHub**: https://github.com/ruvnet/agentic-flow/tree/main/packages/agentdb
 - **Website**: https://agentdb.ruv.io
-
----
-
-**Category**: Advanced / Distributed Systems
-**Difficulty**: Advanced
-**Estimated Time**: 45-60 minutes

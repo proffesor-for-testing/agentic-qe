@@ -1,20 +1,6 @@
 ---
 name: compatibility-testing
-description: "Cross-browser, cross-platform, and cross-device compatibility testing ensuring consistent experience across environments. Use when validating browser support, testing responsive design, or ensuring platform compatibility."
-category: specialized-testing
-priority: medium
-tokenEstimate: 800
-agents: [qe-visual-tester, qe-test-executor, qe-performance-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [compatibility, cross-browser, responsive, browserstack, playwright, devices]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Test cross-browser, cross-platform, and responsive design compatibility with Playwright and BrowserStack, targeting 95%+ user coverage. Use when validating browser support matrices, testing responsive breakpoints, or ensuring cross-device consistency."
 ---
 
 # Compatibility Testing

@@ -1,21 +1,6 @@
 ---
-name: test-reporting-analytics
-description: "Advanced test reporting, quality dashboards, predictive analytics, trend analysis, and executive reporting for QE metrics. Use when communicating quality status, tracking trends, or making data-driven decisions."
-category: analytics
-priority: high
-tokenEstimate: 850
-agents: [qe-quality-analyzer, qe-quality-gate, qe-deployment-readiness]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [reporting, analytics, dashboards, metrics, trends, predictive]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/test-reporting-analytics.yaml
+name: "test-reporting-analytics"
+description: "Build quality dashboards, generate sprint and executive reports, run predictive analytics on test trends. Use when communicating quality status or making data-driven testing decisions."
 ---
 
 # Test Reporting & Analytics
@@ -216,4 +201,8 @@ Good reports:
 - Match audience needs
 - Automate where possible
 
-**Data without action is noise. Action without data is guessing.**
+## Skill Composition
+
+- **Metric definitions** — Use `/quality-metrics` for standardized metric definitions
+- **Production data** — Use `/shift-right-testing` for production monitoring metrics
+- **Gate decisions** — Feed reports into `/qe-quality-assessment` for deployment readiness

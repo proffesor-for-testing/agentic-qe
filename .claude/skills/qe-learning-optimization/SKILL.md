@@ -1,26 +1,11 @@
 ---
-name: "QE Learning Optimization"
-description: "Use when optimizing QE agent performance, applying transfer learning across test domains, tuning quality metrics, or implementing continuous improvement loops for AI-powered testing."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-learning-optimization.yaml
+name: "qe-learning-optimization"
+description: "Optimize QE agent performance with transfer learning, hyperparameter tuning, A/B testing, and continuous improvement loops. Use when tuning quality metrics or transferring knowledge between test agents."
 ---
 
 # QE Learning Optimization
 
-## Purpose
-
-Guide the use of v3's learning optimization capabilities including transfer learning between agents, hyperparameter tuning, A/B testing, and continuous performance improvement.
-
-## Activation
-
-- When optimizing agent performance
-- When transferring knowledge between agents
-- When tuning learning parameters
-- When running A/B tests
-- When analyzing learning metrics
+Optimize AI-powered testing agents through transfer learning, hyperparameter tuning, A/B experimentation, and feedback-driven continuous improvement.
 
 ## Quick Start
 
@@ -38,31 +23,11 @@ aqe learn ab-test --hypothesis "new-algorithm" --duration 7d
 aqe learn metrics --agent test-generator --period 30d
 ```
 
-## Agent Workflow
+## Workflow
 
-```typescript
-// Transfer learning
-Task("Transfer test patterns", `
-  Transfer learned patterns from Jest test generator to Vitest:
-  - Map framework-specific syntax
-  - Adapt assertion styles
-  - Preserve test structure patterns
-  - Validate transfer accuracy
-`, "qe-transfer-specialist")
+### Step 1: Transfer Learning
 
-// Metrics optimization
-Task("Optimize prediction accuracy", `
-  Tune defect-predictor agent:
-  - Analyze current performance metrics
-  - Run Bayesian hyperparameter search
-  - Validate improvements on holdout set
-  - Deploy if accuracy improves >5%
-`, "qe-metrics-optimizer")
-```
-
-## Learning Operations
-
-### 1. Transfer Learning
+Transfer patterns from one test framework agent to another.
 
 ```typescript
 await transferSpecialist.transfer({
@@ -82,7 +47,11 @@ await transferSpecialist.transfer({
 });
 ```
 
-### 2. Hyperparameter Tuning
+**Checkpoint:** Verify transfer accuracy >= 90% on validation set.
+
+### Step 2: Hyperparameter Tuning
+
+Run Bayesian optimization over agent parameters.
 
 ```typescript
 await metricsOptimizer.tune({
@@ -101,7 +70,11 @@ await metricsOptimizer.tune({
 });
 ```
 
-### 3. A/B Testing
+**Checkpoint:** Confirm accuracy improves > 5% over baseline before deploying.
+
+### Step 3: A/B Testing
+
+Compare algorithm variants with statistical rigor.
 
 ```typescript
 await metricsOptimizer.abTest({
@@ -111,16 +84,17 @@ await metricsOptimizer.abTest({
     treatment: { algorithm: 'ml-enhanced' }
   },
   metrics: ['test-quality-score', 'generation-time'],
-  traffic: {
-    split: 50,
-    minSampleSize: 1000
-  },
+  traffic: { split: 50, minSampleSize: 1000 },
   duration: '7d',
   significance: 0.05
 });
 ```
 
-### 4. Feedback Loop
+**Checkpoint:** Wait for statistical significance (p < 0.05) before concluding.
+
+### Step 4: Feedback Loop
+
+Wire real-time feedback into agent learning.
 
 ```typescript
 await metricsOptimizer.feedbackLoop({
@@ -138,106 +112,33 @@ await metricsOptimizer.feedbackLoop({
 });
 ```
 
-## Learning Metrics Dashboard
-
-```typescript
-interface LearningDashboard {
-  agent: string;
-  period: DateRange;
-  performance: {
-    current: MetricValues;
-    trend: 'improving' | 'stable' | 'declining';
-    percentile: number;
-  };
-  learning: {
-    samplesProcessed: number;
-    patternsLearned: number;
-    improvementRate: number;
-  };
-  experiments: {
-    active: Experiment[];
-    completed: ExperimentResult[];
-  };
-  recommendations: {
-    action: string;
-    expectedImpact: number;
-    confidence: number;
-  }[];
-}
-```
-
-## Cross-Framework Transfer
+## Cross-Framework Transfer Mappings
 
 ```yaml
-transfer_mappings:
-  jest_to_vitest:
-    syntax:
-      "describe": "describe"
-      "it": "it"
-      "expect": "expect"
-      "jest.mock": "vi.mock"
-      "jest.fn": "vi.fn"
-    patterns:
-      - mock-module
-      - async-testing
-      - snapshot-testing
+jest_to_vitest:
+  syntax:
+    "jest.mock": "vi.mock"
+    "jest.fn": "vi.fn"
+  patterns: [mock-module, async-testing, snapshot-testing]
 
-  mocha_to_jest:
-    syntax:
-      "describe": "describe"
-      "it": "it"
-      "chai.expect": "expect"
-      "sinon.stub": "jest.fn"
-    adaptations:
-      - assertion-style
-      - hook-naming
+mocha_to_jest:
+  syntax:
+    "chai.expect": "expect"
+    "sinon.stub": "jest.fn"
+  adaptations: [assertion-style, hook-naming]
 ```
 
-## Continuous Improvement
+## Continuous Improvement Schedule
 
-```typescript
-await learningOptimizer.continuousImprovement({
-  agents: ['test-generator', 'coverage-analyzer', 'defect-predictor'],
-  schedule: {
-    metricCollection: 'hourly',
-    tuning: 'weekly',
-    majorUpdates: 'monthly'
-  },
-  thresholds: {
-    degradationAlert: 5,  // percent
-    improvementTarget: 2,  // percent per week
-  },
-  automation: {
-    autoTune: true,
-    autoRollback: true,
-    requireApproval: ['major-changes']
-  }
-});
-```
+| Cadence | Action | Auto |
+|---------|--------|------|
+| Hourly | Collect metrics | Yes |
+| Weekly | Tune parameters | Yes |
+| Monthly | Major model updates | Requires approval |
 
-## Pattern Learning
-
-```typescript
-await patternLearner.learn({
-  sources: {
-    codeExamples: 'examples/**/*.ts',
-    testExamples: 'tests/**/*.test.ts',
-    userFeedback: 'feedback/*.json'
-  },
-  extraction: {
-    syntacticPatterns: true,
-    semanticPatterns: true,
-    contextualPatterns: true
-  },
-  storage: {
-    vectorDB: 'agentdb',
-    versioning: true
-  }
-});
-```
+Degradation alert triggers at 5% decline. Auto-rollback enabled.
 
 ## Coordination
 
 **Primary Agents**: qe-transfer-specialist, qe-metrics-optimizer, qe-pattern-learner
-**Coordinator**: qe-learning-coordinator
 **Related Skills**: qe-test-generation, qe-defect-intelligence

@@ -1,20 +1,6 @@
 ---
 name: refactoring-patterns
-description: "Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability."
-category: development-practices
-priority: medium
-tokenEstimate: 1000
-agents: [qe-code-reviewer, qe-quality-analyzer, qe-test-refactorer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [refactoring, code-quality, technical-debt, maintainability, clean-code]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Apply Extract Method, Extract Class, Decompose Conditional, Replace Loop with Pipeline, and other safe refactoring patterns using test-verified small steps. Identifies code smells and maps them to appropriate refactorings. Use when cleaning up code, reducing technical debt, or improving maintainability without changing behavior."
 ---
 
 # Refactoring Patterns

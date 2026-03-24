@@ -1,21 +1,6 @@
 ---
 name: test-automation-strategy
-description: "Design and implement effective test automation with proper pyramid, patterns, and CI/CD integration. Use when building automation frameworks or improving test efficiency."
-category: testing-methodologies
-priority: high
-tokenEstimate: 1000
-agents: [qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-flaky-test-hunter, qe-regression-risk-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [automation, test-pyramid, page-object, first-principles, ci-cd, flaky-tests]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/test-automation-strategy.yaml
+description: "Design test automation with proper pyramid ratios, Page Object patterns, flaky test management, and CI/CD pipeline integration. Use when building automation frameworks, fixing flaky tests, or optimizing test suite speed."
 ---
 
 # Test Automation Strategy

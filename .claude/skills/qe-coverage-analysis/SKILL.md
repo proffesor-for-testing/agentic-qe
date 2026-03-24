@@ -1,18 +1,17 @@
 ---
-name: "QE Coverage Analysis"
-description: "Use when analyzing test coverage, identifying coverage gaps, prioritizing testing effort, or comparing coverage between branches."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-coverage-analysis.yaml
+name: "qe-coverage-analysis"
+description: "Analyze test coverage gaps using risk-weighted scoring, detect uncovered critical paths, compare coverage between branches. Use when identifying where tests are needed most or setting coverage targets."
 ---
 
 # QE Coverage Analysis
 
-## Purpose
+## Workflow
 
-Guide the use of v3's advanced coverage analysis capabilities including sublinear gap detection algorithms, risk-weighted coverage scoring, and intelligent test prioritization based on code criticality.
+1. **Run coverage analysis** — Collect statement, branch, and function coverage metrics
+2. **Detect gaps** — Use sublinear O(log n) gap detection to identify uncovered paths
+3. **Risk-weight gaps** — Score gaps by complexity, change frequency, bug history, criticality
+4. **Prioritize effort** — Rank files by coverage impact and risk score
+5. **Validate trends** — Compare against run history to detect coverage decline patterns
 
 ## Activation
 

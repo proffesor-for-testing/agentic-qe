@@ -1,20 +1,6 @@
 ---
 name: tdd-london-chicago
-description: "Apply London (mock-based) and Chicago (state-based) TDD schools. Use when practicing test-driven development or choosing testing style for your context."
-category: development-practices
-priority: high
-tokenEstimate: 1100
-agents: [qe-test-generator, qe-test-implementer, qe-test-refactorer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [tdd, testing, london-school, chicago-school, red-green-refactor, mocks]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Practice Red-Green-Refactor TDD with London school (mock-based, outside-in) and Chicago school (state-based, inside-out) patterns with decision criteria for each. Use when practicing TDD, choosing between mock-based and state-based testing, or implementing test-first development."
 ---
 
 # Test-Driven Development: London & Chicago Schools

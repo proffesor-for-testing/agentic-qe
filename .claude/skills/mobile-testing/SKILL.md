@@ -1,21 +1,6 @@
 ---
 name: mobile-testing
-description: "Comprehensive mobile testing for iOS and Android platforms including gestures, sensors, permissions, device fragmentation, and performance. Use when testing native apps, hybrid apps, or mobile web, ensuring quality across 1000+ device variants."
-category: specialized-testing
-priority: high
-tokenEstimate: 1000
-agents: [qe-test-executor, qe-performance-tester, qe-visual-tester]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [mobile, ios, android, appium, gestures, device-fragmentation, sensors]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/mobile-testing.yaml
+description: "Test iOS and Android apps across device tiers using Appium and device farms, validate touch gestures and permissions flows, verify offline mode and network transitions, and manage device fragmentation strategy. Use when testing native apps, hybrid apps (React Native, Flutter), mobile web, or preparing for app store submission."
 ---
 
 # Mobile Testing

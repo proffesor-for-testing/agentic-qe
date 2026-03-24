@@ -1,32 +1,19 @@
 ---
-name: "Iterative Loop"
-description: "Implement continuous AI iteration loops for complex development tasks. Use when building features requiring test-driven refinement, implementing tasks with clear success criteria, or automating iterative improvement workflows. Based on the Ralph Wiggum technique from Claude Code plugins."
+name: "iterative-loop"
+description: "Run continuous AI-driven development loops until success criteria are met. Automate TDD cycles, bug fix iteration, coverage improvement. Use when implementing tasks with measurable completion criteria."
 ---
 
 # Iterative Loop
 
-## Overview
+## Workflow
 
-The Iterative Loop skill implements **continuous AI-driven development loops** that persist until completion criteria are met. Inspired by the Ralph Wiggum technique, this approach enables autonomous, self-correcting development cycles where the AI sees its previous work in files and git history, iteratively improving until success.
-
-## Core Philosophy
-
-1. **Iteration > Perfection** - Don't aim for perfect on first try; let the loop refine the work
-2. **Failures Are Data** - Each failure provides information to improve the next attempt
-3. **Clear Criteria** - Success must be objectively measurable (tests, metrics, validations)
-4. **Persistence Wins** - Keep trying until success; the loop handles retry logic automatically
-
-## Prerequisites
-
-- Claude Code with session management
-- Clear completion criteria (tests, linting, metrics)
-- Version control (git) for tracking iterations
-
----
+1. **Define success criteria** — Must be objectively measurable (exit codes, metrics, thresholds)
+2. **Structure phases** — Break complex tasks into incremental phases with per-phase checks
+3. **Set safety limits** — Max iterations, stuck detection, critical error stops
+4. **Execute loop** — Make change, verify, analyze, repeat until criteria met
+5. **Validate completion** — Run all verification commands before declaring success
 
 ## Quick Start
-
-### Basic Iterative Development Pattern
 
 ```bash
 # Define task with clear completion criteria
@@ -365,7 +352,8 @@ When ALL success criteria pass, output:
 - [Ralph Orchestrator](https://github.com/mikeyobrien/ralph-orchestrator) - Orchestration tools
 - [Claude Code Plugins](https://github.com/anthropics/claude-code) - Official plugins
 
----
+## Skill Composition
 
-**Origin**: Based on Ralph Wiggum plugin from claude-code repository (anthropics/claude-code)
-**Adapted for**: Agentic QE v3 with Claude Flow integration
+- **TDD iteration** — Use `/tdd-london-chicago` for TDD-specific iteration patterns
+- **Fleet iteration** — Use `/qe-iterative-loop` for AQE v3 fleet-specific loops
+- **Automation hooks** — Use `/hooks-automation` for Claude Flow hook integration

@@ -1,19 +1,13 @@
 ---
-name: "ReasoningBank Intelligence"
-description: "Implement adaptive learning with ReasoningBank for pattern recognition, strategy optimization, and continuous improvement. Use when building self-learning agents, optimizing workflows, or implementing meta-cognitive systems."
+name: "reasoningbank-intelligence"
+description: "Record task outcomes, recognize patterns, compare strategies, and enable auto-learning with ReasoningBank's adaptive system and AgentDB persistence. Use when building self-learning agents, optimizing decision workflows, or implementing meta-cognitive systems."
 ---
 
 # ReasoningBank Intelligence
 
-## What This Skill Does
-
-Implements ReasoningBank's adaptive learning system for AI agents to learn from experience, recognize patterns, and optimize strategies over time. Enables meta-cognitive capabilities and continuous improvement.
-
 ## Prerequisites
 
-- agentic-flow v3.0.0-alpha.1+
-- AgentDB v3.0.0-alpha.10+ (for persistence)
-- Node.js 18+
+- agentic-flow v3.0.0-alpha.1+, AgentDB v3.0.0-alpha.10+, Node.js 18+
 
 ## Quick Start
 

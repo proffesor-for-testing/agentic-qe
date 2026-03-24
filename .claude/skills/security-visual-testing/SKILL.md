@@ -1,21 +1,6 @@
 ---
 name: security-visual-testing
-description: "Security-first visual testing combining URL validation, PII detection, and visual regression with parallel viewport support. Use when testing web applications that handle sensitive data, need visual regression coverage, or require WCAG accessibility compliance."
-category: specialized-testing
-priority: high
-tokenEstimate: 1400
-agents: [qe-visual-tester, qe-security-scanner, qe-accessibility-auditor]
-implementation_status: stable
-optimization_version: 1.0
-last_optimized: 2026-01-21
-dependencies: [visual-testing-advanced, security-testing, accessibility-testing]
-quick_reference_card: true
-tags: [security, visual-testing, pii, accessibility, wcag, parallel-viewport, regression]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/security-visual-testing.yaml
+description: "Perform security-aware visual testing with URL validation, PII detection in screenshots, visual regression comparison, and WCAG accessibility checks across parallel viewports. Use when testing applications with sensitive data, visual regression coverage, or accessibility compliance."
 ---
 
 # Security Visual Testing

@@ -1,26 +1,11 @@
 ---
-name: "QE Defect Intelligence"
-description: "Use when predicting defects before they escape, analyzing root causes of failures, learning defect patterns, or implementing proactive quality management with AI."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-defect-intelligence.yaml
+name: "qe-defect-intelligence"
+description: "Predict defects before they escape using ML, analyze root causes with 5-whys and fault trees, and learn defect patterns from historical data. Use when prioritizing testing by risk or investigating recurring failures."
 ---
 
 # QE Defect Intelligence
 
-## Purpose
-
-Guide the use of v3's defect intelligence capabilities including ML-based defect prediction, pattern recognition from historical data, and automated root cause analysis.
-
-## Activation
-
-- When predicting defect-prone code
-- When analyzing failure patterns
-- When performing root cause analysis
-- When learning from past defects
-- When prioritizing testing based on risk
+ML-based defect prediction, pattern recognition from historical data, and automated root cause analysis.
 
 ## Quick Start
 
@@ -38,32 +23,9 @@ aqe defect rca --failure "test/auth.test.ts:45"
 aqe defect learn --source jira --status resolved
 ```
 
-## Agent Workflow
+## Workflow
 
-```typescript
-// Defect prediction
-Task("Predict defect-prone code", `
-  Analyze PR #456 changes and predict defect likelihood:
-  - Historical defect correlation
-  - Code complexity factors
-  - Author experience with module
-  - Test coverage gaps
-  Flag high-risk changes requiring extra review.
-`, "qe-defect-predictor")
-
-// Root cause analysis
-Task("Analyze test failure", `
-  Investigate recurring failure in AuthService tests:
-  - Collect failure history (last 30 days)
-  - Identify common patterns
-  - Trace to potential root causes
-  - Suggest fixes using 5-whys analysis
-`, "qe-root-cause-analyzer")
-```
-
-## Prediction Models
-
-### 1. Change-Based Prediction
+### Step 1: Predict Defect-Prone Code
 
 ```typescript
 await defectPredictor.predictFromChanges({
@@ -75,15 +37,13 @@ await defectPredictor.predictFromChanges({
     fileHistory: { weight: 0.2 },
     testCoverage: { weight: 0.2 }
   },
-  threshold: {
-    high: 0.7,
-    medium: 0.4,
-    low: 0.2
-  }
+  threshold: { high: 0.7, medium: 0.4, low: 0.2 }
 });
 ```
 
-### 2. Pattern Learning
+**Checkpoint:** Flag all files with risk score > 0.7 for extra review.
+
+### Step 2: Learn Patterns
 
 ```typescript
 await patternLearner.learnPatterns({
@@ -92,31 +52,19 @@ await patternLearner.learnPatterns({
     commits: 'git:last-6-months',
     tests: 'test-results:last-1000-runs'
   },
-  patterns: [
-    'code-smell-to-defect',
-    'change-coupling',
-    'test-gap-correlation',
-    'complexity-defect-density'
-  ],
-  output: {
-    rules: true,
-    visualizations: true,
-    recommendations: true
-  }
+  patterns: ['code-smell-to-defect', 'change-coupling', 'test-gap-correlation', 'complexity-defect-density'],
+  output: { rules: true, visualizations: true, recommendations: true }
 });
 ```
 
-### 3. Root Cause Analysis
+**Checkpoint:** Validate learned patterns against holdout data set.
+
+### Step 3: Root Cause Analysis
 
 ```typescript
 await rootCauseAnalyzer.analyze({
   failure: testFailure,
-  methods: [
-    'five-whys',
-    'fishbone-diagram',
-    'fault-tree',
-    'change-impact'
-  ],
+  methods: ['five-whys', 'fishbone-diagram', 'fault-tree', 'change-impact'],
   context: {
     recentChanges: true,
     environmentDiff: true,
@@ -124,31 +72,6 @@ await rootCauseAnalyzer.analyze({
     similarFailures: true
   }
 });
-```
-
-## Defect Prediction Report
-
-```typescript
-interface DefectPrediction {
-  file: string;
-  riskScore: number;  // 0-1
-  riskLevel: 'critical' | 'high' | 'medium' | 'low';
-  factors: {
-    name: string;
-    contribution: number;
-    details: string;
-  }[];
-  historicalDefects: {
-    count: number;
-    recent: Defect[];
-    patterns: string[];
-  };
-  recommendations: {
-    action: string;
-    priority: string;
-    expectedRiskReduction: number;
-  }[];
-}
 ```
 
 ## Pattern Categories
@@ -164,47 +87,30 @@ interface DefectPrediction {
 ## Root Cause Templates
 
 ```yaml
-root_cause_analysis:
-  five_whys:
-    max_depth: 5
-    prompt_template: "Why did {effect} happen?"
+five_whys:
+  max_depth: 5
+  prompt_template: "Why did {effect} happen?"
 
-  fishbone:
-    categories:
-      - people
-      - process
-      - tools
-      - environment
-      - materials
-      - measurement
+fishbone:
+  categories: [people, process, tools, environment, materials, measurement]
 
-  fault_tree:
-    top_event: "Test Failure"
-    gate_types: [AND, OR, NOT]
-    basic_events: true
+fault_tree:
+  top_event: "Test Failure"
+  gate_types: [AND, OR, NOT]
 ```
 
-## Integration with Issue Tracking
+## Issue Tracker Integration
 
 ```typescript
 await defectIntelligence.syncWithTracker({
   source: 'jira',
   project: 'MYAPP',
-  sync: {
-    defectData: 'bidirectional',
-    predictions: 'create-tasks',
-    patterns: 'update-labels'
-  },
-  automation: {
-    flagHighRisk: true,
-    suggestAssignee: true,
-    linkRelated: true
-  }
+  sync: { defectData: 'bidirectional', predictions: 'create-tasks', patterns: 'update-labels' },
+  automation: { flagHighRisk: true, suggestAssignee: true, linkRelated: true }
 });
 ```
 
 ## Coordination
 
 **Primary Agents**: qe-defect-predictor, qe-pattern-learner, qe-root-cause-analyzer
-**Coordinator**: qe-defect-intelligence-coordinator
 **Related Skills**: qe-coverage-analysis, qe-quality-assessment

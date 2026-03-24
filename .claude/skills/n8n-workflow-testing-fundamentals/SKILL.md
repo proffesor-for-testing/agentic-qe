@@ -1,21 +1,6 @@
 ---
 name: n8n-workflow-testing-fundamentals
-description: "Comprehensive n8n workflow testing including execution lifecycle, node connection patterns, data flow validation, and error handling strategies. Use when testing n8n workflow automation applications."
-category: n8n-testing
-priority: high
-tokenEstimate: 1200
-agents: [n8n-workflow-executor, n8n-node-validator, n8n-trigger-test]
-implementation_status: production
-optimization_version: 1.0
-last_optimized: 2025-12-15
-dependencies: []
-quick_reference_card: true
-tags: [n8n, workflow, automation, testing, data-flow, nodes, triggers]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/n8n-workflow-testing-fundamentals.yaml
+description: "Validate n8n workflow structure, test node-to-node data flow, verify trigger reliability, exercise error handling paths, and measure execution performance. Covers linear, branching, parallel, and loop flow patterns. Use when testing n8n workflow automation applications or debugging failed executions."
 ---
 
 # n8n Workflow Testing Fundamentals

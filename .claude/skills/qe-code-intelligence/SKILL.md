@@ -1,69 +1,31 @@
 ---
-name: "QE Code Intelligence"
-description: "Use when understanding unfamiliar code, searching semantically across a codebase, mapping dependencies, or reducing context window usage through intelligent retrieval."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-code-intelligence.yaml
+name: "qe-code-intelligence"
+description: "Build knowledge graphs, search code semantically, map dependencies, and reduce context window usage through intelligent retrieval. Use when understanding unfamiliar code or navigating large codebases."
 ---
 
 # QE Code Intelligence
 
-## Purpose
-
-Guide the use of v3's code intelligence capabilities including knowledge graph construction, semantic code search, dependency mapping, and context-aware code understanding with significant token reduction.
-
-## Activation
-
-- When understanding unfamiliar code
-- When searching for code semantically
-- When analyzing dependencies
-- When building code knowledge graphs
-- When reducing context for AI operations
+Knowledge graph construction, semantic code search, dependency mapping, and context-aware code understanding with token reduction.
 
 ## Quick Start
 
 ```bash
-# Index codebase into knowledge graph
+# Index codebase
 aqe kg index --source src/ --incremental
 
-# Semantic code search
+# Semantic search
 aqe kg search "authentication middleware" --limit 10
 
 # Query dependencies
 aqe kg deps --file src/services/UserService.ts --depth 3
 
-# Get intelligent context
+# Get optimized context
 aqe kg context --query "how does payment processing work"
 ```
 
-## Agent Workflow
+## Workflow
 
-```typescript
-// Build knowledge graph
-Task("Index codebase", `
-  Build knowledge graph for the project:
-  - Parse all TypeScript files in src/
-  - Extract entities (classes, functions, types)
-  - Map relationships (imports, calls, inheritance)
-  - Generate embeddings for semantic search
-  Store in AgentDB vector database.
-`, "qe-knowledge-graph")
-
-// Semantic search
-Task("Find relevant code", `
-  Search for code related to "user authentication flow":
-  - Use semantic similarity (not just keyword)
-  - Include related functions and types
-  - Rank by relevance score
-  - Return with minimal context (80% token reduction)
-`, "qe-semantic-searcher")
-```
-
-## Knowledge Graph Operations
-
-### 1. Codebase Indexing
+### Step 1: Index Codebase
 
 ```typescript
 await knowledgeGraph.index({
@@ -73,150 +35,69 @@ await knowledgeGraph.index({
     relationships: ['imports', 'calls', 'extends', 'implements', 'uses'],
     metadata: ['jsdoc', 'complexity', 'lines']
   },
-  embeddings: {
-    model: 'code-embedding',
-    dimensions: 384,
-    normalize: true
-  },
-  incremental: true  // Only index changed files
+  embeddings: { model: 'code-embedding', dimensions: 384, normalize: true },
+  incremental: true
 });
 ```
 
-### 2. Semantic Search
+**Checkpoint:** Verify entity count matches expected modules.
+
+### Step 2: Semantic Search
 
 ```typescript
 await semanticSearcher.search({
   query: 'payment processing with stripe',
-  options: {
-    similarity: 'cosine',
-    threshold: 0.7,
-    limit: 20,
-    includeContext: true
-  },
-  filters: {
-    fileTypes: ['.ts', '.tsx'],
-    excludePaths: ['node_modules', 'dist']
-  }
+  options: { similarity: 'cosine', threshold: 0.7, limit: 20, includeContext: true },
+  filters: { fileTypes: ['.ts', '.tsx'], excludePaths: ['node_modules', 'dist'] }
 });
 ```
 
-### 3. Dependency Analysis
+### Step 3: Dependency Analysis
 
 ```typescript
 await dependencyMapper.analyze({
   entry: 'src/services/OrderService.ts',
   depth: 3,
-  direction: 'both',  // imports and importedBy
+  direction: 'both',
   output: {
     graph: true,
-    metrics: {
-      afferentCoupling: true,
-      efferentCoupling: true,
-      instability: true
-    }
+    metrics: { afferentCoupling: true, efferentCoupling: true, instability: true }
   }
 });
 ```
 
-## Token Reduction Strategy
+### Step 4: Optimized Context Retrieval
 
 ```typescript
-// Get context with 80% token reduction
 const context = await codeIntelligence.getOptimizedContext({
   query: 'implement user registration',
   budget: 4000,  // max tokens
-  strategy: {
-    relevanceRanking: true,
-    summarization: true,
-    codeCompression: true,
-    deduplication: true
-  },
-  include: {
-    signatures: true,
-    implementations: 'relevant-only',
-    comments: 'essential',
-    examples: 'top-3'
-  }
+  strategy: { relevanceRanking: true, summarization: true, codeCompression: true, deduplication: true },
+  include: { signatures: true, implementations: 'relevant-only', comments: 'essential', examples: 'top-3' }
 });
 ```
 
-## Knowledge Graph Schema
+Achieves ~80% token reduction vs. raw file reads.
 
-```typescript
-interface KnowledgeGraph {
-  entities: {
-    id: string;
-    type: 'class' | 'function' | 'interface' | 'type' | 'file';
-    name: string;
-    file: string;
-    line: number;
-    embedding: number[];
-    metadata: Record<string, any>;
-  }[];
-  relationships: {
-    source: string;
-    target: string;
-    type: 'imports' | 'calls' | 'extends' | 'implements' | 'uses';
-    weight: number;
-  }[];
-  indexes: {
-    byName: Map<string, string[]>;
-    byFile: Map<string, string[]>;
-    byType: Map<string, string[]>;
-  };
-}
-```
-
-## Search Results
-
-```typescript
-interface SearchResult {
-  entity: {
-    name: string;
-    type: string;
-    file: string;
-    line: number;
-  };
-  relevance: number;
-  snippet: string;
-  context: {
-    before: string[];
-    after: string[];
-    related: string[];
-  };
-  explanation: string;
-}
-```
-
-## CLI Examples
+## CLI Reference
 
 ```bash
-# Full reindex
-aqe kg index --source src/ --force
-
-# Search with filters
+aqe kg index --source src/ --force          # Full reindex
 aqe kg search "database connection" --type function --file "*.service.ts"
-
-# Show entity details
-aqe kg show --entity UserService --relations
-
-# Export graph
+aqe kg show --entity UserService --relations # Entity details
 aqe kg export --format dot --output codebase.dot
-
-# Statistics
-aqe kg stats
+aqe kg stats                                 # Graph statistics
 ```
 
 ## Gotchas
 
-- WARNING: code-intelligence domain has 18% success rate — prefer direct grep/glob over agent-based code search for simple queries
-- Knowledge graph construction fails on repos >50K LOC — scope to specific modules
-- Semantic search returns irrelevant results without domain-specific embeddings — always verify search results manually
-- Agent claims "80% token reduction" but may skip critical context — verify key files are included in results
-- Fleet must be initialized before using: run `npx ruflo doctor --fix` if you get initialization errors
+- code-intelligence domain has 18% success rate -- prefer direct grep/glob for simple queries
+- Knowledge graph fails on repos > 50K LOC -- scope to specific modules
+- Semantic search without domain-specific embeddings returns irrelevant results -- always verify manually
+- Agent claims "80% token reduction" but may skip critical context -- verify key files are included
+- Run `npx ruflo doctor --fix` if initialization errors occur
 
 ## Coordination
 
 **Primary Agents**: qe-knowledge-graph, qe-semantic-searcher, qe-dependency-mapper
-**Coordinator**: qe-code-intelligence-coordinator
 **Related Skills**: qe-test-generation, qe-defect-intelligence

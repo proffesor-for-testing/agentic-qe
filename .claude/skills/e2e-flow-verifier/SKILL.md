@@ -1,7 +1,6 @@
 ---
 name: e2e-flow-verifier
-description: "Use when verifying complete user flows end-to-end with Playwright, recording video evidence, and asserting state at each step. For product verification with real browser automation."
-user-invocable: true
+description: "Verify complete user flows end-to-end with Playwright browser automation, video recording, trace capture, and per-step state assertions. Use when verifying sign-up, purchase, or profile flows with real browser evidence."
 ---
 
 # E2E Flow Verifier

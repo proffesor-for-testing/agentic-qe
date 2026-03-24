@@ -1,6 +1,6 @@
 ---
 name: test-metrics-dashboard
-description: "Use when querying test history, analyzing flakiness rates, tracking MTTR, or building quality trend dashboards from test execution data."
+description: "Query test execution history, calculate pass rates and flakiness scores, track MTTR from failure to fix, compare coverage trends across runs, and identify top failing tests. Exports Jest results to JSON and generates trend analysis dashboards. Use when querying test history, analyzing flakiness rates, tracking MTTR, or building quality trend dashboards."
 user-invocable: true
 ---
 

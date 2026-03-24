@@ -1,21 +1,6 @@
 ---
 name: visual-testing-advanced
-description: "Advanced visual regression testing with pixel-perfect comparison, AI-powered diff analysis, responsive design validation, and cross-browser visual consistency. Use when detecting UI regressions, validating designs, or ensuring visual consistency."
-category: specialized-testing
-priority: high
-tokenEstimate: 900
-agents: [qe-visual-tester, qe-test-executor, qe-quality-gate]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [visual, regression, screenshot, pixel-diff, percy, playwright, responsive]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/visual-testing-advanced.yaml
+description: "Run visual regression tests with pixel-perfect screenshot comparison, AI-powered diff analysis, responsive breakpoint validation, and cross-browser consistency checks using Playwright and Percy. Use when detecting UI regressions, validating design implementations, or ensuring visual consistency across browsers."
 ---
 
 # Advanced Visual Testing

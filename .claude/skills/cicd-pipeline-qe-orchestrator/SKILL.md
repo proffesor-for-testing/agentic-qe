@@ -1,21 +1,6 @@
 ---
-name: cicd-pipeline-qe-orchestrator
-description: "Orchestrate quality engineering across CI/CD pipeline phases. Use when designing test strategies, planning quality gates, or implementing shift-left/shift-right testing."
-category: infrastructure
-priority: critical
-tokenEstimate: 1300
-agents: [qe-fleet-commander, qe-test-generator, qe-test-executor, qe-coverage-analyzer, qe-quality-gate, qe-deployment-readiness]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: [agentic-quality-engineering, shift-left-testing]
-quick_reference_card: true
-tags: [cicd, pipeline, orchestration, quality-gates, shift-left, shift-right, fleet]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/cicd-pipeline-qe-orchestrator.yaml
+name: "cicd-pipeline-qe-orchestrator"
+description: "Orchestrate QE agents across CI/CD pipeline phases with quality gates at each stage. Configure shift-left and shift-right testing. Use when designing pipeline test strategies or implementing quality gates."
 ---
 
 # CI/CD Pipeline QE Orchestrator
@@ -317,4 +302,8 @@ The CI/CD Pipeline QE Orchestrator provides:
 - **Adaptive strategy** based on risk and context
 - **Full fleet coordination** through memory namespaces
 
-**With Agents:** Use `qe-fleet-commander` for multi-agent orchestration. Coordinate through `aqe/*` memory namespace. Batch operations for efficiency.
+## Skill Composition
+
+- **Fleet coordination** — Use `/agentic-quality-engineering` for multi-agent fleet management
+- **Early detection** — Use `/shift-left-testing` for commit-phase defect detection
+- **Resilience** — Use `/qe-chaos-resilience` for staging-phase chaos testing

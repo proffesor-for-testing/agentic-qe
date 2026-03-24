@@ -1,16 +1,6 @@
 ---
 name: test-idea-rewriting
-description: "Transform passive 'Verify X' test descriptions into active, observable test actions. Use when test ideas lack specificity, use vague language, or fail quality validation. Converts to action-verb format for clearer, more testable descriptions."
-category: test-design
-priority: medium
-tokenEstimate: 800
-agents: [qe-test-idea-rewriter]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2026-01-17
-dependencies: []
-quick_reference_card: true
-tags: [test-ideas, rewriting, action-verbs, quality, transformation]
+description: "Transform passive 'Verify X' test descriptions into active '[ACTION] trigger; [OBSERVE] result' format with preserved metadata and zero vague-verb output. Use when test ideas lack specificity, use vague language, or need conversion to action-verb format."
 ---
 
 # Test Idea Rewriting

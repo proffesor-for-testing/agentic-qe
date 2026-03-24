@@ -1,21 +1,17 @@
 ---
-name: "AgentDB Memory Patterns"
-description: "Implement persistent memory patterns for AI agents using AgentDB. Includes session memory, long-term storage, pattern learning, and context management. Use when building stateful agents, chat systems, or intelligent assistants."
+name: "agentdb-memory-patterns"
+description: "Implement persistent memory with AgentDB: session memory, long-term facts, pattern learning, vector search. Initialize databases, run MCP server, create learning plugins. Use when building stateful AI agents."
 ---
 
 # AgentDB Memory Patterns
 
-## What This Skill Does
+## Workflow
 
-Provides memory management patterns for AI agents using AgentDB's persistent storage and ReasoningBank integration. Enables agents to remember conversations, learn from interactions, and maintain context across sessions.
-
-**Performance**: 150x-12,500x faster than traditional solutions with 100% backward compatibility.
-
-## Prerequisites
-
-- Node.js 18+
-- AgentDB v1.0.7+ (via agentic-flow or standalone)
-- Understanding of agent architectures
+1. **Initialize database** — `npx agentdb@latest init ./agents.db`
+2. **Configure adapter** — Set quantization, caching, and learning options
+3. **Implement memory patterns** — Session memory, long-term facts, or pattern learning
+4. **Enable reasoning** — Use ReasoningBank for context synthesis and MMR search
+5. **Monitor performance** — Run benchmarks, check stats, consolidate as needed
 
 ## Quick Start with CLI
 

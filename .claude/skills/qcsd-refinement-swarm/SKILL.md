@@ -1,62 +1,13 @@
 ---
-name: qcsd-refinement-swarm
-description: "Use when running Sprint Refinement sessions with SFDIPOT product factors, generating BDD scenarios, or validating requirements in the QCSD Refinement phase."
-category: qcsd-phases
-priority: critical
-version: 1.0.0
-tokenEstimate: 3200
-# DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
-domains:
-  primary:
-    - domain: requirements-validation
-      agents: [qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator]
-  conditional:
-    - domain: contract-testing
-      agents: [qe-contract-validator]
-    - domain: code-intelligence
-      agents: [qe-impact-analyzer, qe-dependency-mapper]
-    - domain: enterprise-integration
-      agents: [qe-middleware-validator, qe-odata-contract-tester, qe-sod-analyzer]
-  transformation:
-    - domain: test-generation
-      agents: [qe-test-idea-rewriter]
-# Agent Inventory
-agents:
-  core: [qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator]
-  conditional: [qe-contract-validator, qe-impact-analyzer, qe-dependency-mapper, qe-middleware-validator, qe-odata-contract-tester, qe-sod-analyzer]
-  transformation: [qe-test-idea-rewriter]
-  total: 10
-  sub_agents: 0
-skills: [context-driven-testing, testability-scoring, risk-based-testing]
-# Execution Models (Task Tool is PRIMARY)
-execution:
-  primary: task-tool
-  alternatives: [mcp-tools, cli]
-swarm_pattern: true
-parallel_batches: 3
-last_updated: 2026-02-02
-enforcement_level: strict
-tags: [qcsd, refinement, sfdipot, bdd, gherkin, requirements, swarm, parallel, ddd]
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qcsd-refinement-swarm.yaml
+name: "qcsd-refinement-swarm"
+description: "Run Sprint Refinement sessions with SFDIPOT product factors, BDD scenario generation, and INVEST validation. Use when preparing stories for sprint commitment or running QCSD Refinement phase gates."
 ---
 
 # QCSD Refinement Swarm v1.0
 
-Shift-left quality engineering swarm for Sprint Refinement sessions.
+Shift-left quality engineering swarm for Sprint Refinement. Takes stories that passed Ideation and prepares them for Sprint commitment using SFDIPOT product factors, BDD scenarios, and INVEST validation. Renders a READY / CONDITIONAL / NOT-READY decision.
 
----
-
-## Overview
-
-The Refinement Swarm takes user stories that passed Ideation and prepares them
-for Sprint commitment using SFDIPOT product factors, BDD scenarios, and INVEST validation.
-It renders a READY / CONDITIONAL / NOT-READY decision.
-
-### QCSD Phase Positioning
+## QCSD Phase Positioning
 
 | Phase | Swarm | Decision | When |
 |-------|-------|----------|------|
@@ -71,31 +22,25 @@ It renders a READY / CONDITIONAL / NOT-READY decision.
 - `STORY_CONTENT`: User story with acceptance criteria (required)
 - `OUTPUT_FOLDER`: Where to save reports (default: `${PROJECT_ROOT}/Agentic QCSD/refinement/`)
 
----
+## Enforcement Rules
 
-## ENFORCEMENT RULES - READ FIRST
-
-| Rule | Enforcement |
+| Rule | Requirement |
 |------|-------------|
-| **E1** | MUST spawn ALL THREE core agents in Step 2. |
-| **E2** | MUST put all parallel Task calls in a SINGLE message. |
-| **E3** | MUST STOP and WAIT after each batch. |
-| **E4** | MUST spawn conditional agents if flags are TRUE. |
-| **E5** | MUST apply READY/CONDITIONAL/NOT-READY logic exactly. |
-| **E6** | MUST generate the full report structure. |
-| **E7** | Each agent MUST read its reference files before analysis. |
-| **E8** | MUST apply qe-test-idea-rewriter transformation in Step 8. |
-| **E9** | MUST execute Step 7 learning persistence. |
-
----
+| E1 | Spawn ALL THREE core agents in Step 2. |
+| E2 | All parallel Task calls in a SINGLE message. |
+| E3 | STOP and WAIT after each batch. |
+| E4 | Spawn conditional agents if flags are TRUE. |
+| E5 | Apply READY/CONDITIONAL/NOT-READY logic exactly. |
+| E6 | Generate the full report structure. |
+| E7 | Each agent reads its reference files first. |
+| E8 | Apply qe-test-idea-rewriter transformation in Step 8. |
+| E9 | Execute Step 7 learning persistence. |
 
 ## Step Execution Protocol
 
 Execute steps sequentially by reading each step file with the Read tool.
 
-### Steps
-
-1. **Flag Detection** -- `steps/01-flag-detection.md` -- Analyze story content, evaluate all 7 flags
+1. **Flag Detection** -- `steps/01-flag-detection.md` -- Analyze story, evaluate flags
 2. **Core Agents** -- `steps/02-core-agents.md` -- Spawn qe-product-factors-assessor, qe-bdd-generator, qe-requirements-validator
 3. **Batch 1 Results** -- `steps/03-batch1-results.md` -- Wait and extract metrics
 4. **Conditional Agents** -- `steps/04-conditional-agents.md` -- Spawn flagged agents
@@ -107,17 +52,11 @@ Execute steps sequentially by reading each step file with the Read tool.
 
 ### Execution Instructions
 
-1. Use the Read tool to load the current step file
-2. Execute the step's instructions completely
-3. Verify all success criteria are met
-4. Pass output as context to next step
-5. If a step fails, halt and report
-
-### Resume Support
-
-To resume from a specific step: specify `--from-step N`.
-
----
+1. Read each step file with Read tool
+2. Execute completely, verify success criteria
+3. Pass output as context to next step
+4. On failure, halt and report
+5. Resume support: `--from-step N`
 
 ## Agent Inventory
 
@@ -135,10 +74,3 @@ To resume from a specific step: specify `--from-step N`.
 | qe-test-idea-rewriter | Transformation (always) | test-generation | 3 |
 
 **Total: 10 agents (3 core + 6 conditional + 1 transformation)**
-
----
-
-## Key Principle
-
-**Refinement quality determines sprint success. This swarm ensures stories are
-testable, complete, and ready for development commitment.**

@@ -1,6 +1,6 @@
 ---
 name: skill-stats
-description: "Use when reviewing which QE skills are being used, finding undertriggering skills, or analyzing skill effectiveness. Shows usage patterns and recommendations."
+description: "Analyze QE skill usage patterns, identify the top 10 most-used skills, find undertriggering and never-used skills, and report trigger method breakdowns (explicit vs auto-selected). Logs invocations and generates usage reports. Use when reviewing skill adoption, finding undertriggering skills, or optimizing skill descriptions for better auto-selection."
 user-invocable: true
 ---
 

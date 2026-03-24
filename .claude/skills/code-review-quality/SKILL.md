@@ -1,20 +1,6 @@
 ---
 name: code-review-quality
-description: "Conduct context-driven code reviews focusing on quality, testability, and maintainability. Use when reviewing code, providing feedback, or establishing review practices."
-category: development-practices
-priority: high
-tokenEstimate: 900
-agents: [qe-quality-analyzer, qe-security-scanner, qe-performance-tester, qe-coverage-analyzer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [code-review, feedback, quality, testability, maintainability, pr-review]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Conduct prioritized code reviews for bugs, security, testability, and maintainability with structured feedback templates. Use when reviewing PRs, providing code feedback, or establishing team review standards."
 ---
 
 # Code Review Quality

@@ -1,18 +1,17 @@
 ---
-name: "QE Test Generation"
-description: "Use when generating tests for new/changed code, improving test coverage, or migrating between Jest/Vitest/Playwright frameworks."
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/qe-test-generation.yaml
+name: "qe-test-generation"
+description: "Generate unit, integration, and e2e tests for new or changed code. Fill coverage gaps, migrate between Jest/Vitest/Playwright. Use when creating tests or improving test coverage."
 ---
 
 # QE Test Generation
 
-## Purpose
+## Workflow
 
-Guide the use of v3's AI-powered test generation capabilities including pattern-based test synthesis, multi-framework support, and intelligent test case derivation from code analysis.
+1. **Analyze source** — Identify methods, branches, dependencies, error paths
+2. **Select framework** — Check installed framework (jest vs vitest vs mocha)
+3. **Generate tests** — Create tests using code analysis or pattern matching
+4. **Validate output** — Run generated tests to verify they execute correctly
+5. **Check coverage** — Confirm coverage improvement meets targets
 
 ## Activation
 

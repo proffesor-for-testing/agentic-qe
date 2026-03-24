@@ -1,6 +1,6 @@
 ---
-name: "Swarm Orchestration"
-description: "Orchestrate multi-agent swarms with agentic-flow for parallel task execution, dynamic topology, and intelligent coordination. Use when scaling beyond single agents, implementing complex workflows, or building distributed AI systems."
+name: "swarm-orchestration"
+description: "Initialize and orchestrate multi-agent swarms with mesh, hierarchical, and adaptive topologies using agentic-flow. Supports parallel and pipeline task execution, shared memory coordination, load balancing, and fault tolerance with automatic retry. Use when scaling beyond single agents, coordinating complex multi-step workflows, or building distributed AI systems."
 ---
 
 # Swarm Orchestration

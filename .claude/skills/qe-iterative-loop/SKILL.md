@@ -1,5 +1,5 @@
 ---
-name: "QE Iterative Loop"
+name: "qe-iterative-loop"
 description: "Quality Engineering iteration loops for autonomous test improvement, coverage achievement, and quality gate compliance. Use when tests need to pass, coverage targets must be met, quality gates require compliance, or flaky tests need stabilization. Integrates with AQE v3 fleet agents for coordinated quality iteration."
 trust_tier: 2
 validation:

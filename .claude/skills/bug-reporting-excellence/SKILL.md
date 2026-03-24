@@ -1,20 +1,6 @@
 ---
 name: bug-reporting-excellence
-description: "Write high-quality bug reports that get fixed quickly. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards."
-category: quality-communication
-priority: high
-tokenEstimate: 900
-agents: [qe-quality-analyzer, qe-production-intelligence, qe-flaky-test-hunter]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [bugs, reporting, communication, triage, quality]
-trust_tier: 2
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
+description: "Write structured bug reports with reproducible steps, severity triage, environment details, and business impact assessment. Use when reporting bugs, training teams on bug reporting, or establishing bug report standards."
 ---
 
 # Bug Reporting Excellence

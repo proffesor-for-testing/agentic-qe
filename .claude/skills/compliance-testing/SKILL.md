@@ -1,22 +1,6 @@
 ---
 name: compliance-testing
-description: "Regulatory compliance testing for GDPR, CCPA, HIPAA, SOC2, PCI-DSS and industry-specific regulations. Use when ensuring legal compliance, preparing for audits, or handling sensitive data."
-category: specialized-testing
-priority: high
-tokenEstimate: 900
-agents: [qe-security-scanner, qe-test-executor, qe-quality-gate]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-02
-dependencies: []
-quick_reference_card: true
-tags: [compliance, gdpr, hipaa, pci-dss, ccpa, soc2, privacy, audit]
-# ADR-056 Validation Stack Configuration
-trust_tier: 3
-validation:
-  schema_path: schemas/output.json
-  validator_path: scripts/validate-config.json
-  eval_path: evals/compliance-testing.yaml
+description: "Test regulatory compliance for GDPR, CCPA, HIPAA, SOC2, and PCI-DSS by validating data subject rights, encryption at rest and in transit, audit trail completeness, and consent tracking. Generates audit-ready compliance reports with evidence. Use when ensuring legal compliance, preparing for security audits, or handling PII/PHI/PCI data."
 ---
 
 # Compliance Testing

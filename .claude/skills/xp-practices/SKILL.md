@@ -1,18 +1,6 @@
 ---
-name: xp-practices
-description: "Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices."
-category: methodology
-priority: medium
-tokenEstimate: 1000
-agents: [qe-quality-analyzer, qe-test-executor, qe-code-reviewer]
-implementation_status: optimized
-optimization_version: 1.0
-last_optimized: 2025-12-03
-dependencies: []
-quick_reference_card: true
-tags: [xp, agile, pair-programming, tdd, continuous-integration, collaboration]
-trust_tier: 0
-validation:
+name: "xp-practices"
+description: "Implement XP practices: TDD, pair programming, continuous integration, collective ownership, small releases. Use when adopting agile technical practices or improving team collaboration."
 ---
 
 # Extreme Programming (XP) Practices
@@ -121,4 +109,8 @@ const xpFleet = await FleetManager.coordinate({
 
 **XP practices work as a system** - TDD enables collective ownership, CI enables small releases, pairing enables collective ownership. Don't cherry-pick randomly.
 
-**With Agents:** Pair humans with agents. Agents handle repetitive work (regression, data generation, coverage analysis), humans provide judgment and creativity.
+## Skill Composition
+
+- **TDD deep dive** — Use `/tdd-london-chicago` for detailed TDD patterns
+- **Safe refactoring** — Use `/refactoring-patterns` for refactoring under test coverage
+- **AI pairing** — Use `/pair-programming` for agent-assisted pair programming
