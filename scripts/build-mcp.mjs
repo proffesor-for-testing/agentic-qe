@@ -48,6 +48,7 @@ const nativeModules = [
   'prime-radiant-advanced-wasm',
   'pg',
   'pg-native',
+  'web-tree-sitter',
 ];
 
 // Pure JS externals that work fine with ESM import
