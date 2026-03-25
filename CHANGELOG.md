@@ -5,6 +5,22 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.9] - 2026-03-25
+
+### Added
+
+- **Multi-language coverage parsers** — 6 new parsers for JaCoCo (Java/Kotlin), dotcover (C#/.NET), Tarpaulin (Rust), Go cover, Kover (Kotlin/JVM), and xcresult (Swift/iOS), extending coverage analysis beyond JavaScript/TypeScript.
+- **Language-aware agent routing** — Agent routing now considers source language when selecting models and strategies, with MCP schema support for the `language` parameter.
+- **RuVector P1 scale benchmarks** — Production-scale benchmarks for 10K/100K vector operations, concurrency stress tests, and HNSW memory usage display in `aqe ruvector status`.
+- **Knowledge graph language extensions** — Added Swift and C# file extension mappings for broader polyglot code intelligence.
+
+### Fixed
+
+- **SHA-256 witness hashing** — Replaced insecure djb2 hash with SHA-256 in the witness adapter for cryptographic integrity of coherence proofs.
+- **Coherence gate witness persistence** — Witnesses are now persisted to the proof envelope, ensuring audit trail continuity across sessions.
+- **Hardcoded signing key removed** — Eliminated a hardcoded key from the coherence gate; signing keys are now derived from configuration.
+- **Benchmark output formatting** — Fixed RuVector benchmark result display to correctly report metrics.
+
 ## [3.8.8] - 2026-03-24
 
 ### Added
