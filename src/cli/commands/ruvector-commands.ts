@@ -15,6 +15,7 @@ import {
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from '../../integrations/ruvector/feature-flags.js';
+import { HnswAdapter } from '../../kernel/hnsw-adapter.js';
 
 // ============================================================================
 // Types
@@ -72,7 +73,7 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useHnswHealthMonitor: 'HNSW health monitor (Task 3.4)',
   useRegretTracking: 'Regret tracking & learning health (Task 2.4)',
   useCoherenceGate: 'Sheaf-gated coherence validation (ADR-083, Task 3.1)',
-  useWitnessChain: 'Blake3 hash-chained witness records (Task 3.1)',
+  useWitnessChain: 'SHA-256 hash-chained witness records (Task 3.1)',
   useCNNVisualRegression: 'CNN visual regression testing (Task 4.3)',
   useDAGAttention: 'DAG attention for test scheduling (Task 4.2)',
   useCoherenceActionGate: 'Coherence-gated agent actions (ADR-083, Task 3.2)',
@@ -136,6 +137,13 @@ function padRight(str: string, length: number): string {
   return str.padEnd(length);
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`;
+}
+
 function isValidFlagName(name: string): name is keyof RuVectorFeatureFlags {
   return VALID_FLAG_NAMES.includes(name as keyof RuVectorFeatureFlags);
 }
@@ -173,6 +181,42 @@ function executeStatus(): void {
     const valueText = value ? chalk.green('true') : chalk.gray('false');
     const suffix = isDefault ? chalk.gray(' (default)') : chalk.yellow(' (modified)');
     console.log(`    ${padRight(flagName + ':', 30)} ${valueText}${suffix}`);
+  }
+
+  // HNSW Memory Usage
+  const indexNames = HnswAdapter.listIndexes();
+  if (indexNames.length > 0) {
+    console.log('');
+    console.log(chalk.cyan('  HNSW Memory Usage:'));
+    let totalVectors = 0;
+    let totalEstimatedBytes = 0;
+    for (const name of indexNames) {
+      const adapter = HnswAdapter.get(name);
+      if (adapter) {
+        const count = adapter.size();
+        const dims = adapter.dimensions();
+        // Raw vectors + HNSW graph overhead (~2x)
+        const rawBytes = count * dims * 4;
+        const estimatedBytes = rawBytes * 3;
+        totalVectors += count;
+        totalEstimatedBytes += estimatedBytes;
+        console.log(
+          `    ${padRight(name + ':', 20)} ${chalk.white(String(count))} vectors, ` +
+          `${chalk.white(dims)}d, ~${chalk.white(formatBytes(estimatedBytes))}`,
+        );
+      }
+    }
+    console.log(
+      chalk.gray(`    ${'─'.repeat(50)}`),
+    );
+    console.log(
+      `    ${padRight('Total:', 20)} ${chalk.bold.white(String(totalVectors))} vectors, ` +
+      `~${chalk.bold.white(formatBytes(totalEstimatedBytes))}`,
+    );
+  } else {
+    console.log('');
+    console.log(chalk.cyan('  HNSW Memory Usage:'));
+    console.log(chalk.gray('    No active indexes (indexes are created on first use)'));
   }
 
   // Memory info when compression is enabled

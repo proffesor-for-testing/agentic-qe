@@ -13,12 +13,14 @@ import type { QEDomain } from './qe-patterns.js';
 // ============================================================================
 
 /**
- * Profile describing an agent's domains, capabilities, and performance.
+ * Profile describing an agent's domains, capabilities, performance, and language expertise.
  */
 export interface AgentCapabilityProfile {
   domains: QEDomain[];
   capabilities: string[];
   performanceScore: number;
+  /** Languages this agent has expertise in (for language-aware routing) */
+  languages?: string[];
 }
 
 // ============================================================================
@@ -33,21 +35,25 @@ export const AGENT_CAPABILITIES: Record<string, AgentCapabilityProfile> = {
     domains: ['test-generation'],
     capabilities: ['test-generation', 'tdd', 'bdd', 'unit-test', 'integration-test'],
     performanceScore: 0.85,
+    languages: ['typescript', 'javascript', 'python', 'java', 'csharp', 'go', 'rust', 'swift', 'kotlin', 'dart'],
   },
   'qe-coverage-analyzer': {
     domains: ['coverage-analysis'],
     capabilities: ['coverage-analysis', 'gap-detection', 'risk-scoring'],
     performanceScore: 0.92,
+    languages: ['typescript', 'javascript', 'python', 'java', 'csharp', 'go', 'rust', 'swift', 'kotlin', 'dart'],
   },
   'qe-coverage-specialist': {
     domains: ['coverage-analysis'],
     capabilities: ['sublinear-analysis', 'branch-coverage', 'mutation-testing'],
     performanceScore: 0.88,
+    languages: ['typescript', 'javascript'],
   },
   'qe-test-architect': {
     domains: ['test-generation', 'coverage-analysis'],
     capabilities: ['test-strategy', 'test-pyramid', 'architecture'],
     performanceScore: 0.9,
+    languages: ['typescript', 'javascript', 'python', 'java', 'csharp', 'go', 'rust', 'swift', 'kotlin', 'dart'],
   },
   'qe-api-contract-validator': {
     domains: ['contract-testing'],
@@ -106,6 +112,8 @@ export interface RoutingWeights {
   similarity: number;
   performance: number;
   capabilities: number;
+  /** Weight for language match boost (default: 1.0) */
+  language?: number;
 }
 
 /**
@@ -116,6 +124,7 @@ export interface RoutingWeights {
  * @param agentDomainPatternCounts - Map from agent type to number of matching patterns
  * @param routingWeights - Weights for the scoring components
  * @param agentCapabilities - Agent capability map (defaults to AGENT_CAPABILITIES)
+ * @param requestLanguage - Optional language to boost agents with matching language expertise
  * @returns Sorted array of scored agents (highest score first)
  */
 export function calculateAgentScores(
@@ -124,6 +133,7 @@ export function calculateAgentScores(
   agentDomainPatternCounts: Map<string, number>,
   routingWeights: RoutingWeights,
   agentCapabilities: Record<string, AgentCapabilityProfile> = AGENT_CAPABILITIES,
+  requestLanguage?: string,
 ): ScoredAgent[] {
   const agentScores: ScoredAgent[] = [];
 
@@ -162,6 +172,18 @@ export function calculateAgentScores(
     // Historical performance (0-0.3)
     score += profile.performanceScore * 0.3 * routingWeights.performance;
     reasoning.push(`Performance score: ${(profile.performanceScore * 100).toFixed(0)}%`);
+
+    // Language match boost (0-0.15)
+    if (requestLanguage && profile.languages && profile.languages.length > 0) {
+      const langWeight = routingWeights.language ?? 1.0;
+      const langLower = requestLanguage.toLowerCase();
+      const hasLanguage = profile.languages.some(l => l.toLowerCase() === langLower);
+      if (hasLanguage) {
+        const langBoost = 0.15 * langWeight;
+        score += langBoost;
+        reasoning.push(`Language match: ${requestLanguage}`);
+      }
+    }
 
     // Pattern similarity boost
     const patternCount = agentDomainPatternCounts.get(agentType) || 0;

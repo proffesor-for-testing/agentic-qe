@@ -33,6 +33,10 @@ export interface CoverageAnalyzeParams {
   includeRiskScoring?: boolean; // Alias for includeRisk
   mlPowered?: boolean;
   dryRun?: boolean; // Return sample data without real parsing
+  /** Source language hint (java, csharp, go, rust, kotlin, swift, dart) */
+  language?: string;
+  /** Coverage format hint (lcov, json, jacoco, dotcover, tarpaulin, gocover, kover, xcresult) */
+  coverageFormat?: string;
   [key: string]: unknown;
 }
 
@@ -49,6 +53,10 @@ export interface CoverageAnalyzeResult {
   thresholdsPassed: boolean;
   riskScore?: number;
   trends?: CoverageTrend;
+  /** Detected or specified source language */
+  language?: string;
+  /** Coverage format used for parsing */
+  format?: string;
 }
 
 export interface CoverageSummary {
@@ -85,6 +93,10 @@ export interface CoverageGapsParams {
   limit?: number;
   prioritization?: 'complexity' | 'criticality' | 'change-frequency' | 'ml-confidence';
   includeGhost?: boolean;
+  /** Source language filter */
+  language?: string;
+  /** Coverage format hint */
+  coverageFormat?: string;
   [key: string]: unknown;
 }
 
@@ -213,6 +225,8 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       includeRisk = false,
       includeRiskScoring = false,
       dryRun = false,
+      coverageFormat,
+      language,
     } = params;
 
     const shouldIncludeRisk = includeRisk || includeRiskScoring;
@@ -238,7 +252,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target);
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
         } catch (parseError) {
           // Return error - don't silently fall back to fake data
           return {
@@ -349,6 +363,10 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
         progress: 100,
       });
 
+      // Resolve language: explicit param > detected from report > undefined
+      const detectedLanguage = params.language || parsedReport.language;
+      const detectedFormat = parsedReport.format;
+
       return {
         success: true,
         data: {
@@ -357,6 +375,8 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           thresholdsPassed,
           riskScore,
           trends,
+          language: detectedLanguage,
+          format: detectedFormat,
         },
       };
     } catch (error) {
@@ -464,6 +484,8 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       minRisk = 0.3,
       limit = 20,
       prioritization = 'complexity',
+      coverageFormat,
+      language,
     } = params;
 
     try {
@@ -481,7 +503,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target);
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
         } catch (parseError) {
           return {
             success: false,
@@ -728,6 +750,15 @@ const COVERAGE_ANALYZE_SCHEMA: MCPToolSchema = {
       description: 'Use ML-powered analysis (vector similarity)',
       default: false,
     },
+    language: {
+      type: 'string',
+      description: 'Source language hint (java, csharp, go, rust, kotlin, swift, dart, typescript, python)',
+    },
+    coverageFormat: {
+      type: 'string',
+      description: 'Coverage format hint',
+      enum: ['lcov', 'json', 'jacoco', 'dotcover', 'tarpaulin', 'gocover', 'kover', 'xcresult'],
+    },
   },
 };
 
@@ -767,6 +798,15 @@ const COVERAGE_GAPS_SCHEMA: MCPToolSchema = {
       type: 'boolean',
       description: 'Include ADR-059 ghost intent coverage analysis (detect untested behavioral intents)',
       default: false,
+    },
+    language: {
+      type: 'string',
+      description: 'Source language filter (java, csharp, go, rust, kotlin, swift, dart)',
+    },
+    coverageFormat: {
+      type: 'string',
+      description: 'Coverage format hint',
+      enum: ['lcov', 'json', 'jacoco', 'dotcover', 'tarpaulin', 'gocover', 'kover', 'xcresult'],
     },
   },
 };

@@ -10,7 +10,7 @@
  *   - Retrieval (~10ms): Full word-frequency coherence computation
  *
  * Implements ITransferCoherenceGate for cross-domain transfer validation.
- * Uses Blake3 hash-chained witness records for audit trail.
+ * Uses SHA-256 hash-chained witness records for audit trail.
  *
  * @module integrations/ruvector/coherence-gate
  * @see ADR-083-coherence-gated-agent-actions.md
@@ -27,6 +27,7 @@ import type {
   CoherenceValidation,
 } from './transfer-coherence-stub.js';
 import { getRuVectorFeatureFlags } from './feature-flags.js';
+import type { WitnessChain as GovernanceWitnessChain, WitnessDecision } from '../../governance/witness-chain.js';
 
 const logger = LoggerFactory.create('coherence-gate');
 
@@ -237,9 +238,21 @@ export class CoherenceGate implements ITransferCoherenceGate {
   private witnessChain: WitnessRecord[] = [];
   private lastWitnessHash: string = '0'.repeat(64);
   private nativeAvailable: boolean | null = null;
+  /** Optional governance witness chain for SQLite persistence */
+  private governanceChain: GovernanceWitnessChain | null = null;
 
   constructor(threshold: number = DEFAULT_COHERENCE_THRESHOLD) {
     this.threshold = threshold;
+  }
+
+  /**
+   * Attach a governance WitnessChain (or PersistentWitnessChain) for
+   * durable persistence of coherence decisions. When attached, every
+   * validation is appended to the governance chain in addition to the
+   * in-memory witness array.
+   */
+  setGovernanceChain(chain: GovernanceWitnessChain): void {
+    this.governanceChain = chain;
   }
 
   // ==========================================================================
@@ -780,8 +793,7 @@ export class CoherenceGate implements ITransferCoherenceGate {
   }
 
   /**
-   * Create a Blake3-style hash-chained witness record.
-   * Falls back to SHA-256 when Blake3 is unavailable.
+   * Create a SHA-256 hash-chained witness record.
    */
   private createWitnessRecord(
     artifact: TestArtifact,
@@ -813,13 +825,27 @@ export class CoherenceGate implements ITransferCoherenceGate {
     if (flags.useWitnessChain) {
       this.witnessChain.push(record);
       this.lastWitnessHash = record.recordHash;
+
+      // Persist to governance chain if attached
+      if (this.governanceChain) {
+        try {
+          const governanceDecision: WitnessDecision = {
+            type: 'coherence-gate',
+            decision: passed ? 'PASS' : 'FAIL',
+            context: { energy, threshold, artifactHash: record.artifactHash },
+          };
+          this.governanceChain.appendWitness(governanceDecision);
+        } catch (err) {
+          logger.debug('Failed to persist to governance chain', { error: String(err) });
+        }
+      }
     }
 
     return record;
   }
 
   /**
-   * Hash content using SHA-256 (Blake3 fallback).
+   * Hash content using SHA-256.
    */
   private hashContent(content: string): string {
     return createHash('sha256').update(content).digest('hex');
@@ -884,8 +910,13 @@ export class CoherenceGate implements ITransferCoherenceGate {
  */
 export function createCoherenceGate(
   threshold?: number,
+  governanceChain?: GovernanceWitnessChain,
 ): CoherenceGate {
-  return new CoherenceGate(threshold);
+  const gate = new CoherenceGate(threshold);
+  if (governanceChain) {
+    gate.setGovernanceChain(governanceChain);
+  }
+  return gate;
 }
 
 /**

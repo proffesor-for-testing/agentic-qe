@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { safeJsonParse } from '../shared/safe-json.js';
 
 /**
@@ -164,11 +164,17 @@ export class ProofEnvelopeIntegration {
    *
    * @param signingKey - Key used for signing envelopes
    */
-  async initialize(signingKey: string = 'agentic-qe-default-key'): Promise<void> {
+  async initialize(signingKey?: string): Promise<void> {
     if (this.initialized) return;
 
     await this.kernel.initialize();
-    this.signingKey = signingKey;
+    // Derive a deterministic per-installation signing key from the project
+    // directory. This is consistent across restarts (so envelopes remain
+    // verifiable) but unique per installation (unlike a global hardcoded key).
+    // For production use, pass an explicit key managed outside the process.
+    this.signingKey = signingKey || createHash('sha256')
+      .update(`aqe-proof-envelope:${process.cwd()}`)
+      .digest('hex');
 
     // Try loading guidance ProofChain for parallel audit trail
     try {
@@ -177,7 +183,7 @@ export class ProofEnvelopeIntegration {
         createProofChain?: (config: { signingKey: string }) => GuidanceProofChainType;
       };
       if (mod && typeof mod.createProofChain === 'function') {
-        this.guidanceProofChain = mod.createProofChain({ signingKey });
+        this.guidanceProofChain = mod.createProofChain({ signingKey: this.signingKey });
         console.log('[ProofEnvelopeIntegration] Guidance ProofChain loaded');
       }
     } catch {
