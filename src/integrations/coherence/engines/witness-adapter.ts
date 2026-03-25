@@ -1,11 +1,11 @@
 /**
  * Agentic QE v3 - Witness Engine Adapter
  *
- * Wraps the Prime Radiant WitnessEngine for Blake3 witness chain operations.
+ * Wraps the Prime Radiant WitnessEngine for SHA-256 witness chain operations.
  * Used for creating tamper-evident audit trails of agent decisions.
  *
- * Blake3 Witness Chains:
- * - Each decision is hashed with Blake3
+ * Witness Chains:
+ * - Each decision is hashed with SHA-256
  * - Hash includes reference to previous witness
  * - Creates immutable audit trail
  * - Enables deterministic replay
@@ -24,6 +24,7 @@ import type {
   WasmModule,
 } from '../types';
 import { WasmNotLoadedError, DEFAULT_COHERENCE_LOGGER } from '../types';
+import { createHash } from 'crypto';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
@@ -183,30 +184,16 @@ export class WitnessAdapter implements IWitnessAdapter {
   }
 
   /**
-   * Compute a hash for witness creation
-   * Uses a simple hash when crypto is not available
+   * Compute a SHA-256 hash for witness creation.
+   * Chains the previous hash into the computation for tamper-evidence.
    */
   private computeHash(data: Uint8Array, previousHash?: string): string {
-    // Simple hash implementation for environments without crypto
-    // In production, this would use Blake3 or SHA-256
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash + data[i]) | 0;
-    }
-
+    const hasher = createHash('sha256');
+    hasher.update(data);
     if (previousHash) {
-      for (let i = 0; i < previousHash.length; i++) {
-        hash = ((hash << 5) - hash + previousHash.charCodeAt(i)) | 0;
-      }
+      hasher.update(previousHash, 'utf-8');
     }
-
-    // Convert to hex string
-    const unsignedHash = hash >>> 0;
-    return unsignedHash.toString(16).padStart(8, '0') +
-           '-' +
-           Date.now().toString(16) +
-           '-' +
-           secureRandom().toString(16).slice(2, 10);
+    return hasher.digest('hex');
   }
 
   /**

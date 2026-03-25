@@ -73,7 +73,7 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useHnswHealthMonitor: 'HNSW health monitor (Task 3.4)',
   useRegretTracking: 'Regret tracking & learning health (Task 2.4)',
   useCoherenceGate: 'Sheaf-gated coherence validation (ADR-083, Task 3.1)',
-  useWitnessChain: 'Blake3 hash-chained witness records (Task 3.1)',
+  useWitnessChain: 'SHA-256 hash-chained witness records (Task 3.1)',
   useCNNVisualRegression: 'CNN visual regression testing (Task 4.3)',
   useDAGAttention: 'DAG attention for test scheduling (Task 4.2)',
   useCoherenceActionGate: 'Coherence-gated agent actions (ADR-083, Task 3.2)',

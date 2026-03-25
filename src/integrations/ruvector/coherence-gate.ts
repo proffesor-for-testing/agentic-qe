@@ -10,7 +10,7 @@
  *   - Retrieval (~10ms): Full word-frequency coherence computation
  *
  * Implements ITransferCoherenceGate for cross-domain transfer validation.
- * Uses Blake3 hash-chained witness records for audit trail.
+ * Uses SHA-256 hash-chained witness records for audit trail.
  *
  * @module integrations/ruvector/coherence-gate
  * @see ADR-083-coherence-gated-agent-actions.md
@@ -780,8 +780,7 @@ export class CoherenceGate implements ITransferCoherenceGate {
   }
 
   /**
-   * Create a Blake3-style hash-chained witness record.
-   * Falls back to SHA-256 when Blake3 is unavailable.
+   * Create a SHA-256 hash-chained witness record.
    */
   private createWitnessRecord(
     artifact: TestArtifact,
@@ -819,7 +818,7 @@ export class CoherenceGate implements ITransferCoherenceGate {
   }
 
   /**
-   * Hash content using SHA-256 (Blake3 fallback).
+   * Hash content using SHA-256.
    */
   private hashContent(content: string): string {
     return createHash('sha256').update(content).digest('hex');
