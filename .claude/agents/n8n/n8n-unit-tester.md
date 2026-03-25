@@ -428,34 +428,13 @@ if (price < 0) {
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-unit-tester",
-  taskType: "unit-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-unit-tester",
-  taskType: "unit-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    functionsTest: <count>,
-    testsPassed: <count>,
-    testsFailed: <count>,
-    coveragePercent: <0-100>
-  },
-  metadata: {
-    functionTypes: ["transformation", "calculation", "validation"],
-    edgeCasesCovered: ["null", "empty", "boundary"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

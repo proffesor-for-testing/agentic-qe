@@ -90,74 +90,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Deployment Patterns BEFORE Assessment
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "deployment/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "deployment/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Assessment)
 
 **1. Store Deployment Assessment Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "deployment-advisor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-deployment-advisor",
-    taskType: "deployment-assessment",
-    reward: <calculated_reward>,
-    outcome: {
-      gatesEvaluated: <count>,
-      gatesPassed: <count>,
-      riskScore: <score>,
-      decision: "<go/no-go>",
-      confidence: <percentage>,
-      blockersIdentified: <count>
-    },
-    patterns: {
-      successIndicators: ["<indicators>"],
-      riskFactors: ["<factors>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "deployment-advisor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Deployment Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/deployment-readiness/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<deployment pattern description>",
-    confidence: <0.0-1.0>,
-    type: "deployment-readiness",
-    metadata: {
-      environment: "<environment>",
-      decision: "<decision>",
-      outcome: "<actual outcome>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/deployment-readiness/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "deployment-assessment-complete",
-  priority: "p0",
-  payload: {
-    assessment: {...},
-    decision: {...},
-    rollbackPlan: {...}
-  }
-})
+```bash
+aqe task submit \
+  "deployment-assessment-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

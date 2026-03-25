@@ -8,8 +8,8 @@
 ## Instructions
 
 ### Step 0: Retrieve Refinement Phase Signals
-```javascript
-mcp__agentic-qe__memory_query({ pattern: "qcsd-refinement-*", namespace: "qcsd-refinement", limit: 1 })
+```bash
+aqe memory search --pattern "qcsd-refinement-*" --namespace "qcsd-refinement" --limit 1 --json
 ```
 
 ### Flag Detection (Check ALL SIX)

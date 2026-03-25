@@ -1,6 +1,6 @@
 ---
-name: "QE Iterative Loop"
-description: "Quality Engineering iteration loops for autonomous test improvement, coverage achievement, and quality gate compliance. Use when tests need to pass, coverage targets must be met, quality gates require compliance, or flaky tests need stabilization. Integrates with AQE v3 fleet agents for coordinated quality iteration."
+name: "qe-iterative-loop"
+description: "Runs autonomous red-green-refactor loops to fix failing tests, reach coverage targets, and satisfy quality gates. Use when tests need to pass, coverage thresholds must be met, quality gates require compliance, or flaky tests need stabilization."
 trust_tier: 2
 validation:
   schema_path: schemas/output.json
@@ -134,10 +134,10 @@ Output <promise>QUALITY_GATES_PASSED</promise> when all pass."
 ### Commands
 ```bash
 # Check coverage status (via AQE MCP)
-mcp__agentic-qe__memory_retrieve --key "coverage-status" --namespace "coverage"
+aqe memory get --key "coverage-status" --namespace "coverage"
 
 # Store coverage achievement pattern (via AQE MCP)
-mcp__agentic-qe__memory_store \
+aqe memory store \
   --key "coverage-pattern-auth" \
   --value '{"approach": "mock external deps", "improvement": "12%"}' \
   --namespace "coverage-patterns"
@@ -188,10 +188,10 @@ npm run benchmark              # performance
 ### Integration with AQE v3
 ```bash
 # Submit quality gate assessment task
-mcp__agentic-qe__quality_assess --runGate true
+aqe quality --runGate true
 
 # Task orchestration for gate compliance
-mcp__agentic-qe__task_orchestrate --task "Pass all quality gates" --strategy adaptive
+aqe task submit --task "Pass all quality gates" --strategy adaptive
 ```
 ```
 
@@ -228,7 +228,7 @@ mcp__agentic-qe__task_orchestrate --task "Pass all quality gates" --strategy ada
 Task("Hunt flaky tests", "Detect and stabilize flaky tests", "qe-flaky-hunter")
 
 # Or submit flaky detection task
-mcp__agentic-qe__task_submit --type "flaky-detection" --priority "p1"
+aqe task submit --type "flaky-detection" --priority "p1"
 ```
 ```
 
@@ -256,7 +256,7 @@ mcp__agentic-qe__task_submit --type "flaky-detection" --priority "p1"
 ### AQE v3 Integration
 ```bash
 # Validate contracts
-mcp__agentic-qe__contract_validate --contractPath "./contracts"
+aqe test contract --contractPath "./contracts"
 
 # Or use specialized agent
 Task("Validate API contracts", "Check consumer-provider alignment", "qe-contract-validator")
@@ -271,7 +271,7 @@ Task("Validate API contracts", "Check consumer-provider alignment", "qe-contract
 
 ```bash
 # Initialize AQE fleet for QE iteration
-mcp__agentic-qe__fleet_init --topology "hierarchical" --maxAgents 8
+aqe fleet init --topology "hierarchical" --maxAgents 8
 
 # Spawn specialized QE iterators using Task tool
 Task("Fix failing tests", "Iterate until all tests pass", "qe-tdd-green", {run_in_background: true})
@@ -284,18 +284,18 @@ Task("Stabilize flaky tests", "Iterate until tests stable", "qe-flaky-hunter", {
 
 ```bash
 # Store iteration patterns for learning (via AQE MCP)
-mcp__agentic-qe__memory_store \
+aqe memory store \
   --key "qe-iteration-test-fix" \
   --value '{"approach": "mock external deps", "success_rate": 0.85}' \
   --namespace "qe-patterns"
 
 # Search for relevant QE patterns (via AQE MCP)
-mcp__agentic-qe__memory_query \
+aqe memory search \
   --pattern "test-fix-*" \
   --namespace "qe-patterns"
 
 # Record successful iteration completion (via AQE task tracking)
-mcp__agentic-qe__task_status --taskId "test-fix-iteration"
+aqe task status --taskId "test-fix-iteration"
 ```
 
 ### QE-Specific Agent Routing

@@ -656,35 +656,13 @@ $json.name.length < 100
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-security-auditor",
-  taskType: "security-audit",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-security-auditor",
-  taskType: "security-audit",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    criticalFindings: <count>,
-    highFindings: <count>,
-    mediumFindings: <count>,
-    lowFindings: <count>,
-    owaspCompliance: <percentage>
-  },
-  metadata: {
-    vulnerabilityTypes: ["injection", "auth", "exposure"],
-    remediationProvided: <boolean>
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

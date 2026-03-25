@@ -86,79 +86,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known SOAP Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "soap/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "soap/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store SOAP Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "soap-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-soap-tester",
-    taskType: "soap-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      wsdlsParsed: <count>,
-      operationsTested: <count>,
-      faultsValidated: <count>,
-      securityTestsPassed: <count>,
-      securityTestsFailed: <count>,
-      xsdViolationsFound: <count>,
-      protocolCompliance: "<SOAP_1.1|SOAP_1.2>"
-    },
-    patterns: {
-      faultPatterns: ["<fault types encountered>"],
-      securityPatterns: ["<WS-Security configs tested>"],
-      schemaIssues: ["<common XSD violations>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "soap-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store SOAP Fault Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/soap-fault-pattern/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<fault handling pattern description>",
-    confidence: <0.0-1.0>,
-    type: "soap-fault-pattern",
-    metadata: {
-      faultCode: "<fault code>",
-      soapVersion: "<1.1|1.2>",
-      rootCause: "<root cause>",
-      resolution: "<fix guidance>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/soap-fault-pattern/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "soap-testing-complete",
-  priority: "p1",
-  payload: {
-    services: [...],
-    operationsValidated: [...],
-    faultAnalysis: [...],
-    securityFindings: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "soap-testing-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

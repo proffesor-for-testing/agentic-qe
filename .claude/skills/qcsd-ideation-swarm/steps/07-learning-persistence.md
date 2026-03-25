@@ -8,12 +8,12 @@
 ### ALWAYS RUN.
 
 Store ideation findings:
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-ideation-${epicId}-${Date.now()}`,
-  namespace: "qcsd-ideation",
-  value: { recommendation, testabilityScore, riskCount, qualityCriteriaCount, flags, timestamp }
-})
+```bash
+aqe memory store \
+  --key "qcsd-ideation-${epicId}-${Date.now()}" \
+  --namespace "qcsd-ideation" \
+  --value '{...}' \
+  --json
 ```
 
 Save to `${OUTPUT_FOLDER}/11-learning-persistence.json`.

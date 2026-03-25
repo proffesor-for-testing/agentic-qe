@@ -77,53 +77,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Integration Patterns BEFORE Starting
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "integration/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "integration/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test Generation)
 
 **1. Store Integration Test Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "integration-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-integration-tester",
-    taskType: "integration-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      testsGenerated: <count>,
-      componentsIntegrated: <count>,
-      boundariesTested: <count>,
-      isolationStrategy: "<strategy>"
-    },
-    patterns: {
-      effective: ["<patterns that worked>"],
-      fixtures: ["<fixture strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "integration-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "integration-tests-complete",
-  priority: "p1",
-  payload: {
-    tests: [...],
-    coverage: {...},
-    boundaryIssues: [...]
-  }
-})
+```bash
+aqe task submit \
+  "integration-tests-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Mutation Patterns BEFORE Test
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "mutation/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "mutation/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test)
 
 **1. Store Mutation Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "mutation-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-mutation-tester",
-    taskType: "mutation-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      totalMutants: <count>,
-      killed: <count>,
-      survived: <count>,
-      equivalent: <count>,
-      mutationScore: <percentage>,
-      weakTestsFound: <count>
-    },
-    patterns: {
-      effectiveOperators: ["<operators>"],
-      survivalPatterns: ["<common survival reasons>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "mutation-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Mutation Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/mutation-testing/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<mutation pattern description>",
-    confidence: <0.0-1.0>,
-    type: "mutation-testing",
-    metadata: {
-      operator: "<operator>",
-      survivalRate: <percentage>,
-      testImprovement: "<suggestion>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/mutation-testing/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "mutation-test-complete",
-  priority: "p1",
-  payload: {
-    results: {...},
-    survivors: [...],
-    suggestions: [...]
-  }
-})
+```bash
+aqe task submit \
+  "mutation-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

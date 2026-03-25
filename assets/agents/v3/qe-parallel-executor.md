@@ -77,72 +77,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Historical Timing BEFORE Execution
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "test-execution/timing-history",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "test-execution/timing-history" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Execution Completion)
 
 **1. Store Execution Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "parallel-executor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-parallel-executor",
-    taskType: "test-execution",
-    reward: <calculated_reward>,
-    outcome: {
-      testsExecuted: <count>,
-      passed: <count>,
-      failed: <count>,
-      skipped: <count>,
-      totalTime: <ms>,
-      workers: <count>,
-      efficiency: <percentage>
-    },
-    sharding: {
-      strategy: "<strategy used>",
-      balance: <0-1>,
-      stragglers: <count>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "parallel-executor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Update Timing History:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "test-execution/timing/{testSuite}",
-  namespace: "learning",
-  value: {
-    tests: [
-      { name: "...", avgTime: <ms>, variance: <ms> }
-    ],
-    lastUpdated: Date.now()
-  }
-})
+```bash
+aqe memory store \
+  --key "test-execution/timing/{testSuite}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "test-execution-complete",
-  priority: "p1",
-  payload: {
-    executionId: "...",
-    summary: {...},
-    failures: [...],
-    coverage: {...}
-  }
-})
+```bash
+aqe task submit \
+  "test-execution-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

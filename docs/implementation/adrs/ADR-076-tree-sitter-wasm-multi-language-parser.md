@@ -5,7 +5,7 @@
 | **Decision ID** | ADR-076 |
 | **Status** | Amended & Implemented |
 | **Date** | 2026-03-04 |
-| **Amended** | 2026-03-05 |
+| **Amended** | 2026-03-05, 2026-03-24 |
 | **Author** | AQE Architecture Team |
 | **Review Cadence** | 6 months |
 
@@ -27,6 +27,8 @@
 
 > **Amendment note (2026-03-05):** Original decision selected Option 1 (tree-sitter WASM). During implementation, Option 3b (enhanced regex) was chosen instead due to: zero dependency overhead, simpler error handling, faster cold start, and sufficient accuracy for test generation. The `ILanguageParser` interface was implemented as designed, making tree-sitter a drop-in replacement when needed. See GitHub issue for future tree-sitter integration.
 
+> **Amendment note (2026-03-24):** web-tree-sitter WASM implemented as the **default parser** for 5 languages (Python, Java, C#, Rust, Swift), with regex as automatic fallback. WASM is on by default — users can opt out via `AQE_PARSER_REGEX_ONLY=1`. `web-tree-sitter@0.24.7` was selected over: (1) `@ast-grep/napi` — rejected because its npm package only ships JS/TS/CSS/HTML grammars; others require native `.so` compilation. (2) `node-tree-sitter` — rejected for requiring native C compilation via `node-gyp`. Grammar WASM files (~8.5MB for 5 languages) are bundled in `assets/grammars/` — only the needed grammars are shipped, not the full `tree-sitter-wasms` package (50MB, 36 grammars). Go, Kotlin, and Dart deferred. Regex parsers retained as transparent fallback with retry logic (3 attempts before permanent degradation).
+
 ---
 
 ## Context
@@ -41,7 +43,7 @@ tree-sitter is a parser generator that produces WASM-compiled parsers for 100+ l
 
 ## Options Considered
 
-### Option 1: web-tree-sitter (WASM) with ILanguageParser Abstraction (Deferred)
+### Option 1: web-tree-sitter (WASM) with ILanguageParser Abstraction (Partially Implemented -- 5 of 8 languages)
 
 Use `web-tree-sitter` for all non-TS/JS languages. Define an `ILanguageParser` interface that both the tree-sitter adapter and the existing TS compiler adapter implement. Each language gets a tree-sitter `.wasm` grammar file loaded on demand.
 
@@ -75,6 +77,12 @@ Use regular expressions to extract function signatures and class definitions fro
 Connect to Language Server Protocol servers for each language to extract structural information.
 
 **Why rejected:** LSP servers are designed for interactive editing, not batch analysis. They require the corresponding language toolchain installed, take seconds to initialize per project, and consume significant memory. Overkill for syntactic extraction and impractical for CI/headless environments.
+
+### Option 5: @ast-grep/napi (Evaluated and Rejected)
+
+Use `@ast-grep/napi` as a tree-sitter wrapper with a higher-level pattern-matching API. Initial research suggested 7 of 8 target languages had built-in grammar support.
+
+**Why rejected:** Despite documentation implying broad language support, the `@ast-grep/napi` npm package only ships built-in grammars for JavaScript, TypeScript, CSS, and HTML. Supporting additional languages (Python, Java, C#, Rust, Swift, Go, Kotlin, Dart) requires calling `registerDynamicLanguage` with a native `.so` shared library compiled for the target platform. This introduces the same native compilation burden as `node-tree-sitter` (requiring `node-gyp`, platform-specific binaries, and C toolchain availability), which directly contradicts the project requirement of zero native dependencies for a distributable npm package. The `web-tree-sitter` WASM approach avoids all of these issues by loading pre-compiled `.wasm` grammar files at runtime.
 
 ---
 
@@ -111,6 +119,7 @@ Connect to Language Server Protocol servers for each language to extract structu
 |--------|------|-------|
 | Proposed | 2026-03-04 | Initial creation as part of multi-language test generation initiative |
 | Amended & Implemented | 2026-03-05 | Decision changed from tree-sitter WASM (Option 1) to enhanced regex (Option 3b). ILanguageParser interface implemented as designed. 8 language parsers operational. tree-sitter WASM tracked as future enhancement. |
+| Partially Implemented | 2026-03-24 | web-tree-sitter WASM implemented for Python, Java, C#, Rust, Swift. Regex fallback retained. @ast-grep/napi and node-tree-sitter evaluated and rejected due to native compilation requirements. |
 
 ---
 

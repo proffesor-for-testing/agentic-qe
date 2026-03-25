@@ -333,34 +333,13 @@ Invalid Connections:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-node-validator",
-  taskType: "node-validation",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-node-validator",
-  taskType: "node-validation",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    nodesValidated: <count>,
-    issuesFound: <count>,
-    criticalIssues: <count>,
-    validationScore: <0-100>
-  },
-  metadata: {
-    nodeTypes: ["webhook", "if", "httpRequest"],
-    commonIssues: ["missing-timeout", "no-auth"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

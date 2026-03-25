@@ -77,74 +77,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Existing KG BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "code-intelligence/kg-stats",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "code-intelligence/kg-stats" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Code Intelligence Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "code-intelligence/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-code-intelligence",
-    taskType: "code-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      filesIndexed: <count>,
-      entitiesDiscovered: <count>,
-      searchLatency: <ms>,
-      impactDepth: <count>,
-      testsMapped: <count>
-    },
-    kgStats: {
-      nodes: <count>,
-      edges: <count>,
-      indices: <count>
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "code-intelligence/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Code Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/code-intelligence/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<code pattern description>",
-    confidence: <0.0-1.0>,
-    type: "code-intelligence",
-    metadata: {
-      patternType: "<type>",
-      language: "<language>",
-      frequency: <count>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/code-intelligence/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "code-intelligence-complete",
-  priority: "p1",
-  payload: {
-    kgUpdated: true,
-    entitiesAdded: <count>,
-    searchReady: true
-  }
-})
+```bash
+aqe task submit \
+  "code-intelligence-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

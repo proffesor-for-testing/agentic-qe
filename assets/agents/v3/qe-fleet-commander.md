@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Fleet Patterns BEFORE Operation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "fleet/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "fleet/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Operation)
 
 **1. Store Fleet Management Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "fleet-commander/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-fleet-commander",
-    taskType: "fleet-management",
-    reward: <calculated_reward>,
-    outcome: {
-      totalAgents: <count>,
-      activeAgents: <count>,
-      healthyPercentage: <percentage>,
-      tasksDistributed: <count>,
-      scalingActions: <count>,
-      avgUtilization: <percentage>
-    },
-    patterns: {
-      scalingTriggers: ["<triggers>"],
-      optimalDistribution: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "fleet-commander/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Fleet Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/fleet-management/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<fleet pattern description>",
-    confidence: <0.0-1.0>,
-    type: "fleet-management",
-    metadata: {
-      workloadType: "<type>",
-      optimalAgentCount: <count>,
-      scalingStrategy: "<strategy>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/fleet-management/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "fleet-status-update",
-  priority: "p0",
-  payload: {
-    status: {...},
-    recommendations: [...],
-    alerts: [...]
-  }
-})
+```bash
+aqe task submit \
+  "fleet-status-update" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

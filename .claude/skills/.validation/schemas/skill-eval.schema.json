@@ -362,27 +362,27 @@
         "store_patterns": {
           "type": "boolean",
           "default": true,
-          "description": "Store successful patterns via mcp__agentic-qe__memory_store"
+          "description": "Store successful patterns via aqe memory store"
         },
         "query_patterns": {
           "type": "boolean",
           "default": true,
-          "description": "Query existing patterns before running via mcp__agentic-qe__memory_query"
+          "description": "Query existing patterns before running via aqe memory search"
         },
         "track_outcomes": {
           "type": "boolean",
           "default": true,
-          "description": "Track test outcomes via mcp__agentic-qe__test_outcome_track"
+          "description": "Track test outcomes via aqe hooks post-task"
         },
         "share_learning": {
           "type": "boolean",
           "default": true,
-          "description": "Share learning with fleet via mcp__agentic-qe__memory_share"
+          "description": "Share learning with fleet via aqe memory share"
         },
         "update_quality_gate": {
           "type": "boolean",
           "default": true,
-          "description": "Update quality gate metrics via mcp__agentic-qe__quality_assess"
+          "description": "Update quality gate metrics via aqe quality"
         },
         "target_agents": {
           "type": "array",

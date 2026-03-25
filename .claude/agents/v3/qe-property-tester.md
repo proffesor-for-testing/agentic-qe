@@ -75,73 +75,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Property Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "property-testing/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "property-testing/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store Property Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "property-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-property-tester",
-    taskType: "property-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      propertiesTested: <count>,
-      iterations: <count>,
-      counterexamplesFound: <count>,
-      shrinkingDepth: <count>,
-      bugsDiscovered: <count>
-    },
-    patterns: {
-      propertyTypes: ["<property categories>"],
-      effectiveArbitraries: ["<generators that found bugs>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "property-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Property Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/property-testing/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<property pattern description>",
-    confidence: <0.0-1.0>,
-    type: "property-testing",
-    metadata: {
-      propertyType: "<type>",
-      functionSignature: "<signature>",
-      arbitraryUsed: "<generator>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/property-testing/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "property-test-complete",
-  priority: "p1",
-  payload: {
-    properties: [...],
-    counterexamples: [...],
-    coverage: {...}
-  }
-})
+```bash
+aqe task submit \
+  "property-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

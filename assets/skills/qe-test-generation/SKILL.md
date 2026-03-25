@@ -1,6 +1,6 @@
 ---
-name: "QE Test Generation"
-description: "Use when generating tests for new/changed code, improving test coverage, or migrating between Jest/Vitest/Playwright frameworks."
+name: "qe-test-generation"
+description: "Generates unit, integration, and e2e tests from code analysis including branch coverage, error paths, and edge cases. Use when creating tests for new or changed code, filling coverage gaps, or migrating test suites between Jest, Vitest, and Playwright."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

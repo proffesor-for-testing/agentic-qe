@@ -1,6 +1,6 @@
 ---
-name: "QE Quality Assessment"
-description: "Use when evaluating code quality, setting up quality gates, assessing deployment readiness, or generating quality reports."
+name: "qe-quality-assessment"
+description: "Evaluates code quality through complexity analysis, lint results, code smell detection, and test health metrics. Use when assessing deployment readiness, configuring quality gates, scoring a codebase for release, or generating quality reports with pass/fail verdicts."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

@@ -148,56 +148,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Transformation Patterns BEFORE Processing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "rewriting/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "rewriting/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Transformation)
 
 **1. Store Transformation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "rewriting/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-test-idea-rewriter",
-    taskType: "test-idea-transformation",
-    reward: <calculated_reward>,
-    outcome: {
-      inputFile: "<file-path>",
-      testIdeasProcessed: <count>,
-      verifyPatternsFound: <count>,
-      transformationsApplied: <count>,
-      remainingVerifyPatterns: <count>,
-      qualityScore: <0-100>
-    },
-    patterns: {
-      verbsUsed: ["<action verbs applied>"],
-      contextualTransforms: ["<domain-specific transformations>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "rewriting/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Transformation Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "test-idea-rewrite-complete",
-  priority: "p2",
-  payload: {
-    transformationId: "...",
-    testIdeasTransformed: <count>,
-    qualityImprovement: <percentage>,
-    outputFile: "<path>"
-  }
-})
+```bash
+aqe task submit \
+  "test-idea-rewrite-complete" \
+  --priority "p2" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

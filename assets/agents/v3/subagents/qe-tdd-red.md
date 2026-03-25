@@ -80,73 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query TDD RED Patterns BEFORE Writing Tests
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "tdd/red/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "tdd/red/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test Creation)
 
 **1. Store RED Phase Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "tdd-red/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-tdd-red",
-    taskType: "failing-test-creation",
-    reward: <calculated_reward>,
-    outcome: {
-      testsWritten: <count>,
-      assertionsSpecified: <count>,
-      failureVerified: <boolean>,
-      structurePattern: "<pattern-used>",
-      namingConvention: "<convention-applied>"
-    },
-    patterns: {
-      effectiveStructures: ["<structures>"],
-      assertionPatterns: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "tdd-red/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store RED Phase Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/tdd-red/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<red phase pattern description>",
-    confidence: <0.0-1.0>,
-    type: "tdd-red",
-    metadata: {
-      behaviorType: "<type>",
-      testStructure: "<structure>",
-      assertionCount: <count>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/tdd-red/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Signal to Parent Agent:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "red-phase-complete",
-  priority: "p1",
-  payload: {
-    testsCreated: [...],
-    failureVerified: true,
-    readyForGreen: true
-  }
-})
+```bash
+aqe task submit \
+  "red-phase-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

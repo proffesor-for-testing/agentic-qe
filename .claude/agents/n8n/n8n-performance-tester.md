@@ -493,38 +493,13 @@ VUs  ^
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-performance-tester",
-  taskType: "performance-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-performance-tester",
-  taskType: "performance-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    testType: "load|stress|soak|spike",
-    peakVUs: <count>,
-    avgResponseTime: <ms>,
-    p95ResponseTime: <ms>,
-    errorRate: <percentage>,
-    throughput: <req/sec>,
-    bottlenecksFound: <count>
-  },
-  metadata: {
-    bottleneckNodes: ["node-names"],
-    rateLimitHit: <boolean>,
-    resourceConstraints: ["cpu", "memory", "connections"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

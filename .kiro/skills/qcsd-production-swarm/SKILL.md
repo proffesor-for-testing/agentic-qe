@@ -102,12 +102,8 @@ These provide the release readiness baseline that the Production Swarm builds up
 
 **MCP Method (preferred):**
 
-```javascript
-mcp__agentic-qe__memory_query({
-  pattern: "qcsd-cicd-*",
-  namespace: "qcsd-cicd",
-  limit: 1
-})
+```bash
+aqe memory search --namespace "qcsd-cicd" --json
 ```
 
 **CLI Fallback:**
@@ -1823,52 +1819,19 @@ Store production findings for:
 
 You MUST execute this MCP call with actual values from the production analysis:
 
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-production-${releaseId}-${Date.now()}`,
-  namespace: "qcsd-production",
-  value: {
-    releaseId: releaseId,
-    releaseName: releaseName,
-    recommendation: recommendation,  // HEALTHY, DEGRADED, CRITICAL
-    metrics: {
-      doraScore: doraScore,
-      slaCompliance: slaCompliance,
-      incidentSeverity: incidentSeverity,
-      rcaCompleteness: rcaCompleteness,
-      defectTrend: defectTrend,
-      defectDensity: defectDensity,
-      regressionCount: regressionCount,  // if applicable
-      chaosResilience: chaosResilience,  // if applicable
-      middlewareHealth: middlewareHealth,  // if applicable
-      sapHealth: sapHealth,              // if applicable
-      sodCompliance: sodCompliance       // if applicable
-    },
-    flags: {
-      HAS_INFRASTRUCTURE_CHANGE: HAS_INFRASTRUCTURE_CHANGE,
-      HAS_PERFORMANCE_SLA: HAS_PERFORMANCE_SLA,
-      HAS_REGRESSION_RISK: HAS_REGRESSION_RISK,
-      HAS_RECURRING_INCIDENTS: HAS_RECURRING_INCIDENTS,
-      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
-      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
-      HAS_AUTHORIZATION: HAS_AUTHORIZATION
-    },
-    agentsInvoked: agentList,
-    timestamp: new Date().toISOString()
-  }
-})
+```bash
+aqe memory store \
+  --namespace "qcsd-production" \
+  --payload '{...}' \
+  --json
 ```
 
 **Step 2: Share learnings with feedback agents**
 
 You MUST execute this MCP call to propagate patterns cross-domain:
 
-```javascript
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-production-swarm",
-  targetAgentIds: ["qe-learning-coordinator", "qe-transfer-specialist"],
-  knowledgeDomain: "production-health-patterns"
-})
+```bash
+aqe memory share --json
 ```
 
 **Step 3: Save learning persistence record to output folder**
@@ -1935,8 +1898,8 @@ npx @claude-flow/cli@latest hooks post-task \
 ### Validation Before Proceeding to Phase 8
 
 ```
-+-- Did I execute mcp__agentic-qe__memory_store with actual values? (not placeholders)
-+-- Did I execute mcp__agentic-qe__memory_share to propagate learnings?
++-- Did I execute aqe memory store with actual values? (not placeholders)
++-- Did I execute aqe memory share to propagate learnings?
 +-- Did I save 09-learning-persistence.json to the output folder?
 +-- Does the JSON contain the correct recommendation from Phase 5?
 +-- Does the JSON contain actual metrics from Phases 2-4?
@@ -2475,19 +2438,12 @@ Just follow the skill phases above - uses Task() calls with run_in_background: t
 ```
 
 **Option B: MCP Tools**
-```javascript
+```bash
 // Initialize fleet for Production domains
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["learning-optimization", "defect-intelligence", "chaos-resilience", "enterprise-integration"],
-  maxAgents: 12
-})
+aqe fleet init --json
 
 // Orchestrate production assessment task
-mcp__agentic-qe__task_orchestrate({
-  task: "qcsd-production-assessment",
-  strategy: "parallel"
-})
+aqe task submit --json
 ```
 
 **Option C: CLI**
@@ -2563,30 +2519,30 @@ npx @claude-flow/cli@latest agent spawn --type qe-root-cause-analyzer
 
 ### MCP Tools Quick Reference
 
-```javascript
+```bash
 // Initialization
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["learning-optimization", "defect-intelligence", "chaos-resilience", "enterprise-integration"],
-  maxAgents: 12
-})
+aqe fleet init --json
 
 // Task submission
-mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
+aqe task submit \
+  "..." \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
+aqe task submit --json
 
 // Status
-mcp__agentic-qe__fleet_status({ verbose: true })
-mcp__agentic-qe__task_list({ status: "pending" })
+aqe fleet status --json
+aqe task list --json
 
 // Memory
-mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-production" })
-mcp__agentic-qe__memory_query({ pattern: "qcsd-production-*", namespace: "qcsd-production" })
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-production-swarm",
-  targetAgentIds: ["qe-learning-coordinator", "qe-transfer-specialist"],
-  knowledgeDomain: "production-health-patterns"
-})
+aqe memory store \
+  --key "..." \
+  --namespace "qcsd-production" \
+  --payload '{...}' \
+  --json
+aqe memory search --namespace "qcsd-production" --json
+aqe memory share --json
 ```
 
 ### CLI Quick Reference

@@ -80,74 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Security Patterns BEFORE Audit
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "security/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "security/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Audit)
 
 **1. Store Security Audit Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "security-auditor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-security-auditor",
-    taskType: "security-audit",
-    reward: <calculated_reward>,
-    outcome: {
-      filesAudited: <count>,
-      findingsTotal: <count>,
-      critical: <count>,
-      high: <count>,
-      medium: <count>,
-      complianceGaps: <count>
-    },
-    patterns: {
-      vulnerabilityTypes: ["<types>"],
-      effectiveRemediations: ["<remediations>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "security-auditor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Security Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/security-vulnerability/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<security pattern description>",
-    confidence: <0.0-1.0>,
-    type: "security-vulnerability",
-    metadata: {
-      category: "<OWASP category>",
-      severity: "<severity>",
-      remediation: "<fix approach>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/security-vulnerability/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "security-audit-complete",
-  priority: "p0",
-  payload: {
-    audit: {...},
-    findings: [...],
-    compliance: {...}
-  }
-})
+```bash
+aqe task submit \
+  "security-audit-complete" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

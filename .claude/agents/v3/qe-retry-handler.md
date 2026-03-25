@@ -76,73 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Retry Patterns BEFORE Handling
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "retry/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "retry/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Handling)
 
 **1. Store Retry Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "retry-handler/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-retry-handler",
-    taskType: "retry-handling",
-    reward: <calculated_reward>,
-    outcome: {
-      totalRetries: <count>,
-      successfulRetries: <count>,
-      exhaustedRetries: <count>,
-      circuitBreaksTriggered: <count>,
-      budgetUsed: <percentage>
-    },
-    patterns: {
-      transientPatterns: ["<patterns>"],
-      effectiveBackoffs: ["<strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "retry-handler/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Retry Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/retry-handling/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<retry pattern description>",
-    confidence: <0.0-1.0>,
-    type: "retry-handling",
-    metadata: {
-      failureType: "<type>",
-      backoffStrategy: "<strategy>",
-      successRate: <rate>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/retry-handling/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "retry-handling-complete",
-  priority: "p1",
-  payload: {
-    retryStats: {...},
-    circuitBreakers: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "retry-handling-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

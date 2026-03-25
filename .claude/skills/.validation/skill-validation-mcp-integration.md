@@ -14,33 +14,22 @@ All skill validation components MUST use AQE MCP tool calls for shared learning.
 
 Skills MUST store successful validation patterns for future reference:
 
-```typescript
+```bash
 // After successful validation
-mcp__agentic-qe__memory_store({
-  key: `skill-validation-${skillName}-${timestamp}`,
-  value: {
-    skillName: string,
-    trustTier: number,
-    validationResult: ValidationResult,
-    model: string,
-    passRate: number,
-    patterns: LearnedPattern[]
-  },
-  namespace: "skill-validation"
-})
+aqe memory store \
+  --key "skill-validation-${skillName}-${timestamp}" \
+  --namespace "skill-validation" \
+  --value '{...}' \
+  --json
 ```
 
 ### 2. Pattern Query
 
 Before validation, query for existing patterns:
 
-```typescript
+```bash
 // Query learned patterns
-const existingPatterns = await mcp__agentic-qe__memory_query({
-  pattern: `skill-validation-${skillName}-*`,
-  namespace: "skill-validation",
-  limit: 10
-})
+const existingPatterns = await aqe memory search --pattern "*" --namespace "skill-validation" --limit 10 --json
 
 // Use patterns to inform validation expectations
 ```
@@ -49,57 +38,31 @@ const existingPatterns = await mcp__agentic-qe__memory_query({
 
 Track all validation outcomes for the learning feedback loop:
 
-```typescript
+```bash
 // Record validation outcome
-mcp__agentic-qe__test_outcome_track({
-  testId: `skill-${skillName}-${evalId}`,
-  generatedBy: agentId,
-  patternId: usedPatternId,
-  passed: boolean,
-  coverage: {
-    lines: number,
-    branches: number,
-    functions: number
-  },
-  executionTime: number,
-  flaky: false
-})
+aqe hooks post-task --json
 ```
 
 ### 4. Cross-Agent Learning Share
 
 Share validation insights with the learning coordinator:
 
-```typescript
+```bash
 // Share learning with fleet
-mcp__agentic-qe__memory_share({
-  sourceAgentId: currentAgentId,
-  targetAgentIds: ["qe-learning-coordinator", "qe-queen-coordinator"],
-  knowledgeDomain: "skill-validation",
-  data: {
-    skillName: string,
-    insights: ValidationInsight[],
-    recommendations: string[]
-  }
-})
+aqe memory share \
+  --from "unknown" \
+  --to "qe-learning-coordinator,qe-queen-coordinator" \
+  --domain "skill-validation" \
+  --content '{...}' --json
 ```
 
 ### 5. Quality Gate Integration
 
 Update skill quality scores via quality assessment:
 
-```typescript
+```bash
 // After validation completes
-mcp__agentic-qe__quality_assess({
-  target: `skill:${skillName}`,
-  metrics: {
-    passRate: number,
-    schemaCompliance: boolean,
-    validatorPassed: boolean,
-    evalSuiteScore: number
-  },
-  updateQualityScore: true
-})
+aqe quality --json
 ```
 
 ## Memory Namespace Structure
@@ -131,48 +94,36 @@ The `scripts/run-skill-eval.ts` evaluation runner MUST:
 3. **After evals**: Store patterns and share learning
 4. **On regression**: Alert via quality gate
 
-```typescript
+```bash
 // Evaluation runner pseudocode
 async function runSkillEval(skill: string, model: string) {
   // 1. Query existing patterns
-  const patterns = await mcp__agentic-qe__memory_query({
-    pattern: `skill-validation-${skill}-*`,
-    namespace: "skill-validation"
-  });
+  const patterns = await aqe memory search --pattern "*" --namespace "skill-validation" --json;
 
   // 2. Run evaluation test cases
   const results = await runTestCases(skill, model, patterns);
 
   // 3. Track outcomes
   for (const result of results) {
-    await mcp__agentic-qe__test_outcome_track({
-      testId: result.id,
-      passed: result.passed,
-      // ...
-    });
+    await aqe hooks post-task --json;
   }
 
   // 4. Store new patterns
-  await mcp__agentic-qe__memory_store({
-    key: `skill-validation-${skill}-${Date.now()}`,
-    value: { results, patterns: extractPatterns(results) },
-    namespace: "skill-validation"
-  });
+  await aqe memory store \
+  --key "skill-validation-${skill}-${Date.now()}" \
+  --namespace "skill-validation" \
+  --value '{...}' \
+  --json;
 
   // 5. Share learning
-  await mcp__agentic-qe__memory_share({
-    sourceAgentId: "eval-runner",
-    targetAgentIds: ["qe-learning-coordinator"],
-    knowledgeDomain: "skill-validation",
-    data: summarizeResults(results)
-  });
+  aqe memory share \
+    --from "eval-runner" \
+    --to "qe-learning-coordinator" \
+    --domain "skill-validation" \
+    --content '{"data": "summarized results"}' --json;
 
   // 6. Update quality gate
-  await mcp__agentic-qe__quality_assess({
-    target: `skill:${skill}`,
-    metrics: calculateMetrics(results),
-    updateQualityScore: true
-  });
+  await aqe quality --json;
 
   return results;
 }

@@ -1,6 +1,6 @@
 ---
-name: "Verification & Quality Assurance"
-description: "Use when verifying agent outputs are correct, validating code changes before merge, or setting up automatic rollback for failed quality checks."
+name: "verification-quality"
+description: "Verifies agent outputs against expected results and validates code changes pass quality checks before merge. Use when verifying agent outputs are correct, validating code changes before merge, or configuring automatic rollback for failed quality checks."
 version: "2.0.0"
 category: "quality-assurance"
 tags: ["verification", "truth-scoring", "quality", "rollback", "metrics", "ci-cd"]

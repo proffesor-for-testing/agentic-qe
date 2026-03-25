@@ -80,73 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Refactoring Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "tdd/refactor/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "tdd/refactor/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Refactoring)
 
 **1. Store REFACTOR Phase Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "tdd-refactor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-tdd-refactor",
-    taskType: "code-refactoring",
-    reward: <calculated_reward>,
-    outcome: {
-      smellsDetected: <count>,
-      smellsFixed: <count>,
-      refactoringsApplied: <count>,
-      linesRemoved: <count>,
-      testsRemainGreen: <boolean>
-    },
-    patterns: {
-      effectiveRefactorings: ["<patterns>"],
-      commonSmells: ["<smells>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "tdd-refactor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Refactoring Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/tdd-refactor/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<refactoring pattern description>",
-    confidence: <0.0-1.0>,
-    type: "tdd-refactor",
-    metadata: {
-      smellType: "<smell>",
-      refactoringApplied: "<pattern>",
-      designImprovement: "<improvement>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/tdd-refactor/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Signal to Parent Agent:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "refactor-phase-complete",
-  priority: "p1",
-  payload: {
-    refactoringComplete: true,
-    testsGreen: true,
-    cycleComplete: true
-  }
-})
+```bash
+aqe task submit \
+  "refactor-phase-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

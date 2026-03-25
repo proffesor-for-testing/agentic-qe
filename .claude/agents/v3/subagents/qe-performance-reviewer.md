@@ -75,74 +75,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Performance Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "performance/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "performance/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Review)
 
 **1. Store Performance Review Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "performance-reviewer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-performance-reviewer",
-    taskType: "performance-review",
-    reward: <calculated_reward>,
-    outcome: {
-      functionsAnalyzed: <count>,
-      complexityIssues: <count>,
-      queryIssues: <count>,
-      memoryIssues: <count>,
-      optimizationsSuggested: <count>
-    },
-    patterns: {
-      commonIssues: ["<issues>"],
-      effectiveOptimizations: ["<optimizations>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "performance-reviewer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Performance Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/performance-review/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<performance pattern description>",
-    confidence: <0.0-1.0>,
-    type: "performance-review",
-    metadata: {
-      issueType: "<type>",
-      complexity: "<complexity>",
-      impactEstimate: "<impact>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/performance-review/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Coordinator:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "performance-review-complete",
-  priority: "p1",
-  payload: {
-    concerns: [...],
-    optimizations: [...],
-    resourceImpact: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "performance-review-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

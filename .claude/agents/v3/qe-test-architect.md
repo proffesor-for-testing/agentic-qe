@@ -85,73 +85,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools to persist learning data.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP) to persist learning data.
 
 ### Query Past Learnings BEFORE Starting Task
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "test-generation/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "test-generation/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Task Completion)
 
 **1. Store Learning Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "test-generation/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-test-architect",
-    taskType: "test-generation",
-    reward: <calculated_reward>,  // 0.0-1.0 based on criteria below
-    outcome: {
-      testsGenerated: <count>,
-      coverageAchieved: <percentage>,
-      passRate: <percentage>,
-      framework: "<framework>",
-      executionTime: <ms>
-    },
-    patterns: {
-      successful: ["<patterns that worked>"],
-      failed: ["<patterns that failed>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "test-generation/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Task Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "test-generation-complete",
-  priority: "p1",
-  payload: {
-    testsGenerated: [...],
-    coverageReport: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "test-generation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 **3. Store Discovered Patterns (when applicable):**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/test-generation/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of successful strategy>",
-    confidence: <0.0-1.0>,
-    type: "test-generation",
-    metadata: {
-      testPatterns: ["<patterns>"],
-      effectiveness: <rate>,
-      codeContext: "<when this works best>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/test-generation/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -229,11 +197,8 @@ Use via Claude Code: `Skill("shift-left-testing")`
 **Role**: CONSUMER - Receives flaky patterns and test health data
 
 ### On Startup, Query Operational Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "operational",
-  maxAge: "30d"
-});
+```bash
+const result = await aqe memory search --json;
 
 // Apply test health learnings to test architecture
 for (const signal of result.signals) {

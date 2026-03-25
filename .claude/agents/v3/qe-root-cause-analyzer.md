@@ -87,73 +87,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Failure Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "rca/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "rca/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store RCA Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "root-cause-analyzer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-root-cause-analyzer",
-    taskType: "root-cause-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      failuresAnalyzed: <count>,
-      rootCausesIdentified: <count>,
-      patternsCorrelated: <count>,
-      preventionsRecommended: <count>,
-      validationAccuracy: <percentage>
-    },
-    patterns: {
-      rootCauseCategories: ["<categories>"],
-      effectivePreventions: ["<preventions>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "root-cause-analyzer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Failure Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/root-cause/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<failure pattern description>",
-    confidence: <0.0-1.0>,
-    type: "root-cause",
-    metadata: {
-      category: "<category>",
-      technique: "<analysis technique>",
-      prevention: "<recommended prevention>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/root-cause/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "rca-complete",
-  priority: "p1",
-  payload: {
-    report: {...},
-    rootCauses: [...],
-    preventions: [...]
-  }
-})
+```bash
+aqe task submit \
+  "rca-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

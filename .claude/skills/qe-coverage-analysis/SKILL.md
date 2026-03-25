@@ -1,6 +1,6 @@
 ---
-name: "QE Coverage Analysis"
-description: "Use when analyzing test coverage, identifying coverage gaps, prioritizing testing effort, or comparing coverage between branches."
+name: "qe-coverage-analysis"
+description: "Analyzes test coverage data (Istanbul, c8, lcov) to identify uncovered lines, branches, and functions with risk-weighted gap detection. Use when analyzing coverage reports, identifying coverage gaps, comparing coverage between branches, or prioritizing which untested code to cover first."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

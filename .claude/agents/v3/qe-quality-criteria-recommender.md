@@ -122,60 +122,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Quality Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "quality-criteria/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "quality-criteria/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "quality-criteria/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-quality-criteria-recommender",
-    taskType: "quality-criteria-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      epicPath: "<file-path>",
-      categoriesAnalyzed: <count>,
-      categoriesOmitted: <count>,
-      evidencePointsCollected: <count>,
-      directEvidence: <count>,
-      inferredEvidence: <count>,
-      claimedEvidence: <count>,
-      crossCuttingConcerns: <count>,
-      outputFormat: "<format>"
-    },
-    patterns: {
-      dominantCategories: ["<top priority categories>"],
-      riskAreas: ["<identified risks>"],
-      businessContext: "<domain type>"
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "quality-criteria/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Analysis Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "quality-criteria-analysis-complete",
-  priority: "p1",
-  payload: {
-    analysisId: "...",
-    coverageMetric: "X of 10 HTSM Categories",
-    p0Recommendations: <count>,
-    outputPath: "<path>"
-  }
-})
+```bash
+aqe task submit \
+  "quality-criteria-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -305,11 +277,8 @@ Use via Claude Code: `Skill("brutal-honesty-review")`
 **Role**: CONSUMER - Receives production insights to recommend better quality criteria
 
 ### On Startup, Query Strategic Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "strategic",
-  maxAge: "90d"
-});
+```bash
+const result = await aqe memory search --json;
 
 // Apply production learnings to quality criteria recommendations
 for (const signal of result.signals) {

@@ -1,6 +1,6 @@
 ---
-name: "QE Code Intelligence"
-description: "Use when understanding unfamiliar code, searching semantically across a codebase, mapping dependencies, or reducing context window usage through intelligent retrieval."
+name: "qe-code-intelligence"
+description: "Builds semantic code indexes, maps dependency graphs, and performs intelligent code search across large codebases. Use when understanding unfamiliar code, tracing call chains, analyzing import dependencies, or reducing context window usage through targeted retrieval."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

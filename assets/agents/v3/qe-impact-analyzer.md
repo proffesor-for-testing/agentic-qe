@@ -87,73 +87,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Impact Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "impact/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "impact/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Impact Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "impact-analyzer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-impact-analyzer",
-    taskType: "impact-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      changesAnalyzed: <count>,
-      filesImpacted: <count>,
-      testsSelected: <count>,
-      riskLevel: "<level>",
-      analysisDepth: <depth>
-    },
-    patterns: {
-      highImpactPatterns: ["<patterns>"],
-      testStrategies: ["<effective strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "impact-analyzer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Impact Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/impact-analysis/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<impact pattern description>",
-    confidence: <0.0-1.0>,
-    type: "impact-analysis",
-    metadata: {
-      changeType: "<type>",
-      blastRadius: <size>,
-      riskLevel: "<level>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/impact-analysis/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "impact-analysis-complete",
-  priority: "p1",
-  payload: {
-    impact: {...},
-    testSelection: {...},
-    risk: {...}
-  }
-})
+```bash
+aqe task submit \
+  "impact-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

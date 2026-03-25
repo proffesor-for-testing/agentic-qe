@@ -1,6 +1,6 @@
 ---
-name: "QE Test Execution"
-description: "Use when running test suites, optimizing test execution time, handling flaky tests, or setting up CI/CD test pipelines."
+name: "qe-test-execution"
+description: "Orchestrates test suite execution with parallel sharding, intelligent retry, and real-time reporting across Jest, Vitest, and Playwright. Use when running test suites, optimizing execution time, handling flaky tests, configuring CI test pipelines, or analyzing test run results."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

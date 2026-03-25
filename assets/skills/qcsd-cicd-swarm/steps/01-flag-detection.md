@@ -14,8 +14,8 @@
 Retrieve the most recent Development phase signals from memory.
 
 **MCP Method:**
-```javascript
-mcp__agentic-qe__memory_query({ pattern: "qcsd-development-*", namespace: "qcsd-development", limit: 1 })
+```bash
+aqe memory search --pattern "qcsd-development-*" --namespace "qcsd-development" --limit 1 --json
 ```
 
 ### Flag Detection (Check ALL SIX)

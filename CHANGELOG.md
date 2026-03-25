@@ -5,6 +5,21 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.8] - 2026-03-24
+
+### Added
+
+- **`aqe memory` CLI command** — New CLI command with 7 subcommands (store, get, search, list, delete, share, usage) providing full parity with MCP memory tools. Agents and skills can now operate without the MCP server.
+- **Web tree-sitter WASM parsers** — Added WASM-based parsers for Python, Java, C#, Rust, and Swift, enabling cross-language code intelligence without native binaries.
+- **`--with-mcp` init flag** — MCP server configuration is now opt-in during `aqe init`. CLI commands work standalone without MCP.
+
+### Changed
+
+- **MCP dependency eliminated from agents/skills** — Migrated 431 `mcp__agentic-qe__*` references across 230+ agent and skill definitions to use CLI commands (`aqe task`, `aqe agent`, `aqe fleet`, `aqe memory`, `aqe coverage`, etc.). Agents now work without an MCP server running.
+- **Skill descriptions enriched** — 18 QE skill descriptions rewritten with third-person voice, concrete action verbs, and trigger term keywords for better activation and discoverability.
+- **Skill names standardized** — 15 QE skills renamed to kebab-case format matching their directory names (e.g., "QE Test Generation" to "qe-test-generation").
+- **Platform parity** — All changes synced across `.claude/`, `assets/`, and `.kiro/` platform directories.
+
 ## [3.8.7] - 2026-03-23
 
 ### Added

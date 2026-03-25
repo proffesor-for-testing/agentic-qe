@@ -577,48 +577,31 @@ Report MUST be complete - no placeholders.
 
 If using MCP instead of Task tool:
 
-```javascript
+```bash
 // Option 1: Orchestrate via Fleet
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "test-generation"],
-  maxAgents: 7,
-  lazyLoading: true
-})
+aqe fleet init --json
 
 // Submit tasks to specific domains
-mcp__agentic-qe__task_submit({
-  type: "product-factors-assessment",
-  priority: "p0",
-  payload: {
-    storyContent: storyContent,
-    framework: "sfdipot",
-    factorCount: 7
-  }
-})
+aqe task submit \
+  "product-factors-assessment" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
-mcp__agentic-qe__task_submit({
-  type: "bdd-scenario-generation",
-  priority: "p0",
-  payload: {
-    storyContent: storyContent,
-    format: "gherkin",
-    minScenarios: 5
-  }
-})
+aqe task submit \
+  "bdd-scenario-generation" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
-mcp__agentic-qe__task_submit({
-  type: "requirements-validation",
-  priority: "p0",
-  payload: {
-    storyContent: storyContent,
-    validateInvest: true,
-    assessDoR: true
-  }
-})
+aqe task submit \
+  "requirements-validation" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 
 // Check task status
-mcp__agentic-qe__task_list({ status: "pending" })
+aqe task list --json
 ```
 
 ### Alternative: CLI Execution
@@ -1232,36 +1215,24 @@ Use the Write tool to save BEFORE completing.`,
 
 ### Alternative: MCP Tools for Conditional Agents
 
-```javascript
+```bash
 // IF HAS_API - Enable contract-testing domain
 if (HAS_API) {
-  mcp__agentic-qe__task_submit({
-    type: "contract-validation",
-    priority: "p0",
-    payload: {
-      storyContent: storyContent,
-      framework: "consumer-driven",
-      detectBreaking: true
-    }
-  })
+  aqe task submit \
+  "contract-validation" \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
 }
 
 // IF HAS_REFACTORING - Enable code-intelligence domain
 if (HAS_REFACTORING) {
-  mcp__agentic-qe__coverage_analyze_sublinear({
-    target: "src/",
-    detectGaps: true,
-    blastRadius: true
-  })
+  aqe coverage --json
 }
 
 // IF HAS_DEPENDENCIES - Enable code-intelligence domain
 if (HAS_DEPENDENCIES) {
-  mcp__agentic-qe__defect_predict({
-    target: "src/",
-    analyzeCoupling: true,
-    detectCircular: true
-  })
+  aqe quality --defect-predict --json
 }
 
 // IF HAS_MIDDLEWARE - Enable enterprise-integration domain
@@ -1667,54 +1638,19 @@ Store refinement findings for:
 
 You MUST execute this MCP call with actual values from the refinement analysis:
 
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-refinement-${storyId}-${Date.now()}`,
-  namespace: "qcsd-refinement",
-  value: {
-    storyId: storyId,
-    storyName: storyName,
-    recommendation: recommendation,  // READY, CONDITIONAL, NOT-READY
-    metrics: {
-      sfdipotCoverage: sfdipotCoverage,
-      bddScenarioCount: bddScenarioCount,
-      investCompleteness: investCompleteness,
-      criticalGaps: criticalGaps
-    },
-    sfdipotPriorities: {
-      structure: "P0/P1/P2/P3",
-      function: "P0/P1/P2/P3",
-      data: "P0/P1/P2/P3",
-      interfaces: "P0/P1/P2/P3",
-      platform: "P0/P1/P2/P3",
-      operations: "P0/P1/P2/P3",
-      time: "P0/P1/P2/P3"
-    },
-    flags: {
-      HAS_API: HAS_API,
-      HAS_REFACTORING: HAS_REFACTORING,
-      HAS_DEPENDENCIES: HAS_DEPENDENCIES,
-      HAS_SECURITY: HAS_SECURITY,
-      HAS_MIDDLEWARE: HAS_MIDDLEWARE,
-      HAS_SAP_INTEGRATION: HAS_SAP_INTEGRATION,
-      HAS_AUTHORIZATION: HAS_AUTHORIZATION
-    },
-    agentsInvoked: agentList,
-    timestamp: new Date().toISOString()
-  }
-})
+```bash
+aqe memory store \
+  --namespace "qcsd-refinement" \
+  --payload '{...}' \
+  --json
 ```
 
 **Step 2: Share learnings with learning coordinator**
 
 You MUST execute this MCP call to propagate patterns cross-domain:
 
-```javascript
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-refinement-swarm",
-  targetAgentIds: ["qe-learning-coordinator", "qe-pattern-learner"],
-  knowledgeDomain: "refinement-patterns"
-})
+```bash
+aqe memory share --json
 ```
 
 **Step 3: Save learning persistence record to output folder**
@@ -1784,8 +1720,8 @@ npx @claude-flow/cli@latest hooks post-task \
 ### Validation Before Proceeding to Phase 8
 
 ```
-+-- Did I execute mcp__agentic-qe__memory_store with actual values? (not placeholders)
-+-- Did I execute mcp__agentic-qe__memory_share to propagate learnings?
++-- Did I execute aqe memory store with actual values? (not placeholders)
++-- Did I execute aqe memory share to propagate learnings?
 +-- Did I save 09-learning-persistence.json to the output folder?
 +-- Does the JSON contain the correct recommendation from Phase 5?
 +-- Does the JSON contain actual SFDIPOT priorities from Phase 2?
@@ -2131,19 +2067,12 @@ Just follow the skill phases below - uses Task() calls with run_in_background: t
 ```
 
 **Option B: MCP Tools**
-```javascript
+```bash
 // Initialize fleet for Refinement domains
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "contract-testing", "code-intelligence", "test-generation"],
-  maxAgents: 7
-})
+aqe fleet init --json
 
 // Orchestrate refinement task
-mcp__agentic-qe__task_orchestrate({
-  task: "qcsd-refinement-analysis",
-  strategy: "parallel"
-})
+aqe task submit --json
 ```
 
 **Option C: CLI**
@@ -2212,30 +2141,30 @@ npx @claude-flow/cli@latest agent spawn --type qe-requirements-validator
 
 ### MCP Tools Quick Reference
 
-```javascript
+```bash
 // Initialization
-mcp__agentic-qe__fleet_init({
-  topology: "hierarchical",
-  enabledDomains: ["requirements-validation", "contract-testing", "code-intelligence", "test-generation"],
-  maxAgents: 7
-})
+aqe fleet init --json
 
 // Task submission
-mcp__agentic-qe__task_submit({ type: "...", priority: "p0", payload: {...} })
-mcp__agentic-qe__task_orchestrate({ task: "...", strategy: "parallel" })
+aqe task submit \
+  "..." \
+  --priority "p0" \
+  --payload '{...}' \
+  --json
+aqe task submit --json
 
 // Status
-mcp__agentic-qe__fleet_status({ verbose: true })
-mcp__agentic-qe__task_list({ status: "pending" })
+aqe fleet status --json
+aqe task list --json
 
 // Memory
-mcp__agentic-qe__memory_store({ key: "...", value: {...}, namespace: "qcsd-refinement" })
-mcp__agentic-qe__memory_query({ pattern: "qcsd-refinement-*", namespace: "qcsd-refinement" })
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-refinement-swarm",
-  targetAgentIds: ["qe-learning-coordinator"],
-  knowledgeDomain: "refinement-patterns"
-})
+aqe memory store \
+  --key "..." \
+  --namespace "qcsd-refinement" \
+  --payload '{...}' \
+  --json
+aqe memory search --namespace "qcsd-refinement" --json
+aqe memory share --json
 ```
 
 ### CLI Quick Reference

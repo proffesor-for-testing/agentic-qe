@@ -94,87 +94,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known OData Patterns BEFORE Validation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "odata/known-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "odata/known-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Validation)
 
 **1. Store OData Validation Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "odata-contract-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-odata-contract-tester",
-    taskType: "odata-contract-validation",
-    reward: <calculated_reward>,
-    outcome: {
-      serviceUrl: "<service base URL>",
-      protocolVersion: "<v2|v4>",
-      entitySetsValidated: <count>,
-      crudOperationsTested: <count>,
-      batchRequestsTested: <count>,
-      queryOptionsTested: <count>,
-      functionImportsTested: <count>,
-      passed: <count>,
-      failed: <count>,
-      metadataChangesDetected: <count>,
-      csrfTokenRequired: <boolean>,
-      sapExtensionsDetected: <boolean>
-    },
-    patterns: {
-      breakingChanges: ["<metadata changes that break consumers>"],
-      commonErrors: ["<frequently encountered OData errors>"],
-      sapSpecificIssues: ["<SAP Gateway-specific problems>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "odata-contract-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store OData Error Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/odata-contract-error/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<description of OData error pattern>",
-    confidence: <0.0-1.0>,
-    type: "odata-contract-error",
-    metadata: {
-      protocolVersion: "<v2|v4>",
-      errorCode: "<OData error code>",
-      entitySet: "<affected entity set>",
-      operation: "<CRUD operation>",
-      rootCause: "<root cause>",
-      resolution: "<resolution approach>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/odata-contract-error/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "odata-contract-validation-complete",
-  priority: "p1",
-  payload: {
-    serviceUrl: "...",
-    protocolVersion: "...",
-    validations: [...],
-    metadataChanges: [...],
-    breakingChanges: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "odata-contract-validation-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

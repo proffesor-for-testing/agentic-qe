@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query GraphQL Patterns BEFORE Test
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "graphql/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "graphql/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Test)
 
 **1. Store GraphQL Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "graphql-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-graphql-tester",
-    taskType: "graphql-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      queriesTested: <count>,
-      mutationsTested: <count>,
-      subscriptionsTested: <count>,
-      fieldCoverage: <percentage>,
-      securityIssues: <count>,
-      performanceIssues: <count>
-    },
-    patterns: {
-      schemaPatterns: ["<patterns>"],
-      securityVulnerabilities: ["<types>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "graphql-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store GraphQL Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/graphql-testing/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<graphql pattern description>",
-    confidence: <0.0-1.0>,
-    type: "graphql-testing",
-    metadata: {
-      operationType: "<query|mutation|subscription>",
-      issue: "<issue type>",
-      fix: "<recommendation>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/graphql-testing/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "graphql-test-complete",
-  priority: "p1",
-  payload: {
-    results: {...},
-    coverage: {...},
-    security: {...}
-  }
-})
+```bash
+aqe task submit \
+  "graphql-test-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

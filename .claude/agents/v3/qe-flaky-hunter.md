@@ -90,73 +90,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Flaky Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "flaky/known-patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "flaky/known-patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store Flaky Analysis Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "flaky-hunter/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-flaky-hunter",
-    taskType: "flaky-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      testsAnalyzed: <count>,
-      flakyDetected: <count>,
-      remediationsApplied: <count>,
-      quarantined: <count>,
-      stabilized: <count>
-    },
-    patterns: {
-      detected: ["<flaky patterns found>"],
-      fixes: ["<fixes that worked>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "flaky-hunter/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store New Flaky Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/flaky-test/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<flaky pattern description>",
-    confidence: <0.0-1.0>,
-    type: "flaky-test",
-    metadata: {
-      rootCause: "<cause>",
-      fix: "<remediation>",
-      testType: "<type>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/flaky-test/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Analysis to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "flaky-analysis-complete",
-  priority: "p1",
-  payload: {
-    flakyTests: [...],
-    remediations: [...],
-    quarantine: [...]
-  }
-})
+```bash
+aqe task submit \
+  "flaky-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

@@ -1,6 +1,6 @@
 ---
-name: "QE Visual Accessibility"
-description: "Use when detecting visual regressions, validating responsive design across viewports, testing WCAG accessibility compliance, or ensuring UI consistency after changes."
+name: "qe-visual-accessibility"
+description: "Captures and compares screenshots across viewports, runs axe-core accessibility scans, and detects visual regressions with pixel-diff analysis. Use when detecting UI regressions, validating responsive layouts, testing WCAG compliance, or ensuring visual consistency after CSS or component changes."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

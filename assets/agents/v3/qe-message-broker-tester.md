@@ -90,81 +90,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Messaging Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "messaging/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "messaging/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store Message Broker Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "message-broker-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-message-broker-tester",
-    taskType: "message-broker-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      brokersValidated: <count>,
-      queuesTopicsTested: <count>,
-      messagesProduced: <count>,
-      messagesConsumed: <count>,
-      dlqIssuesFound: <count>,
-      transformationErrors: <count>,
-      orderingViolations: <count>,
-      transactionFailures: <count>
-    },
-    patterns: {
-      brokerType: "<JMS|AMQP|MQTT|Kafka|IBM_MQ>",
-      dlqPatterns: ["<DLQ routing patterns observed>"],
-      retryStrategies: ["<retry patterns validated>"],
-      throughputProfile: "<messages/sec achieved>"
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "message-broker-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Messaging Failure Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/messaging-failure-pattern/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<messaging failure pattern description>",
-    confidence: <0.0-1.0>,
-    type: "messaging-failure-pattern",
-    metadata: {
-      brokerType: "<broker type>",
-      failureMode: "<ordering|delivery|transformation|transaction>",
-      rootCause: "<root cause>",
-      resolution: "<fix guidance>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/messaging-failure-pattern/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "message-broker-testing-complete",
-  priority: "p1",
-  payload: {
-    brokers: [...],
-    queueResults: [...],
-    dlqAnalysis: [...],
-    throughputMetrics: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "message-broker-testing-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

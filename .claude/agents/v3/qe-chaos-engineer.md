@@ -89,74 +89,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known Weaknesses BEFORE Experiment
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "chaos/known-weaknesses",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "chaos/known-weaknesses" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Experiment)
 
 **1. Store Chaos Experiment Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "chaos-engineer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-chaos-engineer",
-    taskType: "chaos-experiment",
-    reward: <calculated_reward>,
-    outcome: {
-      experimentsRun: <count>,
-      weaknessesFound: <count>,
-      servicesAffected: <count>,
-      recoveryTime: <ms>,
-      safetyViolations: <count>
-    },
-    patterns: {
-      weaknesses: ["<discovered weaknesses>"],
-      resilience: ["<resilience patterns observed>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "chaos-engineer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Discovered Weakness:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/resilience-weakness/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<weakness description>",
-    confidence: <0.0-1.0>,
-    type: "resilience-weakness",
-    metadata: {
-      service: "<service>",
-      faultType: "<type>",
-      impact: "<impact>",
-      remediation: "<fix>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/resilience-weakness/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "chaos-experiment-complete",
-  priority: "p1",
-  payload: {
-    experiments: [...],
-    weaknesses: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "chaos-experiment-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

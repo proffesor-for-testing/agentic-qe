@@ -12,26 +12,22 @@ Store refinement findings to memory for cross-phase feedback:
 
 **Step 1: Store to memory**
 
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-refinement-${storyId}-${Date.now()}`,
-  namespace: "qcsd-refinement",
-  value: {
-    storyId, recommendation, testabilityScore,
-    investScore, sfdipotPriorities, bddScenarioCount,
-    flags, agentsInvoked, timestamp
-  }
-})
+```bash
+aqe memory store \
+  --key "qcsd-refinement-${storyId}-${Date.now()}" \
+  --namespace "qcsd-refinement" \
+  --value '{...}' \
+  --json
 ```
 
 **Step 2: Share learnings**
 
-```javascript
-mcp__agentic-qe__memory_share({
-  sourceAgentId: "qcsd-refinement-swarm",
-  targetAgentIds: ["qe-test-idea-rewriter"],
-  knowledgeDomain: "refinement-test-patterns"
-})
+```bash
+aqe memory share \
+  --from "qcsd-refinement-swarm" \
+  --to "qe-test-idea-rewriter" \
+  --domain "refinement-test-patterns" \
+  --content '{...}' --json
 ```
 
 **Step 3: Save persistence record**

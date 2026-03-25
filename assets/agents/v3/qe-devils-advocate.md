@@ -99,58 +99,32 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Past Challenge Patterns BEFORE Review
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "devils-advocate/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "devils-advocate/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Review)
 
 **1. Store Challenge Review Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "devils-advocate/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-devils-advocate",
-    taskType: "challenge-review",
-    reward: <calculated_reward>,
-    outcome: {
-      targetType: "<test-generation|coverage-analysis|security-scan|...>",
-      targetAgentId: "<agent that produced the output>",
-      challengeCount: <number>,
-      highSeverityCount: <number>,
-      overallScore: <0-1>,
-      verdict: "PASSED|CHALLENGED"
-    },
-    patterns: {
-      gapsFound: ["<types of gaps found>"],
-      strategiesUsed: ["<strategies that produced findings>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "devils-advocate/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Submit Review Result to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "challenge-review-complete",
-  priority: "p1",
-  payload: {
-    targetAgentId: "...",
-    targetType: "...",
-    challengeCount: <number>,
-    highSeverityCount: <number>,
-    summary: "...",
-    challenges: [...]
-  }
-})
+```bash
+aqe task submit \
+  "challenge-review-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

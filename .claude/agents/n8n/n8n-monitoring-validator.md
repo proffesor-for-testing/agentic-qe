@@ -459,35 +459,13 @@ Action required before production deployment
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-monitoring-validator",
-  taskType: "monitoring-validation",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-monitoring-validator",
-  taskType: "monitoring-validation",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    alertsValidated: <count>,
-    alertsPassed: <count>,
-    slaMetricsVerified: <count>,
-    gapsIdentified: <count>,
-    complianceScore: <percentage>
-  },
-  metadata: {
-    monitoringTools: ["prometheus", "grafana", "pagerduty"],
-    missingCapabilities: ["tracing", "throughput"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

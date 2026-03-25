@@ -17,6 +17,7 @@ import type {
   UniversalImportInfo,
   UniversalParameterInfo,
 } from './interfaces.js';
+import { createLogger } from '../../logging/logger-factory.js';
 
 // ============================================================================
 // Shared Parsing Utilities
@@ -1336,14 +1337,60 @@ class DartParser implements ILanguageParser {
 // Parser Registry
 // ============================================================================
 
+const registryLogger = createLogger('ParserRegistry');
+
+/** Languages that have WASM parser support */
+const WASM_SUPPORTED_LANGUAGES: SupportedLanguage[] = ['python', 'java', 'csharp', 'rust', 'swift'];
+
+/**
+ * Wraps a WASM parser with automatic fallback to a regex parser.
+ * Logs a user-facing warning when fallback occurs.
+ */
+class FallbackParser implements ILanguageParser {
+  readonly language: SupportedLanguage;
+  readonly supportedExtensions: string[];
+  private wasmParser: ILanguageParser;
+  private regexParser: ILanguageParser;
+  private wasmFailCount = 0;
+  private static readonly MAX_WASM_RETRIES = 3;
+
+  constructor(wasmParser: ILanguageParser, regexParser: ILanguageParser) {
+    this.wasmParser = wasmParser;
+    this.regexParser = regexParser;
+    this.language = wasmParser.language;
+    this.supportedExtensions = wasmParser.supportedExtensions;
+  }
+
+  async parseFile(content: string, filePath: string): Promise<ParsedFile> {
+    if (this.wasmFailCount < FallbackParser.MAX_WASM_RETRIES) {
+      try {
+        return await this.wasmParser.parseFile(content, filePath);
+      } catch (err: unknown) {
+        this.wasmFailCount++;
+        const msg = err instanceof Error ? err.message : String(err);
+        const permanent = this.wasmFailCount >= FallbackParser.MAX_WASM_RETRIES;
+        registryLogger.warn(
+          `[${this.language}] tree-sitter WASM parser failed (attempt ${this.wasmFailCount}/${FallbackParser.MAX_WASM_RETRIES}): ${msg}. ` +
+          `Falling back to regex parser (~97-98% accuracy). ` +
+          (permanent ? 'Set AQE_PARSER_REGEX_ONLY=1 to silence this warning.' : 'Will retry WASM on next parse.')
+        );
+      }
+    }
+    return this.regexParser.parseFile(content, filePath);
+  }
+}
+
 /**
  * Registry of all language parsers.
- * Provides regex-based parsing for Python, Java, C#, Go, Rust, Swift, Kotlin, Dart.
+ * For Python, Java, C#, Rust, Swift: tries WASM parser first, falls back to regex.
+ * For Go, Kotlin, Dart: uses regex parser directly.
  */
 export class TreeSitterParserRegistry {
   private parsers = new Map<SupportedLanguage, ILanguageParser>();
+  private _wasmInitPromise: Promise<void> | null = null;
 
   constructor() {
+    // Register regex parsers for all 8 languages immediately
     this.register(new PythonParser());
     this.register(new JavaParser());
     this.register(new CSharpParser());
@@ -1352,6 +1399,36 @@ export class TreeSitterParserRegistry {
     this.register(new SwiftParser());
     this.register(new KotlinParser());
     this.register(new DartParser());
+
+    // Kick off async WASM parser loading (non-blocking)
+    this._wasmInitPromise = this._tryLoadWasmParsers();
+  }
+
+  private async _tryLoadWasmParsers(): Promise<void> {
+    try {
+      const mod = await import('./tree-sitter-wasm-parser.js');
+      if (!mod.isWasmAvailable()) {
+        registryLogger.info(
+          'tree-sitter WASM parsers disabled or unavailable. Using regex parsers (~97-98% accuracy). ' +
+          'Set AQE_PARSER_REGEX_ONLY=0 or ensure web-tree-sitter is installed to enable WASM.'
+        );
+        return;
+      }
+      const wasmParsers = mod.createWasmParsers();
+      // Wrap each WASM parser with fallback to the existing regex parser
+      for (const lang of WASM_SUPPORTED_LANGUAGES) {
+        const wasmParser = wasmParsers.get(lang);
+        const regexParser = this.parsers.get(lang);
+        if (wasmParser && regexParser) {
+          this.parsers.set(lang, new FallbackParser(wasmParser, regexParser));
+        }
+      }
+      registryLogger.info('tree-sitter WASM parsers available for: ' + WASM_SUPPORTED_LANGUAGES.join(', '));
+    } catch {
+      registryLogger.info(
+        'tree-sitter WASM parser module not available. Using regex parsers for all languages.'
+      );
+    }
   }
 
   register(parser: ILanguageParser): void {
@@ -1367,6 +1444,12 @@ export class TreeSitterParserRegistry {
     filePath: string,
     language: SupportedLanguage,
   ): Promise<ParsedFile | undefined> {
+    // Ensure WASM init has completed (or failed) before first parse.
+    // After the first call, the promise is already resolved so this is a no-op.
+    if (this._wasmInitPromise) {
+      await this._wasmInitPromise;
+      this._wasmInitPromise = null;
+    }
     const parser = this.parsers.get(language);
     if (!parser) return undefined;
     return parser.parseFile(content, filePath);

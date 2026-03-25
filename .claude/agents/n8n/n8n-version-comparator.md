@@ -427,35 +427,13 @@ Based on changes, the following tests should be run:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-version-comparator",
-  taskType: "version-comparison",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-version-comparator",
-  taskType: "version-comparison",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    versionsCompared: ["v1", "v2"],
-    changesDetected: <count>,
-    breakingChanges: <count>,
-    riskLevel: "low|medium|high",
-    migrationsValidated: <count>
-  },
-  metadata: {
-    changeTypes: ["node-added", "param-modified"],
-    riskFactors: ["api-change", "credential-change"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

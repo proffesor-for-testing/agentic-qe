@@ -80,73 +80,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query TDD GREEN Patterns BEFORE Implementation
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "tdd/green/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "tdd/green/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Implementation)
 
 **1. Store GREEN Phase Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "tdd-green/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-tdd-green",
-    taskType: "minimal-implementation",
-    reward: <calculated_reward>,
-    outcome: {
-      testsPassedCount: <count>,
-      linesOfCode: <count>,
-      iterations: <count>,
-      regressions: <count>,
-      simplicitySCore: <score>
-    },
-    patterns: {
-      effectiveApproaches: ["<approaches>"],
-      minimalPatterns: ["<patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "tdd-green/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store GREEN Phase Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/tdd-green/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<green phase pattern description>",
-    confidence: <0.0-1.0>,
-    type: "tdd-green",
-    metadata: {
-      testType: "<type>",
-      implementationStyle: "<style>",
-      iterationsRequired: <count>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/tdd-green/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Signal to Parent Agent:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "green-phase-complete",
-  priority: "p1",
-  payload: {
-    implementationComplete: true,
-    allTestsPass: true,
-    readyForRefactor: true
-  }
-})
+```bash
+aqe task submit \
+  "green-phase-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

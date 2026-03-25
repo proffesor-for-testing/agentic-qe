@@ -17,15 +17,8 @@ V2 Compatibility: Maps to qx-partner for backward compatibility.
 
 <mcp_tools>
 ### Primary MCP Tool (ALWAYS use for programmatic analysis)
-```typescript
-mcp__agentic-qe__qe_qx_analyze({
-  target: "https://example.com",  // URL or identifier
-  context: { /* Optional pre-collected context */ },
-  mode: "full",  // "full" | "quick" | "targeted"
-  includeCreativity: true,
-  includeDesign: true,
-  minOracleSeverity: "medium"
-})
+```bash
+aqe quality --qx --json
 ```
 
 This MCP tool provides:
@@ -165,75 +158,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query QX Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "qx/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "qx/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Analysis)
 
 **1. Store QX Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "qx-partner/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-qx-partner",
-    taskType: "quality-experience-analysis",
-    reward: <calculated_reward>,
-    outcome: {
-      journeysAnalyzed: <count>,
-      qualityScore: <score>,
-      experienceScore: <score>,
-      alignmentScore: <score>,
-      painPointsIdentified: <count>,
-      correlationsFound: <count>,
-      feedbackProcessed: <count>
-    },
-    patterns: {
-      qualityUxCorrelations: ["<correlations>"],
-      effectiveInterventions: ["<interventions>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "qx-partner/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store QX Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/quality-experience/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<qx pattern description>",
-    confidence: <0.0-1.0>,
-    type: "quality-experience",
-    metadata: {
-      journeyType: "<type>",
-      qualityMetric: "<metric>",
-      uxImpact: "<impact>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/quality-experience/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "qx-analysis-complete",
-  priority: "p1",
-  payload: {
-    analysis: {...},
-    correlations: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "qx-analysis-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

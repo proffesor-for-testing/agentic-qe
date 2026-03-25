@@ -76,74 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Optimization Patterns BEFORE Analysis
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "optimization/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "optimization/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Optimization)
 
 **1. Store Optimization Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "metrics-optimizer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-metrics-optimizer",
-    taskType: "metrics-optimization",
-    reward: <calculated_reward>,
-    outcome: {
-      agentsOptimized: <count>,
-      metricsImproved: <count>,
-      hyperparametersUpdated: <count>,
-      abTestsCompleted: <count>,
-      feedbackIntegrated: <count>,
-      avgImprovement: <percentage>
-    },
-    patterns: {
-      effectiveOptimizations: ["<optimizations>"],
-      tunedParameters: ["<parameters>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "metrics-optimizer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Optimization Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/metrics-optimization/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<optimization pattern description>",
-    confidence: <0.0-1.0>,
-    type: "metrics-optimization",
-    metadata: {
-      optimizationType: "<type>",
-      improvement: <percentage>,
-      applicability: "<scope>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/metrics-optimization/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "optimization-complete",
-  priority: "p1",
-  payload: {
-    analysis: {...},
-    optimizations: [...],
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "optimization-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

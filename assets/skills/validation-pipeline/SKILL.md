@@ -1,6 +1,6 @@
 ---
-name: "Validation Pipeline"
-description: "Use when validating requirements, code, or artifacts through structured gate enforcement with per-step scoring and pass/fail reports."
+name: "validation-pipeline"
+description: "Runs multi-stage validation gates with per-step scoring, pass/fail verdicts, and aggregate quality reports. Use when validating requirements, code, or artifacts through structured gate enforcement before merge or release."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json

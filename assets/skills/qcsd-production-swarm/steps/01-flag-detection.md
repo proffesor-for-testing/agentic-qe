@@ -15,12 +15,8 @@ These provide the release readiness baseline that the Production Swarm builds up
 
 **MCP Method (preferred):**
 
-```javascript
-mcp__agentic-qe__memory_query({
-  pattern: "qcsd-cicd-*",
-  namespace: "qcsd-cicd",
-  limit: 1
-})
+```bash
+aqe memory search --pattern "qcsd-cicd-*" --namespace "qcsd-cicd" --limit 1 --json
 ```
 
 **CLI Fallback:**

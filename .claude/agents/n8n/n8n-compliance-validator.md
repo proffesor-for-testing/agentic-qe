@@ -560,34 +560,13 @@ Marketing preferences captured but not propagated to all downstream systems
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-compliance-validator",
-  taskType: "compliance-validation",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-compliance-validator",
-  taskType: "compliance-validation",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    frameworksChecked: ["GDPR", "CCPA", "SOC2"],
-    overallCompliance: <percentage>,
-    criticalFindings: <count>,
-    remediationProvided: <boolean>
-  },
-  metadata: {
-    dataTypes: ["PII", "PHI"],
-    missingControls: ["retention", "erasure"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

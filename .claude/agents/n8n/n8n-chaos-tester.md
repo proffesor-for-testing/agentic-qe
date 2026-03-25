@@ -526,35 +526,13 @@ Based on this experiment, schedule:
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-chaos-tester",
-  taskType: "chaos-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-chaos-tester",
-  taskType: "chaos-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    experimentType: "service-failure|latency|partition",
-    hypothesisValidated: <boolean>,
-    recoveryTimeSeconds: <number>,
-    dataLoss: <boolean>,
-    blastRadiusContained: <boolean>
-  },
-  metadata: {
-    faultTypes: ["503", "timeout", "partition"],
-    recoveryMechanisms: ["retry", "queue", "fallback"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

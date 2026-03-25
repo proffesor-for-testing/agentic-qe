@@ -119,6 +119,8 @@ export interface InitOptions {
   withContinueDev?: boolean;
   /** Install all coding agent platform configurations */
   withAllPlatforms?: boolean;
+  /** Install MCP server config (opt-in — CLI commands work without MCP) */
+  withMcp?: boolean;
 }
 
 /**

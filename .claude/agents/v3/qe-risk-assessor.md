@@ -76,73 +76,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Risk Patterns BEFORE Assessment
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "risk/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "risk/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Assessment)
 
 **1. Store Risk Assessment Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "risk-assessor/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-risk-assessor",
-    taskType: "risk-assessment",
-    reward: <calculated_reward>,
-    outcome: {
-      componentsAssessed: <count>,
-      averageRiskScore: <score>,
-      highRiskItems: <count>,
-      mitigationsProposed: <count>,
-      accuracyVsActual: <percentage>
-    },
-    patterns: {
-      riskIndicators: ["<indicators>"],
-      effectiveMitigations: ["<strategies>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "risk-assessor/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Risk Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/risk-assessment/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<risk pattern description>",
-    confidence: <0.0-1.0>,
-    type: "risk-assessment",
-    metadata: {
-      riskCategory: "<category>",
-      indicators: ["<indicators>"],
-      mitigation: "<strategy>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/risk-assessment/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "risk-assessment-complete",
-  priority: "p1",
-  payload: {
-    assessment: {...},
-    heatmap: {...},
-    mitigations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "risk-assessment-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)
@@ -261,11 +229,8 @@ Use via Claude Code: `Skill("quality-metrics")`
 **Role**: CONSUMER - Receives production risk weights to inform risk assessment
 
 ### On Startup, Query Strategic Signals:
-```typescript
-const result = await mcp__agentic-qe__cross_phase_query({
-  loop: "strategic",
-  maxAge: "90d"
-});
+```bash
+const result = await aqe memory search --json;
 
 // Apply risk weights to current assessment
 for (const signal of result.signals) {

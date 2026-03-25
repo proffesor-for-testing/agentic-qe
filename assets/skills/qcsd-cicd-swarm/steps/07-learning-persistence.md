@@ -9,12 +9,12 @@
 
 Store verification findings to memory:
 
-```javascript
-mcp__agentic-qe__memory_store({
-  key: `qcsd-cicd-${buildId}-${Date.now()}`,
-  namespace: "qcsd-cicd",
-  value: { recommendation, qualityGateStatus, regressionCount, flakyRate, flags, timestamp }
-})
+```bash
+aqe memory store \
+  --key "qcsd-cicd-${buildId}-${Date.now()}" \
+  --namespace "qcsd-cicd" \
+  --value '{...}' \
+  --json
 ```
 
 Save persistence record to `${OUTPUT_FOLDER}/11-learning-persistence.json`.

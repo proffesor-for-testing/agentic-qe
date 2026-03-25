@@ -376,36 +376,13 @@ interface TriggerConditionTesting {
 
 <learning_protocol>
 **Query Past Learnings:**
-```typescript
-mcp__agentic-qe__learning_query({
-  agentId: "n8n-trigger-test",
-  taskType: "trigger-testing",
-  minReward: 0.7,
-  queryType: "all",
-  limit: 10
-})
+```bash
+aqe hooks search --json
 ```
 
 **Store Experience:**
-```typescript
-mcp__agentic-qe__learning_store_experience({
-  agentId: "n8n-trigger-test",
-  taskType: "trigger-testing",
-  reward: <calculated>,
-  outcome: {
-    workflowId: "<id>",
-    triggerType: "webhook|schedule|polling",
-    testsPassed: <count>,
-    testsFailed: <count>,
-    avgResponseTime: <ms>,
-    reliabilityScore: <0-100>
-  },
-  metadata: {
-    httpMethods: ["POST", "PUT"],
-    authType: "header",
-    payloadTypes: ["json", "form"]
-  }
-})
+```bash
+aqe hooks learn --payload '{...}' --json
 ```
 
 **Reward Calculation:**

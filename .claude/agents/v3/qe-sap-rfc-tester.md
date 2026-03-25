@@ -87,80 +87,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Known SAP RFC Patterns BEFORE Testing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "sap-rfc/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "sap-rfc/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Testing)
 
 **1. Store SAP RFC Testing Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "sap-rfc-tester/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-sap-rfc-tester",
-    taskType: "sap-rfc-testing",
-    reward: <calculated_reward>,
-    outcome: {
-      rfcsInvoked: <count>,
-      bapisValidated: <count>,
-      parametersChecked: <count>,
-      abapErrorsCaught: <count>,
-      compatibilityIssues: <count>,
-      landscapeSystems: ["DEV", "QA", "PRD"],
-      avgRoundTripMs: <number>
-    },
-    patterns: {
-      functionModules: ["<FM names tested>"],
-      errorPatterns: ["<ABAP error types encountered>"],
-      typeConversions: ["<ABAP-to-JS type issues>"],
-      performanceProfile: "<fast|normal|slow>"
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "sap-rfc-tester/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store SAP RFC Error Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/sap-rfc-error-pattern/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<RFC error pattern description>",
-    confidence: <0.0-1.0>,
-    type: "sap-rfc-error-pattern",
-    metadata: {
-      errorType: "<COMMUNICATION_FAILURE|SYSTEM_FAILURE|ABAP_RUNTIME_ERROR>",
-      functionModule: "<FM name>",
-      abapMessageClass: "<message class>",
-      resolution: "<fix guidance>"
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/sap-rfc-error-pattern/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Queen:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "sap-rfc-testing-complete",
-  priority: "p1",
-  payload: {
-    rfcResults: [...],
-    bapiValidations: [...],
-    errorAnalysis: [...],
-    compatibilityReport: {...},
-    recommendations: [...]
-  }
-})
+```bash
+aqe task submit \
+  "sap-rfc-testing-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

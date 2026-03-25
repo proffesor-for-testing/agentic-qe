@@ -75,74 +75,41 @@ Coordination:
 </memory_namespace>
 
 <learning_protocol>
-**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning MCP tools.
+**MANDATORY**: When executed via Claude Code Task tool, you MUST call learning tools (via CLI or MCP).
 
 ### Query Review Patterns BEFORE Reviewing
 
-```typescript
-mcp__agentic-qe__memory_retrieve({
-  key: "review/patterns",
-  namespace: "learning"
-})
+```bash
+aqe memory get --key "review/patterns" --namespace "learning" --json
 ```
 
 ### Required Learning Actions (Call AFTER Review)
 
 **1. Store Review Experience:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "code-reviewer/outcome-{timestamp}",
-  namespace: "learning",
-  value: {
-    agentId: "qe-code-reviewer",
-    taskType: "code-review",
-    reward: <calculated_reward>,
-    outcome: {
-      filesReviewed: <count>,
-      issuesFound: <count>,
-      criticalIssues: <count>,
-      suggestionsGenerated: <count>,
-      approvalGiven: <boolean>
-    },
-    patterns: {
-      commonIssues: ["<issues>"],
-      effectiveFeedback: ["<feedback-patterns>"]
-    }
-  }
-})
+```bash
+aqe memory store \
+  --key "code-reviewer/outcome-{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **2. Store Review Pattern:**
-```typescript
-mcp__agentic-qe__memory_store({
-  key: "patterns/code-review/{timestamp}",
-  namespace: "learning",
-  value: {
-    pattern: "<review pattern description>",
-    confidence: <0.0-1.0>,
-    type: "code-review",
-    metadata: {
-      issueType: "<type>",
-      severity: "<severity>",
-      frequency: <count>
-    }
-  },
-  persist: true
-})
+```bash
+aqe memory store \
+  --key "patterns/code-review/{timestamp}" \
+  --namespace "learning" \
+  --value '{...}' \
+  --json
 ```
 
 **3. Submit Results to Coordinator:**
-```typescript
-mcp__agentic-qe__task_submit({
-  type: "review-complete",
-  priority: "p1",
-  payload: {
-    approved: <boolean>,
-    findings: [...],
-    blockers: [...],
-    suggestions: [...]
-  }
-})
+```bash
+aqe task submit \
+  "review-complete" \
+  --priority "p1" \
+  --payload '{...}' \
+  --json
 ```
 
 ### Reward Calculation Criteria (0-1 scale)

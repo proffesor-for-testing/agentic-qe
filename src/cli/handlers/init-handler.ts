@@ -63,6 +63,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
+      .option('--with-mcp', 'Include MCP server config in .mcp.json (opt-in — CLI works without MCP)')
       .option('--with-all-platforms', 'Include all coding agent platform configurations')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
@@ -134,6 +135,7 @@ export class InitHandler implements ICommandHandler {
       withCodex: options.withCodex,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
+      withMcp: options.withMcp,
       noGovernance: options.noGovernance,
     });
 
@@ -196,9 +198,14 @@ export class InitHandler implements ICommandHandler {
       console.log(chalk.gray(`    - Total time: ${result.totalDurationMs}ms\n`));
 
       console.log(chalk.white('Next steps:'));
-      console.log(chalk.gray('  1. Add MCP: claude mcp add aqe -- aqe-mcp'));
-      console.log(chalk.gray('  2. Run tests: aqe test <path>'));
-      console.log(chalk.gray('  3. Check status: aqe status\n'));
+      console.log(chalk.gray('  1. Run tests: aqe test <path>'));
+      console.log(chalk.gray('  2. Check coverage: aqe coverage <path>'));
+      console.log(chalk.gray('  3. Check status: aqe status'));
+      if (!result.summary.mcpConfigured) {
+        console.log(chalk.gray('\n  Optional — enable MCP server for richer agent integration:'));
+        console.log(chalk.gray('    aqe init --with-mcp'));
+        console.log(chalk.gray('    # or manually: claude mcp add aqe -- aqe-mcp\n'));
+      }
     } else {
       console.log(chalk.red('  Initialization failed. Check errors above.\n'));
       await this.cleanupAndExit(1);
@@ -255,9 +262,14 @@ export class InitHandler implements ICommandHandler {
       console.log(chalk.gray(`    - Total time: ${result.totalDurationMs}ms\n`));
 
       console.log(chalk.white('Next steps:'));
-      console.log(chalk.gray('  1. Add MCP: claude mcp add aqe -- aqe-mcp'));
-      console.log(chalk.gray('  2. Run tests: aqe test <path>'));
-      console.log(chalk.gray('  3. Check status: aqe status\n'));
+      console.log(chalk.gray('  1. Run tests: aqe test <path>'));
+      console.log(chalk.gray('  2. Check coverage: aqe coverage <path>'));
+      console.log(chalk.gray('  3. Check status: aqe status'));
+      if (!result.summary.mcpConfigured) {
+        console.log(chalk.gray('\n  Optional — enable MCP server for richer agent integration:'));
+        console.log(chalk.gray('    aqe init --with-mcp'));
+        console.log(chalk.gray('    # or manually: claude mcp add aqe -- aqe-mcp\n'));
+      }
     } else {
       console.log(chalk.red('  Initialization failed. Check errors above.\n'));
       await this.cleanupAndExit(1);
@@ -444,6 +456,7 @@ interface InitOptions {
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
+  withMcp?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;

@@ -1,6 +1,6 @@
 ---
-name: Pair Programming
-description: "Use when pair programming with AI assistance, practicing TDD with a navigator, debugging collaboratively, refactoring with real-time verification, or running learning sessions with continuous code review and quality monitoring."
+name: "pair-programming"
+description: "Provides AI navigator for pair programming sessions with real-time code review, TDD guidance, and quality monitoring. Use when pair programming with AI assistance, practicing TDD with a navigator, debugging collaboratively, or refactoring with real-time verification."
 ---
 
 # Pair Programming
