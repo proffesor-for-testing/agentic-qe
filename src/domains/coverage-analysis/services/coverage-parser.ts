@@ -1038,12 +1038,34 @@ export function parseXcresultContent(content: string, projectRoot: string): Cove
 // ============================================================================
 
 /**
- * Auto-detect coverage format and parse accordingly
+ * Language-to-format mapping for inference when format is not specified
+ */
+const LANGUAGE_FORMAT_HINTS: Record<string, CoverageFormat[]> = {
+  java: ['jacoco', 'cobertura', 'lcov'],
+  kotlin: ['kover', 'jacoco'],
+  csharp: ['dotcover', 'cobertura'],
+  rust: ['tarpaulin', 'lcov'],
+  go: ['gocover'],
+  swift: ['xcresult'],
+  dart: ['lcov'],
+  typescript: ['lcov', 'json'],
+  javascript: ['lcov', 'json'],
+  python: ['lcov', 'cobertura', 'json'],
+};
+
+/**
+ * Auto-detect coverage format and parse accordingly.
+ *
+ * @param coveragePath - Path to the coverage file
+ * @param projectRoot - Project root for relative path calculation
+ * @param format - Explicit format override
+ * @param language - Language hint for format inference
  */
 export async function parseCoverage(
   coveragePath: string,
   projectRoot?: string,
   format?: CoverageFormat,
+  language?: string,
 ): Promise<CoverageReport> {
   // If format is explicitly specified, use it directly
   if (format) {
@@ -1124,10 +1146,30 @@ export async function parseCoverage(
   // XML-based detection
   if (trimmed.startsWith('<?xml') || trimmed.startsWith('<')) {
     if (content.includes('<counter type="') || content.includes('<report ')) {
+      // Differentiate JaCoCo vs Kover using language hint
+      if (language === 'kotlin') {
+        const report = parseJaCoCoContent(content, projectRoot || path.dirname(coveragePath));
+        report.format = 'kover';
+        report.language = 'kotlin';
+        return report;
+      }
       return parseJaCoCoContent(content, projectRoot || path.dirname(coveragePath));
     }
     if (content.includes('CoveredStatements=') || content.includes('<Root')) {
       return parseDotcoverContent(content, projectRoot || path.dirname(coveragePath));
+    }
+  }
+
+  // Language-based fallback: try the first format associated with the language
+  if (language) {
+    const langLower = language.toLowerCase();
+    const hints = LANGUAGE_FORMAT_HINTS[langLower];
+    if (hints && hints.length > 0) {
+      try {
+        return await parseCoverage(coveragePath, projectRoot, hints[0]);
+      } catch {
+        // Language hint didn't help, fall through to error
+      }
     }
   }
 

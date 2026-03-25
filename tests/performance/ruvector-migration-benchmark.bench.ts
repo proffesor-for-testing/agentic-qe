@@ -158,7 +158,7 @@ describe('Peak Memory During Migration', () => {
 
     // Log ratio for manual comparison (target: <2x)
     const ratio = (normalMem + migrationMem) / Math.max(normalMem, 1);
-    void `peak_memory_ratio=${ratio.toFixed(2)}x normal=${formatBytes(normalMem)} migration=${formatBytes(migrationMem)}`;
+    console.log(`[migration] peak_memory_ratio=${ratio.toFixed(2)}x normal=${formatBytes(normalMem)} migration=${formatBytes(migrationMem)}`);
   }, {
     iterations: 1,
     warmupIterations: 0,

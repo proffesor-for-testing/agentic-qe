@@ -1334,6 +1334,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       rs: 'rust',
       rb: 'ruby',
       cs: 'csharp',
+      swift: 'swift',
     };
     return typeMap[ext] || 'unknown';
   }
@@ -1346,6 +1347,8 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       go: ['go'],
       java: ['java'],
       rust: ['rs'],
+      csharp: ['cs'],
+      swift: ['swift'],
     };
 
     return languages.some((lang) => {

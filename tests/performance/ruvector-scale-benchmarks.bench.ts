@@ -197,11 +197,9 @@ describe('Tiered Memory Usage Comparison', () => {
   for (const size of TIERS) {
     const label = size >= 1000 ? `${size / 1000}K` : `${size}`;
 
-    bench(`memory estimate for ${label} vectors`, () => {
+    bench(`memory estimate for ${label} vectors (raw=${formatBytes(size * DIMENSIONS * 4)}, est=${formatBytes(estimateMemoryBytes(size, DIMENSIONS))})`, () => {
       const raw = size * DIMENSIONS * 4;
-      const estimated = estimateMemoryBytes(size, DIMENSIONS);
-      // Log for comparison (visible in bench output)
-      void `raw=${formatBytes(raw)} estimated=${formatBytes(estimated)}`;
+      estimateMemoryBytes(size, DIMENSIONS);
     });
   }
 });
@@ -298,13 +296,27 @@ describe('Filter Performance at Scale', () => {
 // ============================================================================
 
 describe('Growth Curve Report', () => {
-  bench('generate growth curve data', () => {
-    const data = TIERS.map(size => ({
+  // Print growth curve data once before benchmarks (not inside bench loop)
+  beforeAll(() => {
+    console.log('\n=== HNSW Growth Curve (v3.8.8 baseline) ===');
+    console.log('Vectors   | Raw Memory | Est. Total | Cold Compressed');
+    console.log('----------|------------|------------|----------------');
+    for (const size of TIERS) {
+      const label = String(size).padStart(9);
+      const raw = formatBytes(size * DIMENSIONS * 4).padStart(10);
+      const est = formatBytes(estimateMemoryBytes(size, DIMENSIONS)).padStart(10);
+      const cold = formatBytes(Math.ceil(size * DIMENSIONS * 0.375)).padStart(14);
+      console.log(`${label} | ${raw} | ${est} | ${cold}`);
+    }
+    console.log('');
+  });
+
+  bench('growth curve computation', () => {
+    TIERS.map(size => ({
       vectors: size,
-      rawMemory: formatBytes(size * DIMENSIONS * 4),
-      estimatedTotal: formatBytes(estimateMemoryBytes(size, DIMENSIONS)),
-      coldCompressedEstimate: formatBytes(Math.ceil(size * DIMENSIONS * 0.375)), // 3-bit
+      rawMemory: size * DIMENSIONS * 4,
+      estimatedTotal: estimateMemoryBytes(size, DIMENSIONS),
+      coldCompressedEstimate: Math.ceil(size * DIMENSIONS * 0.375),
     }));
-    void data;
   });
 });

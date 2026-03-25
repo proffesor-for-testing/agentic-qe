@@ -53,6 +53,10 @@ export interface CoverageAnalyzeResult {
   thresholdsPassed: boolean;
   riskScore?: number;
   trends?: CoverageTrend;
+  /** Detected or specified source language */
+  language?: string;
+  /** Coverage format used for parsing */
+  format?: string;
 }
 
 export interface CoverageSummary {
@@ -222,6 +226,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
       includeRiskScoring = false,
       dryRun = false,
       coverageFormat,
+      language,
     } = params;
 
     const shouldIncludeRisk = includeRisk || includeRiskScoring;
@@ -247,7 +252,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any);
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
         } catch (parseError) {
           // Return error - don't silently fall back to fake data
           return {
@@ -358,6 +363,10 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
         progress: 100,
       });
 
+      // Resolve language: explicit param > detected from report > undefined
+      const detectedLanguage = params.language || parsedReport.language;
+      const detectedFormat = parsedReport.format;
+
       return {
         success: true,
         data: {
@@ -366,6 +375,8 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
           thresholdsPassed,
           riskScore,
           trends,
+          language: detectedLanguage,
+          format: detectedFormat,
         },
       };
     } catch (error) {
@@ -474,6 +485,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       limit = 20,
       prioritization = 'complexity',
       coverageFormat,
+      language,
     } = params;
 
     try {
@@ -491,7 +503,7 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
       if (coverageFile) {
         try {
-          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any);
+          parsedReport = await parseCoverage(coverageFile, target, coverageFormat as any, language);
         } catch (parseError) {
           return {
             success: false,
