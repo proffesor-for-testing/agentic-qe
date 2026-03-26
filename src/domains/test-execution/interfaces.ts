@@ -186,6 +186,16 @@ export interface ITestRunResult {
   duration: number;
   failedTests: IFailedTest[];
   coverage?: ICoverageData;
+  /** Per-file coverage data for granular quality assessment */
+  fileCoverages?: IFileCoverageData[];
+}
+
+export interface IFileCoverageData {
+  path: string;
+  line: number;
+  branch: number;
+  function: number;
+  statement: number;
 }
 
 export interface IFailedTest {
@@ -593,6 +603,8 @@ export type TestRunResult = ITestRunResult;
 export type FailedTest = IFailedTest;
 /** @deprecated Use ICoverageData */
 export type CoverageData = ICoverageData;
+/** @deprecated Use IFileCoverageData */
+export type FileCoverageData = IFileCoverageData;
 /** @deprecated Use IFlakyDetectionRequest */
 export type FlakyDetectionRequest = IFlakyDetectionRequest;
 /** @deprecated Use IFlakyTestReport */

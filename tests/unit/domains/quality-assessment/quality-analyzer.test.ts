@@ -101,6 +101,11 @@ describe('QualityAnalyzerService', () => {
     });
 
     it('should include only requested metrics when specified', async () => {
+      // Pre-populate coverage data so the metric is included
+      await mockMemory.set('coverage:latest', {
+        line: 80, branch: 70, function: 85, statement: 78, files: 1,
+      });
+
       const request: QualityAnalysisRequest = {
         sourceFiles: ['src/app.ts'],
         includeMetrics: ['coverage', 'complexity'],
@@ -152,7 +157,8 @@ describe('QualityAnalyzerService', () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.score.coverage).toBeGreaterThanOrEqual(0);
+        // coverage is -1 when no coverage data is stored (not fabricated)
+        expect(result.value.score.coverage).toBeGreaterThanOrEqual(-1);
         expect(result.value.score.complexity).toBeGreaterThanOrEqual(0);
         expect(result.value.score.maintainability).toBeGreaterThanOrEqual(0);
         expect(result.value.score.security).toBeGreaterThanOrEqual(0);
@@ -160,6 +166,11 @@ describe('QualityAnalyzerService', () => {
     });
 
     it('should assign proper ratings (A-E) based on metric values', async () => {
+      // Pre-populate coverage data so the metric appears
+      await mockMemory.set('coverage:latest', {
+        line: 80, branch: 70, function: 85, statement: 78, files: 1,
+      });
+
       const request: QualityAnalysisRequest = {
         sourceFiles: ['src/app.ts'],
         includeMetrics: ['coverage'],

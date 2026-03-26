@@ -458,15 +458,14 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
       statement: number;
     };
 
-    // Store coverage data for quality assessment
-    await this.memory.set(
-      `quality-assessment:coverage:${payload.reportId}`,
-      {
-        ...payload,
-        receivedAt: new Date().toISOString(),
-      },
-      { namespace: 'quality-assessment', ttl: 86400 }
-    );
+    // Store under the canonical coverage key so quality-analyzer can read it
+    await this.memory.set('coverage:latest', {
+      line: payload.line,
+      branch: payload.branch,
+      function: payload.function,
+      statement: payload.statement,
+      files: 0,
+    }, { persist: true });
   }
 
   private async handleDefectPrediction(event: DomainEvent): Promise<void> {

@@ -522,14 +522,21 @@ Focus on:
         }
         if (includeAll || includeMetrics.includes('coverage')) {
           // Coverage requires external data (from test runners)
-          // Use stored coverage or estimate from testability
+          // Only use real stored coverage — never fabricate a number
           const storedCoverage = await this.getStoredCoverage(file);
-          metrics.coverage = storedCoverage ?? Math.min(95, metrics.testability || 70);
+          if (storedCoverage !== null) {
+            metrics.coverage = storedCoverage;
+          }
+          // If no coverage data exists, omit the metric rather than guessing
         }
       } else {
         // Fallback for files that couldn't be analyzed
         if (includeAll || includeMetrics.includes('coverage')) {
-          metrics.coverage = 70;
+          // Only use real stored coverage — never fabricate a number
+          const storedCoverage = await this.getStoredCoverage(file);
+          if (storedCoverage !== null) {
+            metrics.coverage = storedCoverage;
+          }
         }
         if (includeAll || includeMetrics.includes('complexity')) {
           metrics.complexity = 10;
@@ -552,20 +559,28 @@ Focus on:
   }
 
   private async getStoredCoverage(file: string): Promise<number | null> {
-    // Try to get coverage from stored test results
-    const key = `quality-analysis:coverage:${this.hashFilePath(file)}`;
-    const coverage = await this.memory.get<number>(key);
-    return coverage ?? null;
-  }
+    try {
+      // 1. Try per-file coverage stored by test executor
+      const fileCoverage = await this.memory.get<{ line: number }>(
+        `coverage:file:${file}`
+      );
+      if (fileCoverage && typeof fileCoverage.line === 'number') {
+        return fileCoverage.line;
+      }
 
-  private hashFilePath(path: string): string {
-    // Simple hash for file path
-    let hash = 0;
-    for (let i = 0; i < path.length; i++) {
-      hash = ((hash << 5) - hash) + path.charCodeAt(i);
-      hash = hash & hash;
+      // 2. Fall back to project-wide summary from coverage-analyzer
+      const summary = await this.memory.get<{ line: number }>(
+        'coverage:latest'
+      );
+      if (summary && typeof summary.line === 'number') {
+        return summary.line;
+      }
+
+      // No coverage data available — return null (never fabricate)
+      return null;
+    } catch {
+      return null;
     }
-    return hash.toString(16);
   }
 
   private aggregateMetrics(
@@ -627,9 +642,11 @@ Focus on:
 
     const overall = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
+    // Use -1 to signal "no data available" rather than 0 which implies "0% coverage"
+    const coverageMetric = metrics.find((m) => m.name === 'coverage');
     return {
       overall,
-      coverage: metrics.find((m) => m.name === 'coverage')?.value || 0,
+      coverage: coverageMetric ? coverageMetric.value : -1,
       complexity: metrics.find((m) => m.name === 'complexity')?.value || 0,
       maintainability: metrics.find((m) => m.name === 'maintainability')?.value || 0,
       security: 85, // Placeholder - would come from security analysis
