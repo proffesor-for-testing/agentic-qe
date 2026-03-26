@@ -5,6 +5,17 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.10] - 2026-03-26
+
+### Fixed
+
+- **Coverage data pipeline** — Coverage data now flows correctly from test execution through to quality scores. Previously, `quality_assess` reported fabricated coverage (up to 95%) because it read from keys that nothing wrote to. All 5 orphaned key conventions have been unified into a consistent `coverage:latest`, `coverage:previous`, and `coverage:file:{path}` ecosystem.
+- **Test runner coverage collection** — `test_execute_parallel` now passes `--coverage` flags to vitest and jest, and reads `coverage-summary.json` from disk when runners write coverage to files rather than stdout.
+- **Per-file coverage storage** — Coverage data is now stored via the key-value API (not just the vector store), so quality-analyzer, defect-predictor, and defect-investigation can all read per-file coverage.
+- **Coverage trend detection** — `coverage:previous` is now correctly rotated before each new snapshot, enabling quality-gate trend detection that was previously always reporting "stable".
+- **Quality score fairness** — Projects without coverage tooling no longer receive a false 25-point quality score penalty. Missing coverage reports as unavailable (-1) rather than 0%.
+- **Coverage tracker accuracy** — The coverage-tracker worker now reads real data from `coverage:latest` instead of returning hardcoded fake values.
+
 ## [3.8.9] - 2026-03-25
 
 ### Added
