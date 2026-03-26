@@ -30,10 +30,23 @@ function createMockContext(overrides: Partial<{
         if (key === 'coverage:current' && previousCoverage) {
           return Promise.resolve(previousCoverage);
         }
+        if (key === 'coverage:latest') {
+          return Promise.resolve({ line: 78.5, branch: 65.2, function: 82.1, statement: 79.3, files: 5 });
+        }
+        // Return gap data for gap-pattern:* keys (used by identifyCoverageGaps)
+        if (key === 'gap-pattern:1') {
+          return Promise.resolve({ file: 'src/kernel/memory-backend.ts', uncoveredLines: 45, totalLines: 120, complexity: 15, riskScore: 0.75 });
+        }
+        if (key === 'gap-pattern:2') {
+          return Promise.resolve({ file: 'src/coordination/workflow-orchestrator.ts', uncoveredLines: 120, totalLines: 400, complexity: 28, riskScore: 0.85 });
+        }
+        if (key === 'gap-pattern:3') {
+          return Promise.resolve({ file: 'src/domains/security-compliance/services/security-scanner.ts', uncoveredLines: 200, totalLines: 500, complexity: 32, riskScore: 0.92 });
+        }
         return Promise.resolve(undefined);
       }),
       set: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([]),
+      search: vi.fn().mockResolvedValue(['gap-pattern:1', 'gap-pattern:2', 'gap-pattern:3']),
     },
     logger: {
       debug: vi.fn(),

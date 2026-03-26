@@ -983,12 +983,13 @@ export class DefectInvestigationProtocol {
     file: string
   ): Promise<CoverageContext | null> {
     try {
-      const coverageKey = `coverage-analysis:file:${file}`;
+      // Try per-file coverage (written by coverage-analyzer and test-executor)
       const coverage = await this.memory.get<{
         line: number;
         branch: number;
-        uncoveredLines: number[];
-      }>(coverageKey);
+        function: number;
+        statement: number;
+      }>(`coverage:file:${file}`);
 
       if (!coverage) {
         return null;
@@ -1002,7 +1003,7 @@ export class DefectInvestigationProtocol {
         file,
         lineCoverage: coverage.line,
         branchCoverage: coverage.branch,
-        uncoveredLines: coverage.uncoveredLines,
+        uncoveredLines: [], // per-file KV store doesn't track individual lines
         riskScore,
       };
     } catch (e) {

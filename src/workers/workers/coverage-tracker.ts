@@ -113,43 +113,42 @@ export class CoverageTrackerWorker extends BaseWorker {
   private async collectCoverageTrend(context: WorkerContext): Promise<CoverageTrend> {
     const previous = await context.memory.get<CoverageMetrics>('coverage:current');
 
-    // In a real implementation, this would query the coverage-analysis domain
+    // Read real coverage data from coverage:latest (written by coverage-analyzer
+    // and test-executor). Fall back to zeros when no data is available.
+    const latest = await context.memory.get<{
+      line: number; branch: number; function: number; statement: number;
+    }>('coverage:latest');
+
     const current: CoverageMetrics = {
-      line: 78.5,
-      branch: 65.2,
-      function: 82.1,
-      statement: 79.3,
+      line: latest?.line ?? 0,
+      branch: latest?.branch ?? 0,
+      function: latest?.function ?? 0,
+      statement: latest?.statement ?? 0,
       timestamp: new Date(),
     };
 
     return { current, previous };
   }
 
-  private async identifyCoverageGaps(_context: WorkerContext): Promise<CoverageGap[]> {
-    // In a real implementation, this would analyze actual coverage data
-    return [
-      {
-        file: 'src/kernel/memory-backend.ts',
-        uncoveredLines: 45,
-        totalLines: 120,
-        complexity: 15,
-        riskScore: 0.75,
-      },
-      {
-        file: 'src/coordination/workflow-orchestrator.ts',
-        uncoveredLines: 120,
-        totalLines: 400,
-        complexity: 28,
-        riskScore: 0.85,
-      },
-      {
-        file: 'src/domains/security-compliance/services/security-scanner.ts',
-        uncoveredLines: 200,
-        totalLines: 500,
-        complexity: 32,
-        riskScore: 0.92,
-      },
-    ];
+  private async identifyCoverageGaps(context: WorkerContext): Promise<CoverageGap[]> {
+    // Search for gap patterns stored by the gap-detector service
+    // (written via storeVector with key prefix 'gap-pattern:')
+    const gapKeys = await context.memory.search('gap-pattern:*');
+    if (gapKeys.length > 0) {
+      const gaps: CoverageGap[] = [];
+      for (const key of gapKeys) {
+        const gap = await context.memory.get<CoverageGap>(key);
+        if (gap && typeof gap.riskScore === 'number') {
+          gaps.push(gap);
+        }
+      }
+      if (gaps.length > 0) {
+        return gaps;
+      }
+    }
+
+    // No gap data available from coverage analysis yet
+    return [];
   }
 
   private analyzeCoverageThresholds(

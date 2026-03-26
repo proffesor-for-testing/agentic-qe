@@ -177,9 +177,10 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
       // Store current coverage for future delta calculations
       await this.storeCoverageSnapshot(summary);
 
-      // Store coverage vectors for similarity search
+      // Store coverage vectors for similarity search + KV for quality-analyzer
       if (request.includeFileDetails) {
         await this.indexFileCoverageVectors(coverageData.files);
+        await this.storeFileCoverageKV(coverageData.files);
       }
 
       return ok({
@@ -600,6 +601,12 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
   private async storeCoverageSnapshot(summary: CoverageSummary): Promise<void> {
     try {
+      // Rotate: copy current coverage:latest → coverage:previous before overwriting
+      const existing = await this.memory.get<CoverageSummary>('coverage:latest');
+      if (existing) {
+        await this.memory.set('coverage:previous', existing, { persist: true });
+      }
+
       // Store latest snapshot
       await this.memory.set('coverage:latest', summary, { persist: true });
 
@@ -611,6 +618,35 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
       });
     } catch {
       // Non-critical operation, log and continue
+    }
+  }
+
+  /**
+   * Store per-file coverage via key-value API so that quality-analyzer
+   * and defect-predictor can read it with memory.get().
+   * (The vector index via storeVector is kept for similarity search.)
+   */
+  private async storeFileCoverageKV(files: FileCoverage[]): Promise<void> {
+    for (const file of files) {
+      try {
+        const linePct = file.lines.total > 0
+          ? Math.round((file.lines.covered / file.lines.total) * 10000) / 100 : 0;
+        const branchPct = file.branches.total > 0
+          ? Math.round((file.branches.covered / file.branches.total) * 10000) / 100 : 0;
+        const fnPct = file.functions.total > 0
+          ? Math.round((file.functions.covered / file.functions.total) * 10000) / 100 : 0;
+        const stmtPct = file.statements.total > 0
+          ? Math.round((file.statements.covered / file.statements.total) * 10000) / 100 : 0;
+
+        await this.memory.set(`coverage:file:${file.path}`, {
+          line: linePct,
+          branch: branchPct,
+          function: fnPct,
+          statement: stmtPct,
+        }, { persist: true });
+      } catch {
+        // Non-critical, continue
+      }
     }
   }
 

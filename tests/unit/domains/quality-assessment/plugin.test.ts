@@ -355,7 +355,7 @@ describe('QualityAssessmentPlugin', () => {
 
       await plugin.handleEvent(event);
 
-      const stored = await memory.get(`quality-assessment:coverage:report_123`);
+      const stored = await memory.get('coverage:latest');
       expect(stored).toBeDefined();
     });
 

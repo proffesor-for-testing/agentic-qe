@@ -1146,11 +1146,14 @@ export class QualityAssessmentCoordinator
       branch: number;
     };
 
-    await this.memory.set(
-      `quality-assessment:coverage:${payload.reportId}`,
-      payload,
-      { namespace: 'quality-assessment', ttl: 3600 }
-    );
+    // Store under the canonical coverage key so quality-analyzer can read it
+    await this.memory.set('coverage:latest', {
+      line: payload.line,
+      branch: payload.branch,
+      function: 0,
+      statement: 0,
+      files: 0,
+    }, { persist: true });
   }
 
   private async handleSecurityAuditCompleted(event: DomainEvent): Promise<void> {

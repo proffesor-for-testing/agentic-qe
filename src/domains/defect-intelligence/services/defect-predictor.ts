@@ -789,15 +789,26 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
    * Get test coverage for a file from coverage reports
    */
   private async getTestCoverage(file: string): Promise<number> {
-    const coverageKey = `coverage-analysis:file:${file}`;
-    const coverage = await this.memory.get<{ percentage: number }>(coverageKey);
+    try {
+      // Try per-file coverage (written by coverage-analyzer and test-executor)
+      const fileCoverage = await this.memory.get<{ line: number }>(
+        `coverage:file:${file}`
+      );
+      if (fileCoverage && typeof fileCoverage.line === 'number') {
+        // Invert: low coverage = high defect risk
+        return 1 - fileCoverage.line / 100;
+      }
 
-    if (coverage) {
-      // Invert: low coverage = high defect risk
-      return 1 - coverage.percentage / 100;
+      // Fall back to project-wide coverage
+      const summary = await this.memory.get<{ line: number }>('coverage:latest');
+      if (summary && typeof summary.line === 'number') {
+        return 1 - summary.line / 100;
+      }
+    } catch {
+      // Non-critical lookup
     }
 
-    // Default to medium coverage (inverted)
+    // No coverage data — return moderate risk (not fabricated coverage)
     return 0.4;
   }
 
