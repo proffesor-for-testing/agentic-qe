@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.8.11](v3.8.11.md) | 2026-03-27 | YAML pipelines, heartbeat CLI, economic routing, session cache (Tier 3) |
 | [v3.8.10](v3.8.10.md) | 2026-03-26 | Fix coverage data pipeline — eliminate fabricated scores, unify key ecosystem |
 | [v3.8.9](v3.8.9.md) | 2026-03-25 | Multi-language coverage parsers, SHA-256 witness security, P1 scale benchmarks |
 | [v3.8.8](v3.8.8.md) | 2026-03-24 | MCP-free agents, `aqe memory` CLI, WASM parsers, skill description improvements |

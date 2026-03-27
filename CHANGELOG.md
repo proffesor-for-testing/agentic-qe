@@ -5,6 +5,22 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.11] - 2026-03-27
+
+### Added
+
+- **YAML deterministic QE pipelines** — Declarative, token-free quality gates with approval steps, auto-approve timeouts, and 4 built-in SQL-only actions (quality-gate, coverage-threshold, pattern-health, routing-accuracy). Full CLI support via `aqe pipeline load/validate/run/list/status/approve/reject`.
+- **Heartbeat CLI and MCP integration** — Manage the token-free heartbeat scheduler with `aqe heartbeat status/run-now/history/log/pause/resume` and 3 MCP tools. Includes history persistence and daily log viewing.
+- **Economic routing model** — Quality-per-dollar tier scoring with budget-aware selection, cost-adjusted rewards for the neural router, and EMA-smoothed quality estimates. Opt-in via `enableEconomicRouting()`. CLI: `aqe routing economics/accuracy/metrics`. MCP: `routing_economics`.
+- **Session operation cache** — O(1) fingerprint-based cache for repeated operations, running before HNSW similarity search. SHA-256 fingerprinting with TTL, capacity eviction, and cross-session persistence via SQLite. Delivers 40-60% token savings on repeated tasks.
+
+### Fixed
+
+- **Path traversal in heartbeat log** — CLI `heartbeat log --date` now validates date format (`YYYY-MM-DD`) to prevent directory traversal attacks, matching the MCP handler's validation.
+- **Approval gate cleanup** — Pending approval gates are now properly resolved when a workflow is cancelled, preventing timer leaks and dangling promises.
+- **Economic config validation** — Routing config weights are clamped to valid ranges and normalized to sum to 1.0, preventing score inflation from invalid inputs.
+- **Sort mutation in tier selection** — `selectTier()` fallback paths no longer mutate the original scores array, ensuring consistent `economicScore` descending order in returned results.
+
 ## [3.8.10] - 2026-03-26
 
 ### Fixed
