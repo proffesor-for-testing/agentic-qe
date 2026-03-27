@@ -680,6 +680,78 @@ export async function handleRoutingMetrics(
 }
 
 // ============================================================================
+// Economic Routing Handler (Imp-18, Issue #334)
+// ============================================================================
+
+export interface RoutingEconomicsParams {
+  /** Task complexity score 0-1 for tier scoring (default: 0.5) */
+  taskComplexity?: number;
+}
+
+export interface RoutingEconomicsResult {
+  tierEfficiency: Array<{
+    tier: string;
+    qualityScore: number;
+    estimatedCostUsd: number;
+    qualityPerDollar: number | string;
+    economicScore: number;
+  }>;
+  currentHourlyCostUsd: number;
+  currentDailyCostUsd: number;
+  budgetRemaining: { hourly: number | null; daily: number | null };
+  recommendation: string;
+  savingsOpportunity: { usd: number; description: string } | null;
+}
+
+/**
+ * Handle economic routing report query
+ */
+export async function handleRoutingEconomics(
+  params: RoutingEconomicsParams,
+): Promise<ToolResult<RoutingEconomicsResult>> {
+  try {
+    const { createRoutingFeedbackCollector } = await import('../../routing/routing-feedback.js');
+    const { getGlobalCostTracker } = await import('../../shared/llm/cost-tracker.js');
+
+    // Create collector, initialize to load persisted state from DB, then enable economic routing
+    const collector = createRoutingFeedbackCollector(100);
+    await collector.initialize();
+    collector.enableEconomicRouting(
+      { ...(params.taskComplexity != null ? {} : {}) },
+      getGlobalCostTracker(),
+    );
+
+    const report = collector.getEconomicReport();
+    if (!report) {
+      return { success: false, error: 'Economic routing is not available' };
+    }
+
+    // Convert Infinity to string for JSON serialization
+    const tierEfficiency = report.tierEfficiency.map(t => ({
+      ...t,
+      qualityPerDollar: isFinite(t.qualityPerDollar) ? t.qualityPerDollar : 'Infinity',
+    }));
+
+    return {
+      success: true,
+      data: {
+        tierEfficiency,
+        currentHourlyCostUsd: report.currentHourlyCostUsd,
+        currentDailyCostUsd: report.currentDailyCostUsd,
+        budgetRemaining: report.budgetRemaining,
+        recommendation: report.recommendation,
+        savingsOpportunity: report.savingsOpportunity,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: `Failed to get economic routing report: ${toErrorMessage(error)}`,
+    };
+  }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 

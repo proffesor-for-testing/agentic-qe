@@ -107,3 +107,17 @@ export {
   TokenOptimizerService,
   initializeTokenOptimizer,
 } from './token-optimizer-service.js';
+
+// Session Operation Cache (Imp-15: Session Reuse for Repeated Operations)
+export type {
+  CachedOperation,
+  SessionCacheConfig,
+  SessionCacheStats,
+} from './session-cache.js';
+
+export {
+  SessionOperationCache,
+  DEFAULT_SESSION_CACHE_CONFIG,
+  getSessionCache,
+  resetSessionCache,
+} from './session-cache.js';

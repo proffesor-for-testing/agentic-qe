@@ -75,6 +75,19 @@ export {
   createRoutingFeedbackCollector,
 } from './routing-feedback.js';
 
+// Economic Routing (Imp-18, Issue #334)
+export {
+  EconomicRoutingModel,
+  TIER_COST_ESTIMATES,
+  DEFAULT_ECONOMIC_CONFIG,
+} from './economic-routing.js';
+
+export type {
+  EconomicScore,
+  EconomicRoutingConfig,
+  EconomicReport,
+} from './economic-routing.js';
+
 // Task Classifier (TD-002)
 export {
   classifyTask,

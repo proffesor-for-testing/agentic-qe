@@ -1,55 +1,58 @@
 # Agentic QE v3 - Daily QE Pipeline Example
-# Per ADR-041: V3 QE CLI Enhancement
+# Deterministic pipeline: zero LLM tokens (Imp-9)
 
-name: daily-qe-pipeline
-description: Comprehensive daily quality engineering pipeline
+id: daily-qe-pipeline
+name: Daily QE Pipeline
+description: Deterministic daily quality engineering pipeline (zero LLM tokens)
 version: "1.0.0"
-schedule: 0 2 * * *
+defaultMode: sequential
 tags:
-  - testing
   - quality
   - daily
+  - token-free
 
-stages:
-  - name: test-generation
-    command: aqe test generate
-    params:
-      target: src/
-      coverage-goal: 90
-      ai-enhanced: true
-    timeout: 120
+steps:
+  - id: coverage-check
+    name: Coverage Threshold Check
+    domain: coverage-analysis
+    action: threshold-check
+    inputMapping:
+      minCoverage: "input.coverageMin"
+    timeout: 30000
 
-  - name: parallel-execution
-    command: aqe test execute
-    depends_on:
-      - test-generation
-    params:
-      parallel: 8
-      retry: 3
-      timeout: 300
+  - id: pattern-health
+    name: Pattern Health Check
+    domain: learning-optimization
+    action: health-check
+    timeout: 30000
 
-  - name: coverage-analysis
-    command: aqe coverage analyze
-    depends_on:
-      - parallel-execution
-    params:
-      gap-detection: true
-      report-format: html
+  - id: quality-gate
+    name: Quality Gate
+    domain: quality-assessment
+    action: gate-check
+    dependsOn: [coverage-check]
+    inputMapping:
+      coverageMin: "input.coverageMin"
+      currentCoverage: "results.coverage-check.currentCoverage"
+    continueOnFailure: false
+    timeout: 30000
 
-  - name: quality-gate
-    command: aqe quality gate
-    depends_on:
-      - coverage-analysis
-    params:
-      fail-threshold: 80
-      coverage-min: 85
+  - id: routing-check
+    name: Routing Accuracy Check
+    domain: learning-optimization
+    action: routing-check
+    timeout: 30000
 
-triggers:
-  - event: push
-    branches:
-      - main
-      - develop
-  - event: pull_request
-    types:
-      - opened
-      - synchronize
+  - id: deploy-approval
+    name: Deploy Approval
+    domain: quality-assessment
+    action: gate-check
+    dependsOn: [quality-gate]
+    approval:
+      autoApproveAfter: 300000
+      message: "All quality checks passed. Approve deployment?"
+    condition:
+      path: "results.quality-gate.passed"
+      operator: eq
+      value: true
+    timeout: 600000

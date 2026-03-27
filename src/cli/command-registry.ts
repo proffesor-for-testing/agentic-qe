@@ -18,6 +18,8 @@ import {
   createProtocolHandler,
   createBrainHandler,
   createHypergraphHandler,
+  createHeartbeatHandler,
+  createRoutingHandler,
 } from './handlers/index.js';
 
 // ============================================================================
@@ -117,6 +119,12 @@ export class CommandRegistry {
 
     // Hypergraph queries
     this.register(createHypergraphHandler(this.cleanupAndExit, this.ensureInitialized));
+
+    // Heartbeat scheduler (Imp-10)
+    this.register(createHeartbeatHandler(this.cleanupAndExit));
+
+    // Routing economics & accuracy (Imp-18)
+    this.register(createRoutingHandler(this.cleanupAndExit));
   }
 
   /**

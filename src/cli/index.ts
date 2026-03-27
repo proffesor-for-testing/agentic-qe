@@ -991,6 +991,7 @@ import { createPlatformCommand } from './commands/platform.js';
 import { createProveCommand } from './commands/prove.js';
 import { createRuVectorCommand } from './commands/ruvector-commands.js';
 import { createAuditCommand } from './commands/audit.js';
+import { createPipelineCommand } from './commands/pipeline.js';
 
 program.addCommand(createTokenUsageCommand());
 program.addCommand(createLLMRouterCommand());
@@ -1003,6 +1004,7 @@ program.addCommand(createPlatformCommand());
 program.addCommand(createProveCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createRuVectorCommand());
 program.addCommand(createAuditCommand(context, cleanupAndExit, ensureInitialized));
+program.addCommand(createPipelineCommand(context, cleanupAndExit, ensureInitialized));
 
 // ============================================================================
 // Shutdown Handlers
