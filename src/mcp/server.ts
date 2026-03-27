@@ -67,6 +67,10 @@ import {
   handlePipelineValidate,
   // Validation Pipeline handler (BMAD-003)
   handleValidationPipeline,
+  // Heartbeat handlers (Imp-10: Token-Free Heartbeat Scheduler)
+  handleHeartbeatStatus,
+  handleHeartbeatTrigger,
+  handleHeartbeatLog,
 } from './handlers';
 
 // ============================================================================
@@ -760,6 +764,44 @@ const PIPELINE_TOOLS: ToolEntry[] = [
   },
 ];
 
+// Imp-10: Token-Free Heartbeat Scheduler
+const HEARTBEAT_TOOLS: ToolEntry[] = [
+  // Heartbeat Status
+  {
+    definition: {
+      name: 'mcp__agentic_qe__heartbeat_status',
+      description: 'Get heartbeat scheduler status, health metrics, and last result',
+      category: 'core',
+      parameters: [],
+    },
+    handler: handleHeartbeatStatus,
+  },
+  // Heartbeat Trigger
+  {
+    definition: {
+      name: 'mcp__agentic_qe__heartbeat_trigger',
+      description: 'Trigger an immediate heartbeat maintenance cycle (SQL-only, zero tokens)',
+      category: 'core',
+      parameters: [
+        { name: 'timeout', type: 'number', description: 'Timeout in milliseconds (default: 60000)' },
+      ],
+    },
+    handler: handleHeartbeatTrigger,
+  },
+  // Heartbeat Log
+  {
+    definition: {
+      name: 'mcp__agentic_qe__heartbeat_log',
+      description: 'Read the daily heartbeat log for a specific date',
+      category: 'core',
+      parameters: [
+        { name: 'date', type: 'string', description: 'Date in YYYY-MM-DD format (defaults to today)' },
+      ],
+    },
+    handler: handleHeartbeatLog,
+  },
+];
+
 // ============================================================================
 
 export class MCPServer {
@@ -787,6 +829,7 @@ export class MCPServer {
       ...MEMORY_TOOLS,
       ...CROSS_PHASE_TOOLS,
       ...PIPELINE_TOOLS,
+      ...HEARTBEAT_TOOLS,
     ];
     this.registry.registerAll(allTools);
 

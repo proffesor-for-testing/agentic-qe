@@ -22,7 +22,7 @@ export type StepExecutionMode = 'sequential' | 'parallel';
 /**
  * Step status
  */
-export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'awaiting_approval';
 
 /**
  * Workflow status
@@ -84,6 +84,13 @@ export interface WorkflowStepDefinition {
   };
   /** Continue workflow on failure */
   continueOnFailure?: boolean;
+  /** Approval gate configuration */
+  approval?: boolean | {
+    /** Auto-approve after this many ms (0 = never auto-approve) */
+    autoApproveAfter?: number;
+    /** Approval prompt message */
+    message?: string;
+  };
 }
 
 /**
@@ -203,6 +210,9 @@ export const WorkflowEvents = {
   StepCompleted: 'workflow.StepCompleted',
   StepFailed: 'workflow.StepFailed',
   StepSkipped: 'workflow.StepSkipped',
+  StepAwaitingApproval: 'workflow.StepAwaitingApproval',
+  StepApproved: 'workflow.StepApproved',
+  StepRejected: 'workflow.StepRejected',
 } as const;
 
 export interface WorkflowStartedPayload {
@@ -235,6 +245,11 @@ export interface StepEventPayload {
   stepId: string;
   stepName: string;
   domain: DomainName;
+}
+
+export interface StepAwaitingApprovalPayload extends StepEventPayload {
+  message?: string;
+  autoApproveAfter?: number;
 }
 
 // ============================================================================
@@ -270,6 +285,10 @@ export interface IWorkflowOrchestrator {
   getActiveExecutions(): WorkflowExecutionStatus[];
   /** Get workflow definition */
   getWorkflow(workflowId: string): WorkflowDefinition | undefined;
+  /** Approve a step that is awaiting approval */
+  approveStep(executionId: string, stepId: string): boolean;
+  /** Reject a step that is awaiting approval */
+  rejectStep(executionId: string, stepId: string, reason?: string): boolean;
 }
 
 // ============================================================================

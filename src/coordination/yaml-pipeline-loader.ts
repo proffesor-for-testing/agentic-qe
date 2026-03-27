@@ -257,6 +257,14 @@ export class YamlPipelineLoader {
         ? s.continueOnFailure
         : undefined;
 
+      // Validate approval gate configuration
+      let approval: WorkflowStepDefinition['approval'];
+      if (s.approval !== undefined) {
+        const approvalResult = this.validateApproval(s.approval, s.id as string);
+        if (!approvalResult.success) return approvalResult;
+        approval = approvalResult.value;
+      }
+
       const step: WorkflowStepDefinition = {
         id: s.id,
         name: s.name,
@@ -271,6 +279,7 @@ export class YamlPipelineLoader {
         ...(retry !== undefined && { retry }),
         ...(rollback !== undefined && { rollback }),
         ...(continueOnFailure !== undefined && { continueOnFailure }),
+        ...(approval !== undefined && { approval }),
       };
 
       steps.push(step);
@@ -402,6 +411,40 @@ export class YamlPipelineLoader {
       action: r.action,
       ...(r.input !== undefined && typeof r.input === 'object' && { input: r.input as Record<string, unknown> }),
     });
+  }
+
+  private validateApproval(
+    raw: unknown,
+    stepId: string,
+  ): Result<NonNullable<WorkflowStepDefinition['approval']>, Error> {
+    // Simple boolean form: approval: true
+    if (typeof raw === 'boolean') {
+      return ok(raw);
+    }
+
+    // Object form: approval: { autoApproveAfter, message }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return err(new Error(`Step '${stepId}': 'approval' must be a boolean or object`));
+    }
+
+    const a = raw as Record<string, unknown>;
+    const result: { autoApproveAfter?: number; message?: string } = {};
+
+    if (a.autoApproveAfter !== undefined) {
+      if (typeof a.autoApproveAfter !== 'number' || a.autoApproveAfter < 0) {
+        return err(new Error(`Step '${stepId}': approval.autoApproveAfter must be a non-negative number`));
+      }
+      result.autoApproveAfter = a.autoApproveAfter;
+    }
+
+    if (a.message !== undefined) {
+      if (typeof a.message !== 'string') {
+        return err(new Error(`Step '${stepId}': approval.message must be a string`));
+      }
+      result.message = a.message;
+    }
+
+    return ok(result);
   }
 
   /** Validate that a value is Record<string, string>, undefined, or return an Error. */

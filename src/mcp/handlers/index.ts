@@ -24,6 +24,8 @@ export {
   // ADR-051: Model routing handlers
   handleModelRoute,
   handleRoutingMetrics,
+  // Imp-18: Economic routing handler
+  handleRoutingEconomics,
   type TaskOrchestrateResult,
   type ModelRouteParams,
   type ModelRouteResult,
@@ -114,6 +116,19 @@ export {
   type HypergraphQueryParams,
   type HypergraphQueryResult,
 } from './hypergraph-handler.js';
+
+// Heartbeat handlers (Imp-10: Token-Free Heartbeat Scheduler)
+export {
+  handleHeartbeatStatus,
+  handleHeartbeatTrigger,
+  handleHeartbeatLog,
+  type HeartbeatStatusParams,
+  type HeartbeatStatusResult,
+  type HeartbeatTriggerParams,
+  type HeartbeatTriggerResult,
+  type HeartbeatLogParams,
+  type HeartbeatLogResult,
+} from './heartbeat-handlers.js';
 
 // Cross-phase handlers
 export {

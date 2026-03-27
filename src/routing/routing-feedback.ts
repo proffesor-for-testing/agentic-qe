@@ -20,7 +20,14 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { EMACalibrator, type EMAConfig } from './calibration/index.js';
 import { AutoEscalationTracker, type EscalationConfig, type EscalationState } from './escalation/index.js';
-import type { RoutingConfig } from './routing-config.js';
+import type { RoutingConfig, AgentTier } from './routing-config.js';
+import {
+  EconomicRoutingModel,
+  type EconomicRoutingConfig,
+  type EconomicScore,
+  type EconomicReport,
+} from './economic-routing.js';
+import { CostTracker, getGlobalCostTracker } from '../shared/llm/cost-tracker.js';
 
 // ============================================================================
 // Database Row Types
@@ -103,6 +110,9 @@ export class RoutingFeedbackCollector {
   private db: UnifiedMemoryManager | null = null;
   private calibrator: EMACalibrator | null = null;
   private escalationTracker: AutoEscalationTracker | null = null;
+  private economicModel: EconomicRoutingModel | null = null;
+  private economicPersistCounter = 0;
+  private static readonly ECONOMIC_PERSIST_INTERVAL = 10;
   private persistCount = 0;
   private readonly maxOutcomes: number;
   private static readonly RETENTION_CLEANUP_INTERVAL = 100;
@@ -284,6 +294,44 @@ export class RoutingFeedbackCollector {
   }
 
   /**
+   * Load persisted economic routing state from the database
+   */
+  private loadEconomicState(): void {
+    if (!this.db || !this.economicModel) return;
+    try {
+      const database = this.db.getDatabase();
+      const row = database.prepare(
+        `SELECT value FROM kv_store WHERE key = 'routing:economic_quality_estimates'`
+      ).get() as { value: string } | undefined;
+      if (row) {
+        const data = safeJsonParse(row.value);
+        if (data && typeof data === 'object') {
+          this.economicModel.deserializeEstimates(data as Record<string, { quality: number; count: number }>);
+          console.log('[RoutingFeedbackCollector] Loaded economic quality estimates from DB');
+        }
+      }
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to load economic state:', toErrorMessage(error));
+    }
+  }
+
+  /**
+   * Persist economic routing state to the database
+   */
+  private persistEconomicState(): void {
+    if (!this.db || !this.economicModel) return;
+    try {
+      const database = this.db.getDatabase();
+      const serialized = JSON.stringify(this.economicModel.serializeEstimates());
+      database.prepare(
+        `INSERT OR REPLACE INTO kv_store (key, value, updated_at) VALUES (?, ?, datetime('now'))`
+      ).run('routing:economic_quality_estimates', serialized);
+    } catch (error) {
+      console.warn('[RoutingFeedbackCollector] Failed to persist economic state:', toErrorMessage(error));
+    }
+  }
+
+  /**
    * Connect to router for automatic performance updates
    */
   connectRouter(router: QETaskRouter): void {
@@ -320,6 +368,36 @@ export class RoutingFeedbackCollector {
    */
   getEscalationState(agentId: string): EscalationState | null {
     return this.escalationTracker?.getState(agentId) ?? null;
+  }
+
+  /**
+   * Enable economic routing model for quality-weighted cost optimization.
+   * Once enabled, every recorded outcome feeds economic quality estimates
+   * and the neural router receives cost-adjusted rewards.
+   */
+  enableEconomicRouting(
+    config?: Partial<EconomicRoutingConfig>,
+    costTracker?: CostTracker,
+  ): void {
+    const tracker = costTracker ?? getGlobalCostTracker();
+    this.economicModel = new EconomicRoutingModel(tracker, config);
+    this.loadEconomicState();
+  }
+
+  /**
+   * Get the economic routing report.
+   * Returns null if economic routing is not enabled.
+   */
+  getEconomicReport(): EconomicReport | null {
+    return this.economicModel?.getEconomicReport() ?? null;
+  }
+
+  /**
+   * Get economic scores for a given task complexity.
+   * Returns null if economic routing is not enabled.
+   */
+  getEconomicScore(taskComplexity: number): EconomicScore[] | null {
+    return this.economicModel?.scoreTiers(taskComplexity) ?? null;
   }
 
   /**
@@ -380,6 +458,18 @@ export class RoutingFeedbackCollector {
           `[RoutingFeedbackCollector] Agent "${usedAgent}" ${escalationAction.action}d: ` +
           `${escalationAction.previousTier} → ${escalationAction.newTier}`
         );
+      }
+    }
+
+    // Update economic model if enabled
+    if (this.economicModel) {
+      const tier = this.inferTier(usedAgent) as AgentTier;
+      this.economicModel.updateFromOutcome(routingOutcome, tier);
+
+      // Persist economic state periodically
+      this.economicPersistCounter++;
+      if (this.economicPersistCounter % RoutingFeedbackCollector.ECONOMIC_PERSIST_INTERVAL === 0) {
+        this.persistEconomicState();
       }
     }
 

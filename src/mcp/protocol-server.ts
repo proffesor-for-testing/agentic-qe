@@ -37,6 +37,8 @@ import {
   // ADR-051: Model routing handlers
   handleModelRoute,
   handleRoutingMetrics,
+  // Imp-18: Economic routing handler
+  handleRoutingEconomics,
   handleAgentList,
   handleAgentSpawn,
   handleAgentMetrics,
@@ -1021,6 +1023,18 @@ export class MCPProtocolServer {
         ],
       },
       handler: (params) => handleRoutingMetrics(params as unknown as Parameters<typeof handleRoutingMetrics>[0]),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'routing_economics',
+        description: 'Get economic routing report: tier efficiency, budget status, cost-per-quality analysis, and savings opportunities. Example: routing_economics({ taskComplexity: 0.5 })',
+        category: 'routing',
+        parameters: [
+          { name: 'taskComplexity', type: 'number', description: 'Task complexity score 0-1 for tier scoring (default: 0.5)', default: 0.5 },
+        ],
+      },
+      handler: (params) => handleRoutingEconomics(params as unknown as Parameters<typeof handleRoutingEconomics>[0]),
     });
 
     // ADR-057: Infrastructure self-healing tools
