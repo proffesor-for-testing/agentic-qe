@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { EarlyExitTokenOptimizer, EarlyExitConfig, EarlyExitResult, EarlyExitTask, ReuseStats, DEFAULT_EARLY_EXIT_CONFIG } from './early-exit-token-optimizer.js';
 import { PatternStore, createPatternStore } from '../learning/pattern-store.js';
 import { TokenMetricsCollector, formatDashboardSummary } from '../learning/token-tracker.js';
+import { getSessionCache, type SessionCacheStats } from './session-cache.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import type { QEPattern, QEDomain } from '../learning/qe-patterns.js';
 
@@ -105,6 +106,37 @@ class TokenOptimizerServiceImpl {
         explanation: 'Token optimizer service not initialized',
         searchLatencyMs: 0,
       };
+    }
+
+    // Imp-15: O(1) exact-match check via fingerprint cache BEFORE HNSW search
+    try {
+      const cache = getSessionCache();
+      const fingerprint = cache.computeFingerprint(
+        task.domain ?? 'unknown',
+        task.description,
+        (task.context as Record<string, unknown>) ?? {},
+      );
+      const cached = cache.get(fingerprint);
+      if (cached) {
+        TokenMetricsCollector.recordEarlyExit(cached.tokensSaved);
+        if (this.config.verbose) {
+          console.log(
+            `[TokenOptimizerService] Session cache hit: ${fingerprint.slice(0, 8)}... ` +
+            `(saved ${cached.tokensSaved} tokens)`
+          );
+        }
+        return {
+          canExit: true,
+          estimatedTokensSaved: cached.tokensSaved,
+          confidence: 1.0,
+          similarityScore: 1.0,
+          reason: 'pattern_reused',
+          explanation: `Session cache exact match (fingerprint: ${fingerprint.slice(0, 8)}...)`,
+          searchLatencyMs: 0,
+        };
+      }
+    } catch {
+      // Graceful degradation: if session cache fails, fall through to HNSW
     }
 
     const result = await this.optimizer.checkEarlyExit(task);
@@ -217,6 +249,37 @@ class TokenOptimizerServiceImpl {
    */
   getDashboardSummary(): string {
     return formatDashboardSummary();
+  }
+
+  /**
+   * Imp-15: Store a result in the session cache for future O(1) reuse.
+   * Call this after a successful LLM execution to enable exact-match caching.
+   */
+  cacheOperationResult(
+    domain: string,
+    action: string,
+    input: Record<string, unknown>,
+    result: Record<string, unknown>,
+    estimatedTokens: number,
+  ): void {
+    try {
+      const cache = getSessionCache();
+      const fingerprint = cache.computeFingerprint(domain, action, input);
+      cache.set(fingerprint, domain, action, result, estimatedTokens);
+    } catch {
+      // Graceful degradation
+    }
+  }
+
+  /**
+   * Imp-15: Get session cache statistics (hit rate, tokens saved, cache size).
+   */
+  getSessionCacheStats(): SessionCacheStats {
+    try {
+      return getSessionCache().getStats();
+    } catch {
+      return { size: 0, hits: 0, misses: 0, hitRate: 0, estimatedTokensSaved: 0 };
+    }
   }
 
   /**

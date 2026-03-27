@@ -24,6 +24,7 @@ import {
   formatDashboardSummary,
 } from '../../learning/token-tracker.js';
 import { TokenOptimizerService } from '../../optimization/token-optimizer-service.js';
+import { getSessionCache } from '../../optimization/session-cache.js';
 import * as fs from 'fs';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
@@ -37,6 +38,7 @@ interface TokenUsageOptions {
   byDomain?: boolean;
   recommendations?: boolean;
   dashboard?: boolean;
+  cacheStats?: boolean;
   export?: string;
   json?: boolean;
   verbose?: boolean;
@@ -58,6 +60,7 @@ export function createTokenUsageCommand(): Command {
     .option('-r, --recommendations', 'Show optimization recommendations')
     .option('-e, --export <file>', 'Export to CSV file')
     .option('--dashboard', 'Show compact token budget dashboard summary')
+    .option('--cache-stats', 'Show session operation cache statistics (Imp-15)')
     .option('--json', 'Output as JSON')
     .option('-v, --verbose', 'Show detailed output')
     .action(async (options: TokenUsageOptions) => {
@@ -74,7 +77,9 @@ async function executeTokenUsage(options: TokenUsageOptions): Promise<void> {
   const timeframe = parseTimeframe(options.period);
 
   try {
-    if (options.dashboard) {
+    if (options.cacheStats) {
+      await showCacheStats(options);
+    } else if (options.dashboard) {
       console.log(formatDashboardSummary());
     } else if (options.byAgent) {
       await showByAgent(timeframe, options);
@@ -153,6 +158,27 @@ async function showSessionSummary(timeframe: Timeframe, options: TokenUsageOptio
     console.log(`  Avg search latency: ${reuseStats.avgSearchLatencyMs.toFixed(1)}ms`);
   }
 
+  console.log('');
+}
+
+/**
+ * Show session operation cache statistics (Imp-15)
+ */
+async function showCacheStats(options: TokenUsageOptions): Promise<void> {
+  const stats = getSessionCache().getStats();
+
+  if (options.json) {
+    console.log(JSON.stringify(stats, null, 2));
+    return;
+  }
+
+  console.log(chalk.bold.cyan('\nSession Operation Cache (Imp-15)\n'));
+  console.log(`  Cache size:          ${stats.size} entries`);
+  console.log(`  Cache hits:          ${stats.hits}`);
+  console.log(`  Cache misses:        ${stats.misses}`);
+  console.log(`  Hit rate:            ${chalk.green(`${(stats.hitRate * 100).toFixed(1)}%`)}`);
+  console.log(`  Tokens saved:        ${chalk.green(formatNumber(stats.estimatedTokensSaved))}`);
+  console.log(chalk.gray('\n  O(1) fingerprint lookups run before O(log n) HNSW search'));
   console.log('');
 }
 

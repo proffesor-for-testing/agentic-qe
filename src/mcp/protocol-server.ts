@@ -1255,6 +1255,38 @@ export class MCPProtocolServer {
     });
 
     // =========================================================================
+    // Imp-15: Session Cache Stats
+    // =========================================================================
+
+    this.registerTool({
+      definition: {
+        name: 'session_cache_stats',
+        description: 'Get session operation cache statistics: hit rate, cache size, tokens saved via O(1) fingerprint reuse. Example: session_cache_stats({})',
+        category: 'learning',
+        parameters: [],
+      },
+      handler: async () => {
+        try {
+          const { getSessionCache } = await import('../optimization/session-cache.js');
+          const stats = getSessionCache().getStats();
+          return {
+            success: true,
+            data: {
+              ...stats,
+              hitRatePercent: `${(stats.hitRate * 100).toFixed(1)}%`,
+              description: 'Session cache provides O(1) exact-match lookups before HNSW similarity search',
+            },
+          };
+        } catch (err) {
+          return {
+            success: false,
+            error: `Failed to get session cache stats: ${err instanceof Error ? err.message : String(err)}`,
+          };
+        }
+      },
+    });
+
+    // =========================================================================
     // OpenCode Integration: Health Endpoint
     // =========================================================================
 
