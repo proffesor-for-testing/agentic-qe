@@ -26,6 +26,30 @@ import {
 } from './qe-patterns.js';
 import type { FilterExpression } from '../integrations/ruvector/interfaces.js';
 import { applyFilterSync } from '../integrations/ruvector/filter-adapter.js';
+import {
+  isHDCFingerprintingEnabled,
+  isDeltaEventSourcingEnabled,
+} from '../integrations/ruvector/feature-flags.js';
+import {
+  HdcFingerprinter,
+  createHdcFingerprinter,
+  type PatternFingerprint,
+} from '../integrations/ruvector/hdc-fingerprint.js';
+import { DeltaTracker } from '../integrations/ruvector/delta-tracker.js';
+
+// ============================================================================
+// R1: HDC Fingerprint Singleton (lazy-initialized)
+// ============================================================================
+
+/** Module-level HDC fingerprinter, created on first use */
+let hdcFingerprinter: HdcFingerprinter | null = null;
+
+function getHdcFingerprinter(): HdcFingerprinter {
+  if (!hdcFingerprinter) {
+    hdcFingerprinter = createHdcFingerprinter({ dimensions: 10000 });
+  }
+  return hdcFingerprinter;
+}
 
 // ============================================================================
 // Pattern Store Configuration
@@ -331,6 +355,12 @@ export class PatternStore implements IPatternStore {
   private hnswAvailable = false;
   private hnswInitPromise: Promise<void> | null = null;
 
+  // R1: HDC fingerprint cache (pattern ID -> fingerprint vector)
+  private hdcCache: Map<string, Uint8Array> = new Map();
+
+  // R3: Delta event sourcing tracker (lazy-initialized with SQLite)
+  private deltaTracker: DeltaTracker | null = null;
+
   // Statistics
   private stats = {
     searchOperations: 0,
@@ -354,6 +384,18 @@ export class PatternStore implements IPatternStore {
    */
   setSqliteStore(store: import('./sqlite-persistence.js').SQLitePatternStore): void {
     this.sqliteStore = store;
+
+    // R3: Initialize DeltaTracker using the same SQLite DB instance
+    if (isDeltaEventSourcingEnabled() && !this.deltaTracker) {
+      try {
+        const db = store.getDb();
+        this.deltaTracker = new DeltaTracker(db);
+        this.deltaTracker.initialize();
+        console.log('[PatternStore] Delta event sourcing initialized');
+      } catch (e) {
+        console.warn('[PatternStore] Delta tracker init failed:', e instanceof Error ? e.message : e);
+      }
+    }
 
     // Load patterns from SQLite if we're already initialized
     // (setSqliteStore is called after initialize() in QEReasoningBank)
@@ -581,6 +623,7 @@ export class PatternStore implements IPatternStore {
     this.domainIndex.get(pattern.qeDomain)?.delete(pattern.id);
     this.typeIndex.get(pattern.patternType)?.delete(pattern.id);
     this.tierIndex.get(pattern.tier)?.delete(pattern.id);
+    this.hdcCache.delete(pattern.id); // R1: cleanup HDC fingerprint
   }
 
   /**
@@ -650,6 +693,41 @@ export class PatternStore implements IPatternStore {
         } catch (error) {
           console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
         }
+      }
+    }
+
+    // R1: Compute and cache HDC fingerprint for fast pre-filtering
+    if (isHDCFingerprintingEnabled()) {
+      try {
+        const hdc = getHdcFingerprinter();
+        const fp = hdc.fingerprint({
+          id: pattern.id,
+          domain: pattern.qeDomain,
+          type: pattern.patternType,
+          content: pattern.description,
+        });
+        this.hdcCache.set(pattern.id, fp.vector);
+      } catch (error) {
+        console.debug(`[PatternStore] HDC fingerprint failed for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R3: Create genesis delta event for new patterns
+    if (isDeltaEventSourcingEnabled() && this.deltaTracker) {
+      try {
+        const snapshot = {
+          id: pattern.id,
+          name: pattern.name,
+          confidence: pattern.confidence,
+          qualityScore: pattern.qualityScore,
+          usageCount: pattern.usageCount,
+          successRate: pattern.successRate,
+          tier: pattern.tier,
+        };
+        this.deltaTracker.createGenesis(pattern.id, snapshot);
+      } catch (error) {
+        // Genesis may already exist if pattern was re-stored; log at debug level
+        console.debug(`[PatternStore] Delta genesis for ${pattern.id}:`, toErrorMessage(error));
       }
     }
 
@@ -895,7 +973,38 @@ export class PatternStore implements IPatternStore {
       candidates = new Set(this.patternCache.keys());
     }
 
-    for (const id of candidates) {
+    // R1: HDC fast-path pre-filter — sort candidates by Hamming similarity
+    // so we process the most likely matches first (reduces wasted iterations)
+    let orderedCandidates: string[] = [...candidates];
+    if (isHDCFingerprintingEnabled() && queryLower && this.hdcCache.size > 0) {
+      try {
+        const hdc = getHdcFingerprinter();
+        const queryFp = hdc.fingerprint({
+          id: 'query',
+          domain: options.domain ?? 'unknown',
+          type: options.patternType ?? 'unknown',
+          content: query,
+        });
+        // Score each candidate by Hamming similarity and sort descending
+        const scored = orderedCandidates
+          .filter(id => this.hdcCache.has(id))
+          .map(id => ({
+            id,
+            similarity: hdc.similarity(queryFp.vector, this.hdcCache.get(id)!),
+          }));
+        scored.sort((a, b) => b.similarity - a.similarity);
+        // Pre-filter: only keep candidates with above-random similarity (>0.5)
+        const hdcFiltered = scored.filter(s => s.similarity > 0.52).map(s => s.id);
+        // Add back candidates without fingerprints at the end
+        const hdcSet = new Set(hdcFiltered);
+        const unfingerprinted = orderedCandidates.filter(id => !this.hdcCache.has(id));
+        orderedCandidates = [...hdcFiltered, ...unfingerprinted];
+      } catch {
+        // HDC pre-filter is best-effort; fall through to normal search
+      }
+    }
+
+    for (const id of orderedCandidates) {
       if (results.length >= limit) break;
 
       const pattern = this.patternCache.get(id);
@@ -1098,6 +1207,33 @@ export class PatternStore implements IPatternStore {
         this.sqliteStore.recordUsage(id, success);
       } catch (error) {
         console.warn(`[PatternStore] SQLite recordUsage failed for ${id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R3: Record delta event for the pattern update
+    if (isDeltaEventSourcingEnabled() && this.deltaTracker) {
+      try {
+        const before = {
+          id: pattern.id,
+          name: pattern.name,
+          confidence: pattern.confidence,
+          qualityScore: pattern.qualityScore,
+          usageCount: pattern.usageCount,
+          successRate: pattern.successRate,
+          tier: pattern.tier,
+        };
+        const after = {
+          id: updated.id,
+          name: updated.name,
+          confidence: updated.confidence,
+          qualityScore: updated.qualityScore,
+          usageCount: updated.usageCount,
+          successRate: updated.successRate,
+          tier: updated.tier,
+        };
+        this.deltaTracker.recordDelta(id, before, after, { success });
+      } catch (error) {
+        console.debug(`[PatternStore] Delta recordDelta for ${id}:`, toErrorMessage(error));
       }
     }
 
@@ -1366,6 +1502,8 @@ export class PatternStore implements IPatternStore {
     this.domainIndex.clear();
     this.typeIndex.clear();
     this.tierIndex.clear();
+    this.hdcCache.clear(); // R1: cleanup
+    this.deltaTracker = null; // R3: cleanup
 
     this.initialized = false;
   }

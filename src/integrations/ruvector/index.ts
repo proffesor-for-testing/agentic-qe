@@ -462,6 +462,11 @@ export {
   isCrossDomainTransferEnabled,
   shouldLogMigrationMetrics,
   initFeatureFlagsFromEnv,
+  // Phase 5 (ADR-087)
+  isHDCFingerprintingEnabled,
+  isCusumDriftDetectionEnabled,
+  isDeltaEventSourcingEnabled,
+  isEwcPlusPlusEnabled,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
@@ -627,6 +632,35 @@ export {
   type ContainerInfo,
   type Ed25519KeyPair,
 } from './cognitive-container';
+
+// ============================================================================
+// Phase 5: Pattern Intelligence (ADR-087, Milestone 1)
+// ============================================================================
+
+// R1: HDC Pattern Fingerprinting
+export {
+  HdcFingerprinter,
+  createHdcFingerprinter,
+  type HdcConfig,
+  type PatternFingerprint,
+} from './hdc-fingerprint';
+
+// R2: CUSUM Drift Detection
+export {
+  CusumDetector,
+  type CusumConfig,
+  type CusumResult,
+  type GateType,
+} from './cusum-detector';
+
+// R3: Delta Event Sourcing
+export {
+  DeltaTracker,
+  PATTERN_DELTAS_SCHEMA,
+  type DeltaEvent,
+  type DeltaTrackerConfig,
+  type JsonPatch,
+} from './delta-tracker';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

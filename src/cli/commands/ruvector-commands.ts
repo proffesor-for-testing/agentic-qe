@@ -78,6 +78,11 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useDAGAttention: 'DAG attention for test scheduling (Task 4.2)',
   useCoherenceActionGate: 'Coherence-gated agent actions (ADR-083, Task 3.2)',
   useReasoningQEC: 'Reasoning QEC error correction (Task 4.5)',
+  // Phase 5 (ADR-087)
+  useHDCFingerprinting: 'HDC pattern fingerprinting (R1, ADR-087)',
+  useCusumDriftDetection: 'CUSUM drift detection (R2, ADR-087)',
+  useDeltaEventSourcing: 'Delta event sourcing (R3, ADR-087)',
+  useEwcPlusPlusRegularization: 'EWC++ regularization (ADR-087)',
 };
 
 const PROFILES: Record<FlagProfile, Partial<RuVectorFeatureFlags>> = {

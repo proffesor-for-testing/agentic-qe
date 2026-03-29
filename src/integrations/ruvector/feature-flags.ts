@@ -212,6 +212,45 @@ export interface RuVectorFeatureFlags {
    * @default true
    */
   useReasoningQEC: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — verified, default true (opt-out)
+  // ==========================================================================
+
+  /**
+   * Enable HDC Pattern Fingerprinting (R1, ADR-087)
+   * Uses 10,000-bit binary hypervectors with XOR binding for O(1) compositional
+   * pattern fingerprinting and nanosecond Hamming-distance similarity.
+   * TypeScript fallback; WASM upgrade path via @ruvector/hdc-wasm.
+   * @default true
+   */
+  useHDCFingerprinting: boolean;
+
+  /**
+   * Enable CUSUM Drift Detection (R2, ADR-087)
+   * Adds statistical change-point detection to the coherence gate using
+   * two-sided Cumulative Sum (CUSUM) algorithm. Replaces heuristic thresholds
+   * with statistically rigorous drift detection per gate type.
+   * @default true
+   */
+  useCusumDriftDetection: boolean;
+
+  /**
+   * Enable Delta Event Sourcing (R3, ADR-087)
+   * Tracks pattern version history as delta events in SQLite. Enables rollback
+   * to any previous pattern state and incremental sync between agents.
+   * @default true
+   */
+  useDeltaEventSourcing: boolean;
+
+  /**
+   * Enable EWC++ Regularization (ADR-087)
+   * Activates Elastic Weight Consolidation++ Fisher Information Matrix
+   * computation in domain coordinators. Prevents catastrophic forgetting
+   * when learning new domains. Requires useSONAThreeLoop to be enabled.
+   * @default true
+   */
+  useEwcPlusPlusRegularization: boolean;
 }
 
 // ============================================================================
@@ -241,6 +280,11 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useDAGAttention: true,
   useCoherenceActionGate: true,
   useReasoningQEC: true,
+  // Phase 5 (ADR-087) — enabled by default, opt-out
+  useHDCFingerprinting: true,
+  useCusumDriftDetection: true,
+  useDeltaEventSourcing: true,
+  useEwcPlusPlusRegularization: true,
 };
 
 // ============================================================================
@@ -478,6 +522,40 @@ export function isReasoningQECEnabled(): boolean {
   return currentFeatureFlags.useReasoningQEC;
 }
 
+// Phase 5 (ADR-087) convenience functions
+
+/**
+ * Check if HDC Pattern Fingerprinting is enabled (R1, ADR-087)
+ * @returns true if useHDCFingerprinting flag is set
+ */
+export function isHDCFingerprintingEnabled(): boolean {
+  return currentFeatureFlags.useHDCFingerprinting;
+}
+
+/**
+ * Check if CUSUM Drift Detection is enabled (R2, ADR-087)
+ * @returns true if useCusumDriftDetection flag is set
+ */
+export function isCusumDriftDetectionEnabled(): boolean {
+  return currentFeatureFlags.useCusumDriftDetection;
+}
+
+/**
+ * Check if Delta Event Sourcing is enabled (R3, ADR-087)
+ * @returns true if useDeltaEventSourcing flag is set
+ */
+export function isDeltaEventSourcingEnabled(): boolean {
+  return currentFeatureFlags.useDeltaEventSourcing;
+}
+
+/**
+ * Check if EWC++ Regularization is enabled (ADR-087)
+ * @returns true if useEwcPlusPlusRegularization flag is set
+ */
+export function isEwcPlusPlusEnabled(): boolean {
+  return currentFeatureFlags.useEwcPlusPlusRegularization;
+}
+
 // ============================================================================
 // Environment Variable Support
 // ============================================================================
@@ -574,6 +652,23 @@ export function initFeatureFlagsFromEnv(): void {
 
   if (process.env.RUVECTOR_USE_REASONING_QEC !== undefined) {
     envFlags.useReasoningQEC = process.env.RUVECTOR_USE_REASONING_QEC === 'true';
+  }
+
+  // Phase 5 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_HDC_FINGERPRINTING !== undefined) {
+    envFlags.useHDCFingerprinting = process.env.RUVECTOR_USE_HDC_FINGERPRINTING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_CUSUM_DRIFT_DETECTION !== undefined) {
+    envFlags.useCusumDriftDetection = process.env.RUVECTOR_USE_CUSUM_DRIFT_DETECTION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_DELTA_EVENT_SOURCING !== undefined) {
+    envFlags.useDeltaEventSourcing = process.env.RUVECTOR_USE_DELTA_EVENT_SOURCING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_EWC_PLUS_PLUS !== undefined) {
+    envFlags.useEwcPlusPlusRegularization = process.env.RUVECTOR_USE_EWC_PLUS_PLUS === 'true';
   }
 
   setRuVectorFeatureFlags(envFlags);

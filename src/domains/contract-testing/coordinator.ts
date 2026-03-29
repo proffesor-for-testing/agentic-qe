@@ -39,6 +39,9 @@ import { ContractValidatorService } from './services/contract-validator.js';
 import { ApiCompatibilityService } from './services/api-compatibility.js';
 import { SARSAAlgorithm } from '../../integrations/rl-suite/algorithms/sarsa.js';
 import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
+
+// Three-loop feature flag for instantAdapt protocol
+import { isSONAThreeLoopEnabled } from '../../integrations/ruvector/feature-flags.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
@@ -1234,6 +1237,18 @@ export class ContractTestingCoordinator
           contract.endpoints.filter((e) => e.responseSchema).length / 100,
         ],
       };
+
+      // Three-loop protocol: instantAdapt must precede recordOutcome
+      if (isSONAThreeLoopEnabled() && this.qesona!.isThreeLoopEnabled()) {
+        this.qesona!.instantAdapt([
+          contract.endpoints.length / 100,
+          contract.consumers.length / 50,
+          contract.schemas.length / 50,
+          quality,
+          validationSuccess ? 1 : 0,
+          contract.version.major / 10,
+        ]);
+      }
 
       const action: RLAction = {
         type: validationSuccess ? 'validate' : 'reject',

@@ -817,6 +817,58 @@ export class PersistentSONAEngine {
   }
 
   // ==========================================================================
+  // Three-Loop Engine Pass-Through (instantAdapt -> recordOutcome -> backgroundConsolidate)
+  // ==========================================================================
+
+  /**
+   * Perform instant per-request MicroLoRA adaptation (Loop 1).
+   *
+   * Delegates to the three-loop engine's instant loop.
+   * Returns null if the three-loop engine is not initialized.
+   *
+   * @param requestFeatures - Feature vector for the current request
+   * @returns Adaptation result, or null if three-loop engine not initialized
+   */
+  instantAdapt(requestFeatures: number[]): import('./sona-three-loop.js').AdaptationResult | null {
+    this.ensureInitialized();
+    return this.baseEngine.instantAdapt(requestFeatures);
+  }
+
+  /**
+   * Record the outcome of a request for REINFORCE-style gradient estimation (Loop 1b).
+   *
+   * Must be called after instantAdapt() with the reward signal.
+   * Delegates to the three-loop engine's recordOutcome().
+   *
+   * @param reward - Scalar reward (e.g., 1.0 for success, -1.0 for failure)
+   * @param requestIndex - Optional requestIndex from AdaptationResult for matching
+   */
+  recordOutcome(reward: number, requestIndex?: number): void {
+    this.ensureInitialized();
+    this.baseEngine.recordOutcome(reward, requestIndex);
+  }
+
+  /**
+   * Run background consolidation cycle (Loop 2).
+   *
+   * Delegates to the three-loop engine's background loop.
+   * Returns null if the three-loop engine is not initialized.
+   *
+   * @returns Consolidation result, or null if three-loop engine not initialized
+   */
+  backgroundConsolidate(): import('./sona-three-loop.js').ConsolidationResult | null {
+    this.ensureInitialized();
+    return this.baseEngine.backgroundConsolidate();
+  }
+
+  /**
+   * Check if the three-loop engine is initialized and active.
+   */
+  isThreeLoopEnabled(): boolean {
+    return this.baseEngine.isThreeLoopEnabled();
+  }
+
+  // ==========================================================================
   // Learning Operations (Delegates to base engine)
   // ==========================================================================
 
