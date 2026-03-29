@@ -89,6 +89,9 @@ import * as GateEvalHelpers from './coordinator-gate-evaluation.js';
 // ADR-070: Witness Chain audit trail
 import { getWitnessChain } from '../../audit/witness-chain.js';
 
+// Three-loop feature flag for instantAdapt protocol
+import { isSONAThreeLoopEnabled } from '../../integrations/ruvector/feature-flags.js';
+
 // V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
@@ -409,6 +412,21 @@ export class QualityAssessmentCoordinator
       // Success path
       this.completeWorkflow(workflowId);
 
+      // Three-loop protocol: instantAdapt must precede recordOutcome
+      if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+        const m = effectiveRequest.metrics;
+        this.qesona.instantAdapt([
+          m.coverage / 100,
+          m.testsPassing / 100,
+          m.criticalBugs / 10,
+          m.codeSmells / 100,
+          m.securityVulnerabilities / 10,
+          m.technicalDebt / 100,
+          m.duplications / 100,
+          finalResult.overallScore / 100,
+        ]);
+      }
+
       // Store quality pattern in SONA if enabled
       if (this.config.enableSONAPatternLearning && this.qesona) {
         await this.storeQualityPattern(effectiveRequest, finalResult);
@@ -531,6 +549,17 @@ export class QualityAssessmentCoordinator
         if (enhanced) {
           result.value = enhanced;
         }
+      }
+
+      // Three-loop protocol: instantAdapt must precede recordOutcome
+      if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+        const score = result.value.score;
+        this.qesona.instantAdapt([
+          score.overall / 100,
+          result.value.metrics.length / 20,
+          result.value.trends.length / 10,
+          result.value.recommendations.length / 10,
+        ]);
       }
 
       // Store quality pattern in SONA

@@ -26,6 +26,48 @@ import {
 } from './qe-patterns.js';
 import type { FilterExpression } from '../integrations/ruvector/interfaces.js';
 import { applyFilterSync } from '../integrations/ruvector/filter-adapter.js';
+import {
+  isHDCFingerprintingEnabled,
+  isDeltaEventSourcingEnabled,
+  isHopfieldMemoryEnabled,
+} from '../integrations/ruvector/feature-flags.js';
+import {
+  HdcFingerprinter,
+  createHdcFingerprinter,
+  type PatternFingerprint,
+} from '../integrations/ruvector/hdc-fingerprint.js';
+import { DeltaTracker } from '../integrations/ruvector/delta-tracker.js';
+import { HopfieldMemory, createHopfieldMemory } from '../integrations/ruvector/hopfield-memory.js';
+
+// ============================================================================
+// R1: HDC Fingerprint Singleton (lazy-initialized)
+// ============================================================================
+
+/** Module-level HDC fingerprinter, created on first use */
+let hdcFingerprinter: HdcFingerprinter | null = null;
+
+function getHdcFingerprinter(): HdcFingerprinter {
+  if (!hdcFingerprinter) {
+    hdcFingerprinter = createHdcFingerprinter({ dimensions: 10000 });
+  }
+  return hdcFingerprinter;
+}
+
+// ============================================================================
+// R5: Hopfield Memory Singleton (lazy-initialized, dimension-aware)
+// ============================================================================
+
+/** Module-level Hopfield memory for exact pattern recall */
+let hopfieldMemory: HopfieldMemory | null = null;
+let hopfieldDimension = 0;
+
+function getHopfieldMemory(dimension: number): HopfieldMemory {
+  if (!hopfieldMemory || hopfieldDimension !== dimension) {
+    hopfieldMemory = createHopfieldMemory({ dimension, maxPatterns: 10000 });
+    hopfieldDimension = dimension;
+  }
+  return hopfieldMemory;
+}
 
 // ============================================================================
 // Pattern Store Configuration
@@ -331,6 +373,12 @@ export class PatternStore implements IPatternStore {
   private hnswAvailable = false;
   private hnswInitPromise: Promise<void> | null = null;
 
+  // R1: HDC fingerprint cache (pattern ID -> fingerprint vector)
+  private hdcCache: Map<string, Uint8Array> = new Map();
+
+  // R3: Delta event sourcing tracker (lazy-initialized with SQLite)
+  private deltaTracker: DeltaTracker | null = null;
+
   // Statistics
   private stats = {
     searchOperations: 0,
@@ -354,6 +402,18 @@ export class PatternStore implements IPatternStore {
    */
   setSqliteStore(store: import('./sqlite-persistence.js').SQLitePatternStore): void {
     this.sqliteStore = store;
+
+    // R3: Initialize DeltaTracker using the same SQLite DB instance
+    if (isDeltaEventSourcingEnabled() && !this.deltaTracker) {
+      try {
+        const db = store.getDb();
+        this.deltaTracker = new DeltaTracker(db);
+        this.deltaTracker.initialize();
+        console.log('[PatternStore] Delta event sourcing initialized');
+      } catch (e) {
+        console.warn('[PatternStore] Delta tracker init failed:', e instanceof Error ? e.message : e);
+      }
+    }
 
     // Load patterns from SQLite if we're already initialized
     // (setSqliteStore is called after initialize() in QEReasoningBank)
@@ -581,6 +641,7 @@ export class PatternStore implements IPatternStore {
     this.domainIndex.get(pattern.qeDomain)?.delete(pattern.id);
     this.typeIndex.get(pattern.patternType)?.delete(pattern.id);
     this.tierIndex.get(pattern.tier)?.delete(pattern.id);
+    this.hdcCache.delete(pattern.id); // R1: cleanup HDC fingerprint
   }
 
   /**
@@ -650,6 +711,55 @@ export class PatternStore implements IPatternStore {
         } catch (error) {
           console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
         }
+      }
+    }
+
+    // R1: Compute and cache HDC fingerprint for fast pre-filtering
+    if (isHDCFingerprintingEnabled()) {
+      try {
+        const hdc = getHdcFingerprinter();
+        const fp = hdc.fingerprint({
+          id: pattern.id,
+          domain: pattern.qeDomain,
+          type: pattern.patternType,
+          content: pattern.description,
+        });
+        this.hdcCache.set(pattern.id, fp.vector);
+      } catch (error) {
+        console.debug(`[PatternStore] HDC fingerprint failed for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R5: Store embedding in Hopfield memory for exact recall
+    if (isHopfieldMemoryEnabled() && pattern.embedding) {
+      try {
+        const hopfield = getHopfieldMemory(pattern.embedding.length);
+        hopfield.store(new Float32Array(pattern.embedding), {
+          id: pattern.id,
+          name: pattern.name,
+          domain: pattern.qeDomain,
+        });
+      } catch (error) {
+        console.debug(`[PatternStore] Hopfield store failed for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R3: Create genesis delta event for new patterns
+    if (isDeltaEventSourcingEnabled() && this.deltaTracker) {
+      try {
+        const snapshot = {
+          id: pattern.id,
+          name: pattern.name,
+          confidence: pattern.confidence,
+          qualityScore: pattern.qualityScore,
+          usageCount: pattern.usageCount,
+          successRate: pattern.successRate,
+          tier: pattern.tier,
+        };
+        this.deltaTracker.createGenesis(pattern.id, snapshot);
+      } catch (error) {
+        // Genesis may already exist if pattern was re-stored; log at debug level
+        console.debug(`[PatternStore] Delta genesis for ${pattern.id}:`, toErrorMessage(error));
       }
     }
 
@@ -755,6 +865,34 @@ export class PatternStore implements IPatternStore {
     const results: PatternSearchResult[] = [];
 
     try {
+      // R5: Exact recall via Hopfield — check for high-confidence exact match
+      if (Array.isArray(query) && isHopfieldMemoryEnabled()) {
+        try {
+          const hopfield = getHopfieldMemory(query.length);
+          if (hopfield.getPatternCount() > 0) {
+            const recallResult = hopfield.recall(new Float32Array(query));
+            if (recallResult && recallResult.similarity > 0.98) {
+              const patternId = recallResult.metadata.id as string;
+              const pattern = await this.get(patternId);
+              if (pattern && this.matchesFilters(pattern, options)) {
+                const reuseInfo = this.calculateReuseInfo(pattern, recallResult.similarity);
+                results.push({
+                  pattern,
+                  score: recallResult.similarity,
+                  matchType: 'vector',
+                  similarity: recallResult.similarity,
+                  canReuse: reuseInfo.canReuse,
+                  estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+                  reuseConfidence: reuseInfo.reuseConfidence,
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.debug('[PatternStore] Hopfield recall failed:', toErrorMessage(error));
+        }
+      }
+
       // Vector search if query is embedding and HNSW available (lazy-load)
       if (Array.isArray(query) && options.useVectorSearch !== false) {
         const hnsw = await this.ensureHNSW();
@@ -895,7 +1033,37 @@ export class PatternStore implements IPatternStore {
       candidates = new Set(this.patternCache.keys());
     }
 
-    for (const id of candidates) {
+    // R1: HDC fast-path pre-filter — sort candidates by Hamming similarity
+    // so we process the most likely matches first (reduces wasted iterations)
+    let orderedCandidates: string[] = [...candidates];
+    if (isHDCFingerprintingEnabled() && queryLower && this.hdcCache.size > 0) {
+      try {
+        const hdc = getHdcFingerprinter();
+        const queryFp = hdc.fingerprint({
+          id: 'query',
+          domain: options.domain ?? 'unknown',
+          type: options.patternType ?? 'unknown',
+          content: query,
+        });
+        // Score each candidate by Hamming similarity and sort descending
+        const scored = orderedCandidates
+          .filter(id => this.hdcCache.has(id))
+          .map(id => ({
+            id,
+            similarity: hdc.similarity(queryFp.vector, this.hdcCache.get(id)!),
+          }));
+        scored.sort((a, b) => b.similarity - a.similarity);
+        // Reorder by HDC similarity but never eliminate — text match is authoritative
+        const hdcOrdered = scored.map(s => s.id);
+        // Add back candidates without fingerprints at the end
+        const unfingerprinted = orderedCandidates.filter(id => !this.hdcCache.has(id));
+        orderedCandidates = [...hdcOrdered, ...unfingerprinted];
+      } catch {
+        // HDC pre-filter is best-effort; fall through to normal search
+      }
+    }
+
+    for (const id of orderedCandidates) {
       if (results.length >= limit) break;
 
       const pattern = this.patternCache.get(id);
@@ -1098,6 +1266,33 @@ export class PatternStore implements IPatternStore {
         this.sqliteStore.recordUsage(id, success);
       } catch (error) {
         console.warn(`[PatternStore] SQLite recordUsage failed for ${id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R3: Record delta event for the pattern update
+    if (isDeltaEventSourcingEnabled() && this.deltaTracker) {
+      try {
+        const before = {
+          id: pattern.id,
+          name: pattern.name,
+          confidence: pattern.confidence,
+          qualityScore: pattern.qualityScore,
+          usageCount: pattern.usageCount,
+          successRate: pattern.successRate,
+          tier: pattern.tier,
+        };
+        const after = {
+          id: updated.id,
+          name: updated.name,
+          confidence: updated.confidence,
+          qualityScore: updated.qualityScore,
+          usageCount: updated.usageCount,
+          successRate: updated.successRate,
+          tier: updated.tier,
+        };
+        this.deltaTracker.recordDelta(id, before, after, { success });
+      } catch (error) {
+        console.debug(`[PatternStore] Delta recordDelta for ${id}:`, toErrorMessage(error));
       }
     }
 
@@ -1366,6 +1561,9 @@ export class PatternStore implements IPatternStore {
     this.domainIndex.clear();
     this.typeIndex.clear();
     this.tierIndex.clear();
+    this.hdcCache.clear(); // R1: cleanup
+    this.deltaTracker = null; // R3: cleanup
+    if (hopfieldMemory) { hopfieldMemory.clear(); hopfieldMemory = null; hopfieldDimension = 0; } // R5: cleanup
 
     this.initialized = false;
   }

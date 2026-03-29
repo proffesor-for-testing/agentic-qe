@@ -1,7 +1,7 @@
 /**
  * Agentic QE v3 - RL Suite Main Export
  *
- * Complete RL Suite for Quality Engineering with 9 algorithms.
+ * Complete RL Suite for Quality Engineering with 10 algorithms.
  * Per ADR-040, provides reinforcement learning for QE decision-making.
  */
 
@@ -36,6 +36,8 @@ export {
   PPOAlgorithm,
   A2CAlgorithm,
   DDPGAlgorithm,
+  EpropAlgorithm,
+  createEpropAlgorithm,
 } from './algorithms';
 
 // ============================================================================

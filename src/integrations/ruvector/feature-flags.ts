@@ -212,6 +212,149 @@ export interface RuVectorFeatureFlags {
    * @default true
    */
   useReasoningQEC: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — verified, default true (opt-out)
+  // ==========================================================================
+
+  /**
+   * Enable HDC Pattern Fingerprinting (R1, ADR-087)
+   * Uses 10,000-bit binary hypervectors with XOR binding for O(1) compositional
+   * pattern fingerprinting and nanosecond Hamming-distance similarity.
+   * TypeScript fallback; WASM upgrade path via @ruvector/hdc-wasm.
+   * @default true
+   */
+  useHDCFingerprinting: boolean;
+
+  /**
+   * Enable CUSUM Drift Detection (R2, ADR-087)
+   * Adds statistical change-point detection to the coherence gate using
+   * two-sided Cumulative Sum (CUSUM) algorithm. Replaces heuristic thresholds
+   * with statistically rigorous drift detection per gate type.
+   * @default true
+   */
+  useCusumDriftDetection: boolean;
+
+  /**
+   * Enable Delta Event Sourcing (R3, ADR-087)
+   * Tracks pattern version history as delta events in SQLite. Enables rollback
+   * to any previous pattern state and incremental sync between agents.
+   * @default true
+   */
+  useDeltaEventSourcing: boolean;
+
+  /**
+   * Enable EWC++ Regularization (ADR-087)
+   * Activates Elastic Weight Consolidation++ Fisher Information Matrix
+   * computation in domain coordinators. Prevents catastrophic forgetting
+   * when learning new domains. Requires useSONAThreeLoop to be enabled.
+   * @default true
+   */
+  useEwcPlusPlusRegularization: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 2: verified, default true
+  // ==========================================================================
+
+  /**
+   * Enable GraphMAE Self-Supervised Embeddings (R4, ADR-087)
+   * Zero-label graph learning via masked graph autoencoders. Produces embeddings
+   * from code dependency graph structure without labeled training data.
+   * Consumer: coordinator-gnn.ts generateGraphMAEEmbeddings()
+   * Activation: enable after verifying 1K-node embedding quality in your graph
+   * @default false
+   */
+  useGraphMAEEmbeddings: boolean;
+
+  /**
+   * Enable Modern Hopfield Memory (R5, ADR-087)
+   * Exponential-capacity associative memory for exact pattern recall.
+   * Complements HNSW approximate search with content-addressable exact retrieval.
+   * Consumer: pattern-store.ts store()/search() exact recall path
+   * Activation: enable after verifying recall accuracy at your pattern count
+   * Note: at beta=8 with normalized patterns, softmax recall is equivalent
+   * to a single Hopfield fixed-point iteration (Ramsauer 2020, Theorem 3)
+   * @default false
+   */
+  useHopfieldMemory: boolean;
+
+  /**
+   * Enable Cold-Tier GNN Training (R6, ADR-087)
+   * LRU-cached mini-batch GNN training for graphs exceeding hotsetSize.
+   * FileBackedGraph available for true disk-backed larger-than-RAM graphs.
+   * Consumer: coordinator-gnn.ts trainWithColdTier()
+   * Activation: enable when pattern graph exceeds 10K nodes
+   * @default false
+   */
+  useColdTierGNN: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 3: Scale & Optimization
+  // Activation: set to true after verifying success criteria in your
+  // environment. See ruvector-improvements-plan.md §Milestone 3.
+  // ==========================================================================
+
+  /**
+   * Enable Meta-Learning Enhancements (R7, ADR-087)
+   * Adds DecayingBeta, PlateauDetector, ParetoFront, and CuriosityBonus
+   * to the cross-domain transfer engine for adaptive exploration.
+   * Consumer: domain-transfer.ts DomainTransferEngine
+   * Activation: enable after verifying plateau detection on transfer history
+   * @default false
+   */
+  useMetaLearningEnhancements: boolean;
+
+  /**
+   * Enable Sublinear Solver (R8, ADR-087)
+   * O(log n) PageRank for graph-based pattern importance scoring.
+   * TypeScript power-iteration fallback; native @ruvector/solver-node optional.
+   * Consumer: pattern-promotion.ts (future integration)
+   * Activation: enable after bootstrapping a pattern citation graph
+   * @default false
+   */
+  useSublinearSolver: boolean;
+
+  /**
+   * Enable Spectral Graph Sparsification (R9, ADR-087)
+   * Effective resistance sampling to compress graphs while preserving
+   * Laplacian spectral properties. Reduces cost of graph operations.
+   * Consumer: coherence checks, mincut analysis (future integration)
+   * Activation: enable when graph edge count exceeds 10K
+   * @default false
+   */
+  useSpectralSparsification: boolean;
+
+  /**
+   * Enable Reservoir Replay with Coherence Gating (R10, ADR-087)
+   * Fixed-size replay buffer with coherence-gated admission and
+   * tier-weighted sampling. Uses CUSUM for drift-aware threshold.
+   * Consumer: experience-replay.ts (future integration)
+   * Activation: enable after verifying admission quality on your workload
+   * @default false
+   */
+  useReservoirReplay: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 4: Advanced Learning
+  // ==========================================================================
+
+  /**
+   * Enable E-prop Online Learning (R11, ADR-087)
+   * Eligibility propagation with 12 bytes/synapse, no backprop required.
+   * Registers as RL algorithm #10 in the suite.
+   * Consumer: rl-suite algorithms/eprop.ts
+   * @default false
+   */
+  useEpropOnlineLearning: boolean;
+
+  /**
+   * Enable Granger Causality for Test Failure Prediction (R12, ADR-087)
+   * Discovers causal chains in test execution history using VAR + F-test.
+   * Complements STDP (real-time) with batch historical analysis.
+   * Consumer: defect-intelligence domain
+   * @default false
+   */
+  useGrangerCausality: boolean;
 }
 
 // ============================================================================
@@ -241,6 +384,23 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useDAGAttention: true,
   useCoherenceActionGate: true,
   useReasoningQEC: true,
+  // Phase 5 (ADR-087) — enabled by default, opt-out
+  useHDCFingerprinting: true,
+  useCusumDriftDetection: true,
+  useDeltaEventSourcing: true,
+  useEwcPlusPlusRegularization: true,
+  // Phase 5 Milestone 2 (ADR-087) — verified, default true (opt-out)
+  useGraphMAEEmbeddings: true,
+  useHopfieldMemory: true,
+  useColdTierGNN: true,
+  // Phase 5 Milestone 3 (ADR-087) — verified, default true (opt-out)
+  useMetaLearningEnhancements: true,
+  useSublinearSolver: true,
+  useSpectralSparsification: true,
+  useReservoirReplay: true,
+  // Phase 5 Milestone 4 (ADR-087) — verified, default true (opt-out)
+  useEpropOnlineLearning: true,
+  useGrangerCausality: true,
 };
 
 // ============================================================================
@@ -478,6 +638,118 @@ export function isReasoningQECEnabled(): boolean {
   return currentFeatureFlags.useReasoningQEC;
 }
 
+// Phase 5 (ADR-087) convenience functions
+
+/**
+ * Check if HDC Pattern Fingerprinting is enabled (R1, ADR-087)
+ * @returns true if useHDCFingerprinting flag is set
+ */
+export function isHDCFingerprintingEnabled(): boolean {
+  return currentFeatureFlags.useHDCFingerprinting;
+}
+
+/**
+ * Check if CUSUM Drift Detection is enabled (R2, ADR-087)
+ * @returns true if useCusumDriftDetection flag is set
+ */
+export function isCusumDriftDetectionEnabled(): boolean {
+  return currentFeatureFlags.useCusumDriftDetection;
+}
+
+/**
+ * Check if Delta Event Sourcing is enabled (R3, ADR-087)
+ * @returns true if useDeltaEventSourcing flag is set
+ */
+export function isDeltaEventSourcingEnabled(): boolean {
+  return currentFeatureFlags.useDeltaEventSourcing;
+}
+
+/**
+ * Check if EWC++ Regularization is enabled (ADR-087)
+ * @returns true if useEwcPlusPlusRegularization flag is set
+ */
+export function isEwcPlusPlusEnabled(): boolean {
+  return currentFeatureFlags.useEwcPlusPlusRegularization;
+}
+
+// Phase 5 Milestone 2 (ADR-087) convenience functions
+
+/**
+ * Check if GraphMAE embeddings are enabled
+ * @returns true if useGraphMAEEmbeddings flag is set
+ */
+export function isGraphMAEEnabled(): boolean {
+  return currentFeatureFlags.useGraphMAEEmbeddings;
+}
+
+/**
+ * Check if Hopfield memory is enabled
+ * @returns true if useHopfieldMemory flag is set
+ */
+export function isHopfieldMemoryEnabled(): boolean {
+  return currentFeatureFlags.useHopfieldMemory;
+}
+
+/**
+ * Check if Cold-Tier GNN training is enabled
+ * @returns true if useColdTierGNN flag is set
+ */
+export function isColdTierGNNEnabled(): boolean {
+  return currentFeatureFlags.useColdTierGNN;
+}
+
+// Phase 5 Milestone 3 (ADR-087) convenience functions
+
+/**
+ * Check if Meta-Learning Enhancements are enabled (R7, ADR-087)
+ * @returns true if useMetaLearningEnhancements flag is set
+ */
+export function isMetaLearningEnabled(): boolean {
+  return currentFeatureFlags.useMetaLearningEnhancements;
+}
+
+/**
+ * Check if Sublinear Solver is enabled (R8, ADR-087)
+ * @returns true if useSublinearSolver flag is set
+ */
+export function isSublinearSolverEnabled(): boolean {
+  return currentFeatureFlags.useSublinearSolver;
+}
+
+/**
+ * Check if Spectral Sparsification is enabled (R9, ADR-087)
+ * @returns true if useSpectralSparsification flag is set
+ */
+export function isSpectralSparsificationEnabled(): boolean {
+  return currentFeatureFlags.useSpectralSparsification;
+}
+
+/**
+ * Check if Reservoir Replay is enabled (R10, ADR-087)
+ * @returns true if useReservoirReplay flag is set
+ */
+export function isReservoirReplayEnabled(): boolean {
+  return currentFeatureFlags.useReservoirReplay;
+}
+
+// Phase 5 Milestone 4 (ADR-087) convenience functions
+
+/**
+ * Check if E-prop Online Learning is enabled (R11, ADR-087)
+ * @returns true if useEpropOnlineLearning flag is set
+ */
+export function isEpropOnlineLearningEnabled(): boolean {
+  return currentFeatureFlags.useEpropOnlineLearning;
+}
+
+/**
+ * Check if Granger Causality is enabled (R12, ADR-087)
+ * @returns true if useGrangerCausality flag is set
+ */
+export function isGrangerCausalityEnabled(): boolean {
+  return currentFeatureFlags.useGrangerCausality;
+}
+
 // ============================================================================
 // Environment Variable Support
 // ============================================================================
@@ -574,6 +846,49 @@ export function initFeatureFlagsFromEnv(): void {
 
   if (process.env.RUVECTOR_USE_REASONING_QEC !== undefined) {
     envFlags.useReasoningQEC = process.env.RUVECTOR_USE_REASONING_QEC === 'true';
+  }
+
+  // Phase 5 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_HDC_FINGERPRINTING !== undefined) {
+    envFlags.useHDCFingerprinting = process.env.RUVECTOR_USE_HDC_FINGERPRINTING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_CUSUM_DRIFT_DETECTION !== undefined) {
+    envFlags.useCusumDriftDetection = process.env.RUVECTOR_USE_CUSUM_DRIFT_DETECTION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_DELTA_EVENT_SOURCING !== undefined) {
+    envFlags.useDeltaEventSourcing = process.env.RUVECTOR_USE_DELTA_EVENT_SOURCING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_EWC_PLUS_PLUS !== undefined) {
+    envFlags.useEwcPlusPlusRegularization = process.env.RUVECTOR_USE_EWC_PLUS_PLUS === 'true';
+  }
+
+  // Phase 5 Milestone 3 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_META_LEARNING !== undefined) {
+    envFlags.useMetaLearningEnhancements = process.env.RUVECTOR_USE_META_LEARNING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_SUBLINEAR_SOLVER !== undefined) {
+    envFlags.useSublinearSolver = process.env.RUVECTOR_USE_SUBLINEAR_SOLVER === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_SPECTRAL_SPARSIFICATION !== undefined) {
+    envFlags.useSpectralSparsification = process.env.RUVECTOR_USE_SPECTRAL_SPARSIFICATION === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_RESERVOIR_REPLAY !== undefined) {
+    envFlags.useReservoirReplay = process.env.RUVECTOR_USE_RESERVOIR_REPLAY === 'true';
+  }
+
+  // Phase 5 Milestone 4 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_EPROP_ONLINE_LEARNING !== undefined) {
+    envFlags.useEpropOnlineLearning = process.env.RUVECTOR_USE_EPROP_ONLINE_LEARNING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_GRANGER_CAUSALITY !== undefined) {
+    envFlags.useGrangerCausality = process.env.RUVECTOR_USE_GRANGER_CAUSALITY === 'true';
   }
 
   setRuVectorFeatureFlags(envFlags);

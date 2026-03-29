@@ -27,6 +27,8 @@ import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../../embeddings/base/types.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { ExperienceConsolidator } from '../../../learning/experience-consolidation.js';
+import { getRuVectorFeatureFlags } from '../../ruvector/feature-flags.js';
+import { ReservoirReplayBuffer } from '../../ruvector/reservoir-replay.js';
 
 // ============================================================================
 // Types
@@ -215,6 +217,9 @@ export class ExperienceReplay {
   // Recent experiences buffer
   private recentExperiences: CircularBuffer<Experience>;
 
+  // Reservoir replay buffer (R10, ADR-087) — coherence-gated admission
+  private reservoirBuffer: ReservoirReplayBuffer<Experience> | null = null;
+
   // Statistics
   private stats = {
     experiencesStored: 0,
@@ -256,6 +261,12 @@ export class ExperienceReplay {
 
     // Load embeddings into memory index
     await this.loadEmbeddingIndex();
+
+    // Initialize reservoir buffer if feature flag is enabled (R10, ADR-087)
+    if (getRuVectorFeatureFlags().useReservoirReplay) {
+      this.reservoirBuffer = new ReservoirReplayBuffer<Experience>({ capacity: 10_000 });
+      console.log('[ExperienceReplay] Reservoir replay buffer enabled');
+    }
 
     this.initialized = true;
     console.log('[ExperienceReplay] Initialized');
@@ -538,6 +549,15 @@ export class ExperienceReplay {
     // Add to recent buffer
     this.recentExperiences.push(experience);
 
+    // Admit to reservoir buffer with coherence gating (R10, ADR-087)
+    if (this.reservoirBuffer) {
+      this.reservoirBuffer.admit(
+        experience.id,
+        experience,
+        experience.qualityScore, // use quality score as coherence proxy
+      );
+    }
+
     this.stats.experiencesStored++;
 
     // Auto-consolidate if enabled (replaces destructive auto-prune)
@@ -561,8 +581,25 @@ export class ExperienceReplay {
   ): Promise<ExperienceGuidance | null> {
     this.ensureInitialized();
 
-    // Find similar experiences
+    // Find similar experiences via HNSW
     const similar = await this.findSimilarExperiences(task, domain);
+
+    // Blend in high-coherence experiences from reservoir buffer (R10, ADR-087)
+    if (this.reservoirBuffer && this.reservoirBuffer.size() > 0) {
+      const reservoirSamples = this.reservoirBuffer.sample(
+        Math.max(2, Math.floor(this.config.topK / 2)),
+        0.6, // only high-quality experiences
+      );
+      for (const entry of reservoirSamples) {
+        const exp = entry.data;
+        // Skip if already in HNSW results
+        if (similar.some(s => s.experience.id === exp.id)) continue;
+        // Skip if domain filter doesn't match
+        if (domain && exp.domain !== domain) continue;
+        // Add with a coherence-based similarity score
+        similar.push({ experience: exp, similarity: entry.coherenceScore * 0.8 });
+      }
+    }
 
     if (similar.length === 0) {
       return null;
@@ -840,6 +877,21 @@ export class ExperienceReplay {
       embeddingIndexSize: this.idToExperienceId.size, // For backward compatibility
       hnswIndexSize: this.hnswIndex.getSize('experiences'),
       recentBufferSize: this.recentExperiences.length,
+    };
+  }
+
+  /**
+   * Get reservoir buffer stats (R10, ADR-087).
+   * Returns null if the reservoir is not enabled.
+   */
+  getReservoirStats(): { size: number; totalAdmitted: number; totalRejected: number; tierCounts: Record<string, number> } | null {
+    if (!this.reservoirBuffer) return null;
+    const stats = this.reservoirBuffer.getStats();
+    return {
+      size: stats.size,
+      totalAdmitted: stats.totalAdmitted,
+      totalRejected: stats.totalRejected,
+      tierCounts: stats.tierCounts,
     };
   }
 

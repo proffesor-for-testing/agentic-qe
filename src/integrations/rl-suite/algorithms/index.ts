@@ -1,7 +1,7 @@
 /**
  * Agentic QE v3 - RL Algorithms Index
  *
- * Exports all 9 RL algorithms for QE applications.
+ * Exports all 10 RL algorithms for QE applications.
  */
 
 export { QLearningAlgorithm } from './q-learning';
@@ -13,3 +13,4 @@ export { DQNAlgorithm } from './dqn';
 export { PPOAlgorithm } from './ppo';
 export { A2CAlgorithm } from './a2c';
 export { DDPGAlgorithm } from './ddpg';
+export { EpropAlgorithm, createEpropAlgorithm } from './eprop';

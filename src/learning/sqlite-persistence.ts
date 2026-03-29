@@ -163,6 +163,11 @@ export class SQLitePatternStore {
     this.config = { ...DEFAULT_SQLITE_CONFIG, ...config };
   }
 
+  /** Expose the underlying database for cross-module schema extensions (R8 citations, R3 deltas) */
+  getDatabase(): DatabaseType | null {
+    return this.db;
+  }
+
   /**
    * Initialize the database
    */

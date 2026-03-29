@@ -111,6 +111,9 @@ import {
   DecisionTransformerAlgorithm,
 } from '../../integrations/rl-suite/algorithms/decision-transformer.js';
 
+// Three-loop feature flag for instantAdapt protocol
+import { isSONAThreeLoopEnabled } from '../../integrations/ruvector/feature-flags.js';
+
 import type {
   RLState,
   RLAction,
@@ -522,6 +525,19 @@ export class TestGenerationCoordinator
           for (const test of result.value.tests) {
             await this.publishTestGenerated(test, request.framework ?? 'vitest');
           }
+        }
+
+        // Three-loop protocol: instantAdapt must precede recordOutcome
+        if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+          const tests = result.value;
+          this.qesona.instantAdapt([
+            tests.tests.length / 20,
+            tests.coverageEstimate / 100,
+            tests.patternsUsed.length / 10,
+            request.sourceFiles.length / 20,
+            (request.coverageTarget ?? 80) / 100,
+            tests.tests.filter(t => t.type === 'unit').length / 20,
+          ]);
         }
 
         // Learn from successful generation using QESONA

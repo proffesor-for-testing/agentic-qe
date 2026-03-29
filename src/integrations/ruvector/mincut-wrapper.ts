@@ -13,6 +13,8 @@
 import { MinCutCalculator } from '../../coordination/mincut/mincut-calculator.js';
 import { SwarmGraph } from '../../coordination/mincut/swarm-graph.js';
 import type { SwarmVertex, SwarmEdge } from '../../coordination/mincut/interfaces.js';
+import { getRuVectorFeatureFlags } from './feature-flags.js';
+import { SpectralSparsifier, type SparsifierGraph } from './spectral-sparsifier.js';
 
 // ============================================================================
 // QE-Specific MinCut Types
@@ -193,7 +195,8 @@ export class QEMinCutService {
    * @returns The min-cut lambda value (0 if graph is empty/disconnected)
    */
   computeLambda(graph: TaskGraph): number {
-    const swarmGraph = this.toSwarmGraph(graph);
+    const effective = this.maybeSparsify(graph);
+    const swarmGraph = this.toSwarmGraph(effective);
     return this.calculator.getMinCutValue(swarmGraph);
   }
 
@@ -259,7 +262,8 @@ export class QEMinCutService {
    * @returns Health report with lambda, weak points, and suggestions
    */
   getStructuralHealth(graph: TaskGraph): HealthReport {
-    const swarmGraph = this.toSwarmGraph(graph);
+    const effective = this.maybeSparsify(graph);
+    const swarmGraph = this.toSwarmGraph(effective);
 
     if (swarmGraph.isEmpty()) {
       return this.emptyHealthReport();
@@ -298,6 +302,60 @@ export class QEMinCutService {
       suggestions,
       analyzedAt: new Date(),
     };
+  }
+
+  // ==========================================================================
+  // Spectral Sparsification (R9, ADR-087)
+  // ==========================================================================
+
+  /**
+   * Optionally sparsify a large task graph before mincut analysis.
+   * Only activates when the useSpectralSparsification feature flag is enabled
+   * AND the graph has more than 100 edges (below that, sparsification costs
+   * more than it saves).
+   */
+  private maybeSparsify(graph: TaskGraph): TaskGraph {
+    if (!getRuVectorFeatureFlags().useSpectralSparsification) return graph;
+    if (graph.edges.length <= 100) return graph;
+
+    // Build node ID→index map
+    const nodeIndex = new Map<string, number>();
+    graph.nodes.forEach((n, i) => nodeIndex.set(n.id, i));
+
+    // Convert to SparsifierGraph (undirected, weighted)
+    const sparsifierEdges: Array<[number, number, number]> = [];
+    for (const e of graph.edges) {
+      const si = nodeIndex.get(e.source);
+      const ti = nodeIndex.get(e.target);
+      if (si !== undefined && ti !== undefined) {
+        sparsifierEdges.push([si, ti, e.weight]);
+      }
+    }
+
+    const sparsifierGraph: SparsifierGraph = {
+      nodeCount: graph.nodes.length,
+      edges: sparsifierEdges,
+    };
+
+    const sparsifier = new SpectralSparsifier({ epsilon: 0.3 });
+    const sparsified = sparsifier.sparsify(sparsifierGraph);
+
+    // Convert back to TaskGraph edges
+    const sparsifiedEdges: TaskGraphEdge[] = [];
+    for (const [u, v, w] of sparsified.edges) {
+      const sourceNode = graph.nodes[u];
+      const targetNode = graph.nodes[v];
+      if (sourceNode && targetNode) {
+        sparsifiedEdges.push({
+          source: sourceNode.id,
+          target: targetNode.id,
+          weight: w,
+          edgeType: 'coordination',
+        });
+      }
+    }
+
+    return { nodes: graph.nodes, edges: sparsifiedEdges };
   }
 
   // ==========================================================================

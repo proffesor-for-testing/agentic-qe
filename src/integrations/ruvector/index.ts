@@ -462,6 +462,23 @@ export {
   isCrossDomainTransferEnabled,
   shouldLogMigrationMetrics,
   initFeatureFlagsFromEnv,
+  // Phase 5 Milestone 1 (ADR-087)
+  isHDCFingerprintingEnabled,
+  isCusumDriftDetectionEnabled,
+  isDeltaEventSourcingEnabled,
+  isEwcPlusPlusEnabled,
+  // Phase 5 Milestone 2 (ADR-087)
+  isGraphMAEEnabled,
+  isHopfieldMemoryEnabled,
+  isColdTierGNNEnabled,
+  // Phase 5 Milestone 3 (ADR-087)
+  isMetaLearningEnabled,
+  isSublinearSolverEnabled,
+  isSpectralSparsificationEnabled,
+  isReservoirReplayEnabled,
+  // Phase 5 Milestone 4 (ADR-087)
+  isEpropOnlineLearningEnabled,
+  isGrangerCausalityEnabled,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
@@ -475,10 +492,16 @@ export {
   ThompsonSampler,
   createDomainTransferEngine,
   DEFAULT_DOMAIN_TRANSFER_CONFIG,
+  // R7: Meta-Learning Enhancements (ADR-087, Milestone 3)
+  DecayingBeta,
+  PlateauDetector,
+  ParetoFront,
+  CuriosityBonus,
   type TransferCandidate,
   type TransferResult,
   type TransferRecord,
   type DomainTransferConfig,
+  type ParetoPoint,
 } from './domain-transfer';
 
 export {
@@ -627,6 +650,122 @@ export {
   type ContainerInfo,
   type Ed25519KeyPair,
 } from './cognitive-container';
+
+// ============================================================================
+// Phase 5: Pattern Intelligence (ADR-087, Milestone 1)
+// ============================================================================
+
+// R1: HDC Pattern Fingerprinting
+export {
+  HdcFingerprinter,
+  createHdcFingerprinter,
+  type HdcConfig,
+  type PatternFingerprint,
+} from './hdc-fingerprint';
+
+// R2: CUSUM Drift Detection
+export {
+  CusumDetector,
+  type CusumConfig,
+  type CusumResult,
+  type GateType,
+} from './cusum-detector';
+
+// R3: Delta Event Sourcing
+export {
+  DeltaTracker,
+  PATTERN_DELTAS_SCHEMA,
+  type DeltaEvent,
+  type DeltaTrackerConfig,
+  type JsonPatch,
+} from './delta-tracker';
+
+// ============================================================================
+// Phase 5: Graph Learning (ADR-087, Milestone 2)
+// ============================================================================
+
+// R4: GraphMAE Self-Supervised Learning
+export {
+  GraphMAEEncoder,
+  createGraphMAEEncoder,
+  type GraphMAEConfig,
+  type QEGraph,
+  type GraphMAEResult,
+} from './graphmae-encoder';
+
+// R5: Modern Hopfield Networks
+export {
+  HopfieldMemory,
+  createHopfieldMemory,
+  type HopfieldConfig,
+  type StoredPattern,
+  type RecallResult,
+} from './hopfield-memory';
+
+// R6: Cold-Tier GNN Training
+export {
+  ColdTierTrainer,
+  InMemoryGraph,
+  FileBackedGraph,
+  createColdTierTrainer,
+  type ColdTierConfig,
+  type ColdTierGraph,
+  type TrainingResult,
+  type CacheStats,
+} from './cold-tier-trainer';
+
+// ============================================================================
+// Phase 5: Scale & Optimization (ADR-087, Milestone 3)
+// ============================================================================
+
+// R8: PageRank Pattern Importance Solver
+export {
+  PageRankSolver,
+  createPageRankSolver,
+  type PatternGraph,
+  type ImportanceScore,
+  type SolverConfig,
+} from './solver-adapter';
+
+// R9: Spectral Graph Sparsification
+export {
+  SpectralSparsifier,
+  createSpectralSparsifier,
+  type SparsifierGraph,
+  type SpectralValidation,
+  type SparsifierConfig,
+} from './spectral-sparsifier';
+
+// R10: Reservoir Replay with Coherence Gating
+export {
+  ReservoirReplayBuffer,
+  createReservoirReplayBuffer,
+  type ReservoirEntry,
+  type ReservoirConfig,
+  type ReservoirStats,
+  type CoherenceTier,
+} from './reservoir-replay';
+
+// ============================================================================
+// Phase 5: Advanced Learning (ADR-087, Milestone 4)
+// ============================================================================
+
+// R11: E-prop Online Learning
+export {
+  EpropNetwork,
+  createEpropNetwork,
+  type EpropConfig,
+  type EpropStats,
+} from './eprop-learner';
+
+// R12: Granger Causality for Test Failure Prediction
+export {
+  GrangerAnalyzer,
+  createGrangerAnalyzer,
+  type TestExecutionHistory,
+  type CausalLink,
+  type GrangerConfig,
+} from './temporal-causality';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

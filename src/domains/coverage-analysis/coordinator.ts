@@ -195,6 +195,11 @@ export class CoverageAnalysisCoordinator
   protected async onInitialize(): Promise<void> {
     // Services are stateless, no domain-specific initialization needed
     // ADR-059: Ghost coverage analyzer is lazy-initialized on first use
+    // NOTE: EWC++ three-loop integration not available in this coordinator.
+    // Coverage-analysis uses Q-Learning (not SONA), so the three-loop engine
+    // is not accessible here. To enable EWC++ for coverage patterns, this
+    // coordinator would need a PersistentSONAEngine instance wired the same
+    // way as quality-assessment and test-generation coordinators.
   }
 
   protected async onDispose(): Promise<void> {

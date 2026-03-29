@@ -2,7 +2,7 @@
  * Agentic QE v3 - QE-Specific Reward Signals
  *
  * Domain-specific reward functions for RL algorithms in QE.
- * Per ADR-040, implements reward signals for all 9 algorithms.
+ * Per ADR-040, implements reward signals for all 10 algorithms.
  */
 
 import type {
