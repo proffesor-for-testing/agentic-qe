@@ -1053,12 +1053,11 @@ export class PatternStore implements IPatternStore {
             similarity: hdc.similarity(queryFp.vector, this.hdcCache.get(id)!),
           }));
         scored.sort((a, b) => b.similarity - a.similarity);
-        // Pre-filter: only keep candidates with above-random similarity (>0.5)
-        const hdcFiltered = scored.filter(s => s.similarity > 0.52).map(s => s.id);
+        // Reorder by HDC similarity but never eliminate — text match is authoritative
+        const hdcOrdered = scored.map(s => s.id);
         // Add back candidates without fingerprints at the end
-        const hdcSet = new Set(hdcFiltered);
         const unfingerprinted = orderedCandidates.filter(id => !this.hdcCache.has(id));
-        orderedCandidates = [...hdcFiltered, ...unfingerprinted];
+        orderedCandidates = [...hdcOrdered, ...unfingerprinted];
       } catch {
         // HDC pre-filter is best-effort; fall through to normal search
       }

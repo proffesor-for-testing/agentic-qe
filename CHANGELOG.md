@@ -5,6 +5,30 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.12] - 2026-03-29
+
+### Added
+
+- **RuVector Phase 5 — Pattern Intelligence (ADR-087)** — HDC pattern fingerprinting with 10K-bit binary hypervectors for O(1) XOR-based similarity, CUSUM drift detection across all 4 coherence gate types, and delta event sourcing with rollback via SQLite. EWC++ three-loop activation wired into quality-assessment, test-generation, and contract-testing coordinators.
+- **RuVector Phase 5 — Graph Learning (ADR-087)** — GraphMAE self-supervised learning with SPSA optimizer for masked graph autoencoders, Modern Hopfield networks for exponential-capacity exact pattern recall, and cold-tier GNN training with LRU-cached mini-batch trainer and file-backed larger-than-RAM graphs.
+- **RuVector Phase 5 — Scale, Optimization & Advanced Learning (ADR-087)** — Meta-learning enhancements (DecayingBeta, PlateauDetector, ParetoFront, CuriosityBonus), PageRank pattern importance scoring with citation graphs, spectral graph sparsification, reservoir replay buffer with coherence-gated admission, E-prop online learning (RL algorithm #10), and Granger causality for test failure prediction.
+- **456 new tests** across 11 test files covering all Phase 5 milestones with performance benchmarks.
+
+### Fixed
+
+- **HDC pre-filter dropping search results** — The R1 HDC fingerprint pre-filter in PatternStore search was eliminating candidates with low Hamming similarity instead of just reordering them, causing text searches to return empty results when all candidates had fingerprints.
+
+### Changed
+
+- Coherence gate module extracted from 930-line monolith into 4 focused modules under 500-line limit.
+- `RLAlgorithmType` union extended from 9 to 10 members (added `eprop`).
+- Xorshift128 PRNG extracted to shared utility for reuse across RuVector modules.
+- ADR-087 status promoted from Proposed to Active (milestones 1-4 complete).
+
+### Security
+
+- Bumped `path-to-regexp` from 0.1.12 to 0.1.13 (dependabot).
+
 ## [3.8.11] - 2026-03-27
 
 ### Added
