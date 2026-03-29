@@ -251,6 +251,45 @@ export interface RuVectorFeatureFlags {
    * @default true
    */
   useEwcPlusPlusRegularization: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 2
+  // Activation: set to true after verifying scale tests pass (1K nodes R4,
+  // 10K patterns R5, 50K nodes R6) in your environment. Monitor for 48h
+  // before declaring stable. See ruvector-improvements-plan.md §Milestone 2.
+  // ==========================================================================
+
+  /**
+   * Enable GraphMAE Self-Supervised Embeddings (R4, ADR-087)
+   * Zero-label graph learning via masked graph autoencoders. Produces embeddings
+   * from code dependency graph structure without labeled training data.
+   * Consumer: coordinator-gnn.ts generateGraphMAEEmbeddings()
+   * Activation: enable after verifying 1K-node embedding quality in your graph
+   * @default false
+   */
+  useGraphMAEEmbeddings: boolean;
+
+  /**
+   * Enable Modern Hopfield Memory (R5, ADR-087)
+   * Exponential-capacity associative memory for exact pattern recall.
+   * Complements HNSW approximate search with content-addressable exact retrieval.
+   * Consumer: pattern-store.ts store()/search() exact recall path
+   * Activation: enable after verifying recall accuracy at your pattern count
+   * Note: at beta=8 with normalized patterns, softmax recall is equivalent
+   * to a single Hopfield fixed-point iteration (Ramsauer 2020, Theorem 3)
+   * @default false
+   */
+  useHopfieldMemory: boolean;
+
+  /**
+   * Enable Cold-Tier GNN Training (R6, ADR-087)
+   * LRU-cached mini-batch GNN training for graphs exceeding hotsetSize.
+   * FileBackedGraph available for true disk-backed larger-than-RAM graphs.
+   * Consumer: coordinator-gnn.ts trainWithColdTier()
+   * Activation: enable when pattern graph exceeds 10K nodes
+   * @default false
+   */
+  useColdTierGNN: boolean;
 }
 
 // ============================================================================
@@ -285,6 +324,10 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useCusumDriftDetection: true,
   useDeltaEventSourcing: true,
   useEwcPlusPlusRegularization: true,
+  // Phase 5 Milestone 2 (ADR-087) — not yet verified, default false
+  useGraphMAEEmbeddings: false,
+  useHopfieldMemory: false,
+  useColdTierGNN: false,
 };
 
 // ============================================================================
@@ -554,6 +597,32 @@ export function isDeltaEventSourcingEnabled(): boolean {
  */
 export function isEwcPlusPlusEnabled(): boolean {
   return currentFeatureFlags.useEwcPlusPlusRegularization;
+}
+
+// Phase 5 Milestone 2 (ADR-087) convenience functions
+
+/**
+ * Check if GraphMAE embeddings are enabled
+ * @returns true if useGraphMAEEmbeddings flag is set
+ */
+export function isGraphMAEEnabled(): boolean {
+  return currentFeatureFlags.useGraphMAEEmbeddings;
+}
+
+/**
+ * Check if Hopfield memory is enabled
+ * @returns true if useHopfieldMemory flag is set
+ */
+export function isHopfieldMemoryEnabled(): boolean {
+  return currentFeatureFlags.useHopfieldMemory;
+}
+
+/**
+ * Check if Cold-Tier GNN training is enabled
+ * @returns true if useColdTierGNN flag is set
+ */
+export function isColdTierGNNEnabled(): boolean {
+  return currentFeatureFlags.useColdTierGNN;
 }
 
 // ============================================================================

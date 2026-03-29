@@ -83,6 +83,10 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useCusumDriftDetection: 'CUSUM drift detection (R2, ADR-087)',
   useDeltaEventSourcing: 'Delta event sourcing (R3, ADR-087)',
   useEwcPlusPlusRegularization: 'EWC++ regularization (ADR-087)',
+  // Phase 5 Milestone 2 (ADR-087)
+  useGraphMAEEmbeddings: 'GraphMAE self-supervised embeddings (R4, ADR-087)',
+  useHopfieldMemory: 'Modern Hopfield memory (R5, ADR-087)',
+  useColdTierGNN: 'Cold-tier GNN training (R6, ADR-087)',
 };
 
 const PROFILES: Record<FlagProfile, Partial<RuVectorFeatureFlags>> = {

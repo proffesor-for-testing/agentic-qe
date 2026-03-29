@@ -29,6 +29,7 @@ import { applyFilterSync } from '../integrations/ruvector/filter-adapter.js';
 import {
   isHDCFingerprintingEnabled,
   isDeltaEventSourcingEnabled,
+  isHopfieldMemoryEnabled,
 } from '../integrations/ruvector/feature-flags.js';
 import {
   HdcFingerprinter,
@@ -36,6 +37,7 @@ import {
   type PatternFingerprint,
 } from '../integrations/ruvector/hdc-fingerprint.js';
 import { DeltaTracker } from '../integrations/ruvector/delta-tracker.js';
+import { HopfieldMemory, createHopfieldMemory } from '../integrations/ruvector/hopfield-memory.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -49,6 +51,22 @@ function getHdcFingerprinter(): HdcFingerprinter {
     hdcFingerprinter = createHdcFingerprinter({ dimensions: 10000 });
   }
   return hdcFingerprinter;
+}
+
+// ============================================================================
+// R5: Hopfield Memory Singleton (lazy-initialized, dimension-aware)
+// ============================================================================
+
+/** Module-level Hopfield memory for exact pattern recall */
+let hopfieldMemory: HopfieldMemory | null = null;
+let hopfieldDimension = 0;
+
+function getHopfieldMemory(dimension: number): HopfieldMemory {
+  if (!hopfieldMemory || hopfieldDimension !== dimension) {
+    hopfieldMemory = createHopfieldMemory({ dimension, maxPatterns: 10000 });
+    hopfieldDimension = dimension;
+  }
+  return hopfieldMemory;
 }
 
 // ============================================================================
@@ -712,6 +730,20 @@ export class PatternStore implements IPatternStore {
       }
     }
 
+    // R5: Store embedding in Hopfield memory for exact recall
+    if (isHopfieldMemoryEnabled() && pattern.embedding) {
+      try {
+        const hopfield = getHopfieldMemory(pattern.embedding.length);
+        hopfield.store(new Float32Array(pattern.embedding), {
+          id: pattern.id,
+          name: pattern.name,
+          domain: pattern.qeDomain,
+        });
+      } catch (error) {
+        console.debug(`[PatternStore] Hopfield store failed for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
+
     // R3: Create genesis delta event for new patterns
     if (isDeltaEventSourcingEnabled() && this.deltaTracker) {
       try {
@@ -833,6 +865,34 @@ export class PatternStore implements IPatternStore {
     const results: PatternSearchResult[] = [];
 
     try {
+      // R5: Exact recall via Hopfield — check for high-confidence exact match
+      if (Array.isArray(query) && isHopfieldMemoryEnabled()) {
+        try {
+          const hopfield = getHopfieldMemory(query.length);
+          if (hopfield.getPatternCount() > 0) {
+            const recallResult = hopfield.recall(new Float32Array(query));
+            if (recallResult && recallResult.similarity > 0.98) {
+              const patternId = recallResult.metadata.id as string;
+              const pattern = await this.get(patternId);
+              if (pattern && this.matchesFilters(pattern, options)) {
+                const reuseInfo = this.calculateReuseInfo(pattern, recallResult.similarity);
+                results.push({
+                  pattern,
+                  score: recallResult.similarity,
+                  matchType: 'vector',
+                  similarity: recallResult.similarity,
+                  canReuse: reuseInfo.canReuse,
+                  estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+                  reuseConfidence: reuseInfo.reuseConfidence,
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.debug('[PatternStore] Hopfield recall failed:', toErrorMessage(error));
+        }
+      }
+
       // Vector search if query is embedding and HNSW available (lazy-load)
       if (Array.isArray(query) && options.useVectorSearch !== false) {
         const hnsw = await this.ensureHNSW();
@@ -1504,6 +1564,7 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.clear();
     this.hdcCache.clear(); // R1: cleanup
     this.deltaTracker = null; // R3: cleanup
+    if (hopfieldMemory) { hopfieldMemory.clear(); hopfieldMemory = null; hopfieldDimension = 0; } // R5: cleanup
 
     this.initialized = false;
   }

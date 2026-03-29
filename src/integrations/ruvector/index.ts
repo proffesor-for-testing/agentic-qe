@@ -462,11 +462,15 @@ export {
   isCrossDomainTransferEnabled,
   shouldLogMigrationMetrics,
   initFeatureFlagsFromEnv,
-  // Phase 5 (ADR-087)
+  // Phase 5 Milestone 1 (ADR-087)
   isHDCFingerprintingEnabled,
   isCusumDriftDetectionEnabled,
   isDeltaEventSourcingEnabled,
   isEwcPlusPlusEnabled,
+  // Phase 5 Milestone 2 (ADR-087)
+  isGraphMAEEnabled,
+  isHopfieldMemoryEnabled,
+  isColdTierGNNEnabled,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
@@ -661,6 +665,40 @@ export {
   type DeltaTrackerConfig,
   type JsonPatch,
 } from './delta-tracker';
+
+// ============================================================================
+// Phase 5: Graph Learning (ADR-087, Milestone 2)
+// ============================================================================
+
+// R4: GraphMAE Self-Supervised Learning
+export {
+  GraphMAEEncoder,
+  createGraphMAEEncoder,
+  type GraphMAEConfig,
+  type QEGraph,
+  type GraphMAEResult,
+} from './graphmae-encoder';
+
+// R5: Modern Hopfield Networks
+export {
+  HopfieldMemory,
+  createHopfieldMemory,
+  type HopfieldConfig,
+  type StoredPattern,
+  type RecallResult,
+} from './hopfield-memory';
+
+// R6: Cold-Tier GNN Training
+export {
+  ColdTierTrainer,
+  InMemoryGraph,
+  FileBackedGraph,
+  createColdTierTrainer,
+  type ColdTierConfig,
+  type ColdTierGraph,
+  type TrainingResult,
+  type CacheStats,
+} from './cold-tier-trainer';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)
