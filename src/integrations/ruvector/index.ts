@@ -471,6 +471,14 @@ export {
   isGraphMAEEnabled,
   isHopfieldMemoryEnabled,
   isColdTierGNNEnabled,
+  // Phase 5 Milestone 3 (ADR-087)
+  isMetaLearningEnabled,
+  isSublinearSolverEnabled,
+  isSpectralSparsificationEnabled,
+  isReservoirReplayEnabled,
+  // Phase 5 Milestone 4 (ADR-087)
+  isEpropOnlineLearningEnabled,
+  isGrangerCausalityEnabled,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
@@ -484,10 +492,16 @@ export {
   ThompsonSampler,
   createDomainTransferEngine,
   DEFAULT_DOMAIN_TRANSFER_CONFIG,
+  // R7: Meta-Learning Enhancements (ADR-087, Milestone 3)
+  DecayingBeta,
+  PlateauDetector,
+  ParetoFront,
+  CuriosityBonus,
   type TransferCandidate,
   type TransferResult,
   type TransferRecord,
   type DomainTransferConfig,
+  type ParetoPoint,
 } from './domain-transfer';
 
 export {
@@ -699,6 +713,59 @@ export {
   type TrainingResult,
   type CacheStats,
 } from './cold-tier-trainer';
+
+// ============================================================================
+// Phase 5: Scale & Optimization (ADR-087, Milestone 3)
+// ============================================================================
+
+// R8: PageRank Pattern Importance Solver
+export {
+  PageRankSolver,
+  createPageRankSolver,
+  type PatternGraph,
+  type ImportanceScore,
+  type SolverConfig,
+} from './solver-adapter';
+
+// R9: Spectral Graph Sparsification
+export {
+  SpectralSparsifier,
+  createSpectralSparsifier,
+  type SparsifierGraph,
+  type SpectralValidation,
+  type SparsifierConfig,
+} from './spectral-sparsifier';
+
+// R10: Reservoir Replay with Coherence Gating
+export {
+  ReservoirReplayBuffer,
+  createReservoirReplayBuffer,
+  type ReservoirEntry,
+  type ReservoirConfig,
+  type ReservoirStats,
+  type CoherenceTier,
+} from './reservoir-replay';
+
+// ============================================================================
+// Phase 5: Advanced Learning (ADR-087, Milestone 4)
+// ============================================================================
+
+// R11: E-prop Online Learning
+export {
+  EpropNetwork,
+  createEpropNetwork,
+  type EpropConfig,
+  type EpropStats,
+} from './eprop-learner';
+
+// R12: Granger Causality for Test Failure Prediction
+export {
+  GrangerAnalyzer,
+  createGrangerAnalyzer,
+  type TestExecutionHistory,
+  type CausalLink,
+  type GrangerConfig,
+} from './temporal-causality';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

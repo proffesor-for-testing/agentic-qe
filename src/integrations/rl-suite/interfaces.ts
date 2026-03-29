@@ -2,7 +2,7 @@
  * Agentic QE v3 - RL Suite Interfaces
  *
  * Reinforcement Learning algorithms for Quality Engineering.
- * Per ADR-040, implements 9 RL algorithms for QE-specific applications.
+ * Per ADR-040 + ADR-087 R11, implements 10 RL algorithms for QE-specific applications.
  */
 
 import type { DomainName, Priority, AgentType } from '../../shared/types';
@@ -26,7 +26,8 @@ export type RLAlgorithmType =
   | 'dqn'
   | 'ppo'
   | 'a2c'
-  | 'ddpg';
+  | 'ddpg'
+  | 'eprop';           // R11: E-prop online learning (ADR-087)
 
 /**
  * RL algorithm categories
@@ -36,7 +37,8 @@ export type RLAlgorithmCategory =
   | 'policy-based'     // Policy Gradient, Actor-Critic
   | 'actor-critic'     // A2C, PPO
   | 'offline-rl'       // Decision Transformer
-  | 'deterministic-policy'; // DDPG
+  | 'deterministic-policy' // DDPG
+  | 'online-learning';    // E-prop (R11, ADR-087)
 
 /**
  * QE domain application for RL algorithms

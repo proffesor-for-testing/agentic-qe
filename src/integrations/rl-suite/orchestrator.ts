@@ -1,7 +1,7 @@
 /**
  * Agentic QE v3 - QE RL Suite Orchestrator
  *
- * Main orchestrator for all 9 RL algorithms in QE.
+ * Main orchestrator for all 10 RL algorithms in QE.
  * Provides unified interface for algorithm selection, training, and inference.
  */
 
@@ -53,7 +53,7 @@ export interface RLSuiteStats {
 /**
  * Main orchestrator for QE RL Suite
  *
- * Manages all 9 RL algorithms and provides:
+ * Manages all 10 RL algorithms and provides:
  * - Algorithm selection based on domain/task
  * - Unified training interface
  * - Prediction with automatic algorithm routing
@@ -461,6 +461,7 @@ export class QERLSuite {
         'ppo': 0,
         'a2c': 0,
         'ddpg': 0,
+        'eprop': 0,
       },
       domainUsage: {},
       lastUpdated: new Date(),

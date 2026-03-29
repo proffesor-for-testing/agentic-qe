@@ -3,7 +3,8 @@
  *
  * Enables knowledge transfer between QE domains using Thompson Sampling
  * with Beta priors, sqrt-dampening, transfer verification gates, domain
- * pair affinity scoring, and coherence gate integration.
+ * pair affinity scoring, coherence gate integration, and R7 meta-learning
+ * enhancements (DecayingBeta, PlateauDetector, ParetoFront, CuriosityBonus).
  *
  * @module integrations/ruvector/domain-transfer
  */
@@ -18,6 +19,7 @@ import {
 } from './transfer-verification.js';
 import { getRuVectorFeatureFlags } from './feature-flags.js';
 import { ThompsonSampler } from './thompson-sampler.js';
+import { CusumDetector } from './cusum-detector.js';
 
 export { ThompsonSampler } from './thompson-sampler.js';
 
@@ -78,6 +80,8 @@ export interface DomainTransferConfig {
   verification: Partial<TransferVerificationConfig>;
   /** Maximum transfer records to retain in history */
   maxHistorySize: number;
+  /** Enable R7 meta-learning enhancements (ADR-087, Milestone 3) */
+  useMetaLearningEnhancements: boolean;
 }
 
 /** Default domain transfer configuration */
@@ -86,7 +90,131 @@ export const DEFAULT_DOMAIN_TRANSFER_CONFIG: DomainTransferConfig = {
   explorationWarmup: 5,
   verification: {},
   maxHistorySize: 1000,
+  useMetaLearningEnhancements: true,
 };
+
+// --- R7 Meta-Learning Helpers (ADR-087, Milestone 3) ---
+
+/** Point on the Pareto front, tracking multi-objective performance */
+export interface ParetoPoint {
+  pairKey: string;
+  successRate: number;
+  speed: number;
+  confidence: number;
+}
+
+/** Applies time-based decay to Thompson Sampler exploration variance. */
+export class DecayingBeta {
+  constructor(private readonly decayThreshold = 100) {}
+
+  /** Decay multiplier: 0.5^(successCount/threshold). 1.0 when count=0, 0.5 at threshold. */
+  getDecayMultiplier(successCount: number): number {
+    if (successCount <= 0) return 1.0;
+    return Math.pow(0.5, successCount / this.decayThreshold);
+  }
+
+  /** Shrink sampled value toward mean by the decay multiplier. */
+  applyDecay(sampled: number, mean: number, successCount: number): number {
+    return mean + (sampled - mean) * this.getDecayMultiplier(successCount);
+  }
+}
+
+/**
+ * Detects when transfer success rate has plateaued using CUSUM (R2).
+ *
+ * Feeds a running success rate into a CusumDetector on the 'learn' gate.
+ * Plateau is detected when CUSUM does NOT fire — i.e., the rate is
+ * stationary (no drift in either direction) for enough samples.
+ * CUSUM firing means the rate is changing, so NOT plateaued.
+ */
+export class PlateauDetector {
+  private readonly cusum: CusumDetector;
+  private readonly outcomes: boolean[] = [];
+  private readonly windowSize: number;
+
+  constructor(windowSize = 20) {
+    this.windowSize = windowSize;
+    // Low threshold + low slack = sensitive to any drift from mean.
+    // If CUSUM doesn't fire after windowSize samples, rate is flat.
+    // resetOnAlarm: false keeps the drift flag active so isPlateaued()
+    // returns false for the rest of the window after a rate change.
+    this.cusum = new CusumDetector({
+      threshold: 3.0,
+      slack: 0.1,
+      resetOnAlarm: false,
+      warmupSamples: Math.min(10, Math.floor(windowSize / 2)),
+    });
+  }
+
+  record(success: boolean): void {
+    this.outcomes.push(success);
+    if (this.outcomes.length > this.windowSize * 2) {
+      this.outcomes.splice(0, this.outcomes.length - this.windowSize * 2);
+    }
+    // Feed current success rate to CUSUM on the 'learn' gate
+    const rate = this.getCurrentRate();
+    this.cusum.update('learn', rate);
+  }
+
+  /**
+   * Plateau = we have enough data AND CUSUM has not detected drift.
+   * No drift means the rate is stationary — learning has stalled.
+   */
+  isPlateaued(): boolean {
+    if (this.outcomes.length < this.windowSize) return false;
+    const state = this.cusum.getState('learn');
+    return !state.driftDetected;
+  }
+
+  getCurrentRate(): number {
+    if (this.outcomes.length === 0) return 0;
+    const recent = this.outcomes.slice(-this.windowSize);
+    return recent.filter(Boolean).length / recent.length;
+  }
+
+  getOutcomeCount(): number { return this.outcomes.length; }
+
+  /** Expose CUSUM state for observability */
+  getCusumState() { return this.cusum.getState('learn'); }
+}
+
+/** Tracks Pareto-optimal transfer candidates across multiple objectives. */
+export class ParetoFront {
+  private readonly front: ParetoPoint[] = [];
+
+  dominates(a: ParetoPoint, b: ParetoPoint): boolean {
+    const geq = a.successRate >= b.successRate && a.speed >= b.speed && a.confidence >= b.confidence;
+    const gt = a.successRate > b.successRate || a.speed > b.speed || a.confidence > b.confidence;
+    return geq && gt;
+  }
+
+  add(point: ParetoPoint): void {
+    for (let i = this.front.length - 1; i >= 0; i--) {
+      if (this.dominates(point, this.front[i])) this.front.splice(i, 1);
+    }
+    if (!this.front.some(e => this.dominates(e, point))) this.front.push(point);
+  }
+
+  getFront(): ParetoPoint[] { return [...this.front]; }
+
+  isNonDominated(point: ParetoPoint): boolean {
+    return !this.front.some(e => this.dominates(e, point));
+  }
+}
+
+/** Curiosity bonus for novel/untried source-target domain pairs. */
+export class CuriosityBonus {
+  private readonly triedPairs: Set<string> = new Set();
+  constructor(private readonly bonusScale = 0.2) {}
+
+  markTried(pairKey: string): void { this.triedPairs.add(pairKey); }
+  isTried(pairKey: string): boolean { return this.triedPairs.has(pairKey); }
+  getBonus(pairKey: string): number { return this.triedPairs.has(pairKey) ? 0 : this.bonusScale; }
+  apply(sampledProbability: number, pairKey: string): number {
+    return Math.min(1.0, sampledProbability + this.getBonus(pairKey));
+  }
+  getTriedCount(): number { return this.triedPairs.size; }
+}
 
 // ============================================================================
 // Domain Transfer Engine
@@ -107,17 +235,28 @@ export class DomainTransferEngine {
   private transferExecutor: ((source: string, target: string, dampening: number) => boolean) | null = null;
   private nativeModule: unknown = null;
 
+  // R7 Meta-Learning components (ADR-087, Milestone 3)
+  private readonly decayingBeta: DecayingBeta;
+  private readonly plateauDetector: PlateauDetector;
+  private readonly paretoFront: ParetoFront;
+  private readonly curiosityBonus: CuriosityBonus;
+
   constructor(config: Partial<DomainTransferConfig> = {}) {
     this.config = { ...DEFAULT_DOMAIN_TRANSFER_CONFIG, ...config };
     this.sampler = new ThompsonSampler();
     this.verifier = createTransferVerifier(this.config.verification);
     this.coherenceGate = createTransferCoherenceGate();
+    this.decayingBeta = new DecayingBeta();
+    this.plateauDetector = new PlateauDetector();
+    this.paretoFront = new ParetoFront();
+    this.curiosityBonus = new CuriosityBonus();
     this.tryLoadNativeModule();
   }
 
   /**
    * Evaluate whether a transfer between two domains should be attempted.
    * Uses Thompson Sampling to balance exploration and exploitation.
+   * When meta-learning is enabled, applies DecayingBeta and CuriosityBonus.
    */
   evaluateTransfer(sourceDomain: string, targetDomain: string): TransferCandidate {
     if (!this.isEnabled()) {
@@ -125,10 +264,19 @@ export class DomainTransferEngine {
     }
 
     const pairKey = this.makePairKey(sourceDomain, targetDomain);
-    const sampledProbability = this.sampler.sample(pairKey);
+    let sampledProbability = this.sampler.sample(pairKey);
     const observationCount = this.sampler.getObservationCount(pairKey);
     const isExploration = observationCount < this.config.explorationWarmup;
     const affinityScore = this.getAffinityScore(sourceDomain, targetDomain);
+
+    if (this.isMetaLearningEnabled()) {
+      // DecayingBeta: reduce exploration variance for well-known pairs
+      const mean = this.sampler.getMean(pairKey);
+      const successCount = this.sampler.getAlpha(pairKey) - 1; // subtract prior
+      sampledProbability = this.decayingBeta.applyDecay(sampledProbability, mean, successCount);
+      // CuriosityBonus: boost untried domain pairs
+      sampledProbability = this.curiosityBonus.apply(sampledProbability, pairKey);
+    }
 
     return { sourceDomain, targetDomain, sampledProbability, affinityScore, isExploration, pairKey };
   }
@@ -172,6 +320,19 @@ export class DomainTransferEngine {
     // Step 6: Update Thompson Sampling and affinity
     this.sampler.update(candidate.pairKey, success);
     this.updateAffinityScore(candidate.pairKey, success);
+
+    // Step 6b: Update meta-learning components
+    if (this.isMetaLearningEnabled()) {
+      this.plateauDetector.record(success);
+      this.curiosityBonus.markTried(candidate.pairKey);
+      const mean = this.sampler.getMean(candidate.pairKey);
+      this.paretoFront.add({
+        pairKey: candidate.pairKey,
+        successRate: mean,
+        speed: 1 / (1 + dampeningFactor), // inverse dampening as speed proxy
+        confidence: this.getAffinityScore(candidate.sourceDomain, candidate.targetDomain),
+      });
+    }
 
     this.addToHistory({
       transferId, sourceDomain: candidate.sourceDomain, targetDomain: candidate.targetDomain,
@@ -231,10 +392,32 @@ export class DomainTransferEngine {
   /** Get the coherence gate (for testing). */
   getCoherenceGate(): ITransferCoherenceGate { return this.coherenceGate; }
 
+  /** Get the DecayingBeta component (for testing). */
+  getDecayingBeta(): DecayingBeta { return this.decayingBeta; }
+
+  /** Get the PlateauDetector component (for testing). */
+  getPlateauDetector(): PlateauDetector { return this.plateauDetector; }
+
+  /** Get the ParetoFront component (for testing). */
+  getParetoFront(): ParetoFront { return this.paretoFront; }
+
+  /** Get the CuriosityBonus component (for testing). */
+  getCuriosityBonus(): CuriosityBonus { return this.curiosityBonus; }
+
+  /** Check if learning has plateaued */
+  isLearningPlateaued(): boolean { return this.plateauDetector.isPlateaued(); }
+
   // --- Private Helpers ---
 
   private isEnabled(): boolean {
     return getRuVectorFeatureFlags().useCrossDomainTransfer === true;
+  }
+
+  private isMetaLearningEnabled(): boolean {
+    // Check both the engine config AND the system-wide feature flag.
+    // Either one being false disables meta-learning.
+    return this.config.useMetaLearningEnhancements === true
+      && getRuVectorFeatureFlags().useMetaLearningEnhancements !== false;
   }
 
   private makePairKey(source: string, target: string): string {

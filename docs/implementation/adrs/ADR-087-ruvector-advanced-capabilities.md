@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-087 |
-| **Status** | Proposed |
+| **Status** | Active (Milestones 1-4 complete, Milestone 5 backlog) |
 | **Date** | 2026-03-29 |
 | **Author** | Architecture Team |
 | **Review Cadence** | Monthly (active implementation) |
@@ -254,24 +254,24 @@ All 14 capabilities extend or complement existing decisions. None invalidate pri
 Every capability is gated behind a feature flag in `src/integrations/ruvector/feature-flags.ts`. **Policy**: features default to `true` (opt-out) after passing verification and benchmarks; unimplemented features default to `false` until verified. Users benefit from improvements by default and can disable if needed.
 
 ```typescript
-// Milestone 1 — verified, default true (opt-out)
-useHDCFingerprinting: true,       // R1
-useCusumDriftDetection: true,     // R2
-useDeltaEventSourcing: true,      // R3
-useEwcPlusPlusRegularization: true, // EWC++
+// Milestones 1-4 — verified, default true (opt-out)
+useHDCFingerprinting: true,          // R1
+useCusumDriftDetection: true,        // R2
+useDeltaEventSourcing: true,         // R3
+useEwcPlusPlusRegularization: true,  // EWC++
+useGraphMAEEmbeddings: true,         // R4
+useHopfieldMemory: true,             // R5
+useColdTierGNN: true,                // R6
+useMetaLearningEnhancements: true,   // R7
+useSublinearSolver: true,            // R8
+useSpectralSparsification: true,     // R9
+useReservoirReplay: true,            // R10
+useEpropOnlineLearning: true,        // R11
+useGrangerCausality: true,           // R12
 
-// Milestones 2-5 — not yet implemented, default false
-useGraphMAEEmbeddings: false,      // R4
-useHopfieldMemory: false,          // R5
-useColdTierGNN: false,             // R6
-useMetaLearningEnhancements: false, // R7
-useSublinearSolver: false,         // R8
-useSpectralSparsification: false,  // R9
-useReservoirReplay: false,         // R10
-useEpropOnlineLearning: false,     // R11
-useGrangerCausality: false,        // R12
-useCognitiveRouting: false,        // R13
-useHyperbolicHnsw: false,          // R14
+// Milestone 5 — backlog, not yet implemented, default false
+useCognitiveRouting: false,          // R13
+useHyperbolicHnsw: false,            // R14
 ```
 
 ### TypeScript Fallback Guarantee
