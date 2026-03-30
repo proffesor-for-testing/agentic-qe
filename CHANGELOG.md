@@ -5,6 +5,27 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.13] - 2026-03-30
+
+### Added
+
+- **Code intelligence CLI commands** — New `aqe code complexity` action with cyclomatic, cognitive, and Halstead metrics, hotspot detection, and JSON output. New `--incremental` and `--git-since <ref>` flags for `aqe code index` enabling git-aware incremental indexing.
+- **Code intelligence section in README** — CLI Reference now documents all 7 `aqe code` commands with usage examples.
+
+### Fixed
+
+- **Security: command injection in `--git-since`** — Replaced `execSync` with `execFileSync` to prevent shell injection via user-supplied git refs (CWE-78).
+- **Control flow bug in complexity action** — Added missing `return` after `cleanupAndExit()` calls that could cause null-pointer crashes.
+- **Stale CLI references across 20 files** — Replaced non-existent `aqe kg` commands with correct `aqe code` syntax in all skill files, eval configs, docs, and catalogs. Fixed phantom agent names (`qe-knowledge-graph`, `qe-semantic-searcher`) with actual agents (`qe-kg-builder`, `qe-code-intelligence`, `qe-impact-analyzer`, `qe-code-complexity`). Replaced `ruflo doctor --fix` with `aqe health` / `aqe init` across CLAUDE.md, skills, and docs.
+- **`aqe init` MCP server setup** — Restored MCP server initialization as default behavior during `aqe init --auto`.
+- **Tool-scoping tests** — Added `hypergraph_query` to all 5 scoped agent roles to match source of truth. Fixed queen-dependency test expectations for agents without inline MCP references.
+- **`--depth` validation** — Now validates the `--depth` flag is a positive integer instead of silently passing `NaN`.
+
+### Changed
+
+- **Batched complexity analysis** — File analysis uses `Promise.all` with batch size of 8 instead of sequential processing.
+- **Shared source extensions** — Exported `SOURCE_EXTENSIONS` from `file-discovery.ts` to prevent divergence between full scan and `--git-since` paths.
+
 ## [3.8.12] - 2026-03-29
 
 ### Added
