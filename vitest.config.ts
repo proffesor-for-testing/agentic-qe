@@ -20,6 +20,9 @@ export default defineConfig({
     outputFile: {
       junit: 'junit.xml',
     },
+    globalSetup: ['tests/global-teardown.ts'],
+    setupFiles: ['tests/setup-worker.ts'],
+    teardownTimeout: 5000,
     include: ['tests/**/*.test.ts'],
     benchmark: {
       include: ['tests/**/*.bench.ts'],
