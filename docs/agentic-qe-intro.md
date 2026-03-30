@@ -236,10 +236,13 @@ aqe security --url-validate https://example.com  # URL + PII exposure validation
 aqe quality --gate               # Evaluate quality gate (pass/fail with exit codes)
 
 # Code intelligence
-aqe code index src/              # Index codebase for search
-aqe code search "authentication" # Semantic code search
-aqe code impact src/changed.ts   # Impact analysis for changed files
-aqe code deps src/module.ts      # Dependency mapping
+aqe code index src/                  # Index codebase into knowledge graph
+aqe code index src/ --incremental    # Incremental index (changed files only)
+aqe code index . --git-since HEAD~5  # Index files changed since a git ref
+aqe code search "authentication"     # Semantic code search
+aqe code impact src/changed.ts       # Impact analysis for changed files
+aqe code deps src/module.ts          # Dependency mapping
+aqe code complexity src/             # Complexity metrics and hotspots
 
 # Fleet management
 aqe fleet init --wizard          # Interactive fleet wizard

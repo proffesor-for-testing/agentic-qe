@@ -7,7 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
-import { walkSourceFiles } from '../utils/file-discovery.js';
+import { walkSourceFiles, SOURCE_EXTENSIONS } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 export function createCodeCommand(
@@ -17,21 +17,34 @@ export function createCodeCommand(
 ): Command {
   const codeCmd = new Command('code')
     .description('Code intelligence analysis')
-    .argument('<action>', 'Action (index|search|impact|deps)')
+    .argument('<action>', 'Action (index|search|impact|deps|complexity)')
     .argument('[target]', 'Target path or query')
     .option('--depth <depth>', 'Analysis depth', '3')
     .option('--include-tests', 'Include test files')
+    .option('--incremental', 'Incremental indexing (index action only)')
+    .option('--git-since <ref>', 'Index changes since git ref (index action only)')
     .option('-F, --format <format>', 'Output format (text|json)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .addHelpText('after', `
+Examples:
+  aqe code index src/                  Index source files into knowledge graph
+  aqe code index src/ --incremental    Incremental index (only changed files)
+  aqe code index . --git-since HEAD~5  Index files changed in last 5 commits
+  aqe code search "authentication"     Semantic code search
+  aqe code impact src/auth/            Analyze change impact
+  aqe code deps src/                   Map dependencies
+  aqe code complexity src/             Analyze code complexity metrics
+`)
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
 
       try {
         const codeAPI = await context.kernel!.getDomainAPIAsync!<{
-          index(request: { paths: string[]; incremental?: boolean; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          index(request: { paths: string[]; incremental?: boolean; includeTests?: boolean; languages?: string[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           search(request: { query: string; type: string; limit?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           analyzeImpact(request: { changedFiles: string[]; depth?: number; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           mapDependencies(request: { files: string[]; direction: string; depth?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          getSemanticAnalyzer(): { analyze(code: string): Promise<{ success: boolean; value?: { concepts: string[]; patterns: string[]; complexity: { cyclomatic: number; cognitive: number; halstead: { vocabulary: number; length: number; difficulty: number; effort: number; time: number; bugs: number } }; dependencies: string[]; suggestions: string[] }; error?: Error }> } | null;
         }>('code-intelligence');
 
         if (!codeAPI) {
@@ -41,21 +54,54 @@ export function createCodeCommand(
 
         const path = await import('path');
         const format = (options.format || 'text') as OutputFormat;
+        const parsedDepth = parseInt(options.depth);
+        if (isNaN(parsedDepth) || parsedDepth < 1) {
+          console.log(chalk.red(`Invalid --depth value: "${options.depth}" (must be a positive integer)`));
+          return;
+        }
 
         if (action === 'index') {
-          console.log(chalk.blue(`\n Indexing codebase at ${target || '.'}...\n`));
+          const incremental = options.incremental || false;
+          const gitSince = options.gitSince as string | undefined;
+          const label = incremental ? 'Incrementally indexing' : 'Indexing';
+          console.log(chalk.blue(`\n ${label} codebase at ${target || '.'}${gitSince ? ` (since ${gitSince})` : ''}...\n`));
 
           const targetPath = path.resolve(target || '.');
-          // Fix #280: Use shared file discovery supporting all languages
-          const paths = walkSourceFiles(targetPath, {
-            includeTests: options.includeTests || false,
-          });
+          let paths: string[];
+
+          if (gitSince) {
+            // Use git diff to find changed files since the ref
+            // SEC: Use execFileSync with array args to prevent shell injection (CWE-78)
+            const { execFileSync } = await import('child_process');
+            try {
+              const diffOutput = execFileSync(
+                'git',
+                ['diff', '--name-only', '--diff-filter=ACMR', gitSince, '--', targetPath],
+                { encoding: 'utf-8', cwd: process.cwd() }
+              ).trim();
+              paths = diffOutput
+                ? diffOutput.split('\n')
+                    .filter(f => SOURCE_EXTENSIONS.has(path.extname(f)))
+                    .map(f => path.resolve(f))
+                : [];
+            } catch {
+              console.log(chalk.yellow(`  Warning: git diff failed for ref "${gitSince}", falling back to full scan`));
+              paths = walkSourceFiles(targetPath, {
+                includeTests: options.includeTests || false,
+              });
+            }
+          } else {
+            // Fix #280: Use shared file discovery supporting all languages
+            paths = walkSourceFiles(targetPath, {
+              includeTests: options.includeTests || false,
+            });
+          }
 
           console.log(chalk.gray(`  Found ${paths.length} files to index...\n`));
 
           const result = await codeAPI.index({
             paths,
-            incremental: false,
+            incremental,
             includeTests: options.includeTests || false,
           });
 
@@ -122,7 +168,7 @@ export function createCodeCommand(
 
           const result = await codeAPI.analyzeImpact({
             changedFiles,
-            depth: parseInt(options.depth),
+            depth: parsedDepth,
             includeTests: options.includeTests || false,
           });
 
@@ -184,7 +230,7 @@ export function createCodeCommand(
           const result = await codeAPI.mapDependencies({
             files,
             direction: 'both',
-            depth: parseInt(options.depth),
+            depth: parsedDepth,
           });
 
           if (result.success && result.value) {
@@ -224,9 +270,122 @@ export function createCodeCommand(
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
           }
 
+        } else if (action === 'complexity') {
+          console.log(chalk.blue(`\n Analyzing complexity for ${target || '.'}...\n`));
+
+          const targetPath = path.resolve(target || '.');
+          const files = walkSourceFiles(targetPath, {
+            includeTests: options.includeTests || false,
+            maxDepth: 3,
+          }).slice(0, 50);
+
+          if (files.length === 0) {
+            console.log(chalk.yellow('  No source files found'));
+            return await cleanupAndExit(0);
+          }
+
+          const fs = await import('fs');
+          const analyzer = typeof codeAPI.getSemanticAnalyzer === 'function'
+            ? codeAPI.getSemanticAnalyzer()
+            : null;
+
+          if (!analyzer) {
+            console.log(chalk.red('Semantic analyzer not available — ensure fleet is initialized'));
+            return await cleanupAndExit(1);
+          }
+
+          interface FileComplexity {
+            file: string;
+            cyclomatic: number;
+            cognitive: number;
+            halstead: { vocabulary: number; length: number; difficulty: number; effort: number; time: number; bugs: number };
+            suggestions: string[];
+          }
+
+          // Analyze files in batches of 8 for concurrency
+          const BATCH_SIZE = 8;
+          const results: FileComplexity[] = [];
+          for (let i = 0; i < files.length; i += BATCH_SIZE) {
+            const batch = files.slice(i, i + BATCH_SIZE);
+            const batchResults = await Promise.all(
+              batch.map(async (file) => {
+                try {
+                  const content = fs.readFileSync(file, 'utf-8');
+                  const analysisResult = await analyzer.analyze(content);
+                  if (analysisResult.success && analysisResult.value) {
+                    const a = analysisResult.value;
+                    return {
+                      file,
+                      cyclomatic: a.complexity.cyclomatic,
+                      cognitive: a.complexity.cognitive,
+                      halstead: a.complexity.halstead,
+                      suggestions: a.suggestions,
+                    } as FileComplexity;
+                  }
+                } catch {
+                  // Skip files that can't be read/analyzed
+                }
+                return null;
+              })
+            );
+            for (const r of batchResults) {
+              if (r) results.push(r);
+            }
+          }
+
+          // Sort by cyclomatic complexity descending
+          results.sort((a, b) => b.cyclomatic - a.cyclomatic);
+
+          // Compute aggregates
+          const totalCyclomatic = results.reduce((s, r) => s + r.cyclomatic, 0);
+          const avgCyclomatic = results.length > 0 ? totalCyclomatic / results.length : 0;
+          const maxCyclomatic = results.length > 0 ? results[0].cyclomatic : 0;
+          const totalBugs = results.reduce((s, r) => s + r.halstead.bugs, 0);
+          const highComplexity = results.filter(r => r.cyclomatic > 10).length;
+
+          if (format === 'json') {
+            writeOutput(toJSON({
+              filesAnalyzed: results.length,
+              aggregate: {
+                totalCyclomatic,
+                avgCyclomatic: Math.round(avgCyclomatic * 100) / 100,
+                maxCyclomatic,
+                estimatedBugs: Math.round(totalBugs * 1000) / 1000,
+                highComplexityFiles: highComplexity,
+              },
+              files: results,
+            }), options.output);
+          } else {
+            console.log(chalk.cyan('  Aggregate Metrics:'));
+            console.log(`    Files analyzed:       ${chalk.white(results.length)}`);
+            console.log(`    Avg cyclomatic:       ${chalk.yellow(avgCyclomatic.toFixed(2))}`);
+            console.log(`    Max cyclomatic:       ${maxCyclomatic > 20 ? chalk.red(maxCyclomatic) : maxCyclomatic > 10 ? chalk.yellow(maxCyclomatic) : chalk.green(maxCyclomatic)}`);
+            console.log(`    Estimated bugs:       ${chalk.yellow(totalBugs.toFixed(3))}`);
+            console.log(`    High complexity (>10): ${highComplexity > 0 ? chalk.red(highComplexity) : chalk.green(highComplexity)}`);
+
+            // Show top hotspots
+            const hotspots = results.filter(r => r.cyclomatic > 5).slice(0, 10);
+            if (hotspots.length > 0) {
+              console.log(chalk.cyan('\n  Complexity Hotspots:'));
+              for (const h of hotspots) {
+                const filePath = h.file.replace(process.cwd() + '/', '');
+                const cyclColor = h.cyclomatic > 20 ? chalk.red : h.cyclomatic > 10 ? chalk.yellow : chalk.white;
+                console.log(`    ${chalk.white(filePath)}`);
+                console.log(chalk.gray(`      Cyclomatic: ${cyclColor(h.cyclomatic)}  Cognitive: ${h.cognitive}  Halstead bugs: ${h.halstead.bugs}`));
+                if (h.suggestions.length > 0) {
+                  console.log(chalk.gray(`      Suggestion: ${h.suggestions[0]}`));
+                }
+              }
+            }
+
+            if (highComplexity === 0) {
+              console.log(chalk.green('\n  All files within acceptable complexity thresholds'));
+            }
+          }
+
         } else {
           console.log(chalk.red(`\nUnknown action: ${action}`));
-          console.log(chalk.gray('  Available: index, search, impact, deps\n'));
+          console.log(chalk.gray('  Available: index, search, impact, deps, complexity\n'));
           await cleanupAndExit(1);
         }
 

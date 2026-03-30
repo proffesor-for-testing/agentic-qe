@@ -22,16 +22,19 @@ Guide the use of v3's code intelligence capabilities including knowledge graph c
 
 ```bash
 # Index codebase into knowledge graph
-aqe kg index --source src/ --incremental
+aqe code index src/ --incremental
 
 # Semantic code search
-aqe kg search "authentication middleware" --limit 10
+aqe code search "authentication middleware"
 
-# Query dependencies
-aqe kg deps --file src/services/UserService.ts --depth 3
+# Analyze change impact
+aqe code impact src/services/UserService.ts --depth 3
 
-# Get intelligent context
-aqe kg context --query "how does payment processing work"
+# Map dependencies
+aqe code deps src/
+
+# Analyze complexity and find hotspots
+aqe code complexity src/
 ```
 
 ## Agent Workflow
@@ -45,7 +48,7 @@ Task("Index codebase", `
   - Map relationships (imports, calls, inheritance)
   - Generate embeddings for semantic search
   Store in AgentDB vector database.
-`, "qe-knowledge-graph")
+`, "qe-kg-builder")
 
 // Semantic search
 Task("Find relevant code", `
@@ -54,7 +57,7 @@ Task("Find relevant code", `
   - Include related functions and types
   - Rank by relevance score
   - Return with minimal context (80% token reduction)
-`, "qe-semantic-searcher")
+`, "qe-code-intelligence")
 ```
 
 ## Knowledge Graph Operations
@@ -188,23 +191,29 @@ interface SearchResult {
 
 ```bash
 # Full reindex
-aqe kg index --source src/ --force
+aqe code index src/
 
-# Search with filters
-aqe kg search "database connection" --type function --file "*.service.ts"
+# Incremental index (changed files only)
+aqe code index src/ --incremental
 
-# Show entity details
-aqe kg show --entity UserService --relations
+# Index only files changed since a git ref
+aqe code index . --git-since HEAD~5
 
-# Export graph
-aqe kg export --format dot --output codebase.dot
+# Semantic code search
+aqe code search "database connection"
 
-# Statistics
-aqe kg stats
+# Change impact analysis
+aqe code impact src/services/UserService.ts
+
+# Dependency mapping
+aqe code deps src/ --depth 5
+
+# Complexity metrics and hotspots
+aqe code complexity src/ --format json
 ```
 
 ## Coordination
 
-**Primary Agents**: qe-knowledge-graph, qe-semantic-searcher, qe-dependency-mapper
-**Coordinator**: qe-code-intelligence-coordinator
+**Primary Agents**: qe-kg-builder, qe-dependency-mapper, qe-impact-analyzer, qe-code-complexity
+**Coordinator**: qe-code-intelligence
 **Related Skills**: qe-test-generation, qe-defect-intelligence

@@ -244,6 +244,15 @@ aqe learning dream             # Trigger dream cycle
 aqe brain export/import        # Portable intelligence
 aqe platform list/setup/verify # Manage coding agent platforms
 aqe health                     # System health check
+
+# Code intelligence
+aqe code index src/                  # Index codebase into knowledge graph
+aqe code index src/ --incremental    # Incremental index (changed files only)
+aqe code index . --git-since HEAD~5  # Index files changed in last 5 commits
+aqe code search "authentication"     # Semantic code search
+aqe code impact src/                 # Change impact analysis
+aqe code deps src/                   # Dependency mapping
+aqe code complexity src/             # Complexity metrics and hotspots
 ```
 
 ---

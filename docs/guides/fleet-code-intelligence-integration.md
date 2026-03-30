@@ -45,14 +45,14 @@ aqe fleet init --topology hierarchical --max-agents 15 --skip-code-scan
 If fleet init detects no index, it will recommend:
 
 ```bash
-aqe code-intelligence index
+aqe code index .
 ```
 
 This command:
-- Scans all source files (`.ts`, `.js`, `.tsx`, `.jsx`, `.py`)
+- Scans all source files (TypeScript, JavaScript, Python, Go, Rust, Java, Ruby, C/C++, and more)
 - Builds knowledge graph in `.agentic-qe/memory.db`
 - Takes ~30s for typical project (1000 files)
-- Only needs to run once per project
+- Only needs to run once per project (use `--incremental` for updates)
 
 ## Index Status
 
@@ -115,7 +115,7 @@ aqe fleet init --wizard
 ls .agentic-qe/memory.db
 
 # Rebuild index
-aqe code-intelligence index
+aqe code index .
 
 # Try fleet init again
 aqe fleet init
@@ -138,7 +138,10 @@ domains:
 ```bash
 # For large projects (>10k files)
 # Use incremental indexing
-aqe code-intelligence index --incremental
+aqe code index . --incremental
+
+# Or index only recent changes
+aqe code index . --git-since HEAD~10
 
 # Or skip for now
 aqe fleet init --skip-code-scan
@@ -177,7 +180,7 @@ aqe fleet init --wizard
 #   Run scan now? [Y/n]:
 
 # Choose 'y', then:
-aqe code-intelligence index
+aqe code index .
 
 # Re-run fleet init
 aqe fleet init
