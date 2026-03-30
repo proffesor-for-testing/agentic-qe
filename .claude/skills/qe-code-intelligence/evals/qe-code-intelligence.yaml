@@ -50,8 +50,8 @@ mcp_integration:
   target_agents:
     - qe-learning-coordinator
     - qe-queen-coordinator
-    - qe-knowledge-graph
-    - qe-semantic-searcher
+    - qe-code-intelligence
+    - qe-kg-builder
 
 # =============================================================================
 # ReasoningBank Learning Configuration
@@ -449,7 +449,7 @@ success_criteria:
 # =============================================================================
 
 metadata:
-  author: "qe-knowledge-graph"
+  author: "qe-code-intelligence"
   created: "2026-02-02"
   last_updated: "2026-02-02"
   coverage_target: >

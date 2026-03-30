@@ -40,10 +40,10 @@ export class MCPPhase extends BasePhase<MCPResult> {
   protected async run(context: InitContext): Promise<MCPResult> {
     const { projectRoot } = context;
 
-    // MCP is opt-in: skip unless --with-mcp is passed
-    if (!context.options.withMcp) {
-      context.services.log('  MCP: skipped (opt-in — use --with-mcp to enable)');
-      context.services.log('  All QE commands available via CLI: aqe memory, aqe test, aqe coverage, etc.');
+    // MCP is enabled by default — skip only with --no-mcp
+    if (context.options.noMcp) {
+      context.services.log('  MCP: skipped (--no-mcp)');
+      context.services.log('  CLI commands available: aqe memory, aqe test, aqe coverage, etc.');
       return {
         configured: false,
         mcpPath: '',

@@ -14,7 +14,7 @@ import { join, extname } from 'path';
 // Source File Extensions by Language
 // ============================================================================
 
-const SOURCE_EXTENSIONS = new Set([
+export const SOURCE_EXTENSIONS = new Set([
   // JavaScript / TypeScript
   '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
   // Python

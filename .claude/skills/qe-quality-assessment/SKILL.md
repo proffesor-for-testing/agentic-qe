@@ -236,7 +236,7 @@ Read `run-history.json` before each run — alert if quality gate failed 3 of la
 - Completion theater: agent hardcoded version '3.0.0' instead of reading from package.json — verify actual values in output
 - Fix issues in priority waves (P0 → P1 → P2) with verification between each wave — don't fix everything in parallel
 - quality-assessment domain has 53.7% success rate — expect failures and have fallback
-- If HybridMemoryBackend initialization fails, run `npx ruflo doctor --fix` first
+- If HybridMemoryBackend initialization fails, run `aqe health` to diagnose, or `aqe init` to re-initialize
 
 ## Coordination
 

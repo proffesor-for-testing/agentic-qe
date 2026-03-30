@@ -219,11 +219,11 @@ The Agentic QE system provides AI-powered quality engineering through a fleet of
 
 | Agent | Function | Key Capabilities | QCSD Phases |
 |-------|----------|------------------|-------------|
-| `qe-knowledge-manager` | Knowledge graph | Code relationships, dependency mapping | All Phases |
-| `qe-knowledge-graph` | Graph operations | Query, traverse, analyze relationships | All Phases |
-| `qe-semantic-searcher` | Semantic search | Natural language code queries | Development |
+| `qe-code-intelligence` | Coordinator | Knowledge graph, semantic search, impact analysis | All Phases |
+| `qe-kg-builder` | Graph construction | AST parsing, entity extraction, relationship mapping | All Phases |
 | `qe-dependency-mapper` | Dependency analysis | Impact analysis, coupling detection | Development, CI/CD |
-| `code-analyzer` | Static analysis | AST parsing, pattern detection | Development |
+| `qe-impact-analyzer` | Change impact | Blast radius, test selection, risk scoring | Development, CI/CD |
+| `qe-code-complexity` | Complexity analysis | Cyclomatic, cognitive, Halstead metrics | Development |
 
 ### Key Capabilities
 
@@ -532,7 +532,7 @@ See `docs/architecture/CROSS-PHASE-MEMORY-IMPLEMENTATION.md` for full details.
 | qe-coverage-analysis | `.claude/skills/qe-coverage-analysis/` | qe-coverage-specialist, qe-gap-detector |
 | qe-quality-assessment | `.claude/skills/qe-quality-assessment/` | qe-quality-gate, qe-deployment-advisor |
 | qe-defect-intelligence | `.claude/skills/qe-defect-intelligence/` | qe-defect-predictor, qe-root-cause-analyzer |
-| qe-code-intelligence | `.claude/skills/qe-code-intelligence/` | qe-knowledge-graph, qe-semantic-searcher |
+| qe-code-intelligence | `.claude/skills/qe-code-intelligence/` | qe-kg-builder, qe-dependency-mapper, qe-impact-analyzer, qe-code-complexity |
 | qe-requirements-validation | `.claude/skills/qe-requirements-validation/` | qe-acceptance-criteria, qe-bdd-specialist |
 | qe-security-compliance | `.claude/skills/qe-security-compliance/` | qe-security-auditor, qe-compliance-checker |
 | qe-contract-testing | `.claude/skills/qe-contract-testing/` | qe-api-contract, qe-api-compatibility |

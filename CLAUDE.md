@@ -205,7 +205,7 @@ npx ruflo init --wizard
 npx ruflo agent spawn -t coder --name my-coder
 npx ruflo swarm init --v3-mode
 npx ruflo memory search --query "authentication patterns"
-npx ruflo doctor --fix
+aqe health
 ```
 
 ## Available Agents (60+ Types)
@@ -246,7 +246,7 @@ npx ruflo memory retrieve --key "pattern-auth" --namespace patterns
 ```bash
 claude mcp add ruflo -- npx -y ruflo@3.5.18
 npx ruflo daemon start
-npx ruflo doctor --fix
+aqe health
 ```
 
 ## Claude Code vs CLI Tools

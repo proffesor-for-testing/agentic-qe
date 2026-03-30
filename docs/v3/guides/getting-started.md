@@ -97,7 +97,7 @@ Each of the 12 domains has dedicated CLI commands:
 | Coverage | `aqe coverage` | `aqe coverage analyze` |
 | Quality | `aqe quality` | `aqe quality assess` |
 | Defects | `aqe defect` | `aqe defect predict` |
-| Code Intelligence | `aqe kg` | `aqe kg index` |
+| Code Intelligence | `aqe code` | `aqe code index src/` |
 | Requirements | `aqe requirements` | `aqe requirements trace` |
 | Security | `aqe security` | `aqe security scan` |
 | Contracts | `aqe contract` | `aqe contract verify` |

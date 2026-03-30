@@ -22,6 +22,7 @@ describe('Per-Agent Tool Scoping', () => {
           'test_execute_parallel',
           'coverage_analyze_sublinear',
           'code_index',
+          'hypergraph_query',
           'memory_query',
           'memory_retrieve',
           'model_route',
@@ -32,6 +33,7 @@ describe('Per-Agent Tool Scoping', () => {
         tools: [
           'coverage_analyze_sublinear',
           'code_index',
+          'hypergraph_query',
           'quality_assess',
           'memory_query',
           'memory_retrieve',
@@ -42,6 +44,7 @@ describe('Per-Agent Tool Scoping', () => {
         tools: [
           'security_scan_comprehensive',
           'code_index',
+          'hypergraph_query',
           'memory_query',
           'memory_retrieve',
         ],
@@ -52,13 +55,14 @@ describe('Per-Agent Tool Scoping', () => {
           'quality_assess',
           'coverage_analyze_sublinear',
           'defect_predict',
+          'hypergraph_query',
           'memory_query',
           'memory_retrieve',
         ],
       },
       {
         role: 'defect-predictor',
-        tools: ['defect_predict', 'code_index', 'memory_query', 'memory_retrieve'],
+        tools: ['defect_predict', 'code_index', 'hypergraph_query', 'memory_query', 'memory_retrieve'],
       },
       {
         role: 'contract-validator',
@@ -149,6 +153,7 @@ describe('Per-Agent Tool Scoping', () => {
       expect(tools).toEqual([
         'security_scan_comprehensive',
         'code_index',
+        'hypergraph_query',
         'memory_query',
         'memory_retrieve',
       ]);

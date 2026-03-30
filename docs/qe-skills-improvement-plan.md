@@ -114,7 +114,7 @@ The infrastructure gotchas should be added as a `## Gotchas` section to these sk
 ```markdown
 ## Gotchas
 - Always run `fleet_init` before invoking QE agents — 54 failures traced to this
-- If you get "HybridMemoryBackend not initialized", run `npx ruflo doctor --fix` first
+- If you get "HybridMemoryBackend not initialized", run `aqe health` first
 - After DB corruption ("disk image is malformed"), restore from backup:
   `cp .agentic-qe/memory.db.bak-* .agentic-qe/memory.db && rm -f .agentic-qe/memory.db-wal .agentic-qe/memory.db-shm`
 - If you see "circuit breaker is open", wait 60s or reset: `npx ruflo memory store --key "circuit-breaker-reset" --value "true"`
@@ -176,7 +176,7 @@ Our QE skills are predominantly "knowledge reference cards" — flat SKILL.md fi
 - Components that pass unit tests individually may have zero integration wiring — always generate at least one integration test per module boundary
 - When generating tests for a new codebase, check which framework is installed (jest vs vitest vs mocha) — they have different mock APIs and Claude will use the wrong one
 - Completion theater: agent may claim "comprehensive tests generated" but leave stubs or hardcoded values — always run the generated tests before accepting
-- Fleet must be initialized before using QE agents: run `npx ruflo doctor --fix` if you get "Fleet not initialized"
+- Fleet must be initialized before using QE agents: run `aqe health` if you get "Fleet not initialized"
 ```
 
 **`qe-quality-assessment`**:
@@ -187,7 +187,7 @@ Our QE skills are predominantly "knowledge reference cards" — flat SKILL.md fi
 - Completion theater: agent hardcoded version '3.0.0' instead of reading from package.json — verify actual values in output
 - Fix issues in priority waves (P0 → P1 → P2) with verification between each wave — don't fix everything in parallel
 - quality-assessment domain has 53.7% success rate — expect failures and have fallback
-- If HybridMemoryBackend initialization fails, run `npx ruflo doctor --fix` first
+- If HybridMemoryBackend initialization fails, run `aqe health` first
 ```
 
 **`qe-test-execution`**:
@@ -205,7 +205,7 @@ Our QE skills are predominantly "knowledge reference cards" — flat SKILL.md fi
 ## Gotchas
 - Agent may scope to ALL skills (110) instead of just AQE skills (~80) — always clarify the boundary
 - High line coverage does NOT mean good tests — 100% coverage with 0% assertions is common agent output. Use mutation testing to verify
-- coverage-analysis domain has 86% success rate — 14% of runs fail on initialization. Run `npx ruflo doctor --fix` if Fleet not initialized
+- coverage-analysis domain has 86% success rate — 14% of runs fail on initialization. Run `aqe health` if Fleet not initialized
 - Self-learning pipeline may silently stop learning (statusline frozen for days) — only human inspection catches this
 ```
 

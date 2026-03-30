@@ -50,7 +50,8 @@ export function createInitCommand(): Command {
     .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
     .option('--with-windsurf', 'Include Windsurf MCP config and rules')
     .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
-    .option('--with-mcp', 'Include MCP server config in .mcp.json (opt-in — CLI works without MCP)')
+    .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
+    .option('--with-mcp', 'Enable MCP server config (default — kept for backward compatibility)')
     .option('--with-all-platforms', 'Include all coding agent platform configurations')
     .option('--with-claude-flow', 'Force Claude Flow integration setup')
     .option('--skip-claude-flow', 'Skip Claude Flow integration')
@@ -101,6 +102,7 @@ interface InitOptions {
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
+  noMcp?: boolean;
   withMcp?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
@@ -160,7 +162,7 @@ async function runInit(options: InitOptions): Promise<void> {
     withCodex: options.withCodex,
     withWindsurf: options.withWindsurf,
     withContinueDev: options.withContinuedev,
-    withMcp: options.withMcp,
+    noMcp: options.noMcp && !options.withMcp,
     noGovernance: options.noGovernance,
   });
 
