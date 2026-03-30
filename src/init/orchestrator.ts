@@ -69,6 +69,7 @@ export class ModularInitOrchestrator {
         n8nApiConfig: options.n8nApiConfig,
         wizardAnswers: options.wizardAnswers,
         noGovernance: options.noGovernance,
+        noMcp: options.noMcp,
       },
       config: {},
       enhancements: {
