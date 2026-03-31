@@ -111,6 +111,10 @@ import {
   type PerformanceReport,
 } from './performance-monitor';
 
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const _pkg = _require('../../package.json') as { version: string };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -167,7 +171,7 @@ export class MCPProtocolServer {
   constructor(config: MCPServerConfig = {}) {
     this.config = {
       name: config.name ?? 'agentic-qe-v3',
-      version: config.version ?? '3.0.0',
+      version: config.version ?? _pkg.version,
       transport: config.transport ?? 'stdio',
       maxRequestSize: config.maxRequestSize ?? 10 * 1024 * 1024,
     };
@@ -302,6 +306,13 @@ export class MCPProtocolServer {
       tools: { listChanged: true },
       logging: {},
     };
+  }
+
+  /**
+   * Get registered tool definitions (for testing and introspection)
+   */
+  getToolDefinitions(): ToolDefinition[] {
+    return Array.from(this.tools.values()).map(entry => entry.definition);
   }
 
   /**

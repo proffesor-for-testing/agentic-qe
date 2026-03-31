@@ -16,6 +16,9 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const _pkg = _require('../../package.json') as { version: string };
 
 // AG-UI imports
 import {
@@ -898,7 +901,7 @@ class HTTPServerImpl implements HTTPServer {
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({
       status: 'ok',
-      version: '3.0.0',
+      version: _pkg.version,
       protocols: ['ag-ui', 'a2a', 'a2ui'],
       agentCardsLoaded: this.agentCardsLoaded,
       agentCount: this.discoveryService.getAgentCount(),

@@ -78,9 +78,51 @@ jobs:
           path: dist/
           retention-days: 1
 
+  test:
+    name: Test Gate
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Run unit tests (fast shards)
+        run: |
+          # Run fast unit test dirs (~40s total) as a quality gate.
+          # Heavy dirs (domains, coordination, learning) are excluded —
+          # they need per-file kernel init and run in integration CI.
+          bash scripts/ci-vitest-run.sh \
+            tests/unit/shared/ \
+            tests/unit/cli/ \
+            tests/unit/kernel/ \
+            tests/unit/adapters/ \
+            tests/unit/integrations/ \
+            tests/unit/routing/ \
+            tests/unit/sync/ \
+            tests/unit/memory/ \
+            tests/unit/optimization/ \
+            tests/unit/validation/ \
+            tests/unit/strange-loop/ \
+            --reporter=verbose
+        env:
+          NODE_OPTIONS: '--max-old-space-size=1024'
+          CI: 'true'
+
   publish:
     name: Publish to npm
-    needs: build
+    needs: [build, test]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm-publish

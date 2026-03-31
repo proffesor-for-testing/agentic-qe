@@ -58,8 +58,9 @@ export { DevilsAdvocate, ClaimVerifier } from './agents';
 export * from './domains';
 
 // MCP Server - Model Context Protocol integration
-// Export only what's available from mcp module
 export {
+  MCPProtocolServer,
+  createMCPProtocolServer,
   MCPServer,
   createMCPServer,
   ToolRegistry,

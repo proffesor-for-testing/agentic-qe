@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks guard --file \"$TOOL_INPUT_file_path\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks guard --file \"$TOOL_INPUT_file_path\" --json'",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks pre-edit --file \"$TOOL_INPUT_file_path\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-command --command \"$TOOL_INPUT_command\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks pre-command --command \"$TOOL_INPUT_command\" --json'",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks pre-task --description \"$TOOL_INPUT_prompt\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks pre-task --description \"$TOOL_INPUT_prompt\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks post-edit --file \"$TOOL_INPUT_file_path\" --success --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-command --command \"$TOOL_INPUT_command\" --success --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks post-command --command \"$TOOL_INPUT_command\" --success --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ./dist/cli/bundle.js hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -105,7 +105,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks route --task \"$PROMPT\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks route --task \"$PROMPT\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -117,7 +117,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks session-start --session-id \"$SESSION_ID\" --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks session-start --session-id \"$SESSION_ID\" --json'",
             "timeout": 10000,
             "continueOnError": true
           }
@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs\" verify --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs\" verify --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -139,7 +139,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/dist/cli/bundle.js\" hooks session-end --save-state --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/dist/cli/bundle.js\" hooks session-end --save-state --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/brain-checkpoint.cjs\" export --json",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs\" export --json'",
             "timeout": 60000,
             "continueOnError": true
           }
@@ -159,7 +159,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "node \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/helpers/statusline-v3.cjs\" 2>/dev/null || echo \"▊ Agentic QE v3\"",
+    "command": "sh -c 'node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/statusline-v3.cjs\" 2>/dev/null || echo \"▊ Agentic QE v3\"'",
     "refreshMs": 5000,
     "enabled": true
   },

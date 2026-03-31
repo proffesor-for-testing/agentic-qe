@@ -4,14 +4,11 @@ name: Performance Benchmarks
 # Removed from push/PR to reduce CI costs (~70% cost savings)
 
 on:
-  # Weekly schedule - Sunday at 2 AM UTC — disabled: benchmark suite fails
-  # consistently (missing benchmarks/suite.ts or dependencies). See #350.
-  # schedule:
-  #   - cron: '0 2 * * 0'
-  # Run on releases for baseline updates
-  release:
-    types: [published]
-  # Manual trigger for ad-hoc benchmarks
+  # Disabled: benchmarks/suite.ts does not exist. See #350.
+  # Re-enable release trigger once the benchmark suite is created.
+  # release:
+  #   types: [published]
+  # Manual trigger only — for when the benchmark suite is ready
   workflow_dispatch:
     inputs:
       baseline:

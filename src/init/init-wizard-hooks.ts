@@ -189,9 +189,22 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
   };
 
   // Apply v3 settings sections
+  // Permissions are union-merged to preserve user entries (#362)
   const v3Sections = generateV3SettingsSections(config, projectRoot);
   for (const [key, value] of Object.entries(v3Sections)) {
-    settings[key] = value;
+    if (key === '_aqePermissions') {
+      // Union-merge: add AQE entries without removing user-added permissions
+      const existingPerms = (settings.permissions as { allow?: string[]; deny?: string[] }) || {};
+      const existingAllow = existingPerms.allow || [];
+      const aqeEntries = value as string[];
+      const merged = [...new Set([...existingAllow, ...aqeEntries])];
+      settings.permissions = {
+        ...existingPerms,
+        allow: merged,
+      };
+    } else {
+      settings[key] = value;
+    }
   }
 
   // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')

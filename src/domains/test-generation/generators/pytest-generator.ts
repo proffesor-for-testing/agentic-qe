@@ -11,7 +11,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import { BaseTestGenerator } from './base-test-generator';
 import type {
   TestFramework,
@@ -451,20 +451,20 @@ class Test${this.pascalCase(moduleName)}Coverage:
     const name = param.name.toLowerCase();
 
     // Infer from param name
-    if (name.includes('id')) return `"${faker.string.uuid()}"`;
-    if (name.includes('name')) return `"${faker.person.fullName()}"`;
-    if (name.includes('email')) return `"${faker.internet.email()}"`;
-    if (name.includes('url')) return `"${faker.internet.url()}"`;
+    if (name.includes('id')) return `"${testValues.uuid()}"`;
+    if (name.includes('name')) return `"${testValues.fullName()}"`;
+    if (name.includes('email')) return `"${testValues.email()}"`;
+    if (name.includes('url')) return `"${testValues.url()}"`;
 
     // Infer from type
-    if (type.includes('str')) return `"${faker.lorem.word()}"`;
+    if (type.includes('str')) return `"${testValues.word()}"`;
     if (type.includes('int') || type.includes('number')) {
-      return String(faker.number.int({ min: 1, max: 100 }));
+      return String(testValues.int(1, 100));
     }
     if (type.includes('bool')) return 'True';
     if (type.includes('list') || type.includes('[]')) return '[]';
     if (type.includes('dict') || type.includes('{}')) return '{}';
-    if (type.includes('float')) return String(faker.number.float({ min: 0, max: 100 }));
+    if (type.includes('float')) return String(testValues.float(0, 100));
 
     return 'None';
   }

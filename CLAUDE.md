@@ -21,7 +21,7 @@
 - ALWAYS verify integrity after operations: `sqlite3 file.db "PRAGMA integrity_check; SELECT COUNT(*) FROM qe_patterns;"`
 - ALWAYS remove stale WAL/SHM files when restoring: `rm -f file.db-wal file.db-shm`
 - When fixing sync/migration code, test against a COPY of the database, never the original
-- The `.agentic-qe/memory.db` contains 150K+ irreplaceable learning records — treat it like production data
+- The `.agentic-qe/memory.db` contains 1K+ irreplaceable learning records — treat it like production data
 
 ## File Organization
 

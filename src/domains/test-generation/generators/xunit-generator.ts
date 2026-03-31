@@ -12,7 +12,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import { BaseTestGenerator } from './base-test-generator';
 import type {
   TestFramework,
@@ -408,21 +408,21 @@ namespace Tests.${className}.Coverage
 
     // Infer from param name
     if (name.includes('id') && (type.includes('int') || type === 'unknown')) {
-      return String(faker.number.int({ min: 1, max: 1000 }));
+      return String(testValues.int(1, 1000));
     }
-    if (name.includes('id')) return `"${faker.string.uuid()}"`;
-    if (name.includes('name')) return `"${faker.person.fullName()}"`;
-    if (name.includes('email')) return `"${faker.internet.email()}"`;
-    if (name.includes('url')) return `"${faker.internet.url()}"`;
+    if (name.includes('id')) return `"${testValues.uuid()}"`;
+    if (name.includes('name')) return `"${testValues.fullName()}"`;
+    if (name.includes('email')) return `"${testValues.email()}"`;
+    if (name.includes('url')) return `"${testValues.url()}"`;
 
     // Infer from type
     if (type === 'int' || type === 'int32' || type === 'int64' || type === 'long') {
-      return String(faker.number.int({ min: 1, max: 100 }));
+      return String(testValues.int(1, 100));
     }
     if (type === 'double' || type === 'float' || type === 'decimal') {
-      return `${faker.number.float({ min: 0, max: 100, fractionDigits: 2 })}m`;
+      return `${testValues.float(0, 100, 2)}m`;
     }
-    if (type === 'string' || type.includes('string')) return `"${faker.lorem.word()}"`;
+    if (type === 'string' || type.includes('string')) return `"${testValues.word()}"`;
     if (type === 'bool' || type === 'boolean') return 'true';
     if (type.includes('list<') || type.includes('ienumerable<') || type.includes('[]')) {
       return 'new List<object>()';
@@ -520,10 +520,10 @@ namespace Tests.${className}.Coverage
       const values = params.map(p => {
         const type = p.type?.toLowerCase() || '';
         if (type.includes('int') || type.includes('number')) {
-          return String(faker.number.int({ min: 1, max: 100 }));
+          return String(testValues.int(1, 100));
         }
         if (type.includes('string') || type === 'unknown') {
-          return `"${faker.lorem.word()}"`;
+          return `"${testValues.word()}"`;
         }
         return 'null';
       });

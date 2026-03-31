@@ -15,7 +15,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import { BaseTestGenerator } from './base-test-generator';
 import type {
   TestFramework,
@@ -559,20 +559,20 @@ func Test${funcName}_Cover_${lines[0]}_${lines[lines.length - 1]}(t *testing.T) 
 
     // Infer from param name
     if (name.includes('id') && !name.includes('valid')) {
-      if (type.includes('int')) return String(faker.number.int({ min: 1, max: 1000 }));
-      return `"${faker.string.uuid()}"`;
+      if (type.includes('int')) return String(testValues.int(1, 1000));
+      return `"${testValues.uuid()}"`;
     }
-    if (name.includes('name')) return `"${faker.person.fullName()}"`;
-    if (name.includes('email')) return `"${faker.internet.email()}"`;
-    if (name.includes('url')) return `"${faker.internet.url()}"`;
+    if (name.includes('name')) return `"${testValues.fullName()}"`;
+    if (name.includes('email')) return `"${testValues.email()}"`;
+    if (name.includes('url')) return `"${testValues.url()}"`;
 
     // Infer from type
-    if (type.includes('string') || type === 'str') return `"${faker.lorem.word()}"`;
-    if (type.includes('int64')) return `int64(${faker.number.int({ min: 1, max: 100 })})`;
-    if (type.includes('int32')) return `int32(${faker.number.int({ min: 1, max: 100 })})`;
-    if (type.includes('int')) return String(faker.number.int({ min: 1, max: 100 }));
-    if (type.includes('float64')) return `${faker.number.float({ min: 1, max: 100, fractionDigits: 2 })}`;
-    if (type.includes('float32')) return `float32(${faker.number.float({ min: 1, max: 100, fractionDigits: 2 })})`;
+    if (type.includes('string') || type === 'str') return `"${testValues.word()}"`;
+    if (type.includes('int64')) return `int64(${testValues.int(1, 100)})`;
+    if (type.includes('int32')) return `int32(${testValues.int(1, 100)})`;
+    if (type.includes('int')) return String(testValues.int(1, 100));
+    if (type.includes('float64')) return `${testValues.float(1, 100, 2)}`;
+    if (type.includes('float32')) return `float32(${testValues.float(1, 100, 2)})`;
     if (type.includes('bool')) return 'true';
     if (type.includes('[]byte')) return '[]byte("test data")';
     if (type.includes('[]')) return 'nil';

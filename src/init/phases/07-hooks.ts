@@ -571,7 +571,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node .claude/helpers/brain-checkpoint.cjs verify --json',
+              command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs" verify --json\'',
               timeout: 5000,
               continueOnError: true,
             },
@@ -594,7 +594,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'node .claude/helpers/brain-checkpoint.cjs export --json',
+              command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs" export --json\'',
               timeout: 60000,
               continueOnError: true,
             },

@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.14] - 2026-03-31
+
+### Fixed
+
+- **Security: SQL injection in witness-chain LIMIT/OFFSET** — Parameterized LIMIT and OFFSET values in `getEntries()` query instead of string interpolation. Also handles offset-without-limit correctly via SQLite `LIMIT -1` idiom, and `limit=0` now properly returns zero rows.
+- **Removed `@faker-js/faker` from 7 production generator files** — Replaced with lightweight `test-value-helpers.ts` using only `node:crypto`. Eliminates ~6 MB runtime dependency for npm consumers. Generators now work without devDependencies installed.
+- **`aqe init` hook paths break from subfolders** — Adopted `CLAUDE_PROJECT_DIR` pattern so hook commands resolve correctly regardless of working directory.
+- **Removed ruflo permissions from `aqe init`** — Only AQE-specific entries are injected into user settings; third-party tool permissions no longer leak in.
+- **Dead MCP `server.ts` removed (911 lines)** — Eliminated unused dual-server divergence risk; production uses `MCPProtocolServer` via `entry.ts`.
+- **CI publishes without test gate** — Added mandatory unit test pass gate to `npm-publish.yml`. Removed `continue-on-error` from `optimized-ci.yml` test steps.
+- **ESLint broken in ESM project** — Renamed `.eslintrc.js` to `.eslintrc.cjs` for CommonJS compatibility.
+- **Hardcoded version `3.0.0` in MCP servers** — `protocol-server.ts` and `http-server.ts` now read version dynamically from `package.json`.
+- **Vitest process hang on native modules** — Added worker-level `afterAll` force-exit and global teardown safety net for `better-sqlite3` / `hnswlib-node` handles.
+
+### Added
+
+- **`test-value-helpers.ts`** — Zero-dependency test data generator for test-generation domain using `node:crypto` built-ins with range guards for edge cases.
+- **Pagination edge case tests** — `limit=0`, offset-without-limit, and offset-beyond-total coverage in witness-chain tests.
+- **17 unit tests for test-value-helpers** — Covers all value generators including boundary inputs and inverted ranges.
+
 ## [3.8.13] - 2026-03-30
 
 ### Added

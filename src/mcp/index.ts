@@ -51,14 +51,10 @@ export {
 // Handlers
 export * from './handlers';
 
-// Server (legacy)
-export { MCPServer, createMCPServer } from './server';
-export { default } from './server';
-
 // Transport Layer
 export * from './transport';
 
-// Protocol Server (v3 - claude-flow pattern)
+// Protocol Server (production MCP server)
 export {
   MCPProtocolServer,
   createMCPProtocolServer,
@@ -67,6 +63,11 @@ export {
   type MCPCapabilities,
   type MCPServerInfo,
 } from './protocol-server';
+
+// Legacy aliases — server.ts was removed (dead code, never used in production).
+// MCPProtocolServer is the only server. These aliases prevent import breakage.
+export { MCPProtocolServer as MCPServer } from './protocol-server';
+export { createMCPProtocolServer as createMCPServer } from './protocol-server';
 
 // Per-Agent Tool Scoping
 export {
