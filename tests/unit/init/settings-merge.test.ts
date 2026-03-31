@@ -270,7 +270,7 @@ describe('Settings Merge Utilities', () => {
       expect((sections.statusLine as any).enabled).toBe(true);
 
       expect(sections._aqePermissions).toBeDefined();
-      expect(sections._aqePermissions).toContain('Bash(npx ruflo:*)');
+      expect(sections._aqePermissions).toContain('mcp__agentic-qe__*');
 
       expect(sections.v3Configuration).toBeDefined();
       expect((sections.v3Configuration as any).domains.total).toBe(1);
