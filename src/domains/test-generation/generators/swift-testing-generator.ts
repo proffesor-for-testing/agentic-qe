@@ -14,7 +14,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import { BaseTestGenerator } from './base-test-generator';
 import type {
   TestFramework,
@@ -488,15 +488,15 @@ struct ${moduleName}CoverageTests {
     const lower = type.toLowerCase();
 
     // Infer from param name
-    if (name.includes('id')) return `"${faker.string.uuid()}"`;
-    if (name.includes('email')) return `"${faker.internet.email()}"`;
-    if (name.includes('name')) return `"${faker.person.fullName()}"`;
-    if (name.includes('url')) return `"${faker.internet.url()}"`;
+    if (name.includes('id')) return `"${testValues.uuid()}"`;
+    if (name.includes('email')) return `"${testValues.email()}"`;
+    if (name.includes('name')) return `"${testValues.fullName()}"`;
+    if (name.includes('url')) return `"${testValues.url()}"`;
 
     // Infer from type
-    if (lower === 'string') return `"${faker.lorem.word()}"`;
-    if (lower === 'int') return String(faker.number.int({ min: 1, max: 100 }));
-    if (lower === 'double' || lower === 'float' || lower === 'cgfloat') return String(faker.number.float({ min: 0, max: 100, fractionDigits: 2 }));
+    if (lower === 'string') return `"${testValues.word()}"`;
+    if (lower === 'int') return String(testValues.int(1, 100));
+    if (lower === 'double' || lower === 'float' || lower === 'cgfloat') return String(testValues.float(0, 100, 2));
     if (lower === 'bool') return 'true';
     if (lower.startsWith('[') && lower.endsWith(']')) return '[]';
     if (lower.includes('array')) return '[]';

@@ -12,7 +12,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import { BaseTestGenerator } from './base-test-generator';
 import type {
   TestFramework,
@@ -571,18 +571,18 @@ class ${moduleName}CoverageTest {
     const name = param.name.toLowerCase();
 
     // Infer from param name
-    if (name.includes('id')) return `${faker.number.int({ min: 1, max: 1000 })}L`;
-    if (name.includes('email')) return `"${faker.internet.email()}"`;
-    if (name.includes('name')) return `"${faker.person.fullName()}"`;
-    if (name.includes('url')) return `"${faker.internet.url()}"`;
+    if (name.includes('id')) return `${testValues.int(1, 1000)}L`;
+    if (name.includes('email')) return `"${testValues.email()}"`;
+    if (name.includes('name')) return `"${testValues.fullName()}"`;
+    if (name.includes('url')) return `"${testValues.url()}"`;
 
     // Infer from type
-    if (type === 'long') return `${faker.number.int({ min: 1, max: 1000 })}L`;
-    if (type === 'int') return String(faker.number.int({ min: 1, max: 100 }));
-    if (type === 'double') return `${faker.number.float({ min: 0, max: 100 })}`;
-    if (type === 'float') return `${faker.number.float({ min: 0, max: 100 })}f`;
+    if (type === 'long') return `${testValues.int(1, 1000)}L`;
+    if (type === 'int') return String(testValues.int(1, 100));
+    if (type === 'double') return `${testValues.float(0, 100)}`;
+    if (type === 'float') return `${testValues.float(0, 100)}f`;
     if (type === 'boolean') return 'true';
-    if (type === 'string') return `"${faker.lorem.word()}"`;
+    if (type === 'string') return `"${testValues.word()}"`;
     if (type.includes('list')) return 'emptyList()';
     if (type.includes('map')) return 'emptyMap()';
     if (type.includes('set')) return 'emptySet()';

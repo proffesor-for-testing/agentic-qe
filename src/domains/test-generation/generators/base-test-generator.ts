@@ -8,7 +8,7 @@
  * @module test-generation/generators
  */
 
-import { faker } from '@faker-js/faker';
+import { testValues } from './test-value-helpers';
 import type {
   ITestGenerator,
   TestFramework,
@@ -59,13 +59,13 @@ export abstract class BaseTestGenerator implements ITestGenerator {
    * Checked in order; first match wins.
    */
   private static readonly NAME_VALUE_TABLE: ReadonlyArray<[string, () => string]> = [
-    ['id', () => `'${faker.string.uuid()}'`],
-    ['email', () => `'${faker.internet.email()}'`],
-    ['name', () => `'${faker.person.fullName()}'`],
-    ['url', () => `'${faker.internet.url()}'`],
-    ['date', () => `new Date('${faker.date.recent().toISOString()}')`],
-    ['phone', () => `'${faker.phone.number()}'`],
-    ['address', () => `'${faker.location.streetAddress()}'`],
+    ['id', () => `'${testValues.uuid()}'`],
+    ['email', () => `'${testValues.email()}'`],
+    ['name', () => `'${testValues.fullName()}'`],
+    ['url', () => `'${testValues.url()}'`],
+    ['date', () => `new Date('${testValues.recentDate()}')`],
+    ['phone', () => `'${testValues.phone()}'`],
+    ['address', () => `'${testValues.streetAddress()}'`],
   ];
 
   /**
@@ -73,8 +73,8 @@ export abstract class BaseTestGenerator implements ITestGenerator {
    * Checked in order; first match wins.
    */
   private static readonly TYPE_VALUE_TABLE: ReadonlyArray<[string, () => string]> = [
-    ['string', () => `'${faker.lorem.word()}'`],
-    ['number', () => String(faker.number.int({ min: 1, max: 100 }))],
+    ['string', () => `'${testValues.word()}'`],
+    ['number', () => String(testValues.int(1, 100))],
     ['boolean', () => 'true'],
     ['[]', () => '[]'],
     ['array', () => '[]'],
@@ -87,7 +87,7 @@ export abstract class BaseTestGenerator implements ITestGenerator {
 
   /**
    * Generate a test value for a parameter based on its type and name
-   * Uses @faker-js/faker for realistic test data
+   * Uses lightweight test value helpers for realistic test data
    *
    * @param param - Parameter information
    * @returns Generated test value as a string

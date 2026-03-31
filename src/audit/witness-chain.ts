@@ -246,9 +246,15 @@ export class WitnessChain {
     if (filter?.actor) { conditions.push('actor = ?'); params.push(filter.actor); }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limit = filter?.limit ? `LIMIT ${filter.limit}` : '';
-    const offset = filter?.offset ? `OFFSET ${filter.offset}` : '';
-    return this.db.prepare(`SELECT * FROM witness_chain ${where} ORDER BY id ASC ${limit} ${offset}`).all(...params) as WitnessEntry[];
+    const hasLimit = filter?.limit != null;
+    const hasOffset = filter?.offset != null;
+    // SQLite requires LIMIT before OFFSET; use LIMIT -1 ("all rows") when only offset is given
+    const limitClause = hasLimit ? 'LIMIT ?' : (hasOffset ? 'LIMIT ?' : '');
+    const offsetClause = hasOffset ? 'OFFSET ?' : '';
+    if (hasLimit) { params.push(filter!.limit!); }
+    else if (hasOffset) { params.push(-1); }
+    if (hasOffset) { params.push(filter!.offset!); }
+    return this.db.prepare(`SELECT * FROM witness_chain ${where} ORDER BY id ASC ${limitClause} ${offsetClause}`).all(...params) as WitnessEntry[];
   }
 
   /** Get all witness entries for a pattern by ID (checks both patternId and pattern_id keys). */
