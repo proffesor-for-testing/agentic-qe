@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.8.14](v3.8.14.md) | 2026-03-31 | SQL injection fix, remove faker from generators (~6 MB), 3 P0 blockers resolved |
 | [v3.8.13](v3.8.13.md) | 2026-03-30 | Code intelligence CLI (complexity, --incremental, --git-since), security fix, doc cleanup |
 | [v3.8.12](v3.8.12.md) | 2026-03-29 | RuVector Phase 5: pattern intelligence, graph learning, scale optimization |
 | [v3.8.11](v3.8.11.md) | 2026-03-27 | YAML pipelines, heartbeat CLI, economic routing, session cache (Tier 3) |
