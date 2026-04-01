@@ -18,6 +18,7 @@ import {
   BaseModelProvider,
   buildVerificationPrompt,
 } from '../model-provider';
+import { PromptCacheLatch } from '../../../shared/prompt-cache-latch.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -150,6 +151,9 @@ export class ClaudeModelProvider extends BaseModelProvider {
   private readonly apiKey: string;
   private readonly baseUrl: string;
 
+  // IMP-05: Prompt cache latch — stabilizes API params to maximize cache hits
+  private readonly cacheLatch = new PromptCacheLatch();
+
   /**
    * Create a new Claude provider
    *
@@ -196,11 +200,30 @@ export class ClaudeModelProvider extends BaseModelProvider {
       throw new Error('Provider has been disposed');
     }
 
-    const model = (options?.model as ClaudeAPIModel) || this.config.defaultModel;
-    const maxTokens = options?.maxTokens || 4096;
+    const requestedModel = (options?.model as ClaudeAPIModel) || this.config.defaultModel;
+    const requestedMaxTokens = options?.maxTokens || 4096;
     const temperature = options?.temperature ?? 0.7;
     const timeout = options?.timeout || this.config.defaultTimeout;
-    const systemPrompt = options?.systemPrompt || this.getDefaultSystemPrompt();
+    const requestedSystem = options?.systemPrompt || this.getDefaultSystemPrompt();
+
+    // IMP-05: Latch stable params to prevent prompt cache busting.
+    // If caller explicitly overrides, reset and re-latch.
+    if (this.cacheLatch.has('model') && this.cacheLatch.get('model') !== requestedModel) {
+      this.cacheLatch.reset('model');
+    }
+    if (this.cacheLatch.has('max_tokens') && this.cacheLatch.get('max_tokens') !== requestedMaxTokens) {
+      this.cacheLatch.reset('max_tokens');
+    }
+    if (this.cacheLatch.has('system') && this.cacheLatch.get('system') !== requestedSystem) {
+      this.cacheLatch.reset('system');
+    }
+    this.cacheLatch.latch('model', requestedModel);
+    this.cacheLatch.latch('max_tokens', requestedMaxTokens);
+    this.cacheLatch.latch('system', requestedSystem);
+
+    const model = this.cacheLatch.get<ClaudeAPIModel>('model')!;
+    const maxTokens = this.cacheLatch.get<number>('max_tokens')!;
+    const systemPrompt = this.cacheLatch.get<string>('system')!;
 
     const request: ClaudeCompletionRequest = {
       model,

@@ -992,6 +992,8 @@ import { createProveCommand } from './commands/prove.js';
 import { createRuVectorCommand } from './commands/ruvector-commands.js';
 import { createAuditCommand } from './commands/audit.js';
 import { createPipelineCommand } from './commands/pipeline.js';
+import { createPluginCommand } from './commands/plugin.js';
+import { createDaemonCommand } from './commands/daemon.js';
 
 program.addCommand(createTokenUsageCommand());
 program.addCommand(createLLMRouterCommand());
@@ -1005,6 +1007,8 @@ program.addCommand(createProveCommand(context, cleanupAndExit, ensureInitialized
 program.addCommand(createRuVectorCommand());
 program.addCommand(createAuditCommand(context, cleanupAndExit, ensureInitialized));
 program.addCommand(createPipelineCommand(context, cleanupAndExit, ensureInitialized));
+program.addCommand(createPluginCommand());
+program.addCommand(createDaemonCommand());
 
 // ============================================================================
 // Shutdown Handlers
@@ -1026,6 +1030,13 @@ process.on('SIGTERM', async () => {
 // ============================================================================
 
 async function main(): Promise<void> {
+  // IMP-06: Fast path for --version / -v — skip all heavy initialization
+  const { isVersionFastPath } = await import('../boot/fast-paths.js');
+  if (isVersionFastPath(process.argv)) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+
   await bootstrapTokenTracking({
     enableOptimization: true,
     enablePersistence: true,

@@ -32,6 +32,7 @@ export interface ToolDefinition {
   category: ToolCategory;
   domain?: DomainName;
   lazyLoad?: boolean;
+  isConcurrencySafe?: boolean;
 }
 
 /**

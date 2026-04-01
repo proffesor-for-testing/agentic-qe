@@ -29,6 +29,11 @@ import {
   FlakyPattern,
   UntestablePattern,
 } from '../types/cross-phase-signals.js';
+import {
+  captureHooksConfigSnapshot,
+  validateHookUrl,
+  classifyHookExit,
+} from './security/index.js';
 
 // =============================================================================
 // Types
@@ -117,6 +122,12 @@ export class CrossPhaseHookExecutor {
   // ---------------------------------------------------------------------------
 
   async initialize(): Promise<boolean> {
+    // IMP-07: Policy flag — globally disable all hook execution
+    if (process.env.AQE_HOOKS_DISABLED === 'true') {
+      console.log('[CrossPhaseHooks] All hooks disabled via AQE_HOOKS_DISABLED');
+      return false;
+    }
+
     if (!existsSync(this.configPath)) {
       console.warn(`[CrossPhaseHooks] Config not found: ${this.configPath}`);
       return false;
@@ -124,12 +135,15 @@ export class CrossPhaseHookExecutor {
 
     try {
       const content = readFileSync(this.configPath, 'utf-8');
-      this.config = parseYaml(content) as HookConfig;
+      const parsed = parseYaml(content) as HookConfig;
 
-      if (!this.config.enabled) {
+      if (!parsed.enabled) {
         console.log('[CrossPhaseHooks] Hooks disabled in config');
         return false;
       }
+
+      // IMP-07: Deep-freeze config so it cannot be mutated at runtime
+      this.config = captureHooksConfigSnapshot(parsed) as HookConfig;
 
       await this.memory.initialize();
       console.log(`[CrossPhaseHooks] Initialized with ${Object.keys(this.config.hooks).length} hooks`);
@@ -146,11 +160,15 @@ export class CrossPhaseHookExecutor {
 
   async onAgentComplete(agentName: string, result: Record<string, unknown>): Promise<void> {
     if (!this.config) return;
+    // IMP-07: Runtime kill-switch check
+    if (process.env.AQE_HOOKS_DISABLED === 'true') return;
 
-    const matchingHooks = Object.entries(this.config.hooks).filter(
-      ([_, hook]) =>
-        hook.trigger.event === 'agent-complete' &&
-        hook.trigger.agent === agentName
+    const matchingHooks = this.filterManagedHooks(
+      Object.entries(this.config.hooks).filter(
+        ([_, hook]) =>
+          hook.trigger.event === 'agent-complete' &&
+          hook.trigger.agent === agentName
+      )
     );
 
     for (const [hookName, hook] of matchingHooks) {
@@ -163,13 +181,17 @@ export class CrossPhaseHookExecutor {
 
   async onPhaseStart(phaseName: string, context: Record<string, unknown> = {}): Promise<Record<string, CrossPhaseSignal[]>> {
     if (!this.config) return {};
+    // IMP-07: Runtime kill-switch check
+    if (process.env.AQE_HOOKS_DISABLED === 'true') return {};
 
     const injectedSignals: Record<string, CrossPhaseSignal[]> = {};
 
-    const matchingHooks = Object.entries(this.config.hooks).filter(
-      ([_, hook]) =>
-        hook.trigger.event === 'phase-start' &&
-        hook.trigger.phase === phaseName
+    const matchingHooks = this.filterManagedHooks(
+      Object.entries(this.config.hooks).filter(
+        ([_, hook]) =>
+          hook.trigger.event === 'phase-start' &&
+          hook.trigger.phase === phaseName
+      )
     );
 
     for (const [hookName, hook] of matchingHooks) {
@@ -198,11 +220,15 @@ export class CrossPhaseHookExecutor {
 
   async onPhaseEnd(phaseName: string, result: Record<string, unknown>): Promise<void> {
     if (!this.config) return;
+    // IMP-07: Runtime kill-switch check
+    if (process.env.AQE_HOOKS_DISABLED === 'true') return;
 
-    const matchingHooks = Object.entries(this.config.hooks).filter(
-      ([_, hook]) =>
-        hook.trigger.event === 'phase-end' &&
-        hook.trigger.phase === phaseName
+    const matchingHooks = this.filterManagedHooks(
+      Object.entries(this.config.hooks).filter(
+        ([_, hook]) =>
+          hook.trigger.event === 'phase-end' &&
+          hook.trigger.phase === phaseName
+      )
     );
 
     for (const [hookName, hook] of matchingHooks) {
@@ -220,7 +246,18 @@ export class CrossPhaseHookExecutor {
       try {
         await this.executeAction(action, context);
       } catch (err) {
-        console.error(`[CrossPhaseHooks] Action failed:`, err);
+        // IMP-07: Classify exit codes when error carries one
+        const exitCode = (err as Record<string, unknown>)?.exitCode;
+        if (typeof exitCode === 'number') {
+          const classification = classifyHookExit(exitCode);
+          if (classification === 'model_blocking') {
+            console.error(`[CrossPhaseHooks] Model-blocking hook failure (exit ${exitCode}):`, err);
+            throw err; // Propagate blocking failures
+          }
+          console.warn(`[CrossPhaseHooks] Hook ${classification} (exit ${exitCode}):`, err);
+        } else {
+          console.error(`[CrossPhaseHooks] Action failed:`, err);
+        }
       }
     }
   }
@@ -304,6 +341,9 @@ export class CrossPhaseHookExecutor {
   private async executeNotifyAgent(action: HookAction, context: Record<string, unknown>): Promise<void> {
     if (!action.target || !action.message) return;
 
+    // IMP-07: SSRF guard — block if target looks like a URL pointing to private IP
+    if (await this.isBlockedUrl(action.target)) return;
+
     console.log(`[CrossPhaseHooks] Notify ${action.target}: ${action.message}`);
     this.emit('agent-notification', {
       target: action.target,
@@ -315,6 +355,9 @@ export class CrossPhaseHookExecutor {
 
   private async executeInvokeAgent(action: HookAction, context: Record<string, unknown>): Promise<void> {
     if (!action.target) return;
+
+    // IMP-07: SSRF guard — block if target looks like a URL pointing to private IP
+    if (await this.isBlockedUrl(action.target)) return;
 
     console.log(`[CrossPhaseHooks] Invoke agent: ${action.target}`);
     this.emit('agent-invocation', {
@@ -396,6 +439,41 @@ export class CrossPhaseHookExecutor {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  /**
+   * IMP-07: When AQE_HOOKS_MANAGED_ONLY is set, only hooks whose names start
+   * with "managed:" are allowed to execute.  All other hooks are filtered out.
+   */
+  private filterManagedHooks(
+    hooks: [string, HookDefinition][]
+  ): [string, HookDefinition][] {
+    if (process.env.AQE_HOOKS_MANAGED_ONLY !== 'true') return hooks;
+
+    const filtered = hooks.filter(([name]) => name.startsWith('managed:'));
+    if (filtered.length < hooks.length) {
+      console.log(
+        `[CrossPhaseHooks] AQE_HOOKS_MANAGED_ONLY: filtered ${hooks.length - filtered.length} non-managed hooks`
+      );
+    }
+    return filtered;
+  }
+
+  /**
+   * IMP-07: SSRF guard — if a target string looks like a URL (has a scheme),
+   * validate it against the SSRF blocklist.  Returns true when the URL is
+   * blocked and the caller should abort the action.
+   */
+  private async isBlockedUrl(target: string): Promise<boolean> {
+    // Only validate strings that look like URLs (contain "://")
+    if (!target.includes('://')) return false;
+
+    const result = await validateHookUrl(target);
+    if (!result.safe) {
+      console.warn(`[CrossPhaseHooks] SSRF blocked: ${result.reason}`);
+      return true;
+    }
+    return false;
+  }
 
   private checkConditions(conditions: string[] | undefined, context: Record<string, unknown>): boolean {
     if (!conditions || conditions.length === 0) return true;

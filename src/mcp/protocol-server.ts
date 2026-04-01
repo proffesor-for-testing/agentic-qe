@@ -14,6 +14,13 @@ import {
 } from './transport';
 import { ToolRegistry, createToolRegistry } from './tool-registry';
 import { ToolDefinition } from './types';
+import { MiddlewareChain, type ToolCallContext, type ToolMiddleware } from './middleware/middleware-chain';
+import { createMicrocompactMiddleware } from './middleware/microcompact';
+import { SessionStore } from './services/session-store';
+import { createSessionDurabilityMiddleware } from './services/session-durability-middleware';
+import { withRetry } from '../shared/retry-engine';
+import { CompactionPipeline } from '../context/compaction';
+import { createLLMCompactCaller } from '../context/compaction/llm-caller-adapter';
 
 // AG-UI EventAdapter for streaming events
 import {
@@ -164,6 +171,15 @@ export class MCPProtocolServer {
   // AG-UI EventAdapter for streaming events to HTTP clients
   private readonly eventAdapter: EventAdapter;
 
+  // IMP-00: Middleware chain for pre/post tool-call hooks
+  private readonly middlewareChain: MiddlewareChain;
+
+  // IMP-04: Session durability store
+  private readonly sessionStore: SessionStore;
+
+  // IMP-08: 4-tier context compaction pipeline
+  private readonly compactionPipeline: CompactionPipeline;
+
   // Connection recovery state
   private reconnecting = false;
   private pendingRequests: Array<{ resolve: (v: unknown) => void; reject: (e: Error) => void; request: JSONRPCRequest }> = [];
@@ -184,6 +200,27 @@ export class MCPProtocolServer {
 
     // Initialize AG-UI EventAdapter for streaming
     this.eventAdapter = createEventAdapter();
+
+    // IMP-00: Initialize middleware chain
+    this.middlewareChain = new MiddlewareChain();
+
+    // IMP-04: Initialize session store and register durability middleware
+    this.sessionStore = new SessionStore();
+    this.sessionStore.startSession();
+    this.middlewareChain.register(createSessionDurabilityMiddleware(this.sessionStore));
+
+    // IMP-01: Register microcompact middleware for stale result eviction
+    // Extract the engine so it can be shared with IMP-08's Tier 1
+    const microcompact = createMicrocompactMiddleware();
+    this.middlewareChain.register(microcompact.middleware);
+
+    // IMP-08: Initialize 4-tier compaction pipeline with shared microcompact engine
+    // and LLM caller for Tier 3 (falls back to extractive if no API key)
+    this.compactionPipeline = new CompactionPipeline({
+      sharedMicrocompactEngine: microcompact.engine,
+      llmCaller: createLLMCompactCaller(),
+    });
+    this.middlewareChain.register(this.compactionPipeline.createMiddleware());
 
     // Register all tools
     this.registerAllTools();
@@ -247,44 +284,45 @@ export class MCPProtocolServer {
     if (this.reconnecting) return;
     this.reconnecting = true;
 
-    const maxAttempts = 3;
-    const baseDelay = 1000; // 1s, 2s, 4s
+    try {
+      // IMP-03: Use unified retry engine instead of hardcoded loop
+      const { attempts } = await withRetry(
+        async () => { this.transport.reconnect(); },
+        {
+          maxAttempts: 3,
+          baseDelayMs: 1000,
+          maxDelayMs: 8000,
+          jitterFraction: 0.25,
+          onRetry: (attempt, _error, delayMs) => {
+            console.error(`[MCP] Reconnect attempt ${attempt + 1}/3 in ${Math.round(delayMs)}ms...`);
+          },
+        },
+      );
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const delay = baseDelay * Math.pow(2, attempt);
-      console.error(`[MCP] Reconnect attempt ${attempt + 1}/${maxAttempts} in ${delay}ms...`);
-      await new Promise(r => setTimeout(r, delay));
+      console.error(`[MCP] Reconnected after ${attempts} attempt(s)`);
+      this.reconnecting = false;
 
-      try {
-        this.transport.reconnect();
-        console.error(`[MCP] Reconnected after ${attempt + 1} attempt(s)`);
-        this.reconnecting = false;
-
-        // Replay any buffered requests
-        const buffered = [...this.pendingRequests];
-        this.pendingRequests = [];
-        for (const { resolve, request } of buffered) {
-          try {
-            const result = await this.handleRequest(request);
-            resolve(result);
-          } catch (err) {
-            console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
-          }
+      // Replay any buffered requests
+      const buffered = [...this.pendingRequests];
+      this.pendingRequests = [];
+      for (const { resolve, request } of buffered) {
+        try {
+          const result = await this.handleRequest(request);
+          resolve(result);
+        } catch (err) {
+          console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
         }
-        return;
-      } catch (err) {
-        console.error(`[MCP] Reconnect attempt ${attempt + 1} failed: ${err instanceof Error ? err.message : err}`);
       }
-    }
+    } catch {
+      this.reconnecting = false;
+      console.error('[MCP] All reconnect attempts failed. Tools unavailable until transport is restored.');
 
-    this.reconnecting = false;
-    console.error('[MCP] All reconnect attempts failed. Tools unavailable until transport is restored.');
-
-    // Reject all buffered requests
-    const buffered = [...this.pendingRequests];
-    this.pendingRequests = [];
-    for (const { reject } of buffered) {
-      reject(new Error('MCP connection lost and reconnect failed'));
+      // Reject all buffered requests
+      const buffered = [...this.pendingRequests];
+      this.pendingRequests = [];
+      for (const { reject } of buffered) {
+        reject(new Error('MCP connection lost and reconnect failed'));
+      }
     }
   }
 
@@ -292,10 +330,21 @@ export class MCPProtocolServer {
    * Stop the MCP server
    */
   async stop(): Promise<void> {
+    this.sessionStore.close(); // IMP-04: Flush session before shutdown
     this.transport.stop();
     await disposeFleet();
     await shutdownConnectionPool();
     console.error('[MCP] Server stopped');
+  }
+
+  /** IMP-00: Register a middleware into the tool-call chain. */
+  registerMiddleware(mw: ToolMiddleware): void {
+    this.middlewareChain.register(mw);
+  }
+
+  /** IMP-00: Get registered middleware (for testing/introspection). */
+  getMiddleware(): ReadonlyArray<{ name: string; priority: number }> {
+    return this.middlewareChain.getRegistered();
   }
 
   /**
@@ -483,14 +532,28 @@ export class MCPProtocolServer {
       timestamp: new Date().toISOString(),
     } as AQEToolProgress);
 
+    // IMP-00: Build middleware context
+    const ctx: ToolCallContext = {
+      toolName: name,
+      params: args,
+      timestamp: Date.now(),
+      metadata: { stepId },
+    };
+
     try {
-      const result = await tool.handler(args);
+      // IMP-00: Execute pre-tool-call middleware
+      const processedCtx = await this.middlewareChain.executePreHooks(ctx);
+
+      const result = await tool.handler(processedCtx.params);
       success = true;
+
+      // IMP-00: Execute post-tool-result middleware
+      const processedResult = await this.middlewareChain.executePostHooks(processedCtx, result);
 
       // Emit AG-UI result event for tool completion
       this.eventAdapter.adapt({
         success: true,
-        data: result,
+        data: processedResult,
         metadata: {
           executionTime: performance.now() - startTime,
           requestId: stepId,
@@ -501,12 +564,29 @@ export class MCPProtocolServer {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify(processedResult, null, 2),
           },
         ],
       };
     } catch (err) {
       const error = err as Error;
+
+      // IMP-08: Detect context overflow (413) and trigger reactive compaction
+      const errorMsg = error.message || '';
+      const is413 = errorMsg.includes('413')
+        || errorMsg.includes('context_length_exceeded')
+        || errorMsg.includes('maximum context length')
+        || errorMsg.includes('too many tokens');
+      if (is413) {
+        try {
+          await this.compactionPipeline.handleOverflow('status_413');
+        } catch {
+          // Compaction failed — continue with error response
+        }
+      }
+
+      // IMP-00: Execute error middleware
+      await this.middlewareChain.executeErrorHooks(ctx, error);
 
       // Emit AG-UI result event for tool failure
       this.eventAdapter.adapt({
@@ -559,6 +639,7 @@ export class MCPProtocolServer {
         name: 'fleet_status',
         description: 'Get fleet status: agents, tasks, health, and learning stats. Example: fleet_status({ verbose: true })',
         category: 'core',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed information', default: false },
         ],
@@ -571,6 +652,7 @@ export class MCPProtocolServer {
         name: 'fleet_health',
         description: 'Check fleet and per-domain health status with load metrics. Example: fleet_health({ domain: "test-generation" })',
         category: 'core',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'domain', type: 'string', description: 'Specific domain to check' },
         ],
@@ -598,6 +680,7 @@ export class MCPProtocolServer {
         name: 'task_list',
         description: 'List tasks with optional status/limit filtering. Example: task_list({ status: "running", limit: 10 })',
         category: 'task',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'status', type: 'string', description: 'Filter by status' },
           { name: 'limit', type: 'number', description: 'Maximum results', default: 50 },
@@ -611,6 +694,7 @@ export class MCPProtocolServer {
         name: 'task_status',
         description: 'Get detailed status, progress, and result of a specific task. Example: task_status({ taskId: "abc-123" })',
         category: 'task',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'taskId', type: 'string', description: 'Task ID', required: true },
         ],
@@ -649,6 +733,7 @@ export class MCPProtocolServer {
         name: 'agent_list',
         description: 'List all active agents, optionally filtered by domain. Example: agent_list({ domain: "test-generation" })',
         category: 'agent',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
         ],
@@ -674,6 +759,7 @@ export class MCPProtocolServer {
         name: 'agent_metrics',
         description: 'Get CPU, memory, and task performance metrics for agents. Example: agent_metrics({ agentId: "agent-1" })',
         category: 'agent',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'agentId', type: 'string', description: 'Specific agent ID' },
         ],
@@ -686,6 +772,7 @@ export class MCPProtocolServer {
         name: 'agent_status',
         description: 'Get detailed status and current task of a specific agent. Example: agent_status({ agentId: "agent-1" })',
         category: 'agent',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'agentId', type: 'string', description: 'Agent ID', required: true },
         ],
@@ -699,6 +786,7 @@ export class MCPProtocolServer {
         name: 'team_list',
         description: 'List all active domain teams and their agent counts. Example: team_list({ domain: "coverage-analysis" })',
         category: 'agent',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
         ],
@@ -711,6 +799,7 @@ export class MCPProtocolServer {
         name: 'team_health',
         description: 'Get team health, agent utilization, and consensus status for a domain. Example: team_health({ domain: "security-compliance" })',
         category: 'agent',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain to check', required: true },
         ],
@@ -806,6 +895,7 @@ export class MCPProtocolServer {
         name: 'coverage_analyze_sublinear',
         description: 'Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true })',
         category: 'domain',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path to analyze' },
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
@@ -820,6 +910,7 @@ export class MCPProtocolServer {
         name: 'quality_assess',
         description: 'Assess code quality metrics and optionally run a pass/fail quality gate. Example: quality_assess({ runGate: true })',
         category: 'domain',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'runGate', type: 'boolean', description: 'Run quality gate evaluation', default: false },
         ],
@@ -889,6 +980,7 @@ export class MCPProtocolServer {
         name: 'defect_predict',
         description: 'Predict potential defects using AI analysis of code complexity and change history. Example: defect_predict({ target: "src/auth/" })',
         category: 'domain',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path' },
         ],
@@ -902,6 +994,7 @@ export class MCPProtocolServer {
         name: 'requirements_validate',
         description: 'Validate requirements for completeness and generate BDD scenarios. Example: requirements_validate({ requirementsPath: "docs/requirements.md" })',
         category: 'domain',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'requirementsPath', type: 'string', description: 'Path to requirements' },
         ],
@@ -915,6 +1008,7 @@ export class MCPProtocolServer {
         name: 'code_index',
         description: 'Index source code into the knowledge graph for dependency and impact analysis. Example: code_index({ target: "src/" })',
         category: 'domain',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path' },
         ],
@@ -942,6 +1036,7 @@ export class MCPProtocolServer {
         name: 'memory_retrieve',
         description: 'Retrieve a value by key from memory. Example: memory_retrieve({ key: "pattern-auth", namespace: "patterns" })',
         category: 'memory',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'key', type: 'string', description: 'Memory key', required: true },
           { name: 'namespace', type: 'string', description: 'Memory namespace', default: 'default' },
@@ -955,6 +1050,7 @@ export class MCPProtocolServer {
         name: 'memory_query',
         description: 'Query memory using glob patterns or HNSW semantic vector search. Example: memory_query({ pattern: "auth*", namespace: "patterns" }) or memory_query({ pattern: "authentication best practices", semantic: true })',
         category: 'memory',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'pattern', type: 'string', description: 'Key pattern (glob) or natural language query (for semantic search)' },
           { name: 'namespace', type: 'string', description: 'Memory namespace' },
@@ -982,6 +1078,7 @@ export class MCPProtocolServer {
         name: 'memory_usage',
         description: 'Get memory usage statistics: entry counts, namespaces, and storage size. Example: memory_usage({})',
         category: 'memory',
+        isConcurrencySafe: true,
         parameters: [],
       },
       handler: () => handleMemoryUsage(),
@@ -1028,6 +1125,7 @@ export class MCPProtocolServer {
         name: 'routing_metrics',
         description: 'Get model routing statistics: tier distribution, cost savings, and routing log. Example: routing_metrics({ includeLog: true, logLimit: 20 })',
         category: 'routing',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'includeLog', type: 'boolean', description: 'Include routing log entries', default: false },
           { name: 'logLimit', type: 'number', description: 'Max log entries to return', default: 100 },
@@ -1041,6 +1139,7 @@ export class MCPProtocolServer {
         name: 'routing_economics',
         description: 'Get economic routing report: tier efficiency, budget status, cost-per-quality analysis, and savings opportunities. Example: routing_economics({ taskComplexity: 0.5 })',
         category: 'routing',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'taskComplexity', type: 'number', description: 'Task complexity score 0-1 for tier scoring (default: 0.5)', default: 0.5 },
         ],
@@ -1054,6 +1153,7 @@ export class MCPProtocolServer {
         name: 'infra_healing_status',
         description: 'Get infrastructure self-healing status: detected failures, recovery stats, and failing services. Example: infra_healing_status({ verbose: true })',
         category: 'infra-healing',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed observation data', default: false },
         ],
@@ -1108,6 +1208,7 @@ export class MCPProtocolServer {
         name: 'cross_phase_query',
         description: 'Query cross-phase signals by loop type with optional filters',
         category: 'cross-phase',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'loop', type: 'string', description: 'Feedback loop type', required: true, enum: ['strategic', 'tactical', 'operational', 'quality-criteria'] },
           { name: 'maxAge', type: 'string', description: 'Maximum signal age (e.g., "30d", "24h")' },
@@ -1161,6 +1262,7 @@ export class MCPProtocolServer {
         name: 'cross_phase_stats',
         description: 'Get cross-phase memory statistics (total signals, by loop, by namespace)',
         category: 'cross-phase',
+        isConcurrencySafe: true,
         parameters: [],
       },
       handler: () => handleCrossPhaseStats(),
@@ -1171,6 +1273,7 @@ export class MCPProtocolServer {
         name: 'format_signals',
         description: 'Format cross-phase signals for injection into agent prompts',
         category: 'cross-phase',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'signals', type: 'array', description: 'Signals to format', required: true },
         ],
@@ -1247,6 +1350,7 @@ export class MCPProtocolServer {
         name: 'pipeline_list',
         description: 'List all loaded YAML pipelines. Example: pipeline_list({})',
         category: 'coordination',
+        isConcurrencySafe: true,
         parameters: [],
       },
       handler: (params) => handlePipelineList(params as Record<string, never>),
@@ -1257,6 +1361,7 @@ export class MCPProtocolServer {
         name: 'pipeline_validate',
         description: 'Validate a YAML pipeline definition without loading it. Example: pipeline_validate({ yaml: "name: test\\nsteps: ..." })',
         category: 'coordination',
+        isConcurrencySafe: true,
         parameters: [
           { name: 'yaml', type: 'string', description: 'YAML pipeline definition to validate', required: true },
           { name: 'variables', type: 'object', description: 'Variable substitutions for validation' },
@@ -1274,18 +1379,21 @@ export class MCPProtocolServer {
         name: 'session_cache_stats',
         description: 'Get session operation cache statistics: hit rate, cache size, tokens saved via O(1) fingerprint reuse. Example: session_cache_stats({})',
         category: 'learning',
+        isConcurrencySafe: true,
         parameters: [],
       },
       handler: async () => {
         try {
           const { getSessionCache } = await import('../optimization/session-cache.js');
           const stats = getSessionCache().getStats();
+          const compactionStats = this.compactionPipeline.getStats();
           return {
             success: true,
             data: {
               ...stats,
               hitRatePercent: `${(stats.hitRate * 100).toFixed(1)}%`,
               description: 'Session cache provides O(1) exact-match lookups before HNSW similarity search',
+              compaction: compactionStats,
             },
           };
         } catch (err) {
@@ -1306,6 +1414,7 @@ export class MCPProtocolServer {
         name: 'aqe_health',
         description: 'Check AQE server health: returns status, loaded domains, memory stats, HNSW index status, and pattern count. Example: aqe_health({})',
         category: 'core',
+        isConcurrencySafe: true,
         parameters: [],
       },
       handler: () => handleAQEHealth(),

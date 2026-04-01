@@ -27,6 +27,7 @@ import {
   ComplianceCheckerWorker,
   HeartbeatSchedulerWorker,
 } from './workers';
+import { QualityDaemon, type QualityDaemonConfig } from './quality-daemon';
 
 /**
  * Daemon configuration
@@ -64,6 +65,7 @@ export class QEDaemon implements IDaemon {
   private _healthCheckTimer?: NodeJS.Timeout;
   private workerManager: WorkerManagerImpl;
   private config: Required<DaemonConfig>;
+  private _qualityDaemon?: QualityDaemon;
 
   constructor(config?: DaemonConfig) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -166,6 +168,18 @@ export class QEDaemon implements IDaemon {
    */
   getWorkerManager(): WorkerManager {
     return this.workerManager;
+  }
+
+  /**
+   * Get or create the quality daemon (IMP-10).
+   * The quality daemon provides proactive quality monitoring:
+   * git watching, coverage delta, CI health, test suggestions, nightly consolidation.
+   */
+  getQualityDaemon(config?: QualityDaemonConfig): QualityDaemon {
+    if (!this._qualityDaemon) {
+      this._qualityDaemon = new QualityDaemon(config);
+    }
+    return this._qualityDaemon;
   }
 
   /**
