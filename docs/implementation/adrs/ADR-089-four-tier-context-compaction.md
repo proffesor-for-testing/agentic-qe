@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-089 |
-| **Status** | Proposed |
+| **Status** | Implemented |
 | **Date** | 2026-04-01 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 6 months |
@@ -246,6 +246,7 @@ After any Tier 2+ compaction, the system restores recently-accessed context to p
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-04-01 | Initial creation from Claude Code internals research |
+| Implemented | 2026-04-02 | IMP-08 complete: CompactionPipeline (4 tiers) wired in protocol-server.ts, 61 tests passing, 413 reactive trigger operational |
 
 ---
 

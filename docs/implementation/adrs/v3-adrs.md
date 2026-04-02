@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085)
+**Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085); CC-Internals ADRs implemented (ADR-088, ADR-089)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-03-29 (72 Implemented, 7 In Progress, 7 Proposed, 4 Rejected)
+**Last Verified:** 2026-04-02 (74 Implemented, 7 In Progress, 5 Proposed, 4 Rejected)
 
 ---
 
@@ -99,6 +99,8 @@
 | [ADR-085](./ADR-085-temporal-tensor-pattern-compression.md) | Temporal Tensor Pattern Compression | **Implemented** | 2026-03-15 | ✅ TypeScript tiered quantization (4x compression); no native package exists, TS IS production |
 | [ADR-086](./ADR-086-skill-design-standards.md) | Skill Design Standards — Anthropic Best Practices | **Proposed** | 2026-03-18 | 9 design standards from Anthropic's internal skill practices: gotchas sections, trigger descriptions, progressive disclosure, composable scripts, config.json setup, on-demand hooks. Builds on ADR-056. Seeded from Nagual + local DB failure data. |
 | [ADR-087](./ADR-087-ruvector-advanced-capabilities.md) | RuVector Advanced Capabilities — Phase 5 Integration | **Proposed** | 2026-03-29 | 14 new capabilities + EWC++ completion (persistence wired, production call sites needed). Prerequisites: coherence-gate extraction, performance baselines, pattern citation graph. 5 milestones, ~110 new tests. [Plan](../ruvector-improvements-plan.md) |
+| [ADR-088](./ADR-088-prompt-cache-latch-fields.md) | Prompt Cache Latch Fields for API Cost Optimization | **Implemented** | 2026-04-01 | ✅ IMP-05: PromptCacheLatch in claude-provider.ts, latches model/max_tokens/system per session, 13 tests |
+| [ADR-089](./ADR-089-four-tier-context-compaction.md) | Four-Tier Context Compaction Pipeline | **Implemented** | 2026-04-01 | ✅ IMP-08: CompactionPipeline (Tier 1 microcompact + Tier 2 session summary + Tier 3 LLM compact + Tier 4 reactive), ContextBudgetTracker with 5 states, 413 detection, 61 tests |
 
 ---
 
