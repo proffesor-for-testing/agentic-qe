@@ -83,7 +83,9 @@ export class InMemoryBackend implements MemoryBackend {
   }
 
   async search(pattern: string, limit: number = MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT): Promise<string[]> {
-    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+    // Escape regex-special chars first, then convert glob wildcards to regex
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped.replace(/\*/g, '.*'));
     const results: string[] = [];
 
     for (const key of this.store.keys()) {

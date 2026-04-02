@@ -78,7 +78,8 @@ Examples:
           async get<T>(key: string): Promise<T | undefined> { return store.get(key) as T | undefined; },
           async set<T>(key: string, value: T): Promise<void> { store.set(key, value); },
           async search(pattern: string): Promise<string[]> {
-            const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+            const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped.replace(/\*/g, '.*'));
             return Array.from(store.keys()).filter((k) => regex.test(k));
           },
         };

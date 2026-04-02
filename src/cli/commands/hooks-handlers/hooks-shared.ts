@@ -223,7 +223,8 @@ export function createInMemoryBackend(): MemoryBackend {
     },
     has: async (key: string): Promise<boolean> => store.has(key),
     search: async (pattern: string, _limit?: number): Promise<string[]> => {
-      const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+      const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped.replace(/\*/g, '.*'));
       return Array.from(store.keys()).filter((k) => regex.test(k));
     },
     vectorSearch: async (_embedding: number[], _k: number) => {
