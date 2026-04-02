@@ -5,6 +5,34 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.0] - 2026-04-02
+
+### Added
+
+- **CC-internals improvements (IMP-00 through IMP-10)** — 11 production-hardening improvements across 4 priority tiers with 466+ new tests across 37 test files.
+- **4-tier context compaction pipeline** — Progressive memory compaction with microcompact (tier 1), session summary (tier 2), LLM compact (tier 3), and reactive eviction (tier 4). Context budget tracking prevents overflows.
+- **Plugin architecture** — Extensible plugin system with lifecycle management, manifest validation, dependency resolution, security sandboxing, and caching. Supports local, GitHub, and npm plugin sources.
+- **QE Quality Daemon** — Background quality monitoring service with priority queue, git watcher (Linux polling fallback), coverage delta analyzer, CI monitor, test suggester, nightly consolidation, notification service with SSRF guard, and persistent SQLite-backed memory.
+- **Retry engine** — Configurable retry mechanism with exponential backoff, jitter, circuit breaker, and per-error-class strategies for resilient service calls.
+- **Prompt cache latch** — Intelligent prompt caching with field-level latch controls to reduce redundant LLM calls.
+- **Session durability middleware** — MCP session state persistence and resume across connection interruptions.
+- **Startup fast paths** — Parallel module prefetch and fast-path boot sequences that skip unused subsystems.
+- **Hook security hardening** — SSRF guard for webhook URLs, config snapshot verification, and standardized exit codes.
+- **Middleware chain and batch executor** — Composable MCP middleware pipeline with batched tool execution support.
+- **8 env var kill switches** — `AQE_MICROCOMPACT`, `AQE_RETRY_DISABLED`, `AQE_SESSION_DURABILITY`, `AQE_PROMPT_CACHE_LATCH`, `AQE_FAST_PATHS`, `AQE_HOOKS_SSRF_DISABLED`, `AQE_COMPACTION_DISABLED`, `AQE_PLUGINS_DISABLED` for granular feature control.
+- **`aqe daemon` CLI commands** — Start, stop, and manage the QE Quality Daemon from the command line.
+- **`aqe plugin` CLI commands** — Install, list, and manage plugins from the command line.
+
+### Changed
+
+- **Lazy-load CLI handlers** — Heavy imports (kernel, coordination, workers, unified-memory) are now deferred until command execution. Reduces CLI startup cost by avoiding eager module resolution.
+- **esbuild code splitting** — CLI build now uses chunk output with splitting enabled for smaller initial bundles.
+- **CLI index refactored** — Extracted workflow command into dedicated module, added lazy-registry for on-demand handler loading.
+
+### Fixed
+
+- **Internal log leak to stdout** — Redirected `[ParserRegistry]`, `[ContinueGateIntegration]`, and timestamped internal logs to stderr so they don't interfere with structured CLI output.
+
 ## [3.8.14] - 2026-03-31
 
 ### Fixed

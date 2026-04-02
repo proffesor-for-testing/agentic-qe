@@ -7,10 +7,10 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { QEKernel } from '../../kernel/interfaces.js';
-import { QueenCoordinator } from '../../coordination/queen-coordinator.js';
-import { CrossDomainEventRouter } from '../../coordination/cross-domain-router.js';
-import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
+import type { QEKernel } from '../../kernel/interfaces.js';
+import type { QueenCoordinator } from '../../coordination/queen-coordinator.js';
+import type { CrossDomainEventRouter } from '../../coordination/cross-domain-router.js';
+import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
 import type { PersistentScheduler } from '../scheduler/index.js';
 
 // Define ScheduledWorkflow locally to avoid circular dependency

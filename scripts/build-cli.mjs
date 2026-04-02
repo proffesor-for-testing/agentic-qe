@@ -183,16 +183,21 @@ try {
   await build({
     entryPoints: [join(__dirname, '..', 'src/cli/index.ts')],
     bundle: true,
+    splitting: true,
     minify: true,
     platform: 'node',
     format: 'esm',
     external: esmExternals,
     plugins: [typescriptLazyPlugin, nativeRequirePlugin],
-    outfile: join(__dirname, '..', 'dist/cli/bundle.js'),
+    outdir: join(__dirname, '..', 'dist/cli'),
+    entryNames: 'bundle',
+    chunkNames: 'chunks/[name]-[hash]',
     define: {
       '__CLI_VERSION__': JSON.stringify(version),
     },
-    // No banner — esbuild preserves the shebang from src/cli/index.ts automatically
+    banner: {
+      js: `if(process.argv.includes('--version')||process.argv.includes('-v')){console.log(${JSON.stringify(version)});process.exit(0)}`,
+    },
   });
   console.log(`CLI bundle built successfully (v${version})`);
 } catch (error) {

@@ -17,6 +17,8 @@ import {
 } from './types';
 import { sanitizeInput } from './security/cve-prevention';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { BatchToolExecutor, type BatchToolCall } from './middleware/batch-executor';
+import { withRetry, isRetryableError } from '../shared/retry-engine';
 
 // ============================================================================
 // Security: Input Validation (SEC-001 Fix)
@@ -443,12 +445,25 @@ export class ToolRegistry {
     this.stats.invocations++;
 
     try {
-      const result = await tool.handler(sanitizedParams);
+      // IMP-03: Wrap tool handler with unified retry engine
+      const retryResult = await withRetry(
+        () => tool.handler(sanitizedParams),
+        {
+          maxAttempts: 3,
+          baseDelayMs: 500,
+          maxDelayMs: 4000,
+          jitterFraction: 0.25,
+          retryableErrors: isRetryableError,
+        },
+      );
+
+      const result = retryResult.result;
       return {
         ...result,
         metadata: {
           ...result.metadata,
           ...this.createMetadata(startTime, requestId, tool.definition.domain),
+          ...(retryResult.attempts > 1 ? { retryAttempts: retryResult.attempts } : {}),
         },
       } as ToolResult<TResult>;
     } catch (error) {
@@ -551,6 +566,28 @@ export class ToolRegistry {
       invocations: 0,
       errors: 0,
     };
+  }
+
+  /**
+   * IMP-02: Invoke multiple tools with concurrency partitioning.
+   * Concurrent-safe tools (isConcurrencySafe: true) run in parallel batches.
+   * Non-safe tools run sequentially between batches.
+   */
+  async invokeBatch(
+    calls: Array<{ name: string; params: Record<string, unknown> }>
+  ): Promise<Array<ToolResult<unknown>>> {
+    const batchCalls: BatchToolCall[] = calls.map(call => {
+      const tool = this.tools.get(call.name);
+      return {
+        name: call.name,
+        handler: () => this.invoke(call.name, call.params) as Promise<unknown>,
+        isConcurrencySafe: tool?.definition.isConcurrencySafe ?? false,
+      };
+    });
+
+    const executor = new BatchToolExecutor();
+    const batchResult = await executor.executeBatch(batchCalls);
+    return batchResult.results as Array<ToolResult<unknown>>;
   }
 
   /**

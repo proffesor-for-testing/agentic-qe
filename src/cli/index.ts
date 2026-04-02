@@ -14,62 +14,14 @@
 import { toErrorMessage } from '../shared/error-utils.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { QEKernel } from '../kernel/interfaces';
-import { QEKernelImpl } from '../kernel/kernel';
-import { UnifiedMemoryManager } from '../kernel/unified-memory';
-import {
-  QueenCoordinator,
-  createQueenCoordinator,
-} from '../coordination/queen-coordinator';
-import { CrossDomainEventRouter } from '../coordination/cross-domain-router';
-import { DefaultProtocolExecutor } from '../coordination/protocol-executor';
-import { WorkflowOrchestrator, type WorkflowExecutionStatus } from '../coordination/workflow-orchestrator';
+import type { QEKernel } from '../kernel/interfaces.js';
+import type { WorkflowOrchestrator } from '../coordination/workflow-orchestrator.js';
 import { DomainName, ALL_DOMAINS } from '../shared/types';
-import { integrateCodeIntelligence, type FleetIntegrationResult } from '../init/fleet-integration';
-import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-bootstrap.js';
-import {
-  FleetProgressManager,
-  createTimedSpinner,
-} from './utils/progress';
-import {
-  parsePipelineFile,
-  validatePipeline,
-  describeCronSchedule,
-} from './utils/workflow-parser.js';
-import { parseJsonOption, parseJsonFile } from './helpers/safe-json.js';
-import {
-  runFleetInitWizard,
-  type FleetWizardResult,
-} from './wizards/fleet-wizard.js';
-import {
-  runCoverageAnalysisWizard,
-  type CoverageWizardResult,
-} from './wizards/coverage-wizard.js';
-import {
-  createPersistentScheduler,
-  createScheduleEntry,
-  type PersistentScheduler,
-} from './scheduler/index.js';
-import {
-  v2AgentMapping,
-  resolveAgentName,
-  isDeprecatedAgent,
-  v3Agents,
-} from '../migration/agent-compat.js';
-import {
-  generateCompletion,
-  detectShell,
-  getInstallInstructions,
-  DOMAINS as COMPLETION_DOMAINS,
-  QE_AGENTS,
-  OTHER_AGENTS,
-} from './completions/index.js';
 import type { VisualAccessibilityAPI } from '../domains/visual-accessibility/plugin.js';
 import type { RequirementsValidationExtendedAPI } from '../domains/requirements-validation/plugin.js';
 
-// Import handlers and registry
-import { createCommandRegistry } from './command-registry.js';
-import { CLIContext, formatDuration, getStatusColor, walkDirectory, getColorForPercent, ScheduledWorkflow } from './handlers/interfaces.js';
+// Handler interfaces — type-only, erased at compile time
+import type { CLIContext } from './handlers/interfaces.js';
 
 // ============================================================================
 // Redirect internal domain logs to stderr so stdout stays clean for CI/JSON
@@ -88,14 +40,22 @@ const INTERNAL_LOG_PREFIXES = [
   '[code-intelligence]', '[security-compliance]', '[contract-testing]',
   '[visual-accessibility]', '[chaos-resilience]', '[learning-optimization]',
   '[enterprise-integration]', '[coordination]', '[PatternLearnerService]',
-  '[RequirementsValidation]',
+  '[RequirementsValidation]', '[ParserRegistry]', '[AdversarialDefense]',
+  '[ContinueGateIntegration]', '[ContinueGate]', '[SQLitePatternStore]',
+  '[TokenTracking]', '[InfraHealing]', '[ExperienceCapture]',
 ];
+
+/** Timestamped log pattern: [HH:MM:SS.sss] [LEVEL] */
+const TIMESTAMPED_LOG_RE = /^\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s+\[/;
 
 const originalConsoleLog = console.log.bind(console);
 console.log = (...args: unknown[]) => {
   const first = typeof args[0] === 'string' ? args[0] : '';
   const trimmed = first.trimStart();
-  if (INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix))) {
+  if (
+    INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix)) ||
+    TIMESTAMPED_LOG_RE.test(trimmed)
+  ) {
     process.stderr.write(args.map(String).join(' ') + '\n');
     return;
   }
@@ -159,6 +119,13 @@ function registerDomainWorkflowActions(
 // ============================================================================
 
 async function autoInitialize(): Promise<void> {
+  const { QEKernelImpl } = await import('../kernel/kernel.js');
+  const { CrossDomainEventRouter } = await import('../coordination/cross-domain-router.js');
+  const { DefaultProtocolExecutor } = await import('../coordination/protocol-executor.js');
+  const { WorkflowOrchestrator } = await import('../coordination/workflow-orchestrator.js');
+  const { createQueenCoordinator } = await import('../coordination/queen-coordinator.js');
+  const { createPersistentScheduler } = await import('./scheduler/index.js');
+
   context.kernel = new QEKernelImpl({
     maxConcurrentAgents: 15,
     memoryBackend: 'sqlite',
@@ -258,6 +225,7 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
   forceExitTimer.unref?.();
 
   try {
+    const { shutdownTokenTracking } = await import('../init/token-bootstrap.js');
     await shutdownTokenTracking();
 
     if (context.workflowOrchestrator) {
@@ -273,6 +241,7 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
       await context.kernel.dispose();
     }
 
+    const { UnifiedMemoryManager } = await import('../kernel/unified-memory.js');
     UnifiedMemoryManager.resetInstance();
   } catch (error) {
     // Non-critical: cleanup errors during exit
@@ -295,716 +264,190 @@ program
   .version(VERSION);
 
 // ============================================================================
-// Register Handlers via CommandRegistry
+// Register Handlers (lazy — each handler loads only when its command runs)
 // ============================================================================
 
-const registry = createCommandRegistry(context, cleanupAndExit, ensureInitialized, ensureInitializedStrict);
-registry.registerAll(program);
-
-// ============================================================================
-// Workflow Command Group (ADR-041)
-// ============================================================================
-
-const workflowCmd = program
-  .command('workflow')
-  .description('Manage QE workflows and pipelines (ADR-041)');
-
-workflowCmd
-  .command('run <file>')
-  .description('Execute a QE pipeline from YAML file')
-  .option('-w, --watch', 'Watch execution progress')
-  .option('-v, --verbose', 'Show detailed output')
-  .option('--params <json>', 'Additional parameters as JSON', '{}')
-  .action(async (file: string, options) => {
-    if (!await ensureInitialized()) return;
-
-    const fs = await import('fs');
-    const pathModule = await import('path');
-    const filePath = pathModule.resolve(file);
-
-    try {
-      console.log(chalk.blue(`\n Running workflow from: ${file}\n`));
-
-      const parseResult = parsePipelineFile(filePath);
-
-      if (!parseResult.success || !parseResult.workflow) {
-        console.log(chalk.red('Failed to parse pipeline:'));
-        for (const error of parseResult.errors) {
-          console.log(chalk.red(`   ${error}`));
-        }
-        await cleanupAndExit(1);
-      }
-
-      const additionalParams = parseJsonOption(options.params, 'params');
-      const input: Record<string, unknown> = { ...additionalParams };
-
-      if (parseResult.pipeline) {
-        for (const stage of parseResult.pipeline.stages) {
-          if (stage.params) {
-            for (const [key, value] of Object.entries(stage.params)) {
-              input[key] = value;
-            }
-          }
-        }
-      }
-
-      const existingWorkflow = context.workflowOrchestrator!.getWorkflow(parseResult.workflow!.id);
-      if (!existingWorkflow) {
-        const registerResult = context.workflowOrchestrator!.registerWorkflow(parseResult.workflow!);
-        if (!registerResult.success) {
-          console.log(chalk.red(`Failed to register workflow: ${registerResult.error.message}`));
-          await cleanupAndExit(1);
-        }
-      }
-
-      const execResult = await context.workflowOrchestrator!.executeWorkflow(
-        parseResult.workflow!.id,
-        input
-      );
-
-      if (!execResult.success) {
-        console.log(chalk.red(`Failed to start workflow: ${execResult.error.message}`));
-        await cleanupAndExit(1);
-        return;
-      }
-
-      const executionId = execResult.value;
-      console.log(chalk.cyan(`  Execution ID: ${executionId}`));
-      console.log(chalk.gray(`  Workflow: ${parseResult.workflow!.name}`));
-      console.log(chalk.gray(`  Stages: ${parseResult.workflow!.steps.length}`));
-      console.log('');
-
-      if (options.watch) {
-        console.log(chalk.blue('Workflow Progress:\n'));
-
-        let lastStatus: WorkflowExecutionStatus | undefined;
-        const startTime = Date.now();
-
-        while (true) {
-          const status = context.workflowOrchestrator!.getWorkflowStatus(executionId);
-          if (!status) break;
-
-          if (!lastStatus ||
-              lastStatus.progress !== status.progress ||
-              lastStatus.status !== status.status ||
-              JSON.stringify(lastStatus.currentSteps) !== JSON.stringify(status.currentSteps)) {
-
-            process.stdout.write('\r\x1b[K');
-
-            const progressBar = String.fromCharCode(0x2588).repeat(Math.floor(status.progress / 5)) +
-                               String.fromCharCode(0x2591).repeat(20 - Math.floor(status.progress / 5));
-
-            const statusColor = status.status === 'completed' ? chalk.green :
-                               status.status === 'failed' ? chalk.red :
-                               status.status === 'running' ? chalk.yellow : chalk.gray;
-
-            console.log(`  [${progressBar}] ${status.progress}% - ${statusColor(status.status)}`);
-
-            if (status.currentSteps.length > 0 && options.verbose) {
-              console.log(chalk.gray(`    Running: ${status.currentSteps.join(', ')}`));
-            }
-
-            lastStatus = status;
-          }
-
-          if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
-            break;
-          }
-
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-
-        const finalStatus = context.workflowOrchestrator!.getWorkflowStatus(executionId);
-        if (finalStatus) {
-          console.log('');
-          const duration = finalStatus.duration || (Date.now() - startTime);
-
-          if (finalStatus.status === 'completed') {
-            console.log(chalk.green(`Workflow completed successfully`));
-            console.log(chalk.gray(`   Duration: ${formatDuration(duration)}`));
-            console.log(chalk.gray(`   Completed: ${finalStatus.completedSteps.length} stages`));
-            if (finalStatus.skippedSteps.length > 0) {
-              console.log(chalk.yellow(`   Skipped: ${finalStatus.skippedSteps.length} stages`));
-            }
-          } else if (finalStatus.status === 'failed') {
-            console.log(chalk.red(`Workflow failed`));
-            console.log(chalk.red(`   Error: ${finalStatus.error}`));
-            console.log(chalk.gray(`   Failed stages: ${finalStatus.failedSteps.join(', ')}`));
-          } else {
-            console.log(chalk.yellow(`Workflow ${finalStatus.status}`));
-          }
-        }
-      } else {
-        console.log(chalk.green('Workflow execution started'));
-        console.log(chalk.gray(`   Use 'aqe workflow status ${executionId}' to check progress`));
-      }
-
-      console.log('');
-      await cleanupAndExit(0);
-
-    } catch (error) {
-      console.error(chalk.red('\nFailed to run workflow:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('schedule <file>')
-  .description('Schedule a QE pipeline for recurring execution')
-  .option('-c, --cron <expression>', 'Override cron schedule from file')
-  .option('-e, --enable', 'Enable immediately', true)
-  .action(async (file: string, options) => {
-    if (!await ensureInitialized()) return;
-
-    const pathModule = await import('path');
-    const filePath = pathModule.resolve(file);
-
-    try {
-      console.log(chalk.blue(`\nScheduling workflow from: ${file}\n`));
-
-      const parseResult = parsePipelineFile(filePath);
-
-      if (!parseResult.success || !parseResult.pipeline || !parseResult.workflow) {
-        console.log(chalk.red('Failed to parse pipeline:'));
-        for (const error of parseResult.errors) {
-          console.log(chalk.red(`   ${error}`));
-        }
-        await cleanupAndExit(1);
-      }
-
-      const schedule = options.cron || parseResult.pipeline!.schedule;
-      if (!schedule) {
-        console.log(chalk.red('No schedule specified'));
-        console.log(chalk.gray('   Add "schedule" field to YAML or use --cron option'));
-        await cleanupAndExit(1);
-      }
-
-      const existingWorkflow = context.workflowOrchestrator!.getWorkflow(parseResult.workflow!.id);
-      if (!existingWorkflow) {
-        const registerResult = context.workflowOrchestrator!.registerWorkflow(parseResult.workflow!);
-        if (!registerResult.success) {
-          console.log(chalk.red(`Failed to register workflow: ${registerResult.error.message}`));
-          await cleanupAndExit(1);
-        }
-      }
-
-      const persistedSchedule = createScheduleEntry({
-        workflowId: parseResult.workflow!.id,
-        pipelinePath: filePath,
-        schedule,
-        scheduleDescription: describeCronSchedule(schedule),
-        enabled: options.enable !== false,
-      });
-
-      await context.persistentScheduler!.saveSchedule(persistedSchedule);
-
-      const scheduledWorkflow: ScheduledWorkflow = {
-        id: persistedSchedule.id,
-        workflowId: persistedSchedule.workflowId,
-        pipelinePath: persistedSchedule.pipelinePath,
-        schedule: persistedSchedule.schedule,
-        scheduleDescription: persistedSchedule.scheduleDescription,
-        nextRun: new Date(persistedSchedule.nextRun),
-        enabled: persistedSchedule.enabled,
-        createdAt: new Date(persistedSchedule.createdAt),
-      };
-      context.scheduledWorkflows.set(scheduledWorkflow.id, scheduledWorkflow);
-
-      console.log(chalk.green('Workflow scheduled successfully (persisted to disk)'));
-      console.log(chalk.cyan(`   Schedule ID: ${persistedSchedule.id}`));
-      console.log(chalk.gray(`   Workflow: ${parseResult.workflow!.name}`));
-      console.log(chalk.gray(`   Schedule: ${schedule}`));
-      console.log(chalk.gray(`   Description: ${persistedSchedule.scheduleDescription}`));
-      console.log(chalk.gray(`   Next run: ${persistedSchedule.nextRun}`));
-      console.log(chalk.gray(`   Status: ${persistedSchedule.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
-
-      console.log(chalk.yellow('\nNote: Scheduled workflows require daemon mode to run automatically'));
-      console.log(chalk.gray('   Start daemon with: npx aqe daemon start'));
-      console.log(chalk.gray('   Schedules are persisted to: ~/.aqe/schedules.json'));
-
-      console.log('');
-      await cleanupAndExit(0);
-
-    } catch (error) {
-      console.error(chalk.red('\nFailed to schedule workflow:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('list')
-  .description('List workflows')
-  .option('-s, --scheduled', 'Show only scheduled workflows')
-  .option('-a, --active', 'Show only active executions')
-  .option('--all', 'Show all workflows (registered + scheduled + active)')
-  .action(async (options) => {
-    if (!await ensureInitialized()) return;
-
-    try {
-      console.log(chalk.blue('\nWorkflows\n'));
-
-      if (options.scheduled || options.all) {
-        console.log(chalk.cyan('Scheduled Workflows:'));
-        const scheduled = await context.persistentScheduler!.getSchedules();
-
-        if (scheduled.length === 0) {
-          console.log(chalk.gray('  No scheduled workflows\n'));
-        } else {
-          for (const sched of scheduled) {
-            const statusIcon = sched.enabled ? chalk.green('*') : chalk.gray('o');
-            console.log(`  ${statusIcon} ${chalk.white(sched.workflowId)}`);
-            console.log(chalk.gray(`     ID: ${sched.id}`));
-            console.log(chalk.gray(`     Schedule: ${sched.schedule} (${sched.scheduleDescription})`));
-            console.log(chalk.gray(`     File: ${sched.pipelinePath}`));
-            console.log(chalk.gray(`     Next run: ${sched.nextRun}`));
-            if (sched.lastRun) {
-              console.log(chalk.gray(`     Last run: ${sched.lastRun}`));
-            }
-            console.log(chalk.gray(`     Status: ${sched.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
-            console.log('');
-          }
-        }
-      }
-
-      if (options.active || options.all) {
-        console.log(chalk.cyan('Active Executions:'));
-        const activeExecutions = context.workflowOrchestrator!.getActiveExecutions();
-
-        if (activeExecutions.length === 0) {
-          console.log(chalk.gray('  No active executions\n'));
-        } else {
-          for (const exec of activeExecutions) {
-            const statusColor = exec.status === 'running' ? chalk.yellow : chalk.gray;
-            console.log(`  ${statusColor('*')} ${chalk.white(exec.workflowName)}`);
-            console.log(chalk.gray(`     Execution: ${exec.executionId}`));
-            console.log(chalk.gray(`     Status: ${exec.status}`));
-            console.log(chalk.gray(`     Progress: ${exec.progress}%`));
-            if (exec.currentSteps.length > 0) {
-              console.log(chalk.gray(`     Current: ${exec.currentSteps.join(', ')}`));
-            }
-            console.log('');
-          }
-        }
-      }
-
-      if (!options.scheduled && !options.active || options.all) {
-        console.log(chalk.cyan('Registered Workflows:'));
-        const workflows = context.workflowOrchestrator!.listWorkflows();
-
-        if (workflows.length === 0) {
-          console.log(chalk.gray('  No registered workflows\n'));
-        } else {
-          for (const workflow of workflows) {
-            console.log(`  ${chalk.white(workflow.name)} (${chalk.cyan(workflow.id)})`);
-            console.log(chalk.gray(`     Version: ${workflow.version}`));
-            console.log(chalk.gray(`     Steps: ${workflow.stepCount}`));
-            if (workflow.description) {
-              console.log(chalk.gray(`     ${workflow.description}`));
-            }
-            if (workflow.tags && workflow.tags.length > 0) {
-              console.log(chalk.gray(`     Tags: ${workflow.tags.join(', ')}`));
-            }
-            if (workflow.triggers && workflow.triggers.length > 0) {
-              console.log(chalk.gray(`     Triggers: ${workflow.triggers.join(', ')}`));
-            }
-            console.log('');
-          }
-        }
-      }
-
-      await cleanupAndExit(0);
-
-    } catch (error) {
-      console.error(chalk.red('\nFailed to list workflows:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('validate <file>')
-  .description('Validate a pipeline YAML file')
-  .option('-v, --verbose', 'Show detailed validation results')
-  .action(async (file: string, options) => {
-    const fs = await import('fs');
-    const pathModule = await import('path');
-    const filePath = pathModule.resolve(file);
-
-    try {
-      console.log(chalk.blue(`\nValidating pipeline: ${file}\n`));
-
-      if (!fs.existsSync(filePath)) {
-        console.log(chalk.red(`File not found: ${filePath}`));
-        await cleanupAndExit(1);
-      }
-
-      const parseResult = parsePipelineFile(filePath);
-
-      if (!parseResult.success) {
-        console.log(chalk.red('Parse errors:'));
-        for (const error of parseResult.errors) {
-          console.log(chalk.red(`   * ${error}`));
-        }
-        await cleanupAndExit(1);
-      }
-
-      const validationResult = validatePipeline(parseResult.pipeline!);
-
-      if (validationResult.valid) {
-        console.log(chalk.green('Pipeline is valid\n'));
-      } else {
-        console.log(chalk.red('Pipeline has errors:\n'));
-        for (const error of validationResult.errors) {
-          console.log(chalk.red(`   x [${error.path}] ${error.message}`));
-        }
-        console.log('');
-      }
-
-      if (validationResult.warnings.length > 0) {
-        console.log(chalk.yellow('Warnings:'));
-        for (const warning of validationResult.warnings) {
-          console.log(chalk.yellow(`   * [${warning.path}] ${warning.message}`));
-        }
-        console.log('');
-      }
-
-      if (options.verbose && parseResult.pipeline) {
-        const pipeline = parseResult.pipeline;
-        console.log(chalk.cyan('Pipeline Details:\n'));
-        console.log(chalk.gray(`  Name: ${pipeline.name}`));
-        console.log(chalk.gray(`  Version: ${pipeline.version || '1.0.0'}`));
-        if (pipeline.description) {
-          console.log(chalk.gray(`  Description: ${pipeline.description}`));
-        }
-        if (pipeline.schedule) {
-          console.log(chalk.gray(`  Schedule: ${pipeline.schedule} (${describeCronSchedule(pipeline.schedule)})`));
-        }
-        if (pipeline.tags && pipeline.tags.length > 0) {
-          console.log(chalk.gray(`  Tags: ${pipeline.tags.join(', ')}`));
-        }
-
-        console.log(chalk.cyan('\n  Stages:'));
-        for (let i = 0; i < pipeline.stages.length; i++) {
-          const stage = pipeline.stages[i];
-          console.log(`    ${i + 1}. ${chalk.white(stage.name)}`);
-          console.log(chalk.gray(`       Command: ${stage.command}`));
-          if (stage.params) {
-            console.log(chalk.gray(`       Params: ${JSON.stringify(stage.params)}`));
-          }
-          if (stage.depends_on && stage.depends_on.length > 0) {
-            console.log(chalk.gray(`       Depends on: ${stage.depends_on.join(', ')}`));
-          }
-          if (stage.timeout) {
-            console.log(chalk.gray(`       Timeout: ${stage.timeout}s`));
-          }
-        }
-
-        if (pipeline.triggers && pipeline.triggers.length > 0) {
-          console.log(chalk.cyan('\n  Triggers:'));
-          for (const trigger of pipeline.triggers) {
-            console.log(chalk.gray(`    * ${trigger.event}`));
-            if (trigger.branches) {
-              console.log(chalk.gray(`      Branches: ${trigger.branches.join(', ')}`));
-            }
-          }
-        }
-      }
-
-      if (options.verbose && parseResult.workflow) {
-        console.log(chalk.cyan('\n  Converted Workflow ID: ') + chalk.white(parseResult.workflow.id));
-        console.log(chalk.gray(`  Steps: ${parseResult.workflow.steps.length}`));
-        for (const step of parseResult.workflow.steps) {
-          console.log(chalk.gray(`    * ${step.id}: ${step.domain}.${step.action}`));
-        }
-      }
-
-      console.log('');
-      await cleanupAndExit(validationResult.valid ? 0 : 1);
-
-    } catch (error) {
-      console.error(chalk.red('\nValidation failed:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('status <executionId>')
-  .description('Get workflow execution status')
-  .option('-v, --verbose', 'Show detailed step results')
-  .action(async (executionId: string, options) => {
-    if (!await ensureInitialized()) return;
-
-    try {
-      const status = context.workflowOrchestrator!.getWorkflowStatus(executionId);
-
-      if (!status) {
-        console.log(chalk.red(`\nExecution not found: ${executionId}\n`));
-        await cleanupAndExit(1);
-        return;
-      }
-
-      console.log(chalk.blue(`\nWorkflow Execution Status\n`));
-
-      const statusColor = status.status === 'completed' ? chalk.green :
-                         status.status === 'failed' ? chalk.red :
-                         status.status === 'running' ? chalk.yellow : chalk.gray;
-
-      console.log(`  Execution ID: ${chalk.cyan(status.executionId)}`);
-      console.log(`  Workflow: ${chalk.white(status.workflowName)} (${status.workflowId})`);
-      console.log(`  Status: ${statusColor(status.status)}`);
-      console.log(`  Progress: ${status.progress}%`);
-      console.log(`  Started: ${status.startedAt.toISOString()}`);
-      if (status.completedAt) {
-        console.log(`  Completed: ${status.completedAt.toISOString()}`);
-      }
-      if (status.duration) {
-        console.log(`  Duration: ${formatDuration(status.duration)}`);
-      }
-
-      console.log(chalk.cyan('\n  Step Summary:'));
-      console.log(chalk.gray(`    Completed: ${status.completedSteps.length}`));
-      console.log(chalk.gray(`    Skipped: ${status.skippedSteps.length}`));
-      console.log(chalk.gray(`    Failed: ${status.failedSteps.length}`));
-      if (status.currentSteps.length > 0) {
-        console.log(chalk.yellow(`    Running: ${status.currentSteps.join(', ')}`));
-      }
-
-      if (status.error) {
-        console.log(chalk.red(`\n  Error: ${status.error}`));
-      }
-
-      if (options.verbose && status.stepResults.size > 0) {
-        console.log(chalk.cyan('\n  Step Results:'));
-        for (const [stepId, result] of status.stepResults) {
-          const stepStatusColor = result.status === 'completed' ? chalk.green :
-                                  result.status === 'failed' ? chalk.red :
-                                  result.status === 'skipped' ? chalk.yellow : chalk.gray;
-          console.log(`    ${stepStatusColor('*')} ${chalk.white(stepId)}: ${stepStatusColor(result.status)}`);
-          if (result.duration) {
-            console.log(chalk.gray(`       Duration: ${formatDuration(result.duration)}`));
-          }
-          if (result.error) {
-            console.log(chalk.red(`       Error: ${result.error}`));
-          }
-          if (result.retryCount && result.retryCount > 0) {
-            console.log(chalk.yellow(`       Retries: ${result.retryCount}`));
-          }
-        }
-      }
-
-      console.log('');
-      await cleanupAndExit(0);
-
-    } catch (error) {
-      console.error(chalk.red('\nFailed to get workflow status:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('cancel <executionId>')
-  .description('Cancel a running workflow')
-  .action(async (executionId: string) => {
-    if (!await ensureInitialized()) return;
-
-    try {
-      const result = await context.workflowOrchestrator!.cancelWorkflow(executionId);
-
-      if (result.success) {
-        console.log(chalk.green(`\nWorkflow cancelled: ${executionId}\n`));
-      } else {
-        console.log(chalk.red(`\nFailed to cancel workflow: ${result.error.message}\n`));
-      }
-
-      await cleanupAndExit(result.success ? 0 : 1);
-
-    } catch (error) {
-      console.error(chalk.red('\nFailed to cancel workflow:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('browser-list')
-  .description('List available browser workflow templates')
-  .action(async () => {
-    try {
-      const { BrowserWorkflowTool } = await import('../mcp/tools/test-execution/browser-workflow.js');
-      const tool = new BrowserWorkflowTool();
-      const result = await tool.invoke({});
-
-      if (result.success && result.data) {
-        console.log(chalk.blue('\n Browser Workflow Templates:\n'));
-        for (const t of result.data.availableTemplates) {
-          console.log(`  ${chalk.cyan(t)}`);
-        }
-        console.log('');
-      } else {
-        console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
-      }
-      await cleanupAndExit(0);
-    } catch (error) {
-      console.error(chalk.red('\nFailed:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-workflowCmd
-  .command('browser-load [template]')
-  .description('Load and validate a browser workflow template or inline YAML')
-  .option('--yaml <yaml>', 'Inline YAML workflow definition')
-  .option('-v, --var <key=value>', 'Variable override (repeatable)', collectWorkflowVars, {})
-  .option('-F, --format <format>', 'Output format (text|json)', 'text')
-  .option('-o, --output <path>', 'Write output to file')
-  .action(async (template: string | undefined, options) => {
-    try {
-      const { BrowserWorkflowTool } = await import('../mcp/tools/test-execution/browser-workflow.js');
-      const { writeOutput, toJSON } = await import('./utils/ci-output.js');
-      const tool = new BrowserWorkflowTool();
-
-      const params: Record<string, unknown> = {
-        variables: options.var || {},
-      };
-
-      if (options.yaml) {
-        params.workflowYaml = options.yaml;
-      } else if (template) {
-        if (template.endsWith('.yaml') || template.endsWith('.yml')) {
-          const fs = await import('fs');
-          const pathModule = await import('path');
-          const filePath = pathModule.resolve(template);
-          if (!fs.existsSync(filePath)) {
-            console.log(chalk.red(`\nFile not found: ${filePath}\n`));
-            await cleanupAndExit(1);
-          }
-          params.workflowYaml = fs.readFileSync(filePath, 'utf-8');
-        } else {
-          params.templateName = template;
-        }
-      } else {
-        console.log(chalk.red('\nProvide a template name or --yaml. Use "workflow browser-list" to see templates.\n'));
-        await cleanupAndExit(1);
-      }
-
-      console.log(chalk.blue(`\n Loading browser workflow${template ? ': ' + template : ''}...\n`));
-
-      const result = await tool.invoke(params);
-
-      if (result.success && result.data) {
-        const data = result.data;
-        if (options.format === 'json') {
-          writeOutput(toJSON(data), options.output);
-        } else {
-          console.log(chalk.green(` Workflow: ${data.workflowName}`));
-          if (data.description) {
-            console.log(chalk.gray(`  ${data.description}`));
-          }
-          console.log(`  Source: ${chalk.cyan(data.source)}`);
-          console.log(`  Steps: ${chalk.white(data.steps.length)}`);
-
-          if (data.steps.length > 0) {
-            console.log(chalk.cyan('\n  Steps:'));
-            for (const step of data.steps) {
-              const optTag = step.optional ? chalk.gray(' (optional)') : '';
-              const assertTag = step.assertionCount > 0 ? chalk.gray(` [${step.assertionCount} assertions]`) : '';
-              console.log(`    ${chalk.white(step.name)} — ${step.action}${optTag}${assertTag}`);
-            }
-          }
-
-          if (data.variables.defined.length > 0) {
-            console.log(chalk.cyan('\n  Variables:'));
-            for (const v of data.variables.defined) {
-              const req = v.required ? chalk.red('*') : '';
-              const def = v.hasDefault ? chalk.gray(' (has default)') : '';
-              console.log(`    ${req}${chalk.white(v.name)}: ${v.type}${def}`);
-            }
-          }
-
-          if (!data.validation.valid) {
-            console.log(chalk.red('\n  Validation errors:'));
-            for (const err of data.validation.errors) {
-              console.log(chalk.red(`    - ${err}`));
-            }
-          }
-          console.log('');
-        }
-
-        await cleanupAndExit(data.validation.valid ? 0 : 1);
-      } else {
-        console.log(chalk.red(`Failed: ${result.error || 'Unknown error'}`));
-        await cleanupAndExit(1);
-      }
-    } catch (error) {
-      console.error(chalk.red('\nFailed:'), error);
-      await cleanupAndExit(1);
-    }
-  });
-
-function collectWorkflowVars(val: string, acc: Record<string, string>): Record<string, string> {
-  const idx = val.indexOf('=');
-  if (idx > 0) {
-    acc[val.substring(0, idx)] = val.substring(idx + 1);
-  }
-  return acc;
-}
-
-// ============================================================================
-// Shortcut Commands (test, coverage, quality, security, code)
-// ============================================================================
-
-import { createTestCommand } from './commands/test.js';
-import { createCoverageCommand } from './commands/coverage.js';
-import { createQualityCommand } from './commands/quality.js';
-import { createSecurityCommand } from './commands/security.js';
-import { createCodeCommand } from './commands/code.js';
-import { createCompletionsCommand } from './commands/completions.js';
-import { createFleetCommand } from './commands/fleet.js';
-import { createValidateSwarmCommand } from './commands/validate-swarm.js';
-import { createValidateCommand } from './commands/validate.js';
-import { createEvalCommand } from './commands/eval.js';
-import { createCICommand } from './commands/ci.js';
-
-// Register shortcut commands
-program.addCommand(createTestCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createCoverageCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createQualityCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createSecurityCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createCodeCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createCompletionsCommand(cleanupAndExit));
-program.addCommand(createFleetCommand(context, cleanupAndExit, ensureInitialized, registerDomainWorkflowActions));
-program.addCommand(createValidateSwarmCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createValidateCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createEvalCommand());
-program.addCommand(createCICommand(context, cleanupAndExit, ensureInitialized));
-
-// ============================================================================
-// External Command Modules
-// ============================================================================
-
-import { createTokenUsageCommand } from './commands/token-usage.js';
-import { createLLMRouterCommand } from './commands/llm-router.js';
-import { createSyncCommands } from './commands/sync.js';
-import { createHooksCommand } from './commands/hooks.js';
-import { createLearningCommand } from './commands/learning.js';
-import { createMemoryCommand } from './commands/memory.js';
-import { createMcpCommand } from './commands/mcp.js';
-import { createPlatformCommand } from './commands/platform.js';
-import { createProveCommand } from './commands/prove.js';
-import { createRuVectorCommand } from './commands/ruvector-commands.js';
-import { createAuditCommand } from './commands/audit.js';
-import { createPipelineCommand } from './commands/pipeline.js';
-
-program.addCommand(createTokenUsageCommand());
-program.addCommand(createLLMRouterCommand());
-program.addCommand(createSyncCommands());
-program.addCommand(createHooksCommand());
-program.addCommand(createLearningCommand());
-program.addCommand(createMemoryCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createMcpCommand());
-program.addCommand(createPlatformCommand());
-program.addCommand(createProveCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createRuVectorCommand());
-program.addCommand(createAuditCommand(context, cleanupAndExit, ensureInitialized));
-program.addCommand(createPipelineCommand(context, cleanupAndExit, ensureInitialized));
+import { registerLazyCommand, registerLazyHandler } from './lazy-registry.js';
+
+registerLazyHandler(program, 'init', 'Initialize the AQE v3 system',
+  () => import('./handlers/init-handler.js').then(m => m.createInitHandler(cleanupAndExit)),
+  context,
+);
+registerLazyHandler(program, 'status', 'Show system status',
+  () => import('./handlers/status-handler.js').then(m => m.createStatusHandler(cleanupAndExit, ensureInitializedStrict)),
+  context,
+);
+registerLazyHandler(program, 'health', 'Check system health',
+  () => import('./handlers/status-handler.js').then(m => m.createHealthHandler(cleanupAndExit, ensureInitializedStrict)),
+  context,
+);
+registerLazyHandler(program, 'task', 'Manage QE tasks',
+  () => import('./handlers/task-handler.js').then(m => m.createTaskHandler(cleanupAndExit, ensureInitialized)),
+  context,
+);
+registerLazyHandler(program, 'agent', 'Manage QE agents',
+  () => import('./handlers/agent-handler.js').then(m => m.createAgentHandler(cleanupAndExit, ensureInitialized)),
+  context,
+);
+registerLazyHandler(program, 'domain', 'Domain operations',
+  () => import('./handlers/domain-handler.js').then(m => m.createDomainHandler(cleanupAndExit, ensureInitialized)),
+  context,
+);
+registerLazyHandler(program, 'protocol', 'Execute coordination protocols',
+  () => import('./handlers/protocol-handler.js').then(m => m.createProtocolHandler(cleanupAndExit, ensureInitialized)),
+  context,
+);
+registerLazyHandler(program, 'brain', 'Export, import, and inspect QE brain state',
+  () => import('./handlers/brain-handler.js').then(m => m.createBrainHandler(cleanupAndExit, ensureInitialized)),
+  context,
+);
+registerLazyHandler(program, 'hypergraph', 'Query the code knowledge hypergraph',
+  () => import('./handlers/hypergraph-handler.js').then(m => m.createHypergraphHandler(cleanupAndExit, ensureInitialized)),
+  context, ['hg'],
+);
+registerLazyHandler(program, 'heartbeat', 'Manage the token-free heartbeat scheduler',
+  () => import('./handlers/heartbeat-handler.js').then(m => m.createHeartbeatHandler(cleanupAndExit)),
+  context,
+);
+registerLazyHandler(program, 'routing', 'View routing performance, economics, and accuracy',
+  () => import('./handlers/routing-handler.js').then(m => m.createRoutingHandler(cleanupAndExit)),
+  context,
+);
+
+// Workflow command — lazy loaded from commands/workflow.ts
+registerLazyCommand(program, {
+  name: 'workflow',
+  description: 'Manage QE workflows and pipelines (ADR-041)',
+  factory: () => import('./commands/workflow.js').then(m => m.createWorkflowCommand(context, cleanupAndExit, ensureInitialized)),
+});
+
+registerLazyCommand(program, {
+  name: 'test',
+  description: 'Test generation, execution, scheduling, and load testing',
+  factory: () => import('./commands/test.js').then(m => m.createTestCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'coverage',
+  description: 'Coverage analysis shortcut',
+  factory: () => import('./commands/coverage.js').then(m => m.createCoverageCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'quality',
+  description: 'Quality assessment shortcut',
+  factory: () => import('./commands/quality.js').then(m => m.createQualityCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'security',
+  description: 'Security scanning and URL validation',
+  factory: () => import('./commands/security.js').then(m => m.createSecurityCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'code',
+  description: 'Code intelligence analysis',
+  factory: () => import('./commands/code.js').then(m => m.createCodeCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'completions',
+  description: 'Generate shell completions for aqe',
+  factory: () => import('./commands/completions.js').then(m => m.createCompletionsCommand(cleanupAndExit)),
+});
+registerLazyCommand(program, {
+  name: 'fleet',
+  description: 'Fleet operations with multi-agent progress tracking',
+  factory: () => import('./commands/fleet.js').then(m => m.createFleetCommand(context, cleanupAndExit, ensureInitialized, registerDomainWorkflowActions)),
+});
+registerLazyCommand(program, {
+  name: 'validate',
+  description: 'Validation commands for skills and agents',
+  factory: () => import('./commands/validate-swarm.js').then(m => m.createValidateSwarmCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'skill',
+  description: 'Skill validation and reporting (ADR-056)',
+  factory: () => import('./commands/validate.js').then(m => m.createValidateCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'eval',
+  description: 'Run skill evaluation suites in parallel',
+  factory: () => import('./commands/eval.js').then(m => m.createEvalCommand()),
+});
+registerLazyCommand(program, {
+  name: 'ci',
+  description: 'CI/CD pipeline orchestration',
+  factory: () => import('./commands/ci.js').then(m => m.createCICommand(context, cleanupAndExit, ensureInitialized)),
+});
+
+// External command modules
+registerLazyCommand(program, {
+  name: 'token-usage',
+  description: 'View and analyze token consumption metrics (ADR-042)',
+  factory: () => import('./commands/token-usage.js').then(m => m.createTokenUsageCommand()),
+});
+registerLazyCommand(program, {
+  name: 'llm',
+  description: 'LLM Router management (ADR-043)',
+  factory: () => import('./commands/llm-router.js').then(m => m.createLLMRouterCommand()),
+});
+registerLazyCommand(program, {
+  name: 'sync',
+  description: 'Sync local learning data to cloud PostgreSQL',
+  factory: () => import('./commands/sync.js').then(m => m.createSyncCommands()),
+});
+registerLazyCommand(program, {
+  name: 'hooks',
+  description: 'Self-learning QE hooks for pattern recognition and guidance',
+  factory: () => import('./commands/hooks.js').then(m => m.createHooksCommand()),
+});
+registerLazyCommand(program, {
+  name: 'learning',
+  description: 'AQE self-learning system management (standalone, no claude-flow required)',
+  factory: () => import('./commands/learning.js').then(m => m.createLearningCommand()),
+});
+registerLazyCommand(program, {
+  name: 'memory',
+  description: 'Memory store, retrieve, search, and delete operations',
+  factory: () => import('./commands/memory.js').then(m => m.createMemoryCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'mcp',
+  description: 'Start the MCP protocol server for Claude Code integration',
+  factory: () => import('./commands/mcp.js').then(m => m.createMcpCommand()),
+});
+registerLazyCommand(program, {
+  name: 'platform',
+  description: 'Manage coding agent platform configurations',
+  factory: () => import('./commands/platform.js').then(m => m.createPlatformCommand()),
+});
+registerLazyCommand(program, {
+  name: 'prove',
+  description: 'Generate a verifiable Proof-of-Quality attestation',
+  factory: () => import('./commands/prove.js').then(m => m.createProveCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'ruvector',
+  description: 'RuVector integration management',
+  factory: () => import('./commands/ruvector-commands.js').then(m => m.createRuVectorCommand()),
+});
+registerLazyCommand(program, {
+  name: 'audit',
+  description: 'Witness chain audit trail management',
+  factory: () => import('./commands/audit.js').then(m => m.createAuditCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'pipeline',
+  description: 'Manage YAML deterministic pipelines (Imp-9)',
+  factory: () => import('./commands/pipeline.js').then(m => m.createPipelineCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'plugin',
+  description: 'Manage external QE domain plugins',
+  factory: () => import('./commands/plugin.js').then(m => m.createPluginCommand()),
+});
+registerLazyCommand(program, {
+  name: 'daemon',
+  description: 'Manage the QE Quality Daemon',
+  factory: () => import('./commands/daemon.js').then(m => m.createDaemonCommand()),
+});
 
 // ============================================================================
 // Shutdown Handlers
@@ -1026,6 +469,14 @@ process.on('SIGTERM', async () => {
 // ============================================================================
 
 async function main(): Promise<void> {
+  // IMP-06: Fast path for --version / -v — skip all heavy initialization
+  const { isVersionFastPath } = await import('../boot/fast-paths.js');
+  if (isVersionFastPath(process.argv)) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+
+  const { bootstrapTokenTracking } = await import('../init/token-bootstrap.js');
   await bootstrapTokenTracking({
     enableOptimization: true,
     enablePersistence: true,

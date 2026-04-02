@@ -687,7 +687,8 @@ export class AGUISyncService extends EventEmitter {
   private findActionMapping(actionId: string): ActionStateMapping | undefined {
     return this.actionMappings.find((m) => {
       if (m.actionPattern.includes('*')) {
-        const regex = new RegExp('^' + m.actionPattern.replace(/\*/g, '.*') + '$');
+        const escaped = m.actionPattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
         return regex.test(actionId);
       }
       return m.actionPattern === actionId;

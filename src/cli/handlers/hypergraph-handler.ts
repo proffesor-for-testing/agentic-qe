@@ -13,9 +13,6 @@ import chalk from 'chalk';
 import { join, resolve } from 'path';
 import { existsSync } from 'fs';
 import { ICommandHandler, CLIContext } from './interfaces.js';
-import { findProjectRoot } from '../../kernel/unified-memory.js';
-import { openDatabase } from '../../shared/safe-db.js';
-import { createHypergraphEngine } from '../../integrations/ruvector/hypergraph-engine.js';
 import type { HypergraphEngine } from '../../integrations/ruvector/hypergraph-engine.js';
 
 // ============================================================================
@@ -221,6 +218,10 @@ export class HypergraphHandler implements ICommandHandler {
   // --------------------------------------------------------------------------
 
   private async openEngine(dbPathOverride?: string): Promise<{ engine: HypergraphEngine; close: () => void }> {
+    const { findProjectRoot } = await import('../../kernel/unified-memory.js');
+    const { openDatabase } = await import('../../shared/safe-db.js');
+    const { createHypergraphEngine } = await import('../../integrations/ruvector/hypergraph-engine.js');
+
     const projectRoot = findProjectRoot();
     const dbPath = dbPathOverride || join(projectRoot, '.agentic-qe', 'memory.db');
 

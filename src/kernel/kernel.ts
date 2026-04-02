@@ -26,6 +26,8 @@ import { findProjectRoot } from './unified-memory.js';
 import { initializeUnifiedPersistence } from './unified-persistence.js';
 import * as path from 'path';
 import * as fs from 'fs';
+import { PluginLifecycleManager } from '../plugins/lifecycle';
+import { PluginCache } from '../plugins/cache';
 
 // Import domain plugin factories
 import { createTestGenerationPlugin } from '../domains/test-generation/plugin';
@@ -196,6 +198,46 @@ export class QEKernelImpl implements QEKernel {
       agentId: 'qe-kernel',
     });
     (this._eventBus as InMemoryEventBus).registerMiddleware(antiDriftMiddleware);
+
+    // IMP-09: Discover and register external plugins from cache
+    try {
+      const pluginCacheDir = path.join(dataDir, 'plugins');
+      const pluginCache = new PluginCache({ cacheDir: pluginCacheDir });
+      const pluginLifecycle = new PluginLifecycleManager({ cache: pluginCache });
+
+      const resolution = pluginLifecycle.resolveLoadOrder();
+      for (const resolved of resolution.ordered) {
+        const manifest = resolved.manifest;
+        const cachedPlugin = pluginCache.get(manifest.name, manifest.version);
+        if (!cachedPlugin) continue;
+
+        const entryPointPath = path.join(cachedPlugin.path, manifest.entryPoint);
+
+        // Register a factory for each domain the plugin provides
+        for (const domain of manifest.domains) {
+          const domainName = domain as DomainName;
+          if (DOMAIN_FACTORIES[domainName]) continue; // don't override built-in domains
+
+          const loader = this._plugins as DefaultPluginLoader;
+          loader.registerFactory(
+            domainName,
+            async (eventBus: EventBus, memory: MemoryBackend) => {
+              // Dynamically import the plugin entry point at load time
+              const pluginModule = await import(entryPointPath);
+              const createPlugin = pluginModule.default ?? pluginModule.createPlugin;
+              if (typeof createPlugin !== 'function') {
+                throw new Error(
+                  `Plugin "${manifest.name}" entry point must export a default function or "createPlugin" function`,
+                );
+              }
+              return createPlugin(eventBus, memory, this._coordinator);
+            },
+          );
+        }
+      }
+    } catch {
+      // External plugin loading is best-effort — don't block kernel startup
+    }
 
     // Load plugins based on configuration
     if (!this._config.lazyLoading) {

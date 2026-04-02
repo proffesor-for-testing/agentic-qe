@@ -8,7 +8,6 @@
 import path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { ICommandHandler, CLIContext } from './interfaces.js';
 import {
   exportBrain,
@@ -47,7 +46,7 @@ export class BrainHandler implements ICommandHandler {
       .description('Export brain state to a portable directory')
       .requiredOption('-o, --output <path>', 'Output directory path')
       .option('--format <format>', 'Export format: rvf (default) or jsonl', 'rvf')
-      .option('--db <path>', 'Source database path', defaultDbPath())
+      .option('--db <path>', 'Source database path')
       .action(async (options: ExportOptions) => {
         await this.executeExport(options);
       });
@@ -58,7 +57,7 @@ export class BrainHandler implements ICommandHandler {
       .requiredOption('-i, --input <path>', 'Path to brain export directory')
       .option('--strategy <strategy>', 'Merge strategy', 'skip-conflicts')
       .option('--dry-run', 'Preview import without writing', false)
-      .option('--db <path>', 'Target database path', defaultDbPath())
+      .option('--db <path>', 'Target database path')
       .action(async (options: ImportOptions) => {
         await this.executeImport(options);
       });
@@ -74,7 +73,7 @@ export class BrainHandler implements ICommandHandler {
     brain
       .command('witness-backfill')
       .description('Create witness chain entries for patterns that predate the witness chain')
-      .option('--db <path>', 'Database path', defaultDbPath())
+      .option('--db <path>', 'Database path')
       .action(async (options: { db: string }) => {
         await this.executeWitnessBackfill(options);
       });
@@ -84,7 +83,8 @@ export class BrainHandler implements ICommandHandler {
     try {
       console.log(chalk.blue(`\n  Exporting brain state (format: ${options.format})...\n`));
 
-      const manifest: BrainManifest = await exportBrain(options.db, {
+      const dbPath = await resolveDbPath(options.db);
+      const manifest: BrainManifest = await exportBrain(dbPath, {
         outputPath: path.resolve(options.output),
         format: options.format,
       });
@@ -124,7 +124,8 @@ export class BrainHandler implements ICommandHandler {
         console.log(chalk.blue('\n  Importing brain state...\n'));
       }
 
-      const result = await importBrain(options.db, path.resolve(options.input), {
+      const importDbPath = await resolveDbPath(options.db);
+      const result = await importBrain(importDbPath, path.resolve(options.input), {
         mergeStrategy: options.strategy as 'latest-wins' | 'highest-confidence' | 'union' | 'skip-conflicts',
         dryRun: options.dryRun,
       });
@@ -270,7 +271,8 @@ export class BrainHandler implements ICommandHandler {
     try {
       console.log(chalk.blue('\n  Running witness chain backfill...\n'));
 
-      const result = await witnessBackfill(options.db);
+      const backfillDbPath = await resolveDbPath(options.db);
+      const result = await witnessBackfill(backfillDbPath);
 
       console.log(chalk.green('  Backfill complete.'));
       console.log(`  Created: ${chalk.cyan(result.created)} new witness entries`);
@@ -339,7 +341,9 @@ interface InfoOptions {
 // Helpers
 // ============================================================================
 
-function defaultDbPath(): string {
+async function resolveDbPath(optionValue?: string): Promise<string> {
+  if (optionValue) return optionValue;
+  const { findProjectRoot } = await import('../../kernel/unified-memory.js');
   return path.join(findProjectRoot(), '.agentic-qe', 'memory.db');
 }
 

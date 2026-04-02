@@ -7,19 +7,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { ICommandHandler, CLIContext } from './interfaces.js';
-import { QEKernelImpl } from '../../kernel/kernel.js';
 import { DomainName, ALL_DOMAINS } from '../../shared/types/index.js';
-import { CrossDomainEventRouter } from '../../coordination/cross-domain-router.js';
-import { DefaultProtocolExecutor } from '../../coordination/protocol-executor.js';
-import { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
-import { createQueenCoordinator } from '../../coordination/queen-coordinator.js';
-import { InitOrchestrator, type InitOrchestratorOptions } from '../../init/init-wizard.js';
-import {
-  createModularInitOrchestrator,
-} from '../../init/orchestrator.js';
-import { setupClaudeFlowIntegration, type ClaudeFlowSetupResult } from '../commands/claude-flow-setup.js';
-import { getClaudeFlowNotFoundMessage } from '../../adapters/claude-flow/detect.js';
-import { createPersistentScheduler } from '../scheduler/index.js';
+import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
+import type { ClaudeFlowSetupResult } from '../commands/claude-flow-setup.js';
+import type { InitOrchestratorOptions } from '../../init/init-wizard.js';
 import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/plugin.js';
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
@@ -119,6 +110,7 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runModularInit(options: InitOptions, context: CLIContext): Promise<void> {
+    const { createModularInitOrchestrator } = await import('../../init/orchestrator.js');
     const orchestrator = createModularInitOrchestrator({
       projectRoot: process.cwd(),
       autoMode: options.auto,
@@ -156,6 +148,7 @@ export class InitHandler implements ICommandHandler {
     let cfResult: ClaudeFlowSetupResult | undefined;
     if (!options.skipClaudeFlow && (options.withClaudeFlow || result.success)) {
       try {
+        const { setupClaudeFlowIntegration } = await import('../commands/claude-flow-setup.js');
         cfResult = await setupClaudeFlowIntegration({
           projectRoot: process.cwd(),
           force: options.withClaudeFlow,
@@ -175,11 +168,13 @@ export class InitHandler implements ICommandHandler {
           console.log('');
         } else {
           // Show friendly message about standalone mode
+          const { getClaudeFlowNotFoundMessage } = await import('../../adapters/claude-flow/detect.js');
           console.log(chalk.gray(getClaudeFlowNotFoundMessage()));
           console.log('');
         }
       } catch {
         // Claude Flow detection failed — show friendly standalone message
+        const { getClaudeFlowNotFoundMessage } = await import('../../adapters/claude-flow/detect.js');
         console.log(chalk.gray(getClaudeFlowNotFoundMessage()));
         console.log('');
       }
@@ -215,6 +210,7 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runLegacyWizard(options: InitOptions, context: CLIContext): Promise<void> {
+    const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
       projectRoot: process.cwd(),
       autoMode: options.auto,
@@ -278,6 +274,12 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runStandardInit(options: InitOptions, context: CLIContext): Promise<void> {
+    const { QEKernelImpl } = await import('../../kernel/kernel.js');
+    const { CrossDomainEventRouter } = await import('../../coordination/cross-domain-router.js');
+    const { DefaultProtocolExecutor } = await import('../../coordination/protocol-executor.js');
+    const { WorkflowOrchestrator } = await import('../../coordination/workflow-orchestrator.js');
+    const { createQueenCoordinator } = await import('../../coordination/queen-coordinator.js');
+
     console.log(chalk.blue('\n  Initializing Agentic QE v3...\n'));
 
     // Determine enabled domains

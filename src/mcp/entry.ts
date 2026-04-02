@@ -21,6 +21,7 @@ import { bootstrapTokenTracking, shutdownTokenTracking } from '../init/token-boo
 import { initializeExperienceCapture, stopCleanupTimer } from '../learning/experience-capture-middleware.js';
 import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../strange-loop/infra-healing/index.js';
 import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.js';
+import { parallelPrefetch } from '../boot/parallel-prefetch.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,9 +37,15 @@ async function main(): Promise<void> {
   const version = pkg.version;
   process.stderr.write(`[agentic-qe-v3] MCP server starting v${version}\n`);
 
-  // Handle graceful shutdown
+  // Handle graceful shutdown (includes QualityDaemon)
   const shutdownDaemon = async () => {
-    try { const { getDaemon } = await import('../workers/daemon.js'); await getDaemon().stop(); } catch { /* ignore */ }
+    try {
+      const { getDaemon } = await import('../workers/daemon.js');
+      const daemon = getDaemon();
+      // Stop quality daemon first (if started)
+      try { const qd = daemon.getQualityDaemon(); await qd.stop(); } catch { /* not started */ }
+      await daemon.stop();
+    } catch { /* ignore */ }
   };
 
   process.on('SIGINT', async () => {
@@ -96,80 +103,98 @@ async function main(): Promise<void> {
   }) as typeof process.stderr.write;
 
   try {
-    // ADR-042: Initialize token tracking and optimization
-    originalStderrWrite('[MCP] Initializing token tracking...\n');
-    await bootstrapTokenTracking({
-      enableOptimization: true,
-      enablePersistence: true,
-      verbose: process.env.AQE_VERBOSE === 'true',
-    });
+    // IMP-06: Run independent init tasks in parallel via parallelPrefetch.
+    // Token tracking, experience capture, infra-healing, and fleet init are
+    // all independent — total startup time is bounded by the slowest task
+    // rather than the sum of all tasks.
+    originalStderrWrite('[MCP] Initializing subsystems in parallel...\n');
+    const prefetchResult = await parallelPrefetch([
+      {
+        // ADR-042: Initialize token tracking and optimization
+        name: 'token-tracking',
+        fn: async () => {
+          await bootstrapTokenTracking({
+            enableOptimization: true,
+            enablePersistence: true,
+            verbose: process.env.AQE_VERBOSE === 'true',
+          });
+        },
+      },
+      {
+        // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
+        // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
+        // from the first request, rather than lazy-initializing on first domain tool call.
+        name: 'experience-capture',
+        fn: async () => {
+          await initializeExperienceCapture();
+        },
+      },
+      {
+        // ADR-057: Initialize infrastructure self-healing
+        name: 'infra-healing',
+        fn: async () => {
+          const __filename = fileURLToPath(import.meta.url);
+          const __dirname = dirname(__filename);
+          const playbookPath = resolve(__dirname, '../strange-loop/infra-healing/default-playbook.yaml');
+          let playbookContent: string;
+          try {
+            playbookContent = readFileSync(playbookPath, 'utf-8');
+          } catch {
+            // Fallback for bundled environments where the YAML may not be at the resolved path
+            playbookContent = [
+              'services:',
+              '  postgres:',
+              '    healthCheck: "pg_isready -h localhost -p 5432"',
+              '    recover: "echo postgres-recovery-placeholder"',
+              '    verify: "pg_isready -h localhost -p 5432"',
+              '  redis:',
+              '    healthCheck: "redis-cli ping"',
+              '    recover: "echo redis-recovery-placeholder"',
+              '    verify: "redis-cli ping"',
+              '  node:',
+              '    healthCheck: "node --version"',
+              '    recover: "echo node-recovery-placeholder"',
+              '    verify: "node --version"',
+            ].join('\n');
+          }
 
-    // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
-    // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
-    // from the first request, rather than lazy-initializing on first domain tool call.
-    originalStderrWrite('[MCP] Initializing experience capture...\n');
-    await initializeExperienceCapture();
+          if (playbookContent) {
+            const infraOrchestrator = createInfraHealingOrchestratorSync({
+              commandRunner: new ShellCommandRunner(),
+              playbook: playbookContent,
+            });
+            setInfraHealingOrchestrator(infraOrchestrator);
+            originalStderrWrite(`[MCP] Infra-healing ready (${infraOrchestrator.getPlaybook().listServices().length} services)\n`);
+          } else {
+            originalStderrWrite('[MCP] Infra-healing skipped: no playbook found\n');
+          }
+        },
+      },
+      {
+        // Auto-initialize fleet so tools work without requiring fleet_init call
+        name: 'fleet-init',
+        fn: async () => {
+          const fleetResult = await handleFleetInit({
+            topology: 'hierarchical',
+            maxAgents: 15,
+            memoryBackend: 'hybrid',
+            lazyLoading: true,
+          });
+          if (fleetResult.success) {
+            originalStderrWrite(`[MCP] Fleet ready: ${fleetResult.data?.fleetId}\n`);
+          } else {
+            originalStderrWrite(`[MCP] WARNING: Fleet auto-init failed: ${fleetResult.error}\n`);
+          }
+        },
+      },
+    ]);
 
-    // ADR-057: Initialize infrastructure self-healing
-    originalStderrWrite('[MCP] Initializing infra-healing...\n');
-    try {
-      const __filename = fileURLToPath(import.meta.url);
-      const __dirname = dirname(__filename);
-      const playbookPath = resolve(__dirname, '../strange-loop/infra-healing/default-playbook.yaml');
-      let playbookContent: string;
-      try {
-        playbookContent = readFileSync(playbookPath, 'utf-8');
-      } catch {
-        // Fallback for bundled environments where the YAML may not be at the resolved path
-        playbookContent = [
-          'services:',
-          '  postgres:',
-          '    healthCheck: "pg_isready -h localhost -p 5432"',
-          '    recover: "echo postgres-recovery-placeholder"',
-          '    verify: "pg_isready -h localhost -p 5432"',
-          '  redis:',
-          '    healthCheck: "redis-cli ping"',
-          '    recover: "echo redis-recovery-placeholder"',
-          '    verify: "redis-cli ping"',
-          '  node:',
-          '    healthCheck: "node --version"',
-          '    recover: "echo node-recovery-placeholder"',
-          '    verify: "node --version"',
-        ].join('\n');
-      }
-
-      if (playbookContent) {
-        const infraOrchestrator = createInfraHealingOrchestratorSync({
-          commandRunner: new ShellCommandRunner(),
-          playbook: playbookContent,
-        });
-        setInfraHealingOrchestrator(infraOrchestrator);
-        originalStderrWrite(`[MCP] Infra-healing ready (${infraOrchestrator.getPlaybook().listServices().length} services)\n`);
-      } else {
-        originalStderrWrite('[MCP] Infra-healing skipped: no playbook found\n');
-      }
-    } catch (infraError) {
-      originalStderrWrite(`[MCP] WARNING: Infra-healing init failed: ${infraError}\n`);
-      // Non-fatal — MCP server continues without infra-healing
+    // Log prefetch results
+    if (prefetchResult.completedTasks.length > 0) {
+      originalStderrWrite(`[MCP] Initialized: ${prefetchResult.completedTasks.join(', ')} (${prefetchResult.totalTimeMs.toFixed(0)}ms)\n`);
     }
-
-    // Auto-initialize fleet so tools work without requiring fleet_init call
-    originalStderrWrite('[MCP] Auto-initializing fleet...\n');
-    try {
-      const fleetResult = await handleFleetInit({
-        topology: 'hierarchical',
-        maxAgents: 15,
-        memoryBackend: 'hybrid',
-        lazyLoading: true,
-      });
-      if (fleetResult.success) {
-        originalStderrWrite(`[MCP] Fleet ready: ${fleetResult.data?.fleetId}\n`);
-      } else {
-        originalStderrWrite(`[MCP] WARNING: Fleet auto-init failed: ${fleetResult.error}\n`);
-      }
-    } catch (fleetError) {
-      originalStderrWrite(`[MCP] WARNING: Fleet auto-init error: ${fleetError}\n`);
-      // Non-fatal — tools will prompt user to call fleet_init manually
+    for (const failed of prefetchResult.failedTasks) {
+      originalStderrWrite(`[MCP] WARNING: ${failed.name} init failed: ${failed.error}\n`);
     }
 
     // Start the MCP server
@@ -180,13 +205,41 @@ async function main(): Promise<void> {
     });
     originalStderrWrite('[MCP] Ready\n');
 
-    // Imp-10: Start background workers (heartbeat scheduler, etc.)
+    // IMP-10: Start background workers (heartbeat scheduler, etc.)
     try {
       const { getDaemon } = await import('../workers/daemon.js');
       const daemon = getDaemon({ autoStart: false });
       await daemon.start();
       const status = daemon.getStatus();
       originalStderrWrite(`[MCP] Background workers started (${status.workerManager.totalWorkers} workers)\n`);
+
+      // IMP-10: Start QualityDaemon with persistent memory (Finding 1 & 2 resolution)
+      try {
+        const { UnifiedMemoryManager } = await import('../kernel/unified-memory.js');
+        const { PersistentWorkerMemory } = await import('../workers/quality-daemon/persistent-memory.js');
+        const { isPrivateIp } = await import('../hooks/security/ssrf-guard.js');
+        const unifiedMemory = await UnifiedMemoryManager.getInstanceAsync();
+        const persistentMemory = new PersistentWorkerMemory(unifiedMemory);
+        const qualityDaemon = daemon.getQualityDaemon({
+          notifications: {
+            // IMP-07 SSRF guard: block private IPs in webhook URLs (Finding 5)
+            urlValidator: (url: string) => {
+              try {
+                const parsed = new URL(url);
+                const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
+                return !isPrivateIp(hostname);
+              } catch {
+                return false;
+              }
+            },
+          },
+        });
+        await qualityDaemon.start(persistentMemory);
+        originalStderrWrite(`[MCP] Quality daemon started\n`);
+      } catch (qdError) {
+        originalStderrWrite(`[MCP] WARNING: Quality daemon failed to start: ${qdError}\n`);
+        // Non-fatal — MCP continues without quality daemon
+      }
     } catch (daemonError) {
       originalStderrWrite(`[MCP] WARNING: Background workers failed to start: ${daemonError}\n`);
       // Non-fatal — MCP server continues without background workers
