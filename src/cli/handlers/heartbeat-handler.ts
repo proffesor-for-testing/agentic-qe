@@ -11,10 +11,8 @@ import * as path from 'path';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { ICommandHandler, CLIContext, formatDuration } from './interfaces.js';
-import { HeartbeatSchedulerWorker } from '../../workers/workers/heartbeat-scheduler.js';
 import type { WorkerResult } from '../../workers/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { findProjectRoot } from '../../kernel/unified-memory.js';
 
 // ============================================================================
 // Heartbeat Handler
@@ -25,11 +23,18 @@ export class HeartbeatHandler implements ICommandHandler {
   readonly description = 'Manage the token-free heartbeat scheduler';
 
   private cleanupAndExit: (code: number) => Promise<never>;
-  private worker: HeartbeatSchedulerWorker;
+  private worker: any;
 
   constructor(cleanupAndExit: (code: number) => Promise<never>) {
     this.cleanupAndExit = cleanupAndExit;
-    this.worker = new HeartbeatSchedulerWorker();
+  }
+
+  private async getWorker(): Promise<any> {
+    if (!this.worker) {
+      const { HeartbeatSchedulerWorker } = await import('../../workers/workers/heartbeat-scheduler.js');
+      this.worker = new HeartbeatSchedulerWorker();
+    }
+    return this.worker;
   }
 
   register(program: Command, _context: CLIContext): void {
@@ -90,6 +95,7 @@ export class HeartbeatHandler implements ICommandHandler {
 
   private async executeStatus(): Promise<void> {
     try {
+      this.worker = await this.getWorker();
       await this.worker.initialize();
       const health = this.worker.getHealth();
       const lastResult = this.worker.lastResult;
@@ -139,6 +145,7 @@ export class HeartbeatHandler implements ICommandHandler {
 
   private async executeRunNow(timeoutMs?: number): Promise<void> {
     try {
+      this.worker = await this.getWorker();
       console.log(chalk.blue('\n  Triggering heartbeat cycle...\n'));
 
       await this.worker.initialize();
@@ -191,7 +198,7 @@ export class HeartbeatHandler implements ICommandHandler {
       }
 
       // Store history entry
-      storeHistoryEntry(result);
+      await storeHistoryEntry(result);
 
       console.log('');
       await this.cleanupAndExit(result.success ? 0 : 1);
@@ -203,7 +210,7 @@ export class HeartbeatHandler implements ICommandHandler {
 
   private async executeHistory(count: number): Promise<void> {
     try {
-      const entries = loadHistoryEntries(count);
+      const entries = await loadHistoryEntries(count);
 
       if (entries.length === 0) {
         console.log(chalk.yellow('\n  No heartbeat history found. Run `aqe heartbeat run-now` first.\n'));
@@ -245,6 +252,7 @@ export class HeartbeatHandler implements ICommandHandler {
         return;
       }
 
+      const { findProjectRoot } = await import('../../kernel/unified-memory.js');
       const logDir = path.join(findProjectRoot(), '.agentic-qe', 'logs');
       const logPath = path.join(logDir, `${targetDate}.md`);
 
@@ -273,6 +281,7 @@ export class HeartbeatHandler implements ICommandHandler {
 
   private async executePause(): Promise<void> {
     try {
+      this.worker = await this.getWorker();
       this.worker.pause();
       console.log(chalk.yellow('\n  Heartbeat worker paused.\n'));
       await this.cleanupAndExit(0);
@@ -284,6 +293,7 @@ export class HeartbeatHandler implements ICommandHandler {
 
   private async executeResume(): Promise<void> {
     try {
+      this.worker = await this.getWorker();
       this.worker.resume();
       console.log(chalk.green('\n  Heartbeat worker resumed.\n'));
       await this.cleanupAndExit(0);
@@ -338,13 +348,14 @@ interface HeartbeatHistoryEntry {
 
 const MAX_HISTORY_ENTRIES = 100;
 
-function getHistoryPath(): string {
+async function getHistoryPath(): Promise<string> {
+  const { findProjectRoot } = await import('../../kernel/unified-memory.js');
   return path.join(findProjectRoot(), '.agentic-qe', 'heartbeat-history.json');
 }
 
-function storeHistoryEntry(result: WorkerResult): void {
+async function storeHistoryEntry(result: WorkerResult): Promise<void> {
   try {
-    const historyPath = getHistoryPath();
+    const historyPath = await getHistoryPath();
     const dir = path.dirname(historyPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -378,9 +389,9 @@ function storeHistoryEntry(result: WorkerResult): void {
   }
 }
 
-function loadHistoryEntries(count: number): HeartbeatHistoryEntry[] {
+async function loadHistoryEntries(count: number): Promise<HeartbeatHistoryEntry[]> {
   try {
-    const historyPath = getHistoryPath();
+    const historyPath = await getHistoryPath();
     if (!fs.existsSync(historyPath)) {
       return [];
     }
