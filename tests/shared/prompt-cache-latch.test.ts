@@ -157,4 +157,18 @@ describe('PromptCacheLatch', () => {
     // Same reference
     expect(latch.get('headers')).toBe(headers);
   });
+
+  describe('kill switch: AQE_PROMPT_CACHE_LATCH=false', () => {
+    it('should always overwrite when disabled', () => {
+      process.env.AQE_PROMPT_CACHE_LATCH = 'false';
+      const disabledLatch = new PromptCacheLatch();
+
+      expect(disabledLatch.latch('key', 'first')).toBe(true);
+      // Normally this would return false (locked). When disabled, it overwrites.
+      expect(disabledLatch.latch('key', 'second')).toBe(true);
+      expect(disabledLatch.get('key')).toBe('second');
+
+      delete process.env.AQE_PROMPT_CACHE_LATCH;
+    });
+  });
 });

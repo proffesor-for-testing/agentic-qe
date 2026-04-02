@@ -360,5 +360,19 @@ describe('MicrocompactEngine', () => {
       const { engine } = createMicrocompactMiddleware();
       expect(engine).toBeInstanceOf(MicrocompactEngine);
     });
+
+    describe('kill switch: AQE_MICROCOMPACT=false', () => {
+      beforeEach(() => { process.env.AQE_MICROCOMPACT = 'false'; });
+      afterEach(() => { delete process.env.AQE_MICROCOMPACT; });
+
+      it('should skip addResult and compact when disabled', async () => {
+        const { middleware, engine } = createMicrocompactMiddleware();
+        const ctx = createContext();
+        const result = await middleware.postToolResult!(ctx, 'test-data');
+
+        expect(result).toBe('test-data');
+        expect(engine.getEntries()).toHaveLength(0);
+      });
+    });
   });
 });

@@ -148,4 +148,19 @@ describe('validateHookUrl', () => {
     expect(result.safe).toBe(false);
     expect(result.reason).toContain('DNS resolves to private IP');
   });
+
+  describe('kill switch: AQE_HOOKS_SSRF_DISABLED=true', () => {
+    beforeEach(() => { process.env.AQE_HOOKS_SSRF_DISABLED = 'true'; });
+    afterEach(() => { delete process.env.AQE_HOOKS_SSRF_DISABLED; });
+
+    it('should allow private IPs when SSRF guard is disabled', async () => {
+      const result = await validateHookUrl('http://127.0.0.1:3000/hook');
+      expect(result.safe).toBe(true);
+    });
+
+    it('should allow any URL when SSRF guard is disabled', async () => {
+      const result = await validateHookUrl('http://10.0.0.1/internal');
+      expect(result.safe).toBe(true);
+    });
+  });
 });

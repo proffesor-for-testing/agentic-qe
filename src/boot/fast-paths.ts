@@ -30,8 +30,10 @@ export function detectBootMode(argv: string[]): BootMode {
 
 /**
  * Returns true when argv contains --version or -v.
+ * Disabled via AQE_FAST_PATHS=false.
  */
 export function isVersionFastPath(argv: string[]): boolean {
+  if (process.env.AQE_FAST_PATHS === 'false') return false;
   return argv.includes('--version') || argv.includes('-v');
 }
 

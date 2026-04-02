@@ -159,4 +159,22 @@ describe('CompactionPipeline', () => {
       expect(spy).toHaveBeenCalled();
     });
   });
+
+  describe('kill switch: AQE_COMPACTION_DISABLED=true', () => {
+    beforeEach(() => { process.env.AQE_COMPACTION_DISABLED = 'true'; });
+    afterEach(() => { delete process.env.AQE_COMPACTION_DISABLED; });
+
+    it('middleware should pass through result without tracking when disabled', async () => {
+      const p = new CompactionPipeline({ totalBudget: 100_000 });
+      const mw = p.createMiddleware();
+
+      const result = await mw.postToolResult!(
+        { toolName: 'test', params: {}, timestamp: Date.now(), metadata: {} },
+        'some-result',
+      );
+
+      expect(result).toBe('some-result');
+      expect(p.getStats().conversationMessages).toBe(0);
+    });
+  });
 });

@@ -359,3 +359,32 @@ describe('backwards compatibility shim', () => {
     expect(typeof shim.computeBackoff).toBe('function');
   });
 });
+
+describe('kill switch: AQE_RETRY_DISABLED=true', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    process.env.AQE_RETRY_DISABLED = 'true';
+  });
+  afterEach(() => {
+    delete process.env.AQE_RETRY_DISABLED;
+  });
+
+  it('should bypass retry and call fn exactly once', async () => {
+    const fn = vi.fn().mockResolvedValue('ok');
+    const result = await withRetry(fn, { maxAttempts: 5, baseDelayMs: 100, maxDelayMs: 1000, jitterFraction: 0 });
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(result.result).toBe('ok');
+    expect(result.attempts).toBe(1);
+    expect(result.totalDelayMs).toBe(0);
+    expect(result.retriedErrors).toEqual([]);
+  });
+
+  it('should throw immediately on failure without retrying', async () => {
+    const fn = vi.fn().mockRejectedValue(new Error('fail'));
+
+    await expect(withRetry(fn, { maxAttempts: 5, baseDelayMs: 100, maxDelayMs: 1000, jitterFraction: 0 }))
+      .rejects.toThrow('fail');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});

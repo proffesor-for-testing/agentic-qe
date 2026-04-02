@@ -202,3 +202,24 @@ describe('parallelPrefetch', () => {
     expect(result.totalTimeMs).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('kill switch: AQE_FAST_PATHS=false', () => {
+  let savedEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    savedEnv = { ...process.env };
+    process.env.AQE_FAST_PATHS = 'false';
+  });
+
+  afterEach(() => {
+    process.env = savedEnv;
+  });
+
+  it('isVersionFastPath returns false when disabled', () => {
+    expect(isVersionFastPath(['node', 'cli', '--version'])).toBe(false);
+  });
+
+  it('isVersionFastPath returns false for -v when disabled', () => {
+    expect(isVersionFastPath(['node', 'cli', '-v'])).toBe(false);
+  });
+});

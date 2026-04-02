@@ -256,13 +256,17 @@ export class CompactionPipeline {
   /**
    * Create a ToolMiddleware that plugs this pipeline into the IMP-00 chain.
    * Priority 200 — runs after microcompact (100) in post-hooks.
+   * Disabled via AQE_COMPACTION_DISABLED=true.
    */
   createMiddleware(): ToolMiddleware {
+    const compactionDisabled = process.env.AQE_COMPACTION_DISABLED === 'true';
+
     return {
       name: 'compaction-pipeline',
       priority: 200,
 
       postToolResult: async (context: ToolCallContext, result: unknown): Promise<unknown> => {
+        if (compactionDisabled) return result;
         // Estimate tokens from FULL content for accurate budget tracking,
         // but store truncated content for conversation history (summarization).
         const fullParamsStr = JSON.stringify(context.params);

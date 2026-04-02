@@ -40,8 +40,12 @@ export function isPrivateIp(ip: string): boolean {
 /**
  * Validate a hook URL for SSRF safety.
  * Blocks private IPs both as direct addresses and via DNS resolution.
+ * Disabled via AQE_HOOKS_SSRF_DISABLED=true (dev mode only).
  */
 export async function validateHookUrl(url: string): Promise<SsrfValidationResult> {
+  if (process.env.AQE_HOOKS_SSRF_DISABLED === 'true') {
+    return { safe: true };
+  }
   let parsed: URL;
   try {
     parsed = new URL(url);

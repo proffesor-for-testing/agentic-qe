@@ -226,12 +226,14 @@ export function createMicrocompactMiddleware(
   options?: MicrocompactOptions,
 ): MicrocompactMiddlewareResult {
   const engine = new MicrocompactEngine(options);
+  const disabled = process.env.AQE_MICROCOMPACT === 'false';
 
   const middleware: ToolMiddleware = {
     name: 'microcompact',
     priority: 100,
 
     async postToolResult(_context: ToolCallContext, result: unknown): Promise<unknown> {
+      if (disabled) return result;
       engine.addResult(_context.toolName, result);
       engine.compact();
       return result;

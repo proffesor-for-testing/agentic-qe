@@ -161,4 +161,17 @@ describe('PluginLifecycleManager', () => {
       expect(order.ordered[0].manifest.name).toBe('my-plugin');
     });
   });
+
+  describe('kill switch: AQE_PLUGINS_DISABLED=true', () => {
+    beforeEach(() => { process.env.AQE_PLUGINS_DISABLED = 'true'; });
+    afterEach(() => { delete process.env.AQE_PLUGINS_DISABLED; });
+
+    it('should refuse to install when plugins are disabled', async () => {
+      const manager = new PluginLifecycleManager();
+      const result = await manager.install('/any/path', 'local');
+
+      expect(result.success).toBe(false);
+      expect(result.errors[0]).toContain('AQE_PLUGINS_DISABLED');
+    });
+  });
 });

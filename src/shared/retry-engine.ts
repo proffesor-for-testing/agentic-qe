@@ -205,6 +205,12 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   options?: Partial<RetryOptions>,
 ): Promise<RetryResult<T>> {
+  // Kill switch: bypass retry entirely when disabled
+  if (process.env.AQE_RETRY_DISABLED === 'true') {
+    const result = await fn();
+    return { result, attempts: 1, totalDelayMs: 0, retriedErrors: [] };
+  }
+
   const opts: RetryOptions = { ...DEFAULT_OPTIONS, ...options };
   const isRetryable = opts.retryableErrors ?? isRetryableError;
 

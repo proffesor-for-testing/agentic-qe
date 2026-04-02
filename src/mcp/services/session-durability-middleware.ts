@@ -25,11 +25,14 @@ import type { SessionStore } from './session-store';
  * - onError: appends an `error` entry with state='requires_action'
  */
 export function createSessionDurabilityMiddleware(store: SessionStore): ToolMiddleware {
+  const disabled = process.env.AQE_SESSION_DURABILITY === 'false';
+
   return {
     name: 'session-durability',
     priority: 50,
 
     async preToolCall(context: ToolCallContext): Promise<ToolCallContext> {
+      if (disabled) return context;
       store.append({
         timestamp: context.timestamp,
         type: 'tool_call',
@@ -41,6 +44,7 @@ export function createSessionDurabilityMiddleware(store: SessionStore): ToolMidd
     },
 
     async postToolResult(context: ToolCallContext, result: unknown): Promise<unknown> {
+      if (disabled) return result;
       store.append({
         timestamp: Date.now(),
         type: 'tool_result',
@@ -52,6 +56,7 @@ export function createSessionDurabilityMiddleware(store: SessionStore): ToolMidd
     },
 
     async onError(context: ToolCallContext, error: Error): Promise<void> {
+      if (disabled) return;
       store.append({
         timestamp: Date.now(),
         type: 'error',

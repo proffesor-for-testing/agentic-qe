@@ -79,8 +79,17 @@ export class PluginLifecycleManager {
   /**
    * Install a plugin from a given location.
    * Runs the full lifecycle: resolve -> validate -> security check -> cache.
+   * Disabled via AQE_PLUGINS_DISABLED=true.
    */
   async install(location: string, sourceType: string = 'local'): Promise<InstallResult> {
+    if (process.env.AQE_PLUGINS_DISABLED === 'true') {
+      return {
+        success: false,
+        errors: ['Plugin loading is disabled (AQE_PLUGINS_DISABLED=true)'],
+        securityViolations: [],
+      };
+    }
+
     const errors: string[] = [];
 
     // 1. Get the source

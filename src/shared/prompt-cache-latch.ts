@@ -6,12 +6,18 @@
  */
 export class PromptCacheLatch {
   private latched: Map<string, unknown> = new Map();
+  private readonly disabled = process.env.AQE_PROMPT_CACHE_LATCH === 'false';
 
   /**
    * Latch a value. If already latched, this is a no-op (original preserved).
    * Returns true if the value was newly latched, false if already locked.
+   * When disabled via AQE_PROMPT_CACHE_LATCH=false, always stores the new value.
    */
   latch(key: string, value: unknown): boolean {
+    if (this.disabled) {
+      this.latched.set(key, value);
+      return true;
+    }
     if (this.latched.has(key)) {
       return false;
     }

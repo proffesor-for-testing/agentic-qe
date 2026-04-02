@@ -88,14 +88,22 @@ const INTERNAL_LOG_PREFIXES = [
   '[code-intelligence]', '[security-compliance]', '[contract-testing]',
   '[visual-accessibility]', '[chaos-resilience]', '[learning-optimization]',
   '[enterprise-integration]', '[coordination]', '[PatternLearnerService]',
-  '[RequirementsValidation]',
+  '[RequirementsValidation]', '[ParserRegistry]', '[AdversarialDefense]',
+  '[ContinueGateIntegration]', '[ContinueGate]', '[SQLitePatternStore]',
+  '[TokenTracking]', '[InfraHealing]', '[ExperienceCapture]',
 ];
+
+/** Timestamped log pattern: [HH:MM:SS.sss] [LEVEL] */
+const TIMESTAMPED_LOG_RE = /^\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s+\[/;
 
 const originalConsoleLog = console.log.bind(console);
 console.log = (...args: unknown[]) => {
   const first = typeof args[0] === 'string' ? args[0] : '';
   const trimmed = first.trimStart();
-  if (INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix))) {
+  if (
+    INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix)) ||
+    TIMESTAMPED_LOG_RE.test(trimmed)
+  ) {
     process.stderr.write(args.map(String).join(' ') + '\n');
     return;
   }
