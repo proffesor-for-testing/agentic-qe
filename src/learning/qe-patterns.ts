@@ -58,7 +58,8 @@ export type QEPatternType =
   | 'perf-benchmark' // Performance test patterns
   | 'flaky-fix' // Flaky test fix patterns
   | 'refactor-safe' // Refactoring patterns that preserve tests
-  | 'error-handling'; // Error handling test patterns
+  | 'error-handling' // Error handling test patterns
+  | 'meta-optimization'; // Meta-learning optimization insights (ADR-062)
 
 /**
  * Test framework identifiers

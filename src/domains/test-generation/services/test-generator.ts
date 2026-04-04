@@ -62,6 +62,38 @@ import { compilationValidator } from './compilation-validator.js';
 import { resolveTestFilePath } from './test-file-resolver.js';
 import { getPromptConfig } from '../prompts/language-prompts.js';
 
+// ============================================================================
+// ADR-062 Tier 2: Holdout Test Selection
+// ============================================================================
+
+/**
+ * FNV-1a hash of a string, returning a 32-bit unsigned integer.
+ * Deterministic: same input always produces the same output.
+ */
+function fnv1aHashU32(input: string, seed: number = 0): number {
+  let hash = (0x811c9dc5 ^ seed) >>> 0; // FNV offset basis, XOR with seed
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193); // FNV prime
+    hash = hash >>> 0; // Force unsigned 32-bit
+  }
+  return hash;
+}
+
+/**
+ * Deterministically decide whether a test ID should be a holdout test.
+ * Uses FNV-1a hash of the testId to select ~10% of tests as holdout.
+ *
+ * @param testId - Unique identifier for the test
+ * @param seed - Optional seed for the hash (default: 0)
+ * @returns true if this test should be flagged as holdout
+ */
+export function isHoldoutTest(testId: string, seed: number = 0): boolean {
+  const hash = fnv1aHashU32(testId, seed);
+  // Select bottom 10% of the hash space (0 to 0xFFFFFFFF)
+  return (hash % 100) < 10;
+}
+
 /**
  * Interface for the test generation service
  */
@@ -412,6 +444,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         if (fileTests.success) {
           tests.push(...fileTests.value.tests);
           patternsUsed.push(...fileTests.value.patternsUsed);
+        }
+      }
+
+      // ADR-062 Tier 2: Mark holdout tests when feature flag is enabled
+      if (process.env.AQE_HOLDOUT_TESTING_ENABLED === 'true') {
+        for (const test of tests) {
+          if (isHoldoutTest(test.id)) {
+            test.holdout = true;
+          }
         }
       }
 

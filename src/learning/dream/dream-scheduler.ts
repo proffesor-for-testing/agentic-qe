@@ -20,6 +20,17 @@ import type { EventBus, Subscription, MemoryBackend } from '../../kernel/interfa
 import type { DomainEvent } from '../../shared/types/index.js';
 import type { DreamEngine, DreamCycleResult } from './dream-engine.js';
 
+// ADR-062: Meta-learning integration
+import {
+  MetaLearningEngine,
+  DEFAULT_META_LEARNING_CONFIG,
+  type MetaInsight,
+} from '../aqe-learning-engine.js';
+import {
+  LearningMetricsTracker,
+  type UnifiedMetricsSnapshot,
+} from '../metrics-tracker.js';
+
 const logger: Logger = LoggerFactory.create('DreamScheduler');
 
 // ============================================================================
@@ -224,6 +235,16 @@ export class DreamScheduler {
   // Last result
   private lastDreamResult: DreamCycleResult | null = null;
 
+  // ADR-062: Meta-learning integration
+  private readonly metaLearningEngine: MetaLearningEngine;
+  private readonly metaLearningSnapshots: UnifiedMetricsSnapshot[] = [];
+  private metricsTracker: LearningMetricsTracker | null = null;
+  private static readonly MAX_META_SNAPSHOTS = 20;
+
+  /** Queryable store of detected meta-learning insights (Gap 1: persist, not just log) */
+  private readonly detectedInsights: MetaInsight[] = [];
+  private static readonly MAX_DETECTED_INSIGHTS = 100;
+
   /**
    * Create a new DreamScheduler instance.
    *
@@ -247,6 +268,9 @@ export class DreamScheduler {
     this.eventBus = dependencies.eventBus;
     this.memoryBackend = dependencies.memoryBackend;
     this.config = { ...DEFAULT_DREAM_SCHEDULER_CONFIG, ...config };
+
+    // ADR-062: Initialize meta-learning engine
+    this.metaLearningEngine = new MetaLearningEngine();
   }
 
   // ==========================================================================
@@ -326,6 +350,12 @@ export class DreamScheduler {
       subscription.unsubscribe();
     }
     this.subscriptions = [];
+
+    // Close meta-learning metrics tracker if initialized
+    if (this.metricsTracker) {
+      this.metricsTracker.close();
+      this.metricsTracker = null;
+    }
 
     // Save state before disposing
     await this.saveState();
@@ -459,6 +489,22 @@ export class DreamScheduler {
     return this.lastDreamResult;
   }
 
+  /**
+   * Return all detected meta-learning insights (most recent first).
+   *
+   * Gap 1 fix: insights are now stored in-memory rather than only logged,
+   * making them queryable by other subsystems (e.g., PatternStore consumers,
+   * quality gates, or dashboards).
+   *
+   * @param limit - Maximum number of insights to return (default: all)
+   * @returns Array of MetaInsight objects, newest first
+   */
+  getMetaInsights(limit?: number): MetaInsight[] {
+    // Return newest first (reverse of insertion order)
+    const reversed = [...this.detectedInsights].reverse();
+    return limit !== undefined ? reversed.slice(0, limit) : reversed;
+  }
+
   // ==========================================================================
   // Private: Dream Execution
   // ==========================================================================
@@ -500,6 +546,18 @@ export class DreamScheduler {
       // Publish dream completed event
       await this.publishDreamCompletedEvent(result);
 
+      // ADR-062: Run meta-learning analysis after dream cycle
+      if (process.env.AQE_META_LEARNING_ENABLED === 'true') {
+        try {
+          await this.runPostDreamMetaLearning();
+        } catch (metaErr) {
+          // Meta-learning failure must never break dream cycles
+          logger.warn('Post-dream meta-learning failed (non-critical)', {
+            error: metaErr instanceof Error ? metaErr.message : String(metaErr),
+          });
+        }
+      }
+
       // Reschedule next dream if running
       if (this.running) {
         this.scheduleNextDream();
@@ -531,6 +589,89 @@ export class DreamScheduler {
       } catch (err) {
         logger.error('Failed to auto-apply insight', err instanceof Error ? err : undefined, { insightId: insight.id });
       }
+    }
+  }
+
+  // ==========================================================================
+  // Private: Meta-Learning (ADR-062)
+  // ==========================================================================
+
+  /**
+   * Collect a metrics snapshot and, if enough have accumulated, run a
+   * meta-learning analysis cycle to detect token-waste, quality plateaus,
+   * learning stalls, and performance regressions.
+   */
+  private async runPostDreamMetaLearning(): Promise<void> {
+    // Lazily initialize the metrics tracker
+    if (!this.metricsTracker) {
+      this.metricsTracker = new LearningMetricsTracker();
+      await this.metricsTracker.initialize();
+    }
+
+    // Collect a unified snapshot
+    const snapshot = await this.metricsTracker.collectUnifiedSnapshot();
+    this.metaLearningSnapshots.push(snapshot);
+
+    // Cap the buffer at MAX_META_SNAPSHOTS (keep most recent)
+    while (this.metaLearningSnapshots.length > DreamScheduler.MAX_META_SNAPSHOTS) {
+      this.metaLearningSnapshots.shift();
+    }
+
+    // Run meta-learning if we have enough snapshots
+    const minRequired = DEFAULT_META_LEARNING_CONFIG.minSnapshotsForAnalysis;
+    if (this.metaLearningSnapshots.length >= minRequired) {
+      const insights = this.metaLearningEngine.runMetaLearningCycle(
+        this.metaLearningSnapshots,
+      );
+      if (insights.length > 0) {
+        logger.info('Meta-learning insights detected', {
+          count: insights.length,
+          types: insights.map(i => i.type),
+        });
+
+        // Gap 1: Store insights in queryable in-memory buffer (not just logs)
+        for (const insight of insights) {
+          logger.info(`Meta-insight [${insight.type}]: ${insight.description}`, {
+            confidence: insight.confidence.toFixed(2),
+            suggestedAction: insight.suggestedAction,
+          });
+          this.detectedInsights.push(insight);
+        }
+
+        // Cap the insights buffer at MAX_DETECTED_INSIGHTS (keep most recent)
+        while (this.detectedInsights.length > DreamScheduler.MAX_DETECTED_INSIGHTS) {
+          this.detectedInsights.shift();
+        }
+
+        // Publish event so other subsystems can react to meta-learning insights
+        try {
+          this.eventBus.publish({
+            id: uuidv4(),
+            type: 'meta-learning.insight-detected',
+            timestamp: new Date(),
+            source: 'learning-optimization',
+            payload: {
+              count: insights.length,
+              insights: insights.map(i => ({
+                id: i.id,
+                type: i.type,
+                description: i.description,
+                confidence: i.confidence,
+                suggestedAction: i.suggestedAction,
+                detectedAt: i.detectedAt,
+              })),
+            },
+          } satisfies DomainEvent);
+        } catch {
+          // Event publishing is best-effort; insight storage above is the primary mechanism
+          logger.debug('Failed to publish meta-learning insight event');
+        }
+      }
+    } else {
+      logger.debug('Meta-learning: accumulating snapshots', {
+        current: this.metaLearningSnapshots.length,
+        required: minRequired,
+      });
     }
   }
 

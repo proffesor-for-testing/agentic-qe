@@ -17,6 +17,7 @@
  */
 
 import { Xorshift128 } from '../../shared/utils/xorshift128.js';
+import { isHDCFingerprintingEnabled } from './feature-flags.js';
 
 // ============================================================================
 // Types
@@ -112,6 +113,225 @@ function hexDigest(bytes: Uint8Array): string {
     hex += HEX_CHARS[b >> 4] + HEX_CHARS[b & 0x0f];
   }
   return hex;
+}
+
+// ============================================================================
+// Standalone HDC Algebra Functions
+// ============================================================================
+
+/**
+ * Generate a random binary hypervector using crypto-quality randomness.
+ * @param dimensions Number of bits. Default: 10000
+ */
+export function createRandomHypervector(dimensions: number = DEFAULT_DIMENSIONS): Uint8Array {
+  const byteLen = Math.ceil(dimensions / 8);
+  const vector = new Uint8Array(byteLen);
+  // Use a time-seeded PRNG for non-deterministic random vectors
+  const seed = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
+  const rng = new Xorshift128(seed);
+  let idx = 0;
+  while (idx < byteLen) {
+    const rand = rng.next();
+    const count = Math.min(4, byteLen - idx);
+    for (let j = 0; j < count; j++) {
+      vector[idx++] = (rand >>> (j * 8)) & 0xff;
+    }
+  }
+  const trailingBits = dimensions % 8;
+  if (trailingBits > 0) {
+    vector[byteLen - 1] &= (1 << trailingBits) - 1;
+  }
+  return vector;
+}
+
+/**
+ * XOR binding — component-wise XOR of two packed-bit vectors.
+ * This is the key composition operation in HDC.
+ */
+export function bind(a: Uint8Array, b: Uint8Array): Uint8Array {
+  if (a.length !== b.length) {
+    throw new Error(`Cannot bind vectors of different lengths: ${a.length} vs ${b.length}`);
+  }
+  const result = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    result[i] = a[i] ^ b[i];
+  }
+  return result;
+}
+
+/**
+ * Majority-rule bundling — creates a "superposition" of vectors.
+ * For each bit position, takes the majority value across all input vectors.
+ * Ties are broken by setting the bit to 1 (arbitrary but deterministic).
+ */
+export function bundle(vectors: Uint8Array[]): Uint8Array {
+  if (vectors.length === 0) {
+    throw new Error('Cannot bundle zero vectors');
+  }
+  const byteLen = vectors[0].length;
+  for (let i = 1; i < vectors.length; i++) {
+    if (vectors[i].length !== byteLen) {
+      throw new Error(`Vector length mismatch at index ${i}: expected ${byteLen}, got ${vectors[i].length}`);
+    }
+  }
+  const result = new Uint8Array(byteLen);
+  const threshold = vectors.length / 2;
+  for (let byteIdx = 0; byteIdx < byteLen; byteIdx++) {
+    let resultByte = 0;
+    for (let bit = 0; bit < 8; bit++) {
+      let count = 0;
+      const mask = 1 << bit;
+      for (let v = 0; v < vectors.length; v++) {
+        if (vectors[v][byteIdx] & mask) count++;
+      }
+      // Majority rule: set bit if count > half, or count == half (tie-break to 1)
+      if (count >= threshold) resultByte |= mask;
+    }
+    result[byteIdx] = resultByte;
+  }
+  return result;
+}
+
+/**
+ * Hamming distance between two packed-bit vectors, normalized to [0, 1].
+ * @param dimensions Total number of bits for normalization. If omitted, uses byteLength * 8.
+ */
+export function hammingDistance(a: Uint8Array, b: Uint8Array, dimensions?: number): number {
+  if (a.length !== b.length) {
+    throw new Error(`Cannot compute Hamming distance for vectors of different lengths: ${a.length} vs ${b.length}`);
+  }
+  let dist = 0;
+  for (let i = 0; i < a.length; i++) {
+    dist += POPCOUNT_TABLE[a[i] ^ b[i]];
+  }
+  const totalBits = dimensions ?? a.length * 8;
+  return totalBits > 0 ? dist / totalBits : 0;
+}
+
+/**
+ * Hamming similarity: 1 - hammingDistance. Returns value in [0, 1].
+ */
+export function hammingSimilarity(a: Uint8Array, b: Uint8Array, dimensions?: number): number {
+  return 1 - hammingDistance(a, b, dimensions);
+}
+
+/**
+ * Circular bit shift (permutation) for sequence encoding.
+ * Shifts the entire bit vector left by `shifts` positions, wrapping around.
+ */
+export function permute(v: Uint8Array, shifts: number = 1): Uint8Array {
+  const totalBits = v.length * 8;
+  if (totalBits === 0) return new Uint8Array(0);
+  // Normalize shift to [0, totalBits)
+  const s = ((shifts % totalBits) + totalBits) % totalBits;
+  if (s === 0) return new Uint8Array(v);
+
+  const result = new Uint8Array(v.length);
+  for (let dst = 0; dst < totalBits; dst++) {
+    const src = (dst + s) % totalBits;
+    const srcByte = src >>> 3;
+    const srcBit = src & 7;
+    if (v[srcByte] & (1 << srcBit)) {
+      result[dst >>> 3] |= 1 << (dst & 7);
+    }
+  }
+  return result;
+}
+
+// ============================================================================
+// HDCPatternFingerprinter (Token-based)
+// ============================================================================
+
+/**
+ * Token-based HDC pattern fingerprinter.
+ *
+ * Maps string tokens deterministically to hypervectors, then composes
+ * them via XOR binding. Suitable for Agent Booster Tier 1 fingerprinting
+ * where tokens like "slow", "flaky", "database" are composed into a
+ * single concept fingerprint.
+ */
+export class HDCPatternFingerprinter {
+  private readonly dimensions: number;
+  private readonly baseSeed: number;
+  private readonly byteLen: number;
+  private readonly tokenCache: Map<string, Uint8Array> = new Map();
+
+  constructor(config?: { dimensions?: number; seed?: number }) {
+    this.dimensions = config?.dimensions ?? DEFAULT_DIMENSIONS;
+    this.baseSeed = config?.seed ?? DEFAULT_SEED;
+    this.byteLen = Math.ceil(this.dimensions / 8);
+
+    if (this.dimensions <= 0) {
+      throw new Error(`HDC dimensions must be positive, got ${this.dimensions}`);
+    }
+  }
+
+  /**
+   * Deterministic mapping from a string token to a hypervector.
+   * Uses seeded hash to generate bits. Results are cached.
+   */
+  tokenToHypervector(token: string): Uint8Array {
+    const cached = this.tokenCache.get(token);
+    if (cached) return new Uint8Array(cached);
+
+    const seed = fnv1a(token) ^ this.baseSeed;
+    const vector = this.generateSeededVector(seed);
+    this.tokenCache.set(token, vector);
+    return new Uint8Array(vector);
+  }
+
+  /**
+   * Bind all tokens: token1 XOR token2 XOR ... tokenN.
+   * XOR is commutative and associative, so order does not matter.
+   * Returns a zero vector for an empty token list.
+   */
+  fingerprintPattern(tokens: string[]): Uint8Array {
+    if (tokens.length === 0) return new Uint8Array(this.byteLen);
+    let result = this.tokenToHypervector(tokens[0]);
+    for (let i = 1; i < tokens.length; i++) {
+      result = bind(result, this.tokenToHypervector(tokens[i]));
+    }
+    return result;
+  }
+
+  /**
+   * Bind tokens, then bundle with a context fingerprint.
+   * Context tokens are fingerprinted separately (via XOR bind) and
+   * then bundled (majority-rule) with the main token fingerprint.
+   */
+  fingerprintWithContext(tokens: string[], context: string[]): Uint8Array {
+    const tokenFp = this.fingerprintPattern(tokens);
+    if (context.length === 0) return tokenFp;
+    const contextFp = this.fingerprintPattern(context);
+    return bundle([tokenFp, contextFp]);
+  }
+
+  /** Hamming similarity between two vectors, normalized to [0, 1]. */
+  similarity(a: Uint8Array, b: Uint8Array): number {
+    return hammingSimilarity(a, b, this.dimensions);
+  }
+
+  // --------------------------------------------------------------------------
+  // Internal
+  // --------------------------------------------------------------------------
+
+  private generateSeededVector(seed: number): Uint8Array {
+    const vector = new Uint8Array(this.byteLen);
+    const rng = new Xorshift128(seed);
+    let idx = 0;
+    while (idx < this.byteLen) {
+      const rand = rng.next();
+      const count = Math.min(4, this.byteLen - idx);
+      for (let j = 0; j < count; j++) {
+        vector[idx++] = (rand >>> (j * 8)) & 0xff;
+      }
+    }
+    const trailingBits = this.dimensions % 8;
+    if (trailingBits > 0) {
+      vector[this.byteLen - 1] &= (1 << trailingBits) - 1;
+    }
+    return vector;
+  }
 }
 
 // ============================================================================
@@ -288,4 +508,15 @@ export function createHdcFingerprinter(
   config?: Partial<HdcConfig>
 ): HdcFingerprinter {
   return new HdcFingerprinter(config);
+}
+
+/**
+ * Feature-flag-gated factory for HDCPatternFingerprinter.
+ * Returns null when isHDCFingerprintingEnabled() is false.
+ */
+export function createHDCFingerprinter(
+  config?: { dimensions?: number; seed?: number }
+): HDCPatternFingerprinter | null {
+  if (!isHDCFingerprintingEnabled()) return null;
+  return new HDCPatternFingerprinter(config);
 }

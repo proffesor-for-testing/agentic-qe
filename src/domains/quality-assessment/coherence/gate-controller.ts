@@ -16,6 +16,9 @@ import {
   CoherenceGatePolicy,
   DEFAULT_COHERENCE_GATE_POLICY,
   QualityDimensions,
+  RatchetConfig,
+  RatchetState,
+  DEFAULT_RATCHET_CONFIG,
 } from './types';
 import { LambdaCalculator, createLambdaCalculator } from './lambda-calculator';
 
@@ -524,6 +527,87 @@ export class CoherenceGateController {
       this.decisionHistory.shift();
     }
   }
+}
+
+// ============================================================================
+// ADR-062 Tier 2: Monotonic Gate Threshold Ratcheting
+// ============================================================================
+
+/**
+ * Check whether a ratchet should occur based on the gate pass/fail result
+ * and return the updated ratchet state.
+ *
+ * Ratcheting rules:
+ * - If gate passed: increment consecutivePasses
+ * - If consecutivePasses >= required AND cooldown elapsed: ratchet up
+ * - Threshold is capped at maxThreshold (95% default)
+ * - MONOTONIC INVARIANT: new threshold >= old threshold (never decreases)
+ * - If gate failed: reset consecutivePasses to 0
+ * - If feature flag disabled: return state unchanged
+ *
+ * @param passed - Whether the quality gate passed
+ * @param config - Ratchet configuration
+ * @param state - Current ratchet state
+ * @param now - Current timestamp in ms (default: Date.now())
+ * @returns Updated ratchet state
+ */
+export function checkRatchet(
+  passed: boolean,
+  config: RatchetConfig,
+  state: RatchetState,
+  now: number = Date.now()
+): RatchetState {
+  // Feature flag check: if disabled via env or config, return state unchanged
+  if (process.env.AQE_GATE_RATCHETING_ENABLED !== 'true' || !config.enabled) {
+    return state;
+  }
+
+  // Clone state to avoid mutation
+  const newState: RatchetState = {
+    currentThreshold: state.currentThreshold,
+    consecutivePasses: state.consecutivePasses,
+    lastRatchetTime: state.lastRatchetTime,
+    history: [...state.history],
+  };
+
+  if (!passed) {
+    // Gate failed: reset consecutive passes counter
+    newState.consecutivePasses = 0;
+    return newState;
+  }
+
+  // Gate passed: increment consecutive passes
+  newState.consecutivePasses = newState.consecutivePasses + 1;
+
+  // Check if we should ratchet
+  const hasEnoughPasses = newState.consecutivePasses >= config.consecutivePassesRequired;
+  const cooldownElapsed = (now - newState.lastRatchetTime) >= config.cooldownMs;
+
+  if (hasEnoughPasses && cooldownElapsed) {
+    // Calculate new threshold
+    const proposedThreshold = newState.currentThreshold + config.ratchetIncrementPercent;
+
+    // Cap at max threshold
+    const cappedThreshold = Math.min(proposedThreshold, config.maxThreshold);
+
+    // MONOTONIC INVARIANT: never decrease
+    const newThreshold = Math.max(cappedThreshold, newState.currentThreshold);
+
+    // Only record a ratchet if threshold actually changed
+    if (newThreshold > newState.currentThreshold) {
+      newState.currentThreshold = newThreshold;
+      newState.lastRatchetTime = now;
+      newState.history.push({
+        threshold: newThreshold,
+        ratchetedAt: now,
+      });
+    }
+
+    // Reset consecutive passes after ratchet attempt (whether or not threshold changed)
+    newState.consecutivePasses = 0;
+  }
+
+  return newState;
 }
 
 /**

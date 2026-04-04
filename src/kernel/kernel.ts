@@ -20,7 +20,9 @@ import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
 import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend } from './hybrid-backend';
-import { SemanticAntiDriftMiddleware } from './anti-drift-middleware.js';
+import { SemanticAntiDriftMiddleware, ToolCallSignatureTracker } from './anti-drift-middleware.js';
+import type { LoopDetectionResult } from './anti-drift-middleware.js';
+import { LOOP_EVENT_TYPES } from './event-bus.js';
 import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
 import { findProjectRoot } from './unified-memory.js';
 import { initializeUnifiedPersistence } from './unified-persistence.js';
@@ -92,6 +94,9 @@ export class QEKernelImpl implements QEKernel {
   private _startTime: Date;
   private _initialized = false;
 
+  // ADR-062: Loop detection tracker
+  private _loopTracker: ToolCallSignatureTracker;
+
   constructor(config: Partial<KernelConfig> = {}) {
     this._config = { ...DEFAULT_CONFIG, ...config };
     this._startTime = new Date();
@@ -107,6 +112,9 @@ export class QEKernelImpl implements QEKernel {
       this._memory,
       this._config.lazyLoading
     );
+
+    // ADR-062: Instantiate loop detection tracker alongside anti-drift middleware
+    this._loopTracker = new ToolCallSignatureTracker();
   }
 
   get eventBus(): EventBus {
@@ -410,6 +418,79 @@ export class QEKernelImpl implements QEKernel {
 
   getConfig(): KernelConfig {
     return { ...this._config };
+  }
+
+  // ==========================================================================
+  // ADR-062: Loop Detection
+  // ==========================================================================
+
+  /**
+   * Check a tool call for loop detection (ADR-062).
+   *
+   * Delegates to {@link ToolCallSignatureTracker.trackCall} and publishes
+   * `loop.warning` or `loop.detected` events to the EventBus when the
+   * tracker returns `warn` or `steer` respectively.
+   *
+   * Feature-flagged: returns `allow` immediately when
+   * `process.env.AQE_LOOP_DETECTION_ENABLED === 'false'`.
+   *
+   * @param agentId  - The agent making the tool call
+   * @param toolName - Name of the tool being called
+   * @param args     - Arguments to the tool call
+   * @returns The loop detection result
+   */
+  checkToolCall(agentId: string, toolName: string, args: unknown): LoopDetectionResult {
+    // Feature flag gate — tracker checks internally too, but we skip event
+    // publishing entirely when disabled to avoid unnecessary async work.
+    if (process.env.AQE_LOOP_DETECTION_ENABLED === 'false') {
+      return this._loopTracker.trackCall(agentId, toolName, args);
+    }
+
+    const result = this._loopTracker.trackCall(agentId, toolName, args);
+
+    if (result.action === 'warn') {
+      // Fire-and-forget: publish warning event
+      const warningEvent: import('../shared/types/index.js').DomainEvent = {
+        id: `loop-warn-${agentId}-${Date.now()}`,
+        type: LOOP_EVENT_TYPES.LOOP_WARNING,
+        timestamp: new Date(),
+        source: 'coordination',
+        correlationId: agentId,
+        payload: {
+          agentId,
+          toolName,
+          callCount: result.callCount,
+          signature: result.signature,
+        },
+      };
+      void this._eventBus.publish(warningEvent);
+    } else if (result.action === 'steer') {
+      // Fire-and-forget: publish loop-detected event
+      const detectedEvent: import('../shared/types/index.js').DomainEvent = {
+        id: `loop-detected-${agentId}-${Date.now()}`,
+        type: LOOP_EVENT_TYPES.LOOP_DETECTED,
+        timestamp: new Date(),
+        source: 'coordination',
+        correlationId: agentId,
+        payload: {
+          agentId,
+          toolName,
+          callCount: result.callCount,
+          signature: result.signature,
+          steeringMessage: result.steeringMessage,
+        },
+      };
+      void this._eventBus.publish(detectedEvent);
+    }
+
+    return result;
+  }
+
+  /**
+   * Get the internal ToolCallSignatureTracker for metrics / testing.
+   */
+  get loopTracker(): ToolCallSignatureTracker {
+    return this._loopTracker;
   }
 }
 

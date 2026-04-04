@@ -332,6 +332,8 @@ export {
   createAQELearningEngine,
   createDefaultLearningEngine,
   DEFAULT_ENGINE_CONFIG,
+  MetaLearningEngine,
+  DEFAULT_META_LEARNING_CONFIG,
 } from './aqe-learning-engine.js';
 
 export type {
@@ -340,6 +342,8 @@ export type {
   AQELearningEngineStats,
   TaskExecution,
   TaskStep,
+  MetaLearningConfig,
+  MetaInsight,
 } from './aqe-learning-engine.js';
 
 // ============================================================================
@@ -460,6 +464,7 @@ export {
 export type {
   LearningMetricsSnapshot,
   DashboardData,
+  UnifiedMetricsSnapshot,
 } from './metrics-tracker.js';
 
 // ============================================================================

@@ -65,6 +65,8 @@ export interface IGeneratedTest {
   llmEnhanced?: boolean;
   /** Test quality gate validation result (loki-mode Gates 8 & 9) */
   qualityGateResult?: TestQualityGateResult;
+  /** ADR-062: Whether this test is a holdout test (not shown to developer, runs in CI only) */
+  holdout?: boolean;
 }
 
 export interface ITDDRequest {

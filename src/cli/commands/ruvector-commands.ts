@@ -95,6 +95,9 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   // Phase 5 Milestone 4 (ADR-087)
   useEpropOnlineLearning: 'E-prop online learning, RL algorithm #10 (R11, ADR-087)',
   useGrangerCausality: 'Granger causality for test failure prediction (R12, ADR-087)',
+  // Phase 5 Milestone 5 (ADR-087)
+  useCognitiveRouting: 'Cognitive routing with predictive delta compression (R13, ADR-087)',
+  useHyperbolicHnsw: 'Hyperbolic HNSW with Poincare ball embeddings (R14, ADR-087)',
 };
 
 const PROFILES: Record<FlagProfile, Partial<RuVectorFeatureFlags>> = {

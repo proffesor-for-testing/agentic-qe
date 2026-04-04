@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-087 |
-| **Status** | Active (Milestones 1-4 complete, Milestone 5 backlog) |
+| **Status** | Implemented (14/14 capabilities + EWC++ across all 5 milestones) |
 | **Date** | 2026-03-29 |
 | **Author** | Architecture Team |
 | **Review Cadence** | Monthly (active implementation) |

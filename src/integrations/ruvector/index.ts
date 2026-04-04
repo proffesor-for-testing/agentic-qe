@@ -479,6 +479,9 @@ export {
   // Phase 5 Milestone 4 (ADR-087)
   isEpropOnlineLearningEnabled,
   isGrangerCausalityEnabled,
+  // Phase 5 Milestone 5 (ADR-087)
+  isCognitiveRoutingEnabled,
+  isHyperbolicHnswEnabled,
   DEFAULT_FEATURE_FLAGS,
   type RuVectorFeatureFlags,
 } from './feature-flags';
@@ -659,6 +662,14 @@ export {
 export {
   HdcFingerprinter,
   createHdcFingerprinter,
+  HDCPatternFingerprinter,
+  createHDCFingerprinter,
+  createRandomHypervector,
+  bind,
+  bundle,
+  hammingDistance,
+  hammingSimilarity,
+  permute,
   type HdcConfig,
   type PatternFingerprint,
 } from './hdc-fingerprint';
@@ -679,6 +690,17 @@ export {
   type DeltaTrackerConfig,
   type JsonPatch,
 } from './delta-tracker';
+
+// R3: Sparse Vector Delta Event Sourcing (ADR-087 Milestone 1)
+export {
+  VectorDeltaTracker,
+  createVectorDeltaTracker,
+  type PatternDelta,
+  type SparseChange,
+  type DeltaSnapshot,
+  type VectorDeltaTrackerConfig,
+  type VectorDeltaTrackerStats,
+} from './vector-delta-tracker';
 
 // ============================================================================
 // Phase 5: Graph Learning (ADR-087, Milestone 2)
@@ -766,6 +788,31 @@ export {
   type CausalLink,
   type GrangerConfig,
 } from './temporal-causality';
+
+// ============================================================================
+// Phase 5: Routing & Geometry (ADR-087, Milestone 5)
+// ============================================================================
+
+// R13: Cognitive Routing
+export {
+  CognitiveRouter,
+  MessagePredictor,
+  OscillatoryRouter,
+  createCognitiveRouter,
+  type CognitiveRoutingConfig,
+  type RoutedMessage,
+  type RoutingStats,
+} from './cognitive-routing';
+
+// R14: Hyperbolic HNSW
+export {
+  HyperbolicHNSW,
+  PoincareOperations,
+  createHyperbolicHNSW,
+  type HyperbolicConfig,
+  type HyperbolicPoint,
+  type HyperbolicSearchResult,
+} from './hyperbolic-hnsw';
 
 // ============================================================================
 // Shared Memory Integration (Fleet Integration)

@@ -1248,6 +1248,14 @@ export class ContractTestingCoordinator
           validationSuccess ? 1 : 0,
           contract.version.major / 10,
         ]);
+
+        // EWC++ outcome recording: reward based on validation result
+        try {
+          this.qesona!.recordOutcome(validationSuccess ? quality : -quality);
+          if (this.qesona!.shouldConsolidate()) {
+            try { this.qesona!.backgroundConsolidate(); } catch { /* best-effort */ }
+          }
+        } catch { /* must not break main flow */ }
       }
 
       const action: RLAction = {

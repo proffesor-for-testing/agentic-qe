@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085); CC-Internals ADRs implemented (ADR-088, ADR-089)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-04-02 (74 Implemented, 7 In Progress, 5 Proposed, 4 Rejected)
+**Last Verified:** 2026-04-04 (75 Implemented, 9 In Progress, 1 Proposed, 4 Rejected)
 
 ---
 
@@ -70,10 +70,10 @@
 | [ADR-056](./ADR-056-skill-validation-system.md) | Deterministic Skill Validation System | **Implemented** | 2026-02-02 | ✅ 46 Tier 3 skills, 52 validators, CLI commands (`aqe skill`, `aqe eval`) |
 | [ADR-057](./ADR-057-infra-self-healing.md) | Infrastructure Self-Healing Extension | **Implemented** | 2026-02-02 | ✅ Extends Strange Loop to detect and recover infrastructure failures |
 | [ADR-058](./ADR-058-guidance-governance-integration.md) | @claude-flow/guidance Governance Integration | **Implemented** | 2026-02-04 | ✅ 16 governance modules + GovernanceAwareDomainMixin wired to 12 domain coordinators + Queen/ReasoningBank/MCP integration + 657 tests |
-| [ADR-059](./ADR-059-ghost-intent-coverage.md) | Ghost Intent Coverage Analysis | **Proposed** | 2026-02-06 | Phantom test surface detection via HNSW ghost vectors (inspired by AISP ψ_g) |
-| [ADR-060](./ADR-060-semantic-anti-drift.md) | Semantic Anti-Drift Protocol | **Proposed** | 2026-02-06 | HNSW semantic fingerprinting on domain events for drift detection (inspired by AISP anti-drift) |
-| [ADR-061](./ADR-061-asymmetric-learning-rates.md) | Asymmetric Learning Rates for ReasoningBank | **Proposed** | 2026-02-06 | 10:1 Hebbian failure penalty + pattern quarantine (inspired by AISP Hebbian learning) |
-| [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **In Progress** | 2026-02-08 | ⚙️ Tier 1 complete (loop detection, token dashboard), Tier 2-3 pending |
+| [ADR-059](./ADR-059-ghost-intent-coverage.md) | Ghost Intent Coverage Analysis | **Implemented** | 2026-02-06 | ✅ GhostCoverageAnalyzerService: computePhantomSurface + detectPhantomGaps + 6 gap categories, wired to coverage coordinator + MCP + CLI, 54 tests |
+| [ADR-060](./ADR-060-semantic-anti-drift.md) | Semantic Anti-Drift Protocol | **Implemented** | 2026-02-06 | ✅ SemanticAntiDriftMiddleware: onEmit fingerprint + onReceive drift check + per-category thresholds + transformer fallback, wired to kernel EventBus, 110 tests |
+| [ADR-061](./ADR-061-asymmetric-learning-rates.md) | Asymmetric Learning Rates for ReasoningBank | **Implemented** | 2026-02-06 | ✅ AsymmetricLearningEngine: 10:1 Hebbian ratio + quarantine + rehabilitation + infrastructure classification + per-domain overrides (security 20:1, test-gen 7:1), wired to ReasoningBank, 51 tests |
+| [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Implemented** | 2026-02-08 | ✅ All 3 tiers: Tier 1 (loop detection wired to kernel+EventBus+healing, token dashboard), Tier 2 (holdout testing 10% FNV-1a, gate ratcheting monotonic 5-pass/2%/95%), Tier 3 (progressive context TF-IDF prediction, meta-learning cycle 4 insight types). 64 new tests. |
 | [ADR-063](./ADR-063-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
 | [ADR-064](./ADR-064-agentic-teams-integration.md) | Agent Teams Integration for AQE Fleet | **Implemented** | 2026-02-09 | ✅ All 4 phases: mailbox messaging, fleet tiers, task DAG, circuit breakers, tracing, competing hypotheses, federation, dynamic scaling. 397+ tests. |
 | [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **In Progress** | 2026-02-10 | ⚙️ Hybrid SQLite+RVF operational, full migration (ADR-072) not started |
@@ -97,8 +97,8 @@
 | [ADR-083](./ADR-083-coherence-gated-agent-actions.md) | Coherence-Gated Agent Actions | **In Progress** | 2026-03-15 | ✅ CohomologyEngine (prime-radiant-advanced-wasm) integrated for sheaf Laplacian coherence; action gate is TS heuristic |
 | [ADR-084](./ADR-084-cross-domain-transfer-learning.md) | Cross-Domain Transfer Learning | **In Progress** | 2026-03-15 | ✅ Thompson Sampling + verification gate + real CoherenceGate wired via feature flag |
 | [ADR-085](./ADR-085-temporal-tensor-pattern-compression.md) | Temporal Tensor Pattern Compression | **Implemented** | 2026-03-15 | ✅ TypeScript tiered quantization (4x compression); no native package exists, TS IS production |
-| [ADR-086](./ADR-086-skill-design-standards.md) | Skill Design Standards — Anthropic Best Practices | **Proposed** | 2026-03-18 | 9 design standards from Anthropic's internal skill practices: gotchas sections, trigger descriptions, progressive disclosure, composable scripts, config.json setup, on-demand hooks. Builds on ADR-056. Seeded from Nagual + local DB failure data. |
-| [ADR-087](./ADR-087-ruvector-advanced-capabilities.md) | RuVector Advanced Capabilities — Phase 5 Integration | **Proposed** | 2026-03-29 | 14 new capabilities + EWC++ completion (persistence wired, production call sites needed). Prerequisites: coherence-gate extraction, performance baselines, pattern citation graph. 5 milestones, ~110 new tests. [Plan](../ruvector-improvements-plan.md) |
+| [ADR-086](./ADR-086-skill-design-standards.md) | Skill Design Standards — Anthropic Best Practices | **In Progress** | 2026-03-18 | ⚙️ Phase 1 partial: 30/84 QE skills have Gotchas sections (36%), ~47 have trigger descriptions. Phase 2-4 (progressive disclosure, composable scripts, skill consolidation) not started. |
+| [ADR-087](./ADR-087-ruvector-advanced-capabilities.md) | RuVector Advanced Capabilities — Phase 5 Integration | **Implemented** | 2026-03-29 | ✅ All 14/14 capabilities + EWC++ across 5 milestones: M1 (HDC, CUSUM, Delta, EWC++ wired), M2 (GraphMAE, Hopfield, ColdTier), M3 (MetaLearning, Solver, Sparsifier, Reservoir), M4 (E-prop, Granger), M5 (CognitiveRouting, HyperbolicHNSW). All feature-flag gated. [Plan](../ruvector-improvements-plan.md) |
 | [ADR-088](./ADR-088-prompt-cache-latch-fields.md) | Prompt Cache Latch Fields for API Cost Optimization | **Implemented** | 2026-04-01 | ✅ IMP-05: PromptCacheLatch in claude-provider.ts, latches model/max_tokens/system per session, 13 tests |
 | [ADR-089](./ADR-089-four-tier-context-compaction.md) | Four-Tier Context Compaction Pipeline | **Implemented** | 2026-04-01 | ✅ IMP-08: CompactionPipeline (Tier 1 microcompact + Tier 2 session summary + Tier 3 LLM compact + Tier 4 reactive), ContextBudgetTracker with 5 states, 413 detection, 61 tests |
 

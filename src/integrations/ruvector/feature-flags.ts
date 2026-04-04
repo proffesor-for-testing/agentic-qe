@@ -355,6 +355,30 @@ export interface RuVectorFeatureFlags {
    * @default false
    */
   useGrangerCausality: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 5: Routing & Geometry
+  // ==========================================================================
+
+  /**
+   * Enable Cognitive Routing (R13, ADR-087)
+   * Predictive coding for agent communication bandwidth reduction. Predicts
+   * next message from sliding window context and sends only the delta.
+   * Oscillatory routing multiplexes concurrent message streams.
+   * Consumer: agent communication layer
+   * @default false
+   */
+  useCognitiveRouting: boolean;
+
+  /**
+   * Enable Hyperbolic HNSW (R14, ADR-087)
+   * Poincare ball embeddings for hierarchical data. Maps tree-structured data
+   * (module hierarchies, test suite trees) into hyperbolic space where distances
+   * naturally preserve parent-child relationships.
+   * Consumer: code-intelligence hierarchical search
+   * @default false
+   */
+  useHyperbolicHnsw: boolean;
 }
 
 // ============================================================================
@@ -401,6 +425,9 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   // Phase 5 Milestone 4 (ADR-087) — verified, default true (opt-out)
   useEpropOnlineLearning: true,
   useGrangerCausality: true,
+  // Phase 5 Milestone 5 (ADR-087) — backlog/speculative, default false (opt-in)
+  useCognitiveRouting: false,
+  useHyperbolicHnsw: false,
 };
 
 // ============================================================================
@@ -750,6 +777,24 @@ export function isGrangerCausalityEnabled(): boolean {
   return currentFeatureFlags.useGrangerCausality;
 }
 
+// Phase 5 Milestone 5 (ADR-087) convenience functions
+
+/**
+ * Check if Cognitive Routing is enabled (R13, ADR-087)
+ * @returns true if useCognitiveRouting flag is set
+ */
+export function isCognitiveRoutingEnabled(): boolean {
+  return currentFeatureFlags.useCognitiveRouting;
+}
+
+/**
+ * Check if Hyperbolic HNSW is enabled (R14, ADR-087)
+ * @returns true if useHyperbolicHnsw flag is set
+ */
+export function isHyperbolicHnswEnabled(): boolean {
+  return currentFeatureFlags.useHyperbolicHnsw;
+}
+
 // ============================================================================
 // Environment Variable Support
 // ============================================================================
@@ -889,6 +934,15 @@ export function initFeatureFlagsFromEnv(): void {
 
   if (process.env.RUVECTOR_USE_GRANGER_CAUSALITY !== undefined) {
     envFlags.useGrangerCausality = process.env.RUVECTOR_USE_GRANGER_CAUSALITY === 'true';
+  }
+
+  // Phase 5 Milestone 5 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_COGNITIVE_ROUTING !== undefined) {
+    envFlags.useCognitiveRouting = process.env.RUVECTOR_USE_COGNITIVE_ROUTING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_HYPERBOLIC_HNSW !== undefined) {
+    envFlags.useHyperbolicHnsw = process.env.RUVECTOR_USE_HYPERBOLIC_HNSW === 'true';
   }
 
   setRuVectorFeatureFlags(envFlags);
