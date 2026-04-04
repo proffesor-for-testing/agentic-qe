@@ -30,9 +30,16 @@ interface ManagedAgent {
 export class DefaultAgentCoordinator implements AgentCoordinator {
   private agents: Map<string, ManagedAgent> = new Map();
   private maxAgents: number;
+  // ADR-067: Optional agent memory branching service
+  private memoryBranch: import('../coordination/agent-memory-branch.js').AgentMemoryBranch | null = null;
 
   constructor(maxAgents: number = AGENT_CONSTANTS.MAX_CONCURRENT_AGENTS) {
     this.maxAgents = maxAgents;
+  }
+
+  /** Attach an AgentMemoryBranch service for per-agent COW isolation (ADR-067) */
+  setMemoryBranch(branch: import('../coordination/agent-memory-branch.js').AgentMemoryBranch): void {
+    this.memoryBranch = branch;
   }
 
   async spawn(config: AgentSpawnConfig): Promise<Result<string, Error>> {
@@ -89,6 +96,20 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
     };
 
     this.agents.set(id, agent);
+
+    // ADR-067: Create memory branch for isolated agent workspace
+    if (this.memoryBranch) {
+      try {
+        const handle = this.memoryBranch.createBranch(id);
+        agent.config = {
+          ...agent.config,
+          _memoryBranchPath: handle.childPath,
+        };
+      } catch (error) {
+        // Branch creation must not block agent spawning
+        console.warn(`[AgentCoordinator] Memory branch creation failed for ${id}:`, error);
+      }
+    }
 
     return ok(id);
   }
@@ -164,6 +185,8 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
     if (agent && agent.status === 'running') {
       agent.status = 'completed';
       agent.completedAt = new Date();
+      // ADR-067: Merge successful agent's memory branch
+      this.handleBranchOnComplete(agentId, 'merge');
     }
   }
 
@@ -172,6 +195,28 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
     if (agent && agent.status === 'running') {
       agent.status = 'failed';
       agent.completedAt = new Date();
+      // ADR-067: Discard failed agent's memory branch
+      this.handleBranchOnComplete(agentId, 'discard');
+    }
+  }
+
+  /** ADR-067: Handle branch merge or discard on agent completion */
+  private handleBranchOnComplete(agentId: string, action: 'merge' | 'discard'): void {
+    if (!this.memoryBranch) return;
+    const handle = this.memoryBranch.getBranch(agentId);
+    if (!handle) return;
+
+    try {
+      if (action === 'merge') {
+        // Fire-and-forget — merge is async but we don't block completion
+        this.memoryBranch.mergeBranch(handle).catch(error => {
+          console.warn(`[AgentCoordinator] Branch merge failed for ${agentId}:`, error);
+        });
+      } else {
+        this.memoryBranch.discardBranch(handle);
+      }
+    } catch (error) {
+      console.warn(`[AgentCoordinator] Branch ${action} failed for ${agentId}:`, error);
     }
   }
 

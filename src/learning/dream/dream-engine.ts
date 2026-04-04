@@ -325,6 +325,12 @@ export class DreamEngine {
   private _witnessChain: WitnessChain | null = null;
   set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
 
+  /** Optional RVF adapter for COW branching (ADR-069). Set externally to share with PatternStore. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _rvfAdapter: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  set rvfAdapter(adapter: any) { this._rvfAdapter = adapter; }
+
   constructor(config?: Partial<DreamConfig>) {
     this.config = { ...DEFAULT_DREAM_CONFIG, ...config };
   }
@@ -359,6 +365,13 @@ export class DreamEngine {
           this.db,
           this.config.branchValidationThresholds,
         );
+
+        // ADR-069: Wire RVF adapter for true COW branching when available
+        // Uses externally-provided adapter to avoid duplicate file handles
+        if (this._rvfAdapter) {
+          this.branchManager.setRvfAdapter(this._rvfAdapter, true);
+          console.log('[DreamEngine] RVF COW branching activated (ADR-069)');
+        }
       }
 
       this.initialized = true;

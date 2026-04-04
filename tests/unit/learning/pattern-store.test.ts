@@ -15,6 +15,11 @@ import {
 } from '../../../src/learning/pattern-store.js';
 import type { QEPattern, QEPatternType, QEDomain } from '../../../src/learning/qe-patterns.js';
 import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
+import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+
+// Ensure these tests exercise the in-memory PatternStore, not the RVF variant
+beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
+afterEach(() => { resetRuVectorFeatureFlags(); });
 
 // ============================================================================
 // Mock Factory

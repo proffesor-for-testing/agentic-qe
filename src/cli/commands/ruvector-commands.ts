@@ -78,6 +78,10 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useDAGAttention: 'DAG attention for test scheduling (Task 4.2)',
   useCoherenceActionGate: 'Coherence-gated agent actions (ADR-083, Task 3.2)',
   useReasoningQEC: 'Reasoning QEC error correction (Task 4.5)',
+  // RVF Cluster (ADR-065–072)
+  useRVFPatternStore: 'RVF-backed PatternStore with persistent HNSW (ADR-066)',
+  useAgentMemoryBranching: 'Agent memory branching via RVF COW (ADR-067)',
+  useUnifiedHnsw: 'Unified HNSW provider replacing 3 legacy impls (ADR-071)',
   // Phase 5 (ADR-087)
   useHDCFingerprinting: 'HDC pattern fingerprinting (R1, ADR-087)',
   useCusumDriftDetection: 'CUSUM drift detection (R2, ADR-087)',

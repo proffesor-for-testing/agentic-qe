@@ -44,7 +44,7 @@ import {
   checkAntiPatterns,
 } from './qe-guidance.js';
 import {
-  PatternStore,
+  type IPatternStore,
   PatternSearchOptions,
   PatternSearchResult,
   createPatternStore,
@@ -108,7 +108,7 @@ import {
  */
 export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
-  private patternStore: PatternStore;
+  private patternStore: IPatternStore;
   private initialized = false;
   private sqliteStore: SQLitePatternStore | null = null;
   private rvfDualWriter: RvfDualWriter | null = null;
@@ -173,7 +173,7 @@ export class QEReasoningBank implements IQEReasoningBank {
     try {
       const store = this.getSqliteStore();
       await store.initialize();
-      this.patternStore.setSqliteStore(store);
+      this.patternStore.setSqliteStore?.(store);
     } catch (e) {
       logger.warn('Failed to wire SQLitePatternStore into PatternStore', { error: toErrorMessage(e) });
     }

@@ -7,6 +7,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+
+// Ensure these tests exercise the in-memory PatternStore, not the RVF variant
+beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
+afterEach(() => { resetRuVectorFeatureFlags(); });
+
 import {
   AQELearningEngine,
   createAQELearningEngine,

@@ -4,7 +4,7 @@
 **Date Range:** 2026-01-07 onwards
 **Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085); CC-Internals ADRs implemented (ADR-088, ADR-089)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-04-04 (75 Implemented, 9 In Progress, 1 Proposed, 4 Rejected)
+**Last Verified:** 2026-04-04 (78 Implemented, 6 In Progress, 1 Proposed, 4 Rejected)
 
 ---
 
@@ -76,13 +76,13 @@
 | [ADR-062](./ADR-062-strongdm-software-factory.md) | StrongDM Software Factory Integration | **Implemented** | 2026-02-08 | ✅ All 3 tiers: Tier 1 (loop detection wired to kernel+EventBus+healing, token dashboard), Tier 2 (holdout testing 10% FNV-1a, gate ratcheting monotonic 5-pass/2%/95%), Tier 3 (progressive context TF-IDF prediction, meta-learning cycle 4 insight types). 64 new tests. |
 | [ADR-063](./ADR-063-enterprise-integration-testing.md) | Enterprise Integration Testing Gap Closure | **Implemented** | 2026-02-04 | ✅ 7 new agents + 4 new skills + enterprise-integration bounded context (13th domain) + QCSD flag extensions |
 | [ADR-064](./ADR-064-agentic-teams-integration.md) | Agent Teams Integration for AQE Fleet | **Implemented** | 2026-02-09 | ✅ All 4 phases: mailbox messaging, fleet tiers, task DAG, circuit breakers, tracing, competing hypotheses, federation, dynamic scaling. 397+ tests. |
-| [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **In Progress** | 2026-02-10 | ⚙️ Hybrid SQLite+RVF operational, full migration (ADR-072) not started |
-| [ADR-066](./ADR-066-rvf-pattern-store-progressive-hnsw.md) | RVF-Backed PatternStore with Progressive HNSW | **In Progress** | 2026-02-10 | ⚙️ RVF backend ready, full deployment as default incomplete |
-| [ADR-067](./ADR-067-agent-memory-branching-rvf-cow.md) | Agent Memory Branching via RVF COW | **In Progress** | 2026-02-10 | ⚙️ COW infrastructure exists, merge strategies and witness tracking incomplete |
+| [ADR-065](./ADR-065-rvf-integration-hybrid-architecture.md) | RVF Integration — Hybrid Architecture | **Implemented** | 2026-02-10 | ✅ Hybrid SQLite+RVF operational: RvfPatternStore (vectors in RVF) + SQLite (metadata), @ruvector/gnn 0.1.25, factory routing via feature flag |
+| [ADR-066](./ADR-066-rvf-pattern-store-progressive-hnsw.md) | RVF-Backed PatternStore with Progressive HNSW | **Implemented** | 2026-02-10 | ✅ RvfPatternStore via RvfNativeAdapter, factory routing with dir guard, real native benchmarks (1.2ms cold-start, 0.19ms search p50, 1.0 recall), migration utility, 16+5 tests |
+| [ADR-067](./ADR-067-agent-memory-branching-rvf-cow.md) | Agent Memory Branching via RVF COW | **Implemented** | 2026-02-10 | ✅ AgentMemoryBranch service with derive() COW, ingest-log merge (no zero-vectors), witness chain, wired into kernel boot via Kernel.initialize(), 17 tests |
 | [ADR-068](./ADR-068-mincut-gated-model-routing.md) | MinCut-Gated Model Routing | **Implemented** | 2026-02-22 | ✅ Mincut criticality scoring integrated into routing, structural complexity routing operational |
-| [ADR-069](./ADR-069-rvcow-dream-cycle-branching.md) | RVCOW Dream Cycle Branching | **In Progress** | 2026-02-22 | ⚙️ Dream engine with RVCOW isolation operational, validation gate incomplete |
+| [ADR-069](./ADR-069-rvcow-dream-cycle-branching.md) | RVCOW Dream Cycle Branching | **In Progress** | 2026-02-22 | ⚙️ RVCOWBranchManager calls derive() alongside SQLite savepoint, validation gate enhanced with recall check, DreamEngine accepts external adapter (no duplicate handle). Pending: dream executes against SQLite (RVF fork is supplementary), full RVF-primary dream execution |
 | [ADR-070](./ADR-070-witness-chain-audit-compliance.md) | Witness Chain Audit Compliance | **Implemented** | 2026-02-22 | ✅ SHAKE-256 witness chain + Ed25519 signing integrated in RVF persistence + brain export |
-| [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **In Progress** | 2026-02-22 | ⚙️ Provider interface exists, 3 implementations not yet consolidated |
+| [ADR-071](./ADR-071-hnsw-implementation-unification.md) | HNSW Implementation Unification | **In Progress** | 2026-02-22 | ⚙️ Phase A complete: HnswLegacyBridge adapts IHNSWIndex→IHnswIndexProvider with ID mapping, useUnifiedHnsw=true, 12 tests. Phase B (decommission old impls) not started — 3 old implementations still coexist. |
 | [ADR-072](./ADR-072-rvf-primary-persistence-migration.md) | RVF Primary Persistence Migration | **Proposed** | 2026-02-22 | 4-stage migration from SQLite hybrid to RVF primary with go/no-go gates |
 | [ADR-073](./ADR-073-portable-intelligence-containers.md) | Portable Intelligence Containers | **Implemented** | 2026-02-22 | ✅ brain-rvf-exporter + brain-handler, export/import with checksums, Ed25519 signing |
 | [ADR-074](./ADR-074-loki-mode-adversarial-quality-gates.md) | Loki-Mode Adversarial Quality Gates | **Implemented** | 2026-03-04 | ✅ 7 features: sycophancy scorer, test quality gates, blind review, EMA calibration, edge-case injection, complexity composition, auto-escalation. 178 tests, 14 new files, 6 config flags (enabled by default). |

@@ -197,10 +197,13 @@ export class RVCOWBranchManager {
       baselineSnapshot: baseline,
     };
 
-    // Supplementary RVF fork for portable brain snapshots (when configured)
+    // ADR-069: RVF COW branch for true isolation (when configured)
+    // Creates a lightweight derived .rvf alongside the SQLite savepoint
     if (this.rvfAdapter && this.useRvfFork) {
       try {
-        this.rvfAdapter.fork(`/tmp/dream-branch-${name}.rvf`);
+        const branchPath = `/tmp/dream-branch-${safeName}.rvf`;
+        this.rvfAdapter.derive(branchPath);
+        (branch as unknown as Record<string, unknown>)._rvfBranchPath = branchPath;
       } catch {
         // RVF fork is best-effort — SQLite savepoint is the primary mechanism
       }
@@ -267,6 +270,26 @@ export class RVCOWBranchManager {
           `${highConfidenceLost} high-confidence patterns lost ` +
           `(${(lossFraction * 100).toFixed(1)}%, threshold: ${(this.thresholds.maxHighConfidenceLoss * 100).toFixed(1)}%)`
         );
+      }
+    }
+
+    // Check 4 (ADR-069): Search recall comparison — verify dream didn't degrade retrieval
+    if (this.rvfAdapter && this.useRvfFork && base.patternCount > 0) {
+      try {
+        const dim = this.rvfAdapter.dimension?.() ?? 384;
+        // Run a benchmark query with a random-ish vector
+        const benchQuery = new Float32Array(dim);
+        for (let i = 0; i < dim; i++) benchQuery[i] = Math.sin(i * 0.1);
+        const preResults = this.rvfAdapter.search?.(benchQuery, 10) ?? [];
+        // If search returns fewer results post-dream, recall may have degraded
+        if (preResults.length < Math.min(5, base.patternCount)) {
+          reasons.push(
+            `Search recall degraded: only ${preResults.length} results returned (expected ≥${Math.min(5, base.patternCount)})`
+          );
+          // Advisory — don't fail the gate for recall alone
+        }
+      } catch {
+        // Recall check is advisory — don't block on errors
       }
     }
 

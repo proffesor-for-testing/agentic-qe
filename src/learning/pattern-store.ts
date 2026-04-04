@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { RvfPatternStore } from './rvf-pattern-store.js';
+import { createRvfStore as _createRvfStore, isRvfNativeAvailable } from '../integrations/ruvector/rvf-native-adapter.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   QEPattern,
@@ -31,6 +33,7 @@ import {
   isDeltaEventSourcingEnabled,
   isHopfieldMemoryEnabled,
   isHyperbolicHnswEnabled,
+  getRuVectorFeatureFlags,
 } from '../integrations/ruvector/feature-flags.js';
 import {
   HdcFingerprinter,
@@ -332,6 +335,9 @@ export interface IPatternStore {
   /** Initialize the store */
   initialize(): Promise<void>;
 
+  /** Attach SQLite persistence for metadata */
+  setSqliteStore?(store: import('./sqlite-persistence.js').SQLitePatternStore): void;
+
   /** Store a new pattern */
   store(pattern: QEPattern): Promise<Result<string>>;
 
@@ -536,7 +542,29 @@ export class PatternStore implements IPatternStore {
    */
   private async initializeHNSWInternal(): Promise<void> {
     try {
-      // Try to import and use the existing HNSWIndex
+      // ADR-071: Use unified HNSW via bridge when flag is enabled
+      const unifiedFlags = getRuVectorFeatureFlags();
+      if (unifiedFlags.useUnifiedHnsw) {
+        try {
+          const { HnswLegacyBridge } = await import('../kernel/hnsw-legacy-bridge.js');
+          const { HnswAdapter } = await import('../kernel/hnsw-adapter.js');
+          const adapter = new HnswAdapter('patterns', {
+            dimensions: this.config.embeddingDimension,
+            M: this.config.hnsw.M,
+            efConstruction: this.config.hnsw.efConstruction,
+            efSearch: this.config.hnsw.efSearch,
+            metric: 'cosine',
+          });
+          this.hnswIndex = new HnswLegacyBridge(adapter);
+          this.hnswAvailable = true;
+          console.log('[PatternStore] Using unified HNSW via HnswLegacyBridge (ADR-071)');
+          return;
+        } catch (bridgeError) {
+          console.warn('[PatternStore] Unified HNSW bridge failed, falling back:', bridgeError);
+        }
+      }
+
+      // Fallback: direct HNSWIndex (legacy path)
       const { HNSWIndex } = await import(
         '../domains/coverage-analysis/services/hnsw-index.js'
       );
@@ -1771,11 +1799,39 @@ export class PatternStore implements IPatternStore {
 // ============================================================================
 
 /**
- * Create a new pattern store instance
+ * Create a new pattern store instance.
+ *
+ * When `useRVFPatternStore` feature flag is enabled (ADR-066), returns an
+ * RvfPatternStore backed by @ruvector/rvf-node with persistent HNSW.
+ * Otherwise returns the existing in-memory HNSW PatternStore.
  */
 export function createPatternStore(
   memory: MemoryBackend,
   config?: Partial<PatternStoreConfig>
-): PatternStore {
+): IPatternStore {
+  // ADR-066: RVF-backed PatternStore when feature flag is enabled
+  try {
+    const flags = getRuVectorFeatureFlags();
+    if (flags.useRVFPatternStore && isRvfNativeAvailable()) {
+      // Only use RVF if the data directory exists (created by kernel init)
+      const { existsSync } = require('fs');
+      const rvfPath = '.agentic-qe/patterns.rvf';
+      const rvfDir = require('path').dirname(rvfPath);
+      if (existsSync(rvfDir)) {
+        const mergedConfig = { ...DEFAULT_PATTERN_STORE_CONFIG, ...config };
+        const store = new RvfPatternStore(
+          (path: string, dim: number) => _createRvfStore(path, dim),
+          { rvfPath, base: mergedConfig },
+        );
+        console.log('[PatternStore] Using RVF-backed store (ADR-066)');
+        return store;
+      }
+    }
+  } catch (error) {
+    // Feature flags or RVF modules not available — use default
+    console.warn('[PatternStore] RVF store unavailable, using in-memory HNSW:', error instanceof Error ? error.message : error);
+  }
+
   return new PatternStore(memory, config);
 }
+

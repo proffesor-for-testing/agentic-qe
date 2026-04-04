@@ -12,7 +12,7 @@ import type { EventBus } from '../kernel/interfaces.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain } from './qe-patterns.js';
 import { shouldPromotePattern, calculateQualityScore } from './qe-patterns.js';
-import type { PatternStore, PatternSearchResult } from './pattern-store.js';
+import type { IPatternStore, PatternSearchResult } from './pattern-store.js';
 import type { SQLitePatternStore } from './sqlite-persistence.js';
 import { getWitnessChain } from '../audit/witness-chain.js';
 import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
@@ -33,7 +33,7 @@ const logger: Logger = LoggerFactory.create('PatternPromotion');
  * Dependencies needed for promotion checks
  */
 export interface PromotionDeps {
-  patternStore: PatternStore;
+  patternStore: IPatternStore;
   coherenceService?: {
     isInitialized(): boolean;
     checkCoherence(nodes: unknown[]): Promise<{
@@ -219,7 +219,7 @@ export interface SeedingDeps {
   storePattern: (
     options: Record<string, unknown>,
   ) => Promise<Result<QEPattern>>;
-  patternStore: PatternStore;
+  patternStore: IPatternStore;
 }
 
 /**

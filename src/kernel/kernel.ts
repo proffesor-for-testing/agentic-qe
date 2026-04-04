@@ -252,6 +252,26 @@ export class QEKernelImpl implements QEKernel {
       await this._plugins.loadAll();
     }
 
+    // ADR-067: Wire agent memory branching when RVF PatternStore is enabled
+    try {
+      const { isAgentMemoryBranchingEnabled, isRVFPatternStoreEnabled } =
+        await import('../integrations/ruvector/feature-flags.js');
+      if (isAgentMemoryBranchingEnabled() && isRVFPatternStoreEnabled()) {
+        const { createRvfStore } = await import('../integrations/ruvector/rvf-native-adapter.js');
+        const { AgentMemoryBranch } = await import('../coordination/agent-memory-branch.js');
+        const rvfAdapter = createRvfStore(
+          path.join(dataDir, 'patterns.rvf'),
+          384,
+        );
+        const branch = new AgentMemoryBranch(rvfAdapter, {
+          branchDir: path.join(dataDir, 'branches'),
+        });
+        (this._coordinator as DefaultAgentCoordinator).setMemoryBranch(branch);
+      }
+    } catch {
+      // Agent memory branching is best-effort — don't block kernel startup
+    }
+
     this._initialized = true;
   }
 

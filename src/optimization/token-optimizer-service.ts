@@ -8,7 +8,7 @@
 
 import { randomUUID } from 'crypto';
 import { EarlyExitTokenOptimizer, EarlyExitConfig, EarlyExitResult, EarlyExitTask, ReuseStats, DEFAULT_EARLY_EXIT_CONFIG } from './early-exit-token-optimizer.js';
-import { PatternStore, createPatternStore } from '../learning/pattern-store.js';
+import { type IPatternStore, createPatternStore } from '../learning/pattern-store.js';
 import { TokenMetricsCollector, formatDashboardSummary } from '../learning/token-tracker.js';
 import { getSessionCache, type SessionCacheStats } from './session-cache.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
@@ -48,7 +48,7 @@ const DEFAULT_SERVICE_CONFIG: TokenOptimizerServiceConfig = {
  */
 class TokenOptimizerServiceImpl {
   private optimizer: EarlyExitTokenOptimizer | null = null;
-  private patternStore: PatternStore | null = null;
+  private patternStore: IPatternStore | null = null;
   private config: TokenOptimizerServiceConfig = DEFAULT_SERVICE_CONFIG;
   private initialized = false;
 

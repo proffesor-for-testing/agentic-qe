@@ -75,7 +75,7 @@ import {
   type TaskExperience,
   type ExperienceCaptureStats,
 } from './experience-capture.js';
-import { createPatternStore, type PatternStore } from './pattern-store.js';
+import { createPatternStore, type IPatternStore } from './pattern-store.js';
 import {
   wasmLoader,
   createCoherenceService,
@@ -183,7 +183,7 @@ export class AQELearningEngine {
   private reasoningBank?: QEReasoningBank;
   private claudeFlowBridge?: ClaudeFlowBridge;
   private experienceCapture?: ExperienceCaptureService;
-  private patternStore?: PatternStore;
+  private patternStore?: IPatternStore;
   private coherenceService?: ICoherenceService;
   private initialized = false;
 

@@ -214,6 +214,38 @@ export interface RuVectorFeatureFlags {
   useReasoningQEC: boolean;
 
   // ==========================================================================
+  // RVF Cluster (ADR-065–072) — Persistent vector storage & COW branching
+  // ==========================================================================
+
+  /**
+   * Enable RVF-backed PatternStore (ADR-066)
+   * Replaces SQLite BLOB + in-memory HNSW rebuild with @ruvector/rvf-node
+   * persistent HNSW. Eliminates cold-start index rebuild, provides sub-ms
+   * search via native SIMD acceleration, and enables COW branching (ADR-067/069).
+   * Pattern metadata remains in SQLite; only vector storage moves to RVF.
+   * @default false — will flip to true after benchmarks confirm improvement
+   */
+  useRVFPatternStore: boolean;
+
+  /**
+   * Enable Agent Memory Branching via RVF COW (ADR-067)
+   * Each spawned agent gets a lightweight COW-derived .rvf branch file.
+   * Agent writes are isolated; successful agents merge back, failed agents
+   * discard at zero cost. Requires useRVFPatternStore to be enabled.
+   * @default false — will flip to true after benchmarks confirm improvement
+   */
+  useAgentMemoryBranching: boolean;
+
+  /**
+   * Enable Unified HNSW Provider (ADR-071)
+   * Routes all three legacy HNSW implementations (TypeScript, RuvectorFlatIndex,
+   * QEGNNEmbeddingIndex) through a single HnswAdapter backend. Eliminates
+   * inconsistent search results and triples maintenance burden.
+   * @default false — will flip to true after shadow validation confirms <2% divergence
+   */
+  useUnifiedHnsw: boolean;
+
+  // ==========================================================================
   // Phase 5 Capabilities (ADR-087) — verified, default true (opt-out)
   // ==========================================================================
 
@@ -408,6 +440,10 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useDAGAttention: true,
   useCoherenceActionGate: true,
   useReasoningQEC: true,
+  // RVF Cluster (ADR-065–072)
+  useRVFPatternStore: true, // benchmarked: 0.4ms cold-start, 0.5ms search p50
+  useAgentMemoryBranching: false, // blocked: merge corrupts data + not wired into boot
+  useUnifiedHnsw: false, // blocked: bridge not wired into any consumer
   // Phase 5 (ADR-087) — enabled by default, opt-out
   useHDCFingerprinting: true,
   useCusumDriftDetection: true,
@@ -663,6 +699,32 @@ export function isCoherenceActionGateEnabled(): boolean {
  */
 export function isReasoningQECEnabled(): boolean {
   return currentFeatureFlags.useReasoningQEC;
+}
+
+// RVF Cluster (ADR-065–072) convenience functions
+
+/**
+ * Check if RVF-backed PatternStore is enabled (ADR-066)
+ * @returns true if useRVFPatternStore flag is set
+ */
+export function isRVFPatternStoreEnabled(): boolean {
+  return currentFeatureFlags.useRVFPatternStore;
+}
+
+/**
+ * Check if Agent Memory Branching is enabled (ADR-067)
+ * @returns true if useAgentMemoryBranching flag is set
+ */
+export function isAgentMemoryBranchingEnabled(): boolean {
+  return currentFeatureFlags.useAgentMemoryBranching;
+}
+
+/**
+ * Check if Unified HNSW Provider is enabled (ADR-071)
+ * @returns true if useUnifiedHnsw flag is set
+ */
+export function isUnifiedHnswEnabled(): boolean {
+  return currentFeatureFlags.useUnifiedHnsw;
 }
 
 // Phase 5 (ADR-087) convenience functions

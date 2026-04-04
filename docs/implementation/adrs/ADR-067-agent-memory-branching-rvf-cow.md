@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-067 |
-| **Status** | In Progress |
+| **Status** | Implemented |
 | **Date** | 2026-02-15 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 6 months |

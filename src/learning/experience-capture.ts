@@ -31,7 +31,7 @@ import type {
   QEDomain,
   QEPatternType,
 } from './qe-patterns.js';
-import type { PatternStore, PatternSearchResult } from './pattern-store.js';
+import type { IPatternStore, PatternSearchResult } from './pattern-store.js';
 
 // ============================================================================
 // Types
@@ -284,7 +284,7 @@ export class ExperienceCaptureService {
 
   constructor(
     private readonly memory: MemoryBackend,
-    private readonly patternStore?: PatternStore,
+    private readonly patternStore?: IPatternStore,
     private readonly eventBus?: EventBus,
     config: Partial<ExperienceCaptureConfig> = {}
   ) {
@@ -1114,7 +1114,7 @@ Duration: ${experience.durationMs}ms`;
  */
 export function createExperienceCaptureService(
   memory: MemoryBackend,
-  patternStore?: PatternStore,
+  patternStore?: IPatternStore,
   eventBus?: EventBus,
   config?: Partial<ExperienceCaptureConfig>
 ): ExperienceCaptureService {

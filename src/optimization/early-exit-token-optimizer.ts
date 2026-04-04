@@ -3,12 +3,12 @@
  * ADR-042: Token Optimization via Pattern Reuse
  *
  * Enables LLM call skipping by reusing high-confidence patterns from
- * the PatternStore. Uses HNSW similarity search for O(log n) pattern
+ * the IPatternStore. Uses HNSW similarity search for O(log n) pattern
  * matching and tracks token savings statistics.
  */
 
 import type {
-  PatternStore,
+  IPatternStore,
   PatternSearchResult,
   PatternSearchOptions,
 } from '../learning/pattern-store.js';
@@ -267,7 +267,7 @@ export interface EarlyExitTask {
  * Early Exit Token Optimizer
  *
  * Enables LLM call skipping by reusing high-confidence patterns.
- * Uses HNSW-indexed PatternStore for O(log n) similarity search.
+ * Uses HNSW-indexed IPatternStore for O(log n) similarity search.
  *
  * @example
  * ```typescript
@@ -285,7 +285,7 @@ export interface EarlyExitTask {
  * ```
  */
 export class EarlyExitTokenOptimizer {
-  private readonly patternStore: PatternStore;
+  private readonly patternStore: IPatternStore;
   private readonly config: EarlyExitConfig;
 
   // Statistics tracking
@@ -305,7 +305,7 @@ export class EarlyExitTokenOptimizer {
     timestamp: Date;
   }> = [];
 
-  constructor(patternStore: PatternStore, config?: Partial<EarlyExitConfig>) {
+  constructor(patternStore: IPatternStore, config?: Partial<EarlyExitConfig>) {
     this.patternStore = patternStore;
     this.config = { ...DEFAULT_EARLY_EXIT_CONFIG, ...config };
   }
@@ -325,7 +325,7 @@ export class EarlyExitTokenOptimizer {
       const domain = task.domain ?? detectQEDomain(task.description) ?? undefined;
 
       // Build search options
-      // Note: We don't pass minConfidence/minQualityScore to the PatternStore
+      // Note: We don't pass minConfidence/minQualityScore to the IPatternStore
       // because we want to evaluate patterns ourselves to provide proper rejection reasons
       const searchOptions: PatternSearchOptions = {
         limit: this.config.maxSearchResults * 2, // Get extra candidates for filtering
@@ -752,7 +752,7 @@ export class EarlyExitTokenOptimizer {
  * Create an EarlyExitTokenOptimizer with default configuration
  */
 export function createEarlyExitTokenOptimizer(
-  patternStore: PatternStore,
+  patternStore: IPatternStore,
   config?: Partial<EarlyExitConfig>
 ): EarlyExitTokenOptimizer {
   return new EarlyExitTokenOptimizer(patternStore, config);
@@ -762,7 +762,7 @@ export function createEarlyExitTokenOptimizer(
  * Create an EarlyExitTokenOptimizer with aggressive configuration
  */
 export function createAggressiveTokenOptimizer(
-  patternStore: PatternStore
+  patternStore: IPatternStore
 ): EarlyExitTokenOptimizer {
   return new EarlyExitTokenOptimizer(patternStore, AGGRESSIVE_EARLY_EXIT_CONFIG);
 }
@@ -771,7 +771,7 @@ export function createAggressiveTokenOptimizer(
  * Create an EarlyExitTokenOptimizer with conservative configuration
  */
 export function createConservativeTokenOptimizer(
-  patternStore: PatternStore
+  patternStore: IPatternStore
 ): EarlyExitTokenOptimizer {
   return new EarlyExitTokenOptimizer(patternStore, CONSERVATIVE_EARLY_EXIT_CONFIG);
 }
