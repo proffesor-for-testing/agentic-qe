@@ -8,10 +8,10 @@
 
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { join, dirname, basename } from 'path';
-import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js';
 import { validateFleetMcpDeps } from '../validation/steps/agent-mcp-validator.js';
+import { findPackageRoot } from './find-package-root.js';
 
 // ============================================================================
 // Helpers
@@ -211,58 +211,27 @@ export class AgentsInstaller {
   }
 
   /**
-   * Find the source agents directory
-   * Looks in multiple locations to support different installation scenarios
-   * PRIORITY: assets directory (has helpers) > root .claude (no helpers)
+   * Find the source agents directory.
+   *
+   * Uses findPackageRoot() to reliably locate the package root regardless
+   * of esbuild bundle depth (dist/init/, dist/cli/, dist/cli/chunks/, etc.).
+   * Prioritises assets/agents/v3/ (canonical npm source with helpers/) over .claude/agents/v3/.
    */
   private findSourceAgentsDir(): string {
-    // Try relative to this module (development)
-    const moduleDir = dirname(fileURLToPath(import.meta.url));
+    const pkgRoot = findPackageRoot(import.meta.url);
 
-    // Possible locations for agents - PRIORITY ORDER MATTERS
-    // Assets directory is canonical source (contains helpers/)
-    const possiblePaths = [
-      // NPM package: assets directory at package root (dist/init -> dist -> package root)
-      // This is the canonical source with helpers/ directory
-      join(moduleDir, '../../assets/agents/v3'),
-      // Development: src/init/ or dist/init/ -> project root .claude/agents/v3
-      join(moduleDir, '../../.claude/agents/v3'),
-      // Local install: in node_modules
-      join(this.projectRoot, 'node_modules/agentic-qe/assets/agents/v3'),
-      join(this.projectRoot, 'node_modules/agentic-qe/assets/agents/v3'),
-    ];
+    const possiblePaths: string[] = [];
 
-    // For global npm installs, add common global node_modules paths
-    // Note: We use platform-based heuristics instead of npm prefix lookup
-    // to avoid dynamic require issues in ESM bundles
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const isWindows = process.platform === 'win32';
-
-    if (isWindows) {
-      // Windows: npm global is typically in AppData
-      const appData = process.env.APPDATA || join(homeDir, 'AppData', 'Roaming');
-      possiblePaths.push(
-        join(appData, 'npm/node_modules/agentic-qe/assets/agents/v3'),
-        join(appData, 'npm/node_modules/agentic-qe/.claude/agents/v3'),
-      );
-    } else {
-      // Unix/Linux/macOS: common global prefixes
-      const globalPrefixes = [
-        '/usr/local',
-        '/usr',
-        join(homeDir, '.npm-global'),
-        join(homeDir, '.nvm/versions/node', process.version),
-      ];
-
-      for (const prefix of globalPrefixes) {
-        possiblePaths.push(
-          join(prefix, 'lib/node_modules/agentic-qe/assets/agents/v3'),
-          join(prefix, 'lib/node_modules/agentic-qe/.claude/agents/v3'),
-          join(prefix, 'node_modules/agentic-qe/assets/agents/v3'),
-          join(prefix, 'node_modules/agentic-qe/.claude/agents/v3'),
-        );
-      }
+    if (pkgRoot) {
+      // Canonical npm source — assets/ contains helpers/ directory
+      possiblePaths.push(join(pkgRoot, 'assets/agents/v3'));
+      possiblePaths.push(join(pkgRoot, '.claude/agents/v3'));
     }
+
+    // Local install: in node_modules
+    possiblePaths.push(
+      join(this.projectRoot, 'node_modules/agentic-qe/assets/agents/v3'),
+    );
 
     for (const agentsPath of possiblePaths) {
       if (existsSync(agentsPath)) {
@@ -287,10 +256,9 @@ export class AgentsInstaller {
     const exampleDest = join(overridesDir, '_example.yaml');
     if (!existsSync(exampleDest)) {
       try {
-        const moduleDir = dirname(fileURLToPath(import.meta.url));
+        const pkgRoot = findPackageRoot(import.meta.url);
         const templateSources = [
-          join(moduleDir, '..', '..', 'assets', 'templates', 'agent-override-example.yaml'),
-          join(moduleDir, '..', 'assets', 'templates', 'agent-override-example.yaml'),
+          ...(pkgRoot ? [join(pkgRoot, 'assets', 'templates', 'agent-override-example.yaml')] : []),
           join(this.projectRoot, 'node_modules', 'agentic-qe', 'assets', 'templates', 'agent-override-example.yaml'),
         ];
         for (const src of templateSources) {
