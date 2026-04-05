@@ -245,6 +245,18 @@ export interface RuVectorFeatureFlags {
    */
   useUnifiedHnsw: boolean;
 
+  /**
+   * RVF Migration Stage (ADR-072)
+   * Controls the gradual migration from SQLite to RVF primary persistence.
+   *   Stage 0: SQLite only (legacy, no RVF involvement)
+   *   Stage 1: Hybrid (current — ADR-065, RvfPatternStore for vectors, SQLite for metadata)
+   *   Stage 2: Dual-write, SQLite source of truth (both engines receive writes, reads from SQLite)
+   *   Stage 3: Dual-write, RVF source of truth (both engines receive writes, reads from RVF)
+   *   Stage 4: RVF primary, SQLite escape hatch (writes to RVF only, SQLite for fallback)
+   * @default 1 — current hybrid
+   */
+  rvfMigrationStage: 0 | 1 | 2 | 3 | 4;
+
   // ==========================================================================
   // Phase 5 Capabilities (ADR-087) — verified, default true (opt-out)
   // ==========================================================================
@@ -442,8 +454,9 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useReasoningQEC: true,
   // RVF Cluster (ADR-065–072)
   useRVFPatternStore: true, // benchmarked: 0.4ms cold-start, 0.5ms search p50
-  useAgentMemoryBranching: false, // blocked: merge corrupts data + not wired into boot
-  useUnifiedHnsw: false, // blocked: bridge not wired into any consumer
+  useAgentMemoryBranching: true, // COW derive + ingest-log merge, wired into kernel boot (ADR-067)
+  useUnifiedHnsw: true, // HnswLegacyBridge routes all consumers through unified backend (ADR-071)
+  rvfMigrationStage: 1, // ADR-072: hybrid (stage 1) — promote via stage gates
   // Phase 5 (ADR-087) — enabled by default, opt-out
   useHDCFingerprinting: true,
   useCusumDriftDetection: true,
@@ -725,6 +738,14 @@ export function isAgentMemoryBranchingEnabled(): boolean {
  */
 export function isUnifiedHnswEnabled(): boolean {
   return currentFeatureFlags.useUnifiedHnsw;
+}
+
+/**
+ * Get the current RVF migration stage (ADR-072)
+ * @returns 0-4 representing the migration stage
+ */
+export function getRvfMigrationStage(): 0 | 1 | 2 | 3 | 4 {
+  return currentFeatureFlags.rvfMigrationStage;
 }
 
 // Phase 5 (ADR-087) convenience functions

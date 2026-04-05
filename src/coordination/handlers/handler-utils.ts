@@ -406,10 +406,10 @@ export function parseCoberturaXml(content: string): CoverageData {
  */
 export async function discoverSourceFiles(
   targetPath: string,
-  options: { includeTests?: boolean; languages?: string[] } = {}
+  options: { includeTests?: boolean; languages?: string[]; maxFiles?: number } = {}
 ): Promise<string[]> {
   const files: string[] = [];
-  const { includeTests = true, languages } = options;
+  const { includeTests = true, languages, maxFiles = 5000 } = options;
 
   // Determine file extensions to include
   // Default: scan ALL common source languages unless explicitly filtered
@@ -456,9 +456,13 @@ export async function discoverSourceFiles(
         if (entry.isDirectory()) {
           if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output',
              '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', 'target',
-             '.gradle', 'vendor', '.bundle'].includes(entry.name)) {
+             '.gradle', 'vendor', '.bundle',
+             '.agentic-qe', '.claude', '.cache', '.npm', '.yarn',
+             '.next', '.nuxt', '.svelte-kit', 'out', '.turbo',
+             'tmp', 'temp', '.tmp'].includes(entry.name)) {
             continue;
           }
+          if (files.length >= maxFiles) return; // Cap reached
           await walkDir(fullPath);
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name);
@@ -478,6 +482,7 @@ export async function discoverSourceFiles(
             if (isTestFile) continue;
           }
 
+          if (files.length >= maxFiles) return; // Cap reached
           files.push(fullPath);
         }
       }

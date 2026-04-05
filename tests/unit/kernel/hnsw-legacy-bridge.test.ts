@@ -2,45 +2,53 @@
  * Tests for HnswLegacyBridge (ADR-071)
  *
  * Tests the bridge between old IHNSWIndex interface (string keys, number[])
- * and unified IHnswIndexProvider (numeric IDs, Float32Array).
+ * and unified HnswAdapter (delegates to adapter's string-ID APIs).
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HnswLegacyBridge } from '../../../src/kernel/hnsw-legacy-bridge.js';
-import type { IHnswIndexProvider, SearchResult } from '../../../src/kernel/hnsw-index-provider.js';
+import type { HnswAdapter } from '../../../src/kernel/hnsw-adapter.js';
 
 // ============================================================================
-// Mock Provider
+// Mock HnswAdapter
 // ============================================================================
 
-function createMockProvider(dim = 384): IHnswIndexProvider {
-  const vectors = new Map<number, Float32Array>();
+function createMockAdapter(dim = 384): HnswAdapter {
+  const vectors = new Map<string, number[]>();
+
+  function cosine(a: number[], b: number[]): number {
+    let dot = 0, magA = 0, magB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      magA += a[i] * a[i];
+      magB += b[i] * b[i];
+    }
+    return dot / (Math.sqrt(magA) * Math.sqrt(magB) + 1e-9);
+  }
 
   return {
-    add: vi.fn((id: number, vector: Float32Array) => {
-      vectors.set(id, vector);
+    addByStringId: vi.fn((id: string, embedding: number[]) => {
+      vectors.set(id, embedding);
     }),
-    search: vi.fn((query: Float32Array, k: number): SearchResult[] => {
-      const results: SearchResult[] = [];
+    searchByArray: vi.fn((query: number[], k: number) => {
+      const results: Array<{ id: string; score: number }> = [];
       for (const [id, vec] of vectors) {
-        let dot = 0, magA = 0, magB = 0;
-        for (let i = 0; i < dim; i++) {
-          dot += query[i] * vec[i];
-          magA += query[i] * query[i];
-          magB += vec[i] * vec[i];
-        }
-        const score = dot / (Math.sqrt(magA) * Math.sqrt(magB) + 1e-9);
-        results.push({ id, score });
+        results.push({ id, score: cosine(query, vec) });
       }
       results.sort((a, b) => b.score - a.score);
       return results.slice(0, k);
     }),
-    remove: vi.fn((id: number) => vectors.delete(id)),
+    removeByStringId: vi.fn((id: string) => vectors.delete(id)),
     size: vi.fn(() => vectors.size),
     dimensions: vi.fn(() => dim),
-    recall: vi.fn(() => 0.95),
     clear: vi.fn(() => vectors.clear()),
-  };
+    lastSearchLatencyMs: 0,
+    // IHnswIndexProvider methods (not used by bridge, but present on adapter)
+    add: vi.fn(),
+    search: vi.fn(() => []),
+    remove: vi.fn(() => false),
+    recall: vi.fn(() => 0.95),
+  } as unknown as HnswAdapter;
 }
 
 // ============================================================================
@@ -49,12 +57,12 @@ function createMockProvider(dim = 384): IHnswIndexProvider {
 
 describe('HnswLegacyBridge', () => {
   const DIM = 8; // small dimension for test speed
-  let provider: IHnswIndexProvider;
+  let adapter: HnswAdapter;
   let bridge: HnswLegacyBridge;
 
   beforeEach(() => {
-    provider = createMockProvider(DIM);
-    bridge = new HnswLegacyBridge(provider);
+    adapter = createMockAdapter(DIM);
+    bridge = new HnswLegacyBridge(adapter);
   });
 
   describe('insert', () => {
@@ -62,11 +70,10 @@ describe('HnswLegacyBridge', () => {
       const vector = Array.from({ length: DIM }, () => Math.random());
       await bridge.insert('pattern-1', vector);
 
-      expect(provider.add).toHaveBeenCalledOnce();
-      const [numId, floatVec] = (provider.add as any).mock.calls[0];
-      expect(typeof numId).toBe('number');
-      expect(floatVec).toBeInstanceOf(Float32Array);
-      expect(floatVec.length).toBe(DIM);
+      expect(adapter.addByStringId).toHaveBeenCalledOnce();
+      const [key, vec] = (adapter.addByStringId as any).mock.calls[0];
+      expect(key).toBe('pattern-1');
+      expect(vec.length).toBe(DIM);
     });
 
     it('should reuse the same numeric ID for the same key', async () => {
@@ -76,15 +83,15 @@ describe('HnswLegacyBridge', () => {
       await bridge.insert('pattern-1', v1);
       await bridge.insert('pattern-1', v2);
 
-      const calls = (provider.add as any).mock.calls;
-      expect(calls[0][0]).toBe(calls[1][0]); // same numeric ID
+      const calls = (adapter.addByStringId as any).mock.calls;
+      expect(calls[0][0]).toBe(calls[1][0]); // same string key
     });
 
     it('should assign different IDs to different keys', async () => {
       await bridge.insert('pattern-1', Array.from({ length: DIM }, () => 0.5));
       await bridge.insert('pattern-2', Array.from({ length: DIM }, () => 0.5));
 
-      const calls = (provider.add as any).mock.calls;
+      const calls = (adapter.addByStringId as any).mock.calls;
       expect(calls[0][0]).not.toBe(calls[1][0]);
     });
   });
@@ -122,7 +129,7 @@ describe('HnswLegacyBridge', () => {
       const deleted = await bridge.delete('pattern-1');
 
       expect(deleted).toBe(true);
-      expect(provider.remove).toHaveBeenCalled();
+      expect(adapter.removeByStringId).toHaveBeenCalledWith('pattern-1');
     });
 
     it('should return false for non-existent key', async () => {
@@ -141,7 +148,7 @@ describe('HnswLegacyBridge', () => {
 
       await bridge.batchInsert(items);
 
-      expect(provider.add).toHaveBeenCalledTimes(3);
+      expect(adapter.addByStringId).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -162,7 +169,7 @@ describe('HnswLegacyBridge', () => {
       await bridge.insert('p1', Array.from({ length: DIM }, () => 0.5));
       await bridge.clear();
 
-      expect(provider.clear).toHaveBeenCalled();
+      expect(adapter.clear).toHaveBeenCalled();
       const stats = await bridge.getStats();
       expect(stats.vectorCount).toBe(0);
     });
@@ -182,8 +189,8 @@ describe('HnswLegacyBridge', () => {
 describe('HnswLegacyBridge Benchmark', () => {
   it('should handle 1000 inserts + 50 searches under 100ms', async () => {
     const DIM = 384;
-    const provider = createMockProvider(DIM);
-    const bridge = new HnswLegacyBridge(provider);
+    const adapter = createMockAdapter(DIM);
+    const bridge = new HnswLegacyBridge(adapter);
 
     const start = performance.now();
 

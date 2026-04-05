@@ -223,7 +223,7 @@ describe('AgentMemoryBranch', () => {
       branchService.discardBranch(handle);
 
       expect(mockWitness.append).toHaveBeenCalledWith(
-        'BRANCH_MERGE',
+        'BRANCH_DISCARD',
         expect.objectContaining({ agentId: 'agent-1', action: 'discard' }),
         'agent-agent-1',
       );

@@ -18,7 +18,7 @@ export type WitnessActionType =
   | 'DREAM_MERGE' | 'DREAM_DISCARD'
   | 'QUALITY_GATE_PASS' | 'QUALITY_GATE_FAIL'
   | 'ROUTING_DECISION'
-  | 'BRANCH_MERGE' | 'HEBBIAN_PENALTY' | 'KEY_ROTATION';
+  | 'BRANCH_MERGE' | 'BRANCH_DISCARD' | 'HEBBIAN_PENALTY' | 'KEY_ROTATION';
 
 export interface WitnessEntry {
   id: number;

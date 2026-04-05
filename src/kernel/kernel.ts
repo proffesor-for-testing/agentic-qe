@@ -253,20 +253,20 @@ export class QEKernelImpl implements QEKernel {
     }
 
     // ADR-067: Wire agent memory branching when RVF PatternStore is enabled
+    // Uses shared adapter singleton to avoid duplicate file handles (M4 fix)
     try {
       const { isAgentMemoryBranchingEnabled, isRVFPatternStoreEnabled } =
         await import('../integrations/ruvector/feature-flags.js');
       if (isAgentMemoryBranchingEnabled() && isRVFPatternStoreEnabled()) {
-        const { createRvfStore } = await import('../integrations/ruvector/rvf-native-adapter.js');
+        const { getSharedRvfAdapter } = await import('../integrations/ruvector/shared-rvf-adapter.js');
         const { AgentMemoryBranch } = await import('../coordination/agent-memory-branch.js');
-        const rvfAdapter = createRvfStore(
-          path.join(dataDir, 'patterns.rvf'),
-          384,
-        );
-        const branch = new AgentMemoryBranch(rvfAdapter, {
-          branchDir: path.join(dataDir, 'branches'),
-        });
-        (this._coordinator as DefaultAgentCoordinator).setMemoryBranch(branch);
+        const rvfAdapter = getSharedRvfAdapter(dataDir, 384);
+        if (rvfAdapter) {
+          const branch = new AgentMemoryBranch(rvfAdapter, {
+            branchDir: path.join(dataDir, 'branches'),
+          });
+          (this._coordinator as DefaultAgentCoordinator).setMemoryBranch(branch);
+        }
       }
     } catch {
       // Agent memory branching is best-effort — don't block kernel startup

@@ -39,8 +39,9 @@ export { validateTableName, ALLOWED_TABLE_NAMES } from '../shared/sql-safety.js'
 import { validateTableName } from '../shared/sql-safety.js';
 
 // Re-export extracted modules for backward compatibility
-export { BinaryHeap, InMemoryHNSWIndex, RuvectorFlatIndex } from './unified-memory-hnsw.js';
-import { RuvectorFlatIndex } from './unified-memory-hnsw.js';
+export { BinaryHeap, InMemoryHNSWIndex, RuvectorFlatIndex, UnifiedHnswIndex, createHnswIndex } from './unified-memory-hnsw.js';
+import { RuvectorFlatIndex, UnifiedHnswIndex } from './unified-memory-hnsw.js';
+import { isUnifiedHnswEnabled } from '../integrations/ruvector/feature-flags.js';
 
 // Import schemas
 import {
@@ -230,7 +231,10 @@ export class UnifiedMemoryManager {
   private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
-  private vectorIndex: RuvectorFlatIndex = new RuvectorFlatIndex();
+  // ADR-071: Use UnifiedHnswIndex when useUnifiedHnsw=true, otherwise RuvectorFlatIndex
+  private vectorIndex: RuvectorFlatIndex | UnifiedHnswIndex = isUnifiedHnswEnabled()
+    ? new UnifiedHnswIndex('qe-memory')
+    : new RuvectorFlatIndex();
 
   // CRDT store for distributed state synchronization
   private crdtStore: CRDTStore | null = null;

@@ -15,12 +15,14 @@
 // All RVF imports are dynamic to avoid pulling native .node files into the bundle.
 // Type-only import for RvfDualWriter (erased at runtime).
 import type { RvfDualWriter } from './rvf-dual-writer.js';
+import type { RvfMigrationAdapter } from '../../persistence/rvf-migration-adapter.js';
 
 // ============================================================================
 // Singleton State
 // ============================================================================
 
 let sharedDualWriter: RvfDualWriter | null = null;
+let sharedMigrationAdapter: RvfMigrationAdapter | null = null;
 let initPromise: Promise<RvfDualWriter | null> | null = null;
 /** Tracks whether we already attempted init (to avoid retrying on null result) */
 let initAttempted = false;
@@ -85,6 +87,36 @@ export async function getSharedRvfDualWriter(): Promise<RvfDualWriter | null> {
 
       await writer.initialize();
       sharedDualWriter = writer;
+
+      // ADR-072: Initialize migration adapter when stage >= 2
+      try {
+        const { getRvfMigrationStage } = await import('./feature-flags.js');
+        const stage = getRvfMigrationStage();
+        if (stage >= 2) {
+          const { RvfMigrationAdapter } = await import('../../persistence/rvf-migration-adapter.js');
+          const migrationAdapter = new RvfMigrationAdapter({ stage });
+          migrationAdapter.setSqliteDb(db);
+          // Wire the RVF store from the dual-writer's native adapter
+          const { getSharedRvfAdapter } = await import('./shared-rvf-adapter.js');
+          const rvfAdapter = getSharedRvfAdapter();
+          if (rvfAdapter) {
+            // Wrap the native adapter as an RvfStore
+            const rvfStore = {
+              ingest: (entries: Array<{ id: string; vector: number[] | Float32Array }>) => rvfAdapter.ingest(entries),
+              search: (query: number[] | Float32Array, k: number) => rvfAdapter.search(query, k).map(r => ({ id: r.id, score: r.score })),
+              delete: (ids: string[]) => rvfAdapter.delete(ids),
+              status: () => rvfAdapter.status(),
+              close: () => { /* shared adapter — don't close here */ },
+            };
+            migrationAdapter.setRvfStore(rvfStore);
+          }
+          sharedMigrationAdapter = migrationAdapter;
+          console.log(`[RVF] Migration adapter active at stage ${stage} (${['sqlite-only','hybrid','dual-sqlite','dual-rvf','rvf-primary'][stage]})`);
+        }
+      } catch {
+        // Migration adapter is optional — dual-writer works without it
+      }
+
       return writer;
     } catch (error) {
       // RVF initialization failed — degrade to sqlite-only
@@ -117,6 +149,14 @@ export function getSharedRvfDualWriterSync(): RvfDualWriter | null {
 }
 
 /**
+ * Get the shared RvfMigrationAdapter (ADR-072).
+ * Returns null if migration stage < 2 or if initialization has not completed.
+ */
+export function getSharedMigrationAdapter(): RvfMigrationAdapter | null {
+  return sharedMigrationAdapter;
+}
+
+/**
  * Reset the shared RvfDualWriter singleton.
  *
  * Closes the RVF store and clears cached state.
@@ -131,6 +171,7 @@ export function resetSharedRvfDualWriter(): void {
     }
     sharedDualWriter = null;
   }
+  sharedMigrationAdapter = null;
   initPromise = null;
   initAttempted = false;
 }

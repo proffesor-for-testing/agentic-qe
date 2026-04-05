@@ -67,6 +67,7 @@ export class RvfPatternStore implements IPatternStore {
   private adapter: RvfNativeAdapter | null = null;
   private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
   private initialized = false;
+  private rvfInitError: string | null = null;
   private searchOps = 0;
   private totalSearchMs = 0;
 
@@ -108,12 +109,17 @@ export class RvfPatternStore implements IPatternStore {
         `[RvfPatternStore] Initialized: ${this.rvfPath} (dim=${this.config.embeddingDimension})`,
       );
     } catch (error) {
-      // Graceful degradation — RVF file may not be writable in all environments
-      // The store will operate without vector search (metadata-only via SQLite)
-      console.warn(
-        `[RvfPatternStore] RVF init failed, operating without vector search: ${toErrorMessage(error)}`,
+      // Do NOT silently swallow — the user chose useRVFPatternStore=true,
+      // so they need to know RVF is not working. Log a clear error, set
+      // adapter to null, and mark nativeAvailable=false in stats.
+      this.rvfInitError = toErrorMessage(error);
+      console.error(
+        `[RvfPatternStore] ERROR: RVF native init failed — vector search is DISABLED. ` +
+        `Cause: ${this.rvfInitError}. ` +
+        `Fix: install @ruvector/rvf-node native bindings, or set useRVFPatternStore=false to use SQLite HNSW.`,
       );
-      this.initialized = true; // mark as initialized to prevent retry loops
+      this.adapter = null;
+      this.initialized = true; // mark initialized to prevent retry loops
     }
   }
 
@@ -367,9 +373,10 @@ export class RvfPatternStore implements IPatternStore {
         ? this.totalSearchMs / this.searchOps
         : 0,
       hnswStats: {
-        nativeAvailable: true,
+        nativeAvailable: this.adapter !== null,
         vectorCount: rvfStatus?.totalVectors ?? 0,
         indexSizeBytes: rvfStatus?.fileSizeBytes ?? 0,
+        ...(this.rvfInitError ? { rvfInitError: this.rvfInitError } : {}),
       },
     };
   }

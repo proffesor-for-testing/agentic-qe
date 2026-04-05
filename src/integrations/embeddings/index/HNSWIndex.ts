@@ -4,6 +4,9 @@
  * Shared HNSW indexing between QE and claude-flow per ADR-040.
  * Performance: 150x-12,500x faster than linear search
  *
+ * When useUnifiedHnsw feature flag is enabled (ADR-071), all namespaces
+ * are routed through the unified HnswAdapter backend instead of hnswlib-node.
+ *
  * @module integrations/embeddings/index/HNSWIndex
  */
 
@@ -19,6 +22,21 @@ import type {
 import hnswlib from 'hnswlib-node';
 const { HierarchicalNSW } = hnswlib as { HierarchicalNSW: typeof import('hnswlib-node').HierarchicalNSW };
 
+// ADR-071: Lazy-loaded unified backend
+let _unifiedHnswEnabled: boolean | undefined;
+function isUnifiedHnswActive(): boolean {
+  if (_unifiedHnswEnabled === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { isUnifiedHnswEnabled } = require('../../../integrations/ruvector/feature-flags.js');
+      _unifiedHnswEnabled = isUnifiedHnswEnabled();
+    } catch {
+      _unifiedHnswEnabled = false;
+    }
+  }
+  return _unifiedHnswEnabled!;
+}
+
 /**
  * HNSW index manager
  *
@@ -30,6 +48,9 @@ export class HNSWEmbeddingIndex {
   private config: IHNSWConfig;
   private initialized: Set<EmbeddingNamespace>;
   private nextId: Map<EmbeddingNamespace, number>;
+  // ADR-071: Unified backend adapters per namespace (when useUnifiedHnsw=true)
+  private unifiedAdapters: Map<EmbeddingNamespace, import('../../../kernel/hnsw-adapter.js').HnswAdapter> | null = null;
+  private readonly useUnified: boolean;
 
   constructor(config: Partial<IHNSWConfig> = {}) {
     this.config = {
@@ -44,6 +65,10 @@ export class HNSWEmbeddingIndex {
     this.indexes = new Map();
     this.initialized = new Set();
     this.nextId = new Map();
+    this.useUnified = isUnifiedHnswActive();
+    if (this.useUnified) {
+      this.unifiedAdapters = new Map();
+    }
   }
 
   /**
@@ -54,6 +79,28 @@ export class HNSWEmbeddingIndex {
       return;
     }
 
+    // ADR-071: Route through unified HnswAdapter when flag is enabled
+    if (this.useUnified && this.unifiedAdapters) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { HnswAdapter } = require('../../../kernel/hnsw-adapter.js');
+        const adapter = new HnswAdapter(`embedding-${namespace}`, {
+          dimensions: this.config.dimension,
+          M: this.config.M,
+          efConstruction: this.config.efConstruction,
+          efSearch: this.config.efSearch,
+          metric: this.config.metric === 'dotproduct' ? 'cosine' : (this.config.metric as 'cosine' | 'euclidean'),
+        });
+        this.unifiedAdapters.set(namespace, adapter);
+        this.initialized.add(namespace);
+        this.nextId.set(namespace, 0);
+        return;
+      } catch {
+        // Fall through to hnswlib-node
+      }
+    }
+
+    // Legacy path: hnswlib-node
     // Map our metric names to hnswlib-node space names
     const spaceMap: Record<string, 'l2' | 'ip' | 'cosine'> = {
       'cosine': 'cosine',
@@ -86,17 +133,25 @@ export class HNSWEmbeddingIndex {
       this.initializeIndex(namespace);
     }
 
-    const index = this.indexes.get(namespace)!;
-
-    // Convert vector to float array
-    const vector = this.toFloatArray(embedding.vector);
-
     // Use provided ID or auto-increment
     const actualId = id ?? this.nextId.get(namespace)!;
     if (id === undefined) {
       this.nextId.set(namespace, actualId + 1);
     }
 
+    // ADR-071: Route through unified backend
+    const adapter = this.unifiedAdapters?.get(namespace);
+    if (adapter) {
+      const vector = embedding.vector instanceof Float32Array
+        ? embedding.vector
+        : new Float32Array(this.toFloatArray(embedding.vector));
+      adapter.add(actualId, vector);
+      return actualId;
+    }
+
+    // Legacy path
+    const index = this.indexes.get(namespace)!;
+    const vector = this.toFloatArray(embedding.vector);
     index.addPoint(vector, actualId);
 
     return actualId;
@@ -106,41 +161,8 @@ export class HNSWEmbeddingIndex {
    * Add multiple embeddings to index
    */
   addEmbeddingsBatch(embeddings: Array<{ embedding: IEmbedding; id?: number }>): number[] {
-    const ids: number[] = [];
-
-    // Group by namespace
-    const byNamespace = new Map<EmbeddingNamespace, Array<{ embedding: IEmbedding; id?: number }>>();
-
-    for (const item of embeddings) {
-      const ns = item.embedding.namespace;
-      if (!byNamespace.has(ns)) {
-        byNamespace.set(ns, []);
-      }
-      byNamespace.get(ns)!.push(item);
-    }
-
-    // Add to each namespace's index
-    for (const [namespace, items] of byNamespace.entries()) {
-      if (!this.initialized.has(namespace)) {
-        this.initializeIndex(namespace);
-      }
-
-      const index = this.indexes.get(namespace)!;
-
-      for (const item of items) {
-        const vector = this.toFloatArray(item.embedding.vector);
-        const actualId = item.id ?? this.nextId.get(namespace)!;
-
-        if (item.id === undefined) {
-          this.nextId.set(namespace, actualId + 1);
-        }
-
-        index.addPoint(vector, actualId);
-        ids.push(actualId);
-      }
-    }
-
-    return ids;
+    // ADR-071: Route each item through addEmbedding() which handles unified routing
+    return embeddings.map(item => this.addEmbedding(item.embedding, item.id));
   }
 
   /**
@@ -156,13 +178,24 @@ export class HNSWEmbeddingIndex {
       return [];
     }
 
-    const index = this.indexes.get(namespace)!;
     const k = options.limit || 10;
 
-    // Convert query vector
-    const queryVector = this.toFloatArray(query.vector);
+    // ADR-071: Route through unified backend
+    const adapter = this.unifiedAdapters?.get(namespace);
+    if (adapter) {
+      const queryVector = query.vector instanceof Float32Array
+        ? query.vector
+        : new Float32Array(this.toFloatArray(query.vector));
+      const results = adapter.search(queryVector, k);
+      return results.map(r => ({
+        id: r.id,
+        distance: 1 - r.score, // convert similarity to distance
+      }));
+    }
 
-    // Search
+    // Legacy path
+    const index = this.indexes.get(namespace)!;
+    const queryVector = this.toFloatArray(query.vector);
     const result = index.searchKnn(queryVector, k);
 
     // Convert hnswlib-node result format to our format
@@ -185,6 +218,17 @@ export class HNSWEmbeddingIndex {
       return null;
     }
 
+    // ADR-071: Use unified adapter stats
+    const adapter = this.unifiedAdapters?.get(namespace);
+    if (adapter) {
+      return {
+        size: adapter.size(),
+        maxElements: 10000,
+        dimension: adapter.dimensions(),
+        metric: this.config.metric,
+      };
+    }
+
     const index = this.indexes.get(namespace)!;
 
     return {
@@ -196,11 +240,21 @@ export class HNSWEmbeddingIndex {
   }
 
   /**
-   * Save index to file
+   * Save index to file.
+   * Not supported when using unified backend (HnswAdapter manages persistence).
    */
   async saveIndex(namespace: EmbeddingNamespace, path: string): Promise<void> {
     if (!this.initialized.has(namespace)) {
       throw new Error(`Namespace ${namespace} not initialized`);
+    }
+
+    // ADR-071: Unified backend manages its own persistence
+    if (this.unifiedAdapters?.has(namespace)) {
+      console.warn(
+        `[HNSWEmbeddingIndex] saveIndex() is a no-op for namespace '${namespace}' — ` +
+        `unified HnswAdapter manages persistence internally.`,
+      );
+      return;
     }
 
     const index = this.indexes.get(namespace)!;
@@ -208,9 +262,19 @@ export class HNSWEmbeddingIndex {
   }
 
   /**
-   * Load index from file
+   * Load index from file.
+   * Not supported when using unified backend (HnswAdapter manages persistence).
    */
   async loadIndex(namespace: EmbeddingNamespace, path: string): Promise<void> {
+    // ADR-071: Unified backend manages its own persistence
+    if (this.useUnified) {
+      console.warn(
+        `[HNSWEmbeddingIndex] loadIndex() is a no-op for namespace '${namespace}' — ` +
+        `unified HnswAdapter manages persistence internally. Initialize via initializeIndex() instead.`,
+      );
+      return;
+    }
+
     const spaceMap: Record<string, 'l2' | 'ip' | 'cosine'> = {
       'cosine': 'cosine',
       'euclidean': 'l2',
@@ -231,6 +295,12 @@ export class HNSWEmbeddingIndex {
    */
   clearIndex(namespace: EmbeddingNamespace): void {
     if (this.initialized.has(namespace)) {
+      // ADR-071: Clear unified adapter if present
+      const adapter = this.unifiedAdapters?.get(namespace);
+      if (adapter) {
+        adapter.clear?.();
+        this.unifiedAdapters!.delete(namespace);
+      }
       this.indexes.delete(namespace);
       this.initialized.delete(namespace);
       this.nextId.delete(namespace);
@@ -241,6 +311,13 @@ export class HNSWEmbeddingIndex {
    * Clear all indexes
    */
   clearAll(): void {
+    // ADR-071: Clear all unified adapters
+    if (this.unifiedAdapters) {
+      for (const adapter of this.unifiedAdapters.values()) {
+        adapter.clear?.();
+      }
+      this.unifiedAdapters.clear();
+    }
     this.indexes.clear();
     this.initialized.clear();
     this.nextId.clear();
@@ -334,6 +411,11 @@ export class HNSWEmbeddingIndex {
   getSize(namespace: EmbeddingNamespace): number {
     if (!this.initialized.has(namespace)) {
       return 0;
+    }
+    // ADR-071: Use unified adapter size when available
+    const adapter = this.unifiedAdapters?.get(namespace);
+    if (adapter) {
+      return adapter.size();
     }
     return this.nextId.get(namespace) || 0;
   }

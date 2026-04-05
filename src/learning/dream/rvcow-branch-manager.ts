@@ -16,6 +16,7 @@
  * @module learning/dream/rvcow-branch-manager
  */
 
+import { existsSync, unlinkSync } from 'fs';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { WitnessChain } from '../../audit/witness-chain.js';
 
@@ -140,7 +141,8 @@ export class RVCOWBranchManager {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private rvfAdapter?: any;
 
-  /** When true and rvfAdapter is set, createBranch() also forks an RVF snapshot */
+  /** When true and rvfAdapter is set, createBranch() also forks an RVF snapshot.
+   *  Driven by isRVFPatternStoreEnabled() feature flag when adapter is present. */
   private useRvfFork = false;
 
   /** Optional witness chain for audit trail of branch operations (ADR-070) */
@@ -154,14 +156,23 @@ export class RVCOWBranchManager {
 
   /**
    * Set an RVF native adapter for supplementary COW fork snapshots.
-   * When set with useRvfFork=true, createBranch() will additionally
-   * fork a portable .rvf snapshot alongside the SQLite savepoint.
+   * When set, useRvfFork is driven by the isRVFPatternStoreEnabled()
+   * feature flag (defaults to the explicit param if flag check fails).
    * SQLite savepoints remain the primary branching mechanism.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setRvfAdapter(adapter: any, useRvfFork = true): void {
     this.rvfAdapter = adapter;
+    // ADR-069: Link to feature flag so RVF fork follows the same toggle.
+    // Use dynamic import() for ESM safety; fall back to explicit param.
     this.useRvfFork = useRvfFork;
+    import('../../integrations/ruvector/feature-flags.js')
+      .then(({ isRVFPatternStoreEnabled }) => {
+        this.useRvfFork = isRVFPatternStoreEnabled();
+      })
+      .catch(() => {
+        // Keep the explicit useRvfFork param value
+      });
   }
 
   // --------------------------------------------------------------------------
@@ -202,8 +213,10 @@ export class RVCOWBranchManager {
     if (this.rvfAdapter && this.useRvfFork) {
       try {
         const branchPath = `/tmp/dream-branch-${safeName}.rvf`;
-        this.rvfAdapter.derive(branchPath);
-        (branch as unknown as Record<string, unknown>)._rvfBranchPath = branchPath;
+        const childAdapter = this.rvfAdapter.derive(branchPath);
+        const branchExt = branch as unknown as Record<string, unknown>;
+        branchExt._rvfBranchPath = branchPath;
+        branchExt._rvfChildAdapter = childAdapter;
       } catch {
         // RVF fork is best-effort — SQLite savepoint is the primary mechanism
       }
@@ -321,6 +334,7 @@ export class RVCOWBranchManager {
 
     branch.status = 'merged';
     this.activeBranches.delete(branch.name);
+    this.cleanupRvfBranch(branch);
     this.emit('dream:branch_merged', branch);
     try {
       this._witnessChain?.append('BRANCH_MERGE', {
@@ -345,6 +359,7 @@ export class RVCOWBranchManager {
 
     branch.status = 'discarded';
     this.activeBranches.delete(branch.name);
+    this.cleanupRvfBranch(branch);
     this.emit('dream:branch_discarded', branch);
   }
 
@@ -416,6 +431,23 @@ export class RVCOWBranchManager {
     if (branch.status !== 'active') {
       throw new Error(`Branch '${name}' is ${branch.status}, not active`);
     }
+  }
+
+  /** Clean up RVF branch file and child adapter (ADR-069) */
+  private cleanupRvfBranch(branch: Branch): void {
+    const ext = branch as unknown as Record<string, unknown>;
+    // Close child adapter if present
+    try {
+      const child = ext._rvfChildAdapter as { close?: () => void } | undefined;
+      child?.close?.();
+    } catch { /* best effort */ }
+    // Delete the temp .rvf file
+    try {
+      const branchPath = ext._rvfBranchPath as string | undefined;
+      if (branchPath && existsSync(branchPath)) {
+        unlinkSync(branchPath);
+      }
+    } catch { /* best effort */ }
   }
 
   private sanitizeSavepointName(name: string): string {

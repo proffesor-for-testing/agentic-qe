@@ -2,20 +2,19 @@
  * HNSW Legacy Bridge (ADR-071)
  *
  * Bridges the old IHNSWIndex interface (string keys, number[]) to the
- * unified IHnswIndexProvider interface (numeric IDs, Float32Array).
- * This allows existing consumers (PatternStore, UnifiedMemory, Learning)
- * to route through the single unified HNSW backend without code changes.
+ * unified HnswAdapter which already provides string-ID APIs.
  *
- * After shadow validation confirms <2% divergence, old HNSW implementations
- * are decommissioned and consumers migrate directly to IHnswIndexProvider.
+ * Delegates ID mapping to HnswAdapter.addByStringId/searchByArray/removeByStringId
+ * instead of maintaining a duplicate in-memory map. This means the ID mapping
+ * lives in one place (the adapter) and stays consistent.
+ *
+ * Metadata is stored in a local Map since HnswAdapter does not track
+ * domain-specific CoverageVectorMetadata.
  *
  * @module kernel/hnsw-legacy-bridge
  */
 
-import type {
-  IHnswIndexProvider,
-  SearchResult,
-} from './hnsw-index-provider.js';
+import type { HnswAdapter } from './hnsw-adapter.js';
 import type {
   IHNSWIndex,
   HNSWSearchResult,
@@ -30,21 +29,18 @@ import type {
 // ============================================================================
 
 /**
- * Adapts IHnswIndexProvider (unified numeric ID interface) behind the
+ * Adapts HnswAdapter (unified string+numeric ID interface) behind the
  * old IHNSWIndex interface (string key interface).
  *
- * Maintains a bidirectional string↔number ID map, same pattern used by
- * RvfNativeAdapter for its string-ID mapping.
+ * All ID mapping is delegated to HnswAdapter — no duplicate maps here.
  */
 export class HnswLegacyBridge implements IHNSWIndex {
-  private readonly provider: IHnswIndexProvider;
-  private readonly strToNum = new Map<string, number>();
-  private readonly numToStr = new Map<number, string>();
+  private readonly adapter: HnswAdapter;
   private readonly metadataMap = new Map<string, CoverageVectorMetadata>();
-  private nextId = 1;
+  private insertCount = 0;
 
-  constructor(provider: IHnswIndexProvider) {
-    this.provider = provider;
+  constructor(adapter: HnswAdapter) {
+    this.adapter = adapter;
   }
 
   // --------------------------------------------------------------------------
@@ -52,7 +48,7 @@ export class HnswLegacyBridge implements IHNSWIndex {
   // --------------------------------------------------------------------------
 
   async initialize(): Promise<void> {
-    // Provider is already initialized via HnswAdapter
+    // Adapter is already initialized at construction
   }
 
   async insert(
@@ -60,30 +56,21 @@ export class HnswLegacyBridge implements IHNSWIndex {
     vector: number[],
     metadata?: CoverageVectorMetadata,
   ): Promise<void> {
-    const numId = this.getOrCreateNumericId(key);
-    const floatVec = new Float32Array(vector);
-    this.provider.add(numId, floatVec, metadata as unknown as Record<string, unknown>);
+    this.adapter.addByStringId(key, vector);
+    this.insertCount++;
     if (metadata) {
       this.metadataMap.set(key, metadata);
     }
   }
 
   async search(query: number[], k: number): Promise<HNSWSearchResult[]> {
-    const floatQuery = new Float32Array(query);
-    const results: SearchResult[] = this.provider.search(floatQuery, k);
-
-    const mapped: HNSWSearchResult[] = [];
-    for (const r of results) {
-      const key = this.numToStr.get(r.id);
-      if (!key) continue;
-      mapped.push({
-        key,
-        score: r.score,
-        distance: 1 - r.score,
-        metadata: this.metadataMap.get(key),
-      });
-    }
-    return mapped;
+    const results = this.adapter.searchByArray(query, k);
+    return results.map(r => ({
+      key: r.id,
+      score: r.score,
+      distance: 1 - r.score,
+      metadata: this.metadataMap.get(r.id),
+    }));
   }
 
   async batchInsert(items: HNSWInsertItem[]): Promise<void> {
@@ -93,13 +80,8 @@ export class HnswLegacyBridge implements IHNSWIndex {
   }
 
   async delete(key: string): Promise<boolean> {
-    const numId = this.strToNum.get(key);
-    if (numId === undefined) return false;
-
-    const removed = this.provider.remove(numId);
+    const removed = this.adapter.removeByStringId(key);
     if (removed) {
-      this.strToNum.delete(key);
-      this.numToStr.delete(numId);
       this.metadataMap.delete(key);
     }
     return removed;
@@ -109,39 +91,23 @@ export class HnswLegacyBridge implements IHNSWIndex {
     return {
       nativeHNSW: true,
       backendType: 'ruvector-gnn' as HNSWBackendType,
-      vectorCount: this.provider.size(),
-      indexSizeBytes: this.provider.size() * this.provider.dimensions() * 4,
-      avgSearchLatencyMs: 0,
+      vectorCount: this.adapter.size(),
+      indexSizeBytes: this.adapter.size() * this.adapter.dimensions() * 4,
+      avgSearchLatencyMs: this.adapter.lastSearchLatencyMs,
       p95SearchLatencyMs: 0,
       p99SearchLatencyMs: 0,
       searchOperations: 0,
-      insertOperations: this.strToNum.size,
+      insertOperations: this.insertCount,
     };
   }
 
   async clear(): Promise<void> {
-    this.provider.clear?.();
-    this.strToNum.clear();
-    this.numToStr.clear();
+    this.adapter.clear();
     this.metadataMap.clear();
-    this.nextId = 1;
+    this.insertCount = 0;
   }
 
   isNativeAvailable(): boolean {
-    return true; // unified provider always available
-  }
-
-  // --------------------------------------------------------------------------
-  // ID Mapping
-  // --------------------------------------------------------------------------
-
-  private getOrCreateNumericId(key: string): number {
-    let numId = this.strToNum.get(key);
-    if (numId !== undefined) return numId;
-
-    numId = this.nextId++;
-    this.strToNum.set(key, numId);
-    this.numToStr.set(numId, key);
-    return numId;
+    return true; // unified adapter is always available
   }
 }

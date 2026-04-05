@@ -218,7 +218,7 @@ export class AgentMemoryBranch {
   discardBranch(handle: BranchHandle): void {
     // Record in witness chain
     this.witnessChain?.append(
-      'BRANCH_MERGE', // using existing action type for discard
+      'BRANCH_DISCARD',
       {
         agentId: handle.agentId,
         action: 'discard',

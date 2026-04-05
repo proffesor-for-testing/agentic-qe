@@ -82,6 +82,7 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useRVFPatternStore: 'RVF-backed PatternStore with persistent HNSW (ADR-066)',
   useAgentMemoryBranching: 'Agent memory branching via RVF COW (ADR-067)',
   useUnifiedHnsw: 'Unified HNSW provider replacing 3 legacy impls (ADR-071)',
+  rvfMigrationStage: 'RVF migration stage 0-4: sqlite→hybrid→dual→rvf-primary (ADR-072)',
   // Phase 5 (ADR-087)
   useHDCFingerprinting: 'HDC pattern fingerprinting (R1, ADR-087)',
   useCusumDriftDetection: 'CUSUM drift detection (R2, ADR-087)',
@@ -201,8 +202,10 @@ function executeStatus(): void {
   console.log(chalk.cyan('  Feature Flags:'));
   for (const flagName of VALID_FLAG_NAMES) {
     const value = flags[flagName];
-    const isDefault = isDefaultValue(flagName, value);
-    const valueText = value ? chalk.green('true') : chalk.gray('false');
+    const isDefault = isDefaultValue(flagName, value as boolean);
+    const valueText = typeof value === 'number'
+      ? chalk.cyan(String(value))
+      : value ? chalk.green('true') : chalk.gray('false');
     const suffix = isDefault ? chalk.gray(' (default)') : chalk.yellow(' (modified)');
     console.log(`    ${padRight(flagName + ':', 30)} ${valueText}${suffix}`);
   }
@@ -340,8 +343,10 @@ function executeFlags(options: FlagsOptions): void {
 
   for (const flagName of VALID_FLAG_NAMES) {
     const value = flags[flagName];
-    const isDefault = isDefaultValue(flagName, value);
-    const valueText = value ? chalk.green('true') : chalk.gray('false');
+    const isDefault = isDefaultValue(flagName, value as boolean);
+    const valueText = typeof value === 'number'
+      ? chalk.cyan(String(value))
+      : value ? chalk.green('true') : chalk.gray('false');
     const suffix = isDefault ? '' : chalk.yellow(' *');
     const description = FLAG_DESCRIPTIONS[flagName];
     console.log(

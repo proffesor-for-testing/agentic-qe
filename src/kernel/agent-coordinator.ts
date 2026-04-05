@@ -104,6 +104,10 @@ export class DefaultAgentCoordinator implements AgentCoordinator {
         agent.config = {
           ...agent.config,
           _memoryBranchPath: handle.childPath,
+          // Expose a recordIngest callback so the agent can log vectors for merge replay
+          _memoryBranchRecordIngest: (entries: Array<{ id: string; vector: Float32Array }>) => {
+            this.memoryBranch?.recordIngest(id, entries);
+          },
         };
       } catch (error) {
         // Branch creation must not block agent spawning
