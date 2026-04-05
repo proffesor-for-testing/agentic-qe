@@ -382,3 +382,61 @@ export interface LambdaTrend {
   /** Is trend concerning */
   isConcerning: boolean;
 }
+
+// ============================================================================
+// ADR-062 Tier 2: Gate Ratcheting Types
+// ============================================================================
+
+/**
+ * Configuration for monotonic gate threshold ratcheting (ADR-062 Action 4).
+ * Thresholds can only increase, never decrease.
+ */
+export interface RatchetConfig {
+  /** Whether ratcheting is enabled */
+  enabled: boolean;
+
+  /** Number of consecutive gate passes required before ratcheting (default: 5) */
+  consecutivePassesRequired: number;
+
+  /** Percentage to increase threshold on each ratchet (default: 2) */
+  ratchetIncrementPercent: number;
+
+  /** Maximum threshold ceiling (default: 95) */
+  maxThreshold: number;
+
+  /** Enforced by type system: threshold can only go up */
+  monotonic: true;
+
+  /** Cooldown period in milliseconds between ratchets (default: 7 days) */
+  cooldownMs: number;
+}
+
+/**
+ * Runtime state for gate ratcheting.
+ * Tracks consecutive passes, current threshold, and ratchet history.
+ */
+export interface RatchetState {
+  /** Current quality gate threshold */
+  currentThreshold: number;
+
+  /** Number of consecutive gate passes since last failure or ratchet */
+  consecutivePasses: number;
+
+  /** Timestamp (ms) of the last ratchet event */
+  lastRatchetTime: number;
+
+  /** History of all ratchet events */
+  history: Array<{ threshold: number; ratchetedAt: number }>;
+}
+
+/**
+ * Default ratchet configuration
+ */
+export const DEFAULT_RATCHET_CONFIG: RatchetConfig = {
+  enabled: false,
+  consecutivePassesRequired: 5,
+  ratchetIncrementPercent: 2,
+  maxThreshold: 95,
+  monotonic: true,
+  cooldownMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+};

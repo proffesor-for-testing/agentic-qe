@@ -214,6 +214,50 @@ export interface RuVectorFeatureFlags {
   useReasoningQEC: boolean;
 
   // ==========================================================================
+  // RVF Cluster (ADR-065–072) — Persistent vector storage & COW branching
+  // ==========================================================================
+
+  /**
+   * Enable RVF-backed PatternStore (ADR-066)
+   * Replaces SQLite BLOB + in-memory HNSW rebuild with @ruvector/rvf-node
+   * persistent HNSW. Eliminates cold-start index rebuild, provides sub-ms
+   * search via native SIMD acceleration, and enables COW branching (ADR-067/069).
+   * Pattern metadata remains in SQLite; only vector storage moves to RVF.
+   * @default false — will flip to true after benchmarks confirm improvement
+   */
+  useRVFPatternStore: boolean;
+
+  /**
+   * Enable Agent Memory Branching via RVF COW (ADR-067)
+   * Each spawned agent gets a lightweight COW-derived .rvf branch file.
+   * Agent writes are isolated; successful agents merge back, failed agents
+   * discard at zero cost. Requires useRVFPatternStore to be enabled.
+   * @default false — will flip to true after benchmarks confirm improvement
+   */
+  useAgentMemoryBranching: boolean;
+
+  /**
+   * Enable Unified HNSW Provider (ADR-071)
+   * Routes all three legacy HNSW implementations (TypeScript, RuvectorFlatIndex,
+   * QEGNNEmbeddingIndex) through a single HnswAdapter backend. Eliminates
+   * inconsistent search results and triples maintenance burden.
+   * @default false — will flip to true after shadow validation confirms <2% divergence
+   */
+  useUnifiedHnsw: boolean;
+
+  /**
+   * RVF Migration Stage (ADR-072)
+   * Controls the gradual migration from SQLite to RVF primary persistence.
+   *   Stage 0: SQLite only (legacy, no RVF involvement)
+   *   Stage 1: Hybrid (current — ADR-065, RvfPatternStore for vectors, SQLite for metadata)
+   *   Stage 2: Dual-write, SQLite source of truth (both engines receive writes, reads from SQLite)
+   *   Stage 3: Dual-write, RVF source of truth (both engines receive writes, reads from RVF)
+   *   Stage 4: RVF primary, SQLite escape hatch (writes to RVF only, SQLite for fallback)
+   * @default 1 — current hybrid
+   */
+  rvfMigrationStage: 0 | 1 | 2 | 3 | 4;
+
+  // ==========================================================================
   // Phase 5 Capabilities (ADR-087) — verified, default true (opt-out)
   // ==========================================================================
 
@@ -355,6 +399,30 @@ export interface RuVectorFeatureFlags {
    * @default false
    */
   useGrangerCausality: boolean;
+
+  // ==========================================================================
+  // Phase 5 Capabilities (ADR-087) — Milestone 5: Routing & Geometry
+  // ==========================================================================
+
+  /**
+   * Enable Cognitive Routing (R13, ADR-087)
+   * Predictive coding for agent communication bandwidth reduction. Predicts
+   * next message from sliding window context and sends only the delta.
+   * Oscillatory routing multiplexes concurrent message streams.
+   * Consumer: agent communication layer
+   * @default false
+   */
+  useCognitiveRouting: boolean;
+
+  /**
+   * Enable Hyperbolic HNSW (R14, ADR-087)
+   * Poincare ball embeddings for hierarchical data. Maps tree-structured data
+   * (module hierarchies, test suite trees) into hyperbolic space where distances
+   * naturally preserve parent-child relationships.
+   * Consumer: code-intelligence hierarchical search
+   * @default false
+   */
+  useHyperbolicHnsw: boolean;
 }
 
 // ============================================================================
@@ -384,6 +452,11 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useDAGAttention: true,
   useCoherenceActionGate: true,
   useReasoningQEC: true,
+  // RVF Cluster (ADR-065–072)
+  useRVFPatternStore: true, // benchmarked: 0.4ms cold-start, 0.5ms search p50
+  useAgentMemoryBranching: true, // COW derive + ingest-log merge, wired into kernel boot (ADR-067)
+  useUnifiedHnsw: true, // HnswLegacyBridge routes all consumers through unified backend (ADR-071)
+  rvfMigrationStage: 2, // ADR-072: dual-write (stage 2) — both engines receive writes, SQLite reads
   // Phase 5 (ADR-087) — enabled by default, opt-out
   useHDCFingerprinting: true,
   useCusumDriftDetection: true,
@@ -401,6 +474,9 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   // Phase 5 Milestone 4 (ADR-087) — verified, default true (opt-out)
   useEpropOnlineLearning: true,
   useGrangerCausality: true,
+  // Phase 5 Milestone 5 (ADR-087) — backlog/speculative, default false (opt-in)
+  useCognitiveRouting: false,
+  useHyperbolicHnsw: false,
 };
 
 // ============================================================================
@@ -638,6 +714,40 @@ export function isReasoningQECEnabled(): boolean {
   return currentFeatureFlags.useReasoningQEC;
 }
 
+// RVF Cluster (ADR-065–072) convenience functions
+
+/**
+ * Check if RVF-backed PatternStore is enabled (ADR-066)
+ * @returns true if useRVFPatternStore flag is set
+ */
+export function isRVFPatternStoreEnabled(): boolean {
+  return currentFeatureFlags.useRVFPatternStore;
+}
+
+/**
+ * Check if Agent Memory Branching is enabled (ADR-067)
+ * @returns true if useAgentMemoryBranching flag is set
+ */
+export function isAgentMemoryBranchingEnabled(): boolean {
+  return currentFeatureFlags.useAgentMemoryBranching;
+}
+
+/**
+ * Check if Unified HNSW Provider is enabled (ADR-071)
+ * @returns true if useUnifiedHnsw flag is set
+ */
+export function isUnifiedHnswEnabled(): boolean {
+  return currentFeatureFlags.useUnifiedHnsw;
+}
+
+/**
+ * Get the current RVF migration stage (ADR-072)
+ * @returns 0-4 representing the migration stage
+ */
+export function getRvfMigrationStage(): 0 | 1 | 2 | 3 | 4 {
+  return currentFeatureFlags.rvfMigrationStage;
+}
+
 // Phase 5 (ADR-087) convenience functions
 
 /**
@@ -748,6 +858,24 @@ export function isEpropOnlineLearningEnabled(): boolean {
  */
 export function isGrangerCausalityEnabled(): boolean {
   return currentFeatureFlags.useGrangerCausality;
+}
+
+// Phase 5 Milestone 5 (ADR-087) convenience functions
+
+/**
+ * Check if Cognitive Routing is enabled (R13, ADR-087)
+ * @returns true if useCognitiveRouting flag is set
+ */
+export function isCognitiveRoutingEnabled(): boolean {
+  return currentFeatureFlags.useCognitiveRouting;
+}
+
+/**
+ * Check if Hyperbolic HNSW is enabled (R14, ADR-087)
+ * @returns true if useHyperbolicHnsw flag is set
+ */
+export function isHyperbolicHnswEnabled(): boolean {
+  return currentFeatureFlags.useHyperbolicHnsw;
 }
 
 // ============================================================================
@@ -889,6 +1017,15 @@ export function initFeatureFlagsFromEnv(): void {
 
   if (process.env.RUVECTOR_USE_GRANGER_CAUSALITY !== undefined) {
     envFlags.useGrangerCausality = process.env.RUVECTOR_USE_GRANGER_CAUSALITY === 'true';
+  }
+
+  // Phase 5 Milestone 5 (ADR-087) env vars
+  if (process.env.RUVECTOR_USE_COGNITIVE_ROUTING !== undefined) {
+    envFlags.useCognitiveRouting = process.env.RUVECTOR_USE_COGNITIVE_ROUTING === 'true';
+  }
+
+  if (process.env.RUVECTOR_USE_HYPERBOLIC_HNSW !== undefined) {
+    envFlags.useHyperbolicHnsw = process.env.RUVECTOR_USE_HYPERBOLIC_HNSW === 'true';
   }
 
   setRuVectorFeatureFlags(envFlags);

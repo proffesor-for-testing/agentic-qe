@@ -32,7 +32,13 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       } else if (payload.target) {
         sourceFiles = await discoverSourceFiles(payload.target, { includeTests: false });
       } else {
-        sourceFiles = await discoverSourceFiles(process.cwd(), { includeTests: false });
+        // Default to src/ — scanning the entire project root is too slow
+        // (node_modules, dist, .git, etc. make it hang on large projects)
+        const path = await import('path');
+        const fs = await import('fs');
+        const srcDir = path.join(process.cwd(), 'src');
+        const targetDir = fs.existsSync(srcDir) ? srcDir : process.cwd();
+        sourceFiles = await discoverSourceFiles(targetDir, { includeTests: false });
       }
 
       if (sourceFiles.length === 0) {

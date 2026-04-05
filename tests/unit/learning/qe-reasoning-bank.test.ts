@@ -4,11 +4,16 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 import {
   QEReasoningBank,
   createQEReasoningBank,
   QERoutingRequest,
 } from '../../../src/learning/qe-reasoning-bank';
+
+// Ensure these tests exercise the in-memory PatternStore, not the RVF variant
+beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
+afterEach(() => { resetRuVectorFeatureFlags(); });
 import {
   detectQEDomain,
   detectQEDomains,

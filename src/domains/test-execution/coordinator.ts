@@ -204,6 +204,7 @@ export class TestExecutionCoordinator
   extends BaseDomainCoordinator<TestExecutionCoordinatorConfig>
   implements ITestExecutionCoordinator
 {
+  private readonly memory: MemoryBackend;
   private readonly executor: TestExecutorService;
   private readonly flakyDetector: FlakyDetectorService;
   private readonly retryHandler: RetryHandlerService;
@@ -225,6 +226,8 @@ export class TestExecutionCoordinator
       verifyFindingTypes: ['flaky-test-detection', 'test-failure-analysis', 'retry-strategy'],
       ...fullConfig.consensusConfig,
     });
+
+    this.memory = memory;
 
     // Create services with appropriate configuration
     this.executor = new TestExecutorService({ memory }, {
@@ -309,14 +312,23 @@ export class TestExecutionCoordinator
    * Auto-detects framework and uses sensible defaults
    */
   async runTests(request: SimpleTestRequest): Promise<Result<TestRunResult, Error>> {
-    const framework = this.detectFramework(request.testFiles);
-    const workers = request.workers ?? Math.min(4, Math.max(1, request.testFiles.length));
+    // ADR-062: Filter holdout tests before execution
+    const { testsToRun } = await this.partitionHoldoutTests(request.testFiles);
+    if (testsToRun.length === 0) {
+      return ok({
+        runId: uuidv4(), status: 'passed', total: 0, passed: 0,
+        failed: 0, skipped: 0, duration: 0, failedTests: [],
+      });
+    }
+
+    const framework = this.detectFramework(testsToRun);
+    const workers = request.workers ?? Math.min(4, Math.max(1, testsToRun.length));
     const timeout = request.timeout ?? 60000;
 
     // Use parallel execution by default (unless explicitly disabled)
-    if (request.parallel !== false && request.testFiles.length > 1) {
+    if (request.parallel !== false && testsToRun.length > 1) {
       const result = await this.executeParallel({
-        testFiles: request.testFiles,
+        testFiles: testsToRun,
         framework,
         workers,
         timeout,
@@ -338,7 +350,7 @@ export class TestExecutionCoordinator
 
     // Sequential execution
     const result = await this.execute({
-      testFiles: request.testFiles,
+      testFiles: testsToRun,
       framework,
       timeout,
     });
@@ -383,6 +395,18 @@ export class TestExecutionCoordinator
     this.infraRecoveryAttempts = 0;
 
     try {
+      // ADR-062: Filter holdout tests before execution
+      const { testsToRun } = await this.partitionHoldoutTests(request.testFiles);
+      if (testsToRun.length === 0) {
+        this.activeRuns.delete(runId);
+        return ok({
+          runId, status: 'passed', total: 0, passed: 0,
+          failed: 0, skipped: 0, duration: 0, failedTests: [],
+        });
+      }
+      // Replace testFiles with filtered set for the remainder of execution
+      request = { ...request, testFiles: testsToRun };
+
       // Prioritize tests if enabled
       let orderedTestFiles = request.testFiles;
       let prioritizationResult = null;
@@ -506,6 +530,17 @@ export class TestExecutionCoordinator
     this.infraRecoveryAttempts = 0;
 
     try {
+      // ADR-062: Filter holdout tests before execution
+      const { testsToRun } = await this.partitionHoldoutTests(request.testFiles);
+      if (testsToRun.length === 0) {
+        this.activeRuns.delete(runId);
+        return ok({
+          runId, status: 'passed', total: 0, passed: 0,
+          failed: 0, skipped: 0, duration: 0, failedTests: [],
+        });
+      }
+      request = { ...request, testFiles: testsToRun };
+
       // ADR-047: Check topology health before expensive parallel operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
         logger.warn(`Topology degraded, reducing parallel workers`);
@@ -1026,6 +1061,98 @@ export class TestExecutionCoordinator
   private extractTestName(filePath: string): string {
     const parts = filePath.split('/');
     return parts[parts.length - 1] || filePath;
+  }
+
+  // ============================================================================
+  // ADR-062: Holdout Test Filtering
+  // ============================================================================
+
+  /**
+   * ADR-062: Partition test files into normal and holdout sets.
+   *
+   * When AQE_HOLDOUT_TESTING_ENABLED is 'true', holdout test file paths are
+   * looked up from memory (stored by the test-generation domain when a test
+   * is created with `holdout: true`).
+   *
+   * - Normal runs execute only non-holdout tests.
+   * - Holdout runs (AQE_RUN_HOLDOUT_TESTS === 'true' or runHoldout flag)
+   *   execute only holdout tests.
+   *
+   * If the feature flag is disabled, all tests are returned as normal tests.
+   * Failures in holdout lookup are logged and treated as "no holdout tests"
+   * so that normal execution is never blocked.
+   *
+   * @returns Object with testsToRun and holdoutCount.
+   */
+  private async partitionHoldoutTests(
+    testFiles: string[],
+    runHoldout?: boolean,
+  ): Promise<{ testsToRun: string[]; holdoutCount: number }> {
+    const holdoutEnabled = process.env.AQE_HOLDOUT_TESTING_ENABLED === 'true';
+    if (!holdoutEnabled) {
+      return { testsToRun: testFiles, holdoutCount: 0 };
+    }
+
+    try {
+      // Retrieve the set of holdout test file paths stored by test-generation
+      const holdoutSet = await this.memory.get<string[]>(
+        'test-generation:holdout-test-files'
+      );
+
+      if (!holdoutSet || holdoutSet.length === 0) {
+        return { testsToRun: testFiles, holdoutCount: 0 };
+      }
+
+      const holdoutPaths = new Set(holdoutSet);
+
+      const normalTests: string[] = [];
+      const holdoutTests: string[] = [];
+
+      for (const file of testFiles) {
+        if (holdoutPaths.has(file)) {
+          holdoutTests.push(file);
+        } else {
+          normalTests.push(file);
+        }
+      }
+
+      // Determine if this is a holdout-only run
+      const isHoldoutRun = runHoldout === true ||
+        process.env.AQE_RUN_HOLDOUT_TESTS === 'true';
+
+      if (isHoldoutRun) {
+        logger.info(
+          `Holdout run: executing ${holdoutTests.length} holdout tests, skipping ${normalTests.length} normal tests`,
+        );
+        // Store metadata about the holdout run
+        await this.memory.set(
+          `test-execution:holdout-run:${Date.now()}`,
+          { holdoutCount: holdoutTests.length, holdoutFiles: holdoutTests },
+          { namespace: 'test-execution', ttl: 86400 }
+        );
+        return { testsToRun: holdoutTests, holdoutCount: holdoutTests.length };
+      }
+
+      if (holdoutTests.length > 0) {
+        logger.info(
+          `Normal run: filtered out ${holdoutTests.length} holdout test(s), running ${normalTests.length} normal tests`,
+        );
+        // Store metadata for visibility
+        await this.memory.set(
+          `test-execution:holdout-filtered:${Date.now()}`,
+          { holdoutCount: holdoutTests.length, holdoutFiles: holdoutTests },
+          { namespace: 'test-execution', ttl: 86400 }
+        );
+      }
+
+      return { testsToRun: normalTests, holdoutCount: holdoutTests.length };
+    } catch (partitionErr) {
+      // Non-critical: if holdout lookup fails, run all tests
+      logger.warn('Holdout test partitioning failed (running all tests)', {
+        error: partitionErr instanceof Error ? partitionErr.message : String(partitionErr),
+      });
+      return { testsToRun: testFiles, holdoutCount: 0 };
+    }
   }
 
   // ============================================================================

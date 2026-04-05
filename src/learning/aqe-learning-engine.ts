@@ -75,7 +75,7 @@ import {
   type TaskExperience,
   type ExperienceCaptureStats,
 } from './experience-capture.js';
-import { createPatternStore, type PatternStore } from './pattern-store.js';
+import { createPatternStore, type IPatternStore } from './pattern-store.js';
 import {
   wasmLoader,
   createCoherenceService,
@@ -183,7 +183,7 @@ export class AQELearningEngine {
   private reasoningBank?: QEReasoningBank;
   private claudeFlowBridge?: ClaudeFlowBridge;
   private experienceCapture?: ExperienceCaptureService;
-  private patternStore?: PatternStore;
+  private patternStore?: IPatternStore;
   private coherenceService?: ICoherenceService;
   private initialized = false;
 
@@ -1145,6 +1145,198 @@ export class AQELearningEngine {
     this.activeTasks.clear();
     this.initialized = false;
   }
+}
+
+// ============================================================================
+// Meta-Learning Cycle (ADR-062 Tier 3 Action 6)
+// ============================================================================
+
+/**
+ * Configuration for the meta-learning cycle.
+ */
+export interface MetaLearningConfig {
+  /** Whether meta-learning is enabled */
+  enabled: boolean;
+  /** Interval between snapshots in milliseconds (default: 300 000 = 5 min) */
+  snapshotIntervalMs: number;
+  /** Minimum number of snapshots required before analysis runs (default: 5) */
+  minSnapshotsForAnalysis: number;
+  /** Confidence threshold for auto-applying suggestions (default: 0.8) */
+  autoApplyThreshold: number;
+}
+
+/**
+ * Default meta-learning configuration.
+ */
+export const DEFAULT_META_LEARNING_CONFIG: MetaLearningConfig = {
+  enabled: false,
+  snapshotIntervalMs: 300_000,
+  minSnapshotsForAnalysis: 5,
+  autoApplyThreshold: 0.8,
+};
+
+/**
+ * An actionable insight produced by the meta-learning cycle.
+ */
+export interface MetaInsight {
+  /** Unique identifier */
+  id: string;
+  /** Category of the detected issue */
+  type: 'token-waste' | 'quality-plateau' | 'learning-stall' | 'performance-regression';
+  /** Human-readable explanation */
+  description: string;
+  /** Confidence in this insight (0-1) */
+  confidence: number;
+  /** Recommended remediation action */
+  suggestedAction: string;
+  /** Epoch-ms when the insight was detected */
+  detectedAt: number;
+}
+
+/**
+ * Meta-Learning Engine — closed-loop meta-optimization (ADR-062).
+ *
+ * Analyses a time-series of `UnifiedMetricsSnapshot`s to detect
+ * token-waste, quality plateaus, learning stalls, and performance
+ * regressions.  Guarded by the `AQE_META_LEARNING_ENABLED` env var
+ * (opt-in, default `false`).
+ */
+export class MetaLearningEngine {
+  private readonly config: MetaLearningConfig;
+
+  constructor(config?: Partial<MetaLearningConfig>) {
+    this.config = { ...DEFAULT_META_LEARNING_CONFIG, ...config };
+  }
+
+  /**
+   * Run a single meta-learning analysis cycle.
+   *
+   * Trend detection strategy: compare the first half of snapshots to the
+   * second half using simple averages.  This keeps the implementation
+   * lightweight and predictable.
+   *
+   * @param snapshots - Ordered (oldest → newest) unified metric snapshots
+   * @returns Detected meta-insights (may be empty)
+   */
+  runMetaLearningCycle(
+    snapshots: import('./metrics-tracker.js').UnifiedMetricsSnapshot[],
+  ): MetaInsight[] {
+    // Feature-flag gate
+    if (process.env.AQE_META_LEARNING_ENABLED !== 'true') {
+      return [];
+    }
+
+    if (!this.config.enabled) {
+      return [];
+    }
+
+    if (snapshots.length < this.config.minSnapshotsForAnalysis) {
+      return [];
+    }
+
+    const mid = Math.floor(snapshots.length / 2);
+    const firstHalf = snapshots.slice(0, mid);
+    const secondHalf = snapshots.slice(mid);
+
+    const insights: MetaInsight[] = [];
+    const now = Date.now();
+
+    // --- Token waste: cost increasing but savings flat ---
+    const avgCostFirst = avg(firstHalf.map(s => s.tokenMetrics.costUsd));
+    const avgCostSecond = avg(secondHalf.map(s => s.tokenMetrics.costUsd));
+    const avgSavingsFirst = avg(firstHalf.map(s => s.tokenMetrics.savingsUsd));
+    const avgSavingsSecond = avg(secondHalf.map(s => s.tokenMetrics.savingsUsd));
+
+    if (avgCostSecond > avgCostFirst * 1.1 && avgSavingsSecond <= avgSavingsFirst * 1.05) {
+      const confidence = Math.min(1, (avgCostSecond - avgCostFirst) / (avgCostFirst || 1));
+      insights.push({
+        id: `meta-tw-${now}`,
+        type: 'token-waste',
+        description: `Token cost increased by ${((avgCostSecond / (avgCostFirst || 1) - 1) * 100).toFixed(1)}% while savings remained flat`,
+        confidence: clamp01(confidence),
+        suggestedAction: 'Review cache configuration and increase pattern reuse thresholds',
+        detectedAt: now,
+      });
+    }
+
+    // --- Quality plateau: gatePassRate flat ---
+    const avgGateFirst = avg(firstHalf.map(s => s.qualityMetrics.gatePassRate));
+    const avgGateSecond = avg(secondHalf.map(s => s.qualityMetrics.gatePassRate));
+    const gateDelta = Math.abs(avgGateSecond - avgGateFirst);
+
+    if (gateDelta < 0.02 && snapshots.length >= this.config.minSnapshotsForAnalysis) {
+      insights.push({
+        id: `meta-qp-${now}`,
+        type: 'quality-plateau',
+        description: `Gate pass rate has been flat at ${(avgGateSecond * 100).toFixed(1)}% across ${snapshots.length} snapshots`,
+        confidence: clamp01(0.6 + (snapshots.length - this.config.minSnapshotsForAnalysis) * 0.05),
+        suggestedAction: 'Consider reviewing quality thresholds or adding new test coverage domains',
+        detectedAt: now,
+      });
+    }
+
+    // --- Learning stall: patternCount flat AND confidence flat ---
+    const avgPatFirst = avg(firstHalf.map(s => s.learningMetrics.patternCount));
+    const avgPatSecond = avg(secondHalf.map(s => s.learningMetrics.patternCount));
+    const avgConfFirst = avg(firstHalf.map(s => s.learningMetrics.averageConfidence));
+    const avgConfSecond = avg(secondHalf.map(s => s.learningMetrics.averageConfidence));
+    const patDelta = Math.abs(avgPatSecond - avgPatFirst);
+    const confDelta = Math.abs(avgConfSecond - avgConfFirst);
+
+    if (patDelta < 1 && confDelta < 0.02) {
+      insights.push({
+        id: `meta-ls-${now}`,
+        type: 'learning-stall',
+        description: `Pattern count (~${Math.round(avgPatSecond)}) and confidence (~${avgConfSecond.toFixed(2)}) have stagnated`,
+        confidence: clamp01(0.65 + (snapshots.length - this.config.minSnapshotsForAnalysis) * 0.04),
+        suggestedAction: 'Expand to new QE domains or lower pattern creation thresholds to encourage exploration',
+        detectedAt: now,
+      });
+    }
+
+    // --- Performance regression: p95 latency increasing ---
+    const avgP95First = avg(firstHalf.map(s => s.performanceMetrics.p95LatencyMs));
+    const avgP95Second = avg(secondHalf.map(s => s.performanceMetrics.p95LatencyMs));
+
+    if (avgP95Second > avgP95First * 1.2 && avgP95First > 0) {
+      const confidence = Math.min(1, (avgP95Second - avgP95First) / (avgP95First || 1));
+      insights.push({
+        id: `meta-pr-${now}`,
+        type: 'performance-regression',
+        description: `P95 latency increased from ${avgP95First.toFixed(0)}ms to ${avgP95Second.toFixed(0)}ms`,
+        confidence: clamp01(confidence),
+        suggestedAction: 'Profile hot paths and consider HNSW index tuning or batch size reduction',
+        detectedAt: now,
+      });
+    }
+
+    return insights;
+  }
+
+  /**
+   * Determine whether an insight should be auto-applied.
+   *
+   * @param insight - The insight to evaluate
+   * @param config  - Meta-learning config with the auto-apply threshold
+   * @returns `true` if the insight's confidence meets or exceeds the threshold
+   */
+  shouldAutoApply(insight: MetaInsight, config?: MetaLearningConfig): boolean {
+    const threshold = (config ?? this.config).autoApplyThreshold;
+    return insight.confidence >= threshold;
+  }
+}
+
+// --- Helpers -----------------------------------------------------------------
+
+/** Arithmetic mean; returns 0 for empty arrays. */
+function avg(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/** Clamp a number into [0, 1]. */
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
 }
 
 // ============================================================================

@@ -538,6 +538,14 @@ export class TestGenerationCoordinator
             (request.coverageTarget ?? 80) / 100,
             tests.tests.filter(t => t.type === 'unit').length / 20,
           ]);
+
+          // EWC++ outcome recording: close the feedback loop
+          try {
+            this.qesona.recordOutcome(1.0);
+            if (this.qesona.shouldConsolidate()) {
+              try { this.qesona.backgroundConsolidate(); } catch { /* best-effort */ }
+            }
+          } catch { /* must not break main flow */ }
         }
 
         // Learn from successful generation using QESONA
@@ -554,6 +562,7 @@ export class TestGenerationCoordinator
         if (this.config.publishEvents) {
           await this.publishGenerationFailed(result.error, 'generateTests');
         }
+
       }
 
       // Stop the agent

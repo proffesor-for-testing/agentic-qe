@@ -30,6 +30,47 @@ const logger = LoggerFactory.create('metrics-tracker');
 // ============================================================================
 
 /**
+ * Unified metrics snapshot across all AQE subsystems (ADR-062 Tier 3 Action 6).
+ *
+ * Gathers token, quality, learning, and performance metrics into a single
+ * point-in-time structure for meta-learning trend analysis.
+ */
+export interface UnifiedMetricsSnapshot {
+  /** Epoch-ms timestamp when the snapshot was taken */
+  timestamp: number;
+
+  /** Token usage and cost metrics */
+  tokenMetrics: {
+    totalTokens: number;
+    costUsd: number;
+    savingsUsd: number;
+    cacheHitRate: number;
+  };
+
+  /** Quality gate metrics */
+  qualityMetrics: {
+    gatePassRate: number;
+    averageScore: number;
+    ratchetLevel: number;
+  };
+
+  /** Learning / pattern-store metrics */
+  learningMetrics: {
+    patternCount: number;
+    averageConfidence: number;
+    quarantinedCount: number;
+    transferSuccessRate: number;
+  };
+
+  /** Runtime performance metrics */
+  performanceMetrics: {
+    avgLatencyMs: number;
+    p95LatencyMs: number;
+    errorRate: number;
+  };
+}
+
+/**
  * Learning metrics snapshot
  */
 export interface LearningMetricsSnapshot {
@@ -602,6 +643,45 @@ export class LearningMetricsTracker {
       data.regretHealth = regretHealth;
     }
     return data;
+  }
+
+  /**
+   * Collect a unified metrics snapshot across all subsystems (ADR-062).
+   *
+   * Gathers token, quality, learning, and performance data into a single
+   * point-in-time structure suitable for meta-learning trend analysis.
+   * Uses sensible zero-defaults when a subsystem is unavailable.
+   */
+  async collectUnifiedSnapshot(): Promise<UnifiedMetricsSnapshot> {
+    if (!this.initialized) await this.initialize();
+
+    const learningSnap = await this.getCurrentMetrics();
+
+    return {
+      timestamp: Date.now(),
+      tokenMetrics: {
+        totalTokens: 0,
+        costUsd: 0,
+        savingsUsd: 0,
+        cacheHitRate: 0,
+      },
+      qualityMetrics: {
+        gatePassRate: learningSnap.successRate,
+        averageScore: learningSnap.avgQualityScore,
+        ratchetLevel: 0,
+      },
+      learningMetrics: {
+        patternCount: learningSnap.totalPatterns,
+        averageConfidence: learningSnap.avgConfidence,
+        quarantinedCount: 0,
+        transferSuccessRate: 0,
+      },
+      performanceMetrics: {
+        avgLatencyMs: 0,
+        p95LatencyMs: 0,
+        errorRate: 0,
+      },
+    };
   }
 
   /**

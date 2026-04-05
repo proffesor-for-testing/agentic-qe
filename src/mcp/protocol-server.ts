@@ -99,6 +99,10 @@ import {
   type AgentCompleteParams,
   type PhaseEventParams,
   type FormatSignalsParams,
+  // ADR-072: RVF Migration handlers
+  handleMigrationStatus,
+  handleMigrationCheck,
+  handleMigrationPromote,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -117,6 +121,9 @@ import {
   getPerformanceMonitor,
   type PerformanceReport,
 } from './performance-monitor';
+
+// ADR-062: Loop detection for MCP tool calls
+import { ToolCallSignatureTracker } from '../kernel/anti-drift-middleware.js';
 
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
@@ -180,6 +187,9 @@ export class MCPProtocolServer {
   // IMP-08: 4-tier context compaction pipeline
   private readonly compactionPipeline: CompactionPipeline;
 
+  // ADR-062: Loop detection tracker for MCP tool calls
+  private readonly loopTracker: ToolCallSignatureTracker;
+
   // Connection recovery state
   private reconnecting = false;
   private pendingRequests: Array<{ resolve: (v: unknown) => void; reject: (e: Error) => void; request: JSONRPCRequest }> = [];
@@ -221,6 +231,9 @@ export class MCPProtocolServer {
       llmCaller: createLLMCompactCaller(),
     });
     this.middlewareChain.register(this.compactionPipeline.createMiddleware());
+
+    // ADR-062: Initialize loop detection tracker
+    this.loopTracker = new ToolCallSignatureTracker();
 
     // Register all tools
     this.registerAllTools();
@@ -506,7 +519,7 @@ export class MCPProtocolServer {
   private async handleToolsCall(params: {
     name: string;
     arguments?: Record<string, unknown>;
-  }): Promise<{ content: Array<{ type: string; text: string }> }> {
+  }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
     const { name, arguments: args = {} } = params;
 
     const tool = this.tools.get(name);
@@ -540,6 +553,25 @@ export class MCPProtocolServer {
       metadata: { stepId },
     };
 
+    // ADR-062: Loop detection — check for repeated identical tool calls
+    let loopSteeringPrefix = '';
+    if (process.env.AQE_LOOP_DETECTION_ENABLED !== 'false') {
+      try {
+        const loopResult = this.loopTracker.trackCall('mcp-client', name, args);
+        if (loopResult.action === 'steer') {
+          // BLOCK the tool call — return error with steering message to break the loop
+          return {
+            content: [{ type: 'text', text: loopResult.steeringMessage || 'Loop detected: repeated identical tool call blocked.' }],
+            isError: true,
+          };
+        } else if (loopResult.action === 'warn' && loopResult.steeringMessage) {
+          loopSteeringPrefix = loopResult.steeringMessage + '\n\n';
+        }
+      } catch {
+        // Loop detection must not break tool execution
+      }
+    }
+
     try {
       // IMP-00: Execute pre-tool-call middleware
       const processedCtx = await this.middlewareChain.executePreHooks(ctx);
@@ -560,11 +592,12 @@ export class MCPProtocolServer {
         },
       } as AQEToolResult);
 
+      const resultText = JSON.stringify(processedResult, null, 2);
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(processedResult, null, 2),
+            text: loopSteeringPrefix ? loopSteeringPrefix + resultText : resultText,
           },
         ],
       };
@@ -1418,6 +1451,41 @@ export class MCPProtocolServer {
         parameters: [],
       },
       handler: () => handleAQEHealth(),
+    });
+
+    // ADR-072 Phase 3: RVF Migration tools
+    this.registerTool({
+      definition: {
+        name: 'migration_status',
+        description: 'Get RVF migration status: current stage, metrics, consistency, and gate evaluation. Example: migration_status({})',
+        category: 'persistence',
+        isConcurrencySafe: true,
+        parameters: [],
+      },
+      handler: () => handleMigrationStatus(),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'migration_check',
+        description: 'Run a consistency check comparing SQLite and RVF search results. Samples random patterns and reports divergences. Example: migration_check({})',
+        category: 'persistence',
+        isConcurrencySafe: true,
+        parameters: [],
+      },
+      handler: () => handleMigrationCheck(),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'migration_promote',
+        description: 'Attempt to promote to the next RVF migration stage. Evaluates stage gate criteria. Example: migration_promote({ force: false })',
+        category: 'persistence',
+        parameters: [
+          { name: 'force', type: 'boolean', description: 'Skip gate checks and force promotion', default: false },
+        ],
+      },
+      handler: (params) => handleMigrationPromote(params as { force?: boolean }),
     });
 
     // Register QE domain tools not already covered by hardcoded handlers above

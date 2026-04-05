@@ -10,6 +10,8 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
+import { RvfPatternStore } from './rvf-pattern-store.js';
+import { createRvfStore as _createRvfStore, isRvfNativeAvailable } from '../integrations/ruvector/rvf-native-adapter.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   QEPattern,
@@ -30,14 +32,27 @@ import {
   isHDCFingerprintingEnabled,
   isDeltaEventSourcingEnabled,
   isHopfieldMemoryEnabled,
+  isHyperbolicHnswEnabled,
+  getRuVectorFeatureFlags,
 } from '../integrations/ruvector/feature-flags.js';
 import {
   HdcFingerprinter,
   createHdcFingerprinter,
+  HDCPatternFingerprinter,
+  createHDCFingerprinter,
   type PatternFingerprint,
 } from '../integrations/ruvector/hdc-fingerprint.js';
 import { DeltaTracker } from '../integrations/ruvector/delta-tracker.js';
+import {
+  VectorDeltaTracker,
+  createVectorDeltaTracker,
+} from '../integrations/ruvector/vector-delta-tracker.js';
 import { HopfieldMemory, createHopfieldMemory } from '../integrations/ruvector/hopfield-memory.js';
+import {
+  HyperbolicPatternIndex,
+  createHyperbolicPatternIndex,
+  type HyperbolicPatternResult,
+} from './hyperbolic-pattern-index.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -51,6 +66,20 @@ function getHdcFingerprinter(): HdcFingerprinter {
     hdcFingerprinter = createHdcFingerprinter({ dimensions: 10000 });
   }
   return hdcFingerprinter;
+}
+
+// ============================================================================
+// R1b: Token-based HDC Fingerprinter Singleton (lazy-initialized, flag-gated)
+// ============================================================================
+
+/** Module-level token-based HDC fingerprinter (null when feature disabled) */
+let hdcTokenFingerprinter: HDCPatternFingerprinter | null | undefined = undefined;
+
+function getHDCTokenFingerprinter(): HDCPatternFingerprinter | null {
+  if (hdcTokenFingerprinter === undefined) {
+    hdcTokenFingerprinter = createHDCFingerprinter(); // null when flag disabled
+  }
+  return hdcTokenFingerprinter;
 }
 
 // ============================================================================
@@ -306,6 +335,9 @@ export interface IPatternStore {
   /** Initialize the store */
   initialize(): Promise<void>;
 
+  /** Attach SQLite persistence for metadata */
+  setSqliteStore?(store: import('./sqlite-persistence.js').SQLitePatternStore): void;
+
   /** Store a new pattern */
   store(pattern: QEPattern): Promise<Result<string>>;
 
@@ -376,8 +408,17 @@ export class PatternStore implements IPatternStore {
   // R1: HDC fingerprint cache (pattern ID -> fingerprint vector)
   private hdcCache: Map<string, Uint8Array> = new Map();
 
+  // R1b: Token-based HDC fingerprint cache (pattern ID -> token fingerprint vector)
+  private hdcTokenCache: Map<string, Uint8Array> = new Map();
+
   // R3: Delta event sourcing tracker (lazy-initialized with SQLite)
   private deltaTracker: DeltaTracker | null = null;
+
+  // R3b: Vector delta tracker for embedding version history (lazy-initialized, flag-gated)
+  private vectorDeltaTracker: VectorDeltaTracker | null | undefined = undefined;
+
+  // R14: Hyperbolic HNSW index for hierarchical pattern search (lazy-initialized, flag-gated)
+  private hyperbolicIndex: HyperbolicPatternIndex | null = null;
 
   // Statistics
   private stats = {
@@ -501,7 +542,29 @@ export class PatternStore implements IPatternStore {
    */
   private async initializeHNSWInternal(): Promise<void> {
     try {
-      // Try to import and use the existing HNSWIndex
+      // ADR-071: Use unified HNSW via bridge when flag is enabled
+      const unifiedFlags = getRuVectorFeatureFlags();
+      if (unifiedFlags.useUnifiedHnsw) {
+        try {
+          const { HnswLegacyBridge } = await import('../kernel/hnsw-legacy-bridge.js');
+          const { HnswAdapter } = await import('../kernel/hnsw-adapter.js');
+          const adapter = new HnswAdapter('patterns', {
+            dimensions: this.config.embeddingDimension,
+            M: this.config.hnsw.M,
+            efConstruction: this.config.hnsw.efConstruction,
+            efSearch: this.config.hnsw.efSearch,
+            metric: 'cosine',
+          });
+          this.hnswIndex = new HnswLegacyBridge(adapter);
+          this.hnswAvailable = true;
+          console.log('[PatternStore] Using unified HNSW via HnswLegacyBridge (ADR-071)');
+          return;
+        } catch (bridgeError) {
+          console.warn('[PatternStore] Unified HNSW bridge failed, falling back:', bridgeError);
+        }
+      }
+
+      // Fallback: direct HNSWIndex (legacy path)
       const { HNSWIndex } = await import(
         '../domains/coverage-analysis/services/hnsw-index.js'
       );
@@ -577,6 +640,17 @@ export class PatternStore implements IPatternStore {
   }
 
   /**
+   * Lazily initialize the VectorDeltaTracker for embedding version history.
+   * Returns null when the useDeltaEventSourcing feature flag is disabled.
+   */
+  private getVectorDeltaTracker(): VectorDeltaTracker | null {
+    if (this.vectorDeltaTracker === undefined) {
+      this.vectorDeltaTracker = createVectorDeltaTracker(); // null when flag disabled
+    }
+    return this.vectorDeltaTracker;
+  }
+
+  /**
    * Load existing patterns from SQLite into in-memory cache.
    *
    * Previously this was a no-op after Issue #258 removed kv_store duplication,
@@ -642,6 +716,7 @@ export class PatternStore implements IPatternStore {
     this.typeIndex.get(pattern.patternType)?.delete(pattern.id);
     this.tierIndex.get(pattern.tier)?.delete(pattern.id);
     this.hdcCache.delete(pattern.id); // R1: cleanup HDC fingerprint
+    this.hdcTokenCache.delete(pattern.id); // R1b: cleanup token-based fingerprint
   }
 
   /**
@@ -676,6 +751,9 @@ export class PatternStore implements IPatternStore {
       // Run cleanup for this domain
       await this.cleanupDomain(pattern.qeDomain);
     }
+
+    // R3b: Capture pre-existing pattern for VectorDeltaTracker before overwrite
+    const existingPattern = this.patternCache.get(pattern.id) ?? null;
 
     // Index in memory cache
     this.indexPattern(pattern);
@@ -730,6 +808,25 @@ export class PatternStore implements IPatternStore {
       }
     }
 
+    // R1b: Compute token-based HDC fingerprint via HDCPatternFingerprinter
+    try {
+      const tokenFp = getHDCTokenFingerprinter();
+      if (tokenFp) {
+        const tokens: string[] = [pattern.patternType, pattern.qeDomain];
+        if (pattern.context?.tags) {
+          tokens.push(...pattern.context.tags);
+        }
+        if (pattern.name) {
+          tokens.push(pattern.name);
+        }
+        const fpVector = tokenFp.fingerprintPattern(tokens);
+        this.hdcTokenCache.set(pattern.id, fpVector);
+      }
+    } catch (error) {
+      // Token fingerprinting failure must not prevent pattern storage
+      console.debug(`[PatternStore] HDC token fingerprint failed for ${pattern.id}:`, toErrorMessage(error));
+    }
+
     // R5: Store embedding in Hopfield memory for exact recall
     if (isHopfieldMemoryEnabled() && pattern.embedding) {
       try {
@@ -762,6 +859,36 @@ export class PatternStore implements IPatternStore {
         console.debug(`[PatternStore] Delta genesis for ${pattern.id}:`, toErrorMessage(error));
       }
     }
+
+    // R3b: Track embedding version history via VectorDeltaTracker
+    if (pattern.embedding) {
+      try {
+        const vdt = this.getVectorDeltaTracker();
+        if (vdt) {
+          if (existingPattern?.embedding) {
+            // Update: record delta between old and new embeddings
+            vdt.recordDelta(pattern.id, existingPattern.embedding, pattern.embedding);
+          } else if (vdt.getVersion(pattern.id) < 0) {
+            // New pattern: record genesis for the embedding
+            vdt.recordGenesis(pattern.id, pattern.embedding);
+          }
+        }
+      } catch (error) {
+        // Vector delta tracking failure must not prevent pattern storage
+        console.debug(`[PatternStore] VectorDeltaTracker for ${pattern.id}:`, toErrorMessage(error));
+      }
+    }
+
+    // R14: Auto-index into hyperbolic HNSW when enabled
+    try {
+      if (isHyperbolicHnswEnabled() && pattern.embedding) {
+        this.indexHyperbolic(pattern.id, pattern.embedding, {
+          domain: pattern.qeDomain,
+          type: pattern.patternType,
+          name: pattern.name,
+        });
+      }
+    } catch { /* best-effort — hyperbolic indexing must not block store() */ }
 
     return ok(pattern.id);
   }
@@ -828,6 +955,7 @@ export class PatternStore implements IPatternStore {
       'flaky-fix': 'test-execution',
       'refactor-safe': 'code-intelligence',
       'error-handling': 'test-generation',
+      'meta-optimization': 'learning-optimization',
     };
     return typeToDomain[patternType] || 'test-generation';
   }
@@ -1563,9 +1691,106 @@ export class PatternStore implements IPatternStore {
     this.tierIndex.clear();
     this.hdcCache.clear(); // R1: cleanup
     this.deltaTracker = null; // R3: cleanup
+    if (this.hyperbolicIndex) { this.hyperbolicIndex.reset(); this.hyperbolicIndex = null; } // R14: cleanup
     if (hopfieldMemory) { hopfieldMemory.clear(); hopfieldMemory = null; hopfieldDimension = 0; } // R5: cleanup
 
     this.initialized = false;
+  }
+
+  // ==========================================================================
+  // R14: Hyperbolic Pattern Search (ADR-087)
+  // ==========================================================================
+
+  /**
+   * Index a pattern's embedding into the hyperbolic HNSW index.
+   *
+   * Call this after storing a pattern when hyperbolic search is enabled.
+   * Safe to call when disabled — it no-ops. Does not modify the pattern
+   * or the main HNSW index; the hyperbolic index is a parallel backend.
+   *
+   * @param patternId - The pattern ID to index
+   * @param embedding - Euclidean embedding (projected to Poincare ball internally)
+   * @param metadata - Optional metadata (e.g., domain, type)
+   */
+  indexHyperbolic(
+    patternId: string,
+    embedding: number[] | Float32Array,
+    metadata?: Record<string, unknown>
+  ): void {
+    if (!isHyperbolicHnswEnabled()) return;
+
+    try {
+      if (!this.hyperbolicIndex) {
+        this.hyperbolicIndex = createHyperbolicPatternIndex({
+          dimensions: this.config.embeddingDimension,
+          maxElements: this.config.hnsw.maxElements,
+        });
+      }
+      this.hyperbolicIndex.indexPattern(patternId, embedding, metadata);
+    } catch (error) {
+      console.debug(
+        `[PatternStore] Hyperbolic indexing failed for ${patternId}:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  }
+
+  /**
+   * Search for similar patterns using the hyperbolic (Poincare ball) HNSW index.
+   *
+   * Hyperbolic geometry naturally preserves hierarchical relationships:
+   * root patterns cluster near the origin, leaf patterns near the boundary.
+   * This makes it well-suited for module hierarchy and test suite tree searches.
+   *
+   * Falls back to an empty result set when:
+   * - The `useHyperbolicHnsw` feature flag is disabled
+   * - The hyperbolic index has not been populated
+   * - An error occurs during search
+   *
+   * @param query - Euclidean query embedding (will be projected to Poincare ball)
+   * @param k - Number of nearest neighbors to return
+   * @returns Array of pattern search results with hyperbolic distances, or empty on failure
+   */
+  async searchHyperbolic(
+    query: Float32Array | number[],
+    k: number = 10
+  ): Promise<Result<PatternSearchResult[]>> {
+    if (!isHyperbolicHnswEnabled() || !this.hyperbolicIndex) {
+      return ok([]);
+    }
+
+    try {
+      const hyperbolicResults: HyperbolicPatternResult[] = this.hyperbolicIndex.search(query, k);
+      const results: PatternSearchResult[] = [];
+
+      for (const hr of hyperbolicResults) {
+        const pattern = await this.get(hr.patternId);
+        if (!pattern) continue;
+
+        // Convert hyperbolic distance to a 0-1 similarity score
+        // Using exp(-distance) which maps [0, inf) -> (0, 1]
+        const similarity = Math.exp(-hr.distance);
+        const reuseInfo = this.calculateReuseInfo(pattern, similarity);
+
+        results.push({
+          pattern,
+          score: similarity,
+          matchType: 'vector',
+          similarity,
+          canReuse: reuseInfo.canReuse,
+          estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+          reuseConfidence: reuseInfo.reuseConfidence,
+        });
+      }
+
+      return ok(results);
+    } catch (error) {
+      console.warn(
+        '[PatternStore] Hyperbolic search failed, returning empty results:',
+        error instanceof Error ? error.message : error
+      );
+      return ok([]);
+    }
   }
 }
 
@@ -1574,11 +1799,39 @@ export class PatternStore implements IPatternStore {
 // ============================================================================
 
 /**
- * Create a new pattern store instance
+ * Create a new pattern store instance.
+ *
+ * When `useRVFPatternStore` feature flag is enabled (ADR-066), returns an
+ * RvfPatternStore backed by @ruvector/rvf-node with persistent HNSW.
+ * Otherwise returns the existing in-memory HNSW PatternStore.
  */
 export function createPatternStore(
   memory: MemoryBackend,
   config?: Partial<PatternStoreConfig>
-): PatternStore {
+): IPatternStore {
+  // ADR-066: RVF-backed PatternStore when feature flag is enabled
+  try {
+    const flags = getRuVectorFeatureFlags();
+    if (flags.useRVFPatternStore && isRvfNativeAvailable()) {
+      // Only use RVF if the data directory exists (created by kernel init)
+      const { existsSync } = require('fs');
+      const rvfPath = '.agentic-qe/patterns.rvf';
+      const rvfDir = require('path').dirname(rvfPath);
+      if (existsSync(rvfDir)) {
+        const mergedConfig = { ...DEFAULT_PATTERN_STORE_CONFIG, ...config };
+        const store = new RvfPatternStore(
+          (path: string, dim: number) => _createRvfStore(path, dim),
+          { rvfPath, base: mergedConfig },
+        );
+        console.log('[PatternStore] Using RVF-backed store (ADR-066)');
+        return store;
+      }
+    }
+  } catch (error) {
+    // Feature flags or RVF modules not available — use default
+    console.warn('[PatternStore] RVF store unavailable, using in-memory HNSW:', error instanceof Error ? error.message : error);
+  }
+
   return new PatternStore(memory, config);
 }
+

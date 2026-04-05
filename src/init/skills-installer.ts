@@ -8,8 +8,8 @@
 
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync, unlinkSync, rmdirSync } from 'fs';
 import { join, dirname, basename, relative } from 'path';
-import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { findPackageRoot } from './find-package-root.js';
 
 // ============================================================================
 // Types
@@ -181,55 +181,27 @@ export class SkillsInstaller {
   }
 
   /**
-   * Find the source skills directory
-   * Looks in multiple locations to support different installation scenarios
+   * Find the source skills directory.
+   *
+   * Uses findPackageRoot() to reliably locate the package root regardless
+   * of esbuild bundle depth (dist/init/, dist/cli/, dist/cli/chunks/, etc.).
+   * Prioritises assets/skills/ (canonical npm source) over .claude/skills/.
    */
   private findSourceSkillsDir(): string {
-    // Try relative to this module (development)
-    const moduleDir = dirname(fileURLToPath(import.meta.url));
+    const pkgRoot = findPackageRoot(import.meta.url);
 
-    // Possible locations for skills
-    const possiblePaths = [
-      // Development: relative to src/init/ or dist/init/ (2 levels up to project root)
-      join(moduleDir, '../../.claude/skills'),
-      // NPM package: assets directory at package root (dist/init -> dist -> package root)
-      join(moduleDir, '../../assets/skills'),
-      // Local install: in node_modules
-      join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
-      join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
-    ];
+    const possiblePaths: string[] = [];
 
-    // For global npm installs, add common global node_modules paths
-    // Note: We use platform-based heuristics instead of npm prefix lookup
-    // to avoid dynamic require issues in ESM bundles
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const isWindows = process.platform === 'win32';
-
-    if (isWindows) {
-      // Windows: npm global is typically in AppData
-      const appData = process.env.APPDATA || join(homeDir, 'AppData', 'Roaming');
-      possiblePaths.push(
-        join(appData, 'npm/node_modules/agentic-qe/assets/skills'),
-        join(appData, 'npm/node_modules/agentic-qe/.claude/skills'),
-      );
-    } else {
-      // Unix/Linux/macOS: common global prefixes
-      const globalPrefixes = [
-        '/usr/local',
-        '/usr',
-        join(homeDir, '.npm-global'),
-        join(homeDir, '.nvm/versions/node', process.version),
-      ];
-
-      for (const prefix of globalPrefixes) {
-        possiblePaths.push(
-          join(prefix, 'lib/node_modules/agentic-qe/assets/skills'),
-          join(prefix, 'lib/node_modules/agentic-qe/.claude/skills'),
-          join(prefix, 'node_modules/agentic-qe/assets/skills'),
-          join(prefix, 'node_modules/agentic-qe/.claude/skills'),
-        );
-      }
+    if (pkgRoot) {
+      // Canonical npm source — assets/ is never a dotfile, always extracted
+      possiblePaths.push(join(pkgRoot, 'assets/skills'));
+      possiblePaths.push(join(pkgRoot, '.claude/skills'));
     }
+
+    // Local install: in node_modules
+    possiblePaths.push(
+      join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
+    );
 
     for (const skillsPath of possiblePaths) {
       if (existsSync(skillsPath)) {

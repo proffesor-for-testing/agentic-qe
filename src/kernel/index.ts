@@ -7,7 +7,7 @@ export * from './interfaces';
 
 // Implementations
 export { InMemoryEventBus } from './event-bus';
-export { DefaultAgentCoordinator } from './agent-coordinator';
+export { DefaultAgentCoordinator, ProgressiveContextLoader } from './agent-coordinator';
 export { DefaultPluginLoader } from './plugin-loader';
 export { InMemoryBackend } from './memory-backend';
 export { QEKernelImpl, createKernel } from './kernel';

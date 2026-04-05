@@ -5,6 +5,38 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.1] - 2026-04-05
+
+### Added
+
+- **RVF persistent vector storage (ADR-065/066)** — `RvfPatternStore` backed by @ruvector/rvf-node native HNSW replaces in-memory index rebuild on startup. Cold-start drops from seconds to <2ms; search p50 under 0.2ms. Factory routing via `createPatternStore()` with automatic fallback to SQLite.
+- **Agent memory branching (ADR-067)** — Per-agent COW isolation via `RvfNativeAdapter.derive()` with ingest-log merge on completion and automatic branch cleanup on failure. Wired into `DefaultAgentCoordinator` spawn/complete lifecycle.
+- **Dream RVF COW (ADR-069)** — Dream engine uses RVF forks instead of SQLite savepoints when RVF is active. Child adapter lifecycle managed with temp file cleanup. Recall validation gate compares top-k overlap before merge.
+- **HNSW unification (ADR-071)** — Three separate HNSW implementations (`InMemoryHNSWIndex`, `HNSWEmbeddingIndex`, `HNSWIndex`) unified through `HnswLegacyBridge` → `HnswAdapter`. Shadow validator confirms <2% divergence. Old implementations decommissioned.
+- **RVF dual-write migration (ADR-072)** — `RvfMigrationAdapter` with 5-stage routing (SQLite-only → dual-write → RVF-primary). `RvfConsistencyValidator` tracks rolling divergence. `RvfStageGate` enforces go/no-go criteria with witness chain. Stage 2 (dual-write, SQLite reads) active by default. MCP tools: `migration_status`, `migration_check`, `migration_promote`.
+- **StrongDM software factory (ADR-062)** — Loop detection wired to MCP protocol-server (blocks on strike 3+), holdout testing (10% FNV-1a selection), gate ratcheting (monotonic 5-pass/2%/95% cap), progressive context (TF-IDF prediction), and meta-learning cycles (4 insight types).
+- **RuVector advanced capabilities (ADR-087)** — EWC++ outcome recording wired to 3 domain coordinators, HDC fingerprinting (10K-bit hypervectors), delta event sourcing, cognitive routing (predictive compression), and hyperbolic HNSW (Poincare ball).
+- **HnswShadowValidator** — Brute-force vs HnswAdapter divergence validation for search consistency verification.
+- **RvfMigrationCoordinator** — Wires migration adapter, consistency validator, and stage gate with real SQLite/RVF handles. Initializes on kernel boot when migration stage >= 2.
+- **Shared RVF adapter singleton** — Eliminates dual file handles between kernel and dream engine.
+- **500+ new tests** — Covering RVF pattern store, agent memory branching, HNSW bridge, shadow validator, migration adapter, consistency validator, stage gate, StrongDM tiers, and RuVector capabilities.
+
+### Fixed
+
+- **`require()` fails in ESM bundles ("Dynamic require of X is not supported")** — esbuild's CJS compatibility shim throws in ESM chunks because `require` is undefined. Added `createRequire` banner to both CLI and MCP build scripts so every chunk has a working `require`. Fixes RVF, sqlite, and all native module paths in the CLI.
+- **`aqe init` path resolution** — Skills and agents installers now resolve paths from package root via `findPackageRoot()` instead of brittle relative traversals that broke under esbuild code-splitting chunk layouts.
+- **`quality_assess` hangs on large projects** — Defaults to `src/` instead of cwd; `discoverSourceFiles` skips `.agentic-qe/.claude/.cache` dirs with `maxFiles=5000` cap.
+- **Dream cycle empty-query** — `RvfPatternStore` returns all patterns from SQLite when query is empty.
+- **Coherence integration fallback** — `RvfPatternStore` computes brute-force cosine over SQLite embeddings when RVF adapter unavailable.
+- **7 pre-existing test failures resolved** — Fixed console spy targets, ADR-062 loop detection in MCP tests, dream cycle RVF paths, and coherence vector search fallback.
+
+### Changed
+
+- **@ruvector/gnn bumped 0.1.19 → 0.1.25** — Latest ProgressiveHnswBackend improvements.
+- **3 RVF feature flags default to `true`** — `useRVFPatternStore`, `useAgentMemoryBranching`, `useUnifiedHnsw` all ship enabled (opt-out via config).
+- **RVF migration stage default: 2** — Dual-write with SQLite as source of truth for reads. Stage promotions (3, 4) gated by observation periods.
+- **ESM-safe dynamic imports** — `require()` replaced with `import()` in dream-engine and branch-manager.
+
 ## [3.9.0] - 2026-04-02
 
 ### Added

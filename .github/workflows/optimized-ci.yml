@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run governance integration tests
@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run ruvector + coordination integration tests
@@ -66,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run root-level integration tests
@@ -88,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run remaining integration subdirectory tests
@@ -127,7 +127,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run contract tests
@@ -147,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run code intelligence tests
@@ -165,7 +165,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Infrastructure Tests
@@ -210,7 +210,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Postgres integration tests
@@ -230,7 +230,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run Performance Gates
@@ -270,7 +270,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
@@ -307,7 +307,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24' }
+        with: { node-version: '24.13.0' }
       - name: Generate Dashboard
         run: node scripts/test-dashboard.cjs
       - name: Generate Migration Metrics

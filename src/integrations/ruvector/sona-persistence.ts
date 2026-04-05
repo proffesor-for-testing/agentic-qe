@@ -862,6 +862,17 @@ export class PersistentSONAEngine {
   }
 
   /**
+   * Check if background consolidation is due (every N requests).
+   *
+   * Delegates to the base engine's shouldConsolidate().
+   *
+   * @returns true if consolidation interval has been reached
+   */
+  shouldConsolidate(): boolean {
+    return this.baseEngine.shouldConsolidate();
+  }
+
+  /**
    * Check if the three-loop engine is initialized and active.
    */
   isThreeLoopEnabled(): boolean {

@@ -175,7 +175,8 @@ describe('Code Intelligence Coordinator ↔ MetricCollector Wiring', () => {
         config
       );
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      // logger.info() routes to console.info, not console.log
+      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
       await coordinator.initialize();
 
@@ -420,7 +421,8 @@ describe('Code Intelligence Coordinator ↔ MetricCollector Wiring', () => {
 
       await coordinator.initialize();
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      // logger.info() routes to console.info, not console.log
+      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
       await coordinator.collectProjectMetrics(FIXTURE_PROJECT_PATH);
 

@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run handler tests
@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run security tests
@@ -82,7 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run tools, transport, metrics tests
@@ -109,7 +109,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
       - name: Run root-level MCP tests
@@ -139,7 +139,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
 
       - name: Run MCP integration tests
@@ -185,7 +185,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '24', cache: 'npm' }
+        with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
 

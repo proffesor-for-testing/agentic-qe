@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MailboxService, createMailboxService } from '../../src/coordination/agent-teams/mailbox.js';
 import { AgentTeamsAdapter, createAgentTeamsAdapter } from '../../src/coordination/agent-teams/adapter.js';
 import type { AgentMessage, DomainTeamConfig } from '../../src/coordination/agent-teams/types.js';
+import * as cogModule from '../../src/integrations/ruvector/cognitive-routing.js';
 
 // ============================================================================
 // Helpers
@@ -435,5 +436,162 @@ describe('AgentTeamsAdapter', () => {
     adapter.shutdown();
     expect(adapter.isRegistered('a1')).toBe(false);
     expect(adapter.getRegisteredAgents()).toHaveLength(0);
+  });
+});
+
+// ============================================================================
+// R13: Cognitive Routing Compression Integration
+// ============================================================================
+
+describe('MailboxService — cognitive routing compression', () => {
+  let svc: MailboxService;
+  let enabledSpy: ReturnType<typeof vi.spyOn>;
+  let createSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    svc = createMailboxService();
+    svc.createMailbox('sender', 'dom');
+    svc.createMailbox('receiver', 'dom');
+  });
+
+  afterEach(() => {
+    enabledSpy?.mockRestore();
+    createSpy?.mockRestore();
+  });
+
+  /**
+   * When cognitive routing is OFF (default), messages pass through
+   * unchanged — no compression, no decompression.
+   */
+  it('should pass messages through unchanged when routing is disabled', () => {
+    enabledSpy = vi.spyOn(cogModule, 'isCognitiveRoutingEnabled').mockReturnValue(false);
+
+    const payload = { status: 'running', count: 42, details: 'some data' };
+    const msg = makeMessage({ to: 'receiver', payload });
+
+    svc.send(msg);
+    const received = svc.receive('receiver');
+
+    expect(received).toHaveLength(1);
+    expect(received[0].payload).toEqual(payload);
+    expect(svc.getCognitiveRoutingStats()).toBeNull();
+  });
+
+  /**
+   * When cognitive routing is ON and delta compression helps, the stored
+   * message should use a smaller compressed payload, and receive() should
+   * reconstruct the original payload transparently.
+   */
+  it('should compress on send and decompress on receive when routing is enabled', () => {
+    enabledSpy = vi.spyOn(cogModule, 'isCognitiveRoutingEnabled').mockReturnValue(true);
+    const router = new cogModule.CognitiveRouter();
+    createSpy = vi.spyOn(cogModule, 'createCognitiveRouter').mockReturnValue(router);
+
+    // First message seeds the predictor — no compression expected
+    const basePayload = {
+      status: 'running', count: 1, agent: 'tester',
+      details: 'long repeated content that stays the same across messages',
+    };
+    const msg1 = makeMessage({ id: 'msg-1', to: 'receiver', payload: basePayload });
+    svc.send(msg1);
+    svc.receive('receiver'); // drain
+
+    // Second message differs only slightly — delta compression should kick in
+    const updatedPayload = {
+      ...basePayload,
+      count: 2, // only this field changes
+    };
+    const msg2 = makeMessage({ id: 'msg-2', to: 'receiver', payload: updatedPayload });
+    svc.send(msg2);
+
+    // Verify the stored message has compressed payload (internal check via snapshot)
+    const snapshot = svc.getMailbox('receiver');
+    expect(snapshot).toBeDefined();
+    const storedMsg = snapshot!.messages.find(m => m.id === 'msg-2');
+    expect(storedMsg).toBeDefined();
+    // The stored payload should be a delta envelope, not the original
+    const storedPayload = storedMsg!.payload as Record<string, unknown>;
+    expect(storedPayload.__delta).toBe(true);
+    expect(storedPayload.__changes).toBeDefined();
+
+    // But receive() should decompress and return the original payload
+    const received = svc.receive('receiver');
+    expect(received).toHaveLength(1);
+    expect(received[0].payload).toEqual(updatedPayload);
+
+    // Stats should show real savings
+    const stats = svc.getCognitiveRoutingStats();
+    expect(stats).not.toBeNull();
+    expect(stats!.totalMessages).toBeGreaterThanOrEqual(2);
+    expect(stats!.compressedMessages).toBeGreaterThanOrEqual(1);
+    expect(stats!.bandwidthSavedBytes).toBeGreaterThan(0);
+  });
+
+  /**
+   * When the router throws, the original message is stored and delivered
+   * unchanged — no data loss.
+   */
+  it('should fall back to original message when router.send() throws', () => {
+    enabledSpy = vi.spyOn(cogModule, 'isCognitiveRoutingEnabled').mockReturnValue(true);
+    const router = new cogModule.CognitiveRouter();
+    createSpy = vi.spyOn(cogModule, 'createCognitiveRouter').mockReturnValue(router);
+    vi.spyOn(router, 'send').mockImplementation(() => { throw new Error('boom'); });
+
+    const payload = { key: 'value' };
+    const msg = makeMessage({ to: 'receiver', payload });
+    svc.send(msg);
+
+    const received = svc.receive('receiver');
+    expect(received).toHaveLength(1);
+    expect(received[0].payload).toEqual(payload);
+  });
+
+  /**
+   * When compression is available but the delta is not smaller than the
+   * original (e.g., entirely new payload), the original is stored unchanged.
+   */
+  it('should store original when compression does not save space', () => {
+    enabledSpy = vi.spyOn(cogModule, 'isCognitiveRoutingEnabled').mockReturnValue(true);
+    const router = new cogModule.CognitiveRouter();
+    createSpy = vi.spyOn(cogModule, 'createCognitiveRouter').mockReturnValue(router);
+
+    // First message — no prior prediction, so no compression
+    const payload = { x: 1, y: 2 };
+    const msg = makeMessage({ to: 'receiver', payload });
+    svc.send(msg);
+
+    const received = svc.receive('receiver');
+    expect(received).toHaveLength(1);
+    expect(received[0].payload).toEqual(payload);
+  });
+
+  /**
+   * Cleanup should remove compressed message tracking entries for expired messages.
+   */
+  it('should clean up compressed message tracking on message expiration', () => {
+    enabledSpy = vi.spyOn(cogModule, 'isCognitiveRoutingEnabled').mockReturnValue(true);
+    const router = new cogModule.CognitiveRouter();
+    createSpy = vi.spyOn(cogModule, 'createCognitiveRouter').mockReturnValue(router);
+
+    const basePayload = {
+      status: 'running', count: 1,
+      details: 'long repeated content that stays the same across messages',
+    };
+    // Seed the predictor
+    svc.send(makeMessage({ id: 'seed', to: 'receiver', payload: basePayload }));
+    svc.receive('receiver');
+
+    // Send a compressible message with old timestamp
+    const oldMsg = makeMessage({
+      id: 'old-compressed',
+      to: 'receiver',
+      payload: { ...basePayload, count: 2 },
+      timestamp: Date.now() - 100_000,
+    });
+    svc.send(oldMsg);
+
+    // Cleanup with short maxAge — should remove the old message
+    const removed = svc.cleanup(1000);
+    expect(removed).toBeGreaterThanOrEqual(1);
   });
 });

@@ -78,6 +78,11 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useDAGAttention: 'DAG attention for test scheduling (Task 4.2)',
   useCoherenceActionGate: 'Coherence-gated agent actions (ADR-083, Task 3.2)',
   useReasoningQEC: 'Reasoning QEC error correction (Task 4.5)',
+  // RVF Cluster (ADR-065–072)
+  useRVFPatternStore: 'RVF-backed PatternStore with persistent HNSW (ADR-066)',
+  useAgentMemoryBranching: 'Agent memory branching via RVF COW (ADR-067)',
+  useUnifiedHnsw: 'Unified HNSW provider replacing 3 legacy impls (ADR-071)',
+  rvfMigrationStage: 'RVF migration stage 0-4: sqlite→hybrid→dual→rvf-primary (ADR-072)',
   // Phase 5 (ADR-087)
   useHDCFingerprinting: 'HDC pattern fingerprinting (R1, ADR-087)',
   useCusumDriftDetection: 'CUSUM drift detection (R2, ADR-087)',
@@ -95,6 +100,9 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   // Phase 5 Milestone 4 (ADR-087)
   useEpropOnlineLearning: 'E-prop online learning, RL algorithm #10 (R11, ADR-087)',
   useGrangerCausality: 'Granger causality for test failure prediction (R12, ADR-087)',
+  // Phase 5 Milestone 5 (ADR-087)
+  useCognitiveRouting: 'Cognitive routing with predictive delta compression (R13, ADR-087)',
+  useHyperbolicHnsw: 'Hyperbolic HNSW with Poincare ball embeddings (R14, ADR-087)',
 };
 
 const PROFILES: Record<FlagProfile, Partial<RuVectorFeatureFlags>> = {
@@ -194,8 +202,10 @@ function executeStatus(): void {
   console.log(chalk.cyan('  Feature Flags:'));
   for (const flagName of VALID_FLAG_NAMES) {
     const value = flags[flagName];
-    const isDefault = isDefaultValue(flagName, value);
-    const valueText = value ? chalk.green('true') : chalk.gray('false');
+    const isDefault = isDefaultValue(flagName, value as boolean);
+    const valueText = typeof value === 'number'
+      ? chalk.cyan(String(value))
+      : value ? chalk.green('true') : chalk.gray('false');
     const suffix = isDefault ? chalk.gray(' (default)') : chalk.yellow(' (modified)');
     console.log(`    ${padRight(flagName + ':', 30)} ${valueText}${suffix}`);
   }
@@ -333,8 +343,10 @@ function executeFlags(options: FlagsOptions): void {
 
   for (const flagName of VALID_FLAG_NAMES) {
     const value = flags[flagName];
-    const isDefault = isDefaultValue(flagName, value);
-    const valueText = value ? chalk.green('true') : chalk.gray('false');
+    const isDefault = isDefaultValue(flagName, value as boolean);
+    const valueText = typeof value === 'number'
+      ? chalk.cyan(String(value))
+      : value ? chalk.green('true') : chalk.gray('false');
     const suffix = isDefault ? '' : chalk.yellow(' *');
     const description = FLAG_DESCRIPTIONS[flagName];
     console.log(

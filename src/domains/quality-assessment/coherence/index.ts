@@ -62,6 +62,10 @@ export type {
   // History Types
   LambdaHistoryPoint,
   LambdaTrend,
+
+  // ADR-062 Tier 2: Gate Ratcheting Types
+  RatchetConfig,
+  RatchetState,
 } from './types.js';
 
 // Runtime values (enums and constants)
@@ -69,6 +73,7 @@ export {
   QualityTier,
   QualityLambdaFlags,
   DEFAULT_COHERENCE_GATE_POLICY,
+  DEFAULT_RATCHET_CONFIG,
 } from './types.js';
 
 // Type re-export for QualityPartitionType (string union type)
@@ -90,6 +95,7 @@ export {
   CoherenceGateController,
   createCoherenceGateController,
   evaluateQualityGate,
+  checkRatchet,
 } from './gate-controller.js';
 
 export type {

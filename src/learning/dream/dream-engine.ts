@@ -325,6 +325,12 @@ export class DreamEngine {
   private _witnessChain: WitnessChain | null = null;
   set witnessChain(wc: WitnessChain | null) { this._witnessChain = wc; }
 
+  /** Optional RVF adapter for COW branching (ADR-069). Set externally to share with PatternStore. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _rvfAdapter: any = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  set rvfAdapter(adapter: any) { this._rvfAdapter = adapter; }
+
   constructor(config?: Partial<DreamConfig>) {
     this.config = { ...DEFAULT_DREAM_CONFIG, ...config };
   }
@@ -359,6 +365,13 @@ export class DreamEngine {
           this.db,
           this.config.branchValidationThresholds,
         );
+
+        // ADR-069: Wire RVF adapter for true COW branching when available
+        // Uses externally-provided adapter to avoid duplicate file handles
+        if (this._rvfAdapter) {
+          this.branchManager.setRvfAdapter(this._rvfAdapter, true);
+          console.log('[DreamEngine] RVF COW branching activated (ADR-069)');
+        }
       }
 
       this.initialized = true;
@@ -959,10 +972,34 @@ interface InsightRow {
 // ============================================================================
 
 /**
- * Create a new DreamEngine instance
+ * Create a new DreamEngine instance.
+ * When useRVFPatternStore is enabled, auto-wires the RVF adapter for
+ * COW branching (ADR-069) so callers don't need to set it manually.
  */
 export function createDreamEngine(config?: Partial<DreamConfig>): DreamEngine {
-  return new DreamEngine(config);
+  const engine = new DreamEngine(config);
+
+  // ADR-069: Auto-wire RVF adapter from the shared singleton (M4 fix).
+  // Uses the same adapter instance as the kernel to avoid dual file handles.
+  // Dynamic import() for ESM compatibility — wiring resolves before
+  // engine.initialize() is called since callers always await that.
+  import('../../integrations/ruvector/feature-flags.js')
+    .then(({ isRVFPatternStoreEnabled }) => {
+      if (!isRVFPatternStoreEnabled()) return null;
+      return import('../../integrations/ruvector/shared-rvf-adapter.js');
+    })
+    .then((mod) => {
+      if (!mod) return;
+      const adapter = mod.getSharedRvfAdapter();
+      if (adapter) {
+        engine.rvfAdapter = adapter;
+      }
+    })
+    .catch(() => {
+      // RVF adapter wiring is best-effort — DreamEngine works without it
+    });
+
+  return engine;
 }
 
 export default DreamEngine;

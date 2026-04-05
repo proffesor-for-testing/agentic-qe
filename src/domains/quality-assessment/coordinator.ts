@@ -86,6 +86,15 @@ import * as RLIntegration from './coordinator-rl-integration.js';
 import * as ClaimVerifierHelpers from './coordinator-claim-verifier.js';
 import * as GateEvalHelpers from './coordinator-gate-evaluation.js';
 
+// ADR-062: Gate ratcheting
+import {
+  checkRatchet,
+} from './coherence/gate-controller.js';
+import {
+  DEFAULT_RATCHET_CONFIG,
+  type RatchetState,
+} from './coherence/types.js';
+
 // ADR-070: Witness Chain audit trail
 import { getWitnessChain } from '../../audit/witness-chain.js';
 
@@ -233,6 +242,14 @@ export class QualityAssessmentCoordinator
     receivedAt: Date;
   }> = [];
 
+  // ADR-062: Monotonic gate threshold ratcheting state
+  private ratchetState: RatchetState = {
+    currentThreshold: 70,
+    consecutivePasses: 0,
+    lastRatchetTime: 0,
+    history: [],
+  };
+
   constructor(
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
@@ -272,6 +289,10 @@ export class QualityAssessmentCoordinator
 
       // Load any persisted workflow state
       await this.loadWorkflowState();
+
+      // ADR-062: Restore persisted ratchet state so the monotonic invariant
+      // survives coordinator restarts.
+      await this.loadRatchetState();
 
       // Initialize Actor-Critic RL for threshold tuning
       if (this.config.enableRLThresholdTuning) {
@@ -425,6 +446,14 @@ export class QualityAssessmentCoordinator
           m.duplications / 100,
           finalResult.overallScore / 100,
         ]);
+
+        // EWC++ outcome recording: reward scaled by gate score
+        try {
+          this.qesona.recordOutcome(finalResult.overallScore / 100);
+          if (this.qesona.shouldConsolidate()) {
+            try { this.qesona.backgroundConsolidate(); } catch { /* best-effort */ }
+          }
+        } catch { /* must not break main flow */ }
       }
 
       // Store quality pattern in SONA if enabled
@@ -446,6 +475,32 @@ export class QualityAssessmentCoordinator
           'quality-gate'
         );
       } catch (_wcErr) { /* non-critical */ }
+
+      // ADR-062: Monotonic gate threshold ratcheting
+      // After gate decision is final, check if threshold should ratchet upward
+      if (process.env.AQE_GATE_RATCHETING_ENABLED === 'true') {
+        try {
+          const prevThreshold = this.ratchetState.currentThreshold;
+          this.ratchetState = checkRatchet(
+            finalResult.passed,
+            DEFAULT_RATCHET_CONFIG,
+            this.ratchetState,
+          );
+          if (this.ratchetState.currentThreshold > prevThreshold) {
+            logger.info(
+              `Gate threshold ratcheted: ${prevThreshold} -> ${this.ratchetState.currentThreshold}`,
+            );
+            // ADR-062: Persist updated ratchet state so the monotonic invariant
+            // survives coordinator restarts.
+            await this.saveRatchetState();
+          }
+        } catch (ratchetErr) {
+          // Ratcheting failure must never break gate evaluation
+          logger.warn('Gate ratcheting failed (non-critical)', {
+            error: ratchetErr instanceof Error ? ratchetErr.message : String(ratchetErr),
+          });
+        }
+      }
 
       // Publish event
       if (this.config.publishEvents) {
@@ -560,6 +615,14 @@ export class QualityAssessmentCoordinator
           result.value.trends.length / 10,
           result.value.recommendations.length / 10,
         ]);
+
+        // EWC++ outcome recording: reward scaled by analysis score
+        try {
+          this.qesona.recordOutcome(score.overall / 100);
+          if (this.qesona.shouldConsolidate()) {
+            try { this.qesona.backgroundConsolidate(); } catch { /* best-effort */ }
+          }
+        } catch { /* must not break main flow */ }
       }
 
       // Store quality pattern in SONA
@@ -1228,6 +1291,51 @@ export class QualityAssessmentCoordinator
       workflows,
       { namespace: 'quality-assessment', persist: true }
     );
+  }
+
+  /**
+   * ADR-062: Load persisted ratchet state from MemoryBackend.
+   * If no saved state exists the in-memory default (threshold 70) is kept.
+   * Persistence failures are logged but never propagated — the coordinator
+   * must remain functional even when the memory backend is degraded.
+   */
+  private async loadRatchetState(): Promise<void> {
+    try {
+      const saved = await this.memory.get<RatchetState>(
+        'quality-assessment:ratchet-state'
+      );
+      if (saved) {
+        this.ratchetState = saved;
+        logger.info(
+          `Restored ratchet state (threshold=${saved.currentThreshold}, passes=${saved.consecutivePasses})`,
+        );
+      }
+    } catch (loadErr) {
+      // Non-critical: default ratchet state is safe
+      logger.warn('Failed to load ratchet state (using default)', {
+        error: loadErr instanceof Error ? loadErr.message : String(loadErr),
+      });
+    }
+  }
+
+  /**
+   * ADR-062: Persist current ratchet state to MemoryBackend.
+   * Called after checkRatchet() when the threshold actually ratcheted upward.
+   * Persistence failures are logged but never propagated.
+   */
+  private async saveRatchetState(): Promise<void> {
+    try {
+      await this.memory.set(
+        'quality-assessment:ratchet-state',
+        this.ratchetState,
+        { namespace: 'quality-assessment', persist: true }
+      );
+    } catch (saveErr) {
+      // Non-critical: next restart will use the previous persisted value
+      logger.warn('Failed to persist ratchet state', {
+        error: saveErr instanceof Error ? saveErr.message : String(saveErr),
+      });
+    }
   }
 
   // ============================================================================

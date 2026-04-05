@@ -181,12 +181,58 @@ export interface AgentCoordinator extends Disposable {
   canSpawn(): boolean;
 }
 
+// ============================================================================
+// ADR-062 Action 5: Progressive Context Loading Types
+// ============================================================================
+
+/**
+ * Context loading strategy for agent spawn.
+ * - 'full': Load all files (default, existing behavior)
+ * - 'lazy': Load files on-demand as agents request them
+ * - 'predictive': Use keyword matching to predict which files will be needed
+ */
+export type ContextLoadingStrategy = 'full' | 'lazy' | 'predictive';
+
+/**
+ * Configuration for progressive context loading (ADR-062 Action 5).
+ * Reduces token usage by ~40% by loading only predicted files at spawn.
+ */
+export interface ProgressiveContextConfig {
+  /** Loading strategy (default: 'full') */
+  strategy: ContextLoadingStrategy;
+  /** Maximum number of files to load at spawn (default: 10) */
+  maxInitialFiles: number;
+  /** Keyword similarity threshold for predictive loading (default: 0.7) */
+  predictionThreshold: number;
+  /** Whether to track file requests for accuracy measurement (default: true) */
+  trackFileRequests: boolean;
+}
+
+/**
+ * Record of a file request made by an agent (ADR-062 Action 5).
+ * Used to measure prediction accuracy and improve future predictions.
+ */
+export interface FileRequestRecord {
+  /** Path of the requested file */
+  filePath: string;
+  /** Timestamp when the file was requested */
+  requestedAt: number;
+  /** Whether this file was preloaded (predicted correctly) */
+  wasPreloaded: boolean;
+  /** ID of the agent that requested the file */
+  agentId: string;
+  /** Task description associated with this agent */
+  taskDescription: string;
+}
+
 export interface AgentSpawnConfig {
   name: string;
   domain: DomainName;
   type: string;
   capabilities: string[];
   config?: Record<string, unknown>;
+  /** ADR-062 Action 5: Progressive context loading configuration */
+  progressiveContext?: ProgressiveContextConfig;
 }
 
 export interface AgentFilter {

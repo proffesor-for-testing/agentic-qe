@@ -18,6 +18,11 @@ import {
   BroadcastHandler,
   ReceiveOptions,
 } from './types.js';
+import type { CognitiveRouter, RoutedMessage } from '../../integrations/ruvector/cognitive-routing.js';
+import {
+  isCognitiveRoutingEnabled,
+  createCognitiveRouter,
+} from '../../integrations/ruvector/cognitive-routing.js';
 
 // ============================================================================
 // Mailbox Service
@@ -39,6 +44,17 @@ export class MailboxService {
 
   /** Index of agents by domain for efficient broadcast */
   private readonly domainAgents = new Map<string, Set<string>>();
+
+  /** R13: Optional cognitive router for bandwidth-efficient messaging (lazy-initialized) */
+  private cognitiveRouter: CognitiveRouter | null = null;
+  private cognitiveRouterInitialized = false;
+
+  /**
+   * R13: Tracks which messages were stored with compressed payloads.
+   * Maps message ID to the RoutedMessage needed for decompression on receive().
+   * This avoids modifying the AgentMessage type while enabling real compression.
+   */
+  private readonly compressedMessages = new Map<string, RoutedMessage>();
 
   // ============================================================================
   // Mailbox Lifecycle
@@ -110,6 +126,11 @@ export class MailboxService {
       }
     }
 
+    // R13: Clean up compressed message tracking for this mailbox
+    for (const msg of mailbox.messages) {
+      this.compressedMessages.delete(msg.id);
+    }
+
     // Remove handlers
     this.messageHandlers.delete(agentId);
 
@@ -144,7 +165,13 @@ export class MailboxService {
       );
     }
 
-    mailbox.messages.push(message);
+    // R13: Route through cognitive router for bandwidth compression.
+    // When compression succeeds, store the smaller compressed payload instead
+    // of the original. The original is reconstructed on receive().
+    // Non-blocking: routing failure must not prevent message delivery.
+    const messageToStore = this.compressViaCognitive(message);
+
+    mailbox.messages.push(messageToStore);
     mailbox.unreadCount++;
 
     // Notify listeners
@@ -250,7 +277,9 @@ export class MailboxService {
     mailbox.unreadCount = 0;
     mailbox.lastRead = now;
 
-    return unread;
+    // R13: Decompress any messages that were stored with compressed payloads.
+    // Returns original payloads to the consumer transparently.
+    return this.decompressMessages(unread);
   }
 
   /**
@@ -300,10 +329,16 @@ export class MailboxService {
 
       mailbox.messages = mailbox.messages.filter((msg, index) => {
         // Remove if older than max age
-        if (msg.timestamp < cutoff) return false;
+        if (msg.timestamp < cutoff) {
+          this.compressedMessages.delete(msg.id); // R13: clean up tracking
+          return false;
+        }
 
         // Remove if TTL expired
-        if (this.isExpired(msg, now)) return false;
+        if (this.isExpired(msg, now)) {
+          this.compressedMessages.delete(msg.id); // R13: clean up tracking
+          return false;
+        }
 
         return true;
       });
@@ -415,6 +450,9 @@ export class MailboxService {
     this.messageHandlers.clear();
     this.broadcastHandlers.clear();
     this.domainAgents.clear();
+    this.compressedMessages.clear(); // R13: clear compressed message index
+    this.cognitiveRouter = null; // R13: reset cognitive router
+    this.cognitiveRouterInitialized = false;
   }
 
   // ============================================================================
@@ -440,6 +478,118 @@ export class MailboxService {
       unreadCount: mailbox.unreadCount,
       lastRead: mailbox.lastRead,
     };
+  }
+
+  // ============================================================================
+  // R13: Cognitive Routing Integration (ADR-087)
+  // ============================================================================
+
+  /**
+   * Lazily initialize the cognitive router when the feature flag is enabled.
+   * Returns the router instance or null if disabled / unavailable.
+   */
+  private ensureCognitiveRouter(): CognitiveRouter | null {
+    if (this.cognitiveRouterInitialized) {
+      return this.cognitiveRouter;
+    }
+    this.cognitiveRouterInitialized = true;
+
+    if (!isCognitiveRoutingEnabled()) {
+      return null;
+    }
+
+    try {
+      this.cognitiveRouter = createCognitiveRouter() ?? null;
+    } catch {
+      // Module unavailable — leave router null
+      this.cognitiveRouter = null;
+    }
+
+    return this.cognitiveRouter;
+  }
+
+  /**
+   * Attempt to compress a message via the cognitive router.
+   * When compression succeeds (compressed payload is smaller), returns a new
+   * AgentMessage with the compressed payload and tracks the RoutedMessage
+   * for later decompression. When compression is unavailable or unhelpful,
+   * returns the original message unchanged.
+   *
+   * Non-blocking: any error returns the original message unmodified.
+   */
+  private compressViaCognitive(message: AgentMessage): AgentMessage {
+    try {
+      const router = this.ensureCognitiveRouter();
+      if (!router) return message;
+
+      const streamId = `${message.from}->${message.to}`;
+      const routed = router.send(
+        streamId,
+        message.from,
+        message.to as string,
+        message.payload,
+      );
+
+      // Only store compressed version when it actually saves space
+      if (routed.compressed && routed.compressedSize < routed.originalSize) {
+        // Track the RoutedMessage so receive() can decompress
+        this.compressedMessages.set(message.id, routed);
+
+        // Return a copy with the compressed (delta) payload
+        return {
+          ...message,
+          payload: routed.payload,
+        };
+      }
+
+      // Compression didn't help — return original
+      return message;
+    } catch {
+      // Routing failure must never prevent message delivery
+      return message;
+    }
+  }
+
+  /**
+   * Decompress messages that were stored with compressed payloads.
+   * Uses the cognitive router's receive() to reconstruct original payloads.
+   * Messages that were not compressed are returned unchanged.
+   *
+   * Non-blocking: decompression failures return the stored payload as-is.
+   */
+  private decompressMessages(messages: AgentMessage[]): AgentMessage[] {
+    const router = this.cognitiveRouter;
+    if (!router || this.compressedMessages.size === 0) return messages;
+
+    return messages.map(msg => {
+      try {
+        const routed = this.compressedMessages.get(msg.id);
+        if (!routed) return msg;
+
+        // Decompress via the router's receive path
+        const originalPayload = router.receive(routed);
+
+        // Clean up — message has been delivered/decompressed
+        this.compressedMessages.delete(msg.id);
+
+        return {
+          ...msg,
+          payload: originalPayload,
+        };
+      } catch {
+        // Decompression failure — return the stored payload as-is
+        return msg;
+      }
+    });
+  }
+
+  /**
+   * Get cognitive routing statistics (bandwidth savings, compression rates).
+   * Returns null if cognitive routing is not enabled or not initialized.
+   */
+  getCognitiveRoutingStats(): { totalMessages: number; compressedMessages: number; bandwidthSavedBytes: number; bandwidthReductionPercent: number; activeStreams: number } | null {
+    if (!this.cognitiveRouter) return null;
+    return this.cognitiveRouter.getStats();
   }
 }
 

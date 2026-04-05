@@ -14,13 +14,9 @@ import {
   writeFileSync,
   copyFileSync,
 } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
-
-// ESM compatibility
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { findPackageRoot } from './find-package-root.js';
 
 // ============================================================================
 // Types
@@ -81,14 +77,19 @@ export class OpenCodeInstaller {
    */
   private findSourceDir(): string {
     const targetDir = join(this.projectRoot, '.opencode');
-    const possiblePaths = [
-      // From dist/init/ or src/init/ → package root .opencode/
-      join(__dirname, '../../.opencode'),
-      // From dist/cli/ (bundle) → package root .opencode/
-      join(__dirname, '../.opencode'),
-      // require.resolve fallback: find the package root via its package.json
-      this.resolveViaPackageJson(),
-    ].filter((p): p is string => p !== null);
+    const pkgRoot = findPackageRoot(import.meta.url);
+
+    const possiblePaths: string[] = [];
+
+    if (pkgRoot) {
+      // OpenCode assets live at the package root .opencode/ directory
+      possiblePaths.push(join(pkgRoot, '.opencode'));
+    }
+
+    // Local install: in node_modules
+    possiblePaths.push(
+      join(this.projectRoot, 'node_modules/agentic-qe/.opencode'),
+    );
 
     for (const path of possiblePaths) {
       // Never use the target directory as the source
@@ -99,31 +100,7 @@ export class OpenCodeInstaller {
     }
 
     // Return the first package path even if not found — install() will report the error
-    return possiblePaths[0] ?? join(__dirname, '../../.opencode');
-  }
-
-  /**
-   * Try to find the package root via require.resolve on our own package.json,
-   * then return <root>/.opencode. Returns null if resolution fails.
-   */
-  private resolveViaPackageJson(): string | null {
-    try {
-      // Walk up from __dirname to find the nearest package.json with our name
-      let dir = __dirname;
-      for (let i = 0; i < 5; i++) {
-        const pkgPath = join(dir, 'package.json');
-        if (existsSync(pkgPath)) {
-          const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-          if (pkg.name === 'agentic-qe') {
-            return join(dir, '.opencode');
-          }
-        }
-        dir = dirname(dir);
-      }
-    } catch {
-      // resolution failed
-    }
-    return null;
+    return possiblePaths[0] ?? join(this.projectRoot, 'node_modules/agentic-qe/.opencode');
   }
 
   /**

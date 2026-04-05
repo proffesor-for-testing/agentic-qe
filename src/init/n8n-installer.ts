@@ -14,13 +14,9 @@ import {
   writeFileSync,
   copyFileSync,
 } from 'fs';
-import { join, dirname, basename } from 'path';
-import { fileURLToPath } from 'url';
+import { join, basename } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
-
-// ESM compatibility - __dirname is not available in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { findPackageRoot } from './find-package-root.js';
 
 // ============================================================================
 // Types
@@ -132,17 +128,22 @@ export class N8nInstaller {
   // ==========================================================================
 
   /**
-   * Find the source n8n agents directory
+   * Find the source n8n agents directory.
+   * n8n agents live under .claude/agents/n8n/ in the package root.
    */
   private findSourceAgentsDir(): string {
-    const possiblePaths = [
-      // Development: src/init/ or dist/init/ -> project root
-      join(__dirname, '../../.claude/agents/n8n'),
-      // From project root
-      join(process.cwd(), '.claude/agents/n8n'),
-      // NPM package location
-      join(__dirname, '../../assets/agents/n8n'),
-    ];
+    const pkgRoot = findPackageRoot(import.meta.url);
+
+    const possiblePaths: string[] = [];
+
+    if (pkgRoot) {
+      possiblePaths.push(join(pkgRoot, '.claude/agents/n8n'));
+    }
+
+    // Local install: in node_modules
+    possiblePaths.push(
+      join(this.projectRoot, 'node_modules/agentic-qe/.claude/agents/n8n'),
+    );
 
     for (const path of possiblePaths) {
       if (existsSync(path)) {
@@ -150,19 +151,27 @@ export class N8nInstaller {
       }
     }
 
-    // Default to project root location
-    return join(process.cwd(), '.claude/agents/n8n');
+    return possiblePaths[0];
   }
 
   /**
-   * Find the source skills directory
+   * Find the source skills directory.
+   * Skills are in assets/skills/ (canonical npm source).
    */
   private findSourceSkillsDir(): string {
-    const possiblePaths = [
-      join(__dirname, '../../.claude/skills'),
-      join(process.cwd(), '.claude/skills'),
-      join(__dirname, '../../assets/skills'),
-    ];
+    const pkgRoot = findPackageRoot(import.meta.url);
+
+    const possiblePaths: string[] = [];
+
+    if (pkgRoot) {
+      possiblePaths.push(join(pkgRoot, 'assets/skills'));
+      possiblePaths.push(join(pkgRoot, '.claude/skills'));
+    }
+
+    // Local install: in node_modules
+    possiblePaths.push(
+      join(this.projectRoot, 'node_modules/agentic-qe/assets/skills'),
+    );
 
     for (const path of possiblePaths) {
       if (existsSync(path)) {
@@ -170,7 +179,7 @@ export class N8nInstaller {
       }
     }
 
-    return join(process.cwd(), '.claude/skills');
+    return possiblePaths[0];
   }
 
   // ==========================================================================
