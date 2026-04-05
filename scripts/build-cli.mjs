@@ -196,7 +196,15 @@ try {
       '__CLI_VERSION__': JSON.stringify(version),
     },
     banner: {
-      js: `if(process.argv.includes('--version')||process.argv.includes('-v')){console.log(${JSON.stringify(version)});process.exit(0)}`,
+      // Provide a real `require` for CJS compatibility in ESM chunks.
+      // esbuild generates a CJS shim that checks `typeof require < "u"` —
+      // without this, every require('fs')/require('path')/etc. in chunks
+      // throws "Dynamic require of X is not supported" because ESM has no
+      // global `require`. createRequire gives us a standards-compliant one.
+      js: [
+        'import{createRequire as __cr}from"module";const require=__cr(import.meta.url);',
+        `if(process.argv.includes('--version')||process.argv.includes('-v')){console.log(${JSON.stringify(version)});process.exit(0)}`,
+      ].join(''),
     },
   });
   console.log(`CLI bundle built successfully (v${version})`);

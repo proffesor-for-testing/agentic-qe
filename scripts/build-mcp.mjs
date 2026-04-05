@@ -174,7 +174,8 @@ try {
       '__CLI_VERSION__': JSON.stringify(version),
     },
     banner: {
-      js: '#!/usr/bin/env node',
+      // Shebang + CJS require shim for ESM output (see build-cli.mjs for details)
+      js: '#!/usr/bin/env node\nimport{createRequire as __cr}from"module";const require=__cr(import.meta.url);',
     },
   });
   console.log(`MCP bundle built successfully (v${version})`);
