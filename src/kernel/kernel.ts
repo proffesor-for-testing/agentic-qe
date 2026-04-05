@@ -272,6 +272,19 @@ export class QEKernelImpl implements QEKernel {
       // Agent memory branching is best-effort — don't block kernel startup
     }
 
+    // ADR-072 Phase 3: Initialize RVF migration coordinator
+    try {
+      const { getRvfMigrationStage } = await import('../integrations/ruvector/feature-flags.js');
+      const stage = getRvfMigrationStage();
+      if (stage >= 2) {
+        const { RvfMigrationCoordinator } = await import('../persistence/rvf-migration-coordinator.js');
+        const coordinator = RvfMigrationCoordinator.getInstance({ stage });
+        await coordinator.initialize();
+      }
+    } catch {
+      // Migration coordinator is best-effort — don't block kernel startup
+    }
+
     this._initialized = true;
   }
 

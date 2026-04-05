@@ -22,19 +22,11 @@ import type {
 import hnswlib from 'hnswlib-node';
 const { HierarchicalNSW } = hnswlib as { HierarchicalNSW: typeof import('hnswlib-node').HierarchicalNSW };
 
-// ADR-071: Lazy-loaded unified backend
-let _unifiedHnswEnabled: boolean | undefined;
+// ADR-071 Phase 2C: Always use unified HnswAdapter backend.
+// The hnswlib-node legacy path below is retained as dead code for
+// emergency rollback only — production always takes the adapter path.
 function isUnifiedHnswActive(): boolean {
-  if (_unifiedHnswEnabled === undefined) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { isUnifiedHnswEnabled } = require('../../../integrations/ruvector/feature-flags.js');
-      _unifiedHnswEnabled = isUnifiedHnswEnabled();
-    } catch {
-      _unifiedHnswEnabled = false;
-    }
-  }
-  return _unifiedHnswEnabled!;
+  return true;
 }
 
 /**

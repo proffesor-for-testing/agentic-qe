@@ -121,6 +121,20 @@ export class RvfPatternStore implements IPatternStore {
       this.adapter = null;
       this.initialized = true; // mark initialized to prevent retry loops
     }
+
+    // Auto-attach SQLitePatternStore if not explicitly set.
+    // This ensures metadata persistence and FTS5 search work even when
+    // the RVF adapter is unavailable (e.g. native bindings not installed).
+    if (!this.sqliteStore) {
+      try {
+        const { createSQLitePatternStore } = await import('./sqlite-persistence.js');
+        const store = createSQLitePatternStore();
+        await store.initialize();
+        this.sqliteStore = store;
+      } catch {
+        // SQLite auto-attach is best-effort
+      }
+    }
   }
 
   async dispose(): Promise<void> {
@@ -269,6 +283,70 @@ export class RvfPatternStore implements IPatternStore {
       }
     }
 
+    // Fallback: when query is a vector but RVF adapter is unavailable,
+    // compute cosine similarity over SQLite-stored embeddings in memory.
+    // Uses getPattern(id) which joins the embedding from qe_pattern_embeddings.
+    if (Array.isArray(query) && !this.adapter && this.sqliteStore && results.length === 0) {
+      try {
+        const allPatterns = this.sqliteStore.getPatterns({ limit: limit * 4 });
+        const qArr = query as number[];
+        const qMag = Math.sqrt(qArr.reduce((s, v) => s + v * v, 0));
+
+        if (qMag > 0) {
+          for (const pat of allPatterns) {
+            if (!this.matchesFilters(pat, options)) continue;
+            // getPattern() joins the embedding; getPatterns() does not
+            const full = this.sqliteStore.getPattern(pat.id);
+            const emb = full?.embedding;
+            if (!emb || emb.length !== qArr.length) continue;
+
+            let dot = 0, eMag = 0;
+            for (let i = 0; i < qArr.length; i++) {
+              dot += qArr[i] * emb[i];
+              eMag += emb[i] * emb[i];
+            }
+            eMag = Math.sqrt(eMag);
+            if (eMag === 0) continue;
+            const score = dot / (qMag * eMag);
+
+            const reuseInfo = this.calculateReuseInfo(full, score);
+            results.push({
+              pattern: full,
+              score,
+              matchType: 'vector',
+              similarity: score,
+              canReuse: reuseInfo.canReuse,
+              estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+              reuseConfidence: reuseInfo.reuseConfidence,
+            });
+          }
+        }
+      } catch { /* SQLite fallback best-effort */ }
+    }
+
+    // Empty string query = return all patterns sorted by quality score
+    if (typeof query === 'string' && !query.trim() && this.sqliteStore) {
+      try {
+        const allPatterns = this.sqliteStore.getPatterns({ limit: limit * 2 });
+        const existingIds = new Set(results.map(r => r.pattern.id));
+
+        for (const pattern of allPatterns) {
+          if (existingIds.has(pattern.id)) continue;
+          if (!this.matchesFilters(pattern, options)) continue;
+          const reuseInfo = this.calculateReuseInfo(pattern, pattern.confidence);
+          results.push({
+            pattern,
+            score: pattern.confidence,
+            matchType: 'exact',
+            similarity: pattern.confidence,
+            canReuse: reuseInfo.canReuse,
+            estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
+            reuseConfidence: reuseInfo.reuseConfidence,
+          });
+        }
+      } catch { /* SQLite unavailable */ }
+    }
+
     // FTS5 text search fallback via SQLite
     if (typeof query === 'string' && query.trim() && this.sqliteStore) {
       try {
@@ -357,8 +435,13 @@ export class RvfPatternStore implements IPatternStore {
   async getStats(): Promise<PatternStoreStats> {
     const rvfStatus = this.adapter?.status();
 
-    // Get metadata stats from SQLite if available
-    const totalPatterns = rvfStatus?.totalVectors ?? 0;
+    // Get pattern count from RVF if available, otherwise fall back to SQLite
+    let totalPatterns = rvfStatus?.totalVectors ?? 0;
+    if (totalPatterns === 0 && this.sqliteStore) {
+      try {
+        totalPatterns = this.sqliteStore.getStats().totalPatterns;
+      } catch { /* best effort */ }
+    }
 
     return {
       totalPatterns,

@@ -15,8 +15,13 @@ import { getLoadBalancer } from '../../../src/mcp/load-balancer';
 
 describe('Real MCP Integration Tests', () => {
   let server: MCPProtocolServer;
+  let savedLoopDetection: string | undefined;
 
   beforeAll(async () => {
+    // Disable ADR-062 loop detection — tests make repeated identical calls by design
+    savedLoopDetection = process.env.AQE_LOOP_DETECTION_ENABLED;
+    process.env.AQE_LOOP_DETECTION_ENABLED = 'false';
+
     server = createMCPProtocolServer({
       name: 'aqe-v3-test',
       version: '3.0.0-test',
@@ -27,6 +32,12 @@ describe('Real MCP Integration Tests', () => {
   afterAll(async () => {
     if (server) {
       await server.stop();
+    }
+    // Restore loop detection setting
+    if (savedLoopDetection === undefined) {
+      delete process.env.AQE_LOOP_DETECTION_ENABLED;
+    } else {
+      process.env.AQE_LOOP_DETECTION_ENABLED = savedLoopDetection;
     }
   });
 

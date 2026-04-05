@@ -154,3 +154,14 @@ export {
   type FormatSignalsParams,
   type FormatSignalsResult,
 } from './cross-phase-handlers';
+
+// RVF Migration handlers (ADR-072 Phase 3)
+export {
+  handleMigrationStatus,
+  handleMigrationCheck,
+  handleMigrationPromote,
+  resetMigrationHandlers,
+  type MigrationStatusResult,
+  type MigrationCheckResult,
+  type MigrationPromoteResult,
+} from './migration-handlers.js';

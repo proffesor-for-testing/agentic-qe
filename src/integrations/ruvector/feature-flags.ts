@@ -456,7 +456,7 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useRVFPatternStore: true, // benchmarked: 0.4ms cold-start, 0.5ms search p50
   useAgentMemoryBranching: true, // COW derive + ingest-log merge, wired into kernel boot (ADR-067)
   useUnifiedHnsw: true, // HnswLegacyBridge routes all consumers through unified backend (ADR-071)
-  rvfMigrationStage: 1, // ADR-072: hybrid (stage 1) — promote via stage gates
+  rvfMigrationStage: 2, // ADR-072: dual-write (stage 2) — both engines receive writes, SQLite reads
   // Phase 5 (ADR-087) — enabled by default, opt-out
   useHDCFingerprinting: true,
   useCusumDriftDetection: true,

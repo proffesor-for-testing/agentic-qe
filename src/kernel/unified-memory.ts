@@ -39,9 +39,11 @@ export { validateTableName, ALLOWED_TABLE_NAMES } from '../shared/sql-safety.js'
 import { validateTableName } from '../shared/sql-safety.js';
 
 // Re-export extracted modules for backward compatibility
-export { BinaryHeap, InMemoryHNSWIndex, RuvectorFlatIndex, UnifiedHnswIndex, createHnswIndex } from './unified-memory-hnsw.js';
-import { RuvectorFlatIndex, UnifiedHnswIndex } from './unified-memory-hnsw.js';
-import { isUnifiedHnswEnabled } from '../integrations/ruvector/feature-flags.js';
+export { BinaryHeap, UnifiedHnswIndex, createHnswIndex } from './unified-memory-hnsw.js';
+// ADR-071 Phase 2C: InMemoryHNSWIndex and RuvectorFlatIndex are decommissioned
+// from production code. Import them directly from unified-memory-hnsw.js for
+// parity tests or benchmarks only.
+import { UnifiedHnswIndex } from './unified-memory-hnsw.js';
 
 // Import schemas
 import {
@@ -231,10 +233,8 @@ export class UnifiedMemoryManager {
   private vectorsLoaded = false;
   private initPromise: Promise<void> | null = null;
   private preparedStatements: Map<string, Statement> = new Map();
-  // ADR-071: Use UnifiedHnswIndex when useUnifiedHnsw=true, otherwise RuvectorFlatIndex
-  private vectorIndex: RuvectorFlatIndex | UnifiedHnswIndex = isUnifiedHnswEnabled()
-    ? new UnifiedHnswIndex('qe-memory')
-    : new RuvectorFlatIndex();
+  // ADR-071 Phase 2C: Always use UnifiedHnswIndex (old implementations decommissioned)
+  private vectorIndex: UnifiedHnswIndex = new UnifiedHnswIndex('qe-memory');
 
   // CRDT store for distributed state synchronization
   private crdtStore: CRDTStore | null = null;

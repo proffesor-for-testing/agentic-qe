@@ -48,7 +48,8 @@ export type ToolCategory =
   | 'learning'       // Learning and optimization
   | 'routing'        // ADR-051: Model routing
   | 'cross-phase'    // QCSD: Cross-phase memory feedback loops
-  | 'infra-healing'; // ADR-057: Infrastructure self-healing
+  | 'infra-healing'  // ADR-057: Infrastructure self-healing
+  | 'persistence';   // ADR-072: RVF migration
 
 /**
  * Tool handler function type

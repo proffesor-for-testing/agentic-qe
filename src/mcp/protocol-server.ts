@@ -99,6 +99,10 @@ import {
   type AgentCompleteParams,
   type PhaseEventParams,
   type FormatSignalsParams,
+  // ADR-072: RVF Migration handlers
+  handleMigrationStatus,
+  handleMigrationCheck,
+  handleMigrationPromote,
 } from './handlers';
 
 // ADR-039: Performance optimization imports
@@ -1447,6 +1451,41 @@ export class MCPProtocolServer {
         parameters: [],
       },
       handler: () => handleAQEHealth(),
+    });
+
+    // ADR-072 Phase 3: RVF Migration tools
+    this.registerTool({
+      definition: {
+        name: 'migration_status',
+        description: 'Get RVF migration status: current stage, metrics, consistency, and gate evaluation. Example: migration_status({})',
+        category: 'persistence',
+        isConcurrencySafe: true,
+        parameters: [],
+      },
+      handler: () => handleMigrationStatus(),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'migration_check',
+        description: 'Run a consistency check comparing SQLite and RVF search results. Samples random patterns and reports divergences. Example: migration_check({})',
+        category: 'persistence',
+        isConcurrencySafe: true,
+        parameters: [],
+      },
+      handler: () => handleMigrationCheck(),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'migration_promote',
+        description: 'Attempt to promote to the next RVF migration stage. Evaluates stage gate criteria. Example: migration_promote({ force: false })',
+        category: 'persistence',
+        parameters: [
+          { name: 'force', type: 'boolean', description: 'Skip gate checks and force promotion', default: false },
+        ],
+      },
+      handler: (params) => handleMigrationPromote(params as { force?: boolean }),
     });
 
     // Register QE domain tools not already covered by hardcoded handlers above

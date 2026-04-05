@@ -87,7 +87,7 @@ interface SqliteDb {
 // ============================================================================
 
 export class RvfMigrationAdapter {
-  private readonly config: MigrationAdapterConfig;
+  private config: MigrationAdapterConfig;
   private db: SqliteDb | null = null;
   private rvfStore: RvfStore | null = null;
 
@@ -124,6 +124,11 @@ export class RvfMigrationAdapter {
   /** Get current migration stage */
   get stage(): MigrationStage {
     return this.config.stage;
+  }
+
+  /** Update migration stage (called by coordinator on promotion) */
+  setStage(stage: MigrationStage): void {
+    this.config = { ...this.config, stage };
   }
 
   // --------------------------------------------------------------------------
@@ -164,8 +169,11 @@ export class RvfMigrationAdapter {
         `).run(id, blob, vector.length);
         result.sqliteSuccess = true;
         this.sqliteWriteLatencies.push(performance.now() - start);
-      } catch {
+      } catch (err) {
         result.sqliteSuccess = false;
+        if (process.env.AQE_DEBUG_MIGRATION) {
+          console.warn('[RVF-Migration] SQLite write failed:', (err as Error).message);
+        }
       }
     }
 
