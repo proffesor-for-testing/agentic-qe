@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.5] - 2026-04-06
+
+### Fixed
+
+- **`aqe init --auto` deadlocks in code intelligence pre-scan on real-world Python files** — ROOT CAUSE FOUND. The `@ruvector/router` native NAPI module (used by `NativeHnswBackend`) deadlocks on a futex (`futex_wait_queue` with NULL timeout) when `VectorDb.insert()` is called against certain vector content shapes. Reproduced locally against `examples/ruview_live.py` from the [RuView project](https://github.com/ruvnet/RuView): main thread blocked indefinitely, 17 worker threads (V8 + tokio + libuv) all waiting on futexes that are never released. The `setTimeout`-based watchdog from v3.9.3 cannot interrupt this because `setTimeout` callbacks queue between event loop iterations and the event loop is frozen in a kernel `futex` syscall. v3.9.4's `AQE_SKIP_CODE_INDEX` escape hatch was the unblock; this release is the actual fix.
+
+  **The fix:** flip the `useNativeHNSW` feature flag default from `true` to `false`. The JS-only `ProgressiveHnswBackend` (which v3.9.3 commit `2bd601b0` already routed to brute-force exact cosine for the cosine metric) handles AQE's typical KG sizes (<10k vectors @ 384 dim) **faster** than HNSW because there's no graph-traversal overhead. Native HNSW only wins above ~100k vectors, which AQE doesn't currently hit.
+
+  Verification:
+  - `examples/ruview_live.py` (28 KB, 776 lines, 95 entities) — was: deadlock, now: **258 ms, 95 entries indexed**.
+  - 200-file synthetic fixture — was: 672 ms, now: 1761 ms (still fast, slightly higher because brute-force is O(n·d) per add).
+  - 1-file fresh fixture — 380 ms total init.
+  - All HNSW + memory + init unit tests: 152/152 + 452/452 pass.
+
+  Native HNSW is still available via `useNativeHNSW: true` in `~/.aqe/feature-flags.json` or `setRuVectorFeatureFlags({ useNativeHNSW: true })` for users on large indices who have verified the deadlock doesn't trigger on their data. The full architectural fix (running the indexer in a killable `worker_threads.Worker` so any future native deadlock can be terminated by the parent) is still tracked in #401 for v3.9.6.
+
+### Changed
+
+- **Default HNSW backend is now `ProgressiveHnswBackend` (JS brute-force cosine)** — see Fixed section. This is the v3.9.5 hotfix scope. The killable-worker indexer refactor remains v3.9.6 scope.
+
 ## [3.9.4] - 2026-04-06
 
 ### Fixed
