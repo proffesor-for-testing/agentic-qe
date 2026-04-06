@@ -209,17 +209,14 @@ describe('Phase 1: HNSW Backend Integration', () => {
     HnswAdapter.closeAll();
   });
 
-  // See https://github.com/proffesor-for-testing/agentic-qe/issues/399 —
-  // this test asserts exact top-1 recall against an approximate HNSW
-  // backend (NativeHnswBackend wraps @ruvector/router's VectorDb which
-  // uses an approximate HNSW graph walk). On GitHub Actions Linux
-  // runners the graph walk lands on different neighbourhoods than on
-  // local devcontainers, producing top-1 candidates that are not even
-  // in the true brute-force top-10. The test invariant is wrong for
-  // approximate HNSW and needs one of the fixes documented in #399
-  // (relax assertions to top-k contains, or add a brute-force-exact
-  // adapter mode). Skipped to unblock v3.9.3 init release.
-  it.skip('should store 1000 vectors via HnswAdapter and search with correct ranking', () => {
+  // Issue #399 / ADR-090 (April 2026): this test was previously skipped
+  // because @ruvector/router 0.1.28's HNSW graph walk returned essentially
+  // random results (recall@10 ~0% on the same fixture, top-1 candidates
+  // not even in the brute-force top-10). NativeHnswBackend was rewritten
+  // to wrap hnswlib-node, which gives 100% recall@10 at default M=16,
+  // efC=200, efS=100 — verified empirically against this exact fixture
+  // on linux-arm64. The test now runs against both backends successfully.
+  it('should store 1000 vectors via HnswAdapter and search with correct ranking', () => {
     const adapter = HnswAdapter.create('phase1-test-1000', {
       dimensions: DIMENSIONS,
       metric: 'cosine',
@@ -272,9 +269,12 @@ describe('Phase 1: HNSW Backend Integration', () => {
       dimensions: DIMENSIONS,
     });
 
-    // The factory either succeeds with native or falls back to JS.
-    // On CI, VectorDb may fail due to lock contention — either outcome is valid.
-    // What matters is the adapter works correctly regardless.
+    // The factory either succeeds with hnswlib-node native or falls back
+    // to JS if the native binary fails to load. What matters is the
+    // adapter works correctly regardless.
+    // (Pre #399, the native backend wrapped @ruvector/router VectorDb
+    // and could fail due to a process-wide redb file lock — that
+    // failure mode no longer exists with hnswlib-node.)
     const usedNative = adapter.isNativeBackend();
     expect(typeof usedNative).toBe('boolean');
 
@@ -292,11 +292,14 @@ describe('Phase 1: HNSW Backend Integration', () => {
   it('should throw NativeHnswUnavailableError or succeed based on platform', () => {
     resetNativeModuleLoader();
 
-    // NativeHnswBackend may throw due to missing binary OR VectorDb lock.
-    // Both are legitimate unavailability scenarios that trigger fallback.
+    // NativeHnswBackend (hnswlib-node) only fails to construct when the
+    // native binary isn't available for the current platform/arch (very
+    // rare since hnswlib-node ships prebuilds via node-gyp for all major
+    // targets). Both outcomes are valid; consumers fall back to the JS
+    // backend on the error path.
     try {
       const backend = new NativeHnswBackend({ dimensions: DIMENSIONS });
-      // If construction succeeds, the native module and VectorDb are available
+      // If construction succeeds, the native module is available
       expect(backend.isNativeAvailable()).toBe(true);
     } catch (err) {
       // Construction failed — must be NativeHnswUnavailableError
@@ -1073,6 +1076,10 @@ describe('Phase 1: Backward Compatibility (All Flags OFF)', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
+    // useNativeHNSW: was flipped to false in v3.9.5 due to a deadlock in
+    // @ruvector/router. Issue #399 / ADR-090 migrated NativeHnswBackend to
+    // hnswlib-node, which fixes the deadlock and the four other bugs found
+    // in @ruvector/router 0.1.28. Default flipped back to true.
     expect(flags.useNativeHNSW).toBe(true);
     expect(flags.useTemporalCompression).toBe(true);
     expect(flags.useMetadataFiltering).toBe(true);
@@ -1105,13 +1112,13 @@ describe('Phase 1: Feature Flag Runtime Toggling', () => {
     setRuVectorFeatureFlags({ useMetadataFiltering: true });
     let flags = getRuVectorFeatureFlags();
     expect(flags.useMetadataFiltering).toBe(true);
-    expect(flags.useNativeHNSW).toBe(true); // Unchanged (default is true)
+    expect(flags.useNativeHNSW).toBe(true); // Unchanged (default is true after #399 fix)
     expect(flags.useTemporalCompression).toBe(true); // Unchanged (default is true)
 
-    setRuVectorFeatureFlags({ useNativeHNSW: true });
+    setRuVectorFeatureFlags({ useNativeHNSW: false });
     flags = getRuVectorFeatureFlags();
     expect(flags.useMetadataFiltering).toBe(true); // Still true
-    expect(flags.useNativeHNSW).toBe(true);
+    expect(flags.useNativeHNSW).toBe(false); // Opted out
   });
 
   it('should reset all flags to defaults', () => {
@@ -1126,6 +1133,7 @@ describe('Phase 1: Feature Flag Runtime Toggling', () => {
     resetRuVectorFeatureFlags();
     const flags = getRuVectorFeatureFlags();
 
+    // All Phase 1 flags default to true after the #399 hnswlib-node migration.
     expect(flags.useNativeHNSW).toBe(true);
     expect(flags.useTemporalCompression).toBe(true);
     expect(flags.useMetadataFiltering).toBe(true);
@@ -1175,12 +1183,13 @@ describe('Phase 1: HNSW Search After Compression Round-Trip', () => {
     HnswAdapter.closeAll();
   });
 
-  // See https://github.com/proffesor-for-testing/agentic-qe/issues/399 —
-  // same approximate-HNSW-vs-exact-match issue as the 1000-vector test.
-  // Asserts `results[0].id === 50` after searching with a compressed+
-  // decompressed query, which requires exact top-1 recall that the
-  // native HNSW backend doesn't guarantee across platforms.
-  it.skip('should find original vector as top result when searching with decompressed query', () => {
+  // Issue #399 / ADR-090 (April 2026): un-skipped after the hnswlib-node
+  // migration. The previous @ruvector/router HNSW couldn't find the
+  // original vector with reliable top-1 ranking after a hot-compression
+  // round-trip. hnswlib-node returns correct nearest-neighbor results,
+  // and hot-compression is lossy enough that it preserves the top-1
+  // ordering for this fixture.
+  it('should find original vector as top result when searching with decompressed query', () => {
     const adapter = HnswAdapter.create('compression-search', {
       dimensions: DIMENSIONS,
     });

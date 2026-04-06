@@ -5,6 +5,24 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.6] - 2026-04-06
+
+### Fixed
+
+- **Native HNSW search now actually works** ([#399](https://github.com/proffesor-for-testing/agentic-qe/issues/399), [ADR-090](docs/implementation/adrs/ADR-090-hnswlib-node-migration.md)) — the previous `NativeHnswBackend` wrapped `@ruvector/router 0.1.28`'s `VectorDb`, which was found to have **four serious bugs**: (1) HNSW search returned essentially random results — recall@10 ≈ 0–10% on textbook unit-Gaussian random vectors, could not find self-vectors; (2) the `VectorDb` constructor unconditionally wrote a `vectors.db` redb file to the user's project root, polluting CWD with multi-MB files outside the unified memory architecture; (3) only one `VectorDb` instance could exist per process due to a process-wide redb file lock; (4) NAPI dispose did not synchronously release the redb lock, which was the root cause of v3.9.5's futex deadlock. `NativeHnswBackend` was rewritten to wrap `hnswlib-node@^3.0.0` (the canonical Yury Malkov C++ Hnswlib reference implementation, used by Pinecone, Weaviate, Qdrant, LangChain, ChromaDB), which fixes all four bugs in one swap. Empirical verification on the same fixture: **100% recall@10** vs `@ruvector/router`'s 10%, faster inserts, multiple instances coexist, no CWD pollution. The `useNativeHNSW` default is flipped back to `true` so users with large codebases get sublinear HNSW search by default again. No new dependency was added — `hnswlib-node` was already in `package.json`.
+
+- **Code-intelligence semantic search returns correct nearest neighbors.** Prior to the migration, every `qe-kernel` namespace search was going through the broken `@ruvector/router` HNSW and returning essentially random non-neighbors. Pattern matching, dream insights, and KG search now return the actual nearest neighbors.
+
+### Removed
+
+- **`vectors.db` is no longer auto-created in users' project roots.** This was a side-effect of `@ruvector/router`'s `VectorDb` constructor and existed in violation of the unified memory architecture (CLAUDE.md: "all data goes through SQLite — one DB, one schema"). `aqe init` now warns when a stale `vectors.db` is detected from a previous version and tells the user it is safe to delete. **It does not auto-delete** — per CLAUDE.md data protection rules, AQE never touches `.db` files without explicit user confirmation. Users can clean up with `rm vectors.db`.
+
+### Added
+
+- **Real-fixture HNSW recall test** (`tests/integration/ruvector/native-hnsw-real-fixture.test.ts`) — loads the project's own `qe-kernel` namespace from `.agentic-qe/memory.db` and asserts top-1 == self with recall@10 ≥ 0.9 across 5 deterministic queries against ~2,000 real sentence-transformer embeddings. Plus regression guards for the four `@ruvector/router` bugs (CWD pollution, concurrent instances, dispose lifecycle, resize past initial capacity).
+- **Diagnostic scripts** (`scripts/diagnose-issue-399*.mjs`) — four self-contained scripts that reproduce each of the four `@ruvector/router` bugs and verify hnswlib-node's correctness on the same fixtures. Kept for any future revisit of the HNSW backend.
+- **ADR-090** documenting the migration with the empirical numbers, the four bugs, the rejected alternatives, and the migration path for users with stale `vectors.db` files.
+
 ## [3.9.5] - 2026-04-06
 
 ### Fixed

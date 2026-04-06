@@ -330,12 +330,15 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       //
       // IMPORTANT: This check only fires BETWEEN file iterations. If a
       // single call to kgService.index() blocks the Node event loop
-      // inside synchronous native code (e.g. an @ruvector/router
-      // native insert stalls on a specific vector shape), this check
-      // never runs and the phase appears to hang past PHASE_TIMEOUT_MS.
-      // That's the v3.9.3 failure mode observed on ruview. See
-      // shouldRun() for the v3.9.4 AQE_SKIP_CODE_INDEX escape hatch
-      // and the tracking issue for the killable-worker proper fix.
+      // inside synchronous native code, this check never runs and the
+      // phase appears to hang past PHASE_TIMEOUT_MS.
+      //
+      // The v3.9.3 hang was caused by @ruvector/router's native HNSW
+      // insert stalling on certain vector shapes — that path was
+      // replaced with hnswlib-node in #399 / ADR-090 and the specific
+      // hang no longer reproduces. The between-file timeout check and
+      // the AQE_SKIP_CODE_INDEX escape hatch are kept as defense in
+      // depth against future native-code stalls.
       if (Date.now() - startedAt > PHASE_TIMEOUT_MS) {
         timedOut = true;
         break;

@@ -233,6 +233,8 @@ try {
     // the cascade of errors seen in v3.9.1 and v3.9.2:
     //   • RVF error 0x0303: FsyncFailed (child couldn't open patterns.rvf)
     //   • VectorDb creation failed: Database already open
+    //     (the @ruvector/router lock is gone post #399 / ADR-090, but
+    //     the RVF lock still exists)
     //   • Error: Could not find MCP server entry point
     //
     // The canonical path is .mcp.json (written by phase 08). Claude Code
