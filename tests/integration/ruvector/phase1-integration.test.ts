@@ -71,12 +71,39 @@ const DIMENSIONS = 384;
 
 /**
  * Generate a deterministic test vector for a given id and optional domain seed.
- * Uses sin-based generation for reproducibility.
+ *
+ * Uses FNV-1a to derive 5 independent phases per id, then combines them into
+ * a sum of sinusoids at incommensurate frequencies with decaying amplitude.
+ * This preserves smoothness (good for compression/dither tests) while
+ * guaranteeing unique nearest neighbours — the previous
+ * `Math.sin((id + domainSeed) * 0.1 + i * 0.01) * 0.5` generator had
+ * single-phase sine aliasing: since 2π / 0.1 ≈ 63, ids spaced ~63 apart
+ * produced cosine similarities > 0.999 (e.g. id=42 vs id=105/356/419/482/
+ * 733/796/922 all aliased), so "nearest neighbour = self" depended on
+ * floating-point sort stability in HNSW and @ruvector/gnn. The fix preserves
+ * deterministic output and the expected value range (~[-0.5, 0.5]) while
+ * ensuring no pair in the 1000-id range exceeds ~0.998 cosine similarity,
+ * leaving a safe margin for the top-1 self-match assertion (1.0 vs ≤0.96).
  */
 function generateTestVector(id: number, domainSeed: number = 0): Float32Array {
   const vector = new Float32Array(DIMENSIONS);
+  // FNV-1a seeded with (id, domainSeed) to derive 5 independent phases.
+  let h = (2166136261 ^ id ^ (domainSeed * 16777619)) >>> 0;
+  const phases: number[] = [];
+  for (let p = 0; p < 5; p++) {
+    h = Math.imul(h ^ 0x9e3779b9, 16777619);
+    phases.push(((h >>> 0) / 0x100000000) * 2 * Math.PI);
+  }
+  // Incommensurate frequencies with decaying amplitude preserve the
+  // smooth-signal character the compression tests expect.
+  const freqs = [0.010, 0.023, 0.037, 0.053, 0.071];
+  const amps = [0.28, 0.18, 0.12, 0.08, 0.05];
   for (let i = 0; i < DIMENSIONS; i++) {
-    vector[i] = Math.sin((id + domainSeed) * 0.1 + i * 0.01) * 0.5;
+    let x = 0;
+    for (let p = 0; p < 5; p++) {
+      x += Math.sin(phases[p] + i * freqs[p]) * amps[p];
+    }
+    vector[i] = x;
   }
   return vector;
 }
@@ -883,12 +910,21 @@ describe('Phase 1: End-to-End Component Integration', () => {
     }
 
     // 4. Compress some vectors by tier
+    //
+    // NOTE: Stored vectors above use a per-domain `domainSeed`
+    // (`domains.indexOf(domain)`). We must use the same domainSeed when
+    // re-generating a vector to compare against the stored copy —
+    // otherwise the "hot" vector for id=1 would differ from the stored
+    // id=1 and the search on line 945 would legitimately fail to find
+    // id=1. Previously the test relied on single-phase sine aliasing to
+    // accidentally return id=1 anyway; with the fixed hash-phase
+    // generator we must match seeds explicitly.
     const compressionService = createTemporalCompressionService();
     await compressionService.initialize();
 
-    const hotVector = generateTestVector(1);
-    const warmVector = generateTestVector(50);
-    const coldVector = generateTestVector(90);
+    const hotVector = generateTestVector(1, domains.indexOf(domains[1 % domains.length]));
+    const warmVector = generateTestVector(50, domains.indexOf(domains[50 % domains.length]));
+    const coldVector = generateTestVector(90, domains.indexOf(domains[90 % domains.length]));
 
     const hotCompressed = compressionService.compress(hotVector, 'hot');
     const warmCompressed = compressionService.compress(warmVector, 'warm');
