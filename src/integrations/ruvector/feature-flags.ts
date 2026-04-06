@@ -62,10 +62,19 @@ export interface RuVectorFeatureFlags {
   logMigrationMetrics: boolean;
 
   /**
-   * Enable Native HNSW backend via @ruvector/router VectorDb
-   * Uses the Rust-based HNSW implementation for higher throughput
-   * and lower latency vector search. Falls back to ProgressiveHnswBackend
-   * when the native binary is unavailable or the database lock is held.
+   * Enable Native HNSW backend via hnswlib-node (canonical Hnswlib C++).
+   *
+   * Uses Yury Malkov's Hnswlib reference implementation (the same C++ used
+   * by Pinecone, Weaviate, Qdrant, LangChain, ChromaDB) for sublinear
+   * approximate nearest-neighbour search. Falls back to ProgressiveHnswBackend
+   * when the hnswlib-node native binary is unavailable.
+   *
+   * History: previously wrapped @ruvector/router's VectorDb. Migrated to
+   * hnswlib-node in #399 / ADR-090 after empirical verification revealed
+   * four serious bugs in @ruvector/router 0.1.28 (broken HNSW search,
+   * CWD pollution via vectors.db, process-wide singleton lock, and an
+   * NAPI dispose path that didn't release the file lock).
+   *
    * @default true
    */
   useNativeHNSW: boolean;
@@ -430,14 +439,27 @@ export interface RuVectorFeatureFlags {
 // ============================================================================
 
 /**
- * Default feature flags - all enabled by default
+ * Default feature flags — all enabled by default.
+ *
+ * useNativeHNSW history:
+ *   - v3.9.5: flipped to false after the @ruvector/router native binding
+ *     was found to deadlock on certain inputs (futex contention inside the
+ *     Rust-side HNSW). The JS ProgressiveHnswBackend was the safe default.
+ *   - issue #399 (April 2026): empirical verification revealed four bugs in
+ *     @ruvector/router 0.1.28 — broken HNSW search (recall ~0% on textbook
+ *     fixtures), CWD pollution via vectors.db, process-wide singleton lock,
+ *     and unreleased file lock on dispose. NativeHnswBackend was rewritten
+ *     to wrap hnswlib-node (the canonical Hnswlib reference implementation
+ *     by Yury Malkov) which fixes all four bugs and gives users with large
+ *     codebases real sublinear HNSW search. Default flipped back to true.
+ *     See ADR-090.
  */
 const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useQESONA: true,
   useQEFlashAttention: true,
   useQEGNNIndex: true,
   logMigrationMetrics: true,
-  useNativeHNSW: false,
+  useNativeHNSW: true,
   useTemporalCompression: true,
   useMetadataFiltering: true,
   useDeterministicDither: true,

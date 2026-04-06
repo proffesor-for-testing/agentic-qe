@@ -944,16 +944,21 @@ export class UnifiedMemoryManager {
   close(): void {
     if (this.db) {
       this.preparedStatements.clear();
-      // IMPORTANT: vectorIndex.clear() empties the vectors but does NOT
-      // dispose the backend. The underlying NativeHnswBackend (if native
-      // HNSW is enabled) holds a native VectorDb that is process-global
-      // — @ruvector/router does not allow a second VectorDb to be
-      // created in the same process while the first is still alive
-      // ("Database already open. Cannot acquire lock."). We deliberately
-      // keep the HnswAdapter alive in its registry so the next
-      // UnifiedMemoryManager instance re-binds to the same backend.
-      // See fix/init-v3-9-3 Fix 1 for the dispose() plumbing that tests
-      // and explicit shutdown paths can use via HnswAdapter.close(name).
+      // vectorIndex.clear() recreates the underlying HierarchicalNSW
+      // (post #399 / ADR-090 — see NativeHnswBackend.clear()), so the
+      // next UnifiedMemoryManager instance starts with a fresh graph.
+      // The HnswAdapter registry singleton is intentionally preserved
+      // across close()/re-init cycles so that consumers that hold a
+      // reference to the named adapter (e.g. PatternStore) continue to
+      // see live state. Tests and explicit shutdown paths can fully
+      // tear down via HnswAdapter.close(name).
+      //
+      // Historical context: prior to #399, NativeHnswBackend wrapped
+      // @ruvector/router's VectorDb which held a process-wide redb file
+      // lock — only ONE instance could exist per process and the lock
+      // was not released by NAPI dispose ("Database already open").
+      // hnswlib-node has none of those constraints; multiple instances
+      // coexist freely.
       this.vectorIndex.clear();
       this.db.close();
       this.db = null;
