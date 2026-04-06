@@ -19,9 +19,31 @@ import {
 import { createMemoryBackend, type MemoryBackendConfig } from '../../kernel/memory-factory.js';
 
 export interface CodeIntelligenceResult {
-  status: 'indexed' | 'existing' | 'skipped' | 'error';
+  status: 'indexed' | 'existing' | 'skipped' | 'error' | 'timeout';
   entries: number;
+  /** Last file the indexer touched before a timeout, if any. Used for diagnostics. */
+  timeoutFile?: string;
 }
+
+// ============================================================================
+// Watchdog configuration (fix/init-v3-9-3 Fix 5)
+//
+// These are deliberately generous. Normal codebases of 10k+ entities index
+// in under 3 seconds on a laptop. The caps exist so that a pathological file
+// or a native-layer stall (e.g. on an overlay filesystem) can't hang the
+// entire init command indefinitely. When a cap fires the phase returns
+// gracefully with status='timeout', the warning names the last file, and the
+// user can open an issue with that exact filename.
+// ============================================================================
+
+/** Per-file timeout. A single file must not take longer than this to index. */
+const PER_FILE_TIMEOUT_MS = 30_000;
+
+/** Whole-phase timeout. The full KG build must not take longer than this. */
+const PHASE_TIMEOUT_MS = 180_000;
+
+/** Log a progress line every N files. */
+const PROGRESS_LOG_INTERVAL = 100;
 
 /** Patterns to exclude from code intelligence scanning */
 const SCAN_IGNORE_PATTERNS = [
@@ -150,6 +172,14 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
    * - Dependency analysis (impact of changes)
    * - Test target discovery (what tests cover what code)
    * - Token reduction (search KG instead of reading entire files)
+   *
+   * fix/init-v3-9-3 Fix 5: The whole scan is wrapped in a phase-level
+   * watchdog. Inside, each file is indexed via `indexOneFile()` with a
+   * per-file timeout so a single pathological file or a native-layer
+   * stall (e.g. @ruvector/rvf-node fsync on an overlay filesystem) can
+   * never block the init command indefinitely. Progress is logged every
+   * PROGRESS_LOG_INTERVAL files so operators can see exactly where the
+   * indexer is — and, if a timeout fires, which file was responsible.
    */
   private async runCodeIntelligenceScan(
     projectRoot: string,
@@ -190,32 +220,155 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         filesToIndex = files.map(f => join(projectRoot, f));
       }
 
-      const result = await kgService.index({
-        paths: filesToIndex,
+      context.services.log(`  Scanning ${filesToIndex.length} source files...`);
+
+      // Race the whole scan against a phase-level watchdog. If the cap
+      // fires, we stop eating files and report how far we got.
+      const scanResult = await this.runBoundedScan(
+        kgService,
+        filesToIndex,
         incremental,
-        includeTests: true,
-      });
+        context,
+      );
 
       kgService.destroy();
       await memory.dispose();
 
-      if (result.success) {
-        const entries = result.value.nodesCreated + result.value.edgesCreated;
+      if (scanResult.status === 'timeout') {
+        context.services.warn(
+          `  ⚠ Code intelligence pre-scan exceeded ${PHASE_TIMEOUT_MS / 1000}s phase cap. ` +
+          `Indexed ${scanResult.entries} entries before timeout. ` +
+          `Last file: ${scanResult.timeoutFile ?? '(unknown)'}. ` +
+          `Init is continuing — re-run 'aqe code index' later, or report this file to ` +
+          `https://github.com/proffesor-for-testing/agentic-qe/issues.`
+        );
+        return scanResult;
+      }
+
+      if (scanResult.status === 'indexed') {
         const label = incremental ? 'Delta indexed' : 'Indexed';
-        context.services.log(`  ${label} ${entries} entries to ${dbPath}`);
+        context.services.log(`  ${label} ${scanResult.entries} entries to ${dbPath}`);
 
         // Also populate the hypergraph tables (hypergraph_nodes/hypergraph_edges)
         // so CLI/MCP hypergraph queries work immediately after init
         await this.buildHypergraph(dbPath, filesToIndex, context);
-
-        return { status: 'indexed', entries };
       }
 
-      return { status: 'error', entries: 0 };
+      return scanResult;
     } catch (error) {
       context.services.warn(`Code intelligence scan warning: ${error}`);
       return { status: 'skipped', entries: 0 };
     }
+  }
+
+  /**
+   * Drive file-by-file indexing with per-file and phase-level timeouts.
+   *
+   * fix/init-v3-9-3 Fix 5. This method is the reason v3.9.3 can survive
+   * pathological files and native-layer stalls that hung v3.9.1/v3.9.2.
+   *
+   * Invariants:
+   *   - A single file cannot block longer than PER_FILE_TIMEOUT_MS.
+   *   - The whole loop cannot block longer than PHASE_TIMEOUT_MS.
+   *   - Progress is observable via structured log lines.
+   *   - Partial results are kept — on timeout we return the entries
+   *     indexed so far, not zero.
+   */
+  private async runBoundedScan(
+    kgService: import('../../domains/code-intelligence/services/knowledge-graph.js').KnowledgeGraphService,
+    filesToIndex: string[],
+    incremental: boolean,
+    context: InitContext,
+  ): Promise<CodeIntelligenceResult> {
+    // Use the public index() with a one-file array per call so we can
+    // attach a per-file timeout and log progress.
+    let totalNodes = 0;
+    let totalEdges = 0;
+    let processed = 0;
+    let lastFile = '';
+    const startedAt = Date.now();
+    let timedOut = false;
+
+    // Clear once up-front if this is a full rebuild. The per-file calls
+    // below must not clear between files.
+    if (!incremental) {
+      await kgService.clear();
+    }
+
+    for (const file of filesToIndex) {
+      // Phase-level cap. Checked between files so in-flight work can
+      // still complete bounded by its own per-file cap.
+      if (Date.now() - startedAt > PHASE_TIMEOUT_MS) {
+        timedOut = true;
+        break;
+      }
+
+      lastFile = file;
+      try {
+        const indexResult = await this.withTimeout(
+          kgService.index({
+            paths: [file],
+            incremental: true,      // don't clear — we already cleared above
+            includeTests: true,
+          }),
+          PER_FILE_TIMEOUT_MS,
+          file,
+        );
+
+        if (indexResult.success) {
+          totalNodes += indexResult.value.nodesCreated;
+          totalEdges += indexResult.value.edgesCreated;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.startsWith('AQE_PER_FILE_TIMEOUT')) {
+          // Skip the pathological file, log, and keep going.
+          context.services.warn(
+            `  ⚠ Skipped ${file} — indexing exceeded ${PER_FILE_TIMEOUT_MS / 1000}s`,
+          );
+        } else {
+          context.services.warn(`  ⚠ Failed to index ${file}: ${message}`);
+        }
+      }
+
+      processed++;
+      if (processed % PROGRESS_LOG_INTERVAL === 0 || processed === filesToIndex.length) {
+        context.services.log(`  Indexed ${processed}/${filesToIndex.length} files`);
+      }
+    }
+
+    const entries = totalNodes + totalEdges;
+    if (timedOut) {
+      return { status: 'timeout', entries, timeoutFile: lastFile };
+    }
+    return { status: 'indexed', entries };
+  }
+
+  /**
+   * Race a promise against a timer. On timeout, rejects with a tagged
+   * error so the caller can distinguish timeouts from real failures.
+   *
+   * The tagged error prefix 'AQE_PER_FILE_TIMEOUT' is matched in
+   * runBoundedScan to differentiate per-file timeouts from other errors.
+   */
+  private withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    fileLabel: string,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`AQE_PER_FILE_TIMEOUT: ${fileLabel}`));
+      }, timeoutMs);
+      // unref so the timer doesn't keep the event loop alive if the
+      // promise resolves via the fast path.
+      if (typeof timer.unref === 'function') timer.unref();
+
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); },
+      );
+    });
   }
 
   /**

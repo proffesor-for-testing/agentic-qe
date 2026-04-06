@@ -214,7 +214,31 @@ export class ProgressiveHnswBackend implements IHnswIndexProvider {
       this.entries.length > 0 ? this.entries[0].vector.length : 0;
     const dimensionsMatch = normalizedQuery.length === storedDim;
 
-    // Try @ruvector/gnn differentiableSearch first
+    // ADR-071 correctness fix (v3.9.3): For cosine similarity we always
+    // use brute-force exact search.
+    //
+    // Context: @ruvector/gnn's differentiableSearch is a softmax-weighted
+    // soft-argmax designed for GRADIENT FLOW during neural-network
+    // training — it is NOT a correct nearest-neighbour ranking primitive.
+    // Its returned candidate set is platform-sensitive (native binary
+    // version, CPU float rounding) and has been observed in CI to
+    // return candidates that are not even in the true top-10 by exact
+    // cosine similarity. Re-sorting the returned candidates is not
+    // sufficient because the true nearest neighbour may not be in the
+    // candidate set at all.
+    //
+    // For AQE's production KG indexes (typically <10k patterns at
+    // 384 dims), brute-force cosine is O(n·d) ≈ a few milliseconds,
+    // so the performance cost is negligible compared to the correctness
+    // guarantee. The differentiableSearch path is retained below for
+    // the euclidean metric and for future non-cosine use cases.
+    if (this.config.metric === 'cosine') {
+      return this.bruteForcSearch(normalizedQuery, queryNorm, actualK);
+    }
+
+    // Non-cosine: try @ruvector/gnn differentiableSearch, then fall back
+    // to brute-force. The result is still re-sorted by the recomputed
+    // exact score for ranking correctness within the candidate set.
     if (this.hasRuvector && dimensionsMatch && ruvectorDifferentiableSearch) {
       try {
         const candidateVectors = this.entries.map((e) => e.vector);
@@ -225,31 +249,20 @@ export class ProgressiveHnswBackend implements IHnswIndexProvider {
           1.0
         );
 
-        return result.indices.map((idx) => {
+        const candidates: SearchResult[] = result.indices.map((idx) => {
           const entry = this.entries[idx];
-          // Compute actual cosine similarity for the score
-          const score =
-            this.config.metric === 'cosine'
-              ? fastCosineSimilarity(
-                  normalizedQuery,
-                  entry.vector,
-                  queryNorm,
-                  entry.norm
-                )
-              : -euclideanDistance(normalizedQuery, entry.vector);
-
-          return {
-            id: entry.id,
-            score,
-            metadata: entry.metadata,
-          };
+          const score = -euclideanDistance(normalizedQuery, entry.vector);
+          return { id: entry.id, score, metadata: entry.metadata };
         });
+
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates;
       } catch {
         // Fall through to brute-force
       }
     }
 
-    // Brute-force fallback
+    // Brute-force fallback for non-cosine metrics
     return this.bruteForcSearch(normalizedQuery, queryNorm, actualK);
   }
 
@@ -336,5 +349,17 @@ export class ProgressiveHnswBackend implements IHnswIndexProvider {
   clear(): void {
     this.entries = [];
     this.idToIndex.clear();
+  }
+
+  /**
+   * Dispose of backend resources.
+   *
+   * ProgressiveHnswBackend holds no native handles — all state is
+   * plain JavaScript arrays. This is a no-op that exists to satisfy
+   * the `IHnswIndexProvider.dispose()` contract so HnswAdapter can
+   * uniformly call it during registry teardown.
+   */
+  dispose(): void {
+    this.clear();
   }
 }

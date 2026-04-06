@@ -447,14 +447,34 @@ export class NativeHnswBackend implements IHnswIndexProvider {
    * Deletes all entries from the native VectorDb.
    */
   clear(): void {
+    if (!this.nativeDb) return;
     // Delete all entries from native DB
     for (const id of this.vectorStore.keys()) {
-      try { this.nativeDb!.delete(String(id)); } catch { /* ignore */ }
+      try { this.nativeDb.delete(String(id)); } catch { /* ignore */ }
     }
 
     this.vectorStore.clear();
     this.normStore.clear();
     this.metadataStore.clear();
+  }
+
+  /**
+   * Dispose of the native VectorDb handle so NAPI garbage collection can
+   * reclaim the underlying Rust-side index. After dispose(), this backend
+   * instance must not be used. The HnswAdapter registry is expected to
+   * drop its reference as part of `HnswAdapter.close(name)`.
+   *
+   * This is the load-bearing fix for the v3.9.1 regression where
+   * `resetUnifiedMemory()` would null the UnifiedMemoryManager but leave
+   * a stale NativeHnswBackend alive in the HnswAdapter registry.
+   */
+  dispose(): void {
+    // Clear local mirrors first so `clear()` on a dead nativeDb is a no-op.
+    this.vectorStore.clear();
+    this.normStore.clear();
+    this.metadataStore.clear();
+    // Drop the native handle. Rust-side VectorDb is reclaimed by NAPI GC.
+    this.nativeDb = null;
   }
 
   /**

@@ -944,6 +944,16 @@ export class UnifiedMemoryManager {
   close(): void {
     if (this.db) {
       this.preparedStatements.clear();
+      // IMPORTANT: vectorIndex.clear() empties the vectors but does NOT
+      // dispose the backend. The underlying NativeHnswBackend (if native
+      // HNSW is enabled) holds a native VectorDb that is process-global
+      // — @ruvector/router does not allow a second VectorDb to be
+      // created in the same process while the first is still alive
+      // ("Database already open. Cannot acquire lock."). We deliberately
+      // keep the HnswAdapter alive in its registry so the next
+      // UnifiedMemoryManager instance re-binds to the same backend.
+      // See fix/init-v3-9-3 Fix 1 for the dispose() plumbing that tests
+      // and explicit shutdown paths can use via HnswAdapter.close(name).
       this.vectorIndex.clear();
       this.db.close();
       this.db = null;

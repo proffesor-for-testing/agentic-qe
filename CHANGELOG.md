@@ -5,6 +5,39 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.3] - 2026-04-06
+
+### Fixed
+
+- **`aqe init --auto` hangs at "Code intelligence pre-scan"** — v3.9.2's fix only addressed the `AQELearningEngine → getSharedRvfDualWriter` deadlock, but the phase 06 hang in real projects (ruview, cf-devpod) had a different root cause: the indexer had no per-file or whole-phase timeout, so a single pathological file or a native-layer stall on overlay filesystems blocked the CLI indefinitely with no diagnostic. Phase 06 now drives indexing file-by-file with a **30 s per-file cap** and a **180 s whole-phase cap**. Partial results are preserved on timeout, the warning names the exact file responsible, and init continues. Progress lines log every 100 files so users can see where the indexer actually is.
+- **`aqe init --auto` leaves cosmetic errors in the output** — Phase 10 workers spawned `aqe mcp` as a detached child to "pre-warm" the MCP daemon, but that spawn raced the parent for file locks and emitted a cascade of misleading errors: `[RVF] Shared adapter init failed: FsyncFailed`, `VectorDb creation failed: Database already open`, `Error: Could not find MCP server entry point`. None of these were real failures — the daemon was never needed, because Claude Code starts the MCP server on demand via `.mcp.json`. The spawn has been removed entirely. Phase 10 now completes in ~1 ms instead of 1500 ms.
+- **`aqe mcp --help` / `aqe mcp` fails with "Could not find MCP server entry point"** — v3.9.0's esbuild code-splitting (`lazy-load CLI handlers`) placed CLI chunks under `dist/cli/chunks/`, breaking the fixed `__dirname + '..'` paths the MCP command used to locate `dist/mcp/bundle.js`. A regression of the v3.7.10 fix. `findMcpEntry()` now walks up to the nearest `package.json` with `name=agentic-qe` via the existing `findPackageRoot()` helper, with legacy sibling-path fallback for dev mode and an extra chunk-split candidate.
+- **Every CLI command opens `patterns.rvf` and `memory.db` at startup** — `bootstrapTokenTracking()` was creating an `RvfPatternStore` (which auto-attached a `SQLitePatternStore`, which initialized `UnifiedMemory`) *before* commander had parsed argv, so `aqe --version`, `aqe --help`, and `aqe init` all grabbed exclusive file locks they never used. This is what was holding the locks that `cf-devpod`'s spawned daemon then fought with. `TokenOptimizerService.initialize()` is now a lazy registration — it stores the memory backend reference and config but defers pattern-store creation until the first `checkEarlyExit()` or `storePattern()` call. Commands that never touch the optimizer no longer open any files. `aqe --version` on a project with an existing `.agentic-qe/` directory now prints a single line instead of 6+ lines of bootstrap noise.
+
+### Added
+
+- **Phase 06 per-file and phase-level watchdogs** — Configurable via `PER_FILE_TIMEOUT_MS` (30 s) and `PHASE_TIMEOUT_MS` (180 s) constants in `src/init/phases/06-code-intelligence.ts`. New `CodeIntelligenceResult.status = 'timeout'` variant with `timeoutFile` diagnostic field. Progress logged every `PROGRESS_LOG_INTERVAL` (100) files.
+- **`IHnswIndexProvider.dispose()` contract** — Optional `dispose()` method for backends to release native resources. `NativeHnswBackend.dispose()` nulls the `nativeDb` reference so NAPI GC can reclaim the Rust-side index. `ProgressiveHnswBackend.dispose()` is a no-op. `HnswAdapter.close(name)` now invokes the backend dispose chain for tests and explicit shutdown.
+- **Lazy `TokenOptimizerService` lifecycle** — `ensurePatternStoreReady()` is a private idempotent method invoked on first use by `checkEarlyExit()` and `storePattern()`. Concurrent callers share one `readyPromise`. Failure leaves the service in a "registered but unready" state that degrades to session-cache-only mode.
+
+### Changed
+
+- **Phase 10 Workers no longer spawns MCP daemon** — The `startDaemon()` / `findMcpCommand()` helpers have been removed. Users who want to run the MCP daemon manually can still use the generated `.agentic-qe/workers/start-daemon.cjs` helper script. Phase 10 continues to write the worker registry and individual worker configs.
+- **`TokenOptimizerServiceImpl.initialize()` is now idempotent in both directions** — Calling it twice is still a no-op when `initialized=true`, but when `initialized` is externally reset to `false` (tests), the next `initialize()` call proactively clears stale `readyPromise` / `patternStore` / `optimizer` state to avoid picking up references to disposed memory backends.
+
+### Verification
+
+- 17/17 `token-optimizer-service` tests pass.
+- 99/99 HNSW tests pass (native-hnsw-backend, hnsw-legacy-bridge, hnsw-unification).
+- 53/53 `unified-memory` tests pass.
+- 65/65 `pattern-store` / `rvf-pattern-store` tests pass.
+- 32/32 init orchestrator + database-phase tests pass.
+- Empty-project fixture: init completes in 436 ms (v3.9.2: 1787 ms) with zero errors.
+- 200-file fixture: init completes in 621 ms with progress logs at 100/200 and 200/200.
+- 15 k-entity heavy fixture: init completes in 2167 ms (v3.9.2: 3401 ms).
+- Pre-existing `.agentic-qe/` + `aqe --version`: prints single line `3.9.3`, does not create `patterns.rvf`.
+- `aqe mcp --help` exits 0 with usage text (v3.9.2: "Could not find MCP server entry point").
+
 ## [3.9.2] - 2026-04-06
 
 ### Fixed

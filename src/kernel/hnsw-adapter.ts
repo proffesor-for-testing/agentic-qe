@@ -218,6 +218,25 @@ export class HnswAdapter implements IHnswIndexProvider {
   }
 
   /**
+   * Dispose of the underlying backend and release native resources.
+   *
+   * After dispose(), this adapter instance must not be used. Callers
+   * should invoke `HnswAdapter.close(name)` rather than calling this
+   * directly — `close()` also removes the entry from the registry so
+   * the next `HnswAdapter.create(name)` call builds a fresh backend.
+   */
+  dispose(): void {
+    try {
+      this.backend.dispose?.();
+    } catch {
+      // Best-effort — a failing dispose must not throw during teardown.
+    }
+    this.stringToNumericId.clear();
+    this.numericToStringId.clear();
+    this.nextAutoId = 0;
+  }
+
+  /**
    * Check whether @ruvector/gnn is available.
    */
   isRuvectorAvailable(): boolean {
@@ -402,11 +421,16 @@ export class HnswAdapter implements IHnswIndexProvider {
 
   /**
    * Close and remove a named index from the registry.
+   *
+   * Disposes the underlying backend (releasing any native handles) and
+   * removes the registry entry so the next `HnswAdapter.create(name)`
+   * call builds a fresh backend. This is the correct teardown path when
+   * a parent manager (e.g. UnifiedMemoryManager) is being reset.
    */
   static close(name: string): void {
     const existing = registry.get(name);
     if (existing instanceof HnswAdapter) {
-      existing.clear();
+      existing.dispose();
     }
     registry.delete(name);
   }
