@@ -119,4 +119,21 @@ export interface IHnswIndexProvider {
    * Optional: implementations that don't support clearing can omit this.
    */
   clear?(): void;
+
+  /**
+   * Dispose of underlying native resources (file handles, NAPI handles,
+   * native VectorDb instances). After dispose(), the provider must not
+   * be used again. Implementations that don't hold native resources may
+   * implement this as a no-op.
+   *
+   * Required for correct lifecycle when the parent manager (e.g.
+   * UnifiedMemoryManager) is reset and a fresh native backend needs to
+   * be created. Without this, a stale NAPI handle can survive across
+   * resets via module-level singletons and cause deadlocks or "already
+   * open" errors on the next initialize.
+   *
+   * Optional for backward compatibility — callers should use `close()`
+   * on HnswAdapter instead of invoking this directly.
+   */
+  dispose?(): void;
 }

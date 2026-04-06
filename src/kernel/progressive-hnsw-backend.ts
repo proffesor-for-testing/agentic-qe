@@ -337,4 +337,16 @@ export class ProgressiveHnswBackend implements IHnswIndexProvider {
     this.entries = [];
     this.idToIndex.clear();
   }
+
+  /**
+   * Dispose of backend resources.
+   *
+   * ProgressiveHnswBackend holds no native handles — all state is
+   * plain JavaScript arrays. This is a no-op that exists to satisfy
+   * the `IHnswIndexProvider.dispose()` contract so HnswAdapter can
+   * uniformly call it during registry teardown.
+   */
+  dispose(): void {
+    this.clear();
+  }
 }
