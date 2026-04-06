@@ -220,33 +220,18 @@ async function ensureInitialized(): Promise<boolean> {
  * Cleanup resources and exit the process
  */
 async function cleanupAndExit(code: number = 0): Promise<never> {
-  // Safety net: force exit after 3s if async handles keep event loop alive
-  const forceExitTimer = setTimeout(() => process.exit(code), 3000);
-  forceExitTimer.unref?.();
-
+  // Synchronous best-effort cleanup first — no awaits that could block.
   try {
-    const { shutdownTokenTracking } = await import('../init/token-bootstrap.js');
-    await shutdownTokenTracking();
+    if (context.workflowOrchestrator) { context.workflowOrchestrator.dispose().catch(() => {}); }
+    if (context.queen) { context.queen.dispose().catch(() => {}); }
+    if (context.router) { context.router.dispose().catch(() => {}); }
+    if (context.kernel) { context.kernel.dispose().catch(() => {}); }
+  } catch { /* best effort */ }
 
-    if (context.workflowOrchestrator) {
-      await context.workflowOrchestrator.dispose();
-    }
-    if (context.queen) {
-      await context.queen.dispose();
-    }
-    if (context.router) {
-      await context.router.dispose();
-    }
-    if (context.kernel) {
-      await context.kernel.dispose();
-    }
-
-    const { UnifiedMemoryManager } = await import('../kernel/unified-memory.js');
-    UnifiedMemoryManager.resetInstance();
-  } catch (error) {
-    // Non-critical: cleanup errors during exit
-    console.debug('[CLI] Cleanup error during exit:', error instanceof Error ? error.message : error);
-  }
+  // Force exit immediately. Native NAPI handles (@ruvector/rvf-node,
+  // @ruvector/router) create ref'd event loop handles that prevent
+  // natural exit, and dynamic import() of cleanup modules can load
+  // more native bindings that make it worse. Exit now, clean later.
   process.exit(code);
 }
 

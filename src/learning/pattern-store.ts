@@ -1819,12 +1819,37 @@ export function createPatternStore(
       const rvfDir = require('path').dirname(rvfPath);
       if (existsSync(rvfDir)) {
         const mergedConfig = { ...DEFAULT_PATTERN_STORE_CONFIG, ...config };
-        const store = new RvfPatternStore(
-          (path: string, dim: number) => _createRvfStore(path, dim),
-          { rvfPath, base: mergedConfig },
-        );
-        console.log('[PatternStore] Using RVF-backed store (ADR-066)');
-        return store;
+        // FIX: Route through getSharedRvfAdapter() singleton to avoid
+        // opening patterns.rvf twice with an exclusive native file lock.
+        // AQELearningEngine.initialize() later calls getSharedRvfDualWriter()
+        // which also opens patterns.rvf via getSharedRvfAdapter(). If we
+        // called _createRvfStore() directly here, the second open would
+        // deadlock on the native lock.
+        let useSharedAdapter = false;
+        try {
+          const { getSharedRvfAdapter } = require('../integrations/ruvector/shared-rvf-adapter.js');
+          const shared = getSharedRvfAdapter(rvfDir, mergedConfig.embeddingDimension);
+          if (shared) {
+            useSharedAdapter = true;
+            const store = new RvfPatternStore(
+              () => shared,
+              { rvfPath, base: mergedConfig, skipCloseOnDispose: true },
+            );
+            console.log('[PatternStore] Using RVF-backed store (ADR-066)');
+            return store;
+          }
+        } catch {
+          // Shared adapter unavailable — fall back to direct create
+        }
+
+        if (!useSharedAdapter) {
+          const store = new RvfPatternStore(
+            (path: string, dim: number) => _createRvfStore(path, dim),
+            { rvfPath, base: mergedConfig },
+          );
+          console.log('[PatternStore] Using RVF-backed store (ADR-066)');
+          return store;
+        }
       }
     }
   } catch (error) {

@@ -5,6 +5,17 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.2] - 2026-04-06
+
+### Fixed
+
+- **`aqe init --auto` hangs at "Code intelligence pre-scan"** — After v3.9.1 flipped `useRVFPatternStore` to `true` by default, `AQELearningEngine.initialize()` would open `patterns.rvf` twice in the same process: once via `createPatternStore()` and again via `getSharedRvfDualWriter()` → `getSharedRvfAdapter()`. The native @ruvector/rvf-node binding acquires an exclusive file lock on open, so the second call deadlocked waiting for a lock the same process already held. `createPatternStore()` now routes through the `getSharedRvfAdapter()` singleton so only one handle to `patterns.rvf` exists per process.
+- **CLI process doesn't exit after `aqe init` completes** — Native NAPI handles from @ruvector/rvf-node and @ruvector/router kept the event loop alive indefinitely, and `cleanupAndExit()`'s async dynamic imports for cleanup loaded even more native bindings before the 3-second force-exit timer could fire. `cleanupAndExit()` is now synchronous: best-effort fire-and-forget disposes followed by immediate `process.exit()`. Init now completes and exits cleanly in ~7 seconds.
+
+### Changed
+
+- **`RvfPatternStore.dispose()` respects shared adapters** — New `skipCloseOnDispose` option prevents `dispose()` from closing an adapter owned by the `getSharedRvfAdapter()` singleton, so other consumers (dual-writer, migration adapter) retain access to the shared handle.
+
 ## [3.9.1] - 2026-04-05
 
 ### Added

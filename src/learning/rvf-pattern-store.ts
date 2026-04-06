@@ -49,6 +49,8 @@ export interface RvfPatternStoreConfig {
   rvfPath: string;
   /** Base PatternStore config (for metadata, thresholds) */
   base: PatternStoreConfig;
+  /** When true, dispose() will not close the adapter (shared singleton) */
+  skipCloseOnDispose?: boolean;
 }
 
 // ============================================================================
@@ -64,6 +66,7 @@ export interface RvfPatternStoreConfig {
 export class RvfPatternStore implements IPatternStore {
   private readonly config: PatternStoreConfig;
   private readonly rvfPath: string;
+  private readonly skipCloseOnDispose: boolean;
   private adapter: RvfNativeAdapter | null = null;
   private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
   private initialized = false;
@@ -77,6 +80,7 @@ export class RvfPatternStore implements IPatternStore {
   ) {
     this.config = config?.base ?? DEFAULT_PATTERN_STORE_CONFIG;
     this.rvfPath = config?.rvfPath ?? '.agentic-qe/patterns.rvf';
+    this.skipCloseOnDispose = config?.skipCloseOnDispose ?? false;
   }
 
   /**
@@ -138,12 +142,12 @@ export class RvfPatternStore implements IPatternStore {
   }
 
   async dispose(): Promise<void> {
-    if (this.adapter) {
+    if (this.adapter && !this.skipCloseOnDispose) {
       try {
         this.adapter.close();
       } catch { /* best effort */ }
-      this.adapter = null;
     }
+    this.adapter = null;
     this.initialized = false;
   }
 
