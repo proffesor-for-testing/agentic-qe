@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFi
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { findPackageRoot } from './find-package-root.js';
 
 // ============================================================================
 // Types
@@ -51,22 +52,61 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Path to bundled governance assets
+ * Path to bundled governance assets.
+ *
+ * fix/init-v3-9-4: In v3.9.1 this function was missed when skills-installer,
+ * agents-installer, opencode-installer, and n8n-installer were migrated to
+ * findPackageRoot(). The old fixed-depth `__dirname + '../../'` traversals
+ * work when the file is compiled as a standalone ESM module at
+ * `dist/init/governance-installer.js`, but they silently break when esbuild
+ * code-splitting bundles this module into a chunk under
+ * `dist/cli/chunks/chunk-XXX.js` — at which point `__dirname` points to
+ * the chunks directory and both candidate traversals land outside the
+ * package. That made the governance phase throw "Governance assets not
+ * found. Package may be corrupted." during phase 13 of `aqe init`, which
+ * the orchestrator caught and reported as `x Install governance
+ * configuration (1ms)` on cf-devpod.
+ *
+ * Resolution order (each path is checked with existsSync):
+ *   1. Dev tree fixed paths — work when running from src/ or the
+ *      standalone-compiled dist/init/.
+ *   2. findPackageRoot() walk-up — finds the nearest package.json with
+ *      name=agentic-qe regardless of bundle depth. This is the correct
+ *      path for all production installs.
+ *   3. Consumer's node_modules — covers edge cases where the package is a
+ *      transitive dep.
+ *   4. process.cwd() fallback — dev tree when running from project root.
  */
 function getGovernanceAssetsPath(): string {
-  // In development: src/init -> assets/governance
-  // In production: dist/init -> dist/assets/governance (copied during build)
-  const devPath = join(__dirname, '../../assets/governance');
-  const prodPath = join(__dirname, '../assets/governance');
+  // 1. Dev tree fixed paths (src/init/ and standalone dist/init/)
+  const candidates: string[] = [
+    join(__dirname, '../../assets/governance'),
+    join(__dirname, '../assets/governance'),
+  ];
 
-  if (existsSync(devPath)) return devPath;
-  if (existsSync(prodPath)) return prodPath;
+  // 2. Walk up to the package root (works for chunk-split bundles)
+  const packageRoot = findPackageRoot(import.meta.url);
+  if (packageRoot) {
+    candidates.push(join(packageRoot, 'assets/governance'));
+    candidates.push(join(packageRoot, 'dist/assets/governance'));
+  }
 
-  // Fallback to assets (when running from project root)
-  const fallbackPath = join(process.cwd(), 'assets/governance');
-  if (existsSync(fallbackPath)) return fallbackPath;
+  // 3. Consumer's node_modules
+  candidates.push(
+    join(process.cwd(), 'node_modules/agentic-qe/assets/governance'),
+  );
 
-  throw new Error('Governance assets not found. Package may be corrupted.');
+  // 4. Fallback to cwd (dev tree running from project root)
+  candidates.push(join(process.cwd(), 'assets/governance'));
+
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+
+  throw new Error(
+    'Governance assets not found. Package may be corrupted. ' +
+    `Searched: ${candidates.join(', ')}`,
+  );
 }
 
 // ============================================================================

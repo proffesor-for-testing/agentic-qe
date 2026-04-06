@@ -16,6 +16,7 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { findPackageRoot } from './find-package-root.js';
 
 // ESM compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -98,12 +99,29 @@ export class KiroInstaller {
   // ==========================================================================
 
   private findOpenCodeDir(): string {
-    const possiblePaths = [
-      // Development: src/init/ or dist/init/ -> project root
+    // fix/init-v3-9-4: same chunk-split bundle regression as
+    // governance-installer. Walk up to the agentic-qe package root
+    // via findPackageRoot() instead of using fragile __dirname + '../..'
+    // traversals that break when this module is bundled into a chunk
+    // under dist/cli/chunks/.
+    const possiblePaths: string[] = [
+      // Dev tree fixed paths (src/init/ and standalone dist/init/)
       join(__dirname, '../../.opencode'),
-      // NPM package location
       join(__dirname, '../../assets/opencode'),
     ];
+
+    // Walk up to the package root (works for chunk-split bundles)
+    const packageRoot = findPackageRoot(import.meta.url);
+    if (packageRoot) {
+      possiblePaths.push(join(packageRoot, '.opencode'));
+      possiblePaths.push(join(packageRoot, 'assets/opencode'));
+    }
+
+    // Consumer's node_modules
+    possiblePaths.push(
+      join(process.cwd(), 'node_modules/agentic-qe/assets/opencode'),
+      join(process.cwd(), 'node_modules/agentic-qe/.opencode'),
+    );
 
     for (const p of possiblePaths) {
       if (existsSync(p) && (existsSync(join(p, 'agents')) || existsSync(join(p, 'skills')))) {

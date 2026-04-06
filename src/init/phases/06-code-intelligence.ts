@@ -42,9 +42,6 @@ const PER_FILE_TIMEOUT_MS = 30_000;
 /** Whole-phase timeout. The full KG build must not take longer than this. */
 const PHASE_TIMEOUT_MS = 180_000;
 
-/** Log a progress line every N files. */
-const PROGRESS_LOG_INTERVAL = 100;
-
 /** Patterns to exclude from code intelligence scanning */
 const SCAN_IGNORE_PATTERNS = [
   '**/node_modules/**',
@@ -86,6 +83,33 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   readonly order = 60;
   readonly critical = false;
   readonly requiresPhases = ['database'] as const;
+
+  /**
+   * Opt-out gate: v3.9.4 escape hatch for users whose code intelligence
+   * pre-scan stalls on native calls that the phase-level watchdog can't
+   * interrupt (because Node's event loop is blocked inside synchronous
+   * NAPI code). Setting `AQE_SKIP_CODE_INDEX=1` or passing
+   * `--skip-code-index` to `aqe init` bypasses this phase entirely.
+   * Lazy on-demand indexing still works when the user runs
+   * `aqe code index` or `aqe memory search` afterwards.
+   *
+   * See https://github.com/proffesor-for-testing/agentic-qe/issues/XXX
+   * for the tracking issue on the proper killable-worker fix.
+   */
+  async shouldRun(context: InitContext): Promise<boolean> {
+    const envSkip = process.env.AQE_SKIP_CODE_INDEX;
+    if (envSkip === '1' || envSkip === 'true') {
+      context.services.log('  Code intelligence skipped (AQE_SKIP_CODE_INDEX=1)');
+      context.services.log('  Run `aqe code index` later to build the KG on demand.');
+      return false;
+    }
+    if ((context.options as { skipCodeIndex?: boolean }).skipCodeIndex) {
+      context.services.log('  Code intelligence skipped (--skip-code-index)');
+      context.services.log('  Run `aqe code index` later to build the KG on demand.');
+      return false;
+    }
+    return true;
+  }
 
   protected async run(context: InitContext): Promise<CodeIntelligenceResult> {
     const { projectRoot } = context;
@@ -295,15 +319,39 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       await kgService.clear();
     }
 
+    // Project-relative path helper for shorter per-file log lines.
+    const projectRoot = context.projectRoot;
+    const rel = (p: string): string =>
+      p.startsWith(projectRoot) ? p.slice(projectRoot.length + 1) : p;
+
     for (const file of filesToIndex) {
       // Phase-level cap. Checked between files so in-flight work can
       // still complete bounded by its own per-file cap.
+      //
+      // IMPORTANT: This check only fires BETWEEN file iterations. If a
+      // single call to kgService.index() blocks the Node event loop
+      // inside synchronous native code (e.g. an @ruvector/router
+      // native insert stalls on a specific vector shape), this check
+      // never runs and the phase appears to hang past PHASE_TIMEOUT_MS.
+      // That's the v3.9.3 failure mode observed on ruview. See
+      // shouldRun() for the v3.9.4 AQE_SKIP_CODE_INDEX escape hatch
+      // and the tracking issue for the killable-worker proper fix.
       if (Date.now() - startedAt > PHASE_TIMEOUT_MS) {
         timedOut = true;
         break;
       }
 
       lastFile = file;
+
+      // fix/init-v3-9-4 Fix B: log EVERY file *before* we start
+      // processing it, not at 100-file intervals. This is the single
+      // most important diagnostic — when the next hang happens, the
+      // last log line will name the exact file that stalls, which is
+      // the data we need to fix the underlying native cause.
+      context.services.log(
+        `  [${processed + 1}/${filesToIndex.length}] ${rel(file)}`,
+      );
+
       try {
         const indexResult = await this.withTimeout(
           kgService.index({
@@ -324,17 +372,14 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         if (message.startsWith('AQE_PER_FILE_TIMEOUT')) {
           // Skip the pathological file, log, and keep going.
           context.services.warn(
-            `  ⚠ Skipped ${file} — indexing exceeded ${PER_FILE_TIMEOUT_MS / 1000}s`,
+            `  ⚠ Skipped ${rel(file)} — indexing exceeded ${PER_FILE_TIMEOUT_MS / 1000}s`,
           );
         } else {
-          context.services.warn(`  ⚠ Failed to index ${file}: ${message}`);
+          context.services.warn(`  ⚠ Failed to index ${rel(file)}: ${message}`);
         }
       }
 
       processed++;
-      if (processed % PROGRESS_LOG_INTERVAL === 0 || processed === filesToIndex.length) {
-        context.services.log(`  Indexed ${processed}/${filesToIndex.length} files`);
-      }
     }
 
     const entries = totalNodes + totalEdges;

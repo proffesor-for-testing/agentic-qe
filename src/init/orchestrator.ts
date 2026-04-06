@@ -53,6 +53,7 @@ export class ModularInitOrchestrator {
         autoMode: options.autoMode,
         upgrade: options.upgrade,
         skipPatterns: options.skipPatterns,
+        skipCodeIndex: options.skipCodeIndex,
         minimal: options.minimal,
         withN8n: options.withN8n,
         withOpenCode: options.withOpenCode,

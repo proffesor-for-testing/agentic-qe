@@ -83,6 +83,15 @@ export interface InitOptions {
   upgrade?: boolean;
   /** Skip pattern loading */
   skipPatterns?: boolean;
+  /**
+   * Skip the code intelligence pre-scan phase (fix/init-v3-9-4 escape hatch).
+   *
+   * Set this via `--skip-code-index` on `aqe init` or `AQE_SKIP_CODE_INDEX=1`
+   * in the environment. Useful when the KG indexer stalls on a specific
+   * native call that the phase-level watchdog can't interrupt. Users can
+   * still build the KG later with `aqe code index`.
+   */
+  skipCodeIndex?: boolean;
   /** Minimal configuration (no skills, patterns, workers) */
   minimal?: boolean;
   /** Automatically migrate from v2 if detected */

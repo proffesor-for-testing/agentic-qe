@@ -28,6 +28,7 @@ import {
 import * as fs from 'fs';
 import * as path from 'path';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { findPackageRoot } from '../../init/find-package-root.js';
 
 /**
  * Create sync commands
@@ -184,16 +185,34 @@ export function createSyncCommands(): Command {
     .option('--dry-run', 'Print schema without executing')
     .option('-o, --output <file>', 'Save schema to file')
     .action(async (options) => {
-      // Read schema file
-      const schemaPath = path.join(__dirname, '../../sync/schema/cloud-schema.sql');
-      let schema: string;
+      // Read schema file.
+      // fix/init-v3-9-4: same chunk-split bundle regression as
+      // governance-installer. Walk up to the agentic-qe package root
+      // via findPackageRoot() so the schema path survives esbuild
+      // chunk-splitting.
+      const candidates: string[] = [
+        path.join(__dirname, '../../sync/schema/cloud-schema.sql'),
+      ];
+      const packageRoot = findPackageRoot(import.meta.url);
+      if (packageRoot) {
+        candidates.push(path.join(packageRoot, 'src/sync/schema/cloud-schema.sql'));
+        candidates.push(path.join(packageRoot, 'dist/sync/schema/cloud-schema.sql'));
+      }
+      candidates.push(path.join(process.cwd(), 'src/sync/schema/cloud-schema.sql'));
 
-      try {
-        schema = fs.readFileSync(schemaPath, 'utf-8');
-      } catch {
-        // Try alternative path for bundled version
-        const altPath = path.join(process.cwd(), 'src/sync/schema/cloud-schema.sql');
-        schema = fs.readFileSync(altPath, 'utf-8');
+      let schema: string | undefined;
+      for (const c of candidates) {
+        try {
+          schema = fs.readFileSync(c, 'utf-8');
+          break;
+        } catch {
+          // try next candidate
+        }
+      }
+      if (!schema) {
+        throw new Error(
+          `Could not locate cloud-schema.sql. Searched: ${candidates.join(', ')}`,
+        );
       }
 
       if (options.output) {
