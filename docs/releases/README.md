@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.2](v3.9.2.md) | 2026-04-06 | Hotfix: `aqe init --auto` RVF lock deadlock, CLI exit hang |
 | [v3.9.1](v3.9.1.md) | 2026-04-05 | RVF persistent vectors, agent COW branching, HNSW unification, StrongDM |
 | [v3.9.0](v3.9.0.md) | 2026-04-02 | 11 CC-internals improvements, 4-tier compaction, plugin system, QE daemon |
 | [v3.8.14](v3.8.14.md) | 2026-03-31 | SQL injection fix, remove faker from generators (~6 MB), 3 P0 blockers resolved |
