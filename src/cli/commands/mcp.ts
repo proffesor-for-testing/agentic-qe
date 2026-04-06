@@ -14,6 +14,7 @@ import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
+import { findPackageRoot } from '../../init/find-package-root.js';
 
 /**
  * Create the MCP command
@@ -75,28 +76,50 @@ export function createMcpCommand(): Command {
 }
 
 /**
- * Find the MCP entry point
- * Looks in multiple locations for the compiled or source entry
+ * Find the MCP entry point.
+ *
+ * Resolution order (fix/init-v3-9-3 Fix 4):
+ *   1. Package root (found by walking up to the nearest package.json with
+ *      name=agentic-qe) + dist/mcp/bundle.js. Survives esbuild code-splitting
+ *      that places CLI chunks under dist/cli/chunks/ (3+ levels deep).
+ *   2. Legacy sibling paths relative to this file (dev mode with tsx).
+ *   3. Consumer's node_modules (when agentic-qe is a transitive dependency).
+ *
+ * The bug this fixes: v3.9.0 switched esbuild to code-splitting which broke
+ * the fixed `__dirname + '..'` paths the CLI used to locate its own bundle.
+ * On global installs the MCP command died with "Could not find MCP server
+ * entry point" — a regression of the v3.7.10 fix.
  */
 function findMcpEntry(): string | null {
-  // Get the directory of this file
+  const candidates: string[] = [];
+
+  // 1. Find the package root via walk-up. This is the canonical path
+  //    and works regardless of bundle depth.
+  const packageRoot = findPackageRoot(import.meta.url);
+  if (packageRoot) {
+    candidates.push(
+      join(packageRoot, 'dist', 'mcp', 'bundle.js'),
+      join(packageRoot, 'dist', 'mcp', 'entry.js'),
+      join(packageRoot, 'src', 'mcp', 'entry.ts'), // dev with tsx
+    );
+  }
+
+  // 2. Legacy sibling-path fallback (dev tree without a package.json walk hit).
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-
-  // Paths to check, in order of preference:
-  // CLI bundle is at dist/cli/bundle.js, so __dirname = dist/cli/
-  // MCP bundle is at dist/mcp/bundle.js — one level up (sibling dir)
-  const candidates = [
-    // 1. Sibling bundle in dist/ (production: dist/cli/ -> dist/mcp/)
+  candidates.push(
     join(__dirname, '..', 'mcp', 'bundle.js'),
-    // 2. Sibling compiled in dist/
     join(__dirname, '..', 'mcp', 'entry.js'),
-    // 3. Source (development with tsx: src/cli/ -> src/mcp/)
     join(__dirname, '..', 'mcp', 'entry.ts'),
-    // 4. From node_modules (when used as dependency — flat structure since v3.7.5)
+    // Extra hop for chunk-split layouts: dist/cli/chunks -> dist/mcp
+    join(__dirname, '..', '..', 'mcp', 'bundle.js'),
+  );
+
+  // 3. Consumer's node_modules (transitive dependency scenarios).
+  candidates.push(
     join(process.cwd(), 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js'),
     join(process.cwd(), 'node_modules', 'agentic-qe', 'dist', 'mcp', 'entry.js'),
-  ];
+  );
 
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
