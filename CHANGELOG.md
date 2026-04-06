@@ -5,6 +5,26 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.4] - 2026-04-06
+
+### Fixed
+
+- **`aqe init` governance phase failing with `x Install governance configuration (1ms)`** — `governance-installer.ts` used the same brittle fixed-depth `__dirname + '../..'` path traversal pattern that Fix 4 in v3.9.3 repaired for `findMcpEntry()`. When the installer code is bundled into a chunk under `dist/cli/chunks/chunk-XXX.js` (esbuild code-splitting, v3.9.0+), `__dirname` points to the chunks directory and the traversal lands outside the package. The constructor throws "Governance assets not found" and the phase fails in 1 ms. `getGovernanceAssetsPath()` now walks up to the nearest `package.json` with `name=agentic-qe` via `findPackageRoot()` — the same helper v3.9.1 added for skills and agents installers. Same pattern fix also applied to `kiro-installer.ts` and `src/cli/commands/sync.ts` (which had the same bug on opt-in code paths).
+
+- **`aqe init --auto` hang in phase 06 with no diagnostic output** — v3.9.3's phase-level watchdog uses `Promise.race` with `setTimeout`, but `setTimeout` callbacks can only fire between Node event loop iterations. When a synchronous native call inside the indexer (e.g. `@ruvector/router`'s `VectorDb.insert` stalls on a specific vector shape on an overlay filesystem) blocks the event loop, the timer callback never runs and the 180 s phase cap never triggers. This is the "worst case" I flagged in the v3.9.3 PR description that proved real on the ruview codespace. A proper fix (running the indexer in a killable `worker_thread` or `child_process.fork`) is tracked for v3.9.5 — see the [tracking issue](https://github.com/proffesor-for-testing/agentic-qe/issues/TODO). In the meantime, v3.9.4 ships two mitigations:
+
+### Added
+
+- **`AQE_SKIP_CODE_INDEX=1` environment variable** — bypasses phase 06 entirely when set. Users in codespaces whose init stalls can run `AQE_SKIP_CODE_INDEX=1 aqe init --auto` to unblock immediately. KG lookups still work on demand via `aqe code index` and `aqe memory search`.
+
+- **`--skip-code-index` flag on `aqe init`** — interactive equivalent of the env var above. Works with all init modes (`--auto`, wizard, upgrade).
+
+- **Per-file progress logging in phase 06** — the indexer now logs every file before it starts processing it, not every 100 files. Output format: `[123/349] src/path/to/file.ts`. When a stall happens, the last line of output names the exact file the indexer was working on — which is the diagnostic evidence we need to target a permanent fix. On clean runs this adds ~349 lines for a ruview-sized project, which is trivial for a one-time init command and a large win for observability.
+
+### Changed
+
+- **Progress log format during indexing** — replaced "every 100 files" summary log with per-file `[i/N] path` lines. Final `Indexed N entries` summary at phase end is unchanged.
+
 ## [3.9.3] - 2026-04-06
 
 ### Fixed
