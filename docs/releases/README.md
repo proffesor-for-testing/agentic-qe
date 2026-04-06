@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.6](v3.9.6.md) | 2026-04-06 | Native HNSW works again — replaced @ruvector/router with hnswlib-node, no more vectors.db cruft |
 | [v3.9.5](v3.9.5.md) | 2026-04-06 | Root-cause fix: disable native HNSW (deadlocks on certain inputs), faster JS backend by default |
 | [v3.9.4](v3.9.4.md) | 2026-04-06 | Hotfix: governance phase chunk-split regression, `--skip-code-index` escape hatch, per-file logging |
 | [v3.9.3](v3.9.3.md) | 2026-04-06 | Proper fix: `aqe init` watchdog, lazy bootstrap, remove daemon spawn, MCP entry regression |
