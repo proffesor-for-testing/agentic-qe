@@ -243,7 +243,7 @@ export class HnswAdapter implements IHnswIndexProvider {
     if (this.backend instanceof ProgressiveHnswBackend) {
       return this.backend.isRuvectorAvailable();
     }
-    // NativeHnswBackend uses @ruvector/router VectorDb
+    // NativeHnswBackend wraps hnswlib-node HierarchicalNSW (post #399 / ADR-090)
     if (this.backend instanceof NativeHnswBackend) {
       return this.backend.isNativeAvailable();
     }

@@ -1,14 +1,16 @@
 /**
  * Native HNSW Backend Unit Tests
  *
- * Tests for the NativeHnswBackend which wraps @ruvector/router VectorDb.
+ * Tests for the NativeHnswBackend which wraps hnswlib-node HierarchicalNSW
+ * (post #399 / ADR-090 — previously wrapped @ruvector/router VectorDb).
+ *
  * These tests verify:
- * 1. Module loading and VectorDb creation (with lock contention handling)
+ * 1. Module loading and HierarchicalNSW creation
  * 2. Feature flag integration (useNativeHNSW)
  * 3. The NativeHnswUnavailableError is thrown correctly
  * 4. HnswAdapter backend selection based on feature flags
  * 5. IHnswIndexProvider contract compliance
- * 6. Concurrent access safety
+ * 6. Concurrent access safety (multiple instances coexist)
  *
  * @module tests/unit/kernel/native-hnsw-backend
  */
@@ -111,18 +113,15 @@ describe('NativeHnswBackend', () => {
   // ===========================================================================
 
   describe('Constructor', () => {
-    it('should create a NativeHnswBackend or throw NativeHnswUnavailableError (lock contention)', () => {
-      // @ruvector/router is available but VectorDb uses a file lock,
-      // so construction may fail if another instance holds the lock.
-      try {
-        const backend = new NativeHnswBackend();
-        expect(backend).toBeInstanceOf(NativeHnswBackend);
-        expect(backend.isNativeAvailable()).toBe(true);
-        backend.clear();
-      } catch (err) {
-        // If VectorDb lock contention, should throw NativeHnswUnavailableError
-        expect(err).toBeInstanceOf(NativeHnswUnavailableError);
-      }
+    it('should create a NativeHnswBackend successfully', () => {
+      // hnswlib-node has no process-wide lock, no shared file, no NAPI
+      // singleton — multiple instances can coexist freely. The previous
+      // try/catch around lock contention was a workaround for an
+      // @ruvector/router 0.1.28 bug (issue #399) that no longer applies.
+      const backend = new NativeHnswBackend();
+      expect(backend).toBeInstanceOf(NativeHnswBackend);
+      expect(backend.isNativeAvailable()).toBe(true);
+      backend.dispose();
     });
 
     it('should have correct NativeHnswUnavailableError type', () => {
@@ -137,7 +136,7 @@ describe('NativeHnswBackend', () => {
   // ===========================================================================
 
   describe('isNativeModuleAvailable', () => {
-    it('should return true when @ruvector/router is installed', () => {
+    it('should return true when hnswlib-node is installed', () => {
       expect(isNativeModuleAvailable()).toBe(true);
     });
 
@@ -176,35 +175,40 @@ describe('NativeHnswBackend', () => {
   // ===========================================================================
 
   describe('Feature Flag: useNativeHNSW', () => {
-    // v3.9.5: useNativeHNSW default flipped from true to false because the
-    // native @ruvector/router VectorDb deadlocks (futex wait, never resolves)
-    // when inserting certain vector content shapes — observed in the wild
-    // against examples/ruview_live.py from the RuView project. Until the
-    // upstream native bug is fixed (or we move the indexer into a killable
-    // worker thread per #401), the JS ProgressiveHnswBackend is the safe
-    // default. AQE's typical KG sizes (<10k vectors @ 384 dim) are actually
-    // FASTER under brute-force cosine than native HNSW because there's no
-    // graph-traversal overhead. See CHANGELOG v3.9.5 entry.
-    it('should default to false (v3.9.5 hotfix for native deadlock)', () => {
+    // History:
+    //   - v3.9.5: useNativeHNSW default flipped from true to false because
+    //     the @ruvector/router VectorDb deadlocked (futex wait, never resolved)
+    //     when inserting certain vector content shapes — observed against
+    //     examples/ruview_live.py from the RuView project.
+    //   - issue #399 / ADR-090 (April 2026): NativeHnswBackend was rewritten
+    //     to wrap hnswlib-node (the canonical Hnswlib reference implementation
+    //     by Yury Malkov) instead of @ruvector/router. Empirical verification
+    //     showed @ruvector/router 0.1.28 had four bugs: (1) HNSW returned
+    //     essentially random results, recall ~0% on textbook fixtures;
+    //     (2) auto-created vectors.db in CWD; (3) process-wide singleton
+    //     lock; (4) unreleased file lock on dispose (root cause of v3.9.5
+    //     deadlock). hnswlib-node fixes all four. Default flipped back to
+    //     true so users with large codebases get real sublinear HNSW search.
+    it('should default to true after the hnswlib-node migration (#399)', () => {
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useNativeHNSW).toBe(false);
+      expect(flags.useNativeHNSW).toBe(true);
     });
 
     it('should be checkable via convenience function', () => {
-      expect(isNativeHNSWEnabled()).toBe(false);
+      expect(isNativeHNSWEnabled()).toBe(true);
     });
 
     it('should be settable via setRuVectorFeatureFlags', () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: true });
-      expect(isNativeHNSWEnabled()).toBe(true);
-
       setRuVectorFeatureFlags({ useNativeHNSW: false });
       expect(isNativeHNSWEnabled()).toBe(false);
+
+      setRuVectorFeatureFlags({ useNativeHNSW: true });
+      expect(isNativeHNSWEnabled()).toBe(true);
     });
 
     it('should not affect other flags when set', () => {
       const before = getRuVectorFeatureFlags();
-      setRuVectorFeatureFlags({ useNativeHNSW: true });
+      setRuVectorFeatureFlags({ useNativeHNSW: false });
       const after = getRuVectorFeatureFlags();
 
       expect(after.useQESONA).toBe(before.useQESONA);
@@ -213,10 +217,10 @@ describe('NativeHnswBackend', () => {
       expect(after.logMigrationMetrics).toBe(before.logMigrationMetrics);
     });
 
-    it('should reset to false on resetRuVectorFeatureFlags (v3.9.5 default)', () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: true });
+    it('should reset to true on resetRuVectorFeatureFlags (#399 default)', () => {
+      setRuVectorFeatureFlags({ useNativeHNSW: false });
       resetRuVectorFeatureFlags();
-      expect(isNativeHNSWEnabled()).toBe(false);
+      expect(isNativeHNSWEnabled()).toBe(true);
     });
 
     it('should support environment variable RUVECTOR_USE_NATIVE_HNSW', async () => {
@@ -225,13 +229,13 @@ describe('NativeHnswBackend', () => {
         '../../../src/integrations/ruvector/feature-flags'
       );
 
-      process.env.RUVECTOR_USE_NATIVE_HNSW = 'true';
-      initFeatureFlagsFromEnv();
-      expect(isNativeHNSWEnabled()).toBe(true);
-
       process.env.RUVECTOR_USE_NATIVE_HNSW = 'false';
       initFeatureFlagsFromEnv();
       expect(isNativeHNSWEnabled()).toBe(false);
+
+      process.env.RUVECTOR_USE_NATIVE_HNSW = 'true';
+      initFeatureFlagsFromEnv();
+      expect(isNativeHNSWEnabled()).toBe(true);
 
       delete process.env.RUVECTOR_USE_NATIVE_HNSW;
     });

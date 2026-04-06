@@ -42,7 +42,10 @@ interface NativePackageInfo {
 
 const NATIVE_PACKAGES: NativePackageInfo[] = [
   {
-    name: '@ruvector/router',
+    // Migrated from @ruvector/router to hnswlib-node in #399 / ADR-090.
+    // hnswlib-node wraps the canonical Hnswlib C++ reference implementation
+    // by Yury Malkov (used by Pinecone, Weaviate, Qdrant, LangChain, etc.).
+    name: 'hnswlib-node',
     flag: 'useNativeHNSW',
     fallback: 'ProgressiveHnswBackend',
   },
@@ -63,7 +66,7 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useQEFlashAttention: 'SIMD-accelerated attention computation',
   useQEGNNIndex: 'Differentiable search and HNSW indexing',
   logMigrationMetrics: 'Log migration metrics during rollout',
-  useNativeHNSW: 'Rust-based HNSW backend (@ruvector/router VectorDb)',
+  useNativeHNSW: 'Native HNSW backend (hnswlib-node, C++ Hnswlib reference)',
   useTemporalCompression: 'Temporal tensor compression (ADR-085)',
   useMetadataFiltering: 'SIMD-accelerated metadata filtering',
   useDeterministicDither: 'Cross-platform deterministic dithering',

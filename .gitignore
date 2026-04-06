@@ -231,3 +231,4 @@ v2-archive.tar.gz
 .agentic-qe/.claude/memory/
 .test-tmp/
 .agentic-qe/sessions/
+.agentic-qe/notifications/

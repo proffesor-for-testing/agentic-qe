@@ -83,7 +83,9 @@ describe('RuVector CLI Commands', () => {
       const output = getLogOutput();
       expect(output).toContain('RuVector Integration Status');
       expect(output).toContain('Native Packages');
-      expect(output).toContain('@ruvector/router');
+      // hnswlib-node replaced @ruvector/router for the native HNSW backend
+      // in #399 / ADR-090.
+      expect(output).toContain('hnswlib-node');
       expect(output).toContain('prime-radiant-advanced-wasm');
       expect(output).toContain('@ruvector/sona');
     });
@@ -107,6 +109,11 @@ describe('RuVector CLI Commands', () => {
     });
 
     it('should show modified marker when flag is changed', async () => {
+      // useNativeHNSW history: was flipped to false in v3.9.5 (deadlock fix),
+      // then flipped back to true after the #399 / ADR-090 hnswlib-node
+      // migration. The default is now true, so setting it to false here
+      // makes the value differ from the default and triggers the
+      // (modified) marker.
       setRuVectorFeatureFlags({ useNativeHNSW: false });
       await executeCommand(command, ['status']);
 
@@ -137,9 +144,9 @@ describe('RuVector CLI Commands', () => {
       await executeCommand(command, ['status']);
 
       const output = getLogOutput();
-      // Packages may be installed or show fallback info
-      // @ruvector/router and @ruvector/sona should be available
-      expect(output).toContain('@ruvector/router');
+      // Packages may be installed or show fallback info.
+      // hnswlib-node and @ruvector/sona should be available.
+      expect(output).toContain('hnswlib-node');
       expect(output).toContain('@ruvector/sona');
     });
   });
