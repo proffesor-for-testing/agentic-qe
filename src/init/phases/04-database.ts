@@ -43,6 +43,28 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
   protected async run(context: InitContext): Promise<DatabaseResult> {
     const { projectRoot } = context;
 
+    // Issue #399 / ADR-090: warn on stale ./vectors.db cruft.
+    //
+    // Prior to the hnswlib-node migration, NativeHnswBackend wrapped
+    // @ruvector/router's VectorDb, whose constructor unconditionally wrote
+    // a `vectors.db` redb file to the current working directory — outside
+    // .agentic-qe/, in a non-SQLite format, never read by anything in
+    // production (its HNSW search returned wrong answers anyway). Users
+    // who upgrade from a pre-#399 version will have an orphaned multi-MB
+    // file in their project root. We surface it once per `aqe init` so the
+    // user can clean up at their convenience. We do NOT delete it
+    // automatically — CLAUDE.md data protection rules forbid touching .db
+    // files without explicit user confirmation.
+    const staleVectorsDb = join(projectRoot, 'vectors.db');
+    if (existsSync(staleVectorsDb)) {
+      context.services.log(
+        `  ⚠ Stale vectors.db detected at ${staleVectorsDb}\n` +
+          `    This file is left over from @ruvector/router (pre-v3.9.6).\n` +
+          `    It is no longer read or written by AQE. Safe to delete:\n` +
+          `      rm "${staleVectorsDb}"`,
+      );
+    }
+
     // Create .agentic-qe directory structure
     const dataDir = join(projectRoot, '.agentic-qe');
     if (!existsSync(dataDir)) {

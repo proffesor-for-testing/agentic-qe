@@ -37,10 +37,12 @@ vi.mock('fs', async () => {
     ...actual,
     existsSync: vi.fn().mockReturnValue(false),
     mkdirSync: vi.fn(),
+    unlinkSync: vi.fn(),
+    rmSync: vi.fn(),
   };
 });
 
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync, rmSync } from 'fs';
 import { initializeUnifiedMemory, resetUnifiedMemory } from '../../../../src/kernel/unified-memory.js';
 
 function createMockContext(overrides: Partial<InitContext> = {}): InitContext {
@@ -185,6 +187,59 @@ describe('DatabasePhase', () => {
 
       expect(logFn).toHaveBeenCalledWith(expect.stringContaining('Database'));
       expect(logFn).toHaveBeenCalledWith(expect.stringContaining('Schema version'));
+    });
+  });
+
+  describe('stale vectors.db detection (#399 / ADR-090)', () => {
+    it('should warn when ./vectors.db exists in project root', async () => {
+      // Match existsSync(<projectRoot>/vectors.db) → true, everything else → false
+      vi.mocked(existsSync).mockImplementation((p: any) => {
+        return typeof p === 'string' && p.endsWith('vectors.db') && !p.includes('memory');
+      });
+
+      const logFn = vi.fn();
+      const context = createMockContext({
+        services: { log: logFn, warn: vi.fn(), error: vi.fn() },
+      });
+
+      await phase.execute(context);
+
+      const allLogs = logFn.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(allLogs).toContain('Stale vectors.db detected');
+      expect(allLogs).toContain('@ruvector/router');
+      expect(allLogs).toContain('Safe to delete');
+    });
+
+    it('should not warn when ./vectors.db is absent', async () => {
+      vi.mocked(existsSync).mockReturnValue(false);
+
+      const logFn = vi.fn();
+      const context = createMockContext({
+        services: { log: logFn, warn: vi.fn(), error: vi.fn() },
+      });
+
+      await phase.execute(context);
+
+      const allLogs = logFn.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(allLogs).not.toContain('Stale vectors.db');
+    });
+
+    it('should not delete the stale vectors.db (data protection)', async () => {
+      // Even if vectors.db exists, the phase must NEVER call any
+      // file-system mutation on it. CLAUDE.md data protection rules:
+      // "NEVER overwrite, replace, recreate, or rm any .db file without
+      // explicit user confirmation."
+      vi.mocked(existsSync).mockImplementation((p: any) => {
+        return typeof p === 'string' && p.endsWith('vectors.db') && !p.includes('memory');
+      });
+      vi.mocked(unlinkSync).mockClear();
+      vi.mocked(rmSync).mockClear();
+
+      const context = createMockContext();
+      await phase.execute(context);
+
+      expect(unlinkSync).not.toHaveBeenCalled();
+      expect(rmSync).not.toHaveBeenCalled();
     });
   });
 });
