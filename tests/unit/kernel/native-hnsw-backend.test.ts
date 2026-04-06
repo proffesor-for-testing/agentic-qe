@@ -176,13 +176,22 @@ describe('NativeHnswBackend', () => {
   // ===========================================================================
 
   describe('Feature Flag: useNativeHNSW', () => {
-    it('should default to true', () => {
+    // v3.9.5: useNativeHNSW default flipped from true to false because the
+    // native @ruvector/router VectorDb deadlocks (futex wait, never resolves)
+    // when inserting certain vector content shapes — observed in the wild
+    // against examples/ruview_live.py from the RuView project. Until the
+    // upstream native bug is fixed (or we move the indexer into a killable
+    // worker thread per #401), the JS ProgressiveHnswBackend is the safe
+    // default. AQE's typical KG sizes (<10k vectors @ 384 dim) are actually
+    // FASTER under brute-force cosine than native HNSW because there's no
+    // graph-traversal overhead. See CHANGELOG v3.9.5 entry.
+    it('should default to false (v3.9.5 hotfix for native deadlock)', () => {
       const flags = getRuVectorFeatureFlags();
-      expect(flags.useNativeHNSW).toBe(true);
+      expect(flags.useNativeHNSW).toBe(false);
     });
 
     it('should be checkable via convenience function', () => {
-      expect(isNativeHNSWEnabled()).toBe(true);
+      expect(isNativeHNSWEnabled()).toBe(false);
     });
 
     it('should be settable via setRuVectorFeatureFlags', () => {
@@ -204,10 +213,10 @@ describe('NativeHnswBackend', () => {
       expect(after.logMigrationMetrics).toBe(before.logMigrationMetrics);
     });
 
-    it('should reset to true on resetRuVectorFeatureFlags', () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: false });
+    it('should reset to false on resetRuVectorFeatureFlags (v3.9.5 default)', () => {
+      setRuVectorFeatureFlags({ useNativeHNSW: true });
       resetRuVectorFeatureFlags();
-      expect(isNativeHNSWEnabled()).toBe(true);
+      expect(isNativeHNSWEnabled()).toBe(false);
     });
 
     it('should support environment variable RUVECTOR_USE_NATIVE_HNSW', async () => {

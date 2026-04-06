@@ -437,7 +437,7 @@ const DEFAULT_FEATURE_FLAGS: RuVectorFeatureFlags = {
   useQEFlashAttention: true,
   useQEGNNIndex: true,
   logMigrationMetrics: true,
-  useNativeHNSW: true,
+  useNativeHNSW: false,
   useTemporalCompression: true,
   useMetadataFiltering: true,
   useDeterministicDither: true,
