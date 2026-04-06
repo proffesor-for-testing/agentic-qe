@@ -3,9 +3,8 @@
  * Configures background workers for continuous monitoring
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { spawn } from 'child_process';
 
 import {
   BasePhase,
@@ -224,195 +223,32 @@ try {
 
     context.services.log(`  Workers dir: ${workersDir}`);
     context.services.log(`  Workers: ${config.workers.enabled.join(', ')}`);
+    context.services.log(`  Registry: ${registryPath}`);
 
-    // Auto-start the MCP daemon if configured
-    let daemonStarted = false;
-    let daemonPid: number | null = null;
-    let daemonError: string | undefined;
-
-    if (config.workers.daemonAutoStart) {
-      try {
-        const result = await this.startDaemon(workersDir, projectRoot, context);
-        daemonStarted = result.started;
-        daemonPid = result.pid;
-        daemonError = result.error;
-
-        if (daemonStarted) {
-          context.services.log(`  MCP daemon started (PID: ${daemonPid})`);
-        } else if (daemonError) {
-          // Non-blocking: MCP will be started by Claude Code via .mcp.json
-          context.services.log(`  MCP daemon: skipped (will start via Claude Code)`);
-          context.services.log(`    Note: ${daemonError}`);
-        }
-      } catch (error) {
-        // Non-blocking error - MCP works fine when Claude Code starts it
-        daemonError = error instanceof Error ? error.message : 'Unknown error';
-        context.services.log(`  MCP daemon: skipped (Claude Code will start it)`);
-      }
-    }
-
+    // MCP daemon startup is Claude Code's job, not init's.
+    //
+    // fix/init-v3-9-3 Fix 3: Previously this phase spawned `aqe mcp` as
+    // a detached child to pre-warm the MCP server. That spawn raced the
+    // init process for the same RVF / native HNSW file locks, producing
+    // the cascade of errors seen in v3.9.1 and v3.9.2:
+    //   • RVF error 0x0303: FsyncFailed (child couldn't open patterns.rvf)
+    //   • VectorDb creation failed: Database already open
+    //   • Error: Could not find MCP server entry point
+    //
+    // The canonical path is .mcp.json (written by phase 08). Claude Code
+    // reads it and starts `aqe mcp` on demand when a user actually opens
+    // the project. Users who want to run the daemon manually can use the
+    // generated `.agentic-qe/workers/start-daemon.cjs` helper script or
+    // the `aqe daemon` subcommand.
     return {
       workersDir,
       workersConfigured: config.workers.enabled.length,
       registryPath,
-      daemonStarted,
-      daemonPid,
-      daemonError,
+      daemonStarted: false,
+      daemonPid: null,
     };
   }
 
-  /**
-   * Start the MCP daemon in the background
-   */
-  private async startDaemon(
-    workersDir: string,
-    projectRoot: string,
-    context: InitContext
-  ): Promise<{ started: boolean; pid: number | null; error?: string }> {
-    const pidFile = join(workersDir, 'daemon.pid');
-    const logFile = join(workersDir, 'daemon.log');
-
-    // Check if already running
-    if (existsSync(pidFile)) {
-      try {
-        const existingPid = parseInt(readFileSync(pidFile, 'utf-8').trim(), 10);
-        // Check if process is running
-        process.kill(existingPid, 0);
-        return { started: true, pid: existingPid, error: 'Already running' };
-      } catch {
-        // PID file exists but process not running, continue
-      }
-    }
-
-    // Try to find aqe-mcp command
-    const mcpCommand = await this.findMcpCommand(projectRoot);
-    if (!mcpCommand) {
-      return {
-        started: false,
-        pid: null,
-        error: 'aqe-mcp not found. Install globally with: npm install -g agentic-qe',
-      };
-    }
-
-    return new Promise((resolve) => {
-      try {
-        // Set up environment
-        const env = {
-          ...process.env,
-          AQE_STORAGE_PATH: '.agentic-qe',
-          AQE_LEARNING_ENABLED: 'true',
-          AQE_WORKERS_ENABLED: 'true',
-          AQE_HTTP_PORT: '0',
-        };
-
-        // Spawn the MCP server as a detached process
-        const child = spawn(mcpCommand.command, mcpCommand.args, {
-          cwd: projectRoot,
-          env,
-          detached: true,
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-
-        // Give the process a moment to start
-        let started = false;
-        let errorOutput = '';
-
-        child.stderr?.on('data', (data) => {
-          errorOutput += data.toString();
-        });
-
-        child.on('error', (error) => {
-          resolve({
-            started: false,
-            pid: null,
-            error: error.message,
-          });
-        });
-
-        // Wait a short time to see if the process starts successfully
-        setTimeout(() => {
-          // Check if process is still alive
-          try {
-            if (child.pid) {
-              process.kill(child.pid, 0); // Check if alive (throws if not)
-
-              // Write PID file
-              writeFileSync(pidFile, child.pid.toString(), 'utf-8');
-
-              // Log startup
-              const logEntry = `[${new Date().toISOString()}] MCP daemon started with PID: ${child.pid}\n`;
-              writeFileSync(logFile, logEntry, { flag: 'a' });
-
-              // Unref so the parent can exit
-              child.unref();
-
-              resolve({
-                started: true,
-                pid: child.pid,
-              });
-            } else {
-              resolve({
-                started: false,
-                pid: null,
-                error: errorOutput || 'No PID assigned',
-              });
-            }
-          } catch {
-            // Process died - check error output
-            const errMsg = errorOutput.includes('ERR_MODULE_NOT_FOUND')
-              ? 'Missing dependencies. Run: npm install agentic-qe'
-              : errorOutput || 'Process exited immediately';
-            resolve({
-              started: false,
-              pid: null,
-              error: errMsg,
-            });
-          }
-        }, 1500);
-      } catch (error) {
-        resolve({
-          started: false,
-          pid: null,
-          error: error instanceof Error ? error.message : 'Spawn failed',
-        });
-      }
-    });
-  }
-
-  /**
-   * Find the aqe-mcp command
-   *
-   * Search order:
-   * 1. Local aqe-mcp binary (node_modules/.bin/)
-   * 2. Local bundled MCP server (node_modules/agentic-qe/dist/)
-   * 3. Local aqe CLI binary with mcp subcommand
-   * 4. npx fallback (uses aqe mcp subcommand)
-   */
-  private async findMcpCommand(
-    projectRoot: string
-  ): Promise<{ command: string; args: string[] } | null> {
-    // Try local node_modules aqe-mcp binary first
-    const localMcpBin = join(projectRoot, 'node_modules', '.bin', 'aqe-mcp');
-    if (existsSync(localMcpBin)) {
-      return { command: localMcpBin, args: [] };
-    }
-
-    // Try local node_modules bundle (alternative path)
-    const localBundle = join(projectRoot, 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js');
-    if (existsSync(localBundle)) {
-      return { command: 'node', args: [localBundle] };
-    }
-
-    // Try local aqe CLI binary with mcp subcommand
-    const localAqeBin = join(projectRoot, 'node_modules', '.bin', 'aqe');
-    if (existsSync(localAqeBin)) {
-      return { command: localAqeBin, args: ['mcp'] };
-    }
-
-    // Fallback to npx with aqe mcp subcommand
-    // The CLI now has an 'mcp' command that starts the MCP server
-    return { command: 'npx', args: ['--yes', 'agentic-qe', 'mcp'] };
-  }
 }
 
 // Instance exported from index.ts
