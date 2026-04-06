@@ -107,7 +107,10 @@ describe('RuVector CLI Commands', () => {
     });
 
     it('should show modified marker when flag is changed', async () => {
-      setRuVectorFeatureFlags({ useNativeHNSW: false });
+      // useNativeHNSW default flipped to false in v3.9.5 (deadlock fix);
+      // flip it to true here so the value differs from the default and the
+      // status command emits the (modified) marker.
+      setRuVectorFeatureFlags({ useNativeHNSW: true });
       await executeCommand(command, ['status']);
 
       const output = getLogOutput();
