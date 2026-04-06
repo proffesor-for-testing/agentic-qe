@@ -259,32 +259,62 @@ describe('NativeHnswBackend — real qe-kernel fixture (#399)', () => {
     },
   );
 
-  it('should handle resize past initial maxElements with real-shaped vectors', () => {
-    // 12000 > the 10000 INITIAL_MAX_ELEMENTS in NativeHnswBackend, forcing
-    // a resizeIndex() doubling. Use a small synthetic shape (Math.sin)
-    // because we don't necessarily have 12k real vectors.
-    const backend = new NativeHnswBackend({
-      dimensions: 384,
-      metric: 'cosine',
-    });
+  it(
+    'should handle resize past initial maxElements with synthetic vectors',
+    { timeout: 60_000 },
+    () => {
+      // N just past the 10000 INITIAL_MAX_ELEMENTS in NativeHnswBackend
+      // is enough to trigger one resizeIndex() doubling — that's all we
+      // need to verify, and keeps the test fast on CI.
+      //
+      // Use FNV-1a-seeded Box-Muller Gaussian vectors so each id has a
+      // unique, well-separated direction in the 384-dim space.
+      // (The previous Math.sin(i*0.01 + j*0.03) shape was pathological —
+      // phases differing by ~3·2π aliased to near-identical sine waves,
+      // so id 5893 and id 7778 had nearly the same vector and self-query
+      // top-1 was ambiguous on x64 CI runners.)
+      const backend = new NativeHnswBackend({
+        dimensions: 384,
+        metric: 'cosine',
+      });
 
-    const N = 12_000;
-    for (let i = 0; i < N; i++) {
-      const v = new Float32Array(384);
-      for (let j = 0; j < 384; j++) v[j] = Math.sin((i + 1) * 0.01 + j * 0.03);
-      backend.add(i, v);
-    }
-    expect(backend.size()).toBe(N);
+      function makeVector(id: number): Float32Array {
+        // FNV-1a hash of the id, used to seed a tiny PRNG that drives
+        // Box-Muller. Each id gets a deterministic, well-distributed
+        // 384-dim Gaussian vector — neighbours in id-space are NOT
+        // neighbours in vector-space.
+        let h = (2166136261 ^ id) >>> 0;
+        const rand = () => {
+          h = Math.imul(h ^ 0x9e3779b9, 16777619) >>> 0;
+          return h / 0x100000000;
+        };
+        const v = new Float32Array(384);
+        for (let i = 0; i < 384; i += 2) {
+          const u1 = Math.max(rand(), 1e-12);
+          const u2 = rand();
+          const r = Math.sqrt(-2 * Math.log(u1));
+          const theta = 2 * Math.PI * u2;
+          v[i] = r * Math.cos(theta);
+          if (i + 1 < 384) v[i + 1] = r * Math.sin(theta);
+        }
+        return v;
+      }
 
-    // Self-query for vector i=7777 — must come back as top-1.
-    const query = new Float32Array(384);
-    for (let j = 0; j < 384; j++) query[j] = Math.sin(7778 * 0.01 + j * 0.03);
-    const results = backend.search(query, 5);
-    expect(results[0].id).toBe(7777);
-    expect(results[0].score).toBeGreaterThanOrEqual(0.999);
+      const N = 10_500;
+      for (let i = 0; i < N; i++) {
+        backend.add(i, makeVector(i));
+      }
+      expect(backend.size()).toBe(N);
 
-    backend.dispose();
-  });
+      // Self-query for vector id=7777 — must come back as top-1 because
+      // each id has a unique Gaussian direction with no near-duplicates.
+      const results = backend.search(makeVector(7777), 5);
+      expect(results[0].id).toBe(7777);
+      expect(results[0].score).toBeGreaterThanOrEqual(0.999);
+
+      backend.dispose();
+    },
+  );
 });
 
 describe('NativeHnswBackend — vectors.db CWD pollution regression guard (#399)', () => {

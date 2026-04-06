@@ -485,7 +485,15 @@ describe('createHnswIndex Factory', () => {
   it('should create a working index with default config', () => {
     const index = createHnswIndex({ name: 'factory-test' });
     expect(index.size()).toBe(0);
-    expect(index.recall()).toBe(1.0);
+    // recall depends on the active backend:
+    //   - ProgressiveHnswBackend (JS brute-force):    1.0 (exact)
+    //   - NativeHnswBackend (hnswlib-node, default):  ~0.99 (approximate
+    //     HNSW with conservative reporting; empirical recall@10 is 100%
+    //     on the project's qe-kernel fixture per ADR-090).
+    // The contract is just "0 < recall <= 1".
+    const recall = index.recall();
+    expect(recall).toBeGreaterThan(0);
+    expect(recall).toBeLessThanOrEqual(1);
 
     const embedding = randomNumberArray(384);
     index.add('test-1', embedding);
