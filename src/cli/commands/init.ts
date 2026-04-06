@@ -39,6 +39,7 @@ export function createInitCommand(): Command {
     .option('-u, --upgrade', 'Upgrade existing installation (overwrites skills, agents, validation)')
     .option('--minimal', 'Minimal installation (no skills, patterns, or workers)')
     .option('--skip-patterns', 'Skip pattern loading')
+    .option('--skip-code-index', 'Skip code intelligence pre-scan (can be run later via `aqe code index`)')
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
     .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
@@ -90,6 +91,7 @@ interface InitOptions {
   upgrade?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
+  skipCodeIndex?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
   withKiro?: boolean;
@@ -151,6 +153,7 @@ async function runInit(options: InitOptions): Promise<void> {
     upgrade: options.upgrade,
     minimal: options.minimal,
     skipPatterns: options.skipPatterns,
+    skipCodeIndex: options.skipCodeIndex,
     withN8n: options.withN8n,
     withOpenCode: options.withOpencode,
     withKiro: options.withKiro,

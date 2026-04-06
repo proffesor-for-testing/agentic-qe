@@ -43,6 +43,7 @@ export class InitHandler implements ICommandHandler {
       .option('-u, --upgrade', 'Upgrade existing installation (overwrite skills, agents, validation)')
       .option('--minimal', 'Minimal configuration (skip optional features)')
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
+      .option('--skip-code-index', 'Skip code intelligence pre-scan (run `aqe code index` later)')
       .option('--with-n8n', 'Install n8n workflow testing agents and skills')
       .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
       .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
@@ -117,6 +118,7 @@ export class InitHandler implements ICommandHandler {
       upgrade: options.upgrade,
       minimal: options.minimal,
       skipPatterns: options.skipPatterns,
+      skipCodeIndex: options.skipCodeIndex,
       withN8n: options.withN8n,
       withOpenCode: options.withOpencode,
       withKiro: options.withKiro,
@@ -451,6 +453,7 @@ interface InitOptions {
   upgrade?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
+  skipCodeIndex?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
   withKiro?: boolean;
