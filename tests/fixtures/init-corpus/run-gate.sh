@@ -73,6 +73,68 @@ if [[ ! -f "${MANIFEST}" ]]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Shared install of agentic-qe
+#
+# The old implementation did `npm install <INSTALL_SPEC>` in each fixture
+# cleanroom. On CI runners each install takes 2-3 min (better-sqlite3 +
+# hnswlib-node prebuilds, plus agentic-qe's full transitive tree). With 4
+# fixtures that's 8-12 min of pure install time — which blows the
+# pre-publish-gate job's 10-min timeout even though aqe init itself takes
+# 0-5s.
+#
+# Fix: install agentic-qe ONCE into a host dir at the top of the script.
+# Each fixture cleanroom invokes the binary via an absolute path into that
+# host dir. The cleanroom itself contains only the fixture's source tree
+# (no node_modules), and `aqe init` runs with cwd=cleanroom — which is
+# exactly what a real user does when they install agentic-qe globally and
+# run `aqe init` in their project.
+# ---------------------------------------------------------------------------
+
+HOST_DIR="${AQE_GATE_HOST_DIR:-$(mktemp -d -t aqe-gate-host-XXXXXX)}"
+echo "[gate] host install dir: ${HOST_DIR}"
+
+if [[ ! -x "${HOST_DIR}/node_modules/.bin/aqe" ]]; then
+  # Clean host slate if host dir isn't a cached previous install.
+  rm -rf "${HOST_DIR}/node_modules" "${HOST_DIR}/package.json" "${HOST_DIR}/package-lock.json" 2>/dev/null || true
+  mkdir -p "${HOST_DIR}"
+  pushd "${HOST_DIR}" >/dev/null
+  cat > package.json <<'EOF'
+{
+  "name": "aqe-gate-host",
+  "version": "0.0.0",
+  "private": true
+}
+EOF
+
+  # Time the install so we can see in the log how much the shared-install
+  # fix saved us vs the old per-fixture approach.
+  HOST_INSTALL_START=$(date +%s)
+  echo "[gate] installing ${INSTALL_SPEC} into host dir (one-time, shared across all fixtures)..."
+  if ! npm install --no-save --no-audit --no-fund --omit=dev \
+    "${INSTALL_SPEC}" >/tmp/aqe-gate-host-install.log 2>&1; then
+    echo "[gate] FATAL: host npm install of agentic-qe failed" >&2
+    echo "[gate]   last 30 lines of install log:" >&2
+    tail -30 /tmp/aqe-gate-host-install.log >&2 || true
+    popd >/dev/null
+    exit 1
+  fi
+  HOST_INSTALL_ELAPSED=$(( $(date +%s) - HOST_INSTALL_START ))
+  echo "[gate] host install complete in ${HOST_INSTALL_ELAPSED}s"
+  popd >/dev/null
+else
+  echo "[gate] reusing existing host install at ${HOST_DIR}"
+fi
+
+AQE_BINARY="${HOST_DIR}/node_modules/.bin/aqe"
+if [[ ! -x "${AQE_BINARY}" ]]; then
+  echo "[gate] FATAL: ${AQE_BINARY} missing after install" >&2
+  ls -la "${HOST_DIR}/node_modules/.bin/" 2>&1 >&2 || true
+  exit 1
+fi
+
+echo "[gate] aqe version: $("${AQE_BINARY}" --version 2>&1 | tail -1)"
+
 fixture_count=$(jq '.fixtures | length' "${MANIFEST}")
 filter="${AQE_CORPUS_FILTER:-}"
 
@@ -90,8 +152,11 @@ skipped=0
 #   A2  mustContainFile exists in fixture root (if declared)
 #   A3  mustContainFileSha256 matches actual file content (if declared)
 #   A4  cleanroom copy succeeded (cp -a exit code)
-#   A5  npm install of agentic-qe succeeded
-#   A6  aqe binary present in node_modules/.bin
+#   A5  (REMOVED — agentic-qe is now installed once into HOST_DIR at the
+#        top of the script and shared across all fixtures. This is what a
+#        real user does with a global `npm install -g agentic-qe`.)
+#   A6  (REMOVED — same reason. Host binary existence is checked once
+#        at the top of the script.)
 #   A7  init exited 0 within timeoutSec
 #   A8  init produced parseable JSON on stdout (the --json contract)
 #   A9  json.success === true
@@ -211,49 +276,19 @@ run_one() {
 
   pushd "${tmpdir}" >/dev/null
 
-  # ----- A5: install agentic-qe ----------------------------------------
-  # We deliberately do NOT pass --ignore-scripts. agentic-qe's transitive
-  # native deps (hnswlib-node, better-sqlite3) need their postinstall
-  # scripts to fetch prebuilt binaries; --ignore-scripts would silently
-  # fall back to JS-only paths and break init. --omit=dev skips the
-  # fixture's own devDeps to keep the install fast.
-  if [[ ! -f "package.json" ]]; then
-    cat > package.json <<'EOF'
-{
-  "name": "aqe-corpus-cleanroom",
-  "version": "0.0.0",
-  "private": true
-}
-EOF
-  fi
-
-  if ! npm install --no-save --no-audit --no-fund --omit=dev \
-    "${INSTALL_SPEC}" >>"${log}" 2>&1; then
-    echo "[gate]   FAIL A5: npm install of agentic-qe failed" | tee -a "${log}"
-    echo "${id} FAIL A5-npm-install" >> "${SUMMARY}"
-    popd >/dev/null
-    [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
-    return 1
-  fi
-
-  # ----- A6: binary present --------------------------------------------
-  if [[ ! -e "node_modules/.bin/aqe" ]]; then
-    echo "[gate]   FAIL A6: node_modules/.bin/aqe missing after install" | tee -a "${log}"
-    ls -la node_modules/.bin/ 2>>"${log}" || true
-    echo "${id} FAIL A6-no-binary" >> "${SUMMARY}"
-    popd >/dev/null
-    [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
-    return 1
-  fi
+  # A5 + A6 are no longer per-fixture work: agentic-qe was installed once
+  # into HOST_DIR at the top of the script. We just use the shared binary.
+  # This is what a real user does with a global `npm install -g agentic-qe`.
+  echo "[gate]   using shared host binary: ${AQE_BINARY}" | tee -a "${log}"
 
   # ----- A7: run init under timeout, capture JSON to stdout ------------
   local start_ts
   start_ts=$(date +%s)
 
-  echo "[gate]   running: timeout ${timeout_sec}s ./node_modules/.bin/aqe init --auto --json" | tee -a "${log}"
+  echo "[gate]   running: timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
   local init_exit=0
   timeout --signal=KILL "${timeout_sec}" \
-    ./node_modules/.bin/aqe init --auto --json \
+    "${AQE_BINARY}" init --auto --json \
     >"${json}" 2>>"${log}" || init_exit=$?
 
   local elapsed=$(( $(date +%s) - start_ts ))
@@ -337,8 +372,12 @@ EOF
   # the snapshot without false fails when init's indexing is tuned, but
   # catches a 90%+ regression where indexing silently produces almost
   # nothing.
+  # We query the DB via better-sqlite3, which lives in the HOST_DIR
+  # node_modules (since we no longer install per-fixture). NODE_PATH lets
+  # `node -e` resolve the module from the host dir even though cwd is the
+  # cleanroom.
   local kg_entries
-  kg_entries=$(node -e "
+  kg_entries=$(NODE_PATH="${HOST_DIR}/node_modules" node -e "
     try {
       const Database = require('better-sqlite3');
       const db = new Database('.agentic-qe/memory.db', { readonly: true });
@@ -354,9 +393,16 @@ EOF
       db.close();
       console.log(total);
     } catch (e) {
-      console.log('-1');
+      console.log('-1:' + (e && e.message ? e.message : String(e)));
     }
   " 2>>"${log}")
+
+  # If the diagnostic path printed an error string, extract just the
+  # number for the comparison below and log the error for debugging.
+  if [[ "${kg_entries}" == -1* ]]; then
+    echo "[gate]   A12 diagnostic: ${kg_entries}" | tee -a "${log}"
+    kg_entries="-1"
+  fi
 
   local kg_min
   kg_min=$(awk "BEGIN { printf \"%d\", ${expected_kg} * ${kg_tolerance} }")
@@ -462,7 +508,10 @@ EOF
   workers_started=$(jq -r '.summary.workersStarted' "${json}")
   local workers_in_registry=0
   if [[ -f ".agentic-qe/workers/registry.json" ]]; then
-    workers_in_registry=$(node -e "
+    # This query only uses `fs` + `JSON.parse` (both built-in), so NODE_PATH
+    # is not strictly needed here, but we set it for consistency with the
+    # better-sqlite3 query above.
+    workers_in_registry=$(NODE_PATH="${HOST_DIR}/node_modules" node -e "
       try {
         const r = JSON.parse(require('fs').readFileSync('.agentic-qe/workers/registry.json','utf-8'));
         if (Array.isArray(r)) console.log(r.length);
@@ -526,12 +575,12 @@ EOF
   # second time in the same cleanroom and assert it also succeeds.
   # This is the only place in the corpus that exercises the delta path.
   if [[ "${double_init}" == "true" ]]; then
-    echo "[gate]   running second init (delta-scan path): timeout ${timeout_sec}s ./node_modules/.bin/aqe init --auto --json" | tee -a "${log}"
+    echo "[gate]   running second init (delta-scan path): timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
     local start2_ts
     start2_ts=$(date +%s)
     local init2_exit=0
     timeout --signal=KILL "${timeout_sec}" \
-      ./node_modules/.bin/aqe init --auto --json \
+      "${AQE_BINARY}" init --auto --json \
       >"${json2}" 2>>"${log}" || init2_exit=$?
     local elapsed2=$(( $(date +%s) - start2_ts ))
     echo "[gate]   second init: exit ${init2_exit} after ${elapsed2}s" | tee -a "${log}"
@@ -638,6 +687,11 @@ done
 echo ""
 echo "[gate] summary: ${passes} pass / ${failures} fail / ${skipped} skipped"
 cat "${SUMMARY}"
+
+# Clean up the shared host install unless the caller wants to reuse it.
+if [[ "${AQE_GATE_KEEP_HOST:-0}" != "1" ]] && [[ -z "${AQE_GATE_HOST_DIR:-}" ]]; then
+  rm -rf "${HOST_DIR}"
+fi
 
 if (( failures > 0 )); then
   exit 2
