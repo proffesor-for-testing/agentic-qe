@@ -1,0 +1,118 @@
+{
+  "$schema": "./MANIFEST.schema.json",
+  "schemaVersion": 3,
+  "description": "Pinned real-public-repo fixtures for the aqe init release gate. See README.md for the rationale and update procedure.",
+  "issue": "https://github.com/proffesor-for-testing/agentic-qe/issues/401",
+  "schemaChangelog": {
+    "1": "Initial schema with per-fixture timeout, expectMinKgEntries floor",
+    "2": "Snapshot-based KG threshold (expectedKgEntries + tolerance), mustContainFileSha256, mirror URL field, devils-advocate review fixes from #401",
+    "3": "expectedElapsedSec for subthreshold stall detection, doubleInit flag for delta-path coverage"
+  },
+  "fixtures": [
+    {
+      "id": "tiny-ts",
+      "purpose": "Minimal TypeScript baseline. Proves the happy path on a tiny real TS project (~17 files, single source file).",
+      "source": {
+        "owner": "developit",
+        "repo": "mitt",
+        "ref": "b240473b5707857ba2c6a8e6d707c28d1e39da49",
+        "refDescription": "tag 3.0.1"
+      },
+      "tarball": {
+        "url": "https://codeload.github.com/developit/mitt/tar.gz/b240473b5707857ba2c6a8e6d707c28d1e39da49",
+        "sha256": "5bfb7ae1c8674759d31684141a37e64914ac024b441dccda76775fc236039ced",
+        "sizeBytes": 7769,
+        "mirror": null
+      },
+      "extractedDir": "mitt-b240473b5707857ba2c6a8e6d707c28d1e39da49",
+      "gate": {
+        "timeoutSec": 60,
+        "expectedKgEntries": 14,
+        "kgEntriesTolerance": 0.7,
+        "expectedElapsedSec": 15,
+        "expectedSkillsInstalled": 1,
+        "expectedAgentsInstalled": 1,
+        "expectMcpConfigured": true,
+        "doubleInit": true
+      }
+    },
+    {
+      "id": "mid-ts",
+      "purpose": "Idiomatic mid-size TypeScript library with strict types, tests, and build config. Proves init handles real type complexity, not just toy files.",
+      "source": {
+        "owner": "sindresorhus",
+        "repo": "p-queue",
+        "ref": "55d306ba03479dcc531a8e06deab24d3f60feacd",
+        "refDescription": "tag v9.1.2"
+      },
+      "tarball": {
+        "url": "https://codeload.github.com/sindresorhus/p-queue/tar.gz/55d306ba03479dcc531a8e06deab24d3f60feacd",
+        "sha256": "3bae95318b3492b46fa8a86aa67ebf84c505d8ad1300330fd502bd9b2d2ecd08",
+        "sizeBytes": 39983,
+        "mirror": null
+      },
+      "extractedDir": "p-queue-55d306ba03479dcc531a8e06deab24d3f60feacd",
+      "gate": {
+        "timeoutSec": 60,
+        "expectedKgEntries": 63,
+        "kgEntriesTolerance": 0.7,
+        "expectedElapsedSec": 15,
+        "expectedSkillsInstalled": 1,
+        "expectedAgentsInstalled": 1,
+        "expectMcpConfigured": true,
+        "doubleInit": true
+      }
+    },
+    {
+      "id": "multi-lang-real",
+      "purpose": "Real multi-language repo (TS, Python, Rust, JS, Swift). Crucially contains examples/ruview_live.py — the 28 KB / 776-line Python file that triggered the v3.9.4 init deadlock against the broken @ruvector/router HNSW (issue #401). The mustContainFileSha256 check below pins the EXACT file content so a future RuView commit that shrinks/changes that file would fail the gate, preventing the regression marker from silently going stale.",
+      "source": {
+        "owner": "ruvnet",
+        "repo": "RuView",
+        "ref": "2a05378bd229df07eff3e309d414d65510ce507c",
+        "refDescription": "first main commit after v3.9.4 (2026-04-06) — contains ruview_live.py at 28745 bytes / 776 lines (the exact file shape that triggered the v3.9.4 hang)"
+      },
+      "tarball": {
+        "url": "https://codeload.github.com/ruvnet/RuView/tar.gz/2a05378bd229df07eff3e309d414d65510ce507c",
+        "sha256": "2f43f87873d344f3cf228b78673343fd6192244baf767fca4578668b1ff5b2d4",
+        "sizeBytes": 42244179,
+        "mirror": null
+      },
+      "extractedDir": "RuView-2a05378bd229df07eff3e309d414d65510ce507c",
+      "gate": {
+        "timeoutSec": 240,
+        "expectedKgEntries": 2776,
+        "kgEntriesTolerance": 0.7,
+        "expectedElapsedSec": 30,
+        "expectedSkillsInstalled": 1,
+        "expectedAgentsInstalled": 1,
+        "expectMcpConfigured": true,
+        "doubleInit": true,
+        "mustContainFile": "examples/ruview_live.py",
+        "mustContainFileSha256": "5564a7a6b8d5029b78d246809cbcee5556b644a08e138f3888c295a54b515e27"
+      }
+    },
+    {
+      "id": "self-dogfood",
+      "purpose": "agentic-qe itself. Proves init works on a real, large, complex monorepo — its own. No download required; the gate runs against a cleanroom checkout of HEAD with .cache/extracted/run-logs excluded so the corpus' own download artifacts don't bloat the cleanroom.",
+      "source": {
+        "owner": "proffesor-for-testing",
+        "repo": "agentic-qe",
+        "ref": "HEAD",
+        "refDescription": "current checkout (no download)"
+      },
+      "tarball": null,
+      "extractedDir": null,
+      "gate": {
+        "timeoutSec": 240,
+        "expectedKgEntries": 27000,
+        "kgEntriesTolerance": 0.7,
+        "expectedElapsedSec": 60,
+        "expectedSkillsInstalled": 1,
+        "expectedAgentsInstalled": 1,
+        "expectMcpConfigured": true,
+        "doubleInit": true
+      }
+    }
+  ]
+}

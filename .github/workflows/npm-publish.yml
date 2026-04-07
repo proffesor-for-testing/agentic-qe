@@ -78,13 +78,154 @@ jobs:
           path: dist/
           retention-days: 1
 
-  # Test Gate removed — tests already run in optimized-ci.yml and
-  # mcp-tools-test.yml before PR merge. Re-running them here is
-  # redundant (same commit) and caused publish timeouts.
+  # ============================================================================
+  # Pre-publish gate (issue #401)
+  #
+  # Runs `aqe init --auto` against the freshly-built tarball on a corpus of
+  # pinned real public repos. Blocks publish if any fixture fails.
+  #
+  # Why this exists:
+  #   v3.9.1 through v3.9.4 all shipped broken init flows (deadlocks, hangs,
+  #   missing files) because the only verification before publish was a build +
+  #   bundle smoke test. Real-world init was tested by users *after* npm
+  #   publish, by which point the damage was done. This job is the structural
+  #   fix from issue #401's post-mortem.
+  #
+  # Budget: ~5 minutes total. The 4-fixture corpus is deliberately small —
+  # adding fixtures here trades publish latency for marginal coverage.
+  # Pathological encodings, symlink loops, and other chaos tests belong in a
+  # separate weekly workflow, not on the release path.
+  # ============================================================================
+  pre-publish-gate:
+    name: Pre-publish init gate (corpus)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Pack agentic-qe tarball
+        id: pack
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          npm pack --pack-destination /tmp
+          TARBALL=/tmp/agentic-qe-${PACKAGE_VERSION}.tgz
+          if [ ! -f "${TARBALL}" ]; then
+            echo "Error: expected tarball ${TARBALL} not produced by npm pack" >&2
+            ls -la /tmp/*.tgz 2>/dev/null || true
+            exit 1
+          fi
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "Packed: ${TARBALL} ($(du -h ${TARBALL} | cut -f1))"
+
+      - name: Cache corpus tarballs
+        uses: actions/cache@v4
+        with:
+          path: tests/fixtures/init-corpus/.cache
+          # Cache key tied to the manifest content — bumping a fixture
+          # SHA invalidates the cache automatically.
+          key: init-corpus-${{ hashFiles('tests/fixtures/init-corpus/MANIFEST.json') }}
+
+      - name: Download + extract fixture corpus
+        run: ./tests/fixtures/init-corpus/setup.sh
+
+      - name: Run init gate against corpus
+        env:
+          AQE_LOCAL_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: ./tests/fixtures/init-corpus/run-gate.sh
+
+      - name: Upload gate logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: init-corpus-logs
+          path: tests/fixtures/init-corpus/run-logs/
+          retention-days: 7
+
+      - name: Append gate summary to job summary
+        if: always()
+        run: |
+          if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
+            echo "## Init corpus gate" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat tests/fixtures/init-corpus/run-logs/summary.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ============================================================================
+  # Tests on tag SHA (issue #401)
+  #
+  # Re-runs the fast unit suite on release tags. This is the safety net for
+  # the rare case where a release tag points to a SHA that never went
+  # through PR CI (e.g. a hotfix committed directly to main).
+  #
+  # The earlier "conditional" version of this job tried to skip re-running
+  # tests when optimized-ci.yml had already passed on the same SHA, by
+  # querying the GitHub Actions API. The devils-advocate review of #401
+  # found four failure modes in that conditional:
+  #   1. Matrix workflows with `continue-on-error: true` can report
+  #      workflow-level success even when one shard failed.
+  #   2. Tag SHAs from `gh release create --target main` may differ from
+  #      the PR-CI head SHA when merge commits are involved.
+  #   3. GITHUB_TOKEN rate limits silently break the optimization.
+  #   4. Renaming optimized-ci.yml silently breaks the optimization.
+  #
+  # Just always running the fast unit suite costs ~2 minutes, has no API
+  # calls, and is the simpler design. Workflow_dispatch dry-runs are
+  # excluded so manual debug runs don't burn CI minutes.
+  # ============================================================================
+  tests-on-tag-sha:
+    name: Tests on tag SHA
+    needs: [build]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run fast unit tests
+        run: npm run test:unit:fast
 
   publish:
     name: Publish to npm
-    needs: [build]
+    needs: [build, pre-publish-gate, tests-on-tag-sha]
+    # tests-on-tag-sha is skipped on workflow_dispatch (it only runs on
+    # release events), so we explicitly accept skipped as a non-blocker.
+    # Without this, the default GH Actions behavior would skip publish
+    # whenever tests-on-tag-sha is skipped — breaking the dry-run path.
+    if: >-
+      always()
+      && needs.build.result == 'success'
+      && needs.pre-publish-gate.result == 'success'
+      && (needs.tests-on-tag-sha.result == 'success' || needs.tests-on-tag-sha.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm-publish
