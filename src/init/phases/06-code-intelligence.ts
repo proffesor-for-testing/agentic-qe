@@ -85,16 +85,21 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
   readonly requiresPhases = ['database'] as const;
 
   /**
-   * Opt-out gate: v3.9.4 escape hatch for users whose code intelligence
-   * pre-scan stalls on native calls that the phase-level watchdog can't
-   * interrupt (because Node's event loop is blocked inside synchronous
-   * NAPI code). Setting `AQE_SKIP_CODE_INDEX=1` or passing
-   * `--skip-code-index` to `aqe init` bypasses this phase entirely.
-   * Lazy on-demand indexing still works when the user runs
-   * `aqe code index` or `aqe memory search` afterwards.
+   * Opt-out gate: permanent supported escape hatch for the code intelligence
+   * pre-scan. Setting `AQE_SKIP_CODE_INDEX=1` or passing `--skip-code-index`
+   * to `aqe init` bypasses this phase entirely. Lazy on-demand indexing
+   * still works afterwards via `aqe code index` or `aqe memory search`.
    *
-   * See https://github.com/proffesor-for-testing/agentic-qe/issues/XXX
-   * for the tracking issue on the proper killable-worker fix.
+   * History:
+   *   - Added in v3.9.4 as an emergency escape hatch when `@ruvector/router`
+   *     deadlocked on certain inputs (issue #401).
+   *   - In v3.9.6 the deadlocking dependency was replaced by `hnswlib-node`
+   *     (ADR-090) and the original deadlock no longer reproduces.
+   *   - The flag is kept as a permanent supported option, not a temporary
+   *     workaround. The release-gate corpus at
+   *     `tests/fixtures/init-corpus/` is the load-bearing prevention layer
+   *     for future regressions; this flag is the user-facing break-glass
+   *     for the case where the corpus misses something in the wild.
    */
   async shouldRun(context: InitContext): Promise<boolean> {
     const envSkip = process.env.AQE_SKIP_CODE_INDEX;
@@ -211,25 +216,40 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
     incremental: boolean,
     changedFiles?: string[]
   ): Promise<CodeIntelligenceResult> {
+    // NOTE: this method intentionally does NOT swallow errors. Earlier
+    // versions caught everything and returned `{status:'skipped', entries:0}`,
+    // which produced a SUCCESSFUL phase result with hidden failure semantics
+    // — init reported "AQE v3 initialized successfully" while the KG was
+    // empty and the release-gate corpus had nothing to assert against. We
+    // now let exceptions propagate to BasePhase.execute(), which converts
+    // them to `{success:false, error}`. Phase 06 remains `critical: false`,
+    // so init still completes; the difference is that `result.steps[]`
+    // contains an entry with `status='error'` that the gate (and `--json`
+    // consumers) can detect. See issue #401 part-3 devils-advocate review.
+    //
+    // The cleanup of `kgService` and `memory` was previously leaked when
+    // any throw happened — the catch returned skipped without closing
+    // handles, leaving better-sqlite3 + hnswlib-node native resources
+    // dangling. The try/finally below fixes that leak as a side effect of
+    // dropping the swallow-everything catch.
+    const { KnowledgeGraphService } = await import('../../domains/code-intelligence/services/knowledge-graph.js');
+
+    const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
+    const memoryConfig: MemoryBackendConfig = {
+      type: 'sqlite',
+      sqlite: {
+        path: dbPath,
+        walMode: true,
+      },
+    };
+
+    const { backend: memory } = await createMemoryBackend(memoryConfig, true);
+    const kgService = new KnowledgeGraphService(memory, {
+      namespace: 'code-intelligence:kg',
+      enableVectorEmbeddings: true,
+    });
+
     try {
-      const { KnowledgeGraphService } = await import('../../domains/code-intelligence/services/knowledge-graph.js');
-
-      const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
-      const memoryConfig: MemoryBackendConfig = {
-        type: 'sqlite',
-        sqlite: {
-          path: dbPath,
-          walMode: true,
-        },
-      };
-
-      const { backend: memory } = await createMemoryBackend(memoryConfig, true);
-
-      const kgService = new KnowledgeGraphService(memory, {
-        namespace: 'code-intelligence:kg',
-        enableVectorEmbeddings: true,
-      });
-
       let filesToIndex: string[];
       if (changedFiles) {
         filesToIndex = changedFiles;
@@ -255,9 +275,6 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
         context,
       );
 
-      kgService.destroy();
-      await memory.dispose();
-
       if (scanResult.status === 'timeout') {
         context.services.warn(
           `  ⚠ Code intelligence pre-scan exceeded ${PHASE_TIMEOUT_MS / 1000}s phase cap. ` +
@@ -279,9 +296,13 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       }
 
       return scanResult;
-    } catch (error) {
-      context.services.warn(`Code intelligence scan warning: ${error}`);
-      return { status: 'skipped', entries: 0 };
+    } finally {
+      // Always release native handles, even on throw. Otherwise the
+      // better-sqlite3 + hnswlib-node + KG service handles leak across
+      // phases, which can cause "database is locked" or stale-connection
+      // failures in subsequent init phases or in `aqe code index` runs.
+      try { kgService.destroy(); } catch { /* best-effort */ }
+      try { await memory.dispose(); } catch { /* best-effort */ }
     }
   }
 
@@ -339,6 +360,12 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
       // hang no longer reproduces. The between-file timeout check and
       // the AQE_SKIP_CODE_INDEX escape hatch are kept as defense in
       // depth against future native-code stalls.
+      //
+      // The load-bearing prevention layer for new init regressions is the
+      // release-gate corpus at tests/fixtures/init-corpus/ which runs
+      // `aqe init --auto` against pinned real public repos (including the
+      // v3.9.4 regression file `examples/ruview_live.py` from RuView)
+      // before every npm publish. See issue #401 for the post-mortem.
       if (Date.now() - startedAt > PHASE_TIMEOUT_MS) {
         timedOut = true;
         break;

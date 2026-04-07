@@ -26,6 +26,13 @@ export class InitHandler implements ICommandHandler {
 
   private cleanupAndExit: (code: number) => Promise<never>;
 
+  /**
+   * Original `process.stdout.write` captured before --json mode redirects
+   * stdout to stderr. Restored at JSON-emission time. Null when not in
+   * JSON mode.
+   */
+  private originalStdoutWrite: typeof process.stdout.write | null = null;
+
   constructor(cleanupAndExit: (code: number) => Promise<never>) {
     this.cleanupAndExit = cleanupAndExit;
   }
@@ -43,7 +50,8 @@ export class InitHandler implements ICommandHandler {
       .option('-u, --upgrade', 'Upgrade existing installation (overwrite skills, agents, validation)')
       .option('--minimal', 'Minimal configuration (skip optional features)')
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
-      .option('--skip-code-index', 'Skip code intelligence pre-scan (run `aqe code index` later)')
+      .option('--skip-code-index', 'Skip code intelligence pre-scan (supported escape hatch — KG can be built later via `aqe code index`, also via env AQE_SKIP_CODE_INDEX=1)')
+      .option('--json', 'Emit machine-readable JSON result on stdout (suppresses banners; phase progress goes to stderr). Used by the release-gate corpus and CI tooling. See InitJsonOutput in init-handler.ts for the schema.')
       .option('--with-n8n', 'Install n8n workflow testing agents and skills')
       .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
       .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')
@@ -69,6 +77,20 @@ export class InitHandler implements ICommandHandler {
   }
 
   async execute(options: InitOptions, context: CLIContext): Promise<void> {
+    // In --json mode we must redirect stdout BEFORE any console.log so
+    // that banners printed in this function don't pollute the JSON-only
+    // stdout contract. The original write fn is captured on `this` so
+    // runModularInit can restore it before emitting the final JSON. See
+    // InitJsonOutput for the schema.
+    if (options.json === true) {
+      this.originalStdoutWrite = process.stdout.write.bind(process.stdout);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stderrWrite = (process.stderr.write as any).bind(process.stderr);
+      process.stdout.write = ((...args: unknown[]): boolean => {
+        return stderrWrite(...args);
+      }) as typeof process.stdout.write;
+    }
+
     try {
       // Expand --with-all-platforms into individual flags
       if (options.withAllPlatforms) {
@@ -110,7 +132,9 @@ export class InitHandler implements ICommandHandler {
     }
   }
 
-  private async runModularInit(options: InitOptions, context: CLIContext): Promise<void> {
+  private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
+    const isJsonMode = options.json === true;
+
     const { createModularInitOrchestrator } = await import('../../init/orchestrator.js');
     const orchestrator = createModularInitOrchestrator({
       projectRoot: process.cwd(),
@@ -137,6 +161,38 @@ export class InitHandler implements ICommandHandler {
     console.log(chalk.white('  Analyzing project...\n'));
 
     const result = await orchestrator.initialize();
+
+    // JSON mode: emit structured output and exit. Skip Claude Flow
+    // integration and human banners — those are for interactive runs.
+    if (isJsonMode) {
+      // Restore the real stdout captured in execute() before any banners
+      // were printed.
+      if (this.originalStdoutWrite) {
+        process.stdout.write = this.originalStdoutWrite;
+      }
+
+      const jsonOutput: InitJsonOutput = {
+        schemaVersion: 1,
+        success: result.success,
+        steps: result.steps.map((s) => ({
+          step: s.step,
+          status: s.status,
+          message: s.message,
+          durationMs: s.durationMs,
+        })),
+        summary: result.summary,
+        totalDurationMs: result.totalDurationMs,
+        timestamp: result.timestamp.toISOString(),
+      };
+      process.stdout.write(JSON.stringify(jsonOutput, null, 2) + '\n');
+
+      // Exit non-zero if EITHER critical failure OR any step errored.
+      // This is stricter than `result.success` and is the contract the
+      // gate relies on.
+      const anyStepErrored = result.steps.some((s) => s.status === 'error');
+      await this.cleanupAndExit(result.success && !anyStepErrored ? 0 : 1);
+      return;
+    }
 
     // Display step results
     for (const step of result.steps) {
@@ -211,7 +267,7 @@ export class InitHandler implements ICommandHandler {
     await this.cleanupAndExit(0);
   }
 
-  private async runLegacyWizard(options: InitOptions, context: CLIContext): Promise<void> {
+  private async runLegacyWizard(options: InitOptions, _context: CLIContext): Promise<void> {
     const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
       projectRoot: process.cwd(),
@@ -443,6 +499,53 @@ Examples:
 // Types
 // ============================================================================
 
+/**
+ * JSON output schema emitted by `aqe init --json`. Versioned so the
+ * release-gate corpus (tests/fixtures/init-corpus/) and any other
+ * consumers can detect schema drift.
+ *
+ * Schema version 1 — added in response to issue #401 to give the
+ * pre-publish gate a stable, structured contract instead of grepping
+ * stdout for human banners that don't actually reflect phase success.
+ *
+ * IMPORTANT consumer contract: `success` here is the orchestrator's
+ * success flag, which only flips to false on critical-phase failures
+ * or unhandled exceptions. Non-critical phase failures (assets,
+ * code-intelligence, workers, claude-md, hooks, mcp) leave `success`
+ * true. Consumers MUST inspect `steps[*].status` to detect those.
+ * `aqe init --json` itself enforces this stricter contract via its
+ * exit code: it exits non-zero if ANY step has status === 'error',
+ * not just on `success === false`.
+ */
+export interface InitJsonOutput {
+  schemaVersion: 1;
+  success: boolean;
+  steps: Array<{
+    step: string;
+    status: 'success' | 'warning' | 'error' | 'skipped';
+    message: string;
+    durationMs: number;
+  }>;
+  summary: {
+    projectAnalyzed: boolean;
+    configGenerated: boolean;
+    codeIntelligenceIndexed: number;
+    patternsLoaded: number;
+    skillsInstalled: number;
+    agentsInstalled: number;
+    hooksConfigured: boolean;
+    mcpConfigured: boolean;
+    claudeMdGenerated: boolean;
+    workersStarted: number;
+    n8nInstalled?: {
+      agents: number;
+      skills: number;
+    };
+  };
+  totalDurationMs: number;
+  timestamp: string;
+}
+
 interface InitOptions {
   domains: string;
   maxAgents: string;
@@ -454,6 +557,7 @@ interface InitOptions {
   minimal?: boolean;
   skipPatterns?: boolean;
   skipCodeIndex?: boolean;
+  json?: boolean;
   withN8n?: boolean;
   withOpencode?: boolean;
   withKiro?: boolean;

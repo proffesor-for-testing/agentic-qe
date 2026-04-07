@@ -1,0 +1,187 @@
+name: Post-publish canary
+
+# Runs ~5 min after npm-publish.yml succeeds. Installs the freshly-published
+# agentic-qe@VERSION from the public npm registry (NOT from the build
+# artifact) and runs the same init corpus gate against it. Catches the rare
+# case where what's on npm differs from what we tested in pre-publish-gate
+# (e.g. registry CDN delay, provenance attestation issue, missing dist file
+# in published package).
+#
+# If any fixture fails, this workflow opens a P0 issue and pings the release
+# author. It does NOT auto-unpublish — npm's unpublish window is fragile
+# and the safer human-in-the-loop is to read the P0 issue and decide.
+#
+# Issue #401: this is item 5 of the proposed release-process improvements.
+
+on:
+  workflow_run:
+    workflows: ["Publish to npm"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+jobs:
+  canary:
+    name: Init canary against published agentic-qe
+    # Only fire on REAL publishes — i.e. when the upstream "Publish to npm"
+    # workflow was triggered by a `release` event. Manual `workflow_dispatch`
+    # runs (especially `dry_run=true` for debugging the publish pipeline)
+    # also report `conclusion: success`, but they don't actually publish a
+    # version. Without this filter the canary would `npm view` a non-existent
+    # version, time out polling for it, and open a P0 issue against every
+    # dry run the maintainer does. Caught by issue #401 devils-advocate
+    # review.
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'release' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code (for the corpus scripts)
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+
+      - name: Read published version from package.json
+        id: version
+        run: |
+          # The publish workflow runs from the same SHA as this workflow_run
+          # trigger, so package.json here is authoritative for the version
+          # that was just published.
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          echo "version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Published version: ${PACKAGE_VERSION}"
+
+      - name: Wait for npm CDN to actually serve the tarball
+        run: |
+          # We must verify the CDN has the tarball, not just that the
+          # registry API knows about the version. `npm view` hits the
+          # registry API, which can show a version up to 60 seconds
+          # before the CDN edge has the actual tarball — race window
+          # caught by issue #401 devils-advocate review.
+          #
+          # `npm install --dry-run` actually fetches metadata + tarball
+          # from the CDN edge the runner is colocated with, so a success
+          # here means a real `npm install` will work for the next 5
+          # minutes everywhere.
+          PACKAGE_VERSION="${{ steps.version.outputs.version }}"
+          DRY_DIR=$(mktemp -d)
+          pushd "${DRY_DIR}" >/dev/null
+          echo '{"name":"canary-probe","version":"0.0.0","private":true}' > package.json
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if npm install --dry-run --no-audit --no-fund \
+                "agentic-qe@${PACKAGE_VERSION}" >/dev/null 2>&1; then
+              echo "agentic-qe@${PACKAGE_VERSION} is live on the npm CDN (attempt ${attempt})"
+              popd >/dev/null
+              rm -rf "${DRY_DIR}"
+              exit 0
+            fi
+            echo "agentic-qe@${PACKAGE_VERSION} not yet on CDN (attempt ${attempt}/10) — waiting 30s"
+            sleep 30
+          done
+          echo "ERROR: agentic-qe@${PACKAGE_VERSION} did not appear on npm CDN after 5 min" >&2
+          popd >/dev/null
+          rm -rf "${DRY_DIR}"
+          exit 1
+
+      - name: Cache corpus tarballs
+        uses: actions/cache@v4
+        with:
+          path: tests/fixtures/init-corpus/.cache
+          key: init-corpus-${{ hashFiles('tests/fixtures/init-corpus/MANIFEST.json') }}
+
+      - name: Download + extract fixture corpus
+        run: ./tests/fixtures/init-corpus/setup.sh
+
+      - name: Run init gate against PUBLISHED npm version
+        env:
+          AQE_FROM_NPM: '1'
+          AQE_NPM_VERSION: ${{ steps.version.outputs.version }}
+        run: ./tests/fixtures/init-corpus/run-gate.sh
+
+      - name: Upload canary logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-logs-${{ steps.version.outputs.version }}
+          path: tests/fixtures/init-corpus/run-logs/
+          retention-days: 30
+
+      - name: Append canary summary
+        if: always()
+        run: |
+          echo "## Post-publish canary — agentic-qe@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat tests/fixtures/init-corpus/run-logs/summary.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Open P0 issue on canary failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGE_VERSION="${{ steps.version.outputs.version }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          SUMMARY="(no summary file produced)"
+          if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
+            SUMMARY=$(cat tests/fixtures/init-corpus/run-logs/summary.txt)
+          fi
+
+          # Build the issue body via heredoc inside this script. Putting
+          # the multi-line markdown directly in a YAML --body argument
+          # breaks the `run: |` literal block scalar — every body line
+          # would need to be indented inside the YAML, which is fragile.
+          # Heredoc-into-tmpfile + --body-file is the robust pattern.
+          cat > /tmp/canary-body.md <<EOF
+          ## Canary failure
+
+          \`agentic-qe@${PACKAGE_VERSION}\` was published to npm but the init
+          corpus gate failed when running against the freshly-published
+          package. This is a real-user-facing issue: anyone who runs
+          \`npm install agentic-qe@${PACKAGE_VERSION}\` and then
+          \`aqe init --auto\` may hit the same failure.
+
+          ### Per-fixture summary
+
+          \`\`\`
+          ${SUMMARY}
+          \`\`\`
+
+          ### Logs
+
+          [Workflow run](${RUN_URL}) — see the
+          \`canary-logs-${PACKAGE_VERSION}\` artifact for full per-fixture
+          init logs.
+
+          ### Recommended next steps
+
+          1. Read the per-fixture logs in the workflow artifact to identify which fixture(s) failed and where.
+          2. Reproduce locally:
+             \`\`\`
+             ./tests/fixtures/init-corpus/setup.sh
+             AQE_FROM_NPM=1 AQE_NPM_VERSION=${PACKAGE_VERSION} ./tests/fixtures/init-corpus/run-gate.sh
+             \`\`\`
+          3. Decide whether to ship a hotfix release (preferred) or unpublish (only available within 72h of publish, and only if no downstream depends on this version yet).
+          4. Open a tracking issue if the failure mode is novel (i.e. not already covered by a regression in MANIFEST.json).
+
+          This issue was opened automatically by \`.github/workflows/post-publish-canary.yml\`. See [#401](https://github.com/proffesor-for-testing/agentic-qe/issues/401) for the canary's history.
+          EOF
+
+          gh issue create \
+            --title "[P0] Post-publish canary failed for agentic-qe@${PACKAGE_VERSION}" \
+            --label "P0,release,canary" \
+            --body-file /tmp/canary-body.md

@@ -17,7 +17,6 @@ import chalk from 'chalk';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import {
-  ModularInitOrchestrator,
   createModularInitOrchestrator,
   formatInitResultModular,
   type InitResult,
@@ -39,7 +38,7 @@ export function createInitCommand(): Command {
     .option('-u, --upgrade', 'Upgrade existing installation (overwrites skills, agents, validation)')
     .option('--minimal', 'Minimal installation (no skills, patterns, or workers)')
     .option('--skip-patterns', 'Skip pattern loading')
-    .option('--skip-code-index', 'Skip code intelligence pre-scan (can be run later via `aqe code index`)')
+    .option('--skip-code-index', 'Skip code intelligence pre-scan (supported escape hatch — KG can be built later via `aqe code index`, also via env AQE_SKIP_CODE_INDEX=1)')
     .option('--with-n8n', 'Include n8n workflow testing platform')
     .option('--with-opencode', 'Include OpenCode agent/skill provisioning')
     .option('--with-kiro', 'Include AWS Kiro IDE integration (agents, skills, hooks, steering)')

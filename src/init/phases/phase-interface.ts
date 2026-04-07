@@ -84,12 +84,24 @@ export interface InitOptions {
   /** Skip pattern loading */
   skipPatterns?: boolean;
   /**
-   * Skip the code intelligence pre-scan phase (fix/init-v3-9-4 escape hatch).
+   * Skip the code intelligence pre-scan phase.
    *
    * Set this via `--skip-code-index` on `aqe init` or `AQE_SKIP_CODE_INDEX=1`
-   * in the environment. Useful when the KG indexer stalls on a specific
-   * native call that the phase-level watchdog can't interrupt. Users can
-   * still build the KG later with `aqe code index`.
+   * in the environment. The KG can be built later via `aqe code index`.
+   *
+   * Originally added in v3.9.4 as an emergency escape hatch for the
+   * `@ruvector/router` deadlock (issue #401). The dependency was replaced
+   * by `hnswlib-node` in v3.9.6 (ADR-090) and the original deadlock no
+   * longer reproduces, but this flag is kept as a permanent supported
+   * defense-in-depth option:
+   *
+   *   - Phase 06 still runs on the Node main thread, so any future
+   *     synchronous native call inside the indexer could in principle
+   *     freeze the event loop where the per-file `setTimeout` watchdog
+   *     can't interrupt it.
+   *   - The `tests/fixtures/init-corpus` release gate is the load-bearing
+   *     prevention layer, but the flag stays as a user-facing break-glass
+   *     for the case where verification misses something in the wild.
    */
   skipCodeIndex?: boolean;
   /** Minimal configuration (no skills, patterns, workers) */
