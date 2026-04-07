@@ -5,6 +5,44 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.7] - 2026-04-07
+
+### Added
+
+- **Release-gate corpus with real public repo fixtures** ([#401](https://github.com/proffesor-for-testing/agentic-qe/issues/401), [#412](https://github.com/proffesor-for-testing/agentic-qe/pull/412)) — `tests/fixtures/init-corpus/` now contains 4 pinned real-public-repo fixtures that run `aqe init --auto` end-to-end before every npm publish. This is the structural verification layer the v3.9.1–v3.9.4 init regression series exposed as missing. The corpus includes `developit/mitt` (tiny TS), `sindresorhus/p-queue` (mid-size TS), `ruvnet/RuView` (multi-lang, with `examples/ruview_live.py` sha256-pinned to the exact 28,745-byte content that triggered the v3.9.4 hang), and `agentic-qe` itself as the dogfood case. 22 assertions per fixture including per-step JSON error inspection, snapshot-based KG thresholds with tolerance, skills/agents/MCP/CLAUDE.md/workers/config.yaml presence checks, subthreshold stall detection, and a second init pass that exercises phase 06's delta-scan path — the actual surface that hung in v3.9.1 ruview and was never reached on a first init.
+
+- **`aqe init --json` structured output** ([#412](https://github.com/proffesor-for-testing/agentic-qe/pull/412)) — new flag emits the full `InitResult` as machine-readable JSON with `schemaVersion: 1`, stable per-phase `steps[]`, and aggregate `summary`. Exit code is stricter in `--json` mode: non-zero on **any** step error, not just critical-phase failures. This is the stable contract the release gate and future CI consumers rely on instead of grepping stdout for human banners.
+
+- **Phase 06 watchdog effectiveness unit test** (`tests/unit/init/phases/code-intelligence-watchdog.test.ts`) — 4 cases proving the async-stall branches of `runBoundedScan` actually work (per-file timeout, per-file error recovery, phase-level cap) plus explicit documentation of the sync-block limitation that requires `AQE_SKIP_CODE_INDEX` or future worker isolation.
+
+- **Pre-publish-gate CI job** (`.github/workflows/npm-publish.yml`) — runs the corpus against the freshly-built tarball before publish. Blocks the release tag on any gate failure.
+
+- **Post-publish canary workflow** (`.github/workflows/post-publish-canary.yml`) — fires only on real publishes (filtered against `workflow_dispatch` dry-runs), polls the actual npm CDN via `npm install --dry-run` (not `npm view` which only hits registry metadata), runs the corpus against the published package, opens a P0 issue via `gh issue create --body-file` if any fixture fails.
+
+- **Pull request template** (`.github/PULL_REQUEST_TEMPLATE.md`) with a single load-bearing checkbox: every failure mode in a PR description must have a test or a linked tracking issue. Honor-system today; CI enforcement tracked in [#408](https://github.com/proffesor-for-testing/agentic-qe/issues/408).
+
+### Fixed
+
+- **Phase 06 no longer hides non-critical failures behind `result.success: true`** ([#412](https://github.com/proffesor-for-testing/agentic-qe/pull/412)) — `runCodeIntelligenceScan` previously had a top-level `catch` that returned `{status: 'skipped', entries: 0}` on any throw, producing a successful phase result with hidden failure semantics. Init would report "AQE v3 initialized successfully" while the KG was empty and the user had no signal. The catch is gone; exceptions now propagate to `BasePhase.execute()` and appear as `step.status='error'` in the result, visible to both the user and the release gate. This is the exact failure shape that v3.9.3 shipped with — now structurally impossible to ship silently.
+
+- **Resource leak in phase 06 cleanup path** — the old `runCodeIntelligenceScan` only cleaned up `kgService` and memory handles on the success branch. On any throw, those native handles (better-sqlite3 + hnswlib-node + KG service) leaked and could cause `database is locked` or stale-connection failures in subsequent init phases or in `aqe code index` runs. Now released via `try/finally`, guaranteed even on throw.
+
+### Changed
+
+- **`AQE_SKIP_CODE_INDEX` promoted to permanent supported flag.** Originally added in v3.9.4 as an emergency escape hatch during the ruvector deadlock, this flag is now formally documented as a permanent defense-in-depth option in code comments, CLI help, and the phase interface type. The underlying deadlock was fixed by ADR-090 in v3.9.6; the flag stays as the user's break-glass if verification ever misses a future native stall.
+
+- **`tests-on-tag-sha` job simplified** (`.github/workflows/npm-publish.yml`) — previously tried to skip re-running tests when `optimized-ci.yml` had already passed on the same SHA, via a `gh api` conditional. Devils-advocate review found four failure modes in that conditional (matrix partial-success, head SHA drift, rate limit, file rename). Replaced with an unconditional fast unit test run on release events only (~2 min added, no API calls, no race conditions).
+
+### Deferred (tracking issues)
+
+The following items from the #401 Part 2 proposal are deferred with explicit tracking issues rather than dropped silently:
+
+- Phase 06 `worker_threads.Worker` isolation — [#407](https://github.com/proffesor-for-testing/agentic-qe/issues/407) with defined revisit triggers
+- PR template CI enforcement (branch protection + lint) — [#408](https://github.com/proffesor-for-testing/agentic-qe/issues/408)
+- `VERIFICATION.md` + release-notes verification matrix — [#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409)
+- Chaos workflow for pathological init inputs — [#410](https://github.com/proffesor-for-testing/agentic-qe/issues/410)
+- Mirror init-corpus tarballs to GitHub Releases — [#411](https://github.com/proffesor-for-testing/agentic-qe/issues/411)
+
 ## [3.9.6] - 2026-04-06
 
 ### Fixed
