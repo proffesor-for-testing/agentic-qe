@@ -100,7 +100,16 @@ jobs:
     name: Pre-publish init gate (corpus)
     needs: [build]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 20 min budget. The gate itself is fast (init is 0-5s per fixture on
+    # CI), but the one-time shared `npm install` of agentic-qe takes 3-5
+    # min on CI runners including native-binary postinstalls
+    # (better-sqlite3, hnswlib-node). The 4 fixtures combined add ~30s of
+    # init + cleanroom tar work. 20 min leaves headroom for cold runner
+    # + uncached npm. A previous 10-min cap hit the timeout on v3.9.7's
+    # first publish attempt, which is how we learned the CI npm install
+    # is materially slower than a dev box. See run-gate.sh for the
+    # shared-install optimization that made this tractable.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
