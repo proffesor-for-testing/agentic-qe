@@ -1,0 +1,158 @@
+# init-corpus-mirror-test
+#
+# Exercises the mirror fallback path in tests/fixtures/init-corpus/setup.sh.
+# This workflow is the load-bearing verification that #411's mirror
+# insurance actually fires when primary (codeload.github.com) is broken.
+# Without it, the mirror can rot (asset deleted, URL drifted, sha256
+# mismatch on the mirror side) and we'd only discover it during an
+# incident — exactly when we need it to work.
+#
+# Two tests:
+#   A) Happy-path mirror reachability: skip primary, go straight to mirror
+#      via AQE_CORPUS_FORCE_MIRROR=1. Proves every non-null mirror URL in
+#      MANIFEST.json resolves to bytes whose sha256 matches the manifest.
+#
+#   B) Fallback-fires-on-drift: patch MANIFEST so every primary URL points
+#      at a bogus file that will produce a sha256 mismatch. Assert that
+#      setup.sh exits 0 (fallback worked), emits the WARNING line, and
+#      produces the expected extracted dirs.
+#
+# Failure mode: fail loudly in the Actions tab. No auto-issue creation.
+#
+# Refs: https://github.com/proffesor-for-testing/agentic-qe/issues/411
+
+name: init-corpus-mirror-test
+
+on:
+  pull_request:
+    paths:
+      - 'tests/fixtures/init-corpus/**'
+      - 'scripts/upload-init-corpus-mirror.sh'
+      - '.github/workflows/init-corpus-mirror-test.yml'
+  schedule:
+    # Weekly, Monday 06:00 UTC — catches mirror rot without needing a PR
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  mirror-reachability:
+    name: A — mirror URLs reachable + sha256 match (FORCE_MIRROR=1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq + curl + sha256sum are present
+        run: |
+          for t in jq curl sha256sum tar; do
+            command -v "$t" >/dev/null || { echo "missing $t"; exit 1; }
+          done
+
+      - name: Run setup.sh with primary URLs skipped
+        env:
+          AQE_CORPUS_FORCE_MIRROR: '1'
+        run: |
+          ./tests/fixtures/init-corpus/setup.sh
+
+      - name: Assert every fixture extracted
+        run: |
+          set -e
+          MANIFEST=tests/fixtures/init-corpus/MANIFEST.json
+          count=$(jq '[.fixtures[] | select(.tarball != null)] | length' "$MANIFEST")
+          for i in $(seq 0 $((count - 1))); do
+            dir=$(jq -r "[.fixtures[] | select(.tarball != null)][$i].extractedDir" "$MANIFEST")
+            if [[ ! -d "tests/fixtures/init-corpus/extracted/$dir" ]]; then
+              echo "FAIL: expected tests/fixtures/init-corpus/extracted/$dir not found"
+              exit 1
+            fi
+            echo "OK: $dir"
+          done
+
+  fallback-on-drift:
+    name: B — fallback fires when primary URL drifts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq + curl + sha256sum are present
+        run: |
+          for t in jq curl sha256sum tar; do
+            command -v "$t" >/dev/null || { echo "missing $t"; exit 1; }
+          done
+
+      - name: Start a local HTTP server that serves drifted bytes
+        run: |
+          set -e
+          mkdir -p /tmp/drift-server
+          # 100 bytes of known content — guaranteed NOT to match any
+          # pinned sha256 in MANIFEST.json. Any fixture name will map to
+          # this file since we set directory listing off.
+          printf 'drifted-bytes-for-mirror-fallback-test-%.0s' {1..3} > /tmp/drift-server/drifted.tar.gz
+          cd /tmp/drift-server
+          python3 -m http.server 8099 --bind 127.0.0.1 >/tmp/drift-server.log 2>&1 &
+          echo $! > /tmp/drift-server.pid
+          # Wait for server ready
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8099/drifted.tar.gz -o /dev/null; then
+              echo "server ready"
+              break
+            fi
+            sleep 0.2
+          done
+
+      - name: Build a drifted MANIFEST (bogus primary URLs → local server, real mirrors)
+        run: |
+          set -e
+          jq '
+            .fixtures = [
+              .fixtures[] |
+              if .tarball != null then
+                .tarball.url = "http://127.0.0.1:8099/drifted.tar.gz"
+              else . end
+            ]
+          ' tests/fixtures/init-corpus/MANIFEST.json \
+            > /tmp/drifted-manifest.json
+          jq '.fixtures[] | select(.tarball != null) | .tarball.url' /tmp/drifted-manifest.json
+
+      - name: Run setup.sh against drifted manifest (expect fallback to mirror)
+        env:
+          AQE_CORPUS_MANIFEST_PATH: /tmp/drifted-manifest.json
+        run: |
+          set -e
+          ./tests/fixtures/init-corpus/setup.sh 2>&1 | tee /tmp/setup.out
+          echo "---"
+          echo "Asserting WARNING lines are present..."
+          if ! grep -q "WARNING: primary sha256 mismatch" /tmp/setup.out \
+             && ! grep -q "WARNING: primary download failed" /tmp/setup.out; then
+            echo "FAIL: expected a 'WARNING: primary ...' line from the fallback path"
+            exit 1
+          fi
+          if ! grep -q "WARNING: using mirror for" /tmp/setup.out; then
+            echo "FAIL: expected 'WARNING: using mirror for' line after successful fallback"
+            exit 1
+          fi
+          echo "OK: fallback path produced expected warnings"
+
+      - name: Assert every fixture extracted from mirror
+        run: |
+          set -e
+          MANIFEST=/tmp/drifted-manifest.json
+          count=$(jq '[.fixtures[] | select(.tarball != null)] | length' "$MANIFEST")
+          for i in $(seq 0 $((count - 1))); do
+            dir=$(jq -r "[.fixtures[] | select(.tarball != null)][$i].extractedDir" "$MANIFEST")
+            if [[ ! -d "tests/fixtures/init-corpus/extracted/$dir" ]]; then
+              echo "FAIL: expected extracted/$dir not found after mirror fallback"
+              exit 1
+            fi
+            echo "OK: $dir (from mirror)"
+          done
+
+      - name: Stop local HTTP server
+        if: always()
+        run: |
+          if [[ -f /tmp/drift-server.pid ]]; then
+            kill "$(cat /tmp/drift-server.pid)" || true
+          fi

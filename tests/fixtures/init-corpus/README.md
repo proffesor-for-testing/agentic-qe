@@ -81,7 +81,30 @@ When you bump a fixture (rare — should only happen if a pinned tarball goes
 3. Compute checksum: `sha256sum /tmp/new.tar.gz`
 4. Update `MANIFEST.json` with the new SHA, sha256, sizeBytes, and `extractedDir`.
 5. Run `./setup.sh` and `./run-gate.sh` locally to confirm the new fixture passes the gate.
-6. Commit. PR should explain *why* the bump was needed (404? new bug class? upstream repo migration?).
+6. Run `./scripts/upload-init-corpus-mirror.sh` to populate the self-hosted mirror with the new tarball. The script is idempotent — existing assets are skipped. Then set `tarball.mirror` in `MANIFEST.json` to the new asset URL (format: `https://github.com/proffesor-for-testing/agentic-qe/releases/download/init-corpus-v1/<sha256>.tar.gz`).
+7. Commit. PR should explain *why* the bump was needed (404? new bug class? upstream repo migration?).
+
+## Mirror fallback (codeload drift resilience)
+
+GitHub's `codeload.github.com` has regenerated `git archive` output at least
+twice (2023, 2024). When it happens, every pinned sha256 mismatches and the
+release gate hard-fails until a maintainer scrambles. To defend against
+this, each tarball fixture has a `tarball.mirror` field pointing at a
+self-hosted copy on the
+[`init-corpus-v1` release](https://github.com/proffesor-for-testing/agentic-qe/releases/tag/init-corpus-v1)
+of this repo. Assets are content-addressed as `<sha256>.tar.gz`.
+
+`setup.sh` tries the primary URL first. On network failure or sha256
+mismatch, it falls back to the mirror, verifies the sha256 there, and
+logs a loud `WARNING: using mirror for <id>` line so CI surfaces the
+drift even though the job stays green. The fallback path is exercised
+by [`init-corpus-mirror-test.yml`](../../../.github/workflows/init-corpus-mirror-test.yml)
+on every PR that touches this directory and weekly on Mondays.
+
+The `upload-init-corpus-mirror.sh` script refuses to upload any tarball
+whose sha256 does not match `MANIFEST.json` — the mirror must never
+serve drifted content, since that would defeat the sha256 verification
+in `setup.sh`.
 
 **Never bump a fixture just because the upstream has a newer commit.** Pinned
 SHAs are the whole point — if `multi-lang-real` is on the 2026-04-06 commit
@@ -116,4 +139,3 @@ their own tracking issues so the deferral is visible:
 | PR template enforcement (CI linter for the failure-mode checkbox) | [#408](https://github.com/proffesor-for-testing/agentic-qe/issues/408) | Honor-system today. Real enforcement requires branch protection rule changes that should land in a coordinated PR. |
 | `VERIFICATION.md` + verification matrix in release notes | [#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409) | Pure documentation. Corpus already enforces; the docs make the enforcement visible to humans. |
 | Chaos workflow for pathological inputs (encodings, symlinks, binary-as-text, minified-in-src) | [#410](https://github.com/proffesor-for-testing/agentic-qe/issues/410) | Weekly chaos tests, not release-blocking. The corpus covers everyday-real failure modes; chaos covers adversarial-rare. |
-| Mirror init-corpus tarballs to GitHub Releases (codeload sha drift resilience) | [#411](https://github.com/proffesor-for-testing/agentic-qe/issues/411) | Insurance against a future codeload regeneration. Schema (`tarball.mirror`) reserved in MANIFEST v2 — implementation pending. |

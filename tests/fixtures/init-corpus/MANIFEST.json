@@ -22,7 +22,7 @@
         "url": "https://codeload.github.com/developit/mitt/tar.gz/b240473b5707857ba2c6a8e6d707c28d1e39da49",
         "sha256": "5bfb7ae1c8674759d31684141a37e64914ac024b441dccda76775fc236039ced",
         "sizeBytes": 7769,
-        "mirror": null
+        "mirror": "https://github.com/proffesor-for-testing/agentic-qe/releases/download/init-corpus-v1/5bfb7ae1c8674759d31684141a37e64914ac024b441dccda76775fc236039ced.tar.gz"
       },
       "extractedDir": "mitt-b240473b5707857ba2c6a8e6d707c28d1e39da49",
       "gate": {
@@ -49,7 +49,7 @@
         "url": "https://codeload.github.com/sindresorhus/p-queue/tar.gz/55d306ba03479dcc531a8e06deab24d3f60feacd",
         "sha256": "3bae95318b3492b46fa8a86aa67ebf84c505d8ad1300330fd502bd9b2d2ecd08",
         "sizeBytes": 39983,
-        "mirror": null
+        "mirror": "https://github.com/proffesor-for-testing/agentic-qe/releases/download/init-corpus-v1/3bae95318b3492b46fa8a86aa67ebf84c505d8ad1300330fd502bd9b2d2ecd08.tar.gz"
       },
       "extractedDir": "p-queue-55d306ba03479dcc531a8e06deab24d3f60feacd",
       "gate": {
@@ -76,7 +76,7 @@
         "url": "https://codeload.github.com/ruvnet/RuView/tar.gz/2a05378bd229df07eff3e309d414d65510ce507c",
         "sha256": "2f43f87873d344f3cf228b78673343fd6192244baf767fca4578668b1ff5b2d4",
         "sizeBytes": 42244179,
-        "mirror": null
+        "mirror": "https://github.com/proffesor-for-testing/agentic-qe/releases/download/init-corpus-v1/2f43f87873d344f3cf228b78673343fd6192244baf767fca4578668b1ff5b2d4.tar.gz"
       },
       "extractedDir": "RuView-2a05378bd229df07eff3e309d414d65510ce507c",
       "gate": {
