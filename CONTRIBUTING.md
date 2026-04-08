@@ -836,6 +836,10 @@ expect(mockReadFile).toHaveBeenCalledWith('/path/to/file', 'utf-8');
 
 ## Documentation
 
+### Release verification
+
+Before proposing a release-related change, read [`docs/VERIFICATION.md`](docs/VERIFICATION.md). It is the maintainer-facing entry point for the release-gate corpus, the per-release verification matrix, and the procedure for adding new fixtures. The load-bearing release-process policy lives at [`docs/policies/release-verification.md`](docs/policies/release-verification.md).
+
 ### Code Comments
 
 ```typescript

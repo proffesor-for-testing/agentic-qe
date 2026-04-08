@@ -1,123 +1,99 @@
 # Release Verification Policy
 
-**ALWAYS verify release candidates with full initialization test BEFORE committing any release.**
+> **The release-gate corpus is the primary verification.** Manual checks supplement the gate, they do not replace it. This file is the canonical release-process policy; for the maintainer-facing how-to (gate architecture, failure interpretation, fixture-add procedure) see [`docs/VERIFICATION.md`](../VERIFICATION.md).
 
-## Critical Requirements
+## Critical requirements
 
 This is a critical policy to ensure release quality:
-- ❌ **NEVER** commit a release candidate (RC) without running `aqe init` verification
-- ❌ **NEVER** tag a version without testing agent functionality
-- ✅ **ALWAYS** create a fresh test project and run `aqe init` before any release
-- ✅ **ALWAYS** verify all agents/commands/skills/config/CLAUDE.md are initialized properly
-- ✅ **ALWAYS** test at least one QE agent to verify claimed features work
-- ✅ **ALWAYS** document verification results before proceeding with release
 
-## Release Verification Checklist
+- ✅ **ALWAYS** let the `pre-publish-gate` job in `.github/workflows/npm-publish.yml` decide whether a release publishes. The gate is load-bearing.
+- ❌ **NEVER** bypass the gate via `gh workflow run --ref <tag>` after the gate has rejected a tag. Fix the bug, push the fix, re-tag.
+- ✅ **ALWAYS** verify version numbers are updated in ALL documentation BEFORE creating the release tag (see "Version Update Policy" below — this is the one part of pre-release verification the gate cannot do for you).
+- ❌ **NEVER** delete + re-create a release tag without the underlying fix landing on `main` first.
+- ✅ **ALWAYS** read the post-publish-canary result before declaring a release done. The canary catches packaging mismatches the pre-publish gate can't.
+
+## Pre-#401 manual checklist (now obsolete — superseded by the gate)
+
+Before #401, this file documented a long manual `aqe init` checklist (create test project, install RC, run init, eyeball outputs). That checklist is now the `pre-publish-gate` job's responsibility, with 22 assertions per fixture across 4 pinned real public repositories. The gate catches the failure modes the manual checklist tried to catch — and several it never could, like phase 06 delta-scan hangs that only reproduce on the second init pass.
+
+If you find yourself wanting to run the manual checklist instead of trusting the gate, that is a signal that the gate has a coverage gap. Open an issue and add a fixture to the corpus rather than reinstating the manual workflow.
+
+## Manual sanity checks (post-gate, supplementary)
+
+After the gate has passed and `npm publish` has run, the following manual checks are still useful — they cover things the gate intentionally doesn't:
 
 ```bash
-# 1. Create clean test project
-mkdir /tmp/aqe-test-release && cd /tmp/aqe-test-release
-npm init -y
+# 1. Verify the published version matches what main says
+npm view agentic-qe version
+node -p "require('./package.json').version"
 
-# 2. Install release candidate
-npm install /path/to/agentic-qe-cf  # or npm install agentic-qe@latest
+# 2. Spot-check that documented agent / skill counts still match reality
+find .claude/agents -name "*.md" | wc -l
+find .claude/skills -name "*.md" | wc -l
 
-# 3. Initialize AQE
-npx aqe init
+# 3. After the post-publish-canary run completes, confirm it stayed green
+gh run list --workflow=post-publish-canary.yml --limit=5
 
-# 4. Verify initialization (CRITICAL - CHECK EVERYTHING)
-ls -la .claude/agents/        # Should show all 18 QE agents
-ls -la .claude/skills/        # Should show all 34 QE skills
-ls -la .claude/commands/      # Should show all 8 AQE slash commands
-cat .claude/CLAUDE.md         # Should contain fleet configuration
-ls -la .agentic-qe/config/    # Should show configuration files
-cat .agentic-qe/config/fleet.json  # Should contain fleet config (valid JSON)
-ls -la .agentic-qe/db/        # Should show database files (memory.db, patterns.db)
-
-# 5. Verify databases are created and accessible
-file .agentic-qe/db/memory.db      # Should show SQLite 3.x database
-file .agentic-qe/db/patterns.db    # Should show SQLite 3.x database
-# Note: We use better-sqlite3, so use 'file' command to verify
-# Or use Node.js to query:
-node -e "const db = require('better-sqlite3')('.agentic-qe/db/memory.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
-node -e "const db = require('better-sqlite3')('.agentic-qe/db/patterns.db'); console.log('Tables:', db.prepare('SELECT name FROM sqlite_master WHERE type=\"table\"').all()); db.close();"
-
-# 6. Test agent functionality (CRITICAL - MUST TEST AT LEAST ONE AGENT)
-npx aqe agent spawn qe-test-generator --task "Generate unit test for simple function"
-# OR use Claude Code Task tool with qe-test-generator
-# Verify agent spawns, executes task, and returns results
-
-# 7. Verify claimed features work
-# - Multi-Model Router: aqe routing status
-# - Learning System: aqe learn status
-# - Pattern Bank: aqe patterns list
-# - Flaky Detection: Verify qe-flaky-test-hunter agent exists and has ML capabilities
-# - AgentDB: Verify databases created and accessible
-
-# 8. Count verification (MUST MATCH CLAIMS)
-find .claude/agents -name "*.md" | wc -l    # Should show 51+ agents
-find .claude/skills -name "*.md" | wc -l    # Should show 100+ skills (46 QE + 57 platform)
-find .claude/commands -name "*.md" | wc -l  # Should show 8 commands
+# 4. Look at the verification matrix in the new release notes file
+#    (generated by scripts/embed-verification-matrix.sh — see VERIFICATION.md)
+cat docs/releases/v$(node -p "require('./package.json').version").md
 ```
 
-## Verification Success Criteria
-
-- ✅ All 51+ QE agents present in `.claude/agents/` (44 main + 7 TDD subagents)
-- ✅ All 100+ skills present in `.claude/skills/` (46 QE Tier 3 + 57 platform/integration)
-- ✅ All 8 AQE slash commands present in `.claude/commands/` (exact count verified)
-- ✅ CLAUDE.md contains fleet configuration with agent descriptions
-- ✅ Fleet config file exists at `.agentic-qe/config/fleet.json` and is valid JSON
-- ✅ Configuration directory `.agentic-qe/config/` contains all config files
-- ✅ Database files exist: `.agentic-qe/db/memory.db` and `.agentic-qe/db/patterns.db`
-- ✅ Databases are valid SQLite files with proper schema/tables
-- ✅ At least one agent successfully executes a task (qe-test-generator tested)
-- ✅ Agent uses claimed features (Learning, Pattern Bank, Multi-Model Router, AgentDB)
-- ✅ No initialization errors or missing files
-- ✅ File counts match documentation claims (51+ agents, 100+ skills, 8 commands)
+These are smoke tests, not gates. If any of them surfaces a real problem, the corpus is the place to add coverage so the gate catches it next time.
 
 ## Version Update Policy (CRITICAL)
 
-- ❌ **NEVER** create release PR without updating version numbers in ALL documentation
-- ✅ **ALWAYS** update version numbers BEFORE creating release PR
+The gate verifies that init works on the new version. It does NOT verify that documentation references the new version. That is your responsibility before tagging.
+
+- ❌ **NEVER** create a release PR without updating version numbers in ALL documentation.
+- ✅ **ALWAYS** update version numbers BEFORE creating the release tag.
 - ✅ **ALWAYS** check and update these files:
-  - `README.md` (line ~10: "**Version X.X.X**")
-  - `README.md` (Recent Changes section)
-  - `package.json` (already updated by npm version or manually)
-  - Any other docs referencing current version
-- ✅ **ALWAYS** search for old version: `grep -r "v1.x.x" README.md docs/`
+  - `README.md` (version line and Recent Changes section)
+  - `package.json` (the source of truth)
+  - Any other docs referencing the current version
+- ✅ **ALWAYS** search for old version references: `grep -r "v3\.9\.[0-9]" README.md docs/ --exclude-dir=docs/releases`
 
 ## Version Update Workflow
 
 ```bash
 # 1. Search for old version references (excluding historical docs)
-grep -r "v1.3.4\|Version 1.3.4" README.md --exclude-dir=docs/releases
+grep -r "v3.9.7\|Version 3.9.7" README.md --exclude-dir=docs/releases
 
-# 2. Update all found references to new version
-# - README.md header: Version X.X.X
-# - README.md tagline: Update cost savings if changed
-# - README.md Recent Changes: Add new version section
+# 2. Update all found references to the new version
+#    - README.md header: Version X.Y.Z
+#    - README.md Recent Changes: add new version section
+#    - docs/releases/vX.Y.Z.md: new file (use the previous one as a template)
 
-# 3. THEN run release verification and create PR
+# 3. Embed the verification matrix into the new release notes file
+#    (after npm-publish.yml has run for the tag)
+./scripts/embed-verification-matrix.sh <run-id> >> docs/releases/vX.Y.Z.md
+
+# 4. Commit the docs update + open the release PR
 ```
 
-## Examples of Correct Behavior
+## Examples of correct behavior
 
-- User: "prepare release 1.3.5" → Update versions FIRST, verify, then prepare
-- User: "commit RC 1.3.5" → STOP, verify "Have you updated README.md version?"
-- User: "create PR" → STOP, verify "README.md shows correct version?"
-- User: "commit RC 1.3.5" → STOP, verify "Have you run aqe init verification?"
-- User: "tag v1.3.5" → STOP, verify "Have you completed release verification checklist?"
+- User: "prepare release X.Y.Z" → Update README + package.json versions FIRST, write `docs/releases/vX.Y.Z.md`, then propose the tag.
+- User: "the gate rejected the tag" → Read `init-corpus-logs` artifact, reproduce locally, fix, push to main, delete the rejected tag, recreate it.
+- User: "tag and ship vX.Y.Z" → Confirm: README updated? release notes file written? gate green on main? canary green after publish? matrix embedded?
+- User: "let's bypass the gate just this once" → STOP. The gate exists because v3.9.1–v3.9.4 shipped without one. Fix the bug or fix the gate, do not bypass it.
 
 ## Purpose
 
-This policy prevents releasing broken initialization, non-functional agents, or incorrect version numbers to users.
+This policy ensures that:
+
+1. The release-gate corpus is treated as authoritative — not as advice.
+2. Version-update mistakes (the one class of pre-release error the gate can't catch) are blocked by maintainer process.
+3. Post-publish verification (the canary, the matrix in release notes) is visible to humans, not just to CI.
+
+The motivating incident is [#401](https://github.com/proffesor-for-testing/agentic-qe/issues/401) — the v3.9.1–v3.9.4 init regression series, which shipped because pre-release verification was honor-system. This policy + the gate it points to are the structural fix.
 
 ---
 
-**Related Policies:**
+**Related:**
+- [`docs/VERIFICATION.md`](../VERIFICATION.md) — gate architecture, failure interpretation, fixture-add how-to
+- [`tests/fixtures/init-corpus/README.md`](../../tests/fixtures/init-corpus/README.md) — the corpus
+- [`tests/fixtures/init-chaos/README.md`](../../tests/fixtures/init-chaos/README.md) — the weekly chaos workflow
+- [Issue #401](https://github.com/proffesor-for-testing/agentic-qe/issues/401) — the post-mortem
 - [Git Operations Policy](git-operations.md)
 - [Test Execution Policy](test-execution.md)
-
-**Related Documentation:**
-- [Testing with Roo Code](../TESTING-WITH-ROO-CODE.md)
-- [MCP Learning Tools Fixes](../MCP-LEARNING-TOOLS-FIXES.md)

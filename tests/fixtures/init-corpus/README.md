@@ -136,6 +136,3 @@ their own tracking issues so the deferral is visible:
 | Item | Tracking issue | Why deferred |
 |---|---|---|
 | Phase 06 in `worker_threads.Worker` (#401 Part 3 original proposal) | [#407](https://github.com/proffesor-for-testing/agentic-qe/issues/407) | The deadlocking dependency was replaced (ADR-090); the corpus is the load-bearing prevention layer. Worker isolation becomes load-bearing again only if a future native dep deadlocks — `#407` defines when to revisit. |
-| PR template enforcement (CI linter for the failure-mode checkbox) | [#408](https://github.com/proffesor-for-testing/agentic-qe/issues/408) | Honor-system today. Real enforcement requires branch protection rule changes that should land in a coordinated PR. |
-| `VERIFICATION.md` + verification matrix in release notes | [#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409) | Pure documentation. Corpus already enforces; the docs make the enforcement visible to humans. |
-| Chaos workflow for pathological inputs (encodings, symlinks, binary-as-text, minified-in-src) | [#410](https://github.com/proffesor-for-testing/agentic-qe/issues/410) | Weekly chaos tests, not release-blocking. The corpus covers everyday-real failure modes; chaos covers adversarial-rare. |
