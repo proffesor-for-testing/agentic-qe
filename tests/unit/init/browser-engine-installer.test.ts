@@ -50,10 +50,10 @@ function makeSpawner(
 
 describe('browser-engine-installer', () => {
   describe('detectVibium', () => {
-    it('returns version string on success', () => {
+    it('extracts semver from stdout v-prefixed output', () => {
       const { spawner, calls } = makeSpawner(() => canned({ stdout: 'v26.3.18\n' }));
       const result = detectVibium(spawner);
-      expect(result).toBe('v26.3.18');
+      expect(result).toBe('26.3.18');
       expect(calls).toEqual([{ bin: 'vibium', args: ['--version'] }]);
     });
 
@@ -62,9 +62,41 @@ describe('browser-engine-installer', () => {
       expect(detectVibium(spawner)).toBeNull();
     });
 
-    it('returns "unknown" when vibium exits 0 with empty stdout', () => {
-      const { spawner } = makeSpawner(() => canned({ stdout: '   \n' }));
+    it('returns "unknown" when vibium exits 0 with empty stdout AND empty stderr', () => {
+      const { spawner } = makeSpawner(() => canned({ stdout: '   \n', stderr: '' }));
       expect(detectVibium(spawner)).toBe('unknown');
+    });
+
+    // H1 regression — devil's-advocate finding:
+    // Many Go CLIs (including some Vibium versions) write --version output to
+    // stderr. detectVibium used to read only stdout and silently report 'unknown'.
+    describe('H1 regression: stderr fallback', () => {
+      it('reads version from stderr when stdout is empty', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: '', stderr: 'v26.3.18\n' }));
+        expect(detectVibium(spawner)).toBe('26.3.18');
+      });
+
+      it('prefers stdout over stderr when both have content', () => {
+        const { spawner } = makeSpawner(() =>
+          canned({ stdout: 'v26.3.18\n', stderr: '26.0.0\n' })
+        );
+        expect(detectVibium(spawner)).toBe('26.3.18');
+      });
+
+      it('extracts semver from verbose output like "vibium version 26.3.18"', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'vibium version 26.3.18 (linux/amd64)\n' }));
+        expect(detectVibium(spawner)).toBe('26.3.18');
+      });
+
+      it('handles semver with prerelease tag', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v27.0.0-rc.1\n' }));
+        expect(detectVibium(spawner)).toBe('27.0.0-rc.1');
+      });
+
+      it('falls back to first whitespace token when no semver match', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'unknown-build foo\n' }));
+        expect(detectVibium(spawner)).toBe('unknown-build');
+      });
     });
   });
 
@@ -79,7 +111,8 @@ describe('browser-engine-installer', () => {
       const { spawner, calls } = makeSpawner(() => canned({ stdout: 'v26.3.18\n' }));
       const result = installBrowserEngine({ spawner });
       expect(result.status).toBe('already-installed');
-      expect(result.version).toBe('v26.3.18');
+      // H1 fix: detectVibium now extracts the bare semver, dropping the v prefix.
+      expect(result.version).toBe('26.3.18');
       // Only the detection call, no npm install attempt.
       expect(calls).toHaveLength(1);
       expect(calls[0]).toEqual({ bin: 'vibium', args: ['--version'] });
@@ -117,7 +150,8 @@ describe('browser-engine-installer', () => {
 
       const result = installBrowserEngine({ spawner });
       expect(result.status).toBe('installed');
-      expect(result.version).toBe('v26.3.18');
+      // H1 fix: detectVibium now extracts the bare semver.
+      expect(result.version).toBe('26.3.18');
       // vibium check, npm check, npm install, vibium re-check
       expect(calls).toHaveLength(4);
       expect(calls[2]).toEqual({ bin: 'npm', args: ['install', '-g', 'vibium'] });

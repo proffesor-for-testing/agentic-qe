@@ -74,12 +74,23 @@ const defaultSpawner: Spawner = (bin, args, opts) =>
  * Detect whether `vibium` is already on PATH. Returns the version string
  * on success, `null` otherwise. Uses a short timeout because we don't want
  * to block init for tens of seconds on a misbehaving shim.
+ *
+ * Reads BOTH stdout and stderr because many Go CLIs (including some Vibium
+ * versions) write `--version` output to stderr instead of stdout. Prefer
+ * stdout when both are non-empty. Devil's-advocate review finding H1.
  */
 export function detectVibium(spawner: Spawner = defaultSpawner, timeoutMs = 5_000): string | null {
   const result = tryRun(spawner, 'vibium', ['--version'], timeoutMs);
   if (result.status !== 0) return null;
-  const out = (result.stdout || '').trim();
-  return out || 'unknown';
+  const stdout = (result.stdout || '').trim();
+  const stderr = (result.stderr || '').trim();
+  // Prefer stdout, fall back to stderr. Strip leading "vibium" or "v" so the
+  // returned version is consistent regardless of where the binary printed it.
+  const raw = stdout || stderr;
+  if (!raw) return 'unknown';
+  // Extract first semver-looking token if present (e.g. "vibium version 26.3.18" → "26.3.18")
+  const match = raw.match(/v?(\d+\.\d+\.\d+(?:[-+][\w.]+)?)/);
+  return match ? match[1] : raw.split(/\s+/)[0] || 'unknown';
 }
 
 /**

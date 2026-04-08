@@ -1,10 +1,27 @@
 skill: qe-browser
 version: 1.0.0
+status: design-spec
 description: >
-  Evaluation suite for the qe-browser fleet skill. Tests the helper scripts
-  (assert, batch, visual-diff, check-injection, intent-score) end-to-end
-  against pinned public fixtures and a local static server serving this repo's
-  own .claude/skills docs.
+  Manual smoke-test plan for the qe-browser fleet skill, NOT yet a runnable
+  automated eval.
+
+  HONESTY NOTE (devil's-advocate H8): the test cases below use structured
+  assertion fields (`exit_code`, `json_fields`, `severity_at_least`,
+  `candidate_count_at_least`) that the existing AQE eval runner
+  (`src/validation/parallel-eval-runner.ts`) does NOT support — it expects
+  `expected_output.must_contain` keyword matching only. This file is
+  therefore a SPECIFICATION for what the eval should do, not a runnable
+  yaml. Two paths to make it runnable:
+
+  1. Extend the eval runner with a `structured_assertions` block that
+     evaluates JSON paths against script JSON envelopes (preferred — gives
+     us the precision the qe-browser primitives need).
+  2. Rewrite each tc as a `must_contain` test by piping the script's JSON
+     envelope through jq and matching keywords (loses precision).
+
+  Until one of those lands, run `scripts/smoke-test.sh` (alongside this
+  file) for the same fixture coverage in shell-script form. That script IS
+  runnable today and is what gates PR-reopen per ADR-091 Phase 3.
 
 models_to_test:
   - claude-3.5-sonnet

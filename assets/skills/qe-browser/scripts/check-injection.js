@@ -146,6 +146,13 @@ function aggregateSeverity(findings) {
 function fetchPageText(includeHidden) {
   // Return both visible and (optionally) full text-content via vibium eval.
   // We pull both so we can tag findings with `hidden: true/false`.
+  //
+  // H2 (devil's-advocate finding): TreeWalker(SHOW_COMMENT) yields the
+  // INNER text of each comment, stripping the `<!-- ... -->` delimiters.
+  // The `instructions_in_html_comment` regex requires the literal `<!--`
+  // prefix, so it could never fire against the unwrapped text. Fix: re-wrap
+  // each comment in `<!-- ... -->` before adding it to the hidden bucket so
+  // the comment-pattern actually matches.
   const script = `
     const visible = document.body ? document.body.innerText : '';
     const full = document.body ? document.body.textContent : '';
@@ -153,7 +160,8 @@ function fetchPageText(includeHidden) {
     const walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_COMMENT, null);
     let n;
     while ((n = walker.nextNode())) {
-      comments.push(n.textContent);
+      // Re-wrap so the instructions_in_html_comment pattern can match.
+      comments.push('<!-- ' + n.textContent + ' -->');
     }
     const hidden = ${includeHidden ? 'full.replace(visible, "") + "\\n" + comments.join("\\n")' : '""'};
     console.log(JSON.stringify({ visible, hidden }));

@@ -109,30 +109,57 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     // Install Vibium browser engine for the qe-browser fleet skill.
     // Graceful — never fails init if Vibium cannot be installed.
     // Skipped in --minimal mode per ADR-086 minimal-footprint guidance.
+    //
+    // H6 (devil's-advocate finding): the install can take up to 3 minutes
+    // on cold caches because npm downloads Vibium AND lazily downloads a
+    // Chrome for Testing binary. spawnSync blocks the event loop, so the
+    // user sees no output for the entire duration. We log a clear pre-spawn
+    // message so users don't Ctrl-C thinking init hung. Future work: move
+    // this to a lazy/on-first-use install path so non-browser users never
+    // pay the cost.
     let browserEngine: BrowserEngineInstallResult | undefined;
     if (!options.minimal) {
       try {
-        browserEngine = installBrowserEngine({ skip: false });
-        switch (browserEngine.status) {
-          case 'already-installed':
-            context.services.log(`  Browser engine: vibium ${browserEngine.version} (already installed)`);
-            break;
-          case 'installed':
-            context.services.log(`  Browser engine: vibium ${browserEngine.version} installed`);
-            break;
-          case 'skipped':
-            context.services.log('  Browser engine: skipped');
-            break;
-          case 'install-failed':
-            context.services.warn(
-              `Browser engine install failed (qe-browser skill will be unavailable until you run \`npm install -g vibium\`): ${browserEngine.message || 'unknown'}`
-            );
-            break;
-          case 'npm-unavailable':
-            context.services.warn(
-              'Browser engine: npm not on PATH — install Node.js + npm, then `npm install -g vibium` to enable qe-browser'
-            );
-            break;
+        // Pre-flight check: if vibium is already on PATH, skip the loud
+        // banner so we don't scare users on the common path.
+        const alreadyHere = installBrowserEngine({
+          skip: false,
+          // Use a tiny timeout for the pre-flight detect-only call. The
+          // installer will short-circuit on already-installed without
+          // ever invoking npm.
+          timeoutMs: 5_000,
+        });
+        if (alreadyHere.status === 'already-installed') {
+          browserEngine = alreadyHere;
+          context.services.log(
+            `  Browser engine: vibium ${browserEngine.version} (already installed)`
+          );
+        } else {
+          // Not installed → we're about to spawn `npm install -g vibium`
+          // which can take 1–3 minutes on a cold cache. Tell the user.
+          context.services.log(
+            '  Browser engine: installing vibium via npm (this can take 1–3 minutes on first run; downloads Chrome for Testing lazily)…'
+          );
+          browserEngine = installBrowserEngine({ skip: false });
+          switch (browserEngine.status) {
+            case 'installed':
+              context.services.log(`  Browser engine: vibium ${browserEngine.version} installed`);
+              break;
+            case 'skipped':
+              context.services.log('  Browser engine: skipped');
+              break;
+            case 'install-failed':
+              context.services.warn(
+                `Browser engine install failed (qe-browser skill will be unavailable until you run \`npm install -g vibium\`): ${browserEngine.message || 'unknown'}`
+              );
+              break;
+            case 'npm-unavailable':
+              context.services.warn(
+                'Browser engine: npm not on PATH — install Node.js + npm, then `npm install -g vibium` to enable qe-browser'
+              );
+              break;
+            // 'already-installed' handled by the pre-flight branch above
+          }
         }
       } catch (error) {
         context.services.warn(
