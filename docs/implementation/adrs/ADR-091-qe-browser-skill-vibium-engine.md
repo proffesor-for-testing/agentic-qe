@@ -178,6 +178,43 @@ We adopt **Vibium as the browser engine** for the AQE QE fleet and build a new *
 - Run the eval harness; post pass/fail summary
 - Only then reopen the PR with real evidence attached
 
+#### Phase 3 attempt 1 (2026-04-08): BLOCKED by Vibium platform-support gap on Linux ARM64
+
+Ran in this codespace (`uname -m` = `aarch64`, host = Apple Silicon via Docker Desktop).
+
+**What worked:**
+- `npm install -g vibium` → `added 3 packages in 13s` ✅
+- `vibium --version` → `vibium v26.3.18` ✅
+- The `@vibium/linux-arm64/bin/vibium` binary itself is correctly native ARM64 (the postinstall.js picks the right platform package)
+- **detectVibium H1 fix verified against real binary output**: `vibium v26.3.18` → semver `26.3.18` ✅
+- `smoke-test.sh` ran end-to-end and reported tc003 (failing assertion exits 1) and tc005 (batch stops on first failure) as PASS — these test the failure paths and exercise the assert.js + batch.js + envelope JSON shape against the real `vibium` binary without needing a browser ✅
+
+**What failed:**
+- 7/9 smoke tests failed with: `auto-launch failed: failed to launch browser: chromedriver failed to start: timeout waiting for chromedriver`
+- Root cause: Google does not publish a `chrome-for-testing` build for `linux-arm64`. Vibium's `vibium install` downloaded the `chrome-linux64` (x86_64) variant into `~/.cache/vibium/chrome-for-testing/` and the chromedriver binary dies under Rosetta with `rosetta error: failed to open elf at /lib64/ld-linux-x86-64.so.2`.
+- Workarounds attempted and rejected:
+  - `apt install chromium` — installs native ARM64 chromium 146.0.7680.177 successfully; **Vibium does not pick it up from PATH**
+  - Searched the Vibium binary for `VIBIUM_CHROME_PATH`, `CHROME_PATH`, `--browser-path`, or any equivalent — **none exist** in v26.3.18
+  - `vibium daemon start --connect ws://...` — requires a remote BiDi WebSocket; system chromium with `--remote-debugging-port` exposes CDP (DevTools), not BiDi; would need a separate chromedriver that speaks BiDi, which is what Vibium ships and which is the broken binary
+  - System chromium DOES launch successfully with `--remote-debugging-port=9222` — confirmed via curl to `/json/version` → `Chrome/146.0.7680.177` — but wiring it into Vibium requires daemon-side BiDi support that's hardcoded to the cached chromedriver
+
+**Conclusion:** Phase 3 verification cannot complete on Linux ARM64 with Vibium v26.3.18. This is a Vibium upstream platform gap, not a qe-browser bug.
+
+**Required action before PR reopen:** Run `smoke-test.sh` on one of:
+1. Linux x86_64 (Vibium downloads `chrome-linux64` natively)
+2. macOS ARM64 (Vibium downloads `chrome-mac-arm64` natively)
+3. Linux ARM64 ONLY if Vibium ships a `--browser-path` or env-var override in a future version, OR if the user can wire a system-chromium-driven BiDi WebSocket and use `--connect`
+
+**New known limitation added to the Negative consequences:**
+- **Vibium does not support Linux ARM64 today.** Vibium downloads `chrome-linux64` (x86_64) on aarch64 hosts, which fails under Rosetta on Apple Silicon. There is no `--browser-path` flag or env var to point at a system-installed chromium. Users on Linux ARM64 must either run Vibium on a different host or wait for upstream to ship `chrome-linux-arm64` support. This blocks the `qe-browser` skill on every Linux ARM64 codespace until upstream lands a fix. Tracking via Vibium's issue tracker is recommended.
+
+**Useful evidence captured during the attempt:**
+- The two passing smoke tests (tc003, tc005) DO verify that:
+  - `node assert.js --checks '...'` correctly returns exit-code-1 + JSON envelope `status: "failed"` for a failing url_contains check (tc003)
+  - `node batch.js --steps '...'` correctly stops on first failure and reports `failedStep` (tc005)
+  - Both pass the H1-fixed semver-extraction path through `lib/vibium.js`'s `vibium()` helper
+- This is partial Phase 3 evidence: the script-level integration with the real `vibium` binary works for the failure paths.
+
 ### Phase 4 — Medium/Low (post-reopen, incremental)
 - M1 visual-diff threshold UX
 - M2 fixture server bind to 127.0.0.1
