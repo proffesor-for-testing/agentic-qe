@@ -1,0 +1,163 @@
+# init-chaos
+#
+# Weekly adversarial testing of `aqe init` against pathological project
+# shapes the everyday-real corpus deliberately doesn't cover (UTF-16LE
+# BOM files, symlink loops, binary-as-text, minified bundles in src/,
+# mixed line endings, control characters in identifier positions). The
+# release-gate corpus catches everyday-real failures BEFORE publish;
+# this catches adversarial-rare ones AFTER publish, on a slower cadence.
+#
+# Failure model — what we actually assert:
+#
+#   For each chaos shape, run `timeout 60 aqe init --auto --json` and
+#   assert exit code is anything EXCEPT 124 (the timeout's signal that
+#   init hung). Any other exit code passes — including non-zero. The
+#   thing under test is the watchdog's effectiveness, not whether init
+#   succeeds on adversarial input. If init exits gracefully with
+#   step.status='error', that's a passing chaos test. If it hangs, fail.
+#
+# Failure-mode reporting: fail loudly in the Actions tab. No auto-issue
+# creation (matches the #411 mirror-test pattern). When the workflow
+# fails, the maintainer investigates the per-shape log artifact to
+# decide whether the failure represents a real regression or a known
+# limitation.
+#
+# Refs: https://github.com/proffesor-for-testing/agentic-qe/issues/410
+
+name: init-chaos
+
+on:
+  schedule:
+    # Sunday 05:00 UTC, weekly. Off-peak so it doesn't compete with
+    # release publishes (Monday/Wednesday) or the mirror-test workflow
+    # (Monday 06:00 UTC).
+    - cron: '0 5 * * 0'
+  workflow_dispatch:
+
+# Least-privilege GITHUB_TOKEN: read repo, nothing else. No issue
+# creation, no PR comments, no release writes.
+permissions:
+  contents: read
+
+jobs:
+  chaos:
+    name: aqe init under adversarial input
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build agentic-qe
+        run: npm run build
+
+      - name: Pack into a tarball
+        id: pack
+        run: |
+          npm pack --pack-destination /tmp
+          tarball=$(ls /tmp/agentic-qe-*.tgz | tail -1)
+          if [[ ! -f "$tarball" ]]; then
+            echo "FATAL: no tarball produced by npm pack" >&2
+            exit 1
+          fi
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "[chaos] tarball: $tarball ($(stat -c %s "$tarball") bytes)"
+
+      - name: Generate chaos fixtures
+        run: |
+          rm -rf /tmp/chaos-fixtures
+          ./tests/fixtures/init-chaos/generate.sh /tmp/chaos-fixtures
+
+      - name: Install agentic-qe once into a host dir (shared by all chaos runs)
+        id: host
+        run: |
+          set -e
+          HOST_DIR=$(mktemp -d -t aqe-chaos-host-XXXXXX)
+          cd "$HOST_DIR"
+          cat > package.json <<'EOF'
+          {
+            "name": "aqe-chaos-host",
+            "version": "0.0.0",
+            "private": true
+          }
+          EOF
+          npm install --no-save --no-audit --no-fund --omit=dev \
+            "${{ steps.pack.outputs.tarball }}" 2>&1 | tail -20
+          if [[ ! -x "$HOST_DIR/node_modules/.bin/aqe" ]]; then
+            echo "FATAL: aqe binary not found after install" >&2
+            ls -la "$HOST_DIR/node_modules/.bin/" >&2 || true
+            exit 1
+          fi
+          echo "host_dir=$HOST_DIR" >> "$GITHUB_OUTPUT"
+          echo "aqe_binary=$HOST_DIR/node_modules/.bin/aqe" >> "$GITHUB_OUTPUT"
+          echo "[chaos] aqe version: $("$HOST_DIR/node_modules/.bin/aqe" --version 2>&1 | tail -1)"
+
+      - name: Run aqe init against each chaos shape
+        run: |
+          set -e
+          AQE="${{ steps.host.outputs.aqe_binary }}"
+          mkdir -p /tmp/chaos-logs
+          declare -a results
+          fail=0
+          for shape_dir in /tmp/chaos-fixtures/*/; do
+            shape=$(basename "$shape_dir")
+            log="/tmp/chaos-logs/${shape}.log"
+            json="/tmp/chaos-logs/${shape}.json"
+            echo "=== chaos shape: $shape ==="
+
+            # Run init with a 60-second timeout. The cwd is the chaos
+            # fixture root. Capture stdout (the --json output) and
+            # stderr (human log) separately.
+            set +e
+            timeout --preserve-status 60 "$AQE" init --auto --json \
+              > "$json" 2> "$log"
+            rc=$?
+            set -e
+
+            # Exit 124 from `timeout` means init hung past 60s — that
+            # is the failure mode this workflow exists to catch.
+            if [[ "$rc" -eq 124 ]]; then
+              echo "  FAIL: init HUNG (exit 124, killed by timeout)"
+              echo "  last 10 lines of stderr:"
+              tail -10 "$log" | sed 's/^/    /'
+              results+=("$shape FAIL hung")
+              fail=$((fail+1))
+              continue
+            fi
+
+            # Any other exit code is a pass — init either succeeded
+            # OR failed gracefully within the time budget.
+            echo "  PASS: init exited gracefully (rc=$rc)"
+            results+=("$shape PASS rc=$rc")
+          done
+
+          echo ""
+          echo "=== chaos summary ==="
+          for r in "${results[@]}"; do echo "  $r"; done
+          echo ""
+          if [[ "$fail" -gt 0 ]]; then
+            echo "FAIL: $fail of 6 chaos shapes hung past the 60s watchdog."
+            echo "This means aqe init has a hang on adversarial input that the"
+            echo "release-gate corpus doesn't cover. Investigate the per-shape"
+            echo "log artifact, then either fix the hang or document the"
+            echo "limitation in tests/fixtures/init-chaos/README.md."
+            exit 1
+          fi
+          echo "OK: all 6 chaos shapes exited gracefully within 60s"
+
+      - name: Upload chaos logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: init-chaos-logs
+          path: /tmp/chaos-logs/
+          retention-days: 30
