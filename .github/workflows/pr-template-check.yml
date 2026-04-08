@@ -53,13 +53,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Write PR body to temp file
+        # Note: we pass the PR body through an env var rather than
+        # inline GitHub expression interpolation so body content with
+        # quotes, backticks, or dollar signs cannot cause shell
+        # injection into the workflow. See README of actions/github-script
+        # for the same pattern.
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           mkdir -p /tmp/pr-check
-          # The env var is used rather than ${{ }} interpolation so
-          # that body content with quotes/backticks/dollar signs
-          # cannot cause shell injection into the workflow.
           printf '%s' "$PR_BODY" > /tmp/pr-check/body.md
           echo "--- PR body (${#PR_BODY} chars) ---"
           head -40 /tmp/pr-check/body.md
