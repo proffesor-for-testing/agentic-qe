@@ -5,6 +5,32 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.8] - 2026-04-08
+
+This is a release-process release. **No source code changes** — every commit since v3.9.7 lands in CI, fixtures, scripts, or docs. The published package is functionally identical to v3.9.7 except for a refreshed lockfile with two transitive security patches.
+
+### Added
+
+- **Mirror init-corpus tarballs to GitHub Releases** ([#411](https://github.com/proffesor-for-testing/agentic-qe/issues/411), [#415](https://github.com/proffesor-for-testing/agentic-qe/pull/415)) — Insurance against `codeload.github.com` regenerating its `git archive` output (has happened in 2023 and 2024). The release-gate's `setup.sh` now falls back to a self-hosted mirror at the [`init-corpus-v1`](https://github.com/proffesor-for-testing/agentic-qe/releases/tag/init-corpus-v1) release on primary-URL sha256 mismatch and emits a loud `WARNING: using mirror for <id>` line so CI surfaces drift even on green runs. New `scripts/upload-init-corpus-mirror.sh` for the maintainer (idempotent, refuses to upload bytes that don't match `MANIFEST.json`). New `.github/workflows/init-corpus-mirror-test.yml` exercises both the reachability path (`AQE_CORPUS_FORCE_MIRROR=1`) and the fallback-on-drift path (local `python3 -m http.server` serving bogus bytes) on every PR touching the corpus and weekly on Mondays.
+
+- **PR template CI enforcement** ([#408](https://github.com/proffesor-for-testing/agentic-qe/issues/408), [#416](https://github.com/proffesor-for-testing/agentic-qe/pull/416)) — Replaces the honor-system #401 failure-modes checkbox with a real CI parser. `.github/workflows/pr-template-check.yml` runs on every PR and hard-fails when (a) the load-bearing checkbox is unchecked or its template section is deleted, or (b) the PR body contains dismissal phrases like "I believe it's unlikely" or "highly unlikely" without a same-paragraph tracking issue reference. 11 forbidden-phrase patterns covered. `dependabot[bot]` allowlisted via job-level `if:` so machine-generated PRs don't fail the check. The parser is `scripts/check-pr-body.cjs` (zero deps, ESM-safe via `.cjs` extension). 11 fixtures under `tests/fixtures/pr-body/` cover valid bodies, invalid bodies, multi-violation bodies, and the actual v3.9.3 PR body (which fails on missing section) plus a synthetic body quoting #401's exact postmortem reference. A `self-test` job runs the parser against every fixture in CI to catch parser regressions.
+
+- **Weekly init chaos workflow** ([#410](https://github.com/proffesor-for-testing/agentic-qe/issues/410), [#417](https://github.com/proffesor-for-testing/agentic-qe/pull/417)) — Adversarial-rare coverage to complement the everyday-real release gate. `.github/workflows/init-chaos.yml` runs Sundays 05:00 UTC. `tests/fixtures/init-chaos/generate.sh` produces 6 pathological project shapes at runtime: UTF-16LE source with BOM, mixed line endings, mutual symlink loop, PNG bytes saved as `.ts`, ~256 KB single-line minified bundle, and source files with embedded NUL/ESC sequences. For each shape the workflow runs `timeout 60 aqe init --auto --json` and asserts the exit code is anything except 124 (the timeout's signal that init hung). The watchdog is the load-bearing thing under test, not init's ability to make sense of garbage input.
+
+- **`docs/VERIFICATION.md`** ([#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409), [#417](https://github.com/proffesor-for-testing/agentic-qe/pull/417)) — Maintainer-facing entry point for the post-#401 release verification layer. Architecture diagram, how to interpret a failed gate, how to add a fixture, how to embed the verification matrix into a release notes file. Linked from `CONTRIBUTING.md` Documentation section.
+
+- **`scripts/embed-verification-matrix.sh`** ([#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409), [#417](https://github.com/proffesor-for-testing/agentic-qe/pull/417)) — Status-only matrix script. Given a workflow run ID, downloads the `init-corpus-logs` artifact via `gh run download`, parses `summary.txt`, and emits a markdown table. Used by maintainers when writing per-version release notes.
+
+### Changed
+
+- **`docs/policies/release-verification.md` rewritten around the automated gate** ([#409](https://github.com/proffesor-for-testing/agentic-qe/issues/409)) — The pre-#401 manual `aqe init` checklist is removed; the gate now does what it tried to do, with 22 assertions per fixture. The Version Update Policy + Workflow sections are preserved intact — they cover the one class of pre-release error the gate cannot catch.
+
+- **`tests/fixtures/init-corpus/setup.sh`** restructured around a `download_and_verify` helper to support the primary→mirror fallback path, with proper `set -e` exemption via `if func; then ... else rc=$? ... fi` so the fallback can actually fire. Added `AQE_CORPUS_MANIFEST_PATH` and `AQE_CORPUS_FORCE_MIRROR` env overrides for the mirror-test workflow.
+
+### Security
+
+- **Transitive dependency bumps** ([#414](https://github.com/proffesor-for-testing/agentic-qe/pull/414)) — `hono` 4.12.9→4.12.12 and `@hono/node-server` 1.19.11→1.19.13 (both indirect, lockfile-only). Picked up by dependabot's `npm_and_yarn` security group.
+
 ## [3.9.7] - 2026-04-07
 
 ### Added
