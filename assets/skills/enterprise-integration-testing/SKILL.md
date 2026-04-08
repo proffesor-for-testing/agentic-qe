@@ -20,6 +20,10 @@ validation:
 
 # Enterprise Integration Testing
 
+## Browser engine
+
+UI-level enterprise integration checks (SAP Fiori launchpad smoke tests, admin UI validation) should use the **qe-browser** fleet skill. RFC/BAPI/IDoc/OData/SOAP testing continues to use the dedicated `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, and `qe-odata-contract-tester` agents. See `.claude/skills/qe-browser/SKILL.md`.
+
 <default_to_action>
 When testing enterprise integrations or SAP-connected systems:
 1. MAP the end-to-end flow (web -> API -> middleware -> backend -> response)

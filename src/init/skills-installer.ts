@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync, unlinkSync, rmdirSync } from 'fs';
-import { join, dirname, basename, relative } from 'path';
+import { join } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { findPackageRoot } from './find-package-root.js';
 
@@ -64,6 +64,7 @@ const V3_DOMAIN_SKILLS = [
   'qe-defect-intelligence',     // ML defect prediction, root cause
   'qe-requirements-validation', // BDD scenarios, acceptance criteria
   'qe-code-intelligence',       // Knowledge graphs, 80% token reduction
+  'qe-browser',                 // Vibium-based browser automation with QE primitives (assert, batch, visual-diff, check-injection, intent-score)
   'pentest-validation',         // Graduated exploit validation (Shannon-inspired)
   'qe-visual-accessibility',    // Visual regression, WCAG
   'qe-chaos-resilience',        // Fault injection, resilience

@@ -20,6 +20,20 @@ validation:
 
 # Localization & Internationalization Testing
 
+## Browser engine
+
+Browser-driven locale checks (RTL layout diffs, language-switching flows, locale-specific screenshots) should go through the **qe-browser** fleet skill. Example:
+
+```bash
+vibium go "$BASE_URL?lang=ar"  # Arabic, RTL
+vibium wait load
+node .claude/skills/qe-browser/scripts/visual-diff.js --name homepage-ar-rtl
+vibium go "$BASE_URL?lang=ja"  # Japanese, CJK text expansion
+node .claude/skills/qe-browser/scripts/visual-diff.js --name homepage-ja
+```
+
+See `.claude/skills/qe-browser/SKILL.md` for the full reference.
+
 <default_to_action>
 When testing multi-language/region support:
 1. VERIFY translation coverage (all strings translated)

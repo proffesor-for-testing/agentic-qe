@@ -1,0 +1,7 @@
+{
+  "name": "@aqe/qe-browser-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Scoped package.json that keeps qe-browser helper scripts in CommonJS despite the repo root being ESM."
+}

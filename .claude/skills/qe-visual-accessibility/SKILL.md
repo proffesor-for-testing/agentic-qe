@@ -61,9 +61,39 @@ Task("Audit accessibility", `
 `, "qe-accessibility-agent")
 ```
 
+## Browser engine
+
+All browser automation in this skill uses the **qe-browser** fleet skill (Vibium engine). See `.claude/skills/qe-browser/SKILL.md`. The `vibium` binary is installed by `aqe init`.
+
 ## Visual Testing Operations
 
-### 1. Visual Regression
+### 1. Visual Regression (via qe-browser)
+
+```bash
+# Establish baselines for the pages we care about
+for path in / /login /dashboard /settings; do
+  slug=$(echo "$path" | tr '/' '_' | sed 's/^_//' || echo root)
+  vibium go "https://production.example.com$path" && vibium wait load
+  node .claude/skills/qe-browser/scripts/visual-diff.js --name "baseline_${slug:-root}"
+done
+
+# Compare staging against those baselines
+for path in / /login /dashboard /settings; do
+  slug=$(echo "$path" | tr '/' '_' | sed 's/^_//' || echo root)
+  vibium go "https://staging.example.com$path" && vibium wait load
+  node .claude/skills/qe-browser/scripts/visual-diff.js \
+    --name "baseline_${slug:-root}" --threshold 0.001  # 0.1% pixel diff
+done
+```
+
+Ignore dynamic regions (timestamps, live counts) by scoping the diff to a selector that excludes them:
+
+```bash
+node .claude/skills/qe-browser/scripts/visual-diff.js \
+  --name hero --selector "main > .content"
+```
+
+Legacy programmatic TypeScript API (still available for tests that prefer it over shelling out):
 
 ```typescript
 await visualTester.compareScreenshots({

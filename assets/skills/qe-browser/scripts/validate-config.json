@@ -1,0 +1,46 @@
+{
+  "skillName": "qe-browser",
+  "skillVersion": "1.0.0",
+  "requiredTools": [
+    "vibium",
+    "node",
+    "jq"
+  ],
+  "optionalTools": [
+    "pixelmatch",
+    "pngjs"
+  ],
+  "schemaPath": "schemas/output.json",
+  "requiredFields": [
+    "skillName",
+    "version",
+    "timestamp",
+    "status",
+    "trustTier",
+    "output"
+  ],
+  "requiredNonEmptyFields": [
+    ".output.operation",
+    ".output.summary"
+  ],
+  "mustContainTerms": [],
+  "mustNotContainTerms": [],
+  "enumValidations": {
+    ".status": [
+      "success",
+      "partial",
+      "failed",
+      "skipped"
+    ],
+    ".trustTier": [3],
+    ".output.operation": [
+      "assert",
+      "batch",
+      "visual-diff",
+      "check-injection",
+      "intent-score",
+      "navigate",
+      "capture"
+    ]
+  }
+}

@@ -20,6 +20,24 @@ validation:
 
 # Security Visual Testing
 
+## Browser engine
+
+Uses the **qe-browser** fleet skill (`.claude/skills/qe-browser/`) for all browser automation. The Vibium engine (10MB Go binary, WebDriver BiDi) is installed automatically by `aqe init`. For security-visual workflows, qe-browser adds two things on top of stock visual testing: `check-injection.js` (scans page content for prompt-injection patterns before screenshots are stored) and `assert.js` (16 typed checks including `no_failed_requests` for detecting data-leak requests).
+
+```bash
+# Before storing any screenshot, scan the page
+vibium go "$TARGET_URL"
+vibium wait load
+node .claude/skills/qe-browser/scripts/check-injection.js --include-hidden
+INJ=$?
+if [ $INJ -ne 0 ]; then
+  echo "Prompt-injection findings — do NOT store screenshot"
+  exit $INJ
+fi
+# Safe to proceed with visual-diff
+node .claude/skills/qe-browser/scripts/visual-diff.js --name "${PAGE_NAME}"
+```
+
 <default_to_action>
 When performing security-aware visual testing:
 1. VALIDATE URLs before navigation (check for malicious patterns)

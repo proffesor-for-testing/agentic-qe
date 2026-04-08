@@ -12,6 +12,7 @@ import {
 import { createSkillsInstaller } from '../skills-installer.js';
 import { createAgentsInstaller } from '../agents-installer.js';
 import { createN8nInstaller } from '../n8n-installer.js';
+import { installBrowserEngine, type BrowserEngineInstallResult } from '../browser-engine-installer.js';
 import { initializeOverlays } from '../../routing/qe-agent-registry.js';
 import type { AQEInitConfig } from '../types.js';
 
@@ -26,6 +27,7 @@ export interface AssetsResult {
   kiroSkills: number;
   kiroHooks: number;
   platformsConfigured: string[];
+  browserEngine?: BrowserEngineInstallResult;
 }
 
 /**
@@ -103,6 +105,43 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     // Initialize overlay configs in agent registry for runtime use
     initializeOverlays(projectRoot);
+
+    // Install Vibium browser engine for the qe-browser fleet skill.
+    // Graceful — never fails init if Vibium cannot be installed.
+    // Skipped in --minimal mode per ADR-086 minimal-footprint guidance.
+    let browserEngine: BrowserEngineInstallResult | undefined;
+    if (!options.minimal) {
+      try {
+        browserEngine = installBrowserEngine({ skip: false });
+        switch (browserEngine.status) {
+          case 'already-installed':
+            context.services.log(`  Browser engine: vibium ${browserEngine.version} (already installed)`);
+            break;
+          case 'installed':
+            context.services.log(`  Browser engine: vibium ${browserEngine.version} installed`);
+            break;
+          case 'skipped':
+            context.services.log('  Browser engine: skipped');
+            break;
+          case 'install-failed':
+            context.services.warn(
+              `Browser engine install failed (qe-browser skill will be unavailable until you run \`npm install -g vibium\`): ${browserEngine.message || 'unknown'}`
+            );
+            break;
+          case 'npm-unavailable':
+            context.services.warn(
+              'Browser engine: npm not on PATH — install Node.js + npm, then `npm install -g vibium` to enable qe-browser'
+            );
+            break;
+        }
+      } catch (error) {
+        context.services.warn(
+          `Browser engine install error: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    } else {
+      browserEngine = { status: 'skipped', packageSpec: 'vibium', message: 'minimal mode' };
+    }
 
     // Install n8n platform (optional)
     if (options.withN8n) {
@@ -285,6 +324,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       kiroSkills,
       kiroHooks,
       platformsConfigured,
+      browserEngine,
     };
   }
 

@@ -20,6 +20,22 @@ validation:
 
 # Observability Testing Patterns
 
+## Browser engine
+
+Dashboard screenshot validation and alert-UI verification go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Typical dashboard regression workflow:
+
+```bash
+vibium go "$GRAFANA_URL/d/api-latency"
+vibium wait load
+node .claude/skills/qe-browser/scripts/assert.js --checks '[
+  {"kind": "selector_visible", "selector": ".panel-title"},
+  {"kind": "no_console_errors"},
+  {"kind": "no_failed_requests"},
+  {"kind": "element_count", "selector": ".panel", "op": ">=", "count": 4}
+]'
+node .claude/skills/qe-browser/scripts/visual-diff.js --name "grafana-api-latency"
+```
+
 <default_to_action>
 When testing observability infrastructure, dashboards, or monitoring:
 1. VALIDATE data accuracy (source data matches what the dashboard displays)
