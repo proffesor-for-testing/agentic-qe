@@ -34,6 +34,13 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# Least-privilege GITHUB_TOKEN: this workflow only reads the repo to
+# checkout + run scripts. It does not write anything, does not comment
+# on PRs, does not create issues. Matches the pattern used by
+# npm-publish.yml, coherence.yml, benchmark.yml.
+permissions:
+  contents: read
+
 jobs:
   mirror-reachability:
     name: A — mirror URLs reachable + sha256 match (FORCE_MIRROR=1)
