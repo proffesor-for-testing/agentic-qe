@@ -129,10 +129,18 @@ for i in $(seq 0 $((fixture_count - 1))); do
   #    Mirror is only consulted after primary has been attempted (or when
   #    AQE_CORPUS_FORCE_MIRROR=1). A successful fallback logs a loud
   #    WARNING so CI logs surface codeload drift even when the job is green.
+  #
+  #    IMPORTANT: under `set -e`, a bare non-zero function return triggers
+  #    errexit BEFORE the next line can capture $?. Using `if func; then`
+  #    exempts the call from errexit so we can actually read the return
+  #    code and fall through to the mirror path.
   rc=99
   if [[ "${FORCE_MIRROR}" != "1" ]]; then
-    download_and_verify "${url}" "${sha256}" "${cache_path}" "primary"
-    rc=$?
+    if download_and_verify "${url}" "${sha256}" "${cache_path}" "primary"; then
+      rc=0
+    else
+      rc=$?
+    fi
   fi
 
   if [[ "${rc}" -ne 0 ]]; then
@@ -160,8 +168,12 @@ for i in $(seq 0 $((fixture_count - 1))); do
       fi
     fi
 
-    download_and_verify "${mirror_url}" "${sha256}" "${cache_path}" "mirror"
-    mrc=$?
+    # Same set -e exemption as the primary call above.
+    if download_and_verify "${mirror_url}" "${sha256}" "${cache_path}" "mirror"; then
+      mrc=0
+    else
+      mrc=$?
+    fi
     if [[ "${mrc}" -eq 1 ]]; then
       echo "[corpus]   ERROR: mirror download also failed for ${id} (${mirror_url})" >&2
       download_failures=$((download_failures + 1))
