@@ -140,60 +140,71 @@ function runBrowserSideCheck(check) {
   }
 }
 
+// Sentinel returned by console/network checks when the underlying vibium
+// command fails. Tests and callers can distinguish "check actually passed"
+// from "we couldn't tell" by looking at result.unavailable. assert.js treats
+// unavailable as a FAIL — per feedback_no_unverified_failure_modes.md,
+// silently reporting green when the signal is missing is a prohibited
+// failure mode.
+function unavailable(err) {
+  return {
+    ok: false,
+    unavailable: true,
+    actual: null,
+    message: `vibium telemetry unavailable: ${err.message || err}`,
+  };
+}
+
 function runConsoleCheck(kind, check) {
+  let raw;
   try {
-    // `vibium console` returns an array of console entries when available.
-    // Fall back to an empty list if the command isn't supported in this version.
-    const raw = vibiumJson(['console', '--json']);
-    const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
-    if (kind === 'no_console_errors') {
-      const errors = entries.filter((e) =>
-        ['error', 'severe'].includes(String(e.level || e.type || '').toLowerCase())
-      );
-      return { ok: errors.length === 0, actual: errors.length };
-    }
-    if (kind === 'console_message_matches') {
-      const re = new RegExp(check.pattern);
-      const match = entries.find((e) => re.test(String(e.message || e.text || '')));
-      return { ok: Boolean(match), actual: match ? match.message || match.text : null };
-    }
-    return { ok: false, actual: 'unknown console kind' };
+    raw = vibiumJson(['console', '--json']);
   } catch (err) {
-    // Console buffer may not exist yet — treat as "no errors" for no_console_errors,
-    // "no match" for console_message_matches. This is conservative but avoids false negatives.
-    if (kind === 'no_console_errors') return { ok: true, actual: 0, note: err.message };
-    return { ok: false, actual: err.message };
+    return unavailable(err);
   }
+  const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
+  if (kind === 'no_console_errors') {
+    const errors = entries.filter((e) =>
+      ['error', 'severe'].includes(String(e.level || e.type || '').toLowerCase())
+    );
+    return { ok: errors.length === 0, actual: errors.length };
+  }
+  if (kind === 'console_message_matches') {
+    const re = new RegExp(check.pattern);
+    const match = entries.find((e) => re.test(String(e.message || e.text || '')));
+    return { ok: Boolean(match), actual: match ? match.message || match.text : null };
+  }
+  return { ok: false, actual: 'unknown console kind' };
 }
 
 function runNetworkCheck(kind, check) {
+  let raw;
   try {
-    const raw = vibiumJson(['network', '--json']);
-    const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
-    if (kind === 'no_failed_requests') {
-      const failed = entries.filter((e) => {
-        const status = Number(e.status || 0);
-        return status >= 400 || e.failed === true || e.error;
-      });
-      return { ok: failed.length === 0, actual: failed.length };
-    }
-    if (kind === 'response_status') {
-      const hit = entries.find((e) => String(e.url || '').includes(check.url));
-      if (!hit) return { ok: false, actual: 'url not seen' };
-      return {
-        ok: Number(hit.status) === Number(check.status),
-        actual: Number(hit.status),
-      };
-    }
-    if (kind === 'request_url_seen') {
-      const hit = entries.find((e) => String(e.url || '').includes(check.url));
-      return { ok: Boolean(hit), actual: hit ? hit.url : null };
-    }
-    return { ok: false, actual: 'unknown network kind' };
+    raw = vibiumJson(['network', '--json']);
   } catch (err) {
-    if (kind === 'no_failed_requests') return { ok: true, actual: 0, note: err.message };
-    return { ok: false, actual: err.message };
+    return unavailable(err);
   }
+  const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
+  if (kind === 'no_failed_requests') {
+    const failed = entries.filter((e) => {
+      const status = Number(e.status || 0);
+      return status >= 400 || e.failed === true || e.error;
+    });
+    return { ok: failed.length === 0, actual: failed.length };
+  }
+  if (kind === 'response_status') {
+    const hit = entries.find((e) => String(e.url || '').includes(check.url));
+    if (!hit) return { ok: false, actual: 'url not seen' };
+    return {
+      ok: Number(hit.status) === Number(check.status),
+      actual: Number(hit.status),
+    };
+  }
+  if (kind === 'request_url_seen') {
+    const hit = entries.find((e) => String(e.url || '').includes(check.url));
+    return { ok: Boolean(hit), actual: hit ? hit.url : null };
+  }
+  return { ok: false, actual: 'unknown network kind' };
 }
 
 function runCheck(check) {
@@ -221,13 +232,29 @@ function runCheck(check) {
     result = runBrowserSideCheck(check);
   }
 
+  // Use ?? instead of || so falsy-but-valid values (count: 0, url: '',
+  // value: '') are preserved in the expected field. The old || chain
+  // silently converted them to null, which made debug output misleading.
+  const expected =
+    check.text ??
+    check.url ??
+    check.value ??
+    check.pattern ??
+    check.count ??
+    null;
+
   return {
     kind: check.kind,
     passed: Boolean(result && result.ok),
+    unavailable: Boolean(result && result.unavailable),
     actual: result ? result.actual : null,
-    expected:
-      check.text || check.url || check.value || check.pattern || check.count || null,
-    message: result && result.note ? result.note : undefined,
+    expected,
+    message:
+      result && result.message
+        ? result.message
+        : result && result.note
+        ? result.note
+        : undefined,
   };
 }
 
@@ -251,12 +278,15 @@ function main() {
   const results = checks.map(runCheck);
   const passed = results.filter((r) => r.passed).length;
   const failed = results.length - passed;
+  const unavailable = results.filter((r) => r.unavailable).length;
 
   const env = envelope({
     operation: 'assert',
     summary:
       failed === 0
         ? `All ${passed} assertions passed`
+        : unavailable > 0
+        ? `${failed} of ${results.length} assertions failed (${unavailable} due to vibium telemetry unavailable)`
         : `${failed} of ${results.length} assertions failed`,
     status: failed === 0 ? 'success' : 'failed',
     details: {
@@ -272,4 +302,4 @@ if (require.main === module) {
   process.exit(main());
 }
 
-module.exports = { runCheck, CHECK_KINDS, buildEvalScript };
+module.exports = { runCheck, CHECK_KINDS, buildEvalScript, unavailable };

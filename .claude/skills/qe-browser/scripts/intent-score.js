@@ -258,7 +258,12 @@ const SCORER_JS = `
 function buildScript(intent, scope) {
   const intentJson = JSON.stringify(intent);
   const scopeJson = scope ? JSON.stringify(scope) : 'null';
-  const body = SCORER_JS.replace('__INTENT__', intentJson).replace('__SCOPE__', scopeJson);
+  // Use split/join instead of String.prototype.replace because the second
+  // argument of .replace is a *replacement string* where $&, $`, $', $1-$9
+  // have special meaning. JSON.stringify output can contain those sequences
+  // (e.g. a selector like `div[data-x="$amount"]`) which would otherwise
+  // corrupt the generated script. split/join does a literal substitution.
+  const body = SCORER_JS.split('__INTENT__').join(intentJson).split('__SCOPE__').join(scopeJson);
   return `console.log(JSON.stringify(${body}));`;
 }
 

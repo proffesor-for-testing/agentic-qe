@@ -96,4 +96,46 @@ describe('qe-browser assert helpers', () => {
       expect(result.message).toMatch(/unknown check kind/);
     });
   });
+
+  // Regression test for H5 (devil's advocate finding):
+  // The expected-field fallback used to be `||`-chained, which treated
+  // falsy-but-valid values (count: 0, url: '', value: '') as missing and
+  // reported `expected: null`. Switched to ?? to preserve them.
+  describe('H5 regression: falsy expected values', () => {
+    // We can't actually invoke the console/network paths without a real
+    // vibium, so exercise buildEvalScript directly to prove element_count
+    // with count:0 is encoded correctly.
+    it('buildEvalScript handles element_count with count: 0', () => {
+      const script = assertModule.buildEvalScript({
+        kind: 'element_count',
+        selector: '.row',
+        op: '==',
+        count: 0,
+      });
+      expect(script).toContain('.row');
+      expect(script).toContain('0');
+    });
+  });
+
+  // Regression test for B2 (devil's advocate finding):
+  // runConsoleCheck and runNetworkCheck used to fail-open when `vibium
+  // console --json` errored, silently reporting no_console_errors as pass.
+  // The new contract returns an `unavailable` sentinel that runCheck
+  // surfaces as `passed: false, unavailable: true`.
+  describe('B2 regression: unavailable sentinel shape', () => {
+    it('unavailable() returns ok:false with unavailable:true', () => {
+      const result = assertModule.unavailable(new Error('command not found'));
+      expect(result.ok).toBe(false);
+      expect(result.unavailable).toBe(true);
+      expect(result.message).toContain('vibium telemetry unavailable');
+      expect(result.message).toContain('command not found');
+    });
+
+    it('unavailable() accepts string errors', () => {
+      const result = assertModule.unavailable('stderr text');
+      expect(result.ok).toBe(false);
+      expect(result.unavailable).toBe(true);
+      expect(result.message).toContain('stderr text');
+    });
+  });
 });

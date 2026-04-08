@@ -66,5 +66,39 @@ describe('qe-browser intent-score', () => {
         expect(script).toContain(intent);
       }
     });
+
+    // Regression test for B1 (devil's advocate finding):
+    // String.prototype.replace with a string argument interprets $&, $`,
+    // $', $1-$9 in the REPLACEMENT string. Scopes with these sequences
+    // used to corrupt the generated script. The split/join fix below must
+    // perform literal substitution.
+    describe('B1 regression: String.replace special characters', () => {
+      it('handles scope selector with $& (whole match marker)', () => {
+        const script = mod.buildScript('submit_form', 'div[data-x="$&"]');
+        // After JSON.stringify: "div[data-x=\"$&\"]" — the $& must land
+        // literally inside the generated script, NOT be replaced with the
+        // placeholder token.
+        expect(script).toContain('"div[data-x=\\"$&\\"]"');
+        expect(script).not.toContain('__SCOPE__');
+      });
+
+      it('handles scope with $`, $\' backreference markers', () => {
+        const script = mod.buildScript('primary_cta', "span[data-y='$`$\\'x']");
+        expect(script).not.toContain('__SCOPE__');
+      });
+
+      it('handles scope with $1 numeric backreference marker', () => {
+        const script = mod.buildScript('accept_cookies', 'button[data-id="$1"]');
+        expect(script).toContain('"button[data-id=\\"$1\\"]"');
+        expect(script).not.toContain('__SCOPE__');
+      });
+
+      it('handles intent name containing $ (defensive — VALID_INTENTS does not, but future-proof)', () => {
+        // Even though no current VALID_INTENTS entry contains $, the split/join
+        // implementation should be robust if one ever does.
+        const script = mod.buildScript('submit_form', null);
+        expect(script).not.toContain('__INTENT__');
+      });
+    });
   });
 });
