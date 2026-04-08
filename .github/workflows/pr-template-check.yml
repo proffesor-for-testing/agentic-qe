@@ -1,0 +1,157 @@
+# pr-template-check
+#
+# Enforces the load-bearing failure-modes checkbox and forbidden-phrase
+# rules from issue #401 against every PR body. Refs: #401, #408.
+#
+# Two jobs:
+#
+#   1. lint-pr-body — reads github.event.pull_request.body, writes it
+#      to a temp file, and runs scripts/check-pr-body.cjs against it.
+#      Hard fails on unchecked/missing checkbox or untracked forbidden
+#      phrase. Skipped for dependabot[bot] — its PRs don't use the
+#      human template and would fail every time.
+#
+#   2. self-test — runs the parser against every fixture in
+#      tests/fixtures/pr-body/*.md and asserts expected pass/fail.
+#      This is the load-bearing guard against "we broke our own
+#      linter" — without it, a regression in the parser would start
+#      silently passing bad PRs.
+#
+# Branch protection: this workflow is intentionally NOT required at
+# merge time on initial landing. Once it's been observed to behave
+# correctly on live PRs, promote `lint-pr-body` to a required status
+# check in repo settings (Settings → Branches → main → Require
+# status checks). The self-test job should also be required to
+# prevent parser regressions.
+#
+# Rollout rationale: see #408 — "Adding a required check disrupts
+# current contributors mid-flight. Better to land this in a follow-up
+# PR where the rollout can be coordinated."
+
+name: pr-template-check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+# Least-privilege GITHUB_TOKEN: read PR body, nothing else.
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint-pr-body:
+    name: Lint PR body (failure-modes checkbox + forbidden phrases)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Allowlist: dependabot PRs are machine-generated and don't use
+    # the human template. Skipping them avoids noise while still
+    # enforcing the rule on all human PRs.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write PR body to temp file
+        # Note: we pass the PR body through an env var rather than
+        # inline GitHub expression interpolation so body content with
+        # quotes, backticks, or dollar signs cannot cause shell
+        # injection into the workflow. See README of actions/github-script
+        # for the same pattern.
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          mkdir -p /tmp/pr-check
+          printf '%s' "$PR_BODY" > /tmp/pr-check/body.md
+          echo "--- PR body (${#PR_BODY} chars) ---"
+          head -40 /tmp/pr-check/body.md
+          echo "--- end preview ---"
+
+      - name: Run check-pr-body.cjs
+        run: |
+          node scripts/check-pr-body.cjs /tmp/pr-check/body.md
+
+  self-test:
+    name: Self-test parser against fixtures (catches parser regressions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run parser against every fixture, assert expected outcome
+        run: |
+          set -e
+          declare -A expected_exit
+          # Pipe-separated list of substrings that MUST all appear in
+          # stderr (for failing fixtures) or empty for passing ones.
+          declare -A expected_substrings
+
+          expected_exit[valid.md]=0
+          expected_exit[valid-with-tracked.md]=0
+          expected_exit[valid-edge-case-tracked.md]=0
+          expected_exit[invalid-unchecked.md]=1
+          expected_exit[invalid-missing-section.md]=1
+          expected_exit[invalid-forbidden-phrase.md]=1
+          expected_exit[invalid-unchecked-plus-forbidden.md]=1
+          expected_exit[invalid-highly-unlikely.md]=1
+          expected_exit[invalid-cant-see.md]=1
+          expected_exit[historical-v3.9.3.md]=1
+          expected_exit[historical-v3.9.3-quote.md]=1
+
+          expected_substrings[valid.md]=""
+          expected_substrings[valid-with-tracked.md]=""
+          expected_substrings[valid-edge-case-tracked.md]=""
+          expected_substrings[invalid-unchecked.md]="checkbox is present but unchecked"
+          expected_substrings[invalid-missing-section.md]="checkbox is missing from PR body"
+          expected_substrings[invalid-forbidden-phrase.md]="I believe it's unlikely"
+          # Both violations must be reported, not just the first
+          expected_substrings[invalid-unchecked-plus-forbidden.md]="checkbox is present but unchecked|I don't think this can happen"
+          expected_substrings[invalid-highly-unlikely.md]="highly unlikely"
+          expected_substrings[invalid-cant-see.md]="can't see how"
+          expected_substrings[historical-v3.9.3.md]="checkbox is missing from PR body"
+          expected_substrings[historical-v3.9.3-quote.md]="I believe it's unlikely"
+
+          pass=0; fail=0
+          for f in tests/fixtures/pr-body/*.md; do
+            name=$(basename "$f")
+            set +e
+            stdout=$(node scripts/check-pr-body.cjs "$f" 2>/tmp/stderr.out)
+            rc=$?
+            set -e
+            exp_rc="${expected_exit[$name]}"
+            exp_subs="${expected_substrings[$name]}"
+
+            ok=true; reason=""
+            if [[ "$rc" != "$exp_rc" ]]; then
+              ok=false
+              reason="exit $rc != expected $exp_rc"
+            elif [[ -n "$exp_subs" ]]; then
+              IFS='|' read -ra subs <<< "$exp_subs"
+              for sub in "${subs[@]}"; do
+                if ! grep -qF "$sub" /tmp/stderr.out; then
+                  ok=false
+                  reason="stderr missing expected substring: $sub"
+                  break
+                fi
+              done
+            else
+              if ! echo "$stdout" | grep -q "passes template checks"; then
+                ok=false
+                reason="stdout missing success message"
+              fi
+            fi
+
+            if $ok; then
+              echo "OK  $name"
+              pass=$((pass+1))
+            else
+              echo "ERR $name → $reason"
+              echo "    stdout: $stdout"
+              echo "    stderr: $(cat /tmp/stderr.out)"
+              fail=$((fail+1))
+            fi
+          done
+          echo ""
+          echo "Total: $pass passed, $fail failed"
+          [[ $fail -eq 0 ]]
