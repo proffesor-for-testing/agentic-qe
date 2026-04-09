@@ -129,12 +129,31 @@ function envelope({ operation, summary, status = 'success', details = {}, metada
   };
 }
 
+// parseArgs supports both `--key value` and `--key=value` forms.
+//
+// M5 (devil's-advocate finding): the previous implementation only handled
+// the space-separated form. A user typing `--threshold=0.5` got
+// `args['threshold=0.5'] = true` and a separate `args.threshold` was never
+// set, so the value silently defaulted. The equals form is the dominant
+// idiom in npm/node CLIs (`node --inspect=9229`), so we accept both. When
+// the next token is itself a flag (`--include-hidden --json`) we treat the
+// current flag as boolean — the same behavior as before.
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith('--')) continue;
-    const key = token.slice(2);
+    const stripped = token.slice(2);
+    // --key=value form: split on first '=' only so values containing '='
+    // (URLs, regex with capture group names, base64) survive intact.
+    const eqIdx = stripped.indexOf('=');
+    if (eqIdx !== -1) {
+      const key = stripped.slice(0, eqIdx);
+      const value = stripped.slice(eqIdx + 1);
+      args[key] = value;
+      continue;
+    }
+    const key = stripped;
     const next = argv[i + 1];
     if (next === undefined || next.startsWith('--')) {
       args[key] = true;

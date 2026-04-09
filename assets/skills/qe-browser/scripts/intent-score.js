@@ -90,7 +90,10 @@ const SCORER_JS = `
     },
     close_dialog(el, tag, type, text, role, aria) {
       let s = 0; const r = [];
-      if (/close|dismiss|cancel|\\u00d7|\\u2715|x/i.test(text || aria)) { s += 0.4; r.push('close text'); }
+      // M7: anchor bare 'x' with word boundaries so we don't match
+      // "fix", "exit", "extra", "sixteen". The unicode multiplication
+      // sign (U+00D7) and small x (U+2715) are unaffected.
+      if (/close|dismiss|cancel|\\u00d7|\\u2715|\\bx\\b/i.test(text || aria)) { s += 0.4; r.push('close text'); }
       if (el.closest('dialog, [role=dialog], [role=alertdialog], .modal')) { s += 0.3; r.push('in dialog'); }
       if (aria && /close|dismiss/i.test(aria)) { s += 0.2; r.push('aria close'); }
       if (tag === 'button') { s += 0.05; r.push('is button'); }

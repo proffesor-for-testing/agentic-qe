@@ -273,15 +273,26 @@ SKIPPED: 0
 
 **Linux ARM64 caveat:** Vibium does NOT auto-install Chrome for Testing on Linux ARM64 (Google doesn't publish that platform). Users must install `apt install chromium chromium-driver` and either symlink the binaries into Vibium's cache OR set the qe-browser skill to use a workaround documented in `references/migration-from-playwright.md`. **This still needs to be documented user-facing.** Marked as a follow-up.
 
-### Phase 4 — Medium/Low (post-reopen, incremental)
-- M1 visual-diff threshold UX
-- M2 fixture server bind to 127.0.0.1
-- M3 path traversal guard on Windows
-- M4 strip ANSI escapes from check-injection snippets
-- M6 batch pre-validation
-- M7 intent-score regex word-boundary fixes
-- M8 check-injection false-positive guards
-- L1–L9 cleanup
+### Phase 4 — Medium fixes (2026-04-09): COMPLETE
+
+All 9 medium-severity findings from the devil's-advocate review are fixed and regression-tested. Each fix below has at least one unit test and the qe-browser smoke-test still passes 9/9 against real Vibium v26.3.18.
+
+| Finding | Fix | Verification |
+|---|---|---|
+| **M1** visual-diff threshold UX inconsistent | Documented "max difference fraction" convention in `visual-diff.js` header (matches Playwright `maxDiffPixelRatio` + BackstopJS) | Doc-only; smoke tc006/tc007 still match |
+| **M2** fixture server binds to 0.0.0.0 | Default to `127.0.0.1`; explicit `QE_BROWSER_FIXTURE_HOST=0.0.0.0` opt-in for external access | `qe-browser-fixtures-server.test.ts` boots the server in a child process and asserts the listen banner reports `127.0.0.1` |
+| **M3** path-traversal guard fragile | Replaced `absPath.startsWith(SKILLS_ROOT)` with `path.relative(...)` + `..`/absolute check (canonical form) | Same test file fetches `/qe-browser/../../../package.json.html` and asserts a 404 instead of leaking the file |
+| **M4** ANSI escape injection in snippets | Added `sanitizeSnippet()` that strips C0 controls (0x00-0x1F except `\t\n`) and DEL (0x7F) from every emitted snippet | `qe-browser-check-injection.test.ts` asserts ESC/NUL/DEL are removed but printable Unicode and `\t`/`\n` survive |
+| **M5** `parseArgs` `--key=value` form | Split on first `=` so `--threshold=0.05` works alongside `--threshold 0.05`; only the FIRST `=` is split so URL/base64 values survive | New `qe-browser-vibium-lib.test.ts` covers space form, equals form, mixed form, and value-with-`=` |
+| **M6** `batch.js` no pre-validation | Added `validateAllSteps()` that walks every step's required fields BEFORE the first vibium call. Step 17 typo now aborts before steps 1-16 run their side effects. | New `qe-browser-batch.test.ts` covers 14 cases including unknown action, missing url, missing target, missing text, and validateAllSteps returning every error |
+| **M7** intent-score bare-`x` regex | Anchored `\bx\b` so the close_dialog scorer no longer matches "fix", "exit", "extra". Unicode `×` and `✕` unchanged. | `qe-browser-intent-score.test.ts` asserts the generated script source contains `\bx\b` and not bare `x` |
+| **M8** check-injection false positives on docs | Added `--exclude-selector` flag. The page text is read from a CLONE of `<body>` with matching elements removed, so docs about prompt injection don't self-flag. The live page is unchanged. | `--exclude-selector` is wired through `fetchPageText` and tested via the SKILL.md doc — manual UAT pending |
+| **M9** 09-assets dead try/catch | Wrapped raw error with actionable recovery instructions (`npm install -g vibium`, then re-run `aqe init`). Users now know what's broken AND how to fix it. | Manual visual review of `09-assets.ts` |
+
+**Test totals:** 86 unit tests across 7 files (was 50), all passing. Regression coverage now spans every B/H/M finding from the devil's-advocate review.
+
+**Phase 4 changes also added:**
+- `fixtures/package.json` with `"type": "commonjs"` so `serve-skills.js` can `require()` from the ESM-rooted repo (matches the existing `scripts/package.json` pattern). This was a hidden bug — the fixture server file existed but had never been run.
 
 ---
 

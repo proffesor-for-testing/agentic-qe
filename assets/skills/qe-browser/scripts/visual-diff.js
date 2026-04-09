@@ -4,8 +4,18 @@
 // Usage:
 //   node visual-diff.js --name homepage
 //   node visual-diff.js --name homepage --threshold 0.02
-//   node visual-diff.js --name hero --selector "#hero"
+//   node visual-diff.js --name hero --selector "#hero"      # not supported in v26.3.x
 //   node visual-diff.js --name homepage --update-baseline
+//
+// THRESHOLD SEMANTICS (M1 — devil's-advocate finding):
+//   --threshold is the MAX FRACTION of pixels allowed to differ before the
+//   check fails. The default is 0.10 (10% of pixels may differ).
+//     - threshold 0.00 → require pixel-perfect match
+//     - threshold 0.02 → allow up to 2% pixel difference
+//     - threshold 0.50 → allow up to 50% pixel difference (very lax)
+//   Internally we compute `similarity = 1 - diffPixels / totalPixels` and
+//   pass when `similarity >= 1 - threshold`. This is the standard convention
+//   used by Playwright's `maxDiffPixelRatio` and BackstopJS.
 //
 // Baselines live in .aqe/visual-baselines/<sanitized-name>.png
 // Diff images (if pixelmatch available) go to .aqe/visual-baselines/<name>.diff.png

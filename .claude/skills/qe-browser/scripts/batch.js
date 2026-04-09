@@ -37,6 +37,87 @@ const {
   fail,
 } = require('./lib/vibium');
 
+// M6 (devil's-advocate finding): batch.js originally validated each step
+// lazily inside dispatch(), so a typo in step 17 only surfaced AFTER steps
+// 1-16 had already executed (with side effects on the live page). Add a
+// pre-execution validation pass that walks every step's required fields
+// and aborts before the first vibium call if anything is wrong.
+const VALID_ACTIONS = new Set([
+  'go',
+  'navigate',
+  'click',
+  'fill',
+  'type',
+  'press',
+  'wait_url',
+  'wait_text',
+  'wait_selector',
+  'wait_load',
+  'map',
+  'screenshot',
+  'storage_save',
+  'storage_restore',
+  'assert',
+]);
+
+function validateStep(step, index) {
+  if (!step || typeof step !== 'object') {
+    return `step ${index}: must be an object`;
+  }
+  const a = step.action;
+  if (!a) return `step ${index}: missing "action"`;
+  if (!VALID_ACTIONS.has(a)) {
+    return `step ${index}: unknown action "${a}". Valid: ${[...VALID_ACTIONS].join(', ')}`;
+  }
+  const target = step.ref || step.selector;
+  switch (a) {
+    case 'go':
+    case 'navigate':
+      if (!step.url) return `step ${index} (${a}): missing "url"`;
+      break;
+    case 'click':
+      if (!target) return `step ${index} (click): missing "ref" or "selector"`;
+      break;
+    case 'fill':
+    case 'type':
+      if (!target) return `step ${index} (${a}): missing "ref" or "selector"`;
+      if (typeof step.text !== 'string') return `step ${index} (${a}): "text" must be a string`;
+      break;
+    case 'press':
+      if (!step.key) return `step ${index} (press): missing "key"`;
+      break;
+    case 'wait_url':
+      if (!step.pattern) return `step ${index} (wait_url): missing "pattern"`;
+      break;
+    case 'wait_text':
+      if (!step.text) return `step ${index} (wait_text): missing "text"`;
+      break;
+    case 'wait_selector':
+      if (!step.selector) return `step ${index} (wait_selector): missing "selector"`;
+      break;
+    case 'storage_save':
+    case 'storage_restore':
+      if (!step.path) return `step ${index} (${a}): missing "path"`;
+      break;
+    case 'assert':
+      if (!Array.isArray(step.checks)) {
+        return `step ${index} (assert): "checks" must be an array`;
+      }
+      break;
+    // wait_load, map, screenshot have no required fields
+  }
+  return null;
+}
+
+function validateAllSteps(steps) {
+  const errors = [];
+  for (let i = 0; i < steps.length; i += 1) {
+    const err = validateStep(steps[i], i);
+    if (err) errors.push(err);
+  }
+  return errors;
+}
+
 function runVibium(args) {
   const result = vibium(args);
   if (result.status !== 0) {
@@ -145,6 +226,15 @@ function main() {
     return fail('batch', '--steps must be a JSON array');
   }
 
+  // M6: pre-validate all steps before executing any of them.
+  const validationErrors = validateAllSteps(steps);
+  if (validationErrors.length > 0) {
+    return fail(
+      'batch',
+      `${validationErrors.length} step(s) failed pre-validation: ${validationErrors.join('; ')}`
+    );
+  }
+
   const stopOnFailure = !args['continue-on-failure'];
   const summaryOnly = Boolean(args['summary-only']);
   const startedAt = Date.now();
@@ -192,4 +282,4 @@ if (require.main === module) {
   process.exit(main());
 }
 
-module.exports = { dispatch };
+module.exports = { dispatch, validateStep, validateAllSteps, VALID_ACTIONS };

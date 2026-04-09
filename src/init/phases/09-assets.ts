@@ -162,8 +162,15 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
           }
         }
       } catch (error) {
+        // M9 (devil's-advocate finding): the previous catch re-emitted the
+        // raw error with no recovery path. Tell the user what's broken
+        // AND how to recover so they aren't left guessing.
+        const msg = error instanceof Error ? error.message : String(error);
         context.services.warn(
-          `Browser engine install error: ${error instanceof Error ? error.message : String(error)}`
+          `Browser engine install error: ${msg}\n` +
+            `  qe-browser fleet skill will be unavailable until you run:\n` +
+            `    npm install -g vibium\n` +
+            `  Then re-run \`aqe init\` to verify. The rest of the AQE install will continue.`
         );
       }
     } else {

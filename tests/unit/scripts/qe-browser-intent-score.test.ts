@@ -71,6 +71,24 @@ describe('qe-browser intent-score', () => {
       }
     });
 
+    // M7 regression — devil's-advocate finding:
+    // The original close_dialog scorer used a bare /x/ in the alternation
+    // which would match "fix", "exit", "extra", "sixteen". We now anchor
+    // the bare letter with \\bx\\b. We can't run the scorer directly here
+    // (it executes inside the browser via vibium eval) so we assert against
+    // the generated script source.
+    describe('M7 regression: bare-x in close_dialog regex is word-anchored', () => {
+      it('contains \\bx\\b instead of bare x', () => {
+        const script = mod.buildScript('submit_form', null);
+        // The whole SCORER_JS body is included regardless of selected intent
+        // (the scorers map is built once and dispatched by name), so we can
+        // grep the close_dialog scorer source.
+        expect(script).toMatch(/\\bx\\b/);
+        // And no bare-x in the alternation any more:
+        expect(script).not.toMatch(/\|\u00d7\|\\u2715\|x\//);
+      });
+    });
+
     // Regression test for B1 (devil's advocate finding):
     // String.prototype.replace with a string argument interprets $&, $`,
     // $', $1-$9 in the REPLACEMENT string. Scopes with these sequences

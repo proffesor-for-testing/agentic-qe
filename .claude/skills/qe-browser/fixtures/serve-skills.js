@@ -9,7 +9,9 @@
 // our own skill docs (which ship with every version) so the fixture can never
 // drift out of sync with what we ship.
 //
-// Usage: `node serve-skills.js` — binds to 0.0.0.0:8088 by default.
+// Usage: `node serve-skills.js` — binds to 127.0.0.1:8088 by default.
+//        `QE_BROWSER_FIXTURE_HOST=0.0.0.0 node serve-skills.js` to expose
+//        externally (M2: explicit opt-in only — never default to all interfaces).
 
 'use strict';
 
@@ -19,6 +21,11 @@ const path = require('node:path');
 const url = require('node:url');
 
 const PORT = Number(process.env.QE_BROWSER_FIXTURE_PORT || 8088);
+// M2 (devil's-advocate finding): default to loopback only. Codespaces and
+// shared dev hosts auto-forward 0.0.0.0 ports to the public preview URL,
+// which would have made every fixture run an inadvertent open server.
+// Users who genuinely need external access opt in via env var.
+const HOST = process.env.QE_BROWSER_FIXTURE_HOST || '127.0.0.1';
 const SKILLS_ROOT = path.resolve(__dirname, '..', '..');
 
 function escapeHtml(text) {
@@ -92,7 +99,14 @@ function serve(req, res) {
   if (pathname.endsWith('.html')) {
     const mdPath = pathname.replace(/\.html$/, '');
     const absPath = path.resolve(SKILLS_ROOT, '.' + mdPath);
-    if (!absPath.startsWith(SKILLS_ROOT)) {
+    // M3 (devil's-advocate finding): startsWith() is fragile on Windows
+    // (mixed `\` and `/` separators, short-name paths) and even on POSIX
+    // it false-passes on sibling dirs that share a prefix
+    // (`/foo/bar` vs `/foo/bar2`). path.relative() is the canonical
+    // traversal guard: a relative result starting with `..` or being
+    // absolute means the target escaped the root.
+    const rel = path.relative(SKILLS_ROOT, absPath);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
       notFound(res, 'path traversal blocked');
       return;
     }
@@ -111,6 +125,6 @@ function serve(req, res) {
 }
 
 const server = http.createServer(serve);
-server.listen(PORT, '0.0.0.0', () => {
-  process.stdout.write(`qe-browser fixtures listening on http://0.0.0.0:${PORT}\n`);
+server.listen(PORT, HOST, () => {
+  process.stdout.write(`qe-browser fixtures listening on http://${HOST}:${PORT}\n`);
 });

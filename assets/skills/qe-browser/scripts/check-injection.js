@@ -9,6 +9,13 @@
 //   node check-injection.js
 //   node check-injection.js --include-hidden
 //   node check-injection.js --json
+//   node check-injection.js --exclude-selector "main, .docs-content"
+//
+// M8 (devil's-advocate finding): the regex patterns match anywhere in the
+// page, including legitimate documentation that talks ABOUT prompt injection.
+// `--exclude-selector` lets callers drop subtrees from the scan (typically
+// used to exclude documentation/markdown bodies on docs sites). Pass a CSS
+// selector list — every matched element's text is removed before scanning.
 
 'use strict';
 
@@ -109,6 +116,17 @@ const PATTERNS = [
   },
 ];
 
+// M4 (devil's-advocate finding): scanned page text can contain ANSI escape
+// sequences, NUL bytes, or other terminal-control characters. Embedding
+// those verbatim in the JSON snippet means a `cat findings.json` could
+// reposition the cursor, change colors, or trigger terminal exploits. We
+// strip C0 controls (0x00-0x1F except \t \n) and DEL (0x7F) before emitting.
+// We deliberately keep \t and \n so multi-line snippets remain readable.
+function sanitizeSnippet(text) {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
 function scanText(text, hidden) {
   const findings = [];
   for (const pat of PATTERNS) {
@@ -117,11 +135,12 @@ function scanText(text, hidden) {
       const idx = match.index || 0;
       const start = Math.max(0, idx - 40);
       const end = Math.min(text.length, idx + match[0].length + 40);
+      const rawSnippet = text.slice(start, end).replace(/\s+/g, ' ').trim();
       findings.push({
         pattern: pat.name,
         severity: pat.severity,
         description: pat.description,
-        snippet: text.slice(start, end).replace(/\s+/g, ' ').trim(),
+        snippet: sanitizeSnippet(rawSnippet),
         hidden,
       });
     }
@@ -143,7 +162,7 @@ function aggregateSeverity(findings) {
   return top;
 }
 
-function fetchPageText(includeHidden) {
+function fetchPageText(includeHidden, excludeSelector) {
   // Return both visible and (optionally) full text-content via vibium eval.
   // We pull both so we can tag findings with `hidden: true/false`.
   //
@@ -154,15 +173,34 @@ function fetchPageText(includeHidden) {
   // each comment in `<!-- ... -->` before adding it to the hidden bucket so
   // the comment-pattern actually matches.
   //
+  // M8 (devil's-advocate finding): excludeSelector lets callers strip
+  // subtrees (typically documentation bodies) from BOTH the visible and
+  // hidden text before scanning, so docs about prompt injection don't
+  // self-flag. We clone the body, remove matching elements, and read text
+  // from the clone — leaving the live page unchanged.
+  //
   // Vibium eval returns the LAST EXPRESSION's value, not console.log
   // output, so we wrap our payload in JSON.stringify and let
   // lib/vibium.js's unwrapEvalResult parse it back into an object.
+  const excludeJson = excludeSelector ? JSON.stringify(excludeSelector) : 'null';
   const script = `
     (function() {
-      var visible = document.body ? document.body.innerText : '';
-      var full = document.body ? document.body.textContent : '';
+      var body = document.body;
+      var excludeSel = ${excludeJson};
+      var workBody = body;
+      if (excludeSel && body) {
+        workBody = body.cloneNode(true);
+        try {
+          var toRemove = workBody.querySelectorAll(excludeSel);
+          for (var i = 0; i < toRemove.length; i++) {
+            toRemove[i].parentNode && toRemove[i].parentNode.removeChild(toRemove[i]);
+          }
+        } catch (e) { /* invalid selector — fall back to full body */ }
+      }
+      var visible = workBody ? workBody.innerText : '';
+      var full = workBody ? workBody.textContent : '';
       var comments = [];
-      var walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_COMMENT, null);
+      var walker = document.createTreeWalker(workBody || document, NodeFilter.SHOW_COMMENT, null);
       var n;
       while ((n = walker.nextNode())) {
         comments.push('<!-- ' + n.textContent + ' -->');
@@ -177,10 +215,14 @@ function fetchPageText(includeHidden) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const includeHidden = Boolean(args['include-hidden']);
+  // M8: --exclude-selector takes a CSS selector list; matching elements are
+  // dropped from the scan so docs about prompt injection don't self-flag.
+  const excludeSelector =
+    typeof args['exclude-selector'] === 'string' ? args['exclude-selector'] : null;
   const startedAt = Date.now();
 
   try {
-    const { visible, hidden } = fetchPageText(includeHidden);
+    const { visible, hidden } = fetchPageText(includeHidden, excludeSelector);
     const findings = [
       ...scanText(visible || '', false),
       ...scanText(hidden || '', true),
@@ -219,4 +261,4 @@ if (require.main === module) {
   process.exit(main());
 }
 
-module.exports = { scanText, PATTERNS, aggregateSeverity };
+module.exports = { scanText, PATTERNS, aggregateSeverity, sanitizeSnippet };
