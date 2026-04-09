@@ -117,6 +117,51 @@ describe('qe-browser assert helpers', () => {
     });
   });
 
+  // CodeQL js/regex-injection fix — safeRegex guards RegExp construction
+  // from user-supplied `--checks` pattern strings against ReDoS by capping
+  // length and catching invalid syntax. Required by CodeQL on PR #421.
+  describe('CodeQL regression: safeRegex guards user patterns', () => {
+    it('exports safeRegex and MAX_REGEX_PATTERN_LENGTH', () => {
+      expect(typeof assertModule.safeRegex).toBe('function');
+      expect(typeof assertModule.MAX_REGEX_PATTERN_LENGTH).toBe('number');
+      expect(assertModule.MAX_REGEX_PATTERN_LENGTH).toBeGreaterThanOrEqual(1024);
+    });
+
+    it('returns a working RegExp for normal input', () => {
+      const { re, error } = assertModule.safeRegex('^hello\\s+world$');
+      expect(error).toBeNull();
+      expect(re).toBeInstanceOf(RegExp);
+      expect(re.test('hello world')).toBe(true);
+      expect(re.test('bye')).toBe(false);
+    });
+
+    it('rejects non-string input', () => {
+      const { re, error } = assertModule.safeRegex(42);
+      expect(re).toBeNull();
+      expect(error).toMatch(/pattern must be a string/);
+    });
+
+    it('rejects invalid regex syntax without throwing', () => {
+      const { re, error } = assertModule.safeRegex('(unclosed');
+      expect(re).toBeNull();
+      expect(error).toMatch(/invalid regex/);
+    });
+
+    it('rejects patterns longer than MAX_REGEX_PATTERN_LENGTH', () => {
+      const long = 'a'.repeat(assertModule.MAX_REGEX_PATTERN_LENGTH + 1);
+      const { re, error } = assertModule.safeRegex(long);
+      expect(re).toBeNull();
+      expect(error).toMatch(/pattern too long/);
+    });
+
+    it('accepts exactly MAX_REGEX_PATTERN_LENGTH characters', () => {
+      const maxed = 'a'.repeat(assertModule.MAX_REGEX_PATTERN_LENGTH);
+      const { re, error } = assertModule.safeRegex(maxed);
+      expect(error).toBeNull();
+      expect(re).toBeInstanceOf(RegExp);
+    });
+  });
+
   // Regression test for B2 (devil's advocate finding):
   // runConsoleCheck and runNetworkCheck used to fail-open when `vibium
   // console --json` errored, silently reporting no_console_errors as pass.

@@ -23,6 +23,34 @@ const {
   rethrowIfUnavailable,
 } = require('./lib/vibium');
 
+// Hard cap on regex pattern length to prevent pathological ReDoS input
+// (e.g. `(a+)+$` against a long string). 1024 chars is plenty for any
+// real test assertion. Enforced in runConsoleCheck and runBrowserSideCheck
+// before constructing a RegExp from user-supplied `check.pattern`.
+const MAX_REGEX_PATTERN_LENGTH = 1024;
+
+// safeRegex: construct a RegExp from user input, defensively. Returns
+// { re, error } — callers emit a failed check instead of crashing the
+// whole assertion pass. Covers CodeQL js/regex-injection on --checks
+// --pattern values (which come from the user's own command line, but
+// CodeQL correctly flags them as taint sources).
+function safeRegex(pattern) {
+  if (typeof pattern !== 'string') {
+    return { re: null, error: 'pattern must be a string' };
+  }
+  if (pattern.length > MAX_REGEX_PATTERN_LENGTH) {
+    return {
+      re: null,
+      error: `pattern too long (${pattern.length} > ${MAX_REGEX_PATTERN_LENGTH})`,
+    };
+  }
+  try {
+    return { re: new RegExp(pattern), error: null };
+  } catch (err) {
+    return { re: null, error: `invalid regex: ${err.message}` };
+  }
+}
+
 const CHECK_KINDS = new Set([
   'url_contains',
   'url_equals',
@@ -177,7 +205,8 @@ function runConsoleCheck(kind, check) {
     return { ok: errors.length === 0, actual: errors.length };
   }
   if (kind === 'console_message_matches') {
-    const re = new RegExp(check.pattern);
+    const { re, error } = safeRegex(check.pattern);
+    if (!re) return { ok: false, actual: error };
     const match = entries.find((e) => re.test(String(e.message || e.text || '')));
     return { ok: Boolean(match), actual: match ? match.message || match.text : null };
   }
@@ -313,4 +342,11 @@ if (require.main === module) {
   process.exit(runOrSkip('assert', main));
 }
 
-module.exports = { runCheck, CHECK_KINDS, buildEvalScript, unavailable };
+module.exports = {
+  runCheck,
+  CHECK_KINDS,
+  buildEvalScript,
+  unavailable,
+  safeRegex,
+  MAX_REGEX_PATTERN_LENGTH,
+};
