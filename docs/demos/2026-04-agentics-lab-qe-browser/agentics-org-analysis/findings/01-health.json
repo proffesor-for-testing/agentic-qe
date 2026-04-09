@@ -1,0 +1,86 @@
+{
+  "skillName": "qe-browser",
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T16:27:37.950Z",
+  "status": "failed",
+  "trustTier": 3,
+  "output": {
+    "operation": "assert",
+    "summary": "2 of 8 assertions failed (2 due to vibium telemetry unavailable)",
+    "assert": {
+      "passed": 6,
+      "failed": 2,
+      "results": [
+        {
+          "kind": "url_equals",
+          "passed": true,
+          "unavailable": false,
+          "actual": "https://agentics.org/",
+          "expected": "https://agentics.org/"
+        },
+        {
+          "kind": "title_matches",
+          "passed": true,
+          "unavailable": false,
+          "actual": "Agentics Foundation | Building the Future of Agentic AI",
+          "expected": "Agentic"
+        },
+        {
+          "kind": "selector_visible",
+          "passed": true,
+          "unavailable": false,
+          "actual": {
+            "width": 1280,
+            "height": 4017,
+            "display": "block"
+          },
+          "expected": null
+        },
+        {
+          "kind": "selector_visible",
+          "passed": true,
+          "unavailable": false,
+          "actual": {
+            "width": 1280,
+            "height": 64,
+            "display": "block"
+          },
+          "expected": null
+        },
+        {
+          "kind": "no_console_errors",
+          "passed": false,
+          "unavailable": true,
+          "actual": null,
+          "expected": null,
+          "message": "vibium telemetry unavailable: vibium console exited 1: Error: unknown command \"console\" for \"vibium\"\nRun 'vibium --help' for usage.\nunknown command \"console\" for \"vibium\"\nnode:child_process:964\n    throw err;\n    ^\n\nError: Command failed: vibium --headless console --json\n    at genericNodeError (node:internal/errors:985:15)\n    at wrappedFn (node:internal/errors:539:14)\n    at checkExecSyncError (node:child_process:925:11)\n    at execFileSync (node:child_process:961:15)\n    at Object.<anonymous> (/usr/local/share/nvm/versions/node/v24.13.0/lib/node_modules/vibium/bin/cli.js:26:1)\n    at Module._compile (node:internal/modules/cjs/loader:1761:14)\n    at Object..js (node:internal/modules/cjs/loader:1893:10)\n    at Module.load (node:internal/modules/cjs/loader:1481:32)\n    at Module._load (node:internal/modules/cjs/loader:1300:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:328:14) {\n  status: 1,\n  signal: null,\n  output: [ null, null, null ],\n  pid: 17694,\n  stdout: null,\n  stderr: null\n}\n\nNode.js v24.13.0"
+        },
+        {
+          "kind": "no_failed_requests",
+          "passed": false,
+          "unavailable": true,
+          "actual": null,
+          "expected": null,
+          "message": "vibium telemetry unavailable: vibium network exited 1: Error: unknown command \"network\" for \"vibium\"\nRun 'vibium --help' for usage.\nunknown command \"network\" for \"vibium\"\nnode:child_process:964\n    throw err;\n    ^\n\nError: Command failed: vibium --headless network --json\n    at genericNodeError (node:internal/errors:985:15)\n    at wrappedFn (node:internal/errors:539:14)\n    at checkExecSyncError (node:child_process:925:11)\n    at execFileSync (node:child_process:961:15)\n    at Object.<anonymous> (/usr/local/share/nvm/versions/node/v24.13.0/lib/node_modules/vibium/bin/cli.js:26:1)\n    at Module._compile (node:internal/modules/cjs/loader:1761:14)\n    at Object..js (node:internal/modules/cjs/loader:1893:10)\n    at Module.load (node:internal/modules/cjs/loader:1481:32)\n    at Module._load (node:internal/modules/cjs/loader:1300:12)\n    at TracingChannel.traceSync (node:diagnostics_channel:328:14) {\n  status: 1,\n  signal: null,\n  output: [ null, null, null ],\n  pid: 17706,\n  stdout: null,\n  stderr: null\n}\n\nNode.js v24.13.0"
+        },
+        {
+          "kind": "element_count",
+          "passed": true,
+          "unavailable": false,
+          "actual": 15,
+          "expected": 5
+        },
+        {
+          "kind": "element_count",
+          "passed": true,
+          "unavailable": false,
+          "actual": 1,
+          "expected": 1
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "executionTimeMs": 155
+  }
+}

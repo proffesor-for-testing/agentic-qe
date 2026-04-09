@@ -1,0 +1,22 @@
+{
+  "skillName": "qe-browser",
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T16:28:48.388Z",
+  "status": "success",
+  "trustTier": 3,
+  "output": {
+    "operation": "check-injection",
+    "summary": "No prompt-injection patterns detected",
+    "checkInjection": {
+      "findings": [],
+      "severity": "none",
+      "scanned": {
+        "visibleChars": 2074,
+        "hiddenChars": 2218
+      }
+    }
+  },
+  "metadata": {
+    "executionTimeMs": 63
+  }
+}

@@ -1,0 +1,15 @@
+=== intent: primary_cta ===
+  candidateCount: 21
+  score=0.500  button    selector=button:nth-of-type(1)                     text='Console'
+  score=0.500  a         selector=a:nth-of-type(8)                          text='Join the Community'
+  score=0.500  a         selector=a:nth-of-type(9)                          text='What is Agentic AI?'
+=== intent: main_content ===
+  candidateCount: 16
+  score=0.750  main      selector=main:nth-of-type(1)                       text='> Building the future of AIEstablished F'
+  score=0.150  div       selector=#root                                     text='ConsoleAboutCommunityProjectsTrainingAmb'
+  score=0.150  div       selector=div:nth-of-type(3)                        text='AboutCommunityProjectsTrainingAmbassador'
+=== intent: auth_action ===
+  candidateCount: 20
+  score=0.500  button    selector=button:nth-of-type(5)                     text='>_Login'
+  score=0.100  button    selector=button:nth-of-type(1)                     text='Console'
+  score=0.100  a         selector=a:nth-of-type(1)                          text=''

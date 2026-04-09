@@ -1,0 +1,24 @@
+{
+  "skillName": "qe-browser",
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T16:29:03.186Z",
+  "status": "success",
+  "trustTier": 3,
+  "output": {
+    "operation": "visual-diff",
+    "summary": "Baseline \"agentics-org-landing\" created",
+    "visualDiff": {
+      "name": "agentics-org-landing",
+      "status": "baseline_created",
+      "similarity": 1,
+      "diffPixelCount": 0,
+      "width": 1280,
+      "height": 4017,
+      "threshold": 0.1,
+      "baselinePath": "/workspaces/agentic-qe/.aqe/visual-baselines/agentics-org-landing.png"
+    }
+  },
+  "metadata": {
+    "executionTimeMs": 397
+  }
+}

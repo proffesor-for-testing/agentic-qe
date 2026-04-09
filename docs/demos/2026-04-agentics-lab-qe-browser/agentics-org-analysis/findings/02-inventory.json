@@ -1,0 +1,34 @@
+{
+  "url": "https://agentics.org/",
+  "title": "Agentics Foundation | Building the Future of Agentic AI",
+  "headings": {
+    "h1": 1,
+    "h2": 4,
+    "h3": 14
+  },
+  "links": {
+    "total": 15,
+    "external": 0,
+    "internal": 15
+  },
+  "forms": 0,
+  "inputs": 0,
+  "images": 1,
+  "buttons": 6,
+  "scripts": 8,
+  "stylesheets": 2,
+  "nav_text": [
+    "About",
+    "Projects",
+    "Ambassador",
+    "Leadership",
+    "Partners"
+  ],
+  "top_headings": [
+    "Welcome to the Era ofAgentic AI",
+    "Explore Agentics",
+    "What is Agentic AI?",
+    "Agentic Foundation's Paths of Impact",
+    "> Global Community"
+  ]
+}
