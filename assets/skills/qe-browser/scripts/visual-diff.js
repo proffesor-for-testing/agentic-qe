@@ -27,38 +27,45 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-// NOTE on `--selector` support:
-//   Scoped-region screenshots require passing a CSS selector to `vibium
-//   screenshot`. The current Vibium CLI reference documents `--full-page`
-//   and `-o` but does NOT document a `--selector` flag (as of v26.3.x). We
-//   forward it anyway — if Vibium supports it, great; if not, the spawn
-//   exits non-zero and we surface the error cleanly. We do NOT fake a
-//   fallback path here: silently substituting a full-page capture would
-//   produce wrong baselines. If your Vibium version rejects `--selector`,
-//   capture a full page screenshot and crop via `vibium eval` before
-//   calling visual-diff (documented in references/assertion-kinds.md).
+// Vibium screenshot quirks (verified against v26.3.18 on 2026-04-09):
+//   1. `vibium screenshot -o <path>` IGNORES the directory in <path>.
+//      Only the basename is used, and the file is saved to
+//      `~/Pictures/Vibium/<basename>`. We work around this by reading from
+//      Vibium's actual output dir and copying to the requested location.
+//   2. `--selector` flag does NOT exist on `vibium screenshot`. Selector-
+//      scoped baselines are not supported in v26.3.x. We surface a clear
+//      error if a caller passes one. Future Vibium versions may add it.
+function vibiumPicturesDir() {
+  // Vibium hardcodes ~/Pictures/Vibium as the screenshot output directory.
+  return path.join(process.env.HOME || '/home/vscode', 'Pictures', 'Vibium');
+}
+
 function captureScreenshot(selector, outputPath) {
-  const args = ['screenshot', '-o', outputPath, '--full-page'];
   if (selector) {
-    args.push('--selector', selector);
+    throw new Error(
+      'vibium screenshot --selector is not supported in Vibium v26.3.x. ' +
+      'Drop the --selector argument and crop the resulting full-page PNG with ' +
+      'a separate image-processing step (e.g. ImageMagick `convert -crop`). ' +
+      'Tracking upstream — if Vibium adds --selector support, this script ' +
+      'should switch to passing it through.'
+    );
   }
+  const basename = path.basename(outputPath);
+  const args = ['screenshot', '-o', basename, '--full-page'];
   const res = vibium(args);
   if (res.status !== 0) {
-    const stderr = res.stderr.trim();
-    const stdout = res.stdout.trim();
-    // Give selector-mode callers a clearer error so they don't wonder why
-    // the fallback they expected isn't there.
-    if (selector && /unknown flag|unrecognized|unexpected argument|--selector/i.test(stderr + stdout)) {
-      throw new Error(
-        `vibium screenshot --selector not supported in this Vibium version. ` +
-        `Capture full page and crop in qe-browser skill script instead. Upstream: ${stderr || stdout}`
-      );
-    }
-    throw new Error(`vibium screenshot failed: ${stderr || stdout}`);
+    throw new Error(`vibium screenshot failed: ${res.stderr.trim() || res.stdout.trim()}`);
   }
-  if (!fs.existsSync(outputPath)) {
-    throw new Error(`screenshot output not created: ${outputPath}`);
+  // Vibium wrote the file to ~/Pictures/Vibium/<basename>, not outputPath.
+  // Copy it to where the caller asked. Use copy-then-unlink so we leave
+  // Vibium's own dir clean for the next run.
+  const vibiumPath = path.join(vibiumPicturesDir(), basename);
+  if (!fs.existsSync(vibiumPath)) {
+    throw new Error(`screenshot output not created at ${vibiumPath} (vibium said: ${res.stdout.trim()})`);
   }
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.copyFileSync(vibiumPath, outputPath);
+  fs.unlinkSync(vibiumPath);
   return outputPath;
 }
 

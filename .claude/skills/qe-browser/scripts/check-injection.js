@@ -153,23 +153,25 @@ function fetchPageText(includeHidden) {
   // prefix, so it could never fire against the unwrapped text. Fix: re-wrap
   // each comment in `<!-- ... -->` before adding it to the hidden bucket so
   // the comment-pattern actually matches.
+  //
+  // Vibium eval returns the LAST EXPRESSION's value, not console.log
+  // output, so we wrap our payload in JSON.stringify and let
+  // lib/vibium.js's unwrapEvalResult parse it back into an object.
   const script = `
-    const visible = document.body ? document.body.innerText : '';
-    const full = document.body ? document.body.textContent : '';
-    const comments = [];
-    const walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_COMMENT, null);
-    let n;
-    while ((n = walker.nextNode())) {
-      // Re-wrap so the instructions_in_html_comment pattern can match.
-      comments.push('<!-- ' + n.textContent + ' -->');
-    }
-    const hidden = ${includeHidden ? 'full.replace(visible, "") + "\\n" + comments.join("\\n")' : '""'};
-    console.log(JSON.stringify({ visible, hidden }));
+    (function() {
+      var visible = document.body ? document.body.innerText : '';
+      var full = document.body ? document.body.textContent : '';
+      var comments = [];
+      var walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_COMMENT, null);
+      var n;
+      while ((n = walker.nextNode())) {
+        comments.push('<!-- ' + n.textContent + ' -->');
+      }
+      var hidden = ${includeHidden ? 'full.replace(visible, "") + "\\n" + comments.join("\\n")' : '""'};
+      return JSON.stringify({ visible: visible, hidden: hidden });
+    })()
   `;
-  const raw = vibiumEvalStdin(script);
-  if (typeof raw === 'string') return JSON.parse(raw);
-  if (raw && raw.__raw) return JSON.parse(raw.__raw);
-  return raw;
+  return vibiumEvalStdin(script) || { visible: '', hidden: '' };
 }
 
 function main() {

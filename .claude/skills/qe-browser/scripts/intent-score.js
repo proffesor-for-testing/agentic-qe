@@ -264,7 +264,10 @@ function buildScript(intent, scope) {
   // (e.g. a selector like `div[data-x="$amount"]`) which would otherwise
   // corrupt the generated script. split/join does a literal substitution.
   const body = SCORER_JS.split('__INTENT__').join(intentJson).split('__SCOPE__').join(scopeJson);
-  return `console.log(JSON.stringify(${body}));`;
+  // Vibium eval returns the last expression's value, not console.log output.
+  // Wrap in JSON.stringify so lib/vibium.js's unwrapEvalResult can JSON-parse
+  // the result string back into a real object on our side.
+  return `JSON.stringify(${body})`;
 }
 
 function main() {
@@ -281,9 +284,7 @@ function main() {
   const startedAt = Date.now();
 
   try {
-    const raw = vibiumEvalStdin(buildScript(intent, scope));
-    const payload =
-      typeof raw === 'string' ? JSON.parse(raw) : raw && raw.__raw ? JSON.parse(raw.__raw) : raw;
+    const payload = vibiumEvalStdin(buildScript(intent, scope));
     if (!payload || !Array.isArray(payload.candidates)) {
       throw new Error('scorer returned unexpected payload');
     }

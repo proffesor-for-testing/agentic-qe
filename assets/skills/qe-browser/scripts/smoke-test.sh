@@ -54,7 +54,7 @@ echo ""
 # ---------------------------------------------------------------------------
 # tc001 — assert.js url_contains against pinned httpbin form
 # ---------------------------------------------------------------------------
-vibium go https://httpbin.org/forms/post >/dev/null 2>&1 || true
+vibium --headless go https://httpbin.org/forms/post >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/assert.js" --checks \
   '[{"kind": "url_contains", "text": "httpbin.org/forms"}]' 2>&1)
 EXIT=$?
@@ -67,7 +67,7 @@ fi
 # ---------------------------------------------------------------------------
 # tc002 — assert.js selector_visible against pinned httpbin /html
 # ---------------------------------------------------------------------------
-vibium go https://httpbin.org/html >/dev/null 2>&1 || true
+vibium --headless go https://httpbin.org/html >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/assert.js" --checks \
   '[{"kind": "selector_visible", "selector": "h1"}]' 2>&1)
 EXIT=$?
@@ -116,9 +116,16 @@ fi
 
 # ---------------------------------------------------------------------------
 # tc006 — visual-diff.js creates baseline on first run
+#
+# Set explicit viewport BEFORE screenshot so the two visual-diff runs have
+# the same dimensions. Without this the chromium headless window picks
+# whatever size it likes per run, and httpbin.org/html renders at different
+# sizes between runs (768×654 vs 765×672 observed), making pixel-diff
+# spuriously fail. This is documented in references/assertion-kinds.md.
 # ---------------------------------------------------------------------------
 rm -rf "$PWD/.aqe/visual-baselines/smoke_test_baseline"*
-vibium go https://httpbin.org/html >/dev/null 2>&1 || true
+vibium --headless viewport 1280 720 >/dev/null 2>&1 || true
+vibium --headless go https://httpbin.org/html >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/visual-diff.js" --name smoke_test_baseline 2>&1)
 EXIT=$?
 if [ "$EXIT" = "0" ] && echo "$RESULT" | grep -q '"baseline_created"'; then
@@ -129,7 +136,10 @@ fi
 
 # ---------------------------------------------------------------------------
 # tc007 — visual-diff.js matches second identical run
+#
+# Force the same viewport before re-shooting so dimensions match the baseline.
 # ---------------------------------------------------------------------------
+vibium --headless viewport 1280 720 >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/visual-diff.js" --name smoke_test_baseline 2>&1)
 EXIT=$?
 if [ "$EXIT" = "0" ] && echo "$RESULT" | grep -qE '"(match|baseline_created)"'; then
@@ -141,7 +151,7 @@ fi
 # ---------------------------------------------------------------------------
 # tc008 — check-injection.js clean page
 # ---------------------------------------------------------------------------
-vibium go https://httpbin.org/html >/dev/null 2>&1 || true
+vibium --headless go https://httpbin.org/html >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/check-injection.js" --include-hidden 2>&1)
 EXIT=$?
 if [ "$EXIT" = "0" ] && echo "$RESULT" | grep -q '"severity": "none"'; then
@@ -153,7 +163,7 @@ fi
 # ---------------------------------------------------------------------------
 # tc010 — intent-score.js submit_form on pinned httpbin form
 # ---------------------------------------------------------------------------
-vibium go https://httpbin.org/forms/post >/dev/null 2>&1 || true
+vibium --headless go https://httpbin.org/forms/post >/dev/null 2>&1 || true
 RESULT=$(node "$SKILL_DIR/scripts/intent-score.js" --intent submit_form 2>&1)
 EXIT=$?
 if [ "$EXIT" = "0" ] && echo "$RESULT" | grep -q '"intent": "submit_form"'; then

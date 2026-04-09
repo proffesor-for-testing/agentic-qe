@@ -118,21 +118,14 @@ function buildEvalScript(check) {
 function runBrowserSideCheck(check) {
   const script = buildEvalScript(check);
   if (!script) return null;
-  const full = `console.log(${script});`;
+  // Pass the JSON.stringify expression directly — vibium eval returns the
+  // last expression's value, NOT console.log output. lib/vibium.js's
+  // unwrapEvalResult parses the {ok, result} envelope and JSON-decodes the
+  // string for us, so `payload` is already our object.
   try {
-    const result = vibiumEvalStdin(full);
-    // vibium eval --stdin --json returns the evaluated expression.
-    // We wrapped our expression in JSON.stringify, so `result` is likely a string.
-    const payload = typeof result === 'string' ? JSON.parse(result) : result;
+    const payload = vibiumEvalStdin(script);
     if (payload && typeof payload === 'object' && 'ok' in payload) {
       return payload;
-    }
-    if (payload && payload.__raw) {
-      try {
-        return JSON.parse(payload.__raw);
-      } catch (_e) {
-        return { ok: false, actual: payload.__raw };
-      }
     }
     return { ok: false, actual: payload };
   } catch (err) {

@@ -215,6 +215,64 @@ Ran in this codespace (`uname -m` = `aarch64`, host = Apple Silicon via Docker D
   - Both pass the H1-fixed semver-extraction path through `lib/vibium.js`'s `vibium()` helper
 - This is partial Phase 3 evidence: the script-level integration with the real `vibium` binary works for the failure paths.
 
+#### Phase 3 attempt 2 (2026-04-09): COMPLETE — 9/9 smoke tests passing
+
+After the user pushed back with "are you sure you checked newest vibium and chromium versions?", I re-verified upstream:
+- Vibium 26.3.18 IS the latest on npm (confirmed via `npm view vibium version`)
+- Chrome for Testing manifest (verified via `curl https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json`): all four channels (Stable v147.0.7727.56, Beta v148.0.7778.5, Dev v148.0.7766.3, Canary v149.0.7780.0) ship the same 5 platforms — `linux64, mac-arm64, mac-x64, win32, win64`. **No `linux-arm64` confirmed across all channels.**
+
+Then I noticed Debian's `chromium-driver` package (146.0.7680.177-1~deb12u1) IS available natively for ARM64 in apt, and built a workaround:
+
+1. `sudo apt-get install -y chromium chromium-driver` — installs native ARM64 `/usr/bin/chromium` (146.0.7680.177) and `/usr/bin/chromedriver` (146.0.7680.177)
+2. Symlinked Vibium's cached binaries to point at the system ones:
+   ```
+   ~/.cache/vibium/chrome-for-testing/147.0.7727.56/chromedriver → /usr/bin/chromedriver
+   ~/.cache/vibium/chrome-for-testing/147.0.7727.56/chrome → /usr/bin/chromium
+   ~/.cache/vibium/chrome-for-testing/146.0.7680.72/chromedriver-linux64/chromedriver → /usr/bin/chromedriver
+   ~/.cache/vibium/chrome-for-testing/146.0.7680.72/chrome-linux64/chrome → /usr/bin/chromium
+   ```
+3. Set `VIBIUM_HEADED` opt-out + always inject `--headless` from `lib/vibium.js` because Vibium defaults to "visible by default" and the codespace has no X server (chromium dies with `Missing X server or $DISPLAY`)
+
+**Real bugs found in qe-browser helpers (pre-existing, would have shipped broken):**
+
+1. **Helpers used `console.log(...)` to return data from `vibium eval --stdin --json`.** Vibium does NOT capture console.log — `eval` returns the LAST EXPRESSION's value. The actual response shape is `{"ok":true,"result":"<stringified value>"}` where `result` is a string when the expression returned a string. Fix: dropped `console.log()` wrappers from `assert.js`/`intent-score.js`/`check-injection.js`; added `unwrapEvalResult()` in `lib/vibium.js` that parses the new envelope and JSON-decodes the result string.
+
+2. **`lib/vibium.js` did not inject `--headless`.** Vibium defaults to visible browser, which fails in headless containers. Fix: `lib/vibium.js` now prepends `--headless` to every spawn unless `QE_BROWSER_HEADED=1` is set.
+
+3. **`vibium screenshot -o <abs/path>` IGNORES the directory** — only the basename is used, and the file lands in `~/Pictures/Vibium/<basename>`. Verified live. Fix: `visual-diff.js` now passes just the basename, then reads from `~/Pictures/Vibium/<basename>` and copies to the requested path before unlinking the source.
+
+4. **`vibium screenshot --selector` flag does NOT exist** in v26.3.x. Confirmed via `vibium screenshot --help`. Fix: `visual-diff.js` throws a clear error with remediation (`crop with ImageMagick`) if a caller passes `--selector`. The B3 fallback comment from Phase 1 is now accurate.
+
+5. **httpbin.org/html renders at non-deterministic dimensions** between runs (765×672 vs 780×654 observed) because the chromium headless window picks varying sizes. Fix: `smoke-test.sh` now calls `vibium viewport 1280 720` before each visual-diff capture so the dimensions are deterministic.
+
+**Final smoke test result (verbatim):**
+
+```
+Smoke testing against vibium v26.3.18
+Skill dir: /workspaces/agentic-qe/.claude/skills/qe-browser
+Work dir:  /tmp/tmp.NxFub1G1T3
+
+PASS  tc001 url_contains on httpbin form
+PASS  tc002 selector_visible h1 on httpbin /html
+PASS  tc003 failing assertion exits 1
+PASS  tc004 batch 3-step happy path
+PASS  tc005 batch stops on first failure
+PASS  tc006 visual-diff baseline created
+PASS  tc007 visual-diff second run matches
+PASS  tc008 check-injection clean page
+PASS  tc010 intent-score submit_form on httpbin form
+
+─────────────────────────────────
+PASS:    9
+FAIL:    0
+SKIPPED: 0
+─────────────────────────────────
+```
+
+**Phase 3 conclusion: VERIFIED.** All 9 smoke tests pass against real Vibium v26.3.18 + Chromium 146.0.7680.177 + httpbin.org pinned fixtures. The qe-browser helper scripts work end-to-end against a real installed `vibium` binary.
+
+**Linux ARM64 caveat:** Vibium does NOT auto-install Chrome for Testing on Linux ARM64 (Google doesn't publish that platform). Users must install `apt install chromium chromium-driver` and either symlink the binaries into Vibium's cache OR set the qe-browser skill to use a workaround documented in `references/migration-from-playwright.md`. **This still needs to be documented user-facing.** Marked as a follow-up.
+
 ### Phase 4 — Medium/Low (post-reopen, incremental)
 - M1 visual-diff threshold UX
 - M2 fixture server bind to 127.0.0.1

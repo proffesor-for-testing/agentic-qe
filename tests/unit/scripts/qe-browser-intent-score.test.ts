@@ -55,9 +55,13 @@ describe('qe-browser intent-score', () => {
     });
 
     it('wraps output in JSON.stringify for round-trip safety', () => {
+      // After the Phase 3 eval-contract fix: vibium eval returns the LAST
+      // expression's value (NOT console.log output), so we wrap in
+      // JSON.stringify and lib/vibium.js's unwrapEvalResult parses the
+      // result string back. console.log was wrong from the start.
       const script = mod.buildScript('search_field', null);
       expect(script).toContain('JSON.stringify');
-      expect(script).toContain('console.log');
+      expect(script).not.toContain('console.log');
     });
 
     it('contains all 15 scorer function names', () => {

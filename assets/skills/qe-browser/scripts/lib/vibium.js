@@ -14,8 +14,23 @@ const SKILL_NAME = 'qe-browser';
 const SKILL_VERSION = '1.0.0';
 const TRUST_TIER = 3;
 
+// Inject `--headless` into every vibium call by default. The qe-browser
+// helper scripts are designed for QE / CI use cases where there's no
+// display server, and Vibium defaults to "visible by default" which fails
+// in headless containers with "Missing X server or $DISPLAY". Users who
+// want a visible browser for interactive debugging should call vibium
+// directly, not through these helpers.
+//
+// Opt out by setting QE_BROWSER_HEADED=1 in the environment.
+function injectHeadless(args) {
+  if (process.env.QE_BROWSER_HEADED === '1') return args;
+  if (args.includes('--headless') || args.includes('--headed')) return args;
+  return ['--headless', ...args];
+}
+
 function vibium(args, { input, timeoutMs = 30000 } = {}) {
-  const result = spawnSync('vibium', args, {
+  const finalArgs = injectHeadless(args);
+  const result = spawnSync('vibium', finalArgs, {
     encoding: 'utf8',
     input,
     timeout: timeoutMs,
@@ -58,12 +73,44 @@ function vibiumJson(args, opts) {
   }
 }
 
+// Vibium's `eval` (with or without --stdin) returns the LAST EXPRESSION's
+// value, NOT console.log output. With --json the response shape is:
+//   { ok: true, result: "<stringified value>" }
+// where `result` is a STRING if the expression returned a string, or a
+// Go-side serialization if it returned a non-string object. So our scripts
+// MUST wrap their return value in JSON.stringify(...) and we parse the
+// `result` field as JSON ourselves to get a real JS object back.
+//
+// Verified on Vibium v26.3.18 (2026-04-09).
+function unwrapEvalResult(payload) {
+  if (payload === null || payload === undefined) return null;
+  // payload from vibiumJson is already a parsed object: { ok, result } or { __raw }
+  if (payload && typeof payload === 'object' && 'ok' in payload && 'result' in payload) {
+    if (payload.ok !== true) {
+      throw new Error(`vibium eval failed: ${JSON.stringify(payload)}`);
+    }
+    const result = payload.result;
+    if (typeof result === 'string') {
+      // The script wrapped its return value in JSON.stringify so parse it.
+      try {
+        return JSON.parse(result);
+      } catch (_e) {
+        return result;
+      }
+    }
+    return result;
+  }
+  return payload;
+}
+
 function vibiumEval(expression) {
-  return vibiumJson(['eval', '--json', expression]);
+  const raw = vibiumJson(['eval', '--json', expression]);
+  return unwrapEvalResult(raw);
 }
 
 function vibiumEvalStdin(script) {
-  return vibiumJson(['eval', '--stdin', '--json'], { input: script });
+  const raw = vibiumJson(['eval', '--stdin', '--json'], { input: script });
+  return unwrapEvalResult(raw);
 }
 
 function envelope({ operation, summary, status = 'success', details = {}, metadata = {} }) {
