@@ -92,6 +92,84 @@ node "$SKILL_DIR/scripts/batch.js" --steps '[
 ]'
 ```
 
+## Gotchas you'll hit during migration (verified 2026-04-09 against Vibium v26.3.18)
+
+These are the things that bit me when I ran the qe-browser smoke test against a real Vibium install for the first time. Save yourself some time:
+
+### 1. Vibium defaults to "visible browser" — fails in headless containers
+
+Running `vibium go https://example.com` on a CI container or codespace without `--headless` produces:
+```
+ERROR:ui/ozone/platform/x11/ozone_platform_x11.cc:256] Missing X server or $DISPLAY
+The platform failed to initialize.  Exiting.
+```
+
+The qe-browser helper scripts (`assert.js`, `batch.js`, `visual-diff.js`, `check-injection.js`, `intent-score.js`) automatically inject `--headless` for you. If you call `vibium` directly, pass it yourself:
+```bash
+vibium --headless go https://example.com
+```
+
+Opt out for interactive debugging via `QE_BROWSER_HEADED=1`.
+
+### 2. `vibium screenshot -o <abs/path>` ignores the directory
+
+`vibium screenshot -o /tmp/foo.png` saves to `~/Pictures/Vibium/foo.png`, NOT `/tmp/foo.png`. Only the basename is honored. The qe-browser `visual-diff.js` works around this — if you write your own script that calls `vibium screenshot`, expect to read from `~/Pictures/Vibium/<basename>` and copy to wherever you actually want the file.
+
+### 3. `vibium screenshot --selector` flag does NOT exist in v26.3.x
+
+Scoped-region screenshots are not supported. The qe-browser `visual-diff.js` throws a clear error if you pass `--selector`. To capture a region, take a full-page screenshot and crop it externally with ImageMagick:
+```bash
+convert /tmp/full.png -crop 400x300+100+200 /tmp/region.png
+```
+
+### 4. `vibium eval --stdin --json` returns the LAST EXPRESSION value, not console.log output
+
+Vibium's eval contract:
+- Input: a JS expression
+- Output (with `--json`): `{"ok":true,"result":"<stringified value>"}`
+
+The `result` field is a STRING when the expression returned a string, or a Go-side serialization of the BiDi RemoteValue map type when it returned an object directly. Always wrap your return value in `JSON.stringify(...)` and parse the `result` string back into an object on the Node side. The qe-browser `lib/vibium.js` `unwrapEvalResult()` does this for you.
+
+### 5. Linux ARM64 — Vibium has no Chrome to download
+
+Google Chrome for Testing does not publish a `linux-arm64` build. Vibium's `vibium install` falls back to `chrome-linux64` (x86_64), which fails under Rosetta on Apple Silicon Linux containers with `failed to open elf at /lib64/ld-linux-x86-64.so.2`.
+
+Workaround (verified on Debian bookworm aarch64):
+```bash
+sudo apt-get update
+sudo apt-get install -y chromium chromium-driver
+for dir in ~/.cache/vibium/chrome-for-testing/*/; do
+  if [ -e "$dir/chromedriver" ]; then
+    rm -f "$dir/chromedriver" "$dir/chrome"
+    ln -s /usr/bin/chromedriver "$dir/chromedriver"
+    ln -s /usr/bin/chromium     "$dir/chrome"
+  fi
+  if [ -e "$dir/chromedriver-linux64/chromedriver" ]; then
+    rm -f "$dir/chromedriver-linux64/chromedriver" "$dir/chrome-linux64/chrome"
+    ln -s /usr/bin/chromedriver "$dir/chromedriver-linux64/chromedriver"
+    ln -s /usr/bin/chromium     "$dir/chrome-linux64/chrome"
+  fi
+done
+vibium --headless go https://httpbin.org/html  # should succeed
+```
+
+When Vibium adds a `--browser-path` flag or Google ships `linux-arm64` Chrome for Testing, this workaround becomes obsolete.
+
+### 6. Visual-diff baselines need an explicit viewport for determinism
+
+`vibium` headless picks a varying window size between runs (765×672 vs 780×654 observed on httpbin.org/html). Pixel-diff against a baseline will fail spuriously unless you set the viewport explicitly first:
+```bash
+vibium --headless viewport 1280 720
+vibium --headless go https://example.com
+node .claude/skills/qe-browser/scripts/visual-diff.js --name homepage
+```
+
+The qe-browser `smoke-test.sh` does this for tc006/tc007. Build the same pattern into your own baseline workflows.
+
+### 7. `npm install -g vibium` can take 1–3 minutes on a cold cache
+
+Vibium downloads Chrome for Testing on first install. The synchronous spawn in `aqe init` phase 09 logs a "this can take 1–3 minutes" pre-spawn banner, but if you call `npm install -g vibium` directly you'll see no output for the duration. Don't Ctrl-C.
+
 ## Things Vibium does BETTER than Playwright
 
 - **Semantic find as first-class CLI verbs**: `vibium find label|placeholder|testid|role|text|alt|title|xpath`. No need to chain locator builders.

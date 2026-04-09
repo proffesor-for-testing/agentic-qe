@@ -21,6 +21,67 @@ Thin AQE-owned wrapper around [Vibium](https://github.com/VibiumDev/vibium) that
 - Built-in MCP server: `npx -y vibium mcp`
 - First-class semantic locators: `find text|label|placeholder|testid|role|xpath|alt|title`
 
+## Platform support (verified 2026-04-09 against Vibium v26.3.18)
+
+| Platform | `npm install -g vibium` | `vibium go <url>` | smoke-test.sh |
+|---|---|---|---|
+| macOS arm64 (Apple Silicon native) | ✅ | ✅ | ✅ |
+| macOS x64 (Intel) | ✅ | ✅ | ✅ |
+| Linux x86_64 | ✅ | ✅ | ✅ |
+| Windows x64 | ✅ | ✅ | not yet tested |
+| **Linux ARM64 (aarch64)** | ✅ binary itself | ⚠️ **Workaround required** | ✅ after workaround |
+
+### Linux ARM64 workaround
+
+Google Chrome for Testing does not publish a `linux-arm64` build. Vibium falls back to `chrome-linux64` (x86_64) on aarch64 hosts, which fails under Rosetta with `failed to open elf at /lib64/ld-linux-x86-64.so.2`. To run qe-browser on a Linux ARM64 codespace or container:
+
+```bash
+# 1. Install Vibium normally — the vibium binary itself IS native ARM64
+npm install -g vibium
+
+# 2. Install Debian's native ARM64 chromium + chromedriver
+sudo apt-get update
+sudo apt-get install -y chromium chromium-driver
+
+# 3. Symlink Vibium's broken cached binaries to the native system ones.
+#    Run after `vibium install` (auto-runs on first `vibium go`).
+for dir in ~/.cache/vibium/chrome-for-testing/*/; do
+  # Newer Vibium layout (v26.3.x): chromedriver and chrome at the root
+  if [ -e "$dir/chromedriver" ]; then
+    rm -f "$dir/chromedriver" "$dir/chrome"
+    ln -s /usr/bin/chromedriver "$dir/chromedriver"
+    ln -s /usr/bin/chromium     "$dir/chrome"
+  fi
+  # Older Vibium layout: chromedriver-linux64/ and chrome-linux64/ subdirs
+  if [ -e "$dir/chromedriver-linux64/chromedriver" ]; then
+    rm -f "$dir/chromedriver-linux64/chromedriver" "$dir/chrome-linux64/chrome"
+    ln -s /usr/bin/chromedriver "$dir/chromedriver-linux64/chromedriver"
+    ln -s /usr/bin/chromium     "$dir/chrome-linux64/chrome"
+  fi
+done
+
+# 4. Verify
+vibium --headless go https://httpbin.org/html
+vibium --headless title  # → "Herman Melville - Moby-Dick"
+```
+
+This workaround is verified working on Debian bookworm aarch64 with chromium 146.0.7680.177-1~deb12u1. Track upstream — when Vibium adds a `--browser-path` flag or Google ships `linux-arm64` Chrome for Testing, this section becomes obsolete.
+
+## Headless mode
+
+Helper scripts (`assert.js`, `batch.js`, `visual-diff.js`, `check-injection.js`, `intent-score.js`) automatically inject `--headless` into every `vibium` invocation because the qe-browser skill is designed for QE/CI use cases where there's no display server. **Vibium itself defaults to "visible by default"** — running `vibium go` on a headless container without `--headless` fails with `Missing X server or $DISPLAY`.
+
+Opt out for interactive debugging:
+```bash
+QE_BROWSER_HEADED=1 node .claude/skills/qe-browser/scripts/assert.js --checks '...'
+```
+
+When you call `vibium` directly (not through a helper), pass `--headless` yourself if you're in a container:
+```bash
+vibium --headless go https://example.com
+vibium --headless title
+```
+
 ## Activation
 
 - When a QE skill needs to navigate, read, interact with, or capture a web page
