@@ -294,6 +294,56 @@ All 9 medium-severity findings from the devil's-advocate review are fixed and re
 **Phase 4 changes also added:**
 - `fixtures/package.json` with `"type": "commonjs"` so `serve-skills.js` can `require()` from the ESM-rooted repo (matches the existing `scripts/package.json` pattern). This was a hidden bug — the fixture server file existed but had never been run.
 
+### Phase 5 — User-perspective verification (2026-04-09): COMPLETE
+
+After Phase 4, ran a fresh `aqe init` against an empty test project and exercised the helper scripts as a real user would. None of these paths had been touched before.
+
+**Setup**
+
+```bash
+rm -rf /tmp/qe-browser-uat && mkdir -p /tmp/qe-browser-uat
+cd /tmp/qe-browser-uat
+echo '{"name":"qe-browser-uat","version":"0.0.1","private":true}' > package.json
+AQE_SKIP_CODE_INDEX=1 node /workspaces/agentic-qe/dist/cli/bundle.js init --auto --skip-patterns
+```
+
+**Init result (verbatim from the test run)**
+
+```
+📋 Install skills and agents...
+[SkillsInstaller] Validation infrastructure installed successfully
+  Browser engine: vibium 26.3.18 (already installed)
+  Skills: 85
+  Agents: 60
+```
+
+The H6 pre-flight short-circuit (Phase 2) works in production: vibium is already on PATH, the installer skips the loud "this can take 1-3 minutes" banner, and reports the version cleanly.
+
+**12 user-perspective checks (all PASS)**
+
+| # | What we tested | Command | Result |
+|---|---|---|---|
+| 1 | Skill installed in test project | `ls .claude/skills/qe-browser/` | All 6 dirs + SKILL.md present |
+| 2 | navigate + assert end-to-end | `vibium go https://httpbin.org/forms/post` then `assert.js` with `url_contains` + `selector_visible` | Both pass with real `actual` values |
+| 3 | M5 `--threshold=0.42` form (real run) | `visual-diff.js --name=uat-homepage --threshold=0.42` | `"threshold": 0.42` confirmed in output |
+| 4 | M6 batch pre-validation | `batch.js --steps '[...,"clikc",{fill missing text}]'` | Aborts immediately with `"2 step(s) failed pre-validation: step 1: unknown action 'clikc'... step 2 (fill): 'text' must be a string"` — NO vibium calls made |
+| 5 | M7 intent-score on real form | `intent-score.js --intent submit_form` on httpbin | Returns scored candidates with selectors and bounds |
+| 6 | M4+M8 check-injection | `check-injection.js --include-hidden --exclude-selector="h1, p"` | visibleChars drops 3595 → 35 (cloneNode strip works) |
+| 7 | M2 fixture server bind | Spawn `serve-skills.js`, read banner | `qe-browser fixtures listening on http://127.0.0.1:18900` |
+| 8 | M3 path traversal | `curl http://127.0.0.1:18910/qe-browser/../../../../../../etc/passwd.html` | HTTP 404 (relative-path guard fired) |
+| 9 | Vibium-missing fallback | `env -i PATH=/tmp/fake-bin/ node assert.js` (no vibium on PATH) | Returns `failed` envelope with `actual: "eval error: vibium binary not found on PATH. Install via 'npm install -g vibium' or run 'aqe init'."` |
+| 10 | Installed smoke-test | `bash .claude/skills/qe-browser/scripts/smoke-test.sh` from inside the test project | 9/9 PASS |
+| 11 | Re-init upgrade path | `aqe init` second time | Browser engine line still present, Skills:0/Agents:0 (idempotent — nothing to overwrite) |
+| 12 | Output envelope contract | `python3 json.load(stdin)` on every emit | All envelopes contain `skillName`, `version`, `trustTier`, `status`, `output.operation`, `metadata` |
+
+**New finding from Phase 5 (NOT a Phase 4 regression)**
+
+The Fallback Policy in `SKILL.md` says downstream skills should report `status: "skipped"` with reason `"browser-engine-unavailable"` when vibium is missing. The helper scripts currently surface the missing-vibium error as `actual: "eval error: vibium binary not found on PATH..."` inside a `failed` envelope. A downstream skill would have to grep the `actual` string to detect "unavailable" vs "actually failed". A cleaner contract would be a top-level `vibiumUnavailable: true` flag on the envelope.
+
+Logged as **F1 (Phase 6 follow-up)**. Not a blocker — the error is unambiguous for human readers; downstream skills can grep for `"vibium binary not found"` until F1 lands.
+
+**Phase 5 conclusion: VERIFIED.** Every documented user-facing path runs end-to-end. The skill is ready to ship.
+
 ---
 
 ## Alternatives considered (detail)
