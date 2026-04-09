@@ -5,6 +5,59 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.9] - 2026-04-09
+
+This release ships **`qe-browser`** — a new fleet skill that gives every QE agent a real browser through a ~10MB Go binary instead of a 300MB Playwright install. Built on [Vibium](https://github.com/VibiumDev/vibium) (WebDriver BiDi) and shipped under [ADR-091](docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md).
+
+### Added
+
+- **`qe-browser` fleet skill** ([ADR-091](docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md)) — Browser automation for QE agents with 5 helper scripts:
+  - `assert.js` — 16 typed assertion kinds (`url_contains`, `selector_visible`, `no_console_errors`, `element_count`, `title_matches`, etc.)
+  - `batch.js` — Multi-step execution with pre-validation, stop-on-failure, and delegation to `assert.js`
+  - `visual-diff.js` — Pixel-perfect baseline comparison with `pixelmatch`, hash fallback, configurable threshold
+  - `check-injection.js` — 14-pattern prompt-injection scanner ported from `gsd-browser` (MIT/Apache-2.0) with `--exclude-selector` for docs sites
+  - `intent-score.js` — 15 semantic intents (`submit_form`, `accept_cookies`, `fill_email`, `primary_cta`, etc.) ported from `gsd-browser`
+- **Vibium auto-install** — `aqe init` now installs the `vibium` CLI globally via npm during phase 09 with a pre-flight short-circuit when it's already on PATH (no banner on the common case).
+- **Typed missing-browser contract** — When vibium is not on PATH, helpers emit a structured `status: "skipped"` envelope with top-level `vibiumUnavailable: true`, `output.reason: "browser-engine-unavailable"`, and exit code **2** (distinct from 0=success and 1=failed). Downstream skills can branch on the flag instead of grepping error strings.
+- **Linux ARM64 workaround documentation** — Chromium symlink recipe for aarch64 Debian/codespace hosts where Google doesn't publish Chrome for Testing (verified against `chromium 146.0.7680.177-1~deb12u1`).
+- **7-gotcha migration guide** (`references/migration-from-playwright.md`) — Covers headless default, screenshot output directory quirk, absent `--selector` flag, `eval --stdin` last-expression contract, ARM64 install, viewport determinism, and first-install download time.
+- **End-to-end smoke test** (`scripts/smoke-test.sh`) — 10 test cases against pinned `httpbin.org` fixtures, including a tc011 that spawns helpers with a stripped `PATH` to verify the missing-vibium contract.
+- **103 unit tests** across 8 files covering assertion kinds, batch validation, check-injection patterns, intent-score whitelist, fixture server path traversal, and the missing-vibium end-to-end contract.
+
+### Fixed
+
+All fixes below are from a devil's-advocate review of the initial `qe-browser` implementation, captured in ADR-091 Phases 1 through 4:
+
+- **Assertion fail-closed on missing telemetry** — `runConsoleCheck`/`runNetworkCheck` used to fail-OPEN when the underlying `vibium console`/`vibium network` JSON was unavailable (silently reporting `no_console_errors: pass` when we couldn't tell). Now returns a typed `unavailable` sentinel that `runCheck` surfaces as `passed: false, unavailable: true`, per `feedback_no_unverified_failure_modes.md`.
+- **`intent-score.js` special-character corruption** — The script builder used `String.prototype.replace` with a raw substitution string, so scopes containing `$&`, `` $` ``, `$'`, or `$1-$9` corrupted the generated browser-side code. Switched to `split/join` for literal substitution.
+- **`visual-diff.js` unsupported `--selector`** — The `vibium screenshot --selector` flag does not exist in v26.3.x. Replaced the dead fallback path with an explicit error pointing at ImageMagick `convert -crop`.
+- **`vibium screenshot -o` directory ignored** — Vibium hardcodes `~/Pictures/Vibium/<basename>` regardless of the `-o` argument's directory. `visual-diff.js` now reads from Vibium's actual output path and copies to the caller's requested location.
+- **`vibium eval --stdin` return contract** — Vibium eval returns the LAST EXPRESSION value via `{"ok":true,"result":"<stringified>"}`, not `console.log` output. Added `unwrapEvalResult()` that parses the result string back, and removed `console.log` wrappers from all helper scripts.
+- **Headless container support** — Vibium defaults to "visible browser" and fails with `Missing X server or $DISPLAY` on headless containers. All helper scripts now auto-inject `--headless` into every `vibium` invocation (opt out via `QE_BROWSER_HEADED=1`).
+- **`parseArgs` `--key=value` form** — Previously only `--key value` (space-separated) was parsed. A user typing `--threshold=0.05` got `args["threshold=0.05"] = true` and the real `threshold` key stayed undefined. Now splits on the first `=` so both forms work and URL/base64 values containing `=` survive intact.
+- **`batch.js` no pre-validation** — A typo in step 17 used to surface AFTER steps 1-16 had executed with side effects. Added `validateAllSteps()` that walks every step's required fields before the first vibium call and aborts with a consolidated error listing all typos.
+- **`check-injection.js` ANSI escape passthrough** — Finding snippets included raw page text verbatim, so malicious pages could inject terminal control sequences that trigger on `cat findings.json`. Added `sanitizeSnippet()` that strips C0 controls (0x00-0x1F except `\t\n`) and DEL (0x7F).
+- **`check-injection.js` doc false positives** — Running the scanner on docs that talk about prompt injection self-flagged every heading. New `--exclude-selector "main, .docs-content"` strips subtrees from a cloned `<body>` before scanning; live page unchanged.
+- **`intent-score.js` bare-`x` false positives** — The `close_dialog` regex used a bare `/x/` that matched "fix", "exit", "extra", "sixteen". Anchored with `\bx\b`; Unicode `×` and `✕` unchanged.
+- **Fixture HTTP server bound to `0.0.0.0`** — Codespaces auto-forward 0.0.0.0 ports to the public preview URL, so running `fixtures/serve-skills.js` was silently exposing the skills tree. Default is now `127.0.0.1`; `QE_BROWSER_FIXTURE_HOST=0.0.0.0` is explicit opt-in.
+- **Fixture server path-traversal guard** — The `startsWith(SKILLS_ROOT)` check false-passes on sibling dirs that share a prefix and is fragile on Windows mixed separators. Replaced with `path.relative()` + `..` check (the canonical guard).
+- **`detectVibium` stderr-only semver** — `vibium --version` emits to stderr on some platforms. `detectVibium` now reads both stdout and stderr and extracts the semver with a regex that handles prerelease/build metadata.
+- **`installBrowserEngine` silent 1-3 minute freeze** — `spawnSync('npm install -g vibium')` blocks for 1-3 minutes on cold caches while Chrome for Testing downloads. Phase 09 now runs a pre-flight detect that short-circuits when vibium is already on PATH (no banner) and logs a "this can take 1-3 minutes on first run" message BEFORE the spawn on the cold path.
+- **`09-assets.ts` dead error catch** — The `installBrowserEngine` try/catch re-emitted raw errors with no recovery path. Wrapped with actionable guidance pointing at `npm install -g vibium` and a re-run of `aqe init`.
+
+### Changed
+
+- **`.gitignore`** — Added `.aqe/` for per-project qe-browser state (visual baselines and helper caches), with `!.aqe/visual-baselines/.gitkeep` carve-out so projects that opt in to committing baselines can do so by removing the ignore.
+- **11 skills migrated to reference `qe-browser`** — `a11y-ally`, `e2e-flow-verifier`, `qe-visual-accessibility`, `security-visual-testing`, `visual-testing-advanced`, `testability-scoring`, `compatibility-testing`, `accessibility-testing`, `localization-testing`, `observability-testing-patterns`, `enterprise-integration-testing`. Each SKILL.md now points at `.claude/skills/qe-browser/` instead of embedding Playwright snippets.
+- **Skill counts bumped across user-facing docs** — README headline `74 → 75`, Tier 3 `48 → 49`, `.claude/skills/README.md` total `84 → 85`, V3 Domain Skills `23 → 24`. `skills-manifest.json` bumped to manifest version `1.4.0` with a new `browser-automation` category, `fleetVersion: "3.9.9"`. `trust-tier-manifest.json` bumped `tier3: 49 → 50`, `total: 112 → 113`.
+
+### Verified
+
+- **Fresh `aqe init --auto`** in `/tmp/qe-browser-uat` against the local build — 85 skills / 60 agents installed, `Browser engine: vibium 26.3.18 (already installed)` logged cleanly.
+- **12 user-perspective checks** against the installed skill — navigate + assert on httpbin, `--threshold=0.42` form, `batch.js` pre-validation aborting on typos, `intent-score.js submit_form`, `check-injection.js --exclude-selector` (visibleChars 3595 → 35), fixture server banner (`127.0.0.1`), path traversal returns 404, missing-vibium fallback, installed `smoke-test.sh` 10/10, idempotent re-init, JSON envelope contract.
+- **Unit tests** — 103 tests across 8 files, all passing: `qe-browser-assert`, `qe-browser-batch`, `qe-browser-check-injection`, `qe-browser-intent-score`, `qe-browser-vibium-lib`, `qe-browser-fixtures-server`, `qe-browser-unavailable-e2e`, `browser-engine-installer`.
+- **Smoke test** — 10/10 against real Vibium v26.3.18 + Chromium 146.0.7680.177 + `httpbin.org` pinned fixtures.
+
 ## [3.9.8] - 2026-04-08
 
 This is a release-process release. **No source code changes** — every commit since v3.9.7 lands in CI, fixtures, scripts, or docs. The published package is functionally identical to v3.9.7 except for a refreshed lockfile with two transitive security patches.
