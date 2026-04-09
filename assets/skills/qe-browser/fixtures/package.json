@@ -1,0 +1,7 @@
+{
+  "name": "@aqe/qe-browser-fixtures",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Scoped package.json that keeps the qe-browser fixtures HTTP server in CommonJS despite the repo root being ESM."
+}

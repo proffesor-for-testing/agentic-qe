@@ -1,0 +1,291 @@
+skill: qe-browser
+version: 1.0.0
+status: design-spec
+description: >
+  Manual smoke-test plan for the qe-browser fleet skill, NOT yet a runnable
+  automated eval.
+
+  HONESTY NOTE (devil's-advocate H8): the test cases below use structured
+  assertion fields (`exit_code`, `json_fields`, `severity_at_least`,
+  `candidate_count_at_least`) that the existing AQE eval runner
+  (`src/validation/parallel-eval-runner.ts`) does NOT support — it expects
+  `expected_output.must_contain` keyword matching only. This file is
+  therefore a SPECIFICATION for what the eval should do, not a runnable
+  yaml. Two paths to make it runnable:
+
+  1. Extend the eval runner with a `structured_assertions` block that
+     evaluates JSON paths against script JSON envelopes (preferred — gives
+     us the precision the qe-browser primitives need).
+  2. Rewrite each tc as a `must_contain` test by piping the script's JSON
+     envelope through jq and matching keywords (loses precision).
+
+  Until one of those lands, run `scripts/smoke-test.sh` (alongside this
+  file) for the same fixture coverage in shell-script form. That script IS
+  runnable today and is what gates PR-reopen per ADR-091 Phase 3.
+
+models_to_test:
+  - claude-3.5-sonnet
+  - claude-3-haiku
+
+mcp_integration:
+  enabled: true
+  namespace: skill-validation
+  query_patterns: true
+  track_outcomes: true
+  store_patterns: true
+  target_agents:
+    - qe-visual-tester
+    - qe-accessibility-auditor
+    - qe-pentest-validator
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+setup:
+  required_tools:
+    - vibium
+    - node
+    - jq
+  optional_tools:
+    - pixelmatch
+    - pngjs
+  local_fixtures:
+    # A tiny static server serving this repo's .claude/skills/ docs.
+    # Rationale (feedback_synthetic_fixtures_dont_count.md): rather than a
+    # synthetic fixture, we serve real markdown content from the repo via a
+    # one-liner Node server so every run tests against prose that actually
+    # exists and is versioned with the skill.
+    local_docs_server:
+      command: "node .claude/skills/qe-browser/fixtures/serve-skills.js"
+      port: 8088
+      base_url: "http://localhost:8088"
+
+fixtures:
+  public_pinned:
+    # Pinned public endpoints — chosen because they're stable, well-known, and
+    # serve predictable forms / HTML. Per feedback_no_unverified_failure_modes,
+    # these are the canonical "does the tool actually work" fixtures.
+    httpbin_form:
+      url: "https://httpbin.org/forms/post"
+      description: "Classic simple form — custname, custtel, custemail, size, toppings"
+    httpbin_html:
+      url: "https://httpbin.org/html"
+      description: "Static HTML page with known headings"
+    httpbin_status_404:
+      url: "https://httpbin.org/status/404"
+      description: "Known 404 for testing no_failed_requests"
+  pinned_docs_site:
+    # Pinned to a specific Git tag so the docs don't change under us.
+    url: "https://vibiumdev.github.io/vibium/tutorials/getting-started-js"
+    pin_version: "v26.3.18"
+    description: "Vibium's own getting-started docs — stable, public, versioned"
+  local_skills_docs:
+    base_url: "http://localhost:8088"
+    pages:
+      - "/qe-browser/SKILL.md.html"
+      - "/qe-browser/references/assertion-kinds.md.html"
+
+test_cases:
+  # -------- assert.js --------
+  - id: tc001_assert_url_contains_httpbin
+    description: "url_contains assertion on pinned httpbin form page"
+    category: assert
+    priority: critical
+    input:
+      setup:
+        - "vibium go https://httpbin.org/forms/post"
+      command: |
+        node .claude/skills/qe-browser/scripts/assert.js --checks \
+          '[{"kind": "url_contains", "text": "httpbin.org/forms"}]'
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.assert.passed": 1
+        ".output.assert.failed": 0
+
+  - id: tc002_assert_selector_visible_h1
+    description: "selector_visible on pinned httpbin /html page"
+    category: assert
+    priority: critical
+    input:
+      setup:
+        - "vibium go https://httpbin.org/html"
+      command: |
+        node .claude/skills/qe-browser/scripts/assert.js --checks \
+          '[{"kind": "selector_visible", "selector": "h1"}]'
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+
+  - id: tc003_assert_failure_detected
+    description: "Failing assertion must exit non-zero and report failed>0"
+    category: assert
+    priority: critical
+    input:
+      setup:
+        - "vibium go https://httpbin.org/html"
+      command: |
+        node .claude/skills/qe-browser/scripts/assert.js --checks \
+          '[{"kind": "url_contains", "text": "this-does-not-exist"}]'
+    expected:
+      exit_code: 1
+      json_fields:
+        ".status": "failed"
+        ".output.assert.failed": 1
+
+  # -------- batch.js --------
+  - id: tc004_batch_navigate_and_assert
+    description: "batch: navigate + wait + assert in a single call"
+    category: batch
+    priority: critical
+    input:
+      command: |
+        node .claude/skills/qe-browser/scripts/batch.js --steps \
+          '[
+            {"action": "go", "url": "https://httpbin.org/html"},
+            {"action": "wait_load"},
+            {"action": "assert", "checks": [
+              {"kind": "url_contains", "text": "/html"},
+              {"kind": "selector_visible", "selector": "h1"}
+            ]}
+          ]' --summary-only
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.batch.passedSteps": 3
+        ".output.batch.totalSteps": 3
+
+  - id: tc005_batch_stops_on_failure
+    description: "batch: stop-on-failure halts after failed step"
+    category: batch
+    priority: high
+    input:
+      command: |
+        node .claude/skills/qe-browser/scripts/batch.js --steps \
+          '[
+            {"action": "go", "url": "https://httpbin.org/html"},
+            {"action": "click", "selector": "#does-not-exist"},
+            {"action": "go", "url": "https://httpbin.org/forms/post"}
+          ]'
+    expected:
+      exit_code: 1
+      json_fields:
+        ".status": "failed"
+        ".output.batch.passedSteps": 1
+        ".output.batch.failedStep.index": 1
+
+  # -------- visual-diff.js --------
+  - id: tc006_visual_diff_baseline_created
+    description: "First run creates a baseline and reports baseline_created"
+    category: visual-diff
+    priority: high
+    input:
+      setup:
+        - "vibium go http://localhost:8088/qe-browser/SKILL.md.html"
+        - "rm -rf .aqe/visual-baselines/eval_local_docs*"
+      command: |
+        node .claude/skills/qe-browser/scripts/visual-diff.js \
+          --name eval_local_docs --threshold 0.02
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.visualDiff.status": "baseline_created"
+
+  - id: tc007_visual_diff_match_second_run
+    description: "Second identical run reports match"
+    category: visual-diff
+    priority: high
+    input:
+      setup:
+        - "vibium go http://localhost:8088/qe-browser/SKILL.md.html"
+      command: |
+        node .claude/skills/qe-browser/scripts/visual-diff.js \
+          --name eval_local_docs --threshold 0.02
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.visualDiff.status": "match"
+
+  # -------- check-injection.js --------
+  - id: tc008_check_injection_clean_page
+    description: "Clean page (httpbin /html) reports no findings"
+    category: check-injection
+    priority: critical
+    input:
+      setup:
+        - "vibium go https://httpbin.org/html"
+      command: |
+        node .claude/skills/qe-browser/scripts/check-injection.js --include-hidden
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.checkInjection.severity": "none"
+
+  - id: tc009_check_injection_poisoned_page
+    description: "Local poisoned fixture with hidden instructions is detected"
+    category: check-injection
+    priority: critical
+    input:
+      setup:
+        - "vibium go http://localhost:8088/fixtures/injection-poisoned.html"
+      command: |
+        node .claude/skills/qe-browser/scripts/check-injection.js --include-hidden
+    expected:
+      exit_code: 1
+      json_fields:
+        ".status": "failed"
+      severity_at_least: "high"
+
+  # -------- intent-score.js --------
+  - id: tc010_intent_submit_form_on_httpbin
+    description: "find submit_form on the httpbin form"
+    category: intent-score
+    priority: critical
+    input:
+      setup:
+        - "vibium go https://httpbin.org/forms/post"
+      command: |
+        node .claude/skills/qe-browser/scripts/intent-score.js \
+          --intent submit_form
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "success"
+        ".output.intentScore.intent": "submit_form"
+      candidate_count_at_least: 1
+
+  - id: tc011_intent_fill_email_returns_empty_for_non_form_page
+    description: "fill_email returns no candidates on httpbin /html"
+    category: intent-score
+    priority: medium
+    input:
+      setup:
+        - "vibium go https://httpbin.org/html"
+      command: |
+        node .claude/skills/qe-browser/scripts/intent-score.js --intent fill_email
+    expected:
+      exit_code: 0
+      json_fields:
+        ".status": "partial"
+        ".output.intentScore.candidateCount": 0
+
+validation:
+  required_pass_rate: 0.9
+  critical_must_pass: true
+  notes: |
+    Evaluation assumes:
+      - `vibium` v26.3.x+ is on PATH (from `aqe init` or `npm install -g vibium`)
+      - Network access to httpbin.org (public, stable)
+      - Local fixtures server running on :8088 (started in setup.local_docs_server)

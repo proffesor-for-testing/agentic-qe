@@ -23,6 +23,10 @@ validation:
 
 > **Consolidated**: For comprehensive WCAG auditing with multi-tool testing (axe-core + pa11y + Lighthouse), video accessibility, and remediation, prefer [`/a11y-ally`](../a11y-ally/). This skill provides a quick reference card for basic accessibility testing patterns.
 
+## Browser engine
+
+Browser-driven a11y checks should go through the **qe-browser** fleet skill. `vibium a11y-tree --json` returns the full accessibility tree without visual rendering — feed it into axe-core via `vibium eval --stdin` for ruleset enforcement. See `.claude/skills/qe-browser/SKILL.md`.
+
 <default_to_action>
 When testing accessibility or ensuring compliance:
 1. APPLY POUR principles: Perceivable, Operable, Understandable, Robust

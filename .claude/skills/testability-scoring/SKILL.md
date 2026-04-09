@@ -22,6 +22,29 @@ validation:
 
 # Testability Scoring
 
+## Browser engine
+
+Uses the **qe-browser** fleet skill (`.claude/skills/qe-browser/`) as the primary browser engine. Vibium is installed by `aqe init`. The legacy `scripts/run-assessment.sh` + Playwright path remains as a fallback when a team already has a Playwright test suite configured, but new runs should prefer:
+
+```bash
+vibium go "$TARGET_URL"
+vibium wait load
+vibium a11y-tree --json > /tmp/testability/tree.json
+vibium eval --stdin --json <<'EOF' > /tmp/testability/signals.json
+JSON.stringify({
+  headings: document.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
+  testIds: document.querySelectorAll('[data-testid]').length,
+  forms: document.querySelectorAll('form').length,
+  ariaLabels: document.querySelectorAll('[aria-label]').length,
+  links: document.querySelectorAll('a[href]').length,
+});
+EOF
+node .claude/skills/qe-browser/scripts/assert.js --checks '[
+  {"kind": "no_console_errors"},
+  {"kind": "no_failed_requests"}
+]'
+```
+
 <default_to_action>
 When assessing testability:
 1. RUN assessment against target URL

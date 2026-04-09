@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qe-browser-output.json",
+  "title": "AQE QE Browser Skill Output Schema",
+  "description": "Unified output envelope for all qe-browser scripts (assert, batch, visual-diff, check-injection, intent-score).",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": {
+      "type": "string",
+      "const": "qe-browser"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.]+)?$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "partial", "failed", "skipped"]
+    },
+    "trustTier": {
+      "type": "integer",
+      "const": 3
+    },
+    "output": {
+      "type": "object",
+      "required": ["operation", "summary"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": ["assert", "batch", "visual-diff", "check-injection", "intent-score", "navigate", "capture"]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "assert": { "$ref": "#/$defs/assertResult" },
+        "batch": { "$ref": "#/$defs/batchResult" },
+        "visualDiff": { "$ref": "#/$defs/visualDiffResult" },
+        "checkInjection": { "$ref": "#/$defs/checkInjectionResult" },
+        "intentScore": { "$ref": "#/$defs/intentScoreResult" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "executionTimeMs": { "type": "integer", "minimum": 0 },
+        "vibiumVersion": { "type": "string" },
+        "targetUrl": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "assertResult": {
+      "type": "object",
+      "required": ["passed", "failed", "results"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "passed"],
+            "properties": {
+              "kind": { "type": "string" },
+              "passed": { "type": "boolean" },
+              "actual": {},
+              "expected": {},
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "batchResult": {
+      "type": "object",
+      "required": ["totalSteps", "passedSteps"],
+      "properties": {
+        "totalSteps": { "type": "integer", "minimum": 0 },
+        "passedSteps": { "type": "integer", "minimum": 0 },
+        "failedStep": {
+          "type": "object",
+          "properties": {
+            "index": { "type": "integer" },
+            "action": { "type": "string" },
+            "error": { "type": "string" }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": { "type": "integer" },
+              "action": { "type": "string" },
+              "status": { "type": "string", "enum": ["pass", "fail"] },
+              "error": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "visualDiffResult": {
+      "type": "object",
+      "required": ["name", "similarity"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["baseline_created", "baseline_updated", "match", "mismatch"]
+        },
+        "similarity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "diffPixelCount": { "type": "integer", "minimum": 0 },
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 },
+        "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "baselinePath": { "type": "string" },
+        "diffPath": { "type": "string" }
+      }
+    },
+    "checkInjectionResult": {
+      "type": "object",
+      "required": ["findings", "severity"],
+      "properties": {
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pattern", "severity"],
+            "properties": {
+              "pattern": { "type": "string" },
+              "severity": { "type": "string", "enum": ["info", "low", "medium", "high", "critical"] },
+              "snippet": { "type": "string" },
+              "hidden": { "type": "boolean" }
+            }
+          }
+        },
+        "severity": { "type": "string", "enum": ["none", "info", "low", "medium", "high", "critical"] },
+        "scanned": {
+          "type": "object",
+          "properties": {
+            "visibleChars": { "type": "integer" },
+            "hiddenChars": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "intentScoreResult": {
+      "type": "object",
+      "required": ["intent", "candidates"],
+      "properties": {
+        "intent": { "type": "string" },
+        "candidateCount": { "type": "integer", "minimum": 0 },
+        "candidates": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "required": ["score", "selector"],
+            "properties": {
+              "score": { "type": "number", "minimum": 0, "maximum": 2 },
+              "selector": { "type": "string" },
+              "tag": { "type": "string" },
+              "text": { "type": "string" },
+              "reason": { "type": "string" },
+              "bounds": {
+                "type": "object",
+                "properties": {
+                  "x": { "type": "integer" },
+                  "y": { "type": "integer" },
+                  "width": { "type": "integer" },
+                  "height": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "scope": { "type": "string" }
+      }
+    }
+  }
+}

@@ -204,6 +204,13 @@ tmp/*
 .agentic-qe/*-scans/
 *.db-shm
 
+# qe-browser visual baselines + helper script local state (ADR-091)
+# Per-project baselines are intentionally local; users opt in to commit
+# their own baselines by removing the relevant entry from their project
+# .gitignore. The skill itself never commits baselines.
+.aqe/
+!.aqe/visual-baselines/.gitkeep
+
 # RVF binary brain data (local learning state, not for git)
 *.rvf
 *.rvf.idmap.json
