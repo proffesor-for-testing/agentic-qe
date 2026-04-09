@@ -2,11 +2,11 @@
   "skillName": "qe-browser",
   "skillVersion": "1.0.0",
   "requiredTools": [
-    "vibium",
     "node",
     "jq"
   ],
   "optionalTools": [
+    "vibium",
     "pixelmatch",
     "pngjs"
   ],
