@@ -8,11 +8,11 @@
     "tier0": 51,
     "tier1": 5,
     "tier2": 7,
-    "tier3": 49,
-    "total": 112
+    "tier3": 50,
+    "total": 113
   },
   "validationStatus": {
-    "passing": 49,
+    "passing": 50,
     "failing": 0,
     "unknown": 12,
     "skipped": 51
@@ -293,6 +293,17 @@
           "evalPath": "evals/qcsd-ideation-swarm.yaml"
         },
         "file": "qcsd-ideation-swarm/SKILL.md"
+      },
+      {
+        "name": "qe-browser",
+        "category": "browser-automation",
+        "validation": {
+          "status": "passing",
+          "schemaPath": "schemas/output.json",
+          "validatorPath": "scripts/validate-config.json",
+          "evalPath": "evals/qe-browser.yaml"
+        },
+        "file": "qe-browser/SKILL.md"
       },
       {
         "name": "qe-chaos-resilience",

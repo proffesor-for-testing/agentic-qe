@@ -1,14 +1,15 @@
 {
-  "version": "1.2.0",
-  "generated": "2026-01-27T00:00:00.000Z",
-  "totalSkills": 44,
-  "description": "Agentic QE Fleet skills manifest - Quality Engineering focused skills only. Claude Flow platform skills are managed separately.",
+  "version": "1.4.0",
+  "generated": "2026-04-09T00:00:00.000Z",
+  "totalSkills": 49,
+  "totalQESkills": 81,
+  "description": "Agentic QE Fleet skills manifest - 49 Tier 3 verified QE skills. Total 81 QE skills on disk (49 Tier 3 + 32 additional including QCSD swarms, n8n testing, enterprise integration, pentest validation, qe-* domains, qe-browser via ADR-091).",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
       "priority": "critical",
       "autoInvoke": true,
-      "skills": ["qcsd-ideation-swarm"]
+      "skills": ["qcsd-ideation-swarm", "qcsd-refinement-swarm", "qcsd-development-swarm", "qcsd-cicd-swarm"]
     },
     "qe-core": {
       "description": "Foundational quality engineering philosophy and agentic principles",
@@ -31,6 +32,7 @@
       "priority": "medium",
       "skills": [
         "security-testing",
+        "pentest-validation",
         "validation-pipeline",
         "performance-testing",
         "accessibility-testing",
@@ -45,6 +47,13 @@
         "chaos-engineering-resilience",
         "mutation-testing",
         "regression-testing"
+      ]
+    },
+    "browser-automation": {
+      "description": "Browser automation fleet skill using Vibium (WebDriver BiDi) with typed assertions, batch execution, visual diff, prompt-injection scanning, and semantic intents. Supersedes per-skill browser glue across a11y-ally, e2e-flow-verifier, visual-testing-advanced, and others. See ADR-091.",
+      "priority": "high",
+      "skills": [
+        "qe-browser"
       ]
     },
     "analysis-review": {
@@ -113,6 +122,8 @@
           "evaluate with qcsd",
           "run qcsd",
           "shift-left quality",
+          "shift-left quality assessment",
+          "analyze url for quality",
           "quality criteria session",
           "risk storming"
         ],
@@ -128,6 +139,169 @@
           "qe-accessibility-auditor": "HAS_UI",
           "qe-security-auditor": "HAS_SECURITY",
           "qe-qx-partner": "HAS_UX"
+        }
+      }
+    },
+    "qcsd-refinement-swarm": {
+      "id": "qcsd-refinement-swarm",
+      "name": "QCSD Refinement Swarm",
+      "description": "QCSD Refinement phase swarm using SFDIPOT product factors, BDD scenario generation, and requirements validation for Sprint Refinement sessions.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-refinement-swarm/SKILL.md",
+      "tokenEstimate": 3200,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-02",
+      "tags": ["qcsd", "refinement", "sfdipot", "bdd", "gherkin", "requirements", "swarm"],
+      "dependencies": ["agentic-quality-engineering", "context-driven-testing"],
+      "agents": [
+        "qe-product-factors-assessor",
+        "qe-bdd-generator",
+        "qe-requirements-validator",
+        "qe-contract-validator",
+        "qe-impact-analyzer",
+        "qe-dependency-mapper",
+        "qe-test-idea-rewriter"
+      ],
+      "relatedSkills": ["context-driven-testing", "testability-scoring", "risk-based-testing"],
+      "triggers": {
+        "patterns": [
+          "qcsd refinement",
+          "refinement swarm",
+          "sfdipot analysis",
+          "product factors analysis",
+          "sprint refinement",
+          "story refinement",
+          "bdd generation",
+          "generate scenarios",
+          "refine story",
+          "refine epic"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-contract-validator": "HAS_API",
+          "qe-impact-analyzer": "HAS_REFACTORING",
+          "qe-dependency-mapper": "HAS_DEPENDENCIES"
+        }
+      }
+    },
+    "qcsd-development-swarm": {
+      "id": "qcsd-development-swarm",
+      "name": "QCSD Development Swarm",
+      "description": "QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-development-swarm/SKILL.md",
+      "tokenEstimate": 3400,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-03",
+      "tags": ["qcsd", "development", "tdd", "complexity", "coverage", "security", "performance", "mutation", "defect-prediction", "swarm"],
+      "dependencies": ["agentic-quality-engineering", "tdd-london-chicago"],
+      "agents": [
+        "qe-tdd-specialist",
+        "qe-code-complexity",
+        "qe-coverage-specialist",
+        "qe-security-scanner",
+        "qe-performance-tester",
+        "qe-mutation-tester",
+        "qe-defect-predictor"
+      ],
+      "relatedSkills": ["tdd-london-chicago", "mutation-testing", "performance-testing", "security-testing"],
+      "triggers": {
+        "patterns": [
+          "qcsd development",
+          "development swarm",
+          "code quality analysis",
+          "tdd analysis",
+          "coverage analysis",
+          "complexity analysis",
+          "development quality",
+          "development quality gate",
+          "code review swarm",
+          "analyze code quality",
+          "analyze code for quality",
+          "sprint code check",
+          "in-sprint quality check",
+          "mutation testing",
+          "defect prediction",
+          "is code ready to ship"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-security-scanner": "HAS_SECURITY_CODE",
+          "qe-performance-tester": "HAS_PERFORMANCE_CODE",
+          "qe-mutation-tester": "HAS_CRITICAL_CODE"
+        }
+      }
+    },
+    "qcsd-cicd-swarm": {
+      "id": "qcsd-cicd-swarm",
+      "name": "QCSD CI/CD Swarm",
+      "description": "QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment.",
+      "category": "qcsd-phases",
+      "priority": "critical",
+      "file": "qcsd-cicd-swarm/SKILL.md",
+      "tokenEstimate": 3500,
+      "optimizationStatus": "active",
+      "optimizationVersion": "1.0",
+      "lastOptimized": "2026-02-03",
+      "tags": ["qcsd", "verification", "cicd", "pipeline", "quality-gate", "regression", "flaky", "security", "chaos", "coverage", "deployment", "swarm"],
+      "dependencies": ["agentic-quality-engineering", "shift-left-testing"],
+      "agents": [
+        "qe-quality-gate",
+        "qe-regression-analyzer",
+        "qe-flaky-hunter",
+        "qe-security-scanner",
+        "qe-chaos-engineer",
+        "qe-coverage-specialist",
+        "qe-deployment-advisor"
+      ],
+      "relatedSkills": ["shift-left-testing", "shift-right-testing", "regression-testing", "security-testing"],
+      "triggers": {
+        "patterns": [
+          "qcsd verification",
+          "qcsd cicd",
+          "cicd swarm",
+          "pipeline verification",
+          "release readiness",
+          "is this safe to release",
+          "deployment readiness",
+          "verify pipeline",
+          "release gate",
+          "quality gate check",
+          "pre-release check",
+          "release verification",
+          "verify build",
+          "pipeline quality"
+        ],
+        "autoInvoke": true,
+        "enforcementLevel": "strict"
+      },
+      "execution": {
+        "primary": "task-tool",
+        "parallel_batches": 3,
+        "requiresFlagDetection": true,
+        "requiresDirectWrite": true,
+        "conditionalAgents": {
+          "qe-security-scanner": "HAS_SECURITY_PIPELINE",
+          "qe-chaos-engineer": "HAS_PERFORMANCE_PIPELINE",
+          "qe-coverage-specialist": "HAS_INFRA_CHANGE"
         }
       }
     },
@@ -659,7 +833,7 @@
     "validation-pipeline": {
       "id": "validation-pipeline",
       "name": "Validation Pipeline",
-      "description": "Run structured 13-step requirements validation pipeline with gate enforcement, weighted scoring, and detailed findings.",
+      "description": "Run structured 13-step requirements validation pipeline with gate enforcement, weighted scoring, and detailed findings. Supports format checking, vague term detection, testability analysis, and more.",
       "category": "specialized-testing",
       "priority": "high",
       "file": "validation-pipeline/SKILL.md",
@@ -669,7 +843,19 @@
       "lastOptimized": "2026-03-12",
       "tags": ["validation", "requirements", "pipeline", "gate-enforcement", "scoring", "bmad"],
       "dependencies": ["agentic-quality-engineering"],
-      "agents": ["qe-requirements-validator"]
+      "agents": ["qe-requirements-validator"],
+      "relatedSkills": ["verification-quality", "shift-left-testing", "context-driven-testing"],
+      "triggers": {
+        "patterns": [
+          "validate requirements",
+          "requirements validation",
+          "validation pipeline",
+          "run validation",
+          "check requirements quality"
+        ],
+        "autoInvoke": false,
+        "enforcementLevel": "standard"
+      }
     },
     "bug-reporting-excellence": {
       "id": "bug-reporting-excellence",
@@ -708,6 +894,9 @@
     },
     "byTask": {
       "qcsd-analysis": ["qcsd-ideation-swarm", "testability-scoring", "risk-based-testing", "context-driven-testing", "holistic-testing-pact"],
+      "qcsd-refinement": ["qcsd-refinement-swarm", "context-driven-testing", "testability-scoring", "risk-based-testing"],
+      "qcsd-development": ["qcsd-development-swarm", "tdd-london-chicago", "mutation-testing", "performance-testing", "security-testing"],
+      "qcsd-verification": ["qcsd-cicd-swarm", "shift-left-testing", "shift-right-testing", "regression-testing", "security-testing"],
       "url-quality-analysis": ["qcsd-ideation-swarm", "a11y-ally", "security-testing", "performance-testing"],
       "test-generation": ["tdd-london-chicago", "api-testing-patterns", "test-design-techniques"],
       "coverage-analysis": ["holistic-testing-pact", "quality-metrics", "testability-scoring"],
@@ -723,8 +912,8 @@
   "optimizationTracking": {
     "targetReduction": "40-50%",
     "optimizedSkills": 7,
-    "totalSkills": 42,
-    "progress": "14.6%",
+    "totalSkills": 47,
+    "progress": "15.2%",
     "tokensSaved": 10200,
     "optimizedList": [
       "agentic-quality-engineering",
@@ -750,9 +939,9 @@
   },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "2.1.0",
-    "manifestVersion": "1.1.0",
-    "lastUpdated": "2025-12-02T00:00:00.000Z",
+    "fleetVersion": "3.9.8",
+    "manifestVersion": "1.4.0",
+    "lastUpdated": "2026-04-09T00:00:00.000Z",
     "contributors": [
       {
         "name": "@fndlalit",
@@ -760,10 +949,17 @@
         "url": "https://github.com/fndlalit"
       }
     ],
-    "notes": "This manifest contains only QE-focused skills. Claude Flow platform skills (agentdb, flow-nexus, github-*, swarm-*, hive-mind, etc.) are managed separately in the claude-flow package.",
+    "notes": "This manifest tracks 49 Tier 3 verified QE skills. Total 81 QE skills on disk (49 Tier 3 + 32 additional). qe-browser added 2026-04-09 per ADR-091. Claude Flow platform skills (33) are managed separately.",
+    "skillBreakdown": {
+      "qeSkillsTier3": 49,
+      "qeSkillsAdditional": 32,
+      "totalQESkills": 81,
+      "platformSkills": 36,
+      "totalOnDisk": 114
+    },
     "excludedCategories": {
-      "reason": "These are Claude Flow platform skills, not QE skills",
-      "categories": ["agentdb", "orchestration", "github-integration", "flow-nexus", "meta"]
+      "reason": "Platform skills are available but not tracked in this QE-focused manifest",
+      "categories": ["agentdb", "orchestration", "github-integration", "flow-nexus", "meta", "v3-internal"]
     }
   }
 }

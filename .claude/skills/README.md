@@ -4,9 +4,9 @@ This directory contains Quality Engineering skills managed by Agentic QE.
 
 ## Summary
 
-- **Total QE Skills**: 84
+- **Total QE Skills**: 85
 - **V2 Methodology Skills**: 62
-- **V3 Domain Skills**: 23
+- **V3 Domain Skills**: 24
 - **Platform Skills**: 30 (Claude Flow managed)
 - **Validation Infrastructure**: ✅ Installed
 
@@ -80,11 +80,12 @@ Version-agnostic quality engineering best practices from the QE community.
 - **wms-testing-patterns**: Warehouse Management System testing patterns for inventory operations, pick/pack/ship workflows, wave management, EDI X12/EDIFACT compliance, RF/barcode scanning, and WMS-ERP integration. Use when testing WMS platforms (Blue Yonder, Manhattan, SAP EWM).
 - **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices.
 
-## V3 Domain Skills (23)
+## V3 Domain Skills (24)
 
 V3-specific implementation guides for the 12 DDD bounded contexts plus on-demand hooks, investigation runbooks, and measurement tools.
 
 - **pentest-validation**: Orchestrate security finding validation through graduated exploitation. 4-phase pipeline: recon (SAST/DAST), analysis (code review), validation (exploit proof), report (No Exploit, No Report gate). Eliminates false positives by proving exploitability.
+- **qe-browser**: Browser automation fleet skill built on Vibium (WebDriver BiDi, ~10MB Go binary, auto-installed by `aqe init`). Ships 5 helpers: typed assertions with 16 check kinds, multi-step batch executor, pixel-perfect visual-diff against baselines, prompt-injection scanner with 14 patterns, and semantic intent scorer with 15 intents (accept_cookies, submit_form, fill_email, etc.). Emits a `skipped` envelope with exit code 2 if vibium isn't installed. Supersedes per-skill browser glue in a11y-ally, e2e-flow-verifier, visual-testing-advanced, and 8 other skills. See [ADR-091](../../../docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md).
 - **qe-chaos-resilience**: Chaos engineering and resilience testing including fault injection, load testing, and system recovery validation.
 - **qe-code-intelligence**: Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval.
 - **qe-coverage-analysis**: O(log n) sublinear coverage gap detection with risk-weighted analysis and intelligent test prioritization.

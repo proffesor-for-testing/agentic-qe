@@ -115,7 +115,7 @@ Skills are slash commands invoked directly in Claude Code or any tool that suppo
   → Outputs ranked test strategy
 ```
 
-**Selected QE skills available (74 total):**
+**Selected QE skills available (75 total):**
 
 | Category | Skills |
 |----------|--------|
@@ -123,6 +123,7 @@ Skills are slash commands invoked directly in Claude Code or any tool that suppo
 | **Strategy** | `/risk-based-testing`, `/sfdipot-product-factors`, `/holistic-testing-pact`, `/six-thinking-hats` |
 | **Exploration** | `/exploratory-testing-advanced`, `/context-driven-testing`, `/sherlock-review` |
 | **Automation** | `/test-automation-strategy`, `/regression-testing`, `/api-testing-patterns` |
+| **Browser** | `/qe-browser` (Vibium-based: assertions, batch, visual-diff, injection scan, semantic intents) |
 | **Specialized** | `/security-testing`, `/accessibility-testing`, `/performance-testing`, `/chaos-engineering-resilience` |
 | **CI/CD** | `/cicd-pipeline-qe-orchestrator`, `/shift-left-testing`, `/shift-right-testing` |
 | **n8n Workflows** | `/n8n-workflow-testing-fundamentals`, `/n8n-integration-testing-patterns`, `/n8n-trigger-testing-strategies`, `/n8n-expression-testing`, `/n8n-security-testing` |
@@ -389,7 +390,7 @@ agentic-qe/
 │
 ├── .claude/
 │   ├── agents/v3/              # All agent definitions (53 qe-* + internal agents)
-│   ├── skills/                 # 114 skill definitions
+│   ├── skills/                 # 115 skill definitions
 │   └── hooks/                  # Lifecycle hooks (learning, formatting)
 │
 ├── assets/agents/v3/           # QE agents shipped to users via npm (qe-*.md only)

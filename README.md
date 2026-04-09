@@ -159,23 +159,25 @@ Plus **7 TDD subagents** (red, green, refactor, code/integration/performance/sec
 
 ---
 
-## 74 QE Skills
+## 75 QE Skills
 
 Agents automatically apply relevant skills from the skill library. Skills are rated by **trust tier**:
 
 | Tier | Count | Meaning |
 |------|-------|---------|
-| **Tier 3 — Verified** | 48 | Full evaluation test suite, production-ready |
+| **Tier 3 — Verified** | 49 | Full evaluation test suite, production-ready |
 | **Tier 2 — Validated** | 7 | Has executable validator |
 | **Tier 1 — Structured** | 5 | Has JSON output schema |
 | **Tier 0 — Advisory** | 5 | Guidance only |
 
 <details>
-<summary><b>View all 74 skills</b></summary>
+<summary><b>View all 75 skills</b></summary>
 
 **Core Testing (12):** agentic-quality-engineering, holistic-testing-pact, context-driven-testing, tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy, refactoring-patterns, shift-left-testing, shift-right-testing, regression-testing, verification-quality
 
 **Specialized Testing (13):** accessibility-testing, mobile-testing, database-testing, contract-testing, chaos-engineering-resilience, visual-testing-advanced, security-visual-testing, compliance-testing, compatibility-testing, localization-testing, mutation-testing, performance-testing, security-testing
+
+**Browser Automation (1):** qe-browser (Vibium engine — assert, batch, visual-diff, prompt-injection scanning, semantic intents; see [ADR-091](docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md))
 
 **Domain Skills (11):** qe-test-generation, qe-test-execution, qe-coverage-analysis, qe-quality-assessment, qe-defect-intelligence, qe-requirements-validation, qe-code-intelligence, qe-visual-accessibility, qe-chaos-resilience, qe-learning-optimization, qe-iterative-loop
 
