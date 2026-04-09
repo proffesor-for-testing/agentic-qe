@@ -283,11 +283,33 @@ When Vibium MCP tools are available (`mcp__vibium__*`), prefer them over shell-o
 
 ## Fallback Policy
 
-If `vibium` is not installed (e.g., `aqe init` hasn't run or user opted out), skills that depend on qe-browser must:
+If `vibium` is not installed (e.g., `aqe init` hasn't run or user opted out), the qe-browser helper scripts implement the contract automatically. **You don't have to grep error strings.** Each script:
 
-1. Print a clear error naming `vibium` and pointing to `aqe init` or `npm install -g vibium`.
-2. Not silently fall back to Playwright or puppeteer-extra.
-3. Return `status: "skipped"` with reason `"browser-engine-unavailable"` in their output JSON.
+1. Catches the `VibiumUnavailableError` thrown by `lib/vibium.js` when the binary isn't on PATH
+2. Emits a structured `skipped` envelope (see Output Contract below) with `vibiumUnavailable: true` at the top level and `output.reason: "browser-engine-unavailable"`
+3. Exits with **exit code 2** (skipped, distinct from 0=success and 1=failed)
+4. Never silently falls back to Playwright or puppeteer-extra
+
+Downstream skills that shell out to these helpers can branch on the structured fields:
+
+```bash
+node .claude/skills/qe-browser/scripts/assert.js --checks "$CHECKS"
+EXIT=$?
+case $EXIT in
+  0) echo "passed" ;;
+  1) echo "failed" ; cat last-output.json ;;
+  2) echo "skipped — vibium not installed; run \`aqe init\` or \`npm install -g vibium\`" ;;
+esac
+```
+
+Or in Node:
+```javascript
+const result = JSON.parse(stdout);
+if (result.vibiumUnavailable) {
+  // Surface skipped status to the caller; do NOT mark as failed
+  return { status: 'skipped', reason: result.output.reason };
+}
+```
 
 ## Migration from Playwright
 
@@ -318,22 +340,66 @@ Full migration guide: [references/migration-from-playwright.md](references/migra
 
 ## Output Contract
 
-All scripts emit a structured JSON envelope:
+All scripts emit a structured JSON envelope. There are three valid `status` values:
+
+### success (exit code 0)
 
 ```json
 {
   "skillName": "qe-browser",
   "version": "1.0.0",
-  "timestamp": "2026-04-08T12:00:00Z",
+  "timestamp": "2026-04-09T12:00:00Z",
   "status": "success",
   "trustTier": 3,
   "output": {
     "operation": "assert",
     "summary": "All 6 assertions passed",
-    "results": [...]
-  }
+    "assert": { ... }
+  },
+  "metadata": { "executionTimeMs": 142 }
 }
 ```
+
+### failed (exit code 1)
+
+Same shape; `status: "failed"` indicates a genuine assertion failure or operation error. The `output.*` block carries the per-check details.
+
+### skipped (exit code 2) — F1 contract
+
+Emitted when vibium is not installed on PATH. Top-level `vibiumUnavailable: true` is the **canonical signal** for downstream skills.
+
+```json
+{
+  "skillName": "qe-browser",
+  "version": "1.0.0",
+  "timestamp": "2026-04-09T12:00:00Z",
+  "status": "skipped",
+  "trustTier": 3,
+  "vibiumUnavailable": true,
+  "output": {
+    "operation": "assert",
+    "summary": "vibium binary not found on PATH. Install via `npm install -g vibium` or run `aqe init`.",
+    "reason": "browser-engine-unavailable",
+    "error": "vibium binary not found on PATH...",
+    "remediation": [
+      "Install vibium globally: `npm install -g vibium`",
+      "Or re-run `aqe init` to install via the AQE bootstrap",
+      "Set QE_BROWSER_HEADED=1 only for interactive debugging (not the cause here)"
+    ]
+  },
+  "metadata": { "executionTimeMs": 0 }
+}
+```
+
+### Exit code summary
+
+| Exit | Status      | Meaning                                                   |
+|------|-------------|-----------------------------------------------------------|
+| 0    | `success`   | every assertion passed / operation completed              |
+| 1    | `failed`    | genuine assertion failure or operation error              |
+| 2    | `skipped`   | vibium unavailable; environment problem, not a test result |
+
+CI tooling can use the exit code to distinguish "test legitimately failed" (block the build) from "we couldn't run the test because the browser engine isn't installed" (warn but don't block).
 
 Validate with `scripts/validate-config.json` + `schemas/output.json`.
 

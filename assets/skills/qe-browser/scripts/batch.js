@@ -35,6 +35,8 @@ const {
   readInlineOrFile,
   emit,
   fail,
+  runOrSkip,
+  rethrowIfUnavailable,
 } = require('./lib/vibium');
 
 // M6 (devil's-advocate finding): batch.js originally validated each step
@@ -250,6 +252,11 @@ function main() {
       passed += 1;
       results.push({ index: i, action: step.action, status: 'pass' });
     } catch (err) {
+      // F1: if vibium isn't installed, abort the whole batch and let
+      // runOrSkip emit the skipped envelope. A "step failed because the
+      // browser engine is missing" is not a per-step failure — it's a
+      // whole-run environment problem.
+      rethrowIfUnavailable(err);
       const info = { index: i, action: step.action, status: 'fail', error: err.message };
       results.push(info);
       failedStep = info;
@@ -279,7 +286,7 @@ function main() {
 }
 
 if (require.main === module) {
-  process.exit(main());
+  process.exit(runOrSkip('batch', main));
 }
 
 module.exports = { dispatch, validateStep, validateAllSteps, VALID_ACTIONS };

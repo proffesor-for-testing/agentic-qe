@@ -25,7 +25,15 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { vibium, envelope, parseArgs, emit, fail } = require('./lib/vibium');
+const {
+  vibium,
+  envelope,
+  parseArgs,
+  emit,
+  fail,
+  runOrSkip,
+  rethrowIfUnavailable,
+} = require('./lib/vibium');
 
 const BASELINE_DIR = path.join(process.cwd(), '.aqe', 'visual-baselines');
 
@@ -256,12 +264,13 @@ function main() {
       })
     );
   } catch (err) {
+    rethrowIfUnavailable(err); // F1
     return fail('visual-diff', err.message);
   }
 }
 
 if (require.main === module) {
-  process.exit(main());
+  process.exit(runOrSkip('visual-diff', main));
 }
 
 module.exports = { compareWithPixelmatch, compareFallback, parsePngSize };

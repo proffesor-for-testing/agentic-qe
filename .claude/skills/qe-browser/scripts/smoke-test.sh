@@ -173,6 +173,30 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# tc011 — F1 contract: vibium-missing → skipped envelope + exit code 2
+# ---------------------------------------------------------------------------
+# Build a fake bin dir that contains node (so the helper can run) but NOT
+# vibium. The helper must:
+#   1. Throw VibiumUnavailableError from lib/vibium.js
+#   2. Have it caught by runOrSkip wrapping main()
+#   3. Emit a status: "skipped" envelope with vibiumUnavailable: true
+#   4. Exit with code 2 (not 1)
+FAKE_BIN="$WORK_DIR/fake-bin"
+mkdir -p "$FAKE_BIN"
+ln -sf "$(command -v node)" "$FAKE_BIN/node"
+RESULT=$(env -i PATH="$FAKE_BIN" HOME="$HOME" TERM=dumb \
+  node "$SKILL_DIR/scripts/assert.js" --checks '[{"kind":"url_contains","text":"foo"}]' 2>&1)
+EXIT=$?
+if [ "$EXIT" = "2" ] \
+  && echo "$RESULT" | grep -q '"status": "skipped"' \
+  && echo "$RESULT" | grep -q '"vibiumUnavailable": true' \
+  && echo "$RESULT" | grep -q '"reason": "browser-engine-unavailable"'; then
+  ok "tc011 F1 missing-vibium emits skipped envelope + exit 2"
+else
+  bad "tc011 F1 missing-vibium emits skipped envelope + exit 2" "exit=$EXIT"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""

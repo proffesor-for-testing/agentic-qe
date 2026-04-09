@@ -18,6 +18,9 @@ const {
   readInlineOrFile,
   emit,
   fail,
+  runOrSkip,
+  isVibiumUnavailable,
+  rethrowIfUnavailable,
 } = require('./lib/vibium');
 
 const CHECK_KINDS = new Set([
@@ -129,6 +132,10 @@ function runBrowserSideCheck(check) {
     }
     return { ok: false, actual: payload };
   } catch (err) {
+    // F1: bubble VibiumUnavailableError past this catch so runOrSkip can
+    // emit the documented skipped envelope. Other errors stay scoped to
+    // the individual check (we still report them inside `actual`).
+    rethrowIfUnavailable(err);
     return { ok: false, actual: `eval error: ${err.message}` };
   }
 }
@@ -139,6 +146,12 @@ function runBrowserSideCheck(check) {
 // unavailable as a FAIL — per feedback_no_unverified_failure_modes.md,
 // silently reporting green when the signal is missing is a prohibited
 // failure mode.
+//
+// F1 distinction: this `unavailable` sentinel is for "vibium ran but the
+// `console`/`network` subcommand returned nothing useful" — NOT for "vibium
+// itself isn't installed". The latter is handled by VibiumUnavailableError
+// + runOrSkip + the skipped envelope. We re-throw the unavailable error so
+// it surfaces correctly.
 function unavailable(err) {
   return {
     ok: false,
@@ -153,6 +166,7 @@ function runConsoleCheck(kind, check) {
   try {
     raw = vibiumJson(['console', '--json']);
   } catch (err) {
+    rethrowIfUnavailable(err);
     return unavailable(err);
   }
   const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
@@ -175,6 +189,7 @@ function runNetworkCheck(kind, check) {
   try {
     raw = vibiumJson(['network', '--json']);
   } catch (err) {
+    rethrowIfUnavailable(err);
     return unavailable(err);
   }
   const entries = Array.isArray(raw) ? raw : Array.isArray(raw && raw.entries) ? raw.entries : [];
@@ -292,7 +307,10 @@ function main() {
 }
 
 if (require.main === module) {
-  process.exit(main());
+  // F1: runOrSkip catches VibiumUnavailableError thrown anywhere inside
+  // main() (including from nested vibium() / vibiumJson() / vibiumEval*
+  // calls) and emits the documented skipped envelope with exit code 2.
+  process.exit(runOrSkip('assert', main));
 }
 
 module.exports = { runCheck, CHECK_KINDS, buildEvalScript, unavailable };

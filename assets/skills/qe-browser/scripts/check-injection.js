@@ -25,6 +25,8 @@ const {
   parseArgs,
   emit,
   fail,
+  runOrSkip,
+  rethrowIfUnavailable,
 } = require('./lib/vibium');
 
 // Pattern list — each entry: { name, severity, regex, description }.
@@ -253,12 +255,13 @@ function main() {
       })
     );
   } catch (err) {
+    rethrowIfUnavailable(err); // F1: bubble missing-vibium past this catch
     return fail('check-injection', err.message);
   }
 }
 
 if (require.main === module) {
-  process.exit(main());
+  process.exit(runOrSkip('check-injection', main));
 }
 
 module.exports = { scanText, PATTERNS, aggregateSeverity, sanitizeSnippet };

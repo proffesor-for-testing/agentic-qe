@@ -12,7 +12,15 @@
 
 'use strict';
 
-const { vibiumEvalStdin, envelope, parseArgs, emit, fail } = require('./lib/vibium');
+const {
+  vibiumEvalStdin,
+  envelope,
+  parseArgs,
+  emit,
+  fail,
+  runOrSkip,
+  rethrowIfUnavailable,
+} = require('./lib/vibium');
 
 const VALID_INTENTS = [
   'submit_form',
@@ -305,12 +313,13 @@ function main() {
       })
     );
   } catch (err) {
+    rethrowIfUnavailable(err); // F1
     return fail('intent-score', err.message);
   }
 }
 
 if (require.main === module) {
-  process.exit(main());
+  process.exit(runOrSkip('intent-score', main));
 }
 
 module.exports = { VALID_INTENTS, buildScript };

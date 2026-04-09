@@ -344,6 +344,58 @@ Logged as **F1 (Phase 6 follow-up)**. Not a blocker — the error is unambiguous
 
 **Phase 5 conclusion: VERIFIED.** Every documented user-facing path runs end-to-end. The skill is ready to ship.
 
+### Phase 6 — F1 contract fix (2026-04-09): COMPLETE
+
+F1 (the missing-vibium fallback contract gap discovered in Phase 5) is now implemented. The Fallback Policy in `SKILL.md` is no longer aspirational — every helper actually emits the documented `skipped` envelope with `vibiumUnavailable: true` when the binary isn't on PATH.
+
+**Contract changes:**
+
+| Surface | Before | After |
+|---|---|---|
+| `lib/vibium.js` ENOENT | `throw new Error('vibium binary not found...')` | `throw new VibiumUnavailableError(...)` (typed, with stable `code: 'BROWSER_ENGINE_UNAVAILABLE'`) |
+| Per-script main() catches | swallowed → `fail()` envelope (status: failed) | `rethrowIfUnavailable(err)` first; missing-vibium bubbles past local catches |
+| Outer wrapper | `process.exit(main())` | `process.exit(runOrSkip('opName', main))` — emits the documented skipped envelope |
+| Envelope shape | only `success` / `failed` | added `skipped` with top-level `vibiumUnavailable: true` and `output.reason: 'browser-engine-unavailable'` |
+| Exit code | 0 / 1 | 0 (success), 1 (failed), **2 (skipped)** |
+| Downstream check | `grep "vibium binary not found" actual` | `result.vibiumUnavailable === true` (or exit code === 2) |
+
+**New helpers in `lib/vibium.js`:**
+- `class VibiumUnavailableError extends Error` — typed error with `name`, `code`, exported
+- `isVibiumUnavailable(err)` — predicate, prototype + duck-type + final string-fallback
+- `rethrowIfUnavailable(err)` — for use inside per-script catch blocks; promotes duck-typed errors to real `VibiumUnavailableError`
+- `unavailableEnvelope(operation, message)` — produces the canonical skipped envelope shape with `remediation` array
+- `runOrSkip(operation, fn)` — wraps `main()`, catches `VibiumUnavailableError`, emits the skipped envelope and returns exit code 2
+
+**Verification (real, not just unit tests):**
+
+1. **`tests/unit/scripts/qe-browser-vibium-lib.test.ts`** — 22 tests (was 10), including 12 new ones covering:
+   - `VibiumUnavailableError` exports + instanceof + duck-typed code field
+   - `unavailableEnvelope` shape contract
+   - `runOrSkip` happy path, error path, duck-typed catch, re-throw of unrelated errors
+   - `emit()` exit codes 0/1/2 for success/failed/skipped
+   - `envelope()` does NOT set `vibiumUnavailable` on the happy path
+
+2. **`tests/unit/scripts/qe-browser-unavailable-e2e.test.ts`** — NEW file with 5 end-to-end tests. Each test spawns a helper script (`assert.js`, `batch.js`, `check-injection.js`, `intent-score.js`, `visual-diff.js`) with a stripped `PATH=/tmp/qe-browser-fake-bin-<pid>` containing only a node symlink, and asserts:
+   - exit code === 2
+   - parsed JSON status === "skipped"
+   - parsed JSON vibiumUnavailable === true
+   - parsed JSON output.reason === "browser-engine-unavailable"
+   - parsed JSON output.summary contains "vibium binary not found"
+   - parsed JSON output.remediation includes "npm install -g vibium"
+
+3. **`scripts/smoke-test.sh` tc011** — same fake-bin technique inside the smoke test. Now 10/10 PASS:
+   ```
+   PASS  tc011 F1 missing-vibium emits skipped envelope + exit 2
+   ```
+
+4. **`SKILL.md` Output Contract** — documents all three statuses (success / failed / skipped), exit codes 0 / 1 / 2, and shows the canonical skipped envelope JSON.
+
+5. **`SKILL.md` Fallback Policy** — replaced "scripts must return status: skipped" generic guidance with concrete bash + Node snippets that branch on `result.vibiumUnavailable` / exit code 2.
+
+**Test totals:** 103 unit tests across 8 files (was 86). All passing. Smoke test 10/10 (was 9/9).
+
+**Phase 6 conclusion: VERIFIED.** F1 is closed. The Fallback Policy in `SKILL.md` is now implemented end-to-end, regression-tested in three independent layers (unit, e2e spawn, smoke test), and downstream skills can branch on a structured field instead of grepping error strings.
+
 ---
 
 ## Alternatives considered (detail)
