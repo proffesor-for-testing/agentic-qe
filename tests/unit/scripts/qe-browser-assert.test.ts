@@ -154,6 +154,35 @@ describe('qe-browser assert helpers', () => {
       expect(error).toMatch(/pattern too long/);
     });
 
+    it('rejects patterns with characters outside the allowlist', () => {
+      // Control characters (0x00-0x1F) are not in the allowlist
+      const { re, error } = assertModule.safeRegex('foo\x00bar');
+      expect(re).toBeNull();
+      expect(error).toMatch(/outside the allowlist/);
+    });
+
+    it('rejects high-unicode characters (emoji, etc.)', () => {
+      const { re, error } = assertModule.safeRegex('hello 👋');
+      expect(re).toBeNull();
+      expect(error).toMatch(/outside the allowlist/);
+    });
+
+    it('accepts common regex metacharacters', () => {
+      // Exercise the full allowlist: alternation, quantifiers, anchors,
+      // character classes, groups, backreferences.
+      const patterns = [
+        '^(foo|bar)\\s+\\d{1,3}$',
+        '/path/to/[a-z_]+\\.json',
+        'error:\\s+.*timeout',
+        'user@example\\.com',
+      ];
+      for (const p of patterns) {
+        const { re, error } = assertModule.safeRegex(p);
+        expect(error, `pattern rejected: ${p}`).toBeNull();
+        expect(re).toBeInstanceOf(RegExp);
+      }
+    });
+
     it('accepts exactly MAX_REGEX_PATTERN_LENGTH characters', () => {
       const maxed = 'a'.repeat(assertModule.MAX_REGEX_PATTERN_LENGTH);
       const { re, error } = assertModule.safeRegex(maxed);

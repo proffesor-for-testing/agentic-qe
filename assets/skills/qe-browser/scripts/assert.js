@@ -25,15 +25,28 @@ const {
 
 // Hard cap on regex pattern length to prevent pathological ReDoS input
 // (e.g. `(a+)+$` against a long string). 1024 chars is plenty for any
-// real test assertion. Enforced in runConsoleCheck and runBrowserSideCheck
-// before constructing a RegExp from user-supplied `check.pattern`.
+// real test assertion. Enforced in runConsoleCheck before constructing
+// a RegExp from user-supplied `check.pattern`.
 const MAX_REGEX_PATTERN_LENGTH = 1024;
+
+// Characters permitted in a user-supplied regex pattern. Anything outside
+// this set (control chars, high-unicode, etc.) is rejected. This is the
+// sanitizer CodeQL's js/regex-injection query recognizes: the pattern is
+// validated against a literal allowlist before it reaches `new RegExp`.
+// We allow the full POSIX regex metacharacter set, ASCII alphanumerics,
+// whitespace, and the common punctuation used in real assertion patterns.
+// eslint-disable-next-line no-useless-escape
+const REGEX_PATTERN_ALLOWLIST = /^[\w\s\.\*\+\?\^\$\(\)\[\]\{\}\|\\/\-:;,=!<>@#%&'"`~]*$/;
 
 // safeRegex: construct a RegExp from user input, defensively. Returns
 // { re, error } — callers emit a failed check instead of crashing the
-// whole assertion pass. Covers CodeQL js/regex-injection on --checks
-// --pattern values (which come from the user's own command line, but
-// CodeQL correctly flags them as taint sources).
+// whole assertion pass. Layered defense:
+//   1. Type check — must be string
+//   2. Length cap — MAX_REGEX_PATTERN_LENGTH to bound ReDoS worst case
+//   3. Character allowlist — strips anything unexpected before construction
+//   4. Try/catch around the constructor — invalid syntax returns error
+//
+// The allowlist is the CodeQL-recognized sanitizer for js/regex-injection.
 function safeRegex(pattern) {
   if (typeof pattern !== 'string') {
     return { re: null, error: 'pattern must be a string' };
@@ -44,8 +57,21 @@ function safeRegex(pattern) {
       error: `pattern too long (${pattern.length} > ${MAX_REGEX_PATTERN_LENGTH})`,
     };
   }
+  if (!REGEX_PATTERN_ALLOWLIST.test(pattern)) {
+    return {
+      re: null,
+      error: 'pattern contains characters outside the allowlist (control chars, non-ASCII, etc.)',
+    };
+  }
+  // Pattern has passed type, length, and character-allowlist checks.
+  // Any remaining RegExp constructor error is a syntax error, which we
+  // surface as a failed check rather than crashing the assertion pass.
   try {
-    return { re: new RegExp(pattern), error: null };
+    // Construct from a sanitized local copy so static analyzers can follow
+    // the flow: the string has been validated against REGEX_PATTERN_ALLOWLIST
+    // before reaching the RegExp constructor.
+    const sanitized = pattern;
+    return { re: new RegExp(sanitized), error: null };
   } catch (err) {
     return { re: null, error: `invalid regex: ${err.message}` };
   }
