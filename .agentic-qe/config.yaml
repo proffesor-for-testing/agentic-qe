@@ -35,6 +35,15 @@ routing:
   confidenceThreshold: 0.75
   feedbackEnabled: true
 
+# ADR-092: Advisor Strategy Configuration
+# The advisor helper script (advisor-call.cjs) reads these settings.
+# If not set, it auto-detects from available API keys in your environment.
+advisor:
+  # provider: "openrouter"        # openrouter | claude | ollama (auto-detected if not set)
+  # model: "anthropic/claude-opus-4"  # provider-specific model ID
+  # maxUses: "3"                  # per-task advisor call cap
+  redact: "strict"                # strict | balanced | off
+
 workers:
   enabled:
     - "pattern-consolidator"

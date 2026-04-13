@@ -9,6 +9,7 @@
 
 import { performance } from 'perf_hooks';
 import { type ITaskRouter, createSmartTinyDancerRouter, type TinyDancerConfig, type RouteResult } from './tiny-dancer-router.js';
+import type { AdvisorResult } from './advisor/types.js';
 import {
   classifyTask,
   type ClassifiableTask,
@@ -59,6 +60,8 @@ export interface QueenRouteDecision {
   readonly latencyMs: number;
   /** Original TinyDancer result */
   readonly tinyDancerResult: RouteResult;
+  /** Advisor consultation result if triggered (ADR-092) */
+  readonly advisorResult?: AdvisorResult;
   /** Timestamp */
   readonly timestamp: Date;
 }
@@ -186,8 +189,13 @@ export class QueenRouterAdapter {
     // Reset daily cost if needed
     this.checkDailyCostReset();
 
-    // Use TinyDancer to classify and route
+    // Use TinyDancer to classify and route.
+    // ADR-092: triggerMultiModel is surfaced as a signal to spawned agents via
+    // spawn capabilities (queen-task-management.ts). Agents consume it via the
+    // executor preamble and call `aqe llm advise` when they have a transcript.
+    // The routing layer does NOT call the advisor — transcripts don't exist here.
     const tinyDancerResult = await this.tinyDancer.route(task);
+    const advisorResult: AdvisorResult | undefined = undefined;
 
     // Map complexity to agent tiers
     const tiers = mapComplexityToTier(
@@ -232,6 +240,7 @@ export class QueenRouterAdapter {
       reasoning,
       latencyMs,
       tinyDancerResult,
+      advisorResult,
       timestamp: new Date(),
     };
 

@@ -333,10 +333,17 @@ export async function assignTaskToDomain(
 
   // Spawn an agent for this task if needed, using TinyDancer-recommended tier
   const agentType = routeDecision?.tier || 'task-worker';
+  const spawnCapabilities = [
+    'task-execution', task.type,
+    ...(routeDecision ? [`model:${routeDecision.model}`] : []),
+    // ADR-092: surface advisor trigger signal to spawned agent so the executor
+    // preamble can instruct it to call `aqe llm advise` before substantive work
+    ...(routeDecision?.triggerMultiModel ? ['advisor:triggerMultiModel'] : []),
+  ];
   const spawnResult = await ctx.requestAgentSpawn(
     domain,
     agentType,
-    ['task-execution', task.type, ...(routeDecision ? [`model:${routeDecision.model}`] : [])],
+    spawnCapabilities,
   );
 
   const agentIds: string[] = [];

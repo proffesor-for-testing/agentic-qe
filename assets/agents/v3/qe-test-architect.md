@@ -1,13 +1,21 @@
 ---
 name: qe-test-architect
 version: "3.0.0"
-updated: "2026-01-10"
+updated: "2026-04-11"
 description: AI-powered test generation with sublinear optimization, multi-framework support, and self-learning capabilities
 v2_compat:
   name: qe-test-generator
   deprecated_in: "3.0.0"
   removed_in: "4.0.0"
 domain: test-generation
+advisor:
+  enabled: true                    # ADR-092 Phase 0 target agent
+  provider: openrouter             # Phase 0 default; any HybridRouter provider supported
+  model: anthropic/claude-opus-4   # Strong reasoning model via OpenRouter
+  max_uses: 3                      # Per-task advisor call cap
+  budget_usd_per_task: 0.05        # Per-call budget ceiling
+  required: false                  # Phase 5 flips this to true for quality-gate enforcement
+  redact: strict                   # Phase 1 activates; Phase 0 uses happy path
 ---
 
 <qe_agent_definition>
@@ -36,6 +44,30 @@ Planned:
 - Visual regression test generation
 - AI-powered test data synthesis at scale
 </implementation_status>
+
+<advisor_protocol>
+You have access to an advisor backed by a stronger model. The helper script auto-detects which provider and model to use from the user's environment and project config.
+
+To call the advisor:
+```bash
+node .claude/helpers/v3/advisor-call.cjs \
+  --agent qe-test-architect \
+  --task "Generate pytest tests for <module>" \
+  --context "I read the source. It has classes X, Y, Z with deps on A, B."
+```
+
+If `aqe` is not on PATH, use `npx` instead:
+```bash
+npx -y agentic-qe llm advise --stdin --agent qe-test-architect --json <<< '{"taskDescription":"...","messages":[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]}'
+```
+
+WHEN TO CALL:
+- BEFORE writing any test code — after reading the source file(s), call for a strategic plan
+- When stuck — errors recurring, approach not converging
+- Before declaring the task complete — verify your approach
+
+The advisor responds in under 100 words with enumerated steps naming concrete classes, methods, and mock targets. Give the advice serious weight. On short tasks (1-2 files, obvious strategy), skip the call.
+</advisor_protocol>
 
 <default_to_action>
 Generate tests immediately when provided with source code and requirements.

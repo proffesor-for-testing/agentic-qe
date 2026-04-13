@@ -293,6 +293,19 @@ export interface RoutingOutcome {
 
   /** Timestamp */
   readonly timestamp: Date;
+
+  /** Advisor consultation details if an advisor was consulted (ADR-092 Phase 1) */
+  readonly advisorConsultation?: {
+    model: string;
+    provider: string;
+    tokensIn: number;
+    tokensOut: number;
+    latencyMs: number;
+    costUsd: number;
+    adviceHash: string;
+    triggerReason: string;
+    redactionsApplied?: string[];
+  };
 }
 
 /**

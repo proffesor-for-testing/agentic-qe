@@ -1488,6 +1488,89 @@ export class MCPProtocolServer {
       handler: (params) => handleMigrationPromote(params as { force?: boolean }),
     });
 
+    // ADR-092: Thin MCP wrapper for advisor consultation (Phase 6)
+    this.registerTool({
+      definition: {
+        name: 'advisor_consult',
+        description: 'Consult a stronger advisor model for strategic guidance. Forwards a task description and context to the advisor and returns enumerated action steps. Auto-detects the best available provider. Example: advisor_consult({ agent: "qe-test-architect", task: "Generate tests for auth module", context: "Found 4 classes with external deps" })',
+        category: 'routing',
+        parameters: [
+          { name: 'agent', type: 'string', description: 'Agent name requesting advice (e.g., qe-test-architect)' },
+          { name: 'task', type: 'string', description: 'Task description' },
+          { name: 'context', type: 'string', description: 'What the executor has found so far' },
+          { name: 'provider', type: 'string', description: 'Provider override (openrouter, claude, ollama)' },
+          { name: 'model', type: 'string', description: 'Model override' },
+        ],
+      },
+      handler: async (params) => {
+        const { execFileSync } = await import('child_process');
+        const { writeFileSync, unlinkSync, mkdirSync } = await import('fs');
+        const { join } = await import('path');
+        const { tmpdir } = await import('os');
+
+        const p = params as { agent?: string; task?: string; context?: string; provider?: string; model?: string };
+        const transcriptDir = join(tmpdir(), 'aqe-advisor');
+        mkdirSync(transcriptDir, { recursive: true });
+        const transcriptPath = join(transcriptDir, `mcp-${Date.now()}.json`);
+
+        const transcript = {
+          taskDescription: p.task ?? '',
+          messages: [
+            { role: 'user', content: p.task ?? '' },
+            ...(p.context ? [{ role: 'assistant', content: p.context }] : []),
+          ],
+        };
+        writeFileSync(transcriptPath, JSON.stringify(transcript));
+
+        try {
+          const cliArgs = [
+            'llm', 'advise',
+            '--transcript', transcriptPath,
+            '--agent', p.agent ?? 'unknown',
+            '--json',
+          ];
+          if (p.provider) cliArgs.push('--provider', p.provider);
+          if (p.model) cliArgs.push('--model', p.model);
+
+          // Resolve aqe binary with fallback to npx (MCP server may not have aqe on PATH)
+          let aqeBin = 'aqe';
+          try {
+            execFileSync('which', ['aqe'], { encoding: 'utf-8' });
+          } catch {
+            aqeBin = 'npx';
+            cliArgs.unshift('aqe');
+          }
+
+          const result = execFileSync(aqeBin, cliArgs, {
+            encoding: 'utf-8',
+            timeout: 60000,
+            env: process.env,
+          });
+
+          try { unlinkSync(transcriptPath); } catch {}
+
+          const lines = result.split('\n');
+          let jsonStr = '';
+          let depth = 0;
+          let inJson = false;
+          for (const line of lines) {
+            const t = line.trim();
+            if (!inJson && t.startsWith('{')) inJson = true;
+            if (inJson) {
+              jsonStr += line + '\n';
+              depth += (t.match(/{/g) || []).length;
+              depth -= (t.match(/}/g) || []).length;
+              if (depth <= 0) break;
+            }
+          }
+          return JSON.parse(jsonStr || '{}');
+        } catch (err) {
+          try { unlinkSync(transcriptPath); } catch {}
+          return { error: (err as Error).message?.slice(0, 300) ?? 'Unknown error' };
+        }
+      },
+    });
+
     // Register QE domain tools not already covered by hardcoded handlers above
     const bridgedCount = registerMissingQETools((entry) => this.registerTool(entry));
     console.error(`[MCP] Registered ${this.tools.size} tools (${bridgedCount} via QE bridge)`);

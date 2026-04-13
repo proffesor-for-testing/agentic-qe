@@ -602,6 +602,16 @@ export function configToYAML(config: AQEInitConfig): string {
   lines.push(`  feedbackEnabled: ${config.routing.feedbackEnabled}`);
   lines.push('');
 
+  // ADR-092: Advisor Strategy Configuration
+  lines.push('# ADR-092: Advisor Strategy — agents consult a stronger model for strategic guidance');
+  lines.push('# Set provider/model to override auto-detection from environment API keys');
+  lines.push('advisor:');
+  lines.push('  # provider: "openrouter"        # openrouter | claude | ollama (auto-detected if not set)');
+  lines.push('  # model: "anthropic/claude-opus-4"  # provider-specific model ID');
+  lines.push('  # maxUses: "3"                  # per-task advisor call cap');
+  lines.push('  redact: "strict"                # strict | balanced | off');
+  lines.push('');
+
   lines.push('workers:');
   lines.push('  enabled:');
   for (const worker of config.workers.enabled) {
