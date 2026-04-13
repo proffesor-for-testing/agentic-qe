@@ -242,6 +242,12 @@ All mandatory test suites must pass. Pre-existing MCP handler test failures (tes
 **STOP — show all test results.**
 
 ### 10. Commit & Create PR to Main
+
+**IMPORTANT**: The PR body MUST follow `.github/PULL_REQUEST_TEMPLATE.md`. CI enforces via
+`scripts/check-pr-body.cjs` (issue #401). The two hard requirements:
+1. Include the `### Required check (issue #401)` section with the failure-modes checkbox marked `[x]`
+2. No forbidden dismissal phrases ("I believe it's unlikely", "can't see how this would fail", etc.)
+   without a tracking issue reference in the same paragraph
 ```bash
 cd /workspaces/agentic-qe-new
 
@@ -258,18 +264,34 @@ gh pr create \
   --base main \
   --title "chore(release): v<version>" \
   --body "$(cat <<'EOF'
-## Release v<version>
+## Summary
 
-### Verification Checklist
-- [x] package.json version updated
-- [x] Build succeeds (tsc + CLI + MCP bundles)
-- [x] Type check passes
-- [x] All unit tests pass
-- [x] `aqe init --auto` works in fresh project
-- [x] CLI commands functional
-- [x] Self-learning subsystem initializes
-- [x] Performance gates pass
-- [x] Full test:ci suite passes
+<1-3 sentences: what changed and why, from the CHANGELOG>
+
+## Verification
+
+<Paste actual command output from steps 5-9: build, typecheck, test counts,
+aqe init --auto result, CLI --version, performance gate results.
+Real output, not summaries.>
+
+## Failure modes
+
+<List any failure modes this release introduces, mitigates, or doesn't cover.
+Be honest about what wasn't tested. If none, say "No new failure modes introduced.">
+
+---
+
+### Required check (issue #401)
+
+- [x] **Every failure mode mentioned in this PR description has either (a) a test that exercises it, or (b) a linked tracking issue.** "Unlikely" is not an acceptable substitute. If you wrote "I don't think this can happen but...", that sentence is a failure mode and needs a test or an issue link.
+
+### Optional context
+
+- Linked issues: #
+- Trust tier change (if any): none
+- Affects published API or CLI surface: yes / no
+- Touches the init flow / `npm-publish.yml` / `tests/fixtures/init-corpus/`: yes / no
+  - If yes: did you run `./tests/fixtures/init-corpus/run-gate.sh` locally? yes / no / not applicable
 
 See [CHANGELOG](CHANGELOG.md) for details.
 EOF
@@ -387,3 +409,5 @@ Fix, rebuild, and re-release if this step fails. Never ship a CLI that crashes o
 - Never push tags or create releases without user confirmation
 - **No e2e browser tests** unless user explicitly requests them
 - All verification (step 8) must pass before creating the PR — this catches issues before they reach main
+- **PR body MUST include the `### Required check (issue #401)` section** with the failure-modes checkbox checked `[x]`. CI enforces this via `scripts/check-pr-body.cjs`. See `.github/PULL_REQUEST_TEMPLATE.md` for the full template.
+- Never use dismissal phrases like "I believe it's unlikely" or "can't see how this would fail" without a tracking issue reference (`#NNN`) in the same paragraph

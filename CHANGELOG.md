@@ -5,6 +5,13 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.11] - 2026-04-13
+
+### Fixed
+
+- **`aqe init --auto` now correctly updates agents and helpers on upgrade** — When upgrading from a previous version, `init --auto` silently skipped updated agent definitions and new helper files if `.agentic-qe/config.yaml` was missing or incomplete from the prior install. The version detection now falls back to checking for existing agent files, so upgrades work reliably even when the previous init was interrupted before writing config.
+- **Visible errors when helper/template sources are missing** — The agents installer now logs to stderr when it cannot find the helpers or templates source directory, instead of silently skipping the copy.
+
 ## [3.9.10] - 2026-04-13
 
 **Use any LLM provider for QE advisory tasks.** Route simple questions to cheaper models, keep complex reasoning on premium providers, and let the fleet automatically route around outages. Sensitive data is scrubbed before prompts leave your environment. ([ADR-092](docs/implementation/adrs/ADR-092-provider-agnostic-advisor-strategy.md))

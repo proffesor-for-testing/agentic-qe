@@ -586,6 +586,8 @@ export class AgentsInstaller {
 
     if (existsSync(sourceHelpersDir)) {
       this.copyDirectoryRecursive(sourceHelpersDir, targetHelpersDir);
+    } else {
+      console.error(`[AgentsInstaller] Helpers source not found: ${sourceHelpersDir}`);
     }
   }
 
@@ -598,6 +600,8 @@ export class AgentsInstaller {
 
     if (existsSync(sourceTemplatesDir)) {
       this.copyDirectoryRecursive(sourceTemplatesDir, targetTemplatesDir);
+    } else {
+      console.error(`[AgentsInstaller] Templates source not found: ${sourceTemplatesDir}`);
     }
   }
 
