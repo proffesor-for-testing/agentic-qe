@@ -1,0 +1,728 @@
+{
+  "adr": "ADR-092",
+  "phase": "multi-model-trial",
+  "fixture_sha": "2a05378bd229df07eff3e309d414d65510ce507c",
+  "timestamp": "2026-04-12T07:38:13.976Z",
+  "executor_model": "anthropic/claude-sonnet-4",
+  "round1": {
+    "rankings": [
+      {
+        "model": "Qwen3.6-Plus",
+        "avg_score": 87.7,
+        "cost": 0,
+        "successes": 10
+      },
+      {
+        "model": "DeepSeek-R1-Free",
+        "avg_score": 0,
+        "cost": 0,
+        "successes": 0
+      },
+      {
+        "model": "Gemma-4-31B",
+        "avg_score": 0,
+        "cost": 0,
+        "successes": 0
+      },
+      {
+        "model": "DeepSeek-V3.2",
+        "avg_score": 0,
+        "cost": 0,
+        "successes": 0
+      },
+      {
+        "model": "Kimi-K2",
+        "avg_score": 0,
+        "cost": 0,
+        "successes": 0
+      }
+    ]
+  },
+  "round2": {
+    "baseline": {
+      "total_cost": 0,
+      "avg": {
+        "tests": 36.8,
+        "asserts": 65,
+        "mocks": 55.3,
+        "astValid": 10
+      }
+    },
+    "advisors": [
+      {
+        "model_id": "qwen/qwen3.6-plus",
+        "label": "Qwen3.6-Plus",
+        "avg_tests": 28.5,
+        "avg_asserts": 50.2,
+        "avg_mocks": 48.3,
+        "ast_valid": 9,
+        "total_cost": 0,
+        "cost_delta_pct": null,
+        "quality_pass": false,
+        "cost_pass": false,
+        "gate_pass": false
+      }
+    ]
+  },
+  "round1_full": [
+    {
+      "model_id": "qwen/qwen3.6-plus",
+      "label": "Qwen3.6-Plus",
+      "avg_score": 87.7,
+      "total_cost_usd": 0,
+      "successes": 10,
+      "results": [
+        {
+          "file": "v1/src/main.py",
+          "advice": "1. Mock `get_settings`, `validate_settings`, `setup_logging`, `ServiceOrchestrator`, `create_app`, `create_cli`, `uvicorn.Config`, `uvicorn.Server`, `signal.signal`, `sys.exit`, `asyncio.create_task`.\n2. Prioritize `main()`: server branch (uvicorn config), CLI branch (`sys.argv` > 1), validation failure (prod `sys.exit(1)` vs dev continue), and `finally` cleanup (`orchestrator.shutdown()`).\n3. Edge cases: `validate_settings` issues in dev/prod, `settings.reload`/`is_development` affecting uvicorn workers, `KeyboardInterrupt` handling, `setup_signal_handlers` triggering `asyncio.create_task(orchestrator.shutdown)`, and `run()` calling `asyncio.run(main())`.",
+          "quality": {
+            "word_count": 56,
+            "step_count": 3,
+            "class_method_refs": 15,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 80
+          },
+          "tokens_in": 889,
+          "tokens_out": 1818,
+          "cost_usd": 0,
+          "latency_ms": 39719
+        },
+        {
+          "file": "v1/src/sensing/classifier.py",
+          "advice": "1. Mock `RssiFeatures` dependency with controlled `variance`, `motion_band_power`, `breathing_band_power`, `n_change_points`.\n2. Prioritize `PresenceClassifier.classify()` parameterized across `MotionLevel.ABSENT`, `PRESENT_STILL`, `ACTIVE`, asserting `SensingResult` field mapping.\n3. Isolate `PresenceClassifier._compute_confidence()` verifying 0.6/0.2/0.2 weighting, `None` vs populated `other_receiver_results`, and `max(0.0, min(1.0, ...))` clamping.\n4. Edge cases: zero `presence_variance_threshold`/`motion_energy_threshold` (division guards), exact threshold equality, empty `other_receiver_results`, and confidence saturation at 0.0/1.0.",
+          "quality": {
+            "word_count": 54,
+            "step_count": 4,
+            "class_method_refs": 15,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 85
+          },
+          "tokens_in": 1732,
+          "tokens_out": 1662,
+          "cost_usd": 0,
+          "latency_ms": 38879
+        },
+        {
+          "file": "v1/src/hardware/router_interface.py",
+          "advice": "1. Mock `asyncssh.connect`, `ssh_client.run`, `asyncio.sleep`, `logging.Logger`.\n2. Prioritize `RouterInterface._validate_config` (missing keys, invalid port), `connect`/`disconnect` state management, and `execute_command` retry loop (success, `ConnectionError` backoff, exhaustion, non-zero `returncode`).\n3. Test `get_csi_data` (asserts `_parse_csi_response` raises `RouterConnectionError`), `get_router_status` (validates `_parse_status_response` dict), `configure_csi_monitoring` (channel bounds, `ValueError`), `health_check` (string match).\n4. Cover edge cases: `execute_command` with `is_connected=False`, `asyncssh.connect` generic `Exception`, `command_timeout` propagation, and `configure_csi_monitoring` non-integer channel.",
+          "quality": {
+            "word_count": 60,
+            "step_count": 4,
+            "class_method_refs": 16,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 85
+          },
+          "tokens_in": 1972,
+          "tokens_out": 2106,
+          "cost_usd": 0,
+          "latency_ms": 43590
+        },
+        {
+          "file": "v1/src/models/densepose_head.py",
+          "advice": "1. Mock `torch.nn.init` via `unittest.mock.patch` for deterministic initialization; seed `torch.manual_seed(0)`.\n2. Prioritize `DensePoseHead.__init__` (config validation), `forward` (channel validation, FPN routing, output dict), and `compute_total_loss` (weighted combination).\n3. Cover edge cases: missing `config` keys, `input_channels <= 0`, `forward` channel mismatch raising `DensePoseError`, empty `hidden_channels`, `seg_weight=0`, and zero `uv_variance` in `get_prediction_confidence`.\n4. Validate `post_process_predictions` output shapes for `body_parts`, `uv_coordinates`, and `confidence_scores`.\n5. Generate dummy inputs via `torch.rand(B, C, H, W)` matching `config` dimensions.",
+          "quality": {
+            "word_count": 71,
+            "step_count": 5,
+            "class_method_refs": 18,
+            "mock_mentions": 3,
+            "follows_format": true,
+            "score": 100
+          },
+          "tokens_in": 2456,
+          "tokens_out": 2391,
+          "cost_usd": 0,
+          "latency_ms": 50360
+        },
+        {
+          "file": "v1/src/api/middleware/auth.py",
+          "advice": "1. Mock `src.config.settings.get_settings`, `jose.jwt.decode`, `token_blacklist.is_blacklisted`, `datetime.utcnow`.\n2. Prioritize `AuthMiddleware.dispatch`: public bypass, protected 401, successful auth, `X-User-ID`/`X-Authenticated` injection via mocked `call_next`.\n3. Cover `AuthMiddleware._verify_token`: valid payload, `JWTError`, expired `exp`, blacklisted token, missing `sub`.\n4. Test `AuthMiddleware._extract_token`: `Authorization: Bearer`, `?token=`, `access_token` cookie, malformed headers.\n5. Validate `_is_public_path`/`_is_protected_path` prefix matching (e.g., `/api/v1/pose/analyze/123`).\n6. Edge cases: `TokenBlacklist._cleanup_if_needed` time boundary, `SecurityHeaders.add_security_headers` idempotency, `APIKeyAuth` revoke/verify cycles.",
+          "quality": {
+            "word_count": 60,
+            "step_count": 6,
+            "class_method_refs": 20,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 90
+          },
+          "tokens_in": 2421,
+          "tokens_out": 2384,
+          "cost_usd": 0,
+          "latency_ms": 50403
+        },
+        {
+          "file": "v1/src/config.py",
+          "advice": "1. Mock `src.config.settings.get_settings`, `src.config.domains.get_domain_config`, `src.config.settings.validate_settings` returning `Settings`/`DomainConfig` instances.\n2. Patch `os.environ` via `monkeypatch` and `pathlib.Path.mkdir` to isolate `get_storage_config`/`set_environment_override`.\n3. Prioritize `ConfigManager` lazy properties, `reload_*` resets, `validate_configuration` aggregation, `get_full_config` assembly.\n4. Test `get_redis_config` returning `None` on empty URL, `clear_environment_overrides` with missing keys, `get_config_manager.cache_clear()` for `lru_cache` isolation.\n5. Assert `validate_configuration` catches sub-config exceptions and checks `Path.exists()` for storage dirs.",
+          "quality": {
+            "word_count": 57,
+            "step_count": 5,
+            "class_method_refs": 20,
+            "mock_mentions": 3,
+            "follows_format": true,
+            "score": 100
+          },
+          "tokens_in": 2378,
+          "tokens_out": 1954,
+          "cost_usd": 0,
+          "latency_ms": 36077
+        },
+        {
+          "file": "v1/src/api/middleware/rate_limit.py",
+          "advice": "1. Mock `src.config.settings.get_settings`, `time.time`, `call_next`, and `logger.warning`.\n2. Prioritize `dispatch` orchestration, `_check_limit` sliding window math, `_get_client_id`/`_get_user_type` routing, and `cleanup_old_data`.\n3. Test edge cases: `request.client` is `None`, exact window boundary expiry, `violations > 5` triggering `_block_client`, block auto-expiration in `_is_client_blocked`, `_add_rate_limit_headers` exception fallback, and path-specific vs general limit precedence.",
+          "quality": {
+            "word_count": 48,
+            "step_count": 3,
+            "class_method_refs": 4,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 62
+          },
+          "tokens_in": 2832,
+          "tokens_out": 1520,
+          "cost_usd": 0,
+          "latency_ms": 32049
+        },
+        {
+          "file": "v1/src/core/phase_sanitizer.py",
+          "advice": "1. Mock `scipy.signal.butter` and `scipy.signal.filtfilt` in `PhaseSanitizer._apply_low_pass_filter`.\n2. Prioritize `PhaseSanitizer.__init__` validation, `sanitize_phase` pipeline, and `validate_phase_data`.\n3. Test `unwrap_phase` (`numpy`/`scipy`/`custom`), `remove_outliers` (`_detect_outliers`/`_interpolate_outliers`), `smooth_phase` (`_apply_moving_average`), and `get_sanitization_statistics`.\n4. Edge cases: empty/1D `np.ndarray`, even `smoothing_window`, `shape[1] < 18` filter skip, disabled flags, zero-division in stats, and `PhaseSanitizationError` chaining.",
+          "quality": {
+            "word_count": 45,
+            "step_count": 4,
+            "class_method_refs": 11,
+            "mock_mentions": 1,
+            "follows_format": true,
+            "score": 85
+          },
+          "tokens_in": 2946,
+          "tokens_out": 2047,
+          "cost_usd": 0,
+          "latency_ms": 46976
+        },
+        {
+          "file": "v1/src/services/orchestrator.py",
+          "advice": "1. Mock `Settings`, `HealthCheckService`, `MetricsService`, `PoseStreamHandler`, `connection_manager`, and `get_hardware_service`/`get_pose_service`/`get_stream_service` via `AsyncMock`.\n2. Prioritize `initialize()`, `start()`, `shutdown()`, `service_context()`, `restart_service()`, and `get_service_status()`/`get_service_metrics()`.\n3. Cover edge cases: double init/start guards, partial init failure invoking `shutdown()`, `hasattr` fallbacks, `CancelledError` in `_health_check_loop`/`_metrics_collection_loop`, `ValueError` on unknown `restart_service`, and `service_context` exception propagation.\n4. Patch `asyncio.sleep` and `asyncio.create_task` to validate `_start_background_tasks` registration and `shutdown` cancellation.",
+          "quality": {
+            "word_count": 57,
+            "step_count": 4,
+            "class_method_refs": 18,
+            "mock_mentions": 2,
+            "follows_format": true,
+            "score": 90
+          },
+          "tokens_in": 2824,
+          "tokens_out": 2141,
+          "cost_usd": 0,
+          "latency_ms": 45139
+        },
+        {
+          "file": "v1/src/api/routers/health.py",
+          "advice": "1. Mock `psutil` (cpu_percent, virtual_memory, disk_usage, net_io_counters, Process, getloadavg, sensors_temperatures) and `datetime.datetime.utcnow/now`.\n2. Mock `request.app.state` with `hardware_service`, `pose_service`, `stream_service`; stub `.health_check()`/`.is_ready()` to return dicts or raise `Exception`.\n3. Mock `src.api.dependencies.get_current_user` and `src.config.settings.get_settings`.\n4. Prioritize `health_check` (status cascade logic) and `readiness_check` (resource thresholds, service availability).\n5. Test `get_health_metrics` (auth vs anon), `get_version_info`, `liveness_check`.\n6. Edge cases: `psutil` `AttributeError` (Windows), missing `app.state` attrs, `_APP_START_TIME` uptime, `overall_status` degradation, empty metrics fallbacks.",
+          "quality": {
+            "word_count": 68,
+            "step_count": 6,
+            "class_method_refs": 23,
+            "mock_mentions": 4,
+            "follows_format": true,
+            "score": 100
+          },
+          "tokens_in": 3334,
+          "tokens_out": 1864,
+          "cost_usd": 0,
+          "latency_ms": 47872
+        }
+      ]
+    },
+    {
+      "model_id": "deepseek/deepseek-r1:free",
+      "label": "DeepSeek-R1-Free",
+      "avg_score": 0,
+      "total_cost_usd": 0,
+      "successes": 0,
+      "results": [
+        {
+          "file": "v1/src/main.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/sensing/classifier.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/hardware/router_interface.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/models/densepose_head.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/api/middleware/auth.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/config.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/api/middleware/rate_limit.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/core/phase_sanitizer.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/services/orchestrator.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        },
+        {
+          "file": "v1/src/api/routers/health.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No endpoints found for deepseek/deepseek-r1:free.\",\"code\":404},\"user_id\":\"user_2zuEnW8iQQwLaUQJpSgwtuaIRyT\"}"
+        }
+      ]
+    },
+    {
+      "model_id": "google/gemma-4-31b-it",
+      "label": "Gemma-4-31B",
+      "avg_score": 0,
+      "total_cost_usd": 0,
+      "successes": 0,
+      "results": [
+        {
+          "file": "v1/src/main.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/sensing/classifier.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/hardware/router_interface.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/models/densepose_head.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/api/middleware/auth.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/config.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/api/middleware/rate_limit.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/core/phase_sanitizer.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/services/orchestrator.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        },
+        {
+          "file": "v1/src/api/routers/health.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\",\"parasail\",\"akashml\"],\"requested_providers\":[\"groq\",\"z-ai\",\"open"
+        }
+      ]
+    },
+    {
+      "model_id": "deepseek/deepseek-chat",
+      "label": "DeepSeek-V3.2",
+      "avg_score": 0,
+      "total_cost_usd": 0,
+      "successes": 0,
+      "results": [
+        {
+          "file": "v1/src/main.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/sensing/classifier.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/hardware/router_interface.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/models/densepose_head.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/api/middleware/auth.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/config.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/api/middleware/rate_limit.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/core/phase_sanitizer.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/services/orchestrator.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        },
+        {
+          "file": "v1/src/api/routers/health.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"deepinfra\",\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alib"
+        }
+      ]
+    },
+    {
+      "model_id": "moonshotai/kimi-k2",
+      "label": "Kimi-K2",
+      "avg_score": 0,
+      "total_cost_usd": 0,
+      "successes": 0,
+      "results": [
+        {
+          "file": "v1/src/main.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/sensing/classifier.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/hardware/router_interface.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/models/densepose_head.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/api/middleware/auth.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/config.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/api/middleware/rate_limit.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/core/phase_sanitizer.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/services/orchestrator.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        },
+        {
+          "file": "v1/src/api/routers/health.py",
+          "error": "OpenRouter 404: {\"error\":{\"message\":\"No allowed providers are available for the selected model.\",\"code\":404,\"metadata\":{\"available_providers\":[\"novita\"],\"requested_providers\":[\"groq\",\"z-ai\",\"openai\",\"alibaba\",\"mistra"
+        }
+      ]
+    }
+  ],
+  "round2_full": {
+    "baseline": [
+      {
+        "file": "v1/src/main.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 13,
+          "assertion_count": 7,
+          "mock_count": 109,
+          "import_count": 8,
+          "lines": 338
+        },
+        "cost_usd": 0,
+        "tokens_out": 4062
+      },
+      {
+        "file": "v1/src/sensing/classifier.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 36,
+          "assertion_count": 84,
+          "mock_count": 4,
+          "import_count": 5,
+          "lines": 523
+        },
+        "cost_usd": 0,
+        "tokens_out": 5641
+      },
+      {
+        "file": "v1/src/hardware/router_interface.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 43,
+          "assertion_count": 81,
+          "mock_count": 31,
+          "import_count": 7,
+          "lines": 479
+        },
+        "cost_usd": 0,
+        "tokens_out": 5412
+      },
+      {
+        "file": "v1/src/models/densepose_head.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 27,
+          "assertion_count": 67,
+          "mock_count": 2,
+          "import_count": 7,
+          "lines": 338
+        },
+        "cost_usd": 0,
+        "tokens_out": 3831
+      },
+      {
+        "file": "v1/src/api/middleware/auth.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 41,
+          "assertion_count": 67,
+          "mock_count": 28,
+          "import_count": 8,
+          "lines": 403
+        },
+        "cost_usd": 0,
+        "tokens_out": 4513
+      },
+      {
+        "file": "v1/src/config.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 38,
+          "assertion_count": 55,
+          "mock_count": 67,
+          "import_count": 6,
+          "lines": 624
+        },
+        "cost_usd": 0,
+        "tokens_out": 7345
+      },
+      {
+        "file": "v1/src/api/middleware/rate_limit.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 40,
+          "assertion_count": 65,
+          "mock_count": 20,
+          "import_count": 9,
+          "lines": 473
+        },
+        "cost_usd": 0,
+        "tokens_out": 5533
+      },
+      {
+        "file": "v1/src/core/phase_sanitizer.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 55,
+          "assertion_count": 75,
+          "mock_count": 31,
+          "import_count": 6,
+          "lines": 529
+        },
+        "cost_usd": 0,
+        "tokens_out": 6976
+      },
+      {
+        "file": "v1/src/services/orchestrator.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 44,
+          "assertion_count": 50,
+          "mock_count": 204,
+          "import_count": 6,
+          "lines": 789
+        },
+        "cost_usd": 0,
+        "tokens_out": 8157
+      },
+      {
+        "file": "v1/src/api/routers/health.py",
+        "quality": {
+          "ast_valid": true,
+          "test_fn_count": 31,
+          "assertion_count": 99,
+          "mock_count": 57,
+          "import_count": 7,
+          "lines": 541
+        },
+        "cost_usd": 0,
+        "tokens_out": 5797
+      }
+    ],
+    "advisors": [
+      {
+        "model_id": "qwen/qwen3.6-plus",
+        "label": "Qwen3.6-Plus",
+        "total_cost_usd": 0,
+        "results": [
+          {
+            "file": "v1/src/main.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 18,
+              "assertion_count": 9,
+              "mock_count": 126,
+              "import_count": 9,
+              "lines": 337
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `get_settings`, `validate_settings`, `setup_logging`, `ServiceOrchestrator.initialize/shutdown`, `create_app`, `create_cli`, `uvicorn.Config`, `uvicorn.Server.serve`, `sys.exit`, `signal.signal`, `asyncio.create_task`, `logging.getLogger`.\n2. Prioritize `main()` server/CLI routing, `validate"
+          },
+          {
+            "file": "v1/src/sensing/classifier.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 25,
+              "assertion_count": 64,
+              "mock_count": 8,
+              "import_count": 4,
+              "lines": 389
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `RssiFeatures` via `Mock` or direct instantiation; inject `variance`, `motion_band_power`, `breathing_band_power`, `n_change_points`.\n2. Prioritize `PresenceClassifier.classify()` for `MotionLevel.ABSENT`, `PRESENT_STILL`, `ACTIVE` branches and `_compute_confidence()` 0.6/0.2/0.2 weighting l"
+          },
+          {
+            "file": "v1/src/hardware/router_interface.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 34,
+              "assertion_count": 72,
+              "mock_count": 36,
+              "import_count": 7,
+              "lines": 445
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `asyncssh.connect`, `asyncssh.SSHClient.run`, `asyncio.sleep`, and `logging.getLogger`.\n2. Prioritize `_validate_config` (missing keys, non-positive port), `connect`/`disconnect` (state toggling, exception handling), `execute_command` (retry loop, `ConnectionError` vs generic `Exception`, no"
+          },
+          {
+            "file": "v1/src/models/densepose_head.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 19,
+              "assertion_count": 43,
+              "mock_count": 43,
+              "import_count": 6,
+              "lines": 321
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `torch.nn.init.kaiming_normal_`, `torch.nn.init.constant_`, `F.cross_entropy`, `F.l1_loss`, and `F.softmax`.\n2. Prioritize `DensePoseHead.__init__` (config validation/defaults), `forward` (channel validation, FPN routing, sigmoid output), `compute_total_loss` (weighted combination), and `pos"
+          },
+          {
+            "file": "v1/src/api/middleware/auth.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 37,
+              "assertion_count": 59,
+              "mock_count": 35,
+              "import_count": 8,
+              "lines": 455
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `jose.jwt.decode`, `token_blacklist.is_blacklisted`, `get_settings`, `datetime.utcnow`, and async `call_next`.\n2. Prioritize `AuthMiddleware.dispatch()` routing, `_verify_token()` (valid, blacklisted, missing `sub`, expired, `JWTError`), and `X-User-ID`/`X-Authenticated` header injection.\n3."
+          },
+          {
+            "file": "v1/src/config.py",
+            "quality": {
+              "ast_valid": false,
+              "error": "unterminated string literal (detected at line 648) (<unknown>, line 648)",
+              "test_fn_count": 0,
+              "assertion_count": 0,
+              "mock_count": 0,
+              "import_count": 0,
+              "lines": 648
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `src.config.settings.get_settings`, `src.config.domains.get_domain_config`, `src.config.settings.validate_settings`, and `pathlib.Path.mkdir` via `unittest.mock.patch`/`monkeypatch`.\n2. Prioritize `ConfigManager.settings`/`domain_config` lazy init, `reload_settings`/`reload_domain_config` ca"
+          },
+          {
+            "file": "v1/src/api/middleware/rate_limit.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 39,
+              "assertion_count": 65,
+              "mock_count": 58,
+              "import_count": 7,
+              "lines": 478
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `src.config.settings.get_settings`, `time.time`, `logging.getLogger`, and `call_next` (via `AsyncMock`). Patch `Request.client` and `Request.state.user`.\n2. Prioritize `dispatch` routing, `_check_limit` sliding window math, `_block_client`/`_is_client_blocked` state transitions, and `cleanup"
+          },
+          {
+            "file": "v1/src/core/phase_sanitizer.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 48,
+              "assertion_count": 62,
+              "mock_count": 24,
+              "import_count": 5,
+              "lines": 586
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `scipy.signal.butter` and `scipy.signal.filtfilt` in `PhaseSanitizer._apply_low_pass_filter` to isolate DSP logic.\n2. Prioritize `sanitize_phase` (pipeline integration), `validate_phase_data` (input guards), and `__init__`/`_validate_config` (parameter validation).\n3. Cover edge cases: 1D/em"
+          },
+          {
+            "file": "v1/src/services/orchestrator.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 37,
+              "assertion_count": 50,
+              "mock_count": 127,
+              "import_count": 6,
+              "lines": 592
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `Settings`, `HealthCheckService`, `MetricsService`, `PoseStreamHandler`, `connection_manager`, and `src.api.dependencies.get_hardware_service`, `get_pose_service`, `get_stream_service`. Patch `asyncio.create_task` and `asyncio.sleep`.\n2. Prioritize `initialize()`, `start()`, `shutdown()`, `s"
+          },
+          {
+            "file": "v1/src/api/routers/health.py",
+            "quality": {
+              "ast_valid": true,
+              "test_fn_count": 28,
+              "assertion_count": 78,
+              "mock_count": 26,
+              "import_count": 5,
+              "lines": 453
+            },
+            "advisor_cost": 0,
+            "executor_cost": 0,
+            "combined_cost": 0,
+            "advisor_plan": "1. Mock `psutil` (`cpu_percent`, `virtual_memory`, `disk_usage`, `net_io_counters`, `Process`, `getloadavg`, `sensors_temperatures`) and `datetime.utcnow`/`now`.\n2. Patch `request.app.state` with mock `hardware_service`, `pose_service`, `stream_service` exposing async `health_check()`/`is_ready()`.\n"
+          }
+        ]
+      }
+    ]
+  }
+}

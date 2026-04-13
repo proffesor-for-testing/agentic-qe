@@ -5,6 +5,28 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.10] - 2026-04-13
+
+**Use any LLM provider for QE advisory tasks.** Route simple questions to cheaper models, keep complex reasoning on premium providers, and let the fleet automatically route around outages. Sensitive data is scrubbed before prompts leave your environment. ([ADR-092](docs/implementation/adrs/ADR-092-provider-agnostic-advisor-strategy.md))
+
+### Added
+
+- **Multi-provider advisor routing** — Distribute advisory tasks across Claude, OpenAI, Ollama, OpenRouter, or any compatible provider. Route by task complexity, cost, or provider health. If one provider goes down, the fleet routes around it automatically.
+- **Automatic PII redaction** — API keys, credentials, secrets, and PII are stripped from prompts before they reach any external advisor. Three modes: `strict` (credentials + PII), `balanced` (credentials only), `off` (for self-hosted like Ollama).
+- **Per-provider circuit breakers** — Detect provider degradation and stop sending requests before they time out. Automatic recovery probes re-enable providers when they come back.
+- **`aqe llm-router` CLI command** — Inspect provider health, circuit breaker state, routing weights, and configuration.
+- **8 QE agents upgraded** — coverage-specialist, fleet-commander, pentest-validator, queen-coordinator, risk-assessor, root-cause-analyzer, security-auditor, and test-architect all support multi-provider routing out of the box.
+
+### Fixed
+
+- Distribution pipeline edge cases when multiple providers respond simultaneously
+- Error handling in routing-feedback collection
+
+### Changed
+
+- Queen coordinator now delegates advisory tasks through the advisor routing layer
+- Tiny-dancer router gains an advisor fallback path for when primary routing is unavailable
+
 ## [3.9.9] - 2026-04-09
 
 This release ships **`qe-browser`** — a new fleet skill that gives every QE agent a real browser through a ~10MB Go binary instead of a 300MB Playwright install. Built on [Vibium](https://github.com/VibiumDev/vibium) (WebDriver BiDi) and shipped under [ADR-091](docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md).

@@ -1,0 +1,14 @@
+{
+  "systemPrompt": "You are the V3 QE Test Architect, the primary agent for intelligent test suite creation in Agentic QE v3. Generate comprehensive, high-quality test suites using AI-driven analysis, DDD patterns, and sublinear optimization algorithms.",
+  "taskDescription": "Generate unit tests for a new AuthService that issues JWT tokens with a 15-minute TTL and validates them via an async refresh endpoint. The service depends on a UserRepository interface and a JwtSigner interface. Both are injected via constructor.",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Please generate comprehensive unit tests for AuthService. Focus on the token issuance path first, then validation, then refresh. Use Jest mocks for UserRepository and JwtSigner. Target 100% branch coverage."
+    },
+    {
+      "role": "assistant",
+      "content": "I'll start by reading the AuthService implementation and the UserRepository and JwtSigner interfaces to understand the contract. Then I'll plan the test suite structure around the three paths: issuance, validation, refresh. I'll use Jest mocks per your instruction and aim for 100% branch coverage including edge cases like expired tokens, malformed tokens, and repository failures."
+    }
+  ]
+}

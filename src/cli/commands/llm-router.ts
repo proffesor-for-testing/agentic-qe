@@ -61,6 +61,21 @@ interface CostOptions {
   json?: boolean;
 }
 
+interface AdviseOptions {
+  transcript?: string;
+  session?: string;
+  stdin?: boolean;
+  provider?: string;
+  model?: string;
+  maxWords?: string;
+  agent?: string;
+  triggerReason?: string;
+  redact?: string;
+  advisorPrompt?: string;
+  json?: boolean;
+  quiet?: boolean;
+}
+
 // ============================================================================
 // In-memory config state (would be persisted in real implementation)
 // ============================================================================
@@ -85,6 +100,8 @@ Examples:
   $ aqe llm config --set mode=cost-optimized
   $ aqe llm health                 Check provider health
   $ aqe llm cost claude-sonnet-4 --tokens 10000
+  $ aqe llm advise --transcript t.json --json   Consult advisor (ADR-092)
+  $ aqe llm verify --session <id>               Check advisor quality gate
 `);
 
   // llm providers
@@ -150,6 +167,37 @@ Examples:
     .option('--json', 'Output as JSON')
     .action(async (model: string, options: CostOptions) => {
       await executeCost(model, options);
+    });
+
+  // llm verify (ADR-092 Phase 3 — quality gate enforcement)
+  llmCmd
+    .command('verify')
+    .description('Check whether an advisor was consulted for a session (ADR-092 quality gate)')
+    .requiredOption('--session <id>', 'Session ID to check')
+    .option('--min-calls <n>', 'Minimum required advisor calls (default: 1)', '1')
+    .option('--json', 'Output as JSON')
+    .action(async (options: { session: string; minCalls?: string; json?: boolean }) => {
+      await executeVerify(options);
+    });
+
+  // llm advise (ADR-092)
+  llmCmd
+    .command('advise')
+    .description('Consult an advisor model on a forwarded transcript (ADR-092)')
+    .option('--transcript <path>', 'Path to a transcript JSON file')
+    .option('--session <id>', 'Claude Code session ID (reads JSONL from disk)')
+    .option('--stdin', 'Read transcript JSON from stdin')
+    .option('--provider <name>', 'Advisor provider (default: openrouter)')
+    .option('--model <id>', 'Advisor model ID (default: anthropic/claude-opus-4)')
+    .option('--max-words <n>', 'Max advice length in words', '100')
+    .option('--agent <name>', 'Agent invoking the advisor (for audit)')
+    .option('--trigger-reason <text>', 'Why the advisor is being called')
+    .option('--redact <mode>', 'Redaction mode: strict|balanced|off (default: strict)', 'strict')
+    .option('--advisor-prompt <text>', 'Domain-specific advisor system prompt (overrides default)')
+    .option('--json', 'Emit structured JSON to stdout (default)')
+    .option('--quiet', 'Suppress status messages')
+    .action(async (options: AdviseOptions) => {
+      await executeAdvise(options);
     });
 
   return llmCmd;
@@ -604,4 +652,260 @@ function findModel(modelId: string): ModelMapping | undefined {
   }
 
   return undefined;
+}
+
+// ============================================================================
+// `aqe llm advise` — ADR-092 Phase 0
+// ============================================================================
+
+/**
+ * Read a transcript from one of three sources (--transcript, --session, --stdin).
+ * Phase 0 supports --transcript (JSON file) and --stdin; --session is Phase 1+.
+ */
+async function loadTranscript(options: AdviseOptions): Promise<{
+  systemPrompt?: string;
+  taskDescription?: string;
+  messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
+}> {
+  const { readFile } = await import('fs/promises');
+
+  if (options.transcript) {
+    const raw = await readFile(options.transcript, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed.messages || !Array.isArray(parsed.messages)) {
+      throw new Error(`Transcript file must contain a 'messages' array: ${options.transcript}`);
+    }
+    return {
+      systemPrompt: parsed.systemPrompt,
+      taskDescription: parsed.taskDescription,
+      messages: parsed.messages,
+    };
+  }
+
+  if (options.stdin) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(Buffer.from(chunk));
+    }
+    const raw = Buffer.concat(chunks).toString('utf-8');
+    const parsed = JSON.parse(raw);
+    if (!parsed.messages || !Array.isArray(parsed.messages)) {
+      throw new Error('Transcript from stdin must contain a `messages` array');
+    }
+    return {
+      systemPrompt: parsed.systemPrompt,
+      taskDescription: parsed.taskDescription,
+      messages: parsed.messages,
+    };
+  }
+
+  if (options.session) {
+    const { readFile, readdir } = await import('fs/promises');
+    const { join } = await import('path');
+    const os = await import('os');
+
+    const projectsDir = join(os.homedir(), '.claude', 'projects');
+    let jsonlPath: string | null = null;
+
+    try {
+      const encodedDirs = await readdir(projectsDir);
+      for (const dir of encodedDirs) {
+        const sessionsDir = join(projectsDir, dir);
+        const files = await readdir(sessionsDir).catch(() => [] as string[]);
+        const match = files.find(f => f.includes(options.session!) && f.endsWith('.jsonl'));
+        if (match) {
+          jsonlPath = join(sessionsDir, match);
+          break;
+        }
+      }
+    } catch { /* projects dir doesn't exist */ }
+
+    if (!jsonlPath) {
+      throw new Error(
+        `Could not find session JSONL for session ID "${options.session}" ` +
+        `in ~/.claude/projects/. Use --transcript <path> as fallback.`
+      );
+    }
+
+    const raw = await readFile(jsonlPath, 'utf-8');
+    const lines = raw.trim().split('\n').filter(Boolean);
+    const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
+
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        const entryType = entry.type;
+        const msg = entry.message;
+        if (!msg) continue;
+
+        const role = msg.role;
+        const rawContent = msg.content;
+
+        if (entryType === 'user' && role === 'user') {
+          const text = typeof rawContent === 'string' ? rawContent
+            : Array.isArray(rawContent) ? rawContent.map((b: any) => b.text ?? '').join('')
+            : '';
+          if (text.trim()) messages.push({ role: 'user', content: text });
+        } else if (entryType === 'assistant' && role === 'assistant') {
+          const text = typeof rawContent === 'string' ? rawContent
+            : Array.isArray(rawContent)
+              ? rawContent
+                  .filter((b: any) => b.type === 'text')
+                  .map((b: any) => b.text ?? '')
+                  .join('')
+              : '';
+          if (text.trim()) messages.push({ role: 'assistant', content: text });
+        }
+      } catch { /* skip unparseable lines */ }
+    }
+
+    if (messages.length === 0) {
+      throw new Error(`Session JSONL at ${jsonlPath} contained no parseable messages.`);
+    }
+
+    return { messages };
+  }
+
+  throw new Error('aqe llm advise requires one of: --transcript <path>, --stdin, --session <id>');
+}
+
+async function executeAdvise(options: AdviseOptions): Promise<void> {
+  const useJson = options.json !== false; // default true
+  const quiet = options.quiet ?? false;
+
+  try {
+    const transcript = await loadTranscript(options);
+
+    if (!quiet && !useJson) {
+      console.log(chalk.gray('Consulting advisor...'));
+    }
+
+    // Lazy-load to keep CLI cold-start fast when advise is not used
+    const { createProviderManager } = await import('../../shared/llm/provider-manager.js');
+    const { createHybridRouter } = await import('../../shared/llm/router/hybrid-router.js');
+    const { MultiModelExecutor, DEFAULT_ADVISOR_PROVIDER, DEFAULT_ADVISOR_MODEL } =
+      await import('../../routing/advisor/multi-model-executor.js');
+
+    const provider = (options.provider ?? DEFAULT_ADVISOR_PROVIDER) as ExtendedProviderType;
+    const model = options.model ?? DEFAULT_ADVISOR_MODEL;
+
+    // Phase 0: bootstrap a minimal ProviderManager + HybridRouter for the advisor call.
+    // Phase 1+ reuses a shared router from the AQE kernel.
+    const providerManager = createProviderManager({
+      primary: provider === 'openrouter' ? 'openrouter' : (provider as any),
+      providers: {
+        openrouter: {
+          apiKey: process.env.OPENROUTER_API_KEY,
+          model,
+        },
+      },
+    });
+
+    const router = createHybridRouter(providerManager, {
+      mode: 'manual',
+      defaultProvider: provider as any,
+      defaultModel: model,
+    });
+
+    await router.initialize();
+
+    const executor = new MultiModelExecutor(router);
+
+    const redactMode = (options.redact ?? 'strict') as 'strict' | 'balanced' | 'off';
+    const result = await executor.consult(transcript, {
+      provider,
+      model,
+      maxWords: options.maxWords ? parseInt(options.maxWords, 10) : undefined,
+      agentName: options.agent,
+      triggerReason: options.triggerReason ?? 'cli',
+      sessionId: options.session ?? 'cli-' + Date.now(),
+      redact: redactMode,
+      advisorSystemPrompt: options.advisorPrompt,
+    });
+
+    if (useJson) {
+      console.log(JSON.stringify(
+        {
+          advice: result.advice,
+          model: result.model,
+          provider: result.provider,
+          tokens_in: result.tokensIn,
+          tokens_out: result.tokensOut,
+          latency_ms: result.latencyMs,
+          cost_usd: result.costUsd,
+          advice_hash: result.adviceHash,
+          trigger_reason: result.triggerReason,
+          cache_hit: result.cacheHit,
+          redaction_applied: result.redactionsApplied.length > 0,
+          redactions: result.redactionsApplied,
+          circuit_breaker_remaining: result.circuitBreakerRemaining,
+        },
+        null,
+        2
+      ));
+    } else {
+      console.log(chalk.bold.cyan('\nAdvisor Response\n'));
+      console.log(result.advice);
+      console.log();
+      console.log(chalk.gray(
+        `(${result.provider}/${result.model}, ${result.tokensIn}→${result.tokensOut} tokens, ` +
+        `${result.latencyMs}ms, $${result.costUsd.toFixed(4)})`
+      ));
+    }
+
+    process.exit(0);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const exitCode = (err as any)?.exitCode ?? 1;
+
+    if (useJson) {
+      console.error(JSON.stringify({ error: message, exit_code: exitCode }, null, 2));
+    } else {
+      console.error(chalk.red(`Error: ${message}`));
+    }
+    process.exit(exitCode);
+  }
+}
+
+// ============================================================================
+// `aqe llm verify` — ADR-092 Phase 3 quality gate
+// ============================================================================
+
+async function executeVerify(options: { session: string; minCalls?: string; json?: boolean }): Promise<void> {
+  const useJson = options.json ?? false;
+  const minCalls = parseInt(options.minCalls ?? '1', 10);
+
+  try {
+    const { AdvisorCircuitBreaker } = await import('../../routing/advisor/circuit-breaker.js');
+    const breaker = new AdvisorCircuitBreaker();
+    const state = breaker.getState(options.session);
+
+    const passed = state.callCount >= minCalls;
+    const result = {
+      session: options.session,
+      advisor_calls: state.callCount,
+      required: minCalls,
+      gate: passed ? 'PASS' : 'FAIL',
+    };
+
+    if (useJson) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      const icon = passed ? chalk.green('PASS') : chalk.red('FAIL');
+      console.log(`\nAdvisor Quality Gate: ${icon}`);
+      console.log(`  Session:        ${options.session}`);
+      console.log(`  Advisor calls:  ${state.callCount}`);
+      console.log(`  Required:       ≥${minCalls}`);
+    }
+
+    process.exit(passed ? 0 : 7);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (useJson) {
+      console.error(JSON.stringify({ error: message }, null, 2));
+    } else {
+      console.error(chalk.red(`Error: ${message}`));
+    }
+    process.exit(1);
+  }
 }

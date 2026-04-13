@@ -556,7 +556,7 @@ export const FEEDBACK_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_test_outcomes_domain ON test_outcomes(domain);
   CREATE INDEX IF NOT EXISTS idx_test_outcomes_created ON test_outcomes(created_at);
 
-  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing)
+  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing, ADR-092: advisor_consultation_json)
   CREATE TABLE IF NOT EXISTS routing_outcomes (
     id TEXT PRIMARY KEY,
     task_json TEXT NOT NULL,
@@ -568,6 +568,7 @@ export const FEEDBACK_SCHEMA = `
     duration_ms REAL NOT NULL,
     error TEXT,
     model_tier TEXT,
+    advisor_consultation_json TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON routing_outcomes(used_agent);

@@ -67,6 +67,18 @@ export interface TinyDancerConfig {
   enableLearning?: boolean;
   /** Enable verbose logging (default: false) */
   verbose?: boolean;
+  /**
+   * Optional MultiModelExecutor that consumes `triggerMultiModel=true`
+   * and dispatches an advisor consultation (ADR-092).
+   *
+   * When omitted, `triggerMultiModel` remains a flag-only signal as before.
+   * When provided, `route()` still returns synchronously, but callers can
+   * opt in to advisor consultation via `routeWithAdvisor()`.
+   *
+   * Phase 0: hooked via the explicit `routeWithAdvisor()` method only, to
+   *          keep the hot-path `route()` API fully backward-compatible.
+   */
+  executor?: import('./advisor/types.js').IMultiModelExecutor;
 }
 
 /**
@@ -99,8 +111,10 @@ export interface RouterStats {
   readonly routesByModel: Record<ClaudeModel, number>;
   /** Routes by complexity */
   readonly routesByComplexity: Record<TaskComplexity, number>;
-  /** Multi-model triggers */
+  /** Multi-model triggers (triggerMultiModel flag set) */
   readonly multiModelTriggers: number;
+  /** Advisor consultations actually executed (ADR-092 — requires executor wired) */
+  readonly advisorConsultations: number;
   /** Human review triggers */
   readonly humanReviewTriggers: number;
   /** Average confidence */
@@ -131,6 +145,7 @@ export class TinyDancerRouter {
   private readonly securityConfidenceThreshold: number;
   private readonly enableLearning: boolean;
   private readonly verbose: boolean;
+  private readonly executor?: import('./advisor/types.js').IMultiModelExecutor;
 
   // Statistics tracking
   private totalRouted = 0;
@@ -140,6 +155,7 @@ export class TinyDancerRouter {
   };
   private multiModelTriggers = 0;
   private humanReviewTriggers = 0;
+  private advisorConsultations = 0;
   private totalConfidence = 0;
   private totalLatencyMs = 0;
 
@@ -153,6 +169,46 @@ export class TinyDancerRouter {
     this.securityConfidenceThreshold = config.securityConfidenceThreshold ?? 0.85;
     this.enableLearning = config.enableLearning ?? true;
     this.verbose = config.verbose ?? false;
+    this.executor = config.executor;
+  }
+
+  /**
+   * Whether a MultiModelExecutor is wired (ADR-092).
+   * Used by callers to decide whether to call `routeWithAdvisor()`.
+   */
+  hasExecutor(): boolean {
+    return this.executor !== undefined;
+  }
+
+  /**
+   * Route a task and, when `triggerMultiModel === true` AND an executor is
+   * configured, consult the advisor and return both the route result and the
+   * advisor consultation. Backward-compatible: when no executor is configured,
+   * returns `{ route, advisor: undefined }` identical to calling `route()`.
+   *
+   * ADR-092: this is the execution layer for ADR-082's dormant
+   * `triggerMultiModel` flag.
+   */
+  async routeWithAdvisor(
+    task: QETask | ClassifiableTask,
+    transcript?: import('./advisor/types.js').AdvisorTranscript
+  ): Promise<{
+    route: RouteResult;
+    advisor?: import('./advisor/types.js').AdvisorResult;
+  }> {
+    const route = await this.route(task);
+
+    if (!route.triggerMultiModel || !this.executor || !transcript) {
+      return { route };
+    }
+
+    const advisor = await this.executor.consult(transcript, {
+      agentName: (task as any).agentId ?? (task as any).id ?? 'unknown',
+      triggerReason: `tiny_dancer.confidence=${route.confidence.toFixed(2)}<${this.confidenceThreshold}`,
+    });
+
+    this.advisorConsultations++;
+    return { route, advisor };
   }
 
   /**
@@ -424,6 +480,7 @@ export class TinyDancerRouter {
       routesByModel: { ...this.routesByModel },
       routesByComplexity: { ...this.routesByComplexity },
       multiModelTriggers: this.multiModelTriggers,
+      advisorConsultations: this.advisorConsultations,
       humanReviewTriggers: this.humanReviewTriggers,
       avgConfidence: this.totalRouted > 0
         ? this.totalConfidence / this.totalRouted
@@ -481,6 +538,7 @@ export class TinyDancerRouter {
     this.routesByModel = { haiku: 0, sonnet: 0, opus: 0 };
     this.routesByComplexity = { simple: 0, moderate: 0, complex: 0, critical: 0 };
     this.multiModelTriggers = 0;
+    this.advisorConsultations = 0;
     this.humanReviewTriggers = 0;
     this.totalConfidence = 0;
     this.totalLatencyMs = 0;

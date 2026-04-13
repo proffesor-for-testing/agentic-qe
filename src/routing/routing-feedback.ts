@@ -45,6 +45,7 @@ interface RoutingOutcomeRow {
   duration_ms: number;
   error: string | null;
   created_at: string;
+  advisor_consultation_json?: string | null;
 }
 
 // ============================================================================
@@ -105,6 +106,7 @@ class OutcomeStore {
  * Collects and processes routing feedback for continuous learning
  */
 export class RoutingFeedbackCollector {
+  private static schemaMigrated = false;
   private outcomeStore: OutcomeStore;
   private router: QETaskRouter | null = null;
   private db: UnifiedMemoryManager | null = null;
@@ -172,6 +174,9 @@ export class RoutingFeedbackCollector {
           error: row.error || undefined,
         },
         timestamp: new Date(row.created_at),
+        advisorConsultation: row.advisor_consultation_json
+          ? safeJsonParse(row.advisor_consultation_json)
+          : undefined,
       };
       this.outcomeStore.add(outcome);
     }
@@ -188,22 +193,30 @@ export class RoutingFeedbackCollector {
     try {
       const database = this.db.getDatabase();
 
-      // Ensure model_tier column exists (for databases created before this schema addition)
-      try {
-        database.prepare(`ALTER TABLE routing_outcomes ADD COLUMN model_tier TEXT`).run();
-      } catch {
-        // Column already exists — expected
+      // Ensure schema columns exist for databases created before ADR-092.
+      // Runs once per process via the flag; new databases have columns from
+      // unified-memory-schemas.ts CREATE TABLE.
+      if (!RoutingFeedbackCollector.schemaMigrated) {
+        for (const col of [
+          'ALTER TABLE routing_outcomes ADD COLUMN model_tier TEXT',
+          'ALTER TABLE routing_outcomes ADD COLUMN advisor_consultation_json TEXT',
+        ]) {
+          try { database.prepare(col).run(); } catch { /* column already exists */ }
+        }
+        RoutingFeedbackCollector.schemaMigrated = true;
       }
 
-      // Extract tier from usedAgent name (e.g. "tier-0" → "booster", "qe-test-architect" → "sonnet")
       const modelTier = this.inferTier(outcome.usedAgent);
+      const advisorJson = outcome.advisorConsultation
+        ? JSON.stringify(outcome.advisorConsultation)
+        : null;
 
       database.prepare(`
         INSERT OR REPLACE INTO routing_outcomes (
           id, task_json, decision_json, used_agent,
           followed_recommendation, success, quality_score,
-          duration_ms, error, model_tier
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          duration_ms, error, model_tier, advisor_consultation_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         outcome.id,
         JSON.stringify(outcome.task),
@@ -214,7 +227,8 @@ export class RoutingFeedbackCollector {
         outcome.outcome.qualityScore,
         outcome.outcome.durationMs,
         outcome.outcome.error || null,
-        modelTier
+        modelTier,
+        advisorJson,
       );
       this.persistCount++;
       if (this.persistCount % RoutingFeedbackCollector.RETENTION_CLEANUP_INTERVAL === 0) {
@@ -229,6 +243,29 @@ export class RoutingFeedbackCollector {
    * Infer model tier from agent name for analytics.
    * Maps known agent patterns to ADR-026 tiers.
    */
+  /**
+   * M1 fix: read advisor consultation sidecar file written by MultiModelExecutor.
+   * Uses the task ID or a recent session file as a key.
+   */
+  private loadAdvisorConsultationSidecar(task: QETask): RoutingOutcome['advisorConsultation'] | undefined {
+    try {
+      const { readdirSync, readFileSync } = require('fs') as typeof import('fs');
+      const { join } = require('path') as typeof import('path');
+      const { homedir } = require('os') as typeof import('os');
+      const dir = join(homedir(), '.agentic-qe', 'advisor', 'consultations');
+      const files = readdirSync(dir).filter(f => f.endsWith('.json')).sort().reverse();
+      if (files.length === 0) return undefined;
+      // Read the most recent consultation (within last 5 minutes)
+      const newest = files[0];
+      const data = JSON.parse(readFileSync(join(dir, newest), 'utf-8'));
+      const age = Date.now() - new Date(data.timestamp).getTime();
+      if (age > 5 * 60 * 1000) return undefined;
+      return data;
+    } catch {
+      return undefined;
+    }
+  }
+
   private inferTier(agentName: string): string {
     const lower = agentName.toLowerCase();
     if (lower.includes('booster') || lower === 'tier-0') return 'booster';
@@ -412,8 +449,16 @@ export class RoutingFeedbackCollector {
       qualityScore: number;
       durationMs: number;
       error?: string;
-    }
+    },
+    advisorConsultation?: RoutingOutcome['advisorConsultation'],
   ): RoutingOutcome {
+    // M1 fix: if no explicit advisorConsultation passed, check sidecar file
+    // written by MultiModelExecutor.persistConsultation()
+    let resolvedAdvisor = advisorConsultation;
+    if (!resolvedAdvisor) {
+      resolvedAdvisor = this.loadAdvisorConsultationSidecar(task);
+    }
+
     const routingOutcome: RoutingOutcome = {
       id: `outcome-${Date.now()}-${randomUUID().slice(0, 8)}`,
       task,
@@ -422,6 +467,7 @@ export class RoutingFeedbackCollector {
       followedRecommendation: usedAgent === decision.recommended,
       outcome,
       timestamp: new Date(),
+      advisorConsultation: resolvedAdvisor,
     };
 
     // Store outcome
