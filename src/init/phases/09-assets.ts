@@ -3,7 +3,7 @@
  * Installs skills and agents
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import {
   BasePhase,
@@ -367,19 +367,34 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
    * with the new version being installed
    */
   private detectVersionUpgrade(context: InitContext): boolean {
+    const newVersion = (context.config as AQEInitConfig).version;
+
+    // Primary: compare version string in config.yaml
     const configPath = join(context.projectRoot, '.agentic-qe', 'config.yaml');
-    if (!existsSync(configPath)) {
-      return false;
+    if (existsSync(configPath)) {
+      try {
+        const content = readFileSync(configPath, 'utf-8');
+        const versionMatch = content.match(/version:\s*"?([^"\n]+)"?/);
+        const existingVersion = versionMatch?.[1];
+
+        // Same version → not an upgrade
+        if (existingVersion === newVersion) return false;
+        // Different version → upgrade
+        if (existingVersion !== undefined) return true;
+      } catch {
+        // Fall through to fallback detection
+      }
     }
 
+    // Fallback: if qe-* agent files already exist but config.yaml is missing
+    // or unreadable, this is a reinstall whose previous Phase 12 never wrote
+    // config.yaml (interrupted init, pre-3.5.3 install, etc.).
+    // Safe to overwrite because user customizations live in agent-overrides/
+    // (BMAD-002), not in the shipped agent files.
+    const agentsDir = join(context.projectRoot, '.claude', 'agents', 'v3');
     try {
-      const content = readFileSync(configPath, 'utf-8');
-      const versionMatch = content.match(/version:\s*"?([^"\n]+)"?/);
-      const existingVersion = versionMatch?.[1];
-      const newVersion = (context.config as AQEInitConfig).version;
-
-      // If versions differ, this is an upgrade
-      return existingVersion !== undefined && existingVersion !== newVersion;
+      return existsSync(agentsDir) &&
+        readdirSync(agentsDir).some(e => e.endsWith('.md') && e.startsWith('qe-'));
     } catch {
       return false;
     }
