@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.11](v3.9.11.md) | 2026-04-13 | Fix: `aqe init --auto` now correctly updates agents and helpers on version upgrade |
 | [v3.9.10](v3.9.10.md) | 2026-04-13 | Multi-provider advisor routing: use any LLM for QE tasks, auto-failover, PII redaction |
 | [v3.9.9](v3.9.9.md) | 2026-04-09 | qe-browser fleet skill: Vibium engine (10MB vs 300MB Playwright), typed assertions, visual diff, injection scan (ADR-091) |
 | [v3.9.8](v3.9.8.md) | 2026-04-08 | Release-process maturity: codeload mirror, PR template CI enforcement, chaos workflow, VERIFICATION.md (#401 follow-ups) |
