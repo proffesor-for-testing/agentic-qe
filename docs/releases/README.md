@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.10](v3.9.10.md) | 2026-04-13 | Provider-agnostic advisor: multi-model routing with circuit breaker, PII redaction, domain prompts (ADR-092) |
 | [v3.9.9](v3.9.9.md) | 2026-04-09 | qe-browser fleet skill: Vibium engine (10MB vs 300MB Playwright), typed assertions, visual diff, injection scan (ADR-091) |
 | [v3.9.8](v3.9.8.md) | 2026-04-08 | Release-process maturity: codeload mirror, PR template CI enforcement, chaos workflow, VERIFICATION.md (#401 follow-ups) |
 | [v3.9.7](v3.9.7.md) | 2026-04-07 | Release-gate corpus + `aqe init --json` + phase 06 stops lying about success (#401) |

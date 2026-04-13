@@ -5,6 +5,33 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.10] - 2026-04-13
+
+This release ships the **provider-agnostic advisor strategy** ([ADR-092](docs/implementation/adrs/ADR-092-provider-agnostic-advisor-strategy.md)) — a multi-model routing layer that lets the Queen coordinator distribute advisory tasks across different LLM providers with circuit-breaking, PII redaction, and domain-specific prompts.
+
+### Added
+
+- **Provider-agnostic advisor subsystem** ([ADR-092](docs/implementation/adrs/ADR-092-provider-agnostic-advisor-strategy.md)) — New `src/routing/advisor/` module with:
+  - `multi-model-executor.ts` — Distributes advisory requests across configured LLM providers with weighted selection and timeout handling
+  - `circuit-breaker.ts` — Per-provider circuit breaker (closed → open → half-open) preventing cascading failures when a provider degrades
+  - `redaction.ts` — PII/secret scrubbing pipeline that strips sensitive data before forwarding prompts to external advisors
+  - `domain-prompts.ts` — Domain-specific prompt templates for QE advisory tasks (test generation, coverage analysis, defect prediction)
+  - `types.ts` — Typed interfaces for advisor configuration, provider registration, and response contracts
+- **`aqe llm-router` CLI command** — New CLI surface for inspecting and managing the advisor routing configuration
+- **MCP protocol-server advisor integration** — Advisor tools registered as MCP tools for fleet agent access
+- **Shared executor preamble** (`.claude/agents/_shared/executor-preamble.md`) — Common frontmatter for QE agents that use the advisor subsystem
+- **8 QE agents updated** with advisor-aware frontmatter — coverage-specialist, fleet-commander, pentest-validator, queen-coordinator, risk-assessor, root-cause-analyzer, security-auditor, test-architect
+
+### Fixed
+
+- **Review findings from ADR-092 Phase 1** — Addressed distribution pipeline edge cases, tightened error handling in multi-model executor, and corrected routing-feedback integration
+
+### Changed
+
+- **Queen task management** — Updated to integrate advisor routing for delegated tasks
+- **Tiny-dancer router** — Extended with advisor fallback path when primary routing is unavailable
+- **Routing feedback** — Enhanced feedback collection to include advisor response quality signals
+
 ## [3.9.9] - 2026-04-09
 
 This release ships **`qe-browser`** — a new fleet skill that gives every QE agent a real browser through a ~10MB Go binary instead of a 300MB Playwright install. Built on [Vibium](https://github.com/VibiumDev/vibium) (WebDriver BiDi) and shipped under [ADR-091](docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md).
