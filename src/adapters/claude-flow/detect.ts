@@ -91,6 +91,19 @@ function doDetection(projectRoot: string): ClaudeFlowDetection {
 // ============================================================================
 
 function checkMCPConfig(projectRoot: string): ClaudeFlowDetection | null {
+  // Check root .mcp.json (standard location for project-scoped MCP servers)
+  const rootMcpPath = join(projectRoot, '.mcp.json');
+  if (existsSync(rootMcpPath)) {
+    try {
+      const config = safeJsonParse<{ mcpServers?: Record<string, unknown> }>(readFileSync(rootMcpPath, 'utf-8'));
+      if (config.mcpServers?.['ruflo'] || config.mcpServers?.['claude-flow']) {
+        return { available: true, method: 'mcp-config' };
+      }
+    } catch {
+      // Malformed JSON, skip
+    }
+  }
+
   // Check .claude/mcp.json
   const mcpJsonPath = join(projectRoot, '.claude', 'mcp.json');
   if (existsSync(mcpJsonPath)) {
