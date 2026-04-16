@@ -19,7 +19,6 @@
 
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import {
@@ -209,30 +208,6 @@ function updateMCPConfig(projectRoot: string): void {
   writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2));
 }
 
-/**
- * Run initial pretrain analysis.
- * Uses --no-install to avoid triggering npm auto-install.
- */
-async function runPretrainAnalysis(projectRoot: string, debug?: boolean): Promise<void> {
-  try {
-    if (debug) console.log('[ClaudeFlow] Running pretrain analysis...');
-
-    execSync('npx --no-install ruflo hooks pretrain --depth medium', {
-      encoding: 'utf-8',
-      timeout: 120000, // 2 minutes
-      cwd: projectRoot,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    if (debug) console.log('[ClaudeFlow] Pretrain analysis complete');
-  } catch (error) {
-    if (debug) {
-      console.log('[ClaudeFlow] Pretrain analysis skipped:', toErrorMessage(error));
-    }
-    // Non-critical, continue
-  }
-}
-
 // ============================================================================
 // Main Setup Function
 // ============================================================================
@@ -312,10 +287,7 @@ export async function setupClaudeFlowIntegration(
     // Non-critical, continue
   }
 
-  // Step 5: Run initial pretrain (if available)
-  if (features.pretrain) {
-    await runPretrainAnalysis(projectRoot, debug);
-  }
+  // Pretrain is handled by ruflo init — skip here to avoid duplicate work and long hangs
 
   return {
     available: true,

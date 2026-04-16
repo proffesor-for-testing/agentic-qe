@@ -5,6 +5,14 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.12] - 2026-04-16
+
+### Fixed
+
+- **`aqe init` no longer duplicates hooks when run after `ruflo init`** — The hook merge logic now recognizes ruflo-installed hooks (using `dist/cli/bundle.js` commands) and replaces them cleanly instead of appending duplicates. User-defined custom hooks are preserved.
+- **Claude Flow detection checks root `.mcp.json`** — Detection now looks in the root `.mcp.json` (where ruflo and aqe actually write MCP config) first, avoiding a 5-10 second fallback to `npx --no-install` binary probing.
+- **Init no longer hangs on Claude Flow pretrain** — Removed the redundant `runPretrainAnalysis` call (120-second timeout) from `aqe init`. Pretrain is already handled by `ruflo init`, so this was duplicate work that could stall the init process.
+
 ## [3.9.11] - 2026-04-13
 
 ### Fixed
