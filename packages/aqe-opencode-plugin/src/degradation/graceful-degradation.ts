@@ -62,9 +62,9 @@ export type SkillTierLookup = (skillName: string) => SkillTierInfo | undefined;
  */
 const PROVIDER_MODEL_TIERS: Record<string, ModelTierString> = {
   // Anthropic
-  'anthropic/claude-opus-4': 'tier3-best',
-  'anthropic/claude-sonnet-4': 'tier3-best',
-  'anthropic/claude-haiku-3.5': 'tier2-good',
+  'anthropic/claude-opus-4.7': 'tier3-best',
+  'anthropic/claude-sonnet-4.6': 'tier3-best',
+  'anthropic/claude-haiku-4.5': 'tier2-good',
   'anthropic': 'tier3-best',
 
   // OpenAI
@@ -119,7 +119,7 @@ const TIER_LABELS: Record<ModelTierString, string> = {
  *
  * @param skillName - The AQE skill name to evaluate
  * @param currentProvider - Provider identifier (e.g., 'anthropic', 'openai', 'ollama')
- * @param currentModel - Model identifier (e.g., 'claude-sonnet-4', 'gpt-4o', 'llama3.1:8b')
+ * @param currentModel - Model identifier (e.g., 'claude-sonnet-4-6', 'gpt-4o', 'llama3.1:8b')
  * @param lookupSkillTier - Function to look up skill tier metadata (dependency injection)
  * @returns DegradationResult with the recommended action
  */

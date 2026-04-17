@@ -292,7 +292,7 @@ describe('LLM Router CLI Commands', () => {
     });
 
     it('should estimate cost for a known model', async () => {
-      await executeCommand(command, ['cost', 'claude-sonnet-4', '--json', '--tokens', '10000']);
+      await executeCommand(command, ['cost', 'claude-sonnet-4-6', '--json', '--tokens', '10000']);
 
       const jsonOutput = mockConsoleLog.mock.calls[0][0];
       const costEstimate = JSON.parse(jsonOutput);

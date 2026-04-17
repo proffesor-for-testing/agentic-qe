@@ -31,7 +31,7 @@ if (!process.env.OPENROUTER_API_KEY) {
 const RUVIEW_DIR = '/tmp/adr-092-trial/RuView';
 const REPORT_PATH = '/workspaces/agentic-qe/scripts/adr-092-multi-model-report.json';
 
-const EXECUTOR_MODEL = 'anthropic/claude-sonnet-4';
+const EXECUTOR_MODEL = 'anthropic/claude-sonnet-4.6';
 
 const ADVISOR_CANDIDATES = [
   { id: 'deepseek/deepseek-r1:free',  label: 'DeepSeek-R1-Free',  inputPer1M: 0,     outputPer1M: 0 },
