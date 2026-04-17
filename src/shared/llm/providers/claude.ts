@@ -26,6 +26,8 @@ import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
+import { resolveEffortLevel, downgradeEffort, type EffortLevel } from '../effort-resolver';
+import { getModelCapabilities } from '../model-registry';
 
 /**
  * Default Claude configuration
@@ -194,6 +196,22 @@ export class ClaudeProvider implements LLMProvider {
 
     if (options?.stopSequences && options.stopSequences.length > 0) {
       body.stop_sequences = options.stopSequences;
+    }
+
+    // ADR-093: resolve + apply effort level when the target model supports xhigh.
+    // Per-agent frontmatter lookup is not wired at the provider layer yet;
+    // callers pass an explicit `effort` in options or inherit the fleet default.
+    const requested = resolveEffortLevel({
+      override: options?.effort,
+    });
+    try {
+      const caps = getModelCapabilities(model);
+      const effort: EffortLevel = caps.supportsEffortXHigh
+        ? requested
+        : downgradeEffort(requested, 'high');
+      body.effort = effort;
+    } catch {
+      // Model not in registry — skip effort, let the API decide.
     }
 
     try {

@@ -327,6 +327,16 @@ export interface GenerateOptions {
   userId?: string;
   /** Request metadata */
   metadata?: Record<string, unknown>;
+  /**
+   * ADR-093: Effort level for agentic reasoning. When unset, the resolver
+   * picks the fleet default (`xhigh`). Silently downgraded to `high` if
+   * the target model does not support `xhigh`.
+   */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  /**
+   * ADR-093: Optional agent identifier for per-agent effort frontmatter lookup.
+   */
+  agentName?: string;
 }
 
 /**
