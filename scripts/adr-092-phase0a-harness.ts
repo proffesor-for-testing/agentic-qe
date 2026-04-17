@@ -46,8 +46,8 @@ const RUVIEW_DIR = '/tmp/adr-092-trial/RuView';
 const REPORT_PATH = '/workspaces/agentic-qe/scripts/adr-092-phase0a-report.json';
 
 const EXECUTOR_PROVIDER = 'openrouter' as const;
-const EXECUTOR_MODEL = 'anthropic/claude-sonnet-4';
-const ADVISOR_MODEL = 'anthropic/claude-opus-4';
+const EXECUTOR_MODEL = 'anthropic/claude-sonnet-4.6';
+const ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
 
 const FILES = [
   { path: 'v1/src/main.py', lines: 116 },
