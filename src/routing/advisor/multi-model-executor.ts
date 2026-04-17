@@ -34,12 +34,16 @@ import {
 import { AdvisorCircuitBreaker, type CircuitBreakerState } from './circuit-breaker.js';
 
 /**
- * Default advisor model per ADR-092 Phase 0.
+ * Default advisor model per ADR-092 Phase 0 and ADR-093.
  * OpenRouter exposes Anthropic Opus — chosen for vendor-independence as the
  * default while direct Anthropic remains available for security-sensitive agents.
+ *
+ * ADR-093 (2026-04-17): default advisor model upgraded from Opus 4 to Opus 4.7.
+ * SWE-bench Verified 87.6% (vs 80.8% on 4.6), new `xhigh` effort level,
+ * 1M context at standard pricing, adaptive thinking.
  */
 export const DEFAULT_ADVISOR_PROVIDER: ExtendedProviderType = 'openrouter';
-export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4';
+export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
 export const DEFAULT_MAX_WORDS = 100;
 
 /**

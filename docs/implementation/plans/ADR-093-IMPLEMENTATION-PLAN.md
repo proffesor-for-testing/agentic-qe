@@ -197,12 +197,13 @@ Set `QE_EFFORT_LEVEL=high` (or whatever the prior effective default was) as a sa
 
 ---
 
-## PR-4: Thinking-config compatibility shim
+## PR-4: Thinking-config compatibility shim — SKIPPED 2026-04-17
 
-**Branch:** `adr-093-pr4-thinking-shim`
-**Depends on:** PR-1, PR-2
-**Intent:** Translate legacy `{type: "enabled", budget_tokens: N}` → `{type: "adaptive"}` when target model is `claude-opus-4-7`; opt-in streamed CoT via `thinking.display: "summarized"` where consumers exist.
-**Estimated size:** ~150 LOC across 2 files + tests.
+**Status: skipped.** Pre-commit grep of `src/` for `budget_tokens`, `thinking: {type:"enabled"}`, and uses of `maxThinkingTokens` returned **zero callers** that actually set thinking config on outbound requests. The `maxThinkingTokens` field exists on `ClaudeConfig` but is unreferenced. A shim with no callers is dead code.
+
+Revisit when the first caller that sets thinking config appears — typically in the ADR-092 advisor path if/when it starts passing thinking budgets to Opus 4.7. Track as an open concern in ADR-093 §Validation Criteria.
+
+**Original intent (preserved for history):** Translate legacy `{type: "enabled", budget_tokens: N}` → `{type: "adaptive"}` when target model is `claude-opus-4-7`; opt-in streamed CoT via `thinking.display: "summarized"` where consumers exist.
 
 ### Files changed
 

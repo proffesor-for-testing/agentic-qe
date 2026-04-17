@@ -80,7 +80,7 @@ describe('TinyDancerRouter × Advisor wiring (ADR-092)', () => {
     it('calls the executor when triggerMultiModel is true', async () => {
       const mockAdvice: AdvisorResult = {
         advice: '1. Read the code. 2. Write a test.',
-        model: 'anthropic/claude-opus-4',
+        model: 'anthropic/claude-opus-4.7',
         provider: 'openrouter',
         tokensIn: 500,
         tokensOut: 20,

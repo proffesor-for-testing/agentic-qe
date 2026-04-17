@@ -120,7 +120,7 @@ describe('MultiModelExecutor (ADR-092)', () => {
       await executor.consult({ messages: [{ role: 'user', content: 'x' }] });
 
       expect(lastParams.params?.preferredProvider).toBe('openrouter');
-      expect(lastParams.params?.model).toBe('anthropic/claude-opus-4');
+      expect(lastParams.params?.model).toBe('anthropic/claude-opus-4.7');
     });
 
     it('respects explicit provider and model overrides', async () => {
