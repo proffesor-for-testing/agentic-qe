@@ -47,6 +47,43 @@ export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
 export const DEFAULT_MAX_WORDS = 100;
 
 /**
+ * ADR-093: Security and pentest agents that may trip Opus 4.7's real-time
+ * cybersecurity safeguards until the organization is enrolled in Anthropic's
+ * Cyber Verification Program. Until enrolled, these agents are pinned to
+ * Sonnet 4.6 for escalation targets.
+ */
+const CYBER_PINNED_AGENTS: readonly string[] = [
+  'qe-pentest-validator',
+  'qe-security-auditor',
+  'qe-security-scanner',
+] as const;
+
+/**
+ * ADR-093: Fallback advisor model for cyber-pinned agents when
+ * AQE_CYBER_VERIFIED !== 'true'. Sonnet 4.6 on OpenRouter.
+ */
+const CYBER_PIN_FALLBACK_MODEL = 'anthropic/claude-sonnet-4.6';
+
+/**
+ * ADR-093: Decide whether to pin a cyber-sensitive agent to the fallback model.
+ * Returns the model to actually use. Exported for testing.
+ */
+export function applyCyberPin(
+  agentName: string,
+  requestedModel: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  if (env.AQE_CYBER_VERIFIED === 'true') return requestedModel;
+  if (!CYBER_PINNED_AGENTS.includes(agentName)) return requestedModel;
+  // Only pin when the requested model is the 4.7 flagship — allow explicit
+  // lower-tier escalation targets to pass through unchanged.
+  if (!requestedModel.includes('claude-opus-4.7') && !requestedModel.includes('claude-opus-4-7')) {
+    return requestedModel;
+  }
+  return CYBER_PIN_FALLBACK_MODEL;
+}
+
+/**
  * System prompt prepended to every advisor consultation.
  *
  * Text adapted from Anthropic's published canonical system prompt for the
@@ -89,9 +126,20 @@ export class MultiModelExecutor implements IMultiModelExecutor {
 
   async consult(transcript: AdvisorTranscript, opts: ConsultOptions = {}): Promise<AdvisorResult> {
     const provider = opts.provider ?? DEFAULT_ADVISOR_PROVIDER;
-    const model = opts.model ?? DEFAULT_ADVISOR_MODEL;
+    const requestedModel = opts.model ?? DEFAULT_ADVISOR_MODEL;
     const maxWords = opts.maxWords ?? DEFAULT_MAX_WORDS;
     const agentName = opts.agentName ?? 'unknown';
+
+    // ADR-093: pin cyber-sensitive agents to fallback model until
+    // AQE_CYBER_VERIFIED=true (Cyber Verification Program approval).
+    const model = applyCyberPin(agentName, requestedModel);
+    if (model !== requestedModel) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[aqe] ADR-093: ${agentName} pinned to ${model} (was ${requestedModel}); ` +
+          `set AQE_CYBER_VERIFIED=true after Cyber Verification Program approval`,
+      );
+    }
     const triggerReason = opts.triggerReason ?? 'manual';
     const sessionId = opts.sessionId ?? 'default';
     const redactionMode: RedactionMode = opts.redact ?? 'strict';
