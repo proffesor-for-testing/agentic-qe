@@ -60,7 +60,7 @@ describe('SkillValidationLearner', () => {
         skillName: 'security-testing',
         trustTier: 3,
         validationLevel: 'eval',
-        model: 'claude-3.5-sonnet',
+        model: 'claude-sonnet-4-6',
         passed: true,
         score: 0.92,
         testCaseResults: [
@@ -96,7 +96,7 @@ describe('SkillValidationLearner', () => {
           skillName: 'a11y-testing',
           trustTier: 2,
           validationLevel: 'validator',
-          model: 'claude-3-haiku',
+          model: 'claude-haiku-4-5',
           passed: i % 2 === 0,
           score: 0.7 + (i * 0.05),
           testCaseResults: [
@@ -122,7 +122,7 @@ describe('SkillValidationLearner', () => {
 
     it('should track cross-model behavior for eval level', async () => {
       // Record outcomes from different models
-      const models = ['claude-3.5-sonnet', 'claude-3-haiku', 'claude-3-opus'];
+      const models = ['claude-sonnet-4-6', 'claude-haiku-4-5', 'claude-opus-4-7'];
 
       for (const model of models) {
         await learner.recordValidationOutcome({
@@ -150,7 +150,7 @@ describe('SkillValidationLearner', () => {
         skillName: 'test-skill',
         trustTier: 1,
         validationLevel: 'schema',
-        model: 'claude-3-haiku',
+        model: 'claude-haiku-4-5',
         passed: true,
         score: 1.0,
         testCaseResults: [],
@@ -177,7 +177,7 @@ describe('SkillValidationLearner', () => {
         skillName: 'test-skill',
         trustTier: 2,
         validationLevel: 'validator',
-        model: 'claude-3.5-sonnet',
+        model: 'claude-sonnet-4-6',
         passed: true,
         score: 0.85,
         testCaseResults: [],
@@ -205,7 +205,7 @@ describe('SkillValidationLearner', () => {
         skillName: 'security-testing',
         trustTier: 3,
         validationLevel: 'eval',
-        model: 'claude-3.5-sonnet',
+        model: 'claude-sonnet-4-6',
         passed: true,
         score: 0.9,
         testCaseResults: [],
@@ -233,7 +233,7 @@ describe('SkillValidationLearner', () => {
           skillName: 'security-testing',
           trustTier: 3,
           validationLevel: 'eval',
-          model: 'claude-3.5-sonnet',
+          model: 'claude-sonnet-4-6',
           passed: i < 2,
           score: i < 2 ? 0.9 : 0.6,
           testCaseResults: [
@@ -277,7 +277,7 @@ describe('SkillValidationLearner', () => {
         skillName: 'test-skill',
         trustTier: 2,
         validationLevel: 'eval',
-        model: 'claude-3.5-sonnet',
+        model: 'claude-sonnet-4-6',
         passed: true,
         score: 0.9,
         testCaseResults: [],

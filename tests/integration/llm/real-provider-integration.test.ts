@@ -174,7 +174,7 @@ describe('Real Provider Integration Tests (MSW)', () => {
       const params: ChatParams = {
         messages: [{ role: 'user', content: 'Test model normalization' }],
         preferredProvider: 'claude',
-        model: 'claude-sonnet-4', // Canonical model ID
+        model: 'claude-sonnet-4-6', // Canonical model ID
       };
 
       const response = await router.chat(params);
@@ -184,7 +184,7 @@ describe('Real Provider Integration Tests (MSW)', () => {
       expect(response.content).toContain('claude-sonnet-4-6');
       expect(response.provider).toBe('claude');
       // The routing decision stores canonical in model, provider-specific in response
-      expect(response.routingDecision?.model).toBe('claude-sonnet-4');
+      expect(response.routingDecision?.model).toBe('claude-sonnet-4-6');
       expect(response.routingDecision?.providerModelId).toBe('claude-sonnet-4-6');
     });
   });

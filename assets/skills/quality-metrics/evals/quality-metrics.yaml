@@ -32,7 +32,7 @@ description: >
 
 models_to_test:
   - claude-3.5-sonnet
-  - claude-3-haiku
+  - claude-haiku-4-5
 
 # =============================================================================
 # MCP Integration Configuration

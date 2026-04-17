@@ -33,7 +33,7 @@ function createSuccessResponse(content: string, inputTokens = 100, outputTokens 
     type: 'message',
     role: 'assistant',
     content: [{ type: 'text', text: content }],
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-sonnet-4-6',
     stop_reason: 'end_turn',
     stop_sequence: null,
     usage: {
@@ -99,7 +99,7 @@ describe('ClaudeModelProvider', () => {
       expect(provider).toBeDefined();
     });
 
-    it('should set default model to claude-3-5-sonnet-20241022', () => {
+    it('should set default model to claude-sonnet-4-6', () => {
       const provider = new ClaudeModelProvider({ apiKey: 'test-key' });
 
       // Verify by calling complete and checking the request
@@ -111,10 +111,10 @@ describe('ClaudeModelProvider', () => {
       expect(provider).toBeDefined();
     });
 
-    it('should support claude-3-opus models', () => {
+    it('should support claude-opus-4 models', () => {
       const provider = new ClaudeModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'claude-3-opus-20240229',
+        defaultModel: 'claude-opus-4-7',
       });
 
       expect(provider).toBeDefined();
@@ -160,11 +160,11 @@ describe('ClaudeModelProvider', () => {
       mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
 
       await provider.complete('Test prompt', {
-        model: 'claude-3-opus-latest',
+        model: 'claude-opus-4-7',
       });
 
       const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(requestBody.model).toBe('claude-3-opus-latest');
+      expect(requestBody.model).toBe('claude-opus-4-7');
     });
 
     it('should respect maxTokens option', async () => {
@@ -254,7 +254,7 @@ describe('ClaudeModelProvider', () => {
             { type: 'text', text: 'First part.' },
             { type: 'text', text: 'Second part.' },
           ],
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-6',
           stop_reason: 'end_turn',
           usage: { input_tokens: 10, output_tokens: 20 },
         })
@@ -280,7 +280,7 @@ describe('ClaudeModelProvider', () => {
 
       expect(result.healthy).toBe(true);
       expect(result.latencyMs).toBeDefined();
-      expect(result.availableModels).toContain('claude-3-5-sonnet-20241022');
+      expect(result.availableModels).toContain('claude-sonnet-4-6');
     });
 
     it('should return unhealthy when API fails', async () => {
@@ -299,7 +299,7 @@ describe('ClaudeModelProvider', () => {
     it('should return sonnet pricing by default', () => {
       const provider = new ClaudeModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'claude-3-5-sonnet-20241022',
+        defaultModel: 'claude-sonnet-4-6',
       });
 
       const cost = provider.getCostPerToken();
@@ -312,7 +312,7 @@ describe('ClaudeModelProvider', () => {
     it('should return opus pricing for opus models', () => {
       const provider = new ClaudeModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'claude-3-opus-20240229',
+        defaultModel: 'claude-opus-4-7',
       });
 
       const cost = provider.getCostPerToken();
@@ -354,7 +354,7 @@ describe('createClaudeProvider', () => {
 
   it('should create a configured provider', () => {
     const provider = createClaudeProvider({
-      defaultModel: 'claude-3-opus-latest',
+      defaultModel: 'claude-opus-4-7',
     });
 
     expect(provider).toBeInstanceOf(ClaudeModelProvider);

@@ -28,7 +28,7 @@ description: >
 
 models_to_test:
   - claude-3.5-sonnet    # Primary model (high accuracy expected)
-  - claude-3-haiku       # Fast model (ensure minimum quality)
+  - claude-haiku-4-5          # Fast model (ensure minimum quality)
   - gpt-4o               # Cross-vendor validation
 
 # =============================================================================

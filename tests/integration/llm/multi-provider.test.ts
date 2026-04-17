@@ -100,13 +100,13 @@ describe('Multi-Provider Integration Tests', () => {
   describe('Model ID Normalization', () => {
     it('should map canonical ID to provider-specific ID', () => {
       // Using the actual canonical ID format from model-mapping.ts
-      const claudeId = mapModelId('claude-sonnet-4', 'anthropic');
+      const claudeId = mapModelId('claude-sonnet-4-6', 'anthropic');
       expect(claudeId).toBe('claude-sonnet-4-6');
     });
 
     it('should normalize provider-specific ID to canonical', () => {
       const canonical = normalizeModelId('claude-sonnet-4-6');
-      expect(canonical).toBe('claude-sonnet-4');
+      expect(canonical).toBe('claude-sonnet-4-6');
     });
 
     it('should handle unknown model IDs by throwing error', () => {
@@ -133,7 +133,7 @@ describe('Multi-Provider Integration Tests', () => {
     });
 
     it('should get canonical name for display', () => {
-      const name = getCanonicalName('claude-sonnet-4');
+      const name = getCanonicalName('claude-sonnet-4-6');
       expect(name).toBe('Claude Sonnet 4');
     });
 

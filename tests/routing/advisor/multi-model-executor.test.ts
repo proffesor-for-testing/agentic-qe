@@ -113,7 +113,7 @@ describe('MultiModelExecutor (ADR-092)', () => {
       expect(lastParams.params?.agentType).toBe('qe-test-architect');
     });
 
-    it('defaults to openrouter + anthropic/claude-opus-4 when no provider/model specified', async () => {
+    it('defaults to openrouter + anthropic/claude-opus-4.7 when no provider/model specified', async () => {
       const { router, lastParams } = createMockRouter();
       const executor = makeExecutor(router);
 
@@ -129,11 +129,11 @@ describe('MultiModelExecutor (ADR-092)', () => {
 
       await executor.consult(
         { messages: [{ role: 'user', content: 'x' }] },
-        { provider: 'claude' as any, model: 'claude-opus-4-6' }
+        { provider: 'claude' as any, model: 'claude-opus-4-7' }
       );
 
       expect(lastParams.params?.preferredProvider).toBe('claude');
-      expect(lastParams.params?.model).toBe('claude-opus-4-6');
+      expect(lastParams.params?.model).toBe('claude-opus-4-7');
     });
 
     it('includes the advisor system prompt that enforces under-100-word enumerated advice', async () => {
