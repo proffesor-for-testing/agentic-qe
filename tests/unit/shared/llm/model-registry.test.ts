@@ -18,6 +18,10 @@ import {
   estimateRequestCost,
   compareModels,
   MODEL_REGISTRY,
+  DEFAULT_SONNET_MODEL,
+  DEFAULT_OPUS_MODEL,
+  DEFAULT_HAIKU_MODEL,
+  RETIRING_MODELS,
   type ModelCapabilities,
   type ModelInfo,
 } from '../../../../src/shared/llm/model-registry';
@@ -489,6 +493,83 @@ describe('Model Registry', () => {
       for (const id of registryIds) {
         expect(getModelInfo(id)).toBeDefined();
       }
+    });
+  });
+
+  describe('ADR-093: Opus 4.7 + Sonnet 4.6 + Haiku 4.5 registry entries', () => {
+    it('should have claude-opus-4-7 with 1M context and xhigh effort', () => {
+      const caps = getModelCapabilities('claude-opus-4-7');
+      expect(caps.contextLength).toBe(1_000_000);
+      expect(caps.supportsAdaptiveThinking).toBe(true);
+      expect(caps.supportsEffortXHigh).toBe(true);
+      expect(caps.tokenizerVersion).toBe('opus-4-7');
+      expect(caps.maxOutputTokens).toBe(128000);
+    });
+
+    it('should price claude-opus-4-7 at $5/$25 per MTok', () => {
+      const cost = getModelCost('claude-opus-4-7');
+      expect(cost.inputCostPerMillion).toBe(5.0);
+      expect(cost.outputCostPerMillion).toBe(25.0);
+    });
+
+    it('should have claude-sonnet-4-6 at standard 200k context', () => {
+      const caps = getModelCapabilities('claude-sonnet-4-6');
+      expect(caps.contextLength).toBe(200000);
+      expect(caps.tokenizerVersion).toBe('legacy');
+      expect(caps.supportsEffortXHigh).toBe(false);
+    });
+
+    it('should have claude-haiku-4-5 replacing retired haiku-3-5', () => {
+      const caps = getModelCapabilities('claude-haiku-4-5');
+      expect(caps.supportsTools).toBe(true);
+      expect(caps.supportsVision).toBe(true);
+    });
+  });
+
+  describe('ADR-093: Central model constants', () => {
+    it('should export DEFAULT_SONNET_MODEL as claude-sonnet-4-6', () => {
+      expect(DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
+      expect(getModelInfo(DEFAULT_SONNET_MODEL)).toBeDefined();
+    });
+
+    it('should export DEFAULT_OPUS_MODEL as claude-opus-4-7', () => {
+      expect(DEFAULT_OPUS_MODEL).toBe('claude-opus-4-7');
+      expect(getModelInfo(DEFAULT_OPUS_MODEL)).toBeDefined();
+    });
+
+    it('should export DEFAULT_HAIKU_MODEL as claude-haiku-4-5', () => {
+      expect(DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5');
+      expect(getModelInfo(DEFAULT_HAIKU_MODEL)).toBeDefined();
+    });
+
+    it('DEFAULT_SONNET_MODEL must not be a retiring ID', () => {
+      expect(RETIRING_MODELS[DEFAULT_SONNET_MODEL]).toBeUndefined();
+    });
+  });
+
+  describe('ADR-093: Retiring models registry', () => {
+    it('should list claude-sonnet-4-20250514 as retiring 2026-06-15', () => {
+      expect(RETIRING_MODELS['claude-sonnet-4-20250514']).toBe('2026-06-15');
+    });
+
+    it('should list claude-opus-4-20250514 as retiring 2026-06-15', () => {
+      expect(RETIRING_MODELS['claude-opus-4-20250514']).toBe('2026-06-15');
+    });
+
+    it('should list claude-3-5-haiku-20241022 as already retired 2026-02-19', () => {
+      expect(RETIRING_MODELS['claude-3-5-haiku-20241022']).toBe('2026-02-19');
+    });
+
+    it('should flag claude-sonnet-4 registry entry as deprecated', () => {
+      const info = getModelInfo('claude-sonnet-4');
+      expect(info.deprecationDate).toBe('2026-06-15');
+      expect(info.recommended).toBe(false);
+    });
+
+    it('should flag claude-haiku-3-5 registry entry as already deprecated', () => {
+      const info = getModelInfo('claude-haiku-3-5');
+      expect(info.deprecationDate).toBe('2026-02-19');
+      expect(info.recommended).toBe(false);
     });
   });
 });

@@ -60,6 +60,21 @@ export interface ModelCapabilities {
   supportsEmbeddings: boolean;
   /** Supports code execution */
   supportsCodeExecution: boolean;
+  /**
+   * ADR-093: Supports adaptive thinking (`{type: "adaptive"}`) instead of legacy
+   * `{type: "enabled", budget_tokens: N}`. Required for Opus 4.7+.
+   */
+  supportsAdaptiveThinking?: boolean;
+  /**
+   * ADR-093: Supports the `xhigh` effort level between `high` and `max`.
+   * Anthropic's recommended starting point for agentic coding on Opus 4.7+.
+   */
+  supportsEffortXHigh?: boolean;
+  /**
+   * ADR-093: Tokenizer version. Opus 4.7 uses a new tokenizer emitting
+   * 1.0–1.35× more tokens per input at the same rate card.
+   */
+  tokenizerVersion?: 'legacy' | 'opus-4-7';
 }
 
 /**
@@ -196,7 +211,8 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     tier: 'economy',
     description: 'Fast and cost-effective for routine tasks',
     releaseDate: '2024-10-22',
-    recommended: true,
+    deprecationDate: '2026-02-19', // ADR-093: already retired, replaced by claude-haiku-4-5
+    recommended: false,
     capabilities: {
       contextLength: 200000,
       maxOutputTokens: 8192,
@@ -221,7 +237,8 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     tier: 'standard',
     description: 'Balanced model for general-purpose tasks',
     releaseDate: '2025-05-14',
-    recommended: true,
+    deprecationDate: '2026-06-15', // ADR-093: retiring, replaced by claude-sonnet-4-6
+    recommended: false,
     capabilities: {
       contextLength: 200000,
       maxOutputTokens: 16384,
@@ -238,6 +255,99 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     cost: {
       inputCostPerMillion: 3.0,
       outputCostPerMillion: 15.0,
+    },
+  },
+
+  // ==========================================================================
+  // ADR-093: Opus 4.7, Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
+  // ==========================================================================
+  'claude-opus-4-7': {
+    name: 'Claude Opus 4.7',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'Flagship agentic-coding model (2026-04-16). 1M context at standard pricing, ' +
+      'xhigh effort level, adaptive thinking only. New tokenizer emits 1.0–1.35× more tokens.',
+    releaseDate: '2026-04-16',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // via adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+    },
+    cost: {
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
+    },
+  },
+  'claude-sonnet-4-6': {
+    name: 'Claude Sonnet 4.6',
+    family: 'claude',
+    tier: 'standard',
+    description:
+      'Steady-state agentic-coding workhorse (2026). Standard 200k context, same pricing as Sonnet 4. ' +
+      'ADR-093 Tier 3 default for the AQE fleet.',
+    releaseDate: '2026-02-01',
+    recommended: true,
+    capabilities: {
+      contextLength: 200000,
+      maxOutputTokens: 64000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: false,
+      supportsEffortXHigh: false,
+      tokenizerVersion: 'legacy',
+    },
+    cost: {
+      inputCostPerMillion: 3.0,
+      outputCostPerMillion: 15.0,
+    },
+  },
+  'claude-haiku-4-5': {
+    name: 'Claude Haiku 4.5',
+    family: 'claude',
+    tier: 'economy',
+    description:
+      'Fast economy model replacing Haiku 3.5 (retired 2026-02-19). Extended thinking support.',
+    releaseDate: '2025-10-01',
+    recommended: true,
+    capabilities: {
+      contextLength: 200000,
+      maxOutputTokens: 16384,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: false,
+      supportsEffortXHigh: false,
+      tokenizerVersion: 'legacy',
+    },
+    cost: {
+      inputCostPerMillion: 1.0,
+      outputCostPerMillion: 5.0,
     },
   },
 
@@ -1176,3 +1286,41 @@ export function compareModels(
     capabilityDiff,
   };
 }
+
+// ============================================================================
+// ADR-093: Central Model Constants
+// ============================================================================
+
+/**
+ * ADR-093 Tier 3 default Sonnet for the AQE fleet.
+ * Standard 200k context (not 1M). Used as the workhorse model across routing,
+ * advisor fallback, and provider defaults. Replaces hardcoded 'claude-sonnet-4-20250514'
+ * in 25+ call sites.
+ */
+export const DEFAULT_SONNET_MODEL = 'claude-sonnet-4-6';
+
+/**
+ * ADR-093 Opus escalation target. Reserved for the ADR-092 MultiModelExecutor
+ * when TinyDancer sets `triggerMultiModel=true` and the task warrants maximum
+ * capability. Not the Tier 3 default — that remains Sonnet 4.6 per user
+ * direction 2026-04-17.
+ */
+export const DEFAULT_OPUS_MODEL = 'claude-opus-4-7';
+
+/**
+ * ADR-093 economy model. Replaces retired `claude-3-5-haiku-20241022`.
+ */
+export const DEFAULT_HAIKU_MODEL = 'claude-haiku-4-5';
+
+/**
+ * ADR-093 registry of retiring/retired model IDs with their retirement dates.
+ * Used by lints and ops tooling to prevent re-introduction of deprecated IDs.
+ *
+ * Format: canonical-or-provider-id → ISO date of retirement.
+ */
+export const RETIRING_MODELS: Readonly<Record<string, string>> = {
+  'claude-sonnet-4-20250514': '2026-06-15',
+  'claude-opus-4-20250514': '2026-06-15',
+  'claude-3-5-haiku-20241022': '2026-02-19',
+  'claude-3-7-sonnet-20250219': '2026-02-19',
+} as const;
