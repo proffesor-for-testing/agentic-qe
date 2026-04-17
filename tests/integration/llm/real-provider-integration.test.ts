@@ -288,7 +288,7 @@ describe('Real Provider Integration Tests (MSW)', () => {
       };
       const simpleDecision = await router.selectProvider(simpleParams);
       expect(simpleDecision.providerType).toBe('claude');
-      expect(simpleDecision.model).toBe('claude-haiku-3-5');
+      expect(simpleDecision.model).toBe('claude-haiku-4-5');
     });
   });
 });

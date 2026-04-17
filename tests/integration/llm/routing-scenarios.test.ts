@@ -91,7 +91,7 @@ describe('Routing Scenarios Integration Tests', () => {
       const decision = await router.selectProvider(params);
 
       // Model is normalized to canonical form, providerModelId contains provider-specific ID
-      expect(decision.model).toBe('claude-haiku-3-5');
+      expect(decision.model).toBe('claude-haiku-4-5');
       expect(decision.providerModelId).toBe('claude-haiku-4-5-20251001');
     });
 

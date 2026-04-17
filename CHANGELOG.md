@@ -5,6 +5,27 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.13] - 2026-04-17
+
+**Migrate the fleet to Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5 ahead of the June 15 Sonnet 4 retirement.** `xhigh` becomes the fleet-wide default effort level for better agentic-coding quality, and security agents stay pinned to Sonnet 4.6 until the Cyber Verification Program application clears. ([ADR-093](docs/implementation/adrs/ADR-093-opus-4-7-migration.md))
+
+### Added
+
+- **Opus 4.7, Sonnet 4.6, and Haiku 4.5 in the model registry** — New Anthropic models are first-class, with capability flags for adaptive thinking, `xhigh` effort, tokenizer version, and 1M context. Opus 4.7 is the default ADR-092 advisor model.
+- **`xhigh` effort level, fleet-wide** — Every qe-* agent now runs at `xhigh` by default (Anthropic's recommended starting point for agentic coding). Override per-agent via frontmatter, per-run via `QE_EFFORT_LEVEL`, or globally via `config/fleet-defaults.yaml`. Priority chain: env > YAML > frontmatter.
+- **Cyber Verification Program application draft** — Prepared at `docs/security/cyber-verification-application.md` for the four cyber-sensitive agents (`qe-pentest-validator`, `qe-security-scanner`, `qe-security-auditor`, `qe-security-reviewer`), which remain pinned to Sonnet 4.6 until enrollment clears.
+
+### Changed
+
+- **Default model constant replaces hardcoded IDs** — 25+ hardcoded `claude-sonnet-4-20250514` references across routing, providers, cost-tracker, and CLI code now flow through a central `DEFAULT_SONNET_MODEL` constant in `model-registry.ts`. Tier 2 and Tier 3 both route to Sonnet 4.6; Opus 4.7 is reserved as an opt-in escalation target via `MultiModelExecutor`.
+- **Post-audit sweep of lingering model references** — CI workflow, consensus provider, MCP sampling handler, 12 skill evals, 9 test files, opencode plugin, scripts, `.kiro` config, and command docs all updated to the new model IDs.
+- **ADR-092 advisor default model upgraded to Opus 4.7** — The vendor-agnostic advisor now targets Opus 4.7 by default for escalation paths.
+
+### Fixed
+
+- **No fleet breakage at 2026-06-15 Sonnet 4 retirement** — A single-commit model sweep removes every live routing reference to the retiring `claude-sonnet-4-20250514` ID. Remaining references are intentional compatibility metadata (deprecation dates, Bedrock mappings, historical cost entries).
+- **User-facing model listings stay in sync** — `DEFAULT_MODEL_MAPPINGS` and related surface areas now reflect the new model lineup so downstream consumers don't see stale IDs.
+
 ## [3.9.12] - 2026-04-16
 
 ### Fixed
