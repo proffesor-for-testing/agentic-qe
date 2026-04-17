@@ -309,15 +309,15 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
   private getModelForTier(tier: number): string {
     switch (tier) {
       case 1:
-        return 'claude-3-5-haiku-20241022';
+        return 'claude-haiku-4-5-20251001';
       case 2:
-        return 'claude-sonnet-4-20250514';
+        return 'claude-sonnet-4-6';
       case 3:
-        return 'claude-sonnet-4-20250514';
+        return 'claude-sonnet-4-6';
       case 4:
-        return 'claude-opus-4-5-20251101';
+        return 'claude-opus-4-7';
       default:
-        return 'claude-sonnet-4-20250514';
+        return 'claude-sonnet-4-6';
     }
   }
 

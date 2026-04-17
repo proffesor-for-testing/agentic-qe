@@ -1089,7 +1089,7 @@ export const DEFAULT_FALLBACK_BEHAVIOR: FallbackBehavior = {
 export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   {
     provider: 'claude',
-    models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
+    models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
     enabled: true,
     priority: 100,
     maxAttempts: 2,
@@ -1148,11 +1148,11 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   mode: 'rule-based',
   rules: [],
   defaultProvider: 'claude',
-  defaultModel: 'claude-sonnet-4-20250514',
+  defaultModel: 'claude-sonnet-4-6',
   fallbackChain: DEFAULT_FALLBACK_CHAIN,
   fallbackBehavior: DEFAULT_FALLBACK_BEHAVIOR,
   providers: {
-    claude: { enabled: true, defaultModel: 'claude-sonnet-4-20250514' },
+    claude: { enabled: true, defaultModel: 'claude-sonnet-4-6' },
     openai: { enabled: true, defaultModel: 'gpt-4o' },
     ollama: { enabled: true, defaultModel: 'llama3.1' },
     openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-4' },
@@ -1447,7 +1447,7 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
     canonicalId: 'claude-opus-4.5',
     canonicalName: 'Claude Opus 4.5',
     providerIds: {
-      claude: 'claude-opus-4-5-20251101',
+      claude: 'claude-opus-4-7',
       openrouter: 'anthropic/claude-opus-4.5',
       bedrock: 'anthropic.claude-opus-4-5-v1:0',
     },
@@ -1471,7 +1471,7 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
     canonicalId: 'claude-sonnet-4',
     canonicalName: 'Claude Sonnet 4',
     providerIds: {
-      claude: 'claude-sonnet-4-20250514',
+      claude: 'claude-sonnet-4-6',
       openrouter: 'anthropic/claude-sonnet-4',
       bedrock: 'anthropic.claude-sonnet-4-v1:0',
     },
@@ -1495,7 +1495,7 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
     canonicalId: 'claude-haiku-3.5',
     canonicalName: 'Claude Haiku 3.5',
     providerIds: {
-      claude: 'claude-3-5-haiku-20241022',
+      claude: 'claude-haiku-4-5-20251001',
       openrouter: 'anthropic/claude-3.5-haiku',
       bedrock: 'anthropic.claude-3-5-haiku-v1:0',
     },

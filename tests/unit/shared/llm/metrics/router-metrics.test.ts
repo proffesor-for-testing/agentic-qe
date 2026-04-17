@@ -28,7 +28,7 @@ import { LLMProvider, TokenUsage, CostInfo } from '../../../../../src/shared/llm
 
 function createMockDecision(
   provider: ExtendedProviderType = 'claude',
-  model: string = 'claude-sonnet-4-20250514',
+  model: string = 'claude-sonnet-4-6',
   reason: string = 'rule-match',
   ruleId?: string
 ): RoutingDecision {
@@ -111,7 +111,7 @@ describe('RouterMetricsCollector', () => {
     });
 
     it('should track rule-matched decisions', () => {
-      const ruleDecision = createMockDecision('claude', 'claude-sonnet-4-20250514', 'rule-match', 'rule-1');
+      const ruleDecision = createMockDecision('claude', 'claude-sonnet-4-6', 'rule-match', 'rule-1');
       collector.recordRoutingDecision(ruleDecision, 100);
 
       const metrics = collector.getMetrics();
@@ -121,7 +121,7 @@ describe('RouterMetricsCollector', () => {
 
   describe('recordProviderCall', () => {
     it('should record a provider call', () => {
-      collector.recordProviderCall('claude', 'claude-sonnet-4-20250514', 150, 200, {
+      collector.recordProviderCall('claude', 'claude-sonnet-4-6', 150, 200, {
         inputTokens: 150,
         outputTokens: 50,
         success: true,
@@ -133,7 +133,7 @@ describe('RouterMetricsCollector', () => {
     });
 
     it('should track failed calls', () => {
-      collector.recordProviderCall('claude', 'claude-sonnet-4-20250514', 100, 0, {
+      collector.recordProviderCall('claude', 'claude-sonnet-4-6', 100, 0, {
         success: false,
       });
 
@@ -313,10 +313,10 @@ describe('CostMetricsCollector', () => {
 
   describe('recordCost', () => {
     it('should record cost and return record', () => {
-      const record = collector.recordCost('claude', 'claude-sonnet-4-20250514', 1000, 500);
+      const record = collector.recordCost('claude', 'claude-sonnet-4-6', 1000, 500);
 
       expect(record.provider).toBe('claude');
-      expect(record.model).toBe('claude-sonnet-4-20250514');
+      expect(record.model).toBe('claude-sonnet-4-6');
       expect(record.inputTokens).toBe(1000);
       expect(record.outputTokens).toBe(500);
       expect(record.totalCost).toBeGreaterThan(0);
@@ -345,7 +345,7 @@ describe('CostMetricsCollector', () => {
 
   describe('getCostByProvider', () => {
     it('should return cost breakdown by provider', () => {
-      collector.recordCost('claude', 'claude-sonnet-4-20250514', 1000, 500);
+      collector.recordCost('claude', 'claude-sonnet-4-6', 1000, 500);
       collector.recordCost('openai', 'gpt-4o', 1000, 500);
 
       const byProvider = collector.getCostByProvider();
@@ -378,20 +378,20 @@ describe('CostMetricsCollector', () => {
 
   describe('getCostByModel', () => {
     it('should return cost breakdown by model', () => {
-      collector.recordCost('claude', 'claude-sonnet-4-20250514', 1000, 500);
-      collector.recordCost('claude', 'claude-opus-4-5-20251101', 1000, 500);
+      collector.recordCost('claude', 'claude-sonnet-4-6', 1000, 500);
+      collector.recordCost('claude', 'claude-opus-4-7', 1000, 500);
 
       const byModel = collector.getCostByModel();
 
-      expect(byModel.has('claude-sonnet-4-20250514')).toBe(true);
-      expect(byModel.has('claude-opus-4-5-20251101')).toBe(true);
+      expect(byModel.has('claude-sonnet-4-6')).toBe(true);
+      expect(byModel.has('claude-opus-4-7')).toBe(true);
     });
   });
 
   describe('getTotalCost', () => {
     it('should return total cost', () => {
-      collector.recordCost('claude', 'claude-sonnet-4-20250514', 1000, 500);
-      collector.recordCost('claude', 'claude-sonnet-4-20250514', 1000, 500);
+      collector.recordCost('claude', 'claude-sonnet-4-6', 1000, 500);
+      collector.recordCost('claude', 'claude-sonnet-4-6', 1000, 500);
 
       const total = collector.getTotalCost();
       expect(total).toBeGreaterThan(0);
@@ -427,7 +427,7 @@ describe('CostMetricsCollector', () => {
       collector.addBudgetAlert(0.001, '24h', callback);
 
       // Record enough cost to trigger alert
-      collector.recordCost('claude', 'claude-opus-4-5-20251101', 10000, 5000);
+      collector.recordCost('claude', 'claude-opus-4-7', 10000, 5000);
 
       expect(callback).toHaveBeenCalled();
     });
@@ -436,8 +436,8 @@ describe('CostMetricsCollector', () => {
       const callback = vi.fn();
       collector.addBudgetAlert(0.001, '24h', callback);
 
-      collector.recordCost('claude', 'claude-opus-4-5-20251101', 10000, 5000);
-      collector.recordCost('claude', 'claude-opus-4-5-20251101', 10000, 5000);
+      collector.recordCost('claude', 'claude-opus-4-7', 10000, 5000);
+      collector.recordCost('claude', 'claude-opus-4-7', 10000, 5000);
 
       expect(callback).toHaveBeenCalledTimes(1);
     });
@@ -447,7 +447,7 @@ describe('CostMetricsCollector', () => {
       collector.addBudgetAlert(0.001, '24h', callback);
       collector.removeBudgetAlert(0);
 
-      collector.recordCost('claude', 'claude-opus-4-5-20251101', 10000, 5000);
+      collector.recordCost('claude', 'claude-opus-4-7', 10000, 5000);
 
       expect(callback).not.toHaveBeenCalled();
     });
@@ -457,7 +457,7 @@ describe('CostMetricsCollector', () => {
     it('should return cost optimization suggestions', () => {
       // Record some significant usage
       for (let i = 0; i < 100; i++) {
-        collector.recordCost('claude', 'claude-opus-4-5-20251101', 10000, 5000);
+        collector.recordCost('claude', 'claude-opus-4-7', 10000, 5000);
       }
 
       const suggestions = collector.getOptimizationSuggestions();

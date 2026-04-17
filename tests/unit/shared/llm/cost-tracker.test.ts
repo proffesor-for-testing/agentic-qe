@@ -23,7 +23,7 @@ describe('CostTracker', () => {
 
   describe('cost calculation', () => {
     it('should calculate cost for Claude models', () => {
-      const cost = CostTracker.calculateCost('claude-sonnet-4-20250514', {
+      const cost = CostTracker.calculateCost('claude-sonnet-4-6', {
         promptTokens: 1000,
         completionTokens: 500,
         totalTokens: 1500,
@@ -71,11 +71,11 @@ describe('CostTracker', () => {
       expect(cost.totalCost).toBe(0);
     });
 
-    it('should get cost per token', () => {
-      const perToken = CostTracker.getCostPerToken('claude-opus-4-5-20251101');
+    it('should get cost per token for claude-opus-4-7 (ADR-093)', () => {
+      const perToken = CostTracker.getCostPerToken('claude-opus-4-7');
 
-      expect(perToken.input).toBeCloseTo(15 / 1_000_000, 10);
-      expect(perToken.output).toBeCloseTo(75 / 1_000_000, 10);
+      expect(perToken.input).toBeCloseTo(5 / 1_000_000, 10);
+      expect(perToken.output).toBeCloseTo(25 / 1_000_000, 10);
     });
   });
 
@@ -83,7 +83,7 @@ describe('CostTracker', () => {
     it('should record usage and return cost', () => {
       const cost = tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -94,7 +94,7 @@ describe('CostTracker', () => {
     it('should track multiple usages', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -126,7 +126,7 @@ describe('CostTracker', () => {
     it('should get summary for current hour', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -140,7 +140,7 @@ describe('CostTracker', () => {
     it('should get summary for current day', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -154,7 +154,7 @@ describe('CostTracker', () => {
     it('should break down by provider', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -176,22 +176,22 @@ describe('CostTracker', () => {
     it('should break down by model', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
 
       tracker.recordUsage(
         'claude',
-        'claude-opus-4-5-20251101',
+        'claude-opus-4-7',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-2'
       );
 
       const summary = tracker.getSummary('all');
 
-      expect(summary.byModel['claude-sonnet-4-20250514']).toBeGreaterThan(0);
-      expect(summary.byModel['claude-opus-4-5-20251101']).toBeGreaterThan(0);
+      expect(summary.byModel['claude-sonnet-4-6']).toBeGreaterThan(0);
+      expect(summary.byModel['claude-opus-4-7']).toBeGreaterThan(0);
     });
   });
 
@@ -199,14 +199,14 @@ describe('CostTracker', () => {
     it('should get usage by provider', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
 
       tracker.recordUsage(
         'claude',
-        'claude-opus-4-5-20251101',
+        'claude-opus-4-7',
         { promptTokens: 2000, completionTokens: 1000, totalTokens: 3000 },
         'req-2'
       );
@@ -232,14 +232,14 @@ describe('CostTracker', () => {
       // Record some usage
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000000, completionTokens: 500000, totalTokens: 1500000 },
         'req-1'
       );
 
       // Check if another large request would exceed $10 limit
       const wouldExceed = tracker.wouldExceedLimit(
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         1000000,
         500000,
         10, // $10 limit
@@ -251,7 +251,7 @@ describe('CostTracker', () => {
 
     it('should not exceed when under limit', () => {
       const wouldExceed = tracker.wouldExceedLimit(
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         1000,
         500,
         100, // $100 limit
@@ -270,7 +270,7 @@ describe('CostTracker', () => {
       // Record usage that exceeds $1
       tracker.recordUsage(
         'claude',
-        'claude-opus-4-5-20251101',
+        'claude-opus-4-7',
         { promptTokens: 100000, completionTokens: 50000, totalTokens: 150000 },
         'req-1'
       );
@@ -284,14 +284,14 @@ describe('CostTracker', () => {
 
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
 
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-2'
       );
@@ -306,7 +306,7 @@ describe('CostTracker', () => {
 
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -319,7 +319,7 @@ describe('CostTracker', () => {
     it('should get recent requests', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -343,7 +343,7 @@ describe('CostTracker', () => {
     it('should export records', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -356,7 +356,7 @@ describe('CostTracker', () => {
       const sourceTracker = new CostTracker();
       sourceTracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -375,7 +375,7 @@ describe('CostTracker', () => {
     it('should clear records', () => {
       tracker.recordUsage(
         'claude',
-        'claude-sonnet-4-20250514',
+        'claude-sonnet-4-6',
         { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
         'req-1'
       );
@@ -406,9 +406,9 @@ describe('CostTracker', () => {
 
 describe('MODEL_PRICING', () => {
   it('should have pricing for Claude models', () => {
-    expect(MODEL_PRICING['claude-opus-4-5-20251101']).toBeDefined();
-    expect(MODEL_PRICING['claude-sonnet-4-20250514']).toBeDefined();
-    expect(MODEL_PRICING['claude-3-5-haiku-20241022']).toBeDefined();
+    expect(MODEL_PRICING['claude-opus-4-7']).toBeDefined();
+    expect(MODEL_PRICING['claude-sonnet-4-6']).toBeDefined();
+    expect(MODEL_PRICING['claude-haiku-4-5-20251001']).toBeDefined();
   });
 
   it('should have pricing for OpenAI models', () => {
@@ -424,7 +424,7 @@ describe('MODEL_PRICING', () => {
   });
 
   it('should have correct provider assignments', () => {
-    expect(MODEL_PRICING['claude-sonnet-4-20250514'].provider).toBe('claude');
+    expect(MODEL_PRICING['claude-sonnet-4-6'].provider).toBe('claude');
     expect(MODEL_PRICING['gpt-4o'].provider).toBe('openai');
     expect(MODEL_PRICING['llama3'].provider).toBe('ollama');
   });

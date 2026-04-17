@@ -152,11 +152,11 @@ type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown
 function getModelForTier(tier: number): string {
   switch (tier) {
     case 0: return 'agent-booster'; // Special case - WASM transforms
-    case 1: return 'claude-3-5-haiku-20241022';
-    case 2: return 'claude-sonnet-4-20250514';
-    case 3: return 'claude-sonnet-4-20250514'; // Extended thinking
-    case 4: return 'claude-opus-4-5-20251101';
-    default: return 'claude-sonnet-4-20250514';
+    case 1: return 'claude-haiku-4-5-20251001';
+    case 2: return 'claude-sonnet-4-6';
+    case 3: return 'claude-sonnet-4-6'; // Extended thinking
+    case 4: return 'claude-opus-4-7';
+    default: return 'claude-sonnet-4-6';
   }
 }
 

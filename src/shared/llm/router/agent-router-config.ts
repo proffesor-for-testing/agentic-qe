@@ -133,7 +133,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Security agents need best reasoning capabilities
   security: {
     provider: 'claude',
-    model: 'claude-opus-4-5-20251101',
+    model: 'claude-opus-4-7',
     temperature: 0.1,
     maxTokens: 16000,
     priority: 100,
@@ -142,7 +142,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Test generation needs good balance of quality and speed
   'test-generation': {
     provider: 'claude',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     temperature: 0.3,
     maxTokens: 8000,
     priority: 90,
@@ -151,7 +151,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Code analysis requires good understanding
   'code-analysis': {
     provider: 'claude',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     temperature: 0.2,
     maxTokens: 8000,
     priority: 85,
@@ -160,7 +160,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Performance testing - fast models preferred
   performance: {
     provider: 'claude',
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-haiku-4-5-20251001',
     temperature: 0.2,
     maxTokens: 4000,
     priority: 70,
@@ -169,7 +169,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Documentation - cost-effective
   documentation: {
     provider: 'claude',
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-haiku-4-5-20251001',
     temperature: 0.4,
     maxTokens: 4000,
     priority: 60,
@@ -178,7 +178,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Learning/ML agents - balanced
   learning: {
     provider: 'claude',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     temperature: 0.3,
     maxTokens: 8000,
     priority: 80,
@@ -187,7 +187,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Coordination agents - fast is important
   coordination: {
     provider: 'claude',
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-haiku-4-5-20251001',
     temperature: 0.2,
     maxTokens: 2000,
     priority: 75,
@@ -205,7 +205,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // General purpose - balanced default
   general: {
     provider: 'claude',
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-4-6',
     temperature: 0.3,
     maxTokens: 4000,
     priority: 60,
@@ -620,7 +620,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'claude',
-      model: 'claude-opus-4-5-20251101',
+      model: 'claude-opus-4-7',
       temperature: 0.2,
       maxTokens: 16000,
       priority: 150,
@@ -665,7 +665,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'claude',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       temperature: 0.3,
       maxTokens: 8000,
       priority: 95,
@@ -684,19 +684,19 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
 export const ALTERNATIVE_MODELS: Record<AgentCategory, ModelPreference[]> = {
   security: [
     { provider: 'openai', model: 'gpt-4o', temperature: 0.1, priority: 90 },
-    { provider: 'claude', model: 'claude-sonnet-4-20250514', temperature: 0.1, priority: 80 },
+    { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.1, priority: 80 },
     { provider: 'openrouter', model: 'anthropic/claude-opus-4.5', temperature: 0.1, priority: 70 },
   ],
 
   'test-generation': [
     { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 80 },
-    { provider: 'claude', model: 'claude-3-5-haiku-20241022', temperature: 0.3, priority: 70 },
+    { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 70 },
     { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 60 },
   ],
 
   'code-analysis': [
     { provider: 'openai', model: 'gpt-4o', temperature: 0.2, priority: 75 },
-    { provider: 'claude', model: 'claude-3-5-haiku-20241022', temperature: 0.2, priority: 65 },
+    { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.2, priority: 65 },
     { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.2, priority: 55 },
   ],
 
@@ -714,7 +714,7 @@ export const ALTERNATIVE_MODELS: Record<AgentCategory, ModelPreference[]> = {
 
   learning: [
     { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 70 },
-    { provider: 'claude', model: 'claude-3-5-haiku-20241022', temperature: 0.3, priority: 60 },
+    { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 60 },
     { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 50 },
   ],
 
@@ -726,13 +726,13 @@ export const ALTERNATIVE_MODELS: Record<AgentCategory, ModelPreference[]> = {
 
   simple: [
     { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3, priority: 40 },
-    { provider: 'claude', model: 'claude-3-5-haiku-20241022', temperature: 0.3, priority: 30 },
+    { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 30 },
     { provider: 'ollama', model: 'phi4', temperature: 0.3, priority: 20 },
   ],
 
   general: [
     { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 50 },
-    { provider: 'claude', model: 'claude-3-5-haiku-20241022', temperature: 0.3, priority: 40 },
+    { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 40 },
     { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 30 },
   ],
 };

@@ -143,7 +143,7 @@ describe('HybridRouter', () => {
 
   beforeEach(() => {
     claudeProvider = createMockProvider('claude', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       inputCost: 0.003,
       outputCost: 0.015,
       avgLatency: 150,
@@ -305,8 +305,8 @@ describe('HybridRouter', () => {
 
       expect(decision.providerType).toBe('claude');
       // Canonical model ID stored in model, provider-specific in providerModelId
-      expect(decision.model).toBe('claude-opus-4-5');
-      expect(decision.providerModelId).toBe('claude-opus-4-5-20251101');
+      expect(decision.model).toBe('claude-opus-4-7');
+      expect(decision.providerModelId).toBe('claude-opus-4-7');
       expect(decision.reason).toBe('rule-match');
     });
 
@@ -321,8 +321,8 @@ describe('HybridRouter', () => {
 
       expect(decision.providerType).toBe('claude');
       // Canonical model ID stored in model, provider-specific in providerModelId
-      expect(decision.model).toBe('claude-sonnet-4');
-      expect(decision.providerModelId).toBe('claude-sonnet-4-20250514');
+      expect(decision.model).toBe('claude-sonnet-4-6');
+      expect(decision.providerModelId).toBe('claude-sonnet-4-6');
     });
 
     it('should route high complexity reasoning tasks to advanced models', async () => {
@@ -346,8 +346,8 @@ describe('HybridRouter', () => {
 
       expect(decision.providerType).toBe('claude');
       // Canonical model ID stored in model, provider-specific in providerModelId
-      expect(decision.model).toBe('claude-haiku-3-5');
-      expect(decision.providerModelId).toBe('claude-3-5-haiku-20241022');
+      expect(decision.model).toBe('claude-haiku-4-5');
+      expect(decision.providerModelId).toBe('claude-haiku-4-5-20251001');
     });
 
     it('should use default when no rules match', async () => {
@@ -543,11 +543,11 @@ describe('HybridRouter', () => {
       router = new HybridRouter(providerManager, {
         mode: 'manual',
         defaultProvider: 'claude',
-        defaultModel: 'claude-sonnet-4-20250514',
+        defaultModel: 'claude-sonnet-4-6',
         fallbackChain: {
           id: 'test-fallback',
           entries: [
-            { provider: 'claude', models: ['claude-sonnet-4-20250514'], enabled: true, priority: 100 },
+            { provider: 'claude', models: ['claude-sonnet-4-6'], enabled: true, priority: 100 },
             { provider: 'openai', models: ['gpt-4o'], enabled: true, priority: 90 },
             { provider: 'ollama', models: ['llama3.1'], enabled: true, priority: 80 },
           ],

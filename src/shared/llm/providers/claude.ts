@@ -31,7 +31,7 @@ import { backoffDelay } from '../retry.js';
  * Default Claude configuration
  */
 export const DEFAULT_CLAUDE_CONFIG: ClaudeConfig = {
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-6',
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -318,9 +318,9 @@ export class ClaudeProvider implements LLMProvider {
    */
   getSupportedModels(): string[] {
     return [
-      'claude-opus-4-5-20251101',
-      'claude-sonnet-4-20250514',
-      'claude-3-5-haiku-20241022',
+      'claude-opus-4-7',
+      'claude-sonnet-4-6',
+      'claude-haiku-4-5-20251001',
       // Legacy models
       'claude-3-opus-20240229',
       'claude-3-sonnet-20240229',

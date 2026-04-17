@@ -562,18 +562,18 @@ describe('Task Executor Error Paths', () => {
       const getModelForTier = (tier: number): string => {
         switch (tier) {
           case 0: return 'agent-booster';
-          case 1: return 'claude-3-5-haiku-20241022';
-          case 2: return 'claude-sonnet-4-20250514';
-          case 3: return 'claude-sonnet-4-20250514';
-          case 4: return 'claude-opus-4-5-20251101';
-          default: return 'claude-sonnet-4-20250514'; // Default fallback
+          case 1: return 'claude-haiku-4-5-20251001';
+          case 2: return 'claude-sonnet-4-6';
+          case 3: return 'claude-sonnet-4-6';
+          case 4: return 'claude-opus-4-7';
+          default: return 'claude-sonnet-4-6'; // Default fallback
         }
       };
 
-      expect(getModelForTier(-1)).toBe('claude-sonnet-4-20250514');
-      expect(getModelForTier(999)).toBe('claude-sonnet-4-20250514');
+      expect(getModelForTier(-1)).toBe('claude-sonnet-4-6');
+      expect(getModelForTier(999)).toBe('claude-sonnet-4-6');
       expect(getModelForTier(0)).toBe('agent-booster');
-      expect(getModelForTier(4)).toBe('claude-opus-4-5-20251101');
+      expect(getModelForTier(4)).toBe('claude-opus-4-7');
     });
 
     it('should handle outcome recording failure gracefully', async () => {

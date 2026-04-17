@@ -1103,7 +1103,7 @@ export function createQERouter(providerManager: ProviderManager): HybridRouter {
     mode: 'rule-based',
     rules: DEFAULT_QE_ROUTING_RULES,
     defaultProvider: 'claude',
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-sonnet-4-6',
     enableMetrics: true,
     cacheDecisions: true,
   });

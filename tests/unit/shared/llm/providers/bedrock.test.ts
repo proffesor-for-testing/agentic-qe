@@ -208,19 +208,19 @@ describe('BedrockProvider', () => {
       expect(bedrockId).toBe('anthropic.claude-3-5-sonnet-20241022-v2:0');
     });
 
-    it('should map claude-opus-4-5 to Bedrock format', () => {
-      const bedrockId = BEDROCK_MODEL_MAPPING['claude-opus-4-5-20251101'];
-      expect(bedrockId).toBe('anthropic.claude-opus-4-5-v1:0');
+    it('should map claude-opus-4-7 to Bedrock format (ADR-093)', () => {
+      const bedrockId = BEDROCK_MODEL_MAPPING['claude-opus-4-7'];
+      expect(bedrockId).toBe('anthropic.claude-opus-4-7-v1:0');
     });
 
-    it('should map claude-haiku-3-5 to Bedrock format', () => {
-      const bedrockId = BEDROCK_MODEL_MAPPING['claude-3-5-haiku-20241022'];
-      expect(bedrockId).toBe('anthropic.claude-3-5-haiku-v1:0');
+    it('should map claude-haiku-4-5 to Bedrock format (ADR-093)', () => {
+      const bedrockId = BEDROCK_MODEL_MAPPING['claude-haiku-4-5-20251001'];
+      expect(bedrockId).toBe('anthropic.claude-haiku-4-5-v1:0');
     });
 
     it('should have reverse mapping for all Bedrock model IDs', () => {
       // Verify all Bedrock model IDs have a reverse mapping
-      // Note: Multiple canonical IDs may map to the same Bedrock ID (e.g., claude-opus-4-5 and claude-opus-4-5-20251101)
+      // Note: Multiple canonical IDs may map to the same Bedrock ID (e.g., claude-opus-4-5 and claude-opus-4-7)
       // The reverse mapping picks one of them
       const bedrockIds = new Set(Object.values(BEDROCK_MODEL_MAPPING));
       for (const bedrockId of bedrockIds) {
@@ -240,8 +240,8 @@ describe('BedrockProvider', () => {
       const supportedModels = provider.getSupportedModels();
 
       expect(supportedModels).toContain('claude-3-5-sonnet-20241022');
-      expect(supportedModels).toContain('claude-opus-4-5-20251101');
-      expect(supportedModels).toContain('claude-3-5-haiku-20241022');
+      expect(supportedModels).toContain('claude-opus-4-7');
+      expect(supportedModels).toContain('claude-haiku-4-5-20251001');
       expect(supportedModels.length).toBeGreaterThanOrEqual(10);
     });
   });

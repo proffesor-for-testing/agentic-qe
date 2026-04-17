@@ -40,7 +40,7 @@ describe('ADR-042: End-to-End Token Tracking Integration', () => {
           type: 'message',
           role: 'assistant',
           content: [{ type: 'text', text: 'Hello, world!' }],
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           stop_reason: 'end_turn',
           usage: {
             input_tokens: 50,
@@ -137,7 +137,7 @@ describe('ADR-042: End-to-End Token Tracking Integration', () => {
             type: 'message',
             role: 'assistant',
             content: [{ type: 'text', text: 'Claude' }],
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             stop_reason: 'end_turn',
             usage: { input_tokens: 100, output_tokens: 50 },
           }),

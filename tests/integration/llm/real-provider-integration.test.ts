@@ -131,7 +131,7 @@ describe('Real Provider Integration Tests (MSW)', () => {
       providers: {
         claude: {
           apiKey: 'test-api-key-for-msw',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
         },
         openai: {
           apiKey: 'test-openai-key-for-msw',
@@ -181,11 +181,11 @@ describe('Real Provider Integration Tests (MSW)', () => {
 
       // Verify the provider received the provider-specific model ID (mapped from canonical)
       // The MSW mock echoes back the model it received
-      expect(response.content).toContain('claude-sonnet-4-20250514');
+      expect(response.content).toContain('claude-sonnet-4-6');
       expect(response.provider).toBe('claude');
       // The routing decision stores canonical in model, provider-specific in response
       expect(response.routingDecision?.model).toBe('claude-sonnet-4');
-      expect(response.routingDecision?.providerModelId).toBe('claude-sonnet-4-20250514');
+      expect(response.routingDecision?.providerModelId).toBe('claude-sonnet-4-6');
     });
   });
 

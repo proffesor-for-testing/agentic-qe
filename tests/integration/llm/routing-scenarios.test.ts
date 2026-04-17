@@ -85,14 +85,14 @@ describe('Routing Scenarios Integration Tests', () => {
       const params: ChatParams = {
         messages: [{ role: 'user', content: 'Test' }],
         preferredProvider: 'claude',
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-haiku-4-5-20251001',
       };
 
       const decision = await router.selectProvider(params);
 
       // Model is normalized to canonical form, providerModelId contains provider-specific ID
       expect(decision.model).toBe('claude-haiku-3-5');
-      expect(decision.providerModelId).toBe('claude-3-5-haiku-20241022');
+      expect(decision.providerModelId).toBe('claude-haiku-4-5-20251001');
     });
 
     it('should fall back when preferred provider unavailable', async () => {
@@ -334,7 +334,7 @@ describe('Routing Scenarios Integration Tests', () => {
         id: 'tools-required-test',
         name: 'Tools Required',
         condition: { requiresTools: true },
-        action: { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+        action: { provider: 'claude', model: 'claude-sonnet-4-6' },
         enabled: true,
         priority: 90,
       };
@@ -358,7 +358,7 @@ describe('Routing Scenarios Integration Tests', () => {
         id: 'high-complexity',
         name: 'High Complexity Handler',
         condition: { complexity: ['high', 'expert'] },
-        action: { provider: 'claude', model: 'claude-opus-4-5-20251101' },
+        action: { provider: 'claude', model: 'claude-opus-4-7' },
         enabled: true,
         priority: 95,
       };
@@ -517,7 +517,7 @@ describe('Routing Scenarios Integration Tests', () => {
           id: 'high-priority',
           name: 'High Priority',
           condition: { agentType: ['tester'] },
-          action: { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+          action: { provider: 'claude', model: 'claude-sonnet-4-6' },
           enabled: true,
           priority: 100,
         },
@@ -549,7 +549,7 @@ describe('Routing Scenarios Integration Tests', () => {
           id: 'enabled-rule',
           name: 'Enabled',
           condition: { agentType: ['tester'] },
-          action: { provider: 'claude', model: 'claude-sonnet-4-20250514' },
+          action: { provider: 'claude', model: 'claude-sonnet-4-6' },
           enabled: true,
           priority: 50,
         },
@@ -575,7 +575,7 @@ describe('Routing Scenarios Integration Tests', () => {
           complexity: ['high', 'expert'],
           requiresTools: false,
         },
-        action: { provider: 'claude', model: 'claude-opus-4-5-20251101' },
+        action: { provider: 'claude', model: 'claude-opus-4-7' },
         enabled: true,
         priority: 100,
       };
@@ -608,7 +608,7 @@ describe('Routing Scenarios Integration Tests', () => {
         id: `rule-${i}`,
         name: `Rule ${i}`,
         condition: { agentType: [`agent-${i}`] },
-        action: { provider: 'claude' as const, model: 'claude-sonnet-4-20250514' },
+        action: { provider: 'claude' as const, model: 'claude-sonnet-4-6' },
         enabled: true,
         priority: i,
       }));
