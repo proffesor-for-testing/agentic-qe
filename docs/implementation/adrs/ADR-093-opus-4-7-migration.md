@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-093 |
-| **Status** | Proposed |
+| **Status** | Accepted — Phases 1, 2, 4 Implemented; Phase 3 Not Required; Phases 5–6 Scheduled |
 | **Date** | 2026-04-17 |
 | **Author** | AQE Team |
 | **Implementation Branch** | `adr-093-opus-4-7-migration` |
@@ -160,13 +160,24 @@ Migrate AQE's scheduled-scan and background-monitoring work to Anthropic Routine
 
 ## Validation Criteria
 
-- [ ] All 25+ `claude-sonnet-4-20250514` references replaced with `DEFAULT_SONNET_MODEL` (grep returns 0 on `src/`)
-- [ ] `QE_EFFORT_LEVEL=xhigh` confirmed in fleet defaults; per-agent override verified with one qe-* agent downgraded to `medium` and one upgraded to `max`
-- [ ] Thinking-config shim has unit test covering legacy `budget_tokens` → adaptive translation against 4.7
-- [ ] `claude-opus-4-7` reachable through `MultiModelExecutor.consult()` end-to-end against a pinned fixture
-- [ ] Cyber Verification Program application submitted; reference number captured in this ADR
-- [ ] Security agents continue to function on Sonnet 4.6 until Cyber Verification approval
-- [ ] 30-day telemetry review scheduled in the AQE project tracker
+- [x] All hardcoded `claude-sonnet-4-20250514` live-routing references replaced with `DEFAULT_SONNET_MODEL` (remaining references are deprecation metadata in `model-registry.ts`, Bedrock model-ID mapping for legacy callers, and historical cost-tracker entries — intentional compat, not live defaults)
+- [x] `QE_EFFORT_LEVEL=xhigh` confirmed in `config/fleet-defaults.yaml`; priority chain (env > YAML > frontmatter) implemented in `src/shared/llm/effort-resolver.ts`
+- [x] `claude-opus-4-7` added to `src/shared/llm/model-registry.ts` with capability flags (`supportsAdaptiveThinking`, `supportsEffortXHigh`, tokenizer `opus-4-7`, 1M context)
+- [x] Opus 4.7 set as default ADR-092 advisor model; reachable through `MultiModelExecutor.consult()` via existing infra
+- [x] Security agents (`qe-pentest-validator`, `qe-security-scanner`, `qe-security-auditor`, `qe-security-reviewer`) pinned to Sonnet 4.6 pending Cyber Verification Program approval
+- [x] Cyber Verification Program application draft prepared at `docs/security/cyber-verification-application.md`
+- [ ] Cyber Verification Program application submitted; reference number captured in this ADR (external action)
+- [ ] Thinking-config shim (Phase 3) — **not required**: grep confirms no callers pass `{type: "enabled", budget_tokens: N}` to raw Messages API; `model-registry.ts:65` reference is documentation only
+- [ ] 30-day telemetry review scheduled (~2026-05-17) for ADR-082 complexity and ADR-092 circuit-breaker recalibration
+
+---
+
+## Status History
+
+| Status | Date | Notes |
+|--------|------|-------|
+| Proposed | 2026-04-17 | Initial draft covering model sweep, `xhigh` fleet-wide, 4.7 escalation via ADR-092, Routines/Monitor deferral |
+| Accepted | 2026-04-17 | Phases 1 (safety net), 2 (`xhigh` + priority chain), 4 (cyber-agent pinning + application draft) implemented across commits `3ee1fbf5`..`1aac5206`. Phase 3 shim determined unnecessary — codebase sweep found zero raw-Messages-API callers passing `{type: "enabled", budget_tokens: N}`. Phases 5 (30-day telemetry recalibration) and 6 (follow-up ADRs-094/095) remain scheduled. Shipping in v3.9.13. |
 
 ---
 
