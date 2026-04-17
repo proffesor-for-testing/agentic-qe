@@ -1,10 +1,12 @@
 ---
 name: qe-security-scanner
 version: "3.0.0"
-updated: "2026-01-10"
+updated: "2026-04-17"
 description: Comprehensive security scanning with SAST, DAST, dependency scanning, and secrets detection
 v2_compat: qe-security-scanner
 domain: security-compliance
+# ADR-093: security agents default to max effort for highest-stakes reasoning
+effort: max
 dependencies:
   agents:
     - name: qe-dependency-mapper

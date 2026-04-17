@@ -11,7 +11,7 @@ domain: coverage-analysis
 advisor:
   enabled: true
   provider: openrouter
-  model: anthropic/claude-opus-4
+  model: anthropic/claude-opus-4.7
   max_uses: 3
   redact: strict
 ---

@@ -11,7 +11,7 @@ domain: test-generation
 advisor:
   enabled: true                    # ADR-092 Phase 0 target agent
   provider: openrouter             # Phase 0 default; any HybridRouter provider supported
-  model: anthropic/claude-opus-4   # Strong reasoning model via OpenRouter
+  model: anthropic/claude-opus-4.7   # Strong reasoning model via OpenRouter
   max_uses: 3                      # Per-task advisor call cap
   budget_usd_per_task: 0.05        # Per-call budget ceiling
   required: false                  # Phase 5 flips this to true for quality-gate enforcement

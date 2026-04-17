@@ -1,14 +1,16 @@
 ---
 name: qe-security-auditor
 version: "3.0.0"
-updated: "2026-04-12"
+updated: "2026-04-17"
 description: Security audit specialist with OWASP coverage, compliance validation, and remediation workflows
 v2_compat: null # New in v3
 domain: security-compliance
+# ADR-093: security agents default to max effort for highest-stakes reasoning
+effort: max
 advisor:
   enabled: true
   provider: claude
-  model: claude-opus-4-6
+  model: claude-opus-4-7
   max_uses: 3
   redact: strict
 ---
