@@ -108,21 +108,23 @@ interface AWSSigningContext {
  * Map canonical model IDs to Bedrock ARN-style model IDs
  */
 export const BEDROCK_MODEL_MAPPING: Record<string, string> = {
-  // Claude Opus 4.5
+  // ADR-093: Opus 4.7, Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
+  'claude-opus-4-7': 'anthropic.claude-opus-4-7-v1:0',
+  'claude-sonnet-4-6': 'anthropic.claude-sonnet-4-6-v1:0',
+  'claude-haiku-4-5-20251001': 'anthropic.claude-haiku-4-5-v1:0',
+  'claude-haiku-4-5': 'anthropic.claude-haiku-4-5-v1:0',
+  // Retiring 2026-06-15 — kept for existing traffic during transition
   'claude-opus-4-5-20251101': 'anthropic.claude-opus-4-5-v1:0',
   'claude-opus-4-5': 'anthropic.claude-opus-4-5-v1:0',
-  // Claude Opus 4
   'claude-opus-4-20250514': 'anthropic.claude-opus-4-v1:0',
   'claude-opus-4': 'anthropic.claude-opus-4-v1:0',
+  'claude-sonnet-4-20250514': 'anthropic.claude-sonnet-4-v1:0',
+  'claude-sonnet-4': 'anthropic.claude-sonnet-4-v1:0',
+  'claude-3-5-haiku-20241022': 'anthropic.claude-3-5-haiku-v1:0',
+  'claude-haiku-3-5': 'anthropic.claude-3-5-haiku-v1:0',
   // Claude Sonnet 4.5
   'claude-sonnet-4-5-20250929': 'anthropic.claude-sonnet-4-5-v2:0',
   'claude-sonnet-4-5': 'anthropic.claude-sonnet-4-5-v2:0',
-  // Claude Sonnet 4
-  'claude-sonnet-4-20250514': 'anthropic.claude-sonnet-4-v1:0',
-  'claude-sonnet-4': 'anthropic.claude-sonnet-4-v1:0',
-  // Claude Haiku 3.5
-  'claude-3-5-haiku-20241022': 'anthropic.claude-3-5-haiku-v1:0',
-  'claude-haiku-3-5': 'anthropic.claude-3-5-haiku-v1:0',
   // Legacy Claude 3 models
   'claude-3-opus-20240229': 'anthropic.claude-3-opus-20240229-v1:0',
   'claude-3-sonnet-20240229': 'anthropic.claude-3-sonnet-20240229-v1:0',

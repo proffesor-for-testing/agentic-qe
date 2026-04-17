@@ -145,7 +145,7 @@ By Provider:
     Tokens: 891,234
     Cost: $4.5678
     Avg Cost/Request: $0.018644
-    Top Model: claude-sonnet-4-5-20250929
+    Top Model: claude-sonnet-4-6
 
   ☁️ openrouter:
     Requests: 111
@@ -206,10 +206,10 @@ By Provider:
       "totalTokens": 891234,
       "totalCost": 4.5678,
       "avgCostPerRequest": 0.018644,
-      "topModel": "claude-sonnet-4-5-20250929",
+      "topModel": "claude-sonnet-4-6",
       "modelCounts": {
-        "claude-sonnet-4-5-20250929": 187,
-        "claude-3-5-haiku-20241022": 58
+        "claude-sonnet-4-6": 187,
+        "claude-haiku-4-5-20251001": 58
       }
     },
     "openrouter": {
@@ -245,7 +245,7 @@ Recent Requests (Last 20):
   Tokens: 1,234 input / 567 output = 1,801 total
   Cost: $0.0000
 
-[2025-12-15T23:57:23Z] anthropic/claude-sonnet-4-5-20250929
+[2025-12-15T23:57:23Z] anthropic/claude-sonnet-4-6
   Agent: qe-quality-gate
   Task: quality-check-456
   Tokens: 3,456 input / 1,789 output = 5,245 total
@@ -321,7 +321,7 @@ tracker.trackRequest({
 // Track cloud inference
 tracker.trackRequest({
   provider: 'anthropic',
-  model: 'claude-sonnet-4-5-20250929',
+  model: 'claude-sonnet-4-6',
   tokens: {
     inputTokens: 2000,
     outputTokens: 1000,

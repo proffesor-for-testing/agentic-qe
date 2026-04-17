@@ -29,7 +29,7 @@ interface ProviderProfile {
 const PROVIDERS: Record<string, ProviderProfile> = {
   'claude-opus': {
     providerId: 'anthropic',
-    modelId: 'claude-opus-4-6',
+    modelId: 'claude-opus-4-7',
     tier: ModelTier.Tier3Best,
   },
   'claude-sonnet': {

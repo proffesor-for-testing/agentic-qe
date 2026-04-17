@@ -115,6 +115,37 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
       bedrock: 'anthropic.claude-sonnet-4-v1:0',
     },
   },
+  // ADR-093: Opus 4.7 (2026-04-16), Sonnet 4.6, Haiku 4.5
+  'claude-opus-4-7': {
+    canonical: 'Claude Opus 4.7',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-opus-4-7',
+      openrouter: 'anthropic/claude-opus-4.7',
+      bedrock: 'anthropic.claude-opus-4-7-v1:0',
+    },
+  },
+  'claude-sonnet-4-6': {
+    canonical: 'Claude Sonnet 4.6',
+    family: 'claude',
+    tier: 'standard',
+    providers: {
+      anthropic: 'claude-sonnet-4-6',
+      openrouter: 'anthropic/claude-sonnet-4.6',
+      bedrock: 'anthropic.claude-sonnet-4-6-v1:0',
+    },
+  },
+  'claude-haiku-4-5': {
+    canonical: 'Claude Haiku 4.5',
+    family: 'claude',
+    tier: 'economy',
+    providers: {
+      anthropic: 'claude-haiku-4-5-20251001',
+      openrouter: 'anthropic/claude-haiku-4.5',
+      bedrock: 'anthropic.claude-haiku-4-5-v1:0',
+    },
+  },
 
   // ==========================================================================
   // OpenAI Models

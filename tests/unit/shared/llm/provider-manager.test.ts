@@ -58,7 +58,7 @@ describe('ProviderManager', () => {
         fallbacks: [],
         loadBalancing: 'round-robin',
         providers: {
-          claude: { model: 'claude-sonnet-4-20250514', apiKey: undefined },
+          claude: { model: 'claude-sonnet-4-6', apiKey: undefined },
         },
       });
 

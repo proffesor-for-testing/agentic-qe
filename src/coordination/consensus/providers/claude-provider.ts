@@ -28,6 +28,9 @@ import { PromptCacheLatch } from '../../../shared/prompt-cache-latch.js';
  * Claude-specific API model versions (distinct from routing ClaudeModel)
  */
 export type ClaudeAPIModel =
+  | 'claude-sonnet-4-6'
+  | 'claude-opus-4-7'
+  | 'claude-haiku-4-5'
   | 'claude-3-5-sonnet-20241022'
   | 'claude-3-5-sonnet-latest'
   | 'claude-3-opus-20240229'
@@ -121,7 +124,7 @@ interface ClaudeErrorResponse {
  * ```typescript
  * const provider = new ClaudeModelProvider({
  *   apiKey: process.env.ANTHROPIC_API_KEY,
- *   defaultModel: 'claude-3-5-sonnet-20241022',
+ *   defaultModel: 'claude-sonnet-4-6',
  * });
  *
  * const response = await provider.complete(prompt);
@@ -141,6 +144,9 @@ export class ClaudeModelProvider extends BaseModelProvider {
   };
 
   protected supportedModels: string[] = [
+    'claude-sonnet-4-6',
+    'claude-opus-4-7',
+    'claude-haiku-4-5',
     'claude-3-5-sonnet-20241022',
     'claude-3-5-sonnet-latest',
     'claude-3-opus-20240229',
@@ -176,7 +182,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
 
     this.config = {
       apiKey,
-      defaultModel: config.defaultModel || 'claude-3-5-sonnet-20241022',
+      defaultModel: config.defaultModel || 'claude-sonnet-4-6',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || 30000,
       maxRetries: config.maxRetries ?? 3,
@@ -434,7 +440,7 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
  * ```typescript
  * const provider = createClaudeProvider({
  *   apiKey: process.env.ANTHROPIC_API_KEY,
- *   defaultModel: 'claude-3-opus-latest',
+ *   defaultModel: 'claude-opus-4-7',
  * });
  * ```
  */

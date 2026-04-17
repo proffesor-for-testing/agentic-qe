@@ -1089,7 +1089,7 @@ export const DEFAULT_FALLBACK_BEHAVIOR: FallbackBehavior = {
 export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   {
     provider: 'claude',
-    models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022'],
+    models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
     enabled: true,
     priority: 100,
     maxAttempts: 2,
@@ -1148,11 +1148,11 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   mode: 'rule-based',
   rules: [],
   defaultProvider: 'claude',
-  defaultModel: 'claude-sonnet-4-20250514',
+  defaultModel: 'claude-sonnet-4-6',
   fallbackChain: DEFAULT_FALLBACK_CHAIN,
   fallbackBehavior: DEFAULT_FALLBACK_BEHAVIOR,
   providers: {
-    claude: { enabled: true, defaultModel: 'claude-sonnet-4-20250514' },
+    claude: { enabled: true, defaultModel: 'claude-sonnet-4-6' },
     openai: { enabled: true, defaultModel: 'gpt-4o' },
     ollama: { enabled: true, defaultModel: 'llama3.1' },
     openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-4' },
@@ -1442,14 +1442,14 @@ export type RouterPreset =
  * This enables vendor-neutral model references
  */
 export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
-  // Claude Opus 4.5 (flagship)
+  // ADR-093: Claude Opus 4.7 (flagship, Apr 2026)
   {
-    canonicalId: 'claude-opus-4.5',
-    canonicalName: 'Claude Opus 4.5',
+    canonicalId: 'claude-opus-4-7',
+    canonicalName: 'Claude Opus 4.7',
     providerIds: {
-      claude: 'claude-opus-4-5-20251101',
-      openrouter: 'anthropic/claude-opus-4.5',
-      bedrock: 'anthropic.claude-opus-4-5-v1:0',
+      claude: 'claude-opus-4-7',
+      openrouter: 'anthropic/claude-opus-4.7',
+      bedrock: 'anthropic.claude-opus-4-7-v1:0',
     },
     capabilities: {
       supportsStreaming: true,
@@ -1458,22 +1458,22 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
       supportsVision: true,
       supportsExtendedThinking: true,
       supportsJsonMode: true,
-      maxContextTokens: 200000,
-      maxOutputTokens: 32000,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128000,
     },
     tier: 'flagship',
     family: 'claude',
-    inputCostPer1M: 15,
-    outputCostPer1M: 75,
+    inputCostPer1M: 5,
+    outputCostPer1M: 25,
   },
-  // Claude Sonnet 4 (advanced)
+  // ADR-093: Claude Sonnet 4.6 (advanced)
   {
-    canonicalId: 'claude-sonnet-4',
-    canonicalName: 'Claude Sonnet 4',
+    canonicalId: 'claude-sonnet-4-6',
+    canonicalName: 'Claude Sonnet 4.6',
     providerIds: {
-      claude: 'claude-sonnet-4-20250514',
-      openrouter: 'anthropic/claude-sonnet-4',
-      bedrock: 'anthropic.claude-sonnet-4-v1:0',
+      claude: 'claude-sonnet-4-6',
+      openrouter: 'anthropic/claude-sonnet-4.6',
+      bedrock: 'anthropic.claude-sonnet-4-6-v1:0',
     },
     capabilities: {
       supportsStreaming: true,
@@ -1490,29 +1490,29 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
     inputCostPer1M: 3,
     outputCostPer1M: 15,
   },
-  // Claude Haiku 3.5 (standard)
+  // ADR-093: Claude Haiku 4.5 (standard)
   {
-    canonicalId: 'claude-haiku-3.5',
-    canonicalName: 'Claude Haiku 3.5',
+    canonicalId: 'claude-haiku-4-5',
+    canonicalName: 'Claude Haiku 4.5',
     providerIds: {
-      claude: 'claude-3-5-haiku-20241022',
-      openrouter: 'anthropic/claude-3.5-haiku',
-      bedrock: 'anthropic.claude-3-5-haiku-v1:0',
+      claude: 'claude-haiku-4-5-20251001',
+      openrouter: 'anthropic/claude-haiku-4.5',
+      bedrock: 'anthropic.claude-haiku-4-5-v1:0',
     },
     capabilities: {
       supportsStreaming: true,
       supportsTools: true,
       supportsMCP: false,
       supportsVision: true,
-      supportsExtendedThinking: false,
+      supportsExtendedThinking: true,
       supportsJsonMode: true,
       maxContextTokens: 200000,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 16384,
     },
     tier: 'standard',
     family: 'claude',
-    inputCostPer1M: 0.8,
-    outputCostPer1M: 4,
+    inputCostPer1M: 1,
+    outputCostPer1M: 5,
   },
   // GPT-4o (advanced)
   {

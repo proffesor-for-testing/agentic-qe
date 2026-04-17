@@ -39,6 +39,12 @@ import {
 } from './types';
 import { RoutingRuleEngine, DEFAULT_QE_ROUTING_RULES } from './routing-rules';
 import {
+  applyCyberPin,
+  CYBER_PIN_CHAT_FALLBACK,
+  shouldCyberPin,
+  isOpus47,
+} from '../../../routing/security/cyber-pin';
+import {
   RouterMetricsCollector,
   CostMetricsCollector,
   createRouterMetricsCollector,
@@ -265,6 +271,29 @@ export class HybridRouter {
 
     const requestId = uuidv4();
     const decision = await this.selectProvider(params);
+
+    // ADR-093: apply Cyber Verification pin before dispatch. Security agents
+    // cannot reach Opus 4.7 until AQE_CYBER_VERIFIED=true. Covers both the
+    // canonical model field and the provider-specific id — if either targets
+    // 4.7 for a cyber-pinned agent, downgrade to Sonnet 4.6 on the same
+    // provider. Applies to direct chat() calls; MultiModelExecutor.consult()
+    // applies the same pin independently for advisor escalations.
+    const agentName = params.agentType ?? '';
+    if (shouldCyberPin(agentName) && (isOpus47(decision.model) || isOpus47(decision.providerModelId))) {
+      const originalModel = decision.model;
+      const originalProviderModelId = decision.providerModelId;
+      decision.model = applyCyberPin(agentName, decision.model, CYBER_PIN_CHAT_FALLBACK);
+      decision.providerModelId = applyCyberPin(
+        agentName,
+        decision.providerModelId,
+        CYBER_PIN_CHAT_FALLBACK,
+      );
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[aqe] ADR-093: ${agentName} pinned to ${decision.model} (was ${originalModel}/${originalProviderModelId}); ` +
+          `set AQE_CYBER_VERIFIED=true after Cyber Verification Program approval`,
+      );
+    }
 
     // Try the selected provider
     const result = await this.executeWithFallback(params, decision, requestId);
@@ -1103,7 +1132,7 @@ export function createQERouter(providerManager: ProviderManager): HybridRouter {
     mode: 'rule-based',
     rules: DEFAULT_QE_ROUTING_RULES,
     defaultProvider: 'claude',
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-sonnet-4-6',
     enableMetrics: true,
     cacheDecisions: true,
   });

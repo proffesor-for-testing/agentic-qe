@@ -38,7 +38,7 @@ const TEST_EVAL_SUITE: EvalSuite = {
   skill: 'test-skill',
   version: '1.0.0',
   description: 'Test eval suite for integration testing',
-  models_to_test: ['claude-3.5-sonnet', 'claude-3-haiku'],
+  models_to_test: ['claude-sonnet-4-6', 'claude-haiku-4-5'],
   mcp_integration: {
     enabled: true,
     namespace: 'test-validation',
@@ -336,7 +336,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     const sequentialStart = Date.now();
     const sequentialResult = await sequentialRunner.runEvalParallel(
       'test-skill',
-      'claude-3.5-sonnet'
+      'claude-sonnet-4-6'
     );
     const sequentialDuration = Date.now() - sequentialStart;
 
@@ -361,7 +361,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     const parallelStart = Date.now();
     const parallelResult = await parallelRunner.runEvalParallel(
       'test-skill',
-      'claude-3.5-sonnet'
+      'claude-sonnet-4-6'
     );
     const parallelDuration = Date.now() - parallelStart;
 
@@ -393,7 +393,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     };
 
     const runner = createParallelEvalRunner(learner, config, executor);
-    const result = await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    const result = await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Should complete all tests
     expect(result.totalTests).toBe(6);
@@ -424,7 +424,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     };
 
     const runner = createParallelEvalRunner(learner, config, executor);
-    const result = await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    const result = await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Should complete all tests even with failure
     expect(result.totalTests).toBe(6);
@@ -453,7 +453,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     };
 
     const runner = createParallelEvalRunner(learner, config, executor);
-    const result = await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    const result = await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Should have called executor more times due to retry (6 tests + at least 1 retry)
     expect(executor.totalCalls).toBeGreaterThan(6);
@@ -485,7 +485,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     const runner = createParallelEvalRunner(learner, config, executor);
 
     // Run eval
-    await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Check that confidence was recorded
     const confidence = await learner.getSkillConfidence('test-skill');
@@ -520,7 +520,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
       progressReports.push({ ...progress });
     });
 
-    await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Should have received progress reports
     expect(progressReports.length).toBeGreaterThan(0);
@@ -563,7 +563,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
 
     const results = await runner.runMultipleEvalsParallel(
       ['test-skill', 'test-skill-2'],
-      ['claude-3.5-sonnet']
+      ['claude-sonnet-4-6']
     );
 
     // Should have results for both skills
@@ -597,7 +597,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     };
 
     const runner = createParallelEvalRunner(learner, config, executor);
-    const result = await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    const result = await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
 
     // Speedup should be positive
     expect(result.parallelSpeedup).toBeGreaterThan(0);
@@ -627,7 +627,7 @@ describe('ParallelEvalRunner Integration Tests', () => {
     const runner = createParallelEvalRunner(learner, config, executor);
 
     // First run
-    await runner.runEvalParallel('test-skill', 'claude-3.5-sonnet');
+    await runner.runEvalParallel('test-skill', 'claude-sonnet-4-6');
     let status = runner.getWorkerStatus();
     const firstRunTotal = status.reduce((sum, w) => sum + w.tasksCompleted, 0);
 

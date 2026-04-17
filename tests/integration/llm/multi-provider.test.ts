@@ -100,13 +100,13 @@ describe('Multi-Provider Integration Tests', () => {
   describe('Model ID Normalization', () => {
     it('should map canonical ID to provider-specific ID', () => {
       // Using the actual canonical ID format from model-mapping.ts
-      const claudeId = mapModelId('claude-sonnet-4', 'anthropic');
-      expect(claudeId).toBe('claude-sonnet-4-20250514');
+      const claudeId = mapModelId('claude-sonnet-4-6', 'anthropic');
+      expect(claudeId).toBe('claude-sonnet-4-6');
     });
 
     it('should normalize provider-specific ID to canonical', () => {
-      const canonical = normalizeModelId('claude-sonnet-4-20250514');
-      expect(canonical).toBe('claude-sonnet-4');
+      const canonical = normalizeModelId('claude-sonnet-4-6');
+      expect(canonical).toBe('claude-sonnet-4-6');
     });
 
     it('should handle unknown model IDs by throwing error', () => {
@@ -119,7 +119,7 @@ describe('Multi-Provider Integration Tests', () => {
       const providerId = mapModelId(original, 'anthropic');
       const backToCanonical = normalizeModelId(providerId);
 
-      expect(providerId).toBe('claude-opus-4-5-20251101');
+      expect(providerId).toBe('claude-opus-4-7');
       expect(backToCanonical).toBe(original);
     });
 
@@ -133,7 +133,7 @@ describe('Multi-Provider Integration Tests', () => {
     });
 
     it('should get canonical name for display', () => {
-      const name = getCanonicalName('claude-sonnet-4');
+      const name = getCanonicalName('claude-sonnet-4-6');
       expect(name).toBe('Claude Sonnet 4');
     });
 
@@ -195,7 +195,7 @@ describe('Multi-Provider Integration Tests', () => {
       const config = qeRouter.getConfig();
       expect(config.mode).toBe('rule-based');
       expect(config.defaultProvider).toBe('claude');
-      expect(config.defaultModel).toBe('claude-sonnet-4-20250514');
+      expect(config.defaultModel).toBe('claude-sonnet-4-6');
       expect(config.enableMetrics).toBe(true);
       expect(config.cacheDecisions).toBe(true);
     });
@@ -282,7 +282,7 @@ describe('Multi-Provider Integration Tests', () => {
           type: 'message',
           role: 'assistant',
           content: [{ type: 'text', text: 'Test response' }],
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           stop_reason: 'end_turn',
           usage: { input_tokens: 50, output_tokens: 100 },
         }),
@@ -312,7 +312,7 @@ describe('Multi-Provider Integration Tests', () => {
           type: 'message',
           role: 'assistant',
           content: [{ type: 'text', text: 'Response with cost' }],
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           stop_reason: 'end_turn',
           usage: { input_tokens: 100, output_tokens: 200 },
         }),
@@ -342,7 +342,7 @@ describe('Multi-Provider Integration Tests', () => {
           type: 'message',
           role: 'assistant',
           content: [{ type: 'text', text: 'Fast response' }],
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           stop_reason: 'end_turn',
           usage: { input_tokens: 10, output_tokens: 20 },
         }),
@@ -365,7 +365,7 @@ describe('Multi-Provider Integration Tests', () => {
     it('should respect default provider configuration', () => {
       const config = router.getConfig();
       expect(config.defaultProvider).toBe('claude');
-      expect(config.defaultModel).toBe('claude-sonnet-4-20250514');
+      expect(config.defaultModel).toBe('claude-sonnet-4-6');
     });
 
     it('should have valid fallback chain configuration', () => {
@@ -378,14 +378,14 @@ describe('Multi-Provider Integration Tests', () => {
     it('should support updating configuration', () => {
       const newConfig = {
         mode: 'cost-optimized' as const,
-        defaultModel: 'claude-3-5-haiku-20241022',
+        defaultModel: 'claude-haiku-4-5-20251001',
       };
 
       router.updateConfig(newConfig);
 
       const config = router.getConfig();
       expect(config.mode).toBe('cost-optimized');
-      expect(config.defaultModel).toBe('claude-3-5-haiku-20241022');
+      expect(config.defaultModel).toBe('claude-haiku-4-5-20251001');
     });
 
     it('should have default fallback entries for all base providers', () => {

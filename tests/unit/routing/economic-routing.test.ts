@@ -144,7 +144,7 @@ describe('EconomicRoutingModel', () => {
       // Create a cost tracker that has already spent near the limit
       const costTracker = new CostTracker();
       // Record usage to simulate high spend
-      costTracker.recordUsage('claude', 'claude-3-opus-20240229', {
+      costTracker.recordUsage('claude', 'claude-opus-4-7', {
         promptTokens: 100000,
         completionTokens: 50000,
         totalTokens: 150000,
@@ -187,7 +187,7 @@ describe('EconomicRoutingModel', () => {
 
     it('should return true when hourly budget would be exceeded', () => {
       const costTracker = new CostTracker();
-      costTracker.recordUsage('claude', 'claude-3-opus-20240229', {
+      costTracker.recordUsage('claude', 'claude-opus-4-7', {
         promptTokens: 500000,
         completionTokens: 200000,
         totalTokens: 700000,
@@ -202,7 +202,7 @@ describe('EconomicRoutingModel', () => {
 
     it('should return true when daily budget would be exceeded', () => {
       const costTracker = new CostTracker();
-      costTracker.recordUsage('claude', 'claude-3-opus-20240229', {
+      costTracker.recordUsage('claude', 'claude-opus-4-7', {
         promptTokens: 500000,
         completionTokens: 200000,
         totalTokens: 700000,

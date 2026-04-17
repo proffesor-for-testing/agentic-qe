@@ -351,9 +351,9 @@ function calculateCost(
 ): CostInfo {
   // Simplified pricing per 1M tokens (should be loaded from model-mapping)
   const pricing: Record<string, { input: number; output: number }> = {
-    'claude-opus-4-5-20251101': { input: 15, output: 75 },
-    'claude-sonnet-4-20250514': { input: 3, output: 15 },
-    'claude-3-5-haiku-20241022': { input: 0.8, output: 4 },
+    'claude-opus-4-7': { input: 15, output: 75 },
+    'claude-sonnet-4-6': { input: 3, output: 15 },
+    'claude-haiku-4-5-20251001': { input: 0.8, output: 4 },
     'gpt-4o': { input: 2.5, output: 10 },
     'gpt-4o-mini': { input: 0.15, output: 0.6 },
     'gemini-pro': { input: 1.25, output: 5 },

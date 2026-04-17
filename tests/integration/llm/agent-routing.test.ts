@@ -147,7 +147,7 @@ describe('Agent Routing Integration Tests', () => {
 
   beforeEach(() => {
     claudeProvider = createMockProvider('claude', {
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       inputCost: 0.003,
       outputCost: 0.015,
       avgLatency: 150,

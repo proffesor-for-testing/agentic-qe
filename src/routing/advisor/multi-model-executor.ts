@@ -32,15 +32,24 @@ import {
   type RedactionMode,
 } from './redaction.js';
 import { AdvisorCircuitBreaker, type CircuitBreakerState } from './circuit-breaker.js';
+import { applyCyberPin, CYBER_PIN_ADVISOR_FALLBACK } from '../security/cyber-pin.js';
 
 /**
- * Default advisor model per ADR-092 Phase 0.
+ * Default advisor model per ADR-092 Phase 0 and ADR-093.
  * OpenRouter exposes Anthropic Opus — chosen for vendor-independence as the
  * default while direct Anthropic remains available for security-sensitive agents.
+ *
+ * ADR-093 (2026-04-17): default advisor model upgraded from Opus 4 to Opus 4.7.
+ * SWE-bench Verified 87.6% (vs 80.8% on 4.6), new `xhigh` effort level,
+ * 1M context at standard pricing, adaptive thinking.
  */
 export const DEFAULT_ADVISOR_PROVIDER: ExtendedProviderType = 'openrouter';
-export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4';
+export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
 export const DEFAULT_MAX_WORDS = 100;
+
+// ADR-093: cyber-pin helpers moved to src/routing/security/cyber-pin.ts
+// so HybridRouter.chat() can also apply the pin — direct chat calls must
+// not bypass the pin like they did before.
 
 /**
  * System prompt prepended to every advisor consultation.
@@ -85,9 +94,20 @@ export class MultiModelExecutor implements IMultiModelExecutor {
 
   async consult(transcript: AdvisorTranscript, opts: ConsultOptions = {}): Promise<AdvisorResult> {
     const provider = opts.provider ?? DEFAULT_ADVISOR_PROVIDER;
-    const model = opts.model ?? DEFAULT_ADVISOR_MODEL;
+    const requestedModel = opts.model ?? DEFAULT_ADVISOR_MODEL;
     const maxWords = opts.maxWords ?? DEFAULT_MAX_WORDS;
     const agentName = opts.agentName ?? 'unknown';
+
+    // ADR-093: pin cyber-sensitive agents to fallback model until
+    // AQE_CYBER_VERIFIED=true (Cyber Verification Program approval).
+    const model = applyCyberPin(agentName, requestedModel, CYBER_PIN_ADVISOR_FALLBACK);
+    if (model !== requestedModel) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[aqe] ADR-093: ${agentName} pinned to ${model} (was ${requestedModel}); ` +
+          `set AQE_CYBER_VERIFIED=true after Cyber Verification Program approval`,
+      );
+    }
     const triggerReason = opts.triggerReason ?? 'manual';
     const sessionId = opts.sessionId ?? 'default';
     const redactionMode: RedactionMode = opts.redact ?? 'strict';

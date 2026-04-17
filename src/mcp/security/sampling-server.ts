@@ -288,7 +288,7 @@ export class SamplingServer {
 
   constructor(config: Partial<SamplingServerConfig> = {}) {
     this.config = {
-      defaultModel: config.defaultModel || 'claude-3-sonnet-20240229',
+      defaultModel: config.defaultModel || 'claude-sonnet-4-6',
       defaultMaxTokens: config.defaultMaxTokens || 4096,
       defaultTemperature: config.defaultTemperature || 0.7,
       enableCaching: config.enableCaching ?? true,

@@ -466,7 +466,7 @@ export function createMockTaskRouter(): MockTaskRouter {
         },
       },
       tierInfo: { name: 'Haiku' },
-      modelId: 'claude-3-haiku',
+      modelId: 'claude-haiku-4-5',
       executionStrategy: 'single',
       useAgentBooster: false,
     })),

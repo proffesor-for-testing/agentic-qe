@@ -407,7 +407,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
       '# Set provider/model to override auto-detection from environment API keys',
       'advisor:',
       '  # provider: "openrouter"        # openrouter | claude | ollama (auto-detected if not set)',
-      '  # model: "anthropic/claude-opus-4"  # provider-specific model ID',
+      '  # model: "anthropic/claude-opus-4.7"  # provider-specific model ID',
       '  # maxUses: "3"                  # per-task advisor call cap',
       '  redact: "strict"                # strict | balanced | off',
       '',

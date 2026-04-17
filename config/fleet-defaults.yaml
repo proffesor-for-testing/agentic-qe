@@ -1,0 +1,15 @@
+# Agentic QE Fleet Defaults
+# ADR-093: Opus 4.7 Migration + Claude Code 2026-04 Feature Adoption
+#
+# These defaults apply to all qe-* agents unless an individual agent's
+# frontmatter overrides them. Env vars override these; runtime call-site
+# options override env vars.
+#
+# Resolution priority (highest wins):
+#   runtime override > per-agent frontmatter > env var > this file > hardcoded default
+
+# Effort level for agentic reasoning on models that support it
+# (Opus 4.7 and newer). Valid: low | medium | high | xhigh | max.
+# Anthropic recommends 'xhigh' as the starting point for agentic coding.
+# Security/pentest agents override to 'max' in their frontmatter.
+effort_level: xhigh

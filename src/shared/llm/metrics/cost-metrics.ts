@@ -418,7 +418,7 @@ export class CostMetricsCollector {
             description: `Consider using Sonnet instead of Opus for non-critical tasks`,
             estimatedSavings: breakdown.totalCost * 0.5,
             currentCost: breakdown.totalCost,
-            suggestedModel: 'claude-sonnet-4-20250514',
+            suggestedModel: 'claude-sonnet-4-6',
           });
         }
 

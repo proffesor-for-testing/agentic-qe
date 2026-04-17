@@ -419,7 +419,7 @@ jobs:
             exit 0
           fi
 
-          npx tsx scripts/run-skill-eval.ts --skill "$SKILL" --model claude-sonnet-4
+          npx tsx scripts/run-skill-eval.ts --skill "$SKILL" --model claude-sonnet-4-6
 
   # ===========================================================================
   # Job 6: Summary Report

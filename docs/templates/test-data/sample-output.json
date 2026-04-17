@@ -60,7 +60,7 @@
     "executionTimeMs": 1250,
     "toolsUsed": ["eslint", "typescript", "custom-analyzer"],
     "agentId": "qe-test-architect",
-    "modelUsed": "claude-sonnet-4",
+    "modelUsed": "claude-sonnet-4-6",
     "inputHash": "sha256:abc123def456",
     "parentTaskId": "task-789"
   },

@@ -498,7 +498,7 @@ function formatCost(cost?: number): string {
 
 function getDefaultModelForProvider(provider: ExtendedProviderType): string {
   const defaults: Record<ExtendedProviderType, string> = {
-    claude: 'claude-sonnet-4-20250514',
+    claude: 'claude-sonnet-4-6',
     openai: 'gpt-4o',
     ollama: 'llama3.1',
     openrouter: 'anthropic/claude-sonnet-4',
@@ -553,7 +553,7 @@ function simulateRoutingDecision(task: string, options: {
   if (agentType?.includes('security') || task.toLowerCase().includes('security')) {
     return {
       provider: 'claude',
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       reason: 'Security tasks require advanced reasoning (rule-match)',
       confidence: 0.95,
       estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.021 },
@@ -573,7 +573,7 @@ function simulateRoutingDecision(task: string, options: {
   if (mode === 'performance-optimized' || complexity === 'expert') {
     return {
       provider: 'claude',
-      model: 'claude-opus-4-5-20251101',
+      model: 'claude-opus-4-7',
       reason: 'Complex task requires flagship model',
       confidence: 0.92,
       estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.105 },

@@ -36,20 +36,20 @@ describe('ClaudeProvider', () => {
 
     it('should merge custom config', () => {
       const customProvider = new ClaudeProvider({
-        model: 'claude-opus-4-5-20251101',
+        model: 'claude-opus-4-7',
         maxTokens: 8192,
       });
 
       const config = customProvider.getConfig();
-      expect(config.model).toBe('claude-opus-4-5-20251101');
+      expect(config.model).toBe('claude-opus-4-7');
       expect(config.maxTokens).toBe(8192);
     });
 
     it('should return supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('claude-opus-4-5-20251101');
-      expect(models).toContain('claude-sonnet-4-20250514');
-      expect(models).toContain('claude-3-5-haiku-20241022');
+      expect(models).toContain('claude-opus-4-7');
+      expect(models).toContain('claude-sonnet-4-6');
+      expect(models).toContain('claude-haiku-4-5-20251001');
     });
 
     it('should return cost per token', () => {
@@ -84,7 +84,7 @@ describe('ClaudeProvider', () => {
             id: 'msg_test',
             type: 'message',
             content: [{ type: 'text', text: 'Hi' }],
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             usage: { input_tokens: 1, output_tokens: 1 },
           }),
       });
@@ -127,7 +127,7 @@ describe('ClaudeProvider', () => {
             type: 'message',
             role: 'assistant',
             content: [{ type: 'text', text: 'Generated response' }],
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             stop_reason: 'end_turn',
             usage: { input_tokens: 10, output_tokens: 20 },
           }),
@@ -151,7 +151,7 @@ describe('ClaudeProvider', () => {
             type: 'message',
             role: 'assistant',
             content: [{ type: 'text', text: 'Response' }],
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             stop_reason: 'end_turn',
             usage: { input_tokens: 15, output_tokens: 10 },
           }),
@@ -227,7 +227,7 @@ describe('ClaudeProvider', () => {
             type: 'message',
             role: 'assistant',
             content: [{ type: 'text', text: 'completed' }],
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             stop_reason: 'end_turn',
             usage: { input_tokens: 5, output_tokens: 3 },
           }),

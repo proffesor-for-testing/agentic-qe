@@ -25,6 +25,11 @@ export const MODEL_PRICING: Record<
   { input: number; output: number; provider: LLMProviderType }
 > = {
   // Claude models
+  // ADR-093: Opus 4.7 (2026-04-16), Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
+  'claude-opus-4-7': { input: 5.0, output: 25.0, provider: 'claude' },
+  'claude-sonnet-4-6': { input: 3.0, output: 15.0, provider: 'claude' },
+  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, provider: 'claude' },
+  // Retiring 2026-06-15 — kept for existing traffic during transition
   'claude-opus-4-5-20251101': { input: 15.0, output: 75.0, provider: 'claude' },
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0, provider: 'claude' },
   'claude-3-5-haiku-20241022': { input: 1.0, output: 5.0, provider: 'claude' },

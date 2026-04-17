@@ -681,7 +681,7 @@ export function createQEProviderManager(): ProviderManager {
     loadBalancing: 'least-cost',
     providers: {
       claude: {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         maxTokens: 8192,
         temperature: 0.3, // Lower for QE tasks
       },

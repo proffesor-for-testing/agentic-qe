@@ -606,9 +606,9 @@ export const LLM_ANALYSIS_CONSTANTS = {
    */
   MODEL_TIERS: {
     1: 'claude-3-haiku-20240307',
-    2: 'claude-sonnet-4-20250514',
-    3: 'claude-sonnet-4-20250514',
-    4: 'claude-opus-4-20250514',
+    2: 'claude-sonnet-4-6',
+    3: 'claude-sonnet-4-6',
+    4: 'claude-opus-4-7',
   } as const,
 } as const;
 
