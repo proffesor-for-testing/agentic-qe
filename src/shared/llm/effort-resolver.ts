@@ -15,7 +15,7 @@
  * downstream; claude.ts silently downgrades unsupported levels.
  */
 
-import { promises as fs } from 'fs';
+import { readFileSync } from 'fs';
 import * as path from 'path';
 
 /**
@@ -84,11 +84,6 @@ export function resetFleetDefaultsCache(): void {
  */
 function loadFleetDefaultSync(fleetDefaultsPath: string): EffortLevel | null {
   try {
-    // Synchronous file read via require-like pattern — fs.readFileSync would
-    // require a blocking import; we accept async-only and cache eagerly on
-    // first resolver call.
-    // Callers needing sync resolution should seed via env or override.
-    const { readFileSync } = require('fs') as typeof import('fs');
     const raw = readFileSync(fleetDefaultsPath, 'utf8');
     const match = raw.match(/^\s*effort_level\s*:\s*['"]?([a-z]+)['"]?\s*$/m);
     if (match && isEffortLevel(match[1])) {

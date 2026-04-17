@@ -32,6 +32,7 @@ import {
   type RedactionMode,
 } from './redaction.js';
 import { AdvisorCircuitBreaker, type CircuitBreakerState } from './circuit-breaker.js';
+import { applyCyberPin, CYBER_PIN_ADVISOR_FALLBACK } from '../security/cyber-pin.js';
 
 /**
  * Default advisor model per ADR-092 Phase 0 and ADR-093.
@@ -46,42 +47,9 @@ export const DEFAULT_ADVISOR_PROVIDER: ExtendedProviderType = 'openrouter';
 export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
 export const DEFAULT_MAX_WORDS = 100;
 
-/**
- * ADR-093: Security and pentest agents that may trip Opus 4.7's real-time
- * cybersecurity safeguards until the organization is enrolled in Anthropic's
- * Cyber Verification Program. Until enrolled, these agents are pinned to
- * Sonnet 4.6 for escalation targets.
- */
-const CYBER_PINNED_AGENTS: readonly string[] = [
-  'qe-pentest-validator',
-  'qe-security-auditor',
-  'qe-security-scanner',
-] as const;
-
-/**
- * ADR-093: Fallback advisor model for cyber-pinned agents when
- * AQE_CYBER_VERIFIED !== 'true'. Sonnet 4.6 on OpenRouter.
- */
-const CYBER_PIN_FALLBACK_MODEL = 'anthropic/claude-sonnet-4.6';
-
-/**
- * ADR-093: Decide whether to pin a cyber-sensitive agent to the fallback model.
- * Returns the model to actually use. Exported for testing.
- */
-export function applyCyberPin(
-  agentName: string,
-  requestedModel: string,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  if (env.AQE_CYBER_VERIFIED === 'true') return requestedModel;
-  if (!CYBER_PINNED_AGENTS.includes(agentName)) return requestedModel;
-  // Only pin when the requested model is the 4.7 flagship — allow explicit
-  // lower-tier escalation targets to pass through unchanged.
-  if (!requestedModel.includes('claude-opus-4.7') && !requestedModel.includes('claude-opus-4-7')) {
-    return requestedModel;
-  }
-  return CYBER_PIN_FALLBACK_MODEL;
-}
+// ADR-093: cyber-pin helpers moved to src/routing/security/cyber-pin.ts
+// so HybridRouter.chat() can also apply the pin — direct chat calls must
+// not bypass the pin like they did before.
 
 /**
  * System prompt prepended to every advisor consultation.
@@ -132,7 +100,7 @@ export class MultiModelExecutor implements IMultiModelExecutor {
 
     // ADR-093: pin cyber-sensitive agents to fallback model until
     // AQE_CYBER_VERIFIED=true (Cyber Verification Program approval).
-    const model = applyCyberPin(agentName, requestedModel);
+    const model = applyCyberPin(agentName, requestedModel, CYBER_PIN_ADVISOR_FALLBACK);
     if (model !== requestedModel) {
       // eslint-disable-next-line no-console
       console.warn(

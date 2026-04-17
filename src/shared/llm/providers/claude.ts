@@ -198,20 +198,29 @@ export class ClaudeProvider implements LLMProvider {
       body.stop_sequences = options.stopSequences;
     }
 
-    // ADR-093: resolve + apply effort level when the target model supports xhigh.
-    // Per-agent frontmatter lookup is not wired at the provider layer yet;
-    // callers pass an explicit `effort` in options or inherit the fleet default.
-    const requested = resolveEffortLevel({
-      override: options?.effort,
-    });
+    // ADR-093: apply effort level only on models that actually advertise it.
+    //
+    // Anthropic's Messages API accepts effort nested under the `thinking`
+    // block, not as a top-level field. We only set it when the target model
+    // has `supportsEffortXHigh: true` in the registry (= Opus 4.7 today).
+    // For every other model we send nothing thinking/effort-related — the
+    // caller's `options.effort` is ignored rather than silently downgraded
+    // to a value the model may not accept.
+    //
+    // Rationale: the top-level `effort` shape was unverified against
+    // Anthropic's public schema and risked 400-ing Sonnet 4.6 / Haiku 4.5
+    // calls. Gating behind the capability flag keeps behavior safe on
+    // models without xhigh support; Opus 4.7 gets the advertised quality
+    // boost once we verify the exact nested shape Anthropic accepts.
     try {
       const caps = getModelCapabilities(model);
-      const effort: EffortLevel = caps.supportsEffortXHigh
-        ? requested
-        : downgradeEffort(requested, 'high');
-      body.effort = effort;
+      if (caps.supportsEffortXHigh) {
+        const requested = resolveEffortLevel({ override: options?.effort });
+        const effort: EffortLevel = downgradeEffort(requested, 'xhigh');
+        body.thinking = { type: 'adaptive', effort };
+      }
     } catch {
-      // Model not in registry — skip effort, let the API decide.
+      // Model not in registry — skip effort entirely.
     }
 
     try {
