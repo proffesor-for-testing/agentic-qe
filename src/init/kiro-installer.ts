@@ -338,12 +338,12 @@ export class KiroInstaller {
     // Map model from frontmatter, falling back to category/priority heuristics
     const rawModel = getField('model');
     const priority = getField('priority');
-    let model = 'claude-sonnet-4';
+    let model = 'claude-sonnet-4-6';
     if (rawModel) {
-      if (rawModel.includes('opus')) model = 'claude-opus-4';
-      else if (rawModel.includes('haiku')) model = 'claude-haiku-4';
+      if (rawModel.includes('opus')) model = 'claude-opus-4-7';
+      else if (rawModel.includes('haiku')) model = 'claude-haiku-4-5';
     } else if (priority === 'critical') {
-      model = 'claude-sonnet-4';
+      model = 'claude-sonnet-4-6';
     }
 
     return {
@@ -441,10 +441,10 @@ export class KiroInstaller {
     const allowedTools = [...allowedToolsSet];
 
     // Map model names
-    let model = 'claude-sonnet-4';
+    let model = 'claude-sonnet-4-6';
     if (agent.model) {
-      if (agent.model.includes('opus')) model = 'claude-opus-4';
-      else if (agent.model.includes('haiku')) model = 'claude-haiku-4';
+      if (agent.model.includes('opus')) model = 'claude-opus-4-7';
+      else if (agent.model.includes('haiku')) model = 'claude-haiku-4-5';
     }
 
     // Convert mcp:agentic-qe: references in prompt text to Kiro @agentic-qe/ format
@@ -477,7 +477,7 @@ export class KiroInstaller {
     const agent = {
       name: 'qe-specialist',
       description: 'Quality Engineering specialist powered by Agentic QE',
-      model: 'claude-sonnet-4',
+      model: 'claude-sonnet-4-6',
       prompt: 'You are a QE specialist. Use AQE tools for test generation, coverage analysis, and quality assessment. Always call fleet_init before other AQE tools.',
       mcpServers: {
         'agentic-qe': {

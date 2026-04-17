@@ -33,8 +33,8 @@ description: >
 # =============================================================================
 
 models_to_test:
-  - claude-sonnet-4     # Primary model (high accuracy expected)
-  - claude-3-haiku       # Fast model (minimum quality threshold)
+  - claude-sonnet-4-6      # Primary model (high accuracy expected)
+  - claude-haiku-4-5         # Fast model (minimum quality threshold)
   - gpt-4o               # Cross-vendor validation
 
 # =============================================================================
