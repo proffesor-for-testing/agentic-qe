@@ -794,7 +794,7 @@ export class MCPProtocolServer {
         category: 'agent',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'agentId', type: 'string', description: 'Specific agent ID' },
+          { name: 'agentId', type: 'string', description: 'Specific agent ID', required: true },
         ],
       },
       handler: (params) => handleAgentMetrics(params as unknown as Parameters<typeof handleAgentMetrics>[0]),
@@ -930,7 +930,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path to analyze' },
+          { name: 'target', type: 'string', description: 'Target path to analyze', required: true },
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
         ],
       },
@@ -986,7 +986,7 @@ export class MCPProtocolServer {
         description: 'Test accessibility against WCAG 2.1/2.2 and Section 508 standards. Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })',
         category: 'domain',
         parameters: [
-          { name: 'url', type: 'string', description: 'URL to test' },
+          { name: 'url', type: 'string', description: 'URL to test', required: true },
           { name: 'standard', type: 'string', description: 'Accessibility standard' },
         ],
       },
@@ -1015,7 +1015,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path' },
+          { name: 'target', type: 'string', description: 'Target path', required: true },
         ],
       },
       handler: (params) => handleDefectPredict(params as unknown as Parameters<typeof handleDefectPredict>[0]),
@@ -1043,7 +1043,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path' },
+          { name: 'target', type: 'string', description: 'Target path', required: true },
         ],
       },
       handler: (params) => handleCodeIndex(params as unknown as Parameters<typeof handleCodeIndex>[0]),

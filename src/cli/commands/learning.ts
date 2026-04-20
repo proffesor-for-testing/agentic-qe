@@ -1226,20 +1226,39 @@ function registerRepairCommand(learning: Command): void {
           }
         }
 
-        // Step 5: Dump and reimport using sqlite3 CLI
-        const { execSync } = await import('node:child_process');
+        // Step 5: Dump and reimport using sqlite3 CLI.
+        // IMPORTANT: use execFileSync (no shell) + explicit stream/input wiring
+        // so the user-supplied --file path cannot break out of shell quoting.
+        // Historical bug: paths were shell-interpolated into execSync, allowing
+        // a crafted --file to inject arbitrary commands.
+        const { execFileSync } = await import('node:child_process');
+        const { openSync, closeSync, readFileSync } = await import('node:fs');
         const repairedPath = `${dbPath}.repaired`;
         const dumpPath = `${dbPath}.dump.sql`;
 
         try {
-          // Dump all data
-          execSync(`sqlite3 "${dbPath}" ".dump" > "${dumpPath}"`, { stdio: 'pipe', timeout: 120000 });
+          // Dump all data — redirect stdout to dumpPath via a file descriptor.
+          const dumpFd = openSync(dumpPath, 'w');
+          try {
+            execFileSync('sqlite3', [dbPath, '.dump'], {
+              stdio: ['ignore', dumpFd, 'pipe'],
+              timeout: 120000,
+            });
+          } finally {
+            closeSync(dumpFd);
+          }
 
-          // Reimport into fresh DB
-          execSync(`sqlite3 "${repairedPath}" < "${dumpPath}"`, { stdio: 'pipe', timeout: 120000 });
+          // Reimport into fresh DB — feed dump contents via stdin.
+          execFileSync('sqlite3', [repairedPath], {
+            input: readFileSync(dumpPath),
+            stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 120000,
+          });
 
-          // Enable WAL on repaired DB
-          execSync(`sqlite3 "${repairedPath}" "PRAGMA journal_mode=WAL;"`, { stdio: 'pipe' });
+          // Enable WAL on repaired DB — pragma is a literal arg, no shell.
+          execFileSync('sqlite3', [repairedPath, 'PRAGMA journal_mode=WAL;'], {
+            stdio: 'pipe',
+          });
         } catch (dumpError) {
           // Clean up partial files
           if (existsSync(repairedPath)) await unlink(repairedPath);
