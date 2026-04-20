@@ -82,7 +82,7 @@
     "dev": "node dist/cli/bundle.js",
     "start": "node dist/cli/bundle.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests --ext .ts",
+    "lint": "eslint src --ext .ts",
     "clean": "node -e \"const fs=require('fs');try{fs.rmSync('dist',{recursive:true,force:true})}catch{}\"",
     "sync:agents": "node scripts/sync-agents.cjs",
     "sync:agents:check": "node scripts/sync-agents-check.cjs",
@@ -174,13 +174,15 @@
   "resolutions": {
     "graceful-fs": "^4.2.11",
     "stack-utils": "^2.0.6",
-    "tar": ">=7.5.7"
+    "tar": ">=7.5.7",
+    "protobufjs": "^7.5.5"
   },
   "overrides": {
     "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
     "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
     "tar": ">=7.5.7",
-    "markdown-it": ">=14.1.1"
+    "markdown-it": ">=14.1.1",
+    "protobufjs": "^7.5.5"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.2.0",

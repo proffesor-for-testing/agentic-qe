@@ -9,7 +9,7 @@
  */
 
 import { build } from 'esbuild';
-import { readFileSync } from 'fs';
+import { readFileSync, rmSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -21,6 +21,12 @@ const rootPkg = JSON.parse(readFileSync(rootPkgPath, 'utf-8'));
 const version = rootPkg.version;
 
 console.log(`Building CLI with version: ${version}`);
+
+// Pre-build clean: delete stale code-split chunks so only fresh artefacts ship.
+// Without this, dist/cli/chunks/ accumulates across builds (audit found 799
+// chunks shipped with only 240 fresh), inflating the npm tarball by ~79%.
+const chunksDir = join(__dirname, '..', 'dist/cli/chunks');
+rmSync(chunksDir, { recursive: true, force: true });
 
 // Native modules with CJS-only exports or native addons.
 // These fail with ESM static import in Node.js 22+ due to missing
