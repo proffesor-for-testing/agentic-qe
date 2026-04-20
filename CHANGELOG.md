@@ -5,6 +5,30 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.14] - 2026-04-20
+
+**Security + supply-chain hardening.** Closes five P0 release blockers from the v3.9.13 QE audit: 15 critical runtime npm vulnerabilities, 79% tarball bloat, hardcoded retiring model IDs at tier 1, a broken lint harness, and a loose MCP contract. Tarball shipped size drops from 19.9 MB to 9.6 MB (-52%). Also tightens six MCP tool contracts, patches a command-injection path in `aqe learning repair`, and stops the telemetry workflow from push-forcing to protected `main`.
+
+### Fixed
+
+- **15 critical runtime vulnerabilities eliminated** — The `@xenova/transformers → @claude-flow/{browser,guidance,embeddings} → onnxruntime-web → onnx-proto → protobufjs` chain pulled in protobufjs `<7.5.5` (GHSA-xq3m-2v4x-88gg, CWE-94 arbitrary code execution). Pinned to `^7.5.5` via both `overrides` and `resolutions`. `npm audit --omit=dev` now reports zero critical/high issues.
+- **Command injection in `aqe learning repair`** — The `--file` path was shell-interpolated into three `execSync` calls. A crafted path could break out of shell quoting and execute arbitrary commands. Rewrote to `execFileSync` with explicit file-descriptor redirection and stdin streaming — no shell parsing of user input at all.
+- **`advisor_consult` MCP contract** — The ADR-092 advisor tool accepted empty/whitespace `agent` and `task` values and silently shelled out to `aqe llm advise` with placeholders. Now rejects missing or blank inputs before any child process spawn.
+- **Tier-1 model tier was hardcoded to a retiring model ID** — Six call sites (central constants plus five domain services: test-execution, contract-testing, chaos-resilience, learning-optimization, visual-accessibility) resolved tier 1 to `claude-3-haiku-20240307`, which will 404 after Haiku 3 retirement. Routed through `claude-haiku-4-5` (ADR-093).
+- **`npm run lint` was broken** — The script invoked eslint on both `src` and `tests`, but `.eslintrc.cjs` explicitly ignores `tests/`. ESLint aborted instead of linting anything. Narrowed the script to `eslint src --ext .ts` so the harness runs.
+- **`qcsd-production-trigger.yml` no longer pushes to protected `main`** — The post-publish telemetry job ran `git push` directly to `main`, which failed 8/10 times because of branch protection. Now pushes to a bot branch and opens a PR for maintainer review. Artifact upload continues to preserve the raw payload for 90 days regardless of PR merge.
+
+### Changed
+
+- **Tarball is 52% smaller** — `dist/cli/chunks/` accumulated stale code-split chunks across rebuilds (799 shipped, only 240 fresh). Build script now cleans the chunks directory before each build. Combined with lazy-loading `@faker-js/faker` (see below), shipped size drops from **19.9 MB → 9.6 MB** and unpacked from **88.5 MB → 48.2 MB**.
+- **`@faker-js/faker` is no longer bundled** — `test-data-generator.ts` previously static-imported faker at the module top, pulling the devDep into every shipped artefact. Now lazily loads via dynamic `import()` on first use. Faker is an optional runtime dep — users who invoke test-data generation must install it themselves (with a clear error message pointing them to `npm install --save-dev @faker-js/faker`).
+- **`@claude-flow/guidance` demoted to `optionalDependencies`** — Usage is already guarded by `try/await import/catch` fallback paths, and no newer stable version exists on npm. Keeping it installable for users who want it without forcing it on users who don't. See `docs/qe-reports-3-9-13/research-claude-flow-guidance-strategy.md`.
+- **Six MCP tools now mark their load-bearing params as required** — `agent_metrics(agentId)`, `coverage_analyze_sublinear(target)`, `accessibility_test(url)`, `defect_predict(target)`, `code_index(target)`, and `advisor_consult(agent, task)`. Clients that omit these parameters get a clear rejection instead of the tool running with empty placeholders.
+
+### Added
+
+- **v3.9.13 full-quality audit** — Twelve reports from an 11-agent QE swarm analysing code complexity, security, performance, test quality, SFDIPOT product factors, dependency health, API contracts, DDD architecture, accessibility, brutal honesty, and CI pipelines. Published at `docs/qe-reports-3-9-13/` alongside two follow-up research memos on the guidance strategy and agent-count recount.
+
 ## [3.9.13] - 2026-04-17
 
 **Migrate the fleet to Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5 ahead of the June 15 Sonnet 4 retirement.** `xhigh` becomes the fleet-wide default effort level for better agentic-coding quality, and security agents stay pinned to Sonnet 4.6 until the Cyber Verification Program application clears. ([ADR-093](docs/implementation/adrs/ADR-093-opus-4-7-migration.md))

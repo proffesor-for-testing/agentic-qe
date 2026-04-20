@@ -5,10 +5,26 @@
  * Extracted from TestGeneratorService to follow Single Responsibility Principle
  */
 
-import { Faker, faker as fakerEN, allLocales, base, en } from '@faker-js/faker';
-import type { LocaleDefinition } from '@faker-js/faker';
+// @faker-js/faker is a devDependency — we must not bundle it into the
+// shipped CLI/MCP artefacts. Types are erased at compile time so keeping them
+// as `import type` is free. Runtime values are loaded lazily on first use.
+import type { Faker, LocaleDefinition } from '@faker-js/faker';
 import { TestDataRequest, TestData } from '../interfaces';
 import { secureRandomInt } from '../../../shared/utils/crypto-random.js';
+
+let _fakerModule: typeof import('@faker-js/faker') | null = null;
+async function loadFakerRuntime(): Promise<typeof import('@faker-js/faker')> {
+  if (_fakerModule) return _fakerModule;
+  try {
+    _fakerModule = await import('@faker-js/faker');
+    return _fakerModule;
+  } catch {
+    throw new Error(
+      '@faker-js/faker is required for TestDataGeneratorService but is not installed. ' +
+      'Install it with: npm install --save-dev @faker-js/faker'
+    );
+  }
+}
 
 /**
  * Schema field definition for test data generation
@@ -41,10 +57,13 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
   /**
    * Get or create a Faker instance for the given locale.
    * Caches instances to avoid repeated construction.
+   * Lazy-loads @faker-js/faker on first call so the devDep is not bundled.
    */
-  private getFaker(locale: string): Faker {
+  private async getFaker(locale: string): Promise<Faker> {
     const cached = this.fakerCache.get(locale);
     if (cached) return cached;
+
+    const { Faker, faker: fakerEN, allLocales, base, en } = await loadFakerRuntime();
 
     const localeData = (allLocales as Record<string, LocaleDefinition>)[locale];
     let instance: Faker;
@@ -65,7 +84,7 @@ export class TestDataGeneratorService implements ITestDataGeneratorService {
     const { schema, count, locale = 'en', preserveRelationships = false } = request;
 
     const seed = Date.now();
-    const f = this.getFaker(locale);
+    const f = await this.getFaker(locale);
     const records: unknown[] = [];
 
     for (let i = 0; i < count; i++) {

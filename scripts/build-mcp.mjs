@@ -61,6 +61,10 @@ const esmExternals = [
   'cli-progress',
   'ora',
   'express',
+  // @faker-js/faker is a devDep loaded lazily from test-data-generator.ts.
+  // Keeping it external means it is never bundled into the shipped MCP —
+  // callers that invoke test-data generation need to install it themselves.
+  '@faker-js/faker',
 ];
 
 /**

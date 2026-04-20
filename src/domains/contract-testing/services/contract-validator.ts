@@ -137,7 +137,7 @@ export class ContractValidatorService implements IContractValidationService {
    */
   private getModelForTier(tier: number): string {
     const models: Record<number, string> = {
-      1: 'claude-3-haiku-20240307',
+      1: 'claude-haiku-4-5',
       2: 'claude-sonnet-4-6',
       3: 'claude-sonnet-4-6',
       4: 'claude-opus-4-7',

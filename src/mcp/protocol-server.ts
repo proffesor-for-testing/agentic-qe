@@ -794,7 +794,7 @@ export class MCPProtocolServer {
         category: 'agent',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'agentId', type: 'string', description: 'Specific agent ID' },
+          { name: 'agentId', type: 'string', description: 'Specific agent ID', required: true },
         ],
       },
       handler: (params) => handleAgentMetrics(params as unknown as Parameters<typeof handleAgentMetrics>[0]),
@@ -930,7 +930,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path to analyze' },
+          { name: 'target', type: 'string', description: 'Target path to analyze', required: true },
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
         ],
       },
@@ -986,7 +986,7 @@ export class MCPProtocolServer {
         description: 'Test accessibility against WCAG 2.1/2.2 and Section 508 standards. Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })',
         category: 'domain',
         parameters: [
-          { name: 'url', type: 'string', description: 'URL to test' },
+          { name: 'url', type: 'string', description: 'URL to test', required: true },
           { name: 'standard', type: 'string', description: 'Accessibility standard' },
         ],
       },
@@ -1015,7 +1015,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path' },
+          { name: 'target', type: 'string', description: 'Target path', required: true },
         ],
       },
       handler: (params) => handleDefectPredict(params as unknown as Parameters<typeof handleDefectPredict>[0]),
@@ -1043,7 +1043,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'target', type: 'string', description: 'Target path' },
+          { name: 'target', type: 'string', description: 'Target path', required: true },
         ],
       },
       handler: (params) => handleCodeIndex(params as unknown as Parameters<typeof handleCodeIndex>[0]),
@@ -1495,8 +1495,8 @@ export class MCPProtocolServer {
         description: 'Consult a stronger advisor model for strategic guidance. Forwards a task description and context to the advisor and returns enumerated action steps. Auto-detects the best available provider. Example: advisor_consult({ agent: "qe-test-architect", task: "Generate tests for auth module", context: "Found 4 classes with external deps" })',
         category: 'routing',
         parameters: [
-          { name: 'agent', type: 'string', description: 'Agent name requesting advice (e.g., qe-test-architect)' },
-          { name: 'task', type: 'string', description: 'Task description' },
+          { name: 'agent', type: 'string', description: 'Agent name requesting advice (e.g., qe-test-architect)', required: true },
+          { name: 'task', type: 'string', description: 'Task description', required: true },
           { name: 'context', type: 'string', description: 'What the executor has found so far' },
           { name: 'provider', type: 'string', description: 'Provider override (openrouter, claude, ollama)' },
           { name: 'model', type: 'string', description: 'Model override' },
@@ -1509,14 +1509,26 @@ export class MCPProtocolServer {
         const { tmpdir } = await import('os');
 
         const p = params as { agent?: string; task?: string; context?: string; provider?: string; model?: string };
+
+        // ADR-092 contract enforcement: reject empty/missing required fields early
+        // instead of shelling out to `aqe llm advise` with placeholder values.
+        const agent = typeof p.agent === 'string' ? p.agent.trim() : '';
+        const task = typeof p.task === 'string' ? p.task.trim() : '';
+        if (!agent) {
+          return { error: "advisor_consult: 'agent' is required (non-empty string)" };
+        }
+        if (!task) {
+          return { error: "advisor_consult: 'task' is required (non-empty string)" };
+        }
+
         const transcriptDir = join(tmpdir(), 'aqe-advisor');
         mkdirSync(transcriptDir, { recursive: true });
         const transcriptPath = join(transcriptDir, `mcp-${Date.now()}.json`);
 
         const transcript = {
-          taskDescription: p.task ?? '',
+          taskDescription: task,
           messages: [
-            { role: 'user', content: p.task ?? '' },
+            { role: 'user', content: task },
             ...(p.context ? [{ role: 'assistant', content: p.context }] : []),
           ],
         };
@@ -1526,7 +1538,7 @@ export class MCPProtocolServer {
           const cliArgs = [
             'llm', 'advise',
             '--transcript', transcriptPath,
-            '--agent', p.agent ?? 'unknown',
+            '--agent', agent,
             '--json',
           ];
           if (p.provider) cliArgs.push('--provider', p.provider);
