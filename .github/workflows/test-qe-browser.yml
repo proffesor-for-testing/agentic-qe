@@ -8,7 +8,10 @@
 # Jobs:
 #   unit   : vitest suite covering the 5 primitives + CommandEvalRunner
 #   smoke  : real Vibium install + 5-primitive smoke-test.sh against live
-#            public fixtures (httpbin.org) and a local static server
+#            public fixtures (httpbin.org)
+#   eval   : build the AQE CLI and run `aqe eval run --skill qe-browser`
+#            to exercise the CommandEvalRunner dispatch path end-to-end
+#            against real Vibium (closes devil's-advocate gap G2)
 # =============================================================================
 
 name: qe-browser CI
@@ -95,3 +98,53 @@ jobs:
           # Smoke test uses public httpbin endpoints; set CI so the script
           # can short-circuit interactive retries if Vibium misbehaves.
           CI: 'true'
+
+  eval:
+    # End-to-end proof that `aqe eval run --skill qe-browser` actually
+    # works: build the CLI, install Vibium, run the eval, assert exit 0.
+    # Separate from `smoke` because it requires the TS build and exercises
+    # the CommandEvalRunner dispatch path in src/cli/commands/eval.ts that
+    # `smoke` bypasses.
+    name: aqe eval run against real Vibium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build AQE CLI
+        run: npm run build
+
+      - name: Install Vibium (pinned spec)
+        run: |
+          npm install -g 'vibium@^26.3.18'
+          vibium --version
+
+      - name: Run aqe eval against qe-browser
+        # The --model flag is required by the CLI but ignored by
+        # CommandEvalRunner for command-mode suites. Exit 0 means all
+        # 10 test cases passed against real Vibium.
+        run: |
+          node dist/cli/bundle.js eval run \
+            --skill qe-browser \
+            --model claude-3.5-sonnet \
+            --output /tmp/qe-browser-eval.json
+        env:
+          CI: 'true'
+
+      - name: Upload eval result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qe-browser-eval-result
+          path: /tmp/qe-browser-eval.json
+          if-no-files-found: warn

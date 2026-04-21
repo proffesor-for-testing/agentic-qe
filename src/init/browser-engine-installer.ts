@@ -19,12 +19,18 @@ import * as fs from 'node:fs';
 import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
- * Default Vibium npm spec. Pinned to the tested major.minor line (^26.3.18)
- * so `npm install -g` doesn't silently upgrade past a version we've verified
- * against qe-browser's 5 primitives + smoke tests.
+ * Default Vibium npm spec. Major-line pin via caret (`^26.3.18`) — npm
+ * semver will accept any 26.x.y >= 26.3.18 but reject 27.0.0+. The intent
+ * is to auto-receive security patches and additive minor features while
+ * blocking breaking-change major bumps, which is where Vibium's CLI
+ * contract (`go`, `--headless`, `viewport`, exit codes) can change.
  *
- * Bump procedure: update this constant, run scripts/smoke-test.sh against the
- * new version, then land the bump.
+ * This is NOT a minor-line pin. If a future Vibium 26.y release changes
+ * the primitives' expectations, the CI smoke gate (scripts/smoke-test.sh)
+ * is the belt-and-suspenders check.
+ *
+ * Bump procedure: update this constant (e.g. to ^27.0.0 at a major), run
+ * scripts/smoke-test.sh against the new version, then land the bump.
  */
 export const DEFAULT_VIBIUM_SPEC = 'vibium@^26.3.18';
 

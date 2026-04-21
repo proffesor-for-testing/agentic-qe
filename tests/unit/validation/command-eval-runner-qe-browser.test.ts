@@ -33,7 +33,9 @@ describe('CommandEvalRunner — qe-browser integration', () => {
     expect(raw.skill).toBe('qe-browser');
     expect(raw.status).toBe('active');
     expect(Array.isArray(raw.test_cases)).toBe(true);
-    expect(raw.test_cases.length).toBeGreaterThanOrEqual(11);
+    // 10 cases: tc001–tc008 minus tc009 (poisoned-page, needs local fixture
+    // server) + tc010–tc011 = 10.
+    expect(raw.test_cases.length).toBe(10);
   });
 
   it('passes when every primitive returns its happy-path JSON envelope', async () => {
@@ -121,17 +123,9 @@ describe('CommandEvalRunner — qe-browser integration', () => {
       }
 
       if (cmd.includes('scripts/check-injection.js')) {
-        const poisoned = currentUrl.includes('injection-poisoned');
-        if (poisoned) {
-          return {
-            status: 1,
-            stderr: '',
-            stdout: JSON.stringify({
-              status: 'failed',
-              output: { checkInjection: { severity: 'high' } },
-            }),
-          };
-        }
+        // tc008 only — yaml no longer includes the poisoned-page case
+        // (tc009 dropped; needs a local fixture server out of scope for
+        // CommandEvalRunner). Clean-page path always returns severity:none.
         return {
           status: 0,
           stderr: '',
@@ -180,7 +174,11 @@ describe('CommandEvalRunner — qe-browser integration', () => {
       console.error(`[FAIL] ${f.testId}: ${JSON.stringify(f.failures)}`);
     }
 
-    expect(result.totalTests).toBeGreaterThanOrEqual(11);
+    // yaml has 10 cases after tc009 (poisoned-page) was dropped — it needs
+    // a local fixture server out of band which is intentionally outside
+    // CommandEvalRunner's scope. The yaml covers tc001–tc008 (minus 009) +
+    // tc010–tc011 = 10 cases.
+    expect(result.totalTests).toBe(10);
     expect(result.passed).toBe(true);
     expect(result.passedTests).toBe(result.totalTests);
     expect(result.criticalPassed).toBe(true);
