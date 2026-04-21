@@ -47,10 +47,16 @@ describe('CommandEvalRunner — qe-browser integration', () => {
     let currentUrl = '';
 
     const runner: CommandRunner = (cmd) => {
-      if (cmd.startsWith('vibium go')) {
-        currentUrl = cmd.replace(/^vibium go\s+/, '').trim();
+      // Any `vibium go <url>` — with or without a `--headless` prefix and
+      // with or without an intervening `viewport w h` setup — updates the
+      // mocked browser URL. The `vibium viewport` / `vibium --headless ...`
+      // variants with no `go` are no-ops.
+      const goMatch = cmd.match(/vibium\s+(?:--headless\s+)?go\s+(\S+)/);
+      if (goMatch) {
+        currentUrl = goMatch[1];
         return { status: 0, stdout: '', stderr: '' };
       }
+      if (cmd.startsWith('vibium ')) return { status: 0, stdout: '', stderr: '' };
       if (cmd.startsWith('rm -rf')) return { status: 0, stdout: '', stderr: '' };
 
       if (cmd.includes('scripts/assert.js')) {

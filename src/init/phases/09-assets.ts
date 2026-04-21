@@ -12,7 +12,11 @@ import {
 import { createSkillsInstaller } from '../skills-installer.js';
 import { createAgentsInstaller } from '../agents-installer.js';
 import { createN8nInstaller } from '../n8n-installer.js';
-import { installBrowserEngine, type BrowserEngineInstallResult } from '../browser-engine-installer.js';
+import {
+  installBrowserEngine,
+  DEFAULT_VIBIUM_SPEC,
+  type BrowserEngineInstallResult,
+} from '../browser-engine-installer.js';
 import { initializeOverlays } from '../../routing/qe-agent-registry.js';
 import type { AQEInitConfig } from '../types.js';
 
@@ -161,6 +165,16 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
             // 'already-installed' handled by the pre-flight branch above
           }
         }
+
+        // ADR-091 GAP-05: surface platform diagnostics when the host is one
+        // where Vibium's first-run Chrome auto-download is known to fail.
+        // Today that's just Linux aarch64 at v26.3.x; printed for both
+        // `installed` and `already-installed` results. Non-fatal.
+        if (browserEngine?.platformHint) {
+          context.services.warn(
+            `  Browser engine platform hint: ${browserEngine.platformHint.message}`
+          );
+        }
       } catch (error) {
         // M9 (devil's-advocate finding): the previous catch re-emitted the
         // raw error with no recovery path. Tell the user what's broken
@@ -174,7 +188,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         );
       }
     } else {
-      browserEngine = { status: 'skipped', packageSpec: 'vibium', message: 'minimal mode' };
+      browserEngine = { status: 'skipped', packageSpec: DEFAULT_VIBIUM_SPEC, message: 'minimal mode' };
     }
 
     // Install n8n platform (optional)

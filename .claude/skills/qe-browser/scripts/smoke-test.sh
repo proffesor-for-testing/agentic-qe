@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
-# qe-browser smoke test
+# qe-browser smoke test (bash mirror of evals/qe-browser.yaml)
 #
 # Runs each helper script against pinned public fixtures (httpbin.org) and
-# verifies the output structure. This is the script that gates PR-reopen
-# per ADR-091 Phase 3 — it MUST be run on a machine with vibium installed
-# before the qe-browser PR is considered safe to reopen.
+# verifies the output structure. Gates PR-reopen per ADR-091 Phase 3.
+#
+# RELATIONSHIP TO evals/qe-browser.yaml
+# -------------------------------------
+# The canonical spec is `.claude/skills/qe-browser/evals/qe-browser.yaml`.
+# It is executed by `aqe eval run --skill qe-browser` via CommandEvalRunner
+# (src/validation/command-eval-runner.ts). The CI workflow runs it in the
+# "eval" job once the dist is built.
+#
+# This bash script mirrors the same test cases (tc001–tc011) so you can
+# run them without building the AQE CLI — useful during local skill
+# development and the initial smoke gate in CI (before the build finishes).
+# It also covers one case the yaml can't express naturally:
+#   - tc011 F1 contract: vibium-missing -> skipped envelope + exit 2
+#     (uses `env -i PATH=<fake-bin>` isolation, which is clumsy in yaml)
 #
 # Exit codes:
 #   0 — all smoke tests passed

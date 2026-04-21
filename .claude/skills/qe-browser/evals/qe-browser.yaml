@@ -187,7 +187,12 @@ test_cases:
     priority: high
     input:
       setup:
-        - "vibium go http://localhost:8088/qe-browser/SKILL.md.html"
+        # Explicit viewport before screenshot — without this, headless Chrome
+        # picks whatever size it likes per run, and pages render at slightly
+        # different dimensions (e.g. 768×654 vs 765×672), making the pixel-diff
+        # in tc007 spuriously fail. Mirrors scripts/smoke-test.sh tc006.
+        - "vibium --headless viewport 1280 720"
+        - "vibium --headless go http://localhost:8088/qe-browser/SKILL.md.html"
         - "rm -rf .aqe/visual-baselines/eval_local_docs*"
       command: |
         node .claude/skills/qe-browser/scripts/visual-diff.js \
@@ -204,7 +209,8 @@ test_cases:
     priority: high
     input:
       setup:
-        - "vibium go http://localhost:8088/qe-browser/SKILL.md.html"
+        - "vibium --headless viewport 1280 720"
+        - "vibium --headless go http://localhost:8088/qe-browser/SKILL.md.html"
       command: |
         node .claude/skills/qe-browser/scripts/visual-diff.js \
           --name eval_local_docs --threshold 0.02

@@ -12,9 +12,20 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import {
   installBrowserEngine,
   detectVibium,
+  diagnosePlatform,
   DEFAULT_VIBIUM_SPEC,
   type Spawner,
+  type PlatformProbe,
 } from '../../../src/init/browser-engine-installer.js';
+
+function makePlatformProbe(overrides: Partial<PlatformProbe>): PlatformProbe {
+  return {
+    platform: () => 'linux' as NodeJS.Platform,
+    arch: () => 'x64',
+    existsSync: () => false,
+    ...overrides,
+  };
+}
 
 type MockCall = { bin: string; args: string[] };
 
@@ -180,6 +191,61 @@ describe('browser-engine-installer', () => {
       expect(result.packageSpec).toBe('vibium@26.3.18');
       // Already-installed detection path should not trigger npm install.
       expect(calls).toHaveLength(1);
+    });
+
+    describe('Linux ARM64 platform hint (GAP-05)', () => {
+      it('attaches no platformHint on macOS (Chrome auto-download works)', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const probe = makePlatformProbe({ platform: () => 'darwin', arch: () => 'arm64' });
+        const result = installBrowserEngine({ spawner, platformProbe: probe });
+        expect(result.platformHint).toBeUndefined();
+      });
+
+      it('attaches no platformHint on Linux x86_64', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const probe = makePlatformProbe({ platform: () => 'linux', arch: () => 'x64' });
+        const result = installBrowserEngine({ spawner, platformProbe: probe });
+        expect(result.platformHint).toBeUndefined();
+      });
+
+      it('points Linux ARM64 at /usr/bin/chromium when present', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const probe = makePlatformProbe({
+          platform: () => 'linux',
+          arch: () => 'arm64',
+          existsSync: (p) => p === '/usr/bin/chromium',
+        });
+        const result = installBrowserEngine({ spawner, platformProbe: probe });
+        expect(result.platformHint?.code).toBe('linux-arm64-system-chromium-found');
+        expect(result.platformHint?.browserPath).toBe('/usr/bin/chromium');
+        expect(result.platformHint?.message).toMatch(/VIBIUM_BROWSER_PATH=\/usr\/bin\/chromium/);
+      });
+
+      it('prefers /usr/bin/chromium over /usr/bin/google-chrome when both exist', () => {
+        // Priority order matters — chromium is the FOSS distro default,
+        // google-chrome is proprietary. Users who have both usually prefer
+        // chromium, and either works with Vibium.
+        const probe = makePlatformProbe({
+          platform: () => 'linux',
+          arch: () => 'arm64',
+          existsSync: () => true, // all candidate paths present
+        });
+        const hint = diagnosePlatform(probe);
+        expect(hint?.browserPath).toBe('/usr/bin/chromium');
+      });
+
+      it('emits the no-chromium hint when no system browser is found', () => {
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const probe = makePlatformProbe({
+          platform: () => 'linux',
+          arch: () => 'arm64',
+          existsSync: () => false,
+        });
+        const result = installBrowserEngine({ spawner, platformProbe: probe });
+        expect(result.platformHint?.code).toBe('linux-arm64-no-system-chromium');
+        expect(result.platformHint?.browserPath).toBeUndefined();
+        expect(result.platformHint?.message).toMatch(/apt-get install chromium/);
+      });
     });
 
     it('uses a custom npm binary when provided', () => {

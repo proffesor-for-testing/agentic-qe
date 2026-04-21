@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-091 |
-| **Status** | Proposed |
+| **Status** | Implemented |
 | **Date** | 2026-04-08 |
+| **Implemented** | 2026-04-21 |
 | **Author** | QE Fleet + devil's-advocate review |
 | **Review Cadence** | 6 months, or on Vibium major version bump |
 | **Analysis Method** | Deep repo read of dev-browser + gsd-browser, Vibium v26.3.18 status check, devil's-advocate review of initial implementation (branch `feat/qe-browser-skill-vibium`) |
