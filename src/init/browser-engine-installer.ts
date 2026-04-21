@@ -17,6 +17,16 @@ import { spawnSync as realSpawnSync, type SpawnSyncReturns } from 'node:child_pr
 import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
+ * Default Vibium npm spec. Pinned to the tested major.minor line (^26.3.18)
+ * so `npm install -g` doesn't silently upgrade past a version we've verified
+ * against qe-browser's 5 primitives + smoke tests.
+ *
+ * Bump procedure: update this constant, run scripts/smoke-test.sh against the
+ * new version, then land the bump.
+ */
+export const DEFAULT_VIBIUM_SPEC = 'vibium@^26.3.18';
+
+/**
  * Spawner injected into {@link installBrowserEngine} so tests can mock the
  * shell-out without monkey-patching the child_process module (ESM namespaces
  * are non-configurable). Signature matches {@link spawnSync}'s (bin, args, opts).
@@ -30,7 +40,7 @@ export type Spawner = (
 export interface BrowserEngineInstallerOptions {
   /** Skip installation entirely (for --minimal or --no-browser-engine). */
   skip?: boolean;
-  /** Package name/version spec. Defaults to "vibium". */
+  /** Package name/version spec. Defaults to {@link DEFAULT_VIBIUM_SPEC}. */
   packageSpec?: string;
   /** Override the npm binary (default: "npm"). */
   npmBin?: string;
@@ -100,7 +110,7 @@ export function detectVibium(spawner: Spawner = defaultSpawner, timeoutMs = 5_00
 export function installBrowserEngine(
   options: BrowserEngineInstallerOptions = {}
 ): BrowserEngineInstallResult {
-  const packageSpec = options.packageSpec || 'vibium';
+  const packageSpec = options.packageSpec || DEFAULT_VIBIUM_SPEC;
   if (options.skip) {
     return { status: 'skipped', packageSpec, message: 'install skipped by options' };
   }
@@ -122,8 +132,7 @@ export function installBrowserEngine(
     return {
       status: 'npm-unavailable',
       packageSpec,
-      message:
-        'npm is not available on PATH. Install Node.js + npm, then run `npm install -g vibium`.',
+      message: `npm is not available on PATH. Install Node.js + npm, then run \`npm install -g ${packageSpec}\`.`,
     };
   }
 

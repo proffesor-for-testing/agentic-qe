@@ -12,6 +12,7 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import {
   installBrowserEngine,
   detectVibium,
+  DEFAULT_VIBIUM_SPEC,
   type Spawner,
 } from '../../../src/init/browser-engine-installer.js';
 
@@ -104,7 +105,10 @@ describe('browser-engine-installer', () => {
     it('returns skipped when options.skip is true', () => {
       const result = installBrowserEngine({ skip: true });
       expect(result.status).toBe('skipped');
-      expect(result.packageSpec).toBe('vibium');
+      // Default spec is version-pinned so `npm install -g` won't silently
+      // upgrade past the Vibium release we've verified against.
+      expect(result.packageSpec).toBe(DEFAULT_VIBIUM_SPEC);
+      expect(DEFAULT_VIBIUM_SPEC).toMatch(/^vibium@/);
     });
 
     it('returns already-installed when vibium is on PATH', () => {
@@ -154,7 +158,7 @@ describe('browser-engine-installer', () => {
       expect(result.version).toBe('26.3.18');
       // vibium check, npm check, npm install, vibium re-check
       expect(calls).toHaveLength(4);
-      expect(calls[2]).toEqual({ bin: 'npm', args: ['install', '-g', 'vibium'] });
+      expect(calls[2]).toEqual({ bin: 'npm', args: ['install', '-g', DEFAULT_VIBIUM_SPEC] });
     });
 
     it('returns install-failed when npm install exits non-zero', () => {

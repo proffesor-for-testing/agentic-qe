@@ -1,27 +1,24 @@
 skill: qe-browser
 version: 1.0.0
-status: design-spec
+status: active
 description: >
-  Manual smoke-test plan for the qe-browser fleet skill, NOT yet a runnable
-  automated eval.
+  Runnable eval suite for the qe-browser fleet skill, executed via
+  `aqe eval run --skill qe-browser`. Uses the CommandEvalRunner
+  (src/validation/command-eval-runner.ts) which evaluates exit codes and
+  JSON envelopes from each primitive's stdout. See ADR-091.
 
-  HONESTY NOTE (devil's-advocate H8): the test cases below use structured
-  assertion fields (`exit_code`, `json_fields`, `severity_at_least`,
-  `candidate_count_at_least`) that the existing AQE eval runner
-  (`src/validation/parallel-eval-runner.ts`) does NOT support — it expects
-  `expected_output.must_contain` keyword matching only. This file is
-  therefore a SPECIFICATION for what the eval should do, not a runnable
-  yaml. Two paths to make it runnable:
+  The runner dispatches to CommandEvalRunner when the first test_case has
+  `input.command` set; the pre-existing LLM-prompt runner remains the
+  default for skills without shell-based primitives.
 
-  1. Extend the eval runner with a `structured_assertions` block that
-     evaluates JSON paths against script JSON envelopes (preferred — gives
-     us the precision the qe-browser primitives need).
-  2. Rewrite each tc as a `must_contain` test by piping the script's JSON
-     envelope through jq and matching keywords (loses precision).
+  Supported assertions:
+    - exit_code                  strict equality vs process exit
+    - json_fields                dotted JSONPath -> expected value (deep)
+    - severity_at_least          ordered: none < low < medium < high < critical
+    - candidate_count_at_least   numeric lower bound
 
-  Until one of those lands, run `scripts/smoke-test.sh` (alongside this
-  file) for the same fixture coverage in shell-script form. That script IS
-  runnable today and is what gates PR-reopen per ADR-091 Phase 3.
+  Setup steps in `input.setup[]` run sequentially before `input.command`.
+  Any non-zero setup exit short-circuits the test as failed.
 
 models_to_test:
   - claude-3.5-sonnet

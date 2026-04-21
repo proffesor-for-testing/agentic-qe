@@ -68,6 +68,31 @@ export type {
 } from './parallel-eval-runner.js';
 
 // ============================================================================
+// Command Eval Runner (ADR-091: qe-browser and other shell-based skills)
+// ============================================================================
+
+export {
+  CommandEvalRunner,
+  createCommandEvalRunner,
+  evalJsonPath,
+  severityAtLeast,
+  isCommandEvalSuite,
+  validateCommandResult,
+} from './command-eval-runner.js';
+
+export type {
+  CommandEvalSuite,
+  CommandEvalTestCase,
+  CommandEvalExpected,
+  CommandEvalResult,
+  CommandEvalTestResult,
+  CommandEvalRunnerOptions,
+  CommandRunner,
+  Severity,
+  TestCasePriority,
+} from './command-eval-runner.js';
+
+// ============================================================================
 // Validation Result Aggregator (ADR-056 Phase 5)
 // ============================================================================
 
