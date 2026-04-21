@@ -1,0 +1,97 @@
+# =============================================================================
+# qe-browser Skill CI
+# =============================================================================
+#
+# Runs on every change to the qe-browser skill or its runner/installer. Gates
+# ADR-091 completion: a failing job here blocks merge.
+#
+# Jobs:
+#   unit   : vitest suite covering the 5 primitives + CommandEvalRunner
+#   smoke  : real Vibium install + 5-primitive smoke-test.sh against live
+#            public fixtures (httpbin.org) and a local static server
+# =============================================================================
+
+name: qe-browser CI
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/qe-browser/**'
+      - 'src/validation/command-eval-runner.ts'
+      - 'src/init/browser-engine-installer.ts'
+      - 'src/cli/commands/eval.ts'
+      - 'tests/unit/validation/command-eval-runner*.test.ts'
+      - 'tests/unit/scripts/qe-browser-*.test.ts'
+      - 'tests/unit/init/browser-engine-installer.test.ts'
+      - '.github/workflows/test-qe-browser.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/qe-browser/**'
+      - 'src/validation/command-eval-runner.ts'
+  workflow_dispatch: {}
+
+# Single active run per branch/PR; queue newer pushes.
+concurrency:
+  group: qe-browser-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (CommandEvalRunner + primitives)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run qe-browser related unit tests
+        run: |
+          npx vitest run \
+            tests/unit/validation/command-eval-runner.test.ts \
+            tests/unit/validation/command-eval-runner-qe-browser.test.ts \
+            tests/unit/init/browser-engine-installer.test.ts \
+            tests/unit/scripts/qe-browser-assert.test.ts \
+            tests/unit/scripts/qe-browser-batch.test.ts \
+            tests/unit/scripts/qe-browser-check-injection.test.ts \
+            tests/unit/scripts/qe-browser-fixtures-server.test.ts \
+            tests/unit/scripts/qe-browser-intent-score.test.ts \
+            tests/unit/scripts/qe-browser-unavailable-e2e.test.ts \
+            tests/unit/scripts/qe-browser-vibium-lib.test.ts
+
+  smoke:
+    name: Smoke test (real Vibium + httpbin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Install Vibium the same way `aqe init` does. Keep this spec in sync
+      # with DEFAULT_VIBIUM_SPEC in src/init/browser-engine-installer.ts.
+      # The browser-engine-installer unit test guards that constant so a
+      # drift here would be caught immediately by the unit job above.
+      - name: Install Vibium (pinned spec)
+        run: |
+          npm install -g 'vibium@^26.3.18'
+          vibium --version
+
+      - name: Run qe-browser smoke test
+        run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
+        env:
+          # Smoke test uses public httpbin endpoints; set CI so the script
+          # can short-circuit interactive retries if Vibium misbehaves.
+          CI: 'true'
