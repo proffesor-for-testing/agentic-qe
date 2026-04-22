@@ -102,27 +102,26 @@ jobs:
       # `vibium install` downloads Chrome for Testing + chromedriver into
       # Vibium's cache. Without this step Vibium's auto-launch fails with
       # "failed to create session: HTTP 500" because there's no chromedriver
-      # to talk to — the system google-chrome on the runner is unused;
-      # Vibium drives its own bundled Chrome for Testing over WebDriver.
+      # to talk to. Vibium drives its own bundled Chrome for Testing over
+      # WebDriver, not the runner's system google-chrome.
       - name: Download Chrome for Testing + chromedriver
         run: vibium install
 
-      # TEMP: probe the actual eval error with verbose output, since the
-      # smoke-test.sh envelope shows only "exit 1, stdout: null". Remove
-      # once CI is green.
-      - name: DIAGNOSTIC — minimal eval with verbose
-        continue-on-error: true
+      # GitHub Actions runners can't run Chrome's default setuid sandbox —
+      # chromedriver's "create session" fails with HTTP 500. Wrap the
+      # cached Chrome binary to always pass --no-sandbox. The wrapper is
+      # ephemeral to the runner, never shipped to users.
+      - name: Force --no-sandbox on cached Chrome (CI workaround)
         run: |
-          set +e
-          echo "=== vibium paths ==="
-          vibium paths 2>&1 | head -20
-          echo "=== minimal eval 2>&1 ==="
-          echo '{"script":"console.log(1)"}' | \
-            vibium --headless -v eval --stdin --json 2>&1 | head -40
-          echo "exit=$?"
-          echo "=== start session directly ==="
-          vibium --headless -v start 2>&1 | head -40
-          echo "exit=$?"
+          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
+          echo "Wrapping: $CHROME"
+          mv "$CHROME" "${CHROME}.real"
+          cat > "$CHROME" <<WRAPPER
+          #!/usr/bin/env bash
+          exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
+          WRAPPER
+          chmod +x "$CHROME"
+          head -3 "$CHROME"
 
       - name: Run qe-browser smoke test
         run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
@@ -165,6 +164,20 @@ jobs:
       # for Testing over WebDriver, not the runner's system Chrome.
       - name: Download Chrome for Testing + chromedriver
         run: vibium install
+
+      # See smoke job. Chrome's setuid sandbox doesn't work in GitHub
+      # Actions; wrap the cached binary to always pass --no-sandbox.
+      - name: Force --no-sandbox on cached Chrome (CI workaround)
+        run: |
+          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
+          echo "Wrapping: $CHROME"
+          mv "$CHROME" "${CHROME}.real"
+          cat > "$CHROME" <<WRAPPER
+          #!/usr/bin/env bash
+          exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
+          WRAPPER
+          chmod +x "$CHROME"
+          head -3 "$CHROME"
 
       - name: Run aqe eval against qe-browser
         # The --model flag is required by the CLI but ignored by
