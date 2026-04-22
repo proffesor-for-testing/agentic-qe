@@ -81,7 +81,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium go https://httpbin.org/forms/post"
+        - "vibium --headless go https://httpbin.org/forms/post"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
           '[{"kind": "url_contains", "text": "httpbin.org/forms"}]'
@@ -98,7 +98,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium go https://httpbin.org/html"
+        - "vibium --headless go https://httpbin.org/html"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
           '[{"kind": "selector_visible", "selector": "h1"}]'
@@ -113,7 +113,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium go https://httpbin.org/html"
+        - "vibium --headless go https://httpbin.org/html"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
           '[{"kind": "url_contains", "text": "this-does-not-exist"}]'
@@ -212,7 +212,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium go https://httpbin.org/html"
+        - "vibium --headless go https://httpbin.org/html"
       command: |
         node .claude/skills/qe-browser/scripts/check-injection.js --include-hidden
     expected:
@@ -238,7 +238,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium go https://httpbin.org/forms/post"
+        - "vibium --headless go https://httpbin.org/forms/post"
       command: |
         node .claude/skills/qe-browser/scripts/intent-score.js \
           --intent submit_form
@@ -255,7 +255,7 @@ test_cases:
     priority: medium
     input:
       setup:
-        - "vibium go https://httpbin.org/html"
+        - "vibium --headless go https://httpbin.org/html"
       command: |
         node .claude/skills/qe-browser/scripts/intent-score.js --intent fill_email
     expected:
