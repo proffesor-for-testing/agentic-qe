@@ -15,6 +15,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as yaml from 'yaml';
 import {
   ParallelEvalRunner,
   createParallelEvalRunner,
@@ -22,6 +23,13 @@ import {
   ParallelEvalResult,
   EvalProgress,
 } from '../../validation/parallel-eval-runner.js';
+import {
+  CommandEvalRunner,
+  createCommandEvalRunner,
+  isCommandEvalSuite,
+  type CommandEvalResult,
+  type CommandEvalTestResult,
+} from '../../validation/command-eval-runner.js';
 import {
   createSkillValidationLearner,
   SkillValidationLearner,
@@ -266,6 +274,80 @@ function formatMarkdownReport(results: ParallelEvalResult[]): string {
 }
 
 // ============================================================================
+// Suite-shape dispatch
+// ============================================================================
+
+const DEFAULT_SKILLS_DIR = '.claude/skills';
+
+/**
+ * Peek at the eval yaml to decide whether the suite is command-mode
+ * (scripts producing JSON, per ADR-091) or LLM-mode (prompts evaluated by
+ * an LLM, the pre-existing shape). Returns null if the file is missing or
+ * unparseable; that error path is then surfaced by the respective runner.
+ */
+function detectSuiteMode(skill: string): 'command' | 'llm' | null {
+  const evalPath = path.join(
+    process.cwd(),
+    DEFAULT_SKILLS_DIR,
+    skill,
+    'evals',
+    `${skill}.yaml`
+  );
+  if (!fs.existsSync(evalPath)) return null;
+  try {
+    const raw = yaml.parse(fs.readFileSync(evalPath, 'utf-8'));
+    return isCommandEvalSuite(raw) ? 'command' : 'llm';
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Adapt a {@link CommandEvalResult} into the {@link ParallelEvalResult} shape
+ * so the existing CLI formatting / reporting path works unchanged. Fields
+ * that don't apply to shell-command evals (model, reasoning quality,
+ * parallel speedup, worker count) are filled with sensible neutral values.
+ */
+function commandResultToParallel(
+  cr: CommandEvalResult,
+  model: string
+): ParallelEvalResult {
+  return {
+    skill: cr.skill,
+    model,
+    totalTests: cr.totalTests,
+    passedTests: cr.passedTests,
+    failedTests: cr.failedTests,
+    skippedTests: 0,
+    passRate: cr.passRate,
+    testResults: cr.testResults.map((t) => toParallelTestResult(t)),
+    totalDurationMs: cr.totalDurationMs,
+    parallelSpeedup: 1,
+    avgReasoningQuality: 0,
+    passed: cr.passed,
+    workersUsed: 1,
+    timestamp: cr.timestamp,
+  };
+}
+
+function toParallelTestResult(t: CommandEvalTestResult) {
+  const errorParts: string[] = [];
+  if (t.setupFailure) errorParts.push(t.setupFailure);
+  if (t.failures.length) errorParts.push(...t.failures);
+  return {
+    testId: t.testId,
+    passed: t.passed,
+    expectedPatterns: [],
+    actualPatterns: [],
+    reasoningQuality: 0,
+    executionTimeMs: t.durationMs,
+    category: t.category ?? 'uncategorized',
+    priority: (t.priority ?? 'medium') as 'critical' | 'high' | 'medium' | 'low',
+    error: errorParts.length ? errorParts.join('; ') : undefined,
+  };
+}
+
+// ============================================================================
 // Command Handlers
 // ============================================================================
 
@@ -300,6 +382,31 @@ async function initializeRunner(): Promise<{
 async function handleRunCommand(options: EvalCommandOptions): Promise<void> {
   console.log(chalk.bold('\nAQE Parallel Eval Runner'));
   console.log(chalk.dim('ADR-056 Phase 5: Worker Pool Pattern\n'));
+
+  const suiteMode = detectSuiteMode(options.skill);
+  if (suiteMode === 'command') {
+    // Command-mode skills (e.g. qe-browser) don't need an LLM executor or a
+    // ReasoningBank. Keep them on a fast, dependency-light path.
+    console.log(chalk.cyan(`Running eval suite: ${options.skill}`));
+    console.log(chalk.dim('Mode: command-eval (shell-based, ADR-091)'));
+    console.log('');
+
+    const commandRunner = createCommandEvalRunner({
+      timeoutMs: options.timeout,
+    });
+    const commandResult = await commandRunner.run(options.skill);
+    const result = commandResultToParallel(commandResult, options.model);
+
+    console.log(formatResult(result));
+
+    if (options.output) {
+      const outputPath = path.resolve(options.output);
+      fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
+      console.log(chalk.green(`Results saved to: ${outputPath}`));
+    }
+
+    process.exit(result.passed ? 0 : 1);
+  }
 
   const { runner, reasoningBank } = await initializeRunner();
 

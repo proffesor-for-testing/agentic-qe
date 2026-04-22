@@ -1,0 +1,200 @@
+# =============================================================================
+# qe-browser Skill CI
+# =============================================================================
+#
+# Runs on every change to the qe-browser skill or its runner/installer. Gates
+# ADR-091 completion: a failing job here blocks merge.
+#
+# Jobs:
+#   unit   : vitest suite covering the 5 primitives + CommandEvalRunner
+#   smoke  : real Vibium install + 5-primitive smoke-test.sh against live
+#            public fixtures (httpbin.org)
+#   eval   : build the AQE CLI and run `aqe eval run --skill qe-browser`
+#            to exercise the CommandEvalRunner dispatch path end-to-end
+#            against real Vibium (closes devil's-advocate gap G2)
+# =============================================================================
+
+name: qe-browser CI
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/qe-browser/**'
+      - 'src/validation/command-eval-runner.ts'
+      - 'src/init/browser-engine-installer.ts'
+      - 'src/cli/commands/eval.ts'
+      - 'tests/unit/validation/command-eval-runner*.test.ts'
+      - 'tests/unit/scripts/qe-browser-*.test.ts'
+      - 'tests/unit/init/browser-engine-installer.test.ts'
+      - '.github/workflows/test-qe-browser.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.claude/skills/qe-browser/**'
+      - 'src/validation/command-eval-runner.ts'
+  workflow_dispatch: {}
+
+# Least-privilege: this workflow only reads the repo and uploads an artifact.
+# No writes to code, issues, PRs, or releases. actions/upload-artifact@v4
+# does not require the `actions` write permission — it uses the ephemeral
+# job token for the artifact API.
+permissions:
+  contents: read
+
+# Single active run per branch/PR; queue newer pushes.
+concurrency:
+  group: qe-browser-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (CommandEvalRunner + primitives)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run qe-browser related unit tests
+        run: |
+          npx vitest run \
+            tests/unit/validation/command-eval-runner.test.ts \
+            tests/unit/validation/command-eval-runner-qe-browser.test.ts \
+            tests/unit/init/browser-engine-installer.test.ts \
+            tests/unit/scripts/qe-browser-assert.test.ts \
+            tests/unit/scripts/qe-browser-batch.test.ts \
+            tests/unit/scripts/qe-browser-check-injection.test.ts \
+            tests/unit/scripts/qe-browser-fixtures-server.test.ts \
+            tests/unit/scripts/qe-browser-intent-score.test.ts \
+            tests/unit/scripts/qe-browser-unavailable-e2e.test.ts \
+            tests/unit/scripts/qe-browser-vibium-lib.test.ts
+
+  smoke:
+    name: Smoke test (real Vibium + httpbin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Install Vibium the same way `aqe init` does. Keep this spec in sync
+      # with DEFAULT_VIBIUM_SPEC in src/init/browser-engine-installer.ts.
+      # The browser-engine-installer unit test guards that constant so a
+      # drift here would be caught immediately by the unit job above.
+      - name: Install Vibium (pinned spec)
+        run: |
+          npm install -g 'vibium@^26.3.18'
+          vibium --version
+
+      # `vibium install` downloads Chrome for Testing + chromedriver into
+      # Vibium's cache. Without this step Vibium's auto-launch fails with
+      # "failed to create session: HTTP 500" because there's no chromedriver
+      # to talk to. Vibium drives its own bundled Chrome for Testing over
+      # WebDriver, not the runner's system google-chrome.
+      - name: Download Chrome for Testing + chromedriver
+        run: vibium install
+
+      # GitHub Actions runners can't run Chrome's default setuid sandbox —
+      # chromedriver's "create session" fails with HTTP 500. Wrap the
+      # cached Chrome binary to always pass --no-sandbox. The wrapper is
+      # ephemeral to the runner, never shipped to users.
+      - name: Force --no-sandbox on cached Chrome (CI workaround)
+        run: |
+          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
+          echo "Wrapping: $CHROME"
+          mv "$CHROME" "${CHROME}.real"
+          cat > "$CHROME" <<WRAPPER
+          #!/usr/bin/env bash
+          exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
+          WRAPPER
+          chmod +x "$CHROME"
+          head -3 "$CHROME"
+
+      - name: Run qe-browser smoke test
+        run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
+        env:
+          # Smoke test uses public httpbin endpoints; set CI so the script
+          # can short-circuit interactive retries if Vibium misbehaves.
+          CI: 'true'
+
+  eval:
+    # End-to-end proof that `aqe eval run --skill qe-browser` actually
+    # works: build the CLI, install Vibium, run the eval, assert exit 0.
+    # Separate from `smoke` because it requires the TS build and exercises
+    # the CommandEvalRunner dispatch path in src/cli/commands/eval.ts that
+    # `smoke` bypasses.
+    name: aqe eval run against real Vibium
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build AQE CLI
+        run: npm run build
+
+      - name: Install Vibium (pinned spec)
+        run: |
+          npm install -g 'vibium@^26.3.18'
+          vibium --version
+
+      # See smoke job for rationale — Vibium drives its own bundled Chrome
+      # for Testing over WebDriver, not the runner's system Chrome.
+      - name: Download Chrome for Testing + chromedriver
+        run: vibium install
+
+      # See smoke job. Chrome's setuid sandbox doesn't work in GitHub
+      # Actions; wrap the cached binary to always pass --no-sandbox.
+      - name: Force --no-sandbox on cached Chrome (CI workaround)
+        run: |
+          CHROME="$(vibium paths | awk -F': ' '/^Chrome:/ {print $2}')"
+          echo "Wrapping: $CHROME"
+          mv "$CHROME" "${CHROME}.real"
+          cat > "$CHROME" <<WRAPPER
+          #!/usr/bin/env bash
+          exec "${CHROME}.real" --no-sandbox --disable-dev-shm-usage "\$@"
+          WRAPPER
+          chmod +x "$CHROME"
+          head -3 "$CHROME"
+
+      - name: Run aqe eval against qe-browser
+        # The --model flag is required by the CLI but ignored by
+        # CommandEvalRunner for command-mode suites. Exit 0 means all
+        # 10 test cases passed against real Vibium.
+        run: |
+          node dist/cli/bundle.js eval run \
+            --skill qe-browser \
+            --model claude-3.5-sonnet \
+            --output /tmp/qe-browser-eval.json
+        env:
+          CI: 'true'
+
+      - name: Upload eval result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qe-browser-eval-result
+          path: /tmp/qe-browser-eval.json
+          if-no-files-found: warn

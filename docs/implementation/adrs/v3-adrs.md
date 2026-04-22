@@ -2,9 +2,9 @@
 
 **Project:** Agentic QE v3 Reimagining
 **Date Range:** 2026-01-07 onwards
-**Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085); CC-Internals ADRs implemented (ADR-088, ADR-089)
+**Status:** Phase 19 — RuVector Advanced Capabilities (ADR-087: 14 new capabilities + EWC++); Phase 18 ongoing (ADR-081–085); CC-Internals ADRs implemented (ADR-088, ADR-089); ADR-091 (qe-browser) promoted to Implemented + trust_tier 3 (first green CI run against real Vibium 2026-04-22)
 **Decision Authority:** Architecture Team
-**Last Verified:** 2026-04-17 (79 Implemented, 6 In Progress, 4 Proposed, 4 Rejected)
+**Last Verified:** 2026-04-22 (80 Implemented, 6 In Progress, 3 Proposed, 4 Rejected)
 
 ---
 
@@ -102,7 +102,7 @@
 | [ADR-088](./ADR-088-prompt-cache-latch-fields.md) | Prompt Cache Latch Fields for API Cost Optimization | **Implemented** | 2026-04-01 | ✅ IMP-05: PromptCacheLatch in claude-provider.ts, latches model/max_tokens/system per session, 13 tests |
 | [ADR-089](./ADR-089-four-tier-context-compaction.md) | Four-Tier Context Compaction Pipeline | **Implemented** | 2026-04-01 | ✅ IMP-08: CompactionPipeline (Tier 1 microcompact + Tier 2 session summary + Tier 3 LLM compact + Tier 4 reactive), ContextBudgetTracker with 5 states, 413 detection, 61 tests |
 | [ADR-090](./ADR-090-hnswlib-node-migration.md) | Migrate Native HNSW Backend to hnswlib-node | **Accepted** | 2026-04-06 | ✅ NativeHnswBackend rewritten on hnswlib-node@^3.0.0 (supersedes ADR-081 in part), fixes recall@10, removes redb file lock, re-enables useNativeHNSW default |
-| [ADR-091](./ADR-091-qe-browser-skill-vibium-engine.md) | qe-browser Fleet Skill with Vibium Engine | **Proposed** | 2026-04-08 | 📋 Thin wrapper over Vibium v26.3.x (WebDriver BiDi, 10MB Go binary) + 5 QE primitives (assert, batch, visual-diff, check-injection, intent-score), migrates 11 browser-using skills |
+| [ADR-091](./ADR-091-qe-browser-skill-vibium-engine.md) | qe-browser Fleet Skill with Vibium Engine | **Implemented** | 2026-04-22 | ✅ 5 primitives + 1115 LOC tests, `aqe eval run --skill qe-browser` wired via CommandEvalRunner, Vibium@^26.3.18, Linux-arm64 diagnostic hint, CI green (unit + smoke + eval vs real Vibium, commit `fae9fd30`); trust_tier 3 |
 | [ADR-092](./ADR-092-provider-agnostic-advisor-strategy.md) | Provider-Agnostic Advisor Strategy for QE Agents | **Phase 0 Complete** | 2026-04-12 | 📋 **Completes ADR-082's dormant `triggerMultiModel` flag** via `MultiModelExecutor` → `HybridRouter.chat()` reuse. ~500 LOC new across 2 new files + 4 modified. `aqe llm advise` subcommand. Secrets-redaction pre-flight + hard circuit breaker. Phase 0: qe-test-architect + RuView fixture, Anthropic provider |
 | [ADR-093](./ADR-093-opus-4-7-migration.md) | Opus 4.7 Migration and Claude Code 2026-04 Feature Adoption | **Proposed** | 2026-04-17 | 📋 Tier 3 → Sonnet 4.6 (standard ctx); Opus 4.7 reserved as ADR-092 escalation target; `xhigh` fleet-wide configurable default via `QE_EFFORT_LEVEL`; central `DEFAULT_SONNET_MODEL` sweep across 25+ files retires `claude-sonnet-4-20250514` before 2026-06-15; thinking-config shim; Cyber Verification Program application for security agents; Routines/Monitor/Managed Agents deferred to ADR-094 |
 

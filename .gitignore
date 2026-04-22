@@ -239,3 +239,10 @@ v2-archive.tar.gz
 .test-tmp/
 .agentic-qe/sessions/
 .agentic-qe/notifications/
+
+# Timestamped audit-tool artifacts — written to docs/reports/ during
+# sessions but should never land in commits. Explicit patterns (not a
+# blanket docs/reports/ ignore) so intentional reports can still be
+# committed.
+docs/reports/coherence-comparison-*.json
+docs/reports/coherence-comparison-*.md

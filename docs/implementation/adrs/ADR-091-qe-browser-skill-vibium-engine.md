@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-091 |
-| **Status** | Proposed |
+| **Status** | Implemented |
 | **Date** | 2026-04-08 |
+| **Implementation Gate** | ✅ Cleared 2026-04-22: first green CI run of `test-qe-browser.yml` (unit + smoke + `aqe eval run` jobs) against real Vibium at commit `fae9fd30` / workflow run `24776640163`. Promoted to trust_tier 3. |
 | **Author** | QE Fleet + devil's-advocate review |
 | **Review Cadence** | 6 months, or on Vibium major version bump |
 | **Analysis Method** | Deep repo read of dev-browser + gsd-browser, Vibium v26.3.18 status check, devil's-advocate review of initial implementation (branch `feat/qe-browser-skill-vibium`) |

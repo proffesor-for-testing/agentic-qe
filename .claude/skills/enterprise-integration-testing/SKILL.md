@@ -82,7 +82,7 @@ When testing enterprise integrations or SAP-connected systems:
 ### Tools
 - **SAP**: SAP GUI, Transaction codes (SE37, WE19, SEGW), Eclipse ADT
 - **Middleware**: IBM IIB/ACE, MuleSoft, SAP PI/PO/CPI
-- **Testing**: SoapUI, Postman, Playwright, custom harnesses
+- **Testing**: SoapUI, Postman, qe-browser (via Vibium for Fiori/web UIs), custom harnesses
 - **Monitoring**: SAP Solution Manager, Splunk, Dynatrace
 - **Data**: SAP LSMW, SECATT, eCATT
 
