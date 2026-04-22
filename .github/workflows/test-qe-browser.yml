@@ -90,24 +90,6 @@ jobs:
         with:
           node-version: '20'
 
-      # Vibium needs a Chrome/Chromium binary to drive. ubuntu-24.04 runners
-      # have google-chrome preinstalled; this step locates it and exports
-      # VIBIUM_BROWSER_PATH so subsequent steps pass it to vibium. Mirrors
-      # the remediation that aqe init prints on Linux ARM64 hosts (see
-      # browser-engine-installer.ts line ~152).
-      - name: Discover browser path for Vibium
-        run: |
-          for bin in google-chrome google-chrome-stable chromium-browser chromium; do
-            if command -v "$bin" >/dev/null 2>&1; then
-              path="$(command -v "$bin")"
-              echo "VIBIUM_BROWSER_PATH=$path" >> "$GITHUB_ENV"
-              echo "Using browser: $path ($bin)"
-              exit 0
-            fi
-          done
-          echo "::error::No Chrome/Chromium binary found on runner"
-          exit 1
-
       # Install Vibium the same way `aqe init` does. Keep this spec in sync
       # with DEFAULT_VIBIUM_SPEC in src/init/browser-engine-installer.ts.
       # The browser-engine-installer unit test guards that constant so a
@@ -117,56 +99,13 @@ jobs:
           npm install -g 'vibium@^26.3.18'
           vibium --version
 
-      # TEMP diagnostic (remove before merge). Vibium's node wrapper is
-      # swallowing the child-process stderr and the smoke test sees only
-      # "exit 1, stdout: null, stderr: null". These probes surface the
-      # real reason Vibium's Go binary crashes on GitHub runners.
-      - name: DIAGNOSTIC — probe Vibium failure
-        continue-on-error: true
-        run: |
-          set +e
-          echo "=== VIBIUM_BROWSER_PATH ==="
-          echo "$VIBIUM_BROWSER_PATH"
-          ls -la "$VIBIUM_BROWSER_PATH"
-          "$VIBIUM_BROWSER_PATH" --version
-
-          echo "=== which vibium ==="
-          which vibium
-          ls -la "$(which vibium)"
-
-          echo "=== node --version ==="
-          node --version
-
-          echo "=== vibium bin/cli.js head ==="
-          VIBIUM_CLI="$(npm root -g)/vibium/bin/cli.js"
-          ls -la "$VIBIUM_CLI" || true
-          head -60 "$VIBIUM_CLI" || true
-
-          echo "=== vibium --help ==="
-          vibium --help 2>&1 | head -80
-
-          echo "=== minimal eval with 2>&1 (captures swallowed stderr) ==="
-          echo '{"script":"console.log(1)"}' | \
-            vibium --headless eval --stdin --json 2>&1 | head -80
-          echo "exit=$?"
-
-          echo "=== try with --no-sandbox browser arg via env ==="
-          VIBIUM_BROWSER_ARGS="--no-sandbox --disable-dev-shm-usage" \
-            echo '{"script":"console.log(1)"}' | \
-            vibium --headless eval --stdin --json 2>&1 | head -40
-          echo "exit=$?"
-
-          echo "=== strace first 200 syscalls (may show missing lib) ==="
-          (strace -f -e trace=execve -s 128 -o /tmp/vibium.strace \
-            bash -c "echo '{\"script\":\"console.log(1)\"}' | vibium --headless eval --stdin --json" 2>&1) || true
-          head -100 /tmp/vibium.strace 2>/dev/null || echo "(no strace)"
-
-          echo "=== /dev/shm size ==="
-          df -h /dev/shm || true
-
-          echo "=== chrome run directly ==="
-          "$VIBIUM_BROWSER_PATH" --headless --no-sandbox --dump-dom about:blank 2>&1 | head -20
-          echo "exit=$?"
+      # `vibium install` downloads Chrome for Testing + chromedriver into
+      # Vibium's cache. Without this step Vibium's auto-launch fails with
+      # "failed to create session: HTTP 500" because there's no chromedriver
+      # to talk to — the system google-chrome on the runner is unused;
+      # Vibium drives its own bundled Chrome for Testing over WebDriver.
+      - name: Download Chrome for Testing + chromedriver
+        run: vibium install
 
       - name: Run qe-browser smoke test
         run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
@@ -200,25 +139,15 @@ jobs:
       - name: Build AQE CLI
         run: npm run build
 
-      # See smoke job for rationale — Vibium needs an explicit browser
-      # path. Ubuntu-24.04 runners have google-chrome preinstalled.
-      - name: Discover browser path for Vibium
-        run: |
-          for bin in google-chrome google-chrome-stable chromium-browser chromium; do
-            if command -v "$bin" >/dev/null 2>&1; then
-              path="$(command -v "$bin")"
-              echo "VIBIUM_BROWSER_PATH=$path" >> "$GITHUB_ENV"
-              echo "Using browser: $path ($bin)"
-              exit 0
-            fi
-          done
-          echo "::error::No Chrome/Chromium binary found on runner"
-          exit 1
-
       - name: Install Vibium (pinned spec)
         run: |
           npm install -g 'vibium@^26.3.18'
           vibium --version
+
+      # See smoke job for rationale — Vibium drives its own bundled Chrome
+      # for Testing over WebDriver, not the runner's system Chrome.
+      - name: Download Chrome for Testing + chromedriver
+        run: vibium install
 
       - name: Run aqe eval against qe-browser
         # The --model flag is required by the CLI but ignored by
