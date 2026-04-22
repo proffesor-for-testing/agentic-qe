@@ -34,6 +34,13 @@ on:
       - 'src/validation/command-eval-runner.ts'
   workflow_dispatch: {}
 
+# Least-privilege: this workflow only reads the repo and uploads an artifact.
+# No writes to code, issues, PRs, or releases. actions/upload-artifact@v4
+# does not require the `actions` write permission — it uses the ephemeral
+# job token for the artifact API.
+permissions:
+  contents: read
+
 # Single active run per branch/PR; queue newer pushes.
 concurrency:
   group: qe-browser-ci-${{ github.ref }}
