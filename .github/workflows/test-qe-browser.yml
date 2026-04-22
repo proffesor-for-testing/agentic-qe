@@ -107,6 +107,23 @@ jobs:
       - name: Download Chrome for Testing + chromedriver
         run: vibium install
 
+      # TEMP: probe the actual eval error with verbose output, since the
+      # smoke-test.sh envelope shows only "exit 1, stdout: null". Remove
+      # once CI is green.
+      - name: DIAGNOSTIC — minimal eval with verbose
+        continue-on-error: true
+        run: |
+          set +e
+          echo "=== vibium paths ==="
+          vibium paths 2>&1 | head -20
+          echo "=== minimal eval 2>&1 ==="
+          echo '{"script":"console.log(1)"}' | \
+            vibium --headless -v eval --stdin --json 2>&1 | head -40
+          echo "exit=$?"
+          echo "=== start session directly ==="
+          vibium --headless -v start 2>&1 | head -40
+          echo "exit=$?"
+
       - name: Run qe-browser smoke test
         run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
         env:
