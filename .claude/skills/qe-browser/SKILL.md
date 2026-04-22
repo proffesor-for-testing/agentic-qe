@@ -1,7 +1,7 @@
 ---
 name: "qe-browser"
 description: "Browser automation for QE agents using Vibium (WebDriver BiDi) with assertions, batch execution, visual diff, prompt-injection scanning, and semantic intents. Use when any QE skill needs to drive a real browser — visual testing, accessibility audits, E2E flow verification, pentest validation, or exploratory testing."
-trust_tier: 2
+trust_tier: 3
 validation:
   schema_path: schemas/output.json
   validator_path: scripts/validate-config.json
