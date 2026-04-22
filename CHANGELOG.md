@@ -5,6 +5,33 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.15] - 2026-04-22
+
+**qe-browser skill promoted to Implemented (ADR-091).** Closes the final gaps from the v3.9.9 introduction: the skill's eval file is now a runnable evaluation via a new `aqe eval run --skill qe-browser` command, a CI workflow gates changes with both unit and smoke tests, a getting-started guide walks new users through install and the five primitives, and Linux ARM64 users get a copy-paste `VIBIUM_BROWSER_PATH` hint after `aqe init --auto` detects their system chromium. Trust tier 3.
+
+### Added
+
+- **`aqe eval run --skill <skill>` CLI** — New command that executes a skill's `evals/<skill>.yaml` file as real CommandRunner evaluations (not mocks). Uploads JSON results for post-run inspection. Lets any skill author turn their eval YAML into a reproducible CI gate. First consumer: qe-browser.
+- **Linux ARM64 platform detection in `aqe init --auto`** — After installing Vibium, the installer now probes `os.platform` + `os.arch` on Linux aarch64 and scans a prioritized list of system chromium locations (`/usr/bin/chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable`, `/snap/bin/chromium`). When a browser is found, it prints an exact `export VIBIUM_BROWSER_PATH=...` line the user can copy. When none exists, it surfaces the `apt-get install chromium` remediation. No more silent hangs on ARM64 hosts with no matching browser.
+- **`docs/guides/qe-browser-getting-started.md`** — Install, smoke check, eval run, and example CLI invocations for all five primitives (`vibium assert`, `vibium batch`, `check-injection`, `visual-diff`, `vibium run-intent`). This is the doc to send new users to.
+- **`.github/workflows/test-qe-browser.yml`** — Three-job CI gate that fires on PRs touching the skill, its installer, or `CommandEvalRunner`. Job 1 runs the full vitest sweep. Job 2 installs pinned Vibium (`^26.3.18`) and runs `smoke-test.sh` against real httpbin fixtures — the contract gate for the five primitives. Job 3 runs `aqe eval run --skill qe-browser` against real Vibium and uploads the eval JSON as a CI artifact. Workflow validated with actionlint 1.7.1.
+
+### Fixed
+
+- **qe-browser eval YAML no longer requires a local fixture server** — Two test cases (`tc006`, `tc007`) were pointing at `http://localhost:8088/qe-browser/SKILL.md.html`, which required an unstarted fixture server, so running `aqe eval run --skill qe-browser` on a fresh machine would have failed. Rewrote both to use `https://httpbin.org/html` (matching `scripts/smoke-test.sh`). `tc009` (poisoned-page check-injection) was dropped from the yaml with an explicit GAP comment — its local fixture is out of scope for CommandEvalRunner, and the severity logic it exercises is already unit-tested at `tests/unit/scripts/qe-browser-check-injection.test.ts`. yaml test_cases now reflects the runnable set (10 vs 11).
+- **Deterministic viewport in CI** — yaml `tc006` / `tc007` now include `vibium --headless viewport 1280 720` setup steps so their output matches `smoke-test.sh` byte-for-byte. No more "passes locally, fails in CI" from default-viewport differences.
+- **Correct Vibium pin comment** — Previous changelog claimed `^26.3.18` was a "major.minor-line pin". Under npm semver, `^26.3.18` accepts 26.99.x, so the comment was factually wrong. Rewritten in the skill to accurately describe the intent: major-line pin that blocks 27.0+ while allowing auto-uptake of 26.x patches and additive features, with `scripts/smoke-test.sh` as the belt-and-suspenders API contract gate. The spec itself stays `^26.3.18`.
+
+### Changed
+
+- **ADR-091 status: Implemented (trust_tier 3)** — All gaps from the v3.9.9 introduction are closed: runnable eval, CI workflow, platform detection, documentation, and yaml/smoke unification. Dependent browser-using skills (`accessibility-testing`, `pentest-validation`, `enterprise-integration-testing`) now reference `qe-browser` as the canonical runner, with Playwright kept as a documented fallback where BiDi coverage is insufficient (Firefox/Safari in `compatibility-testing`, the `visual-testing-advanced` legacy section).
+
+### Upgrade Notes
+
+- `aqe init --auto` on Linux ARM64 hosts (e.g., Raspberry Pi, Apple Silicon Docker, AWS Graviton) now surfaces a `VIBIUM_BROWSER_PATH` export hint after Vibium install — copy the printed line into your shell before running `vibium` commands.
+- Skill authors can now ship an `evals/<skill>.yaml` file and run it with `aqe eval run --skill <skill>`. See `.claude/skills/qe-browser/evals/qe-browser.yaml` for a real example.
+- No breaking changes. CLI surface additions only.
+
 ## [3.9.14] - 2026-04-20
 
 **Security + supply-chain hardening.** Closes five P0 release blockers from the v3.9.13 QE audit: 15 critical runtime npm vulnerabilities, 79% tarball bloat, hardcoded retiring model IDs at tier 1, a broken lint harness, and a loose MCP contract. Tarball shipped size drops from 19.9 MB to 9.6 MB (-52%). Also tightens six MCP tool contracts, patches a command-injection path in `aqe learning repair`, and stops the telemetry workflow from push-forcing to protected `main`.
