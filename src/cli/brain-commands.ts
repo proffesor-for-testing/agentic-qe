@@ -28,6 +28,16 @@ import {
   type RvfBrainManifest,
   type RvfBrainImportResult,
 } from '../integrations/ruvector/brain-rvf-exporter.js';
+import {
+  diffBrains,
+  type BrainDiffOptions,
+  type BrainDiffResult,
+} from '../integrations/ruvector/brain-diff.js';
+import {
+  searchBrain,
+  type BrainSearchOptions,
+  type BrainSearchResult,
+} from '../integrations/ruvector/brain-search.js';
 import { createWitnessChain } from '../audit/witness-chain.js';
 import { backfillWitnessChain } from '../audit/witness-backfill.js';
 
@@ -122,6 +132,39 @@ export async function brainInfo(
   }
 
   return coreBrainInfo(containerPath);
+}
+
+// ============================================================================
+// Diff
+// ============================================================================
+
+/**
+ * Compare two brain exports and return a structured diff.
+ *
+ * Works for both JSONL and RVF exports at the manifest level; record-level
+ * added/removed/changed is only available when both sides are JSONL.
+ */
+export async function brainDiff(
+  pathA: string,
+  pathB: string,
+  options: BrainDiffOptions = {},
+): Promise<BrainDiffResult> {
+  return diffBrains(pathA, pathB, options);
+}
+
+// ============================================================================
+// Search
+// ============================================================================
+
+/**
+ * Filtered search over a JSONL brain export. Domain/pattern-type/date-range
+ * filters plus an optional substring query on name + description.
+ */
+export async function brainSearch(
+  inputPath: string,
+  options: BrainSearchOptions = {},
+): Promise<BrainSearchResult> {
+  return searchBrain(inputPath, options);
 }
 
 // ============================================================================
