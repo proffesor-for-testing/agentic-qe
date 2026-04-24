@@ -63,7 +63,6 @@ console.log = (...args: unknown[]) => {
 };
 
 // Also redirect timestamped INFO/WARN/ERROR log lines (e.g. "[07:12:24.372] [INFO ]")
-const originalConsoleInfo = console.info.bind(console);
 console.info = (...args: unknown[]) => {
   process.stderr.write(args.map(String).join(' ') + '\n');
 };
@@ -336,6 +335,11 @@ registerLazyCommand(program, {
   name: 'completions',
   description: 'Generate shell completions for aqe',
   factory: () => import('./commands/completions.js').then(m => m.createCompletionsCommand(cleanupAndExit)),
+});
+registerLazyCommand(program, {
+  name: 'upgrade',
+  description: 'Detect optional native bindings and recommend install / flag changes',
+  factory: () => import('./commands/upgrade.js').then(m => m.createUpgradeCommand(cleanupAndExit)),
 });
 registerLazyCommand(program, {
   name: 'fleet',
