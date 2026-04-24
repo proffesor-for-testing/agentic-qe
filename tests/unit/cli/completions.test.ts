@@ -108,6 +108,23 @@ describe('Shell Completions', () => {
       expect(COMMANDS.agent).toBeDefined();
       expect(COMMANDS.completions).toBeDefined();
     });
+
+    it('should include brain + upgrade in COMMANDS (recent additions)', () => {
+      expect(COMMANDS.brain).toBeDefined();
+      expect(COMMANDS.brain.subcommands).toHaveProperty('diff');
+      expect(COMMANDS.brain.subcommands).toHaveProperty('search');
+      expect(COMMANDS.upgrade).toBeDefined();
+      expect(COMMANDS.upgrade.options).toContain('--json');
+      expect(COMMANDS.upgrade.options).toContain('--strict');
+    });
+
+    it('should list brain + upgrade in every shell generator output', () => {
+      for (const gen of [generateBashCompletion, generateZshCompletion, generateFishCompletion, generatePowerShellCompletion]) {
+        const out = gen();
+        expect(out).toContain('brain');
+        expect(out).toContain('upgrade');
+      }
+    });
   });
 
   describe('Bash Completion Generator', () => {
