@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.16](v3.9.16.md) | 2026-04-24 | Brain-export tooling: `aqe brain diff`/`search`, native-binding advisor `aqe upgrade` |
 | [v3.9.15](v3.9.15.md) | 2026-04-22 | qe-browser Implemented (ADR-091): `aqe eval run` CLI, CI gate, Linux ARM64 browser hint |
 | [v3.9.14](v3.9.14.md) | 2026-04-20 | Security + supply-chain: 15 critical vulns fixed, tarball -52%, command injection patched |
 | [v3.9.13](v3.9.13.md) | 2026-04-17 | Opus 4.7 migration (ADR-093): Sonnet 4.6 default, `xhigh` fleet-wide, cyber agents pinned |

@@ -5,6 +5,31 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.16] - 2026-04-24
+
+**Brain-export tooling + native-binding advisor.** Three new CLI commands that make the QE brain snapshot easier to inspect and make optional native deps visible. Closes the last actionable items on issue #332 (brain export improvements) and item 2 of issue #383 (upgrade advisor).
+
+### Added
+
+- **`aqe brain diff <a> <b>`** — Compare two brain exports. Always compares manifests (version, checksum, per-table record counts, domain list delta) across any mix of JSONL and `.rvf` files. When both sides are JSONL it also reports record-level **added / removed / changed** IDs per table — identity comes from the primary key on keyed tables and from dedup columns on append-only tables (witness_chain, qe_pattern_usage). Flags: `--table <name>`, `--verbose`, `--json`. Exit 0 when identical, 1 on any difference.
+- **`aqe brain search -i <export>`** — Offline filtered search over a JSONL brain export. Defaults to `qe_patterns`; `--table <name>` targets any of the 25 tables. Filters: `--domain` (repeatable, combines with AND), `--pattern-type`, `--since`/`--until` (ISO dates against `updated_at` → `created_at` → `timestamp`), `-q/--query` (case-insensitive substring over name + description), `-l/--limit` (default 20), `--json`.
+- **`aqe upgrade`** — Read-only advisor that detects which optional native bindings load on this platform (`@ruvector/rvf-node`, `@ruvector/solver-node`, `@ruvector/attention`, `@ruvector/gnn`, `hnswlib-node`), shows the current `useRVFPatternStore` / `useSublinearSolver` / `useNativeHNSW` / `useGraphMAEEmbeddings` / `useQEFlashAttention` flag state after `RUVECTOR_*` env overrides, and prints install hints for anything missing. Does **not** mutate feature flags, env, or config. Flags: `--json`, `--strict` (exits 1 when an optional is missing). Exit 2 when a required native fails to load.
+- **Shell completions for `brain` and `upgrade`** — bash/zsh/fish/PowerShell tab-completion scripts now cover both new commands and all six `brain` subcommands (`export`, `import`, `info`, `diff`, `search`, `witness-backfill`). For `brain search --domain`, bash completion sources the canonical AQE domain list.
+
+### Fixed
+
+- **Stale issue-tracker drift** — Issue #355 ("RuVector Integration: Remaining Work Tracker") and issue #332 ("Brain Export LOW-priority improvements") had diverged from reality. Delivered items from #355 (RVF export/import CLI, manifest-with-checksums, witness-integrity validation) were still shown as TODO. Consolidated the overlap with #383 into a single comment on #355, split long-horizon RuVector work into the new #432 backlog issue, and closed #355 + #332 with explicit delivered / won't-fix rationale for each remaining item.
+
+### Changed
+
+- **22 pre-existing `no-useless-escape` lint errors in `src/cli/completions/index.ts`** cleaned up during the completions work (`\$foo` → `$foo` inside the JS template literal for the generated bash script; `\${files[@]}` preserved because `${` triggers template interpolation). Generator output is byte-identical after the cleanup, verified via `bash -n`.
+
+### Upgrade Notes
+
+- No breaking changes. Three new CLI commands; existing commands unchanged.
+- `aqe upgrade` is the recommended first-run diagnostic for users reporting "HNSW is slow" or "why is my router doing power iteration" — it tells them which native deps are missing and exactly what to `npm install`.
+- If you've built tooling that parses `aqe brain`'s help output, note that two new subcommands (`diff`, `search`) are now listed.
+
 ## [3.9.15] - 2026-04-22
 
 **qe-browser skill promoted to Implemented (ADR-091).** Closes the final gaps from the v3.9.9 introduction: the skill's eval file is now a runnable evaluation via a new `aqe eval run --skill qe-browser` command, a CI workflow gates changes with both unit and smoke tests, a getting-started guide walks new users through install and the five primitives, and Linux ARM64 users get a copy-paste `VIBIUM_BROWSER_PATH` hint after `aqe init --auto` detects their system chromium. Trust tier 3.
