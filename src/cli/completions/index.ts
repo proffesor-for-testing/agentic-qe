@@ -237,6 +237,23 @@ export const COMMANDS = {
       install: { options: ['--shell'] },
     },
   },
+  // Brain export/import/diff/search
+  brain: {
+    description: 'Export, import, and inspect QE brain state',
+    subcommands: {
+      export: { options: ['-o', '--output', '--format', '--db'] },
+      import: { options: ['-i', '--input', '--strategy', '--dry-run', '--db'] },
+      info: { options: ['-i', '--input'] },
+      diff: { options: ['--table', '--verbose', '--json'] },
+      search: { options: ['-i', '--input', '--table', '--domain', '--pattern-type', '--since', '--until', '-q', '--query', '-l', '--limit', '--json'] },
+      'witness-backfill': { options: ['--db'] },
+    },
+  },
+  // Native binding advisor
+  upgrade: {
+    description: 'Detect optional native bindings and recommend install / flag changes',
+    options: ['--json', '--strict'],
+  },
 } as const;
 
 /**
@@ -298,40 +315,40 @@ export function generateBashCompletion(): string {
 
 # Helper function to complete test files (*.test.ts, *.spec.ts, *.test.js, etc.)
 _aqe_complete_test_files() {
-    local cur="\$1"
+    local cur="$1"
     local IFS=$'\\n'
     local files=()
 
     # Complete test files with common test file patterns
     # Use find for more reliable glob matching across directories
-    if [[ -z "\$cur" || "\$cur" == "." ]]; then
+    if [[ -z "$cur" || "$cur" == "." ]]; then
         # No prefix - search from current directory
         while IFS= read -r file; do
-            files+=("\$file")
+            files+=("$file")
         done < <(find . -maxdepth 3 -type f \\( -name "*.test.ts" -o -name "*.spec.ts" -o -name "*.test.js" -o -name "*.spec.js" -o -name "*.test.tsx" -o -name "*.spec.tsx" \\) 2>/dev/null | head -30)
     else
         # Has prefix - use compgen with glob patterns
-        files+=(\$(compgen -f -X '!*.test.ts' -- "\$cur" 2>/dev/null))
-        files+=(\$(compgen -f -X '!*.spec.ts' -- "\$cur" 2>/dev/null))
-        files+=(\$(compgen -f -X '!*.test.js' -- "\$cur" 2>/dev/null))
-        files+=(\$(compgen -f -X '!*.spec.js' -- "\$cur" 2>/dev/null))
-        files+=(\$(compgen -f -X '!*.test.tsx' -- "\$cur" 2>/dev/null))
-        files+=(\$(compgen -f -X '!*.spec.tsx' -- "\$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.test.ts' -- "$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.spec.ts' -- "$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.test.js' -- "$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.spec.js' -- "$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.test.tsx' -- "$cur" 2>/dev/null))
+        files+=($(compgen -f -X '!*.spec.tsx' -- "$cur" 2>/dev/null))
     fi
 
     # Also include directories for navigation
-    COMPREPLY=(\$(compgen -d -- "\$cur"))
+    COMPREPLY=($(compgen -d -- "$cur"))
 
     # Add test files to completions
     for file in "\${files[@]}"; do
-        [[ -n "\$file" ]] && COMPREPLY+=("\$file")
+        [[ -n "$file" ]] && COMPREPLY+=("$file")
     done
 }
 
 # Helper function to complete directories
 _aqe_complete_directories() {
-    local cur="\$1"
-    COMPREPLY=( \$(compgen -d -- "$cur") )
+    local cur="$1"
+    COMPREPLY=( $(compgen -d -- "$cur") )
 }
 
 # Main completion function (version-agnostic name per ADR-042)
@@ -339,12 +356,13 @@ _aqe_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="init status health task agent domain protocol test coverage quality security code migrate hypergraph completions"
+    local commands="init status health task agent domain protocol test coverage quality security code migrate hypergraph completions brain upgrade"
     local task_subcmds="submit list cancel status"
     local agent_subcmds="list spawn"
     local domain_subcmds="list health"
     local protocol_subcmds="run"
     local completions_subcmds="bash zsh fish powershell install"
+    local brain_subcmds="export import info diff search witness-backfill"
     local code_actions="index search impact deps"
     local test_actions="generate execute"
 
@@ -677,6 +695,48 @@ _aqe_completions() {
                     ;;
             esac
             ;;
+        brain)
+            case "\${words[2]}" in
+                export)
+                    COMPREPLY=( $(compgen -W "-o --output --format --db" -- "$cur") )
+                    return
+                    ;;
+                import)
+                    COMPREPLY=( $(compgen -W "-i --input --strategy --dry-run --db" -- "$cur") )
+                    return
+                    ;;
+                info)
+                    COMPREPLY=( $(compgen -W "-i --input" -- "$cur") )
+                    return
+                    ;;
+                diff)
+                    COMPREPLY=( $(compgen -W "--table --verbose --json" -- "$cur") )
+                    return
+                    ;;
+                search)
+                    case "$prev" in
+                        --domain)
+                            COMPREPLY=( $(compgen -W "$domains" -- "$cur") )
+                            return
+                            ;;
+                    esac
+                    COMPREPLY=( $(compgen -W "-i --input --table --domain --pattern-type --since --until -q --query -l --limit --json" -- "$cur") )
+                    return
+                    ;;
+                witness-backfill)
+                    COMPREPLY=( $(compgen -W "--db" -- "$cur") )
+                    return
+                    ;;
+                *)
+                    COMPREPLY=( $(compgen -W "$brain_subcmds" -- "$cur") )
+                    return
+                    ;;
+            esac
+            ;;
+        upgrade)
+            COMPREPLY=( $(compgen -W "--json --strict" -- "$cur") )
+            return
+            ;;
         *)
             COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
             return
@@ -739,6 +799,8 @@ _aqe() {
         'hypergraph:Query the code knowledge hypergraph'
         'migrate:V2 to V3 migration'
         'completions:Generate shell completions'
+        'brain:Export, import, and inspect QE brain state'
+        'upgrade:Detect optional native bindings and recommend flags'
     )
 
     domains=(
@@ -1033,6 +1095,30 @@ _aqe() {
                             ;;
                     esac
                     ;;
+                brain)
+                    local -a brain_commands
+                    brain_commands=(
+                        'export:Export brain state to a portable file/directory'
+                        'import:Import a brain export into the local database'
+                        'info:Show manifest metadata for a brain export'
+                        'diff:Compare two brain exports'
+                        'search:Filtered search over a JSONL brain export'
+                        'witness-backfill:Create witness chain entries for legacy patterns'
+                    )
+                    _arguments -C \\
+                        '1:brain subcommand:->brain_cmd' \\
+                        '*::arg:->brain_args'
+                    case "$state" in
+                        brain_cmd)
+                            _describe -t commands 'brain subcommands' brain_commands
+                            ;;
+                    esac
+                    ;;
+                upgrade)
+                    _arguments \\
+                        '--json[Emit the report as JSON]' \\
+                        '--strict[Exit non-zero if any optional native is missing]'
+                    ;;
             esac
             ;;
     esac
@@ -1083,6 +1169,16 @@ complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_
 complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "impacted" -d "Find impacted tests"
 complete -c aqe -n "__fish_seen_subcommand_from hypergraph; and not __fish_seen_subcommand_from stats untested impacted gaps" -a "gaps" -d "Find coverage gaps"
 complete -c aqe -n "__fish_use_subcommand" -a "migrate" -d "V2 to V3 migration"
+complete -c aqe -n "__fish_use_subcommand" -a "brain" -d "Export, import, and inspect QE brain state"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "export" -d "Export brain state"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "import" -d "Import a brain export"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "info" -d "Show manifest info"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "diff" -d "Compare two brain exports"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "search" -d "Filtered search over a JSONL brain export"
+complete -c aqe -n "__fish_seen_subcommand_from brain; and not __fish_seen_subcommand_from export import info diff search witness-backfill" -a "witness-backfill" -d "Backfill witness chain entries"
+complete -c aqe -n "__fish_use_subcommand" -a "upgrade" -d "Detect optional native bindings and recommend install / flag changes"
+complete -c aqe -n "__fish_seen_subcommand_from upgrade" -l json -d "Emit the report as JSON"
+complete -c aqe -n "__fish_seen_subcommand_from upgrade" -l strict -d "Exit non-zero if any optional native is missing"
 complete -c aqe -n "__fish_use_subcommand" -a "completions" -d "Generate shell completions"
 
 # Domains list
@@ -1290,6 +1386,8 @@ $script:AQE_COMMANDS = @{
     'hypergraph' = 'Query the code knowledge hypergraph'
     'migrate' = 'V2 to V3 migration'
     'completions' = 'Generate shell completions'
+    'brain' = 'Export, import, and inspect QE brain state'
+    'upgrade' = 'Detect optional native bindings and recommend flags'
 }
 
 Register-ArgumentCompleter -Native -CommandName 'aqe' -ScriptBlock {
