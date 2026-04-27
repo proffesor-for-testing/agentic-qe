@@ -22,6 +22,69 @@ import {
 } from './hooks-shared.js';
 
 /**
+ * Read piped stdin with a short timeout. Claude Code delivers
+ * UserPromptSubmit / PostToolUse / etc. events as JSON on stdin —
+ * `$PROMPT` is NOT exposed as an env var, so reading stdin is the
+ * only reliable way to recover the prompt body for routing.
+ *
+ * Returns '' when stdin is a TTY (interactive run) or no data arrives
+ * before the timeout. Never throws — a hook must never crash the host.
+ */
+async function readStdinJsonEvent(timeoutMs = 500): Promise<string> {
+  if (process.stdin.isTTY) return '';
+  return new Promise<string>((resolve) => {
+    let data = '';
+    const timer = setTimeout(() => {
+      process.stdin.removeAllListeners();
+      process.stdin.pause();
+      resolve(data);
+    }, timeoutMs);
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on('end', () => {
+      clearTimeout(timer);
+      resolve(data);
+    });
+    process.stdin.on('error', () => {
+      clearTimeout(timer);
+      resolve(data);
+    });
+    process.stdin.resume();
+  });
+}
+
+/**
+ * Extract a routable task description from a Claude Code hook event JSON
+ * payload. Different hook surfaces use different field names — try the
+ * documented ones in priority order. Exported for unit testing.
+ */
+export function extractPromptFromEvent(raw: string): string {
+  if (!raw.trim()) return '';
+  let event: Record<string, unknown>;
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    // Not JSON — treat the whole stdin as the prompt body
+    return raw.trim();
+  }
+  const candidates = [
+    event.prompt,
+    event.user_prompt,
+    event.command,
+    (event.tool_input as Record<string, unknown> | undefined)?.prompt,
+    (event.tool_input as Record<string, unknown> | undefined)?.description,
+    (event.toolInput as Record<string, unknown> | undefined)?.prompt,
+    (event.toolInput as Record<string, unknown> | undefined)?.description,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c;
+  }
+  return '';
+}
+
+/**
  * Register route subcommand on the hooks command.
  */
 export function registerRoutingHooks(hooks: Command): void {
@@ -31,16 +94,30 @@ export function registerRoutingHooks(hooks: Command): void {
   hooks
     .command('route')
     .description('Route a task to the optimal QE agent')
-    .requiredOption('-t, --task <description>', 'Task description')
+    .option('-t, --task <description>', 'Task description (falls back to stdin event JSON)')
     .option('-d, --domain <domain>', 'Target QE domain hint')
     .option('-c, --capabilities <caps...>', 'Required capabilities')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
+        // Resolve task: explicit --task wins, otherwise read the Claude Code
+        // hook event from stdin (UserPromptSubmit ships {prompt: "..."} on stdin
+        // and exposes nothing useful in env vars).
+        let task = (options.task as string | undefined) ?? '';
+        if (!task.trim()) {
+          const stdin = await readStdinJsonEvent();
+          task = extractPromptFromEvent(stdin);
+        }
+        if (!task.trim()) {
+          throw new Error(
+            'No task provided. Pass --task <description> or pipe a Claude Code hook event JSON to stdin.'
+          );
+        }
+
         const { reasoningBank } = await getHooksSystem();
 
         const request: QERoutingRequest = {
-          task: options.task,
+          task,
           domain: options.domain as QEDomain,
           capabilities: options.capabilities,
         };
@@ -65,7 +142,7 @@ export function registerRoutingHooks(hooks: Command): void {
           });
         } else {
           console.log(chalk.bold('\n🎯 Task Routing Result'));
-          console.log(chalk.dim(`  Task: "${options.task}"`));
+          console.log(chalk.dim(`  Task: "${task}"`));
 
           console.log(chalk.bold('\n👤 Recommended Agent:'), chalk.cyan(routing.recommendedAgent));
           console.log(chalk.dim(`  Confidence: ${(routing.confidence * 100).toFixed(1)}%`));
@@ -104,7 +181,7 @@ export function registerRoutingHooks(hooks: Command): void {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             outcomeId,
-            JSON.stringify({ description: options.task, domain: options.domain }),
+            JSON.stringify({ description: task, domain: options.domain }),
             JSON.stringify({
               recommended: routing.recommendedAgent,
               confidence: routing.confidence,
