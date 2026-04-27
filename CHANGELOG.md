@@ -5,6 +5,18 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.17] - 2026-04-27
+
+**One-line fix that closes the routing learning loop.** The shipped `aqe init` template wired the UserPromptSubmit hook to `--task "$PROMPT"`, but Claude Code never exposed `$PROMPT` as an env var — every prompt routed as empty. The CLI now reads stdin event JSON, the templates drop the broken arg, and existing projects upgrade automatically on re-init.
+
+### Fixed
+
+- **`aqe init` UserPromptSubmit hook silently routed every prompt as empty** — the generated `.claude/settings.json` template invoked `npx agentic-qe hooks route --task "$PROMPT" --json`, but Claude Code (≥2.1) does **not** export `$PROMPT` as an env var for `UserPromptSubmit` hooks; the prompt body only arrives via stdin event JSON. The shell expanded `"$PROMPT"` to `""`, so `aqe hooks route` always saw an empty task, the reasoningBank returned the same default agent on every prompt, and `routing_outcomes.task_json` was persisted as `{"description":""}` for every entry — closing the routing learning loop. Fix: `aqe hooks route` now reads stdin JSON events as a fallback and extracts `event.prompt` / `event.user_prompt` / `event.command` / `event.tool_input.{prompt,description}`; the templates in `src/init/phases/07-hooks.ts` and `src/init/init-wizard-hooks.ts` drop the broken `--task "$PROMPT"` argument so stdin delivery works. Re-running `aqe init` on existing projects detects the broken old hook (smart-merge `isAqeHookEntry`) and replaces it with the fixed one. Manual `--task <description>` usage is preserved for backward compatibility.
+
+### Upgrade Notes
+
+- Existing projects: re-run `npx agentic-qe init --upgrade`. Verify with `jq '.hooks.UserPromptSubmit' .claude/settings.json` — the hook should read `npx agentic-qe hooks route --json` (no `--task "$PROMPT"`). After a few prompts, confirm `sqlite3 .agentic-qe/memory.db "SELECT task_json FROM routing_outcomes ORDER BY rowid DESC LIMIT 5"` shows real prompt content instead of `{"description":""}`.
+
 ## [3.9.16] - 2026-04-24
 
 **Brain-export tooling + native-binding advisor.** Three new CLI commands that make the QE brain snapshot easier to inspect and make optional native deps visible. Closes the last actionable items on issue #332 (brain export improvements) and item 2 of issue #383 (upgrade advisor).

@@ -547,8 +547,11 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
         {
           hooks: [
             {
+              // Claude Code delivers the prompt body on stdin as JSON
+              // (e.g. {"prompt":"..."}). $PROMPT is NOT exposed as an env
+              // var, so we let the CLI read stdin directly.
               type: 'command',
-              command: 'npx agentic-qe hooks route --task "$PROMPT" --json',
+              command: 'npx agentic-qe hooks route --json',
               timeout: 5000,
               continueOnError: true,
             },
