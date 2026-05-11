@@ -218,7 +218,7 @@ export class QEReasoningBank implements IQEReasoningBank {
       // Uses patternStore.getAdapter() — always available after initialize() —
       // not rvfDualWriter, which is null in the hook invocation path.
       // Guard on totalVectors === 0: adapter.ingest() is not idempotent.
-      const adapter = this.patternStore.getAdapter();
+      const adapter = this.patternStore.getAdapter?.();
       if (adapter && (adapter.status()?.totalVectors ?? 0) === 0) {
         try {
           const embeddings = this.getSqliteStore().getAllEmbeddings();
@@ -231,8 +231,11 @@ export class QEReasoningBank implements IQEReasoningBank {
                 : new Float32Array(embedding),
             }));
           if (vectors.length > 0) {
-            adapter.ingest(vectors);
-            logger.info('Backfilled RVF from SQLite', { count: vectors.length });
+            const { accepted, rejected } = adapter.ingest(vectors);
+            logger.info('Backfilled RVF from SQLite', { count: vectors.length, accepted });
+            if (rejected > 0) {
+              logger.warn('RVF backfill partially rejected', { accepted, rejected });
+            }
           }
         } catch (err) {
           logger.warn('RVF backfill failed (non-fatal)', { error: toErrorMessage(err) });
