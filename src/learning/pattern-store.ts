@@ -373,6 +373,10 @@ export interface IPatternStore {
 
   /** Dispose the store */
   dispose(): Promise<void>;
+
+  /** Get the underlying RVF adapter, if any (RvfPatternStore only).
+   *  Returns null or undefined on non-RVF implementations. */
+  getAdapter?(): import('../integrations/ruvector/rvf-native-adapter.js').RvfNativeAdapter | null;
 }
 
 // ============================================================================
