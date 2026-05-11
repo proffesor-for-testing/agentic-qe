@@ -235,7 +235,7 @@ export class QEReasoningBank implements IQEReasoningBank {
             logger.info('Backfilled RVF from SQLite', { count: vectors.length });
           }
         } catch (err) {
-          logger.warn('RVF backfill failed (non-fatal)', { error: getErrorMessage(err) });
+          logger.warn('RVF backfill failed (non-fatal)', { error: toErrorMessage(err) });
         }
       }
       return;
