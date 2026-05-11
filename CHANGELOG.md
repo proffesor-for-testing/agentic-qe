@@ -5,6 +5,31 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.23] - 2026-05-11
+
+**Fixes the routing learning loop — `patternCount: 0` forever.** On every install
+shipped between v3.9.5 and v3.9.22, the 19 bootstrap patterns landed in SQLite
+but never reached the persistent HNSW index (`.agentic-qe/patterns.rvf`). The
+file sat at 162 bytes (header only) for the lifetime of the installation,
+which meant `routeTask()` returned `patternCount: 0` in every hook output and
+routing confidence couldn't improve from the domain-match baseline. After this
+fix, `patterns.rvf` reaches the expected ~30 KB on first init and existing
+installations are backfilled from SQLite on next startup.
+
+### Fixed
+
+- **Bootstrap patterns never reached the RVF HNSW index — `patternCount` was permanently 0** (#445) — `QEReasoningBank.loadPretrainedPatterns` seeded patterns via `patternStore.create(options)` where `options` carried no `.embedding`. `RvfPatternStore.store()` gates `adapter.ingest()` on `pattern.embedding && this.adapter`, so all 19 patterns persisted to SQLite but the HNSW file stayed empty. On subsequent startups the method returned early ("Found existing patterns") without writing the HNSW either, so even after the underlying bug was patched, `.rvf` remained 162 bytes forever. Two-part fix: (1) fresh installs now route through `storePattern()` which pre-computes the embedding before reaching `patternStore.create()`, hitting the ingest gate on the happy path; (2) existing installs trigger a one-time backfill — when `adapter.status().totalVectors === 0`, embeddings are read from `qe_pattern_embeddings` and batch-ingested via `adapter.ingest()`. Guarded against re-ingestion (not idempotent) and safe on non-RVF stores via the optional `IPatternStore.getAdapter?()` interface method. Partial-rejection ingest results now log a warning. Thanks to @Jordi-Izquierdo-DDS for the diagnosis and initial patch.
+
+### Added
+
+- **`tests/unit/learning/qe-reasoning-bank-rvf-backfill.test.ts`** — 4 regression tests pinning: fresh install routes each pretrained pattern through `storePattern()` so embeddings reach `patternStore.create()`; existing install backfills the RVF adapter from SQLite when `totalVectors === 0`; idempotent guard skips backfill when adapter already has vectors; non-RVF stores (no `getAdapter`) are a clean no-op.
+
+### Upgrade Notes
+
+- No breaking changes. After upgrading, the next process start will populate `.agentic-qe/patterns.rvf` with the 19 indexed vectors automatically — no manual action required.
+- Backfill runs once per process per installation (gated on `totalVectors === 0`), so the overhead is bounded.
+- `IPatternStore` gains an optional `getAdapter?()` method. Custom stores that implement the interface continue to work unchanged; only RVF-backed stores need to expose it.
+
 ## [3.9.22] - 2026-05-09
 
 **Stops the Exp counter from silently shrinking.** The consolidator's safety
