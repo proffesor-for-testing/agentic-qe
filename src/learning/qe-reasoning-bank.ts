@@ -213,13 +213,40 @@ export class QEReasoningBank implements IQEReasoningBank {
     const stats = await this.patternStore.getStats();
     if (stats.totalPatterns > 0) {
       logger.info('Found existing patterns', { totalPatterns: stats.totalPatterns });
+      // Backfill: ingest SQLite embeddings into the HNSW adapter for installations
+      // where patterns.rvf was never populated (pre-fix initial seeding path).
+      // Uses patternStore.getAdapter() — always available after initialize() —
+      // not rvfDualWriter, which is null in the hook invocation path.
+      // Guard on totalVectors === 0: adapter.ingest() is not idempotent.
+      const adapter = this.patternStore.getAdapter();
+      if (adapter && (adapter.status()?.totalVectors ?? 0) === 0) {
+        try {
+          const embeddings = this.getSqliteStore().getAllEmbeddings();
+          const vectors = embeddings
+            .filter(({ embedding }) => embedding && embedding.length > 0)
+            .map(({ patternId, embedding }) => ({
+              id: patternId,
+              vector: embedding instanceof Float32Array
+                ? embedding
+                : new Float32Array(embedding),
+            }));
+          if (vectors.length > 0) {
+            adapter.ingest(vectors);
+            logger.info('Backfilled RVF from SQLite', { count: vectors.length });
+          }
+        } catch (err) {
+          logger.warn('RVF backfill failed (non-fatal)', { error: getErrorMessage(err) });
+        }
+      }
       return;
     }
 
-    // Add foundational patterns from extracted module
+    // Use storePattern() (not patternStore.create() directly) so that:
+    // 1. embeddings are computed via this.embed()
+    // 2. patternStore.store() calls adapter.ingest() for each pattern
     for (const options of PRETRAINED_PATTERNS) {
       try {
-        await this.patternStore.create(options);
+        await this.storePattern(options);
       } catch (error) {
         logger.warn('Failed to load pattern', { name: options.name, error });
       }
@@ -669,3 +696,4 @@ export {
 } from './qe-guidance.js';
 
 export type { QEGuidance } from './qe-guidance.js';
+
