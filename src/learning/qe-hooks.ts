@@ -440,7 +440,11 @@ export function createQEHookHandlers(
       const { agentType, task, success, duration, patternId, feedback } = ctx.data;
 
       let patternsLearned = 0;
-      const effectivePatternId = patternId as string | undefined;
+      // #447: was `const`; must be reassignable so the post-storePattern id
+      // can flow into recordOutcome. ON CONFLICT inside SQLite means the
+      // auto-created pattern's actual id may differ from the one we passed
+      // in, and recordOutcome looks up by id.
+      let effectivePatternId = patternId as string | undefined;
 
       if (effectivePatternId) {
         // Auto-create pattern if it doesn't exist yet (e.g. task:agent:taskId from CLI hooks)
@@ -449,7 +453,7 @@ export function createQEHookHandlers(
           if (!existing) {
             const agent = (agentType as string) || 'unknown';
             const domain = detectQEDomain((task as string) || agent) || 'learning-optimization' as QEDomain;
-            await reasoningBank.storePattern({
+            const storeResult = await reasoningBank.storePattern({
               patternType: 'test-template',
               qeDomain: domain,
               name: `Auto: ${agent} completion`,
@@ -464,6 +468,12 @@ export function createQEHookHandlers(
               },
               confidence: 0.5,
             });
+            // #447: align id with what was actually persisted so recordOutcome
+            // can find it. Without this, the downstream recordUsage silently
+            // fails with "Pattern not found" and qe_pattern_usage stays at 0.
+            if (storeResult.success && storeResult.value?.id) {
+              effectivePatternId = storeResult.value.id;
+            }
             patternsLearned = 1;
           }
         } catch (e) {

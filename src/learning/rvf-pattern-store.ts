@@ -171,10 +171,20 @@ export class RvfPatternStore implements IPatternStore {
       );
     }
 
-    // Persist metadata to SQLite
+    // Persist metadata to SQLite. #447: capture the returned id — ON CONFLICT
+    // on (name, qe_domain, pattern_type) preserves the existing row's id, so
+    // we must align pattern.id with what's actually stored before ingesting
+    // into HNSW or returning to callers (otherwise recordOutcome later fails
+    // with "Pattern not found" and qe_pattern_usage stays empty).
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.storePattern(pattern, pattern.embedding);
+        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding);
+        if (actualId && actualId !== pattern.id) {
+          // QEPattern.id is `readonly` for callers, but inside the store
+          // we own the lifecycle and must align it with the persisted row
+          // before HNSW ingest (otherwise the index keys diverge from SQLite).
+          (pattern as { id: string }).id = actualId;
+        }
       } catch (error) {
         console.warn(
           `[RvfPatternStore] SQLite persist failed for ${pattern.id}:`,

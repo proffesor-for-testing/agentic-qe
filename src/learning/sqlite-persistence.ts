@@ -528,7 +528,15 @@ export class SQLitePatternStore {
     });
 
     transaction();
-    return id;
+
+    // #447: ON CONFLICT(name, qe_domain, pattern_type) preserves the existing
+    // row's id, so the new `id` we just tried to insert may not be what's
+    // actually stored. SELECT the actual id back so callers (rvf-pattern-store,
+    // qe-hooks) can stay consistent with HNSW and downstream usage tables.
+    const actualRow = this.db
+      .prepare('SELECT id FROM qe_patterns WHERE name = ? AND qe_domain = ? AND pattern_type = ?')
+      .get(pattern.name, pattern.qeDomain ?? '', pattern.patternType ?? '') as { id: string } | undefined;
+    return actualRow ? actualRow.id : id;
   }
 
   /**
