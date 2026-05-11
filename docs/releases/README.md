@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.23](v3.9.23.md) | 2026-05-11 | Routing learning loop fix: bootstrap patterns now reach the HNSW index (`patternCount > 0`), existing installs auto-backfill (#445) |
 | [v3.9.22](v3.9.22.md) | 2026-05-09 | Non-destructive consolidation safety valve (no more silent Exp counter shrinkage) + CLI-only `aqe init` flow now persists hooked experiences |
 | [v3.9.21](v3.9.21.md) | 2026-05-08 | Windows install unblocked (#439), RVF FsyncFailed root-cause fix, hypergraph `untested` / `impacted` queries return useful results |
 | [v3.9.20](v3.9.20.md) | 2026-05-08 | Second wave wire-gap fixes: HNSW A in routing, hook-side embeddings inline, dream cycle busy_timeout, pattern quality_score moves on hook flow, TrajectoryBridge → unified memory |
