@@ -114,6 +114,24 @@ vi.mock('../../../src/learning/sqlite-persistence.js', async (importOriginal) =>
 import { QEReasoningBank } from '../../../src/learning/qe-reasoning-bank.js';
 import { PRETRAINED_PATTERNS } from '../../../src/learning/pretrained-patterns.js';
 import { createMockMemory } from '../../mocks/index.js';
+import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
+
+/**
+ * Build a mock memory pre-seeded with the cross-domain seed flag so
+ * `QEReasoningBank.initialize()` skips `seedCrossDomainPatterns()` (which
+ * pulls in the full embedding pipeline and OOMs the vitest fork worker).
+ * We're only testing `loadPretrainedPatterns()` here — the seeding path is
+ * exercised elsewhere.
+ */
+function memoryWithSeedFlag(): MemoryBackend {
+  const memory = createMockMemory();
+  // initialize() reads this key; setting it short-circuits the heavy branch.
+  void memory.set('reasoning-bank:cross-domain-seeded', true);
+  return memory;
+}
+
+// Lightweight config so `embed()` uses the hash fallback (no ONNX model load).
+const LIGHT_CONFIG = { useONNXEmbeddings: false } as const;
 
 describe('QEReasoningBank.loadPretrainedPatterns — RVF bootstrap (PR #445 regression)', () => {
   beforeEach(() => {
@@ -143,7 +161,7 @@ describe('QEReasoningBank.loadPretrainedPatterns — RVF bootstrap (PR #445 regr
       hnswStats: { totalNodes: 0, totalEdges: 0, levels: 0, nativeAvailable: true },
     });
 
-    const bank = new QEReasoningBank(createMockMemory());
+    const bank = new QEReasoningBank(memoryWithSeedFlag(), undefined, LIGHT_CONFIG);
     await bank.initialize();
 
     const createCalls = (mocks.patternStore.create as ReturnType<typeof vi.fn>).mock.calls;
@@ -184,7 +202,7 @@ describe('QEReasoningBank.loadPretrainedPatterns — RVF bootstrap (PR #445 regr
     );
     mocks.adapter.statusValue.totalVectors = 0;
 
-    const bank = new QEReasoningBank(createMockMemory());
+    const bank = new QEReasoningBank(memoryWithSeedFlag(), undefined, LIGHT_CONFIG);
     await bank.initialize();
 
     expect(mocks.adapter.ingest).toHaveBeenCalledTimes(1);
@@ -222,7 +240,7 @@ describe('QEReasoningBank.loadPretrainedPatterns — RVF bootstrap (PR #445 regr
     });
     mocks.adapter.statusValue.totalVectors = 19; // already populated
 
-    const bank = new QEReasoningBank(createMockMemory());
+    const bank = new QEReasoningBank(memoryWithSeedFlag(), undefined, LIGHT_CONFIG);
     await bank.initialize();
 
     // adapter.ingest must NOT be re-called — ingest is not idempotent
@@ -247,7 +265,7 @@ describe('QEReasoningBank.loadPretrainedPatterns — RVF bootstrap (PR #445 regr
     // Simulate non-RVF store: getAdapter returns undefined
     (mocks.patternStore.getAdapter as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 
-    const bank = new QEReasoningBank(createMockMemory());
+    const bank = new QEReasoningBank(memoryWithSeedFlag(), undefined, LIGHT_CONFIG);
     await expect(bank.initialize()).resolves.toBeUndefined();
     expect(mocks.adapter.ingest).not.toHaveBeenCalled();
 
