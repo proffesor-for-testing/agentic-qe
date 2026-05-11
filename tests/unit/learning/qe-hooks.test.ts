@@ -578,7 +578,11 @@ describe('QE Hooks', () => {
         expect(result.data?.confidence).toBe(0.85);
       });
 
-      it('should record agent completion outcome', async () => {
+      it('should record agent completion outcome (auto-create path uses returned id, #447)', async () => {
+        // getPattern returns null → handler auto-creates a pattern. Post-#447,
+        // the id used for recordOutcome is the one returned by storePattern
+        // (which itself reflects the actual stored id after SQLite ON CONFLICT),
+        // NOT the input patternId. The mock returns `pattern-123`.
         const handlers = createQEHookHandlers(mockReasoningBank);
 
         await handlers[QE_HOOK_EVENTS.QEAgentCompletion]({
@@ -594,6 +598,36 @@ describe('QE Hooks', () => {
           },
         });
 
+        expect(mockReasoningBank.recordOutcome).toHaveBeenCalledWith({
+          patternId: 'pattern-123',
+          success: true,
+          metrics: { executionTimeMs: 12000 },
+          feedback: 'Tests cover all edge cases',
+        });
+      });
+
+      it('should preserve input patternId when pattern already exists (#447 no-op path)', async () => {
+        // When getPattern returns an existing pattern, no auto-create happens,
+        // so effectivePatternId stays at the input value.
+        (mockReasoningBank.getPattern as any).mockResolvedValueOnce({
+          id: 'pattern-agent-1',
+        });
+        const handlers = createQEHookHandlers(mockReasoningBank);
+
+        await handlers[QE_HOOK_EVENTS.QEAgentCompletion]({
+          eventId: 'complete-2',
+          timestamp: new Date(),
+          data: {
+            agentType: 'qe-test-architect',
+            task: 'Generate unit tests',
+            success: true,
+            duration: 12000,
+            patternId: 'pattern-agent-1',
+            feedback: 'Tests cover all edge cases',
+          },
+        });
+
+        expect(mockReasoningBank.storePattern).not.toHaveBeenCalled();
         expect(mockReasoningBank.recordOutcome).toHaveBeenCalledWith({
           patternId: 'pattern-agent-1',
           success: true,
