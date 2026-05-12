@@ -192,8 +192,15 @@ export function registerTaskHooks(hooks: Command): void {
           // Patch 150: write a routing_outcomes sentinel that post-task UPDATEs
           // with the 6-dim outcome quality. Pre-task cannot know quality yet.
           // success=0/quality=-1 sentinel pair makes the row easy to find later.
-          if (routing?.recommendedAgent && options.taskId) {
+          //
+          // Issue #449: PreToolUse hook command sends --description but no
+          // --task-id, so the original `&& options.taskId` clause prevented
+          // the sentinel from ever being written. Without the sentinel the
+          // post-task UPDATE has no row to fill, breaking Stream D. Use the
+          // same `hook-${ts}` fallback as post-task.
+          if (routing?.recommendedAgent) {
             try {
+              const effectivePreTaskId = (options.taskId as string | undefined) || `hook-${Date.now()}`;
               const outcomeId = `route-${Date.now()}-${randomUUID().slice(0, 8)}`;
               const lowConfidence = routing.confidence < LOW_CONFIDENCE_THRESHOLD;
               db.prepare(`
@@ -204,7 +211,7 @@ export function registerTaskHooks(hooks: Command): void {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 outcomeId,
-                JSON.stringify({ description: options.description, taskId: options.taskId }),
+                JSON.stringify({ description: options.description, taskId: effectivePreTaskId }),
                 JSON.stringify({
                   recommended: routing.recommendedAgent,
                   confidence: routing.confidence,
@@ -304,16 +311,26 @@ export function registerTaskHooks(hooks: Command): void {
           });
           patternsLearned = results.reduce((sum, r) => sum + (r.patternsLearned || 0), 0);
 
-          // Record as learning experience for every post-task invocation
-          if (options.taskId) {
+          // Record as learning experience for every post-task invocation.
+          //
+          // Issue #449 / patch 030 (reintroduced in v3.9.23): the PostToolUse
+          // hook context for Task/Agent does NOT populate $TOOL_RESULT_agent_id,
+          // so the shipped `--task-id "$TOOL_RESULT_agent_id"` arrives empty
+          // and `options.taskId` is falsy. The original `if (options.taskId)`
+          // gate therefore killed the entire Stream B/D/F learning chain on
+          // every real hook invocation (rl_q_values stayed empty forever).
+          // Use a synthetic `hook-${ts}` fallback so the pipeline always runs.
+          // DO NOT REINTRODUCE the if(options.taskId) gate — see #449.
+          {
+            const effectiveTaskId = (options.taskId as string | undefined) || `hook-${Date.now()}`;
             const agent = options.agent || 'unknown';
             const durationMs = options.duration ? parseInt(options.duration, 10) : 0;
 
             await reasoningBank.recordOutcome({
-              patternId: `task:${agent}:${options.taskId}`,
+              patternId: `task:${agent}:${effectiveTaskId}`,
               success,
               metrics: { executionTimeMs: durationMs },
-              feedback: `Agent: ${agent}, Task: ${options.taskId}`,
+              feedback: `Agent: ${agent}, Task: ${effectiveTaskId}`,
             });
 
             // Stream B: full experience pipeline (captured_experiences,
@@ -321,7 +338,7 @@ export function registerTaskHooks(hooks: Command): void {
             // single-step + multi-step stitch, dream_insights.applied bump).
             // Patches 060/110/120/160/180/300.
             const outcome = await persistTaskOutcome({
-              taskId: options.taskId,
+              taskId: effectiveTaskId,
               agent,
               durationMs,
               success,
