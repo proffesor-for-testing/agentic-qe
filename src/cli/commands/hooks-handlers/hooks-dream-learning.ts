@@ -621,12 +621,19 @@ export async function updateRoutingOutcomeQuality(opts: {
     }
     const db = um.getDatabase();
     try { db.pragma('busy_timeout = 60000'); } catch { /* hook-side patient timeout (ADR-001 / patch 260) */ }
+    // #451: explicit discriminator — only close PRE-TASK sentinels here.
+    // The route hook (UserPromptSubmit) writes sentinels with no taskId field
+    // in task_json. pre-task writes them with `"taskId"` in task_json. Without
+    // this filter, post-task could accidentally grab a stale route sentinel
+    // sitting from earlier in the session. Symmetric counterpart in
+    // routing-hooks.ts's `post-route` command, which has the inverse filter.
     db.prepare(`
       UPDATE routing_outcomes
       SET success = ?, quality_score = ?, duration_ms = ?
       WHERE id IN (
         SELECT id FROM routing_outcomes
         WHERE quality_score = -1
+          AND task_json LIKE '%"taskId"%'
           AND created_at > datetime('now', '-30 minutes')
         ORDER BY (CASE WHEN used_agent = ? THEN 0 ELSE 1 END), created_at DESC
         LIMIT 1
