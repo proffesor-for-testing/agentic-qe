@@ -5,6 +5,64 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.25] - 2026-05-12
+
+**Fixes the route sentinel that `routing_outcomes` never closed.** `route` hooks
+(UserPromptSubmit) wrote sentinel rows with `quality_score=-1, success=0`,
+relying on `post-task` to fill them in. But `post-task` only fires on
+`PostToolUse ^(Task|Agent)$`, so any direct-work session (Bash/Edit/Read, no
+sub-agents) left sentinels open indefinitely — Jordi reported 123+ unresolved
+rows per session. Stream D never converged. This release adds a `post-route`
+subcommand wired into the `Stop` hook (1:1 with UserPromptSubmit/route) that
+closes route sentinels using a `task_json NOT LIKE '%"taskId"%'` discriminator,
+and tightens `updateRoutingOutcomeQuality` with the inverse discriminator so
+post-task only ever closes pre-task sentinels.
+
+### Added
+
+- **`aqe hooks post-route` subcommand** (#451) — closes the most-recent
+  unresolved route sentinel via a discriminator that isolates route entries
+  (`task_json NOT LIKE '%"taskId"%'`) from pre-task entries. Quality formula
+  is the 6-dim outcome formula collapsed for unknown duration:
+  `0.325 + 0.25·success + 0.10·1.0 = 0.675` on success / `0.425` on failure.
+  Wired into the `Stop` hook in both init template paths
+  (`src/init/phases/07-hooks.ts` and `src/init/init-wizard-hooks.ts`) so new
+  installs and wizard-driven installs both get the closer automatically.
+
+### Fixed
+
+- **`routing_outcomes` sentinels from the `route` hook accumulated at
+  `quality_score=-1` forever in any session that didn't spawn sub-agents**
+  (#451) — `updateRoutingOutcomeQuality` (the only closer prior to this
+  release) gates on `PostToolUse ^(Task|Agent)$`, which fires on a minority
+  of turns. Sessions doing direct work via Bash/Edit/Read built up dozens to
+  hundreds of unresolved sentinel rows per session, all reading `success=0`
+  in any consumer that didn't explicitly filter `quality_score < 0`.
+  Stream D never converged. Fix: new `post-route` subcommand wired into the
+  `Stop` hook closes the matching route sentinel 1:1 with each turn.
+- **`updateRoutingOutcomeQuality` (post-task) could grab a stale route
+  sentinel by accident** (#451) — the UPDATE picked the most-recent unresolved
+  sentinel within 30 minutes biased on `used_agent`, with no discriminator
+  separating route sentinels from pre-task sentinels. With dozens of route
+  sentinels accumulating, post-task could close the wrong one and miscredit
+  duration/success to a row that wasn't actually about a `Task()` invocation.
+  Fix: added `task_json LIKE '%"taskId"%'` filter — post-task now only ever
+  closes pre-task sentinels, symmetric with the new `post-route` filter.
+
+### Upgrade Notes
+
+- No breaking changes. New installs and re-runs of `aqe init` pick up the
+  Stop-hook `post-route` wiring automatically. Existing installs continue
+  working but won't close route sentinels until `aqe init` is re-run.
+- The Stop hook now invokes `npx agentic-qe hooks post-route --success true --json`
+  in addition to `session-end` and `brain-checkpoint`. Timeout is 5000ms and
+  `continueOnError: true`, so a slow or failed `post-route` will not block
+  session teardown.
+- Quality scores on existing-but-resolved route sentinels will not be
+  retroactively adjusted. New turns get the correct quality_score on session end.
+
+Thanks to @Jordi-Izquierdo-DDS for the diagnosis, evidence, and patch shape.
+
 ## [3.9.24] - 2026-05-12
 
 **Fixes the post-task self-learning chain — `rl_q_values` empty forever.** The
