@@ -5,6 +5,29 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.24] - 2026-05-12
+
+**Fixes the post-task self-learning chain — `rl_q_values` empty forever.** The
+shipped PostToolUse hook command for `Task`/`Agent` matchers used
+`--task-id "$TOOL_RESULT_agent_id"`, but Claude Code does not populate
+`$TOOL_RESULT_agent_id`, so the flag arrived empty. An `if (options.taskId)`
+gate inside `post-task` then short-circuited the entire Stream B/D/F learning
+pipeline: `persistTaskOutcome`, `updateRoutingOutcomeQuality`, and
+`updateHookRouterQValue` were never called. As a result `rl_q_values` stayed
+at zero rows, `captured_experiences` from `cli-hook-post-task` were never
+written, and `task-bridge` entries accumulated until TTL. The same regression
+was fixed in v3.9.21 (patch 030) and silently came back in v3.9.23. A
+regression test now guards the no-`--task-id` path so the gate cannot return
+a third time.
+
+### Fixed
+
+- **`rl_q_values` always empty — `post-task` silently skipped the entire learning chain when `--task-id` was missing** (#449) — `registerTaskHooks` in `task-hooks.ts` wrapped `persistTaskOutcome`, `updateRoutingOutcomeQuality`, and `updateHookRouterQValue` in `if (options.taskId)`. The shipped PostToolUse hook command for Task/Agent passes `--task-id "$TOOL_RESULT_agent_id"`, but Claude Code does not populate that variable, so the flag arrived empty and the gate failed on every real invocation. The pre-task `routing_outcomes` sentinel write at line 195 had the same `&& options.taskId` clause and the same dead-code problem. Both gates removed and replaced with a synthetic `hook-${Date.now()}` fallback for the patternId / experience / sentinel keys. The bridge lookup in `persistTaskOutcome` already keys by `ORDER BY created_at DESC` not by taskId, so Stream F's Bellman update still finds the bridge payload it needs. Added `tests/unit/cli/commands/task-hooks-no-taskid.test.ts` asserting the pipeline fires when `--task-id` is absent — guards against re-introduction (this exact gate has regressed twice now, in v3.9.21 and v3.9.23). Thanks to @Jordi-Izquierdo-DDS for the diagnosis, evidence, and the patch shape.
+
+### Upgrade Notes
+
+- No breaking changes. After upgrading, `aqe hooks post-task` will populate `rl_q_values` and `captured_experiences` on every invocation regardless of whether the calling hook passes a `--task-id`. Existing installations should see Q-values begin accumulating on the next Task tool invocation.
+
 ## [3.9.23] - 2026-05-11
 
 **Fixes the routing learning loop — `patternCount: 0` forever.** On every install
