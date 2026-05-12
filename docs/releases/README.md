@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.24](v3.9.24.md) | 2026-05-12 | Fix: `post-task` no longer skips Stream B/D/F when `--task-id` is missing — `rl_q_values` populates on every invocation (#449) |
 | [v3.9.23](v3.9.23.md) | 2026-05-11 | Two self-learning fixes: bootstrap patterns now reach HNSW (#445), `qe_pattern_usage` no longer permanently empty after `ON CONFLICT` upserts (#447) |
 | [v3.9.22](v3.9.22.md) | 2026-05-09 | Non-destructive consolidation safety valve (no more silent Exp counter shrinkage) + CLI-only `aqe init` flow now persists hooked experiences |
 | [v3.9.21](v3.9.21.md) | 2026-05-08 | Windows install unblocked (#439), RVF FsyncFailed root-cause fix, hypergraph `untested` / `impacted` queries return useful results |
