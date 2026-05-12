@@ -11,7 +11,7 @@ import chalk from 'chalk';
 import path from 'node:path';
 import type { QERoutingRequest } from '../../../learning/qe-reasoning-bank.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
-import { findProjectRoot } from '../../../kernel/unified-memory.js';
+import { findProjectRoot, getUnifiedMemory } from '../../../kernel/unified-memory.js';
 import {
   applyHookBusyTimeout,
   getHooksSystem,
@@ -219,6 +219,77 @@ export function registerRoutingHooks(hooks: Command): void {
       } catch (error) {
         printError(`route failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw error;
+      }
+    });
+
+  // -------------------------------------------------------------------------
+  // post-route: Close routing_outcomes sentinel from Stop hook (#451)
+  //
+  // The `route` hook fires on UserPromptSubmit and writes a sentinel row with
+  // quality_score=-1. That sentinel is only closed by post-task's
+  // updateRoutingOutcomeQuality, which fires on PostToolUse ^(Task|Agent)$ —
+  // so in any direct-work session (Bash/Edit/Read without spawning sub-agents)
+  // route sentinels accumulate forever and Stream D never converges.
+  //
+  // This subcommand is wired into the Stop hook (one invocation per turn) and
+  // closes the most-recent route sentinel 1:1. Discriminator
+  // `task_json NOT LIKE '%"taskId"%'` isolates route sentinels from the
+  // pre-task sentinels that carry taskId in their task_json.
+  // -------------------------------------------------------------------------
+  hooks
+    .command('post-route')
+    .description('Close the most-recent route sentinel from a Stop hook (#451)')
+    .option('--success <bool>', 'Whether the turn completed successfully', 'true')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const success = options.success === 'true' || options.success === true;
+        // 6-dim outcome quality, durationTier defaulted to favorable (1.0):
+        //   qualityScore = 0.25*success + 0.325 + 0.10*durationTier
+        // Stop hook doesn't measure turn duration, so we pick the most
+        // favorable bucket — same shape as the post-task formula but with the
+        // duration term collapsed to a constant.
+        const qualityScore = 0.325 + (success ? 0.25 : 0) + 0.10;
+
+        const um = getUnifiedMemory();
+        if (!um.isInitialized()) {
+          await um.initialize();
+        }
+        const db = um.getDatabase();
+        applyHookBusyTimeout(db);
+
+        const result = db.prepare(`
+          UPDATE routing_outcomes
+          SET success = ?, quality_score = ?, duration_ms = 0, error = NULL
+          WHERE id = (
+            SELECT id FROM routing_outcomes
+            WHERE quality_score = -1
+              AND task_json NOT LIKE '%"taskId"%'
+            ORDER BY created_at DESC
+            LIMIT 1
+          )
+        `).run(success ? 1 : 0, qualityScore);
+
+        if (options.json) {
+          printJson({
+            success: true,
+            resolved: result.changes > 0,
+            qualityScore,
+            turnSuccess: success,
+          });
+        }
+        return;
+      } catch (error) {
+        // Best-effort: Stop hooks must never crash the host. Swallow + log.
+        if (options.json) {
+          printJson({
+            success: false,
+            error: error instanceof Error ? error.message : 'unknown',
+          });
+        } else {
+          console.error(chalk.dim(`[hooks] post-route: ${error instanceof Error ? error.message : 'unknown'}`));
+        }
+        return;
       }
     });
 }

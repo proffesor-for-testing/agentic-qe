@@ -177,6 +177,19 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
           },
         ],
       },
+      {
+        hooks: [
+          {
+            // #451: close the route sentinel from this turn. Stop fires
+            // 1:1 with UserPromptSubmit/route — without this, route
+            // sentinels accumulate at quality_score=-1 indefinitely.
+            type: 'command',
+            command: 'npx agentic-qe hooks post-route --success true --json',
+            timeout: 5000,
+            continueOnError: true,
+          },
+        ],
+      },
     ],
   };
 

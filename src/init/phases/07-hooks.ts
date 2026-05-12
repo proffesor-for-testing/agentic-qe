@@ -596,6 +596,20 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
         {
           hooks: [
             {
+              // #451: close the route sentinel that UserPromptSubmit wrote
+              // at the start of this turn. Stop fires 1:1 with UserPromptSubmit
+              // — without this, `routing_outcomes` accumulates quality_score=-1
+              // rows forever in direct-work sessions (no Task/Agent spawned).
+              type: 'command',
+              command: 'npx agentic-qe hooks post-route --success true --json',
+              timeout: 5000,
+              continueOnError: true,
+            },
+          ],
+        },
+        {
+          hooks: [
+            {
               type: 'command',
               command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs" export --json\'',
               timeout: 60000,

@@ -42,6 +42,7 @@ Examples:
   aqe hooks route --task "Generate tests for UserService"
   aqe hooks pre-task --description "Generate tests" --json
   aqe hooks post-task --task-id "task-123" --success true
+  aqe hooks post-route --success true --json   # Stop hook (#451)
 
   # Bash command hooks
   aqe hooks pre-command --command "npm test" --json
