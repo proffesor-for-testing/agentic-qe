@@ -19,6 +19,8 @@ import {
   printSuccess,
   printError,
   printGuidance,
+  readStdinJsonEvent,
+  extractFilePathFromEvent,
 } from './hooks-shared.js';
 
 /**
@@ -103,15 +105,29 @@ export function registerEditingHooks(hooks: Command): void {
 
         const success = options.success || !options.failure;
 
-        // Generate synthetic patternId from file path if none provided
-        const filePath = options.file || '';
+        // Generate synthetic patternId from file path if none provided.
+        //
+        // `--file` falls back to the Claude Code hook event JSON on stdin.
+        // PostToolUse events carry `tool_input.file_path` (and older shapes use
+        // `toolInput.file_path`) — without this fallback, $TOOL_INPUT_file_path
+        // expansion silently produces `--file ""` and every captured experience
+        // ends up tagged `edit: ` with no file path (#453).
+        let filePath = options.file || '';
+        if (!filePath.trim()) {
+          try {
+            const rawEvent = await readStdinJsonEvent();
+            filePath = extractFilePathFromEvent(rawEvent);
+          } catch {
+            // best-effort — never crash the hook host
+          }
+        }
         const fileName = filePath.split('/').pop() || 'unknown';
         const isTestFile = /\.(test|spec)\.(ts|js|tsx|jsx)$/.test(fileName);
         const domain = isTestFile ? 'test-generation' : 'code-intelligence';
         const syntheticPatternId = options.patternId || `edit:${domain}:${fileName}`;
 
         const results = await hookRegistry.emit(QE_HOOK_EVENTS.PostTestGeneration, {
-          targetFile: options.file,
+          targetFile: filePath,
           success,
           patternId: syntheticPatternId,
           generatedTests: null,
@@ -160,13 +176,13 @@ export function registerEditingHooks(hooks: Command): void {
         if (options.json) {
           printJson({
             success: true,
-            file: options.file,
+            file: filePath,
             editSuccess: success,
             patternsLearned: result.patternsLearned || 0,
             dreamTriggered,
           });
         } else {
-          printSuccess(`Recorded edit outcome for ${options.file}`);
+          printSuccess(`Recorded edit outcome for ${filePath || '(unknown file)'}`);
           if (result.patternsLearned) {
             console.log(chalk.green(`  Patterns learned: ${result.patternsLearned}`));
           }

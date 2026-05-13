@@ -314,6 +314,77 @@ export function printGuidance(guidance: string[]): void {
 }
 
 // ============================================================================
+// Stdin Event Helpers
+// ============================================================================
+
+/**
+ * Read piped stdin with a short timeout. Claude Code delivers
+ * UserPromptSubmit / PostToolUse / PreToolUse events as JSON on stdin —
+ * `$PROMPT`, `$TOOL_INPUT_file_path`, etc. are NOT exposed as env vars in
+ * every hook surface, so reading stdin is the only reliable fallback when
+ * the explicit CLI option resolves to an empty string.
+ *
+ * Returns '' when stdin is a TTY (interactive run) or no data arrives
+ * before the timeout. Never throws — a hook must never crash the host.
+ */
+export async function readStdinJsonEvent(timeoutMs = 500): Promise<string> {
+  if (process.stdin.isTTY) return '';
+  return new Promise<string>((resolve) => {
+    let data = '';
+    const timer = setTimeout(() => {
+      process.stdin.removeAllListeners();
+      process.stdin.pause();
+      resolve(data);
+    }, timeoutMs);
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on('end', () => {
+      clearTimeout(timer);
+      resolve(data);
+    });
+    process.stdin.on('error', () => {
+      clearTimeout(timer);
+      resolve(data);
+    });
+    process.stdin.resume();
+  });
+}
+
+/**
+ * Extract a file path from a Claude Code PostToolUse / PreToolUse hook event.
+ * Edit / Write / MultiEdit / NotebookEdit tools all put the target path in
+ * `tool_input.file_path` (snake_case from Claude Code) — older transports
+ * use `toolInput.file_path`. Returns '' when no recognized field is present.
+ *
+ * Exported for unit testing.
+ */
+export function extractFilePathFromEvent(raw: string): string {
+  if (!raw.trim()) return '';
+  let event: Record<string, unknown>;
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    return '';
+  }
+  const toolInputSnake = event.tool_input as Record<string, unknown> | undefined;
+  const toolInputCamel = event.toolInput as Record<string, unknown> | undefined;
+  const candidates = [
+    toolInputSnake?.file_path,
+    toolInputSnake?.filePath,
+    toolInputCamel?.file_path,
+    toolInputCamel?.filePath,
+    event.file_path,
+    event.filePath,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c;
+  }
+  return '';
+}
+
+// ============================================================================
 // Dream Scheduler & Learning — re-exported from hooks-dream-learning.ts
 // ============================================================================
 export {

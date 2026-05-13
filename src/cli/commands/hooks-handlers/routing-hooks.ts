@@ -20,41 +20,8 @@ import {
   printJson,
   printError,
   printGuidance,
+  readStdinJsonEvent,
 } from './hooks-shared.js';
-
-/**
- * Read piped stdin with a short timeout. Claude Code delivers
- * UserPromptSubmit / PostToolUse / etc. events as JSON on stdin —
- * `$PROMPT` is NOT exposed as an env var, so reading stdin is the
- * only reliable way to recover the prompt body for routing.
- *
- * Returns '' when stdin is a TTY (interactive run) or no data arrives
- * before the timeout. Never throws — a hook must never crash the host.
- */
-async function readStdinJsonEvent(timeoutMs = 500): Promise<string> {
-  if (process.stdin.isTTY) return '';
-  return new Promise<string>((resolve) => {
-    let data = '';
-    const timer = setTimeout(() => {
-      process.stdin.removeAllListeners();
-      process.stdin.pause();
-      resolve(data);
-    }, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
-    process.stdin.on('error', () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
-    process.stdin.resume();
-  });
-}
 
 /**
  * Extract a routable task description from a Claude Code hook event JSON
