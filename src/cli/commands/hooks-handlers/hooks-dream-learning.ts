@@ -782,9 +782,16 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
   }
 
   // Aggregate unprocessed experiences by domain+agent with quality thresholds.
-  // Exclude 'cli-hook' agent — these are low-quality hook telemetry events
-  // (quality ~0.40, success_rate ~0.24) that flood the pipeline and block
-  // real pattern creation. See issue #348.
+  //
+  // Issue #464: dropped the `AND agent != 'cli-hook'` filter. The original
+  // exclusion (issue #348) was meant to keep low-quality Bash telemetry
+  // (quality ~0.40, success_rate ~0.24) from flooding the pipeline — but
+  // post-edit experiences also use agent='cli-hook' and have avg_quality
+  // ~0.75 / success_rate ~1.0, well above the HAVING thresholds. Excluding
+  // by agent name meant the dominant share of high-quality experiences was
+  // ineligible and consolidation never produced patterns. The HAVING clause
+  // below is the real quality gate; tighten it if #348's concern resurfaces
+  // rather than filtering by agent name.
   const aggregates = db.prepare(`
     SELECT
       domain,
@@ -797,7 +804,6 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       GROUP_CONCAT(DISTINCT source) as sources
     FROM captured_experiences
     WHERE application_count = 0
-      AND agent != 'cli-hook'
     GROUP BY domain, agent
     HAVING cnt >= 3 AND avg_quality >= 0.5 AND success_rate >= 0.6
     ORDER BY avg_quality DESC
