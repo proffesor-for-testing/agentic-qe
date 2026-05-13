@@ -69,6 +69,39 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
     const reason = timeTriggered ? 'time-interval' : 'experience-threshold';
     console.log(chalk.dim(`[hooks] Dream trigger: ${reason} (${dreamState.experienceCount} experiences, ${Math.round(timeSinceLastDream / 60000)}min since last dream)`));
 
+    // Issue #461: concurrent hook subprocesses all see the same stale
+    // dreamState.lastDreamTime, race past the time/experience triggers, and
+    // start ~10s dream cycles in parallel. They then all hit the WAL writer
+    // at roughly the same time and 35% of cycles fail with
+    // `database is locked` (duration_ms ≈ 10050ms — the full cycle ran, only
+    // the write-back failed). `busy_timeout` doesn't help: it serializes
+    // sequential contention, not simultaneous writers.
+    //
+    // Peek at dream_cycles before we open the engine — if another process
+    // has started a cycle in the last 60s, bail out with reason='already-
+    // running'. Fail-open: any error in the guard lets the dream proceed,
+    // so this can never make things worse than they were before.
+    try {
+      const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
+      const um = getUnifiedMemory();
+      if (um.isInitialized()) {
+        const db = um.getDatabase();
+        const running = db
+          .prepare(
+            `SELECT COUNT(*) AS n FROM dream_cycles
+             WHERE status = 'running'
+               AND start_time > datetime('now', '-60 seconds')`,
+          )
+          .get() as { n: number } | undefined;
+        if (running && running.n > 0) {
+          return { triggered: false, reason: 'already-running' };
+        }
+      }
+    } catch {
+      // fail-open — if dream_cycles table is missing or unified memory not
+      // ready, we'd rather risk the rare lock than block dreaming entirely.
+    }
+
     // Run a quick dream cycle
     const { createDreamEngine } = await import('../../../learning/dream/index.js');
     const { createQEReasoningBank: createRB } = await import('../../../learning/qe-reasoning-bank.js');
