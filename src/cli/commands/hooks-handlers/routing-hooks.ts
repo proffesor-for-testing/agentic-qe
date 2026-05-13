@@ -237,13 +237,40 @@ export function registerRoutingHooks(hooks: Command): void {
           )
         `).run(success ? 1 : 0, qualityScore);
 
+        // Issue #465: orphan-sentinel sweep. Sessions that terminate without
+        // firing Stop (context compact, process kill, IDE crash) leave their
+        // sentinels at quality_score=-1 forever — every subsequent post-route
+        // call only closes the most-recent one (LIMIT 1) and newer rows keep
+        // pre-empting old ones in the ORDER BY DESC. Reporter saw 122/149
+        // rows stuck at -1, inverting AVG(quality_score) to -0.717.
+        //
+        // We use the conservative base score (0.325 = no success/duration
+        // bonus) rather than the current turn's qualityScore: those orphans
+        // belong to UNKNOWN historical turns and shouldn't inherit the
+        // current turn's outcome. Tag with error='stale-sentinel' so
+        // precision-sensitive queries can filter them out.
+        const staleResult = db.prepare(`
+          UPDATE routing_outcomes
+          SET success = 0,
+              quality_score = 0.325,
+              duration_ms = 0,
+              error = 'stale-sentinel'
+          WHERE quality_score = -1
+            AND created_at < datetime('now', '-300 seconds')
+        `).run();
+
         if (options.json) {
           printJson({
             success: true,
             resolved: result.changes > 0,
+            staleSwept: staleResult.changes,
             qualityScore,
             turnSuccess: success,
           });
+        } else if (staleResult.changes > 0) {
+          console.log(
+            chalk.dim(`[hooks] post-route: swept ${staleResult.changes} stale sentinel(s)`),
+          );
         }
         return;
       } catch (error) {
