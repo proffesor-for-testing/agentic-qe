@@ -590,19 +590,51 @@ export class QEReasoningBank implements IQEReasoningBank {
       byDomain[domain] = patternStoreStats.byDomain[domain] || 0;
     }
 
+    // DB fallback (#454): in-memory `this.stats` is reset on every process
+    // start, but every hook invocation spawns a fresh node. Without a DB
+    // fallback, `aqe hooks stats` always reports zeros even when historical
+    // routing_outcomes / qe_pattern_usage rows exist. We use the in-memory
+    // counters when they're non-zero (live, current-process data), otherwise
+    // fall back to aggregated DB totals.
+    let routingRequests = this.stats.routingRequests;
+    let avgRoutingConfidence =
+      this.stats.routingRequests > 0
+        ? this.stats.totalRoutingConfidence / this.stats.routingRequests
+        : 0;
+    let learningOutcomes = this.stats.learningOutcomes;
+    let patternSuccessRate =
+      this.stats.learningOutcomes > 0
+        ? this.stats.successfulOutcomes / this.stats.learningOutcomes
+        : 0;
+
+    if (routingRequests === 0 || learningOutcomes === 0) {
+      try {
+        const agg = this.getSqliteStore().getAggregateOutcomeStats();
+        if (routingRequests === 0 && agg.routingRequests > 0) {
+          routingRequests = agg.routingRequests;
+          avgRoutingConfidence = agg.avgRoutingConfidence;
+        }
+        if (learningOutcomes === 0 && agg.learningOutcomes > 0) {
+          learningOutcomes = agg.learningOutcomes;
+          // Prefer per-usage success rate (closer to recordOutcome semantics);
+          // fall back to qe_patterns.success_rate aggregate when no usage rows.
+          patternSuccessRate =
+            agg.learningOutcomes > 0
+              ? agg.successfulOutcomes / agg.learningOutcomes
+              : agg.avgPatternSuccessRate;
+        }
+      } catch {
+        // best-effort — never let stats reporting crash the host
+      }
+    }
+
     return {
       totalPatterns: patternStoreStats.totalPatterns,
       byDomain,
-      routingRequests: this.stats.routingRequests,
-      avgRoutingConfidence:
-        this.stats.routingRequests > 0
-          ? this.stats.totalRoutingConfidence / this.stats.routingRequests
-          : 0,
-      learningOutcomes: this.stats.learningOutcomes,
-      patternSuccessRate:
-        this.stats.learningOutcomes > 0
-          ? this.stats.successfulOutcomes / this.stats.learningOutcomes
-          : 0,
+      routingRequests,
+      avgRoutingConfidence,
+      learningOutcomes,
+      patternSuccessRate,
       patternStoreStats,
     };
   }

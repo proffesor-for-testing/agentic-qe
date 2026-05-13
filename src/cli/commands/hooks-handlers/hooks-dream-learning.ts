@@ -39,6 +39,8 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
   triggered: boolean;
   reason?: string;
   insightsGenerated?: number;
+  /** Number of insights that were applied to qe_patterns (#456). */
+  insightsApplied?: number;
 }> {
   try {
     // Load persisted dream state
@@ -66,6 +68,39 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
 
     const reason = timeTriggered ? 'time-interval' : 'experience-threshold';
     console.log(chalk.dim(`[hooks] Dream trigger: ${reason} (${dreamState.experienceCount} experiences, ${Math.round(timeSinceLastDream / 60000)}min since last dream)`));
+
+    // Issue #461: concurrent hook subprocesses all see the same stale
+    // dreamState.lastDreamTime, race past the time/experience triggers, and
+    // start ~10s dream cycles in parallel. They then all hit the WAL writer
+    // at roughly the same time and 35% of cycles fail with
+    // `database is locked` (duration_ms ≈ 10050ms — the full cycle ran, only
+    // the write-back failed). `busy_timeout` doesn't help: it serializes
+    // sequential contention, not simultaneous writers.
+    //
+    // Peek at dream_cycles before we open the engine — if another process
+    // has started a cycle in the last 60s, bail out with reason='already-
+    // running'. Fail-open: any error in the guard lets the dream proceed,
+    // so this can never make things worse than they were before.
+    try {
+      const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
+      const um = getUnifiedMemory();
+      if (um.isInitialized()) {
+        const db = um.getDatabase();
+        const running = db
+          .prepare(
+            `SELECT COUNT(*) AS n FROM dream_cycles
+             WHERE status = 'running'
+               AND start_time > datetime('now', '-60 seconds')`,
+          )
+          .get() as { n: number } | undefined;
+        if (running && running.n > 0) {
+          return { triggered: false, reason: 'already-running' };
+        }
+      }
+    } catch {
+      // fail-open — if dream_cycles table is missing or unified memory not
+      // ready, we'd rather risk the rare lock than block dreaming entirely.
+    }
 
     // Run a quick dream cycle
     const { createDreamEngine } = await import('../../../learning/dream/index.js');
@@ -103,6 +138,26 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
 
     const result = await engine.dream(10000);
 
+    // Issue #456: apply actionable insights inline so the hook path doesn't
+    // leave the backlog growing forever. DreamScheduler.autoApplyInsights()
+    // wires this in the daemon path, but checkAndTriggerDream is the
+    // hook-driven path and has no scheduler — without this block, every
+    // hook-fired dream cycle writes insights with applied=0 and they
+    // accumulate indefinitely (#456 evidence: 378 unapplied / 9 applied).
+    // Threshold matches DreamSchedulerConfig.insightConfidenceThreshold
+    // default (0.5) and InsightGenerator's `actionable` gate.
+    let insightsApplied = 0;
+    try {
+      for (const insight of result.insights) {
+        if (insight.actionable && insight.confidenceScore >= 0.5) {
+          const applyResult = await engine.applyInsight(insight.id);
+          if (applyResult.success) insightsApplied++;
+        }
+      }
+    } catch (applyErr) {
+      console.error(chalk.dim(`[hooks] Dream apply: ${applyErr instanceof Error ? applyErr.message : 'unknown'}`));
+    }
+
     // Update state
     dreamState.lastDreamTime = new Date().toISOString();
     dreamState.experienceCount = 0;
@@ -115,6 +170,7 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
       triggered: true,
       reason,
       insightsGenerated: result.insights.length,
+      insightsApplied,
     };
   } catch (error) {
     console.error(chalk.dim(`[hooks] Dream trigger failed: ${error instanceof Error ? error.message : 'unknown'}`));
@@ -330,7 +386,14 @@ export async function persistTaskOutcome(opts: {
       'cli-hook-post-task',
     );
 
-    // 2. Base experience_applications row
+    // 2. Base experience_applications row.
+    //
+    // Issue #463: tokens_saved was hardcoded to 0 on every row, so the
+    // learning-ROI column was permanently useless. qualityScore is already
+    // computed above and ranges 0.34 (failure+slow) to 0.68 (success+fast).
+    // Scale by 100 as a proxy until a real per-task token-delta calculation
+    // is wired in — gives a non-trivial 34-68 signal that downstream
+    // analytics can reason about.
     db.prepare(`
       INSERT INTO experience_applications
         (id, experience_id, task, success, tokens_saved, feedback, applied_at)
@@ -340,7 +403,7 @@ export async function persistTaskOutcome(opts: {
       experienceId,
       taskField,
       opts.success ? 1 : 0,
-      0,
+      Math.round(qualityScore * 100),
       `[Patch 060] post-task outcome: ${opts.success ? 'success' : 'failure'}`,
     );
 
@@ -390,6 +453,27 @@ export async function persistTaskOutcome(opts: {
           WHERE id = ?
         `);
         const getPatternConfidence = db.prepare(`SELECT confidence FROM qe_patterns WHERE id = ?`);
+        // Issue #455: recordOutcome() is called with a synthetic
+        // `task:agent:taskId` patternId that never matches qe_patterns.id, so
+        // checkPatternPromotionWithCoherence() is skipped for the real UUIDs
+        // updated here. Without an inline promotion check, short-term patterns
+        // that cross the thresholds (successful_uses ≥ 3, success_rate ≥ 0.7,
+        // confidence ≥ 0.6) stay short-term forever — qe_patterns.long-term
+        // count never grows past zero.
+        const promotionSelectStmt = db.prepare(`
+          SELECT tier, successful_uses, success_rate, confidence
+          FROM qe_patterns
+          WHERE id = ?
+        `);
+        const promotionUpdateStmt = db.prepare(`
+          UPDATE qe_patterns
+          SET tier = 'long-term', updated_at = datetime('now')
+          WHERE id = ?
+            AND tier = 'short-term'
+            AND successful_uses >= 3
+            AND success_rate >= 0.7
+            AND confidence >= 0.6
+        `);
         for (const patternId of bridge.selectedPatternIds) {
           insertApp.run(
             `app-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -404,6 +488,22 @@ export async function persistTaskOutcome(opts: {
             if (row) {
               const successInc = opts.success ? 1 : 0;
               updatePatternUsage.run(successInc, successInc, row.confidence, successInc, patternId);
+            }
+          } catch { /* fail-soft per pattern */ }
+          // Issue #455: re-read post-UPDATE state and promote if thresholds met.
+          // Guarded WHERE clause makes the UPDATE idempotent and no-op for
+          // already-long-term rows or rows below threshold.
+          try {
+            const pm = promotionSelectStmt.get(patternId) as
+              | { tier: string; successful_uses: number; success_rate: number; confidence: number }
+              | undefined;
+            if (
+              pm?.tier === 'short-term' &&
+              pm.successful_uses >= 3 &&
+              pm.success_rate >= 0.7 &&
+              pm.confidence >= 0.6
+            ) {
+              promotionUpdateStmt.run(patternId);
             }
           } catch { /* fail-soft per pattern */ }
         }
@@ -682,9 +782,16 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
   }
 
   // Aggregate unprocessed experiences by domain+agent with quality thresholds.
-  // Exclude 'cli-hook' agent — these are low-quality hook telemetry events
-  // (quality ~0.40, success_rate ~0.24) that flood the pipeline and block
-  // real pattern creation. See issue #348.
+  //
+  // Issue #464: dropped the `AND agent != 'cli-hook'` filter. The original
+  // exclusion (issue #348) was meant to keep low-quality Bash telemetry
+  // (quality ~0.40, success_rate ~0.24) from flooding the pipeline — but
+  // post-edit experiences also use agent='cli-hook' and have avg_quality
+  // ~0.75 / success_rate ~1.0, well above the HAVING thresholds. Excluding
+  // by agent name meant the dominant share of high-quality experiences was
+  // ineligible and consolidation never produced patterns. The HAVING clause
+  // below is the real quality gate; tighten it if #348's concern resurfaces
+  // rather than filtering by agent name.
   const aggregates = db.prepare(`
     SELECT
       domain,
@@ -697,7 +804,6 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       GROUP_CONCAT(DISTINCT source) as sources
     FROM captured_experiences
     WHERE application_count = 0
-      AND agent != 'cli-hook'
     GROUP BY domain, agent
     HAVING cnt >= 3 AND avg_quality >= 0.5 AND success_rate >= 0.6
     ORDER BY avg_quality DESC

@@ -20,41 +20,8 @@ import {
   printJson,
   printError,
   printGuidance,
+  readStdinJsonEvent,
 } from './hooks-shared.js';
-
-/**
- * Read piped stdin with a short timeout. Claude Code delivers
- * UserPromptSubmit / PostToolUse / etc. events as JSON on stdin —
- * `$PROMPT` is NOT exposed as an env var, so reading stdin is the
- * only reliable way to recover the prompt body for routing.
- *
- * Returns '' when stdin is a TTY (interactive run) or no data arrives
- * before the timeout. Never throws — a hook must never crash the host.
- */
-async function readStdinJsonEvent(timeoutMs = 500): Promise<string> {
-  if (process.stdin.isTTY) return '';
-  return new Promise<string>((resolve) => {
-    let data = '';
-    const timer = setTimeout(() => {
-      process.stdin.removeAllListeners();
-      process.stdin.pause();
-      resolve(data);
-    }, timeoutMs);
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
-    process.stdin.on('error', () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
-    process.stdin.resume();
-  });
-}
 
 /**
  * Extract a routable task description from a Claude Code hook event JSON
@@ -270,13 +237,47 @@ export function registerRoutingHooks(hooks: Command): void {
           )
         `).run(success ? 1 : 0, qualityScore);
 
+        // Issue #465: orphan-sentinel sweep. Sessions that terminate without
+        // firing Stop (context compact, process kill, IDE crash) leave their
+        // sentinels at quality_score=-1 forever — every subsequent post-route
+        // call only closes the most-recent one (LIMIT 1) and newer rows keep
+        // pre-empting old ones in the ORDER BY DESC. Reporter saw 122/149
+        // rows stuck at -1, inverting AVG(quality_score) to -0.717.
+        //
+        // We use the conservative base score (0.325 = no success/duration
+        // bonus) rather than the current turn's qualityScore: those orphans
+        // belong to UNKNOWN historical turns and shouldn't inherit the
+        // current turn's outcome. Tag with error='stale-sentinel' so
+        // precision-sensitive queries can filter them out.
+        // Discriminator mirrors the LIMIT-1 close above and #451's symmetric
+        // design: route sentinels are owned by post-route, pre-task sentinels
+        // (task_json carries "taskId") are owned by post-task. Sweeping a
+        // pre-task sentinel here would race with updateRoutingOutcomeQuality
+        // and break the ownership split. If pre-task sentinels orphan, that
+        // belongs in a separate fix.
+        const staleResult = db.prepare(`
+          UPDATE routing_outcomes
+          SET success = 0,
+              quality_score = 0.325,
+              duration_ms = 0,
+              error = 'stale-sentinel'
+          WHERE quality_score = -1
+            AND task_json NOT LIKE '%"taskId"%'
+            AND created_at < datetime('now', '-300 seconds')
+        `).run();
+
         if (options.json) {
           printJson({
             success: true,
             resolved: result.changes > 0,
+            staleSwept: staleResult.changes,
             qualityScore,
             turnSuccess: success,
           });
+        } else if (staleResult.changes > 0) {
+          console.log(
+            chalk.dim(`[hooks] post-route: swept ${staleResult.changes} stale sentinel(s)`),
+          );
         }
         return;
       } catch (error) {

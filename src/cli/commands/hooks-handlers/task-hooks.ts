@@ -295,7 +295,12 @@ export function registerTaskHooks(hooks: Command): void {
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
-        let dreamResult: { triggered: boolean; reason?: string; insightsGenerated?: number } = { triggered: false };
+        let dreamResult: {
+          triggered: boolean;
+          reason?: string;
+          insightsGenerated?: number;
+          insightsApplied?: number;
+        } = { triggered: false };
 
         try {
           // Initialize system (creates ReasoningBank and HookRegistry)
@@ -344,10 +349,21 @@ export function registerTaskHooks(hooks: Command): void {
               success,
             });
 
+            // Issue #460: when --agent arrives empty (Claude Code does not
+            // expose $TOOL_RESULT_agent_id in PostToolUse context), `agent`
+            // resolves to 'unknown' and every Q-value lands in the same
+            // bucket — the router can never learn per-agent differentiation.
+            // The pre-task bridge already carries `agent: routing.recommendedAgent`
+            // which is the correct action key, so prefer that over 'unknown'.
+            const effectiveAgent =
+              agent === 'unknown' && outcome.bridge?.agent
+                ? outcome.bridge.agent
+                : agent;
+
             // Stream D (patch 150): apply 6-dim outcome quality to the
             // routing_outcomes sentinel that pre-task wrote with quality=-1.
             await updateRoutingOutcomeQuality({
-              agent,
+              agent: effectiveAgent,
               success,
               durationMs,
               qualityScore: outcome.qualityScore,
@@ -361,7 +377,7 @@ export function registerTaskHooks(hooks: Command): void {
                 priority: outcome.bridge.priority,
                 domain: outcome.bridge.domain,
                 complexityBucket: outcome.bridge.complexityBucket,
-                agent,
+                agent: effectiveAgent,
                 success,
               });
             }
@@ -391,6 +407,7 @@ export function registerTaskHooks(hooks: Command): void {
             dreamTriggered: dreamResult.triggered,
             dreamReason: dreamResult.reason,
             dreamInsights: dreamResult.insightsGenerated,
+            dreamInsightsApplied: dreamResult.insightsApplied,
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
@@ -399,7 +416,11 @@ export function registerTaskHooks(hooks: Command): void {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
           }
           if (dreamResult.triggered) {
-            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights`));
+            const appliedSuffix =
+              typeof dreamResult.insightsApplied === 'number'
+                ? `, ${dreamResult.insightsApplied} applied`
+                : '';
+            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights${appliedSuffix}`));
           }
         }
 
