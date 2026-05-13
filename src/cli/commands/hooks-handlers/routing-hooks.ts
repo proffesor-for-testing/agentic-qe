@@ -249,6 +249,12 @@ export function registerRoutingHooks(hooks: Command): void {
         // belong to UNKNOWN historical turns and shouldn't inherit the
         // current turn's outcome. Tag with error='stale-sentinel' so
         // precision-sensitive queries can filter them out.
+        // Discriminator mirrors the LIMIT-1 close above and #451's symmetric
+        // design: route sentinels are owned by post-route, pre-task sentinels
+        // (task_json carries "taskId") are owned by post-task. Sweeping a
+        // pre-task sentinel here would race with updateRoutingOutcomeQuality
+        // and break the ownership split. If pre-task sentinels orphan, that
+        // belongs in a separate fix.
         const staleResult = db.prepare(`
           UPDATE routing_outcomes
           SET success = 0,
@@ -256,6 +262,7 @@ export function registerRoutingHooks(hooks: Command): void {
               duration_ms = 0,
               error = 'stale-sentinel'
           WHERE quality_score = -1
+            AND task_json NOT LIKE '%"taskId"%'
             AND created_at < datetime('now', '-300 seconds')
         `).run();
 

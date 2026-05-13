@@ -5,6 +5,110 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.26] - 2026-05-13
+
+**Ten learning-pipeline fixes reported by Jordi against v3.9.24.** Most are
+short-circuits in the post-task hook chain that look fine in isolation but
+break the end-to-end Stream B/D/F learning loop: experiences land tagged as
+`agent='unknown'` and `task='edit: '`, every Q-learning bucket converges on
+the same key, dream insights are generated but never applied, patterns cross
+the promotion thresholds but stay short-term forever, and stale sentinels
+invert the routing-quality metric. Each fix is small but the cumulative
+effect is that the learning loop now actually converges on real per-agent
+signal instead of zeros.
+
+### Fixed
+
+- **`post-edit` recorded experiences with `task = "edit: "` for ~88% of
+  turns** (#453) — `$TOOL_INPUT_file_path` doesn't expand reliably in
+  Claude Code's PostToolUse context, so `--file ""` arrived empty and every
+  captured experience was tagged with no path. Embeddings were useless and
+  consolidation matched nothing. Now falls back to reading
+  `tool_input.file_path` from the Claude Code event JSON on stdin (mirrors
+  the existing route-hook stdin path).
+
+- **`aqe hooks stats --json` always reported zero** (#454) —
+  `QEReasoningBank.getStats()` only read in-memory counters, which reset to
+  zero on every hook subprocess start. Live DBs with 1,900+ routing rows
+  and 270+ learning outcomes all reported as 0. Now falls back to
+  aggregated DB totals when the in-memory counters are zero. Live verify:
+  `routingRequests: 1904, avgRoutingConfidence: 0.396, learningOutcomes:
+  272, patternSuccessRate: 0.75`.
+
+- **Patterns never promoted from `short-term` to `long-term`** (#455) —
+  `recordOutcome()` runs with a synthetic `task:agent:taskId` pattern ID
+  that never matches `qe_patterns.id`, so the promotion check was always
+  skipped. The bridge loop in `persistTaskOutcome` updates the real pattern
+  IDs but had no inline promotion check. Patterns crossed
+  `successful_uses≥3 / success_rate≥0.7 / confidence≥0.6` and stayed pinned
+  at short-term forever. Added a guarded UPDATE inside the bridge loop.
+
+- **Dream cycles wrote insights but never applied them** (#456) — hook-fired
+  dreams called `engine.dream()` and closed the engine without invoking
+  `applyInsight()`. `DreamScheduler.autoApplyInsights()` wires this in the
+  daemon path; the hook path had no equivalent. Reporter saw 378 unapplied
+  insights vs. 9 applied. Now iterates `result.insights` and applies each
+  `actionable && confidenceScore ≥ 0.5` after `dream()` returns.
+
+- **Q-learning router couldn't differentiate per agent** (#460) —
+  `--agent "$TOOL_RESULT_agent_id"` arrived empty (Claude Code doesn't
+  expose that env var in PostToolUse), so every `rl_q_values` row landed
+  under `action_key='unknown'`. Now falls back to the pre-task bridge's
+  recommended agent when `--agent` is empty, while still respecting an
+  explicit user override.
+
+- **Concurrent hooks triggered overlapping dream cycles that died on
+  `database is locked`** (#461) — multiple subprocesses saw the same stale
+  `lastDreamTime`, all started ~10s cycles, and ~35% failed on the WAL
+  writer (`busy_timeout` only serializes sequential contention, not
+  simultaneous writers). Added a `dream_cycles` peek before opening the
+  engine: if a `status='running'` row exists in the last 60s, bail out
+  with `reason='already-running'`. Fail-open.
+
+- **`patterns.rvf` accumulated orphan vectors across upgrades** (#462) —
+  upgrade workflows rewrote `qe_patterns` via `INSERT OR REPLACE` without
+  calling `RvfPatternStore.delete()` on the old IDs. Ghost vectors won
+  cosine-similarity matches and routed to non-existent IDs, so
+  `getPattern()` returned null and writes failed silently. Reporter saw
+  24 RVF vectors vs. 16 DB rows. `initialize()` now diffs the RVF idmap
+  against the DB and deletes orphans on every cold start.
+
+- **`experience_applications.tokens_saved` was hardcoded to 0** (#463) —
+  the learning-ROI column was permanently useless across every post-task
+  invocation. Replaced the literal 0 with `Math.round(qualityScore * 100)`,
+  scaling the existing 6-dim outcome quality (0.335 worst-case to 0.675
+  best-case) into a non-trivial 34-68 signal until a real per-task
+  token-delta calculation is wired in.
+
+- **High-quality `cli-hook` experiences blanket-excluded from
+  consolidation** (#464) — issue #348 had filtered out
+  `agent='cli-hook'` rows to keep low-quality Bash telemetry
+  (quality ~0.40) out of the pipeline. But post-edit experiences are also
+  tagged `agent='cli-hook'` with quality ~0.75 and success_rate ~1.0,
+  and they're the dominant share. The `HAVING avg_quality≥0.5 AND
+  success_rate≥0.6` clause already filters by quality — dropping the
+  over-broad agent-name filter so real usage produces patterns again.
+
+- **Stale `routing_outcomes` sentinels inverted the quality metric** (#465)
+  — sessions that terminated without firing `Stop` (compact, kill, IDE
+  crash) left their sentinels at `quality_score=-1` forever, and newer
+  sessions kept pre-empting them in `ORDER BY DESC` so the LIMIT-1 close
+  never reached them. Reporter saw 122/149 rows stuck at -1, inverting
+  `AVG(quality_score)` from a real +0.666 to an observed -0.717. `post-route`
+  now runs a second sweep UPDATE on sentinels older than 5 minutes, tagged
+  with `error='stale-sentinel'` for filterability.
+
+### Closed as duplicates
+
+- #457 (dup of #454) — getStats DB aggregation fallback
+- #458 (dup of #455) — bridge-loop pattern promotion
+- #459 (dup of #456) — dream insight auto-apply
+
+### Security
+
+- **Patched 11 Dependabot alerts** — `@protobufjs/utf8` and OpenTelemetry
+  bumps merged from main (#476).
+
 ## [3.9.25] - 2026-05-12
 
 **Fixes the route sentinel that `routing_outcomes` never closed.** `route` hooks

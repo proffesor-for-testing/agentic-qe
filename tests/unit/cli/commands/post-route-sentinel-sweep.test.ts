@@ -182,28 +182,32 @@ describe('post-route sweeps stale sentinels (#465)', () => {
   });
 
   it('skips pre-task sentinels (task_json LIKE %"taskId"%) — those are owned by post-task', async () => {
-    // Pre-task sentinel: task_json carries `"taskId"`. The LIMIT-1 close
-    // discriminator filters these out — but the stale sweep does NOT
-    // filter by taskId because pre-task sentinels are post-task's
-    // responsibility to close (different lifecycle). However, if they
-    // genuinely become orphaned (post-task never fired), the sweep is
-    // still the right place to clean them up. Document the current
-    // behavior: the LIMIT-1 close skips them; the sweep does NOT.
-    insertSentinel(db, 'pre-task-sentinel', "datetime('now', '-10 seconds')", '{"taskId":"abc"}');
+    // Pre-task sentinels carry "taskId" in task_json and are owned by
+    // post-task / updateRoutingOutcomeQuality. The discriminator
+    // `task_json NOT LIKE '%"taskId"%'` is applied to BOTH the LIMIT-1
+    // close AND the stale sweep, so even a pre-task sentinel that's been
+    // sitting around for hours stays untouched here. This mirrors the
+    // symmetric ownership split established in #451.
+    insertSentinel(db, 'pre-task-old', "datetime('now', '-1 hour')", '{"taskId":"abc"}');
+    insertSentinel(db, 'pre-task-fresh', "datetime('now', '-10 seconds')", '{"taskId":"xyz"}');
     insertSentinel(db, 'fresh-route', "datetime('now', '-5 seconds')");
 
     await runPostRoute(true);
 
-    // The route sentinel should be resolved by LIMIT-1
+    // The route sentinel resolves via LIMIT-1
     const fresh = db
       .prepare(`SELECT quality_score FROM routing_outcomes WHERE id = 'fresh-route'`)
       .get() as { quality_score: number };
     expect(fresh.quality_score).toBeCloseTo(0.675, 5);
 
-    // The pre-task sentinel is still at -1 (too new for sweep, skipped by LIMIT-1)
-    const preTask = db
-      .prepare(`SELECT quality_score FROM routing_outcomes WHERE id = 'pre-task-sentinel'`)
-      .get() as { quality_score: number };
-    expect(preTask.quality_score).toBe(-1);
+    // Both pre-task sentinels stay at -1 — old one rejected by sweep
+    // discriminator, fresh one rejected by LIMIT-1 discriminator.
+    const preTasks = db
+      .prepare(`SELECT id, quality_score, error FROM routing_outcomes WHERE id LIKE 'pre-task-%'`)
+      .all() as Array<{ id: string; quality_score: number; error: string | null }>;
+    for (const row of preTasks) {
+      expect(row.quality_score).toBe(-1);
+      expect(row.error).not.toBe('stale-sentinel');
+    }
   });
 });

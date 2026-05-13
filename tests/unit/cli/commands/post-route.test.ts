@@ -140,6 +140,10 @@ describe('post-route (issue #451)', () => {
   }
 
   it('closes the most-recent route sentinel and leaves pre-task sentinels alone', async () => {
+    // All three rows are seeded with dates >5 minutes in the past, so #465's
+    // stale-sweep is active. The route sentinels are owned by post-route and
+    // both close via the sweep + LIMIT-1; pre-task sentinels are isolated
+    // from both passes by the `task_json NOT LIKE '%"taskId"%'` discriminator.
     insertRouteSentinel(db, 'route-old', '2026-05-12 10:00:00');
     insertPreTaskSentinel(db, 'pre-task-mid', '2026-05-12 10:01:00');
     insertRouteSentinel(db, 'route-new', '2026-05-12 10:02:00');
@@ -152,13 +156,21 @@ describe('post-route (issue #451)', () => {
     expect(out).toMatchObject({ success: true, resolved: true, turnSuccess: true });
     expect(out.qualityScore).toBeCloseTo(0.675, 5);
 
-    const rows = db.prepare('SELECT id, success, quality_score FROM routing_outcomes ORDER BY id').all() as Array<{ id: string; success: number; quality_score: number }>;
+    const rows = db.prepare('SELECT id, success, quality_score, error FROM routing_outcomes ORDER BY id').all() as Array<{ id: string; success: number; quality_score: number; error: string | null }>;
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
 
+    // LIMIT-1 path: most-recent route sentinel closed with the turn's qualityScore.
     expect(byId['route-new']).toMatchObject({ success: 1 });
     expect(byId['route-new'].quality_score).toBeCloseTo(0.675, 5);
+    expect(byId['route-new'].error).toBeNull();
 
-    expect(byId['route-old']).toMatchObject({ success: 0, quality_score: -1 });
+    // #465 sweep: older route sentinels close with the conservative base
+    // score and stale-sentinel tag instead of staying at -1 forever.
+    expect(byId['route-old']).toMatchObject({ success: 0, error: 'stale-sentinel' });
+    expect(byId['route-old'].quality_score).toBeCloseTo(0.325, 5);
+
+    // Pre-task sentinels are NEVER touched by post-route — discriminator gates
+    // both LIMIT-1 close and the stale sweep.
     expect(byId['pre-task-mid']).toMatchObject({ success: 0, quality_score: -1 });
   });
 
