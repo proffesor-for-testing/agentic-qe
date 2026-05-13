@@ -39,6 +39,8 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
   triggered: boolean;
   reason?: string;
   insightsGenerated?: number;
+  /** Number of insights that were applied to qe_patterns (#456). */
+  insightsApplied?: number;
 }> {
   try {
     // Load persisted dream state
@@ -103,6 +105,26 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
 
     const result = await engine.dream(10000);
 
+    // Issue #456: apply actionable insights inline so the hook path doesn't
+    // leave the backlog growing forever. DreamScheduler.autoApplyInsights()
+    // wires this in the daemon path, but checkAndTriggerDream is the
+    // hook-driven path and has no scheduler — without this block, every
+    // hook-fired dream cycle writes insights with applied=0 and they
+    // accumulate indefinitely (#456 evidence: 378 unapplied / 9 applied).
+    // Threshold matches DreamSchedulerConfig.insightConfidenceThreshold
+    // default (0.5) and InsightGenerator's `actionable` gate.
+    let insightsApplied = 0;
+    try {
+      for (const insight of result.insights) {
+        if (insight.actionable && insight.confidenceScore >= 0.5) {
+          const applyResult = await engine.applyInsight(insight.id);
+          if (applyResult.success) insightsApplied++;
+        }
+      }
+    } catch (applyErr) {
+      console.error(chalk.dim(`[hooks] Dream apply: ${applyErr instanceof Error ? applyErr.message : 'unknown'}`));
+    }
+
     // Update state
     dreamState.lastDreamTime = new Date().toISOString();
     dreamState.experienceCount = 0;
@@ -115,6 +137,7 @@ export async function checkAndTriggerDream(memoryBackend: MemoryBackend): Promis
       triggered: true,
       reason,
       insightsGenerated: result.insights.length,
+      insightsApplied,
     };
   } catch (error) {
     console.error(chalk.dim(`[hooks] Dream trigger failed: ${error instanceof Error ? error.message : 'unknown'}`));

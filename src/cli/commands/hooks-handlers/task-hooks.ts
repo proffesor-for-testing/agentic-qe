@@ -295,7 +295,12 @@ export function registerTaskHooks(hooks: Command): void {
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
-        let dreamResult: { triggered: boolean; reason?: string; insightsGenerated?: number } = { triggered: false };
+        let dreamResult: {
+          triggered: boolean;
+          reason?: string;
+          insightsGenerated?: number;
+          insightsApplied?: number;
+        } = { triggered: false };
 
         try {
           // Initialize system (creates ReasoningBank and HookRegistry)
@@ -391,6 +396,7 @@ export function registerTaskHooks(hooks: Command): void {
             dreamTriggered: dreamResult.triggered,
             dreamReason: dreamResult.reason,
             dreamInsights: dreamResult.insightsGenerated,
+            dreamInsightsApplied: dreamResult.insightsApplied,
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
@@ -399,7 +405,11 @@ export function registerTaskHooks(hooks: Command): void {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
           }
           if (dreamResult.triggered) {
-            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights`));
+            const appliedSuffix =
+              typeof dreamResult.insightsApplied === 'number'
+                ? `, ${dreamResult.insightsApplied} applied`
+                : '';
+            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights${appliedSuffix}`));
           }
         }
 
