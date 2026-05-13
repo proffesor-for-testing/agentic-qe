@@ -139,6 +139,60 @@ export class RvfPatternStore implements IPatternStore {
         // SQLite auto-attach is best-effort
       }
     }
+
+    // Issue #462: purge orphan vectors that survived in patterns.rvf when an
+    // upgrade workflow rewrote qe_patterns via INSERT OR REPLACE without
+    // calling RvfPatternStore.delete() on the old IDs. Ghost vectors win
+    // cosine-similarity matches, route to non-existent pattern IDs, and
+    // every learning write fails silently. Run once on init.
+    await this.purgeOrphanedVectors();
+  }
+
+  /**
+   * Compare the RVF vector count with the SQLite pattern count; if RVF has
+   * more rows, read the idmap.json and delete any vector IDs that no longer
+   * have a matching qe_patterns row.
+   *
+   * Fail-open: any error in the purge path is swallowed so a stale or
+   * corrupted idmap can't keep the store from initializing (#462).
+   */
+  private async purgeOrphanedVectors(): Promise<void> {
+    if (!this.adapter || !this.sqliteStore) return;
+    try {
+      const rvfCount = this.adapter.status()?.totalVectors ?? 0;
+      const dbCount = this.sqliteStore.getStats()?.totalPatterns ?? 0;
+      if (rvfCount <= dbCount) return;
+
+      const { readFileSync, existsSync } = await import('node:fs');
+      const idmapPath = `${this.rvfPath}.idmap.json`;
+      if (!existsSync(idmapPath)) return;
+
+      const idmap = JSON.parse(readFileSync(idmapPath, 'utf-8')) as {
+        entries?: Array<[string, number]>;
+      };
+      const rvfIds = new Set<string>(
+        (idmap.entries ?? [])
+          .map((e) => (Array.isArray(e) ? e[0] : undefined))
+          .filter((id): id is string => typeof id === 'string'),
+      );
+
+      const dbIds = new Set<string>(
+        this.sqliteStore.getPatterns({ limit: 10_000 }).map((p) => p.id),
+      );
+
+      const orphans = [...rvfIds].filter((id) => !dbIds.has(id));
+      if (orphans.length === 0) return;
+
+      this.adapter.delete(orphans);
+      console.log(
+        `[RvfPatternStore] Removed ${orphans.length} ghost vectors (index ${rvfCount} > DB ${dbCount})`,
+      );
+    } catch (error) {
+      // fail-open: a stale idmap or read error must not block initialization
+      console.warn(
+        `[RvfPatternStore] orphan purge skipped: ${toErrorMessage(error)}`,
+      );
+    }
   }
 
   async dispose(): Promise<void> {
