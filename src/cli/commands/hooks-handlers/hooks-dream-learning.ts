@@ -386,7 +386,14 @@ export async function persistTaskOutcome(opts: {
       'cli-hook-post-task',
     );
 
-    // 2. Base experience_applications row
+    // 2. Base experience_applications row.
+    //
+    // Issue #463: tokens_saved was hardcoded to 0 on every row, so the
+    // learning-ROI column was permanently useless. qualityScore is already
+    // computed above and ranges 0.34 (failure+slow) to 0.68 (success+fast).
+    // Scale by 100 as a proxy until a real per-task token-delta calculation
+    // is wired in — gives a non-trivial 34-68 signal that downstream
+    // analytics can reason about.
     db.prepare(`
       INSERT INTO experience_applications
         (id, experience_id, task, success, tokens_saved, feedback, applied_at)
@@ -396,7 +403,7 @@ export async function persistTaskOutcome(opts: {
       experienceId,
       taskField,
       opts.success ? 1 : 0,
-      0,
+      Math.round(qualityScore * 100),
       `[Patch 060] post-task outcome: ${opts.success ? 'success' : 'failure'}`,
     );
 
