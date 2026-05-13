@@ -390,6 +390,27 @@ export async function persistTaskOutcome(opts: {
           WHERE id = ?
         `);
         const getPatternConfidence = db.prepare(`SELECT confidence FROM qe_patterns WHERE id = ?`);
+        // Issue #455: recordOutcome() is called with a synthetic
+        // `task:agent:taskId` patternId that never matches qe_patterns.id, so
+        // checkPatternPromotionWithCoherence() is skipped for the real UUIDs
+        // updated here. Without an inline promotion check, short-term patterns
+        // that cross the thresholds (successful_uses ≥ 3, success_rate ≥ 0.7,
+        // confidence ≥ 0.6) stay short-term forever — qe_patterns.long-term
+        // count never grows past zero.
+        const promotionSelectStmt = db.prepare(`
+          SELECT tier, successful_uses, success_rate, confidence
+          FROM qe_patterns
+          WHERE id = ?
+        `);
+        const promotionUpdateStmt = db.prepare(`
+          UPDATE qe_patterns
+          SET tier = 'long-term', updated_at = datetime('now')
+          WHERE id = ?
+            AND tier = 'short-term'
+            AND successful_uses >= 3
+            AND success_rate >= 0.7
+            AND confidence >= 0.6
+        `);
         for (const patternId of bridge.selectedPatternIds) {
           insertApp.run(
             `app-${Date.now()}-${randomUUID().slice(0, 8)}`,
@@ -404,6 +425,22 @@ export async function persistTaskOutcome(opts: {
             if (row) {
               const successInc = opts.success ? 1 : 0;
               updatePatternUsage.run(successInc, successInc, row.confidence, successInc, patternId);
+            }
+          } catch { /* fail-soft per pattern */ }
+          // Issue #455: re-read post-UPDATE state and promote if thresholds met.
+          // Guarded WHERE clause makes the UPDATE idempotent and no-op for
+          // already-long-term rows or rows below threshold.
+          try {
+            const pm = promotionSelectStmt.get(patternId) as
+              | { tier: string; successful_uses: number; success_rate: number; confidence: number }
+              | undefined;
+            if (
+              pm?.tier === 'short-term' &&
+              pm.successful_uses >= 3 &&
+              pm.success_rate >= 0.7 &&
+              pm.confidence >= 0.6
+            ) {
+              promotionUpdateStmt.run(patternId);
             }
           } catch { /* fail-soft per pattern */ }
         }
