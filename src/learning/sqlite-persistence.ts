@@ -787,6 +787,80 @@ export class SQLitePatternStore {
   }
 
   /**
+   * Aggregate outcome counters used by QEReasoningBank.getStats() as a fallback
+   * when the in-memory `this.stats` object is zero — every hook subprocess
+   * starts with a fresh counter, so without this fallback observability is
+   * always blank (#454).
+   *
+   * routing_outcomes and qe_pattern_usage live in the same unified memory.db
+   * as qe_patterns. avgConfidence/avgSuccessRate return 0 when the source
+   * tables are empty rather than NaN.
+   */
+  getAggregateOutcomeStats(): {
+    routingRequests: number;
+    avgRoutingConfidence: number;
+    successfulRoutings: number;
+    learningOutcomes: number;
+    successfulOutcomes: number;
+    avgPatternSuccessRate: number;
+  } {
+    const empty = {
+      routingRequests: 0,
+      avgRoutingConfidence: 0,
+      successfulRoutings: 0,
+      learningOutcomes: 0,
+      successfulOutcomes: 0,
+      avgPatternSuccessRate: 0,
+    };
+    if (!this.db) return empty;
+    const safeGet = <T>(sql: string): T | undefined => {
+      try {
+        return this.db!.prepare(sql).get() as T | undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
+    // routing_outcomes carries (success, quality_score) per closed turn.
+    // Sentinels still have quality_score = -1, so filter to closed rows.
+    const routing = safeGet<{
+      total: number;
+      closed: number;
+      avg_q: number | null;
+      succ: number;
+    }>(`
+      SELECT
+        COUNT(*) AS total,
+        COUNT(CASE WHEN quality_score >= 0 THEN 1 END) AS closed,
+        AVG(CASE WHEN quality_score >= 0 THEN quality_score END) AS avg_q,
+        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
+      FROM routing_outcomes
+    `);
+
+    const usage = safeGet<{ total: number; succ: number }>(`
+      SELECT
+        COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) AS succ
+      FROM qe_pattern_usage
+    `);
+
+    const patternAvg = safeGet<{ avg_sr: number | null }>(`
+      SELECT AVG(success_rate) AS avg_sr
+      FROM qe_patterns
+      WHERE usage_count > 0
+    `);
+
+    return {
+      routingRequests: routing?.total ?? 0,
+      avgRoutingConfidence: routing?.avg_q ?? 0,
+      successfulRoutings: routing?.succ ?? 0,
+      learningOutcomes: usage?.total ?? 0,
+      successfulOutcomes: usage?.succ ?? 0,
+      avgPatternSuccessRate: patternAvg?.avg_sr ?? 0,
+    };
+  }
+
+  /**
    * Check if there's any historical data (embeddings, usage, trajectories)
    * even if qe_patterns is empty. Used to detect data loss vs fresh database.
    */
