@@ -164,8 +164,15 @@ export interface PromotionBlockedEvent {
  * QEReasoningBank interface
  */
 export interface IQEReasoningBank {
-  /** Initialize the reasoning bank */
-  initialize(): Promise<void>;
+  /**
+   * Initialize the reasoning bank.
+   *
+   * Pass `signal` to bound long-running init steps (pattern bootstrap,
+   * cross-domain seeding). When the signal is aborted, every awaited step
+   * checks it via `throwIfAborted()` so the work stops promptly instead of
+   * leaking past a caller-side timeout.
+   */
+  initialize(options?: { signal?: AbortSignal }): Promise<void>;
 
   /** Store a new pattern */
   storePattern(options: CreateQEPatternOptions): Promise<Result<QEPattern>>;
@@ -201,7 +208,7 @@ export interface IQEReasoningBank {
   embed(text: string): Promise<number[]>;
 
   /** Seed cross-domain patterns by transferring from populated domains to related ones */
-  seedCrossDomainPatterns(): Promise<{ transferred: number; skipped: number }>;
+  seedCrossDomainPatterns(signal?: AbortSignal): Promise<{ transferred: number; skipped: number }>;
 
   /** Get statistics */
   getStats(): Promise<QEReasoningBankStats>;

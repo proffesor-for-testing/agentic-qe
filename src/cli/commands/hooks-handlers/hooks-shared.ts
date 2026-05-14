@@ -121,14 +121,25 @@ export async function initializeHooksSystem(): Promise<void> {
       useONNXEmbeddings: true, // Use real transformer embeddings (384-dim)
     }, state.coherenceService ?? undefined);
 
-    // Initialize with timeout
+    // Initialize with cancellable timeout (issue #478).
+    //
+    // We can't use Promise.race() to bound initialize() because the loser
+    // promise keeps running — and on a slow init the leaked promise would
+    // continue appending to patterns.rvf indefinitely (downstream report:
+    // 43.8 GB in 29 minutes). Instead, drive cancellation through an
+    // AbortSignal that initialize() checks between every step, so the
+    // work actually stops when the deadline fires.
     const initTimeout = 10000; // 10 seconds
-    const initPromise = state.reasoningBank.initialize();
-    const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('ReasoningBank init timeout')), initTimeout)
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(new Error('ReasoningBank init timeout')),
+      initTimeout
     );
-
-    await Promise.race([initPromise, timeoutPromise]);
+    try {
+      await state.reasoningBank.initialize({ signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
 
     // Wire RVF dual-writer for vector replication (optional, best-effort)
     try {
@@ -223,12 +234,32 @@ export async function createHybridBackendWithTimeout(dataDir: string): Promise<M
     defaultNamespace: 'qe-patterns',
   });
 
+  // HybridMemoryBackend.initialize() does not accept an AbortSignal yet
+  // (separate refactor). Use Promise.race for the timeout, but if the
+  // timeout wins, dispose the backend once init resolves so we don't leak
+  // SQLite/WAL handles in the background (issue #478 family).
+  let timedOut = false;
   const initPromise = backend.initialize();
   const timeoutPromise = new Promise<void>((_, reject) =>
-    setTimeout(() => reject(new Error('Backend init timeout')), timeoutMs)
+    setTimeout(() => {
+      timedOut = true;
+      reject(new Error('Backend init timeout'));
+    }, timeoutMs)
   );
 
-  await Promise.race([initPromise, timeoutPromise]);
+  try {
+    await Promise.race([initPromise, timeoutPromise]);
+  } catch (err) {
+    if (timedOut) {
+      // Tear down the backend after the leaked init completes so its
+      // SQLite connections, WAL handles, and pool entries are released.
+      // .catch() prevents "unhandled rejection" if dispose itself throws.
+      void initPromise
+        .then(() => backend.dispose())
+        .catch(() => undefined);
+    }
+    throw err;
+  }
   return backend;
 }
 

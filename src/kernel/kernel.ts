@@ -30,6 +30,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { PluginLifecycleManager } from '../plugins/lifecycle';
 import { PluginCache } from '../plugins/cache';
+import { CapturedExperienceBridge } from '../bridge/captured-experience-bridge.js';
 
 // Import domain plugin factories
 import { createTestGenerationPlugin } from '../domains/test-generation/plugin';
@@ -96,6 +97,10 @@ export class QEKernelImpl implements QEKernel {
 
   // ADR-062: Loop detection tracker
   private _loopTracker: ToolCallSignatureTracker;
+
+  // Issue #479: drains captured_experiences into the eventBus so hook-driven
+  // activity reaches the 13 domain plugins' subscribeToEvents() handlers.
+  private _experienceBridge?: CapturedExperienceBridge;
 
   constructor(config: Partial<KernelConfig> = {}) {
     this._config = { ...DEFAULT_CONFIG, ...config };
@@ -285,10 +290,34 @@ export class QEKernelImpl implements QEKernel {
       // Migration coordinator is best-effort — don't block kernel startup
     }
 
+    // Issue #479: start the captured-experience bridge so hook-driven
+    // activity (written to captured_experiences SQLite by short-lived
+    // hook subprocesses) reaches the domain plugins' eventBus handlers.
+    // Best-effort — never block kernel startup on bridge failure.
+    try {
+      this._experienceBridge = new CapturedExperienceBridge(
+        this._eventBus,
+        this._memory
+      );
+      await this._experienceBridge.start();
+    } catch (err) {
+      console.warn(
+        '[QEKernel] CapturedExperienceBridge failed to start:',
+        err instanceof Error ? err.message : err
+      );
+      this._experienceBridge = undefined;
+    }
+
     this._initialized = true;
   }
 
   async dispose(): Promise<void> {
+    // Stop the bridge first so it doesn't try to publish to a disposed bus.
+    if (this._experienceBridge) {
+      await this._experienceBridge.stop();
+      this._experienceBridge = undefined;
+    }
+
     // Dispose in reverse order of initialization
     await (this._plugins as DefaultPluginLoader).disposeAll();
     await this._coordinator.dispose();

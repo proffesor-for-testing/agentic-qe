@@ -220,6 +220,12 @@ export interface SeedingDeps {
     options: Record<string, unknown>,
   ) => Promise<Result<QEPattern>>;
   patternStore: IPatternStore;
+  /**
+   * Optional cancellation signal. Checked before each store/search so that
+   * an aborted init (issue #478) stops appending to the pattern store
+   * instead of running to completion in the background.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -229,6 +235,8 @@ export interface SeedingDeps {
 export async function seedCrossDomainPatterns(
   deps: SeedingDeps,
 ): Promise<{ transferred: number; skipped: number }> {
+  const { signal } = deps;
+  signal?.throwIfAborted();
   const stats = await deps.patternStore.getStats();
   let transferred = 0;
   let skipped = 0;
@@ -236,6 +244,7 @@ export async function seedCrossDomainPatterns(
   for (const [sourceDomainStr, targetDomains] of Object.entries(
     RELATED_DOMAINS,
   )) {
+    signal?.throwIfAborted();
     const sourceDomain = sourceDomainStr as QEDomain;
     const sourceCount = stats.byDomain[sourceDomain] || 0;
     if (sourceCount === 0) continue;
@@ -248,6 +257,7 @@ export async function seedCrossDomainPatterns(
     if (!sourceResult.success) continue;
 
     for (const targetDomain of targetDomains) {
+      signal?.throwIfAborted();
       const targetCount = stats.byDomain[targetDomain] || 0;
       if (targetCount >= sourceCount) {
         skipped++;
@@ -255,6 +265,7 @@ export async function seedCrossDomainPatterns(
       }
 
       for (const { pattern: sourcePattern } of sourceResult.value) {
+        signal?.throwIfAborted();
         const existingCheck = await deps.searchPatterns(sourcePattern.name, {
           domain: targetDomain,
           limit: 1,
