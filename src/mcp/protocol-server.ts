@@ -162,7 +162,38 @@ interface ToolEntry {
 // MCP Protocol Server
 // ============================================================================
 
+/**
+ * Issue #473: parse the MCP tool name into a (domain, action) pair so the
+ * session cache can compute a deterministic fingerprint that's stable across
+ * naming styles. Handles both flat (`memory_query`) and slash (`qe/embeddings/search`).
+ */
+function parseToolDomainAction(name: string): { domain: string; action: string } {
+  if (name.includes('/')) {
+    const idx = name.lastIndexOf('/');
+    return { domain: name.slice(0, idx) || 'mcp', action: name.slice(idx + 1) };
+  }
+  const us = name.indexOf('_');
+  if (us > 0) {
+    return { domain: name.slice(0, us), action: name.slice(us + 1) };
+  }
+  return { domain: 'mcp', action: name };
+}
+
 export class MCPProtocolServer {
+  /**
+   * Issue #473: Decide if a tool result is "successful enough" to cache.
+   * Refuse to cache anything that looks like a failure so we don't serve
+   * errors back to future callers.
+   */
+  private isSuccessfulResult(result: unknown): boolean {
+    if (!result || typeof result !== 'object') return false;
+    const r = result as Record<string, unknown>;
+    if (r.isError === true) return false;
+    if (r.success === false) return false;
+    if (typeof r.error === 'string' && r.error.length > 0) return false;
+    return true;
+  }
+
   private readonly config: Required<MCPServerConfig>;
   private readonly transport: StdioTransport;
   private readonly registry: ToolRegistry;
@@ -576,11 +607,67 @@ export class MCPProtocolServer {
       // IMP-00: Execute pre-tool-call middleware
       const processedCtx = await this.middlewareChain.executePreHooks(ctx);
 
+      // Issue #473: Session-cache lookup for read-only tools.
+      // Concurrency-safe tools are idempotent in practice — same input yields
+      // the same output, so we can short-circuit repeated calls with an O(1)
+      // fingerprint lookup. Tools without isConcurrencySafe (writes, scans,
+      // executions) always re-run.
+      const cacheable = tool.definition.isConcurrencySafe === true;
+      let cacheFingerprint: string | null = null;
+      if (cacheable && process.env.AQE_SESSION_CACHE !== 'off') {
+        try {
+          const { getSessionCache } = await import('../optimization/session-cache.js');
+          const cache = getSessionCache();
+          const { domain, action } = parseToolDomainAction(name);
+          cacheFingerprint = cache.computeFingerprint(domain, action, processedCtx.params || {});
+          const hit = cache.get(cacheFingerprint);
+          if (hit) {
+            // Cache hit — return the stored result without running the handler.
+            const cachedText = JSON.stringify(hit.result, null, 2);
+            this.eventAdapter.adapt({
+              success: true,
+              data: hit.result,
+              metadata: {
+                executionTime: performance.now() - startTime,
+                timestamp: new Date().toISOString(),
+                requestId: stepId,
+                toolName: name,
+              },
+            } as AQEToolResult);
+            success = true;
+            return {
+              content: [{
+                type: 'text',
+                text: loopSteeringPrefix ? loopSteeringPrefix + cachedText : cachedText,
+              }],
+            };
+          }
+        } catch {
+          // Cache failure must never break tool execution.
+          cacheFingerprint = null;
+        }
+      }
+
       const result = await tool.handler(processedCtx.params);
       success = true;
 
       // IMP-00: Execute post-tool-result middleware
       const processedResult = await this.middlewareChain.executePostHooks(processedCtx, result);
+
+      // Issue #473: Store successful results for future cache hits.
+      // Only cache successful results — error objects shouldn't be served back.
+      if (cacheable && cacheFingerprint && this.isSuccessfulResult(processedResult)) {
+        try {
+          const { getSessionCache } = await import('../optimization/session-cache.js');
+          const cache = getSessionCache();
+          const { domain, action } = parseToolDomainAction(name);
+          // Estimate tokens conservatively by length-of-JSON / 4 chars-per-token.
+          const tokenEstimate = Math.max(50, Math.floor(JSON.stringify(processedResult).length / 4));
+          cache.set(cacheFingerprint, domain, action, processedResult as Record<string, unknown>, tokenEstimate);
+        } catch {
+          // never block on cache write
+        }
+      }
 
       // Emit AG-UI result event for tool completion
       this.eventAdapter.adapt({
@@ -902,9 +989,9 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
           { name: 'filePath', type: 'string', description: 'Original source file path (used as the import target in generated tests; if omitted, generated tests reference the temp source)' },
-          { name: 'language', type: 'string', description: 'Programming language' },
+          { name: 'language', type: 'string', description: 'Programming language (one of: typescript, javascript, python, java, csharp, go, rust, swift, kotlin, dart). Issue #474.', enum: ['typescript', 'javascript', 'python', 'java', 'csharp', 'go', 'rust', 'swift', 'kotlin', 'dart'] },
           { name: 'testType', type: 'string', description: 'Type of tests', enum: ['unit', 'integration', 'e2e'] },
-          { name: 'framework', type: 'string', description: 'Test framework to use', enum: ['jest', 'vitest', 'mocha', 'pytest', 'node-test'], default: 'vitest' },
+          { name: 'framework', type: 'string', description: 'Test framework to use. If omitted, derived from `language`.', enum: ['jest', 'vitest', 'mocha', 'pytest', 'node-test', 'junit5', 'testng', 'xunit', 'nunit', 'go-test', 'rust-test', 'swift-testing', 'xctest', 'kotlin-junit', 'flutter-test', 'jest-rn'] },
           { name: 'coverageGoal', type: 'number', description: 'Target coverage percentage (0-100)', default: 80 },
           { name: 'aiEnhancement', type: 'boolean', description: 'Enable AI-powered enhancement', default: true },
           { name: 'detectAntiPatterns', type: 'boolean', description: 'Detect and report anti-patterns', default: false },

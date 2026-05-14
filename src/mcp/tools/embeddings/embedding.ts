@@ -379,10 +379,13 @@ export class EmbeddingSearchTool extends MCPToolBase<
     try {
       const adapter = await getEmbeddingAdapter();
 
+      // Issue #469: previously used `||` which turned an explicit
+      // `threshold: 0` into the default 0.5. Use `??` so callers can
+      // legitimately disable the filter with 0.
       const results = await adapter.searchByText(params.query, {
         metric: SimilarityMetric.COSINE,
-        topK: params.topK || 10,
-        threshold: params.threshold || 0.5,
+        topK: params.topK ?? 10,
+        threshold: params.threshold ?? 0.5,
         namespace: params.namespace,
       });
 

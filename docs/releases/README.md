@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.30](v3.9.30.md) | 2026-05-14 | Six MCP fixes: ESM __dirname polyfill, real ONNX embeddings, coherence_collapse NaN guard, default test phases, session cache wired, test_generate language validation (#467,#469,#470,#472,#473,#474) |
 | [v3.9.29](v3.9.29.md) | 2026-05-14 | Hotfix: bridge publishes learning.ExperienceCaptured with the canonical nested payload shape so handler destructure resolves and recordExperience runs (#482 round 3) |
 | [v3.9.28](v3.9.28.md) | 2026-05-14 | Hotfix: bridge eagerly loads domain plugins before starting so subscribers are wired when the first drain publishes (#482) |
 | [v3.9.27](v3.9.27.md) | 2026-05-14 | Two architectural fixes: AbortSignal bounds session-start init (no more 43 GB patterns.rvf leak, #478), CapturedExperienceBridge wires hook activity to domain plugins (#479) |

@@ -7,6 +7,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type {
   QualityCriteriaServiceConfig,
   QualityCriteriaInput,
@@ -17,6 +18,9 @@ import type {
   AgentInvocation,
 } from './types.js';
 import { HTSM_CATEGORIES, NEVER_OMIT_CATEGORIES } from './types.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // ============================================================================
 // Service Interface

@@ -41,7 +41,7 @@ import {
   detectCIEnvironment,
   type GitHubActionsConfig,
 } from './cicd/github-actions';
-import type { TestPhase, PhaseResult, CIEnvironment } from './interfaces';
+import { DEFAULT_TEST_PHASES, type TestPhase, type PhaseResult, type CIEnvironment } from './interfaces';
 
 // Type imports
 type MemoryBackend = import('../kernel/interfaces').MemoryBackend;
@@ -188,10 +188,15 @@ export class TestSchedulingPipeline {
       impactAnalyzer, // INTEGRATION: Pass analyzer to selector
     });
 
-    // 5. Create PhaseScheduler with executor
+    // 5. Create PhaseScheduler with executor.
+    // Fall back to DEFAULT_TEST_PHASES when callers (e.g. the MCP wrapper)
+    // don't provide an explicit phase list — otherwise the scheduler
+    // would crash with "this.config.phases is not iterable" (issue #472).
     const scheduler = createPhaseScheduler(executor, {
       ...config.scheduler,
-      phases: config.phases,
+      phases: config.phases && config.phases.length > 0
+        ? config.phases
+        : DEFAULT_TEST_PHASES,
     });
 
     // 6. Create GitHubActionsReporter

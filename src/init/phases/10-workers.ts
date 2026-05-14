@@ -4,13 +4,17 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface WorkerRegistration {
   name: string;

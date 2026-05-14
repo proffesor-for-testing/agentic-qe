@@ -5,6 +5,62 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.30] - 2026-05-14
+
+Patch release fixing six user-reported issues across MCP tooling.
+
+### Fixed
+
+- **`__dirname is not defined` in ESM context** (#467). Several tools and
+  init phases were referencing the CommonJS `__dirname` global from inside
+  ESM modules, which crashed at first use of file-path resolution. Added
+  `fileURLToPath(import.meta.url)` polyfills in `workflow-loader.ts`,
+  `quality-criteria-service.ts`, `init/phases/07-hooks.ts`,
+  `init/phases/10-workers.ts`, `cli/commands/sync.ts`, `integrations/n8n/n8n-adapter.ts`,
+  and `integrations/n8n/agent-factory.ts`. `qe_requirements_quality-criteria`
+  and `qe_workflows_browser-load` now succeed instead of crashing.
+
+- **`qe_embeddings_search` returned 0 results, similarity scores near zero** (#469).
+  The ONNX embedding generator was using a random-vector mock, so identical
+  text produced different vectors each call and cosine similarity was
+  meaningless. The generator now routes through `@xenova/transformers`'
+  `all-MiniLM-L6-v2` pipeline. Semantic similarity is now correct
+  (e.g. "apple pie" vs "apple fruit pie recipe" ≈ 0.78 cosine, was -0.07).
+  Also fixed `threshold || 0.5` → `threshold ?? 0.5` so callers can
+  legitimately pass `threshold: 0` to disable the filter.
+
+- **`qe_coherence_collapse` returned contradictory output: `riskLevel: "critical"`
+  with `isAtRisk: false`** (#470). When required input fields like `health`,
+  `errorRate`, or `utilization` were missing, the heuristic computation
+  propagated NaN through the score, and `categorizeRisk(NaN)` fell through
+  to `"critical"` while `NaN >= threshold` evaluated to `false`. Now guards
+  non-finite values, defaults missing numeric fields to safe values, and
+  derives `isAtRisk` from `riskLevel` so the two can never disagree.
+
+- **`qe_tests_schedule` crashed with `this.config.phases is not iterable`** (#472).
+  The MCP wrapper didn't pass an explicit phase list, and the pipeline
+  required one. The pipeline now falls back to `DEFAULT_TEST_PHASES`
+  (unit → integration → e2e) when callers don't specify, so the tool
+  runs out of the box.
+
+- **`session_cache_stats` reported 0% hit rate even on identical repeated calls** (#473).
+  The session operation cache was implemented correctly but never wired
+  into the MCP tool dispatcher — only `TokenOptimizerService` was using it.
+  The cache is now consulted for `isConcurrencySafe` tools (read-only,
+  idempotent), and successful results are stored. Repeated identical
+  calls now hit the cache, producing measurable token savings. Can be
+  disabled via `AQE_SESSION_CACHE=off`.
+
+- **`test_generate_enhanced` accepted any `language` value but always emitted
+  JavaScript/vitest** (#474). `language: "powershell"` produced syntactically-invalid
+  JS saved as `.test.ps1`. Now validates `language` against the supported
+  set (`typescript`, `javascript`, `python`, `java`, `csharp`, `go`,
+  `rust`, `swift`, `kotlin`, `dart`) and rejects unsupported values with
+  a clear error. Auto-derives `framework` from `language` instead of
+  always defaulting to `vitest`. Rejects framework/language mismatches
+  that would produce wrong-language output. The MCP schema enum for
+  `framework` was expanded to expose all 16 generators we already ship.
+
 ## [3.9.29] - 2026-05-14
 
 Hotfix for v3.9.28 — bridge payload shape (#484).
