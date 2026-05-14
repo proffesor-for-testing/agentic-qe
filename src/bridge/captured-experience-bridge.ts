@@ -169,39 +169,75 @@ export class CapturedExperienceBridge {
 // ----------------------------------------------------------------------
 //
 // Every captured experience yields a `learning.ExperienceCaptured` event
-// (the learning-optimization domain consumes this for its replay/dream
-// pipeline). When the row's `domain` field matches a known QE domain, we
-// also emit the domain-specific event the corresponding plugin listens
-// for in `subscribeToEvents()`.
+// with the canonical nested payload shape `{ experience, reward }` that
+// the existing `LearningOptimizationCoordinator.handleExperienceCaptured`
+// (and the equivalent in `experience-capture.ts:1043`) destructures.
 //
-// Mapping is intentionally narrow: we only emit events that at least one
-// domain plugin actually subscribes to (verified at issue #479 filing).
-// Adding a new event here only makes sense after a subscriber exists.
+// Issue #484 (Jordi): an earlier draft of this bridge used a flat
+// `{ experienceId, domain, agent, task, success, quality, ... }` payload
+// that didn't match the handler's destructure (`const { experience } = payload`),
+// so the universal handler short-circuited on every event and no
+// `learning:experience:*` kv keys appeared even after subscribers were
+// loaded. Per the issue's explicit guidance, we wrap producer-side rather
+// than asking every consumer to learn the bridge's quirky shape.
+//
+// When the row's `domain` field matches a known QE domain, we ALSO emit a
+// domain-specific event in the legacy flat `basePayload` shape that the
+// existing per-domain handlers already accept (e.g. `handleTestRunCompleted`
+// reads `runId/passed/failed/duration` fields — they're undefined when fed
+// from a hook row, which means those handlers will record degenerate
+// experiences, but that path was already shipped in v3.9.27 and changing
+// its shape would break out-of-tree subscribers. Future enrichment of the
+// basePayload should add fields, not rename them).
 
 function mapRowToEvents(row: ExperienceRow): DomainEvent[] {
   const timestamp = parseTimestamp(row.completed_at);
   const correlationId = row.id;
   const events: DomainEvent[] = [];
 
-  // 1. Universal experience event — always emit.
+  // 1. Universal experience event — always emit, canonical nested shape.
+  //
+  // Build a TaskExperience-shaped object the coordinator can destructure.
+  // Field names must match `interface TaskExperience` in
+  // src/learning/experience-capture.ts. Not every field is reconstructible
+  // from a captured_experiences row — `steps` defaults to [], timestamps
+  // collapse to the `completed_at` instant — but the fields the handler
+  // actually reads (`success`, `quality`, `domain`, `agent`, `task`, `id`)
+  // round-trip cleanly.
+  const completedAtMs = timestamp.getTime();
+  const startedAtMs = completedAtMs - (row.duration_ms || 0);
+  const reward = row.success === 1 ? 1 : 0;
+
+  const experience = {
+    id: row.id,
+    task: row.task ?? '',
+    agent: row.agent ?? '',
+    domain: row.domain ?? '',
+    startedAt: startedAtMs,
+    completedAt: completedAtMs,
+    durationMs: row.duration_ms ?? 0,
+    steps: [],
+    success: row.success === 1,
+    quality: row.quality,
+    reward,
+    metadata: {
+      sourceHook: row.source ?? '',
+      bridgedAt: Date.now(),
+    },
+  };
+
   events.push(buildEvent({
     type: 'learning.ExperienceCaptured',
     source: 'learning-optimization',
     correlationId,
     timestamp,
     payload: {
-      experienceId: row.id,
-      domain: row.domain ?? '',
-      agent: row.agent ?? '',
-      task: row.task ?? '',
-      success: row.success === 1,
-      quality: row.quality,
-      durationMs: row.duration_ms,
-      sourceHook: row.source ?? '',
+      experience,
+      reward,
     },
   }));
 
-  // 2. Domain-specific event — fan out by `domain` field.
+  // 2. Domain-specific event — fan out by `domain` field, legacy flat shape.
   const domainSpecific = mapDomainSpecificEvent(row, timestamp, correlationId);
   if (domainSpecific) events.push(domainSpecific);
 
@@ -242,9 +278,6 @@ function mapDomainSpecificEvent(
       });
 
     case 'coverage-analysis':
-      // Successful coverage runs publish CoverageReportCreated;
-      // failed/incomplete runs publish CoverageGapDetected so the
-      // subscribers (code-intelligence, test-generation) can react.
       return buildEvent({
         type: row.success === 1
           ? 'coverage-analysis.CoverageReportCreated'
@@ -256,8 +289,6 @@ function mapDomainSpecificEvent(
       });
 
     case 'code-intelligence':
-      // Hook-fired edits surface here as FileChanged; the plugin's
-      // handler decides whether to re-index based on payload.
       return buildEvent({
         type: 'code-intelligence.FileChanged',
         source: 'code-intelligence',

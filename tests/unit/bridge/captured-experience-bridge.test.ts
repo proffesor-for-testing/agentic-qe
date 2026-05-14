@@ -105,12 +105,47 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     bridge = new CapturedExperienceBridge(eventBus, memory);
     const published = await bridge.drainOnce();
 
-    expect(published).toBeGreaterThanOrEqual(3);
+    // 3 rows × (1 universal + 1 domain-specific each) = 6 events.
+    expect(published).toBe(6);
     expect(learningEvents).toHaveLength(3);
     expect(learningEvents[0].source).toBe('learning-optimization');
   });
 
-  it('fans out domain-specific events that match plugin subscriptions', async () => {
+  it('uses the canonical nested payload shape ' +
+     '({ experience: TaskExperience, reward }) — ' +
+     'the shape handleExperienceCaptured destructures', async () => {
+    insertRow({
+      id: 'shape-1',
+      domain: 'requirements-validation', // not in any fan-out list
+      agent: 'qe-bdd-generator',
+      task: 'validate testability',
+      success: true,
+      quality: 0.85,
+    });
+
+    let captured: DomainEvent | undefined;
+    eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
+      captured = event;
+    });
+
+    bridge = new CapturedExperienceBridge(eventBus, memory);
+    await bridge.drainOnce();
+
+    expect(captured).toBeDefined();
+    const payload = captured!.payload as {
+      experience: { id: string; agent: string; domain: string; success: boolean; quality: number };
+      reward: number;
+    };
+    expect(payload.experience).toBeDefined();
+    expect(payload.experience.id).toBe('shape-1');
+    expect(payload.experience.agent).toBe('qe-bdd-generator');
+    expect(payload.experience.domain).toBe('requirements-validation');
+    expect(payload.experience.success).toBe(true);
+    expect(payload.experience.quality).toBe(0.85);
+    expect(payload.reward).toBe(1);
+  });
+
+  it('fans out domain-specific events for known domains (legacy flat shape)', async () => {
     insertRow({ id: 'tg-1', domain: 'test-generation' });
     insertRow({ id: 'te-1', domain: 'test-execution' });
     insertRow({ id: 'cov-ok', domain: 'coverage-analysis', success: true });
@@ -137,13 +172,49 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     expect(seen).toContain('coverage-analysis.CoverageGapDetected');
   });
 
+  // Parametrized regression — Jordi's #484 suggestion. Catches the
+  // class of bug where a domain WITHOUT a domain-specific fan-out would
+  // expose the universal-event path being broken (test-execution masked
+  // it via the fan-out handler in v3.9.28).
+  describe.each([
+    'test-execution',           // has fan-out — passes via two paths
+    'requirements-validation',  // no fan-out — universal-only path
+    'security-compliance',      // no fan-out — universal-only path
+    'visual-accessibility',     // no fan-out — universal-only path
+  ])(
+    'learning.ExperienceCaptured payload for domain=%s',
+    (domain) => {
+      it('uses the canonical nested { experience, reward } shape', async () => {
+        insertRow({ id: `e-${domain}`, domain });
+
+        let captured: DomainEvent | undefined;
+        eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
+          captured = event;
+        });
+
+        bridge = new CapturedExperienceBridge(eventBus, memory);
+        await bridge.drainOnce();
+
+        expect(captured).toBeDefined();
+        const payload = captured!.payload as {
+          experience: { id: string; domain: string };
+          reward: number;
+        };
+        expect(payload.experience).toBeDefined();
+        expect(payload.experience.id).toBe(`e-${domain}`);
+        expect(payload.experience.domain).toBe(domain);
+        expect(payload.reward).toBeTypeOf('number');
+      });
+    }
+  );
+
   it('persists the cursor and does not republish on the next drain', async () => {
     insertRow({ id: 'e1', domain: 'test-execution' });
     bridge = new CapturedExperienceBridge(eventBus, memory);
 
     const seen: string[] = [];
     eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
-      seen.push((event.payload as { experienceId: string }).experienceId);
+      seen.push((event.payload as { experience: { id: string } }).experience.id);
     });
 
     await bridge.drainOnce();
@@ -158,7 +229,7 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
 
     const seen: string[] = [];
     eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
-      seen.push((event.payload as { experienceId: string }).experienceId);
+      seen.push((event.payload as { experience: { id: string } }).experience.id);
     });
 
     insertRow({ id: 'first', domain: 'test-execution' });
@@ -187,7 +258,7 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     const secondBridge = new CapturedExperienceBridge(eventBus, memory);
     const seen: string[] = [];
     eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
-      seen.push((event.payload as { experienceId: string }).experienceId);
+      seen.push((event.payload as { experience: { id: string } }).experience.id);
     });
     await secondBridge.start();
     await secondBridge.stop();
