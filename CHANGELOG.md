@@ -5,6 +5,31 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.28] - 2026-05-14
+
+Hotfix for v3.9.27 — bridge subscriber wiring.
+
+### Fixed
+
+- **`CapturedExperienceBridge` published events to a kernel with zero
+  subscribers** (#482). The v3.9.27 bridge correctly drained
+  `captured_experiences` rows and advanced its cursor, but no
+  `learning:experience:*` keys appeared and the `learning-consolidation`
+  worker still saw nothing. Root cause: the kernel default
+  `lazyLoading: true` meant domain plugins weren't loaded by the time
+  `kernel.initialize()` started the bridge, so each plugin's
+  `subscribeToEvents()` had not yet registered handlers on the eventBus.
+  The bridge's immediate drain published into a kernel with no listeners,
+  the cursor advanced past those rows, and they were silently lost.
+
+  Fix: `kernel.initialize()` now eagerly loads all enabled domain plugins
+  before starting the bridge, ensuring subscribers exist when the first
+  drain runs. CLI commands that don't need event-driven domain reactions
+  opt out with `enableExperienceBridge: false` to preserve fast startup.
+  Added an end-to-end integration test (real kernel + real plugin + real
+  drain → asserts `kv_store` contains a `learning:experience:*` key) so
+  the same regression can't slip through unit tests again.
+
 ## [3.9.27] - 2026-05-14
 
 Two architectural fixes from downstream investigations against v3.9.26.

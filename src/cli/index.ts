@@ -131,6 +131,9 @@ async function autoInitialize(): Promise<void> {
     hnswEnabled: true,
     lazyLoading: true,
     enabledDomains: [...ALL_DOMAINS],
+    // CLI commands are short-lived and don't benefit from the bridge's
+    // event-driven domain reactions. Skip the eager plugin-load cost.
+    enableExperienceBridge: false,
   });
 
   await context.kernel.initialize();

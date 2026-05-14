@@ -389,6 +389,20 @@ export interface KernelConfig {
   enabledDomains: DomainName[];
   /** Data directory for persistent storage (default: .agentic-qe relative to project root) */
   dataDir?: string;
+  /**
+   * Whether to start the CapturedExperienceBridge during initialize().
+   * The bridge drains hook-fired captured_experiences rows into eventBus
+   * domain events. When `true` (default), kernel.initialize() force-loads
+   * all enabled domain plugins before starting the bridge so their
+   * subscribeToEvents() handlers are wired before the bridge publishes
+   * (issue #482 — without this, the bridge's immediate drain publishes
+   * to a kernel with zero subscribers and the events are silently lost).
+   *
+   * Long-lived processes (MCP server, daemon) want this true.
+   * Short-lived CLI commands that don't need event-driven domain reactions
+   * can set false to skip the plugin-load cost.
+   */
+  enableExperienceBridge?: boolean;
 }
 
 // ============================================================================

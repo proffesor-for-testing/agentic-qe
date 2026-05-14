@@ -119,6 +119,8 @@ export function createFleetCommand(
             hnswEnabled: true,
             lazyLoading,
             enabledDomains,
+            // CLI fleet command — short-lived; no need for the bridge.
+            enableExperienceBridge: false,
           });
 
           await context.kernel.initialize();

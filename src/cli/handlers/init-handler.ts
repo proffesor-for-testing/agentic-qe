@@ -358,6 +358,8 @@ export class InitHandler implements ICommandHandler {
       hnswEnabled: true,
       lazyLoading: options.lazy || false,
       enabledDomains,
+      // CLI init handler — one-shot; no need for the bridge.
+      enableExperienceBridge: false,
     });
 
     await context.kernel.initialize();

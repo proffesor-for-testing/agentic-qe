@@ -84,6 +84,10 @@ const DEFAULT_CONFIG: KernelConfig = {
   lazyLoading: true,
   enabledDomains: [...ALL_DOMAINS],
   dataDir: undefined, // Will use project root + .agentic-qe
+  // Default ON: long-lived processes (MCP server, daemon) need the bridge
+  // working out of the box. CLI commands that don't need event-driven
+  // domain reactions opt out by passing `enableExperienceBridge: false`.
+  enableExperienceBridge: true,
 };
 
 export class QEKernelImpl implements QEKernel {
@@ -290,22 +294,42 @@ export class QEKernelImpl implements QEKernel {
       // Migration coordinator is best-effort — don't block kernel startup
     }
 
-    // Issue #479: start the captured-experience bridge so hook-driven
-    // activity (written to captured_experiences SQLite by short-lived
-    // hook subprocesses) reaches the domain plugins' eventBus handlers.
-    // Best-effort — never block kernel startup on bridge failure.
-    try {
-      this._experienceBridge = new CapturedExperienceBridge(
-        this._eventBus,
-        this._memory
-      );
-      await this._experienceBridge.start();
-    } catch (err) {
-      console.warn(
-        '[QEKernel] CapturedExperienceBridge failed to start:',
-        err instanceof Error ? err.message : err
-      );
-      this._experienceBridge = undefined;
+    // Issue #479 + #482: start the captured-experience bridge so hook-driven
+    // activity (written to captured_experiences SQLite by short-lived hook
+    // subprocesses) reaches the domain plugins' eventBus handlers.
+    //
+    // Critical ordering: domain plugins MUST be loaded before the bridge
+    // starts. A plugin's subscribeToEvents() runs inside its initialize(),
+    // which is invoked by pluginLoader.load(). Until that happens, the
+    // plugin's handlers aren't wired as eventBus subscribers. The bridge's
+    // start() does an immediate drain, so if plugins are still lazy-pending
+    // at that point, the drained events publish to a kernel with zero
+    // subscribers and are silently lost (issue #482).
+    //
+    // Best-effort throughout: never block kernel startup on either step.
+    if (this._config.enableExperienceBridge !== false) {
+      try {
+        await (this._plugins as DefaultPluginLoader).loadAll();
+      } catch (err) {
+        console.warn(
+          '[QEKernel] domain plugin pre-load (for bridge subscribers) failed:',
+          err instanceof Error ? err.message : err
+        );
+      }
+
+      try {
+        this._experienceBridge = new CapturedExperienceBridge(
+          this._eventBus,
+          this._memory
+        );
+        await this._experienceBridge.start();
+      } catch (err) {
+        console.warn(
+          '[QEKernel] CapturedExperienceBridge failed to start:',
+          err instanceof Error ? err.message : err
+        );
+        this._experienceBridge = undefined;
+      }
     }
 
     this._initialized = true;
