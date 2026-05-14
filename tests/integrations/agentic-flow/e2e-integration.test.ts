@@ -396,9 +396,12 @@ describe('ADR-051 End-to-End Integration', () => {
       // If patterns were stored correctly, search should find them
       if (allEmbeddings.length > 0) {
         expect(searchResults.length).toBeGreaterThanOrEqual(0);
-        // If results found, verify similarity is reasonable
+        // If results found, verify similarity is reasonable.
+        // SimilarityResult exposes `score` (cosine similarity); the prior
+        // `.similarity` field was a typo that the mock embedding generator
+        // happened to hide because random vectors rarely cleared the threshold.
         if (searchResults.length > 0) {
-          expect(searchResults[0].similarity).toBeGreaterThan(0.3);
+          expect(searchResults[0].score).toBeGreaterThan(0.3);
         }
       }
     });
