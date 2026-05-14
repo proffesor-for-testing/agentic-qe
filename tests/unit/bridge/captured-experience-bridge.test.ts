@@ -105,7 +105,8 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     bridge = new CapturedExperienceBridge(eventBus, memory);
     const published = await bridge.drainOnce();
 
-    expect(published).toBe(3);
+    // 3 rows × (1 universal + 1 domain-specific each) = 6 events.
+    expect(published).toBe(6);
     expect(learningEvents).toHaveLength(3);
     expect(learningEvents[0].source).toBe('learning-optimization');
   });
@@ -144,11 +145,11 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     expect(payload.reward).toBe(1);
   });
 
-  it('does NOT fan out to domain-specific events ' +
-     '(handlers expect domain-event-specific fields a hook row cannot provide)', async () => {
-    insertRow({ id: 'te-1', domain: 'test-execution' });
-    insertRow({ id: 'cov-1', domain: 'coverage-analysis' });
+  it('fans out domain-specific events for known domains (legacy flat shape)', async () => {
     insertRow({ id: 'tg-1', domain: 'test-generation' });
+    insertRow({ id: 'te-1', domain: 'test-execution' });
+    insertRow({ id: 'cov-ok', domain: 'coverage-analysis', success: true });
+    insertRow({ id: 'cov-bad', domain: 'coverage-analysis', success: false });
 
     const seen: string[] = [];
     for (const type of [
@@ -156,7 +157,6 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
       'test-execution.TestRunCompleted',
       'coverage-analysis.CoverageReportCreated',
       'coverage-analysis.CoverageGapDetected',
-      'code-intelligence.FileChanged',
     ]) {
       eventBus.subscribe(type, async (event) => {
         seen.push(event.type);
@@ -166,13 +166,47 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     bridge = new CapturedExperienceBridge(eventBus, memory);
     await bridge.drainOnce();
 
-    // Only learning.ExperienceCaptured fires. Domain-specific fan-outs
-    // are intentionally not emitted because their handlers destructure
-    // fields like runId/passed/failed/gapId/riskScore that hooks don't
-    // capture — publishing with undefined fields recorded degenerate
-    // experiences in v3.9.27/v3.9.28.
-    expect(seen).toEqual([]);
+    expect(seen).toContain('test-generation.TestGenerated');
+    expect(seen).toContain('test-execution.TestRunCompleted');
+    expect(seen).toContain('coverage-analysis.CoverageReportCreated');
+    expect(seen).toContain('coverage-analysis.CoverageGapDetected');
   });
+
+  // Parametrized regression — Jordi's #484 suggestion. Catches the
+  // class of bug where a domain WITHOUT a domain-specific fan-out would
+  // expose the universal-event path being broken (test-execution masked
+  // it via the fan-out handler in v3.9.28).
+  describe.each([
+    'test-execution',           // has fan-out — passes via two paths
+    'requirements-validation',  // no fan-out — universal-only path
+    'security-compliance',      // no fan-out — universal-only path
+    'visual-accessibility',     // no fan-out — universal-only path
+  ])(
+    'learning.ExperienceCaptured payload for domain=%s',
+    (domain) => {
+      it('uses the canonical nested { experience, reward } shape', async () => {
+        insertRow({ id: `e-${domain}`, domain });
+
+        let captured: DomainEvent | undefined;
+        eventBus.subscribe('learning.ExperienceCaptured', async (event) => {
+          captured = event;
+        });
+
+        bridge = new CapturedExperienceBridge(eventBus, memory);
+        await bridge.drainOnce();
+
+        expect(captured).toBeDefined();
+        const payload = captured!.payload as {
+          experience: { id: string; domain: string };
+          reward: number;
+        };
+        expect(payload.experience).toBeDefined();
+        expect(payload.experience.id).toBe(`e-${domain}`);
+        expect(payload.experience.domain).toBe(domain);
+        expect(payload.reward).toBeTypeOf('number');
+      });
+    }
+  );
 
   it('persists the cursor and does not republish on the next drain', async () => {
     insertRow({ id: 'e1', domain: 'test-execution' });

@@ -85,34 +85,39 @@ describe('Issue #482 — bridge end-to-end with real kernel + domain plugins', (
     if (fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
   });
 
-  it('learning-optimization plugin receives bridge-published events end-to-end', async () => {
-    // Use `requirements-validation` (or any domain not in a former fan-out
-    // list) so the test exercises the universal `learning.ExperienceCaptured`
-    // path SPECIFICALLY — not the domain-specific fan-out events. Jordi
-    // (#482 round 2) flagged that the v3.9.28 test passed only because
-    // `domain=test-execution` triggered the fan-out's
-    // `test-execution.TestRunCompleted` handler, which has a different
-    // payload shape and worked anyway, masking the broken universal path.
-    insertRow('requirements-validation', 'e1-universal-only');
+  // Parametrized over a domain that has fan-out AND domains that don't,
+  // per Jordi #484. The v3.9.28 test passed only because `test-execution`
+  // had a fan-out path that wrote a kv key via a different handler,
+  // masking the universal-event path being broken. Domains without a
+  // fan-out path exercise the universal handler exclusively.
+  describe.each([
+    'test-execution',          // has fan-out — passes via two paths in v3.9.28
+    'requirements-validation', // no fan-out — universal-only path
+    'security-compliance',     // no fan-out — universal-only path
+  ])(
+    'learning-optimization handler fires recordExperience for domain=%s',
+    (domain) => {
+      it('writes a learning:experience:* kv key after one bridge drain', async () => {
+        insertRow(domain, `e1-${domain}`);
 
-    const bridge = (kernel as unknown as {
-      _experienceBridge?: { drainOnce: () => Promise<number> };
-    })._experienceBridge;
-    expect(bridge).toBeDefined();
-    const published = await bridge!.drainOnce();
-    expect(published).toBeGreaterThan(0);
+        const bridge = (kernel as unknown as {
+          _experienceBridge?: { drainOnce: () => Promise<number> };
+        })._experienceBridge;
+        expect(bridge).toBeDefined();
+        const published = await bridge!.drainOnce();
+        expect(published).toBeGreaterThan(0);
 
-    // Give the async event handlers a tick to run.
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setTimeout(resolve, 50));
+        // Give async event handlers a tick + scheduled timer to run.
+        await new Promise((resolve) => setImmediate(resolve));
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // The smoking gun: did learning-optimization's handleExperienceCaptured
-    // fire AND call recordExperience (which writes the kv key)?
-    const db = getUnifiedMemory().getDatabase();
-    const row = db
-      .prepare("SELECT COUNT(*) AS n FROM kv_store WHERE key LIKE 'learning:experience:%'")
-      .get() as { n: number };
+        const db = getUnifiedMemory().getDatabase();
+        const row = db
+          .prepare("SELECT COUNT(*) AS n FROM kv_store WHERE key LIKE 'learning:experience:%'")
+          .get() as { n: number };
 
-    expect(row.n).toBeGreaterThan(0);
-  }, 30_000);
+        expect(row.n).toBeGreaterThan(0);
+      }, 30_000);
+    }
+  );
 });

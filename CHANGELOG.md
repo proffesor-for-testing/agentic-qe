@@ -7,51 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.9.29] - 2026-05-14
 
-Hotfix for v3.9.28 — bridge payload shape.
+Hotfix for v3.9.28 — bridge payload shape (#484).
 
 ### Fixed
 
 - **`learning.ExperienceCaptured` published with the wrong payload shape;
   `handleExperienceCaptured` short-circuited on every event and no
-  `learning:experience:*` keys were written** (#482, second-round
-  reproduction by [@Jordi-Izquierdo-DDS](https://github.com/Jordi-Izquierdo-DDS)).
-  After v3.9.28 fixed the subscriber-loading order, subscribers were
-  reliably present and their handlers fired for every bridge event — but
-  the bridge's flat payload `{ experienceId, domain, agent, task, success,
-  ... }` didn't match the handler's destructure
-  (`const { experience } = event.payload`). `event.payload.experience`
-  was undefined, the early-return guard tripped, and `recordExperience`
-  was never called.
+  `learning:experience:*` keys were written** (#484, follow-up to #482
+  by [@Jordi-Izquierdo-DDS](https://github.com/Jordi-Izquierdo-DDS),
+  verified on his shop's patch 050). After v3.9.28 fixed the
+  subscriber-loading order, subscribers were reliably present and their
+  handlers fired for every bridge event — but the bridge's flat payload
+  `{ experienceId, domain, agent, task, success, ... }` didn't match the
+  handler's destructure (`const { experience } = event.payload`).
+  `event.payload.experience` was undefined, the early-return guard
+  tripped, and `recordExperience` was never called.
 
   Fix: the bridge now publishes the canonical nested shape
-  `{ experience: TaskExperience-shaped, reward }` that matches the
-  existing publisher (`src/learning/experience-capture.ts:1043`) and the
-  coordinator's handler signature.
-
-### Removed
-
-- **Bridge no longer fans out to domain-specific events** — `test-generation.TestGenerated`,
-  `test-execution.TestRunCompleted`, `coverage-analysis.CoverageReportCreated`,
-  `coverage-analysis.CoverageGapDetected`, `code-intelligence.FileChanged`
-  are no longer published by the bridge. Their handlers expect
-  domain-event-specific fields (`runId`, `passed`, `failed`, `gapId`,
-  `riskScore`, ...) that a single hook-fired captured_experiences row
-  doesn't have. Publishing them with undefined fields recorded degenerate
-  experiences (handlers computed `successRate = NaN`, called
-  `recordExperience` with bad data). The universal
-  `learning.ExperienceCaptured` event with the correct shape is now the
-  bridge's sole publication; if/when a domain wants its own bridged
-  event, the contract should be defined by a publisher with the shape
-  the handler actually destructures, plus a test that exercises the full
-  subscriber chain end-to-end.
+  `{ experience: TaskExperience-shaped, reward }` for the universal
+  `learning.ExperienceCaptured` event, matching the existing publisher
+  (`src/learning/experience-capture.ts:1043`) and the coordinator's
+  handler signature. Domain-specific fan-out events keep their existing
+  flat `basePayload` shape (per the issue's explicit guidance —
+  changing it would break out-of-tree subscribers).
 
 ### Changed
 
-- **Bridge integration test now uses `requirements-validation` (not
-  `test-execution`)** so it specifically exercises the universal-only
-  path. The v3.9.28 test passed only because the test-execution fan-out
-  triggered a different handler signature compatible with the flat
-  payload, masking the broken universal path.
+- **Bridge tests now parametrized over multiple domains** (per #484
+  suggestion): the universal-event payload shape is verified across
+  `test-execution` (has fan-out), `requirements-validation`,
+  `security-compliance`, and `visual-accessibility` (no fan-out — pure
+  universal-event path). The previous single-domain integration test
+  passed only because `test-execution`'s fan-out wrote a kv key via a
+  different handler, masking the broken universal path.
 
 ## [3.9.28] - 2026-05-14
 
