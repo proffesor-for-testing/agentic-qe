@@ -6,8 +6,12 @@
  */
 
 import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { QEDomain } from '../../learning/qe-patterns.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import type {
   N8nAdapterConfig,
   N8nAgentType,

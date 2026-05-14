@@ -1,7 +1,11 @@
 import { readFile, readdir } from 'fs/promises';
-import { join, basename } from 'path';
+import { join, basename, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { parse as parseYaml } from 'yaml';
 import { safeEvaluateBoolean } from '../../shared/utils/safe-expression-evaluator.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Browser workflow variable definition

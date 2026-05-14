@@ -106,26 +106,27 @@ export class EmbeddingGenerator {
     }
 
     try {
-      // In production, this would call the MCP embeddings_init tool
-      // For now, we create a mock that bridges to the real implementation
+      // Issue #469: the previous mock implementation generated random vectors
+      // per call, which made cosine similarity meaningless. We now route
+      // through the shared @xenova/transformers pipeline (all-MiniLM-L6-v2)
+      // via real-embeddings.computeRealEmbedding, so identical text yields
+      // identical vectors and semantically-related text yields high cosine
+      // similarity.
+      const { computeRealEmbedding } = await import('../../../learning/real-embeddings.js');
+
       this.onnxRuntime = {
-        generateEmbedding: async (text: string, model: EmbeddingModel): Promise<number[]> => {
-          // Bridge to agentic-flow MCP tool: embeddings_generate
-          // This would call: mcp__claude-flow__embeddings_generate({ text, normalize: true })
-
-          // Mock implementation - in production, this calls ONNX
-          const dimensions = model === EmbeddingModel.MINI_LM_L6 ? 384 : 768;
-          const vector = new Array(dimensions).fill(0).map(() => secureRandom() * 2 - 1);
-
-          // Normalize if configured
+        generateEmbedding: async (text: string, _model: EmbeddingModel): Promise<number[]> => {
+          // computeRealEmbedding already normalizes (pooling: mean, normalize: true)
+          // and returns a 384-dimensional vector for MiniLM-L6-v2. We honor the
+          // generator's `config.normalize` flag for parity with the previous mock.
+          const vector = await computeRealEmbedding(text);
           if (this.config.normalize) {
             const norm = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-            return vector.map(val => val / norm);
+            if (norm > 0) return vector.map(val => val / norm);
           }
-
           return vector;
         },
-        isAvailable: (): boolean => true
+        isAvailable: (): boolean => true,
       };
 
       this.isInitialized = true;

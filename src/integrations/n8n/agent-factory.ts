@@ -8,11 +8,15 @@
  */
 
 import { randomUUID } from 'crypto';
-import { resolve, join } from 'path';
+import { resolve, join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import type { N8nAgentType } from './types.js';
 import { N8N_TO_V3_DOMAIN_MAP } from './workflow-mapper.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // ============================================================================
 // Types (matching v2 agent interfaces)

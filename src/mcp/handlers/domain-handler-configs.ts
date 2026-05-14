@@ -30,6 +30,39 @@ import {
   ChaosTestParams,
 } from '../types';
 import { MetricsCollector } from '../metrics';
+import {
+  DEFAULT_FRAMEWORKS,
+  FRAMEWORK_TO_LANGUAGE,
+  type SupportedLanguage,
+  type TestFramework,
+} from '../../shared/types/test-frameworks.js';
+
+const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
+
+/**
+ * Normalize a language string from MCP input. Returns the canonical
+ * SupportedLanguage or null if we don't have a generator for it.
+ * Issue #474: previously unsupported languages silently produced JS/vitest.
+ */
+function normalizeLanguage(input: string | undefined): SupportedLanguage | null {
+  if (!input) return 'typescript';
+  const lower = input.toLowerCase().trim();
+  // Common aliases
+  const aliases: Record<string, SupportedLanguage> = {
+    ts: 'typescript',
+    js: 'javascript',
+    py: 'python',
+    'c#': 'csharp',
+    'c-sharp': 'csharp',
+    'cs': 'csharp',
+    golang: 'go',
+    rs: 'rust',
+    kt: 'kotlin',
+  };
+  if (aliases[lower]) return aliases[lower];
+  if ((SUPPORTED_LANGUAGES as string[]).includes(lower)) return lower as SupportedLanguage;
+  return null;
+}
 
 // ============================================================================
 // Result Types (extending base types for handlers that need them)
@@ -178,19 +211,54 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
 
   includeCodeContext: (params) => params.sourceCode,
 
-  mapToPayload: (params, routingResult) => ({
-    sourceCode: params.sourceCode,
-    filePath: params.filePath,
-    language: params.language || 'typescript',
-    framework: params.framework || 'vitest',
-    testType: params.testType || 'unit',
-    coverageGoal: params.coverageGoal || 80,
-    aiEnhancement: params.aiEnhancement !== false,
-    detectAntiPatterns: params.detectAntiPatterns || false,
-    routingTier: routingResult?.decision.tier,
-    useAgentBooster: routingResult?.useAgentBooster,
-    compiledContext: routingResult?.compiledContext,
-  }),
+  mapToPayload: (params, routingResult) => {
+    // Issue #474: validate language and pick the matching framework instead of
+    // silently emitting vitest JS for anything we don't recognize.
+    const language = normalizeLanguage(params.language);
+    if (language === null) {
+      throw new Error(
+        `Unsupported language '${params.language}'. Supported languages: ` +
+        `${SUPPORTED_LANGUAGES.join(', ')}. ` +
+        `Open a feature request for additional language support.`
+      );
+    }
+
+    // Pick framework: user-provided wins; otherwise derive from language.
+    // Reject obvious mismatches (e.g. language=python, framework=vitest).
+    let framework: TestFramework;
+    if (params.framework) {
+      framework = params.framework as TestFramework;
+      const fwLang = FRAMEWORK_TO_LANGUAGE[framework];
+      if (fwLang && fwLang !== language) {
+        // typescript<->javascript is a soft compatibility — JS frameworks
+        // can target both. Treat as same family.
+        const isJsFamily = (l: string) => l === 'javascript' || l === 'typescript';
+        if (!(isJsFamily(fwLang) && isJsFamily(language))) {
+          throw new Error(
+            `Framework '${framework}' targets ${fwLang}, but language was '${language}'. ` +
+            `Either pick a matching framework or omit \`framework\` to use the default ` +
+            `(${DEFAULT_FRAMEWORKS[language]}).`
+          );
+        }
+      }
+    } else {
+      framework = DEFAULT_FRAMEWORKS[language];
+    }
+
+    return {
+      sourceCode: params.sourceCode,
+      filePath: params.filePath,
+      language,
+      framework,
+      testType: params.testType || 'unit',
+      coverageGoal: params.coverageGoal || 80,
+      aiEnhancement: params.aiEnhancement !== false,
+      detectAntiPatterns: params.detectAntiPatterns || false,
+      routingTier: routingResult?.decision.tier,
+      useAgentBooster: routingResult?.useAgentBooster,
+      compiledContext: routingResult?.compiledContext,
+    };
+  },
 
   mapToResult: (taskId, data, duration, savedFiles, params) => {
     const sourceCode = params?.sourceCode || '';
