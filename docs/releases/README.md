@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.27](v3.9.27.md) | 2026-05-14 | Two architectural fixes: AbortSignal bounds session-start init (no more 43 GB patterns.rvf leak, #478), CapturedExperienceBridge wires hook activity to domain plugins (#479) |
 | [v3.9.26](v3.9.26.md) | 2026-05-13 | Ten learning-pipeline fixes: post-edit stdin file_path, getStats DB fallback, pattern promotion, dream apply, Q-learning agent key, concurrent-dream guard, RVF orphan purge, tokens_saved, cli-hook consolidation, stale sentinel sweep (#453–#465) |
 | [v3.9.25](v3.9.25.md) | 2026-05-12 | Fix: new `post-route` Stop hook closes route sentinels 1:1 — `routing_outcomes` no longer accumulates `quality_score=-1` rows (#451) |
 | [v3.9.24](v3.9.24.md) | 2026-05-12 | Fix: `post-task` no longer skips Stream B/D/F when `--task-id` is missing — `rl_q_values` populates on every invocation (#449) |

@@ -550,11 +550,17 @@ export class LearningConsolidationWorker extends BaseWorker {
       );
     }
 
-    // If we simply have no patterns anywhere, that's also a failure
+    // No patterns yet — common on fresh installs. The CapturedExperienceBridge
+    // (issue #479) drains hook-fired captures into domain events, so patterns
+    // accumulate as users do work. This worker has nothing to consolidate
+    // until that pipeline produces stored patterns.
     if (patterns.length === 0) {
       throw new Error(
-        'No learning patterns found across any domain - cannot perform consolidation. ' +
-        'Ensure the learning-optimization domain has stored pattern data before running this worker.'
+        'No learning patterns to consolidate yet. ' +
+        'Patterns accumulate as the captured-experience bridge feeds hook ' +
+        'activity into the learning-optimization domain — first runs may ' +
+        'be empty until a kernel-owning process (CLI/MCP) has been alive ' +
+        'long enough to drain the captured_experiences table.'
       );
     }
 

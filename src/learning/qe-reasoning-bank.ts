@@ -162,12 +162,21 @@ export class QEReasoningBank implements IQEReasoningBank {
   }
 
   /**
-   * Initialize the reasoning bank
+   * Initialize the reasoning bank.
+   *
+   * `options.signal` bounds the init: every step calls
+   * `signal.throwIfAborted()` before starting work, so a caller-side
+   * timeout that aborts the signal causes initialize() to reject promptly
+   * instead of leaking writes past the timeout (issue #478).
    */
-  async initialize(): Promise<void> {
+  async initialize(options?: { signal?: AbortSignal }): Promise<void> {
     if (this.initialized) return;
 
+    const signal = options?.signal;
+    signal?.throwIfAborted();
+
     await this.patternStore.initialize();
+    signal?.throwIfAborted();
 
     // Wire SQLitePatternStore into PatternStore for delete/promote persistence
     try {
@@ -177,9 +186,11 @@ export class QEReasoningBank implements IQEReasoningBank {
     } catch (e) {
       logger.warn('Failed to wire SQLitePatternStore into PatternStore', { error: toErrorMessage(e) });
     }
+    signal?.throwIfAborted();
 
     // Load any pre-trained patterns
-    await this.loadPretrainedPatterns();
+    await this.loadPretrainedPatterns(signal);
+    signal?.throwIfAborted();
 
     this.initialized = true;
 
@@ -193,12 +204,15 @@ export class QEReasoningBank implements IQEReasoningBank {
       if (!alreadySeeded) {
         // Set flag FIRST to prevent re-runs if transfer times out or process exits
         await this.memory.set(SEED_FLAG_KEY, true);
-        await this.seedCrossDomainPatterns();
+        await this.seedCrossDomainPatterns(signal);
       } else {
         const stats = await this.patternStore.getStats();
         logger.info('Cross-domain transfer already complete', { totalPatterns: stats.totalPatterns });
       }
     } catch (error) {
+      // Re-throw abort errors so the caller sees the cancellation;
+      // swallow other errors per the existing non-fatal contract.
+      if (signal?.aborted) throw error;
       logger.warn('Cross-domain seeding failed (non-fatal)', { error });
     }
 
@@ -208,8 +222,9 @@ export class QEReasoningBank implements IQEReasoningBank {
   /**
    * Load pre-trained patterns for common QE scenarios
    */
-  private async loadPretrainedPatterns(): Promise<void> {
+  private async loadPretrainedPatterns(signal?: AbortSignal): Promise<void> {
     // Check if we already have patterns
+    signal?.throwIfAborted();
     const stats = await this.patternStore.getStats();
     if (stats.totalPatterns > 0) {
       logger.info('Found existing patterns', { totalPatterns: stats.totalPatterns });
@@ -248,9 +263,13 @@ export class QEReasoningBank implements IQEReasoningBank {
     // 1. embeddings are computed via this.embed()
     // 2. patternStore.store() calls adapter.ingest() for each pattern
     for (const options of PRETRAINED_PATTERNS) {
+      // Bail before each store() so an aborted init does not keep appending
+      // to patterns.rvf (issue #478).
+      signal?.throwIfAborted();
       try {
         await this.storePattern(options);
       } catch (error) {
+        if (signal?.aborted) throw error;
         logger.warn('Failed to load pattern', { name: options.name, error });
       }
     }
@@ -265,15 +284,16 @@ export class QEReasoningBank implements IQEReasoningBank {
    * Uses the domain compatibility matrix to determine which domains
    * are related and applies a relevance decay to transferred patterns.
    */
-  async seedCrossDomainPatterns(): Promise<{ transferred: number; skipped: number }> {
+  async seedCrossDomainPatterns(signal?: AbortSignal): Promise<{ transferred: number; skipped: number }> {
     if (!this.initialized) {
-      await this.initialize();
+      await this.initialize({ signal });
     }
 
     return seedCrossDomainPatternsFn({
       searchPatterns: this.searchPatterns.bind(this),
       storePattern: this.storePattern.bind(this) as unknown as (options: Record<string, unknown>) => Promise<Result<QEPattern>>,
       patternStore: this.patternStore,
+      signal,
     });
   }
 

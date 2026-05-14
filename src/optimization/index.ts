@@ -56,29 +56,6 @@ export {
   createParameterApplicatorRegistry,
 } from './auto-tuner.js';
 
-// QE Optimization Workers
-export {
-  QE_OPTIMIZATION_WORKER_CONFIGS,
-  PatternConsolidatorWorker,
-  DreamConsolidatorWorker,
-  CoverageGapScannerWorker,
-  FlakyTestDetectorWorker,
-  RoutingAccuracyMonitorWorker,
-  createPatternConsolidatorWorker,
-  createDreamConsolidatorWorker,
-  createCoverageGapScannerWorker,
-  createFlakyTestDetectorWorker,
-  createRoutingAccuracyMonitorWorker,
-} from './qe-workers.js';
-
-export type {
-  PatternConsolidatorDeps,
-  DreamConsolidatorDeps,
-  CoverageGapScannerDeps,
-  FlakyTestDetectorDeps,
-  RoutingAccuracyMonitorDeps,
-} from './qe-workers.js';
-
 // Early Exit Token Optimizer (ADR-042)
 export type {
   EarlyExitConfig as TokenEarlyExitConfig,

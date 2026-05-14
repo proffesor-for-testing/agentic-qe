@@ -5,6 +5,75 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.27] - 2026-05-14
+
+Two architectural fixes from downstream investigations against v3.9.26.
+
+### Fixed
+
+- **`session-start` hook could leak unbounded writes to `patterns.rvf`** (#478) —
+  `getHooksSystem()` bounded `ReasoningBank.initialize()` with `Promise.race`
+  against a 10 s timeout. When the timeout won, the losing init promise kept
+  running in the background and continued to append to the RVF pattern store
+  indefinitely (downstream report: 43.8 GB written in 29 minutes, disk
+  filled, `SIGKILL` required). Threaded an `AbortSignal` through
+  `ReasoningBank.initialize()`, `loadPretrainedPatterns()`, and
+  `seedCrossDomainPatterns()` — every awaited step now calls
+  `signal.throwIfAborted()` before doing work, so the timeout actually
+  cancels the bootstrap instead of leaking past it. The hook caller was
+  switched from `Promise.race` to `AbortController` + `setTimeout`. The
+  hybrid backend init still uses race semantics for now (its own signature
+  refactor is separate), but the leaked promise's resulting backend is
+  disposed once it resolves so SQLite handles aren't held open in the
+  background.
+
+- **Hook-driven activity never reached the 13 domain plugins** (#479) — the
+  hook subprocess fires events on `hookRegistry`, the kernel-side domain
+  plugins listen on `eventBus`, and the two systems were not bridged. In
+  default `aqe init --auto` deployments (Claude Code hook driven), every
+  domain plugin's `subscribeToEvents()` listened to events that nothing
+  emitted; `learning:pattern:*` keys stayed at zero, `qe_learning_optimize`
+  reported `experiencesProcessed: 0`, and the `learning-consolidation`
+  worker logged "No learning patterns found" on every cycle. Added a
+  `CapturedExperienceBridge` that runs inside `QEKernelImpl` and drains the
+  shared `captured_experiences` SQLite table (already populated by hooks
+  and MCP wrapped handlers) into the kernel's `eventBus` as
+  `learning.ExperienceCaptured` plus domain-specific events. Cursor-based
+  drain survives kernel restarts and never republishes. Domain plugins now
+  receive hook activity transparently in every kernel-owning process
+  (CLI, MCP server).
+
+### Removed
+
+- **Dead `v3-qe-bridge.sh` script and its config reference** — already
+  declared dead in the v3.6.6 release notes; targeted a `v3/dist/` path
+  that no longer exists in the flat repo layout, so it silently no-op'd
+  every invocation. Removed `.claude/hooks/v3-qe-bridge.sh` and the
+  `AQE_V3_HOOK_BRIDGE` env var in `.claude/settings.json`.
+
+- **Obsolete planning docs** — `docs/LEARNING_IMPROVEMENT_PLAN.md` and
+  `docs/LEARNING_SYSTEMS_ANALYSIS.md` were v3-alpha era artifacts that
+  documented the broken bridge as the integration mechanism and referenced
+  paths (`v3/src/...`) that haven't existed since the dist flatten.
+
+- **Five orphan workers in `src/optimization/qe-workers.ts`** (949 LOC) and
+  their tautological tests (407 LOC). `PatternConsolidatorWorker`,
+  `DreamConsolidatorWorker`, `CoverageGapScannerWorker`,
+  `FlakyTestDetectorWorker`, `RoutingAccuracyMonitorWorker` had zero
+  internal callers and no documented use case. Their functionality is
+  fully covered by the live `LearningConsolidationWorker`
+  (pattern consolidation, dream cycles via `runDreamCycle()`, confidence
+  decay, cross-domain identification, Phase 7 continuous learning loop)
+  and `FlakyDetectorWorker` (flaky tests). Re-exports in
+  `src/optimization/index.ts` cleaned up.
+
+### Changed
+
+- **`learning-consolidation` worker error message** now explains the
+  bridge dependency instead of telling operators to "ensure the
+  learning-optimization domain has stored pattern data" — that message
+  predated the bridge fix and gaslighted users on fresh installs.
+
 ## [3.9.26] - 2026-05-13
 
 **Ten learning-pipeline fixes reported by Jordi against v3.9.24.** Most are
