@@ -86,12 +86,15 @@ describe('Issue #482 — bridge end-to-end with real kernel + domain plugins', (
   });
 
   it('learning-optimization plugin receives bridge-published events end-to-end', async () => {
-    insertRow('test-execution', 'e1-bridge-e2e');
+    // Use `requirements-validation` (or any domain not in a former fan-out
+    // list) so the test exercises the universal `learning.ExperienceCaptured`
+    // path SPECIFICALLY — not the domain-specific fan-out events. Jordi
+    // (#482 round 2) flagged that the v3.9.28 test passed only because
+    // `domain=test-execution` triggered the fan-out's
+    // `test-execution.TestRunCompleted` handler, which has a different
+    // payload shape and worked anyway, masking the broken universal path.
+    insertRow('requirements-validation', 'e1-universal-only');
 
-    // Trigger one bridge drain via the internal scheduler. The bridge runs
-    // an immediate drain inside start(); kernel.initialize() awaits that.
-    // Insert a row AFTER that and trigger a fresh drain by reaching into
-    // the kernel's bridge instance.
     const bridge = (kernel as unknown as {
       _experienceBridge?: { drainOnce: () => Promise<number> };
     })._experienceBridge;
@@ -104,7 +107,7 @@ describe('Issue #482 — bridge end-to-end with real kernel + domain plugins', (
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // The smoking gun: did learning-optimization's handleExperienceCaptured
-    // fire and write a learning:experience:* key into kv_store?
+    // fire AND call recordExperience (which writes the kv key)?
     const db = getUnifiedMemory().getDatabase();
     const row = db
       .prepare("SELECT COUNT(*) AS n FROM kv_store WHERE key LIKE 'learning:experience:%'")

@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.29](v3.9.29.md) | 2026-05-14 | Hotfix: bridge publishes learning.ExperienceCaptured with the canonical nested payload shape so handler destructure resolves and recordExperience runs (#482 round 3) |
 | [v3.9.28](v3.9.28.md) | 2026-05-14 | Hotfix: bridge eagerly loads domain plugins before starting so subscribers are wired when the first drain publishes (#482) |
 | [v3.9.27](v3.9.27.md) | 2026-05-14 | Two architectural fixes: AbortSignal bounds session-start init (no more 43 GB patterns.rvf leak, #478), CapturedExperienceBridge wires hook activity to domain plugins (#479) |
 | [v3.9.26](v3.9.26.md) | 2026-05-13 | Ten learning-pipeline fixes: post-edit stdin file_path, getStats DB fallback, pattern promotion, dream apply, Q-learning agent key, concurrent-dream guard, RVF orphan purge, tokens_saved, cli-hook consolidation, stale sentinel sweep (#453–#465) |
