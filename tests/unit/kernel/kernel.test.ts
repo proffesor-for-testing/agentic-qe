@@ -146,9 +146,12 @@ describe('QEKernel', () => {
     });
 
     it('should not load plugins when lazy loading is enabled', async () => {
+      // Disable the bridge so kernel.initialize() honors lazyLoading.
+      // (#482 fix: bridge eager-loads domains so its subscribers exist.)
       const kernel = createKernel({
         memoryBackend: 'memory',
         lazyLoading: true,
+        enableExperienceBridge: false,
       });
 
       await kernel.initialize();
@@ -181,6 +184,7 @@ describe('QEKernel', () => {
       const kernel = createKernel({
         memoryBackend: 'memory',
         lazyLoading: true,
+        enableExperienceBridge: false, // see #482 — bridge eager-loads domains
       });
       await kernel.initialize();
 
@@ -231,6 +235,7 @@ describe('QEKernel', () => {
       const kernel = createKernel({
         memoryBackend: 'memory',
         lazyLoading: true,
+        enableExperienceBridge: false, // see #482 — bridge eager-loads domains
       });
       await kernel.initialize();
 
@@ -257,6 +262,7 @@ describe('QEKernel', () => {
         memoryBackend: 'memory',
         lazyLoading: true,
         enabledDomains: ['test-generation', 'test-execution'] as DomainName[],
+        enableExperienceBridge: false, // see #482 — bridge eager-loads domains
       });
       await kernel.initialize();
 
@@ -292,6 +298,7 @@ describe('QEKernel', () => {
         memoryBackend: 'memory',
         lazyLoading: true,
         enabledDomains: ['test-generation'] as DomainName[],
+        enableExperienceBridge: false, // see #482 — bridge eager-loads domains
       });
       await kernel.initialize();
 
