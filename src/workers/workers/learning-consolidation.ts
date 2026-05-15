@@ -38,6 +38,7 @@ import { getUnifiedMemory } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
 import { recordLoopHealth } from '../../learning/loop-health.js';
+import { pruneStaleDreamInsights } from '../../learning/dream/dream-insights-pruner.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -92,6 +93,11 @@ interface ConsolidationResult {
   patternsMined: number;
   /** Number of domains that successfully advanced their cursor this tick. */
   domainsMined: number;
+  /**
+   * #488 C.2: count of stale unapplied dream_insights rows deleted on
+   * this tick. Zero on most ticks once steady-state is reached.
+   */
+  dreamInsightsPruned: number;
 }
 
 /**
@@ -102,6 +108,12 @@ interface ConsolidationResult {
  */
 const CONSOLIDATION_CURSOR_PREFIX = 'learning:consolidation-cursor:';
 const DEFAULT_LOOKBACK_DAYS = 1;
+
+/**
+ * #488 C.2: retention window for `applied = 0` dream insights. Matches the
+ * `staleDaysThreshold` used by `pattern-lifecycle.ts` for consistency.
+ */
+const DREAM_INSIGHTS_RETENTION_DAYS = 30;
 
 export class LearningConsolidationWorker extends BaseWorker {
   private lifecycleManager: PatternLifecycleManager | null = null;
@@ -154,6 +166,7 @@ export class LearningConsolidationWorker extends BaseWorker {
     let confidenceDecayApplied = 0;
     let patternsMined = 0;
     let domainsMined = 0;
+    let dreamInsightsPruned = 0;
 
     // Phase 7: Run continuous learning loop
     const lifecycleManager = await this.getLifecycleManager();
@@ -171,6 +184,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       confidenceDecayApplied = lifecycleResult.confidenceDecayApplied;
       patternsMined = lifecycleResult.patternsMined;
       domainsMined = lifecycleResult.domainsMined;
+      dreamInsightsPruned = lifecycleResult.dreamInsightsPruned;
     }
 
     // Collect patterns from all domains
@@ -187,6 +201,7 @@ export class LearningConsolidationWorker extends BaseWorker {
     result.confidenceDecayApplied = confidenceDecayApplied;
     result.patternsMined = patternsMined;
     result.domainsMined = domainsMined;
+    result.dreamInsightsPruned = dreamInsightsPruned;
 
     // Identify cross-domain patterns
     this.identifyCrossDomainPatterns(patterns, findings, recommendations);
@@ -251,6 +266,8 @@ export class LearningConsolidationWorker extends BaseWorker {
           // #486 Gap A: mineExperiences auto-trigger
           patternsMined: result.patternsMined,
           domainsMined: result.domainsMined,
+          // #488 C.2: dream_insights retention pruning
+          dreamInsightsPruned: result.dreamInsightsPruned,
         },
       },
       findings,
@@ -277,6 +294,7 @@ export class LearningConsolidationWorker extends BaseWorker {
     confidenceDecayApplied: number;
     patternsMined: number;
     domainsMined: number;
+    dreamInsightsPruned: number;
   }> {
     context.logger.info('Running continuous learning loop (Phase 7)');
 
@@ -287,6 +305,7 @@ export class LearningConsolidationWorker extends BaseWorker {
     let confidenceDecayApplied = 0;
     let patternsMined = 0;
     let domainsMined = 0;
+    let dreamInsightsPruned = 0;
 
     try {
       // Step 1: Extract patterns from recent experiences
@@ -427,6 +446,35 @@ export class LearningConsolidationWorker extends BaseWorker {
         });
       }
 
+      // Step 8 (#488 C.2): prune stale unapplied dream_insights so the
+      // table doesn't grow unbounded. Applied insights are part of the
+      // pattern-change audit trail and stay forever.
+      try {
+        const unifiedMemory = getUnifiedMemory();
+        const db = unifiedMemory.getDatabase();
+        const pruneResult = pruneStaleDreamInsights(db, {
+          retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
+        });
+        dreamInsightsPruned = pruneResult.pruned;
+        if (dreamInsightsPruned > 0) {
+          findings.push({
+            type: 'dream-insights-pruned',
+            severity: 'info',
+            domain: 'learning-optimization',
+            title: 'Stale Dream Insights Pruned',
+            description: `${dreamInsightsPruned} unapplied dream insights older than ${DREAM_INSIGHTS_RETENTION_DAYS} days deleted`,
+            context: {
+              pruned: dreamInsightsPruned,
+              retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
+            },
+          });
+        }
+      } catch (pruneError) {
+        context.logger.warn('Dream insights pruning failed', {
+          error: toErrorMessage(pruneError),
+        });
+      }
+
       context.logger.info('Continuous learning loop complete', {
         experiencesProcessed,
         patternCandidatesFound,
@@ -435,6 +483,7 @@ export class LearningConsolidationWorker extends BaseWorker {
         confidenceDecayApplied,
         patternsMined,
         domainsMined,
+        dreamInsightsPruned,
       });
     } catch (error) {
       context.logger.warn('Continuous learning loop partially failed', {
@@ -450,6 +499,7 @@ export class LearningConsolidationWorker extends BaseWorker {
       confidenceDecayApplied,
       patternsMined,
       domainsMined,
+      dreamInsightsPruned,
     };
   }
 
@@ -856,6 +906,8 @@ export class LearningConsolidationWorker extends BaseWorker {
       // #486 Gap A: filled in by runContinuousLearningLoop
       patternsMined: 0,
       domainsMined: 0,
+      // #488 C.2: filled in by runContinuousLearningLoop
+      dreamInsightsPruned: 0,
     };
   }
 

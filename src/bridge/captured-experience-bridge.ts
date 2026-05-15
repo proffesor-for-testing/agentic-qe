@@ -169,7 +169,28 @@ export class CapturedExperienceBridge {
       this.cursor = row.rowid;
     }
 
-    await this.memory.set(CURSOR_KEY, this.cursor);
+    // #488 C.3: monotonic guard against cross-process cursor regression.
+    // The cursor MUST move forward only. If another bridge instance (e.g.
+    // a stray daemon spawned before the #488 B.1 pidfile fix landed) wrote
+    // a higher cursor while we were publishing, we'd otherwise overwrite
+    // it with our older value — causing the next drain to re-publish
+    // already-drained rows. Read-then-max-write is a TOCTOU but it
+    // collapses the regression window to milliseconds rather than seconds.
+    try {
+      const persisted = await this.memory.get<number>(CURSOR_KEY);
+      const safeCursor = Math.max(this.cursor, persisted ?? 0);
+      this.cursor = safeCursor;
+      await this.memory.set(CURSOR_KEY, safeCursor);
+    } catch (err) {
+      // Cursor write is best-effort. On next start the bridge re-reads from
+      // kv and resumes from whatever's persisted. A failed write just means
+      // we'll re-publish a small batch on next boot — idempotent for any
+      // domain plugin that uses event IDs for dedup.
+      console.warn(
+        '[CapturedExperienceBridge] cursor persist failed:',
+        err instanceof Error ? err.message : err,
+      );
+    }
     return published;
   }
 }

@@ -266,4 +266,54 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     // The two pre-existing rows must NOT be republished by the second bridge.
     expect(seen).toEqual([]);
   });
+
+  // #488 C.3: monotonic cursor guard
+  describe('cursor monotonic guard (#488 C.3)', () => {
+    const CURSOR_KEY = 'aqe/bridge/captured-experiences/cursor';
+
+    it('does not regress the stored cursor when another writer is ahead', async () => {
+      // Simulate a second daemon that already drained further. The shared
+      // memory backend has cursor=10 from that other process. Our bridge
+      // is about to write cursor=2 (it only saw rows 1 and 2). Without
+      // the guard, the next drain would re-pick rows 3..10.
+      await memory.set(CURSOR_KEY, 10);
+
+      insertRow({ id: 'e1', domain: 'test-execution' });
+      insertRow({ id: 'e2', domain: 'test-execution' });
+
+      const bridgeUnderTest = new CapturedExperienceBridge(eventBus, memory);
+      await bridgeUnderTest.drainOnce();
+
+      const persisted = await memory.get<number>(CURSOR_KEY);
+      // The guard takes max(this.cursor, persisted) — the ahead-writer
+      // value wins.
+      expect(persisted).toBeGreaterThanOrEqual(10);
+    });
+
+    it('advances the cursor normally when this bridge is ahead', async () => {
+      insertRow({ id: 'e1', domain: 'test-execution' });
+      insertRow({ id: 'e2', domain: 'test-execution' });
+      insertRow({ id: 'e3', domain: 'test-execution' });
+
+      // No prior persisted cursor.
+      const bridgeUnderTest = new CapturedExperienceBridge(eventBus, memory);
+      await bridgeUnderTest.drainOnce();
+
+      const persisted = await memory.get<number>(CURSOR_KEY);
+      // 3 rows inserted, so cursor should advance to rowid 3.
+      expect(persisted).toBe(3);
+    });
+
+    it('falls back to a sensible cursor when persisted value is missing', async () => {
+      // No prior cursor and one row inserted — the bridge should drain
+      // and persist a cursor of 1 (no NaN, no undefined).
+      insertRow({ id: 'e1', domain: 'test-execution' });
+
+      const bridgeUnderTest = new CapturedExperienceBridge(eventBus, memory);
+      await bridgeUnderTest.drainOnce();
+
+      const persisted = await memory.get<number>(CURSOR_KEY);
+      expect(persisted).toBe(1);
+    });
+  });
 });
