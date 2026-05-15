@@ -21,6 +21,7 @@ import { randomUUID } from 'crypto';
 import type { EventBus, MemoryBackend } from '../kernel/interfaces.js';
 import type { DomainEvent, DomainName } from '../shared/types/index.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
+import { recordLoopHealth } from '../learning/loop-health.js';
 
 /** Cursor key in the kernel's MemoryBackend so the bridge resumes after restart. */
 const CURSOR_KEY = 'aqe/bridge/captured-experiences/cursor';
@@ -100,7 +101,12 @@ export class CapturedExperienceBridge {
     if (this.draining) return 0;
     this.draining = true;
     try {
-      return await this.drain();
+      const published = await this.drain();
+      // #488 B.2: record health so `aqe learning loop-health` can show the
+      // bridge as live. We record success even for empty drains because
+      // "polled successfully, nothing to drain" is itself a healthy signal.
+      await recordLoopHealth(this.memory, 'bridge', { success: true });
+      return published;
     } catch (err) {
       // Bridge is best-effort: never crash the kernel because of a stale
       // schema or a transient SQLite lock. Surface to console so operators
@@ -109,6 +115,10 @@ export class CapturedExperienceBridge {
         '[CapturedExperienceBridge] drain failed:',
         err instanceof Error ? err.message : err
       );
+      await recordLoopHealth(this.memory, 'bridge', {
+        success: false,
+        error: err instanceof Error ? err : String(err),
+      });
       return 0;
     } finally {
       this.draining = false;
@@ -159,7 +169,28 @@ export class CapturedExperienceBridge {
       this.cursor = row.rowid;
     }
 
-    await this.memory.set(CURSOR_KEY, this.cursor);
+    // #488 C.3: monotonic guard against cross-process cursor regression.
+    // The cursor MUST move forward only. If another bridge instance (e.g.
+    // a stray daemon spawned before the #488 B.1 pidfile fix landed) wrote
+    // a higher cursor while we were publishing, we'd otherwise overwrite
+    // it with our older value — causing the next drain to re-publish
+    // already-drained rows. Read-then-max-write is a TOCTOU but it
+    // collapses the regression window to milliseconds rather than seconds.
+    try {
+      const persisted = await this.memory.get<number>(CURSOR_KEY);
+      const safeCursor = Math.max(this.cursor, persisted ?? 0);
+      this.cursor = safeCursor;
+      await this.memory.set(CURSOR_KEY, safeCursor);
+    } catch (err) {
+      // Cursor write is best-effort. On next start the bridge re-reads from
+      // kv and resumes from whatever's persisted. A failed write just means
+      // we'll re-publish a small batch on next boot — idempotent for any
+      // domain plugin that uses event IDs for dedup.
+      console.warn(
+        '[CapturedExperienceBridge] cursor persist failed:',
+        err instanceof Error ? err.message : err,
+      );
+    }
     return published;
   }
 }

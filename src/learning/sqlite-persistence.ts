@@ -20,6 +20,7 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { computeBatchEmbeddings, getEmbeddingDimension } from './real-embeddings.js';
+import { recordPatternUsage } from './pattern-usage-recorder.js';
 
 /**
  * SQLite persistence configuration
@@ -671,54 +672,31 @@ export class SQLitePatternStore {
   }
 
   /**
-   * Record pattern usage
+   * Record pattern usage.
+   *
+   * Delegates to {@link recordPatternUsage} so the hook path
+   * (hooks-dream-learning.ts) and the canonical pattern-store path share a
+   * single writer — #486 Gap B. Preserves the previous throw-on-missing
+   * contract by checking the helper's `updated` flag.
    */
   recordUsage(
     patternId: string,
     success: boolean,
     metrics?: Record<string, unknown>,
-    feedback?: string
+    feedback?: string,
   ): void {
     if (!this.db) throw new Error('Database not initialized');
 
-    const insertUsage = this.prepared.get('insertUsage');
-    const updatePattern = this.prepared.get('updatePattern');
-
-    if (!insertUsage || !updatePattern) {
-      throw new Error('Prepared statements not ready');
-    }
-
-    // Get current pattern for quality score calculation
-    const pattern = this.getPattern(patternId);
-    if (!pattern) {
-      throw new Error(`Pattern not found: ${patternId}`);
-    }
-
-    const newUsageCount = pattern.usageCount + 1;
-    const newSuccessfulUses = pattern.successfulUses + (success ? 1 : 0);
-    const newSuccessRate = newSuccessfulUses / newUsageCount;
-
-    // Quality score: confidence * 0.3 + usage * 0.2 + success_rate * 0.5
-    const usageScore = Math.min(1, newUsageCount / 100);
-    const qualityScore = pattern.confidence * 0.3 + usageScore * 0.2 + newSuccessRate * 0.5;
-
-    const transaction = this.db.transaction(() => {
-      insertUsage.run(
-        patternId,
-        success ? 1 : 0,
-        metrics ? JSON.stringify(metrics) : null,
-        feedback || null
-      );
-
-      updatePattern.run(
-        success ? 1 : 0,
-        success ? 1 : 0,
-        qualityScore,
-        patternId
-      );
+    const result = recordPatternUsage(this.db, {
+      patternId,
+      success,
+      metrics,
+      feedback,
     });
 
-    transaction();
+    if (!result.updated) {
+      throw new Error(`Pattern not found: ${patternId}`);
+    }
   }
 
   /**

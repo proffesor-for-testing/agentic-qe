@@ -95,6 +95,7 @@ Examples:
   registerDreamCommand(learning);
   registerRepairCommand(learning);
   registerHealthCommand(learning);
+  registerLoopHealthCommand(learning);
 
   return learning;
 }
@@ -1448,6 +1449,259 @@ function registerHealthCommand(learning: Command): void {
         return;
       } catch (error) {
         printError(`health check failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        throw error;
+      }
+    });
+}
+
+// ============================================================================
+// Subcommand: loop-health (#488 B.2)
+// ============================================================================
+
+/**
+ * Component staleness thresholds (ms). Each component has its own expected
+ * cadence — the bridge polls every 5s, the learning worker ticks every 30
+ * min, the dream scheduler is variable. Anything older than ~2x its cadence
+ * counts as stale and operators should investigate.
+ */
+const COMPONENT_STALE_THRESHOLDS: Record<string, number> = {
+  bridge: 30_000,              // 5s poll → stale at 30s
+  learningWorker: 2 * 3600_000, // 30 min tick → stale at 2h
+  dreamScheduler: 2 * 3600_000, // similar cadence to worker
+};
+
+function registerLoopHealthCommand(learning: Command): void {
+  learning
+    .command('loop-health')
+    .description('Show pipeline component liveness for the self-learning loop')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const projectRoot = findProjectRoot();
+        const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
+
+        if (!existsSync(dbPath)) {
+          throw new Error('Database not found. Run "aqe init --auto" first.');
+        }
+
+        const db = openDatabase(dbPath, { readonly: true });
+
+        let raw: string | undefined;
+        try {
+          // Try the unified kv_store first (kernel-owned key).
+          const row = db
+            .prepare(
+              `SELECT value FROM kv_store WHERE key = 'learning:loop-health' LIMIT 1`,
+            )
+            .get() as { value: string } | undefined;
+          raw = row?.value;
+        } catch {
+          // kv_store may not exist yet on a freshly-init'd shop.
+        }
+
+        // ADR-095: routing diversification stats (7-day rolling window)
+        let routingStats: null | {
+          totalDecisions: number;
+          explorationCount: number;
+          exploitCount: number;
+          explorationRate: number;
+          avgQualityExploit: number | null;
+          avgQualityExplore: number | null;
+          avgCriticality: number | null;
+          avgQWeight: number | null;
+        } = null;
+        try {
+          const colCheck = db
+            .prepare("PRAGMA table_info(routing_outcomes)")
+            .all() as Array<{ name: string }>;
+          const hasExploration = colCheck.some((c) => c.name === 'exploration');
+          if (hasExploration) {
+            const totals = db
+              .prepare(
+                `SELECT
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN exploration = 1 THEN 1 ELSE 0 END) AS explore,
+                   AVG(criticality) AS avgCrit,
+                   AVG(q_weight) AS avgQ
+                 FROM routing_outcomes
+                 WHERE created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as {
+              total: number;
+              explore: number | null;
+              avgCrit: number | null;
+              avgQ: number | null;
+            };
+            const total = totals.total ?? 0;
+            const explore = totals.explore ?? 0;
+            const exploit = total - explore;
+
+            const exploitQ = db
+              .prepare(
+                `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
+                  WHERE exploration = 0 AND quality_score >= 0
+                    AND created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as { avgQ: number | null };
+            const exploreQ = db
+              .prepare(
+                `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
+                  WHERE exploration = 1 AND quality_score >= 0
+                    AND created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as { avgQ: number | null };
+
+            routingStats = {
+              totalDecisions: total,
+              explorationCount: explore,
+              exploitCount: exploit,
+              explorationRate: total > 0 ? explore / total : 0,
+              avgQualityExploit: exploitQ.avgQ,
+              avgQualityExplore: exploreQ.avgQ,
+              avgCriticality: totals.avgCrit,
+              avgQWeight: totals.avgQ,
+            };
+          }
+        } catch {
+          // routing_outcomes missing or pre-ADR-095 schema — skip silently.
+        }
+
+        db.close();
+
+        let health: null | {
+          overallLastSuccess: string;
+          bootedAt: string;
+          components: Record<string, {
+            lastSuccessAt: string;
+            ticksSinceBoot: number;
+            successesSinceBoot: number;
+            lastError?: { message: string; at: string };
+          }>;
+        } = null;
+        if (raw) {
+          try {
+            health = safeJsonParse(raw);
+          } catch {
+            health = null;
+          }
+        }
+
+        const now = Date.now();
+        const verdict = (componentKey: string, c: { lastSuccessAt: string } | undefined) => {
+          const threshold = COMPONENT_STALE_THRESHOLDS[componentKey] ?? 600_000;
+          if (!c || !c.lastSuccessAt) return 'never-ran';
+          const age = now - new Date(c.lastSuccessAt).getTime();
+          return age > threshold ? 'stale' : 'live';
+        };
+
+        if (options.json) {
+          if (!health) {
+            printJson({
+              overallLastSuccess: null,
+              bootedAt: null,
+              components: {},
+              verdicts: {},
+              routingDiversification: routingStats,
+              note: 'No loop-health record yet. Workers must run at least once for this to populate.',
+            });
+            return;
+          }
+          const verdicts: Record<string, string> = {};
+          for (const key of Object.keys(health.components)) {
+            verdicts[key] = verdict(key, health.components[key]);
+          }
+          printJson({ ...health, verdicts, routingDiversification: routingStats });
+          return;
+        }
+
+        console.log('');
+        console.log(chalk.bold('Self-Learning Loop Health'));
+        console.log('');
+
+        if (!health) {
+          console.log(chalk.dim('  No loop-health record yet.'));
+          console.log(chalk.dim('  Workers must run at least once to populate.'));
+          console.log(chalk.dim('  Start the daemon: aqe daemon start'));
+          // FALL THROUGH (no early return): routing-diversification stats may
+          // still be available even when loop-health components haven't ticked
+          // yet (e.g., routing happened via hook handlers but daemon-side
+          // workers never ran). Operators need both signals visible.
+        } else {
+          console.log(`  Booted at:           ${chalk.dim(health.bootedAt)}`);
+          console.log(`  Last success (any):  ${health.overallLastSuccess || chalk.dim('(none yet)')}`);
+          console.log('');
+          console.log(chalk.bold('  Components:'));
+
+          const known: Array<['bridge' | 'learningWorker' | 'dreamScheduler', string]> = [
+            ['bridge', 'CapturedExperienceBridge'],
+            ['learningWorker', 'LearningConsolidationWorker'],
+            ['dreamScheduler', 'DreamScheduler'],
+          ];
+
+          for (const [key, label] of known) {
+            const c = health.components[key];
+            const v = verdict(key, c);
+            const colored =
+              v === 'live'
+                ? chalk.green('● live')
+                : v === 'stale'
+                  ? chalk.yellow('● stale')
+                  : chalk.dim('○ never-ran');
+            const lastSuccess = c?.lastSuccessAt || chalk.dim('(never)');
+            const ticks = c
+              ? `${c.successesSinceBoot}/${c.ticksSinceBoot} ticks ok`
+              : chalk.dim('no ticks');
+            console.log(`    ${label.padEnd(32)} ${colored.padEnd(20)} ${ticks}`);
+            console.log(`      ${chalk.dim('last success:')} ${lastSuccess}`);
+            if (c?.lastError) {
+              console.log(
+                `      ${chalk.red('last error:')} ${c.lastError.message} ${chalk.dim('(at ' + c.lastError.at + ')')}`,
+              );
+            }
+          }
+
+          const stale = known.filter(([k, _]) => verdict(k, health.components[k]) === 'stale');
+          if (stale.length > 0) {
+            console.log('');
+            console.log(
+              chalk.yellow(
+                `  Warning: ${stale.length} component(s) stale — daemon may not be running or the loop is wedged.`,
+              ),
+            );
+          }
+        }
+
+        // ADR-095: routing diversification dashboard
+        if (routingStats && routingStats.totalDecisions > 0) {
+          console.log('');
+          console.log(chalk.bold('  Routing diversification (last 7 days):'));
+          const ratePct = (routingStats.explorationRate * 100).toFixed(1);
+          console.log(
+            `    Decisions:           ${routingStats.totalDecisions} (${routingStats.exploitCount} exploit, ${routingStats.explorationCount} explore = ${ratePct}%)`,
+          );
+          if (routingStats.avgQualityExploit !== null && routingStats.avgQualityExplore !== null) {
+            const delta = routingStats.avgQualityExplore - routingStats.avgQualityExploit;
+            const deltaStr = delta >= 0 ? chalk.green(`+${delta.toFixed(3)}`) : chalk.red(delta.toFixed(3));
+            console.log(
+              `    Avg quality:         exploit=${routingStats.avgQualityExploit.toFixed(3)}, explore=${routingStats.avgQualityExplore.toFixed(3)} (Δ ${deltaStr})`,
+            );
+          }
+          if (routingStats.avgCriticality !== null) {
+            console.log(
+              `    Avg mincut multiplier:  ${routingStats.avgCriticality.toFixed(2)} (1.0=full rate, 0.2=critical-topology dampening)`,
+            );
+          }
+          if (routingStats.avgQWeight !== null && routingStats.avgQWeight > 0) {
+            console.log(
+              `    Avg Q-weight:        ${routingStats.avgQWeight.toFixed(3)} (0=cold start, ${0.4} max)`,
+            );
+          }
+        }
+
+        console.log('');
+        return;
+      } catch (error) {
+        printError(`loop-health failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw error;
       }
     });

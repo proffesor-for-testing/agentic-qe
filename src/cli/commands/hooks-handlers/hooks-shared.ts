@@ -426,7 +426,12 @@ export {
   type DreamHookState,
   type TaskBridgePayload,
   type TaskOutcomeResult,
-  checkAndTriggerDream,
+  // ADR-094: checkAndTriggerDream is intentionally NOT re-exported here.
+  // Hook handlers must not trigger dreams from inside the subprocess; the
+  // kernel-side DreamScheduler is the authoritative trigger. The function
+  // remains exported from hooks-dream-learning.ts for direct test access
+  // and for any future kernel-side caller that wants the encapsulated
+  // single-cycle logic.
   incrementDreamExperience,
   persistCommandExperience,
   persistTaskOutcome,

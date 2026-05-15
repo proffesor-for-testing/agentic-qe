@@ -16,13 +16,14 @@ import {
   getHooksSystem,
   createHybridBackendWithTimeout,
   incrementDreamExperience,
-  checkAndTriggerDream,
   persistTaskOutcome,
   updateHookRouterQValue,
   updateRoutingOutcomeQuality,
   printJson,
   printSuccess,
 } from './hooks-shared.js';
+import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
+import { deriveTaskType } from '../../../learning/agent-routing.js';
 
 // ============================================================================
 // Constants — task-bridge / routing-quality / q-learning
@@ -39,22 +40,9 @@ const LOW_CONFIDENCE_THRESHOLD = 0.5;
 // Helpers
 // ============================================================================
 
-/**
- * Derive a structural taskType from a free-form task description.
- * Mirrors the categories the q-learning router cares about (ADR-061/087).
- */
-function deriveTaskType(description: string): string {
-  const d = description.toLowerCase();
-  if (/\bgenerate[- ]?test|\btest[- ]?gen|\bgenerate.+spec/.test(d)) return 'test-generation';
-  if (/\bcoverage|\banalyze.+cover/.test(d)) return 'coverage-analysis';
-  if (/\bquality|\bassess|\baudit/.test(d)) return 'quality-assessment';
-  if (/\bsecurity|\bvulnerab|\bcompliance/.test(d)) return 'security-compliance';
-  if (/\bdefect|\bbug|\bdiagnos/.test(d)) return 'defect-intelligence';
-  if (/\brequirement|\bspec\b/.test(d)) return 'requirements-validation';
-  if (/\brefactor|\brewrite|\boptim/.test(d)) return 'refactoring';
-  if (/\btest|\brun.+test/.test(d)) return 'test-execution';
-  return 'unknown';
-}
+// ADR-095: deriveTaskType moved to learning/agent-routing.ts so the routing
+// path (QEReasoningBank.routeTask) and the post-task Q-update path share
+// the same state_key derivation. Imported above.
 
 /** Hash a description to a stable short bridge key. */
 function hashDescription(description: string): string {
@@ -157,7 +145,14 @@ export function registerTaskHooks(hooks: Command): void {
           // Patch 160 + 280-bridge: write the task-bridge entry that post-task
           // will consume to fan out experience_applications per pattern_id and
           // derive a structural q-learning state_key.
-          if (options.description && selectedPatternIds.length > 0) {
+          //
+          // The bridge MUST write even when selectedPatternIds is empty: the
+          // Q-learning Bellman update at task-hooks.ts post-task site uses a
+          // state_key derived from (taskType|priority|domain|complexityBucket)
+          // and an action_key from routing.recommendedAgent — neither requires
+          // non-empty patterns. Gating on patterns starves rl_q_values for
+          // low-confidence prompts. (#487)
+          if (options.description) {
             try {
               const description = String(options.description);
               const taskType = deriveTaskType(description);
@@ -200,15 +195,25 @@ export function registerTaskHooks(hooks: Command): void {
           // same `hook-${ts}` fallback as post-task.
           if (routing?.recommendedAgent) {
             try {
+              // ADR-095: ensure routing_outcomes has the new columns before
+              // INSERTing them. Idempotent (process-local flag).
+              ensureRoutingOutcomesAdr095Columns(db);
+
               const effectivePreTaskId = (options.taskId as string | undefined) || `hook-${Date.now()}`;
               const outcomeId = `route-${Date.now()}-${randomUUID().slice(0, 8)}`;
               const lowConfidence = routing.confidence < LOW_CONFIDENCE_THRESHOLD;
+              const routingWithTelemetry = routing as typeof routing & {
+                exploration?: boolean;
+                criticality?: number;
+                qWeight?: number;
+              };
               db.prepare(`
                 INSERT INTO routing_outcomes (
                   id, task_json, decision_json, used_agent,
                   followed_recommendation, success, quality_score,
-                  duration_ms, error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  duration_ms, error,
+                  exploration, criticality, q_weight
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).run(
                 outcomeId,
                 JSON.stringify({ description: options.description, taskId: effectivePreTaskId }),
@@ -217,6 +222,11 @@ export function registerTaskHooks(hooks: Command): void {
                   confidence: routing.confidence,
                   alternatives: routing.alternatives,
                   lowConfidence,
+                  // Preserve telemetry in decision_json too for callers that
+                  // read just the JSON blob.
+                  exploration: routingWithTelemetry.exploration ?? false,
+                  criticality: routingWithTelemetry.criticality ?? null,
+                  qWeight: routingWithTelemetry.qWeight ?? null,
                 }),
                 routing.recommendedAgent,
                 1,
@@ -224,6 +234,9 @@ export function registerTaskHooks(hooks: Command): void {
                 -1,   // quality_score = -1 sentinel
                 0,
                 lowConfidence ? 'low-confidence' : null,
+                routingWithTelemetry.exploration ? 1 : 0,
+                routingWithTelemetry.criticality ?? null,
+                routingWithTelemetry.qWeight ?? null,
               );
             } catch (sentinelErr) {
               console.error(chalk.dim(`[hooks] pre-task sentinel: ${sentinelErr instanceof Error ? sentinelErr.message : 'unknown'}`));
@@ -295,12 +308,6 @@ export function registerTaskHooks(hooks: Command): void {
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
-        let dreamResult: {
-          triggered: boolean;
-          reason?: string;
-          insightsGenerated?: number;
-          insightsApplied?: number;
-        } = { triggered: false };
 
         try {
           // Initialize system (creates ReasoningBank and HookRegistry)
@@ -383,44 +390,36 @@ export function registerTaskHooks(hooks: Command): void {
             }
           }
 
-          // Record experience for dream scheduler and check if dream should trigger
+          // ADR-094: post-task bumps the experience counter but DOES NOT
+          // trigger dream cycles inline. Dream cycles run in the long-lived
+          // kernel's DreamScheduler so the 10-second SQLite write transaction
+          // doesn't block other writers from this short-lived hook subprocess.
           const projectRoot = findProjectRoot();
           const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
-          const expCount = await incrementDreamExperience(memoryBackend);
-
-          // Check if dream cycle should be triggered
-          // Always check — time-based triggers need every invocation, and the
-          // check itself is lightweight (just reads state + compares timestamps)
-          dreamResult = await checkAndTriggerDream(memoryBackend);
+          await incrementDreamExperience(memoryBackend);
         } catch (initError) {
           // Log but don't fail - learning is best-effort
           console.error(chalk.dim(`[hooks] Learning init: ${initError instanceof Error ? initError.message : 'unknown'}`));
         }
 
         if (options.json) {
+          // dreamTriggered/dreamReason retained for backwards-compat with
+          // operator scripts; the kernel-side scheduler is the authoritative
+          // trigger now (ADR-094).
           printJson({
             success: true,
             taskId: options.taskId,
             taskSuccess: success,
             patternsLearned,
-            dreamTriggered: dreamResult.triggered,
-            dreamReason: dreamResult.reason,
-            dreamInsights: dreamResult.insightsGenerated,
-            dreamInsightsApplied: dreamResult.insightsApplied,
+            dreamTriggered: false,
+            dreamReason: 'deferred-to-kernel',
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
           console.log(chalk.dim(`  Success: ${success}`));
           if (patternsLearned > 0) {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
-          }
-          if (dreamResult.triggered) {
-            const appliedSuffix =
-              typeof dreamResult.insightsApplied === 'number'
-                ? `, ${dreamResult.insightsApplied} applied`
-                : '';
-            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights${appliedSuffix}`));
           }
         }
 

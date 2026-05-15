@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
@@ -107,6 +108,10 @@ export function registerRoutingHooks(hooks: Command): void {
             patternCount: routing.patterns.length,
             guidance: routing.guidance,
             reasoning: routing.reasoning,
+            // ADR-095 telemetry passed through to operators / scripts
+            exploration: (routing as { exploration?: boolean }).exploration ?? false,
+            criticality: (routing as { criticality?: number }).criticality ?? null,
+            qWeight: (routing as { qWeight?: number }).qWeight ?? null,
           });
         } else {
           console.log(chalk.bold('\n🎯 Task Routing Result'));
@@ -141,6 +146,9 @@ export function registerRoutingHooks(hooks: Command): void {
           }
           const db = um.getDatabase();
           applyHookBusyTimeout(db);
+          // ADR-095: ensure new columns exist before INSERTing them. Idempotent.
+          ensureRoutingOutcomesAdr095Columns(db);
+
           const outcomeId = `route-${Date.now()}-${randomUUID().slice(0, 8)}`;
           // Split-write semantics: quality_score means "outcome quality after
           // task ran" (6-dim formula), NOT routing confidence. Routing-
@@ -149,12 +157,18 @@ export function registerRoutingHooks(hooks: Command): void {
           // quality. lowConfidence is surfaced via decision_json + the error
           // column so it's visible in queries that don't parse JSON.
           const lowConfidence = routing.confidence < 0.5;
+          const routingTelemetry = routing as typeof routing & {
+            exploration?: boolean;
+            criticality?: number;
+            qWeight?: number;
+          };
           db.prepare(`
             INSERT OR REPLACE INTO routing_outcomes (
               id, task_json, decision_json, used_agent,
               followed_recommendation, success, quality_score,
-              duration_ms, error
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+              duration_ms, error,
+              exploration, criticality, q_weight
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             outcomeId,
             JSON.stringify({ description: task, domain: options.domain }),
@@ -163,6 +177,9 @@ export function registerRoutingHooks(hooks: Command): void {
               confidence: routing.confidence,
               alternatives: routing.alternatives,
               lowConfidence,
+              exploration: routingTelemetry.exploration ?? false,
+              criticality: routingTelemetry.criticality ?? null,
+              qWeight: routingTelemetry.qWeight ?? null,
             }),
             routing.recommendedAgent,
             1,    // followed_recommendation = true
@@ -170,6 +187,9 @@ export function registerRoutingHooks(hooks: Command): void {
             -1,   // quality_score = -1 sentinel
             0,    // duration not yet tracked
             lowConfidence ? 'low-confidence' : null,
+            routingTelemetry.exploration ? 1 : 0,
+            routingTelemetry.criticality ?? null,
+            routingTelemetry.qWeight ?? null,
           );
 
           // Increment dream experience counter

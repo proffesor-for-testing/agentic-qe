@@ -5,6 +5,126 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.31] - 2026-05-15
+
+Self-learning loop ships. Closes issues #480, #486, #487, #488 and
+introduces two architectural decision records (ADR-094, ADR-095). With
+this release, the QE fleet's pattern catalog actually diversifies in
+practice instead of converging on whatever pattern won first.
+
+### Fixed
+
+- **`post-edit` hook never triggered dream cycles** (#480). The hook was
+  initializing `dreamTriggered = false` as a literal and never calling
+  `checkAndTriggerDream` — so the experience counter grew monotonically
+  but the dream loop never fired. Operators saw `dream_insights.applied`
+  stuck at 0 forever. The hook now correctly invokes the trigger and
+  surfaces the full result shape (reason, insightsGenerated,
+  insightsApplied) in JSON output.
+
+- **Q-learning never received signal for low-confidence prompts** (#487).
+  The pre-task hook gated the routing-bridge kv write on
+  `selectedPatternIds.length > 0`, which silently dropped the bridge for
+  every low-confidence prompt. Post-task's Bellman update then had no
+  state to update, and `rl_q_values` never populated despite routing
+  decisions actively happening. The gate is removed; the bridge now
+  writes whenever the task has a description, regardless of pattern match
+  count.
+
+- **`qe_pattern_usage` audit table stayed empty in production** (#486 Gap B).
+  Two parallel writers existed for pattern usage: the canonical
+  `SQLitePatternStore.recordUsage` (correctly wrote BOTH the audit row
+  and the qe_patterns columns inside one transaction) and an inline
+  UPDATE in the hook flow (skipped the audit INSERT). Operators saw
+  `usage_count` climbing while `qe_pattern_usage` had zero rows.
+  Extracted a single-writer helper `recordPatternUsage`; both call sites
+  now delegate to it. The invariant `COUNT(*) FROM qe_pattern_usage` =
+  `SUM(qe_patterns.usage_count)` is now structurally enforced.
+
+### Added
+
+- **Kernel-side dream cycles** (ADR-094, #488 Phase 2). Dream cycles used
+  to run in short-lived hook subprocesses, holding the SQLite write
+  transaction for up to 10 seconds while other writers queued behind.
+  Errors went to stderr where Claude Code's hook reader swallowed them.
+  Now the existing `DreamScheduler` (built in v3.7 but never wired) runs
+  from `QEKernelImpl.initialize()`. Hook subprocesses keep only the cheap
+  experience-counter bump (`incrementDreamExperience`); the long-lived
+  kernel owns the actual cycle. A new boundary-enforcement test in
+  `tests/unit/architecture/hooks-boundary.test.ts` fails CI if any hook
+  handler re-introduces heavy work.
+
+- **Three-signal agent routing: static score + Q-value blend + mincut-gated
+  ε-greedy exploration** (ADR-095, #488 Phase 4). The Q-table from #487
+  is now actually consumed during routing decisions. A sigmoid-normalized
+  Q-value blends into per-agent scores with a `qWeight` that ramps from
+  0 (no Q-data) to 0.4 (mature). Crypto-random ε-greedy selection
+  diversifies the catalog; an ADR-068-style mincut safety gate
+  dampens exploration 5x when the swarm topology is critical. The
+  `AQE_ROUTER_EXPLORATION_RATE=0` env var is the rollback knob.
+
+- **`mineExperiences` now auto-fires** (#486 Gap A). The
+  `LearningConsolidationWorker` ticks every 30 minutes and now includes a
+  per-domain `mineExperiences` sweep with a watermark cursor at
+  `learning:consolidation-cursor:{domain}`. Cursor advances only on
+  successful mining, so failures and empty windows don't silently consume
+  fresh experiences arriving milliseconds later. `learning:pattern:*` kv
+  fills in default deployments instead of staying empty.
+
+- **Self-learning loop observability** (#488 Phase 1 B.2). New
+  `aqe learning loop-health` CLI subcommand shows liveness of the three
+  loop components (`CapturedExperienceBridge`, `LearningConsolidationWorker`,
+  `DreamScheduler`) with per-component verdicts (live / stale / never-ran)
+  and a routing-diversification dashboard (7-day exploit/explore counts,
+  avg quality per bucket, avg mincut multiplier, avg Q-weight). Operators
+  finally have a one-command view of whether the loop is closing.
+
+- **Daemon pidfile probes globally-installed agentic-qe directly** (#488
+  Phase 1 B.1). The generated `.agentic-qe/workers/start-daemon.cjs`
+  previously fell back to `npx --yes agentic-qe mcp` when no local
+  install existed, but `child.pid` was then the npx wrapper PID (which
+  exits as soon as it forks the real bundle), causing `aqe daemon status`
+  to misreport liveness. The script now probes
+  `require.resolve('agentic-qe/dist/mcp/bundle.js')` first to find the
+  global install; if it falls back to npx, a WARNING in `daemon.log`
+  surfaces the degraded pidfile contract to operators.
+
+- **`dream_insights` retention sweep** (#488 Phase 3 C.2). Stale unapplied
+  insights older than 30 days now get pruned on every worker tick.
+  Applied insights stay forever (audit trail); recently-created insights
+  stay regardless of applied state. The table no longer grows unbounded.
+
+### Changed
+
+- **Bridge cursor is now monotonic** (#488 Phase 3 C.3).
+  `CapturedExperienceBridge.drain` reads back the persisted cursor before
+  writing and uses `max(this.cursor, persisted)` so cross-process races
+  (e.g., duplicate daemons) can't regress the cursor and cause duplicate
+  event re-publication.
+
+- **Hooks no longer trigger dream cycles inline** (ADR-094 boundary
+  contract). The `checkAndTriggerDream` call is removed from `post-edit`
+  and `post-task`; JSON output now emits `dreamTriggered: false` with
+  `dreamReason: 'deferred-to-kernel'` so operators reading the JSON see
+  *where* the cycle actually runs rather than a bare false literal.
+  Rollback path is documented in ADR-094.
+
+- **`SQLitePatternStore.recordUsage` is now a thin wrapper** around the
+  new shared `recordPatternUsage` helper. Throw-on-missing-pattern
+  semantics preserved.
+
+### Architecture Decision Records
+
+- **ADR-094: Kernel-Side Dream Cycles + Hooks-as-Producers Boundary**.
+  Formalizes the architectural rule that hook subprocesses must not do
+  work exceeding ~100ms. The CapturedExperienceBridge pattern (proven
+  in v3.9.27) is now applied to dream cycles too. Boundary enforced by
+  CI test.
+
+- **ADR-095: ε-Greedy Routing Exploration Policy**. Documents the three-
+  signal blend (static + Q-value + mincut-gated ε), the rollback knob,
+  and the post-deploy telemetry surfaces in `aqe learning loop-health`.
+
 ## [3.9.30] - 2026-05-14
 
 Patch release fixing six user-reported issues across MCP tooling.

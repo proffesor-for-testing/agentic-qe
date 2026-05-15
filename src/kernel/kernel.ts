@@ -31,6 +31,8 @@ import * as fs from 'fs';
 import { PluginLifecycleManager } from '../plugins/lifecycle';
 import { PluginCache } from '../plugins/cache';
 import { CapturedExperienceBridge } from '../bridge/captured-experience-bridge.js';
+import { DreamScheduler } from '../learning/dream/dream-scheduler.js';
+import { createDreamEngine } from '../learning/dream/dream-engine.js';
 
 // Import domain plugin factories
 import { createTestGenerationPlugin } from '../domains/test-generation/plugin';
@@ -88,6 +90,10 @@ const DEFAULT_CONFIG: KernelConfig = {
   // working out of the box. CLI commands that don't need event-driven
   // domain reactions opt out by passing `enableExperienceBridge: false`.
   enableExperienceBridge: true,
+  // ADR-094: kernel-side dream cycles. Defaults match the bridge — long-lived
+  // processes start the scheduler so dream cycles run in the kernel rather
+  // than inside hook subprocesses. Short-lived CLIs opt out.
+  enableDreamScheduler: true,
 };
 
 export class QEKernelImpl implements QEKernel {
@@ -105,6 +111,11 @@ export class QEKernelImpl implements QEKernel {
   // Issue #479: drains captured_experiences into the eventBus so hook-driven
   // activity reaches the 13 domain plugins' subscribeToEvents() handlers.
   private _experienceBridge?: CapturedExperienceBridge;
+
+  // ADR-094: kernel-side dream cycles. Replaces the in-hook
+  // checkAndTriggerDream path so 10-second SQLite write transactions move
+  // out of short-lived hook subprocesses into the long-lived kernel.
+  private _dreamScheduler?: DreamScheduler;
 
   constructor(config: Partial<KernelConfig> = {}) {
     this._config = { ...DEFAULT_CONFIG, ...config };
@@ -332,10 +343,62 @@ export class QEKernelImpl implements QEKernel {
       }
     }
 
+    // ADR-094: Start the kernel-side DreamScheduler so dream cycles run in
+    // the long-lived process. Hook subprocesses no longer trigger dreams —
+    // they only bump the experience counter (incrementDreamExperience).
+    // The scheduler subscribes to its own event triggers (quality-gate
+    // failure, domain milestones) and runs time-based dreams on its own
+    // cadence (default 1h). DreamEngine.ensureConceptsLoaded() auto-loads
+    // patterns from qe_patterns, so no separate ReasoningBank is needed here.
+    if (this._config.enableDreamScheduler !== false) {
+      try {
+        const dreamEngine = createDreamEngine({
+          maxDurationMs: 10_000,
+          minConceptsRequired: 3,
+        });
+        await dreamEngine.initialize();
+        this._dreamScheduler = new DreamScheduler({
+          dreamEngine,
+          eventBus: this._eventBus,
+          memoryBackend: this._memory,
+        });
+        await this._dreamScheduler.initialize();
+        this._dreamScheduler.start();
+      } catch (err) {
+        console.warn(
+          '[QEKernel] DreamScheduler failed to start:',
+          err instanceof Error ? err.message : err
+        );
+        // Tear down anything we partially constructed so we don't leak a
+        // half-initialized scheduler (e.g., engine init succeeded but
+        // scheduler.start threw).
+        if (this._dreamScheduler) {
+          try {
+            await this._dreamScheduler.dispose();
+          } catch { /* swallow during cleanup */ }
+        }
+        this._dreamScheduler = undefined;
+      }
+    }
+
     this._initialized = true;
   }
 
   async dispose(): Promise<void> {
+    // ADR-094: Stop the dream scheduler first so a dream-in-progress doesn't
+    // try to write to a disposed memory backend.
+    if (this._dreamScheduler) {
+      try {
+        await this._dreamScheduler.dispose();
+      } catch (err) {
+        console.warn(
+          '[QEKernel] DreamScheduler dispose failed:',
+          err instanceof Error ? err.message : err,
+        );
+      }
+      this._dreamScheduler = undefined;
+    }
+
     // Stop the bridge first so it doesn't try to publish to a disposed bus.
     if (this._experienceBridge) {
       await this._experienceBridge.stop();

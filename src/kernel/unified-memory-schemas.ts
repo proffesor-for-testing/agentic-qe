@@ -556,7 +556,8 @@ export const FEEDBACK_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_test_outcomes_domain ON test_outcomes(domain);
   CREATE INDEX IF NOT EXISTS idx_test_outcomes_created ON test_outcomes(created_at);
 
-  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing, ADR-092: advisor_consultation_json)
+  -- Routing outcomes (ADR-022: Adaptive QE Agent Routing, ADR-092: advisor_consultation_json,
+  -- ADR-095: exploration / criticality / q_weight for ε-greedy routing telemetry)
   CREATE TABLE IF NOT EXISTS routing_outcomes (
     id TEXT PRIMARY KEY,
     task_json TEXT NOT NULL,
@@ -569,11 +570,16 @@ export const FEEDBACK_SCHEMA = `
     error TEXT,
     model_tier TEXT,
     advisor_consultation_json TEXT,
+    -- ADR-095: routing exploration telemetry
+    exploration INTEGER NOT NULL DEFAULT 0,
+    criticality REAL,
+    q_weight REAL,
     created_at TEXT DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_agent ON routing_outcomes(used_agent);
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_created ON routing_outcomes(created_at);
   CREATE INDEX IF NOT EXISTS idx_routing_outcomes_tier ON routing_outcomes(model_tier);
+  CREATE INDEX IF NOT EXISTS idx_routing_outcomes_exploration ON routing_outcomes(exploration);
 
   -- Coverage sessions (ADR-023: Coverage Learning)
   CREATE TABLE IF NOT EXISTS coverage_sessions (

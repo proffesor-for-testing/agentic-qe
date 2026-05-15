@@ -21,6 +21,7 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import { EMACalibrator, type EMAConfig } from './calibration/index.js';
 import { AutoEscalationTracker, type EscalationConfig, type EscalationState } from './escalation/index.js';
 import type { RoutingConfig, AgentTier } from './routing-config.js';
+import { ensureRoutingOutcomesAdr095Columns } from './routing-outcomes-migration.js';
 import {
   EconomicRoutingModel,
   type EconomicRoutingConfig,
@@ -193,9 +194,9 @@ export class RoutingFeedbackCollector {
     try {
       const database = this.db.getDatabase();
 
-      // Ensure schema columns exist for databases created before ADR-092.
-      // Runs once per process via the flag; new databases have columns from
-      // unified-memory-schemas.ts CREATE TABLE.
+      // Ensure schema columns exist for databases created before ADR-092
+      // and ADR-095. Runs once per process via the flag; new databases have
+      // columns from unified-memory-schemas.ts CREATE TABLE.
       if (!RoutingFeedbackCollector.schemaMigrated) {
         for (const col of [
           'ALTER TABLE routing_outcomes ADD COLUMN model_tier TEXT',
@@ -203,6 +204,9 @@ export class RoutingFeedbackCollector {
         ]) {
           try { database.prepare(col).run(); } catch { /* column already exists */ }
         }
+        // ADR-095: routing exploration columns via shared helper so all
+        // writer paths agree on the column set.
+        ensureRoutingOutcomesAdr095Columns(database);
         RoutingFeedbackCollector.schemaMigrated = true;
       }
 

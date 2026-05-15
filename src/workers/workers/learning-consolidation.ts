@@ -22,7 +22,11 @@ import {
   WorkerRecommendation,
 } from '../interfaces';
 import { DomainName, ALL_DOMAINS } from '../../shared/types';
-import { LearningOptimizationAPI } from '../../domains/learning-optimization/plugin';
+import {
+  LearningOptimizationAPI,
+  LearningOptimizationExtendedAPI,
+} from '../../domains/learning-optimization/plugin';
+import { TimeRange } from '../../shared/value-objects/index.js';
 import { DreamEngine, type EngineResult as DreamCycleResult, type PatternImportData } from '../../learning/dream/index.js';
 import {
   PatternLifecycleManager,
@@ -33,6 +37,8 @@ import {
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
+import { recordLoopHealth } from '../../learning/loop-health.js';
+import { pruneStaleDreamInsights } from '../../learning/dream/dream-insights-pruner.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -77,7 +83,37 @@ interface ConsolidationResult {
   /** Experience consolidation metrics */
   experiencesMerged: number;
   experiencesArchived: number;
+  /**
+   * #486 Gap A: experiences mined into learning:pattern:* kv via
+   * LearningCoordinatorService.mineExperiences. Without this step, the
+   * `learning:pattern:*` kv stays empty even after the bridge feeds
+   * captured_experiences → learning:experience:* kv, because nothing
+   * else auto-triggers `mineExperiences` in default deployments.
+   */
+  patternsMined: number;
+  /** Number of domains that successfully advanced their cursor this tick. */
+  domainsMined: number;
+  /**
+   * #488 C.2: count of stale unapplied dream_insights rows deleted on
+   * this tick. Zero on most ticks once steady-state is reached.
+   */
+  dreamInsightsPruned: number;
 }
+
+/**
+ * #486 Gap A: per-domain watermark for the mineExperiences sweep.
+ * Stored at `learning:consolidation-cursor:{domain}` as an ISO timestamp.
+ * Advances only on successful mining with non-zero experiences — failures
+ * leave the cursor untouched so the next tick retries the same window.
+ */
+const CONSOLIDATION_CURSOR_PREFIX = 'learning:consolidation-cursor:';
+const DEFAULT_LOOKBACK_DAYS = 1;
+
+/**
+ * #488 C.2: retention window for `applied = 0` dream insights. Matches the
+ * `staleDaysThreshold` used by `pattern-lifecycle.ts` for consistency.
+ */
+const DREAM_INSIGHTS_RETENTION_DAYS = 30;
 
 export class LearningConsolidationWorker extends BaseWorker {
   private lifecycleManager: PatternLifecycleManager | null = null;
@@ -128,6 +164,9 @@ export class LearningConsolidationWorker extends BaseWorker {
     let patternsPromoted = 0;
     let patternsDeprecated = 0;
     let confidenceDecayApplied = 0;
+    let patternsMined = 0;
+    let domainsMined = 0;
+    let dreamInsightsPruned = 0;
 
     // Phase 7: Run continuous learning loop
     const lifecycleManager = await this.getLifecycleManager();
@@ -143,6 +182,9 @@ export class LearningConsolidationWorker extends BaseWorker {
       patternsPromoted = lifecycleResult.patternsPromoted;
       patternsDeprecated = lifecycleResult.patternsDeprecated;
       confidenceDecayApplied = lifecycleResult.confidenceDecayApplied;
+      patternsMined = lifecycleResult.patternsMined;
+      domainsMined = lifecycleResult.domainsMined;
+      dreamInsightsPruned = lifecycleResult.dreamInsightsPruned;
     }
 
     // Collect patterns from all domains
@@ -157,6 +199,9 @@ export class LearningConsolidationWorker extends BaseWorker {
     result.patternsPromoted = patternsPromoted;
     result.patternsDeprecated = patternsDeprecated;
     result.confidenceDecayApplied = confidenceDecayApplied;
+    result.patternsMined = patternsMined;
+    result.domainsMined = domainsMined;
+    result.dreamInsightsPruned = dreamInsightsPruned;
 
     // Identify cross-domain patterns
     this.identifyCrossDomainPatterns(patterns, findings, recommendations);
@@ -175,6 +220,11 @@ export class LearningConsolidationWorker extends BaseWorker {
     // Store consolidated results
     await context.memory.set('learning:lastConsolidation', result);
     await context.memory.set('learning:consolidatedPatterns', patterns);
+
+    // #488 B.2: record loop-health so `aqe learning loop-health` can show
+    // the consolidation worker as alive. Records success even for empty
+    // ticks — "ran the loop, found nothing" is still a liveness signal.
+    await recordLoopHealth(context.memory, 'learningWorker', { success: true });
 
     // Update last run timestamp for decay calculation
     this.lastRunTimestamp = Date.now();
@@ -213,6 +263,11 @@ export class LearningConsolidationWorker extends BaseWorker {
           patternsPromoted: result.patternsPromoted,
           patternsDeprecated: result.patternsDeprecated,
           confidenceDecayApplied: result.confidenceDecayApplied,
+          // #486 Gap A: mineExperiences auto-trigger
+          patternsMined: result.patternsMined,
+          domainsMined: result.domainsMined,
+          // #488 C.2: dream_insights retention pruning
+          dreamInsightsPruned: result.dreamInsightsPruned,
         },
       },
       findings,
@@ -237,6 +292,9 @@ export class LearningConsolidationWorker extends BaseWorker {
     patternsPromoted: number;
     patternsDeprecated: number;
     confidenceDecayApplied: number;
+    patternsMined: number;
+    domainsMined: number;
+    dreamInsightsPruned: number;
   }> {
     context.logger.info('Running continuous learning loop (Phase 7)');
 
@@ -245,6 +303,9 @@ export class LearningConsolidationWorker extends BaseWorker {
     let patternsPromoted = 0;
     let patternsDeprecated = 0;
     let confidenceDecayApplied = 0;
+    let patternsMined = 0;
+    let domainsMined = 0;
+    let dreamInsightsPruned = 0;
 
     try {
       // Step 1: Extract patterns from recent experiences
@@ -371,12 +432,58 @@ export class LearningConsolidationWorker extends BaseWorker {
       const stats = lifecycleManager.getStats();
       this.addLifecycleStatsFinding(stats, findings, recommendations);
 
+      // Step 7 (#486 Gap A): mine experiences per domain so `learning:pattern:*`
+      // kv stays current. Without this, the kv stays empty even after the
+      // bridge has populated `learning:experience:*` — no other code path
+      // auto-fires `mineExperiences` in default deployments.
+      try {
+        const miningResult = await this.mineExperiencesPerDomain(context, findings);
+        patternsMined = miningResult.patternsMined;
+        domainsMined = miningResult.domainsMined;
+      } catch (miningError) {
+        context.logger.warn('Pattern mining sweep failed', {
+          error: toErrorMessage(miningError),
+        });
+      }
+
+      // Step 8 (#488 C.2): prune stale unapplied dream_insights so the
+      // table doesn't grow unbounded. Applied insights are part of the
+      // pattern-change audit trail and stay forever.
+      try {
+        const unifiedMemory = getUnifiedMemory();
+        const db = unifiedMemory.getDatabase();
+        const pruneResult = pruneStaleDreamInsights(db, {
+          retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
+        });
+        dreamInsightsPruned = pruneResult.pruned;
+        if (dreamInsightsPruned > 0) {
+          findings.push({
+            type: 'dream-insights-pruned',
+            severity: 'info',
+            domain: 'learning-optimization',
+            title: 'Stale Dream Insights Pruned',
+            description: `${dreamInsightsPruned} unapplied dream insights older than ${DREAM_INSIGHTS_RETENTION_DAYS} days deleted`,
+            context: {
+              pruned: dreamInsightsPruned,
+              retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
+            },
+          });
+        }
+      } catch (pruneError) {
+        context.logger.warn('Dream insights pruning failed', {
+          error: toErrorMessage(pruneError),
+        });
+      }
+
       context.logger.info('Continuous learning loop complete', {
         experiencesProcessed,
         patternCandidatesFound,
         patternsPromoted,
         patternsDeprecated,
         confidenceDecayApplied,
+        patternsMined,
+        domainsMined,
+        dreamInsightsPruned,
       });
     } catch (error) {
       context.logger.warn('Continuous learning loop partially failed', {
@@ -390,7 +497,132 @@ export class LearningConsolidationWorker extends BaseWorker {
       patternsPromoted,
       patternsDeprecated,
       confidenceDecayApplied,
+      patternsMined,
+      domainsMined,
+      dreamInsightsPruned,
     };
+  }
+
+  /**
+   * #486 Gap A: mine experiences into `learning:pattern:*` kv per domain.
+   *
+   * The producer side of the learning-optimization domain pipeline:
+   *
+   *   captured_experiences (SQLite)
+   *     → bridge drain → learning.ExperienceCaptured event
+   *       → handleExperienceCaptured → recordExperience
+   *         → learning:experience:* kv (✓ working post-v3.9.29)
+   *           → mineExperiences (THIS STEP)
+   *             → extractPatternsFromExperiences → learnPattern → storePattern
+   *               → learning:pattern:* kv
+   *
+   * Without this step the chain ends at the experience kv, so `getPatternStats`
+   * reports zero patterns and the `LearningConsolidationWorker.collectPatterns`
+   * step a few lines above throws "No learning patterns to consolidate yet".
+   *
+   * Per-domain cursor avoids re-processing the same experiences (which would
+   * duplicate-write since `learnPattern` uses uuidv4 for pattern IDs). Cursor
+   * is stored in WorkerMemory under `learning:consolidation-cursor:{domain}`
+   * as an ISO timestamp. On first run, the cursor defaults to `now - 1 day`
+   * to match the lookback used elsewhere by `runLearningCycle`.
+   *
+   * Failures are isolated per domain — one bad domain doesn't block others.
+   * On failure or empty mining the cursor stays put so the next tick retries
+   * the same window with new experiences.
+   */
+  private async mineExperiencesPerDomain(
+    context: WorkerContext,
+    findings: WorkerFinding[]
+  ): Promise<{ patternsMined: number; domainsMined: number }> {
+    const learningAPI = context.domains.getDomainAPI<LearningOptimizationExtendedAPI>(
+      'learning-optimization'
+    );
+    if (!learningAPI || typeof learningAPI.getLearningService !== 'function') {
+      // The learning-optimization domain isn't available in this fleet config;
+      // the worker still has lifecycle work to do, so this is non-fatal.
+      context.logger.debug('mineExperiencesPerDomain: learning-optimization API unavailable');
+      return { patternsMined: 0, domainsMined: 0 };
+    }
+
+    const learningService = learningAPI.getLearningService();
+    if (!learningService) {
+      context.logger.debug('mineExperiencesPerDomain: learning service not initialized');
+      return { patternsMined: 0, domainsMined: 0 };
+    }
+
+    const now = new Date();
+    let patternsMined = 0;
+    let domainsMined = 0;
+
+    for (const domain of ALL_DOMAINS) {
+      const cursorKey = `${CONSOLIDATION_CURSOR_PREFIX}${domain}`;
+      let start: Date;
+      try {
+        const cursorIso = await context.memory.get<string>(cursorKey);
+        if (cursorIso) {
+          const parsed = new Date(cursorIso);
+          // Guard against corrupted cursor or clock skew: never look back further
+          // than DEFAULT_LOOKBACK_DAYS, never look ahead.
+          if (!isNaN(parsed.getTime()) && parsed < now) {
+            const earliest = new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+            start = parsed > earliest ? parsed : earliest;
+          } else {
+            start = new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+          }
+        } else {
+          start = new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+        }
+      } catch {
+        // Cursor read failure is non-fatal — fall back to the default window.
+        start = new Date(now.getTime() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+      }
+
+      try {
+        const timeRange = TimeRange.create(start, now);
+        const result = await learningService.mineExperiences(domain, timeRange);
+        if (!result.success) {
+          context.logger.debug(`mineExperiences failed for ${domain}`, {
+            error: toErrorMessage(result.error),
+          });
+          continue;
+        }
+
+        const { experienceCount, patterns } = result.value;
+        if (experienceCount > 0) {
+          patternsMined += patterns.length;
+          domainsMined++;
+          // Only advance the cursor when we actually processed experiences —
+          // otherwise an empty window would falsely consume a fresh experience
+          // arriving milliseconds later. Cursor advances to `now`, not to
+          // `last experience timestamp`, because the kv index uses
+          // `learning:experience:index:domain:{d}:*` keys without a per-key
+          // timestamp we can read here.
+          await context.memory.set(cursorKey, now.toISOString());
+        }
+      } catch (domainError) {
+        context.logger.debug(`mineExperiences threw for ${domain}`, {
+          error: toErrorMessage(domainError),
+        });
+        // Cursor untouched on throw — retry next tick.
+      }
+    }
+
+    if (patternsMined > 0) {
+      findings.push({
+        type: 'pattern-mining',
+        severity: 'info',
+        domain: 'learning-optimization',
+        title: 'Patterns Mined from Experience Replay',
+        description: `${patternsMined} patterns mined into learning:pattern:* kv across ${domainsMined} domain(s) since their last consolidation tick`,
+        context: {
+          patternsMined,
+          domainsMined,
+          lookbackDays: DEFAULT_LOOKBACK_DAYS,
+        },
+      });
+    }
+
+    return { patternsMined, domainsMined };
   }
 
   /**
@@ -671,6 +903,11 @@ export class LearningConsolidationWorker extends BaseWorker {
       // Experience consolidation metrics
       experiencesMerged: 0,
       experiencesArchived: 0,
+      // #486 Gap A: filled in by runContinuousLearningLoop
+      patternsMined: 0,
+      domainsMined: 0,
+      // #488 C.2: filled in by runContinuousLearningLoop
+      dreamInsightsPruned: 0,
     };
   }
 

@@ -30,6 +30,9 @@ import {
   LearningMetricsTracker,
   type UnifiedMetricsSnapshot,
 } from '../metrics-tracker.js';
+// ADR-094 / #488 B.2: record per-tick liveness so `aqe learning loop-health`
+// surfaces the kernel-side dream loop as live.
+import { recordLoopHealth } from '../loop-health.js';
 
 const logger: Logger = LoggerFactory.create('DreamScheduler');
 
@@ -520,6 +523,7 @@ export class DreamScheduler {
     this.dreaming = true;
     logger.info('Starting dream cycle', { durationMs });
 
+    let dreamError: Error | undefined;
     try {
       // Ensure concepts are loaded before dreaming
       const loaded = await this.dreamEngine.ensureConceptsLoaded();
@@ -565,8 +569,20 @@ export class DreamScheduler {
 
       logger.info('Dream completed', { insightsGenerated: result.insights.length });
       return result;
+    } catch (err) {
+      dreamError = err instanceof Error ? err : new Error(String(err));
+      throw err;
     } finally {
       this.dreaming = false;
+      // ADR-094 / #488 B.2: record liveness so `aqe learning loop-health`
+      // can show the kernel-side dream scheduler as live. Best-effort —
+      // recordLoopHealth itself never throws.
+      if (this.memoryBackend) {
+        await recordLoopHealth(this.memoryBackend, 'dreamScheduler', {
+          success: !dreamError,
+          error: dreamError,
+        });
+      }
     }
   }
 
