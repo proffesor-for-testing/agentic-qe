@@ -70,7 +70,15 @@ import { PRETRAINED_PATTERNS } from './pretrained-patterns.js';
 import {
   AGENT_CAPABILITIES,
   calculateAgentScores,
+  applyExplorationPolicy,
+  resolveExplorationRate,
+  deriveTaskType,
+  buildRoutingStateKey,
+  deriveComplexityBucket,
+  type QValueLookup,
 } from './agent-routing.js';
+import { getSharedMinCutMonitor, isSharedMinCutMonitorInitialized } from '../coordination/mincut/shared-singleton.js';
+import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { resizeEmbedding, hashEmbedding } from './embedding-utils.js';
 import {
   checkPatternPromotionWithCoherence,
@@ -498,13 +506,44 @@ export class QEReasoningBank implements IQEReasoningBank {
         }
       }
 
-      // 4. Calculate agent scores using extracted function
+      // ADR-095: build the Q-value lookup closure from the task's state_key.
+      // The state_key MUST match what `updateHookRouterQValue` writes from
+      // post-task — buildRoutingStateKey enforces that.
+      const stateKey = buildRoutingStateKey({
+        taskType: deriveTaskType(request.task),
+        priority: 'normal',
+        domain: detectedDomains[0],
+        complexityBucket: deriveComplexityBucket(request.task),
+      });
+      const qValueLookup = this.buildQValueLookup(stateKey);
+
+      // 4. Calculate agent scores (now Q-blended when lookup available)
       const agentScores = calculateAgentScores(
         detectedDomains,
         request.capabilities,
         agentDomainPatternCounts,
         this.config.routingWeights,
+        AGENT_CAPABILITIES,
+        request.context?.language,
+        qValueLookup,
       );
+
+      // ADR-095: ε-greedy exploration with mincut safety gate.
+      // The exploration is best-effort — failures fall through to greedy.
+      let safetyMultiplier = 1.0;
+      try {
+        const topologyCritical = isSharedMinCutMonitorInitialized()
+          ? getSharedMinCutMonitor().isCritical()
+          : false;
+        const rateInfo = resolveExplorationRate({
+          envOverride: process.env.AQE_ROUTER_EXPLORATION_RATE,
+          topologyCritical,
+        });
+        safetyMultiplier = rateInfo.safetyMultiplier;
+        applyExplorationPolicy(agentScores, rateInfo.epsilon);
+      } catch {
+        // Exploration failures are non-fatal; greedy order stands.
+      }
 
       const recommended = agentScores[0];
       const alternatives = agentScores.slice(1, 4);
@@ -523,6 +562,12 @@ export class QEReasoningBank implements IQEReasoningBank {
       // Update stats
       this.stats.totalRoutingConfidence += recommended.score;
 
+      // ADR-095 telemetry: average qWeight across the scored agents — a
+      // proxy for Q-table maturity. Operators can correlate this with
+      // routing_outcomes.quality_score over time to see if learning helps.
+      const totalQWeight = agentScores.reduce((acc, a) => acc + (a.qWeight ?? 0), 0);
+      const avgQWeight = agentScores.length > 0 ? totalQWeight / agentScores.length : 0;
+
       const result: QERoutingResult = {
         recommendedAgent: recommended.agent,
         confidence: recommended.score,
@@ -531,11 +576,60 @@ export class QEReasoningBank implements IQEReasoningBank {
         patterns,
         guidance,
         reasoning: recommended.reasoning.join('; '),
+        exploration: recommended.exploration === true,
+        criticality: safetyMultiplier,
+        qWeight: avgQWeight,
       };
 
       return ok(result);
     } catch (error) {
       return err(toError(error));
+    }
+  }
+
+  /**
+   * ADR-095: Build a per-agent Q-value lookup closure for the current
+   * routing decision. The closure executes a prepared-statement query
+   * against `rl_q_values` for each agent considered.
+   *
+   * Returns a no-op lookup when the unified memory backend is unavailable
+   * (e.g. during early boot or in tests that don't initialize SQLite).
+   * The no-op causes `calculateAgentScores` to fall back to pure-static
+   * scoring — identical to pre-ADR-095 behavior.
+   */
+  private buildQValueLookup(stateKey: string): QValueLookup {
+    try {
+      const um = getUnifiedMemory();
+      if (!um.isInitialized()) return () => undefined;
+      const db = um.getDatabase();
+      // Verify the Q-table exists; many CLI commands run without ever
+      // initializing the schema and the SELECT below would throw.
+      const tableExists = db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='rl_q_values'")
+        .get();
+      if (!tableExists) return () => undefined;
+
+      const stmt = db.prepare(`
+        SELECT q_value, visits FROM rl_q_values
+         WHERE algorithm = 'q-learning'
+           AND agent_id = 'aqe-hook-router'
+           AND state_key = ?
+           AND action_key = ?
+      `);
+
+      return (agentType: string) => {
+        try {
+          const row = stmt.get(stateKey, agentType) as
+            | { q_value: number; visits: number }
+            | undefined;
+          if (!row) return undefined;
+          return { qValue: row.q_value, visits: row.visits };
+        } catch {
+          return undefined;
+        }
+      };
+    } catch {
+      return () => undefined;
     }
   }
 

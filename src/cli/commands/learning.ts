@@ -1499,6 +1499,73 @@ function registerLoopHealthCommand(learning: Command): void {
           // kv_store may not exist yet on a freshly-init'd shop.
         }
 
+        // ADR-095: routing diversification stats (7-day rolling window)
+        let routingStats: null | {
+          totalDecisions: number;
+          explorationCount: number;
+          exploitCount: number;
+          explorationRate: number;
+          avgQualityExploit: number | null;
+          avgQualityExplore: number | null;
+          avgCriticality: number | null;
+          avgQWeight: number | null;
+        } = null;
+        try {
+          const colCheck = db
+            .prepare("PRAGMA table_info(routing_outcomes)")
+            .all() as Array<{ name: string }>;
+          const hasExploration = colCheck.some((c) => c.name === 'exploration');
+          if (hasExploration) {
+            const totals = db
+              .prepare(
+                `SELECT
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN exploration = 1 THEN 1 ELSE 0 END) AS explore,
+                   AVG(criticality) AS avgCrit,
+                   AVG(q_weight) AS avgQ
+                 FROM routing_outcomes
+                 WHERE created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as {
+              total: number;
+              explore: number | null;
+              avgCrit: number | null;
+              avgQ: number | null;
+            };
+            const total = totals.total ?? 0;
+            const explore = totals.explore ?? 0;
+            const exploit = total - explore;
+
+            const exploitQ = db
+              .prepare(
+                `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
+                  WHERE exploration = 0 AND quality_score >= 0
+                    AND created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as { avgQ: number | null };
+            const exploreQ = db
+              .prepare(
+                `SELECT AVG(quality_score) AS avgQ FROM routing_outcomes
+                  WHERE exploration = 1 AND quality_score >= 0
+                    AND created_at >= datetime('now', '-7 days')`,
+              )
+              .get() as { avgQ: number | null };
+
+            routingStats = {
+              totalDecisions: total,
+              explorationCount: explore,
+              exploitCount: exploit,
+              explorationRate: total > 0 ? explore / total : 0,
+              avgQualityExploit: exploitQ.avgQ,
+              avgQualityExplore: exploreQ.avgQ,
+              avgCriticality: totals.avgCrit,
+              avgQWeight: totals.avgQ,
+            };
+          }
+        } catch {
+          // routing_outcomes missing or pre-ADR-095 schema — skip silently.
+        }
+
         db.close();
 
         let health: null | {
@@ -1534,6 +1601,7 @@ function registerLoopHealthCommand(learning: Command): void {
               bootedAt: null,
               components: {},
               verdicts: {},
+              routingDiversification: routingStats,
               note: 'No loop-health record yet. Workers must run at least once for this to populate.',
             });
             return;
@@ -1542,7 +1610,7 @@ function registerLoopHealthCommand(learning: Command): void {
           for (const key of Object.keys(health.components)) {
             verdicts[key] = verdict(key, health.components[key]);
           }
-          printJson({ ...health, verdicts });
+          printJson({ ...health, verdicts, routingDiversification: routingStats });
           return;
         }
 
@@ -1600,6 +1668,34 @@ function registerLoopHealthCommand(learning: Command): void {
             ),
           );
         }
+
+        // ADR-095: routing diversification dashboard
+        if (routingStats && routingStats.totalDecisions > 0) {
+          console.log('');
+          console.log(chalk.bold('  Routing diversification (last 7 days):'));
+          const ratePct = (routingStats.explorationRate * 100).toFixed(1);
+          console.log(
+            `    Decisions:           ${routingStats.totalDecisions} (${routingStats.exploitCount} exploit, ${routingStats.explorationCount} explore = ${ratePct}%)`,
+          );
+          if (routingStats.avgQualityExploit !== null && routingStats.avgQualityExplore !== null) {
+            const delta = routingStats.avgQualityExplore - routingStats.avgQualityExploit;
+            const deltaStr = delta >= 0 ? chalk.green(`+${delta.toFixed(3)}`) : chalk.red(delta.toFixed(3));
+            console.log(
+              `    Avg quality:         exploit=${routingStats.avgQualityExploit.toFixed(3)}, explore=${routingStats.avgQualityExplore.toFixed(3)} (Δ ${deltaStr})`,
+            );
+          }
+          if (routingStats.avgCriticality !== null) {
+            console.log(
+              `    Avg mincut multiplier:  ${routingStats.avgCriticality.toFixed(2)} (1.0=full rate, 0.2=critical-topology dampening)`,
+            );
+          }
+          if (routingStats.avgQWeight !== null && routingStats.avgQWeight > 0) {
+            console.log(
+              `    Avg Q-weight:        ${routingStats.avgQWeight.toFixed(3)} (0=cold start, ${0.4} max)`,
+            );
+          }
+        }
+
         console.log('');
         return;
       } catch (error) {

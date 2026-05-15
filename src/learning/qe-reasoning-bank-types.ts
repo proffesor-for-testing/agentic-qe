@@ -121,6 +121,18 @@ export interface QERoutingResult {
 
   /** Reasoning for the recommendation */
   reasoning: string;
+
+  /**
+   * ADR-095 telemetry — all optional, populated by routeTask when the
+   * exploration / Q-value path runs. Callers persist these into
+   * routing_outcomes for retrospective analysis.
+   */
+  /** True if ε-greedy promoted an alternative over the greedy winner. */
+  exploration?: boolean;
+  /** Mincut safety multiplier in effect (1.0 = full rate, 0.2 = dampened). */
+  criticality?: number;
+  /** Average qWeight across the scored agents — proxy for Q-table maturity. */
+  qWeight?: number;
 }
 
 /**
