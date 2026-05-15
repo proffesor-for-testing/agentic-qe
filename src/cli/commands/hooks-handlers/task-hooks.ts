@@ -16,7 +16,6 @@ import {
   getHooksSystem,
   createHybridBackendWithTimeout,
   incrementDreamExperience,
-  checkAndTriggerDream,
   persistTaskOutcome,
   updateHookRouterQValue,
   updateRoutingOutcomeQuality,
@@ -302,12 +301,6 @@ export function registerTaskHooks(hooks: Command): void {
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
         let patternsLearned = 0;
-        let dreamResult: {
-          triggered: boolean;
-          reason?: string;
-          insightsGenerated?: number;
-          insightsApplied?: number;
-        } = { triggered: false };
 
         try {
           // Initialize system (creates ReasoningBank and HookRegistry)
@@ -390,44 +383,36 @@ export function registerTaskHooks(hooks: Command): void {
             }
           }
 
-          // Record experience for dream scheduler and check if dream should trigger
+          // ADR-094: post-task bumps the experience counter but DOES NOT
+          // trigger dream cycles inline. Dream cycles run in the long-lived
+          // kernel's DreamScheduler so the 10-second SQLite write transaction
+          // doesn't block other writers from this short-lived hook subprocess.
           const projectRoot = findProjectRoot();
           const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
-          const expCount = await incrementDreamExperience(memoryBackend);
-
-          // Check if dream cycle should be triggered
-          // Always check — time-based triggers need every invocation, and the
-          // check itself is lightweight (just reads state + compares timestamps)
-          dreamResult = await checkAndTriggerDream(memoryBackend);
+          await incrementDreamExperience(memoryBackend);
         } catch (initError) {
           // Log but don't fail - learning is best-effort
           console.error(chalk.dim(`[hooks] Learning init: ${initError instanceof Error ? initError.message : 'unknown'}`));
         }
 
         if (options.json) {
+          // dreamTriggered/dreamReason retained for backwards-compat with
+          // operator scripts; the kernel-side scheduler is the authoritative
+          // trigger now (ADR-094).
           printJson({
             success: true,
             taskId: options.taskId,
             taskSuccess: success,
             patternsLearned,
-            dreamTriggered: dreamResult.triggered,
-            dreamReason: dreamResult.reason,
-            dreamInsights: dreamResult.insightsGenerated,
-            dreamInsightsApplied: dreamResult.insightsApplied,
+            dreamTriggered: false,
+            dreamReason: 'deferred-to-kernel',
           });
         } else {
           printSuccess(`Task completed: ${options.taskId || 'unknown'}`);
           console.log(chalk.dim(`  Success: ${success}`));
           if (patternsLearned > 0) {
             console.log(chalk.green(`  Patterns learned: ${patternsLearned}`));
-          }
-          if (dreamResult.triggered) {
-            const appliedSuffix =
-              typeof dreamResult.insightsApplied === 'number'
-                ? `, ${dreamResult.insightsApplied} applied`
-                : '';
-            console.log(chalk.blue(`  🌙 Dream cycle triggered (${dreamResult.reason}): ${dreamResult.insightsGenerated} insights${appliedSuffix}`));
           }
         }
 

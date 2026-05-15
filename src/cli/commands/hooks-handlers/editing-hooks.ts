@@ -14,7 +14,6 @@ import {
   getHooksSystem,
   createHybridBackendWithTimeout,
   incrementDreamExperience,
-  checkAndTriggerDream,
   persistCommandExperience,
   printJson,
   printSuccess,
@@ -163,21 +162,18 @@ export function registerEditingHooks(hooks: Command): void {
           // best-effort
         }
 
-        // Record experience for dream scheduler and check if dream should trigger.
-        // Mirrors task-hooks.ts: post-edit fires far more often than post-task in
-        // Claude Code sessions, so without this the hook-driven dream loop never runs.
-        let dreamResult: {
-          triggered: boolean;
-          reason?: string;
-          insightsGenerated?: number;
-          insightsApplied?: number;
-        } = { triggered: false };
+        // ADR-094: post-edit bumps the experience counter but DOES NOT
+        // trigger dream cycles inline. Dream cycles run in the long-lived
+        // kernel (see QEKernelImpl._dreamScheduler) so the 10-second SQLite
+        // write transaction doesn't block other writers from this short-lived
+        // hook subprocess. The JSON output retains dreamTriggered/dreamReason
+        // so existing operator scripts don't break — dreamReason now reads
+        // 'deferred-to-kernel' to signal where the actual cycle runs.
         try {
           const projectRoot = findProjectRoot();
           const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
           await incrementDreamExperience(memoryBackend);
-          dreamResult = await checkAndTriggerDream(memoryBackend);
         } catch {
           // best-effort
         }
@@ -188,10 +184,8 @@ export function registerEditingHooks(hooks: Command): void {
             file: filePath,
             editSuccess: success,
             patternsLearned: result.patternsLearned || 0,
-            dreamTriggered: dreamResult.triggered,
-            dreamReason: dreamResult.reason,
-            dreamInsights: dreamResult.insightsGenerated,
-            dreamInsightsApplied: dreamResult.insightsApplied,
+            dreamTriggered: false,
+            dreamReason: 'deferred-to-kernel',
           });
         } else {
           printSuccess(`Recorded edit outcome for ${filePath || '(unknown file)'}`);

@@ -403,6 +403,19 @@ export interface KernelConfig {
    * can set false to skip the plugin-load cost.
    */
   enableExperienceBridge?: boolean;
+
+  /**
+   * Whether to start the DreamScheduler during initialize() (ADR-094).
+   * When true (default), dream cycles run inside the long-lived kernel
+   * process instead of hook subprocesses. Hook subprocesses keep only
+   * `incrementDreamExperience` — the kernel-side scheduler is the
+   * authoritative trigger.
+   *
+   * Long-lived processes (MCP server, daemon) want this true.
+   * Short-lived CLI commands that complete in <1s can set false to skip
+   * DreamEngine init cost.
+   */
+  enableDreamScheduler?: boolean;
 }
 
 // ============================================================================

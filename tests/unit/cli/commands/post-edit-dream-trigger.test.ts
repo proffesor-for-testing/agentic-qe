@@ -1,27 +1,31 @@
 /**
- * Regression: issue #480
+ * Issue #480 (history) + ADR-094 (current contract)
  *
- * post-edit fires FAR more often than post-task during Claude Code + AQE
- * sessions (every Edit/Write tool use vs only Task/Agent matchers). Without
- * post-edit invoking `checkAndTriggerDream`, the hook-driven dream loop is
- * starved — `dream-scheduler:hook-state.experienceCount` increments forever
- * but `lastDreamTime` stays null and `dream_insights.applied` stays at 0.
+ * History — #480 fixed in v3.9.30 commit 66553141:
+ *   post-edit used to set `dreamTriggered = false` literally and never
+ *   invoke `checkAndTriggerDream`. The hook-driven dream loop was starved.
  *
- * The bug was: post-edit only called `incrementDreamExperience` and emitted
- * `dreamTriggered: false` as a literal. This test asserts the fix mirrors
- * post-task's behavior — both call `checkAndTriggerDream` and surface the
- * full {triggered, reason, insightsGenerated, insightsApplied} shape.
+ * Current contract — ADR-094 / #488 Phase 2:
+ *   Dream cycles run in the long-lived kernel via QEKernelImpl._dreamScheduler,
+ *   NOT in hook subprocesses. post-edit bumps the experience counter
+ *   (`incrementDreamExperience`) so the scheduler knows fresh experiences
+ *   accumulated, but does NOT invoke `checkAndTriggerDream` — that path is
+ *   forbidden by the hooks-as-producers boundary contract (enforced by
+ *   tests/unit/architecture/hooks-boundary.test.ts).
+ *
+ * The JSON output retains `dreamTriggered` / `dreamReason` fields for
+ * backwards-compat with operator scripts that grep for them. dreamReason
+ * is now always 'deferred-to-kernel' so operators can see WHERE the cycle
+ * actually runs.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Command } from 'commander';
 
 const {
-  checkAndTriggerDreamMock,
   incrementDreamExperienceMock,
   printJsonMock,
 } = vi.hoisted(() => ({
-  checkAndTriggerDreamMock: vi.fn(),
   incrementDreamExperienceMock: vi.fn(),
   printJsonMock: vi.fn(),
 }));
@@ -42,7 +46,6 @@ vi.mock('../../../../src/cli/commands/hooks-handlers/hooks-shared.js', () => ({
     close: vi.fn(),
   }),
   incrementDreamExperience: incrementDreamExperienceMock,
-  checkAndTriggerDream: checkAndTriggerDreamMock,
   persistCommandExperience: vi.fn().mockResolvedValue(undefined),
   printJson: printJsonMock,
   printSuccess: vi.fn(),
@@ -58,21 +61,15 @@ vi.mock('../../../../src/kernel/unified-memory.js', () => ({
 
 import { registerEditingHooks } from '../../../../src/cli/commands/hooks-handlers/editing-hooks.js';
 
-describe('post-edit dream trigger (#480)', () => {
+describe('post-edit dream trigger contract (ADR-094)', () => {
   beforeEach(() => {
-    checkAndTriggerDreamMock.mockReset();
     incrementDreamExperienceMock.mockReset();
     printJsonMock.mockReset();
 
     incrementDreamExperienceMock.mockResolvedValue(20);
   });
 
-  it('invokes checkAndTriggerDream on every post-edit invocation', async () => {
-    checkAndTriggerDreamMock.mockResolvedValue({
-      triggered: false,
-      reason: 'too-soon',
-    });
-
+  it('bumps the experience counter so the kernel scheduler sees fresh activity', async () => {
     const hooks = new Command('hooks');
     registerEditingHooks(hooks);
 
@@ -81,19 +78,17 @@ describe('post-edit dream trigger (#480)', () => {
       { from: 'user' },
     );
 
-    // The whole point of #480: post-edit MUST invoke the trigger.
+    // The counter bump is the producer-side signal the kernel scheduler reads.
+    // Without it, kernel-side dream cycles would only fire on the time-based
+    // cadence and would miss the experience-threshold trigger.
     expect(incrementDreamExperienceMock).toHaveBeenCalledTimes(1);
-    expect(checkAndTriggerDreamMock).toHaveBeenCalledTimes(1);
   });
 
-  it('surfaces the full dream-trigger shape in JSON output (no bare false literal)', async () => {
-    checkAndTriggerDreamMock.mockResolvedValue({
-      triggered: true,
-      reason: 'experience-threshold',
-      insightsGenerated: 6,
-      insightsApplied: 2,
-    });
-
+  it('does NOT trigger a dream cycle from the hook subprocess (ADR-094 boundary)', async () => {
+    // The post-edit hook no longer imports checkAndTriggerDream — verified
+    // structurally by tests/unit/architecture/hooks-boundary.test.ts. This
+    // test asserts the observable behavior: JSON output reflects that the
+    // cycle is deferred, never that it was triggered inline.
     const hooks = new Command('hooks');
     registerEditingHooks(hooks);
 
@@ -105,19 +100,18 @@ describe('post-edit dream trigger (#480)', () => {
     expect(printJsonMock).toHaveBeenCalledTimes(1);
     const payload = printJsonMock.mock.calls[0][0];
 
-    // Before the #480 fix this collapsed to `dreamTriggered: false` (literal)
-    // with no other dream fields. After the fix the JSON mirrors post-task.
-    expect(payload.dreamTriggered).toBe(true);
-    expect(payload.dreamReason).toBe('experience-threshold');
-    expect(payload.dreamInsights).toBe(6);
-    expect(payload.dreamInsightsApplied).toBe(2);
+    expect(payload.dreamTriggered).toBe(false);
+    // 'deferred-to-kernel' is the contract: operators reading hook JSON see
+    // *where* the cycle actually runs, instead of being misled by a bare
+    // `false` literal that doesn't tell them anything.
+    expect(payload.dreamReason).toBe('deferred-to-kernel');
   });
 
-  it('still emits dreamTriggered: false when trigger conditions are not met', async () => {
-    checkAndTriggerDreamMock.mockResolvedValue({
-      triggered: false,
-      reason: 'conditions-not-met',
-    });
+  it('counter is bumped even when the memory backend init throws (best-effort)', async () => {
+    // If the hook can't reach memory at all (unusual but possible during
+    // init races), the JSON still emits the deferred-to-kernel signal so
+    // operators don't see "fields missing — is the hook broken?".
+    incrementDreamExperienceMock.mockRejectedValueOnce(new Error('memory down'));
 
     const hooks = new Command('hooks');
     registerEditingHooks(hooks);
@@ -128,10 +122,7 @@ describe('post-edit dream trigger (#480)', () => {
     );
 
     const payload = printJsonMock.mock.calls[0][0];
-    expect(payload.dreamTriggered).toBe(false);
-    // Operators must be able to distinguish "not triggered because of state"
-    // from "not triggered because we never tried" — that's the visibility
-    // half of the fix.
-    expect(payload.dreamReason).toBe('conditions-not-met');
+    expect(payload.success).toBe(true);
+    expect(payload.dreamReason).toBe('deferred-to-kernel');
   });
 });
