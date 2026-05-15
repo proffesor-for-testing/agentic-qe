@@ -369,6 +369,14 @@ export class QEKernelImpl implements QEKernel {
           '[QEKernel] DreamScheduler failed to start:',
           err instanceof Error ? err.message : err
         );
+        // Tear down anything we partially constructed so we don't leak a
+        // half-initialized scheduler (e.g., engine init succeeded but
+        // scheduler.start threw).
+        if (this._dreamScheduler) {
+          try {
+            await this._dreamScheduler.dispose();
+          } catch { /* swallow during cleanup */ }
+        }
         this._dreamScheduler = undefined;
       }
     }

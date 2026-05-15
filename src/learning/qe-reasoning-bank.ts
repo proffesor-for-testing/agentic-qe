@@ -77,7 +77,7 @@ import {
   deriveComplexityBucket,
   type QValueLookup,
 } from './agent-routing.js';
-import { getSharedMinCutMonitor, isSharedMinCutMonitorInitialized } from '../coordination/mincut/shared-singleton.js';
+import { resolveTopologyCriticalFromSharedMincut } from './routing-topology-gate.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { resizeEmbedding, hashEmbedding } from './embedding-utils.js';
 import {
@@ -530,11 +530,11 @@ export class QEReasoningBank implements IQEReasoningBank {
 
       // ADR-095: ε-greedy exploration with mincut safety gate.
       // The exploration is best-effort — failures fall through to greedy.
+      // Topology check uses `resolveTopologyCriticalFromSharedMincut` —
+      // see that module for the empty-graph regression context.
       let safetyMultiplier = 1.0;
       try {
-        const topologyCritical = isSharedMinCutMonitorInitialized()
-          ? getSharedMinCutMonitor().isCritical()
-          : false;
+        const topologyCritical = resolveTopologyCriticalFromSharedMincut();
         const rateInfo = resolveExplorationRate({
           envOverride: process.env.AQE_ROUTER_EXPLORATION_RATE,
           topologyCritical,

@@ -1622,51 +1622,53 @@ function registerLoopHealthCommand(learning: Command): void {
           console.log(chalk.dim('  No loop-health record yet.'));
           console.log(chalk.dim('  Workers must run at least once to populate.'));
           console.log(chalk.dim('  Start the daemon: aqe daemon start'));
+          // FALL THROUGH (no early return): routing-diversification stats may
+          // still be available even when loop-health components haven't ticked
+          // yet (e.g., routing happened via hook handlers but daemon-side
+          // workers never ran). Operators need both signals visible.
+        } else {
+          console.log(`  Booted at:           ${chalk.dim(health.bootedAt)}`);
+          console.log(`  Last success (any):  ${health.overallLastSuccess || chalk.dim('(none yet)')}`);
           console.log('');
-          return;
-        }
+          console.log(chalk.bold('  Components:'));
 
-        console.log(`  Booted at:           ${chalk.dim(health.bootedAt)}`);
-        console.log(`  Last success (any):  ${health.overallLastSuccess || chalk.dim('(none yet)')}`);
-        console.log('');
-        console.log(chalk.bold('  Components:'));
+          const known: Array<['bridge' | 'learningWorker' | 'dreamScheduler', string]> = [
+            ['bridge', 'CapturedExperienceBridge'],
+            ['learningWorker', 'LearningConsolidationWorker'],
+            ['dreamScheduler', 'DreamScheduler'],
+          ];
 
-        const known: Array<['bridge' | 'learningWorker' | 'dreamScheduler', string]> = [
-          ['bridge', 'CapturedExperienceBridge'],
-          ['learningWorker', 'LearningConsolidationWorker'],
-          ['dreamScheduler', 'DreamScheduler'],
-        ];
+          for (const [key, label] of known) {
+            const c = health.components[key];
+            const v = verdict(key, c);
+            const colored =
+              v === 'live'
+                ? chalk.green('● live')
+                : v === 'stale'
+                  ? chalk.yellow('● stale')
+                  : chalk.dim('○ never-ran');
+            const lastSuccess = c?.lastSuccessAt || chalk.dim('(never)');
+            const ticks = c
+              ? `${c.successesSinceBoot}/${c.ticksSinceBoot} ticks ok`
+              : chalk.dim('no ticks');
+            console.log(`    ${label.padEnd(32)} ${colored.padEnd(20)} ${ticks}`);
+            console.log(`      ${chalk.dim('last success:')} ${lastSuccess}`);
+            if (c?.lastError) {
+              console.log(
+                `      ${chalk.red('last error:')} ${c.lastError.message} ${chalk.dim('(at ' + c.lastError.at + ')')}`,
+              );
+            }
+          }
 
-        for (const [key, label] of known) {
-          const c = health.components[key];
-          const v = verdict(key, c);
-          const colored =
-            v === 'live'
-              ? chalk.green('● live')
-              : v === 'stale'
-                ? chalk.yellow('● stale')
-                : chalk.dim('○ never-ran');
-          const lastSuccess = c?.lastSuccessAt || chalk.dim('(never)');
-          const ticks = c
-            ? `${c.successesSinceBoot}/${c.ticksSinceBoot} ticks ok`
-            : chalk.dim('no ticks');
-          console.log(`    ${label.padEnd(32)} ${colored.padEnd(20)} ${ticks}`);
-          console.log(`      ${chalk.dim('last success:')} ${lastSuccess}`);
-          if (c?.lastError) {
+          const stale = known.filter(([k, _]) => verdict(k, health.components[k]) === 'stale');
+          if (stale.length > 0) {
+            console.log('');
             console.log(
-              `      ${chalk.red('last error:')} ${c.lastError.message} ${chalk.dim('(at ' + c.lastError.at + ')')}`,
+              chalk.yellow(
+                `  Warning: ${stale.length} component(s) stale — daemon may not be running or the loop is wedged.`,
+              ),
             );
           }
-        }
-
-        const stale = known.filter(([k, _]) => verdict(k, health.components[k]) === 'stale');
-        if (stale.length > 0) {
-          console.log('');
-          console.log(
-            chalk.yellow(
-              `  Warning: ${stale.length} component(s) stale — daemon may not be running or the loop is wedged.`,
-            ),
-          );
         }
 
         // ADR-095: routing diversification dashboard

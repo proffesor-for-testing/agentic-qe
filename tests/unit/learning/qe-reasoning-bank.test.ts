@@ -1,6 +1,23 @@
 /**
  * Unit Tests - QE ReasoningBank
  * ADR-021: QE ReasoningBank for Pattern Learning
+ *
+ * MEMORY NOTE: This file is intentionally excluded from `npm run test:unit:fast`
+ * (see package.json). It spins up a full reasoning-bank with real
+ * transformer embeddings (`@xenova/transformers`, all-MiniLM-L6-v2) and
+ * HNSW indexing on every test. 58 tests × full bank init = cumulative
+ * memory growth that exceeds an 8GB codespace's default heap.
+ *
+ * This is NOT a flaky test in the "broken" sense — it's resource-heavy.
+ * Run via:
+ *   - `npm run test:ci` (full suite — CI has the headroom)
+ *   - `NODE_OPTIONS='--max-old-space-size=4096' npx vitest run tests/unit/learning/qe-reasoning-bank.test.ts` (locally, if needed)
+ *
+ * If a true memory leak ever surfaces here (single test OOMs in CI), the
+ * suspects are: the transformer pipeline module-singleton in
+ * real-embeddings.ts, accumulated HNSW vectors that aren't released by
+ * patternStore.dispose(), or pretrained pattern bundles retained beyond
+ * the test boundary. Audit those before declaring this file flaky.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
