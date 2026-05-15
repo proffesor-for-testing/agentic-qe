@@ -157,7 +157,14 @@ export function registerTaskHooks(hooks: Command): void {
           // Patch 160 + 280-bridge: write the task-bridge entry that post-task
           // will consume to fan out experience_applications per pattern_id and
           // derive a structural q-learning state_key.
-          if (options.description && selectedPatternIds.length > 0) {
+          //
+          // The bridge MUST write even when selectedPatternIds is empty: the
+          // Q-learning Bellman update at task-hooks.ts post-task site uses a
+          // state_key derived from (taskType|priority|domain|complexityBucket)
+          // and an action_key from routing.recommendedAgent — neither requires
+          // non-empty patterns. Gating on patterns starves rl_q_values for
+          // low-confidence prompts. (#487)
+          if (options.description) {
             try {
               const description = String(options.description);
               const taskType = deriveTaskType(description);

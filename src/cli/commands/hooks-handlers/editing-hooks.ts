@@ -14,6 +14,7 @@ import {
   getHooksSystem,
   createHybridBackendWithTimeout,
   incrementDreamExperience,
+  checkAndTriggerDream,
   persistCommandExperience,
   printJson,
   printSuccess,
@@ -162,13 +163,21 @@ export function registerEditingHooks(hooks: Command): void {
           // best-effort
         }
 
-        // Record experience for dream scheduler
-        let dreamTriggered = false;
+        // Record experience for dream scheduler and check if dream should trigger.
+        // Mirrors task-hooks.ts: post-edit fires far more often than post-task in
+        // Claude Code sessions, so without this the hook-driven dream loop never runs.
+        let dreamResult: {
+          triggered: boolean;
+          reason?: string;
+          insightsGenerated?: number;
+          insightsApplied?: number;
+        } = { triggered: false };
         try {
           const projectRoot = findProjectRoot();
           const dataDir = path.join(projectRoot, '.agentic-qe');
           const memoryBackend = await createHybridBackendWithTimeout(dataDir);
           await incrementDreamExperience(memoryBackend);
+          dreamResult = await checkAndTriggerDream(memoryBackend);
         } catch {
           // best-effort
         }
@@ -179,7 +188,10 @@ export function registerEditingHooks(hooks: Command): void {
             file: filePath,
             editSuccess: success,
             patternsLearned: result.patternsLearned || 0,
-            dreamTriggered,
+            dreamTriggered: dreamResult.triggered,
+            dreamReason: dreamResult.reason,
+            dreamInsights: dreamResult.insightsGenerated,
+            dreamInsightsApplied: dreamResult.insightsApplied,
           });
         } else {
           printSuccess(`Recorded edit outcome for ${filePath || '(unknown file)'}`);
