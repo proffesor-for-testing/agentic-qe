@@ -95,6 +95,7 @@ Examples:
   registerDreamCommand(learning);
   registerRepairCommand(learning);
   registerHealthCommand(learning);
+  registerLoopHealthCommand(learning);
 
   return learning;
 }
@@ -1448,6 +1449,161 @@ function registerHealthCommand(learning: Command): void {
         return;
       } catch (error) {
         printError(`health check failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        throw error;
+      }
+    });
+}
+
+// ============================================================================
+// Subcommand: loop-health (#488 B.2)
+// ============================================================================
+
+/**
+ * Component staleness thresholds (ms). Each component has its own expected
+ * cadence — the bridge polls every 5s, the learning worker ticks every 30
+ * min, the dream scheduler is variable. Anything older than ~2x its cadence
+ * counts as stale and operators should investigate.
+ */
+const COMPONENT_STALE_THRESHOLDS: Record<string, number> = {
+  bridge: 30_000,              // 5s poll → stale at 30s
+  learningWorker: 2 * 3600_000, // 30 min tick → stale at 2h
+  dreamScheduler: 2 * 3600_000, // similar cadence to worker
+};
+
+function registerLoopHealthCommand(learning: Command): void {
+  learning
+    .command('loop-health')
+    .description('Show pipeline component liveness for the self-learning loop')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      try {
+        const projectRoot = findProjectRoot();
+        const dbPath = path.join(projectRoot, '.agentic-qe', 'memory.db');
+
+        if (!existsSync(dbPath)) {
+          throw new Error('Database not found. Run "aqe init --auto" first.');
+        }
+
+        const db = openDatabase(dbPath, { readonly: true });
+
+        let raw: string | undefined;
+        try {
+          // Try the unified kv_store first (kernel-owned key).
+          const row = db
+            .prepare(
+              `SELECT value FROM kv_store WHERE key = 'learning:loop-health' LIMIT 1`,
+            )
+            .get() as { value: string } | undefined;
+          raw = row?.value;
+        } catch {
+          // kv_store may not exist yet on a freshly-init'd shop.
+        }
+
+        db.close();
+
+        let health: null | {
+          overallLastSuccess: string;
+          bootedAt: string;
+          components: Record<string, {
+            lastSuccessAt: string;
+            ticksSinceBoot: number;
+            successesSinceBoot: number;
+            lastError?: { message: string; at: string };
+          }>;
+        } = null;
+        if (raw) {
+          try {
+            health = safeJsonParse(raw);
+          } catch {
+            health = null;
+          }
+        }
+
+        const now = Date.now();
+        const verdict = (componentKey: string, c: { lastSuccessAt: string } | undefined) => {
+          const threshold = COMPONENT_STALE_THRESHOLDS[componentKey] ?? 600_000;
+          if (!c || !c.lastSuccessAt) return 'never-ran';
+          const age = now - new Date(c.lastSuccessAt).getTime();
+          return age > threshold ? 'stale' : 'live';
+        };
+
+        if (options.json) {
+          if (!health) {
+            printJson({
+              overallLastSuccess: null,
+              bootedAt: null,
+              components: {},
+              verdicts: {},
+              note: 'No loop-health record yet. Workers must run at least once for this to populate.',
+            });
+            return;
+          }
+          const verdicts: Record<string, string> = {};
+          for (const key of Object.keys(health.components)) {
+            verdicts[key] = verdict(key, health.components[key]);
+          }
+          printJson({ ...health, verdicts });
+          return;
+        }
+
+        console.log('');
+        console.log(chalk.bold('Self-Learning Loop Health'));
+        console.log('');
+
+        if (!health) {
+          console.log(chalk.dim('  No loop-health record yet.'));
+          console.log(chalk.dim('  Workers must run at least once to populate.'));
+          console.log(chalk.dim('  Start the daemon: aqe daemon start'));
+          console.log('');
+          return;
+        }
+
+        console.log(`  Booted at:           ${chalk.dim(health.bootedAt)}`);
+        console.log(`  Last success (any):  ${health.overallLastSuccess || chalk.dim('(none yet)')}`);
+        console.log('');
+        console.log(chalk.bold('  Components:'));
+
+        const known: Array<['bridge' | 'learningWorker' | 'dreamScheduler', string]> = [
+          ['bridge', 'CapturedExperienceBridge'],
+          ['learningWorker', 'LearningConsolidationWorker'],
+          ['dreamScheduler', 'DreamScheduler'],
+        ];
+
+        for (const [key, label] of known) {
+          const c = health.components[key];
+          const v = verdict(key, c);
+          const colored =
+            v === 'live'
+              ? chalk.green('● live')
+              : v === 'stale'
+                ? chalk.yellow('● stale')
+                : chalk.dim('○ never-ran');
+          const lastSuccess = c?.lastSuccessAt || chalk.dim('(never)');
+          const ticks = c
+            ? `${c.successesSinceBoot}/${c.ticksSinceBoot} ticks ok`
+            : chalk.dim('no ticks');
+          console.log(`    ${label.padEnd(32)} ${colored.padEnd(20)} ${ticks}`);
+          console.log(`      ${chalk.dim('last success:')} ${lastSuccess}`);
+          if (c?.lastError) {
+            console.log(
+              `      ${chalk.red('last error:')} ${c.lastError.message} ${chalk.dim('(at ' + c.lastError.at + ')')}`,
+            );
+          }
+        }
+
+        const stale = known.filter(([k, _]) => verdict(k, health.components[k]) === 'stale');
+        if (stale.length > 0) {
+          console.log('');
+          console.log(
+            chalk.yellow(
+              `  Warning: ${stale.length} component(s) stale — daemon may not be running or the loop is wedged.`,
+            ),
+          );
+        }
+        console.log('');
+        return;
+      } catch (error) {
+        printError(`loop-health failed: ${error instanceof Error ? error.message : 'unknown'}`);
         throw error;
       }
     });

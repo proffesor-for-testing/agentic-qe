@@ -161,11 +161,29 @@ if (existsSync(pidFile)) {
 const ts = new Date().toISOString();
 appendFileSync(logFile, '[' + ts + '] Starting AQE v3 Worker Daemon...\\n');
 
-// Find the best way to run aqe-mcp
+// Find the best way to run aqe-mcp.
+//
+// #488 B.1: candidate ordering matters for the pidfile contract. When we
+// spawn the real MCP binary directly, child.pid is the long-lived process
+// — \`process.kill(pid, 0)\` against the pidfile correctly reports liveness.
+// When we fall back to \`npx --yes agentic-qe mcp\`, child.pid is the npx
+// wrapper PID, which exits as soon as it has forked the real bundle. The
+// pidfile then points at a dead process and idempotency checks misbehave.
+//
+// We try in order: local .bin → local node_modules bundle → global install
+// via require.resolve → npx wrapper (last resort, with the caveat above).
 const candidates = [
   join(projectRoot, 'node_modules', '.bin', 'aqe-mcp'),
   join(projectRoot, 'node_modules', 'agentic-qe', 'dist', 'mcp', 'bundle.js'),
 ];
+
+// Probe globally-installed agentic-qe (npm install -g) via require.resolve.
+// This is the case the npx fallback used to silently cover with a bad PID.
+try {
+  candidates.push(require.resolve('agentic-qe/dist/mcp/bundle.js'));
+} catch {
+  // Not globally installed — fall through to npx fallback below.
+}
 
 let mcpCmd, mcpArgs;
 const binCandidate = candidates.find(c => existsSync(c));
@@ -179,6 +197,7 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
 } else {
   mcpCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   mcpArgs = ['--yes', 'agentic-qe', 'mcp'];
+  appendFileSync(logFile, '[' + ts + '] WARNING: using npx fallback — daemon.pid will point at the npx wrapper, not the MCP server. \`aqe daemon status\` may misreport liveness after the wrapper exits.\\n');
 }
 
 appendFileSync(logFile, '[' + ts + '] Using: ' + mcpCmd + ' ' + mcpArgs.join(' ') + '\\n');

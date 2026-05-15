@@ -37,6 +37,7 @@ import {
 import { getUnifiedMemory } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
+import { recordLoopHealth } from '../../learning/loop-health.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -204,6 +205,11 @@ export class LearningConsolidationWorker extends BaseWorker {
     // Store consolidated results
     await context.memory.set('learning:lastConsolidation', result);
     await context.memory.set('learning:consolidatedPatterns', patterns);
+
+    // #488 B.2: record loop-health so `aqe learning loop-health` can show
+    // the consolidation worker as alive. Records success even for empty
+    // ticks — "ran the loop, found nothing" is still a liveness signal.
+    await recordLoopHealth(context.memory, 'learningWorker', { success: true });
 
     // Update last run timestamp for decay calculation
     this.lastRunTimestamp = Date.now();
