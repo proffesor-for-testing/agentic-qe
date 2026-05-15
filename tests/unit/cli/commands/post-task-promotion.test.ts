@@ -85,6 +85,17 @@ describe('post-task bridge loop promotes patterns (#455)', () => {
         created_at TEXT,
         updated_at TEXT
       );
+      -- #486 Gap B: hook path now writes the audit row alongside the qe_patterns
+      -- UPDATE in a single transaction. Without this table the helper's INSERT
+      -- would throw and the transaction would roll back, blocking the UPDATE.
+      CREATE TABLE qe_pattern_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pattern_id TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        metrics_json TEXT,
+        feedback TEXT,
+        recorded_at TEXT DEFAULT (datetime('now'))
+      );
       CREATE TABLE kv_store (
         key TEXT,
         namespace TEXT,

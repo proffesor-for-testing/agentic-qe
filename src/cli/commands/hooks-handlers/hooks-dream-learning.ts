@@ -8,6 +8,7 @@
 import { randomUUID } from 'crypto';
 import chalk from 'chalk';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
+import { recordPatternUsage } from '../../../learning/pattern-usage-recorder.js';
 
 // ============================================================================
 // Dream Scheduler State (persisted in kv_store between hook invocations)
@@ -434,25 +435,6 @@ export async function persistTaskOutcome(opts: {
             (id, experience_id, task, success, tokens_saved, feedback, applied_at)
           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
         `);
-        // Mirror SQLitePatternStore.recordUsage() so the hook flow updates
-        // qe_patterns.{usage_count, successful_uses, success_rate, quality_score}.
-        // recordUsage() is otherwise only reachable via HandleTaskOutcomeRecord
-        // — never from this hook path — so 88/89 patterns stayed pinned at the
-        // bootstrap quality_score floor (~0.30) and never promoted to long-term.
-        // Quality formula: confidence*0.3 + min(usage_count/100,1)*0.2 + success_rate*0.5
-        const updatePatternUsage = db.prepare(`
-          UPDATE qe_patterns SET
-            usage_count = usage_count + 1,
-            successful_uses = successful_uses + ?,
-            success_rate = CAST(successful_uses + ? AS REAL) / CAST(usage_count + 1 AS REAL),
-            quality_score = ? * 0.3
-              + MIN(CAST(usage_count + 1 AS REAL) / 100.0, 1.0) * 0.2
-              + (CAST(successful_uses + ? AS REAL) / CAST(usage_count + 1 AS REAL)) * 0.5,
-            last_used_at = datetime('now'),
-            updated_at = datetime('now')
-          WHERE id = ?
-        `);
-        const getPatternConfidence = db.prepare(`SELECT confidence FROM qe_patterns WHERE id = ?`);
         // Issue #455: recordOutcome() is called with a synthetic
         // `task:agent:taskId` patternId that never matches qe_patterns.id, so
         // checkPatternPromotionWithCoherence() is skipped for the real UUIDs
@@ -483,12 +465,22 @@ export async function persistTaskOutcome(opts: {
             perPatternTokens,
             `[Patch 160+300] task-bridge pattern_id=${patternId} ts=${perPatternTokens}`,
           );
+          // #486 Gap B: single-writer for pattern usage. Replaces the legacy
+          // inline UPDATE that bumped qe_patterns columns but skipped the
+          // qe_pattern_usage INSERT, leaving the audit table empty even as
+          // usage_count climbed. recordPatternUsage() does both writes in
+          // one transaction, matching SQLitePatternStore.recordUsage().
           try {
-            const row = getPatternConfidence.get(patternId) as { confidence: number } | undefined;
-            if (row) {
-              const successInc = opts.success ? 1 : 0;
-              updatePatternUsage.run(successInc, successInc, row.confidence, successInc, patternId);
-            }
+            recordPatternUsage(db, {
+              patternId,
+              success: opts.success,
+              metrics: {
+                tokens_saved: perPatternTokens,
+                source: 'cli-hook-post-task',
+                experience_id: experienceId,
+              },
+              feedback: `[Patch 160+300] task-bridge pattern_id=${patternId} ts=${perPatternTokens}`,
+            });
           } catch { /* fail-soft per pattern */ }
           // Issue #455: re-read post-UPDATE state and promote if thresholds met.
           // Guarded WHERE clause makes the UPDATE idempotent and no-op for
