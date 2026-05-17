@@ -211,6 +211,29 @@ export async function handleFleetInit(
       }
     }
 
+    // Issue #491 Bug 1 + Bug 4b: the MCP-hosted daemon constructs its
+    // WorkerManager *before* the kernel exists (in src/mcp/entry.ts), so it
+    // starts with StubWorkerDomainAccess (getDomainAPI returns undefined for
+    // every domain) and a private InMemoryWorkerMemory the dashboard never
+    // reads from. Wire both now that kernel + plugins are ready. Without
+    // this, every domain-dependent worker tick fails with "<domain> not
+    // available" and `aqe learning loop-health` shows learningWorker as
+    // never-ran even when it executes every cycle.
+    try {
+      const { getDaemon } = await import('../../workers/daemon.js');
+      const workerManager = getDaemon().getWorkerManager();
+      workerManager.setKernel(state.kernel);
+      workerManager.setMemory(state.kernel.memory);
+    } catch (err) {
+      // Daemon wiring is best-effort: a workless smoke install (e.g. some
+      // unit-test harnesses) may not even bundle the daemon module. Surface
+      // as a warning but don't fail fleet_init — the user still gets a
+      // working kernel + queen for MCP tool calls.
+      console.warn(
+        `[fleet_init] Daemon worker manager wiring skipped: ${toErrorMessage(err)}`
+      );
+    }
+
     // Create Queen Coordinator with domain plugins for direct task execution
     state.queen = createQueenCoordinator(
       state.kernel,

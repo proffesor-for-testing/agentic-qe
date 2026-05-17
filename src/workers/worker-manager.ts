@@ -17,6 +17,7 @@ import {
   WorkerLogger,
   WorkerDomainAccess,
   WorkerEvent,
+  WorkerKernelReference,
 } from './interfaces';
 import { DomainName } from '../shared/types';
 
@@ -166,14 +167,12 @@ class KernelWorkerDomainAccess implements WorkerDomainAccess {
 }
 
 /**
- * Reference interface for kernel (to avoid circular dependency)
+ * Local alias for the shared worker-kernel structural shape. The public type
+ * lives in interfaces.ts so the WorkerManager interface can refer to it
+ * without importing this file (which would re-introduce the circular
+ * dependency the original local declaration was avoiding).
  */
-interface KernelReference {
-  getDomainAPI<T>(domain: DomainName): T | undefined;
-  getHealth(): {
-    domains: Record<string, { status: string; errors?: string[] }>;
-  };
-}
+type KernelReference = WorkerKernelReference;
 
 /**
  * Stub Domain Access (fallback when kernel not available)
@@ -196,7 +195,7 @@ export class WorkerManagerImpl implements IWorkerManager {
   private timers = new Map<string, NodeJS.Timeout>();
   private abortControllers = new Map<string, AbortController>();
   private eventBus: InMemoryWorkerEventBus;
-  private memory: InMemoryWorkerMemory;
+  private memory: WorkerMemory;
   private domainAccess: WorkerDomainAccess;
   private running = false;
   private kernelRef: KernelReference | undefined;
@@ -208,7 +207,7 @@ export class WorkerManagerImpl implements IWorkerManager {
     kernel?: KernelReference;
   }) {
     this.eventBus = (options?.eventBus as InMemoryWorkerEventBus) ?? new InMemoryWorkerEventBus();
-    this.memory = (options?.memory as InMemoryWorkerMemory) ?? new InMemoryWorkerMemory();
+    this.memory = options?.memory ?? new InMemoryWorkerMemory();
     this.kernelRef = options?.kernel;
 
     // Use kernel-based domain access if kernel is provided, otherwise fall back
@@ -231,6 +230,18 @@ export class WorkerManagerImpl implements IWorkerManager {
     if (this.domainAccess instanceof StubWorkerDomainAccess) {
       this.domainAccess = new KernelWorkerDomainAccess(() => this.kernelRef);
     }
+  }
+
+  /**
+   * Replace the worker manager's memory with a shared instance — typically the
+   * kernel's HybridMemoryBackend so dashboards reading worker-emitted keys
+   * (e.g. `learning:loop-health` in the `qe-kernel` namespace) actually see
+   * what workers write. Without this, workers write to the in-process
+   * InMemoryWorkerMemory and the dashboard reads a different kv (issue #491
+   * Bug 4b).
+   */
+  setMemory(memory: WorkerMemory): void {
+    this.memory = memory;
   }
 
   /**
