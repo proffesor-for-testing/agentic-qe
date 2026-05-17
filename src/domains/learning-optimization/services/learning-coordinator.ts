@@ -77,6 +77,15 @@ export interface LearningCoordinatorDependencies {
  */
 const logger = LoggerFactory.create('learning-optimization/learning-coordinator');
 
+/**
+ * #491 Bug 2: every read in this file must pass this namespace to match
+ * the writes (which already specify `namespace: 'learning-optimization'`).
+ * Without it, HybridBackend defaults to `default` and the coordinator
+ * cannot read its own data — `mineExperiences` returned 0 for every
+ * domain even on installs with hundreds of indexed experiences.
+ */
+const LEARNING_NS = { namespace: 'learning-optimization' } as const;
+
 export class LearningCoordinatorService
   implements IPatternLearningService, IExperienceMiningService
 {
@@ -363,10 +372,10 @@ Provide:
   ): Promise<Result<LearnedPattern[]>> {
     try {
       const patterns: LearnedPattern[] = [];
-      const keys = await this.memory.search('learning:pattern:*', 100);
+      const keys = await this.memory.search('learning:pattern:*', 100, LEARNING_NS);
 
       for (const key of keys) {
-        const pattern = await this.memory.get<LearnedPattern>(key);
+        const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
         if (pattern && this.matchesContext(pattern, context)) {
           patterns.push(pattern);
         }
@@ -425,7 +434,7 @@ Provide:
   ): Promise<Result<void>> {
     try {
       const key = `learning:pattern:${patternId}`;
-      const pattern = await this.memory.get<LearnedPattern>(key);
+      const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
 
       if (!pattern) {
         return err(new Error(`Pattern ${patternId} not found`));
@@ -471,7 +480,8 @@ Provide:
       const patterns: LearnedPattern[] = [];
       for (const id of patternIds) {
         const pattern = await this.memory.get<LearnedPattern>(
-          `learning:pattern:${id}`
+          `learning:pattern:${id}`,
+          LEARNING_NS
         );
         if (pattern) {
           patterns.push(pattern);
@@ -529,11 +539,11 @@ Provide:
    */
   async getPatternStats(domain?: DomainName): Promise<Result<PatternStats>> {
     try {
-      const keys = await this.memory.search('learning:pattern:*', 500);
+      const keys = await this.memory.search('learning:pattern:*', 500, LEARNING_NS);
       const patterns: LearnedPattern[] = [];
 
       for (const key of keys) {
-        const pattern = await this.memory.get<LearnedPattern>(key);
+        const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
         if (pattern && (!domain || pattern.domain === domain)) {
           patterns.push(pattern);
         }
@@ -713,15 +723,17 @@ Provide:
     try {
       const keys = await this.memory.search(
         `learning:experience:index:agent:${agentId.value}:*`,
-        limit
+        limit,
+        LEARNING_NS
       );
       const experiences: Experience[] = [];
 
       for (const key of keys) {
-        const experienceId = await this.memory.get<string>(key);
+        const experienceId = await this.memory.get<string>(key, LEARNING_NS);
         if (experienceId) {
           const experience = await this.memory.get<Experience>(
-            `learning:experience:${experienceId}`
+            `learning:experience:${experienceId}`,
+            LEARNING_NS
           );
           if (experience) {
             experiences.push(experience);
@@ -807,19 +819,19 @@ Provide:
 
   private async archivePattern(patternId: string): Promise<void> {
     const key = `learning:pattern:${patternId}`;
-    const pattern = await this.memory.get<LearnedPattern>(key);
+    const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
     if (pattern) {
       await this.memory.set(`learning:pattern:archived:${patternId}`, pattern, {
         namespace: 'learning-optimization',
         persist: true,
       });
-      await this.memory.delete(key);
+      await this.memory.delete(key, LEARNING_NS);
     }
   }
 
   private async updatePatternUsage(patternId: string): Promise<void> {
     const key = `learning:pattern:${patternId}`;
-    const pattern = await this.memory.get<LearnedPattern>(key);
+    const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
     if (pattern) {
       const updated: LearnedPattern = {
         ...pattern,
@@ -870,18 +882,32 @@ Provide:
   ): Promise<Experience[]> {
     const keys = await this.memory.search(
       `learning:experience:index:domain:${domain}:*`,
-      1000
+      1000,
+      LEARNING_NS
     );
     const experiences: Experience[] = [];
 
     for (const key of keys) {
-      const experienceId = await this.memory.get<string>(key);
+      const experienceId = await this.memory.get<string>(key, LEARNING_NS);
       if (experienceId) {
         const experience = await this.memory.get<Experience>(
-          `learning:experience:${experienceId}`
+          `learning:experience:${experienceId}`,
+          LEARNING_NS
         );
-        if (experience && timeRange.contains(experience.timestamp)) {
-          experiences.push(experience);
+        if (experience) {
+          // #491 Bug 3: kv stores Date via JSON.stringify (→ ISO string)
+          // but JSON.parse does not re-hydrate. `TimeRange.contains` does
+          // `date >= start`; in `string >= Date`, the string coerces to
+          // NaN and every comparison is false — so every experience was
+          // silently dropped by the time-window filter, leaving
+          // `mineExperiences` mining 0 for every domain. Coerce at the
+          // boundary; downstream code expects a real Date.
+          const ts = experience.timestamp instanceof Date
+            ? experience.timestamp
+            : new Date(experience.timestamp as unknown as string);
+          if (timeRange.contains(ts)) {
+            experiences.push({ ...experience, timestamp: ts });
+          }
         }
       }
     }

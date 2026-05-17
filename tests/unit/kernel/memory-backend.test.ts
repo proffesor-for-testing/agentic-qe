@@ -168,7 +168,7 @@ describe('InMemoryBackend', () => {
       expect(await backend.count('test-ns')).toBe(1);
 
       // Verify remaining entry
-      const value = await backend.get('key2', 'test-ns');
+      const value = await backend.get('key2', { namespace: 'test-ns' });
       expect(value).toBe('value2');
     });
 

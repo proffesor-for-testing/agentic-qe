@@ -279,17 +279,24 @@ export interface MemoryBackend extends Initializable, Disposable {
   /** Store a value */
   set<T>(key: string, value: T, options?: StoreOptions): Promise<void>;
 
-  /** Retrieve a value */
-  get<T>(key: string): Promise<T | undefined>;
+  /**
+   * Retrieve a value.
+   *
+   * `options.namespace` lets callers read from a non-default namespace.
+   * Without this, a caller that wrote with `set(k, v, {namespace:'foo'})`
+   * could not read its own data back — `get` would silently fall through
+   * to the default namespace and return undefined (issue #491 Bug 2).
+   */
+  get<T>(key: string, options?: RetrieveOptions): Promise<T | undefined>;
 
   /** Delete a value */
-  delete(key: string): Promise<boolean>;
+  delete(key: string, options?: RetrieveOptions): Promise<boolean>;
 
   /** Check if key exists */
-  has(key: string): Promise<boolean>;
+  has(key: string, options?: RetrieveOptions): Promise<boolean>;
 
-  /** Search by pattern */
-  search(pattern: string, limit?: number): Promise<string[]>;
+  /** Search by pattern (`options.namespace` mirrors `get`). */
+  search(pattern: string, limit?: number, options?: RetrieveOptions): Promise<string[]>;
 
   /** Vector similarity search (HNSW) */
   vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]>;
@@ -316,6 +323,15 @@ export interface StoreOptions {
   ttl?: number;
   namespace?: string;
   persist?: boolean;
+}
+
+/**
+ * Options for memory read operations. Symmetric with `StoreOptions.namespace`
+ * so a caller can read back exactly what it wrote into a non-default
+ * namespace (issue #491 Bug 2).
+ */
+export interface RetrieveOptions {
+  namespace?: string;
 }
 
 export interface VectorSearchResult {
