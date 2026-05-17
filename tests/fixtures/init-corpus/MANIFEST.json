@@ -1,12 +1,13 @@
 {
   "$schema": "./MANIFEST.schema.json",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "description": "Pinned real-public-repo fixtures for the aqe init release gate. See README.md for the rationale and update procedure.",
   "issue": "https://github.com/proffesor-for-testing/agentic-qe/issues/401",
   "schemaChangelog": {
     "1": "Initial schema with per-fixture timeout, expectMinKgEntries floor",
     "2": "Snapshot-based KG threshold (expectedKgEntries + tolerance), mustContainFileSha256, mirror URL field, devils-advocate review fixes from #401",
-    "3": "expectedElapsedSec for subthreshold stall detection, doubleInit flag for delta-path coverage"
+    "3": "expectedElapsedSec for subthreshold stall detection, doubleInit flag for delta-path coverage",
+    "4": "expectDaemonLiveness + daemonLivenessWaitSec — A23 starts the daemon post-init and asserts zero 'domain not available' lines. Catches the issue #491 class of bug where init looks fine but the daemon-runtime seam is broken."
   },
   "fixtures": [
     {
@@ -33,7 +34,9 @@
         "expectedSkillsInstalled": 1,
         "expectedAgentsInstalled": 1,
         "expectMcpConfigured": true,
-        "doubleInit": true
+        "doubleInit": true,
+        "expectDaemonLiveness": true,
+        "daemonLivenessWaitSec": 15
       }
     },
     {
