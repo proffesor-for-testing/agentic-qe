@@ -5,6 +5,94 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.32] - 2026-05-17
+
+Fixes the chain of four bugs reported in #491 (Jordi Izquierdo) that left
+the self-learning consolidation loop dead end-to-end on v3.9.31, plus the
+release-process gaps that let those bugs ship in the first place. After
+this release, `aqe learning loop-health` populates as expected on a
+vanilla install and the `learning-consolidation` worker actually
+consolidates instead of silently failing every tick.
+
+### Fixed
+
+- **Self-learning consolidation loop dead on fresh installs** (#491).
+  Four stacked bugs broke the experience capture → bridge → mine →
+  consolidate pipeline end-to-end:
+  - The MCP-hosted daemon constructed its `WorkerManager` before the
+    kernel existed and was never told about the kernel once
+    `fleet_init` built it — so every domain-dependent worker tick
+    failed with `<domain> not available` (14+/cycle). `setKernel` and
+    a new `setMemory` are now public on the `WorkerManager` interface
+    and `handleFleetInit` wires them in after plugin load.
+  - `LearningCoordinator` wrote experiences with
+    `namespace: 'learning-optimization'` but `HybridBackend`'s read
+    methods hard-coded `defaultNamespace='default'`, so the
+    coordinator could not read its own writes and `mineExperiences`
+    returned 0 for every domain. `MemoryBackend.get/has/delete/search`
+    now accept `RetrieveOptions { namespace? }`, symmetric with the
+    existing `StoreOptions.namespace`; all 15 read sites in
+    `LearningCoordinator` pass the matching namespace.
+  - JSON.stringify serialized `Experience.timestamp` to an ISO string
+    but JSON.parse didn't rehydrate; `TimeRange.contains` did
+    `string >= Date` which coerces to NaN — so even with the
+    namespace fixed, the time-window filter dropped every experience.
+    `getExperiencesByDomainAndTime` now coerces to `Date` at the
+    kv-read boundary.
+  - `LearningConsolidationWorker.doExecute` called
+    `recordLoopHealth(success:true)` *after* `collectPatterns()`, which
+    throws on empty installs — so the dashboard showed `never-ran`
+    permanently. The worker body is now wrapped in try/catch/finally
+    matching the bridge's `drainSafe` pattern; liveness reports on
+    both the success and failure paths.
+
+### Added
+
+- **Daemon-runtime release gate** (#491). The pre-publish flow now runs
+  the daemon-runtime seam test suite alongside the existing fast unit
+  tests. New `test:integration:fast` script runs four focused
+  integration tests in ~6 seconds:
+  - `fleet-init-wires-daemon.test.ts` — proves the kernel→worker
+    wiring is alive after `handleFleetInit`.
+  - `workers-reach-domains.test.ts` — iterates every registered
+    worker and asserts each declared `targetDomain` resolves to a
+    real API. Catches the Bug 1 class for all 11 workers in one
+    test.
+  - `coordinator-roundtrip.test.ts` — full
+    `recordExperience → mineExperiences` round trip through the real
+    `HybridMemoryBackend`. Catches the namespace and timestamp bugs
+    together.
+  - `bridge-end-to-end.test.ts` — existing bridge fan-out coverage.
+
+- **Liveness contract test for `LearningConsolidationWorker`**.
+  Verifies `recordLoopHealth` fires on both success and throw paths,
+  and that a memory-backend hiccup inside the liveness recorder
+  cannot shadow the worker's real error.
+
+- **A23 daemon-liveness assertion in the init-corpus release gate**.
+  Opt-in per fixture via the new `expectDaemonLiveness` manifest
+  flag; spawns the cleanroom daemon post-init, waits the configured
+  window, and asserts zero `domain not available` lines on stderr
+  before killing the daemon. Enabled on the `tiny-ts` fixture with
+  a 15-second window as a pilot. Catches the class of regression
+  that `aqe init` alone cannot surface, since the daemon-runtime
+  seam only opens at daemon startup.
+
+### Changed
+
+- `MemoryBackend.get/has/delete/search` now accept an optional
+  `RetrieveOptions { namespace? }` second argument. Backward-compatible:
+  undefined still routes to `defaultNamespace`. Any caller that was
+  using `InMemoryBackend`'s undocumented positional
+  `namespace?: string` parameter (not on the `MemoryBackend`
+  interface) needs to switch to the options form.
+
+- `package.json` defines `test:integration:fast` (the new release
+  gate's input) and `test:integration` (full integration suite for
+  local development). `.github/workflows/npm-publish.yml` adds a new
+  `integration-tests-on-tag-sha` job wired into the publish
+  `needs`/`if` conditions.
+
 ## [3.9.31] - 2026-05-15
 
 Self-learning loop ships. Closes issues #480, #486, #487, #488 and
