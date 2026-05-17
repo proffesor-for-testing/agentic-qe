@@ -10,7 +10,7 @@
  * backward compatibility with existing MemoryBackend interface.
  */
 
-import { MemoryBackend, StoreOptions, VectorSearchResult } from './interfaces';
+import { MemoryBackend, StoreOptions, RetrieveOptions, VectorSearchResult } from './interfaces';
 import {
   UnifiedMemoryManager,
   getUnifiedMemory,
@@ -168,21 +168,33 @@ export class HybridMemoryBackend implements MemoryBackend {
   }
 
   /**
-   * Retrieve a value
+   * Retrieve a value.
+   *
+   * #491 Bug 2: previously this method hard-coded `defaultNamespace`, so
+   * any caller that wrote with `set(k, v, {namespace:'foo'})` could not
+   * read its own data back. The whole LearningCoordinator read path
+   * (`getExperiencesByDomainAndTime` etc.) was broken by this — writes
+   * landed in `learning-optimization`, reads queried `default`, and
+   * `mineExperiences` mined 0 for every domain even on installs with
+   * hundreds of indexed experiences. Honor the namespace; default
+   * preserves the historical behavior for the many call sites that
+   * still pass no option.
    */
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string, options?: RetrieveOptions): Promise<T | undefined> {
     this.ensureInitialized();
-    return this.unifiedMemory!.kvGet<T>(key, this.config.defaultNamespace);
+    const namespace = options?.namespace ?? this.config.defaultNamespace;
+    return this.unifiedMemory!.kvGet<T>(key, namespace);
   }
 
   /**
    * Delete a value
    */
-  async delete(key: string): Promise<boolean> {
+  async delete(key: string, options?: RetrieveOptions): Promise<boolean> {
     this.ensureInitialized();
+    const namespace = options?.namespace ?? this.config.defaultNamespace;
 
     // Delete from KV store
-    const kvDeleted = await this.unifiedMemory!.kvDelete(key, this.config.defaultNamespace);
+    const kvDeleted = await this.unifiedMemory!.kvDelete(key, namespace);
 
     // Also try to delete from vectors (in case it's a vector key)
     const vectorDeleted = await this.unifiedMemory!.vectorDelete(key);
@@ -193,17 +205,19 @@ export class HybridMemoryBackend implements MemoryBackend {
   /**
    * Check if key exists
    */
-  async has(key: string): Promise<boolean> {
+  async has(key: string, options?: RetrieveOptions): Promise<boolean> {
     this.ensureInitialized();
-    return this.unifiedMemory!.kvExists(key, this.config.defaultNamespace);
+    const namespace = options?.namespace ?? this.config.defaultNamespace;
+    return this.unifiedMemory!.kvExists(key, namespace);
   }
 
   /**
-   * Search for keys matching pattern
+   * Search for keys matching pattern. See `get` for the namespace rationale.
    */
-  async search(pattern: string, limit: number = 100): Promise<string[]> {
+  async search(pattern: string, limit: number = 100, options?: RetrieveOptions): Promise<string[]> {
     this.ensureInitialized();
-    return this.unifiedMemory!.kvSearch(pattern, this.config.defaultNamespace, limit);
+    const namespace = options?.namespace ?? this.config.defaultNamespace;
+    return this.unifiedMemory!.kvSearch(pattern, namespace, limit);
   }
 
   /**

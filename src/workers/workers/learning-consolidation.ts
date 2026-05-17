@@ -158,121 +158,145 @@ export class LearningConsolidationWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Initialize Phase 7 metrics
-    let experiencesProcessed = 0;
-    let patternCandidatesFound = 0;
-    let patternsPromoted = 0;
-    let patternsDeprecated = 0;
-    let confidenceDecayApplied = 0;
-    let patternsMined = 0;
-    let domainsMined = 0;
-    let dreamInsightsPruned = 0;
+    // #491 Bug 4a: liveness must be reported on every tick, including the
+    // failure path. Before this fix, `recordLoopHealth(success:true)` sat
+    // *after* `collectPatterns()`, which throws on installs with nothing
+    // to consolidate — so loop-health permanently showed `never-ran`
+    // even when the worker executed every cycle. Track success in a flag
+    // and emit the ping in `finally` (matches the
+    // CapturedExperienceBridge.drainSafe pattern that ships correctly).
+    let liveness: { success: boolean; error?: string } = { success: false };
+    try {
+      // Initialize Phase 7 metrics
+      let experiencesProcessed = 0;
+      let patternCandidatesFound = 0;
+      let patternsPromoted = 0;
+      let patternsDeprecated = 0;
+      let confidenceDecayApplied = 0;
+      let patternsMined = 0;
+      let domainsMined = 0;
+      let dreamInsightsPruned = 0;
 
-    // Phase 7: Run continuous learning loop
-    const lifecycleManager = await this.getLifecycleManager();
-    if (lifecycleManager) {
-      const lifecycleResult = await this.runContinuousLearningLoop(
-        context,
-        lifecycleManager,
+      // Phase 7: Run continuous learning loop
+      const lifecycleManager = await this.getLifecycleManager();
+      if (lifecycleManager) {
+        const lifecycleResult = await this.runContinuousLearningLoop(
+          context,
+          lifecycleManager,
+          findings,
+          recommendations
+        );
+        experiencesProcessed = lifecycleResult.experiencesProcessed;
+        patternCandidatesFound = lifecycleResult.patternCandidatesFound;
+        patternsPromoted = lifecycleResult.patternsPromoted;
+        patternsDeprecated = lifecycleResult.patternsDeprecated;
+        confidenceDecayApplied = lifecycleResult.confidenceDecayApplied;
+        patternsMined = lifecycleResult.patternsMined;
+        domainsMined = lifecycleResult.domainsMined;
+        dreamInsightsPruned = lifecycleResult.dreamInsightsPruned;
+      }
+
+      // Collect patterns from all domains
+      const patterns = await this.collectPatterns(context);
+
+      // Consolidate and analyze
+      const result = await this.consolidatePatterns(context, patterns);
+
+      // Add Phase 7 metrics to result
+      result.experiencesProcessed = experiencesProcessed;
+      result.patternCandidatesFound = patternCandidatesFound;
+      result.patternsPromoted = patternsPromoted;
+      result.patternsDeprecated = patternsDeprecated;
+      result.confidenceDecayApplied = confidenceDecayApplied;
+      result.patternsMined = patternsMined;
+      result.domainsMined = domainsMined;
+      result.dreamInsightsPruned = dreamInsightsPruned;
+
+      // Identify cross-domain patterns
+      this.identifyCrossDomainPatterns(patterns, findings, recommendations);
+
+      // Prune ineffective patterns
+      this.pruneIneffectivePatterns(patterns, findings, recommendations);
+
+      // Generate optimization recommendations
+      this.generateOptimizations(patterns, findings, recommendations);
+
+      // ADR-046: Run dream cycle for pattern discovery
+      const dreamResult = await this.runDreamCycle(context, patterns, findings, recommendations);
+      result.dreamInsights = dreamResult.insights;
+      result.dreamPatternsCreated = dreamResult.patternsCreated;
+
+      // Store consolidated results
+      await context.memory.set('learning:lastConsolidation', result);
+      await context.memory.set('learning:consolidatedPatterns', patterns);
+
+      // Reached the end without throwing — this tick is a real success.
+      liveness = { success: true };
+
+      // Update last run timestamp for decay calculation
+      this.lastRunTimestamp = Date.now();
+
+      const healthScore = this.calculateHealthScore(result, patterns);
+
+      context.logger.info('Learning consolidation complete', {
+        healthScore,
+        patternsAnalyzed: result.patternsAnalyzed,
+        newInsights: result.newInsights,
+        // Phase 7 metrics
+        experiencesProcessed,
+        patternsPromoted,
+        patternsDeprecated,
+      });
+
+      return this.createResult(
+        Date.now() - startTime,
+        {
+          itemsAnalyzed: result.patternsAnalyzed,
+          issuesFound: result.patternsPruned + result.patternsDeprecated,
+          healthScore,
+          trend: this.determineTrend(result),
+          domainMetrics: {
+            patternsAnalyzed: result.patternsAnalyzed,
+            patternsPruned: result.patternsPruned,
+            patternsConsolidated: result.patternsConsolidated,
+            newInsights: result.newInsights,
+            crossDomainPatterns: result.crossDomainPatterns,
+            // ADR-046: Dream cycle metrics
+            dreamInsights: result.dreamInsights,
+            dreamPatternsCreated: result.dreamPatternsCreated,
+            // Phase 7: Continuous Learning Loop metrics
+            experiencesProcessed: result.experiencesProcessed,
+            patternCandidatesFound: result.patternCandidatesFound,
+            patternsPromoted: result.patternsPromoted,
+            patternsDeprecated: result.patternsDeprecated,
+            confidenceDecayApplied: result.confidenceDecayApplied,
+            // #486 Gap A: mineExperiences auto-trigger
+            patternsMined: result.patternsMined,
+            domainsMined: result.domainsMined,
+            // #488 C.2: dream_insights retention pruning
+            dreamInsightsPruned: result.dreamInsightsPruned,
+          },
+        },
         findings,
         recommendations
       );
-      experiencesProcessed = lifecycleResult.experiencesProcessed;
-      patternCandidatesFound = lifecycleResult.patternCandidatesFound;
-      patternsPromoted = lifecycleResult.patternsPromoted;
-      patternsDeprecated = lifecycleResult.patternsDeprecated;
-      confidenceDecayApplied = lifecycleResult.confidenceDecayApplied;
-      patternsMined = lifecycleResult.patternsMined;
-      domainsMined = lifecycleResult.domainsMined;
-      dreamInsightsPruned = lifecycleResult.dreamInsightsPruned;
+    } catch (error) {
+      // Record the failure shape and rethrow — BaseWorker handles
+      // worker-level retry/error tracking via this throw.
+      liveness = { success: false, error: error instanceof Error ? error.message : String(error) };
+      throw error;
+    } finally {
+      // #491 Bug 4a: liveness must always reach the dashboard, even when
+      // collectPatterns throws on empty installs. Best-effort — must not
+      // throw or it would shadow the original error.
+      try {
+        await recordLoopHealth(context.memory, 'learningWorker', liveness);
+      } catch (recordErr) {
+        context.logger.warn('recordLoopHealth failed (non-fatal)', {
+          error: recordErr instanceof Error ? recordErr.message : String(recordErr),
+        });
+      }
     }
-
-    // Collect patterns from all domains
-    const patterns = await this.collectPatterns(context);
-
-    // Consolidate and analyze
-    const result = await this.consolidatePatterns(context, patterns);
-
-    // Add Phase 7 metrics to result
-    result.experiencesProcessed = experiencesProcessed;
-    result.patternCandidatesFound = patternCandidatesFound;
-    result.patternsPromoted = patternsPromoted;
-    result.patternsDeprecated = patternsDeprecated;
-    result.confidenceDecayApplied = confidenceDecayApplied;
-    result.patternsMined = patternsMined;
-    result.domainsMined = domainsMined;
-    result.dreamInsightsPruned = dreamInsightsPruned;
-
-    // Identify cross-domain patterns
-    this.identifyCrossDomainPatterns(patterns, findings, recommendations);
-
-    // Prune ineffective patterns
-    this.pruneIneffectivePatterns(patterns, findings, recommendations);
-
-    // Generate optimization recommendations
-    this.generateOptimizations(patterns, findings, recommendations);
-
-    // ADR-046: Run dream cycle for pattern discovery
-    const dreamResult = await this.runDreamCycle(context, patterns, findings, recommendations);
-    result.dreamInsights = dreamResult.insights;
-    result.dreamPatternsCreated = dreamResult.patternsCreated;
-
-    // Store consolidated results
-    await context.memory.set('learning:lastConsolidation', result);
-    await context.memory.set('learning:consolidatedPatterns', patterns);
-
-    // #488 B.2: record loop-health so `aqe learning loop-health` can show
-    // the consolidation worker as alive. Records success even for empty
-    // ticks — "ran the loop, found nothing" is still a liveness signal.
-    await recordLoopHealth(context.memory, 'learningWorker', { success: true });
-
-    // Update last run timestamp for decay calculation
-    this.lastRunTimestamp = Date.now();
-
-    const healthScore = this.calculateHealthScore(result, patterns);
-
-    context.logger.info('Learning consolidation complete', {
-      healthScore,
-      patternsAnalyzed: result.patternsAnalyzed,
-      newInsights: result.newInsights,
-      // Phase 7 metrics
-      experiencesProcessed,
-      patternsPromoted,
-      patternsDeprecated,
-    });
-
-    return this.createResult(
-      Date.now() - startTime,
-      {
-        itemsAnalyzed: result.patternsAnalyzed,
-        issuesFound: result.patternsPruned + result.patternsDeprecated,
-        healthScore,
-        trend: this.determineTrend(result),
-        domainMetrics: {
-          patternsAnalyzed: result.patternsAnalyzed,
-          patternsPruned: result.patternsPruned,
-          patternsConsolidated: result.patternsConsolidated,
-          newInsights: result.newInsights,
-          crossDomainPatterns: result.crossDomainPatterns,
-          // ADR-046: Dream cycle metrics
-          dreamInsights: result.dreamInsights,
-          dreamPatternsCreated: result.dreamPatternsCreated,
-          // Phase 7: Continuous Learning Loop metrics
-          experiencesProcessed: result.experiencesProcessed,
-          patternCandidatesFound: result.patternCandidatesFound,
-          patternsPromoted: result.patternsPromoted,
-          patternsDeprecated: result.patternsDeprecated,
-          confidenceDecayApplied: result.confidenceDecayApplied,
-          // #486 Gap A: mineExperiences auto-trigger
-          patternsMined: result.patternsMined,
-          domainsMined: result.domainsMined,
-          // #488 C.2: dream_insights retention pruning
-          dreamInsightsPruned: result.dreamInsightsPruned,
-        },
-      },
-      findings,
-      recommendations
-    );
   }
 
   /**

@@ -223,18 +223,61 @@ jobs:
       - name: Run fast unit tests
         run: npm run test:unit:fast
 
+  # ============================================================================
+  # Integration tests on tag SHA (issue #491)
+  #
+  # Runs the focused daemon-runtime seam suite — the surfaces that, when
+  # broken, ship as "looks initialized, silently dies" failures users only
+  # discover at runtime. The fast subset (~6s) covers:
+  #   - fleet_init wires the daemon WorkerManager to the kernel (Bug 1)
+  #   - every production worker can reach its declared targetDomains
+  #   - LearningCoordinator's write→read round trip works through the
+  #     real HybridMemoryBackend (Bug 2+3)
+  #   - CapturedExperienceBridge writes the expected kv keys
+  #
+  # Why this is its own gate rather than part of tests-on-tag-sha:
+  # `test:unit:fast` excludes integration/ by design — and the four bugs
+  # in #491 all lived in the daemon-runtime seam that unit tests
+  # explicitly punt on. Until v3.9.31, integration coverage was present
+  # but not run on release; this job closes that loop.
+  # ============================================================================
+  integration-tests-on-tag-sha:
+    name: Integration tests on tag SHA
+    needs: [build]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run integration seam tests
+        run: npm run test:integration:fast
+
   publish:
     name: Publish to npm
-    needs: [build, pre-publish-gate, tests-on-tag-sha]
-    # tests-on-tag-sha is skipped on workflow_dispatch (it only runs on
-    # release events), so we explicitly accept skipped as a non-blocker.
-    # Without this, the default GH Actions behavior would skip publish
-    # whenever tests-on-tag-sha is skipped — breaking the dry-run path.
+    needs: [build, pre-publish-gate, tests-on-tag-sha, integration-tests-on-tag-sha]
+    # tests-on-tag-sha and integration-tests-on-tag-sha are skipped on
+    # workflow_dispatch (they only run on release events), so we explicitly
+    # accept skipped as a non-blocker. Without this, the default GH Actions
+    # behavior would skip publish whenever either is skipped — breaking the
+    # dry-run path.
     if: >-
       always()
       && needs.build.result == 'success'
       && needs.pre-publish-gate.result == 'success'
       && (needs.tests-on-tag-sha.result == 'success' || needs.tests-on-tag-sha.result == 'skipped')
+      && (needs.integration-tests-on-tag-sha.result == 'success' || needs.integration-tests-on-tag-sha.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: npm-publish

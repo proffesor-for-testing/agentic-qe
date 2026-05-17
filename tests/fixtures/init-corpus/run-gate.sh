@@ -176,6 +176,14 @@ skipped=0
 #       (exercises the incremental delta-scan code path of phase 06 — the
 #        actual surface that hung in v3.9.1 ruview, which the first init
 #        of any cleanroom never touches)
+#   A23 if expectDaemonLiveness: start the background daemon, wait
+#       daemonLivenessWaitSec (default 20s), assert ZERO "domain not
+#       available" / "not available for" lines on stderr, then kill the
+#       daemon. Catches the class of bug in issue #491 that `aqe init`
+#       alone cannot surface — every Bug 1-style "worker can't reach
+#       its domain" failure lives in the daemon-startup seam, not in
+#       init. Opt-in per fixture; default false so existing fixtures
+#       keep their ~5s budget.
 #
 # Each assertion writes its verdict to the summary line for the fixture.
 # ---------------------------------------------------------------------------
@@ -193,6 +201,8 @@ run_one() {
   local double_init="${10}"
   local must_contain_file="${11}"
   local must_contain_file_sha256="${12}"
+  local expect_daemon_liveness="${13:-false}"
+  local daemon_liveness_wait_sec="${14:-20}"
 
   local log="${LOG_DIR}/${id}.log"
   local json="${LOG_DIR}/${id}.json"
@@ -624,6 +634,80 @@ run_one() {
     echo "[gate]   second init OK (${elapsed2}s, delta-scan path exercised)" | tee -a "${log}"
   fi
 
+  # ----- A23: daemon liveness -----------------------------------------
+  # Spawn the daemon, wait `daemon_liveness_wait_sec`, assert zero
+  # "domain not available" / worker-wiring-failure lines on stderr.
+  # Catches the class of bug in issue #491 that `aqe init` alone CANNOT
+  # surface (the seam between MCP server, kernel, and worker manager
+  # opens during fleet_init, which only happens at daemon start —
+  # never during init). Opt-in per fixture; default off so existing
+  # fixtures keep their current ~5s budget. See MANIFEST.schema.json.
+  if [[ "${expect_daemon_liveness}" == "true" ]]; then
+    echo "[gate]   --- daemon liveness check (waiting ${daemon_liveness_wait_sec}s) ---" | tee -a "${log}"
+
+    local daemon_script="${tmpdir}/.agentic-qe/workers/start-daemon.cjs"
+    if [[ ! -f "${daemon_script}" ]]; then
+      echo "[gate]   FAIL A23: start-daemon.cjs not found at ${daemon_script}" | tee -a "${log}"
+      echo "${id} FAIL A23-no-daemon-script" >> "${SUMMARY}"
+      popd >/dev/null
+      [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
+      return 1
+    fi
+
+    local daemon_log="${tmpdir}/.agentic-qe/workers/daemon.log"
+    : > "${daemon_log}"
+
+    # Run the daemon detached and capture stderr (which is where workers
+    # log their domain-resolution failures).
+    (
+      cd "${tmpdir}"
+      # PATH-prepend the host install so npx fallback inside the helper
+      # resolves to the same binary every other gate assertion uses.
+      PATH="${HOST_DIR}/node_modules/.bin:${PATH}" \
+        node "${daemon_script}" >"${daemon_log}" 2>&1 &
+      echo $! >"${tmpdir}/.daemon.pid"
+    )
+
+    local daemon_pid
+    daemon_pid=$(cat "${tmpdir}/.daemon.pid" 2>/dev/null || echo "")
+    if [[ -z "${daemon_pid}" ]] || ! kill -0 "${daemon_pid}" 2>/dev/null; then
+      echo "[gate]   FAIL A23: daemon did not stay alive" | tee -a "${log}"
+      tail -20 "${daemon_log}" 2>/dev/null | sed 's/^/      | /' | tee -a "${log}" || true
+      echo "${id} FAIL A23-daemon-died-on-start" >> "${SUMMARY}"
+      popd >/dev/null
+      [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
+      return 1
+    fi
+
+    sleep "${daemon_liveness_wait_sec}"
+
+    # Cleanup the daemon — best effort, since the gate continues regardless.
+    if kill -0 "${daemon_pid}" 2>/dev/null; then
+      kill -TERM "${daemon_pid}" 2>/dev/null || true
+      sleep 2
+      kill -KILL "${daemon_pid}" 2>/dev/null || true
+    fi
+
+    # Grep for the failure shapes from #491. A live daemon with the
+    # kernel correctly wired produces zero matches; a broken daemon
+    # produces 14+ per cycle.
+    local not_avail_count
+    not_avail_count=$(grep -c -E "domain not available|Domain not available|not available for" "${daemon_log}" 2>/dev/null || true)
+    if [[ -z "${not_avail_count}" ]]; then not_avail_count=0; fi
+
+    if (( not_avail_count > 0 )); then
+      echo "[gate]   FAIL A23: ${not_avail_count} 'domain not available' lines in daemon.log" | tee -a "${log}"
+      grep -E "domain not available|Domain not available|not available for" "${daemon_log}" 2>/dev/null \
+        | head -5 | sed 's/^/      | /' | tee -a "${log}"
+      echo "${id} FAIL A23-domain-not-available (${not_avail_count} occurrences)" >> "${SUMMARY}"
+      popd >/dev/null
+      [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
+      return 1
+    fi
+
+    echo "[gate]   daemon liveness OK (0 'not available' lines after ${daemon_liveness_wait_sec}s)" | tee -a "${log}"
+  fi
+
   echo "[gate]   PASS (${elapsed}s, kg=${kg_entries}, skills=${skills_installed}, agents=${agents_installed}, agentsOnDisk=${agents_on_disk}, skillsOnDisk=${skills_on_disk}, workers=${workers_max})" | tee -a "${log}"
   echo "${id} PASS ${elapsed}s kg=${kg_entries} skills=${skills_max} agents=${agents_max} workers=${workers_max}" >> "${SUMMARY}"
 
@@ -658,6 +742,8 @@ for i in $(seq 0 $((fixture_count - 1))); do
   double_init=$(jq -r ".fixtures[${i}].gate.doubleInit // false" "${MANIFEST}")
   must_contain=$(jq -r ".fixtures[${i}].gate.mustContainFile // empty" "${MANIFEST}")
   must_contain_sha=$(jq -r ".fixtures[${i}].gate.mustContainFileSha256 // empty" "${MANIFEST}")
+  expect_daemon_liveness=$(jq -r ".fixtures[${i}].gate.expectDaemonLiveness // false" "${MANIFEST}")
+  daemon_liveness_wait=$(jq -r ".fixtures[${i}].gate.daemonLivenessWaitSec // 20" "${MANIFEST}")
 
   if [[ "${has_tarball}" == "true" ]]; then
     extracted_dir=$(jq -r ".fixtures[${i}].extractedDir" "${MANIFEST}")
@@ -677,7 +763,8 @@ for i in $(seq 0 $((fixture_count - 1))); do
     "${expected_kg}" "${kg_tolerance}" "${expected_elapsed}" \
     "${expected_skills}" "${expected_agents}" "${expect_mcp}" \
     "${double_init}" \
-    "${must_contain}" "${must_contain_sha}"; then
+    "${must_contain}" "${must_contain_sha}" \
+    "${expect_daemon_liveness}" "${daemon_liveness_wait}"; then
     passes=$((passes + 1))
   else
     failures=$((failures + 1))

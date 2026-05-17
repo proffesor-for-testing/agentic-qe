@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.9.31",
+  "version": "3.9.32",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -62,6 +62,8 @@
     "test:all": "npm test -- --run",
     "test:mcp": "npm run test:unit:mcp",
     "test:mcp:integration": "npm test -- --run tests/integration/mcp/",
+    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
+    "test:integration": "NODE_OPTIONS='--max-old-space-size=4096 --expose-gc' vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/*.e2e.test.ts'",
     "mcp:validate": "echo 'MCP validation: All tools registered in MCP server' && exit 0",
     "mcp:report": "echo 'MCP Report: uses vitest for test reporting' && exit 0",
     "test:code-intelligence": "npm test -- --run tests/unit/domains/code-intelligence/ tests/unit/coordination/mincut/",

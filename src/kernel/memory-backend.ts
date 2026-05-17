@@ -3,7 +3,7 @@
  * Hybrid memory implementation (in-memory + optional persistence)
  */
 
-import { MemoryBackend, StoreOptions, VectorSearchResult } from './interfaces';
+import { MemoryBackend, StoreOptions, RetrieveOptions, VectorSearchResult } from './interfaces';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { MEMORY_CONSTANTS } from './constants.js';
 
@@ -55,8 +55,8 @@ export class InMemoryBackend implements MemoryBackend {
     this.store.set(fullKey, entry);
   }
 
-  async get<T>(key: string, namespace?: string): Promise<T | undefined> {
-    const fullKey = this.buildKey(key, namespace);
+  async get<T>(key: string, options?: RetrieveOptions): Promise<T | undefined> {
+    const fullKey = this.buildKey(key, options?.namespace);
     const entry = this.store.get(fullKey);
 
     if (!entry) {
@@ -72,23 +72,34 @@ export class InMemoryBackend implements MemoryBackend {
     return entry.value as T;
   }
 
-  async delete(key: string, namespace?: string): Promise<boolean> {
-    const fullKey = this.buildKey(key, namespace);
+  async delete(key: string, options?: RetrieveOptions): Promise<boolean> {
+    const fullKey = this.buildKey(key, options?.namespace);
     return this.store.delete(fullKey);
   }
 
-  async has(key: string, namespace?: string): Promise<boolean> {
-    const value = await this.get(key, namespace);
+  async has(key: string, options?: RetrieveOptions): Promise<boolean> {
+    const value = await this.get(key, options);
     return value !== undefined;
   }
 
-  async search(pattern: string, limit: number = MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT): Promise<string[]> {
+  async search(
+    pattern: string,
+    limit: number = MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT,
+    options?: RetrieveOptions
+  ): Promise<string[]> {
     // Escape regex-special chars first, then convert glob wildcards to regex
     const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escaped.replace(/\*/g, '.*'));
     const results: string[] = [];
 
+    // When a namespace is supplied, scope the scan to that prefix. Matches
+    // HybridBackend's namespace-aware search and lets LearningCoordinator's
+    // namespaced reads behave identically under unit tests that swap in the
+    // in-memory backend (#491 Bug 2).
+    const nsPrefix = options?.namespace ? `${options.namespace}:` : undefined;
+
     for (const key of this.store.keys()) {
+      if (nsPrefix && !key.startsWith(nsPrefix)) continue;
       if (regex.test(key)) {
         results.push(key);
         if (results.length >= limit) break;

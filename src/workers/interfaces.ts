@@ -255,6 +255,18 @@ export interface WorkerDomainAccess {
   getDomainHealth(domain: DomainName): { status: string; errors: string[] };
 }
 
+/**
+ * Structural shape of the kernel that worker-side code needs. Declared here
+ * (rather than imported from src/kernel) to avoid a circular dependency between
+ * the kernel and the workers package.
+ */
+export interface WorkerKernelReference {
+  getDomainAPI<T>(domain: DomainName): T | undefined;
+  getHealth(): {
+    domains: Record<string, { status: string; errors?: string[] }>;
+  };
+}
+
 // ============================================================================
 // Worker Health
 // ============================================================================
@@ -330,6 +342,20 @@ export interface WorkerManager {
    * Get manager health status
    */
   getHealth(): WorkerManagerHealth;
+
+  /**
+   * Bind the kernel late, after construction. Without this, workers fall
+   * through to a stub domain-access that returns undefined for every domain,
+   * causing every domain-dependent worker tick to fail (issue #491 Bug 1).
+   */
+  setKernel(kernel: WorkerKernelReference): void;
+
+  /**
+   * Bind the worker manager's memory to a shared instance (e.g. the kernel's
+   * HybridMemoryBackend) so workers and the dashboards that read worker output
+   * resolve to the same kv store (issue #491 Bug 4b).
+   */
+  setMemory(memory: WorkerMemory): void;
 }
 
 export interface WorkerManagerHealth {
