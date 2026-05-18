@@ -40,8 +40,8 @@ export type {
 };
 
 import { EmbeddingCache } from '../cache/EmbeddingCache.js';
-import { pipeline } from '@xenova/transformers';
-import type { Tensor } from '@xenova/transformers';
+import { pipeline } from '@huggingface/transformers';
+import type { Tensor } from '@huggingface/transformers';
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
 /**
@@ -120,14 +120,24 @@ export class EmbeddingGenerator {
 
     // Use ONNX runtime if enabled
     if (this.config.onnxEnabled) {
+      // v4 replaced `quantized: bool` with `dtype: DataType`. We map our
+      // QuantizationType to the closest model-load dtype; the 'binary' bucket
+      // is a post-process step, not a model weight format, so we fall back to
+      // q8 for load and keep the binary quantization step downstream.
+      const loadDtype =
+        this.config.quantization === 'none' ? 'fp32' :
+        this.config.quantization === 'fp16' ? 'fp16' :
+        this.config.quantization === 'int8' ? 'int8' : 'q8';
       this.model = await pipeline(
         'feature-extraction',
         this.config.model,
         {
-          quantized: this.config.quantization !== 'none',
-          progress_callback: (progress: { status: string; progress: number }) => {
-            if (progress.status === 'downloading') {
-              console.log(`Downloading model: ${(progress.progress * 100).toFixed(0)}%`);
+          dtype: loadDtype,
+          // v4 narrowed ProgressInfo to a discriminated union — `progress`
+          // only exists on the "progress"/download variants.
+          progress_callback: (info) => {
+            if (info.status === 'progress' && typeof info.progress === 'number') {
+              console.log(`Downloading model: ${(info.progress * 100).toFixed(0)}%`);
             }
           },
         }
