@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.33](v3.9.33.md) | 2026-05-18 | Supply-chain cleanup: 0 consumer-side CVEs (was 4 high + 1 critical), ~480 fewer transitive packages, zero ERESOLVE warnings; new consumer-side audit gate prevents regressions |
 | [v3.9.32](v3.9.32.md) | 2026-05-17 | Fix #491 chain — daemon/kernel wiring, namespace-aware reads, timestamp rehydration, loop-health try/finally. Adds daemon-runtime release gate (`test:integration:fast` + A23) |
 | [v3.9.31](v3.9.31.md) | 2026-05-15 | Self-learning loop ships end-to-end: kernel-side dream cycles (ADR-094), three-signal routing with Q-blend + ε-greedy + mincut gate (ADR-095), `aqe learning loop-health` dashboard, retention pruner, daemon pidfile fix (#480, #486, #487, #488) |
 | [v3.9.30](v3.9.30.md) | 2026-05-14 | Six MCP fixes: ESM __dirname polyfill, real ONNX embeddings, coherence_collapse NaN guard, default test phases, session cache wired, test_generate language validation (#467,#469,#470,#472,#473,#474) |
