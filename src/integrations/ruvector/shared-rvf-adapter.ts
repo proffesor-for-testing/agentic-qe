@@ -11,10 +11,43 @@
  * @module integrations/ruvector/shared-rvf-adapter
  */
 
-import type { RvfNativeAdapter } from './rvf-native-adapter.js';
+import type { RvfNativeAdapter, RvfCompactionResult, RvfStatus } from './rvf-native-adapter.js';
 
 let sharedAdapter: RvfNativeAdapter | null = null;
 let initAttempted = false;
+
+// ---------------------------------------------------------------------------
+// Test seam: allow tests to install a fake adapter without going through the
+// native binding loader. NOT part of the public API — used by tests only.
+// ---------------------------------------------------------------------------
+
+/** @internal test-only seam */
+export function __setSharedRvfAdapterForTests(adapter: RvfNativeAdapter | null): void {
+  sharedAdapter = adapter;
+  initAttempted = adapter !== null;
+}
+
+// ----------------------------------------------------------------------------
+// Compaction tunables
+//
+// `compact()` is best-effort and idempotent on a clean file, so the thresholds
+// are deliberately conservative. They can be tightened via env vars without a
+// rebuild — useful in field debugging when an installation is already large.
+// ----------------------------------------------------------------------------
+
+/** File size above which we run a boot-time compact (default: 256 MB). */
+const SIZE_GUARD_BYTES = (() => {
+  const env = process.env.AQE_RVF_SIZE_GUARD_BYTES;
+  const parsed = env ? Number(env) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 256 * 1024 * 1024;
+})();
+
+/** Dead-space ratio above which we run a compact (default: 0.30 = 30%). */
+const DEAD_RATIO_THRESHOLD = (() => {
+  const env = process.env.AQE_RVF_DEAD_RATIO_THRESHOLD;
+  const parsed = env ? Number(env) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= 1 ? parsed : 0.30;
+})();
 
 /**
  * Get or create the shared RvfNativeAdapter singleton for patterns.rvf.
@@ -60,6 +93,10 @@ export function getSharedRvfAdapter(
     //     FsyncFailed regardless. The try-ladder degrades to whichever
     //     path the OS actually permits.
     sharedAdapter = openOrCreateRvf(openRvfStore, createRvfStore, rvfPath, dimensions);
+    // Boot-time size guard: an oversized or fragmented patterns.rvf gets a
+    // best-effort compaction on first open. Synchronous — runs once per
+    // process. Errors logged, never thrown (compaction must not block boot).
+    runBootCompactGuard(sharedAdapter, rvfPath);
     return sharedAdapter;
   } catch (error) {
     console.warn(
@@ -172,6 +209,135 @@ function openOrCreateRvf(
       throw createErr instanceof Error ? createErr : new Error(String(createErr));
     }
   }
+}
+
+export interface CompactDecision {
+  shouldCompact: boolean;
+  trigger: 'force' | 'size-guard' | 'dead-ratio' | 'none';
+}
+
+/**
+ * Pure decision function: given an adapter status, decide whether compaction
+ * should run and which threshold triggered it. Exported so tests can verify
+ * the decision logic without exercising the singleton or native binding.
+ */
+export function decideCompactionFromStatus(
+  status: RvfStatus,
+  opts?: { deadRatioThreshold?: number; sizeGuardBytes?: number; force?: boolean },
+): CompactDecision {
+  if (opts?.force) return { shouldCompact: true, trigger: 'force' };
+  const sizeThreshold = opts?.sizeGuardBytes ?? SIZE_GUARD_BYTES;
+  const deadThreshold = opts?.deadRatioThreshold ?? DEAD_RATIO_THRESHOLD;
+  if (status.fileSizeBytes >= sizeThreshold) {
+    return { shouldCompact: true, trigger: 'size-guard' };
+  }
+  if ((status.deadSpaceRatio ?? 0) >= deadThreshold) {
+    return { shouldCompact: true, trigger: 'dead-ratio' };
+  }
+  return { shouldCompact: false, trigger: 'none' };
+}
+
+/**
+ * Run `compact()` against the shared patterns.rvf adapter when dead-space or
+ * file-size thresholds are exceeded. Best-effort — returns the reclaim stats
+ * if compaction ran, or `null` if it was skipped or failed.
+ *
+ * Safe to call from steady-state code (e.g. after a dream cycle). The native
+ * binding's compact() is documented as exclusive against writers, so callers
+ * should run this in idle windows when possible.
+ *
+ * Thresholds can be overridden via:
+ *   AQE_RVF_SIZE_GUARD_BYTES        (default 256 MB)
+ *   AQE_RVF_DEAD_RATIO_THRESHOLD    (default 0.30)
+ */
+export function compactSharedRvfAdapter(opts?: {
+  /** Override the dead-space ratio above which compaction runs. */
+  deadRatioThreshold?: number;
+  /** Override the file size above which compaction runs unconditionally. */
+  sizeGuardBytes?: number;
+  /** When true, run compact() regardless of thresholds. */
+  force?: boolean;
+}): RvfCompactionResult | null {
+  if (!sharedAdapter) return null;
+
+  let status: RvfStatus;
+  try {
+    status = sharedAdapter.status();
+  } catch {
+    return null;
+  }
+
+  const decision = decideCompactionFromStatus(status, opts);
+  if (!decision.shouldCompact) return null;
+
+  const before = status.fileSizeBytes;
+  let result: RvfCompactionResult | null;
+  try {
+    result = sharedAdapter.compact();
+  } catch {
+    // The thin native wrapper already catches and returns null on native
+    // errors, but be defensive in case a caller installs a non-wrapped
+    // adapter (e.g. tests, custom adapters).
+    return null;
+  }
+  if (!result) return null;
+
+  // Log only when there's something interesting to report — keeps idle logs quiet.
+  if (result.bytesReclaimed > 0 || result.segmentsCompacted > 0) {
+    console.log(
+      `[RVF] compacted patterns.rvf: reclaimed ${formatBytes(result.bytesReclaimed)} ` +
+        `(${result.segmentsCompacted} segments, fileSize ${formatBytes(before)} → ` +
+        `${formatBytes(Math.max(0, before - result.bytesReclaimed))}, ` +
+        `trigger: ${decision.trigger})`,
+    );
+  }
+  return result;
+}
+
+/**
+ * One-shot at boot. Runs a best-effort `compact()` against the freshly-opened
+ * adapter when fileSize or deadSpaceRatio exceed configured thresholds. Lives
+ * here (not at module load) so a never-opened adapter doesn't trigger native
+ * binding init. Exported for tests; production callers go via
+ * `getSharedRvfAdapter()` which invokes it internally.
+ */
+export function runBootCompactGuard(
+  adapter: RvfNativeAdapter,
+  rvfPath: string,
+): RvfCompactionResult | null {
+  try {
+    const status = adapter.status();
+    const decision = decideCompactionFromStatus(status);
+    if (!decision.shouldCompact) return null;
+    const result = adapter.compact();
+    if (result && (result.bytesReclaimed > 0 || result.segmentsCompacted > 0)) {
+      console.log(
+        `[RVF] boot-time compact (${rvfPath}): reclaimed ${formatBytes(result.bytesReclaimed)} ` +
+          `from ${result.segmentsCompacted} segments (trigger: ${decision.trigger})`,
+      );
+    }
+    return result;
+  } catch (error) {
+    if (process.env.DEBUG) {
+      console.debug(
+        '[RVF] boot-time compact guard skipped:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+    return null;
+  }
+}
+
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return `${n}B`;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(i === 0 ? 0 : 1)}${units[i]}`;
 }
 
 /** Close the shared adapter and reset the singleton. */

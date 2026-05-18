@@ -244,7 +244,20 @@ export class QEReasoningBank implements IQEReasoningBank {
       const adapter = this.patternStore.getAdapter?.();
       if (adapter && (adapter.status()?.totalVectors ?? 0) === 0) {
         try {
-          const embeddings = this.getSqliteStore().getAllEmbeddings();
+          // Cap the backfill to the most-recently-used N embeddings. Prevents
+          // a truncated patterns.rvf (e.g. `: > patterns.rvf` for disk
+          // recovery) from triggering an unbounded re-ingest of every
+          // historical embedding — the path that reproduces "regrew to 59 GB"
+          // in the field.
+          //
+          // Override via AQE_RVF_BACKFILL_LIMIT (default: 1000).
+          const limit = (() => {
+            const env = process.env.AQE_RVF_BACKFILL_LIMIT;
+            const parsed = env ? Number(env) : NaN;
+            return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1000;
+          })();
+
+          const embeddings = this.getSqliteStore().getRecentEmbeddings(limit);
           const vectors = embeddings
             .filter(({ embedding }) => embedding && embedding.length > 0)
             .map(({ patternId, embedding }) => ({
@@ -255,7 +268,12 @@ export class QEReasoningBank implements IQEReasoningBank {
             }));
           if (vectors.length > 0) {
             const { accepted, rejected } = adapter.ingest(vectors);
-            logger.info('Backfilled RVF from SQLite', { count: vectors.length, accepted });
+            logger.info('Backfilled RVF from SQLite', {
+              requested: vectors.length,
+              accepted,
+              cap: limit,
+              truncated: vectors.length >= limit,
+            });
             if (rejected > 0) {
               logger.warn('RVF backfill partially rejected', { accepted, rejected });
             }

@@ -81,6 +81,19 @@ export interface RvfStatus {
   epoch: number;
   witnessValid: boolean;
   witnessEntries: number;
+  /**
+   * Fraction of file bytes occupied by tombstoned/superseded segments (0-1).
+   * Optional so existing partial mocks in tests still compile; runtime
+   * adapters always populate this (the wrapper defaults to 0 if the native
+   * binding does not surface it).
+   */
+  deadSpaceRatio?: number;
+}
+
+export interface RvfCompactionResult {
+  segmentsCompacted: number;
+  bytesReclaimed: number;
+  epoch: number;
 }
 
 export interface RvfNativeAdapter {
@@ -91,7 +104,12 @@ export interface RvfNativeAdapter {
   status(): RvfStatus;
   dimension(): number;
   size(): number;
-  compact(): void;
+  /**
+   * Reclaim dead space by merging segments and dropping tombstones.
+   * Returns reclaim stats. Logs and returns `null` if the native call throws
+   * (best-effort — never let compaction failures propagate to callers).
+   */
+  compact(): RvfCompactionResult | null;
   close(): void;
   isOpen(): boolean;
   path(): string;
@@ -337,6 +355,7 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
       epoch: s.currentEpoch,
       witnessValid: witnessSegs.length > 0,
       witnessEntries: witnessSegs.length,
+      deadSpaceRatio: typeof s.deadSpaceRatio === 'number' ? s.deadSpaceRatio : 0,
     };
   }
 
@@ -351,9 +370,21 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
     return this.db.status().totalVectors;
   }
 
-  compact(): void {
+  compact(): RvfCompactionResult | null {
     this.ensureOpen();
-    this.db.compact();
+    try {
+      const r = this.db.compact();
+      if (r && typeof r === 'object') {
+        return {
+          segmentsCompacted: typeof r.segmentsCompacted === 'number' ? r.segmentsCompacted : 0,
+          bytesReclaimed: typeof r.bytesReclaimed === 'number' ? r.bytesReclaimed : 0,
+          epoch: typeof r.epoch === 'number' ? r.epoch : 0,
+        };
+      }
+      return { segmentsCompacted: 0, bytesReclaimed: 0, epoch: 0 };
+    } catch {
+      return null;
+    }
   }
 
   close(): void {

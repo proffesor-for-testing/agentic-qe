@@ -550,6 +550,18 @@ export class DreamScheduler {
       // Publish dream completed event
       await this.publishDreamCompletedEvent(result);
 
+      // Reclaim dead space in patterns.rvf after each dream cycle. Best-effort
+      // and threshold-gated (only runs when deadSpaceRatio or fileSize cross
+      // configured thresholds), so idle cycles are nearly free. Without this
+      // call patterns.rvf grows monotonically — see the field reports of
+      // 59 GB regrowth on a fresh clone.
+      //
+      // AWAITED on purpose: native compact() takes an exclusive lock against
+      // the RVF file. Running concurrently with the meta-learning analysis
+      // (which reads from RVF) would risk lock contention. The threshold
+      // gate keeps the wall-clock cost near zero on healthy installations.
+      await this.maybeCompactPatternsRvf();
+
       // ADR-062: Run meta-learning analysis after dream cycle
       if (process.env.AQE_META_LEARNING_ENABLED === 'true') {
         try {
@@ -605,6 +617,63 @@ export class DreamScheduler {
       } catch (err) {
         logger.error('Failed to auto-apply insight', err instanceof Error ? err : undefined, { insightId: insight.id });
       }
+    }
+  }
+
+  /**
+   * Reclaim dead space in patterns.rvf and brain.rvf after a dream cycle.
+   *
+   * Background: RVF is append-only — every ingest/delete writes a new segment.
+   * Without periodic compaction these files grow monotonically (field reports
+   * have seen 59 GB on a fresh clone). The shared adapter exposes a helper
+   * that runs `compact()` only when configured thresholds are exceeded, so
+   * idle cycles are essentially free.
+   *
+   * Two files are compacted:
+   *   • patterns.rvf — primary HNSW vector store (every storePattern() append)
+   *   • brain.rvf — dual-write target (one append per storePattern() via
+   *     RvfDualWriter.writePattern)
+   *
+   * Best-effort throughout: any error is logged and swallowed. The dream
+   * cycle's success is not contingent on compaction completing.
+   */
+  private async maybeCompactPatternsRvf(): Promise<void> {
+    // patterns.rvf — threshold-gated compaction via the shared singleton.
+    try {
+      const mod = await import('../../integrations/ruvector/shared-rvf-adapter.js');
+      const result = mod.compactSharedRvfAdapter();
+      if (result && result.bytesReclaimed > 0) {
+        logger.info('patterns.rvf compacted', {
+          bytesReclaimed: result.bytesReclaimed,
+          segmentsCompacted: result.segmentsCompacted,
+        });
+      }
+    } catch (err) {
+      logger.warn('patterns.rvf compaction skipped (non-critical)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // brain.rvf — separate file, separate writer (RvfDualWriter). The
+    // dual-writer does not gate on thresholds (it has no status surface that
+    // exposes deadSpaceRatio), so we call compact() unconditionally. Native
+    // compact() is a no-op on a clean file, so the cost is bounded.
+    try {
+      const mod = await import('../../integrations/ruvector/shared-rvf-dual-writer.js');
+      const writer = mod.getSharedRvfDualWriterSync();
+      if (writer) {
+        const result = writer.compact();
+        if (result && result.bytesReclaimed > 0) {
+          logger.info('brain.rvf compacted', {
+            bytesReclaimed: result.bytesReclaimed,
+            segmentsCompacted: result.segmentsCompacted,
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn('brain.rvf compaction skipped (non-critical)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

@@ -31,6 +31,11 @@ export interface RvfStore {
   delete(ids: string[]): void;
   status(): RvfStatus;
   close(): void;
+  /**
+   * Optional: reclaim dead space. Returns reclaim stats or null when the
+   * underlying store does not support compaction (e.g. mock stores in tests).
+   */
+  compact?(): { segmentsCompacted: number; bytesReclaimed: number; epoch: number } | null;
 }
 
 export interface RvfStatus {
@@ -116,6 +121,9 @@ function wrapNativeAdapter(adapter: RvfNativeAdapter, dim: number): RvfStore {
     },
     close() {
       adapter.close();
+    },
+    compact() {
+      return adapter.compact();
     },
   };
 }
@@ -390,6 +398,23 @@ export class RvfDualWriter {
       }
       this.rvfStore = null;
       this.rvfAvailable = false;
+    }
+  }
+
+  /**
+   * Reclaim dead space in the underlying brain.rvf container. Best-effort —
+   * returns reclaim stats if compaction ran, null if it was skipped or the
+   * store does not implement compact(). Same rationale as patterns.rvf
+   * compaction: brain.rvf receives one write per pattern via writePattern()
+   * and is otherwise append-only, so without periodic compaction it grows
+   * monotonically.
+   */
+  compact(): { segmentsCompacted: number; bytesReclaimed: number; epoch: number } | null {
+    if (!this.rvfStore || !this.rvfAvailable || !this.rvfStore.compact) return null;
+    try {
+      return this.rvfStore.compact() ?? null;
+    } catch {
+      return null;
     }
   }
 

@@ -5,6 +5,71 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.34] - 2026-05-18
+
+A reliability release fixing unbounded growth of the on-disk vector index. Field
+reports observed `patterns.rvf` reaching 59 GB on a fresh clone (and regrowing
+to the same size within 15 minutes of truncation), exhausting disk and breaking
+git operations, Vite dev servers, and `npm cache clean`. v3.9.27 fixed one
+init-time leak (#478) but never addressed the underlying append-only growth,
+and `createHybridBackendWithTimeout()` still used a `Promise.race`-bounded
+init that could not actually cancel the leaked write (#495).
+
+### Fixed
+
+- **Sibling init runaway in `createHybridBackendWithTimeout()`** (#495).
+  v3.9.27 fixed `ReasoningBank.initialize()` with an AbortSignal but explicitly
+  deferred the same fix for `HybridMemoryBackend.initialize()` — and the field
+  report came in: a single `hooks session-start` invocation ran 14 min and
+  grew `patterns.rvf` to ~20 GB at ~12 MB/s. The `Promise.race` timeout fired
+  after 5 s but had no way to actually stop the underlying init; the
+  dispose-after-resolve mitigation never ran because the init never resolved.
+  Threaded an `AbortSignal` through `HybridMemoryBackend.initialize()` and
+  `UnifiedMemoryManager.initialize()` with `signal.throwIfAborted()` checks
+  at each await seam. `createHybridBackendWithTimeout()` now drives the 5 s
+  timeout via an `AbortController` instead of `Promise.race`, so an abort
+  actually cancels the work.
+- **`patterns.rvf` grows without bound** (no upstream issue — field report).
+  The RVF format is append-only: every `ingest()` and `delete()` writes a new
+  segment, and old data accumulates as dead space until `compact()` is called.
+  Nothing in the codebase ever called `compact()` against `patterns.rvf`. Three
+  fixes ship together:
+  1. **Post-dream compaction** — the kernel-side `DreamScheduler` now runs a
+     threshold-gated `compact()` after each dream cycle. Idle cycles are
+     nearly free (only a `status()` call when below the threshold).
+  2. **Boot-time size guard** — `getSharedRvfAdapter()` runs `compact()` once
+     per process when the file is oversized (`≥ 256 MB`) or fragmented
+     (`deadSpaceRatio ≥ 0.30`). One-shot recovery for installations already
+     in the bad state.
+  3. **Bounded SQLite→RVF backfill** — when an empty `patterns.rvf` opens
+     against a populated SQLite DB, the backfill now caps to the top-1000
+     most-recently-used embeddings (was: every historical row, which is the
+     mechanism behind "regrew to 59 GB after `: > patterns.rvf`").
+- **`brain.rvf` had the same problem and zero compaction.** Same write rate
+  as `patterns.rvf` (one append per `storePattern()` via `RvfDualWriter`).
+  `RvfDualWriter.compact()` now exists and is called from the same post-dream
+  path. Native `compact()` is a no-op on a clean file, so the cost is bounded.
+- **Race against meta-learning during compaction.** Post-dream compact now
+  runs sequentially with the rest of the cycle instead of fire-and-forget, so
+  the meta-learning step never races against compact's exclusive RVF lock.
+
+### Added
+
+- **`RvfStatus.deadSpaceRatio` surfaced** on the wrapped native adapter, and
+  `RvfNativeAdapter.compact()` now returns reclaim stats (`segmentsCompacted`,
+  `bytesReclaimed`, `epoch`) instead of `void`. Used by the new compaction
+  paths and visible to anything that already calls `getStats()`.
+- **Three env knobs for operators** — no rebuild needed:
+  | Variable | Default | Purpose |
+  |---|---|---|
+  | `AQE_RVF_SIZE_GUARD_BYTES` | `268435456` (256 MB) | Boot + post-dream compact trigger |
+  | `AQE_RVF_DEAD_RATIO_THRESHOLD` | `0.30` | Boot + post-dream compact trigger |
+  | `AQE_RVF_BACKFILL_LIMIT` | `1000` | Cap on SQLite→RVF replay after truncation |
+- `SQLitePatternStore.getRecentEmbeddings(limit)` — ordered by `last_used_at DESC`,
+  used by the bounded backfill path.
+- 24 new unit tests covering the decision logic, integration helpers, dual-writer
+  compact, and backfill cap.
+
 ## [3.9.33] - 2026-05-18
 
 A dependency-cleanup and supply-chain-security release. `npm install agentic-qe`

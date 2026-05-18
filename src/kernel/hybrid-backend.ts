@@ -114,12 +114,23 @@ export class HybridMemoryBackend implements MemoryBackend {
   }
 
   /**
-   * Initialize the unified backend
+   * Initialize the unified backend.
+   *
+   * `options.signal` bounds the init: if a caller-side timeout aborts the
+   * signal, `signal.throwIfAborted()` checks between awaited steps cause
+   * initialize() to reject promptly instead of leaking the init promise
+   * past the timeout (issue #495 — sibling to #478's fix for
+   * ReasoningBank.initialize). The previous Promise.race-based timeout in
+   * `createHybridBackendWithTimeout()` could not stop the underlying work,
+   * so a stuck unified-memory init would keep running for 14+ min while
+   * the hook subprocess held patterns.rvf open.
    */
-  async initialize(): Promise<void> {
+  async initialize(options?: { signal?: AbortSignal }): Promise<void> {
     if (this.initialized) {
       return;
     }
+    const signal = options?.signal;
+    signal?.throwIfAborted();
 
     // Get unified memory manager with our config
     const unifiedConfig: Partial<UnifiedMemoryConfig> = {
@@ -129,7 +140,9 @@ export class HybridMemoryBackend implements MemoryBackend {
     };
 
     this.unifiedMemory = getUnifiedMemory(unifiedConfig);
-    await this.unifiedMemory.initialize();
+    signal?.throwIfAborted();
+    await this.unifiedMemory.initialize({ signal });
+    signal?.throwIfAborted();
 
     // Start cleanup interval (unref so it doesn't block process exit)
     this.cleanupInterval = setInterval(

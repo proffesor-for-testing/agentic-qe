@@ -104,6 +104,10 @@ vi.mock('../../../src/learning/sqlite-persistence.js', async (importOriginal) =>
     createSQLitePatternStore: vi.fn(() => ({
       initialize: vi.fn(async () => undefined),
       getAllEmbeddings: vi.fn(() => mocks.sqliteEmbeddings),
+      // Backfill now goes through getRecentEmbeddings(limit) — return the same
+      // fixture slice so the bounded-backfill path produces identical behavior
+      // in this test (a real install caps to top-N by last_used_at).
+      getRecentEmbeddings: vi.fn((limit: number) => mocks.sqliteEmbeddings.slice(0, limit)),
       recordUsage: vi.fn(),
       storePattern: vi.fn(),
       getPattern: vi.fn(() => undefined),

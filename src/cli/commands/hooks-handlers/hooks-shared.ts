@@ -234,31 +234,22 @@ export async function createHybridBackendWithTimeout(dataDir: string): Promise<M
     defaultNamespace: 'qe-patterns',
   });
 
-  // HybridMemoryBackend.initialize() does not accept an AbortSignal yet
-  // (separate refactor). Use Promise.race for the timeout, but if the
-  // timeout wins, dispose the backend once init resolves so we don't leak
-  // SQLite/WAL handles in the background (issue #478 family).
-  let timedOut = false;
-  const initPromise = backend.initialize();
-  const timeoutPromise = new Promise<void>((_, reject) =>
-    setTimeout(() => {
-      timedOut = true;
-      reject(new Error('Backend init timeout'));
-    }, timeoutMs)
+  // Issue #495: bound HybridMemoryBackend.initialize() with an AbortSignal —
+  // the previous Promise.race-based timeout could not stop the underlying
+  // work, so a stuck unified-memory init kept running for 14+ min while the
+  // hook subprocess held patterns.rvf open (20 GB / 12 MB/s leak reported in
+  // the field). HybridMemoryBackend.initialize() now checks
+  // `signal.throwIfAborted()` between awaited steps, so an aborted signal
+  // actually stops the work instead of leaking a promise into the void.
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error('Backend init timeout')),
+    timeoutMs,
   );
-
   try {
-    await Promise.race([initPromise, timeoutPromise]);
-  } catch (err) {
-    if (timedOut) {
-      // Tear down the backend after the leaked init completes so its
-      // SQLite connections, WAL handles, and pool entries are released.
-      // .catch() prevents "unhandled rejection" if dispose itself throws.
-      void initPromise
-        .then(() => backend.dispose())
-        .catch(() => undefined);
-    }
-    throw err;
+    await backend.initialize({ signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
   }
   return backend;
 }
