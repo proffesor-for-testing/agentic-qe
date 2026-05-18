@@ -154,9 +154,16 @@
     "web-tree-sitter": "~0.26.8",
     "yaml": "^2.8.2"
   },
+  "peerDependencies": {
+    "@claude-flow/guidance": "3.0.0-alpha.1"
+  },
+  "peerDependenciesMeta": {
+    "@claude-flow/guidance": {
+      "optional": true
+    }
+  },
   "optionalDependencies": {
     "@claude-flow/browser": "3.0.0-alpha.1",
-    "@claude-flow/guidance": "3.0.0-alpha.1",
     "hnswlib-node": "^3.0.0",
     "@ruvector/attention-darwin-arm64": "0.1.3",
     "@ruvector/attention-darwin-x64": "0.1.3",
@@ -199,6 +206,7 @@
     "@types/pg": "^8.16.0",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
+    "@claude-flow/guidance": "3.0.0-alpha.1",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
     "@vitest/coverage-v8": "^4.0.16",
