@@ -8,6 +8,7 @@ import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
 import { toError } from '../../../shared/error-utils.js';
+import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import {
   Experience,
   ExperienceResult,
@@ -198,8 +199,13 @@ export class ProductionIntelService {
       for (const key of keys) {
         const metricId = await this.memory.get<string>(key);
         if (metricId) {
-          const metric = await this.memory.get<ProductionMetric>(
-            `production:metric:${metricId}`
+          // #493: rehydrate Date fields at the kv-read seam. Without this,
+          // `metric.timestamp` arrives as an ISO string after JSON.parse —
+          // `timeRange.contains` silently drops every metric (string vs Date
+          // coercion yields NaN) and `.getTime()` below throws.
+          const metric = rehydrateDates(
+            await this.memory.get<ProductionMetric>(`production:metric:${metricId}`),
+            ['timestamp'],
           );
           if (metric && timeRange.contains(metric.timestamp)) {
             metrics.push(metric);
@@ -268,8 +274,13 @@ export class ProductionIntelService {
     resolution: string
   ): Promise<Result<ProductionIncident>> {
     try {
-      const incident = await this.memory.get<ProductionIncident>(
-        `production:incident:${incidentId}`
+      // #493: rehydrate before spreading — `incident.startedAt` is consumed
+      // downstream by updateExperienceWithResolution → .getTime() math.
+      const incident = rehydrateDates(
+        await this.memory.get<ProductionIncident>(
+          `production:incident:${incidentId}`,
+        ),
+        ['startedAt', 'resolvedAt'],
       );
 
       if (!incident) {
@@ -317,15 +328,22 @@ export class ProductionIntelService {
         if (key.includes(':index:')) {
           const incidentId = await this.memory.get<string>(key);
           if (incidentId) {
-            const incident = await this.memory.get<ProductionIncident>(
-              `production:incident:${incidentId}`
+            // #493: rehydrate startedAt/resolvedAt at the kv-read seam.
+            const incident = rehydrateDates(
+              await this.memory.get<ProductionIncident>(
+                `production:incident:${incidentId}`,
+              ),
+              ['startedAt', 'resolvedAt'],
             );
             if (incident) {
               incidents.push(incident);
             }
           }
         } else {
-          const incident = await this.memory.get<ProductionIncident>(key);
+          const incident = rehydrateDates(
+            await this.memory.get<ProductionIncident>(key),
+            ['startedAt', 'resolvedAt'],
+          );
           if (incident) {
             incidents.push(incident);
           }
@@ -658,7 +676,11 @@ export class ProductionIntelService {
       const milestones: Milestone[] = [];
 
       for (const key of keys) {
-        const milestone = await this.memory.get<Milestone>(key);
+        // #493: rehydrate achievedAt at the kv-read seam.
+        const milestone = rehydrateDates(
+          await this.memory.get<Milestone>(key),
+          ['achievedAt'],
+        );
         if (milestone) {
           milestones.push(milestone);
         }

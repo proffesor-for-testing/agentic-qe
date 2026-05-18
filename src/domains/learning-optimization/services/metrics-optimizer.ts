@@ -8,6 +8,7 @@ import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
+import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import {
   Strategy,
   OptimizedStrategy,
@@ -384,7 +385,12 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       const snapshots: MetricsSnapshot[] = [];
 
       for (const key of keys) {
-        const snapshot = await this.memory.get<MetricsSnapshot>(key);
+        // #493: rehydrate `timestamp` at the kv-read seam — without this,
+        // the sort below throws once any snapshot exists in the kv.
+        const snapshot = rehydrateDates(
+          await this.memory.get<MetricsSnapshot>(key),
+          ['timestamp'],
+        );
         if (snapshot) {
           snapshots.push(snapshot);
         }

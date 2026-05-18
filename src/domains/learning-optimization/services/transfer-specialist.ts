@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName, AgentId, ALL_DOMAINS } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
+import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import {
   Knowledge,
   KnowledgeType,
@@ -120,7 +121,14 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
       }
 
       for (const key of keys) {
-        const knowledge = await this.memory.get<Knowledge>(key);
+        // #493: rehydrate Date fields at the kv-read seam. `createdAt` is
+        // consumed by validateRelevance().getTime() and `expiresAt` is
+        // compared via `new Date() > knowledge.expiresAt` — both broken
+        // when the field is a string after JSON round-trip.
+        const knowledge = rehydrateDates(
+          await this.memory.get<Knowledge>(key),
+          ['createdAt', 'expiresAt'],
+        );
         if (knowledge && this.matchesQuery(knowledge, query)) {
           results.push(knowledge);
         }
@@ -137,7 +145,11 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         );
 
         for (const vr of vectorResults) {
-          const knowledge = await this.memory.get<Knowledge>(vr.key);
+          // #493: rehydrate Date fields at the kv-read seam.
+          const knowledge = rehydrateDates(
+            await this.memory.get<Knowledge>(vr.key),
+            ['createdAt', 'expiresAt'],
+          );
           if (
             knowledge &&
             !results.some((r) => r.id === knowledge.id) &&
@@ -370,8 +382,10 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
    * Get knowledge by ID
    */
   async getKnowledgeById(id: string): Promise<Knowledge | null> {
-    const knowledge = await this.memory.get<Knowledge>(
-      `learning:knowledge:shared:${id}`
+    // #493: rehydrate Date fields at the kv-read seam.
+    const knowledge = rehydrateDates(
+      await this.memory.get<Knowledge>(`learning:knowledge:shared:${id}`),
+      ['createdAt', 'expiresAt'],
     );
     return knowledge || null;
   }
@@ -392,7 +406,11 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
       const results: TransferResult[] = [];
 
       for (const key of keys) {
-        const knowledge = await this.memory.get<Knowledge>(key);
+        // #493: rehydrate Date fields at the kv-read seam.
+        const knowledge = rehydrateDates(
+          await this.memory.get<Knowledge>(key),
+          ['createdAt', 'expiresAt'],
+        );
         if (!knowledge) continue;
 
         // Apply filter

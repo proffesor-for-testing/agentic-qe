@@ -6,6 +6,7 @@
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
+import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
 import {
   Result,
   ok,
@@ -1674,8 +1675,14 @@ export class LearningOptimizationCoordinator
     for (const key of keys) {
       const experienceId = await this.memory.get<string>(key);
       if (experienceId) {
-        const experience = await this.memory.get<Experience>(
-          `learning:experience:${experienceId}`
+        // #493: rehydrate timestamp at the kv-read seam — without this,
+        // `timeRange.contains` silently filters every experience out
+        // (string vs Date coerces to NaN). Same root cause as #491 Bug 3.
+        const experience = rehydrateDates(
+          await this.memory.get<Experience>(
+            `learning:experience:${experienceId}`
+          ),
+          ['timestamp'],
         );
         if (experience && timeRange.contains(experience.timestamp)) {
           experiences.push(experience);
