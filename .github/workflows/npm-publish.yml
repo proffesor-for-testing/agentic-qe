@@ -270,9 +270,69 @@ jobs:
       - name: Run integration seam tests
         run: npm run test:integration:fast
 
+  # ============================================================================
+  # Consumer-side audit gate
+  #
+  # `npm audit` against this repo runs from our perspective, where the
+  # top-level `overrides` block in package.json forces patched versions of
+  # otherwise-vulnerable transitives (e.g. protobufjs >=7.5.6). But npm
+  # `overrides` only apply when WE are the root package — they do NOT
+  # propagate to downstream consumers. So a repo audit can be clean while
+  # `npm install -g agentic-qe` simultaneously surfaces real high/critical
+  # CVEs to users.
+  #
+  # This job packs the local build, installs the tarball into a fresh tmp
+  # project (the same way a consumer would), and runs `npm audit` there.
+  # The fail signal is the consumer view, not ours.
+  #
+  # Caught after the v3.9.32 audit-gate work: 5 vulns (4 high, 1 critical)
+  # in @xenova/transformers → onnxruntime-web → onnx-proto → protobufjs
+  # were invisible to in-repo `npm audit` but live for every user.
+  # ============================================================================
+  consumer-audit:
+    name: Consumer-side audit (tarball install)
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack tarball
+        id: pack
+        run: |
+          TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "Packed: ${TARBALL}"
+
+      - name: Audit against clean consumer install
+        run: |
+          CONSUMER_DIR=$(mktemp -d)
+          pushd "${CONSUMER_DIR}" >/dev/null
+          echo '{"name":"audit-consumer","version":"0.0.0","private":true}' > package.json
+          # Install our tarball as a real consumer would.
+          npm install --no-audit --no-fund "${GITHUB_WORKSPACE}/${{ steps.pack.outputs.tarball }}"
+          # Now the moment of truth: audit from the consumer's POV, where
+          # our root-only overrides do NOT apply.
+          npm audit --audit-level=high
+          popd >/dev/null
+
   publish:
     name: Publish to npm
-    needs: [build, pre-publish-gate, tests-on-tag-sha, integration-tests-on-tag-sha]
+    needs: [build, pre-publish-gate, consumer-audit, tests-on-tag-sha, integration-tests-on-tag-sha]
     # tests-on-tag-sha and integration-tests-on-tag-sha are skipped on
     # workflow_dispatch (they only run on release events), so we explicitly
     # accept skipped as a non-blocker. Without this, the default GH Actions
@@ -282,6 +342,7 @@ jobs:
       always()
       && needs.build.result == 'success'
       && needs.pre-publish-gate.result == 'success'
+      && needs.consumer-audit.result == 'success'
       && (needs.tests-on-tag-sha.result == 'success' || needs.tests-on-tag-sha.result == 'skipped')
       && (needs.integration-tests-on-tag-sha.result == 'success' || needs.integration-tests-on-tag-sha.result == 'skipped')
     runs-on: ubuntu-latest

@@ -94,6 +94,43 @@ jobs:
           rm -rf "${DRY_DIR}"
           exit 1
 
+      # Consumer-side audit on the freshly-published tarball. This complements
+      # the consumer-audit gate in npm-publish.yml: that one runs against the
+      # local pack output, this one against the actual published tarball, so it
+      # also catches discrepancies between what we built and what the registry
+      # is serving (publish-time stripping, CDN tampering, etc.).
+      # Non-blocking: we only warn on findings, because the publish has already
+      # happened — the value here is fast detection, not gating.
+      - name: Consumer-side audit on published tarball
+        id: audit
+        continue-on-error: true
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          AUDIT_DIR=$(mktemp -d)
+          pushd "${AUDIT_DIR}" >/dev/null
+          echo '{"name":"canary-audit","version":"0.0.0","private":true}' > package.json
+          npm install --no-audit --no-fund "agentic-qe@${PACKAGE_VERSION}" 2>&1 | tee install.log
+          # Capture the audit JSON for downstream issue-body construction.
+          if npm audit --audit-level=high --json > audit.json 2>&1; then
+            echo "audit_status=clean" >> "$GITHUB_OUTPUT"
+            echo "found 0 high/critical CVEs in consumer install"
+          else
+            echo "audit_status=vulnerable" >> "$GITHUB_OUTPUT"
+            cat audit.json | jq '.metadata.vulnerabilities // {}' || true
+          fi
+          mkdir -p "${GITHUB_WORKSPACE}/audit-logs"
+          mv audit.json install.log "${GITHUB_WORKSPACE}/audit-logs/"
+          popd >/dev/null
+
+      - name: Upload audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-audit-${{ steps.version.outputs.version }}
+          path: audit-logs/
+          retention-days: 30
+
       - name: Cache corpus tarballs
         uses: actions/cache@v4
         with:
@@ -122,11 +159,81 @@ jobs:
         run: |
           echo "## Post-publish canary — agentic-qe@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Consumer audit" >> $GITHUB_STEP_SUMMARY
+          AUDIT_STATUS="${{ steps.audit.outputs.audit_status }}"
+          if [ "${AUDIT_STATUS}" = "clean" ]; then
+            echo "0 high/critical CVEs in consumer install" >> $GITHUB_STEP_SUMMARY
+          elif [ "${AUDIT_STATUS}" = "vulnerable" ]; then
+            echo "**High/critical CVEs detected in consumer install.**" >> $GITHUB_STEP_SUMMARY
+            echo "Download the \`canary-audit-${{ steps.version.outputs.version }}\` artifact for the full \`audit.json\`." >> $GITHUB_STEP_SUMMARY
+            if [ -f audit-logs/audit.json ]; then
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              jq '.metadata.vulnerabilities // {}' audit-logs/audit.json >> $GITHUB_STEP_SUMMARY || true
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "audit step did not run (status: \`${AUDIT_STATUS:-missing}\`)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Init corpus" >> $GITHUB_STEP_SUMMARY
           if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
             echo '```' >> $GITHUB_STEP_SUMMARY
             cat tests/fixtures/init-corpus/run-logs/summary.txt >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Open P1 issue on consumer-audit findings
+        if: steps.audit.outputs.audit_status == 'vulnerable'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SUMMARY="(audit.json not produced)"
+          if [ -f audit-logs/audit.json ]; then
+            SUMMARY=$(jq '.metadata.vulnerabilities // {}' audit-logs/audit.json 2>/dev/null || echo "(unparseable)")
+          fi
+          cat > /tmp/audit-body.md <<EOF
+          ## Consumer-side audit findings
+
+          \`agentic-qe@${PACKAGE_VERSION}\` shipped successfully (init corpus
+          passed), but a fresh \`npm install agentic-qe@${PACKAGE_VERSION}\`
+          into a clean project reports high/critical advisories that our own
+          in-repo \`npm audit\` does not see — typically because the
+          top-level \`overrides\` block in our package.json masks them when
+          we are the root, but does not propagate to downstream consumers.
+
+          ### Vulnerability summary
+
+          \`\`\`json
+          ${SUMMARY}
+          \`\`\`
+
+          ### Logs
+
+          [Workflow run](${RUN_URL}) — see the
+          \`canary-audit-${PACKAGE_VERSION}\` artifact for the full
+          \`audit.json\` and the consumer install log.
+
+          ### Recommended next steps
+
+          1. Read \`audit.json\` to identify the vulnerable package and the
+             dependency chain that pulls it.
+          2. If it is a transitive of a direct dep we can bump, bump the
+             direct dep (do NOT add it to \`overrides\` — overrides are
+             root-only and will mask the issue again).
+          3. If the direct dep is unmaintained (e.g. the
+             \`@xenova/transformers\` situation that drove this gate),
+             migrate to the maintained successor.
+          4. Ship a hotfix release.
+
+          This issue was opened automatically by
+          \`.github/workflows/post-publish-canary.yml\`.
+          EOF
+          gh issue create \
+            --title "[P1] Consumer-side CVEs in agentic-qe@${PACKAGE_VERSION}" \
+            --label "P1,release,canary,security" \
+            --body-file /tmp/audit-body.md
 
       - name: Open P0 issue on canary failure
         if: failure()
