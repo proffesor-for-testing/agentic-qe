@@ -286,18 +286,19 @@ export class UnifiedMemoryManager {
     clearProjectRootCache();
   }
 
-  async initialize(): Promise<void> {
+  async initialize(options?: { signal?: AbortSignal }): Promise<void> {
     if (this.initialized) return;
 
     if (!this.initPromise) {
-      this.initPromise = this._doInitialize();
+      this.initPromise = this._doInitialize(options?.signal);
     }
 
     return this.initPromise;
   }
 
-  private async _doInitialize(): Promise<void> {
+  private async _doInitialize(signal?: AbortSignal): Promise<void> {
     if (this.initialized) return;
+    signal?.throwIfAborted();
 
     try {
       // SAFETY: Detect test processes trying to open the production DB.
@@ -357,6 +358,10 @@ export class UnifiedMemoryManager {
         }
       }
 
+      // Bail before opening the DB if the caller already gave up — saves a
+      // file handle and avoids racing the busy-timeout under contention.
+      signal?.throwIfAborted();
+
       this.db = openSafeDatabase(this.config.dbPath, {
         walMode: this.config.walMode,
         busyTimeout: this.config.busyTimeout,
@@ -365,14 +370,25 @@ export class UnifiedMemoryManager {
       this.db.pragma(`cache_size = ${this.config.cacheSize}`);
       this.db.pragma('foreign_keys = ON');
 
+      // Migrations are the longest-running step under contention (#495's
+      // primary stall point). If abort fires after the DB opens, drop the
+      // handle before throwing so we don't leak the WAL/SHM in the background.
+      if (signal?.aborted) {
+        try { this.db.close(); } catch { /* best-effort */ }
+        this.db = null;
+        signal.throwIfAborted();
+      }
       await this.runMigrations();
+      signal?.throwIfAborted();
 
       // DATA LOSS PREVENTION: After migration, if the DB existed before and was
       // large (>1MB = has real data), but now qe_patterns is empty, something
       // went wrong. Refuse to proceed with an empty DB over real data.
       if (dbExistedBefore && dbSizeBefore > 1_000_000) {
         try {
-          const row = this.db.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number } | undefined;
+          // Non-null: post-runMigrations, this.db is guaranteed open (the
+          // abort-cleanup branch above already throws before reaching here).
+          const row = this.db!.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number } | undefined;
           if (row && row.cnt === 0) {
             const currentSize = fs.statSync(this.config.dbPath).size;
             if (currentSize < dbSizeBefore * 0.1) {
@@ -397,6 +413,15 @@ export class UnifiedMemoryManager {
       this.warnIfDuplicateDatabases();
     } catch (error) {
       this.initPromise = null;
+      // Preserve AbortError so callers can distinguish cancellation from a
+      // genuine init failure. Wrapping it in a generic "Failed to initialize"
+      // message would hide the signal cause (#495).
+      if (
+        error instanceof Error &&
+        (error.name === 'AbortError' || (signal?.aborted ?? false))
+      ) {
+        throw error;
+      }
       throw new Error(
         `Failed to initialize UnifiedMemoryManager: ${toErrorMessage(error)}`
       );

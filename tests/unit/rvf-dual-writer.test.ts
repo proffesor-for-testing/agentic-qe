@@ -629,4 +629,73 @@ describe('RvfDualWriter — coordination logic (mocked RVF)', () => {
       writer.close();
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 9. compact() — brain.rvf dead-space reclamation (parity with patterns.rvf)
+  // --------------------------------------------------------------------------
+  describe('compact', () => {
+    it('forwards to the underlying RVF store and returns reclaim stats', () => {
+      const compactFn = vi.fn(() => ({
+        segmentsCompacted: 5,
+        bytesReclaimed: 2_000_000,
+        epoch: 42,
+      }));
+      const mockStore = createMockRvfStore({ compact: compactFn });
+      const writer = createDualWriter(db, {
+        rvfPath: '/tmp/test.rvf',
+        mode: 'dual-write',
+      });
+      writer.setRvfStore(mockStore);
+
+      const result = writer.compact();
+
+      expect(compactFn).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({ segmentsCompacted: 5, bytesReclaimed: 2_000_000, epoch: 42 });
+
+      writer.close();
+    });
+
+    it('returns null when the store does not implement compact()', () => {
+      // No compact override — mock omits it entirely
+      const mockStore = createMockRvfStore();
+      const writer = createDualWriter(db, {
+        rvfPath: '/tmp/test.rvf',
+        mode: 'dual-write',
+      });
+      writer.setRvfStore(mockStore);
+
+      const result = writer.compact();
+      expect(result).toBeNull();
+
+      writer.close();
+    });
+
+    it('returns null and swallows when the underlying compact() throws', () => {
+      const compactFn = vi.fn(() => { throw new Error('native compact crashed'); });
+      const mockStore = createMockRvfStore({ compact: compactFn });
+      const writer = createDualWriter(db, {
+        rvfPath: '/tmp/test.rvf',
+        mode: 'dual-write',
+      });
+      writer.setRvfStore(mockStore);
+
+      const result = writer.compact();
+      expect(result).toBeNull();
+      expect(compactFn).toHaveBeenCalledTimes(1);
+
+      writer.close();
+    });
+
+    it('returns null when no RVF store is attached', () => {
+      const writer = createDualWriter(db, {
+        rvfPath: '/tmp/test.rvf',
+        mode: 'dual-write',
+      });
+      // No setRvfStore call — store is null, available=false
+
+      expect(writer.compact()).toBeNull();
+
+      writer.close();
+    });
+  });
 });

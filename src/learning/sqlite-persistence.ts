@@ -483,6 +483,17 @@ export class SQLitePatternStore {
       SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings
     `));
 
+    // Recent-first variant used by the RVF backfill path. Order by
+    // qe_patterns.last_used_at (then created_at) so the bounded backfill keeps
+    // the most actively-used patterns when the cap is hit.
+    this.prepared.set('getRecentEmbeddings', this.db.prepare(`
+      SELECT e.pattern_id, e.embedding, e.dimension
+        FROM qe_pattern_embeddings e
+        LEFT JOIN qe_patterns p ON p.id = e.pattern_id
+       ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC
+       LIMIT ?
+    `));
+
     this.prepared.set('countPatterns', this.db.prepare(`
       SELECT COUNT(*) as count FROM qe_patterns
     `));
@@ -665,6 +676,27 @@ export class SQLitePatternStore {
     if (!stmt) throw new Error('Prepared statement not ready');
 
     const rows = stmt.all() as EmbeddingRow[];
+    return rows.map(row => ({
+      patternId: row.pattern_id,
+      embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
+    }));
+  }
+
+  /**
+   * Get up to `limit` embeddings, most-recently-used first.
+   *
+   * Used by the RVF backfill path so an operator-truncated patterns.rvf does
+   * not trigger an unbounded re-ingest of every historical embedding (which
+   * is what reproduces the "regrew to 59 GB" pathology after `: > patterns.rvf`).
+   */
+  getRecentEmbeddings(limit: number): Array<{ patternId: string; embedding: number[] }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const cap = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1000;
+
+    const stmt = this.prepared.get('getRecentEmbeddings');
+    if (!stmt) throw new Error('Prepared statement not ready');
+
+    const rows = stmt.all(cap) as EmbeddingRow[];
     return rows.map(row => ({
       patternId: row.pattern_id,
       embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
