@@ -149,8 +149,11 @@ async function ensureTreeSitterInit(): Promise<void> {
     initPromise = (async () => {
       try {
         const mod = await import('web-tree-sitter');
-        const TreeSitter = mod.default || mod;
-        await TreeSitter.init();
+        // Type is `any` because v0.24 exposed init() on the module itself
+        // while v0.26+ moved it onto the Parser class. We support both.
+        const TreeSitter: any = (mod as any).default ?? mod;
+        const initFn = TreeSitter.Parser?.init ?? TreeSitter.init;
+        await initFn.call(TreeSitter.Parser ?? TreeSitter);
         treeSitterModule = TreeSitter;
         initFailCount = 0; // Reset on success
         logger.info('web-tree-sitter WASM runtime initialized');
@@ -996,7 +999,9 @@ export class TreeSitterWASMParser implements ILanguageParser {
     // Two concurrent parseFile() calls for different languages could otherwise
     // corrupt each other via setLanguage() on a shared instance across await boundaries.
     // Parser creation is ~μs; grammar loading (the expensive part) is already cached.
-    const parser = new treeSitterModule();
+    // web-tree-sitter ≥0.25 exposes the parser as a named class.
+    const ParserCtor = treeSitterModule.Parser ?? treeSitterModule;
+    const parser = new ParserCtor();
     parser.setLanguage(lang);
 
     const tree = parser.parse(content);

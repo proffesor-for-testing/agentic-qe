@@ -13,6 +13,7 @@ import {
   ALL_DOMAINS,
 } from '../../shared/types/index.js';
 import { TimeRange } from '../../shared/value-objects/index.js';
+import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
 import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type {
   Experience,
@@ -38,8 +39,14 @@ export async function getExperiencesForDomain(
   for (const key of keys) {
     const experienceId = await memory.get<string>(key);
     if (experienceId) {
-      const experience = await memory.get<Experience>(
-        `learning:experience:${experienceId}`
+      // #493: rehydrate timestamp at the kv-read seam. Without this,
+      // `timeRange.contains(experience.timestamp)` silently filters every
+      // experience out — `string >= Date` coerces to NaN, all comparisons
+      // false. Same root cause the team patched at
+      // learning-coordinator.ts:898-904 (#491 Bug 3).
+      const experience = rehydrateDates(
+        await memory.get<Experience>(`learning:experience:${experienceId}`),
+        ['timestamp'],
       );
       if (experience && timeRange.contains(experience.timestamp)) {
         experiences.push(experience);

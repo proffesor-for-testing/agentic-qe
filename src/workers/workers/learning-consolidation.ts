@@ -859,7 +859,13 @@ export class LearningConsolidationWorker extends BaseWorker {
       pattern: p.name,
       confidence: p.confidence,
       occurrences: p.usageCount,
-      lastSeen: p.lastUsedAt,
+      // #493: `p.lastUsedAt` is typed as Date but arrives as an ISO string
+      // after the JSON round-trip through `learning:pattern:*` kv. Rehydrate
+      // at the seam so the two downstream `.getTime()` consumers
+      // (consolidatePatterns + pruneIneffectivePatterns) always see a real
+      // Date. Matches the kv-boundary hardening already in
+      // sqlite-persistence.ts:891 and pattern-store.ts:1301-1304.
+      lastSeen: new Date(p.lastUsedAt),
       effectiveness: p.successRate,
     }));
   }

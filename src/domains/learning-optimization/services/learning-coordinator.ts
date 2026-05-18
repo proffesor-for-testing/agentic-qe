@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
+import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
 import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
 import {
@@ -731,9 +732,16 @@ Provide:
       for (const key of keys) {
         const experienceId = await this.memory.get<string>(key, LEARNING_NS);
         if (experienceId) {
-          const experience = await this.memory.get<Experience>(
-            `learning:experience:${experienceId}`,
-            LEARNING_NS
+          // #493: rehydrate `timestamp` at the kv-read seam — the sort
+          // below throws once the replay buffer has any kv-stored entries.
+          // Same hazard the team already noted in mineExperiences at
+          // learning-coordinator.ts:898-904 (#491 Bug 3).
+          const experience = rehydrateDates(
+            await this.memory.get<Experience>(
+              `learning:experience:${experienceId}`,
+              LEARNING_NS,
+            ),
+            ['timestamp'],
           );
           if (experience) {
             experiences.push(experience);

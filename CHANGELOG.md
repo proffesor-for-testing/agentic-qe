@@ -5,6 +5,61 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.33] - 2026-05-18
+
+A dependency-cleanup and supply-chain-security release. `npm install agentic-qe`
+now pulls ~480 fewer transitive packages, ships with zero high/critical CVEs in
+the consumer install (was 5 in v3.9.32 — masked from in-repo audit by root-only
+`overrides`), and emits no `ERESOLVE` peer warnings. Two new CI gates make
+future regressions of this class impossible to ship.
+
+### Fixed
+
+- **Critical CVE chain eliminated** (`@xenova/transformers` → `onnxruntime-web`
+  → `onnx-proto` → `protobufjs <=7.5.5`). Migrated to the maintained successor
+  `@huggingface/transformers@4.2.0`, which depends on `protobufjs ^7.2.4`
+  directly with no `onnx-proto` middleman, so the version range resolves
+  cleanly to the patched line. End-user `npm audit` now reports
+  **0 vulnerabilities** (was **4 high + 1 critical** including arbitrary code
+  execution GHSA-xq3m-2v4x-88gg).
+- **Self-learning consolidation `lastUsedAt` parsing** (#493). Bridge-mining
+  and pattern consolidation rehydrate `Date` fields at all kv-read seams so
+  the loop no longer silently drops freshly written experiences.
+- **6 high-severity CVEs in `@typescript-eslint` v6 chain** (via `minimatch`).
+  Bumped the dev-side toolchain to `@typescript-eslint@8.59.3`.
+
+### Changed
+
+- **`@claude-flow/browser` and `@claude-flow/guidance` are now optional
+  peer deps** (was `optionalDependencies`). Together these no longer pull the
+  internally-inconsistent `@claude-flow/cli@3.6.x` transitive chain that was
+  the source of all `ERESOLVE` warnings. Users who want either feature install
+  explicitly — `aqe init` (see Added) now tells you how.
+- `web-tree-sitter` 0.24 → 0.26 (Parser API moved onto the `Parser` class;
+  compatibility shim makes us work against both surfaces).
+- `@typescript-eslint/{eslint-plugin,parser}` 6 → 8, `commander` 12 → 14,
+  `esbuild` 0.27 → 0.28, `@types/node` 20 → 25.
+- Lockfile refreshed: `vitest`, `@vitest/coverage-v8`, `axe-core`,
+  `better-sqlite3`, `jose`, `msw`, `ora`, `tsx`, `yaml` to current patches.
+
+### Added
+
+- **Optional add-ons hint in `aqe init`.** After a successful init, when
+  `@claude-flow/browser` or `@claude-flow/guidance` is not installed locally,
+  the CLI now appends a one-line install command for each — so opting in
+  doesn't require reading the README. Skipped silently when both are present.
+- **`security-audit` job in CI** (`optimized-ci.yml`). Blocks PRs on
+  high/critical CVEs in production deps; warns on dev-dep CVEs. Same gate
+  also runs in `npm-publish.yml`.
+- **Consumer-side audit gate** (`consumer-audit` job, `npm-publish.yml`). Packs
+  the local build, installs the tarball into a fresh tmp project, and runs
+  `npm audit` *there* — closing the gap where root-only `overrides` mask
+  consumer-facing vulns from in-repo audit. Now a `needs:` of the publish
+  job, so a CVE invisible to our repo audit still blocks publish.
+- **Post-publish consumer audit** (`post-publish-canary.yml`). Same audit
+  against the freshly-published registry tarball as a non-blocking safety
+  net; opens an auto-labelled P1 issue on findings.
+
 ## [3.9.32] - 2026-05-17
 
 Fixes the chain of four bugs reported in #491 (Jordi Izquierdo) that left

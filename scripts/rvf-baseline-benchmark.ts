@@ -170,7 +170,7 @@ async function benchmarkBoot(): Promise<BootTimeBenchmark> {
   const tEmb0 = performance.now();
   let embeddingLoaded = false;
   try {
-    const { pipeline } = await import('@xenova/transformers');
+    const { pipeline } = await import('@huggingface/transformers');
     await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
     embeddingLoaded = true;
   } catch {

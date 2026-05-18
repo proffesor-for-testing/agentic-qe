@@ -110,7 +110,7 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
   initPromise = (async () => {
     try {
       // Dynamic import to avoid issues if transformers not available
-      const transformers = await import('@xenova/transformers');
+      const transformers = await import('@huggingface/transformers');
       pipeline = transformers.pipeline;
 
       console.log(`[RealEmbeddings] Loading model: ${fullConfig.modelName}`);

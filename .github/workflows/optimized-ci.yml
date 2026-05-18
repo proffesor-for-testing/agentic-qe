@@ -26,6 +26,26 @@ permissions:
 # Only the "remaining" shard needs explicit excludes.
 
 jobs:
+  # ─── Security audit (fail fast on high/critical CVEs) ───
+  # Cheap (~30s), independent of the test shards. Runs in parallel with them
+  # so a known CVE blocks the build without waiting for journey tests. Scoped
+  # to production deps (--omit=dev) because devDep CVEs do not ship to users;
+  # those are visible in the second step as a warning, not a failure.
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24.13.0', cache: 'npm' }
+      - run: npm ci --ignore-scripts
+      - name: Block on high+critical CVEs in production deps
+        run: npm audit --audit-level=high --omit=dev
+      - name: Report devDep CVEs (non-blocking)
+        if: always()
+        run: npm audit --audit-level=high || echo "::warning::devDep CVEs found — fix before they migrate into prod"
+
   # ─── Journey Tests: 4 parallel shards ───
   # Previously a single 25-min job that timed out. Now 4 shards of ~5-8 min each.
 
