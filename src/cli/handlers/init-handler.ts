@@ -6,6 +6,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createRequire } from 'node:module';
 import { ICommandHandler, CLIContext } from './interfaces.js';
 import { DomainName, ALL_DOMAINS } from '../../shared/types/index.js';
 import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
@@ -259,6 +260,8 @@ export class InitHandler implements ICommandHandler {
         console.log(chalk.gray('\n  MCP server configured in .mcp.json'));
         console.log(chalk.gray('    Use --no-mcp to skip MCP setup if using CLI only\n'));
       }
+
+      printOptionalPeerHints();
     } else {
       console.log(chalk.red('  Initialization failed. Check errors above.\n'));
       await this.cleanupAndExit(1);
@@ -323,6 +326,8 @@ export class InitHandler implements ICommandHandler {
         console.log(chalk.gray('\n  MCP server configured in .mcp.json'));
         console.log(chalk.gray('    Use --no-mcp to skip MCP setup if using CLI only\n'));
       }
+
+      printOptionalPeerHints();
     } else {
       console.log(chalk.red('  Initialization failed. Check errors above.\n'));
       await this.cleanupAndExit(1);
@@ -578,6 +583,53 @@ interface InitOptions {
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
   modular?: boolean;
+}
+
+// ============================================================================
+// Optional peer-dep hints
+// ============================================================================
+
+// Declared in package.json's peerDependenciesMeta. NOT auto-installed because
+// they each pull @claude-flow/cli@3.6.x, whose internal peer mismatch creates
+// ~480 packages of transitive noise and ERESOLVE warnings during npm install.
+// Users opt into them only when they want the feature.
+const OPTIONAL_PEERS = [
+  {
+    pkg: '@claude-flow/browser',
+    version: '3.0.0-alpha.1',
+    enables: 'browser MCP server — URL safety + PII scanning in browser flows',
+  },
+  {
+    pkg: '@claude-flow/guidance',
+    version: '3.0.0-alpha.1',
+    enables: 'governance — trust accumulator, continue-gate, proof envelope',
+  },
+] as const;
+
+function isPeerInstalled(pkg: string): boolean {
+  const require = createRequire(import.meta.url);
+  try {
+    require.resolve(pkg);
+    return true;
+  } catch (err) {
+    // ERR_PACKAGE_PATH_NOT_EXPORTED means the package IS installed but its
+    // `exports` field has no CJS condition for the bare specifier — still
+    // counts as installed for our purposes.
+    const code = (err as NodeJS.ErrnoException)?.code;
+    return code === 'ERR_PACKAGE_PATH_NOT_EXPORTED';
+  }
+}
+
+function printOptionalPeerHints(): void {
+  const missing = OPTIONAL_PEERS.filter(({ pkg }) => !isPeerInstalled(pkg));
+  if (missing.length === 0) return;
+
+  console.log(chalk.bold('\n  Optional add-ons (install only if you want the feature):'));
+  for (const { pkg, version, enables } of missing) {
+    console.log(`    ${chalk.gray(pkg)} ${chalk.dim('— ' + enables)}`);
+    console.log(chalk.cyan(`      npm install -g ${pkg}@${version}`));
+  }
+  console.log('');
 }
 
 // ============================================================================
