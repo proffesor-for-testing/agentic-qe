@@ -14,6 +14,10 @@
       "import": "./dist/kernel/index.js",
       "types": "./dist/kernel/index.d.ts"
     },
+    "./kernel/hnsw-adapter": {
+      "import": "./dist/kernel/hnsw-adapter.js",
+      "types": "./dist/kernel/hnsw-adapter.d.ts"
+    },
     "./shared": {
       "import": "./dist/shared/index.js",
       "types": "./dist/shared/index.d.ts"
