@@ -5,6 +5,62 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.36] - 2026-05-19
+
+A hotfix release closing the self-learning routing loop reported in #499 by
+Jordi. The `route` hook's `qWeight` was structurally pinned at 0: the
+producer (`updateHookRouterQValue`) only fired from `post-task` gated on the
+pre-task bridge, so on real projects `routing_outcomes` accumulated 100+
+rows while `rl_q_values` stayed at ~2 — the consumer side ADR-095 wired up
+had nothing to read. Q-learning never influenced routing. ADR-096
+documents the three-part fix that ships in this release.
+
+### Fixed
+
+- **`route` hook's `qWeight` was structurally pinned at 0** (#499). Three
+  coordinated changes:
+  - The Stop-hook `post-route` now trains `rl_q_values` when it resolves a
+    `routing_outcomes` sentinel, deriving the same `state_key` the route
+    hook used at insertion time. The high-volume routing surface now
+    produces Q-signal in addition to consuming it.
+  - `post-task` no longer drops Q-updates when the pre-task bridge is
+    absent — direct Bash/Edit sessions and Task-tool runs where pre-task
+    didn't fire now train Q from the task description. Adds a new
+    `--description` CLI option to `aqe hooks post-task` so the
+    `PostToolUse` hook can pass `tool_input.description`.
+  - The Q-learning state_key collapsed from 4-dim
+    `(taskType|priority|domain|complexityBucket)` to 3-dim
+    `(taskType|priority|domain)`. The previous length-keyed bucket
+    fragmented semantically identical tasks across cells, so
+    `QWEIGHT_RAMP_VISITS=20` was rarely reached per cell. Convergence is
+    now ~11× faster for a given `(taskType, domain)` pair.
+
+### Added
+
+- **ADR-096** documents the producer/consumer alignment contract and the
+  state-key shape decision. The three call sites
+  (`routing-hooks.ts post-route`, `task-hooks.ts post-task`,
+  `qe-reasoning-bank.ts:530`) must agree on `(deriveTaskType,
+  detectQEDomains[0], 'normal')` — regression test
+  `tests/unit/cli/commands/route-q-loop-closure.test.ts` fails the build
+  if a future refactor desynchronizes them.
+- `aqe hooks post-task --description <desc>` option for Task tools that
+  want to train Q without writing a pre-task bridge.
+
+### Changed
+
+- `buildRoutingStateKey` parameter shape (3-dim, no `complexityBucket`).
+  `deriveComplexityBucket` stays exported and is still computed for the
+  pre-task bridge payload (kv_store schema compatibility) and any
+  downstream telemetry — marked `@deprecated` for state_key construction
+  only.
+- Existing `rl_q_values` rows written under the 4-dim key shape become
+  orphans; new lookups won't match them. Field reports show installs have
+  ~2 such rows at most (the loop was broken so no real Q-data
+  accumulated), so no migration ships. If you have substantial 4-dim
+  data, a one-shot `UPDATE rl_q_values SET state_key = ...` stripping
+  the trailing `|N` segment is straightforward.
+
 ## [3.9.35] - 2026-05-19
 
 A test-infrastructure release. Restores ESM subpath imports of `HnswAdapter`

@@ -22,7 +22,10 @@ import {
   printError,
   printGuidance,
   readStdinJsonEvent,
+  updateHookRouterQValue,
 } from './hooks-shared.js';
+import { deriveTaskType } from '../../../learning/agent-routing.js';
+import { detectQEDomains } from '../../../learning/qe-patterns.js';
 
 /**
  * Extract a routable task description from a Claude Code hook event JSON
@@ -245,17 +248,54 @@ export function registerRoutingHooks(hooks: Command): void {
         const db = um.getDatabase();
         applyHookBusyTimeout(db);
 
-        const result = db.prepare(`
-          UPDATE routing_outcomes
-          SET success = ?, quality_score = ?, duration_ms = 0, error = NULL
-          WHERE id = (
-            SELECT id FROM routing_outcomes
-            WHERE quality_score = -1
-              AND task_json NOT LIKE '%"taskId"%'
-            ORDER BY created_at DESC
-            LIMIT 1
-          )
-        `).run(success ? 1 : 0, qualityScore);
+        // Issue #499: we need the sentinel's task_json + used_agent to train
+        // rl_q_values from this resolved outcome. SELECT first, then UPDATE
+        // by id — so the row we close is the same row we read for state-key
+        // derivation, even if a concurrent insert happens between statements.
+        const sentinel = db.prepare(`
+          SELECT id, task_json, used_agent FROM routing_outcomes
+          WHERE quality_score = -1
+            AND task_json NOT LIKE '%"taskId"%'
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get() as { id: string; task_json: string; used_agent: string } | undefined;
+
+        const result = sentinel
+          ? db.prepare(`
+              UPDATE routing_outcomes
+              SET success = ?, quality_score = ?, duration_ms = 0, error = NULL
+              WHERE id = ?
+            `).run(success ? 1 : 0, qualityScore, sentinel.id)
+          : { changes: 0 };
+
+        // Issue #499 fix #1: train rl_q_values from the resolved route
+        // sentinel. The route hook computed a state_key for this same task
+        // (qe-reasoning-bank.ts:530-535) and never wrote it anywhere, so we
+        // re-derive from task_json.description using the same exported
+        // helpers. Writer and reader use identical state_key construction,
+        // so the row this trains is the row the next `route` hook reads.
+        // Best-effort: Stop hooks must never crash the host on a learning
+        // failure.
+        //
+        // ADR-096: state_key is 3-dim (taskType|priority|domain) — no
+        // complexity bucket. See agent-routing.ts buildRoutingStateKey.
+        if (sentinel) {
+          try {
+            const tj = JSON.parse(sentinel.task_json) as { description?: string };
+            const description = String(tj.description ?? '');
+            if (description) {
+              await updateHookRouterQValue({
+                taskType: deriveTaskType(description),
+                priority: 'normal',
+                domain: detectQEDomains(description)[0] ?? 'any',
+                agent: sentinel.used_agent,
+                success,
+              });
+            }
+          } catch {
+            /* swallow — Stop-hook must not crash the host on learning errors */
+          }
+        }
 
         // Issue #465: orphan-sentinel sweep. Sessions that terminate without
         // firing Stop (context compact, process kill, IDE crash) leave their

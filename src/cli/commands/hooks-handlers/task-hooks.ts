@@ -24,6 +24,7 @@ import {
 } from './hooks-shared.js';
 import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
 import { deriveTaskType } from '../../../learning/agent-routing.js';
+import { detectQEDomains } from '../../../learning/qe-patterns.js';
 
 // ============================================================================
 // Constants — task-bridge / routing-quality / q-learning
@@ -300,6 +301,7 @@ export function registerTaskHooks(hooks: Command): void {
     .option('--success <bool>', 'Whether task succeeded', 'true')
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
+    .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
@@ -377,13 +379,37 @@ export function registerTaskHooks(hooks: Command): void {
             });
 
             // Stream F (patch 280): Bellman Q-update for the hook-router state.
-            // Bridge payload carries the structural state derivation.
-            if (outcome.bridge) {
+            //
+            // Issue #499: the original `if (outcome.bridge)` gate silently
+            // dropped the Q-update whenever the pre-task bridge wasn't matched
+            // (direct Bash/Edit work without a Task tool spawn, or pre-task
+            // hook didn't fire). On real projects, `rl_q_values` stayed at ~2
+            // rows while `routing_outcomes` reached 139, so the consumer side
+            // ADR-095 wired up (qe-reasoning-bank.ts:530) had nothing to read.
+            //
+            // When bridge is absent, derive the state_key components from the
+            // task description directly — same derivation the route hook uses
+            // (qe-reasoning-bank.ts:530-535) so writer and reader address the
+            // same row in `rl_q_values`. Skip only when we have no description
+            // to work from (would land every update at a single "unknown"
+            // sentinel state, polluting the table).
+            //
+            // ADR-096: state_key is 3-dim (taskType|priority|domain); the
+            // bridge still carries `complexityBucket` for kv_store schema
+            // compatibility but we don't read it here.
+            const taskDescription = String(options.description ?? '');
+            if (outcome.bridge || taskDescription) {
+              const taskType =
+                outcome.bridge?.taskType ?? deriveTaskType(taskDescription);
+              const priority = outcome.bridge?.priority ?? 'normal';
+              const domain =
+                outcome.bridge?.domain ??
+                detectQEDomains(taskDescription)[0] ??
+                'any';
               await updateHookRouterQValue({
-                taskType: outcome.bridge.taskType,
-                priority: outcome.bridge.priority,
-                domain: outcome.bridge.domain,
-                complexityBucket: outcome.bridge.complexityBucket,
+                taskType,
+                priority,
+                domain,
                 agent: effectiveAgent,
                 success,
               });

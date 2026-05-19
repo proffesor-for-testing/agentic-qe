@@ -294,19 +294,31 @@ export function deriveTaskType(description: string): string {
  * Build the canonical Q-learning state_key. Must match the format used by
  * `updateHookRouterQValue` in hooks-dream-learning.ts — the writer and
  * reader must agree on the key shape.
+ *
+ * ADR-096 (issue #499): dropped `complexityBucket` from the state_key.
+ * The previous 4-dim key fragmented the state space on raw description
+ * length (a ~55-char vs ~130-char phrasing of the same task landed in
+ * different buckets), so `QWEIGHT_RAMP_VISITS=20` was rarely reached per
+ * cell and Q-values never converged. The 3-dim key collapses related
+ * tasks into the same state, letting Q-learning actually generalize.
  */
 export function buildRoutingStateKey(opts: {
   taskType: string;
   priority?: string;
   domain?: string;
-  complexityBucket: number;
 }): string {
-  return `${opts.taskType}|${opts.priority ?? 'normal'}|${opts.domain ?? 'any'}|${opts.complexityBucket}`;
+  return `${opts.taskType}|${opts.priority ?? 'normal'}|${opts.domain ?? 'any'}`;
 }
 
 /**
  * Compute the complexity bucket [0, 10] from a task description length.
  * Mirrors the formula in task-hooks.ts pre-task bridge.
+ *
+ * @deprecated ADR-096: no longer used for state_key construction (the
+ * length-keyed bucket fragmented the Q-state space). Retained for the
+ * pre-task bridge payload (kv_store schema compatibility) and any
+ * downstream telemetry that wants a coarse complexity signal. Do NOT use
+ * for new Q-routing surfaces.
  */
 export function deriveComplexityBucket(description: string): number {
   return Math.max(0, Math.min(10, Math.round(Math.min(description.length / 200, 1) * 10)));

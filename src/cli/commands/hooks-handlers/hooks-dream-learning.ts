@@ -630,8 +630,9 @@ export async function persistTaskOutcome(opts: {
  *   - agent_id='aqe-hook-router' (per-instance partition; persistent-q-router
  *     convention so we don't collide with canonical RuVector q-router writes
  *     at agent_id='q-router')
- *   - state_key='${taskType}|${priority}|${domain}|${complexityBucket}'
- *     (structural; see q-learning-router.ts:591)
+ *   - state_key='${taskType}|${priority}|${domain}'  (ADR-096; was 4-dim
+ *     pre-issue-#499 — the 4th `complexityBucket` segment fragmented the
+ *     Q-state space on raw description length so visits never accumulated)
  *   - action_key=agent name chosen
  *   - id='q-learning:aqe-hook-router:${stateKey}:${actionKey}'
  *
@@ -644,7 +645,6 @@ export async function updateHookRouterQValue(opts: {
   taskType: string;
   priority: string;
   domain: string;
-  complexityBucket: number;
   agent: string;
   success: boolean;
 }): Promise<void> {
@@ -657,7 +657,7 @@ export async function updateHookRouterQValue(opts: {
     const db = um.getDatabase();
     try { db.pragma('busy_timeout = 60000'); } catch { /* hook-side patient timeout (ADR-001 / patch 260) */ }
 
-    const stateKey = `${opts.taskType}|${opts.priority}|${opts.domain || 'any'}|${opts.complexityBucket}`;
+    const stateKey = `${opts.taskType}|${opts.priority}|${opts.domain || 'any'}`;
     const actionKey = opts.agent;
     const id = `q-learning:aqe-hook-router:${stateKey}:${actionKey}`;
     const reward = opts.success ? 0.1 : -1.0;

@@ -74,7 +74,6 @@ import {
   resolveExplorationRate,
   deriveTaskType,
   buildRoutingStateKey,
-  deriveComplexityBucket,
   type QValueLookup,
 } from './agent-routing.js';
 import { resolveTopologyCriticalFromSharedMincut } from './routing-topology-gate.js';
@@ -527,11 +526,13 @@ export class QEReasoningBank implements IQEReasoningBank {
       // ADR-095: build the Q-value lookup closure from the task's state_key.
       // The state_key MUST match what `updateHookRouterQValue` writes from
       // post-task — buildRoutingStateKey enforces that.
+      // ADR-096 (issue #499): state_key dropped `complexityBucket` — the
+      // length-keyed bucket fragmented identical tasks across cells so
+      // QWEIGHT_RAMP_VISITS=20 was never reached. 3-dim key now.
       const stateKey = buildRoutingStateKey({
         taskType: deriveTaskType(request.task),
         priority: 'normal',
         domain: detectedDomains[0],
-        complexityBucket: deriveComplexityBucket(request.task),
       });
       const qValueLookup = this.buildQValueLookup(stateKey);
 
