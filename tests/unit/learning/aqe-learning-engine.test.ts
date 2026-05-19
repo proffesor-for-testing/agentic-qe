@@ -6,12 +6,24 @@
  * and Claude Flow integration with fallbacks.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
+import { _resetWitnessChainForTests } from '../../../src/audit/witness-chain';
 
 // Ensure these tests exercise the in-memory PatternStore, not the RVF variant
 beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
 afterEach(() => { resetRuVectorFeatureFlags(); });
+
+// Issue #448 step 3: release module-level singletons between tests so per-test
+// memory growth doesn't compound across the file.
+afterEach(() => {
+  clearEmbeddingCache();
+  _resetWitnessChainForTests();
+});
+afterAll(() => {
+  resetInitialization();
+});
 
 import {
   AQELearningEngine,

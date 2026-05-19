@@ -20,7 +20,7 @@
  * the test boundary. Audit those before declaring this file flaky.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 import {
   QEReasoningBank,
@@ -38,6 +38,21 @@ import { checkRuvectorPackagesAvailable } from '../../../src/integrations/ruvect
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
 import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
 import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
+import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
+import { _resetWitnessChainForTests } from '../../../src/audit/witness-chain';
+
+// Issue #448 step 3: release module-level singletons between tests so per-test
+// memory growth doesn't compound across the file. clearEmbeddingCache() runs
+// per test (cheap, keeps the loaded transformer model in place). The full
+// resetInitialization() runs once at afterAll to drop the model itself when
+// the file is done so the next fork doesn't inherit a warm pipeline.
+afterEach(() => {
+  clearEmbeddingCache();
+  _resetWitnessChainForTests();
+});
+afterAll(() => {
+  resetInitialization();
+});
 
 // Check if @ruvector/gnn native operations work (required for semantic search)
 const canTest = checkRuvectorPackagesAvailable();

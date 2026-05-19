@@ -15,7 +15,7 @@
  * beyond the test boundary.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 import {
   QEReasoningBank,
@@ -27,10 +27,22 @@ import { checkRuvectorPackagesAvailable } from '../../../src/integrations/ruvect
 import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
 import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
 import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
+import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
+import { _resetWitnessChainForTests } from '../../../src/audit/witness-chain';
 
 // Ensure these tests exercise the in-memory PatternStore, not the RVF variant
 beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
 afterEach(() => { resetRuVectorFeatureFlags(); });
+
+// Issue #448 step 3: release module-level singletons between tests so per-test
+// memory growth doesn't compound across the file.
+afterEach(() => {
+  clearEmbeddingCache();
+  _resetWitnessChainForTests();
+});
+afterAll(() => {
+  resetInitialization();
+});
 
 // Check if @ruvector/gnn native operations work (required for semantic search)
 const canTest = checkRuvectorPackagesAvailable();

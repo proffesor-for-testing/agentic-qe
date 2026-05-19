@@ -324,4 +324,14 @@ export function createWitnessChain(db: DatabaseType, keyManager?: WitnessKeyMana
   return new WitnessChain(db, keyManager);
 }
 
+/**
+ * Reset the module-level singleton so the next `getWitnessChain()` builds a
+ * fresh instance. Test-only: lets heavy test files release the retained
+ * chain (and its accumulated entries + db handle) between runs so per-test
+ * memory growth doesn't compound across the file (issue #448 step 3).
+ */
+export function _resetWitnessChainForTests(): void {
+  _instance = null;
+}
+
 export { GENESIS_PREV_HASH, sha256, shake256, hashWith, serializeEntry };
