@@ -9,6 +9,7 @@
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createEndpointPipeline } from './embedder-endpoint.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -58,6 +59,15 @@ export interface EmbeddingConfig {
 
   /** Maximum cache size */
   maxCacheSize: number;
+
+  /**
+   * Optional external embedder endpoint. When set, AQE routes
+   * feature-extraction to this service instead of loading an in-process
+   * model — letting a co-deployed toolchain (e.g. ruflo/ruvector) share a
+   * single warm model. Forms: `http(s)://host:port` or `unix:/path/to.sock`.
+   * Defaults to the `AQE_EMBEDDER_ENDPOINT` env var; unset = in-process model.
+   */
+  endpoint?: string;
 }
 
 export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
@@ -65,6 +75,7 @@ export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
   quantized: true,
   enableCache: true,
   maxCacheSize: 10000,
+  endpoint: process.env.AQE_EMBEDDER_ENDPOINT,
 };
 
 // Embedding cache (LRU)
@@ -109,6 +120,14 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
 
   initPromise = (async () => {
     try {
+      // External embedder endpoint — route to a shared service, skip the
+      // in-process model entirely.
+      if (fullConfig.endpoint) {
+        console.log(`[RealEmbeddings] Using external embedder endpoint: ${fullConfig.endpoint}`);
+        embeddingModel = createEndpointPipeline(fullConfig.endpoint);
+        return;
+      }
+
       // Dynamic import to avoid issues if transformers not available
       const transformers = await import('@huggingface/transformers');
       pipeline = transformers.pipeline;
