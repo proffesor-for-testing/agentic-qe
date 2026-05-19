@@ -9,6 +9,7 @@
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { EmbedderEndpointClient, type EndpointIdentity } from './embedder-endpoint-client.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -44,6 +45,13 @@ let initializationFailed = false;
 let failureReason = '';
 
 /**
+ * Set when ADR-097 endpoint path is active. Tracked separately so callers
+ * (tests, observability) can verify endpoint vs in-process unambiguously.
+ */
+let endpointClient: EmbedderEndpointClient | null = null;
+let endpointIdentity: EndpointIdentity | null = null;
+
+/**
  * Embedding model configuration
  */
 export interface EmbeddingConfig {
@@ -58,6 +66,26 @@ export interface EmbeddingConfig {
 
   /** Maximum cache size */
   maxCacheSize: number;
+
+  /**
+   * Optional external embedder endpoint (ADR-097).
+   *
+   * When set, AQE routes feature-extraction to an OpenAI-compatible
+   * `/v1/embeddings` service instead of loading `@huggingface/transformers`
+   * in-process. Forms:
+   *   - `http(s)://host:port`  — HTTP transport
+   *   - `unix:/absolute/path`  — HTTP-over-Unix-socket transport
+   *
+   * Defaults to `process.env.AQE_EMBEDDER_ENDPOINT` when unset.
+   * When neither is set, behavior is identical to pre-ADR-097.
+   */
+  endpoint?: string;
+
+  /**
+   * Bearer token for the embedder endpoint (ADR-097).
+   * Defaults to `process.env.AQE_EMBEDDER_TOKEN`. Env-only — never in config files.
+   */
+  endpointToken?: string;
 }
 
 export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
@@ -65,6 +93,8 @@ export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
   quantized: true,
   enableCache: true,
   maxCacheSize: 10000,
+  endpoint: process.env.AQE_EMBEDDER_ENDPOINT,
+  endpointToken: process.env.AQE_EMBEDDER_TOKEN,
 };
 
 // Embedding cache (LRU)
@@ -109,7 +139,27 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
 
   initPromise = (async () => {
     try {
-      // Dynamic import to avoid issues if transformers not available
+      // ADR-097: Endpoint branch — when an external embedder endpoint is configured,
+      // we MUST NOT import @huggingface/transformers in this process. The cold-load
+      // elimination depends on the dynamic import being inside the else branch only.
+      if (fullConfig.endpoint) {
+        console.log(`[RealEmbeddings] Using external embedder endpoint: ${fullConfig.endpoint}`);
+        endpointClient = new EmbedderEndpointClient({
+          endpoint: fullConfig.endpoint,
+          token: fullConfig.endpointToken,
+          model: fullConfig.modelName,
+          expectedDim: getEmbeddingDimension(),
+        });
+        // Probe + identity fingerprint. Fails loud on dim mismatch.
+        endpointIdentity = await endpointClient.probe();
+        console.log(
+          `[RealEmbeddings] Endpoint identity: dim=${endpointIdentity.dim} fingerprint=${endpointIdentity.fingerprint}`
+        );
+        embeddingModel = createEndpointPipeline(endpointClient);
+        return;
+      }
+
+      // In-process branch — only here do we import the transformers package.
       const transformers = await import('@huggingface/transformers');
       pipeline = transformers.pipeline;
 
@@ -131,6 +181,28 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
   })();
 
   return initPromise;
+}
+
+/**
+ * Build a FeatureExtractionPipeline-shaped wrapper around the endpoint client.
+ * The shape matches `pipeline('feature-extraction', ...)` so the rest of
+ * computeRealEmbedding / computeBatchEmbeddings remains unchanged.
+ *
+ * The endpoint already returns L2-normalized vectors (and we re-normalize on
+ * receive inside the client), so the `pooling` / `normalize` options from
+ * upstream callers are no-ops here — that's the OpenAI contract.
+ */
+function createEndpointPipeline(client: EmbedderEndpointClient): FeatureExtractionPipeline {
+  return async (input: string | string[]): Promise<EmbeddingOutput> => {
+    const texts = Array.isArray(input) ? input : [input];
+    const vectors = await client.embed(texts);
+    const dim = vectors[0]?.length ?? getEmbeddingDimension();
+    const data = new Float32Array(texts.length * dim);
+    for (let i = 0; i < vectors.length; i++) {
+      data.set(vectors[i], i * dim);
+    }
+    return { data, dims: [texts.length, dim] };
+  };
 }
 
 /**
@@ -317,4 +389,24 @@ export function resetInitialization(): void {
   initializationFailed = false;
   failureReason = '';
   embeddingCache.clear();
+  if (endpointClient) {
+    endpointClient.close();
+  }
+  endpointClient = null;
+  endpointIdentity = null;
+}
+
+/**
+ * ADR-097: Returns true when the embedding pipeline is the external endpoint path,
+ * false when it's the in-process transformer (or uninitialized).
+ */
+export function isUsingEndpoint(): boolean {
+  return endpointClient !== null;
+}
+
+/**
+ * ADR-097: Returns the endpoint identity fingerprint, or null when not using an endpoint.
+ */
+export function getEndpointIdentity(): EndpointIdentity | null {
+  return endpointIdentity;
 }
