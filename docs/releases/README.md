@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.9.35](v3.9.35.md) | 2026-05-19 | Restore ESM subpath import of `HnswAdapter` (#497) + dismantle cumulative-growth pattern in vitest fork workers (#448 steps 2+3): split heavy learning tests, release module singletons between tests |
 | [v3.9.34](v3.9.34.md) | 2026-05-18 | Stop unbounded `patterns.rvf`/`brain.rvf` growth — fixes #495 sibling init runaway + adds post-dream compaction, boot-time size guard, bounded SQLite→RVF backfill |
 | [v3.9.33](v3.9.33.md) | 2026-05-18 | Supply-chain cleanup: 0 consumer-side CVEs (was 4 high + 1 critical), ~480 fewer transitive packages, zero ERESOLVE warnings; new consumer-side audit gate prevents regressions |
 | [v3.9.32](v3.9.32.md) | 2026-05-17 | Fix #491 chain — daemon/kernel wiring, namespace-aware reads, timestamp rehydration, loop-health try/finally. Adds daemon-runtime release gate (`test:integration:fast` + A23) |

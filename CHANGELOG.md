@@ -5,6 +5,45 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.35] - 2026-05-19
+
+A test-infrastructure release. Restores ESM subpath imports of `HnswAdapter`
+(PR #497), and starts dismantling the cumulative-growth pattern that has been
+timing out fork workers on `qe-reasoning-bank.test.ts` and
+`aqe-learning-engine.test.ts` across multiple recent publish workflows
+(issue #448 steps 2 + 3). No production-code behavior changes.
+
+### Fixed
+
+- **`import 'agentic-qe/kernel/hnsw-adapter'` threw `ERR_PACKAGE_PATH_NOT_EXPORTED`**
+  (#497). The compiled file shipped in `dist/kernel/hnsw-adapter.js`, but
+  the subpath was missing from the `exports` map. Adds the missing entry
+  alongside `./kernel`.
+- **Vitest fork workers timed out on the heaviest learning tests** (#448).
+  Two interventions land together: (1) split `qe-reasoning-bank.test.ts`
+  (1019 → 386 lines core, + utilities and feedback-loop companions) and
+  `aqe-learning-engine.test.ts` (622 → 366 lines core, + patterns and
+  factory companions) so each thematic group runs in its own sequential
+  fork; (2) release module-level singletons between tests —
+  `clearEmbeddingCache()` + a new `_resetWitnessChainForTests()` in
+  `afterEach`, `resetInitialization()` in `afterAll` — so per-test memory
+  growth doesn't compound across the file.
+
+### Changed
+
+- `test:unit:fast` exclude list now also carries the two new heavy split
+  files (`qe-reasoning-bank-feedback-loop.test.ts`,
+  `aqe-learning-engine-patterns.test.ts`). The two cheap split files
+  (`*-utilities.test.ts`, `*-factory.test.ts`) are *included* in the fast
+  lane and restore coverage that was previously dark.
+
+### Added
+
+- `tests/integration/package-exports.integration.test.ts` — a contract
+  test that pins each declared subpath in the `package.json#exports` map.
+  Future regressions of PR #497's class fail this test instead of breaking
+  consumers' imports silently.
+
 ## [3.9.34] - 2026-05-18
 
 A reliability release fixing unbounded growth of the on-disk vector index. Field
