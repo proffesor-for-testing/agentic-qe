@@ -23,7 +23,7 @@ import {
   printSuccess,
 } from './hooks-shared.js';
 import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
-import { deriveTaskType, deriveComplexityBucket } from '../../../learning/agent-routing.js';
+import { deriveTaskType } from '../../../learning/agent-routing.js';
 import { detectQEDomains } from '../../../learning/qe-patterns.js';
 
 // ============================================================================
@@ -393,6 +393,10 @@ export function registerTaskHooks(hooks: Command): void {
             // same row in `rl_q_values`. Skip only when we have no description
             // to work from (would land every update at a single "unknown"
             // sentinel state, polluting the table).
+            //
+            // ADR-096: state_key is 3-dim (taskType|priority|domain); the
+            // bridge still carries `complexityBucket` for kv_store schema
+            // compatibility but we don't read it here.
             const taskDescription = String(options.description ?? '');
             if (outcome.bridge || taskDescription) {
               const taskType =
@@ -402,14 +406,10 @@ export function registerTaskHooks(hooks: Command): void {
                 outcome.bridge?.domain ??
                 detectQEDomains(taskDescription)[0] ??
                 'any';
-              const complexityBucket =
-                outcome.bridge?.complexityBucket ??
-                deriveComplexityBucket(taskDescription);
               await updateHookRouterQValue({
                 taskType,
                 priority,
                 domain,
-                complexityBucket,
                 agent: effectiveAgent,
                 success,
               });

@@ -24,7 +24,7 @@ import {
   readStdinJsonEvent,
   updateHookRouterQValue,
 } from './hooks-shared.js';
-import { deriveTaskType, deriveComplexityBucket } from '../../../learning/agent-routing.js';
+import { deriveTaskType } from '../../../learning/agent-routing.js';
 import { detectQEDomains } from '../../../learning/qe-patterns.js';
 
 /**
@@ -276,6 +276,9 @@ export function registerRoutingHooks(hooks: Command): void {
         // so the row this trains is the row the next `route` hook reads.
         // Best-effort: Stop hooks must never crash the host on a learning
         // failure.
+        //
+        // ADR-096: state_key is 3-dim (taskType|priority|domain) — no
+        // complexity bucket. See agent-routing.ts buildRoutingStateKey.
         if (sentinel) {
           try {
             const tj = JSON.parse(sentinel.task_json) as { description?: string };
@@ -285,7 +288,6 @@ export function registerRoutingHooks(hooks: Command): void {
                 taskType: deriveTaskType(description),
                 priority: 'normal',
                 domain: detectQEDomains(description)[0] ?? 'any',
-                complexityBucket: deriveComplexityBucket(description),
                 agent: sentinel.used_agent,
                 success,
               });

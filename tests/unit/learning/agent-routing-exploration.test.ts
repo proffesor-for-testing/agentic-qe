@@ -217,24 +217,39 @@ describe('deriveTaskType', () => {
   });
 });
 
-describe('buildRoutingStateKey', () => {
+describe('buildRoutingStateKey (ADR-096: 3-dim, issue #499)', () => {
   it('produces the canonical Q-table state_key format', () => {
     const k = buildRoutingStateKey({
       taskType: 'test-generation',
       priority: 'normal',
       domain: 'coverage-analysis',
-      complexityBucket: 3,
     });
-    expect(k).toBe('test-generation|normal|coverage-analysis|3');
+    expect(k).toBe('test-generation|normal|coverage-analysis');
   });
 
   it('defaults priority to "normal" and domain to "any"', () => {
-    const k = buildRoutingStateKey({ taskType: 'unknown', complexityBucket: 0 });
-    expect(k).toBe('unknown|normal|any|0');
+    const k = buildRoutingStateKey({ taskType: 'unknown' });
+    expect(k).toBe('unknown|normal|any');
+  });
+
+  it('matches the writer-side format in hooks-dream-learning.ts (3-dim key)', () => {
+    // Pins the producer/consumer contract: if a future refactor splits these,
+    // rl_q_values writes and reads stop addressing the same row.
+    const k = buildRoutingStateKey({
+      taskType: 'coverage-analysis',
+      priority: 'normal',
+      domain: 'test-generation',
+    });
+    expect(k.split('|')).toHaveLength(3);
   });
 });
 
-describe('deriveComplexityBucket', () => {
+describe('deriveComplexityBucket (legacy — ADR-096 deprecated for state_key)', () => {
+  // The helper is no longer used for Q-state construction (issue #499) but
+  // remains exported for the pre-task bridge payload (kv_store schema compat)
+  // and any downstream telemetry that wants a coarse complexity signal. Tests
+  // pin the historical formula so existing consumers keep getting stable
+  // outputs.
   it('returns 0 for empty / short descriptions', () => {
     expect(deriveComplexityBucket('')).toBe(0);
     expect(deriveComplexityBucket('hi')).toBe(0);

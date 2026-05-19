@@ -7,9 +7,11 @@
  *   Fix #1 (post-route side): when post-route resolves a route sentinel in
  *     `routing_outcomes`, it must also call `updateHookRouterQValue` with a
  *     state_key derived from the sentinel's task description — using the
- *     SAME helpers (`deriveTaskType`, `deriveComplexityBucket`,
- *     `detectQEDomains`) the route hook used at insertion time. Writer and
- *     reader address the identical row in `rl_q_values`.
+ *     SAME helpers (`deriveTaskType`, `detectQEDomains`) the route hook used
+ *     at insertion time. Writer and reader address the identical row in
+ *     `rl_q_values`. ADR-096 collapsed the state_key to 3 dims (no
+ *     complexity bucket) so the Q-state space stops fragmenting on raw
+ *     description length.
  *
  *   Fix #2 (post-task side): the `if (outcome.bridge)` gate at
  *     task-hooks.ts:381 silently dropped the Bellman Q-update whenever the
@@ -140,22 +142,19 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
 
   it('calls updateHookRouterQValue with state derived from the sentinel description', async () => {
     // Mirror the route hook's exact derivation order (qe-reasoning-bank.ts:530-535):
-    //   taskType:        deriveTaskType(description)
-    //   priority:        'normal'
-    //   domain:          detectQEDomains(description)[0] ?? 'any'
-    //   complexityBucket: deriveComplexityBucket(description)
-    // Asserting on the helpers' outputs directly keeps the test robust to
-    // heuristic tuning while still pinning the alignment contract.
+    //   taskType: deriveTaskType(description)
+    //   priority: 'normal'
+    //   domain:   detectQEDomains(description)[0] ?? 'any'
+    // ADR-096: no complexityBucket — state_key is 3-dim. Asserting on the
+    // helpers' outputs directly keeps the test robust to heuristic tuning
+    // while still pinning the alignment contract.
     const description = 'Write unit tests for the UserService class';
     insertRouteSentinel(db, 'route-1', description, 'qe-test-architect', '2026-05-19 10:00:00');
 
-    const { deriveTaskType, deriveComplexityBucket } = await import(
-      '../../../../src/learning/agent-routing.js'
-    );
+    const { deriveTaskType } = await import('../../../../src/learning/agent-routing.js');
     const { detectQEDomains } = await import('../../../../src/learning/qe-patterns.js');
     const expectedTaskType = deriveTaskType(description);
     const expectedDomain = detectQEDomains(description)[0] ?? 'any';
-    const expectedBucket = deriveComplexityBucket(description);
 
     const hooks = new Command('hooks');
     registerRoutingHooks(hooks);
@@ -166,7 +165,6 @@ describe('post-route trains rl_q_values from resolved route sentinels (issue #49
       taskType: expectedTaskType,
       priority: 'normal',
       domain: expectedDomain,
-      complexityBucket: expectedBucket,
       agent: 'qe-test-architect',
       success: true,
     });
@@ -257,7 +255,8 @@ describe('post-task trains rl_q_values even when outcome.bridge is absent (issue
     // suite above where it actually matters.
     expect(typeof call.taskType).toBe('string');
     expect(typeof call.domain).toBe('string');
-    expect(typeof call.complexityBucket).toBe('number');
+    // ADR-096: state_key is 3-dim — no `complexityBucket` in the payload.
+    expect(call).not.toHaveProperty('complexityBucket');
   });
 
   it('prefers the bridge-supplied state when bridge IS present', async () => {
@@ -298,8 +297,10 @@ describe('post-task trains rl_q_values even when outcome.bridge is absent (issue
       taskType: 'coverage-analysis',
       priority: 'high',
       domain: 'security-compliance',
-      complexityBucket: 7,
     });
+    // ADR-096: bridge.complexityBucket=7 in the test data must NOT leak
+    // into the Q-update payload — state_key is 3-dim.
+    expect(updateHookRouterQValueMock.mock.calls[0][0]).not.toHaveProperty('complexityBucket');
   });
 
   it('still skips Q-update when neither bridge nor description is available', async () => {
