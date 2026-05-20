@@ -14,6 +14,7 @@ import * as fs from 'node:fs';
 import {
   EmbedderEndpointClient,
   parseEndpoint,
+  redactEndpoint,
 } from '../../../src/learning/embedder-endpoint-client.js';
 
 /**
@@ -128,7 +129,7 @@ function defaultResponder(
 
 describe('parseEndpoint', () => {
   it('parses http URL', () => {
-    expect(parseEndpoint('http://localhost:8080')).toEqual({
+    expect(parseEndpoint('http://localhost:8080')).toMatchObject({
       transport: 'http',
       host: 'localhost',
       port: 8080,
@@ -137,7 +138,7 @@ describe('parseEndpoint', () => {
   });
 
   it('parses https URL with default port', () => {
-    expect(parseEndpoint('https://embed.example.com')).toEqual({
+    expect(parseEndpoint('https://embed.example.com')).toMatchObject({
       transport: 'https',
       host: 'embed.example.com',
       port: 443,
@@ -146,7 +147,7 @@ describe('parseEndpoint', () => {
   });
 
   it('parses unix: prefix', () => {
-    expect(parseEndpoint('unix:/run/embedder.sock')).toEqual({
+    expect(parseEndpoint('unix:/run/embedder.sock')).toMatchObject({
       transport: 'unix',
       socketPath: '/run/embedder.sock',
     });
@@ -158,6 +159,35 @@ describe('parseEndpoint', () => {
 
   it('rejects non-http protocols', () => {
     expect(() => parseEndpoint('ftp://host/path')).toThrow(/unsupported/);
+  });
+
+  it('strips userinfo from URL and emits warning', () => {
+    const warn = console.warn;
+    const seen: string[] = [];
+    console.warn = (msg: unknown) => seen.push(String(msg));
+    try {
+      const parsed = parseEndpoint('https://user:secret@embed.example.com/x');
+      expect(parsed.safeUrl).not.toContain('secret');
+      expect(parsed.safeUrl).not.toContain('user:');
+      expect(seen.some((s) => /userinfo/i.test(s))).toBe(true);
+    } finally {
+      console.warn = warn;
+    }
+  });
+});
+
+describe('redactEndpoint', () => {
+  it('returns plain URL unchanged', () => {
+    expect(redactEndpoint('http://localhost:8080')).toBe('http://localhost:8080');
+  });
+
+  it('strips userinfo', () => {
+    expect(redactEndpoint('https://user:pw@host.example.com/x')).not.toContain('pw');
+    expect(redactEndpoint('https://user:pw@host.example.com/x')).not.toContain('user');
+  });
+
+  it('passes unix paths through', () => {
+    expect(redactEndpoint('unix:/run/embed.sock')).toBe('unix:/run/embed.sock');
   });
 });
 
@@ -175,12 +205,25 @@ describe('EmbedderEndpointClient', () => {
     await server.close();
   });
 
-  it('sends OpenAI-compatible request body', async () => {
+  it('sends OpenAI-compatible request body with encoding_format=float', async () => {
     await client.embed(['hello world']);
     expect(server.lastRequest).toMatchObject({
       model: 'Xenova/all-MiniLM-L6-v2',
       input: ['hello world'],
+      encoding_format: 'float',
     });
+  });
+
+  it('fails loud when server returns base64-encoded embeddings', async () => {
+    server.responder = (body, res) => {
+      const data = body.input.map((_t, i) => ({
+        index: i,
+        embedding: 'YmFzZTY0LWVuY29kZWQtdmVjdG9y', // base64 string
+      }));
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data }));
+    };
+    await expect(client.embed(['x'])).rejects.toThrow(/base64/);
   });
 
   it('returns 384-d vectors in input order', async () => {
@@ -194,15 +237,17 @@ describe('EmbedderEndpointClient', () => {
 
   it('preserves input order when server returns shuffled indices', async () => {
     server.responder = (body, res) => {
-      // Return entries shuffled but with correct `index` fields
+      // Return entries shuffled but with correct `index` fields. The probe
+      // (length-1 input) goes through the default path; only the user-level
+      // multi-input call gets shuffled.
       const items = body.input.map((t, i) => ({
         object: 'embedding',
         index: i,
         embedding: fakeEmbedding(t),
       }));
-      const shuffled = [items[2], items[0], items[1]];
+      const out = items.length >= 3 ? [items[2], items[0], items[1]] : items;
       res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ data: shuffled }));
+      res.end(JSON.stringify({ data: out }));
     };
     const inputs = ['alpha', 'beta', 'gamma'];
     const vecs = await client.embed(inputs);
@@ -342,6 +387,147 @@ describe('EmbedderEndpointClient', () => {
     const out = await client.embed(['x']);
     expect(out[0]).toHaveLength(384);
   });
+
+  // -- ADR-097 boundary hardening (devil's-advocate audit) --
+
+  it('embed() lazily probes when no cached identity exists', async () => {
+    client.close();
+    let calls = 0;
+    let firstWasCanary = false;
+    const capture = http.createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        calls++;
+        const parsed = JSON.parse(raw) as { input: string[] };
+        if (calls === 1) {
+          firstWasCanary = /canary/i.test(parsed.input[0] ?? '');
+        }
+        defaultResponder(parsed as { model: string; input: string[] }, res);
+      });
+    });
+    await new Promise<void>((r) => capture.listen(0, '127.0.0.1', r));
+    const addr = capture.address() as { port: number };
+    const url = `http://127.0.0.1:${addr.port}`;
+    client = new EmbedderEndpointClient({ endpoint: url });
+    await client.embed(['user text']);
+    // probe + actual call = 2 HTTP requests, probe first
+    expect(calls).toBe(2);
+    expect(firstWasCanary).toBe(true);
+    expect(client.getCachedIdentity()).not.toBeNull();
+    await new Promise<void>((r) => capture.close(() => r()));
+  });
+
+  it('breaker recovery invalidates cached identity (forces re-probe)', async () => {
+    client.close();
+    let calls = 0;
+    let canaryCallCount = 0;
+    const capture = http.createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        calls++;
+        const parsed = JSON.parse(raw) as { input: string[] };
+        if (/canary/i.test(parsed.input[0] ?? '')) canaryCallCount++;
+        // First two calls (= probe attempts from embeds #1 and #2) fail to
+        // trip the threshold-2 breaker. After window expiry, embed #3 first
+        // re-probes (call #3 — succeeds) then issues the real embed (call #4).
+        if (calls <= 2) {
+          res.writeHead(500);
+          res.end('boom');
+        } else {
+          defaultResponder(parsed as { model: string; input: string[] }, res);
+        }
+      });
+    });
+    await new Promise<void>((r) => capture.listen(0, '127.0.0.1', r));
+    const addr = capture.address() as { port: number };
+    const url = `http://127.0.0.1:${addr.port}`;
+    client = new EmbedderEndpointClient({
+      endpoint: url,
+      failureThreshold: 2,
+      failureWindowMs: 30,
+    });
+    // Each failing embed triggers ONE probe attempt (which fails). 2 probes =
+    // 2 failures = breaker trips.
+    await expect(client.embed(['x'])).rejects.toThrow();
+    await expect(client.embed(['x'])).rejects.toThrow();
+    expect(client.getBreakerState().open).toBe(true);
+    expect(canaryCallCount).toBe(2); // both pre-recovery attempts were probes
+    // Server flips to success for calls 3+. Wait past failure window.
+    // Recovery callback fires the next time isOpen() is called; it must clear
+    // cached identity so the next embed re-probes.
+    await new Promise((r) => setTimeout(r, 60));
+    expect(client.getBreakerState().open).toBe(false);
+    expect(client.getCachedIdentity()).toBeNull(); // <- re-probe will run
+    const out = await client.embed(['x']);
+    expect(out[0]).toHaveLength(384);
+    // After recovery the next embed re-probes (canary call #3), then actual call.
+    expect(canaryCallCount).toBe(3);
+    await new Promise<void>((r) => capture.close(() => r()));
+  });
+
+  it('concurrent embeds share a single in-flight probe', async () => {
+    client.close();
+    let calls = 0;
+    let canaryCalls = 0;
+    const capture = http.createServer((req, res) => {
+      let raw = '';
+      req.on('data', (c) => (raw += c));
+      req.on('end', () => {
+        calls++;
+        const parsed = JSON.parse(raw) as { model: string; input: string[] };
+        if (/canary/i.test(parsed.input[0] ?? '')) canaryCalls++;
+        // Add a small delay so concurrent calls overlap in flight
+        setTimeout(() => defaultResponder(parsed, res), 10);
+      });
+    });
+    await new Promise<void>((r) => capture.listen(0, '127.0.0.1', r));
+    const addr = capture.address() as { port: number };
+    const url = `http://127.0.0.1:${addr.port}`;
+    client = new EmbedderEndpointClient({ endpoint: url });
+    // Fire 20 embeds before any single one completes. Each call goes through
+    // ensureProbed, but only ONE probe HTTP request should hit the server.
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, i) => client.embed([`item-${i}`]))
+    );
+    expect(results).toHaveLength(20);
+    results.forEach((r) => expect(r[0]).toHaveLength(384));
+    expect(canaryCalls).toBe(1); // exactly one probe across all 20 concurrent embeds
+    expect(calls).toBe(21); // 1 probe + 20 actual embeds
+    await new Promise<void>((r) => capture.close(() => r()));
+  });
+
+  it('rejects fast on DNS failure (.invalid TLD)', async () => {
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: 'http://does-not-exist-aqe-test.invalid:8080',
+      connectTimeoutMs: 500,
+      requestTimeoutMs: 30_000,
+    });
+    const start = Date.now();
+    await expect(client.embed(['x'])).rejects.toThrow(/ENOTFOUND|EAI_AGAIN|timeout/);
+    const elapsed = Date.now() - start;
+    // DNS resolution failure should bubble up quickly — give wide headroom.
+    expect(elapsed).toBeLessThan(3_000);
+  }, 10_000);
+
+  it('connect timeout fires fast against a non-routable host', async () => {
+    // 192.0.2.0/24 is reserved by RFC 5737 for documentation — guaranteed
+    // non-routable, so SYN packets blackhole. Pre-fix this would hang for ~75s.
+    client.close();
+    client = new EmbedderEndpointClient({
+      endpoint: 'http://192.0.2.1:65000',
+      connectTimeoutMs: 300,
+      requestTimeoutMs: 60_000,
+    });
+    const start = Date.now();
+    await expect(client.embed(['x'])).rejects.toThrow(/timeout|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH/);
+    const elapsed = Date.now() - start;
+    // Give generous headroom: anything under 2s proves we didn't fall back to
+    // the OS default (~75s).
+    expect(elapsed).toBeLessThan(2_000);
+  }, 5_000);
 });
 
 describe('EmbedderEndpointClient — Unix socket transport', () => {

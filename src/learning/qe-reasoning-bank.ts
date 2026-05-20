@@ -683,7 +683,7 @@ export class QEReasoningBank implements IQEReasoningBank {
    * for ARM64 or when transformers module cannot be loaded.
    */
   async embed(text: string): Promise<number[]> {
-    // Try ONNX embeddings if enabled
+    // Try ONNX / endpoint embeddings if enabled
     if (this.config.useONNXEmbeddings) {
       try {
         const { computeRealEmbedding } = await import('./real-embeddings.js');
@@ -694,8 +694,16 @@ export class QEReasoningBank implements IQEReasoningBank {
         }
         return embedding;
       } catch (error) {
-        // ARM64 ONNX compatibility issue or module not available
-        // Fall through to hash-based embedding silently
+        // ADR-097: if the external embedder endpoint is configured, we MUST NOT
+        // silently fall back to hash embeddings — they would poison the HNSW
+        // index by mixing non-comparable vectors. Propagate the throw so the
+        // caller can decide (retry, skip the write, etc).
+        const { isUsingEndpoint } = await import('./real-embeddings.js');
+        if (isUsingEndpoint()) {
+          throw error;
+        }
+        // In-process ARM64 ONNX compatibility issue or module not available —
+        // fall through to hash-based embedding (existing pre-ADR-097 behavior).
         if (process.env.DEBUG) {
           logger.warn('ONNX embeddings unavailable, using hash fallback', {
             error: toErrorMessage(error),
