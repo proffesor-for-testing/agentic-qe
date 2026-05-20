@@ -5,6 +5,81 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.0] - 2026-05-20
+
+A feature release adding an optional **external embedder endpoint** for AQE's
+semantic vector layer. When set, AQE skips loading `@huggingface/transformers`
+in-process and routes feature-extraction through an OpenAI-compatible
+`POST /v1/embeddings` endpoint — eliminating duplicate model loads in
+ruflo/ruvector co-deployments and per-hook cold-load latency. Closes the
+feature request in #503 (ADR-097). Followed by a hardening pass closing 11
+findings from an internal devil's-advocate audit before merge.
+
+### Added
+
+- **Optional external embedder endpoint (#503, ADR-097).** Set
+  `AQE_EMBEDDER_ENDPOINT=http://host:port` or `unix:/path/to.sock` (or
+  `EmbeddingConfig.endpoint`) and AQE routes vector computation to an
+  OpenAI-compatible `/v1/embeddings` service. Default unset = no behavior
+  change — current in-process `Xenova/all-MiniLM-L6-v2` path is unchanged.
+  - **OpenAI wire format** (`encoding_format: 'float'` pinned) — verified
+    end-to-end against `llama-server` with `all-MiniLM-L6-v2.Q8_0.gguf`;
+    expected to work against TEI / vLLM / Ollama / LocalAI / LM Studio /
+    OpenAI given they all advertise the same shape (unverified until a
+    real-provider integration test is added per provider).
+  - **HTTP and HTTP-over-Unix-socket** transports (one protocol, two
+    transports — no NDJSON fork).
+  - **Startup probe** asserts `dim === 384` and computes a stable identity
+    fingerprint of a canary embedding. Persisted to `memory.db` `kv_store`
+    so cross-run model drift surfaces as a loud warning on next boot.
+  - **Circuit breaker** trips at 3 failures in a 60s window; on recovery
+    the cached identity is invalidated so the next embed re-probes (endpoint
+    restarts often coincide with model swaps).
+  - **TLS knobs** (`ca`, `cert`, `key`, `rejectUnauthorized`, `servername`)
+    passthrough for self-hosted HTTPS endpoints — no need to set
+    `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+  - **Bearer auth** via `AQE_EMBEDDER_TOKEN` env (env-only — URL userinfo is
+    stripped and warned at construct).
+  - **Hard-fail on error** — no silent hash fallback. Hash and transformer
+    embeddings are not comparable; mixing them in the same HNSW index
+    silently degrades recall forever.
+- **ADR-097** — External Embedder Endpoint (OpenAI-Compatible). Documents
+  the wire-format choice, hard-fail correctness invariant, identity
+  fingerprint scheme, and the per-caller audit table showing all 12
+  embed-callers are non-poisoning under endpoint mode.
+- New `tests/integration/embedder-endpoint-llamacpp.test.ts` — live-server
+  integration suite gated on `AQE_LLAMA_EMBED_URL`. Six tests against real
+  `llama-server`: probe stability, single + batch embed (50 inputs),
+  lazy-probe gate, dim-mismatch fail-loud, semantic relatedness check.
+
+### Fixed
+
+- **`sqlite-persistence.ts` backfill no longer poisons the HNSW index.**
+  When the external embedder endpoint is configured and fails, the backfill
+  loop previously substituted `hashEmbedding()` for the remaining patterns —
+  silently writing non-comparable vectors next to transformer vectors. Now
+  re-raises and aborts the batch under `isUsingEndpoint()`.
+- **`qe-reasoning-bank.embed()` propagates errors under endpoint mode.**
+  The fail-soft hash fallback for ARM64 ONNX compatibility is preserved for
+  the in-process path but suppressed when an endpoint is active.
+- **True TCP-connect timeout.** Connect-phase timeout now fires at the
+  socket layer; previously it was `req.setTimeout` (an idle-after-write
+  timeout) so SYN blackholes hung for the OS default ~75s instead of the
+  documented 5s.
+- **Identity probe is gated.** `EmbedderEndpointClient.embed()` now lazily
+  runs `probe()` on first use with in-flight dedup (20+ concurrent embeds
+  share one probe). Closes a path where the dim/identity boundary check
+  could be bypassed by direct client construction.
+- **Endpoint URL userinfo redacted from logs.** Credentials passed via URL
+  (against the env-only convention) are stripped at parse and warned.
+
+### Changed
+
+- Embedding cache key is now namespaced by mode
+  (`endpoint:<fingerprint>:<text>` vs `inproc:<text>`). Flipping between
+  endpoint and in-process within a process can no longer return a vector
+  computed under the wrong mode.
+
 ## [3.9.36] - 2026-05-19
 
 A hotfix release closing the self-learning routing loop reported in #499 by
