@@ -9,6 +9,16 @@
 // Re-export cosineSimilarity from shared utility for backward compatibility
 export { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import {
+  EmbedderEndpointClient,
+  redactEndpoint,
+  type EndpointIdentity,
+} from './embedder-endpoint-client.js';
+import {
+  loadEmbedderIdentity,
+  resetEmbedderIdentityStore,
+  saveEmbedderIdentity,
+} from './embedder-identity-store.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -44,6 +54,13 @@ let initializationFailed = false;
 let failureReason = '';
 
 /**
+ * Set when ADR-097 endpoint path is active. Tracked separately so callers
+ * (tests, observability) can verify endpoint vs in-process unambiguously.
+ */
+let endpointClient: EmbedderEndpointClient | null = null;
+let endpointIdentity: EndpointIdentity | null = null;
+
+/**
  * Embedding model configuration
  */
 export interface EmbeddingConfig {
@@ -58,6 +75,26 @@ export interface EmbeddingConfig {
 
   /** Maximum cache size */
   maxCacheSize: number;
+
+  /**
+   * Optional external embedder endpoint (ADR-097).
+   *
+   * When set, AQE routes feature-extraction to an OpenAI-compatible
+   * `/v1/embeddings` service instead of loading `@huggingface/transformers`
+   * in-process. Forms:
+   *   - `http(s)://host:port`  — HTTP transport
+   *   - `unix:/absolute/path`  — HTTP-over-Unix-socket transport
+   *
+   * Defaults to `process.env.AQE_EMBEDDER_ENDPOINT` when unset.
+   * When neither is set, behavior is identical to pre-ADR-097.
+   */
+  endpoint?: string;
+
+  /**
+   * Bearer token for the embedder endpoint (ADR-097).
+   * Defaults to `process.env.AQE_EMBEDDER_TOKEN`. Env-only — never in config files.
+   */
+  endpointToken?: string;
 }
 
 export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
@@ -65,11 +102,33 @@ export const DEFAULT_EMBEDDING_CONFIG: EmbeddingConfig = {
   quantized: true,
   enableCache: true,
   maxCacheSize: 10000,
+  endpoint: process.env.AQE_EMBEDDER_ENDPOINT,
+  endpointToken: process.env.AQE_EMBEDDER_TOKEN,
 };
 
-// Embedding cache (LRU)
+// Embedding cache (LRU). Keys are namespaced by embedding mode to prevent
+// cross-mode collisions (e.g. flipping endpoint on/off mid-process must not
+// return a vector computed under the other mode). See `cacheKey()`.
 const embeddingCache = new Map<string, { embedding: number[]; timestamp: number }>();
 const CACHE_TTL_MS = 3600000; // 1 hour
+
+/**
+ * Build the cache key for a given text under the current embedding mode.
+ * Endpoint mode: `endpoint:<fingerprint>:<text>` — different fingerprints
+ *   (e.g. after a model swap) get separate cache entries.
+ * In-process mode: `inproc:<text>`.
+ *
+ * Until the endpoint probe completes, calls land under `inproc:` — these get
+ * evicted naturally by TTL/LRU after init. Callers should not interleave
+ * endpoint-enabled and endpoint-disabled `computeRealEmbedding` against the
+ * same text within the cache TTL.
+ */
+function cacheKey(text: string): string {
+  if (endpointIdentity) {
+    return `endpoint:${endpointIdentity.fingerprint}:${text}`;
+  }
+  return `inproc:${text}`;
+}
 
 /**
  * Detect if text is a JSON metrics/internal data string that shouldn't be embedded.
@@ -109,7 +168,53 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
 
   initPromise = (async () => {
     try {
-      // Dynamic import to avoid issues if transformers not available
+      // ADR-097: Endpoint branch — when an external embedder endpoint is configured,
+      // we MUST NOT import @huggingface/transformers in this process. The cold-load
+      // elimination depends on the dynamic import being inside the else branch only.
+      if (fullConfig.endpoint) {
+        const safeUrl = redactEndpoint(fullConfig.endpoint);
+        console.log(`[RealEmbeddings] Using external embedder endpoint: ${safeUrl}`);
+        endpointClient = new EmbedderEndpointClient({
+          endpoint: fullConfig.endpoint,
+          token: fullConfig.endpointToken,
+          model: fullConfig.modelName,
+          expectedDim: getEmbeddingDimension(),
+        });
+        // Probe + identity fingerprint. Fails loud on dim mismatch.
+        endpointIdentity = await endpointClient.probe();
+        console.log(
+          `[RealEmbeddings] Endpoint identity: dim=${endpointIdentity.dim} fingerprint=${endpointIdentity.fingerprint}`
+        );
+
+        // Cross-run drift detection: compare against the last-known identity
+        // for this endpoint (memory.db kv_store, namespace _system). If the
+        // fingerprint changed since last run, log a loud warning — the operator
+        // either intentionally swapped models (fine, but should know) or the
+        // remote silently changed (poisoning risk for the existing index).
+        try {
+          const previous = loadEmbedderIdentity(endpointIdentity.endpoint);
+          if (previous && previous.fingerprint !== endpointIdentity.fingerprint) {
+            console.warn(
+              `[RealEmbeddings] WARNING: endpoint identity changed since last run. ` +
+                `Previous fingerprint=${previous.fingerprint} dim=${previous.dim}, ` +
+                `current fingerprint=${endpointIdentity.fingerprint} dim=${endpointIdentity.dim}. ` +
+                `Vectors written before this change may no longer be comparable.`
+            );
+          }
+          saveEmbedderIdentity(endpointIdentity);
+        } catch (persistErr) {
+          // Persistence failure is non-fatal — we still have the in-memory identity
+          // for this run. Log so operators see it.
+          console.warn(
+            `[RealEmbeddings] Could not persist endpoint identity: ${toErrorMessage(persistErr)}`
+          );
+        }
+
+        embeddingModel = createEndpointPipeline(endpointClient);
+        return;
+      }
+
+      // In-process branch — only here do we import the transformers package.
       const transformers = await import('@huggingface/transformers');
       pipeline = transformers.pipeline;
 
@@ -134,6 +239,28 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
 }
 
 /**
+ * Build a FeatureExtractionPipeline-shaped wrapper around the endpoint client.
+ * The shape matches `pipeline('feature-extraction', ...)` so the rest of
+ * computeRealEmbedding / computeBatchEmbeddings remains unchanged.
+ *
+ * The endpoint already returns L2-normalized vectors (and we re-normalize on
+ * receive inside the client), so the `pooling` / `normalize` options from
+ * upstream callers are no-ops here — that's the OpenAI contract.
+ */
+function createEndpointPipeline(client: EmbedderEndpointClient): FeatureExtractionPipeline {
+  return async (input: string | string[]): Promise<EmbeddingOutput> => {
+    const texts = Array.isArray(input) ? input : [input];
+    const vectors = await client.embed(texts);
+    const dim = vectors[0]?.length ?? getEmbeddingDimension();
+    const data = new Float32Array(texts.length * dim);
+    for (let i = 0; i < vectors.length; i++) {
+      data.set(vectors[i], i * dim);
+    }
+    return { data, dims: [texts.length, dim] };
+  };
+}
+
+/**
  * Compute real embedding using transformer model
  *
  * @param text - Text to embed
@@ -151,21 +278,22 @@ export async function computeRealEmbedding(
     return new Array(getEmbeddingDimension()).fill(0);
   }
 
-  // Check cache first
-  if (fullConfig.enableCache) {
-    const cached = embeddingCache.get(text);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return cached.embedding;
-    }
-  }
-
-  // Ensure model is initialized
+  // Ensure model is initialized BEFORE checking cache so the cache key
+  // namespace (which depends on endpoint identity) is stable.
   if (!embeddingModel) {
     await initializeModel(config);
   }
 
   if (!embeddingModel) {
     throw new Error('Embedding model failed to initialize');
+  }
+
+  const key = cacheKey(text);
+  if (fullConfig.enableCache) {
+    const cached = embeddingCache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.embedding;
+    }
   }
 
   // Compute embedding
@@ -187,7 +315,7 @@ export async function computeRealEmbedding(
       const oldestKey = embeddingCache.keys().next().value;
       if (oldestKey) embeddingCache.delete(oldestKey);
     }
-    embeddingCache.set(text, { embedding, timestamp: Date.now() });
+    embeddingCache.set(key, { embedding, timestamp: Date.now() });
   }
 
   return embedding;
@@ -207,9 +335,17 @@ export async function computeBatchEmbeddings(
   const uncachedIndices: number[] = [];
   const results: (number[] | null)[] = new Array(texts.length).fill(null);
 
+  // Init BEFORE cache lookup so the cache key namespace is stable.
+  if (!embeddingModel) {
+    await initializeModel(config);
+  }
+  if (!embeddingModel) {
+    throw new Error('Embedding model failed to initialize');
+  }
+
   if (fullConfig.enableCache) {
     for (let i = 0; i < texts.length; i++) {
-      const cached = embeddingCache.get(texts[i]);
+      const cached = embeddingCache.get(cacheKey(texts[i]));
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         results[i] = cached.embedding;
       } else {
@@ -226,13 +362,6 @@ export async function computeBatchEmbeddings(
 
   // Compute uncached embeddings
   if (uncachedTexts.length > 0) {
-    if (!embeddingModel) {
-      await initializeModel(config);
-    }
-
-    if (!embeddingModel) {
-      throw new Error('Embedding model failed to initialize');
-    }
 
     const startTime = performance.now();
 
@@ -263,7 +392,7 @@ export async function computeBatchEmbeddings(
             const oldestKey = embeddingCache.keys().next().value;
             if (oldestKey) embeddingCache.delete(oldestKey);
           }
-          embeddingCache.set(uncachedTexts[textIndex], { embedding, timestamp: Date.now() });
+          embeddingCache.set(cacheKey(uncachedTexts[textIndex]), { embedding, timestamp: Date.now() });
         }
       }
     }
@@ -317,4 +446,27 @@ export function resetInitialization(): void {
   initializationFailed = false;
   failureReason = '';
   embeddingCache.clear();
+  if (endpointClient) {
+    endpointClient.close();
+  }
+  endpointClient = null;
+  endpointIdentity = null;
+  // Drop the identity-store's cached DB connection so tests that flip cwd or
+  // AQE_MEMORY_PATH between runs don't write into a stale handle.
+  resetEmbedderIdentityStore();
+}
+
+/**
+ * ADR-097: Returns true when the embedding pipeline is the external endpoint path,
+ * false when it's the in-process transformer (or uninitialized).
+ */
+export function isUsingEndpoint(): boolean {
+  return endpointClient !== null;
+}
+
+/**
+ * ADR-097: Returns the endpoint identity fingerprint, or null when not using an endpoint.
+ */
+export function getEndpointIdentity(): EndpointIdentity | null {
+  return endpointIdentity;
 }

@@ -19,7 +19,11 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
-import { computeBatchEmbeddings, getEmbeddingDimension } from './real-embeddings.js';
+import {
+  computeBatchEmbeddings,
+  getEmbeddingDimension,
+  isUsingEndpoint,
+} from './real-embeddings.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 
 /**
@@ -1251,12 +1255,27 @@ export class SQLitePatternStore {
 
       if (textsWithIds.length === 0) continue;
 
-      // Compute real embeddings via all-MiniLM-L6-v2 (async ONNX inference)
+      // Compute real embeddings via all-MiniLM-L6-v2 (async ONNX inference) or
+      // the ADR-097 endpoint. We MUST NOT silently fall back to hash embeddings
+      // when the endpoint is configured — mixing hash and transformer vectors in
+      // the same HNSW index poisons it (vectors are not comparable). When the
+      // endpoint is active we propagate the failure: a future backfill will
+      // retry; the existing hash-fallback path is preserved only for the
+      // in-process transformer-load failure case.
       let embeddings: number[][];
       try {
         embeddings = await computeBatchEmbeddings(textsWithIds.map(t => t.text));
       } catch (e) {
-        // Transformer unavailable — fall back to hash embeddings for remaining patterns
+        if (isUsingEndpoint()) {
+          // Endpoint failed (or breaker open). Skip this batch entirely — do NOT
+          // poison the index. Re-throw so caller knows the run was incomplete.
+          throw new Error(
+            `[SQLitePatternStore] external embedder endpoint failed during backfill; ` +
+              `aborting to protect HNSW index. Original error: ${toErrorMessage(e)}`
+          );
+        }
+        // In-process transformer path: hash fallback is acceptable because the
+        // entire index in this mode is hash-based anyway.
         console.warn(`[SQLitePatternStore] Transformer unavailable, falling back to hash embeddings: ${toErrorMessage(e)}`);
         method = 'hash-fallback';
         embeddings = textsWithIds.map(t => hashEmbedding(t.text, dimension));
