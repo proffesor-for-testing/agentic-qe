@@ -100,7 +100,14 @@ export function registerMissingQETools(
         parameters: schemaToParameters(tool),
       },
       handler: async (params) => {
-        const result = await tool.invoke(params as Record<string, unknown>);
+        // ADR-043: explicitly forward the shared HybridRouter (registered
+        // by QEKernelImpl during initialize() in production, or built
+        // lazily for MCP-only contexts) so the MCPToolContext.llmRouter
+        // field carries the actual instance rather than relying on each
+        // tool's getLLMRouter(context) singleton fallback.
+        const { getSharedLLMRouter } = await import('./tools/base.js');
+        const llmRouter = (await getSharedLLMRouter()) ?? undefined;
+        const result = await tool.invoke(params as Record<string, unknown>, { llmRouter });
         return result;
       },
     };

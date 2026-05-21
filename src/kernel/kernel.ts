@@ -435,16 +435,39 @@ export class QEKernelImpl implements QEKernel {
   /**
    * ADR-043: Build the kernel-singleton HybridRouter.
    *
-   * Behavior is gated by config.llmRouter.enabled:
-   *   'auto' (default): build iff at least one provider key is in env,
-   *                     or the project's llm-config.json enables a provider
-   *   true:             attempt to build; warn-and-continue if no provider
-   *   false:            skip entirely (sets _llmRouter to undefined)
+   * Behavior is gated, in order:
+   *   1. AQE_LLM_ROUTER_DISABLED env var (kill-switch): if set to a truthy
+   *      value, ALWAYS skip — even when config.llmRouter.enabled === true.
+   *      This is the env-only opt-out for users who upgrade with a
+   *      provider key already in env and don't want billing surprises.
+   *   2. config.llmRouter.enabled:
+   *      'auto' (default): build iff at least one provider key is in env,
+   *                        or the project's llm-config.json enables a provider
+   *      true:             attempt to build; emit error event if no provider
+   *      false:            skip entirely (sets _llmRouter to undefined)
    *
-   * On any error we log and continue without a router — a kernel that
-   * boots without LLMs is strictly better than a kernel that won't boot.
+   * On any error we publish a structured kernel.llm-router.init-failed
+   * event so monitoring catches misconfiguration. We also keep the
+   * console.warn for direct visibility in dev. The kernel still boots —
+   * a kernel that boots without LLMs is strictly better than a kernel
+   * that won't boot — but the failure is now observable.
    */
   private async _initializeLLMRouter(projectRoot: string): Promise<void> {
+    // (1) Hard env kill-switch. Truthy values disable; falsy/empty pass.
+    // Same parse rule as src/mcp/tools/base.ts:isRouterKillSwitchSet
+    // so both code paths agree on what "disabled" means.
+    const killSwitch = (process.env.AQE_LLM_ROUTER_DISABLED ?? '').trim().toLowerCase();
+    if (
+      killSwitch &&
+      killSwitch !== 'false' &&
+      killSwitch !== '0' &&
+      killSwitch !== 'no' &&
+      killSwitch !== 'off'
+    ) {
+      this._llmRouter = undefined;
+      return;
+    }
+
     const llmCfg = this._config.llmRouter ?? {};
     const enabled = llmCfg.enabled ?? 'auto';
 
@@ -466,6 +489,9 @@ export class QEKernelImpl implements QEKernel {
             '[QEKernel] llmRouter.enabled=true but no provider available — ' +
               'continuing without LLM router (domain services will skip LLM enhancement)'
           );
+          await this._publishLLMRouterEvent('init-no-provider', {
+            reason: 'no provider available in env or disk config',
+          });
         }
         this._llmRouter = undefined;
         return;
@@ -473,12 +499,48 @@ export class QEKernelImpl implements QEKernel {
 
       this._llmRouterBuild = built;
       this._llmRouter = built.router;
+
+      // Phase 5 wiring: register as shared singleton so MCP standalone
+      // tools see the same router instance (one cost tracker, one cache,
+      // one metric collector, one circuit breaker per provider).
+      try {
+        const { setSharedLLMRouter } = await import('../mcp/tools/base.js');
+        setSharedLLMRouter(built.router);
+      } catch {
+        // MCP module not loaded — fine in CLI-only contexts.
+      }
     } catch (err) {
-      console.warn(
-        '[QEKernel] LLM router init failed; continuing without LLM enhancement:',
-        err instanceof Error ? err.message : err
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[QEKernel] LLM router init failed; continuing without LLM enhancement:', msg);
+      await this._publishLLMRouterEvent('init-failed', {
+        error: msg,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       this._llmRouter = undefined;
+    }
+  }
+
+  /**
+   * ADR-043: emit a structured event on the kernel event bus when the
+   * LLM router can't be built. Observability hook for monitoring and
+   * alerting — a silent warn is not enough for production systems where
+   * "tests run without LLM analysis" is a quality regression worth
+   * paging on.
+   */
+  private async _publishLLMRouterEvent(
+    type: 'init-failed' | 'init-no-provider',
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await this._eventBus.publish({
+        id: randomUUID(),
+        type: `kernel.llm-router.${type}`,
+        timestamp: new Date(),
+        source: 'qe-kernel' as DomainName,
+        payload,
+      });
+    } catch {
+      // Event bus publish failures during boot must not crash the kernel.
     }
   }
 
@@ -508,6 +570,20 @@ export class QEKernelImpl implements QEKernel {
     await this._coordinator.dispose();
     await this._eventBus.dispose();
     await this._memory.dispose();
+
+    // ADR-043: clear the shared LLM router singleton if we registered
+    // one. Prevents test isolation problems where a stale router from
+    // a previous kernel boot leaks into the next.
+    if (this._llmRouter) {
+      try {
+        const { resetSharedLLMRouter } = await import('../mcp/tools/base.js');
+        resetSharedLLMRouter();
+      } catch {
+        // MCP module not loaded — fine.
+      }
+      this._llmRouter = undefined;
+      this._llmRouterBuild = undefined;
+    }
 
     this._initialized = false;
   }

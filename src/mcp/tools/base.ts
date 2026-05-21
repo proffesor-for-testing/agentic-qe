@@ -116,23 +116,67 @@ export async function getMemoryBackend(context?: MCPToolContext): Promise<Memory
 // ============================================================================
 // Shared LLM Router for MCP Tools (ADR-043)
 // ============================================================================
+//
+// Two paths populate this singleton:
+//
+//   1. QEKernelImpl._initializeLLMRouter() calls setSharedLLMRouter() on
+//      boot, so kernel-mode AND MCP-mode share ONE HybridRouter — one
+//      cost tracker, one metrics collector, one provider circuit breaker.
+//      This is the production path.
+//
+//   2. Pure-MCP processes (no kernel — e.g. standalone CLI invocations
+//      that go directly through the MCP tool surface) lazily construct
+//      a router on first getSharedLLMRouter() call. Subordinate to (1).
+//
+// AQE_LLM_ROUTER_DISABLED env kill-switch is honored in both paths so a
+// user can opt out without code changes.
 
 let sharedLLMRouter: import('../../shared/llm/router/hybrid-router.js').HybridRouter | null = null;
 let llmRouterInitPromise: Promise<import('../../shared/llm/router/hybrid-router.js').HybridRouter | null> | null = null;
+
+/**
+ * Returns true when the AQE_LLM_ROUTER_DISABLED env kill-switch is set.
+ * Honors '1', 'true', 'yes', 'on'; ignores '', '0', 'false', 'no', 'off'.
+ */
+function isRouterKillSwitchSet(): boolean {
+  const v = (process.env.AQE_LLM_ROUTER_DISABLED ?? '').trim().toLowerCase();
+  if (!v) return false;
+  return v !== 'false' && v !== '0' && v !== 'no' && v !== 'off';
+}
+
+/**
+ * Register an externally-built HybridRouter as the shared singleton.
+ * Called by QEKernelImpl during initialize() so kernel-mode and MCP-mode
+ * tools share the same router instance. Idempotent — calling with the
+ * same router twice is a no-op; calling with a different router
+ * replaces the previous one (and any in-flight lazy init is cancelled
+ * for next-read semantics).
+ */
+export function setSharedLLMRouter(
+  router: import('../../shared/llm/router/hybrid-router.js').HybridRouter
+): void {
+  sharedLLMRouter = router;
+  llmRouterInitPromise = null;
+}
 
 /**
  * Get or create the shared HybridRouter for standalone MCP tools that
  * construct their service directly (without going through the kernel /
  * plugin chain that Phase 2 wired up).
  *
- * Returns null when no provider key is in env and the project has no
- * llm-config.json — same gating as the kernel's auto mode. Callers
- * MUST tolerate a null return value and fall back to deterministic-only
- * behavior in that case.
+ * Returns null when:
+ *   - AQE_LLM_ROUTER_DISABLED env kill-switch is set, OR
+ *   - no provider key is in env and the project has no llm-config.json
+ *
+ * Callers MUST tolerate a null return value and fall back to
+ * deterministic-only behavior in that case.
  *
  * Resets via `resetSharedLLMRouter()` for tests.
  */
 export async function getSharedLLMRouter(): Promise<import('../../shared/llm/router/hybrid-router.js').HybridRouter | null> {
+  if (isRouterKillSwitchSet()) {
+    return null;
+  }
   if (sharedLLMRouter) {
     return sharedLLMRouter;
   }
@@ -448,6 +492,20 @@ export abstract class MCPToolBase<
       abortSignal?: AbortSignal;
       /** Explicit demo mode - returns sample data without calling real services */
       demoMode?: boolean;
+      /**
+       * ADR-043: Optional memory backend injection. When provided, the
+       * context.memory field is populated and tools skip the shared
+       * singleton fallback.
+       */
+      memory?: import('../../kernel/interfaces').MemoryBackend;
+      /**
+       * ADR-043: Optional LLM router injection. When provided, the
+       * context.llmRouter field is populated so getLLMRouter(context)
+       * returns it directly — used by the MCP runtime to forward the
+       * kernel singleton without going through getSharedLLMRouter()'s
+       * lazy build path.
+       */
+      llmRouter?: import('../../shared/llm/router/hybrid-router.js').HybridRouter;
     } = {}
   ): Promise<ToolResult<TResult>> {
     const startTime = Date.now();
@@ -466,7 +524,13 @@ export abstract class MCPToolBase<
       };
     }
 
-    // Create execution context
+    // Create execution context.
+    // ADR-043: memory + llmRouter are populated from invoke() options so
+    // the MCP runtime (qe-tool-bridge, registry, daemon) can forward the
+    // kernel singleton explicitly rather than relying on the shared
+    // singleton fallback. When unset, getLLMRouter(context) falls back
+    // to getSharedLLMRouter() — which itself is kernel-aware via
+    // setSharedLLMRouter() registered during kernel.initialize().
     const context: MCPToolContext = {
       requestId,
       startTime,
@@ -474,6 +538,8 @@ export abstract class MCPToolBase<
       onStream: options.onStream,
       abortSignal: options.abortSignal,
       demoMode: options.demoMode,
+      memory: options.memory,
+      llmRouter: options.llmRouter,
     };
 
     try {

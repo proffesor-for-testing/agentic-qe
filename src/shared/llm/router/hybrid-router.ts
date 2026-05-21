@@ -613,14 +613,30 @@ export class HybridRouter {
       { provider: decision.providerType as LLMProviderType, model: decision.providerModelId },
     ];
 
-    // Add fallback chain entries
+    // ADR-043 wiring fix: always include the user's defaultProvider as
+    // an implicit fallback. Without this, a request that matches a rule
+    // routing to provider X (e.g. small-requests-haiku → claude) but
+    // where X fails at API time has no way to recover for users who
+    // only have a non-X provider configured. This was a real bug
+    // surfaced by the rule-based E2E test in
+    // tests/e2e/llm-router-real-providers.test.ts.
+    const defaultProviderType = this.config.defaultProvider as LLMProviderType;
+    if (defaultProviderType && defaultProviderType !== decision.providerType) {
+      executionOrder.push({
+        provider: defaultProviderType,
+        model: this.config.defaultModel,
+      });
+    }
+
+    // Add explicit fallback chain entries. Previously this hardcoded
+    // ['claude', 'openai', 'ollama'] as "base providers" — but
+    // LLMProviderType includes 7 providers (claude/openai/ollama plus
+    // openrouter/gemini/azure-openai/bedrock from ADR-043) and
+    // ProviderManager.createProvider() builds all of them. The narrower
+    // list silently excluded users' actual fallback providers.
     for (const entry of fallbackChain.entries) {
       if (!entry.enabled) continue;
       if (entry.provider === decision.providerType) continue;
-
-      // Only include providers that exist in the base system
-      const baseProviders: LLMProviderType[] = ['claude', 'openai', 'ollama'];
-      if (!baseProviders.includes(entry.provider as LLMProviderType)) continue;
 
       for (const model of entry.models) {
         executionOrder.push({ provider: entry.provider as LLMProviderType, model });
@@ -733,13 +749,19 @@ export class HybridRouter {
           }
         }
 
-        // Check if error is retryable
-        if (isLLMError(error) && !error.retryable) {
-          throw error;
-        }
-
-        // Delay before retry
-        if (attempts < fallbackBehavior.maxAttempts) {
+        // ADR-043 wiring fix: a non-retryable error from ONE provider
+        // (e.g. Claude returning "invalid x-api-key") tells us only that
+        // re-trying Claude is pointless — it does NOT tell us whether
+        // the NEXT provider in the fallback chain (e.g. Gemini) will
+        // work. Previously this `throw` short-circuited the fallback
+        // loop, defeating the whole point of having a fallback chain
+        // for users with multiple providers configured.
+        //
+        // New behavior: a non-retryable error skips the inter-attempt
+        // delay (because no need to wait) but DOES continue to the next
+        // entry in executionOrder. Only retryable errors get the delay.
+        const nonRetryable = isLLMError(error) && !error.retryable;
+        if (!nonRetryable && attempts < fallbackBehavior.maxAttempts) {
           await this.delay(fallbackBehavior.delayMs);
         }
       }

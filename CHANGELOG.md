@@ -14,33 +14,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implemented previously but **never injected** into the production swarm
   path. Domain services accepted `llmRouter` as an optional dependency, but
   no caller passed one — so `isLLMAnalysisAvailable()` returned `false`
-  everywhere and the `analyzeXxxWithLLM()` branches in 14 services across
-  12 domains were unreachable.
+  everywhere and the `analyzeXxxWithLLM()` branches in 15 service paths
+  across 11 LLM-enhanced domains were unreachable.
   - The kernel now constructs a `HybridRouter` singleton during
     `initialize()` (auto-enabled when any provider API key is in env or the
     project's `.agentic-qe/llm-config.json` explicitly enables a provider)
-    and forwards it through every domain factory to its services.
+    and forwards it through every domain factory to its services. MCP
+    standalone tools resolve the same singleton via `getSharedLLMRouter()`
+    so kernel-mode and MCP-mode share one router instance (single cost
+    tracker, cache, circuit breaker).
   - **Behavioral consequence:** fleets booted with `ANTHROPIC_API_KEY`,
     `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_AI_API_KEY`,
     `GEMINI_API_KEY`, or `GOOGLE_API_KEY` in env will now route LLM-enhanced
     analysis through that provider — previously the same fleet ran zero LLM
     calls from the swarm path regardless of provider config.
-  - To opt out, pass `KernelConfig.llmRouter: { enabled: false }` when
-    constructing the kernel.
+  - **Three opt-out mechanisms**, in order of preference:
+    1. `AQE_LLM_ROUTER_DISABLED=1` env var (no code change required)
+    2. `KernelConfig.llmRouter: { enabled: false }` (programmatic)
+    3. Unset the relevant provider keys in env
 - **`aqe llm config --set` now persists.** Previously a module-level `let`
   with a `// would be persisted in real implementation` comment — settings
   evaporated with the process. Writes now go to
   `.agentic-qe/llm-config.json` and survive a process restart. The file is
   apiKey-stripped on write so secrets can't end up in version control.
+  Attempting `aqe llm config --set apiKey=...` now errors loudly pointing
+  to the env vars users should use instead.
 - **Gemini provider accepts `GOOGLE_API_KEY`** in addition to
   `GOOGLE_AI_API_KEY` and `GEMINI_API_KEY` — covers users with the
   conventional Google API key name without requiring an env alias.
+- **HybridRouter fallback chain bug fixes** (surfaced by the rule-based E2E test):
+  - `executeWithFallback` previously hardcoded `['claude', 'openai',
+    'ollama']` as the only fallback providers; users with only
+    `GEMINI_API_KEY` (or openrouter/azure/bedrock) had no fallback when
+    the routing-rule's chosen provider was unavailable. Fixed: now
+    includes the user's `defaultProvider` automatically AND honors all
+    7 ExtendedProviderType providers in the fallback chain.
+  - A non-retryable error from one provider (e.g., Claude "invalid
+    x-api-key") previously short-circuited the entire fallback loop;
+    the request would fail even when other providers were available.
+    Fixed: non-retryable errors now skip the retry-delay but continue
+    to the next fallback entry.
+- **Init observability:** kernel now publishes
+  `kernel.llm-router.init-failed` and `kernel.llm-router.init-no-provider`
+  events on the event bus when router construction fails or no provider
+  is available. Monitoring can subscribe to catch silent regressions.
 
 ### Verification
 
 End-to-end round-trip verified on 2026-05-21 against Gemini (gemini-2.5-flash),
-OpenAI (gpt-4o-mini), and OpenRouter (openai/gpt-4o-mini). See
-`tests/e2e/llm-router-real-providers.test.ts` (gated by `AQE_LLM_E2E=1`).
+OpenAI (gpt-4o-mini), and OpenRouter (openai/gpt-4o-mini). 5 real-provider
+E2E tests, 16 behavioral integration tests, 17 structural wiring tests, 110+
+unit tests. See `tests/e2e/llm-router-real-providers.test.ts` (gated by
+`AQE_LLM_E2E=1`), `tests/integration/llm-router-wiring.test.ts`,
+`tests/integration/llm-router-behavioral.test.ts`.
+
+### Audit hardening
+
+A qe-devils-advocate audit on 2026-05-21 surfaced 10 issues post-initial-wiring:
+silent billing regression, 2 unwired MCP tools, decorative MCPToolContext field,
+split router singletons (MCP vs kernel), silent error swallowing, two real
+HybridRouter routing bugs, missing behavioral tests, miscounted services,
+silent apiKey drops, undocumented env precedence. All 10 addressed before merge.
+See ADR-043 "Audit findings" section for details.
 
 ## [3.10.0] - 2026-05-20
 

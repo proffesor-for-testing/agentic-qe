@@ -642,6 +642,21 @@ function updateConfig(key: string, value: string): void {
   // Pull the current config into the cache (load from disk if needed),
   // mutate, then persist back. persistAndReload() invalidates the cache
   // so subsequent reads in this process see the merged-with-env state.
+
+  // Refuse apiKey writes loudly — config-store strips them on persist
+  // anyway, but a "saved successfully" message followed by silent drop
+  // is a UX trap. Point users at the env vars they should be using.
+  const normalizedKey = key.toLowerCase();
+  if (normalizedKey === 'apikey' || normalizedKey.endsWith('.apikey') || normalizedKey.includes('apikey=')) {
+    throw new Error(
+      `API keys cannot be saved via 'aqe llm config --set'. They belong in ` +
+      `environment variables: ANTHROPIC_API_KEY, OPENAI_API_KEY, ` +
+      `OPENROUTER_API_KEY, GEMINI_API_KEY / GOOGLE_AI_API_KEY / GOOGLE_API_KEY, ` +
+      `AZURE_OPENAI_API_KEY. The CLI will not write secrets to ` +
+      `.agentic-qe/llm-config.json (which may be checked into source control).`
+    );
+  }
+
   const cfg = getCurrentConfig();
   switch (key) {
     case 'mode':

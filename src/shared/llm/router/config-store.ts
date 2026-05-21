@@ -153,19 +153,36 @@ export function saveRouterConfigFile(
 /**
  * Strip apiKey fields from provider configs to prevent accidental
  * commits of secrets. Returns a deep clone — input is untouched.
+ *
+ * Emits a console warning when any apiKey is stripped, so silent
+ * strips don't surprise callers. The kernel/CLI consume from env
+ * vars (ANTHROPIC_API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY, etc.),
+ * never from disk config — see config-store doc header for the
+ * precedence rule.
  */
 function stripApiKeys(config: Partial<RouterConfig>): Partial<RouterConfig> {
   if (!config.providers) {
     return JSON.parse(JSON.stringify(config));
   }
   const cloned = JSON.parse(JSON.stringify(config)) as Partial<RouterConfig>;
+  let strippedProviders: string[] = [];
   if (cloned.providers) {
     for (const provider of Object.keys(cloned.providers) as ExtendedProviderType[]) {
       const entry = cloned.providers[provider];
-      if (entry && 'apiKey' in entry) {
+      if (entry && 'apiKey' in entry && (entry as any).apiKey) {
         delete (entry as unknown as Record<string, unknown>).apiKey;
+        strippedProviders.push(provider);
       }
     }
+  }
+  if (strippedProviders.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[router-config] Refused to persist apiKey for: ${strippedProviders.join(', ')}. ` +
+      `API keys belong in environment variables (e.g. ANTHROPIC_API_KEY, GEMINI_API_KEY, ` +
+      `OPENAI_API_KEY, OPENROUTER_API_KEY), NOT in .agentic-qe/llm-config.json which may ` +
+      `be checked into source control.`
+    );
   }
   return cloned;
 }
@@ -204,6 +221,14 @@ export function mergeRouterConfig(
  * keys are present in env are force-enabled (so a user who sets
  * GOOGLE_API_KEY doesn't also have to remember to flip gemini.enabled
  * to true). Providers without keys are left at their existing setting.
+ *
+ * COUNTERINTUITIVE: env presence OVERRIDES an explicit `enabled: false`
+ * on disk. The reasoning: env is more recent / more authoritative than
+ * a stale checked-in config file, and users who set an API key in env
+ * usually intend to use the provider. To truly disable a provider that
+ * has a key in env, either unset the env key OR set the env-only
+ * kill-switch `AQE_LLM_ROUTER_DISABLED=1` (which disables the entire
+ * router). This precedence is documented in ADR-043's addendum.
  */
 export function applyEnvProviderDetection(
   config: RouterConfig,

@@ -9,9 +9,9 @@
  * - AccessibilityTesterService for WCAG compliance auditing
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
-import { createVisualTesterService, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
+import { createVisualTesterService, createVisualTesterServiceWithDependencies, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { toErrorMessage } from '../../../shared/error-utils.js';
@@ -173,10 +173,11 @@ export class VisualCompareTool extends MCPToolBase<VisualCompareParams, VisualCo
    */
   private async getService(context: MCPToolContext): Promise<VisualTesterService> {
     if (!this.visualTester) {
-      const memory = context.memory;
-      this.visualTester = createVisualTesterService(
-        memory || await getSharedMemoryBackend()
-      );
+      // ADR-043 wiring: dependencies factory accepts llmRouter so the
+      // ADR-051 LLM-enhanced visual analysis branch is reachable in MCP mode.
+      const memory = context.memory ?? await getSharedMemoryBackend();
+      const llmRouter = await getLLMRouter(context);
+      this.visualTester = createVisualTesterServiceWithDependencies({ memory, llmRouter });
     }
     return this.visualTester;
   }

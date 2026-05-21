@@ -288,6 +288,27 @@ describe('LLM Router CLI Commands', () => {
       expect(raw).not.toMatch(/sk-/);
       expect(raw).not.toMatch(/apiKey/);
     });
+
+    it('refuses to save apiKey with a clear error pointing to env vars', async () => {
+      // Audit Fix #9: previously `--set apiKey=...` returned "Unknown
+      // config key" which was unhelpful. Now it throws a clear error
+      // that explains api keys go in env vars.
+      let thrown: Error | undefined;
+      try {
+        await executeCommand(command, ['config', '--set', 'apiKey=sk-fake-123']);
+      } catch (e) {
+        thrown = e as Error;
+      }
+      expect(thrown).toBeDefined();
+      expect(thrown!.message).toMatch(/environment variable|ANTHROPIC_API_KEY|GEMINI_API_KEY/i);
+
+      // And nothing was written to disk
+      const configPath = path.join(tmpConfigRoot, '.agentic-qe', 'llm-config.json');
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, 'utf8');
+        expect(raw).not.toMatch(/sk-fake-123/);
+      }
+    });
   });
 
   describe('health subcommand', () => {

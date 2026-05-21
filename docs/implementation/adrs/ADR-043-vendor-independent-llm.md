@@ -94,7 +94,7 @@ Keep current ADR-011 approach, just add more providers.
 | Proposed | 2026-01-13 | Initial ADR creation |
 | Approved | 2026-01-13 | Architecture review passed |
 | Implemented | 2026-01-15 | All 12 milestones complete, 4936 tests passing |
-| Wiring Verified | 2026-05-21 | HybridRouter now constructed by kernel and injected into all 12 LLM-enhanced domains; previously the router code shipped but no production path constructed it. End-to-end round-trip verified against Gemini, OpenAI, OpenRouter. See addendum below. |
+| Wiring Verified | 2026-05-21 | HybridRouter now constructed by kernel and injected into 11 LLM-enhanced domains (14 services). Previously the router code shipped but no production path constructed it. End-to-end round-trip verified against Gemini (gemini-2.5-flash), OpenAI (gpt-4o-mini), OpenRouter (openai/gpt-4o-mini). Devil's-advocate audit and follow-up fixes also included. See addendum below. |
 
 ---
 
@@ -120,8 +120,8 @@ Additionally:
 
 ### Resolution
 
-Phases delivered on `feat/wire-llm-router` (commits 94033e3, be1e60d, and
-subsequent Phase 3/4 commits):
+Phases delivered on `feat/wire-llm-router` (commits 94033e3, be1e60d, c206c81,
+and subsequent audit-fix commits):
 
 1. **Phase 1 — Foundation**
    - `src/shared/llm/router/config-store.ts` (new): persistent
@@ -168,10 +168,69 @@ subsequent Phase 3/4 commits):
      verified live against Gemini (gemini-2.5-flash), OpenAI (gpt-4o-mini),
      and OpenRouter on 2026-05-21
 
+### Service / Domain counts
+
+The integration test `tests/integration/llm-router-wiring.test.ts`
+enumerates **15 service paths across 11 LLM-enhanced domains**:
+
+- test-execution → executor
+- test-generation → testGenerator
+- coverage-analysis → coverageAnalyzer, gapDetector
+- quality-assessment → qualityAnalyzer, deploymentAdvisor
+- security-compliance → securityScanner (→ SASTScanner sub-component)
+- contract-testing → contractValidator
+- chaos-resilience → chaosEngineer
+- requirements-validation → validator
+- code-intelligence → knowledgeGraph
+- defect-intelligence → predictor, rootCauseAnalyzer
+- learning-optimization → learningService
+- visual-accessibility → visualTester
+
+Two domains are deliberately NOT wired because they have no LLM-aware
+services: `enterprise-integration` (integration plumbing) and
+`coordination` (cross-cutting). Verified via
+`grep -rn "llmRouter" src/domains/enterprise-integration/ src/domains/coordination/`
+returning empty.
+
+### Precedence & env-var conventions
+
+Config-store precedence (highest wins):
+
+  1. Explicit `configOverride` passed to `KernelConfig.llmRouter.configOverride`
+  2. Environment variables (provider API keys + `AQE_LLM_ROUTER_DISABLED`)
+  3. Project file `.agentic-qe/llm-config.json`
+  4. Built-in defaults from `DEFAULT_ROUTER_CONFIG`
+
+Note: `applyEnvProviderDetection` force-enables a provider when its env
+key is present, even when the disk config explicitly sets
+`enabled: false`. This is intentional — env should win — but is
+counterintuitive when users set `enabled: false` to disable. To truly
+disable a provider that has a key in env, either unset the env key OR
+set `AQE_LLM_ROUTER_DISABLED=1`.
+
 ### Behavior change for users
 
 Once installed, any fleet booted with at least one provider API key in env
-will route LLM-enhanced analysis paths through that provider. Set
-`KernelConfig.llmRouter.enabled: false` to revert to the previous
-deterministic-only behavior. See the release notes for the version that
-ships this change.
+will route LLM-enhanced analysis paths through that provider. Three opt-out
+mechanisms, in order of preference:
+
+  1. `AQE_LLM_ROUTER_DISABLED=1` env var — env-only opt-out, no code change
+  2. `KernelConfig.llmRouter.enabled: false` — programmatic opt-out
+  3. Unset the relevant provider keys in env
+
+See the release notes for the version that ships this change.
+
+### Audit findings (2026-05-21) and resolutions
+
+A qe-devils-advocate audit surfaced 10 issues post-Phase-4. All addressed:
+
+  1. ✅ Silent billing regression — added `AQE_LLM_ROUTER_DISABLED` env kill-switch
+  2. ✅ 2 unwired MCP standalone tools (test-generation/generate.ts, visual-accessibility/index.ts) — both now wired via `getLLMRouter(context)`
+  3. ✅ Rule-based mode E2E coverage — added two new E2E tests; surfaced TWO real routing bugs (`executeWithFallback` hardcoded provider list, non-retryable errors short-circuiting fallback) both now fixed
+  4. ✅ `MCPToolContext.llmRouter` decorative — added `invoke()` option; qe-tool-bridge and registry now forward the singleton explicitly
+  5. ✅ Behavioral mock tests for 14 services — added `isLLMAnalysisAvailable()` gate assertions + end-to-end tests
+  6. ✅ Split router singletons (MCP vs kernel) — kernel now calls `setSharedLLMRouter()` on init so both paths share one HybridRouter, one cost tracker, one cache, one circuit breaker
+  7. ✅ Silent init errors — kernel now publishes `kernel.llm-router.init-failed` / `kernel.llm-router.init-no-provider` events on the event bus for monitoring
+  8. ✅ Service count mismatch — corrected to 15 services / 11 LLM-enhanced domains
+  9. ✅ apiKey silently dropped on CLI — now throws a clear error pointing to env vars
+  10. ✅ Env vs disk precedence documented (this section)
