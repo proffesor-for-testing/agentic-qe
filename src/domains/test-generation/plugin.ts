@@ -28,8 +28,10 @@ import {
   ITestGenerationCoordinator,
   CoordinatorConfig,
 } from './coordinator';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   createTestGeneratorService,
+  createTestGeneratorServiceWithDependencies,
   ITestGenerationService,
   TestGeneratorConfig,
 } from './services/test-generator';
@@ -77,7 +79,8 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: TestGenerationPluginConfig = {}
+    config: TestGenerationPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -227,9 +230,12 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
   // ============================================================================
 
   protected async onInitialize(): Promise<void> {
-    // Create services using factory function for proper DI
-    this.testGenerator = createTestGeneratorService(
-      this.memory,
+    // Create services using factory function for proper DI.
+    // ADR-043 wiring: pass llmRouter into TestGeneratorService via the
+    // dependencies factory (createTestGeneratorServiceWithDependencies)
+    // so analyzeXxxWithLLM branches become reachable.
+    this.testGenerator = createTestGeneratorServiceWithDependencies(
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.testGenerator
     );
 
@@ -243,7 +249,8 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -492,7 +499,8 @@ export function createTestGenerationPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: TestGenerationPluginConfig
+  config?: TestGenerationPluginConfig,
+  llmRouter?: HybridRouter
 ): TestGenerationPlugin {
-  return new TestGenerationPlugin(eventBus, memory, agentCoordinator, config);
+  return new TestGenerationPlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

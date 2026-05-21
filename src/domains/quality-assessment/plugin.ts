@@ -28,6 +28,7 @@ import {
   IQualityAssessmentCoordinator,
   CoordinatorConfig,
 } from './coordinator';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   QualityGateService,
   IQualityGateService,
@@ -87,7 +88,8 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: QualityAssessmentPluginConfig = {}
+    config: QualityAssessmentPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -228,13 +230,15 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
       this.pluginConfig.qualityGate
     );
 
+    // ADR-043 wiring: QualityAnalyzer + DeploymentAdvisor are
+    // LLM-enhanced. Use dependency-bag constructor with llmRouter.
     this.qualityAnalyzer = new QualityAnalyzerService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.qualityAnalyzer
     );
 
     this.deploymentAdvisor = new DeploymentAdvisorService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.deploymentAdvisor
     );
 
@@ -243,7 +247,8 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -575,7 +580,8 @@ export function createQualityAssessmentPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: QualityAssessmentPluginConfig
+  config?: QualityAssessmentPluginConfig,
+  llmRouter?: HybridRouter
 ): QualityAssessmentPlugin {
-  return new QualityAssessmentPlugin(eventBus, memory, agentCoordinator, config);
+  return new QualityAssessmentPlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

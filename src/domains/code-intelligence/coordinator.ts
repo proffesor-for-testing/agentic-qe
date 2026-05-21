@@ -17,6 +17,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   CodeIntelligenceEvents,
   KnowledgeGraphUpdatedPayload,
@@ -304,7 +305,8 @@ export class CodeIntelligenceCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -312,7 +314,8 @@ export class CodeIntelligenceCoordinator
       verifyFindingTypes: ['code-pattern-detection', 'impact-analysis', 'dependency-mapping'],
     });
 
-    this.knowledgeGraph = new KnowledgeGraphService(memory);
+    // ADR-043 wiring.
+    this.knowledgeGraph = new KnowledgeGraphService({ memory, llmRouter });
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
     this.fileReader = new FileReader();

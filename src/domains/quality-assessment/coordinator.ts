@@ -30,6 +30,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   QualityAssessmentEvents,
   LearningOptimizationEvents,
@@ -254,7 +255,8 @@ export class QualityAssessmentCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -268,9 +270,10 @@ export class QualityAssessmentCoordinator
       ],
     });
 
+    // ADR-043 wiring.
     this.qualityGate = new QualityGateService(memory);
-    this.qualityAnalyzer = new QualityAnalyzerService(memory);
-    this.deploymentAdvisor = new DeploymentAdvisorService(memory);
+    this.qualityAnalyzer = new QualityAnalyzerService({ memory, llmRouter });
+    this.deploymentAdvisor = new DeploymentAdvisorService({ memory, llmRouter });
   }
 
   // ==========================================================================

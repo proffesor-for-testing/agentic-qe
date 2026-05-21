@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   ILearningOptimizationCoordinator,
   LearningCycleReport,
@@ -152,7 +153,8 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: LearningOptimizationPluginConfig = {}
+    config: LearningOptimizationPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -282,8 +284,9 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.learningService = new LearningCoordinatorService(
-      { memory: this.memory },
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.learningService
     );
 
@@ -307,7 +310,8 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -903,12 +907,14 @@ export function createLearningOptimizationPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: LearningOptimizationPluginConfig
+  config?: LearningOptimizationPluginConfig,
+  llmRouter?: HybridRouter
 ): LearningOptimizationPlugin {
   return new LearningOptimizationPlugin(
     eventBus,
     memory,
     agentCoordinator,
-    config
+    config,
+    llmRouter
   );
 }

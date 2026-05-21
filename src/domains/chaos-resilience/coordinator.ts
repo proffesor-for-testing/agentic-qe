@@ -13,6 +13,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   ChaosExperiment,
   ExperimentResult,
@@ -152,7 +153,8 @@ export class ChaosResilienceCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -169,7 +171,8 @@ export class ChaosResilienceCoordinator
     // Chaos resilience performs destructive operations, so use specialized mixin
     this.chaosGovernanceMixin = createDestructiveOpsGovernanceMixin(this.domainName);
 
-    this.chaosEngineer = new ChaosEngineerService({ memory });
+    // ADR-043 wiring.
+    this.chaosEngineer = new ChaosEngineerService({ memory, llmRouter });
     this.loadTester = new LoadTesterService(memory);
     this.performanceProfiler = new PerformanceProfilerService(memory);
   }

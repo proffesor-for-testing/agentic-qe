@@ -26,6 +26,7 @@ import {
   createEvent,
 } from '../../shared/events';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import { TestExecutorService, TestExecutorConfig } from './services/test-executor';
 import { FlakyDetectorService, FlakyDetectorConfig } from './services/flaky-detector';
 import { RetryHandlerService, RetryHandlerConfig } from './services/retry-handler';
@@ -215,7 +216,8 @@ export class TestExecutionCoordinator
   constructor(
     eventBus: EventBus,
     memory: MemoryBackend,
-    config: Partial<TestExecutionCoordinatorConfig> = {}
+    config: Partial<TestExecutionCoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: TestExecutionCoordinatorConfig = {
       ...DEFAULT_COORDINATOR_CONFIG,
@@ -229,8 +231,9 @@ export class TestExecutionCoordinator
 
     this.memory = memory;
 
-    // Create services with appropriate configuration
-    this.executor = new TestExecutorService({ memory }, {
+    // ADR-043 wiring: pass llmRouter into TestExecutorService so its
+    // ADR-051 analyzeFailuresWithLLM branch becomes reachable.
+    this.executor = new TestExecutorService({ memory, llmRouter }, {
       simulateForTesting: fullConfig.simulateForTesting,
       ...fullConfig.executorConfig,
     });
@@ -1393,7 +1396,8 @@ export class TestExecutionCoordinator
 export function createTestExecutionCoordinator(
   eventBus: EventBus,
   memory: MemoryBackend,
-  config?: Partial<TestExecutionCoordinatorConfig>
+  config?: Partial<TestExecutionCoordinatorConfig>,
+  llmRouter?: HybridRouter
 ): ITestExecutionCoordinator {
-  return new TestExecutionCoordinator(eventBus, memory, config);
+  return new TestExecutionCoordinator(eventBus, memory, config, llmRouter);
 }

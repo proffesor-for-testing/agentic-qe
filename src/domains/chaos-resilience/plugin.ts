@@ -50,6 +50,7 @@ import {
   LoadTesterConfig,
 } from './services/load-tester';
 import { toError } from '../../shared/error-utils.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   PerformanceProfilerService,
   PerformanceProfilerConfig,
@@ -118,7 +119,8 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: ChaosResiliencePluginConfig = {}
+    config: ChaosResiliencePluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -265,8 +267,9 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.chaosEngineer = new ChaosEngineerService(
-      { memory: this.memory },
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.chaosEngineer
     );
 
@@ -285,7 +288,8 @@ export class ChaosResiliencePlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -815,7 +819,8 @@ export function createChaosResiliencePlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: ChaosResiliencePluginConfig
+  config?: ChaosResiliencePluginConfig,
+  llmRouter?: HybridRouter
 ): ChaosResiliencePlugin {
-  return new ChaosResiliencePlugin(eventBus, memory, agentCoordinator, config);
+  return new ChaosResiliencePlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

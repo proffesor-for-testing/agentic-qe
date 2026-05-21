@@ -23,6 +23,7 @@ import type {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import { FilePath } from '../../shared/value-objects/index.js';
 import {
   SecurityComplianceEvents,
@@ -225,7 +226,8 @@ export class SecurityComplianceCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -245,7 +247,9 @@ export class SecurityComplianceCoordinator
     // - Constitutional Invariant #3: Backup required before destructive operations
     this.securityGovernanceMixin = createSecurityGovernanceMixin(this.domainName);
 
-    this.securityScanner = new SecurityScannerService(memory);
+    // ADR-043 wiring: dependency-bag form passes llmRouter into the
+    // SAST scanner sub-component (security-scanner.ts:43 onward).
+    this.securityScanner = new SecurityScannerService({ memory, llmRouter });
     this.securityAuditor = new SecurityAuditorService(memory);
     this.complianceValidator = new ComplianceValidatorService(memory);
   }

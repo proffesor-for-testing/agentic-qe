@@ -17,6 +17,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import { createEvent } from '../../shared/events/domain-events.js';
 import {
   IRequirementsValidationCoordinator,
@@ -201,7 +202,8 @@ export class RequirementsValidationCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -209,7 +211,8 @@ export class RequirementsValidationCoordinator
       verifyFindingTypes: ['requirement-conflict', 'testability-assessment', 'ambiguous-requirement'],
     });
 
-    this.validator = new RequirementsValidatorService(memory);
+    // ADR-043 wiring.
+    this.validator = new RequirementsValidatorService({ memory, llmRouter });
     this.bddWriter = new BDDScenarioWriterService(memory);
     this.testabilityScorer = new TestabilityScorerService(memory);
     this.repository = new InMemoryRequirementRepository(memory);

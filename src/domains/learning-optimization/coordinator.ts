@@ -14,6 +14,7 @@ import {
   DomainName,
   ALL_DOMAINS,
 } from '../../shared/types/index.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   EventBus,
   MemoryBackend,
@@ -196,7 +197,8 @@ export class LearningOptimizationCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<LearningCoordinatorConfig> = {}
+    config: Partial<LearningCoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: LearningCoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -204,7 +206,8 @@ export class LearningOptimizationCoordinator
       verifyFindingTypes: ['pattern-recommendation', 'optimization-suggestion', 'cross-domain-insight'],
     });
 
-    this.learningService = new LearningCoordinatorService({ memory });
+    // ADR-043 wiring.
+    this.learningService = new LearningCoordinatorService({ memory, llmRouter });
     this.transferService = new TransferSpecialistService(memory);
     this.optimizerService = new MetricsOptimizerService(memory);
     this.productionIntel = new ProductionIntelService(memory);

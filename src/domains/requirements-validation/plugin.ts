@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   IRequirementsValidationService,
   ITestabilityScoringService,
@@ -148,7 +149,8 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: RequirementsValidationPluginConfig = {}
+    config: RequirementsValidationPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -311,8 +313,9 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.validator = new RequirementsValidatorService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.validator
     );
 
@@ -331,7 +334,8 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     await this.coordinator.initialize();
@@ -688,7 +692,8 @@ export function createRequirementsValidationPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: RequirementsValidationPluginConfig
+  config?: RequirementsValidationPluginConfig,
+  llmRouter?: HybridRouter
 ): RequirementsValidationPlugin {
-  return new RequirementsValidationPlugin(eventBus, memory, agentCoordinator, config);
+  return new RequirementsValidationPlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

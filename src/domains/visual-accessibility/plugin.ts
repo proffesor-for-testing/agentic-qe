@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../coordination/workflow-orchestrator.js';
 import {
   Viewport,
@@ -33,6 +34,7 @@ import {
 } from './coordinator.js';
 import {
   createVisualTesterService,
+  createVisualTesterServiceWithDependencies,
   VisualTesterService,
   VisualTesterConfig,
 } from './services/visual-tester.js';
@@ -108,7 +110,8 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: VisualAccessibilityPluginConfig = {}
+    config: VisualAccessibilityPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -245,8 +248,9 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services using factory function for proper DI
-    this.visualTester = createVisualTesterService(
-      this.memory,
+    // ADR-043 wiring: dependencies factory accepts llmRouter.
+    this.visualTester = createVisualTesterServiceWithDependencies(
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.visualTester
     );
 
@@ -268,7 +272,8 @@ export class VisualAccessibilityPlugin extends BaseDomainPlugin {
       this.pluginConfig.coordinator,
       this.pluginConfig.visualTester,
       this.pluginConfig.accessibilityTester,
-      this.pluginConfig.responsiveTester
+      this.pluginConfig.responsiveTester,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -823,7 +828,8 @@ export function createVisualAccessibilityPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: VisualAccessibilityPluginConfig
+  config?: VisualAccessibilityPluginConfig,
+  llmRouter?: HybridRouter
 ): VisualAccessibilityPlugin {
-  return new VisualAccessibilityPlugin(eventBus, memory, agentCoordinator, config);
+  return new VisualAccessibilityPlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

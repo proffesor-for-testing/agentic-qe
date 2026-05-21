@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   DefectIntelligenceAPI,
   PredictRequest,
@@ -87,7 +88,8 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: DefectIntelligencePluginConfig = {}
+    config: DefectIntelligencePluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -257,8 +259,9 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.predictor = new DefectPredictorService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.predictor
     );
 
@@ -268,7 +271,7 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
     );
 
     this.rootCauseAnalyzer = new RootCauseAnalyzerService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.rootCauseAnalyzer
     );
 
@@ -277,7 +280,8 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -600,7 +604,8 @@ export function createDefectIntelligencePlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: DefectIntelligencePluginConfig
+  config?: DefectIntelligencePluginConfig,
+  llmRouter?: HybridRouter
 ): DefectIntelligencePlugin {
-  return new DefectIntelligencePlugin(eventBus, memory, agentCoordinator, config);
+  return new DefectIntelligencePlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }
