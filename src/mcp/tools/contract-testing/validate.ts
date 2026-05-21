@@ -8,7 +8,7 @@
  * - ApiCompatibilityService for breaking change detection
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
@@ -166,7 +166,9 @@ export class ContractValidateTool extends MCPToolBase<ContractValidateParams, Co
   }> {
     if (!this.contractValidator || !this.apiCompatibility) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.contractValidator = new ContractValidatorService({ memory });
+      // ADR-043 wiring.
+      const llmRouter = await getLLMRouter(context);
+      this.contractValidator = new ContractValidatorService({ memory, llmRouter });
       this.apiCompatibility = new ApiCompatibilityService(memory);
     }
     return {

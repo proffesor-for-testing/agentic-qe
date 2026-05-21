@@ -94,3 +94,84 @@ Keep current ADR-011 approach, just add more providers.
 | Proposed | 2026-01-13 | Initial ADR creation |
 | Approved | 2026-01-13 | Architecture review passed |
 | Implemented | 2026-01-15 | All 12 milestones complete, 4936 tests passing |
+| Wiring Verified | 2026-05-21 | HybridRouter now constructed by kernel and injected into all 12 LLM-enhanced domains; previously the router code shipped but no production path constructed it. End-to-end round-trip verified against Gemini, OpenAI, OpenRouter. See addendum below. |
+
+---
+
+## Addendum: Wiring Verification (2026-05-21)
+
+### Problem identified
+
+User audit revealed that although the HybridRouter implementation was complete
+and `ProviderConfig.providers.gemini.enabled` was a real configurable knob,
+**no production code path constructed a HybridRouter**. Every domain service
+that accepted `llmRouter` as an optional dependency received `undefined` from
+its coordinator, so `isLLMAnalysisAvailable()` returned `false` everywhere and
+the ADR-051 LLM-enhancement branches were unreachable. The only live
+`createHybridRouter()` call was in `aqe llm advise` (a CLI advisor utility),
+not in the kernel boot or MCP tool path.
+
+Additionally:
+- `aqe llm config --set` mutated an in-memory module-level `let` with a
+  literal comment `// would be persisted in real implementation` — settings
+  evaporated with the process.
+- The Gemini provider read `GOOGLE_AI_API_KEY` and `GEMINI_API_KEY` but not
+  the conventional `GOOGLE_API_KEY` that users typically have set.
+
+### Resolution
+
+Phases delivered on `feat/wire-llm-router` (commits 94033e3, be1e60d, and
+subsequent Phase 3/4 commits):
+
+1. **Phase 1 — Foundation**
+   - `src/shared/llm/router/config-store.ts` (new): persistent
+     `.agentic-qe/llm-config.json` with env-detection layering
+     (`defaults < disk < env < explicit override`), apiKey-stripping on save
+   - `src/shared/llm/llm-router-service.ts` (new): kernel-singleton builder
+     that picks primary/fallbacks from the available provider set, honoring
+     `defaultProvider` when possible
+   - `QEKernelImpl._initializeLLMRouter()` builds the router during
+     `initialize()`; exposed as `kernel.llmRouter`
+   - `KernelConfig.llmRouter` extension: `enabled: 'auto' | true | false` plus
+     `configOverride` and `providerManager` (test injection)
+   - `src/cli/commands/llm-router.ts`: `aqe llm config --set` now persists to
+     disk via the new config-store; `AQE_CONFIG_ROOT` env var added as a test
+     seam
+   - `src/shared/llm/providers/gemini.ts`: `GOOGLE_API_KEY` accepted as a
+     third alias
+
+2. **Phase 2 — Domain wiring**
+   - 12 LLM-enhanced domain plugins/coordinators updated to forward
+     `llmRouter` from the kernel through to their services via the
+     dependency-bag constructor form (`new XService({ memory, llmRouter })`)
+   - `DOMAIN_FACTORIES` in `kernel.ts`: 11 wrapper updates so the kernel
+     singleton actually reaches the plugin layer
+   - Domains intentionally NOT wired: `enterprise-integration` and
+     `coordination` (no LLM-aware services in their surface)
+
+3. **Phase 3 — MCP tool path**
+   - 8 standalone MCP tool service constructions updated to resolve the
+     router via `getLLMRouter(context)`
+   - Shared `getSharedLLMRouter()` singleton added to `src/mcp/tools/base.ts`
+     mirroring the `getSharedMemoryBackend()` pattern
+   - `MCPToolContext.llmRouter` added so future tools can inject explicitly
+
+4. **Phase 4 — Verification**
+   - `tests/unit/shared/llm/router/config-store.test.ts` — 29 unit tests
+   - `tests/unit/shared/llm/llm-router-service.test.ts` — 10 unit tests
+   - `tests/unit/kernel/kernel-llm-router.test.ts` — 4 wiring tests
+   - `tests/integration/llm-router-wiring.test.ts` — 17 tests proving the
+     router instance reaches every domain service; one behavioral test
+     proving `TestExecutorService.analyzeFailuresWithLLM` actually invokes
+     the provider
+   - `tests/e2e/llm-router-real-providers.test.ts` — gated by `AQE_LLM_E2E=1`;
+     verified live against Gemini (gemini-2.5-flash), OpenAI (gpt-4o-mini),
+     and OpenRouter on 2026-05-21
+
+### Behavior change for users
+
+Once installed, any fleet booted with at least one provider API key in env
+will route LLM-enhanced analysis paths through that provider. Set
+`KernelConfig.llmRouter.enabled: false` to revert to the previous
+deterministic-only behavior. See the release notes for the version that
+ships this change.

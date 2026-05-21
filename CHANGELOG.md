@@ -5,6 +5,43 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed — behavioral
+
+- **ADR-043 LLM router is now actually wired (#TBD).** The HybridRouter from
+  ADR-043 and the per-service LLM-enhancement branches from ADR-051 were
+  implemented previously but **never injected** into the production swarm
+  path. Domain services accepted `llmRouter` as an optional dependency, but
+  no caller passed one — so `isLLMAnalysisAvailable()` returned `false`
+  everywhere and the `analyzeXxxWithLLM()` branches in 14 services across
+  12 domains were unreachable.
+  - The kernel now constructs a `HybridRouter` singleton during
+    `initialize()` (auto-enabled when any provider API key is in env or the
+    project's `.agentic-qe/llm-config.json` explicitly enables a provider)
+    and forwards it through every domain factory to its services.
+  - **Behavioral consequence:** fleets booted with `ANTHROPIC_API_KEY`,
+    `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_AI_API_KEY`,
+    `GEMINI_API_KEY`, or `GOOGLE_API_KEY` in env will now route LLM-enhanced
+    analysis through that provider — previously the same fleet ran zero LLM
+    calls from the swarm path regardless of provider config.
+  - To opt out, pass `KernelConfig.llmRouter: { enabled: false }` when
+    constructing the kernel.
+- **`aqe llm config --set` now persists.** Previously a module-level `let`
+  with a `// would be persisted in real implementation` comment — settings
+  evaporated with the process. Writes now go to
+  `.agentic-qe/llm-config.json` and survive a process restart. The file is
+  apiKey-stripped on write so secrets can't end up in version control.
+- **Gemini provider accepts `GOOGLE_API_KEY`** in addition to
+  `GOOGLE_AI_API_KEY` and `GEMINI_API_KEY` — covers users with the
+  conventional Google API key name without requiring an env alias.
+
+### Verification
+
+End-to-end round-trip verified on 2026-05-21 against Gemini (gemini-2.5-flash),
+OpenAI (gpt-4o-mini), and OpenRouter (openai/gpt-4o-mini). See
+`tests/e2e/llm-router-real-providers.test.ts` (gated by `AQE_LLM_E2E=1`).
+
 ## [3.10.0] - 2026-05-20
 
 A feature release adding an optional **external embedder endpoint** for AQE's

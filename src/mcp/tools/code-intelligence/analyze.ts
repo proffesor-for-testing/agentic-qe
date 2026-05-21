@@ -9,7 +9,7 @@
  * - ImpactAnalyzerService for change impact analysis
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
 import { KnowledgeGraphService } from '../../../domains/code-intelligence/services/knowledge-graph';
 import { SemanticAnalyzerService } from '../../../domains/code-intelligence/services/semantic-analyzer';
@@ -127,10 +127,10 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
    */
   private async getKnowledgeGraph(context: MCPToolContext): Promise<KnowledgeGraphService> {
     if (!this.knowledgeGraph) {
-      const memory = context.memory;
-      this.knowledgeGraph = new KnowledgeGraphService(
-        memory || await getSharedMemoryBackend()
-      );
+      // ADR-043 wiring.
+      const memory = context.memory ?? await getSharedMemoryBackend();
+      const llmRouter = await getLLMRouter(context);
+      this.knowledgeGraph = new KnowledgeGraphService({ memory, llmRouter });
     }
     return this.knowledgeGraph;
   }

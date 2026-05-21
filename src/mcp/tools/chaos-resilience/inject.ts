@@ -8,7 +8,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
 import { ChaosEngineerService } from '../../../domains/chaos-resilience/services/chaos-engineer.js';
@@ -96,7 +96,9 @@ export class ChaosInjectTool extends MCPToolBase<ChaosInjectParams, ChaosInjectR
   private async getService(context: MCPToolContext): Promise<ChaosEngineerService> {
     if (!this.chaosEngineer) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.chaosEngineer = new ChaosEngineerService({ memory }, {
+      // ADR-043 wiring.
+      const llmRouter = await getLLMRouter(context);
+      this.chaosEngineer = new ChaosEngineerService({ memory, llmRouter }, {
         enableDryRun: true,
         autoRollbackOnFailure: true,
       });

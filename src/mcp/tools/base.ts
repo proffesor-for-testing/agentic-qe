@@ -114,6 +114,68 @@ export async function getMemoryBackend(context?: MCPToolContext): Promise<Memory
 }
 
 // ============================================================================
+// Shared LLM Router for MCP Tools (ADR-043)
+// ============================================================================
+
+let sharedLLMRouter: import('../../shared/llm/router/hybrid-router.js').HybridRouter | null = null;
+let llmRouterInitPromise: Promise<import('../../shared/llm/router/hybrid-router.js').HybridRouter | null> | null = null;
+
+/**
+ * Get or create the shared HybridRouter for standalone MCP tools that
+ * construct their service directly (without going through the kernel /
+ * plugin chain that Phase 2 wired up).
+ *
+ * Returns null when no provider key is in env and the project has no
+ * llm-config.json — same gating as the kernel's auto mode. Callers
+ * MUST tolerate a null return value and fall back to deterministic-only
+ * behavior in that case.
+ *
+ * Resets via `resetSharedLLMRouter()` for tests.
+ */
+export async function getSharedLLMRouter(): Promise<import('../../shared/llm/router/hybrid-router.js').HybridRouter | null> {
+  if (sharedLLMRouter) {
+    return sharedLLMRouter;
+  }
+  if (llmRouterInitPromise) {
+    return llmRouterInitPromise;
+  }
+
+  llmRouterInitPromise = (async () => {
+    const { createLLMRouterService } = await import('../../shared/llm/llm-router-service.js');
+    const built = await createLLMRouterService();
+    if (!built) return null;
+    sharedLLMRouter = built.router;
+    return sharedLLMRouter;
+  })();
+
+  return llmRouterInitPromise;
+}
+
+/**
+ * Reset the shared LLM router singleton. For tests.
+ */
+export function resetSharedLLMRouter(): void {
+  sharedLLMRouter = null;
+  llmRouterInitPromise = null;
+}
+
+/**
+ * Get LLM router from context or shared singleton. Returns undefined
+ * (not null) when no router is available, so it can be spread directly
+ * into a `{ memory, llmRouter }` dependency bag without contaminating
+ * the value.
+ */
+export async function getLLMRouter(context?: MCPToolContext): Promise<
+  import('../../shared/llm/router/hybrid-router.js').HybridRouter | undefined
+> {
+  if (context?.llmRouter) {
+    return context.llmRouter;
+  }
+  const shared = await getSharedLLMRouter();
+  return shared ?? undefined;
+}
+
+// ============================================================================
 // Tool Schema Types (JSON Schema compatible)
 // ============================================================================
 
@@ -174,6 +236,13 @@ export interface MCPToolContext {
   demoMode?: boolean;
   /** Shared memory backend for persistent storage */
   memory?: import('../../kernel/interfaces').MemoryBackend;
+  /**
+   * ADR-043: HybridRouter for LLM-enhanced analysis. Standalone MCP
+   * tools that construct services directly should fetch this via
+   * `getLLMRouter(context)` and pass it into the service dependency
+   * bag so isLLMAnalysisAvailable() returns true.
+   */
+  llmRouter?: import('../../shared/llm/router/hybrid-router.js').HybridRouter;
 }
 
 /**
