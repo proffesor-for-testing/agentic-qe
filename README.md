@@ -365,18 +365,45 @@ aqe code complexity src/             # Complexity metrics and hotspots
 
 ## LLM Providers
 
-| Provider | Type | Cost | Best For |
-|----------|------|------|----------|
-| **Ollama** | Local | Free | Privacy, offline |
-| **OpenRouter** | Cloud | Varies | 300+ models |
-| **Groq** | Cloud | Free | High-speed |
-| **Claude API** | Cloud | Paid | Highest quality |
-| **Google AI** | Cloud | Free | Gemini models |
+AQE Fleet's LLM-enhanced analysis (ADR-043, ADR-051) routes through a
+HybridRouter that picks providers based on routing rules and your env
+config. Set one or more API keys and Fleet auto-detects what's available:
+
+| Provider | Env var(s) | Type | Notes |
+|----------|-----------|------|-------|
+| **Claude** | `ANTHROPIC_API_KEY` | Cloud | Default in routing rules |
+| **OpenAI** | `OPENAI_API_KEY` | Cloud | Wide model coverage |
+| **Gemini** | `GOOGLE_AI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Cloud | Cheap; free tier |
+| **OpenRouter** | `OPENROUTER_API_KEY` | Cloud | 300+ models behind one key |
+| **Ollama** | (local) | Local | Privacy, offline |
+| **Azure OpenAI** | `AZURE_OPENAI_API_KEY` | Cloud | Enterprise |
+| **Bedrock** | `AWS_ACCESS_KEY_ID` | Cloud | AWS-native |
 
 ```bash
-export GROQ_API_KEY="gsk_..."  # or any supported provider
+export GEMINI_API_KEY="..."  # or any supported provider
 aqe init --auto
 ```
+
+Persistent config (`aqe llm config --set` writes to `.agentic-qe/llm-config.json`):
+
+```bash
+aqe llm config --set mode=cost-optimized
+aqe llm config --set defaultProvider=gemini
+aqe llm config           # show current effective config
+```
+
+API keys are env-only — `aqe llm config --set apiKey=...` is refused
+to keep secrets out of project-committed config.
+
+### Opting out
+
+To run Fleet without any LLM calls (deterministic-only mode):
+
+```bash
+export AQE_LLM_ROUTER_DISABLED=1   # env-only kill-switch
+```
+
+Or programmatically: `new QEKernelImpl({ llmRouter: { enabled: false } })`.
 
 ---
 
