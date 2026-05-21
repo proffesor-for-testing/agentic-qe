@@ -357,6 +357,18 @@ export interface QEKernel extends Initializable, Disposable {
   /** Get the memory backend */
   readonly memory: MemoryBackend;
 
+  /**
+   * Get the LLM router (ADR-043). Returns undefined when no provider
+   * keys are present in env and the project has no router config — the
+   * kernel boots fine without a router; the LLM-enhancement branches
+   * in domain services simply stay dark.
+   *
+   * Type intentionally returned as `unknown` here to avoid a hard
+   * dependency from kernel/interfaces.ts on shared/llm/router/. Callers
+   * who need the typed HybridRouter import it directly.
+   */
+  readonly llmRouter?: unknown;
+
   /** Get a domain's API (synchronous, returns undefined if not loaded) */
   getDomainAPI<T>(domain: DomainName): T | undefined;
 
@@ -432,6 +444,33 @@ export interface KernelConfig {
    * DreamEngine init cost.
    */
   enableDreamScheduler?: boolean;
+
+  /**
+   * LLM router configuration (ADR-043). Controls whether the kernel
+   * boots a HybridRouter and injects it into domain plugins so the
+   * isLLMAnalysisAvailable() branches in 14 services actually fire.
+   *
+   * - `enabled: 'auto'` (default): build a router iff at least one
+   *   provider API key is present in env, OR the project's
+   *   .agentic-qe/llm-config.json explicitly enables a provider.
+   * - `enabled: true`: always try to build a router; if no provider is
+   *   available, log a warning and continue without one.
+   * - `enabled: false`: skip the router entirely. Use this to revert to
+   *   the pre-wiring behavior (deterministic-only scanners).
+   *
+   * `configOverride` is merged on top of the disk + env config (highest
+   * precedence) — useful for tests.
+   */
+  llmRouter?: {
+    enabled?: 'auto' | true | false;
+    configOverride?: Partial<import('../shared/llm/router/types').RouterConfig>;
+    /**
+     * Inject a pre-built ProviderManager (for tests). When supplied,
+     * config-store loading is skipped and the provided manager is used
+     * directly. Typed as unknown to avoid the dependency.
+     */
+    providerManager?: unknown;
+  };
 }
 
 // ============================================================================

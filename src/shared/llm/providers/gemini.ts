@@ -189,7 +189,7 @@ export class GeminiProvider implements LLMProvider {
     if (!apiKey) {
       return {
         healthy: false,
-        error: 'API key not configured. Set GOOGLE_AI_API_KEY or GEMINI_API_KEY environment variable.',
+        error: 'API key not configured. Set GOOGLE_AI_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY environment variable.',
       };
     }
 
@@ -662,7 +662,12 @@ export class GeminiProvider implements LLMProvider {
    * Get API key from config or environment
    */
   private getApiKey(): string | undefined {
-    return this.config.apiKey ?? process.env.GOOGLE_AI_API_KEY ?? process.env.GEMINI_API_KEY;
+    return (
+      this.config.apiKey ??
+      process.env.GOOGLE_AI_API_KEY ??
+      process.env.GEMINI_API_KEY ??
+      process.env.GOOGLE_API_KEY
+    );
   }
 
   /**

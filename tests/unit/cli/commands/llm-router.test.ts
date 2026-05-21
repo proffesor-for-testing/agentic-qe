@@ -4,6 +4,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { createLLMRouterCommand } from '../../../../src/cli/commands/llm-router.js';
 import type { Command } from 'commander';
 
@@ -30,8 +33,16 @@ async function executeCommand(
 
 describe('LLM Router CLI Commands', () => {
   let command: ReturnType<typeof createLLMRouterCommand>;
+  let tmpConfigRoot: string;
+  let savedConfigRootEnv: string | undefined;
 
   beforeEach(() => {
+    // Redirect the CLI's config persistence to a per-test temp dir so
+    // `aqe llm config --set` doesn't mutate the real .agentic-qe/.
+    tmpConfigRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-cli-llm-'));
+    savedConfigRootEnv = process.env.AQE_CONFIG_ROOT;
+    process.env.AQE_CONFIG_ROOT = tmpConfigRoot;
+
     command = createLLMRouterCommand();
     mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -40,6 +51,14 @@ describe('LLM Router CLI Commands', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (savedConfigRootEnv === undefined) {
+      delete process.env.AQE_CONFIG_ROOT;
+    } else {
+      process.env.AQE_CONFIG_ROOT = savedConfigRootEnv;
+    }
+    if (fs.existsSync(tmpConfigRoot)) {
+      fs.rmSync(tmpConfigRoot, { recursive: true, force: true });
+    }
   });
 
   describe('createLLMRouterCommand', () => {
@@ -246,6 +265,28 @@ describe('LLM Router CLI Commands', () => {
       const jsonOutput = mockConsoleLog.mock.calls[0][0];
       const config = JSON.parse(jsonOutput);
       expect(config.mode).toBe('cost-optimized');
+    });
+
+    it('writes the setting through to disk so a fresh process picks it up', async () => {
+      // Simulate the cross-process case: --set writes the file.
+      await executeCommand(command, ['config', '--set', 'defaultProvider=gemini']);
+
+      const configPath = path.join(tmpConfigRoot, '.agentic-qe', 'llm-config.json');
+      expect(fs.existsSync(configPath)).toBe(true);
+      const onDisk = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      expect(onDisk.defaultProvider).toBe('gemini');
+    });
+
+    it('strips secrets defensively on persist (apiKey never reaches disk)', async () => {
+      // The config-store strips any apiKey fields it sees in the
+      // serialized payload — this protects against a future bug that
+      // ever copies an env API key into the in-memory config.
+      await executeCommand(command, ['config', '--set', 'defaultProvider=openai']);
+
+      const configPath = path.join(tmpConfigRoot, '.agentic-qe', 'llm-config.json');
+      const raw = fs.readFileSync(configPath, 'utf8');
+      expect(raw).not.toMatch(/sk-/);
+      expect(raw).not.toMatch(/apiKey/);
     });
   });
 

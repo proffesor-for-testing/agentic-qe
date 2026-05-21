@@ -89,17 +89,20 @@ describe('GeminiProvider', () => {
       const noKeyProvider = new GeminiProvider({ apiKey: undefined });
 
       // Clear environment variables for this test
-      const originalGoogleKey = process.env.GOOGLE_AI_API_KEY;
+      const originalGoogleAiKey = process.env.GOOGLE_AI_API_KEY;
       const originalGeminiKey = process.env.GEMINI_API_KEY;
+      const originalGoogleKey = process.env.GOOGLE_API_KEY;
       delete process.env.GOOGLE_AI_API_KEY;
       delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
 
       const available = await noKeyProvider.isAvailable();
       expect(available).toBe(false);
 
       // Restore
-      if (originalGoogleKey) process.env.GOOGLE_AI_API_KEY = originalGoogleKey;
+      if (originalGoogleAiKey) process.env.GOOGLE_AI_API_KEY = originalGoogleAiKey;
       if (originalGeminiKey) process.env.GEMINI_API_KEY = originalGeminiKey;
+      if (originalGoogleKey) process.env.GOOGLE_API_KEY = originalGoogleKey;
     });
 
     it('should return true when API responds', async () => {
@@ -154,18 +157,93 @@ describe('GeminiProvider', () => {
     it('should return unhealthy without API key', async () => {
       const noKeyProvider = new GeminiProvider({ apiKey: undefined });
 
-      const originalGoogleKey = process.env.GOOGLE_AI_API_KEY;
+      const originalGoogleAiKey = process.env.GOOGLE_AI_API_KEY;
       const originalGeminiKey = process.env.GEMINI_API_KEY;
+      const originalGoogleKey = process.env.GOOGLE_API_KEY;
       delete process.env.GOOGLE_AI_API_KEY;
       delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
 
       const result = await noKeyProvider.healthCheck();
 
       expect(result.healthy).toBe(false);
       expect(result.error).toContain('API key not configured');
 
-      if (originalGoogleKey) process.env.GOOGLE_AI_API_KEY = originalGoogleKey;
+      if (originalGoogleAiKey) process.env.GOOGLE_AI_API_KEY = originalGoogleAiKey;
       if (originalGeminiKey) process.env.GEMINI_API_KEY = originalGeminiKey;
+      if (originalGoogleKey) process.env.GOOGLE_API_KEY = originalGoogleKey;
+    });
+
+    it('should accept API key from GOOGLE_AI_API_KEY env var', async () => {
+      const provider = new GeminiProvider({ apiKey: undefined });
+      const original = {
+        google_ai: process.env.GOOGLE_AI_API_KEY,
+        gemini: process.env.GEMINI_API_KEY,
+        google: process.env.GOOGLE_API_KEY,
+      };
+      delete process.env.GEMINI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
+      process.env.GOOGLE_AI_API_KEY = 'test-google-ai-key';
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ models: [{ name: 'models/gemini-1.5-pro', supportedGenerationMethods: ['generateContent'] }] }),
+      });
+
+      const result = await provider.healthCheck();
+      expect(result.healthy).toBe(true);
+
+      if (original.google_ai !== undefined) process.env.GOOGLE_AI_API_KEY = original.google_ai; else delete process.env.GOOGLE_AI_API_KEY;
+      if (original.gemini !== undefined) process.env.GEMINI_API_KEY = original.gemini;
+      if (original.google !== undefined) process.env.GOOGLE_API_KEY = original.google;
+    });
+
+    it('should accept API key from GEMINI_API_KEY env var', async () => {
+      const provider = new GeminiProvider({ apiKey: undefined });
+      const original = {
+        google_ai: process.env.GOOGLE_AI_API_KEY,
+        gemini: process.env.GEMINI_API_KEY,
+        google: process.env.GOOGLE_API_KEY,
+      };
+      delete process.env.GOOGLE_AI_API_KEY;
+      delete process.env.GOOGLE_API_KEY;
+      process.env.GEMINI_API_KEY = 'test-gemini-key';
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ models: [{ name: 'models/gemini-1.5-pro', supportedGenerationMethods: ['generateContent'] }] }),
+      });
+
+      const result = await provider.healthCheck();
+      expect(result.healthy).toBe(true);
+
+      if (original.google_ai !== undefined) process.env.GOOGLE_AI_API_KEY = original.google_ai;
+      if (original.gemini !== undefined) process.env.GEMINI_API_KEY = original.gemini; else delete process.env.GEMINI_API_KEY;
+      if (original.google !== undefined) process.env.GOOGLE_API_KEY = original.google;
+    });
+
+    it('should accept API key from GOOGLE_API_KEY env var', async () => {
+      const provider = new GeminiProvider({ apiKey: undefined });
+      const original = {
+        google_ai: process.env.GOOGLE_AI_API_KEY,
+        gemini: process.env.GEMINI_API_KEY,
+        google: process.env.GOOGLE_API_KEY,
+      };
+      delete process.env.GOOGLE_AI_API_KEY;
+      delete process.env.GEMINI_API_KEY;
+      process.env.GOOGLE_API_KEY = 'test-google-key';
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ models: [{ name: 'models/gemini-1.5-pro', supportedGenerationMethods: ['generateContent'] }] }),
+      });
+
+      const result = await provider.healthCheck();
+      expect(result.healthy).toBe(true);
+
+      if (original.google_ai !== undefined) process.env.GOOGLE_AI_API_KEY = original.google_ai;
+      if (original.gemini !== undefined) process.env.GEMINI_API_KEY = original.gemini;
+      if (original.google !== undefined) process.env.GOOGLE_API_KEY = original.google; else delete process.env.GOOGLE_API_KEY;
     });
 
     it('should return unhealthy on API error', async () => {

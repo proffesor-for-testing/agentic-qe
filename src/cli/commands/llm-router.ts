@@ -77,10 +77,55 @@ interface AdviseOptions {
 }
 
 // ============================================================================
-// In-memory config state (would be persisted in real implementation)
+// CLI config state (lazy-loaded from .agentic-qe/llm-config.json)
 // ============================================================================
+//
+// `aqe llm config --set` writes through to disk so the next process
+// invocation sees the change. Reads are merged in this order:
+//   DEFAULT_ROUTER_CONFIG  <-  disk  <-  env-detection
+// Env detection is what flips `gemini.enabled` from false to true when
+// the user has `GOOGLE_API_KEY` set, without them needing to touch the
+// file at all.
 
-let currentConfig: RouterConfig = { ...DEFAULT_ROUTER_CONFIG };
+import {
+  loadRouterConfig as loadPersistedRouterConfig,
+  saveRouterConfigFile,
+} from '../../shared/llm/router/config-store.js';
+
+let currentConfig: RouterConfig | null = null;
+
+/**
+ * Resolve the project root used for config persistence. Honors
+ * `AQE_CONFIG_ROOT` for test isolation — set it to a temp dir and the
+ * llm-config.json read/write will be confined there instead of touching
+ * the real `.agentic-qe/`.
+ */
+function configProjectRoot(): string | undefined {
+  return process.env.AQE_CONFIG_ROOT;
+}
+
+function getCurrentConfig(): RouterConfig {
+  if (currentConfig === null) {
+    currentConfig = loadPersistedRouterConfig({ projectRoot: configProjectRoot() });
+  }
+  return currentConfig;
+}
+
+/** Force a re-load on next read. Used by tests; also called after --set. */
+function invalidateConfigCache(): void {
+  currentConfig = null;
+}
+
+/**
+ * Persist the in-memory mutation to disk and invalidate the cache so
+ * the next read picks up the post-merge config (which may differ from
+ * `currentConfig` due to env detection re-applying).
+ */
+function persistAndReload(): void {
+  if (currentConfig === null) return;
+  saveRouterConfigFile(currentConfig, configProjectRoot());
+  invalidateConfigCache();
+}
 
 // ============================================================================
 // Command Implementation
@@ -208,8 +253,9 @@ Examples:
 // ============================================================================
 
 async function executeProviders(options: ProvidersOptions): Promise<void> {
+  const cfg = getCurrentConfig();
   const providers = ALL_PROVIDER_TYPES.map(type => {
-    const config = currentConfig.providers?.[type];
+    const config = cfg.providers?.[type];
     return {
       provider: type,
       enabled: config?.enabled ?? (type === 'claude' || type === 'openai' || type === 'ollama'),
@@ -249,11 +295,11 @@ async function executeProviders(options: ProvidersOptions): Promise<void> {
 
   if (options.verbose) {
     console.log(chalk.bold('\nRouting Configuration:'));
-    console.log(chalk.gray(`  Mode: ${currentConfig.mode}`));
-    console.log(chalk.gray(`  Default Provider: ${currentConfig.defaultProvider}`));
-    console.log(chalk.gray(`  Default Model: ${currentConfig.defaultModel}`));
-    console.log(chalk.gray(`  Metrics Enabled: ${currentConfig.enableMetrics}`));
-    console.log(chalk.gray(`  Decision Cache: ${currentConfig.cacheDecisions}`));
+    console.log(chalk.gray(`  Mode: ${cfg.mode}`));
+    console.log(chalk.gray(`  Default Provider: ${cfg.defaultProvider}`));
+    console.log(chalk.gray(`  Default Model: ${cfg.defaultModel}`));
+    console.log(chalk.gray(`  Metrics Enabled: ${cfg.enableMetrics}`));
+    console.log(chalk.gray(`  Decision Cache: ${cfg.cacheDecisions}`));
   }
 
   console.log('');
@@ -313,7 +359,7 @@ async function executeModels(options: ModelsOptions): Promise<void> {
 }
 
 async function executeRoute(task: string, options: RouteOptions): Promise<void> {
-  const mode = (options.mode || currentConfig.mode) as RoutingMode;
+  const mode = (options.mode || getCurrentConfig().mode) as RoutingMode;
   const complexity = options.complexity || 'medium';
   const agentType = options.agent;
 
@@ -365,27 +411,28 @@ async function executeConfig(options: ConfigOptions): Promise<void> {
     return;
   }
 
+  const cfg = getCurrentConfig();
   if (options.json) {
-    console.log(JSON.stringify(currentConfig, null, 2));
+    console.log(JSON.stringify(cfg, null, 2));
     return;
   }
 
   console.log(chalk.bold.cyan('\nRouter Configuration\n'));
 
   console.log(chalk.bold('General:'));
-  console.log(`  mode: ${chalk.cyan(currentConfig.mode)}`);
-  console.log(`  defaultProvider: ${chalk.cyan(currentConfig.defaultProvider)}`);
-  console.log(`  defaultModel: ${chalk.cyan(currentConfig.defaultModel)}`);
-  console.log(`  enableMetrics: ${currentConfig.enableMetrics ? chalk.green('true') : chalk.gray('false')}`);
-  console.log(`  cacheDecisions: ${currentConfig.cacheDecisions ? chalk.green('true') : chalk.gray('false')}`);
-  console.log(`  decisionCacheTtlMs: ${chalk.gray(currentConfig.decisionCacheTtlMs)}`);
+  console.log(`  mode: ${chalk.cyan(cfg.mode)}`);
+  console.log(`  defaultProvider: ${chalk.cyan(cfg.defaultProvider)}`);
+  console.log(`  defaultModel: ${chalk.cyan(cfg.defaultModel)}`);
+  console.log(`  enableMetrics: ${cfg.enableMetrics ? chalk.green('true') : chalk.gray('false')}`);
+  console.log(`  cacheDecisions: ${cfg.cacheDecisions ? chalk.green('true') : chalk.gray('false')}`);
+  console.log(`  decisionCacheTtlMs: ${chalk.gray(cfg.decisionCacheTtlMs)}`);
 
   console.log(chalk.bold('\nFallback:'));
-  console.log(`  maxRetries: ${currentConfig.fallbackChain.maxRetries}`);
-  console.log(`  retryDelayMs: ${currentConfig.fallbackChain.retryDelayMs}`);
+  console.log(`  maxRetries: ${cfg.fallbackChain.maxRetries}`);
+  console.log(`  retryDelayMs: ${cfg.fallbackChain.retryDelayMs}`);
 
   console.log(chalk.bold('\nEnabled Providers:'));
-  for (const [provider, config] of Object.entries(currentConfig.providers || {})) {
+  for (const [provider, config] of Object.entries(cfg.providers || {})) {
     if (config?.enabled) {
       console.log(`  ${chalk.green('*')} ${provider}: ${config.defaultModel || 'default'}`);
     }
@@ -581,9 +628,10 @@ function simulateRoutingDecision(task: string, options: {
   }
 
   // Default
+  const defaultCfg = getCurrentConfig();
   return {
-    provider: currentConfig.defaultProvider as ExtendedProviderType,
-    model: currentConfig.defaultModel,
+    provider: defaultCfg.defaultProvider as ExtendedProviderType,
+    model: defaultCfg.defaultModel,
     reason: 'Default provider selected',
     confidence: 0.8,
     estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.021 },
@@ -591,30 +639,35 @@ function simulateRoutingDecision(task: string, options: {
 }
 
 function updateConfig(key: string, value: string): void {
+  // Pull the current config into the cache (load from disk if needed),
+  // mutate, then persist back. persistAndReload() invalidates the cache
+  // so subsequent reads in this process see the merged-with-env state.
+  const cfg = getCurrentConfig();
   switch (key) {
     case 'mode':
       if (['manual', 'rule-based', 'cost-optimized', 'performance-optimized'].includes(value)) {
-        currentConfig.mode = value as RoutingMode;
+        cfg.mode = value as RoutingMode;
       } else {
         throw new Error(`Invalid mode: ${value}`);
       }
       break;
     case 'defaultProvider':
       if (ALL_PROVIDER_TYPES.includes(value as ExtendedProviderType)) {
-        currentConfig.defaultProvider = value as ExtendedProviderType;
+        cfg.defaultProvider = value as ExtendedProviderType;
       } else {
         throw new Error(`Invalid provider: ${value}`);
       }
       break;
     case 'enableMetrics':
-      currentConfig.enableMetrics = value === 'true';
+      cfg.enableMetrics = value === 'true';
       break;
     case 'cacheDecisions':
-      currentConfig.cacheDecisions = value === 'true';
+      cfg.cacheDecisions = value === 'true';
       break;
     default:
       throw new Error(`Unknown config key: ${key}`);
   }
+  persistAndReload();
 }
 
 async function checkProviderHealth(timeout: number): Promise<Array<{
