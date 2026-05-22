@@ -5,11 +5,11 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.10.1] - 2026-05-22
 
 ### Changed — behavioral
 
-- **ADR-043 LLM router is now actually wired (#TBD).** The HybridRouter from
+- **ADR-043 LLM router is now actually wired.** The HybridRouter from
   ADR-043 and the per-service LLM-enhancement branches from ADR-051 were
   implemented previously but **never injected** into the production swarm
   path. Domain services accepted `llmRouter` as an optional dependency, but
