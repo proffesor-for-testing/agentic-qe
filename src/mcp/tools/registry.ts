@@ -226,7 +226,13 @@ export function registerAllQETools(registry: ToolRegistry): void {
         domain: tool.domain,
         lazyLoad: false, // QE tools are always available
       },
-      async (params) => tool.invoke(params as Record<string, unknown>)
+      // ADR-043: forward the shared HybridRouter so the tool's
+      // MCPToolContext.llmRouter is populated explicitly.
+      async (params) => {
+        const { getSharedLLMRouter } = await import('./base.js');
+        const llmRouter = (await getSharedLLMRouter()) ?? undefined;
+        return tool.invoke(params as Record<string, unknown>, { llmRouter });
+      }
     );
   }
 }

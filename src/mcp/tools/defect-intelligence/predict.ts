@@ -7,7 +7,7 @@
  * Uses actual code analysis, git history, and weighted feature prediction.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
 import { DefectPredictorService } from '../../../domains/defect-intelligence/services/defect-predictor';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
@@ -107,15 +107,10 @@ export class DefectPredictTool extends MCPToolBase<DefectPredictParams, DefectPr
    */
   private async getService(context: MCPToolContext): Promise<DefectPredictorService> {
     if (!this.predictorService) {
-      // Create a memory backend from context or use shared persistent backend
-      const memory = context.memory;
-
-      if (memory) {
-        this.predictorService = new DefectPredictorService(memory);
-      } else {
-        // Use shared persistent memory backend
-        this.predictorService = new DefectPredictorService(await getSharedMemoryBackend());
-      }
+      // ADR-043 wiring.
+      const memory = context.memory ?? await getSharedMemoryBackend();
+      const llmRouter = await getLLMRouter(context);
+      this.predictorService = new DefectPredictorService({ memory, llmRouter });
     }
     return this.predictorService;
   }

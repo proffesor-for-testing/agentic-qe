@@ -10,6 +10,7 @@ import {
   AgentCoordinator,
 } from '../../kernel/interfaces';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   CodeIntelligenceAPI,
   IndexRequest,
@@ -93,7 +94,8 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: CodeIntelligencePluginConfig = {}
+    config: CodeIntelligencePluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -216,8 +218,9 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.knowledgeGraph = new KnowledgeGraphService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.knowledgeGraph
     );
 
@@ -237,7 +240,8 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -542,7 +546,8 @@ export function createCodeIntelligencePlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: CodeIntelligencePluginConfig
+  config?: CodeIntelligencePluginConfig,
+  llmRouter?: HybridRouter
 ): CodeIntelligencePlugin {
-  return new CodeIntelligencePlugin(eventBus, memory, agentCoordinator, config);
+  return new CodeIntelligencePlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

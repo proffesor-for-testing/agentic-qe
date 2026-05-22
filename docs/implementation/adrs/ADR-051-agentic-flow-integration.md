@@ -472,3 +472,4 @@ All ADR-051 components verified with **100% success rate** across 300 operations
 | In Progress | 2026-01-20 | Phase 1 foundation started |
 | Phase 2 Complete | 2026-01-21 | WASM Agent Booster implemented (81% accuracy, 22 tests passing) |
 | **Implemented** | **2026-01-21** | **All components at 100% success rate - benchmark verified** |
+| **LLM-Enhancement Wiring Verified** | **2026-05-21** | The `isLLMAnalysisAvailable()` branches in 14 services across 12 domains are now reachable. Prior to this date the services accepted `llmRouter` as an optional dependency but no caller injected it; ADR-051's LLM-enhancement paths were unreachable from the production swarm. See ADR-043 (Wiring Verified addendum, 2026-05-21) for details. |

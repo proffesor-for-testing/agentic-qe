@@ -8,7 +8,7 @@
  * Uses actual LCOV/JSON parsing and vector-based gap detection.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
 import { CoverageAnalyzerService } from '../../../domains/coverage-analysis/services/coverage-analyzer';
 import { GapDetectorService } from '../../../domains/coverage-analysis/services/gap-detector';
@@ -206,10 +206,12 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
 
   private async getService(context: MCPToolContext): Promise<CoverageAnalyzerService> {
     if (!this.analyzerService) {
-      const memory = context.memory;
-      this.analyzerService = new CoverageAnalyzerService(
-        memory || await getSharedMemoryBackend()
-      );
+      // ADR-043 wiring: pull the shared HybridRouter (returns undefined
+      // when no provider key is present) so isLLMAnalysisAvailable()
+      // returns true in MCP mode the same way it does in kernel mode.
+      const memory = context.memory ?? await getSharedMemoryBackend();
+      const llmRouter = await getLLMRouter(context);
+      this.analyzerService = new CoverageAnalyzerService({ memory, llmRouter });
     }
     return this.analyzerService;
   }
@@ -468,8 +470,10 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
 
   private async getService(context: MCPToolContext): Promise<GapDetectorService> {
     if (!this.gapService) {
-      const memory = context.memory;
-      this.gapService = new GapDetectorService(memory || await getSharedMemoryBackend());
+      // ADR-043 wiring.
+      const memory = context.memory ?? await getSharedMemoryBackend();
+      const llmRouter = await getLLMRouter(context);
+      this.gapService = new GapDetectorService({ memory, llmRouter });
     }
     return this.gapService;
   }

@@ -22,6 +22,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   TestGenerationEvents,
   TestGeneratedPayload,
@@ -46,6 +47,7 @@ import {
 } from './interfaces';
 import {
   createTestGeneratorService,
+  createTestGeneratorServiceWithDependencies,
   ITestGenerationService,
 } from './services/test-generator';
 import {
@@ -266,6 +268,7 @@ export class TestGenerationCoordinator
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter,
     private readonly coherenceService?: ICoherenceService | null,
     private readonly hookRegistry?: QEHookRegistry | null
   ) {
@@ -281,7 +284,8 @@ export class TestGenerationCoordinator
       ...fullConfig.consensusConfig,
     });
 
-    this.testGenerator = createTestGeneratorService(memory);
+    // ADR-043 wiring: dependencies factory accepts llmRouter.
+    this.testGenerator = createTestGeneratorServiceWithDependencies({ memory, llmRouter });
     this.patternMatcher = new PatternMatcherService(memory);
 
     // Initialize coherence gate if service is provided (ADR-052)

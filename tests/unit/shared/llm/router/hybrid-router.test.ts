@@ -616,7 +616,14 @@ describe('HybridRouter', () => {
       await expect(router.chat(params)).rejects.toThrow('All providers failed');
     });
 
-    it('should not retry non-retryable errors', async () => {
+    it('should not retry non-retryable errors on the same provider but DOES fall through to next provider', async () => {
+      // ADR-043 wiring fix (2026-05-21): previously a non-retryable
+      // error short-circuited the entire fallback chain, defeating the
+      // whole point of having a chain. New semantics: non-retryable
+      // skips the inter-attempt delay (no point waiting before
+      // retrying — that won't change anything) but DOES proceed to the
+      // next entry in executionOrder, because a failure on provider A
+      // tells us nothing about provider B.
       const nonRetryableError = createLLMError('API key invalid', 'API_KEY_INVALID', {
         retryable: false,
       });
@@ -625,10 +632,16 @@ describe('HybridRouter', () => {
         shouldFail: true,
         failError: nonRetryableError,
       });
+      // openai ALSO fails non-retryable so the overall request still
+      // rejects — preserves the original test's "rejects" assertion.
+      const failingOpenAI = createMockProvider('openai', {
+        shouldFail: true,
+        failError: nonRetryableError,
+      });
 
       const providers = new Map<LLMProviderType, LLMProvider>([
         ['claude', failingClaude],
-        ['openai', openaiProvider],
+        ['openai', failingOpenAI],
       ]);
 
       providerManager = createMockProviderManager(providers);
@@ -639,8 +652,15 @@ describe('HybridRouter', () => {
         messages: [{ role: 'user', content: 'test' }],
       };
 
-      await expect(router.chat(params)).rejects.toThrow('API key invalid');
-      expect(openaiProvider.generate).not.toHaveBeenCalled();
+      await expect(router.chat(params)).rejects.toThrow(/All providers failed/);
+      // The key wiring-fix assertion: openai WAS called (fallback to
+      // the NEXT provider proceeded), even though claude returned
+      // non-retryable. The exact call counts depend on the default
+      // fallback chain layout (claude/openai/ollama with multiple
+      // models per provider), so we assert the qualitative behavior:
+      // both providers got at least one attempt.
+      expect(failingClaude.generate).toHaveBeenCalled();
+      expect(failingOpenAI.generate).toHaveBeenCalled();
     });
   });
 

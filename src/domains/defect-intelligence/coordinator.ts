@@ -18,6 +18,7 @@ import {
   AgentCoordinator,
   AgentSpawnConfig,
 } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   DefectIntelligenceEvents,
   createEvent,
@@ -158,7 +159,8 @@ export class DefectIntelligenceCoordinator
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: Partial<CoordinatorConfig> = {}
+    config: Partial<CoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -167,9 +169,10 @@ export class DefectIntelligenceCoordinator
       ...fullConfig.consensusConfig,
     });
 
-    this.predictor = new DefectPredictorService(memory);
+    // ADR-043 wiring.
+    this.predictor = new DefectPredictorService({ memory, llmRouter });
     this.patternLearner = new PatternLearnerService(memory);
-    this.rootCauseAnalyzer = new RootCauseAnalyzerService(memory);
+    this.rootCauseAnalyzer = new RootCauseAnalyzerService({ memory, llmRouter });
   }
 
   // ==========================================================================

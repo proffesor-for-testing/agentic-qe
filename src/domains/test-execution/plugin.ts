@@ -9,6 +9,7 @@ import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
 import { getGlobalInfraHealing } from '../../strange-loop/infra-healing/global-instance.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 
 // ============================================================================
 // Plugin Implementation
@@ -17,7 +18,11 @@ import { getGlobalInfraHealing } from '../../strange-loop/infra-healing/global-i
 export class TestExecutionPlugin extends BaseDomainPlugin {
   private coordinator: TestExecutionCoordinator | null = null;
 
-  constructor(eventBus: EventBus, memory: MemoryBackend) {
+  constructor(
+    eventBus: EventBus,
+    memory: MemoryBackend,
+    private readonly llmRouter?: HybridRouter
+  ) {
     super(eventBus, memory);
   }
 
@@ -155,6 +160,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       { infraHealing },
+      this.llmRouter,
     ) as TestExecutionCoordinator;
 
     await this.coordinator.initialize();
@@ -298,7 +304,8 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
 
 export function createTestExecutionPlugin(
   eventBus: EventBus,
-  memory: MemoryBackend
+  memory: MemoryBackend,
+  llmRouter?: HybridRouter
 ): TestExecutionPlugin {
-  return new TestExecutionPlugin(eventBus, memory);
+  return new TestExecutionPlugin(eventBus, memory, llmRouter);
 }

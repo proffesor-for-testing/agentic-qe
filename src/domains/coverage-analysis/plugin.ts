@@ -9,6 +9,7 @@ import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { TestExecutionEvents } from '../../shared/events';
 import { CoverageAnalysisAPI } from './interfaces';
 import { CoverageAnalysisCoordinator } from './coordinator';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 
 // ============================================================================
 // Plugin Implementation
@@ -19,9 +20,9 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
   private readonly coordinator: CoverageAnalysisCoordinator;
   private _activeAnalyses = 0;
 
-  constructor(eventBus: EventBus, memory: MemoryBackend) {
+  constructor(eventBus: EventBus, memory: MemoryBackend, llmRouter?: HybridRouter) {
     super(eventBus, memory);
-    this.coordinator = new CoverageAnalysisCoordinator(eventBus, memory);
+    this.coordinator = new CoverageAnalysisCoordinator(eventBus, memory, {}, llmRouter);
   }
 
   // ============================================================================
@@ -269,7 +270,8 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
  */
 export function createCoverageAnalysisPlugin(
   eventBus: EventBus,
-  memory: MemoryBackend
+  memory: MemoryBackend,
+  llmRouter?: HybridRouter
 ): CoverageAnalysisPlugin {
-  return new CoverageAnalysisPlugin(eventBus, memory);
+  return new CoverageAnalysisPlugin(eventBus, memory, llmRouter);
 }

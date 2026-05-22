@@ -14,6 +14,7 @@ import {
 } from '../../shared/types/index.js';
 import { FilePath } from '../../shared/value-objects/index.js';
 import { cosineSimilarity } from '../../shared/utils/vector-math.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   EventBus,
   MemoryBackend,
@@ -40,6 +41,7 @@ import {
 } from './interfaces.js';
 import {
   createVisualTesterService,
+  createVisualTesterServiceWithDependencies,
   VisualTesterConfig,
   VisualTesterService,
 } from './services/visual-tester.js';
@@ -161,7 +163,8 @@ export class VisualAccessibilityCoordinator
     config: Partial<CoordinatorConfig> = {},
     visualConfig: Partial<VisualTesterConfig> = {},
     accessibilityConfig: Partial<AccessibilityTesterConfig> = {},
-    responsiveConfig: Partial<ResponsiveTestConfig> = {}
+    responsiveConfig: Partial<ResponsiveTestConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -173,7 +176,8 @@ export class VisualAccessibilityCoordinator
       ],
     });
 
-    this.visualTester = createVisualTesterService(memory, visualConfig);
+    // ADR-043 wiring: dependency-bag factory for LLM-aware visual tester.
+    this.visualTester = createVisualTesterServiceWithDependencies({ memory, llmRouter }, visualConfig);
     this.accessibilityTester = new AccessibilityTesterService(memory, accessibilityConfig);
     this.responsiveTester = new ResponsiveTesterService(memory, responsiveConfig);
   }

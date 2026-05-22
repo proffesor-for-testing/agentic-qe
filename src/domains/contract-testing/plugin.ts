@@ -11,6 +11,7 @@ import type {
 } from '../../kernel/interfaces.js';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import type {
   ApiContract,
   ProviderVerificationReport,
@@ -128,7 +129,8 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: ContractTestingPluginConfig = {}
+    config: ContractTestingPluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -283,8 +285,9 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
 
   protected async onInitialize(): Promise<void> {
     // Create services
+    // ADR-043 wiring.
     this.contractValidator = new ContractValidatorService(
-      { memory: this.memory },
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.contractValidator
     );
 
@@ -303,7 +306,8 @@ export class ContractTestingPlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -832,7 +836,8 @@ export function createContractTestingPlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: ContractTestingPluginConfig
+  config?: ContractTestingPluginConfig,
+  llmRouter?: HybridRouter
 ): ContractTestingPlugin {
-  return new ContractTestingPlugin(eventBus, memory, agentCoordinator, config);
+  return new ContractTestingPlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

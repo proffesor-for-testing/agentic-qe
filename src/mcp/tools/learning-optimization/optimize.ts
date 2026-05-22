@@ -9,7 +9,7 @@
  * - TransferSpecialistService for knowledge transfer
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { DomainName, AgentId } from '../../../shared/types/index.js';
 import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
@@ -156,7 +156,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
   }> {
     if (!this.learningCoordinator || !this.metricsOptimizer || !this.transferSpecialist) {
       const memory = (context as unknown as Record<string, unknown>).memory as MemoryBackend || await getSharedMemoryBackend();
-      this.learningCoordinator = new LearningCoordinatorService({ memory });
+      // ADR-043 wiring.
+      const llmRouter = await getLLMRouter(context);
+      this.learningCoordinator = new LearningCoordinatorService({ memory, llmRouter });
       this.metricsOptimizer = new MetricsOptimizerService(memory);
       this.transferSpecialist = new TransferSpecialistService(memory);
     }

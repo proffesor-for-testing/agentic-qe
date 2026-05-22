@@ -8,6 +8,7 @@ import { LoggerFactory } from '../../logging/index.js';
 import { Result, ok, err, DomainName, Severity } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   createEvent,
   CoverageAnalysisEvents,
@@ -171,7 +172,8 @@ export class CoverageAnalysisCoordinator
   constructor(
     eventBus: EventBus,
     private readonly memory: MemoryBackend,
-    config: Partial<CoverageAnalysisCoordinatorConfig> = {}
+    config: Partial<CoverageAnalysisCoordinatorConfig> = {},
+    llmRouter?: HybridRouter
   ) {
     const fullConfig: CoverageAnalysisCoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -180,8 +182,9 @@ export class CoverageAnalysisCoordinator
       ...fullConfig.consensusConfig,
     });
 
-    this.coverageAnalyzer = new CoverageAnalyzerService(memory);
-    this.gapDetector = new GapDetectorService(memory);
+    // ADR-043 wiring: pass llmRouter into LLM-enhanced services.
+    this.coverageAnalyzer = new CoverageAnalyzerService({ memory, llmRouter });
+    this.gapDetector = new GapDetectorService({ memory, llmRouter });
     this.riskScorer = new RiskScorerService(memory);
 
     // Initialize Q-Learning with coverage-specific configuration

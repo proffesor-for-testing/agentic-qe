@@ -38,6 +38,7 @@ import {
   type SecurityAuditorConfig,
 } from './services/security-auditor.js';
 import { toError } from '../../shared/error-utils.js';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
   ComplianceValidatorService,
   type IExtendedComplianceValidationService,
@@ -108,7 +109,8 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
     eventBus: EventBus,
     memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
-    config: SecurityCompliancePluginConfig = {}
+    config: SecurityCompliancePluginConfig = {},
+    private readonly llmRouter?: HybridRouter
   ) {
     super(eventBus, memory);
     this.pluginConfig = config;
@@ -230,9 +232,12 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
   // ==========================================================================
 
   protected async onInitialize(): Promise<void> {
-    // Create services
+    // Create services.
+    // ADR-043 wiring: SecurityScannerService accepts a dependency bag
+    // form that includes llmRouter — this is what makes
+    // SASTScanner.isLLMAnalysisAvailable() return true in production.
     this.securityScanner = new SecurityScannerService(
-      this.memory,
+      { memory: this.memory, llmRouter: this.llmRouter },
       this.pluginConfig.securityScanner
     );
 
@@ -251,7 +256,8 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
       this.eventBus,
       this.memory,
       this.agentCoordinator,
-      this.pluginConfig.coordinator
+      this.pluginConfig.coordinator,
+      this.llmRouter
     );
 
     // Initialize coordinator
@@ -573,7 +579,8 @@ export function createSecurityCompliancePlugin(
   eventBus: EventBus,
   memory: MemoryBackend,
   agentCoordinator: AgentCoordinator,
-  config?: SecurityCompliancePluginConfig
+  config?: SecurityCompliancePluginConfig,
+  llmRouter?: HybridRouter
 ): SecurityCompliancePlugin {
-  return new SecurityCompliancePlugin(eventBus, memory, agentCoordinator, config);
+  return new SecurityCompliancePlugin(eventBus, memory, agentCoordinator, config, llmRouter);
 }

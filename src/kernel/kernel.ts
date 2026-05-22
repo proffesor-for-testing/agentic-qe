@@ -33,6 +33,12 @@ import { PluginCache } from '../plugins/cache';
 import { CapturedExperienceBridge } from '../bridge/captured-experience-bridge.js';
 import { DreamScheduler } from '../learning/dream/dream-scheduler.js';
 import { createDreamEngine } from '../learning/dream/dream-engine.js';
+import {
+  createLLMRouterService,
+  type BuiltLLMRouter,
+} from '../shared/llm/llm-router-service.js';
+import type { HybridRouter } from '../shared/llm/router/hybrid-router.js';
+import type { ProviderManager } from '../shared/llm/provider-manager.js';
 
 // Import domain plugin factories
 import { createTestGenerationPlugin } from '../domains/test-generation/plugin';
@@ -59,24 +65,40 @@ import '../domains/code-intelligence';
 import '../domains/quality-assessment';
 import { createEnterpriseIntegrationPlugin } from '../domains/enterprise-integration/plugin';
 
-// Domain factory map - returns plugin instances (not Promises)
-type PluginFactoryFn = (eventBus: EventBus, memory: MemoryBackend, coordinator: AgentCoordinator) => import('./interfaces').DomainPlugin;
+/**
+ * Domain factory signature (ADR-043 wiring).
+ *
+ * `llmRouter` is forwarded to every domain factory so plugins can pass
+ * it through to their coordinators and services. Phase 1 of the
+ * wire-up just plumbs the parameter; Phase 2 updates each underlying
+ * `createXxxPlugin` factory to actually accept and use it.
+ */
+type PluginFactoryFn = (
+  eventBus: EventBus,
+  memory: MemoryBackend,
+  coordinator: AgentCoordinator,
+  llmRouter?: HybridRouter
+) => import('./interfaces').DomainPlugin;
 
+// NOTE: underlying createXxxPlugin signatures are updated in Phase 2.
+// For Phase 1, the wrappers accept llmRouter but discard it — this
+// keeps the kernel boot path internally consistent without forcing
+// 13 simultaneous domain-level changes.
 const DOMAIN_FACTORIES: Record<DomainName, PluginFactoryFn> = {
-  'test-generation': (eb, m, c) => createTestGenerationPlugin(eb, m, c),
-  'test-execution': (eb, m) => createTestExecutionPlugin(eb, m),
-  'coverage-analysis': (eb, m) => createCoverageAnalysisPlugin(eb, m),
-  'quality-assessment': (eb, m, c) => createQualityAssessmentPlugin(eb, m, c),
-  'defect-intelligence': (eb, m, c) => createDefectIntelligencePlugin(eb, m, c),
-  'requirements-validation': (eb, m, c) => createRequirementsValidationPlugin(eb, m, c),
-  'code-intelligence': (eb, m, c) => createCodeIntelligencePlugin(eb, m, c),
-  'security-compliance': (eb, m, c) => createSecurityCompliancePlugin(eb, m, c),
-  'contract-testing': (eb, m, c) => createContractTestingPlugin(eb, m, c),
-  'visual-accessibility': (eb, m, c) => createVisualAccessibilityPlugin(eb, m, c),
-  'chaos-resilience': (eb, m, c) => createChaosResiliencePlugin(eb, m, c),
-  'learning-optimization': (eb, m, c) => createLearningOptimizationPlugin(eb, m, c),
-  'enterprise-integration': (eb, m, c) => createEnterpriseIntegrationPlugin(eb, m, c),
-  'coordination': (eb, m, c) => createCoordinationPlugin(eb, m, c),
+  'test-generation': (eb, m, c, llmRouter) => createTestGenerationPlugin(eb, m, c, undefined, llmRouter),
+  'test-execution': (eb, m, _c, llmRouter) => createTestExecutionPlugin(eb, m, llmRouter),
+  'coverage-analysis': (eb, m, _c, llmRouter) => createCoverageAnalysisPlugin(eb, m, llmRouter),
+  'quality-assessment': (eb, m, c, llmRouter) => createQualityAssessmentPlugin(eb, m, c, undefined, llmRouter),
+  'defect-intelligence': (eb, m, c, llmRouter) => createDefectIntelligencePlugin(eb, m, c, undefined, llmRouter),
+  'requirements-validation': (eb, m, c, llmRouter) => createRequirementsValidationPlugin(eb, m, c, undefined, llmRouter),
+  'code-intelligence': (eb, m, c, llmRouter) => createCodeIntelligencePlugin(eb, m, c, undefined, llmRouter),
+  'security-compliance': (eb, m, c, llmRouter) => createSecurityCompliancePlugin(eb, m, c, undefined, llmRouter),
+  'contract-testing': (eb, m, c, llmRouter) => createContractTestingPlugin(eb, m, c, undefined, llmRouter),
+  'visual-accessibility': (eb, m, c, llmRouter) => createVisualAccessibilityPlugin(eb, m, c, undefined, llmRouter),
+  'chaos-resilience': (eb, m, c, llmRouter) => createChaosResiliencePlugin(eb, m, c, undefined, llmRouter),
+  'learning-optimization': (eb, m, c, llmRouter) => createLearningOptimizationPlugin(eb, m, c, undefined, llmRouter),
+  'enterprise-integration': (eb, m, c, _llmRouter) => createEnterpriseIntegrationPlugin(eb, m, c),
+  'coordination': (eb, m, c, _llmRouter) => createCoordinationPlugin(eb, m, c),
 };
 
 const DEFAULT_CONFIG: KernelConfig = {
@@ -117,6 +139,11 @@ export class QEKernelImpl implements QEKernel {
   // out of short-lived hook subprocesses into the long-lived kernel.
   private _dreamScheduler?: DreamScheduler;
 
+  // ADR-043: kernel singleton HybridRouter. Built during initialize() iff
+  // a provider key is in env or the project explicitly enables one.
+  private _llmRouter?: HybridRouter;
+  private _llmRouterBuild?: BuiltLLMRouter;
+
   constructor(config: Partial<KernelConfig> = {}) {
     this._config = { ...DEFAULT_CONFIG, ...config };
     this._startTime = new Date();
@@ -151,6 +178,16 @@ export class QEKernelImpl implements QEKernel {
 
   get memory(): MemoryBackend {
     return this._memory;
+  }
+
+  /**
+   * ADR-043: Get the LLM router built during initialize(). Returns
+   * undefined when llmRouter.enabled is false or no provider was
+   * available. Domain plugins receive this as their factory's 4th arg
+   * via DOMAIN_FACTORIES.
+   */
+  get llmRouter(): HybridRouter | undefined {
+    return this._llmRouter;
   }
 
   async initialize(): Promise<void> {
@@ -203,6 +240,11 @@ export class QEKernelImpl implements QEKernel {
       );
     }
 
+    // ADR-043: Build the kernel-singleton LLM router before plugin
+    // factories are registered, so the closure on the next loop can
+    // capture it. Builds iff configured/auto-detected; null otherwise.
+    await this._initializeLLMRouter(projectRoot);
+
     // Register domain factories for enabled domains
     for (const domain of this._config.enabledDomains) {
       const factory = DOMAIN_FACTORIES[domain];
@@ -211,8 +253,12 @@ export class QEKernelImpl implements QEKernel {
         (this._plugins as DefaultPluginLoader).registerFactory(
           domain,
           async (eventBus: EventBus, memory: MemoryBackend) => {
-            // Create plugin synchronously, return as Promise
-            return Promise.resolve(factory(eventBus, memory, this._coordinator));
+            // Create plugin synchronously, return as Promise.
+            // ADR-043: pass the kernel singleton llmRouter as 4th arg —
+            // domain factories forward it to coordinators/services.
+            return Promise.resolve(
+              factory(eventBus, memory, this._coordinator, this._llmRouter)
+            );
           }
         );
       }
@@ -258,7 +304,9 @@ export class QEKernelImpl implements QEKernel {
                   `Plugin "${manifest.name}" entry point must export a default function or "createPlugin" function`,
                 );
               }
-              return createPlugin(eventBus, memory, this._coordinator);
+              // ADR-043: forward llmRouter so external plugins can
+              // opt into LLM enhancement on the same terms as built-ins.
+              return createPlugin(eventBus, memory, this._coordinator, this._llmRouter);
             },
           );
         }
@@ -384,6 +432,118 @@ export class QEKernelImpl implements QEKernel {
     this._initialized = true;
   }
 
+  /**
+   * ADR-043: Build the kernel-singleton HybridRouter.
+   *
+   * Behavior is gated, in order:
+   *   1. AQE_LLM_ROUTER_DISABLED env var (kill-switch): if set to a truthy
+   *      value, ALWAYS skip — even when config.llmRouter.enabled === true.
+   *      This is the env-only opt-out for users who upgrade with a
+   *      provider key already in env and don't want billing surprises.
+   *   2. config.llmRouter.enabled:
+   *      'auto' (default): build iff at least one provider key is in env,
+   *                        or the project's llm-config.json enables a provider
+   *      true:             attempt to build; emit error event if no provider
+   *      false:            skip entirely (sets _llmRouter to undefined)
+   *
+   * On any error we publish a structured kernel.llm-router.init-failed
+   * event so monitoring catches misconfiguration. We also keep the
+   * console.warn for direct visibility in dev. The kernel still boots —
+   * a kernel that boots without LLMs is strictly better than a kernel
+   * that won't boot — but the failure is now observable.
+   */
+  private async _initializeLLMRouter(projectRoot: string): Promise<void> {
+    // (1) Hard env kill-switch. Truthy values disable; falsy/empty pass.
+    // Same parse rule as src/mcp/tools/base.ts:isRouterKillSwitchSet
+    // so both code paths agree on what "disabled" means.
+    const killSwitch = (process.env.AQE_LLM_ROUTER_DISABLED ?? '').trim().toLowerCase();
+    if (
+      killSwitch &&
+      killSwitch !== 'false' &&
+      killSwitch !== '0' &&
+      killSwitch !== 'no' &&
+      killSwitch !== 'off'
+    ) {
+      this._llmRouter = undefined;
+      return;
+    }
+
+    const llmCfg = this._config.llmRouter ?? {};
+    const enabled = llmCfg.enabled ?? 'auto';
+
+    if (enabled === false) {
+      this._llmRouter = undefined;
+      return;
+    }
+
+    try {
+      const built = await createLLMRouterService({
+        projectRoot,
+        override: llmCfg.configOverride,
+        providerManager: llmCfg.providerManager as ProviderManager | undefined,
+      });
+
+      if (!built) {
+        if (enabled === true) {
+          console.warn(
+            '[QEKernel] llmRouter.enabled=true but no provider available — ' +
+              'continuing without LLM router (domain services will skip LLM enhancement)'
+          );
+          await this._publishLLMRouterEvent('init-no-provider', {
+            reason: 'no provider available in env or disk config',
+          });
+        }
+        this._llmRouter = undefined;
+        return;
+      }
+
+      this._llmRouterBuild = built;
+      this._llmRouter = built.router;
+
+      // Phase 5 wiring: register as shared singleton so MCP standalone
+      // tools see the same router instance (one cost tracker, one cache,
+      // one metric collector, one circuit breaker per provider).
+      try {
+        const { setSharedLLMRouter } = await import('../mcp/tools/base.js');
+        setSharedLLMRouter(built.router);
+      } catch {
+        // MCP module not loaded — fine in CLI-only contexts.
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[QEKernel] LLM router init failed; continuing without LLM enhancement:', msg);
+      await this._publishLLMRouterEvent('init-failed', {
+        error: msg,
+        stack: err instanceof Error ? err.stack : undefined,
+      });
+      this._llmRouter = undefined;
+    }
+  }
+
+  /**
+   * ADR-043: emit a structured event on the kernel event bus when the
+   * LLM router can't be built. Observability hook for monitoring and
+   * alerting — a silent warn is not enough for production systems where
+   * "tests run without LLM analysis" is a quality regression worth
+   * paging on.
+   */
+  private async _publishLLMRouterEvent(
+    type: 'init-failed' | 'init-no-provider',
+    payload: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await this._eventBus.publish({
+        id: randomUUID(),
+        type: `kernel.llm-router.${type}`,
+        timestamp: new Date(),
+        source: 'qe-kernel' as DomainName,
+        payload,
+      });
+    } catch {
+      // Event bus publish failures during boot must not crash the kernel.
+    }
+  }
+
   async dispose(): Promise<void> {
     // ADR-094: Stop the dream scheduler first so a dream-in-progress doesn't
     // try to write to a disposed memory backend.
@@ -410,6 +570,20 @@ export class QEKernelImpl implements QEKernel {
     await this._coordinator.dispose();
     await this._eventBus.dispose();
     await this._memory.dispose();
+
+    // ADR-043: clear the shared LLM router singleton if we registered
+    // one. Prevents test isolation problems where a stale router from
+    // a previous kernel boot leaks into the next.
+    if (this._llmRouter) {
+      try {
+        const { resetSharedLLMRouter } = await import('../mcp/tools/base.js');
+        resetSharedLLMRouter();
+      } catch {
+        // MCP module not loaded — fine.
+      }
+      this._llmRouter = undefined;
+      this._llmRouterBuild = undefined;
+    }
 
     this._initialized = false;
   }

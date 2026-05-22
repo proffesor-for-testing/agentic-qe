@@ -16,6 +16,19 @@ import {
   VectorSearchResult,
 } from '../../src/kernel/interfaces';
 import { DomainEvent, DomainName, AgentStatus, Result } from '../../src/shared/types';
+import type {
+  LLMProvider,
+  LLMProviderType,
+  LLMResponse,
+  EmbeddingResponse,
+  CompletionResponse,
+  HealthCheckResult,
+  Message,
+  GenerateOptions,
+  EmbedOptions,
+  CompleteOptions,
+  LLMConfig,
+} from '../../src/shared/llm/interfaces';
 
 /**
  * Create a mock EventBus matching the actual interface
@@ -205,6 +218,126 @@ export function createMockAgentCoordinator(): AgentCoordinator {
       agents.clear();
     }),
   };
+}
+
+// ============================================================================
+// LLM Provider mock (ADR-043 wiring)
+// ============================================================================
+
+/**
+ * Behavior options for createMockLLMProvider().
+ */
+export interface MockLLMProviderOptions {
+  /** Provider type to identify as. Default: 'claude' */
+  type?: LLMProviderType;
+  /** Static response content. Default: 'mock response'. */
+  content?: string;
+  /** Override per-call: function called with the input, returns content. */
+  contentFor?: (input: string | Message[], options?: GenerateOptions) => string;
+  /** Latency in ms (simulated). Default: 0. */
+  latencyMs?: number;
+  /** Whether isAvailable/healthCheck report success. Default: true. */
+  healthy?: boolean;
+  /** Force the provider to throw on generate/embed/complete. Default: false. */
+  failing?: boolean;
+}
+
+/**
+ * Stats observed by a mock provider — used by tests to assert that
+ * the LLM-enhancement code paths actually ran.
+ */
+export interface MockLLMProviderStats {
+  generateCalls: number;
+  embedCalls: number;
+  completeCalls: number;
+  lastInput?: string | Message[];
+  lastOptions?: GenerateOptions | EmbedOptions | CompleteOptions;
+}
+
+/**
+ * Create a mock LLMProvider. Returns the provider plus its observed
+ * call stats so tests can assert on them.
+ */
+export function createMockLLMProvider(
+  opts: MockLLMProviderOptions = {}
+): { provider: LLMProvider; stats: MockLLMProviderStats } {
+  const stats: MockLLMProviderStats = {
+    generateCalls: 0,
+    embedCalls: 0,
+    completeCalls: 0,
+  };
+  const type = opts.type ?? 'claude';
+  const baseContent = opts.content ?? 'mock response';
+  const latency = opts.latencyMs ?? 0;
+  const healthy = opts.healthy ?? true;
+  const failing = opts.failing ?? false;
+  const maybeFail = (): void => {
+    if (failing) throw new Error(`mock provider ${type} configured to fail`);
+  };
+
+  const provider: LLMProvider = {
+    type,
+    name: `Mock ${type}`,
+    isAvailable: vi.fn(async () => healthy),
+    healthCheck: vi.fn(async (): Promise<HealthCheckResult> => ({
+      healthy,
+      latencyMs: latency,
+      models: ['mock-model'],
+    })),
+    generate: vi.fn(async (input: string | Message[], options?: GenerateOptions): Promise<LLMResponse> => {
+      stats.generateCalls++;
+      stats.lastInput = input;
+      stats.lastOptions = options;
+      maybeFail();
+      if (latency > 0) await new Promise((r) => setTimeout(r, latency));
+      const content = opts.contentFor ? opts.contentFor(input, options) : baseContent;
+      return {
+        content,
+        model: options?.model ?? 'mock-model',
+        provider: type,
+        usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+        cost: { inputCost: 0, outputCost: 0, totalCost: 0, currency: 'USD' },
+        latencyMs: latency,
+        finishReason: 'stop',
+        cached: false,
+        requestId: `mock-${stats.generateCalls}`,
+      };
+    }),
+    embed: vi.fn(async (text: string, options?: EmbedOptions): Promise<EmbeddingResponse> => {
+      stats.embedCalls++;
+      stats.lastInput = text;
+      stats.lastOptions = options;
+      maybeFail();
+      return {
+        embedding: new Array(8).fill(0).map((_, i) => i / 8),
+        model: options?.model ?? 'mock-embed',
+        provider: type,
+        tokenCount: text.length,
+        latencyMs: latency,
+        cached: false,
+      };
+    }),
+    complete: vi.fn(async (prompt: string, options?: CompleteOptions): Promise<CompletionResponse> => {
+      stats.completeCalls++;
+      stats.lastInput = prompt;
+      stats.lastOptions = options;
+      maybeFail();
+      return {
+        completion: opts.content ?? 'mock completion',
+        model: options?.model ?? 'mock-model',
+        provider: type,
+        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+        latencyMs: latency,
+        cached: false,
+      };
+    }),
+    getConfig: vi.fn((): LLMConfig => ({ model: 'mock-model' })),
+    getSupportedModels: vi.fn(() => ['mock-model']),
+    getCostPerToken: vi.fn(() => ({ input: 0, output: 0 })),
+    dispose: vi.fn(async () => {}),
+  };
+
+  return { provider, stats };
 }
 
 /**
