@@ -1,0 +1,302 @@
+{
+  "timestamp": "2026-05-22T12:24:30.009Z",
+  "system": {
+    "platform": "linux",
+    "arch": "arm64",
+    "cpu": "unknown",
+    "cpuCount": 8,
+    "nodeVersion": "v24.15.0",
+    "totalMemMb": 15972
+  },
+  "testOptimizer": [
+    {
+      "testCount": 50,
+      "fileCount": 20,
+      "totalEdges": 453,
+      "off": {
+        "totalRuntimeMs": 8915,
+        "testsRun": 50
+      },
+      "on": {
+        "overheadMs": 11.564333999999917,
+        "criticalCount": 6,
+        "skippableCount": 44,
+        "criticalRuntimeMs": 437,
+        "estimatedTimeSavingsMs": 8478,
+        "mincutValue": 0.07796101949025487,
+        "coveragePreserved": 1,
+        "netRuntimeOnMs": 448.5643339999999,
+        "reductionPercent": 94.96843147504207
+      },
+      "greedy": {
+        "overheadMs": 0.4577919999999267,
+        "selectedCount": 2,
+        "selectedRuntimeMs": 138,
+        "coveragePreserved": 1,
+        "netRuntimeMs": 138.45779199999993,
+        "reductionPercent": 98.44691203589456
+      }
+    },
+    {
+      "testCount": 200,
+      "fileCount": 66,
+      "totalEdges": 1684,
+      "off": {
+        "totalRuntimeMs": 45194,
+        "testsRun": 200
+      },
+      "on": {
+        "overheadMs": 18.79820799999993,
+        "criticalCount": 22,
+        "skippableCount": 178,
+        "criticalRuntimeMs": 4101,
+        "estimatedTimeSavingsMs": 41093,
+        "mincutValue": 0.063894523326572,
+        "coveragePreserved": 1,
+        "netRuntimeOnMs": 4119.798208,
+        "reductionPercent": 90.8841921316989
+      },
+      "greedy": {
+        "overheadMs": 5.033125000000155,
+        "selectedCount": 9,
+        "selectedRuntimeMs": 3407,
+        "coveragePreserved": 1,
+        "netRuntimeMs": 3412.033125,
+        "reductionPercent": 92.45025196928796
+      }
+    },
+    {
+      "testCount": 500,
+      "fileCount": 166,
+      "totalEdges": 4438,
+      "off": {
+        "totalRuntimeMs": 60251,
+        "testsRun": 500
+      },
+      "on": {
+        "overheadMs": 46.6845830000002,
+        "criticalCount": 52,
+        "skippableCount": 448,
+        "criticalRuntimeMs": 5924,
+        "estimatedTimeSavingsMs": 54327,
+        "mincutValue": 0.05380200860832138,
+        "coveragePreserved": 1,
+        "netRuntimeOnMs": 5970.684583,
+        "reductionPercent": 90.09031454581667
+      },
+      "greedy": {
+        "overheadMs": 14.69879200000014,
+        "selectedCount": 21,
+        "selectedRuntimeMs": 2461,
+        "coveragePreserved": 1,
+        "netRuntimeMs": 2475.698792,
+        "reductionPercent": 95.8910245605882
+      }
+    },
+    {
+      "testCount": 1000,
+      "fileCount": 333,
+      "totalEdges": 8502,
+      "off": {
+        "totalRuntimeMs": 149473,
+        "testsRun": 1000
+      },
+      "on": {
+        "overheadMs": 83.14366700000005,
+        "criticalCount": 111,
+        "skippableCount": 889,
+        "criticalRuntimeMs": 17381,
+        "estimatedTimeSavingsMs": 132092,
+        "mincutValue": 0.05808080808080808,
+        "coveragePreserved": 1,
+        "netRuntimeOnMs": 17464.143667,
+        "reductionPercent": 88.31618843068648
+      },
+      "greedy": {
+        "overheadMs": 65.25683300000014,
+        "selectedCount": 42,
+        "selectedRuntimeMs": 8940,
+        "coveragePreserved": 1,
+        "netRuntimeMs": 9005.256833,
+        "reductionPercent": 93.97532876639929
+      }
+    }
+  ],
+  "healthMonitor": [
+    {
+      "agentCount": 5,
+      "vertexCount": 10,
+      "edgeCount": 19,
+      "off": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.00022079600000142818,
+          "min": 0.00012499999979809218,
+          "max": 0.028583000000026004,
+          "p50": 0.00016699999991942605,
+          "p95": 0.0002080000001569715,
+          "p99": 0.00033400000006622577
+        },
+        "totalMs": 0.4909580000000915
+      },
+      "on": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.04332015799999885,
+          "min": 0.01608299999998053,
+          "max": 2.62299999999982,
+          "p50": 0.021457999999938693,
+          "p95": 0.1124170000000504,
+          "p99": 0.5553749999999127
+        },
+        "totalMs": 43.78029199999992,
+        "finalStatus": "critical",
+        "finalMincutValue": 1.5085781074129045,
+        "weakVertexCount": 2
+      },
+      "overheadPerTickMs": 0.04309936199999743,
+      "projectedCpuPercentAt5sInterval": 0.0008619872399999486,
+      "memoryGrowthBytes": 12848
+    },
+    {
+      "agentCount": 15,
+      "vertexCount": 20,
+      "edgeCount": 42,
+      "off": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.00016732300000262514,
+          "min": 0.00012499999979809218,
+          "max": 0.0031249999999545253,
+          "p50": 0.00016699999991942605,
+          "p95": 0.00020799999992959783,
+          "p99": 0.00020900000004075991
+        },
+        "totalMs": 0.3660409999999956
+      },
+      "on": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.023724968000000898,
+          "min": 0.011665999999877386,
+          "max": 1.250041999999894,
+          "p50": 0.013958000000002357,
+          "p95": 0.047000000000025466,
+          "p99": 0.22529099999997015
+        },
+        "totalMs": 24.746208000000024,
+        "finalStatus": "critical",
+        "finalMincutValue": 1.4475877220742404,
+        "weakVertexCount": 0
+      },
+      "overheadPerTickMs": 0.02355764499999827,
+      "projectedCpuPercentAt5sInterval": 0.0004711528999999654,
+      "memoryGrowthBytes": -3011672
+    },
+    {
+      "agentCount": 50,
+      "vertexCount": 55,
+      "edgeCount": 131,
+      "off": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.0002696569999989151,
+          "min": 0.00012499999979809218,
+          "max": 0.09875000000010914,
+          "p50": 0.00016699999991942605,
+          "p95": 0.0002080000001569715,
+          "p99": 0.0002500000000509317
+        },
+        "totalMs": 0.6206250000000182
+      },
+      "on": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.05204784299999824,
+          "min": 0.015124999999898137,
+          "max": 2.725208000000066,
+          "p50": 0.02666599999997743,
+          "p95": 0.13600000000019463,
+          "p99": 0.7750839999998789
+        },
+        "totalMs": 52.927374999999984,
+        "finalStatus": "critical",
+        "finalMincutValue": 1,
+        "weakVertexCount": 0
+      },
+      "overheadPerTickMs": 0.051778185999999324,
+      "projectedCpuPercentAt5sInterval": 0.0010355637199999865,
+      "memoryGrowthBytes": -1774688
+    },
+    {
+      "agentCount": 200,
+      "vertexCount": 205,
+      "edgeCount": 508,
+      "off": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.00012532699999724174,
+          "min": 0.00008299999990413198,
+          "max": 0.0006249999998999556,
+          "p50": 0.00012500000002546585,
+          "p95": 0.00016600000003563764,
+          "p99": 0.00016700000014679972
+        },
+        "totalMs": 0.27587500000004184
+      },
+      "on": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.10758383100000446,
+          "min": 0.051791999999977634,
+          "max": 5.148874999999862,
+          "p50": 0.06404099999986101,
+          "p95": 0.24554199999988668,
+          "p99": 0.8877919999999904
+        },
+        "totalMs": 108.140042,
+        "finalStatus": "critical",
+        "finalMincutValue": 1,
+        "weakVertexCount": 0
+      },
+      "overheadPerTickMs": 0.10745850400000721,
+      "projectedCpuPercentAt5sInterval": 0.0021491700800001443,
+      "memoryGrowthBytes": -6185568
+    },
+    {
+      "agentCount": 500,
+      "vertexCount": 505,
+      "edgeCount": 1257,
+      "off": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.00017016199999716263,
+          "min": 0.00008299999990413198,
+          "max": 0.021374999999807187,
+          "p50": 0.00012500000002546585,
+          "p95": 0.00016700000014679972,
+          "p99": 0.00016700000014679972
+        },
+        "totalMs": 1.4958339999998316
+      },
+      "on": {
+        "tickStats": {
+          "count": 1000,
+          "avg": 0.34848413900000424,
+          "min": 0.09300000000007458,
+          "max": 8.261749999999893,
+          "p50": 0.23466600000028848,
+          "p95": 0.7791250000000218,
+          "p99": 2.6150410000000193
+        },
+        "totalMs": 349.7292090000001,
+        "finalStatus": "critical",
+        "finalMincutValue": 1,
+        "weakVertexCount": 0
+      },
+      "overheadPerTickMs": 0.3483139770000071,
+      "projectedCpuPercentAt5sInterval": 0.006966279540000142,
+      "memoryGrowthBytes": -2943696
+    }
+  ]
+}
