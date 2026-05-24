@@ -6,7 +6,7 @@
 
 **ADR (Architecture Decision Records)** — 57 formal design decisions (ADR-001 through ADR-057 + MADR-001) that document *why* each architectural choice was made. Each ADR includes context, decision, consequences, and status. They serve as the institutional memory of the framework's evolution.
 
-**QCSD (Quality Criteria Shift-Left Delivery)** — The 4-phase swarm model that structures quality across the entire SDLC: Ideation (planning) → Refinement (story prep) → Development (coding) → CI/CD Verification (release). Each phase produces a binary-style decision (GO/NO-GO, READY/NOT-READY, SHIP/HOLD, RELEASE/BLOCK) with cross-phase signal propagation.
+**QCSD (Quality Conscious Software Delivery)** — The 5-phase swarm model that structures quality across the entire SDLC: Ideation (planning) → Refinement (story prep) → Development (coding) → CI/CD Verification (release) → Production (telemetry) . Each phase produces a binary-style decision (GO/NO-GO, READY/NOT-READY, SHIP/HOLD, RELEASE/BLOCK) with cross-phase signal propagation.
 
 **SPARC (Specification, Pseudocode, Architecture, Refinement, Completion)** — A methodology for structured agent work. Breaks complex tasks into 5 phases so agents don't skip steps. The `sparc-orchestrator` agent coordinates this cycle.
 
