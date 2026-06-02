@@ -21,7 +21,7 @@
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
-| 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | TODO | — |
+| 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | VERIFIED | ef4738de |
 | 7 | Contradiction detection in consolidation | 2 | Med (learning) | TODO | — |
 | 8 | RaBitQ 1-bit signatures for HNSW retrieval | 2 | Med (perf) | TODO | — |
 | 9 | Pretrain-from-history bootstrap | 2 | Low (new script) | TODO | — |
@@ -133,6 +133,7 @@ Each item below has: **What Ruflo does**, **AQE target**, **Acceptance (user-per
 ---
 
 ## Discovered side-findings (from running the new harnesses)
+- **`consecutive_failures` deprecation branch never fires** (found by #6, 2026-06-02): `PatternLifecycleManager.checkDeprecation` reads `(pattern as PatternWithDeprecation).consecutive_failures`, but `rowToPattern` (used by `getPattern`) does not surface that column, so the value is always `undefined→0` and the `'failures'` deprecation reason is dead via this path. Pre-existing (not introduced by #6). Candidate dedicated fix: include `consecutive_failures`/`deprecated_at` in `rowToPattern`. Tracked in issue #510.
 - **RVF↔SQLite pattern drift** (found by #1 audit-real, 2026-06-02): live store shows RVF vector count **338** vs SQLite `qe_patterns` rows **345** (−7). Banner numbers (72.5% success / 39.7% confidence / 2131 routings) corroborate the session banner, but ~7 patterns exist in the table with no vector in the index. Non-gating note today; candidate for a dedicated reconciliation fix (a `qe_patterns` row without an RVF vector is invisible to semantic recall). Tracked in issue #510.
 
 ## Skip list (analyzed, not adopting)
