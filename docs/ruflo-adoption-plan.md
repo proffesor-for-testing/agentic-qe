@@ -19,7 +19,7 @@
 | 1 | Self-learning verification harness | 1 | Low (new script) | VERIFIED | 9cb44d32 |
 | 2 | Routing-confidence fix (domain-score de-dilution; ruflo per-bucket priors N/A) | 1 | Med (router) | VERIFIED | 1bb91b40 |
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
-| 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
+| 4 | MCP protocol-compliance smoke + tool-parity audit | 1 | Low (new tests) | VERIFIED | b1a462fb |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
 | 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | VERIFIED | ef4738de |
 | 7 | Contradiction detection in consolidation | 2 | Med (learning) | VERIFIED | 43918b3b |
@@ -133,6 +133,7 @@ Each item below has: **What Ruflo does**, **AQE target**, **Acceptance (user-per
 ---
 
 ## Discovered side-findings (from running the new harnesses)
+- **MCP unknown-tool error loses its JSON-RPC code** (found by #4, 2026-06-02): `handleToolsCall` throws a plain object `{ code: -32601, message: 'Unknown tool: …' }` for unknown tools; it escapes the request-handler safety net where `err instanceof Error` is false, surfacing as `content` `{"success":false,"error":"Internal error: [object Object]"}` instead of a proper JSON-RPC `-32601` error. Tool is still correctly NOT executed. Candidate fix: throw a real `Error`/`McpError`. Tracked in issue #510.
 - **`consecutive_failures` deprecation branch never fires** (found by #6, 2026-06-02): `PatternLifecycleManager.checkDeprecation` reads `(pattern as PatternWithDeprecation).consecutive_failures`, but `rowToPattern` (used by `getPattern`) does not surface that column, so the value is always `undefined→0` and the `'failures'` deprecation reason is dead via this path. Pre-existing (not introduced by #6). Candidate dedicated fix: include `consecutive_failures`/`deprecated_at` in `rowToPattern`. Tracked in issue #510.
 - **RVF↔SQLite pattern drift** (found by #1 audit-real, 2026-06-02): live store shows RVF vector count **338** vs SQLite `qe_patterns` rows **345** (−7). Banner numbers (72.5% success / 39.7% confidence / 2131 routings) corroborate the session banner, but ~7 patterns exist in the table with no vector in the index. Non-gating note today; candidate for a dedicated reconciliation fix (a `qe_patterns` row without an RVF vector is invisible to semantic recall). Tracked in issue #510.
 
