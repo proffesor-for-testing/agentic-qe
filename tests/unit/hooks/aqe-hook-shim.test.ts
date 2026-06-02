@@ -12,7 +12,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -85,6 +85,25 @@ describe('aqe-hook.sh resilient shim (#510 item 5)', () => {
       const r = withFakeBundle(`console.error('boom'); process.exit(2);`);
       expect(r.code).toBe(0);
       expect(r.stdout.trim()).toBe('');
+    });
+
+    // Portability: a user's project has node_modules/.bin/aqe (the installed
+    // binary), not a dist/ build. The shim must resolve that, and prefer it over
+    // a dist bundle if both are present.
+    it('resolves node_modules/.bin/aqe (installed-project case) and prefers it over dist', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      // Installed-binary form (a user project).
+      mkdirSync(join(tmp, 'node_modules', '.bin'), { recursive: true });
+      const bin = join(tmp, 'node_modules', '.bin', 'aqe');
+      writeFileSync(bin, `#!/usr/bin/env sh\nprintf '%s\\n' '{ "from": "local-bin" }'\n`);
+      chmodSync(bin, 0o755);
+      // A dist bundle is ALSO present — the shim must prefer the local bin.
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      writeFileSync(join(tmp, 'dist', 'cli', 'bundle.js'), `console.log(JSON.stringify({ from: 'dist' }));`);
+
+      const r = runShim(['route', '--json'], tmp);
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({ from: 'local-bin' });
     });
   });
 });
