@@ -17,7 +17,7 @@
 | # | Item | Tier | Risk | Status | Commit |
 |---|------|------|------|--------|--------|
 | 1 | Self-learning verification harness | 1 | Low (new script) | VERIFIED | 9cb44d32 |
-| 2 | Per-bucket bandit priors (40% routing-confidence fix) | 1 | Med (router) | TODO | — |
+| 2 | Per-bucket bandit priors (40% routing-confidence fix) | 1 | Med (router) | RECLASSIFIED — not applicable as specified; real root cause found (awaiting decision) | — |
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
@@ -50,11 +50,13 @@ Each item below has: **What Ruflo does**, **AQE target**, **Acceptance (user-per
 - **Acceptance:** Run the harness; it prints measured before/after deltas, exits non-zero if any store fails to persist. Independently confirm (or refute) the session-banner numbers.
 - **Ref:** `v3/@claude-flow/cli/scripts/benchmark-self-learning.mjs`
 
-### #2 — Per-bucket bandit priors (the 40% routing-confidence fix) `[Tier 1]`
+### #2 — Per-bucket bandit priors (the 40% routing-confidence fix) `[Tier 1]` — RECLASSIFIED
 - **Ruflo (ADR-142):** Beta(α,β) routing priors keyed by complexity bucket (low/med/high) instead of one global prior — fixes "8 failures on one hard task suppress a model for *all* tasks." Lossless forward-migration of flat priors into 3 buckets.
-- **AQE target:** Locate AQE's routing/confidence model; key priors by task-complexity bucket; migrate existing priors losslessly.
-- **Acceptance:** Reproduce the low confidence on a mixed workload, apply fix, show confidence on easy-task routing recovers without corrupting hard-task suppression. Verify via a real route call, not a unit mock.
-- **Ref:** `v3/@claude-flow/cli/src/ruvector/model-router.ts`, `ADR-142-per-task-bandit-priors.md`
+- **Investigation (2026-06-02, verified with real routes):** AQE's routing confidence is **NOT a Beta-bandit prior**, so ruflo's ADR-142 fix does not apply. Confidence (`QERoutingResult.confidence`) is the top agent's combined **static score** from `calculateAgentScores` (`src/learning/agent-routing.ts:338`), blended with an immature Q-table (`qWeight` ramps 0→0.4 only after 20 visits/state; live telemetry shows `qWeight: 0`). The one Beta sampler in the codebase (`src/integrations/ruvector/thompson-sampler.ts`, ADR-084) is for **cross-domain transfer**, keyed per domain-pair (already bucketed), and never feeds the 40% number.
+- **Real root cause:** **domain-score dilution.** `agent-routing.ts:363` computes `domainScore = (domainMatch / detectedDomains.length) * 0.4`. AQE's domain detector returns 7–12 domains per task, so a perfect single-domain match yields `(1/11)*0.4 ≈ 0.04`. Confidence is therefore dominated by the fixed performance term (`profile.performanceScore * 0.3 ≈ 0.27`) + a default capability term (`0.15`), which is why a clean easy task lands at **37.3%** and a hard task at **20.5%** (measured via `aqe hooks pre-task`). The byzantine-consensus task also mis-routed to `qe-performance-tester`.
+- **Proposed scoped fix (needs sign-off — published hot path):** de-dilute the domain term — divide by matched-or-`min(detectedDomains.length, K)` rather than the full breadth of *detected* domains, so relevance isn't washed out when the detector is broad. Keep it behind the existing `routingWeights` so it's tunable/reversible. Affects every routing decision + all confidence telemetry → requires explicit confirmation per CLAUDE.md production-safety.
+- **Acceptance (unchanged):** reproduce low confidence (done: 37.3%/20.5%), apply fix, show easy-task confidence recovers and good matches rank correctly, verified via real `aqe hooks pre-task` calls.
+- **Ref:** AQE `src/learning/agent-routing.ts:338-405`; ruflo `ADR-142-per-task-bandit-priors.md` (not a structural match).
 
 ### #3 — Router bug audit `[Tier 1]`
 - **Ruflo (2026-05-29):** (#2229) learned Q-update hidden behind a stale route cache until 50 updates accrued → invalidate the state's cache entry on every update. (#2239) task→state hash shifted the keyword feature block past a 31-bit mask, collapsing all tasks into one state → full-width FNV-1a + `encoderVersion` migration guard.
