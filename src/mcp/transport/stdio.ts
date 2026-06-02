@@ -62,6 +62,38 @@ export const JSON_RPC_ERRORS = {
   SERVER_ERROR: -32000,
 } as const;
 
+/**
+ * Error subclass that carries a JSON-RPC error `code` so it can be surfaced as a
+ * proper JSON-RPC error response (instead of being flattened to "[object Object]").
+ * Mirrors the OAuthProviderError pattern used in the security layer.
+ */
+export class McpError extends Error {
+  constructor(
+    public readonly code: number,
+    message: string,
+    public readonly data?: unknown,
+  ) {
+    super(message);
+    this.name = 'McpError';
+  }
+}
+
+/**
+ * Type guard for any thrown value that carries a JSON-RPC `code` + `message`.
+ * Accepts both the McpError subclass and legacy plain `{ code, message }` objects
+ * so existing throw sites continue to map to the right JSON-RPC error code.
+ */
+export function isJsonRpcCodedError(
+  err: unknown,
+): err is { code: number; message: string; data?: unknown } {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    typeof (err as { code?: unknown }).code === 'number' &&
+    typeof (err as { message?: unknown }).message === 'string'
+  );
+}
+
 // ============================================================================
 // Stdio Transport Implementation
 // ============================================================================
@@ -287,12 +319,18 @@ export class StdioTransport {
         result,
       });
     } catch (err) {
-      const error = err as Error;
-      await this.sendError(
-        request.id!,
-        JSON_RPC_ERRORS.INTERNAL_ERROR,
-        error.message || 'Internal error'
-      );
+      // Honor a JSON-RPC `code` carried by the thrown value (McpError or a legacy
+      // plain `{ code, message }` object); otherwise fall back to INTERNAL_ERROR.
+      if (isJsonRpcCodedError(err)) {
+        await this.sendError(request.id!, err.code, err.message, err.data);
+      } else {
+        const error = err as Error;
+        await this.sendError(
+          request.id!,
+          JSON_RPC_ERRORS.INTERNAL_ERROR,
+          error.message || 'Internal error'
+        );
+      }
     }
   }
 

@@ -11,6 +11,8 @@ import {
   createStdioTransport,
   JSONRPCRequest,
   JSON_RPC_ERRORS,
+  isJsonRpcCodedError,
+  McpError,
 } from './transport';
 import { ToolRegistry, createToolRegistry } from './tool-registry';
 import { ToolDefinition } from './types';
@@ -289,7 +291,15 @@ export class MCPProtocolServer {
       try {
         return await this.handleRequest(request);
       } catch (err) {
-        // Last-resort safety net: catch anything that escapes handleToolsCall
+        // Errors that carry a JSON-RPC `code` (e.g. METHOD_NOT_FOUND for an
+        // unknown tool/method — thrown as McpError or a legacy plain
+        // `{ code, message }` object) are real protocol errors: re-throw so the
+        // transport serializes them as a proper JSON-RPC error response with the
+        // correct code/message, instead of flattening to "[object Object]".
+        if (isJsonRpcCodedError(err)) {
+          throw err;
+        }
+        // Last-resort safety net: catch anything else that escapes handleToolsCall
         // to prevent MCP connection from being killed (-32000)
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[MCP] Unhandled error in request handler: ${message}`);
@@ -472,10 +482,10 @@ export class MCPProtocolServer {
 
       // Unknown method
       default:
-        throw {
-          code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
-          message: `Unknown method: ${method}`,
-        };
+        throw new McpError(
+          JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+          `Unknown method: ${method}`,
+        );
     }
   }
 
@@ -506,10 +516,10 @@ export class MCPProtocolServer {
     params: Record<string, unknown>
   ): Promise<{ protocolVersion: string; capabilities: MCPCapabilities; serverInfo: MCPServerInfo }> {
     if (this.initialized) {
-      throw {
-        code: JSON_RPC_ERRORS.INVALID_REQUEST,
-        message: 'Server already initialized',
-      };
+      throw new McpError(
+        JSON_RPC_ERRORS.INVALID_REQUEST,
+        'Server already initialized',
+      );
     }
 
     // Store client info
@@ -555,10 +565,10 @@ export class MCPProtocolServer {
 
     const tool = this.tools.get(name);
     if (!tool) {
-      throw {
-        code: JSON_RPC_ERRORS.METHOD_NOT_FOUND,
-        message: `Unknown tool: ${name}`,
-      };
+      throw new McpError(
+        JSON_RPC_ERRORS.METHOD_NOT_FOUND,
+        `Unknown tool: ${name}`,
+      );
     }
 
     // ADR-039: Track tool invocation with performance monitoring
