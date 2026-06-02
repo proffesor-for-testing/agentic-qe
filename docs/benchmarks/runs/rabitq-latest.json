@@ -1,0 +1,56 @@
+{
+  "timestamp": null,
+  "benchmark": "rabitq",
+  "dimensions": 384,
+  "k": 10,
+  "queries": 100,
+  "poolFraction": 0.55,
+  "sizes": [
+    100,
+    1000,
+    5000
+  ],
+  "platform": "linux arm64",
+  "node": "v24.15.0",
+  "results": [
+    {
+      "n": 100,
+      "queries": 100,
+      "k": 10,
+      "rerankPool": 56,
+      "exactMs": 0.04410125000000001,
+      "rabitqMs": 0.040593749999999956,
+      "speedup": 1.086404926866822,
+      "recall": 0.9730000000000001,
+      "indexBytesExact": 153600,
+      "indexBytesSignatures": 4800,
+      "memoryReduction": 32
+    },
+    {
+      "n": 1000,
+      "queries": 100,
+      "k": 10,
+      "rerankPool": 550,
+      "exactMs": 0.45467625,
+      "rabitqMs": 0.34678375,
+      "speedup": 1.3111232864861748,
+      "recall": 1,
+      "indexBytesExact": 1536000,
+      "indexBytesSignatures": 48000,
+      "memoryReduction": 32
+    },
+    {
+      "n": 5000,
+      "queries": 100,
+      "k": 10,
+      "rerankPool": 2750,
+      "exactMs": 2.4510791700000003,
+      "rabitqMs": 2.0728229199999997,
+      "speedup": 1.1824836296194567,
+      "recall": 0.9990000000000001,
+      "indexBytesExact": 7680000,
+      "indexBytesSignatures": 240000,
+      "memoryReduction": 32
+    }
+  ]
+}

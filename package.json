@@ -87,6 +87,7 @@
     "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
     "benchmark:token-reduction": "vitest bench tests/benchmarks/code-intelligence-token-reduction.bench.ts",
     "benchmark:self-learning": "tsx scripts/benchmark-self-learning.ts",
+    "benchmark:rabitq": "tsx scripts/benchmark-rabitq.ts",
     "dev": "node dist/cli/bundle.js",
     "start": "node dist/cli/bundle.js",
     "typecheck": "tsc --noEmit",
