@@ -28,6 +28,12 @@ import type { IEmbedding } from '../integrations/embeddings/base/types.js';
 export interface ConsolidationResult {
   /** Experiences merged into survivors */
   merged: number;
+  /**
+   * Experiences suppressed from retrieval because they CONTRADICT a
+   * higher-quality near-duplicate (similar context, opposite outcome).
+   * Soft-suppressed (consolidated_into = 'contradicted'), not deleted.
+   */
+  contradicted: number;
   /** Experiences with quality recalculated */
   qualityUpdated: number;
   /** Experiences soft-archived (Phase 3 valueless + Phase 4 safety valve) */
@@ -65,6 +71,16 @@ export interface ConsolidationConfig {
   archiveQualityThreshold: number;
   /** Quality boost per merged experience */
   mergeQualityBoost: number;
+  /**
+   * Contradiction detection (#510 item 7). Two experiences with cosine
+   * similarity >= this threshold but a quality delta >= contradictionQualityDelta
+   * are treated as "same context, opposite outcome" — a conflict, not a
+   * duplicate. The lower-quality loser is suppressed from retrieval instead of
+   * merged, so it can't poison recall.
+   */
+  contradictionSimilarityThreshold: number;
+  /** Min quality gap that turns a near-duplicate into a contradiction (0-1). */
+  contradictionQualityDelta: number;
 }
 
 const DEFAULT_CONFIG: ConsolidationConfig = {
@@ -75,6 +91,8 @@ const DEFAULT_CONFIG: ConsolidationConfig = {
   archiveMinAgeDays: 30,
   archiveQualityThreshold: 0.15,
   mergeQualityBoost: 0.02,
+  contradictionSimilarityThreshold: 0.85,
+  contradictionQualityDelta: 0.4,
 };
 
 interface ActiveExperienceRow {
@@ -130,6 +148,7 @@ export class ExperienceConsolidator {
 
     const totalResult: ConsolidationResult = {
       merged: 0,
+      contradicted: 0,
       qualityUpdated: 0,
       archived: 0,
       hardDeleted: 0,
@@ -149,6 +168,7 @@ export class ExperienceConsolidator {
     for (const { domain, cnt } of targetDomains) {
       const result = await this.consolidateDomain(domain, cnt);
       totalResult.merged += result.merged;
+      totalResult.contradicted += result.contradicted;
       totalResult.qualityUpdated += result.qualityUpdated;
       totalResult.archived += result.archived;
       totalResult.hardDeleted += result.hardDeleted;
@@ -161,9 +181,10 @@ export class ExperienceConsolidator {
     ).get() as { cnt: number };
     totalResult.activeRemaining = activeCount.cnt;
 
-    if (totalResult.merged > 0 || totalResult.archived > 0) {
+    if (totalResult.merged > 0 || totalResult.archived > 0 || totalResult.contradicted > 0) {
       console.log(
         `[ExperienceConsolidator] Consolidated: ${totalResult.merged} merged, ` +
+        `${totalResult.contradicted} contradicted, ` +
         `${totalResult.archived} archived, ${totalResult.activeRemaining} active`
       );
     }
@@ -179,6 +200,7 @@ export class ExperienceConsolidator {
 
     const result: ConsolidationResult = {
       merged: 0,
+      contradicted: 0,
       qualityUpdated: 0,
       archived: 0,
       hardDeleted: 0,
@@ -186,8 +208,10 @@ export class ExperienceConsolidator {
       domainsProcessed: [domain],
     };
 
-    // Phase 1: Cluster & Merge
-    result.merged = await this.clusterAndMerge(domain);
+    // Phase 1: Cluster & Merge (+ contradiction suppression)
+    const clusterResult = await this.clusterAndMerge(domain);
+    result.merged = clusterResult.merged;
+    result.contradicted = clusterResult.contradicted;
 
     // Phase 2: Quality Reinforcement
     result.qualityUpdated = this.reinforceQuality(domain);
@@ -227,7 +251,7 @@ export class ExperienceConsolidator {
     if (flag) {
       console.log(`[ExperienceConsolidator] Domain ${domain} already bootstrapped`);
       return {
-        merged: 0, qualityUpdated: 0, archived: 0,
+        merged: 0, contradicted: 0, qualityUpdated: 0, archived: 0,
         hardDeleted: 0, activeRemaining: 0, domainsProcessed: [domain],
       };
     }
@@ -263,7 +287,7 @@ export class ExperienceConsolidator {
   // Phase 1: Cluster & Merge
   // ============================================================================
 
-  private async clusterAndMerge(domain: string): Promise<number> {
+  private async clusterAndMerge(domain: string): Promise<{ merged: number; contradicted: number }> {
     // Get active experiences with embeddings, sorted by quality DESC
     const candidates = this.db!.prepare(`
       SELECT id, task, domain, quality, success, application_count,
@@ -274,7 +298,7 @@ export class ExperienceConsolidator {
       ORDER BY quality DESC
     `).all(domain) as ActiveExperienceRow[];
 
-    if (candidates.length < 2) return 0;
+    if (candidates.length < 2) return { merged: 0, contradicted: 0 };
 
     // Build a temporary HNSW index for this domain
     const hnswIndex = new HNSWEmbeddingIndex({
@@ -310,9 +334,13 @@ export class ExperienceConsolidator {
     // Track which IDs have been absorbed
     const absorbed = new Set<string>();
     let mergeCount = 0;
+    let contradictionCount = 0;
 
     const markConsolidated = this.db!.prepare(
       "UPDATE captured_experiences SET consolidated_into = ? WHERE id = ?"
+    );
+    const markContradicted = this.db!.prepare(
+      "UPDATE captured_experiences SET consolidated_into = 'contradicted' WHERE id = ?"
     );
     const boostSurvivor = this.db!.prepare(`
       UPDATE captured_experiences
@@ -328,7 +356,7 @@ export class ExperienceConsolidator {
 
     // Iterate experiences by quality DESC
     for (const row of candidates) {
-      if (mergeCount >= this.config.maxMergesPerRun) break;
+      if (mergeCount + contradictionCount >= this.config.maxMergesPerRun) break;
       if (absorbed.has(row.id)) continue;
       if (!row.embedding || !row.embedding_dimension) continue;
 
@@ -350,22 +378,47 @@ export class ExperienceConsolidator {
       });
 
       const mergedIds: string[] = [];
+      const contradictedIds: string[] = [];
 
       for (const { id: hnswId, distance } of neighbors) {
-        if (mergeCount >= this.config.maxMergesPerRun) break;
+        if (mergeCount + contradictionCount >= this.config.maxMergesPerRun) break;
 
         const neighborId = idMap.get(hnswId);
         if (!neighborId || neighborId === row.id || absorbed.has(neighborId)) continue;
 
         const similarity = 1 - distance;
-        if (similarity < this.config.mergeSimilarityThreshold) continue;
+        // Gate on the lower of the two thresholds so neither merge nor
+        // contradiction detection is starved if they are configured differently.
+        if (similarity < Math.min(
+          this.config.mergeSimilarityThreshold,
+          this.config.contradictionSimilarityThreshold,
+        )) continue;
 
         // Find the neighbor in candidates
         const neighbor = candidates.find(c => c.id === neighborId);
         if (!neighbor) continue;
 
-        // Only merge lower-quality, unused neighbors into the survivor
-        if (neighbor.quality <= row.quality && neighbor.application_count === 0) {
+        // Contradiction (#510 item 7): same context (high similarity) but
+        // opposite outcome (large quality delta) => a conflict, not a duplicate.
+        // Suppress the lower-quality loser from retrieval even if it was applied
+        // (a used-but-low-quality contradictory experience is exactly the
+        // recall-poisoning case). Candidates are sorted quality DESC and absorbed
+        // ones are skipped, so when a gap exists `neighbor` is the strict loser.
+        const qualityDelta = Math.abs(row.quality - neighbor.quality);
+        if (similarity >= this.config.contradictionSimilarityThreshold
+            && qualityDelta >= this.config.contradictionQualityDelta) {
+          if (neighbor.quality < row.quality) {
+            absorbed.add(neighborId);
+            contradictedIds.push(neighborId);
+            contradictionCount++;
+          }
+          continue; // never merge a contradictory pair
+        }
+
+        // Only merge lower-quality, unused neighbors into the survivor (requires
+        // the normal merge similarity threshold).
+        if (similarity >= this.config.mergeSimilarityThreshold
+            && neighbor.quality <= row.quality && neighbor.application_count === 0) {
           absorbed.add(neighborId);
           mergedIds.push(neighborId);
           mergeCount++;
@@ -389,12 +442,30 @@ export class ExperienceConsolidator {
         });
         transaction();
       }
+
+      // Apply contradiction suppressions in a transaction. The loser is
+      // soft-suppressed (consolidated_into = 'contradicted'), so it is excluded
+      // from retrieval (WHERE consolidated_into IS NULL) but not deleted. The
+      // survivor is NOT boosted — a contradiction is a conflict, not a duplicate.
+      if (contradictedIds.length > 0) {
+        const tx = this.db!.transaction(() => {
+          for (const loserId of contradictedIds) {
+            markContradicted.run(loserId);
+          }
+          logConsolidation.run(
+            uuidv4(), domain, 'contradiction',
+            JSON.stringify(contradictedIds), row.id,
+            JSON.stringify({ count: contradictedIds.length, survivorQuality: row.quality }),
+          );
+        });
+        tx();
+      }
     }
 
     // Clean up HNSW index
     hnswIndex.clearIndex('experiences');
 
-    return mergeCount;
+    return { merged: mergeCount, contradicted: contradictionCount };
   }
 
   // ============================================================================
