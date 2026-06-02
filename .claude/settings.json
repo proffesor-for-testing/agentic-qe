@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-command --command \"$TOOL_INPUT_command\" --success --json'",
+            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-command --command \"$TOOL_INPUT_command\" --success true --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-task --task-id \"$TOOL_RESULT_agent_id\" --success --json'",
+            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-task --task-id \"$TOOL_RESULT_agent_id\" --agent \"$TOOL_INPUT_subagent_type\" --success true --description \"$TOOL_INPUT_prompt\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
