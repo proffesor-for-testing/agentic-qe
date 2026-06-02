@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" guard --file \"$TOOL_INPUT_file_path\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" guard --file \"$TOOL_INPUT_file_path\" --json'",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" pre-edit --file \"$TOOL_INPUT_file_path\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-edit --file \"$TOOL_INPUT_file_path\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" pre-command --command \"$TOOL_INPUT_command\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-command --command \"$TOOL_INPUT_command\" --json'",
             "timeout": 3000,
             "continueOnError": true
           }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" pre-task --description \"$TOOL_INPUT_prompt\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-task --description \"$TOOL_INPUT_prompt\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-edit --file \"$TOOL_INPUT_file_path\" --success --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-edit --file \"$TOOL_INPUT_file_path\" --success --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-command --command \"$TOOL_INPUT_command\" --success true --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-command --command \"$TOOL_INPUT_command\" --success true --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" post-task --task-id \"$TOOL_RESULT_agent_id\" --agent \"$TOOL_INPUT_subagent_type\" --success true --description \"$TOOL_INPUT_prompt\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-task --task-id \"$TOOL_RESULT_agent_id\" --agent \"$TOOL_INPUT_subagent_type\" --success true --description \"$TOOL_INPUT_prompt\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" route --task \"$PROMPT\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" route --task \"$PROMPT\" --json'",
             "timeout": 5000,
             "continueOnError": true
           }
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" session-start --session-id \"$SESSION_ID\" --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" session-start --session-id \"$SESSION_ID\" --json'",
             "timeout": 10000,
             "continueOnError": true
           }
@@ -138,7 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'exec \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.sh\" session-end --save-state --json'",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" session-end --save-state --json'",
             "timeout": 5000,
             "continueOnError": true
           }

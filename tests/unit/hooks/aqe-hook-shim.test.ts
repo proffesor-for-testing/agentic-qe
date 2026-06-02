@@ -1,28 +1,29 @@
 /**
  * Resilient hook shim contract (#510 item 5).
  *
- * .claude/hooks/aqe-hook.sh wraps the AQE bundle hooks so that, per ruflo's
- * hook-shim discipline, a hook NEVER blocks a Claude Code turn and NEVER dumps
- * init noise into the transcript:
- *   - always exits 0 (even on missing bundle / bad subcommand);
+ * .claude/hooks/aqe-hook.cjs (a cross-platform Node shim) wraps the AQE bundle
+ * hooks so that, per ruflo's hook-shim discipline, a hook NEVER blocks a Claude
+ * Code turn and NEVER dumps init noise into the transcript:
+ *   - always exits 0 (even on missing bundle / bad subcommand / crash);
  *   - swallows stderr;
  *   - emits ONLY the --json contract on stdout (drops leading [hooks]/[RVF]
- *     init-noise lines).
+ *     init-noise lines AND trailing async daemon logs);
+ *   - resolves a PROJECT-LOCAL AQE bundle (installed dep, then source build).
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const REPO_ROOT = resolve(__dirname, '../../..');
-const SHIM = resolve(REPO_ROOT, '.claude/hooks/aqe-hook.sh');
+const SHIM = resolve(REPO_ROOT, '.claude/hooks/aqe-hook.cjs');
 
-/** Run the shim, returning { stdout, stderr, code } and never throwing on non-zero. */
+/** Run the shim via node, returning { stdout, stderr, code }; never throws on non-zero. */
 function runShim(args: string[], projectDir: string): { stdout: string; stderr: string; code: number } {
   try {
-    const stdout = execFileSync('sh', [SHIM, ...args], {
+    const stdout = execFileSync('node', [SHIM, ...args], {
       cwd: REPO_ROOT,
       env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
       encoding: 'utf-8',
@@ -35,27 +36,27 @@ function runShim(args: string[], projectDir: string): { stdout: string; stderr: 
   }
 }
 
-describe('aqe-hook.sh resilient shim (#510 item 5)', () => {
-  it('exists and is executable', () => {
+describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
+  it('exists', () => {
     expect(existsSync(SHIM)).toBe(true);
   });
 
-  it('exits 0 and emits nothing when the bundle is missing (never blocks a turn)', () => {
+  it('exits 0 and emits nothing when no project-local AQE exists (never blocks a turn)', () => {
     const r = runShim(['route', '--task', 'x', '--json'], '/nonexistent-project-root');
     expect(r.code).toBe(0);
     expect(r.stdout.trim()).toBe('');
   });
 
   it('exits 0 on an unknown subcommand and never leaks stderr to the caller', () => {
+    // '.' (the repo) has dist/cli/bundle.js, so the bundle runs and errors on the
+    // bogus subcommand; the shim must swallow that and exit 0 cleanly.
     const r = runShim(['__definitely_not_a_hook__', '--json'], '.');
     expect(r.code).toBe(0);
     expect(r.stderr).toBe('');
   });
 
   // JSON-extraction contract, tested deterministically against a FAKE bundle
-  // that brackets the JSON with init noise (leading) AND async noise (trailing)
-  // — the exact shape real AQE hooks produce — without the slow cold-start of
-  // the real bundle.
+  // that brackets the JSON with init noise (leading) AND async noise (trailing).
   describe('strips noise around the JSON (fake bundle)', () => {
     let tmp: string;
     afterEach(() => { if (tmp) rmSync(tmp, { recursive: true, force: true }); });
@@ -63,7 +64,7 @@ describe('aqe-hook.sh resilient shim (#510 item 5)', () => {
     function withFakeBundle(body: string): { stdout: string; code: number } {
       tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
       mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
-      // The shim runs `node "$BUNDLE" hooks "$@"`; this fake ignores args.
+      // The shim runs `node "<bundle>" hooks "$@"`; this fake ignores args.
       writeFileSync(join(tmp, 'dist', 'cli', 'bundle.js'), body);
       return runShim(['route', '--json'], tmp);
     }
@@ -87,23 +88,31 @@ describe('aqe-hook.sh resilient shim (#510 item 5)', () => {
       expect(r.stdout.trim()).toBe('');
     });
 
-    // Portability: a user's project has node_modules/.bin/aqe (the installed
-    // binary), not a dist/ build. The shim must resolve that, and prefer it over
-    // a dist bundle if both are present.
-    it('resolves node_modules/.bin/aqe (installed-project case) and prefers it over dist', () => {
+    it('swallows stderr noise from the bundle (does not leak to the caller)', () => {
+      const r = withFakeBundle(`
+        console.error('[hooks] noisy stderr line');
+        console.log(JSON.stringify({ ok: true }));
+      `);
+      expect(r.code).toBe(0);
+      expect(r.stderr).toBe('');
+      expect(JSON.parse(r.stdout)).toEqual({ ok: true });
+    });
+
+    // Portability: a user's project has the bundle under
+    // node_modules/agentic-qe/dist/, not at ./dist/. The shim must resolve that,
+    // and prefer it over a local source build if both are present.
+    it('resolves node_modules/agentic-qe/dist (installed-project case) and prefers it over ./dist', () => {
       tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
-      // Installed-binary form (a user project).
-      mkdirSync(join(tmp, 'node_modules', '.bin'), { recursive: true });
-      const bin = join(tmp, 'node_modules', '.bin', 'aqe');
-      writeFileSync(bin, `#!/usr/bin/env sh\nprintf '%s\\n' '{ "from": "local-bin" }'\n`);
-      chmodSync(bin, 0o755);
-      // A dist bundle is ALSO present — the shim must prefer the local bin.
+      const installed = join(tmp, 'node_modules', 'agentic-qe', 'dist', 'cli');
+      mkdirSync(installed, { recursive: true });
+      writeFileSync(join(installed, 'bundle.js'), `console.log(JSON.stringify({ from: 'installed' }));`);
+      // A source build is ALSO present — the installed dep must win.
       mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
-      writeFileSync(join(tmp, 'dist', 'cli', 'bundle.js'), `console.log(JSON.stringify({ from: 'dist' }));`);
+      writeFileSync(join(tmp, 'dist', 'cli', 'bundle.js'), `console.log(JSON.stringify({ from: 'source' }));`);
 
       const r = runShim(['route', '--json'], tmp);
       expect(r.code).toBe(0);
-      expect(JSON.parse(r.stdout)).toEqual({ from: 'local-bin' });
+      expect(JSON.parse(r.stdout)).toEqual({ from: 'installed' });
     });
   });
 });
