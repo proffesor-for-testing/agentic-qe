@@ -22,7 +22,7 @@
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
 | 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | VERIFIED | ef4738de |
-| 7 | Contradiction detection in consolidation | 2 | Med (learning) | TODO | — |
+| 7 | Contradiction detection in consolidation | 2 | Med (learning) | VERIFIED | 43918b3b |
 | 8 | RaBitQ 1-bit signatures for HNSW retrieval | 2 | Med (perf) | TODO | — |
 | 9 | Pretrain-from-history bootstrap | 2 | Low (new script) | TODO | — |
 | 10 | marketplace.json + lean skill packaging | 2 | Low | TODO | — |
