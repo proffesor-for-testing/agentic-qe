@@ -17,7 +17,7 @@
 | # | Item | Tier | Risk | Status | Commit |
 |---|------|------|------|--------|--------|
 | 1 | Self-learning verification harness | 1 | Low (new script) | VERIFIED | 9cb44d32 |
-| 2 | Per-bucket bandit priors (40% routing-confidence fix) | 1 | Med (router) | RECLASSIFIED — not applicable as specified; real root cause found (awaiting decision) | — |
+| 2 | Routing-confidence fix (domain-score de-dilution; ruflo per-bucket priors N/A) | 1 | Med (router) | VERIFIED | 1bb91b40 |
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
