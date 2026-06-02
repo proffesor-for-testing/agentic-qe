@@ -23,7 +23,7 @@
 | 5 | Resilient hook shim (local→exit 0→swallow stderr→JSON-only stdout) | 1 | Low | VERIFIED | 1a695f56 |
 | 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | VERIFIED | ef4738de |
 | 7 | Contradiction detection in consolidation | 2 | Med (learning) | VERIFIED | 43918b3b |
-| 8 | RaBitQ 1-bit signatures for HNSW retrieval | 2 | Med (perf) | TODO | — |
+| 8 | RaBitQ 1-bit signatures (utility + benchmark; 32× mem, ~1.3× speed, UNWIRED) | 2 | Med (perf) | VERIFIED | 0d80eb56 |
 | 9 | Pretrain-from-history bootstrap | 2 | Low (new script) | TODO | — |
 | 10 | marketplace.json + lean skill packaging | 2 | Low | TODO | — |
 | 11 | Committed-baseline benchmark convention | 3 | Low | TODO | — |
