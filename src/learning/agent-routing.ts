@@ -164,6 +164,26 @@ export const MAX_Q_WEIGHT = 0.4;
 export const QWEIGHT_RAMP_VISITS = 20;
 
 /**
+ * De-dilution cap for the domain-match denominator (#510 item 2).
+ *
+ * Domain score is `(domainMatch / denom) * 0.4`. The original `denom` was the
+ * full count of *detected* domains, but AQE's domain detector routinely emits
+ * 7-12 domains per task, so a perfect single-domain specialist scored
+ * `(1/11)*0.4 ≈ 0.04` — relevance washed out by detector breadth, leaving
+ * confidence dominated by the fixed performance term (measured easy task
+ * 37.3%, hard task 20.5%, with hard tasks mis-routing to high-performance
+ * but domain-irrelevant agents).
+ *
+ * Capping the denominator models the fact that a task has only a few *truly
+ * relevant* domains. With cap=3: a precise detector (1-2 domains) is
+ * unchanged, while a broad detector no longer dilutes a real match below
+ * usefulness. Proportionality across agents is preserved (an agent matching 2
+ * relevant domains still beats one matching 1). Tunable; raise toward the old
+ * behavior, lower to weight domain relevance more heavily.
+ */
+export const DOMAIN_DENOM_CAP = 3;
+
+/**
  * Q-value lookup callback supplied by the caller (QEReasoningBank.routeTask).
  * Returns undefined when the (stateKey, agentType) pair has no recorded
  * Q-value yet — caller does not need to handle missing-row vs zero-visits.
@@ -360,8 +380,15 @@ export function calculateAgentScores(
     const domainMatch = detectedDomains.filter((d) =>
       profile.domains.includes(d)
     ).length;
+    // De-dilute by capping the denominator (#510 item 2): dividing by the full
+    // count of *detected* domains (7-12) washed out real matches. Cap models
+    // the few truly-relevant domains a task actually has. Math.min(...,1)
+    // guards the case where domainMatch exceeds the cap.
+    const domainDenom = Math.min(detectedDomains.length, DOMAIN_DENOM_CAP);
     const domainScore =
-      domainMatch > 0 ? (domainMatch / detectedDomains.length) * 0.4 : 0;
+      domainMatch > 0
+        ? Math.min(domainMatch / domainDenom, 1) * 0.4
+        : 0;
     score += domainScore * routingWeights.similarity;
     if (domainScore > 0) {
       reasoning.push(`Domain match: ${(domainScore * 100).toFixed(0)}%`);
