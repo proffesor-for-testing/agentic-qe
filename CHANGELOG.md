@@ -5,6 +5,74 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.2] - 2026-06-02
+
+Self-learning hardening release with two critical hook/dream fixes reported by users.
+
+### Fixed
+
+- **Task trajectories were silently recorded as failed (#508).** The
+  `aqe init`-generated PostToolUse hook ran `post-task … --success --json`, but
+  `--success` was declared as a value-taking option, so Commander consumed the
+  following `--json` as the success value — every `qe_trajectories` /
+  `captured_experiences` row was written with `success=0`, and no `--agent` was
+  passed so each row recorded `agent='unknown'`. Because pattern distillation
+  groups by agent/domain/success, Task-tool trajectories were **unpromotable**
+  and the pattern count stayed pinned near zero. The `--success` option is now
+  optional-valued (a bare `--success` parses `true`), and the generated hook
+  passes real agent attribution + description. **Existing installs:** re-run
+  `aqe init` (it detects and replaces AQE hooks) to pick up the corrected hook.
+- **Dream-scheduler SessionStart readout was perpetually stale (#509).** After
+  ADR-094 moved dream cycles to the kernel scheduler, the `dream-scheduler:hook-state`
+  row that SessionStart reads was only ever incremented by the post-task hook and
+  never reset by the entity that dreams — so `lastDreamTime` stayed `null` and the
+  pending-experiences counter grew without bound. The kernel `DreamScheduler` now
+  reconciles that row after each successful cycle.
+- **MCP unknown-tool errors lost their JSON-RPC code.** A `tools/call` for an
+  unknown tool surfaced `Internal error: [object Object]` instead of a proper
+  JSON-RPC `-32601`; now returns the correct coded error.
+- **Failure-based pattern deprecation never fired.** `checkDeprecation` read a
+  `consecutive_failures` column that the row mapper dropped, so a pattern that
+  kept failing was never deprecated for failures. The column is now surfaced.
+- **Routing confidence was diluted by broad domain detection.** The domain-match
+  score divided by the full count of *detected* domains (7–12 per task), washing
+  out real matches; the denominator is now capped, recovering confidence on
+  broad multi-domain tasks (tunable, ranking preserved).
+
+### Added
+
+- **Importance-weighted forgetting protection (EWC++).** Confidence decay and
+  stale/age deprecation are now weighted by pattern importance (success rate ×
+  usage), so proven high-value patterns resist being crowded out by an influx of
+  new low-value ones. Reversible via exported constants; low-importance patterns
+  are unaffected.
+- **Contradiction detection in consolidation.** Two experiences with the same
+  context but opposite outcomes are no longer merged — the lower-quality loser is
+  suppressed from retrieval (even if previously applied) so it can't poison recall.
+- **Self-learning verification harness** (`npm run benchmark:self-learning`) —
+  proves the learning stores actually persist what they claim, survive a restart,
+  and that aggregators agree, with an isolated-temp-store negative control.
+- **Real MCP protocol + tool-parity smokes** (`npm run mcp:validate`,
+  `npm run mcp:parity`) — boot the real server and validate the `initialize` /
+  `tools/list` handshake against the MCP spec; replaces the previous no-op
+  `mcp:validate`.
+- **Resilient hook shim** (`.claude/hooks/aqe-hook.sh`) — keeps init diagnostics
+  out of the Claude Code transcript and guarantees a hook never blocks a turn.
+- **Pretrain-from-history bootstrap** (`npm run pretrain:history`) — seeds the
+  pattern store from the repo's own git commits so a fresh project starts
+  non-empty and project-specific.
+- **RaBitQ 1-bit signature utility** (`src/shared/utils/rabitq.ts`,
+  `npm run benchmark:rabitq`) — 32× index-memory reduction for vector similarity
+  (utility only; not yet wired into a retrieval path).
+- **Plugin contract smoke** (`npm run plugin:smoke`) — machine-checkable
+  structural contract for the `agentic-qe-fleet` marketplace bundle.
+- **ADR-098** documenting the learning-store & routing hardening decisions.
+
+### Changed
+
+- Router state-encoding hardened with a regression guard (audit of two upstream
+  router bugs — confirmed not present in AQE).
+
 ## [3.10.1] - 2026-05-22
 
 ### Changed — behavioral
