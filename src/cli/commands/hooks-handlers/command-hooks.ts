@@ -299,7 +299,7 @@ export function registerCommandHooks(hooks: Command): void {
     .command('post-command')
     .description('Record Bash command outcome')
     .option('-c, --command <cmd>', 'Command that was executed')
-    .option('--success <bool>', 'Whether command succeeded', 'true')
+    .option('--success [bool]', 'Whether command succeeded', 'true')
     .option('--exit-code <code>', 'Command exit code')
     .option('--json', 'Output as JSON')
     .action(async (options) => {

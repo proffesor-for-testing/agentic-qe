@@ -298,7 +298,7 @@ export function registerTaskHooks(hooks: Command): void {
     .command('post-task')
     .description('Record task outcome for pattern learning')
     .option('--task-id <id>', 'Task identifier')
-    .option('--success <bool>', 'Whether task succeeded', 'true')
+    .option('--success [bool]', 'Whether task succeeded', 'true')
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
     .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')

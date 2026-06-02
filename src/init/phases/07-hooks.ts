@@ -528,7 +528,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success --json',
+              command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success true --json',
               timeout: 5000,
               continueOnError: true,
             },
@@ -539,7 +539,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
           hooks: [
             {
               type: 'command',
-              command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --success --json',
+              command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
               timeout: 5000,
               continueOnError: true,
             },
