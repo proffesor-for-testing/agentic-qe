@@ -88,6 +88,7 @@
     "benchmark:token-reduction": "vitest bench tests/benchmarks/code-intelligence-token-reduction.bench.ts",
     "benchmark:self-learning": "tsx scripts/benchmark-self-learning.ts",
     "benchmark:rabitq": "tsx scripts/benchmark-rabitq.ts",
+    "plugin:smoke": "bash plugins/agentic-qe-fleet/scripts/smoke.sh",
     "pretrain:history": "tsx scripts/pretrain-from-history.ts",
     "dev": "node dist/cli/bundle.js",
     "start": "node dist/cli/bundle.js",
