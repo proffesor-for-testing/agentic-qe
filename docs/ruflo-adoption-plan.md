@@ -18,7 +18,7 @@
 |---|------|------|------|--------|--------|
 | 1 | Self-learning verification harness | 1 | Low (new script) | TODO | — |
 | 2 | Per-bucket bandit priors (40% routing-confidence fix) | 1 | Med (router) | TODO | — |
-| 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | f5d4b140 |
+| 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
 | 5 | Resilient hook shim (local→npx→exit 0→swallow stderr) | 1 | Low | TODO | — |
 | 6 | EWC++ catastrophic-forgetting protection | 2 | Med (learning) | TODO | — |
