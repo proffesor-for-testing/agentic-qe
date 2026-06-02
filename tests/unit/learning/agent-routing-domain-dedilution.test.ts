@@ -69,16 +69,22 @@ describe('agent-routing domain de-dilution (#510 item 2)', () => {
     expect(wayOverCap).toBeCloseTo(atCap, 10);
   });
 
-  it('scores a broad-detector match higher than the old (1/length) dilution would', () => {
-    // Old formula domain term: (1/11)*0.4 ≈ 0.0364. New: (1/cap)*0.4.
-    // The whole agent score must exceed a baseline that includes only the old
-    // diluted domain contribution + the (unchanged) performance/cap terms.
-    const newScore = scoreFor(broad11);
-    const oldDomainTerm = (1 / broad11.length) * 0.4;
-    const newDomainTerm = (1 / DOMAIN_DENOM_CAP) * 0.4;
-    // The improvement equals exactly the difference in the domain term.
-    expect(newDomainTerm).toBeGreaterThan(oldDomainTerm);
-    expect(newScore).toBeGreaterThan(0); // sanity
+  it('contributes the CAPPED domain term (not the 1/length diluted one) through the real code', () => {
+    // Score two agents that differ ONLY in domains, against the same broad (11)
+    // detection; the score delta is exactly the domain term the code computed.
+    // An agent matching 1 domain vs an agent matching 0 should differ by the
+    // DE-DILUTED term (1/min(11,cap))*0.4, NOT the old diluted (1/11)*0.4. This
+    // calls calculateAgentScores, so it fails if the cap is removed.
+    const noMatchAgent: Record<string, AgentCapabilityProfile> = {
+      specialist: { domains: ['no-such-domain'] as unknown as QEDomain[], capabilities: ['unit-test'], performanceScore: 0.8 },
+    };
+    const matchScore = scoreFor(broad11); // oneDomainAgent matches 'test-generation' ∈ broad11
+    const noMatchScore = calculateAgentScores(broad11, undefined, emptyPatterns, WEIGHTS, noMatchAgent)[0].score;
+    const delta = matchScore - noMatchScore;
+    const cappedTerm = (1 / Math.min(broad11.length, DOMAIN_DENOM_CAP)) * 0.4; // 0.1333
+    const oldDilutedTerm = (1 / broad11.length) * 0.4;                          // 0.0364
+    expect(delta).toBeCloseTo(cappedTerm, 4);        // the real computed contribution
+    expect(delta).toBeGreaterThan(oldDilutedTerm * 2); // and clearly above the old dilution
   });
 
   it('preserves the precise-detector case (single detected domain => full term)', () => {

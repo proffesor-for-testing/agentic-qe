@@ -17,7 +17,7 @@
 | # | Item | Tier | Risk | Status | Commit |
 |---|------|------|------|--------|--------|
 | 1 | Self-learning verification harness | 1 | Low (new script) | VERIFIED | 9cb44d32 |
-| 2 | Routing-confidence fix (domain-score de-dilution; ruflo per-bucket priors N/A) | 1 | Med (router) | VERIFIED | 1bb91b40 |
+| 2 | Routing-confidence fix (domain-score de-dilution; ruflo per-bucket priors N/A) | 1 | Med (router) | VERIFIED (PARTIAL: +5.6pp on broad tasks; structural Q-maturity/perf-term ceiling remains — see side-findings) | 1bb91b40 |
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + tool-parity audit | 1 | Low (new tests) | VERIFIED | b1a462fb |
 | 5 | Resilient hook shim (local→exit 0→swallow stderr→JSON-only stdout) | 1 | Low | VERIFIED | 1a695f56 |
@@ -25,7 +25,7 @@
 | 7 | Contradiction detection in consolidation | 2 | Med (learning) | VERIFIED | 43918b3b |
 | 8 | RaBitQ 1-bit signatures (utility + benchmark; 32× mem, ~1.3× speed, UNWIRED) | 2 | Med (perf) | VERIFIED | 0d80eb56 |
 | 9 | Pretrain-from-history bootstrap | 2 | Low (new script) | VERIFIED | 3196c05e |
-| 10 | Plugin smoke contract (marketplace + lean bundle already existed) | 2 | Low | VERIFIED | 98a6b19c |
+| 10 | Plugin smoke contract ONLY (marketplace+lean bundle pre-existed; multi-bundle packaging DEFERRED) | 2 | Low | PARTIAL — smoke contract verified; original "subset bundles" scope not delivered | 98a6b19c |
 | 11 | Committed-baseline benchmark convention | 3 | Low | TODO | — |
 | 12 | Honest-CI ethos (bootstrap CIs for mincut on/off) | 3 | Low | TODO | — |
 | 13 | Supply-chain hardening (expiring accepted-findings) | 3 | Low | TODO | — |
