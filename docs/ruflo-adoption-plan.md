@@ -25,7 +25,7 @@
 | 7 | Contradiction detection in consolidation | 2 | Med (learning) | VERIFIED | 43918b3b |
 | 8 | RaBitQ 1-bit signatures (utility + benchmark; 32× mem, ~1.3× speed, UNWIRED) | 2 | Med (perf) | VERIFIED | 0d80eb56 |
 | 9 | Pretrain-from-history bootstrap | 2 | Low (new script) | VERIFIED | 3196c05e |
-| 10 | marketplace.json + lean skill packaging | 2 | Low | TODO | — |
+| 10 | Plugin smoke contract (marketplace + lean bundle already existed) | 2 | Low | VERIFIED | 98a6b19c |
 | 11 | Committed-baseline benchmark convention | 3 | Low | TODO | — |
 | 12 | Honest-CI ethos (bootstrap CIs for mincut on/off) | 3 | Low | TODO | — |
 | 13 | Supply-chain hardening (expiring accepted-findings) | 3 | Low | TODO | — |
@@ -133,6 +133,7 @@ Each item below has: **What Ruflo does**, **AQE target**, **Acceptance (user-per
 ---
 
 ## Discovered side-findings (from running the new harnesses)
+- **Multiple lean subset bundles** (follow-up from #10): AQE ships ONE bundle (`agentic-qe-fleet`). Splitting the 93 QE skills into `aqe-security`/`aqe-browser`/`aqe-core`/… subset bundles (so users `/plugin install` a subset) is a larger restructure of shipped artifacts needing a distribution decision. `skills-manifest.json` already has category data (`specialized-testing` 16, `analysis-review` 6, `infrastructure` 6, …) to drive it. Deferred.
 - **Embedding latency ~2.3s/item** (found by #9, 2026-06-02): the real ONNX embedding (`RealEmbeddings`) costs ~2.3s per text here, vs ruflo's ~3ms/trajectory. So pretrain-from-history on 500 commits takes minutes, and any live path that embeds synchronously is slow. Candidate follow-up: batch embedding / faster backend / cache. Tracked in issue #510.
 - **Hook cold-start latency** (found by #5, 2026-06-02): the `route`/`session-start` bundle hooks cold-start the full system (CoherenceService, RVF, fleet, daemons) on each fire — observed ~30–60s. They run on every UserPromptSubmit/SessionStart. The shim doesn't change this; candidate perf follow-up (warm daemon / lighter route path / cache). Tracked in issue #510.
 - **Windows `.cjs` hook parity** (follow-up from #5): AQE's hook config is entirely POSIX `sh -c`, so a Windows `.cjs` shim twin (as ruflo ships) also needs a settings rewrite — deferred.
