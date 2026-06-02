@@ -16,7 +16,7 @@
 
 | # | Item | Tier | Risk | Status | Commit |
 |---|------|------|------|--------|--------|
-| 1 | Self-learning verification harness | 1 | Low (new script) | TODO | — |
+| 1 | Self-learning verification harness | 1 | Low (new script) | VERIFIED | 9cb44d32 |
 | 2 | Per-bucket bandit priors (40% routing-confidence fix) | 1 | Med (router) | TODO | — |
 | 3 | Router bug audit: stale cache + state-encoder truncation | 1 | Low (audit) | VERIFIED | 28fa643e |
 | 4 | MCP protocol-compliance smoke + CLI↔MCP parity audit | 1 | Low (new tests) | TODO | — |
@@ -129,6 +129,9 @@ Each item below has: **What Ruflo does**, **AQE target**, **Acceptance (user-per
 - **Ref:** `scripts/smoke-init-bundle-invariants.mjs`
 
 ---
+
+## Discovered side-findings (from running the new harnesses)
+- **RVF↔SQLite pattern drift** (found by #1 audit-real, 2026-06-02): live store shows RVF vector count **338** vs SQLite `qe_patterns` rows **345** (−7). Banner numbers (72.5% success / 39.7% confidence / 2131 routings) corroborate the session banner, but ~7 patterns exist in the table with no vector in the index. Non-gating note today; candidate for a dedicated reconciliation fix (a `qe_patterns` row without an RVF vector is invisible to semantic recall). Tracked in issue #510.
 
 ## Skip list (analyzed, not adopting)
 - Legacy `install.sh`/`uninstall.sh` (`cp -r` into `~/.claude`) — superseded by native `/plugin install`.
