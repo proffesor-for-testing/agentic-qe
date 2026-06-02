@@ -76,6 +76,54 @@ export const DEFAULT_LIFECYCLE_CONFIG: PatternLifecycleConfig = {
 };
 
 // ============================================================================
+// EWC++ catastrophic-forgetting protection (#510 item 6)
+// ----------------------------------------------------------------------------
+// Confidence decay and stale/age deprecation were uniform: a proven,
+// high-success pattern was forgotten at the same rate as noise, so an influx
+// of new low-value patterns could crowd out historically valuable ones.
+// Inspired by Elastic Weight Consolidation, we protect HIGH-IMPORTANCE
+// patterns from being clobbered, weighted by an importance proxy.
+//
+// Honest framing (as in ruflo's EWC adapter): this is NOT true Fisher
+// information — there are no model gradients here. Importance is a heuristic:
+// success_rate gated on enough usage to trust it (and recency is already
+// implied because only unused patterns decay / go stale).
+//
+// Protection applies ONLY to stale/age/decay forgetting. A high-importance
+// pattern that STARTS failing or drops below minActiveConfidence is still
+// deprecated — we blend retention, we don't permanently shield dead weight.
+// ============================================================================
+
+/** Minimum usage_count before success_rate is trusted as an importance signal. */
+export const EWC_MIN_USAGE_FOR_PROTECTION = 5;
+
+/**
+ * Fraction of the base decay rate a fully-important pattern is shielded from.
+ * 0.9 => a success_rate=1.0 pattern decays at 10% of the base rate.
+ * Low-importance patterns (importance 0) decay EXACTLY as before (no regression).
+ */
+export const EWC_DECAY_PROTECTION = 0.9;
+
+/**
+ * Multiplier extending the stale window by importance.
+ * effectiveStaleDays = staleDaysThreshold * (1 + importance * EWC_STALE_PROTECTION_BONUS).
+ * 2 => a fully-important pattern survives 3x longer unused (e.g. 30d -> 90d)
+ * before stale-deprecation; importance-0 patterns are unchanged.
+ */
+export const EWC_STALE_PROTECTION_BONUS = 2;
+
+/**
+ * Importance proxy in [0,1] for EWC++ forgetting protection.
+ * Returns 0 (no protection) until a pattern has been used enough to trust its
+ * success rate, then equals the clamped success rate.
+ */
+export function patternImportance(successRate: number, usageCount: number): number {
+  if (usageCount < EWC_MIN_USAGE_FOR_PROTECTION) return 0;
+  if (!Number.isFinite(successRate)) return 0;
+  return Math.min(Math.max(successRate, 0), 1);
+}
+
+// ============================================================================
 // Pattern Candidate Types
 // ============================================================================
 
@@ -588,12 +636,17 @@ Pattern extracted from ${exp.count} successful experiences.`;
       };
     }
 
-    // Check staleness
+    // Check staleness (EWC++ #510 item 6: high-importance patterns get a
+    // longer grace period before stale-deprecation, so a proven pattern that
+    // simply went unused isn't forgotten like noise. importance=0 => unchanged.)
     const lastUsedTime = pattern.lastUsedAt instanceof Date
       ? pattern.lastUsedAt.getTime()
       : new Date(pattern.lastUsedAt).getTime();
     const daysSinceLastUse = (Date.now() - lastUsedTime) / (1000 * 60 * 60 * 24);
-    if (daysSinceLastUse >= this.config.staleDaysThreshold) {
+    const importance = patternImportance(pattern.successRate, pattern.usageCount);
+    const effectiveStaleDays =
+      this.config.staleDaysThreshold * (1 + importance * EWC_STALE_PROTECTION_BONUS);
+    if (daysSinceLastUse >= effectiveStaleDays) {
       return {
         shouldDeprecate: true,
         reason: 'stale',
@@ -696,20 +749,31 @@ Pattern extracted from ${exp.count} successful experiences.`;
    * Apply confidence decay to patterns that haven't been used recently
    */
   applyConfidenceDecay(daysSinceLastRun: number = 1): { updated: number; decayed: number } {
-    const decayFactor = 1 - (this.config.confidenceDecayRate * daysSinceLastRun);
+    // EWC++ (#510 item 6): per-row importance-weighted decay. The base decay
+    // amount is shielded by `EWC_DECAY_PROTECTION * importance`, where
+    // importance = success_rate (clamped) once usage_count >= the trust
+    // threshold, else 0. A pattern with importance 0 decays EXACTLY as before
+    // (1 - baseDecayAmount); a fully-proven pattern decays up to 10x slower,
+    // so it isn't forgotten as fast as new low-value patterns.
+    const baseDecayAmount = this.config.confidenceDecayRate * daysSinceLastRun;
 
     // Get patterns that haven't been used in the decay period
     const cutoffTime = Date.now() - (daysSinceLastRun * 24 * 60 * 60 * 1000);
 
     const result = this.db.prepare(`
       UPDATE qe_patterns
-      SET confidence = MAX(?, confidence * ?),
+      SET confidence = MAX(?, confidence * (1 - ? * (1 - ? *
+            (CASE WHEN usage_count >= ?
+                  THEN MIN(MAX(COALESCE(success_rate, 0.0), 0.0), 1.0)
+                  ELSE 0.0 END)))),
           updated_at = datetime('now')
       WHERE deprecated_at IS NULL
         AND (last_used_at IS NULL OR datetime(last_used_at) < datetime(?, 'unixepoch'))
     `).run(
       this.config.minActiveConfidence,
-      decayFactor,
+      baseDecayAmount,
+      EWC_DECAY_PROTECTION,
+      EWC_MIN_USAGE_FOR_PROTECTION,
       cutoffTime / 1000
     );
 
