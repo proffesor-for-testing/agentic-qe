@@ -1083,7 +1083,7 @@ Pattern extracted from ${exp.count} successful experiences.`;
    * Convert database row to QEPattern
    */
   private rowToPattern(row: PatternRow): QEPattern {
-    return {
+    const pattern: PatternWithDeprecation = {
       id: row.id,
       patternType: row.pattern_type as QEPatternType,
       qeDomain: row.qe_domain as QEDomain,
@@ -1103,7 +1103,13 @@ Pattern extracted from ${exp.count} successful experiences.`;
       reusable: row.reusable === 1,
       reuseCount: row.reuse_count || 0,
       averageTokenSavings: row.average_token_savings || 0,
+      // Surface deprecation/failure columns so checkDeprecation() can read them
+      // (these live on qe_patterns via ensureSchema ALTERs but aren't part of
+      // the base QEPattern shape — see PatternWithDeprecation).
+      deprecated_at: row.deprecated_at ?? null,
+      consecutive_failures: row.consecutive_failures ?? 0,
     };
+    return pattern;
   }
 }
 
@@ -1131,6 +1137,8 @@ interface PatternRow {
   reusable: number;
   reuse_count: number;
   average_token_savings: number;
+  deprecated_at: string | null;
+  consecutive_failures: number;
 }
 
 interface PatternWithDeprecation extends QEPattern {

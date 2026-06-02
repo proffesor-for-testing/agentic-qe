@@ -164,6 +164,43 @@ describe('PatternLifecycleManager — EWC++ forgetting protection (#510 item 6)'
     });
   });
 
+  describe('consecutive-failures deprecation (regression: rowToPattern dropped the column)', () => {
+    // Before the fix, rowToPattern() built the QEPattern WITHOUT consecutive_failures,
+    // so getPattern() always surfaced undefined -> 0 and the 'failures' branch of
+    // checkDeprecation() NEVER fired. These tests pin the column through the mapping.
+
+    it("deprecates with reason 'failures' when consecutive_failures >= threshold", () => {
+      // Not stale (daysSinceUse low) and confidence well above minActiveConfidence,
+      // so ONLY the failures branch can trigger deprecation.
+      seed({
+        id: 'failing',
+        confidence: 0.8,
+        successRate: 0.9,
+        usageCount: 20,
+        daysSinceUse: 5,
+        consecutiveFailures: 3, // == default deprecationFailureThreshold
+      });
+      const check = mgr.checkDeprecation('failing');
+      expect(check.shouldDeprecate).toBe(true);
+      expect(check.reason).toBe('failures');
+      expect(check.consecutiveFailures).toBe(3);
+    });
+
+    it("does NOT deprecate for 'failures' when consecutive_failures is below threshold", () => {
+      seed({
+        id: 'almost',
+        confidence: 0.8,
+        successRate: 0.9,
+        usageCount: 20,
+        daysSinceUse: 5,
+        consecutiveFailures: 2, // below default threshold of 3
+      });
+      const check = mgr.checkDeprecation('almost');
+      expect(check.shouldDeprecate).toBe(false);
+      expect(check.reason).not.toBe('failures');
+    });
+  });
+
   describe('protection does not shield dead weight', () => {
     // The stale/decay protection extends retention but is independent of the
     // low_confidence check, so a high-success pattern whose confidence has
