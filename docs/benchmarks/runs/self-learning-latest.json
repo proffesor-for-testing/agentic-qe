@@ -1,0 +1,102 @@
+{
+  "timestamp": null,
+  "mode": "synthetic",
+  "n": 20,
+  "sections": {
+    "A": {
+      "passed": true,
+      "deltas": {
+        "before": 0,
+        "after": 20,
+        "delta": 20,
+        "expected": 20
+      },
+      "latencyMs": {
+        "avg": 0.1228,
+        "count": 20
+      },
+      "notes": [
+        "PASS: totalPatterns delta == 20 (got 20)"
+      ]
+    },
+    "B": {
+      "passed": true,
+      "deltas": {
+        "outcomesBefore": 0,
+        "outcomesAfter": 20,
+        "delta": 20,
+        "expected": 20,
+        "fedSuccessRatio": 0.7,
+        "observedSuccessRatio": 0.7
+      },
+      "latencyMs": {
+        "avg": 0.0483,
+        "count": 20
+      },
+      "notes": [
+        "PASS: learningOutcomes delta == 20 (got 20)",
+        "PASS: patternSuccessRate ≈ fed ratio (0.700 vs 0.700, tol 0.001)"
+      ]
+    },
+    "C": {
+      "passed": true,
+      "deltas": {
+        "before": 5,
+        "after": 5,
+        "delta": 0
+      },
+      "latencyMs": {
+        "avg": 0,
+        "count": 0
+      },
+      "notes": [
+        "PASS: totalPatterns delta == 0 after read-only ops (got 0)"
+      ]
+    },
+    "D": {
+      "passed": true,
+      "deltas": {
+        "patternsBeforeRestart": 20,
+        "outcomesBeforeRestart": 20,
+        "patternsAfterRestart": 20,
+        "outcomesAfterRestart": 20
+      },
+      "latencyMs": {
+        "avg": 0,
+        "count": 0
+      },
+      "notes": [
+        "PASS: pattern count survived restart (20 → 20)",
+        "PASS: outcome count survived restart (20 → 20)"
+      ]
+    },
+    "E": {
+      "passed": true,
+      "deltas": {
+        "storeTotalPatterns": 20,
+        "adapterTotalVectors": 20,
+        "hnswVectorCount": 20
+      },
+      "latencyMs": {
+        "avg": 0,
+        "count": 0
+      },
+      "notes": [
+        "PASS: RVF native adapter present (required for vector-count consistency)",
+        "PASS: getStats().totalPatterns == adapter.status().totalVectors (20 vs 20)",
+        "PASS: bank.totalPatterns == patternStoreStats.totalPatterns (20)"
+      ]
+    },
+    "F": {
+      "passed": true,
+      "deltas": {},
+      "latencyMs": {
+        "avg": 0,
+        "count": 0
+      },
+      "notes": [
+        "skipped (run with --audit-real)"
+      ]
+    }
+  }
+}

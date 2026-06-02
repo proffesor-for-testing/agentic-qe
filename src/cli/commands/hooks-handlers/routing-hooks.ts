@@ -229,7 +229,7 @@ export function registerRoutingHooks(hooks: Command): void {
   hooks
     .command('post-route')
     .description('Close the most-recent route sentinel from a Stop hook (#451)')
-    .option('--success <bool>', 'Whether the turn completed successfully', 'true')
+    .option('--success [bool]', 'Whether the turn completed successfully', 'true')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {

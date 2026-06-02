@@ -299,6 +299,35 @@ describe('DreamScheduler', () => {
       expect(mockDreamEngine.dream).toHaveBeenCalledWith(15000);
     });
 
+    // Issue #509: the kernel scheduler must reconcile the SessionStart-read
+    // `dream-scheduler:hook-state` row after a successful cycle, or the readout
+    // shows lastDreamTime:null and an ever-growing pendingExperiences.
+    it('reconciles dream-scheduler:hook-state after a successful dream (#509)', async () => {
+      // Stale state the post-task hook left behind: counter only ever grew.
+      await mockMemoryBackend.set('dream-scheduler:hook-state', {
+        lastDreamTime: null,
+        experienceCount: 2720,
+        sessionStartTime: 'sess-1',
+        totalDreamsThisSession: 0,
+      });
+
+      const scheduler = new DreamScheduler(dependencies);
+      await scheduler.initialize();
+      await scheduler.triggerDream(5000);
+
+      const row = (await mockMemoryBackend.get('dream-scheduler:hook-state')) as {
+        lastDreamTime: string | null;
+        experienceCount: number;
+        sessionStartTime?: string;
+        totalDreamsThisSession: number;
+      };
+      expect(row.experienceCount).toBe(0); // counter reset by the dreamer
+      expect(typeof row.lastDreamTime).toBe('string'); // no longer null
+      expect(row.lastDreamTime).not.toBeNull();
+      expect(row.totalDreamsThisSession).toBe(1); // bumped
+      expect(row.sessionStartTime).toBe('sess-1'); // preserved
+    });
+
     it('should throw if minimum time between dreams not met', async () => {
       const scheduler = new DreamScheduler(dependencies, {
         minTimeBetweenDreamsMs: 60000,

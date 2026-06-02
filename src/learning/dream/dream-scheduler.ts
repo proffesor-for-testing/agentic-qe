@@ -213,6 +213,26 @@ export interface DreamSchedulerDependencies {
  * await scheduler.dispose();
  * ```
  */
+
+/**
+ * kv_store key that the SessionStart hook reads for its dream readout and the
+ * post-task hook increments. Mirrors `DREAM_STATE_KEY` in
+ * cli/commands/hooks-handlers/hooks-dream-learning.ts — kept as a local literal
+ * (not imported) to avoid a learning→cli layering dependency. MUST match that
+ * value and use the DEFAULT namespace (the hook path passes no namespace).
+ * #509: this scheduler is the entity that actually dreams (ADR-094) but never
+ * reset this row, so SessionStart showed lastDreamTime:null + an ever-growing
+ * pendingExperiences. reconcileHookState() below stamps the truth per cycle.
+ */
+const DREAM_HOOK_STATE_KEY = 'dream-scheduler:hook-state';
+
+interface DreamHookStateRow {
+  lastDreamTime: string | null;
+  experienceCount: number;
+  sessionStartTime?: string;
+  totalDreamsThisSession: number;
+}
+
 export class DreamScheduler {
   private readonly config: DreamSchedulerConfig;
   private readonly dreamEngine: DreamEngine;
@@ -541,6 +561,11 @@ export class DreamScheduler {
 
       // Clear experience buffer after successful dream
       this.clearExperienceBuffer();
+
+      // #509: reconcile the SessionStart-read hook-state row. The post-task hook
+      // only increments its experienceCount and nothing on the active dream path
+      // reset it, so the readout was perpetually stale. Best-effort.
+      await this.reconcileHookState();
 
       // Auto-apply high-confidence insights if enabled
       if (this.config.autoApplyHighConfidenceInsights) {
@@ -921,6 +946,34 @@ export class DreamScheduler {
   // ==========================================================================
   // Private: State Persistence
   // ==========================================================================
+
+  /**
+   * #509: Reconcile the SessionStart-read `dream-scheduler:hook-state` row after
+   * a successful dream cycle. The post-task hook only ever INCREMENTS that row's
+   * experienceCount; this kernel scheduler is the entity that actually dreams
+   * (ADR-094) but historically never wrote it back, so the SessionStart readout
+   * showed lastDreamTime:null and a pendingExperiences counter that only grew.
+   * We stamp { lastDreamTime: now, experienceCount: 0, totalDreamsThisSession++ }
+   * using the SAME key + DEFAULT namespace the hook path uses. Best-effort: a
+   * failure here must never break a dream cycle.
+   */
+  private async reconcileHookState(): Promise<void> {
+    if (!this.memoryBackend) return;
+    try {
+      const prev = await this.memoryBackend.get<DreamHookStateRow>(DREAM_HOOK_STATE_KEY);
+      const next: DreamHookStateRow = {
+        lastDreamTime: (this.lastDreamTime ?? new Date()).toISOString(),
+        experienceCount: 0,
+        sessionStartTime: prev?.sessionStartTime,
+        totalDreamsThisSession: (prev?.totalDreamsThisSession ?? 0) + 1,
+      };
+      await this.memoryBackend.set(DREAM_HOOK_STATE_KEY, next);
+    } catch (err) {
+      logger.warn('Dream hook-state reconcile failed (non-critical)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   /**
    * Save scheduler state to memory backend.
