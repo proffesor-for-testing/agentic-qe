@@ -70,6 +70,14 @@ Self-learning hardening release with two critical hook/dream fixes reported by u
 
 ### Changed
 
+- **`aqe init` now installs a resilient hook shim and routes hooks through it.**
+  A cross-platform Node shim (`.claude/hooks/aqe-hook.cjs`) is copied into each
+  project, and generated `settings.json` hooks run
+  `node .../aqe-hook.cjs <cmd>` instead of `npx agentic-qe hooks <cmd>`. The
+  shim keeps init diagnostics out of the Claude Code transcript, guarantees a
+  hook never blocks a turn, prefers the project-local install (falling back to
+  `npx` for npx-only setups). Re-running `aqe init` migrates existing `npx`-based
+  hooks to the shim form (no duplicates).
 - Router state-encoding hardened with a regression guard (audit of two upstream
   router bugs — confirmed not present in AQE).
 

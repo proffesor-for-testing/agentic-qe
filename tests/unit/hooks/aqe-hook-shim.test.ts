@@ -25,7 +25,9 @@ function runShim(args: string[], projectDir: string): { stdout: string; stderr: 
   try {
     const stdout = execFileSync('node', [SHIM, ...args], {
       cwd: REPO_ROOT,
-      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+      // AQE_HOOK_NPX=0 disables the npx fallback so the no-local-bundle cases
+      // no-op deterministically instead of reaching the network.
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, AQE_HOOK_NPX: '0' },
       encoding: 'utf-8',
       timeout: 60_000,
       stdio: ['ignore', 'pipe', 'pipe'],

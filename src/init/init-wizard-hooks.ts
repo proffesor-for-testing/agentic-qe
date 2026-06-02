@@ -64,7 +64,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks guard --file "$TOOL_INPUT_file_path" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" guard --file "$TOOL_INPUT_file_path" --json',
             timeout: 3000,
             continueOnError: true,
           },
@@ -75,7 +75,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks pre-edit --file "$TOOL_INPUT_file_path" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-edit --file "$TOOL_INPUT_file_path" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -86,7 +86,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks pre-command --command "$TOOL_INPUT_command" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-command --command "$TOOL_INPUT_command" --json',
             timeout: 3000,
             continueOnError: true,
           },
@@ -97,7 +97,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks pre-task --description "$TOOL_INPUT_prompt" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-task --description "$TOOL_INPUT_prompt" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -110,7 +110,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks post-edit --file "$TOOL_INPUT_file_path" --success --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-edit --file "$TOOL_INPUT_file_path" --success --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -121,7 +121,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks post-command --command "$TOOL_INPUT_command" --success true --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-command --command "$TOOL_INPUT_command" --success true --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -132,7 +132,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -147,7 +147,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
             // (e.g. {"prompt":"..."}). $PROMPT is NOT exposed as an env
             // var, so we let the CLI read stdin directly.
             type: 'command',
-            command: 'npx agentic-qe hooks route --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" route --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -159,7 +159,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks session-start --session-id "$SESSION_ID" --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" session-start --session-id "$SESSION_ID" --json',
             timeout: 10000,
             continueOnError: true,
           },
@@ -171,7 +171,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
         hooks: [
           {
             type: 'command',
-            command: 'npx agentic-qe hooks session-end --save-state --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" session-end --save-state --json',
             timeout: 5000,
             continueOnError: true,
           },
@@ -184,7 +184,7 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
             // 1:1 with UserPromptSubmit/route — without this, route
             // sentinels accumulate at quality_score=-1 indefinitely.
             type: 'command',
-            command: 'npx agentic-qe hooks post-route --success true --json',
+            command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
             timeout: 5000,
             continueOnError: true,
           },

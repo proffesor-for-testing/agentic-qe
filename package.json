@@ -261,6 +261,7 @@
     ".claude/skills",
     ".claude/commands",
     ".claude/helpers",
+    ".claude/hooks",
     ".opencode/agents",
     ".opencode/skills",
     ".opencode/tools",
