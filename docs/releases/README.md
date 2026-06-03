@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.10.3](v3.10.3.md) | 2026-06-03 | TS/JS code intelligence with no `typescript` dependency via bundled tree-sitter WASM grammars (#511); fixes MCP domain tools hanging on fresh install, `code deps`/`search` returning empty, CLI↔MCP graph namespace; repaired stale WASM grammars; lint cleanup. |
 | [v3.10.2](v3.10.2.md) | 2026-06-02 | Self-learning hardening: fixes #508 (post-task hook recorded every trajectory `success=0`/`agent=unknown`) + #509 (stale dream readout); EWC++ forgetting protection, contradiction detection, MCP/learning verification harnesses, ADR-098. |
 | [v3.10.1](v3.10.1.md) | 2026-05-22 | ADR-043 LLM router actually wired: kernel singleton threaded through 11 domains + MCP tools, persistent `aqe llm config --set`, Gemini `GOOGLE_API_KEY` alias, 2 fallback-chain bug fixes, 10-finding audit hardening. |
 | [v3.10.0](v3.10.0.md) | 2026-05-20 | Optional external embedder endpoint (#503, ADR-097): OpenAI-compatible `/v1/embeddings` over HTTP or Unix socket, identity fingerprint + drift detection, hard-fail (no hash poisoning), TLS knobs. |
