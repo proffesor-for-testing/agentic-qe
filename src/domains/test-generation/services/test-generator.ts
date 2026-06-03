@@ -975,8 +975,13 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const normalizedPath = filePath.replace(/\\/g, '/');
       const baseName = normalizedPath.split('/').pop()?.replace(/\.(ts|js|tsx|jsx|py)$/, '') || '';
 
-      // Search KG node vectors for this file's name to find related nodes
-      const nodeKeys = await this.memory.search(`code-intelligence:kg:node:*${baseName}*`, 50);
+      // Search KG node vectors for this file's name to find related nodes.
+      // KG persists under its own namespace (#511 parity) — read it there.
+      const nodeKeys = await this.memory.search(
+        `code-intelligence:kg:node:*${baseName}*`,
+        50,
+        { namespace: 'code-intelligence:kg' }
+      );
       for (const key of nodeKeys) {
         // Nodes matching this file's name that are from other files indicate callers
         if (!key.includes(baseName)) continue;

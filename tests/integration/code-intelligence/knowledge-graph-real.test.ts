@@ -664,15 +664,12 @@ describe('Knowledge Graph Real I/O', () => {
       });
       await indexer.index({ paths: [appPath, mathPath] });
 
-      // app.ts no longer imports ./math. The incremental re-index runs on a
-      // fresh service instance to mirror the CLI (a separate process with a
-      // cold file-content cache), isolating the persistence-layer cleanup.
+      // app.ts no longer imports ./math. The incremental re-index runs on the
+      // SAME long-lived instance — exercising both the persistence-layer cleanup
+      // (removeFileFromGraph) and the FileReader cache eviction that guarantees
+      // the new file content is read (#511).
       await fs.writeFile(appPath, 'export const total = 42;\n');
-      const reindexer = new KnowledgeGraphService(sharedMemory, {
-        enableVectorEmbeddings: false,
-        enableLLMExtraction: false,
-      });
-      await reindexer.index({ paths: [appPath, mathPath], incremental: true });
+      await indexer.index({ paths: [appPath, mathPath], incremental: true });
 
       // The stale app → math import edge must be gone
       const reader = new KnowledgeGraphService(sharedMemory, {
@@ -687,6 +684,56 @@ describe('Knowledge Graph Real I/O', () => {
       expect(depsResult.success).toBe(true);
       const mathNode = depsResult.value!.nodes.find((n) => n.path === mathPath);
       expect(mathNode?.inDegree).toBe(0);
+    });
+
+    it('should persist under the code-intelligence:kg namespace regardless of backend default (#511)', async () => {
+      // A namespace-honoring backend whose DEFAULT namespace is something else
+      // entirely (mirrors CLI 'qe-kernel' / MCP 'mcp-tools'). The KG must still
+      // write/read under 'code-intelligence:kg' so init checks + CLI↔MCP agree.
+      const storage = new Map<string, unknown>();
+      const composite = (key: string, ns?: string) => `${ns ?? 'backend-default'}::${key}`;
+      const honoring = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(async (k: string, v: unknown, o?: { namespace?: string }) => {
+          storage.set(composite(k, o?.namespace), v);
+        }),
+        get: vi.fn(async (k: string, o?: { namespace?: string }) => storage.get(composite(k, o?.namespace))),
+        delete: vi.fn(async (k: string, o?: { namespace?: string }) => storage.delete(composite(k, o?.namespace))),
+        has: vi.fn(async (k: string, o?: { namespace?: string }) => storage.has(composite(k, o?.namespace))),
+        search: vi.fn(async (pattern: string, limit?: number, o?: { namespace?: string }) => {
+          const prefix = `${o?.namespace ?? 'backend-default'}::`;
+          const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+          const out: string[] = [];
+          for (const ck of storage.keys()) {
+            if (!ck.startsWith(prefix)) continue;
+            const key = ck.slice(prefix.length);
+            if (regex.test(key)) {
+              out.push(key);
+              if (limit && out.length >= limit) break;
+            }
+          }
+          return out;
+        }),
+        vectorSearch: vi.fn(async () => []),
+        storeVector: vi.fn(async () => {}),
+      } as unknown as MemoryBackend;
+
+      const appPath = path.join(tmpDir, 'app.ts');
+      const indexer = new KnowledgeGraphService(honoring, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, path.join(tmpDir, 'math.ts')] });
+
+      // Nodes are found under 'code-intelligence:kg', NOT the backend default —
+      // this is exactly what `hasCodeIntelligenceIndex` / cross-tool reads need.
+      const inKgNs = await honoring.search('code-intelligence:kg:node:*', 100, {
+        namespace: 'code-intelligence:kg',
+      });
+      const inDefaultNs = await honoring.search('code-intelligence:kg:node:*', 100);
+      expect(inKgNs.length).toBeGreaterThan(0);
+      expect(inDefaultNs.length).toBe(0);
     });
   });
 });

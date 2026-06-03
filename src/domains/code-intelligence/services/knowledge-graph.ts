@@ -167,6 +167,19 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   /**
+   * Storage options that pin every KG kv operation to a fixed, tool-independent
+   * namespace (the configured `code-intelligence:kg`) instead of the backend's
+   * default (`qe-kernel` for the CLI, `mcp-tools` for MCP). This gives CLI↔MCP
+   * parity — a graph indexed by one tool is readable by the other — and makes
+   * the init existence checks (`SELECT ... WHERE namespace = 'code-intelligence:kg'`)
+   * actually find the data (#511). Reads and writes MUST both pass this, or a
+   * write under the namespace cannot be read back (issue #491 Bug 2).
+   */
+  private get nsOpts(): { namespace: string } {
+    return { namespace: this.config.namespace };
+  }
+
+  /**
    * Index files into the knowledge graph
    */
   async index(request: IndexRequest): Promise<Result<IndexResult, Error>> {
@@ -325,7 +338,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
 
     // Load from memory
     const key = `${this.config.namespace}:node:${nodeId}`;
-    const node = await this.memory.get<KGNode>(key);
+    const node = await this.memory.get<KGNode>(key, this.nsOpts);
 
     if (node) {
       this.nodeCache.set(nodeId, node);
@@ -360,10 +373,10 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
 
     const edges: KGEdge[] = [];
     const pattern = `${this.config.namespace}:edge:*`;
-    const keys = await this.memory.search(pattern, Number.MAX_SAFE_INTEGER);
+    const keys = await this.memory.search(pattern, Number.MAX_SAFE_INTEGER, this.nsOpts);
 
     for (const key of keys) {
-      const edge = await this.memory.get<KGEdge>(key);
+      const edge = await this.memory.get<KGEdge>(key, this.nsOpts);
       if (edge) {
         edges.push(edge);
       }
@@ -388,9 +401,9 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
       `${this.config.namespace}:node:`,
       `${this.config.namespace}:edge:`,
     ]) {
-      const keys = await this.memory.search(`${prefix}*`, Number.MAX_SAFE_INTEGER);
+      const keys = await this.memory.search(`${prefix}*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
       for (const key of keys) {
-        await this.memory.delete(key);
+        await this.memory.delete(key, this.nsOpts);
       }
     }
   }
@@ -410,18 +423,18 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
 
     // Delete the file node and all of its entity nodes (`:node:<file>` and
     // `:node:<file>:<type>:<name>`).
-    const nodeKeys = await this.memory.search(`${ns}:node:${fileNodeId}*`, Number.MAX_SAFE_INTEGER);
+    const nodeKeys = await this.memory.search(`${ns}:node:${fileNodeId}*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
     for (const key of nodeKeys) {
-      await this.memory.delete(key);
+      await this.memory.delete(key, this.nsOpts);
       this.nodeCache.delete(key.slice(`${ns}:node:`.length));
     }
 
     // Delete edges whose source is the file node or one of its entity nodes.
-    const edgeKeys = await this.memory.search(`${ns}:edge:*`, Number.MAX_SAFE_INTEGER);
+    const edgeKeys = await this.memory.search(`${ns}:edge:*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
     for (const key of edgeKeys) {
-      const edge = await this.memory.get<KGEdge>(key);
+      const edge = await this.memory.get<KGEdge>(key, this.nsOpts);
       if (edge && (edge.source === fileNodeId || edge.source.startsWith(`${fileNodeId}:`))) {
-        await this.memory.delete(key);
+        await this.memory.delete(key, this.nsOpts);
       }
     }
 
@@ -656,6 +669,14 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     let nodesCreated = 0;
     let edgesCreated = 0;
 
+    // #511: evict any cached content for this file before reading it. The
+    // FileReader caches content for 5 min, so in a long-lived process (e.g. the
+    // MCP server) a re-index would otherwise extract entities/imports from the
+    // STALE pre-edit text. Eviction guarantees fresh reads; the two reads within
+    // this method (entities + imports) still share one cache fill, so they stay
+    // mutually consistent.
+    this.fileReader.invalidateCache(filePath);
+
     // #511: on an incremental re-index, drop this file's prior nodes/edges
     // first so renamed/removed entities and stale outgoing imports don't
     // linger as phantom dependencies. (A full index already cleared everything.)
@@ -809,7 +830,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     this.edgeIndex.set(sourceId, sourceEdges);
 
     // Persist so cross-process reads (deps/search/impact) see the graph (#511).
-    await this.memory.set(`${this.config.namespace}:edge:${edgeId}`, edge);
+    await this.memory.set(`${this.config.namespace}:edge:${edgeId}`, edge, this.nsOpts);
     // Invalidate hydrated read cache so subsequent getEdges() reflects this write.
     this.allEdgesCache = undefined;
 
@@ -831,7 +852,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     this.nodeCache.set(node.id, node);
 
     // Persist so cross-process reads (deps/search/impact) see the graph (#511).
-    await this.memory.set(`${this.config.namespace}:node:${node.id}`, node);
+    await this.memory.set(`${this.config.namespace}:node:${node.id}`, node, this.nsOpts);
   }
 
   private async extractEntities(filePath: string): Promise<ExtractedEntity[]> {
@@ -1143,10 +1164,10 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
   private async findNodesByLabel(label: string, limit: number): Promise<KGNode[]> {
     const nodes: KGNode[] = [];
     const pattern = `${this.config.namespace}:node:*`;
-    const keys = await this.memory.search(pattern, limit * 2);
+    const keys = await this.memory.search(pattern, limit * 2, this.nsOpts);
 
     for (const key of keys) {
-      const node = await this.memory.get<KGNode>(key);
+      const node = await this.memory.get<KGNode>(key, this.nsOpts);
       if (node && node.label === label) {
         nodes.push(node);
         if (nodes.length >= limit) break;
@@ -1191,11 +1212,11 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     // Fallback to keyword matching
     const keywords = query.toLowerCase().split(/\s+/);
     const pattern = `${this.config.namespace}:node:*`;
-    const keys = await this.memory.search(pattern, limit * 3);
+    const keys = await this.memory.search(pattern, limit * 3, this.nsOpts);
 
     const nodes: KGNode[] = [];
     for (const key of keys) {
-      const node = await this.memory.get<KGNode>(key);
+      const node = await this.memory.get<KGNode>(key, this.nsOpts);
       if (node) {
         const nodeText = JSON.stringify(node.properties).toLowerCase();
         if (keywords.some((kw) => nodeText.includes(kw))) {
