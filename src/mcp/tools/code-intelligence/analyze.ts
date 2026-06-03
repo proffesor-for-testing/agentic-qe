@@ -179,7 +179,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
         return { success: false, error: 'Operation aborted' };
       }
 
-      let result: CodeAnalyzeResult = { action };
+      const result: CodeAnalyzeResult = { action };
 
       switch (action) {
         case 'index':

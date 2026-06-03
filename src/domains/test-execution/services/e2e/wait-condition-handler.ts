@@ -42,7 +42,7 @@ export class WaitConditionHandler {
 
     while (Date.now() - startTime < timeout) {
       let conditionMet = false;
-      let data: E2EStepResult['data'] = {};
+      const data: E2EStepResult['data'] = {};
 
       try {
         switch (condition) {

@@ -435,7 +435,7 @@ export class TestGenerationCoordinator
       }
 
       // Fire PreTestGeneration hook to get guidance and patterns from learning system
-      let hookPatternIds: string[] = [];
+      const hookPatternIds: string[] = [];
       if (this.hookRegistry) {
         try {
           const targetFile = request.sourceFiles?.[0] || '';

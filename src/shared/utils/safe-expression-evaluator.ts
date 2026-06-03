@@ -282,7 +282,7 @@ class Parser {
 
   private parseIdentifier(): unknown {
     let value: unknown = this.context;
-    let name = this.advance().value as string;
+    const name = this.advance().value as string;
 
     // Get initial value from context
     if (typeof value === 'object' && value !== null && name in value) {

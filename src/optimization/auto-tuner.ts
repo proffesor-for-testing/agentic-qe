@@ -421,7 +421,7 @@ export class AQEAutoTuner {
     // Check if we have applicators registered for real system integration
     const hasApplicators = this.applicatorRegistry.getAll().length > 0;
 
-    let metricValues: Record<string, number> = {};
+    const metricValues: Record<string, number> = {};
 
     if (hasApplicators) {
       // REAL EVALUATION: Apply configuration to actual systems

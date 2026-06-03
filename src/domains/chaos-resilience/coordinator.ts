@@ -770,8 +770,8 @@ export class ChaosResilienceCoordinator
       let lastExperimentDate: Date | undefined;
       let lastLoadTestDate: Date | undefined;
       let activeIncidents = 0;
-      let totalRecoveryTime = 0;
-      let recoveryCount = 0;
+      const totalRecoveryTime = 0;
+      const recoveryCount = 0;
       let failedChanges = 0;
       let totalChanges = 0;
 

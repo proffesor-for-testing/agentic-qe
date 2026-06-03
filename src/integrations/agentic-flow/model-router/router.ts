@@ -531,7 +531,7 @@ export class ModelRouter implements IModelRouter {
     const complexityAnalysis = await this.complexityAnalyzer.analyze(input);
 
     // Step 3: Get recommended tier from complexity
-    let recommendedTier = complexityAnalysis.recommendedTier;
+    const recommendedTier = complexityAnalysis.recommendedTier;
 
     // Step 4: Estimate cost for this tier
     const estimatedCostUsd = this.estimateCost(

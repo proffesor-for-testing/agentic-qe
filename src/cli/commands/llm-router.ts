@@ -709,7 +709,7 @@ async function checkProviderHealth(timeout: number): Promise<Array<{
 
 function findModel(modelId: string): ModelMapping | undefined {
   // Search by canonical ID first
-  let model = DEFAULT_MODEL_MAPPINGS.find(m => m.canonicalId === modelId);
+  const model = DEFAULT_MODEL_MAPPINGS.find(m => m.canonicalId === modelId);
   if (model) return model;
 
   // Search by provider-specific ID

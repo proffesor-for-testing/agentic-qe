@@ -456,7 +456,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
         }
 
         // Optionally check keyboard navigation
-        let keyboardViolations: A11yViolation[] = [];
+        const keyboardViolations: A11yViolation[] = [];
         if (checkKeyboard) {
           const keyboardResult = await service.checkKeyboardNavigation(url);
           if (keyboardResult.success) {

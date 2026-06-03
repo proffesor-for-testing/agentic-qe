@@ -281,7 +281,7 @@ export class GitAwareTestSelector {
   }> {
     const selectedTests: string[] = [];
     const mappings: TestMapping[] = [];
-    let runAllTests = false;
+    const runAllTests = false;
     let runAllReason: string | undefined;
 
     // Check for config file changes first - these require full test run

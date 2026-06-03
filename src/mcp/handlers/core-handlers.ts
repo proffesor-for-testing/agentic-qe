@@ -586,8 +586,8 @@ export async function handleAQEHealth(): Promise<ToolResult<{
       : 0;
 
     // Collect memory stats
-    let memoryStats = { connected: false, totalEntries: 0, namespaces: 0 };
-    let hnswStats = { enabled: false, vectorCount: 0 };
+    const memoryStats = { connected: false, totalEntries: 0, namespaces: 0 };
+    const hnswStats = { enabled: false, vectorCount: 0 };
     let patternCount = 0;
 
     if (isInit && state.kernel) {

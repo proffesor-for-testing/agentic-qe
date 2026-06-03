@@ -942,7 +942,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     let totalEntries = 0;
     let totalVectors = 0;
     let totalIndexSize = 0;
-    let hnswHealthy = true;
+    const hnswHealthy = true;
 
     for (const domain of QE_MEMORY_DOMAINS) {
       let vectorCount = 0;
@@ -1054,7 +1054,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     }
 
     let itemsMigrated = 0;
-    let itemsSkipped = 0;
+    const itemsSkipped = 0;
     const errors: string[] = [];
 
     try {

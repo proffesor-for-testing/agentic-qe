@@ -24,6 +24,8 @@ module.exports = {
     'benchmarks',
     'examples',
     'security',
+    // Excluded from tsconfig too — linting it only yields parser errors.
+    'src/_archived',
     '**/*.js',
     '**/*.test.ts',
     '**/*.spec.ts'

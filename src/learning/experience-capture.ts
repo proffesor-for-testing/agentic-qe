@@ -703,7 +703,7 @@ export class ExperienceCaptureService {
    * plus new { consolidated, archived } fields.
    */
   async cleanup(): Promise<{ removed: number; consolidated: number; archived: number }> {
-    let consolidated = 0;
+    const consolidated = 0;
     let archived = 0;
 
     for (const domain of this.stats.byDomain.keys()) {

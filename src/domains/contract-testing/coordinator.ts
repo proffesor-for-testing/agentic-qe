@@ -1112,7 +1112,7 @@ export class ContractTestingCoordinator
       const prediction = await this.sarsaAlgorithm.predict(state);
 
       // Apply the suggested ordering strategy
-      let prioritized = [...contracts];
+      const prioritized = [...contracts];
       let strategy = 'default';
 
       switch (prediction.action.type) {

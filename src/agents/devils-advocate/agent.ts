@@ -126,7 +126,7 @@ export class DevilsAdvocate {
 
     // 4-5: Filter by confidence and severity
     const minSeverityIndex = SEVERITY_ORDER.indexOf(this.config.minSeverity);
-    let filtered = allChallenges.filter(c => {
+    const filtered = allChallenges.filter(c => {
       if (c.confidence < this.config.minConfidence) return false;
       const severityIndex = SEVERITY_ORDER.indexOf(c.severity);
       return severityIndex <= minSeverityIndex;

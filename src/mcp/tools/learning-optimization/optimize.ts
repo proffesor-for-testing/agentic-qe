@@ -185,7 +185,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         return { success: false, error: 'Operation aborted' };
       }
 
-      let result: LearningOptimizeResult = { action };
+      const result: LearningOptimizeResult = { action };
 
       switch (action) {
         case 'learn':
