@@ -987,6 +987,7 @@ class HTTPServerImpl implements HTTPServer {
       }
     }
 
+    // eslint-disable-next-line no-async-promise-executor -- inner awaits are caught; server.on("error", reject) handles startup failures
     return new Promise(async (resolve, reject) => {
       this.server = createServer((req, res) => {
         this.handleHttpRequest(req, res).catch((error) => {
