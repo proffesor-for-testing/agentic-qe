@@ -270,10 +270,10 @@ class Parser {
         return this.parseIdentifier();
 
       case 'LPAREN':
-        this.advance();
+        { this.advance();
         const result = this.parseExpression(0);
         this.expect('RPAREN');
-        return result;
+        return result; }
 
       default:
         throw new Error(`Unexpected token: ${token.raw}`);

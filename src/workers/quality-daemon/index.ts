@@ -260,7 +260,7 @@ export class QualityDaemon {
 
     switch (payload.type) {
       case 'git_commit':
-        this._commitsAnalyzed++;
+        { this._commitsAnalyzed++;
         // Trigger coverage analysis for changed files
         const snapshot = await this.coverageDelta.buildSnapshot(memory);
         if (snapshot) {
@@ -296,7 +296,7 @@ export class QualityDaemon {
             }
           }
         }
-        break;
+        break; }
 
       case 'coverage_delta': {
         // coverage_delta items are enqueued by analyze() when regression/gaps

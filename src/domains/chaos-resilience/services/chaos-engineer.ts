@@ -1020,8 +1020,8 @@ Provide:
       case 'gte':
         return actual >= (value as number);
       case 'between':
-        const [min, max] = value as [number, number];
-        return actual >= min && actual <= max;
+        { const [min, max] = value as [number, number];
+        return actual >= min && actual <= max; }
       default:
         return false;
     }

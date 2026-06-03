@@ -569,8 +569,8 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       case 'manual':
         // Full reindex - use provided paths or default
-        const paths = trigger.paths || ['src/**', 'lib/**'];
-        return this.resolveGlobPatterns(paths);
+        { const paths = trigger.paths || ['src/**', 'lib/**'];
+        return this.resolveGlobPatterns(paths); }
 
       default:
         return err(new Error(`Unknown trigger type: ${(trigger as IndexTrigger).type}`));
@@ -675,7 +675,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
     switch (domain) {
       case 'test-generation':
         // Notify about files needing new tests
-        const filesNeedingTests = changedFiles.filter(
+        { const filesNeedingTests = changedFiles.filter(
           (f) => !this.isTestFile(f) && !impact.impactedTests.some((t) => this.isTestForFile(t, f))
         );
         if (filesNeedingTests.length === 0) return null;
@@ -684,7 +684,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
           files: filesNeedingTests,
           priority: this.mapRiskToPriority(impact.riskLevel),
           recommendations: ['Generate unit tests for new/changed files'],
-        };
+        }; }
 
       case 'coverage-analysis':
         // Notify about coverage gap changes
@@ -701,7 +701,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
 
       case 'defect-intelligence':
         // Notify for regression risk assessment
-        const highRiskFiles = [
+        { const highRiskFiles = [
           ...impact.directImpact.filter((i) => i.riskScore >= 0.7),
           ...impact.transitiveImpact.filter((i) => i.riskScore >= 0.7),
         ];
@@ -713,7 +713,7 @@ export class CodeIntelligenceIndexProtocol implements ICodeIntelligenceIndexProt
           riskLevel: impact.riskLevel,
           priority: this.mapRiskToPriority(impact.riskLevel),
           recommendations: impact.recommendations,
-        };
+        }; }
 
       default:
         return null;

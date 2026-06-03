@@ -379,8 +379,8 @@ export class ClaimVerifierService implements ClaimVerifierAgent {
 
       case 'multi-model':
         // Not yet implemented - fall back to recommended method
-        const fallbackMethod = this.getRecommendedMethod(claim.type);
-        return this.executeVerification(claim, fallbackMethod, options);
+        { const fallbackMethod = this.getRecommendedMethod(claim.type);
+        return this.executeVerification(claim, fallbackMethod, options); }
 
       default:
         throw createVerificationError(

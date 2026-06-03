@@ -215,9 +215,9 @@ export async function handleCrossPhaseQuery(params: QuerySignalsParams): Promise
       break;
 
     case 'tactical':
-      const featureFilter = params.filter?.featureContext as string | undefined;
+      { const featureFilter = params.filter?.featureContext as string | undefined;
       signals = await memory.querySFDIPOTSignals(featureFilter);
-      break;
+      break; }
 
     case 'operational':
       signals = await memory.queryTestHealthSignals();

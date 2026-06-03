@@ -317,20 +317,20 @@ export class EmbeddingGenerator {
 
       case 'int8':
         // Quantize to int8 range [-128, 127]
-        const max = Math.max(...vector.map(Math.abs));
+        { const max = Math.max(...vector.map(Math.abs));
         return new Int8Array(
           vector.map((v) => Math.round((v / max) * 127))
-        );
+        ); }
 
       case 'binary':
         // Binary quantization (sign bit only)
-        const binaryBytes = new Uint8Array(Math.ceil(vector.length / 8));
+        { const binaryBytes = new Uint8Array(Math.ceil(vector.length / 8));
         for (let i = 0; i < vector.length; i++) {
           if (vector[i] >= 0) {
             binaryBytes[Math.floor(i / 8)] |= 1 << (i % 8);
           }
         }
-        return binaryBytes;
+        return binaryBytes; }
 
       case 'none':
       default:

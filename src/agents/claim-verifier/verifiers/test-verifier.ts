@@ -157,36 +157,36 @@ export class TestBasedVerifier {
 
       switch (claimType) {
         case 'test-count':
-          const testResults = await this.verifyTestCount(claim);
+          { const testResults = await this.verifyTestCount(claim);
           evidence = testResults.evidence;
           verified = testResults.verified;
           reasoning = testResults.reasoning;
           confidence = testResults.confidence;
-          break;
+          break; }
 
         case 'test-results':
-          const executionResults = await this.verifyTestExecution(claim);
+          { const executionResults = await this.verifyTestExecution(claim);
           evidence = executionResults.evidence;
           verified = executionResults.verified;
           reasoning = executionResults.reasoning;
           confidence = executionResults.confidence;
-          break;
+          break; }
 
         case 'coverage':
-          const coverageResults = await this.verifyCoverage(claim);
+          { const coverageResults = await this.verifyCoverage(claim);
           evidence = coverageResults.evidence;
           verified = coverageResults.verified;
           reasoning = coverageResults.reasoning;
           confidence = coverageResults.confidence;
-          break;
+          break; }
 
         default:
           // Check existing evidence
-          const existingResults = await this.verifyExistingEvidence(claim.evidence);
+          { const existingResults = await this.verifyExistingEvidence(claim.evidence);
           evidence = existingResults.evidence;
           verified = existingResults.verified;
           reasoning = existingResults.reasoning;
-          confidence = existingResults.confidence;
+          confidence = existingResults.confidence; }
       }
 
       const verificationTimeMs = Date.now() - startTime;

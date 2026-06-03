@@ -949,8 +949,8 @@ export class CoverageAnalysisCoordinator
       case 'daily':
         return `${year}-${month}-${day}`;
       case 'weekly':
-        const weekNum = Math.floor(day / 7);
-        return `${year}-${month}-W${weekNum}`;
+        { const weekNum = Math.floor(day / 7);
+        return `${year}-${month}-W${weekNum}`; }
       case 'monthly':
         return `${year}-${month}`;
     }
