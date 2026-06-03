@@ -88,6 +88,7 @@ export interface WorkflowStatus {
 // Coordinator Configuration
 // ============================================================================
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- marker config; fields added per domain
 export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   // No additional fields beyond base
 }

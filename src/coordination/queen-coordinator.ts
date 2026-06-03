@@ -910,6 +910,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
 
   private createEventHandlerContext(): QueenEventHandlerContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, tasks: self.tasks,
@@ -934,6 +935,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createTaskContext(): QueenTaskContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, tasks: self.tasks,
@@ -965,6 +967,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createWorkStealingContext(): QueenWorkStealingContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, domainQueues: self.domainQueues,
@@ -981,6 +984,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createMetricsContext() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, memory: self.memory,

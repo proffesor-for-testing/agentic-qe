@@ -250,7 +250,7 @@ const DEFAULT_CONFIG: Required<Omit<OpenRouterProviderConfig, 'apiKey' | 'appNam
 export class OpenRouterModelProvider extends BaseModelProvider {
   readonly id: string;
   readonly name: string;
-  readonly type: 'openrouter' = 'openrouter';
+  readonly type = 'openrouter' as const;
 
   // Required by BaseModelProvider
   protected costPerToken: { input: number; output: number };
