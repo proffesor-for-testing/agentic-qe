@@ -259,6 +259,9 @@ describe('SemanticAnalyzerService', () => {
 
       await service.indexCode('src/test-class.ts', code);
 
+      // Content is stored under a fully-qualified key with NO {namespace}
+      // store option, so it can be read back by search() which uses the
+      // default namespace (#511 follow-up).
       expect(mockMemory.set).toHaveBeenCalledWith(
         expect.stringContaining('content'),
         expect.objectContaining({
@@ -266,8 +269,7 @@ describe('SemanticAnalyzerService', () => {
           metadata: expect.objectContaining({
             hasClasses: true,
           }),
-        }),
-        expect.any(Object)
+        })
       );
     });
 
@@ -583,6 +585,91 @@ describe('SemanticAnalyzerService', () => {
         // Only results above minScore should be returned
         expect(result.value.every(r => r.score >= 0.8)).toBe(true);
       }
+    });
+  });
+
+  // ==========================================================================
+  // Regression: #511 follow-up — content must round-trip on a backend that
+  // honors the {namespace} store option.
+  //
+  // indexCode() stores the content under a fully-qualified key. If it ALSO
+  // passes a {namespace} store option, a real backend writes it where get()
+  // (default namespace) cannot read it (issue #491 Bug 2), so every matched
+  // vector is silently dropped and search returns 0 results. The default mock
+  // above ignores the namespace option, which is why it never caught this —
+  // this block uses a namespace-honoring backend that reproduces real behavior.
+  // ==========================================================================
+  describe('#511 content namespace round-trip', () => {
+    function createNamespaceHonoringBackend(): MemoryBackend {
+      const storage = new Map<string, unknown>();
+      const vectors = new Map<string, { embedding: number[]; metadata: unknown }>();
+      const ck = (key: string, opts?: { namespace?: string }) =>
+        `${opts?.namespace ?? 'default'}::${key}`;
+
+      return {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(async (key: string, value: unknown, opts?: { namespace?: string }) => {
+          storage.set(ck(key, opts), value);
+        }),
+        get: vi.fn(async <T>(key: string, opts?: { namespace?: string }): Promise<T | undefined> => {
+          return storage.get(ck(key, opts)) as T | undefined;
+        }),
+        delete: vi.fn(async (key: string, opts?: { namespace?: string }): Promise<boolean> => {
+          return storage.delete(ck(key, opts));
+        }),
+        has: vi.fn(async (key: string, opts?: { namespace?: string }): Promise<boolean> => {
+          return storage.has(ck(key, opts));
+        }),
+        search: vi.fn(async (pattern: string, limit?: number, opts?: { namespace?: string }): Promise<string[]> => {
+          const prefix = `${opts?.namespace ?? 'default'}::`;
+          const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+          const matches: string[] = [];
+          for (const composite of storage.keys()) {
+            if (!composite.startsWith(prefix)) continue;
+            const key = composite.slice(prefix.length);
+            if (regex.test(key)) {
+              matches.push(key);
+              if (limit && matches.length >= limit) break;
+            }
+          }
+          return matches;
+        }),
+        vectorSearch: vi.fn(async (_embedding: number[], k: number): Promise<VectorSearchResult[]> => {
+          const out: VectorSearchResult[] = [];
+          let i = 0;
+          for (const [key, data] of vectors.entries()) {
+            if (i >= k) break;
+            out.push({ key, score: 0.95, metadata: data.metadata });
+            i++;
+          }
+          return out;
+        }),
+        storeVector: vi.fn(async (key: string, embedding: number[], metadata?: unknown) => {
+          vectors.set(key, { embedding, metadata });
+        }),
+      } as unknown as MemoryBackend;
+    }
+
+    it('should return search results when the backend honors the namespace option', async () => {
+      // Arrange
+      const backend = createNamespaceHonoringBackend();
+      const svc = new SemanticAnalyzerService(backend, {
+        embeddingProvider: createMockEmbeddingProvider(),
+        useNomicEmbeddings: false,
+      });
+      await svc.indexCode(
+        'src/calculator.ts',
+        'export class Calculator { compute(x: number): number { return x + 1; } }'
+      );
+
+      // Act
+      const result = await svc.search({ query: 'calculator compute', type: 'semantic', limit: 5 });
+
+      // Assert: the indexed file is retrievable (content round-tripped)
+      expect(result.success).toBe(true);
+      expect(result.value!.results.length).toBeGreaterThan(0);
+      expect(result.value!.results.map((r) => r.file)).toContain('src/calculator.ts');
     });
   });
 });
