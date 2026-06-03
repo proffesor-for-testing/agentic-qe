@@ -1015,8 +1015,8 @@ export class HypergraphEngine {
     const startTime = Date.now();
     let nodesSynced = 0;
     let edgesSynced = 0;
-    let nodesAdded = 0;
-    let nodesRemoved = 0;
+    const nodesAdded = 0;
+    const nodesRemoved = 0;
 
     // Get all nodes from hypergraph
     const hgNodes = await this.findNodes({});

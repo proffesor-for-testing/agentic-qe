@@ -12,7 +12,6 @@ import { ICommandHandler, CLIContext } from './interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { createRoutingFeedbackCollector } from '../../routing/routing-feedback.js';
 import { getGlobalCostTracker } from '../../shared/llm/cost-tracker.js';
-import type { EconomicReport, EconomicScore } from '../../routing/economic-routing.js';
 
 // ============================================================================
 // Routing Handler

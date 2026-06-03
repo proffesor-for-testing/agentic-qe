@@ -21,7 +21,6 @@ import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import type {
   RLState,
   RLAction,
-  RLExperience,
 } from '../../integrations/rl-suite/interfaces';
 import type { DomainName } from '../../shared/types';
 import {
@@ -65,20 +64,14 @@ import {
 
 // Ruvector integrations
 import { ActorCriticAlgorithm } from '../../integrations/rl-suite/algorithms/actor-critic';
-import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
+import { PersistentSONAEngine } from '../../integrations/ruvector/sona-persistence.js';
 import {
   QEFlashAttention,
-  createQEFlashAttention,
 } from '../../integrations/ruvector/wrappers';
 
 // V3 Integration: ClaimVerifier for report verification (Phase 4)
 import {
   ClaimVerifierService,
-  createClaimVerifierService,
-  type QEReport,
-  type Claim,
-  type ClaimType,
-  type ReportVerification,
 } from '../../agents/claim-verifier/index.js';
 
 // CQ-004: Extracted modules
@@ -112,7 +105,6 @@ import type { ConsensusStats } from '../../coordination/consensus';
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 /**

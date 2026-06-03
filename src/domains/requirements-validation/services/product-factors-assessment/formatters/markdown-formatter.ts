@@ -13,7 +13,6 @@ import {
   ClarifyingQuestion,
   Priority,
   CATEGORY_DESCRIPTIONS,
-  PRIORITY_METADATA,
   AUTOMATION_FITNESS_METADATA,
 } from '../types';
 

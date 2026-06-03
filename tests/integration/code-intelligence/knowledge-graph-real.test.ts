@@ -539,4 +539,201 @@ describe('Knowledge Graph Real I/O', () => {
       }
     });
   });
+
+  // ==========================================================================
+  // Regression: #511 — TS/JS dependency edges survive across processes
+  //
+  // `aqe code index` and `aqe code deps` run as SEPARATE CLI processes, so the
+  // graph must be persisted: an index by one service instance must be visible
+  // to mapDependencies() on a fresh instance sharing the same backend. Before
+  // the fix, nodes/edges were cache-only and `deps` returned 0 edges on TS
+  // repos even though `index` reported edges created.
+  // ==========================================================================
+  describe('#511 cross-instance TS dependency edges', () => {
+    let tmpDir: string;
+    let sharedMemory: MemoryBackend;
+
+    beforeEach(async () => {
+      sharedMemory = createMockMemoryBackend();
+      // Fixture must live under the project root: FileReader (SEC-004) rejects
+      // absolute paths outside process.cwd(), so os.tmpdir() would be unreadable.
+      tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-kg-511-'));
+      await fs.writeFile(
+        path.join(tmpDir, 'math.ts'),
+        'export function add(a: number, b: number): number { return a + b; }\n'
+      );
+      await fs.writeFile(
+        path.join(tmpDir, 'app.ts'),
+        "import { add } from './math';\nexport const total = add(1, 2);\n"
+      );
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('should expose import edges to a fresh service instance after indexing', async () => {
+      // Arrange: index with one service ("the index process")
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const indexResult = await indexer.index({ paths: [appPath, mathPath] });
+      expect(indexResult.success).toBe(true);
+
+      // Act: map dependencies with a SEPARATE instance sharing only the backend
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+
+      // Assert: the import edge survived persistence and connects the files
+      expect(depsResult.success).toBe(true);
+      const deps = depsResult.value!;
+      expect(deps.metrics.totalEdges).toBeGreaterThan(0);
+
+      const appNodeId = ':' + appPath.replace(/^[/\\]/, '').replace(/[/\\]/g, ':').replace(/\./g, '_');
+      const mathNodeId = ':' + mathPath.replace(/^[/\\]/, '').replace(/[/\\]/g, ':').replace(/\./g, '_');
+      const importEdge = deps.edges.find(
+        (e) => e.source === appNodeId && e.target === mathNodeId && e.type === 'import'
+      );
+      expect(importEdge).toBeDefined();
+
+      // math.ts is depended upon (inDegree > 0), confirming the graph connects
+      const mathNode = deps.nodes.find((n) => n.path === mathPath);
+      expect(mathNode?.inDegree).toBeGreaterThan(0);
+    });
+
+    it('should not report phantom cycles for a simple acyclic import chain', async () => {
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, mathPath] });
+
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+
+      expect(depsResult.success).toBe(true);
+      // app → math is acyclic; 'both' traversal must not fabricate A→B→A
+      expect(depsResult.value!.cycles).toHaveLength(0);
+    });
+
+    it('should warn when a file has no dependency extractor (#511 req #2)', async () => {
+      // Arrange: a Python file alongside the TS files — no TS-Compiler extractor
+      const pyPath = path.join(tmpDir, 'util.py');
+      await fs.writeFile(pyPath, 'def hello():\n    return 1\n');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+
+      // Act
+      const result = await indexer.index({
+        paths: [path.join(tmpDir, 'app.ts'), pyPath],
+      });
+
+      // Assert: a loud warning naming the unsupported extension is surfaced
+      expect(result.success).toBe(true);
+      const warnings = result.value!.warnings ?? [];
+      expect(warnings.some((w) => w.includes(".py"))).toBe(true);
+    });
+
+    it('should drop stale outgoing edges on incremental re-index (#511)', async () => {
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, mathPath] });
+
+      // app.ts no longer imports ./math. The incremental re-index runs on the
+      // SAME long-lived instance — exercising both the persistence-layer cleanup
+      // (removeFileFromGraph) and the FileReader cache eviction that guarantees
+      // the new file content is read (#511).
+      await fs.writeFile(appPath, 'export const total = 42;\n');
+      await indexer.index({ paths: [appPath, mathPath], incremental: true });
+
+      // The stale app → math import edge must be gone
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+      expect(depsResult.success).toBe(true);
+      const mathNode = depsResult.value!.nodes.find((n) => n.path === mathPath);
+      expect(mathNode?.inDegree).toBe(0);
+    });
+
+    it('should persist under the code-intelligence:kg namespace regardless of backend default (#511)', async () => {
+      // A namespace-honoring backend whose DEFAULT namespace is something else
+      // entirely (mirrors CLI 'qe-kernel' / MCP 'mcp-tools'). The KG must still
+      // write/read under 'code-intelligence:kg' so init checks + CLI↔MCP agree.
+      const storage = new Map<string, unknown>();
+      const composite = (key: string, ns?: string) => `${ns ?? 'backend-default'}::${key}`;
+      const honoring = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(async (k: string, v: unknown, o?: { namespace?: string }) => {
+          storage.set(composite(k, o?.namespace), v);
+        }),
+        get: vi.fn(async (k: string, o?: { namespace?: string }) => storage.get(composite(k, o?.namespace))),
+        delete: vi.fn(async (k: string, o?: { namespace?: string }) => storage.delete(composite(k, o?.namespace))),
+        has: vi.fn(async (k: string, o?: { namespace?: string }) => storage.has(composite(k, o?.namespace))),
+        search: vi.fn(async (pattern: string, limit?: number, o?: { namespace?: string }) => {
+          const prefix = `${o?.namespace ?? 'backend-default'}::`;
+          const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+          const out: string[] = [];
+          for (const ck of storage.keys()) {
+            if (!ck.startsWith(prefix)) continue;
+            const key = ck.slice(prefix.length);
+            if (regex.test(key)) {
+              out.push(key);
+              if (limit && out.length >= limit) break;
+            }
+          }
+          return out;
+        }),
+        vectorSearch: vi.fn(async () => []),
+        storeVector: vi.fn(async () => {}),
+      } as unknown as MemoryBackend;
+
+      const appPath = path.join(tmpDir, 'app.ts');
+      const indexer = new KnowledgeGraphService(honoring, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, path.join(tmpDir, 'math.ts')] });
+
+      // Nodes are found under 'code-intelligence:kg', NOT the backend default —
+      // this is exactly what `hasCodeIntelligenceIndex` / cross-tool reads need.
+      const inKgNs = await honoring.search('code-intelligence:kg:node:*', 100, {
+        namespace: 'code-intelligence:kg',
+      });
+      const inDefaultNs = await honoring.search('code-intelligence:kg:node:*', 100);
+      expect(inKgNs.length).toBeGreaterThan(0);
+      expect(inDefaultNs.length).toBe(0);
+    });
+  });
 });

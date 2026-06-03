@@ -25,7 +25,6 @@ import type {
   IRawCohomologyEngine,
   IWasmLoader,
   CoherenceLogger,
-  WasmModule,
 } from '../types';
 import { WasmNotLoadedError, DEFAULT_COHERENCE_LOGGER } from '../types';
 import type { Severity } from '../../../shared/types';

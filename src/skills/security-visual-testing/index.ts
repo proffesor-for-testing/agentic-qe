@@ -3,8 +3,7 @@
  * Combines browser integration, security validation, PII detection, and visual testing
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import type { Result, Viewport } from '../../shared/types/index.js';
+import type { Result } from '../../shared/types/index.js';
 import { ok, err } from '../../shared/types/index.js';
 import type {
   IVisualAccessibilityCoordinator,

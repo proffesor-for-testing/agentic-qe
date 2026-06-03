@@ -13,7 +13,7 @@ import type {
   QERoutingDecision,
   AgentPerformanceMetrics,
 } from './types.js';
-import { QE_AGENT_REGISTRY, getAgentById } from './qe-agent-registry.js';
+import { QE_AGENT_REGISTRY } from './qe-agent-registry.js';
 import type { QETaskRouter } from './qe-task-router.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';

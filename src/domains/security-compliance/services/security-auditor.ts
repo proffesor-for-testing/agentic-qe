@@ -21,7 +21,6 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 
 import type {
-  IDependencySecurityService,
   DependencyScanResult,
   PackageSecurityInfo,
   UpgradeRecommendation,

@@ -218,7 +218,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         }
 
         // Second-level key (2-space indent)
-        const subMatch = line.match(/^  (\w+):\s*(.*)$/);
+        const subMatch = line.match(/^ {2}(\w+):\s*(.*)$/);
         if (subMatch && currentSection) {
           currentSubSection = subMatch[1];
           const value = subMatch[2].trim();
@@ -237,7 +237,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
 
         // Third-level key (4-space indent)
         // Use [\w-]+ to match hyphenated keys like "pattern-consolidator"
-        const thirdMatch = line.match(/^    ([\w-]+):\s*(.*)$/);
+        const thirdMatch = line.match(/^ {4}([\w-]+):\s*(.*)$/);
         if (thirdMatch && currentSection && currentSubSection) {
           const key = thirdMatch[1];
           const value = thirdMatch[2].trim();
@@ -253,7 +253,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
         }
 
         // Array item (4-space indent with dash)
-        const arrayMatch = line.match(/^    - "?([^"]*)"?$/);
+        const arrayMatch = line.match(/^ {4}- "?([^"]*)"?$/);
         if (arrayMatch && currentSection && currentSubSection) {
           const section = result[currentSection] as Record<string, unknown>;
           if (!Array.isArray(section[currentSubSection])) {

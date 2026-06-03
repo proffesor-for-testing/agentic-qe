@@ -11,7 +11,7 @@
  */
 
 import { LoggerFactory } from '../../../../logging/index.js';
-import { Result, ok, err, Severity, Priority } from '@shared/types';
+import { Result, ok, err, Priority } from '@shared/types';
 import type { MemoryBackend, StoreOptions } from '@kernel/interfaces';
 import { NomicEmbedder, type NomicEmbedderConfig } from '@shared/embeddings';
 import type {
@@ -1304,14 +1304,14 @@ export class C4ModelService implements IC4ModelService {
   private getDiagramPreview(stored: StoredDiagram): string {
     switch (stored.type) {
       case 'context':
-        const ctx = stored.model as C4ContextDiagram;
-        return `System: ${ctx.system.name}, External: ${ctx.externalSystems.length}`;
+        { const ctx = stored.model as C4ContextDiagram;
+        return `System: ${ctx.system.name}, External: ${ctx.externalSystems.length}`; }
       case 'container':
-        const cnt = stored.model as C4ContainerDiagram;
-        return `Containers: ${cnt.containers.length}, External: ${cnt.externalSystems.length}`;
+        { const cnt = stored.model as C4ContainerDiagram;
+        return `Containers: ${cnt.containers.length}, External: ${cnt.externalSystems.length}`; }
       case 'component':
-        const cmp = stored.model as C4ComponentDiagram;
-        return `Components: ${cmp.components.length}, Relations: ${cmp.relationships.length}`;
+        { const cmp = stored.model as C4ComponentDiagram;
+        return `Components: ${cmp.components.length}, Relations: ${cmp.relationships.length}`; }
       default:
         return 'No preview available';
     }

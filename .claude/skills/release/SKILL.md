@@ -60,7 +60,7 @@ If any stale version strings are found in source files, fix them ALL before cont
 Update package.json to the target version:
 
 ```bash
-cd /workspaces/agentic-qe-new && npm version <version> --no-git-tag-version
+cd /workspaces/agentic-qe && npm version <version> --no-git-tag-version
 ```
 
 Also update `fleetVersion` in `.claude/skills/skills-manifest.json`.
@@ -166,17 +166,17 @@ All three must exist: CLI bundle, main entry point, MCP server.
 mkdir -p /tmp/aqe-release-test && cd /tmp/aqe-release-test
 
 # Run init using the LOCAL build (not published version)
-node /workspaces/agentic-qe-new/dist/cli/bundle.js init --auto
+node /workspaces/agentic-qe/dist/cli/bundle.js init --auto
 ```
 Verify init completes without errors and creates the expected project structure (`.agentic-qe/` directory, config files).
 
 #### 8c. Verify CLI
 ```bash
 # Version output
-node /workspaces/agentic-qe-new/dist/cli/bundle.js --version
+node /workspaces/agentic-qe/dist/cli/bundle.js --version
 
 # System status
-node /workspaces/agentic-qe-new/dist/cli/bundle.js status
+node /workspaces/agentic-qe/dist/cli/bundle.js status
 ```
 Both must succeed without errors.
 
@@ -185,13 +185,13 @@ Both must succeed without errors.
 cd /tmp/aqe-release-test
 
 # Verify learning subsystem
-node /workspaces/agentic-qe-new/dist/cli/bundle.js learning stats 2>&1 | head -10
+node /workspaces/agentic-qe/dist/cli/bundle.js learning stats 2>&1 | head -10
 
 # Verify agent listing works
-node /workspaces/agentic-qe-new/dist/cli/bundle.js agent list 2>&1 | head -10
+node /workspaces/agentic-qe/dist/cli/bundle.js agent list 2>&1 | head -10
 
 # Verify health check
-node /workspaces/agentic-qe-new/dist/cli/bundle.js health 2>&1 | head -10
+node /workspaces/agentic-qe/dist/cli/bundle.js health 2>&1 | head -10
 ```
 These should respond (even if empty results) without errors, confirming the subsystems initialize properly.
 
@@ -206,7 +206,7 @@ npm install ./agentic-qe-<version>.tgz 2>&1 | tail -3
 node node_modules/.bin/aqe --version 2>&1
 EXIT=$?
 echo "Exit code: $EXIT"
-cd /workspaces/agentic-qe-new
+cd /workspaces/agentic-qe
 rm -rf "$CLEAN_DIR"
 ```
 Must exit 0 and print the correct version. If it crashes with `ERR_MODULE_NOT_FOUND`, a dependency is marked as external in the build scripts but not listed in `dependencies`. Fix by either bundling it, lazy-loading it, or adding it to dependencies.
@@ -223,7 +223,7 @@ rm -rf /tmp/aqe-release-test
 Run the same tests that CI runs on PRs and during publish. Skip e2e browser tests unless the user explicitly requests them.
 
 ```bash
-cd /workspaces/agentic-qe-new
+cd /workspaces/agentic-qe
 
 # Performance gates (fast — validates perf thresholds)
 npm run performance:gate
@@ -249,7 +249,7 @@ All mandatory test suites must pass. Pre-existing MCP handler test failures (tes
 2. No forbidden dismissal phrases ("I believe it's unlikely", "can't see how this would fail", etc.)
    without a tracking issue reference in the same paragraph
 ```bash
-cd /workspaces/agentic-qe-new
+cd /workspaces/agentic-qe
 
 # Stage version bump + changelog + release docs + any version audit fixes
 git add package.json package-lock.json CHANGELOG.md docs/releases/README.md docs/releases/v<version>.md

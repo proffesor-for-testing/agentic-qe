@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { initializeTokenOptimizer, TokenOptimizerService } from '../optimization/token-optimizer-service.js';
 import { TokenMetricsCollector } from '../learning/token-tracker.js';
-import { createDefaultMemoryBackend, createMemoryBackend } from '../kernel/memory-factory.js';
+import { createDefaultMemoryBackend } from '../kernel/memory-factory.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 
 // ============================================================================

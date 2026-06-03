@@ -378,7 +378,7 @@ export class SpectralSparsifier {
     // Use a different pattern for each deflation round to avoid
     // starting in the null-space of the deflated matrix
     const round = previousEigenvectors.length;
-    let v = new Array<number>(n);
+    const v = new Array<number>(n);
     for (let i = 0; i < n; i++) {
       v[i] = Math.sin((i + 1) * (round + 1) * 1.618033988749895) + 0.1 * (i - n / 2);
     }

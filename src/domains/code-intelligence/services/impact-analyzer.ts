@@ -207,10 +207,14 @@ export class ImpactAnalyzerService implements IImpactAnalyzerService {
         for (const pattern of possibleTestPatterns) {
           const keys = await this.memory.search(
             `code-intelligence:kg:node:*${pattern}*`,
-            10
+            10,
+            // KG persists under its own namespace (#511 parity) — read it there.
+            { namespace: 'code-intelligence:kg' }
           );
           for (const key of keys) {
-            const node = await this.memory.get<{ properties: { path: string } }>(key);
+            const node = await this.memory.get<{ properties: { path: string } }>(key, {
+              namespace: 'code-intelligence:kg',
+            });
             if (node?.properties?.path && this.isTestFile(node.properties.path)) {
               impactedTests.add(node.properties.path);
             }

@@ -3,7 +3,7 @@
  * Registers the test execution domain with the kernel
  */
 
-import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './interfaces';

@@ -64,22 +64,18 @@ import {
   ClaudeFlowBridge,
   createClaudeFlowBridge,
   type BridgeStatus,
-  type Trajectory,
-  type TrajectoryStep,
   type ModelRoutingResult,
   type PretrainResult,
 } from '../adapters/claude-flow/index.js';
 import {
   ExperienceCaptureService,
   createExperienceCaptureService,
-  type TaskExperience,
   type ExperienceCaptureStats,
 } from './experience-capture.js';
 import { createPatternStore, type IPatternStore } from './pattern-store.js';
 import {
   wasmLoader,
   createCoherenceService,
-  type CoherenceService,
   type ICoherenceService,
 } from '../integrations/coherence/index.js';
 

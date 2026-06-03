@@ -19,10 +19,8 @@ import {
   NeuralNetwork,
   ReLU,
   Linear,
-  Sigmoid,
   Softmax,
   MSELoss,
-  CrossEntropyLoss,
 } from '../neural';
 
 // ============================================================================

@@ -9,10 +9,9 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
-import { createTestGeneratorService, createTestGeneratorServiceWithDependencies, type TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
+import { createTestGeneratorServiceWithDependencies, type TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
 import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
-import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================

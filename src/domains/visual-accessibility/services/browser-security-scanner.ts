@@ -12,7 +12,6 @@
 
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
-import { BrowserResultAdapter } from '../../../adapters/browser-result-adapter.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================

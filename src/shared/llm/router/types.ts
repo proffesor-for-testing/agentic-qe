@@ -27,7 +27,6 @@ import {
   TokenUsage,
   CostInfo,
   HealthCheckResult,
-  LLMConfig,
 } from '../interfaces';
 
 // ============================================================================

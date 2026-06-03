@@ -693,7 +693,7 @@ export class QEKernelImpl implements QEKernel {
 
     // Get memory stats - handle both backend types
     let memUsed = 0;
-    let memAvailable = Number.MAX_SAFE_INTEGER;
+    const memAvailable = Number.MAX_SAFE_INTEGER;
     if (this._memory instanceof InMemoryBackend) {
       const memStats = this._memory.getStats();
       memUsed = memStats.entries + memStats.vectors;

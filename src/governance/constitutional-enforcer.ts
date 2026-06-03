@@ -22,7 +22,6 @@ import * as path from 'path';
 import {
   governanceFlags,
   isStrictMode,
-  type GovernanceFeatureFlags,
 } from './feature-flags.js';
 
 // ============================================================================

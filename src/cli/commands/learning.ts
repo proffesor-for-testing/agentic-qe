@@ -25,7 +25,6 @@ import {
 } from '../../learning/metrics-tracker.js';
 import {
   createRegretTracker,
-  type DomainHealthSummary,
   type GrowthRate,
 } from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';
@@ -602,7 +601,7 @@ function registerBackupCommand(learning: Command): void {
 
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const defaultOutput = path.join(process.cwd(), 'backups', `learning-${timestamp}.db`);
-        let outputPath = options.output ? path.resolve(options.output) : defaultOutput;
+        const outputPath = options.output ? path.resolve(options.output) : defaultOutput;
 
         const backupDir = path.dirname(outputPath);
         if (!existsSync(backupDir)) mkdirSync(backupDir, { recursive: true });
@@ -745,7 +744,7 @@ function registerVerifyCommand(learning: Command): void {
         const schemaVersion = await getSchemaVersion(dbPath);
         const fileStats = await stat(dbPath);
 
-        let tableCounts: Record<string, number> = {};
+        const tableCounts: Record<string, number> = {};
         try {
           const db = openDatabase(dbPath, { readonly: true });
           for (const table of ['qe_patterns', 'qe_trajectories', 'captured_experiences', 'kv_store', 'vectors']) {
@@ -874,7 +873,7 @@ function registerImportMergeCommand(learning: Command): void {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
-        let inputPath = path.resolve(options.input);
+        const inputPath = path.resolve(options.input);
         if (!existsSync(inputPath)) throw new Error(`File not found: ${inputPath}`);
 
         let content: string;
@@ -1182,7 +1181,7 @@ function registerRepairCommand(learning: Command): void {
         printInfo(`Corruption detected: ${integrityResult.message}`);
 
         // Step 2: Count rows before repair
-        let rowCountsBefore: Record<string, number> = {};
+        const rowCountsBefore: Record<string, number> = {};
         try {
           const db = openDatabase(dbPath, { readonly: true });
           const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
@@ -1275,7 +1274,7 @@ function registerRepairCommand(learning: Command): void {
         }
 
         // Step 7: Verify row counts
-        let rowCountsAfter: Record<string, number> = {};
+        const rowCountsAfter: Record<string, number> = {};
         const repairedDb = openDatabase(repairedPath, { readonly: true });
         const repairedTables = repairedDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[];
         for (const t of repairedTables) {

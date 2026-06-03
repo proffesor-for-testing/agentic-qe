@@ -35,7 +35,7 @@ implementation/
 
 ### Domain-Driven Design for QE
 
-Agentic QE v3 uses DDD with 6 bounded contexts:
+Agentic QE v3 uses DDD with 13 bounded contexts:
 
 1. **Test Generation** - AI-powered test creation
 2. **Test Execution** - Parallel execution and retry
@@ -43,6 +43,13 @@ Agentic QE v3 uses DDD with 6 bounded contexts:
 4. **Quality Assessment** - Quality gates and metrics
 5. **Defect Intelligence** - Prediction and analysis
 6. **Learning Optimization** - Pattern learning and transfer
+7. **Code Intelligence** - Knowledge graph, dependency and impact analysis
+8. **Requirements Validation** - Acceptance-criteria and BDD validation
+9. **Security Compliance** - Security scanning and compliance checks
+10. **Contract Testing** - Consumer/provider contract validation
+11. **Visual Accessibility** - Visual regression and a11y auditing
+12. **Chaos Resilience** - Fault injection and resilience testing
+13. **Enterprise Integration** - SAP/middleware/E2E enterprise flows
 
 ### Agent Hierarchy
 

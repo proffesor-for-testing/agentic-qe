@@ -9,7 +9,6 @@
 
 import type {
   IPatternStore,
-  PatternSearchResult,
   PatternSearchOptions,
 } from '../learning/pattern-store.js';
 import type { QEPattern, QEDomain, QEPatternContext } from '../learning/qe-patterns.js';

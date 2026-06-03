@@ -55,7 +55,7 @@ import {
 
 // Issue #342: Dependency intelligence integration
 import { type CoExecutionRepository, getCoExecutionRepository } from '../routing/co-execution-repository.js';
-import { validateAgentMcpDeps, getAvailableMcpServers } from '../validation/steps/agent-mcp-validator.js';
+import { getAvailableMcpServers } from '../validation/steps/agent-mcp-validator.js';
 import { buildDependencyGraph, createSpawnPlan, type DependencyGraphResult } from '../routing/agent-dependency-graph.js';
 
 // V3 Integration: @claude-flow/guidance governance (ADR-058)
@@ -90,7 +90,6 @@ import { DynamicScaler, createDynamicScaler } from './dynamic-scaling/index.js';
 
 // Types, interfaces, constants, and config
 import {
-  TASK_DOMAIN_MAP,
   DEFAULT_QUEEN_CONFIG,
   initializeTaskDomainMap,
 } from './queen-types.js';
@@ -911,6 +910,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   // ============================================================================
 
   private createEventHandlerContext(): QueenEventHandlerContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, tasks: self.tasks,
@@ -935,6 +935,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createTaskContext(): QueenTaskContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, tasks: self.tasks,
@@ -966,6 +967,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createWorkStealingContext(): QueenWorkStealingContext {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, domainQueues: self.domainQueues,
@@ -982,6 +984,7 @@ export class QueenCoordinator implements IQueenCoordinator {
   }
 
   private createMetricsContext() {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- self captured for returned handler context
     const self = this;
     return {
       config: self.config, memory: self.memory,

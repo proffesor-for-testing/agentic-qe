@@ -11,11 +11,9 @@
 
 import {
   JsonRpcError,
-  STANDARD_ERRORS,
   createParseError,
   createInvalidRequestError,
   createMethodNotFoundError,
-  createInvalidParamsError,
   type JsonRpcErrorObject,
 } from './errors.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';

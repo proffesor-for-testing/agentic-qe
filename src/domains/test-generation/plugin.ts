@@ -3,7 +3,7 @@
  * Integrates the test generation domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,
@@ -30,7 +30,6 @@ import {
 } from './coordinator';
 import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
 import {
-  createTestGeneratorService,
   createTestGeneratorServiceWithDependencies,
   ITestGenerationService,
   TestGeneratorConfig,

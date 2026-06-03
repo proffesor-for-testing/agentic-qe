@@ -22,7 +22,6 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import {
   WasmKernelIntegration,
   wasmKernelIntegration,
-  createWasmKernelIntegration,
 } from './wasm-kernel-integration.js';
 import {
   governanceFlags,

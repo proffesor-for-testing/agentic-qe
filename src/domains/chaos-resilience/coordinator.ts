@@ -770,8 +770,8 @@ export class ChaosResilienceCoordinator
       let lastExperimentDate: Date | undefined;
       let lastLoadTestDate: Date | undefined;
       let activeIncidents = 0;
-      let totalRecoveryTime = 0;
-      let recoveryCount = 0;
+      const totalRecoveryTime = 0;
+      const recoveryCount = 0;
       let failedChanges = 0;
       let totalChanges = 0;
 
@@ -1241,23 +1241,23 @@ export class ChaosResilienceCoordinator
 
       switch (prediction.action.type) {
         case 'allocate':
-          const allocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
+          { const allocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
           if (allocValue && 'agentType' in allocValue && allocValue.agentType === 'tester') {
             // Allocate more tests to high-risk services (no failover, databases)
             const criticalServices = services.filter((s) => !s.hasFailover || s.type === 'database').slice(0, 3);
             selectedExperiments = this.generateExperimentsForServices(criticalServices, ['latency', 'error']);
             strategy = 'allocate-critical';
           }
-          break;
+          break; }
 
         case 'reallocate':
-          const reallocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
+          { const reallocValue = typeof prediction.action.value === 'object' ? prediction.action.value : null;
           if (reallocValue && 'domain' in reallocValue && reallocValue.domain === 'test-execution') {
             // Reallocate to test different fault types
             selectedExperiments = this.generateExperimentsForServices(services.slice(0, 5), ['cpu-stress', 'memory-stress']);
             strategy = 'reallocate-resource-stress';
           }
-          break;
+          break; }
 
         case 'scale-up':
           // Scale up experiment count

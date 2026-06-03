@@ -10,7 +10,6 @@
  */
 
 import {
-  ModelProvider,
   ModelCompletionOptions,
   ModelHealthResult,
 } from '../interfaces';
@@ -252,7 +251,7 @@ const DEFAULT_CONFIG: {
 export class OllamaModelProvider extends BaseModelProvider {
   readonly id: string;
   readonly name: string;
-  readonly type: 'ollama' = 'ollama';
+  readonly type = 'ollama' as const;
 
   // Required by BaseModelProvider
   protected costPerToken = { input: 0, output: 0 }; // Local models are free

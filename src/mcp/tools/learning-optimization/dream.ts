@@ -12,14 +12,14 @@
  * - Check dream cycle history and statistics
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, defaultToolLogger } from '../base.js';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend } from '../base.js';
 import { ToolResult } from '../../types.js';
 import {
   DreamEngine,
   createDreamEngine,
   type DreamConfig,
 } from '../../../learning/dream/index.js';
-import type { DreamCycleResult, ApplyInsightResult as EngineApplyResult } from '../../../learning/dream/dream-engine.js';
+import type { DreamCycleResult } from '../../../learning/dream/dream-engine.js';
 import type { DreamInsight } from '../../../learning/dream/insight-generator.js';
 import type { DreamCycle } from '../../../learning/dream/types.js';
 import { createQEReasoningBank } from '../../../learning/qe-reasoning-bank.js';

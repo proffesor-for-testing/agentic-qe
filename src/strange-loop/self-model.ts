@@ -14,9 +14,7 @@ import type {
   TrendDirection,
   PredictedVulnerability,
   BottleneckAnalysis,
-  BottleneckInfo,
   AgentHealthMetrics,
-  SwarmVulnerability,
   SerializedSwarmHealthObservation,
 } from './types.js';
 import { TopologyAnalyzer } from './topology-analyzer.js';

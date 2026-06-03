@@ -27,6 +27,9 @@ import {
   DependencyMetrics,
 } from '../interfaces';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { existsSync, statSync } from 'fs';
+import { dirname, resolve as resolvePath, join as joinPath } from 'path';
+import { extractTsJs } from '../../../shared/parsers/treesitter-ts-extractor.js';
 
 /**
  * Interface for the knowledge graph service
@@ -100,11 +103,26 @@ const DEFAULT_CONFIG: KnowledgeGraphConfig = {
  */
 const logger = LoggerFactory.create('code-intelligence/knowledge-graph');
 
+/**
+ * File extensions for which the knowledge graph has a real entity/import
+ * extractor (the TypeScript Compiler API). Files outside this set are indexed
+ * as bare file nodes with no dependency edges — `index` warns about them so the
+ * downstream 0-edge result in `deps` is not silently misleading (#511 req #2).
+ */
+const DEP_EXTRACTOR_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx']);
+
 export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly config: KnowledgeGraphConfig;
   private readonly memory: MemoryBackend;
   private readonly nodeCache: Map<string, KGNode> = new Map();
   private readonly edgeIndex: Map<string, KGEdge[]> = new Map();
+  /**
+   * Lazily-hydrated flat list of all persisted edges (#511).
+   * Edges are persisted per-process during index(); cross-process reads
+   * (deps/search/impact) hydrate this once and filter by source/target.
+   * Invalidated on createEdge()/clear() to avoid serving stale data.
+   */
+  private allEdgesCache?: KGEdge[];
   private readonly tsParser: TypeScriptParser;
   private readonly fileReader: FileReader;
   private readonly embedder: NomicEmbedder;
@@ -150,6 +168,19 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   }
 
   /**
+   * Storage options that pin every KG kv operation to a fixed, tool-independent
+   * namespace (the configured `code-intelligence:kg`) instead of the backend's
+   * default (`qe-kernel` for the CLI, `mcp-tools` for MCP). This gives CLI↔MCP
+   * parity — a graph indexed by one tool is readable by the other — and makes
+   * the init existence checks (`SELECT ... WHERE namespace = 'code-intelligence:kg'`)
+   * actually find the data (#511). Reads and writes MUST both pass this, or a
+   * write under the namespace cannot be read back (issue #491 Bug 2).
+   */
+  private get nsOpts(): { namespace: string } {
+    return { namespace: this.config.namespace };
+  }
+
+  /**
    * Index files into the knowledge graph
    */
   async index(request: IndexRequest): Promise<Result<IndexResult, Error>> {
@@ -157,6 +188,10 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     const errors: IndexError[] = [];
     let nodesCreated = 0;
     let edgesCreated = 0;
+    // #511 req #2: count files indexed under a language with no dependency
+    // extractor, keyed by extension, so we can warn loudly instead of silently
+    // reporting a graph that `deps` then shows as 0 edges.
+    const unsupportedByExt = new Map<string, number>();
 
     try {
       const { paths, incremental = false, includeTests = true, languages } = request;
@@ -181,8 +216,13 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
             continue;
           }
 
+          const ext = this.getFileExtension(path);
+          if (!DEP_EXTRACTOR_EXTENSIONS.has(ext)) {
+            unsupportedByExt.set(ext || '(none)', (unsupportedByExt.get(ext || '(none)') ?? 0) + 1);
+          }
+
           // Index the file
-          const result = await this.indexFile(path);
+          const result = await this.indexFile(path, incremental);
           nodesCreated += result.nodes;
           edgesCreated += result.edges;
         } catch (fileError) {
@@ -194,6 +234,21 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
       }
 
       const duration = Date.now() - startTime;
+
+      // #511 req #2: surface a loud warning for unsupported languages so the
+      // caller understands why `deps`/`impact` will be empty for those files.
+      const warnings: string[] = [];
+      if (unsupportedByExt.size > 0) {
+        const supported = Array.from(DEP_EXTRACTOR_EXTENSIONS).join(', ');
+        for (const [ext, count] of unsupportedByExt) {
+          const msg =
+            `${count} file(s) with extension '.${ext}' were indexed as plain ` +
+            `nodes: no dependency extractor for this language, so 'deps'/'impact' ` +
+            `will report 0 edges for them. Supported: ${supported}.`;
+          warnings.push(msg);
+          logger.warn(msg);
+        }
+      }
 
       // Store indexing metadata
       await this.storeIndexMetadata({
@@ -210,6 +265,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         edgesCreated,
         duration,
         errors,
+        warnings,
       });
     } catch (error) {
       return err(toError(error));
@@ -283,7 +339,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
 
     // Load from memory
     const key = `${this.config.namespace}:node:${nodeId}`;
-    const node = await this.memory.get<KGNode>(key);
+    const node = await this.memory.get<KGNode>(key, this.nsOpts);
 
     if (node) {
       this.nodeCache.set(nodeId, node);
@@ -299,31 +355,35 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     nodeId: string,
     direction: 'incoming' | 'outgoing' | 'both'
   ): Promise<KGEdge[]> {
-    const edges: KGEdge[] = [];
+    // Hydrate the full edge set from persistence once, then filter in-memory.
+    // This is required for cross-process reads (deps/search run as separate
+    // CLI processes from index) and for correct incoming/both lookups, which
+    // the old source-keyed edgeIndex could not serve (#511).
+    const allEdges = await this.loadAllEdges();
+    return this.filterEdgesByDirection(allEdges, nodeId, direction);
+  }
 
-    // Check index first
-    const cachedEdges = this.edgeIndex.get(nodeId);
-    if (cachedEdges) {
-      return this.filterEdgesByDirection(cachedEdges, nodeId, direction);
+  /**
+   * Load all persisted edges into a flat cache (#511).
+   * Cached for the lifetime of the read; invalidated by createEdge()/clear().
+   */
+  private async loadAllEdges(): Promise<KGEdge[]> {
+    if (this.allEdgesCache) {
+      return this.allEdgesCache;
     }
 
-    // Load from memory
+    const edges: KGEdge[] = [];
     const pattern = `${this.config.namespace}:edge:*`;
-    const keys = await this.memory.search(pattern, this.config.maxEdgesPerNode * 2);
+    const keys = await this.memory.search(pattern, Number.MAX_SAFE_INTEGER, this.nsOpts);
 
     for (const key of keys) {
-      const edge = await this.memory.get<KGEdge>(key);
+      const edge = await this.memory.get<KGEdge>(key, this.nsOpts);
       if (edge) {
-        const matches =
-          (direction !== 'outgoing' && edge.target === nodeId) ||
-          (direction !== 'incoming' && edge.source === nodeId);
-
-        if (matches) {
-          edges.push(edge);
-        }
+        edges.push(edge);
       }
     }
 
+    this.allEdgesCache = edges;
     return edges;
   }
 
@@ -331,9 +391,57 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
    * Clear the knowledge graph
    */
   async clear(): Promise<void> {
-    // Cache-only: just clear in-memory caches, no kv_store cleanup needed
     this.nodeCache.clear();
     this.edgeIndex.clear();
+    this.allEdgesCache = undefined;
+
+    // Delete persisted nodes/edges so a non-incremental re-index does not
+    // accumulate stale graph state across runs (#511). Scoped to the KG
+    // namespace's :node:/:edge: keys only — never touches learning data.
+    for (const prefix of [
+      `${this.config.namespace}:node:`,
+      `${this.config.namespace}:edge:`,
+    ]) {
+      const keys = await this.memory.search(`${prefix}*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
+      for (const key of keys) {
+        await this.memory.delete(key, this.nsOpts);
+      }
+    }
+  }
+
+  /**
+   * Remove a single file's contribution to the graph (#511).
+   *
+   * Deletes the file node, its entity nodes, and edges that ORIGINATE from the
+   * file or its entities (contains + outgoing imports). Incoming edges (other
+   * files importing this one) are left intact — they belong to those files and
+   * remain valid until those files are themselves re-indexed. Used for
+   * incremental re-indexing so stale entities/imports don't persist.
+   */
+  private async removeFileFromGraph(filePath: string): Promise<void> {
+    const fileNodeId = this.pathToNodeId(filePath);
+    const ns = this.config.namespace;
+
+    // Delete the file node and all of its entity nodes (`:node:<file>` and
+    // `:node:<file>:<type>:<name>`).
+    const nodeKeys = await this.memory.search(`${ns}:node:${fileNodeId}*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
+    for (const key of nodeKeys) {
+      await this.memory.delete(key, this.nsOpts);
+      this.nodeCache.delete(key.slice(`${ns}:node:`.length));
+    }
+
+    // Delete edges whose source is the file node or one of its entity nodes.
+    const edgeKeys = await this.memory.search(`${ns}:edge:*`, Number.MAX_SAFE_INTEGER, this.nsOpts);
+    for (const key of edgeKeys) {
+      const edge = await this.memory.get<KGEdge>(key, this.nsOpts);
+      if (edge && (edge.source === fileNodeId || edge.source.startsWith(`${fileNodeId}:`))) {
+        await this.memory.delete(key, this.nsOpts);
+      }
+    }
+
+    // Drop the file's source-keyed cache entry and invalidate the flat cache.
+    this.edgeIndex.delete(fileNodeId);
+    this.allEdgesCache = undefined;
   }
 
   // ============================================================================
@@ -556,10 +664,26 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
   // ============================================================================
 
   private async indexFile(
-    filePath: string
+    filePath: string,
+    incremental = false
   ): Promise<{ nodes: number; edges: number }> {
     let nodesCreated = 0;
     let edgesCreated = 0;
+
+    // #511: evict any cached content for this file before reading it. The
+    // FileReader caches content for 5 min, so in a long-lived process (e.g. the
+    // MCP server) a re-index would otherwise extract entities/imports from the
+    // STALE pre-edit text. Eviction guarantees fresh reads; the two reads within
+    // this method (entities + imports) still share one cache fill, so they stay
+    // mutually consistent.
+    this.fileReader.invalidateCache(filePath);
+
+    // #511: on an incremental re-index, drop this file's prior nodes/edges
+    // first so renamed/removed entities and stale outgoing imports don't
+    // linger as phantom dependencies. (A full index already cleared everything.)
+    if (incremental) {
+      await this.removeFileFromGraph(filePath);
+    }
 
     // Create file node
     const fileNode = await this.createFileNode(filePath);
@@ -582,8 +706,12 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const imports = await this.extractImports(filePath);
 
     for (const importPath of imports) {
-      // Create dependency edge
-      const targetNodeId = this.pathToNodeId(importPath);
+      // Resolve relative specifiers to the actual file so the import edge
+      // targets the imported file's node id (#511). Without this, an edge to
+      // './math' never matches the '/abs/path/math.ts' file node and the
+      // dependency graph stays disconnected (all nodes degree-0).
+      const resolvedPath = this.resolveImportPath(importPath, filePath);
+      const targetNodeId = this.pathToNodeId(resolvedPath);
       await this.createEdge(fileNode.id, targetNodeId, 'import');
       edgesCreated++;
     }
@@ -697,12 +825,15 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       type,
     };
 
-    // Cache-only: no kv_store persistence needed, KG is rebuilt from source on each init
-
-    // Update edge index
+    // Update in-memory edge index (source-keyed, used during same-process index)
     const sourceEdges = this.edgeIndex.get(sourceId) || [];
     sourceEdges.push(edge);
     this.edgeIndex.set(sourceId, sourceEdges);
+
+    // Persist so cross-process reads (deps/search/impact) see the graph (#511).
+    await this.memory.set(`${this.config.namespace}:edge:${edgeId}`, edge, this.nsOpts);
+    // Invalidate hydrated read cache so subsequent getEdges() reflects this write.
+    this.allEdgesCache = undefined;
 
     return edge;
   }
@@ -719,78 +850,72 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       }
     }
 
-    // Cache-only: KG is rebuilt from source on each init, no need for kv_store persistence
     this.nodeCache.set(node.id, node);
+
+    // Persist so cross-process reads (deps/search/impact) see the graph (#511).
+    await this.memory.set(`${this.config.namespace}:node:${node.id}`, node, this.nsOpts);
   }
 
   private async extractEntities(filePath: string): Promise<ExtractedEntity[]> {
     const extension = this.getFileExtension(filePath);
     const entities: ExtractedEntity[] = [];
 
-    // Use TypeScript parser for TS/JS files
-    if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+    // TS/JS files: prefer the bundled tree-sitter WASM grammars (typescript-free,
+    // works out of the box), and fall back to the TypeScript compiler API only if
+    // tree-sitter is unavailable AND `typescript` happens to be installed (#511).
+    if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
+      const fileName = this.getFileName(filePath);
 
       if (fileResult.success) {
-        const fileName = this.getFileName(filePath);
-        const ast = this.tsParser.parseFile(fileName, fileResult.value);
+        let extracted = false;
 
-        // Extract functions
-        const functions = this.tsParser.extractFunctions(ast);
-        for (const func of functions) {
-          entities.push({
-            type: 'function',
-            name: func.name,
-            line: func.startLine,
-            visibility: 'public',
-            isAsync: func.isAsync,
-          });
+        // Primary: tree-sitter
+        try {
+          const ts = await extractTsJs(fileResult.value, extension);
+          if (ts) {
+            for (const f of ts.functions) {
+              entities.push({ type: 'function', name: f.name, line: f.startLine, visibility: f.visibility, isAsync: f.isAsync });
+            }
+            for (const c of ts.classes) {
+              entities.push({ type: 'class', name: c.name, line: c.startLine, visibility: 'public', isAsync: false });
+              for (const m of c.methods) {
+                entities.push({ type: 'function', name: `${c.name}.${m.name}`, line: m.startLine, visibility: m.visibility, isAsync: m.isAsync });
+              }
+            }
+            for (const iface of ts.interfaces) {
+              entities.push({ type: 'interface', name: iface.name, line: iface.startLine, visibility: 'public', isAsync: false });
+            }
+            extracted = true;
+          }
+        } catch {
+          // tree-sitter unavailable — fall through to the TS compiler path
         }
 
-        // Extract classes
-        const classes = this.tsParser.extractClasses(ast);
-        for (const cls of classes) {
-          entities.push({
-            type: 'class',
-            name: cls.name,
-            line: cls.startLine,
-            visibility: 'public',
-            isAsync: false,
-          });
-
-          // Add class methods as entities
-          for (const method of cls.methods) {
-            entities.push({
-              type: 'function',
-              name: `${cls.name}.${method.name}`,
-              line: method.startLine,
-              visibility: method.visibility,
-              isAsync: method.isAsync,
-            });
+        // Fallback: TypeScript compiler API (only when tree-sitter didn't run).
+        if (!extracted) {
+          try {
+            const ast = this.tsParser.parseFile(fileName, fileResult.value);
+            for (const func of this.tsParser.extractFunctions(ast)) {
+              entities.push({ type: 'function', name: func.name, line: func.startLine, visibility: 'public', isAsync: func.isAsync });
+            }
+            for (const cls of this.tsParser.extractClasses(ast)) {
+              entities.push({ type: 'class', name: cls.name, line: cls.startLine, visibility: 'public', isAsync: false });
+              for (const method of cls.methods) {
+                entities.push({ type: 'function', name: `${cls.name}.${method.name}`, line: method.startLine, visibility: method.visibility, isAsync: method.isAsync });
+              }
+            }
+            for (const iface of this.tsParser.extractInterfaces(ast)) {
+              entities.push({ type: 'interface', name: iface.name, line: iface.startLine, visibility: 'public', isAsync: false });
+            }
+          } catch {
+            // Neither tree-sitter nor the TypeScript compiler is available.
           }
         }
 
-        // Extract interfaces
-        const interfaces = this.tsParser.extractInterfaces(ast);
-        for (const iface of interfaces) {
-          entities.push({
-            type: 'interface',
-            name: iface.name,
-            line: iface.startLine,
-            visibility: 'public',
-            isAsync: false,
-          });
-        }
-
-        // If no entities found, create a module entity for the file
+        // If nothing was extracted, record a module entity for the file.
         if (entities.length === 0) {
-          entities.push({
-            type: 'module',
-            name: fileName.replace(/\.[^.]+$/, ''),
-            line: 1,
-            visibility: 'public',
-            isAsync: false,
-          });
+          entities.push({ type: 'module', name: fileName.replace(/\.[^.]+$/, ''), line: 1, visibility: 'public', isAsync: false });
         }
       } else {
         // Fallback: create a module entity for the file itself
@@ -899,21 +1024,36 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const extension = this.getFileExtension(filePath);
     const importPaths: string[] = [];
 
-    // Use TypeScript parser for TS/JS files
-    if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+    // TS/JS: tree-sitter primary (typescript-free), TS compiler fallback (#511).
+    if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
 
       if (fileResult.success) {
         const fileName = this.getFileName(filePath);
-        const ast = this.tsParser.parseFile(fileName, fileResult.value);
-        const imports = this.tsParser.extractImports(ast);
+        let modules: string[] | null = null;
 
-        // Extract import sources (module property in new API)
-        for (const importInfo of imports) {
-          // Only include relative imports and package imports
+        // Primary: tree-sitter
+        try {
+          const ts = await extractTsJs(fileResult.value, extension);
+          if (ts) modules = ts.imports;
+        } catch {
+          modules = null;
+        }
+
+        // Fallback: TypeScript compiler API
+        if (modules === null) {
+          try {
+            const ast = this.tsParser.parseFile(fileName, fileResult.value);
+            modules = this.tsParser.extractImports(ast).map((i) => i.module);
+          } catch {
+            modules = [];
+          }
+        }
+
+        for (const module of modules) {
           // Skip node built-ins for now
-          if (!importInfo.module.startsWith('node:')) {
-            importPaths.push(importInfo.module);
+          if (!module.startsWith('node:')) {
+            importPaths.push(module);
           }
         }
       }
@@ -1032,10 +1172,10 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
   private async findNodesByLabel(label: string, limit: number): Promise<KGNode[]> {
     const nodes: KGNode[] = [];
     const pattern = `${this.config.namespace}:node:*`;
-    const keys = await this.memory.search(pattern, limit * 2);
+    const keys = await this.memory.search(pattern, limit * 2, this.nsOpts);
 
     for (const key of keys) {
-      const node = await this.memory.get<KGNode>(key);
+      const node = await this.memory.get<KGNode>(key, this.nsOpts);
       if (node && node.label === label) {
         nodes.push(node);
         if (nodes.length >= limit) break;
@@ -1080,11 +1220,11 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     // Fallback to keyword matching
     const keywords = query.toLowerCase().split(/\s+/);
     const pattern = `${this.config.namespace}:node:*`;
-    const keys = await this.memory.search(pattern, limit * 3);
+    const keys = await this.memory.search(pattern, limit * 3, this.nsOpts);
 
     const nodes: KGNode[] = [];
     for (const key of keys) {
-      const node = await this.memory.get<KGNode>(key);
+      const node = await this.memory.get<KGNode>(key, this.nsOpts);
       if (node) {
         const nodeText = JSON.stringify(node.properties).toLowerCase();
         if (keywords.some((kw) => nodeText.includes(kw))) {
@@ -1128,7 +1268,14 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     path.push(file);
 
     const nodeId = this.pathToNodeId(file);
-    const fileEdges = await this.getEdges(nodeId, direction);
+    // Only true dependency edges (import/call/extends/implements) belong in a
+    // dependency map — exclude structural 'contains' (file→entity) edges so the
+    // graph stays a file-to-file dependency view and entities don't leak in as
+    // pseudo file nodes (#511).
+    const DEPENDENCY_EDGE_TYPES = new Set(['import', 'call', 'extends', 'implements']);
+    const fileEdges = (await this.getEdges(nodeId, direction)).filter((e) =>
+      DEPENDENCY_EDGE_TYPES.has(e.type)
+    );
 
     // Create dependency node
     const inDegree = fileEdges.filter((e) => e.target === nodeId).length;
@@ -1154,11 +1301,15 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
         edges.push(depEdge);
       }
 
-      // Recursively traverse
-      const nextFile =
-        edge.source === nodeId
-          ? this.nodeIdToPath(edge.target)
-          : this.nodeIdToPath(edge.source);
+      // Recurse only along directed-forward (outgoing) edges so the traversal
+      // path represents a real directed dependency chain. Following 'both'
+      // adjacency backwards fabricated cycles like A→B→A (#511). Incoming
+      // neighbours are still surfaced as edges/degrees above and are visited
+      // as their own top-level entries.
+      if (edge.source !== nodeId) {
+        continue;
+      }
+      const nextFile = this.nodeIdToPath(edge.target);
 
       if (nextFile) {
         await this.traverseDependencies(
@@ -1251,7 +1402,8 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     return edges.filter((edge) => {
       if (direction === 'incoming') return edge.target === nodeId;
       if (direction === 'outgoing') return edge.source === nodeId;
-      return true;
+      // 'both': edge touches nodeId on either end
+      return edge.source === nodeId || edge.target === nodeId;
     });
   }
 
@@ -1303,6 +1455,50 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
 
   private pathToNodeId(path: string): string {
     return path.replace(/[/\\]/g, ':').replace(/\./g, '_');
+  }
+
+  /**
+   * Resolve an import specifier to a concrete file path (#511).
+   *
+   * Relative specifiers ('./math', '../util') are resolved against the
+   * importing file's directory and probed for the usual TS/JS extensions and
+   * index files, so the resulting node id matches the imported file's node.
+   * Bare package specifiers ('react', '@scope/pkg') are returned unchanged and
+   * become external dependency nodes.
+   */
+  private resolveImportPath(importPath: string, fromFile: string): string {
+    if (!importPath.startsWith('.')) {
+      return importPath;
+    }
+
+    const base = resolvePath(dirname(fromFile), importPath);
+    const candidates = [
+      base,
+      `${base}.ts`,
+      `${base}.tsx`,
+      `${base}.js`,
+      `${base}.jsx`,
+      `${base}.mjs`,
+      `${base}.cjs`,
+      joinPath(base, 'index.ts'),
+      joinPath(base, 'index.tsx'),
+      joinPath(base, 'index.js'),
+      joinPath(base, 'index.jsx'),
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        if (existsSync(candidate) && statSync(candidate).isFile()) {
+          return candidate;
+        }
+      } catch {
+        // ignore unreadable candidates and keep probing
+      }
+    }
+
+    // Fall back to a '.ts' sibling so extensionless imports still link to a
+    // stable node id even when the file cannot be found on disk.
+    return `${base}.ts`;
   }
 
   private nodeIdToPath(nodeId: string): string | null {

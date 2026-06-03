@@ -33,7 +33,6 @@ import {
   isSemgrepAvailable,
   runSemgrepWithRules,
   convertSemgrepFindings,
-  mapSemgrepSeverity,
 } from '../semgrep-integration.js';
 
 // ============================================================================

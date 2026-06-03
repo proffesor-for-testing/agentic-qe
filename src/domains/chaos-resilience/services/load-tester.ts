@@ -519,21 +519,21 @@ export class LoadTesterService implements ILoadTestingService {
         return max;
 
       case 'step':
-        const steps = 5;
+        { const steps = 5;
         const stepDuration = duration / steps;
         const currentStep = Math.floor(elapsedTime / stepDuration);
         const stepSize = (max - start) / steps;
-        return Math.round(start + stepSize * currentStep);
+        return Math.round(start + stepSize * currentStep); }
 
       case 'spike':
         // Create periodic spikes
-        const spikeInterval = 30000; // 30 seconds
+        { const spikeInterval = 30000; // 30 seconds
         const spikeDuration = 5000; // 5 second spike
         const timeInCycle = elapsedTime % spikeInterval;
         if (timeInCycle < spikeDuration) {
           return max;
         }
-        return start;
+        return start; }
 
       default:
         return max;

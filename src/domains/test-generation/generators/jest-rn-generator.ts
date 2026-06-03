@@ -20,7 +20,6 @@ import type {
   ClassInfo,
   TestGenerationContext,
   CodeAnalysis,
-  Pattern,
 } from '../interfaces.js';
 import type { ParsedFile } from '../../../shared/parsers/interfaces.js';
 

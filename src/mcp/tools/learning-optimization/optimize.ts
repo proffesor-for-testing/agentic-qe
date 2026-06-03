@@ -12,7 +12,7 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { DomainName, AgentId } from '../../../shared/types/index.js';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
+import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
 import { LearningCoordinatorService } from '../../../domains/learning-optimization/services/learning-coordinator.js';
 import { MetricsOptimizerService } from '../../../domains/learning-optimization/services/metrics-optimizer.js';
@@ -185,7 +185,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         return { success: false, error: 'Operation aborted' };
       }
 
-      let result: LearningOptimizeResult = { action };
+      const result: LearningOptimizeResult = { action };
 
       switch (action) {
         case 'learn':

@@ -18,14 +18,11 @@ import type {
   BoundValue,
   ComponentChildren,
   A2UIAccessibility,
-  ExplicitList,
   TemplateChildren,
 } from './message-types.js';
 import {
   literal,
-  path,
   children,
-  isExplicitList,
 } from './message-types.js';
 
 // ============================================================================

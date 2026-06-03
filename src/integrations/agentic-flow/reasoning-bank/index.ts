@@ -35,7 +35,6 @@ import {
 import {
   ExperienceReplay,
   createExperienceReplay,
-  type Experience,
   type ExperienceGuidance,
   type ExperienceReplayConfig,
 } from './experience-replay.js';

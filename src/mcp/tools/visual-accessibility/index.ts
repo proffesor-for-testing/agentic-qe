@@ -11,9 +11,8 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
-import { createVisualTesterService, createVisualTesterServiceWithDependencies, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
+import { createVisualTesterServiceWithDependencies, VisualTesterService } from '../../../domains/visual-accessibility/services/visual-tester';
 import { AccessibilityTesterService } from '../../../domains/visual-accessibility/services/accessibility-tester';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
@@ -456,7 +455,7 @@ export class A11yAuditTool extends MCPToolBase<A11yAuditParams, A11yAuditResult>
         }
 
         // Optionally check keyboard navigation
-        let keyboardViolations: A11yViolation[] = [];
+        const keyboardViolations: A11yViolation[] = [];
         if (checkKeyboard) {
           const keyboardResult = await service.checkKeyboardNavigation(url);
           if (keyboardResult.success) {

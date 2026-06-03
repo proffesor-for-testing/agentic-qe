@@ -30,7 +30,6 @@ import {
   GateFailure,
   CoverageGap,
 } from '../../types/cross-phase-signals.js';
-import type { CrossPhaseNamespace } from '../../memory/cross-phase-memory.js';
 
 // =============================================================================
 // Service Instances
@@ -216,9 +215,9 @@ export async function handleCrossPhaseQuery(params: QuerySignalsParams): Promise
       break;
 
     case 'tactical':
-      const featureFilter = params.filter?.featureContext as string | undefined;
+      { const featureFilter = params.filter?.featureContext as string | undefined;
       signals = await memory.querySFDIPOTSignals(featureFilter);
-      break;
+      break; }
 
     case 'operational':
       signals = await memory.queryTestHealthSignals();

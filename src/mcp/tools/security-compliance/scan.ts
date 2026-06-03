@@ -9,7 +9,6 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
@@ -17,9 +16,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import {
   ALL_SECURITY_PATTERNS,
   SECRET_PATTERNS,
-  MISCONFIGURATION_PATTERNS,
 } from '../../../domains/security-compliance/services/scanners/security-patterns.js';
-import type { SecurityPattern } from '../../../domains/security-compliance/services/scanners/scanner-types.js';
 
 // ============================================================================
 // Types

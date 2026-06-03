@@ -12,7 +12,7 @@
 import { createInterface } from 'readline';
 import * as readline from 'readline';
 import chalk from 'chalk';
-import { IWizardCommand, WizardContext, CommandResult } from './wizard-command.js';
+import { IWizardCommand, WizardContext } from './wizard-command.js';
 import { WizardPrompt } from './wizard-utils.js';
 
 // ============================================================================

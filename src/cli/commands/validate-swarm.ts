@@ -12,7 +12,6 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import {
-  SwarmSkillValidator,
   createSwarmSkillValidator,
   P0_SKILLS,
   DEFAULT_VALIDATION_MODELS,
@@ -23,7 +22,6 @@ import {
 } from '../../validation/index.js';
 import {
   createSkillValidationLearner,
-  type SkillValidationLearner,
 } from '../../learning/skill-validation-learner.js';
 import { createRealQEReasoningBank } from '../../learning/real-qe-reasoning-bank.js';
 

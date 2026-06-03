@@ -7,7 +7,6 @@
 
 import {
   AssessmentOutput,
-  HTSMCategory,
   CategoryAnalysis,
 } from '../types';
 

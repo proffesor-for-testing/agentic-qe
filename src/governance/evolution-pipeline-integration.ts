@@ -17,7 +17,7 @@
  * @see ADR-058-guidance-governance-integration.md
  */
 
-import { governanceFlags, isStrictMode } from './feature-flags.js';
+import { governanceFlags } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';

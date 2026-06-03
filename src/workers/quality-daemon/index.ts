@@ -18,8 +18,8 @@ import type { WorkerMemory } from '../interfaces';
 import { PriorityQueue } from './priority-queue';
 import type { DaemonTaskPayload, QueueItem } from './priority-queue';
 import { GitWatcher, type GitWatcherOptions } from './git-watcher';
-import { CoverageDeltaAnalyzer, type CoverageDeltaOptions, type CoverageSnapshot } from './coverage-delta';
-import { CIMonitor, type CIMonitorOptions, type CIHealthReport } from './ci-monitor';
+import { CoverageDeltaAnalyzer, type CoverageDeltaOptions } from './coverage-delta';
+import { CIMonitor, type CIMonitorOptions } from './ci-monitor';
 import { TestSuggester, type TestSuggesterOptions } from './test-suggester';
 import { NightlyConsolidation, type NightlyConsolidationOptions, type DaemonStats } from './nightly-consolidation';
 import { NotificationService, type NotificationServiceOptions } from './notification-service';
@@ -260,7 +260,7 @@ export class QualityDaemon {
 
     switch (payload.type) {
       case 'git_commit':
-        this._commitsAnalyzed++;
+        { this._commitsAnalyzed++;
         // Trigger coverage analysis for changed files
         const snapshot = await this.coverageDelta.buildSnapshot(memory);
         if (snapshot) {
@@ -296,7 +296,7 @@ export class QualityDaemon {
             }
           }
         }
-        break;
+        break; }
 
       case 'coverage_delta': {
         // coverage_delta items are enqueued by analyze() when regression/gaps

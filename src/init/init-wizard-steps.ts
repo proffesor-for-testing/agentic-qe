@@ -9,7 +9,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 
-import type { AQEInitConfig, PretrainedLibrary, ProjectAnalysis } from './types.js';
+import type { AQEInitConfig, PretrainedLibrary } from './types.js';
 import { createSkillsInstaller } from './skills-installer.js';
 import { createAgentsInstaller } from './agents-installer.js';
 import { createN8nInstaller } from './n8n-installer.js';

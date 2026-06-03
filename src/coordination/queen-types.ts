@@ -7,7 +7,6 @@ import type {
   DomainName,
   Priority,
   Severity,
-  ALL_DOMAINS,
 } from '../shared/types';
 import type {
   AgentInfo,

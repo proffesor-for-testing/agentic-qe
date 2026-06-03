@@ -5,7 +5,7 @@
  * Part of the QCSD (Quality Conscious Software Delivery) framework.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import type {
@@ -13,7 +13,6 @@ import type {
   QualityCriteriaInput,
   QualityCriteriaOutput,
   QualityCriteriaAnalysis,
-  HTSMCategory,
   EvidencePoint,
   AgentInvocation,
 } from './types.js';

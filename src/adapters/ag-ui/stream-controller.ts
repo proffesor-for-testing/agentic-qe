@@ -8,9 +8,9 @@
  */
 
 import { EventEmitter } from 'events';
-import type { AGUIEvent, AGUIEventType, RunFinishedEvent } from './event-types.js';
+import type { AGUIEvent } from './event-types.js';
 import type { EventAdapter } from './event-adapter.js';
-import type { BackpressureHandler, BackpressureMetrics } from './backpressure-handler.js';
+import type { BackpressureHandler } from './backpressure-handler.js';
 import { LoggerFactory } from '../../logging/index.js';
 
 const logger = LoggerFactory.create('ag-ui-stream-controller');

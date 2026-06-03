@@ -10,7 +10,7 @@ import type {
   SecretScanResult,
   Vulnerability,
 } from '../interfaces.js';
-import type { FilePath, RiskScore } from '../../../shared/value-objects/index.js';
+import type { FilePath } from '../../../shared/value-objects/index.js';
 import { Result } from '../../../shared/types/index.js';
 
 // ============================================================================

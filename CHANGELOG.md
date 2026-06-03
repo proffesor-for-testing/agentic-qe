@@ -5,6 +5,61 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.3] - 2026-06-03
+
+Code-intelligence overhaul for the JS/TS ecosystem (#511) plus a critical fix for
+MCP domain tools hanging on a fresh install.
+
+### Added
+
+- **TypeScript/JavaScript code intelligence with no `typescript` dependency.**
+  `aqe code index` / `deps` / `impact` / `search` now parse TS/JS/TSX using
+  bundled tree-sitter WASM grammars, so they work out of the box on the entire
+  JS/TS ecosystem — including AQE's own source. Previously every TS/JS file
+  errored with "TypeScript is required for code analysis" and produced 0
+  nodes/edges unless the user separately installed the multi-megabyte TypeScript
+  compiler. The compiler is still used automatically as a higher-fidelity path
+  when present. Grammars are built reproducibly via `scripts/build-grammars.sh`.
+
+### Fixed
+
+- **MCP domain tools hung forever on a fresh install.** Every MCP tool that goes
+  through the queen/router path (`code_index`, `quality_assess`, `defect_predict`,
+  …) spun a CPU core and never returned the first time pretrained patterns were
+  seeded — `QEReasoningBank.initialize()` recursed via `storePattern()` because
+  the `initialized` flag was set after seeding instead of before. The CLI was
+  unaffected (it calls domain services directly). Fixed the init ordering; as
+  defense-in-depth the advisory pattern-search/routing step is now timeout-bounded
+  so a future stall there can never block a tool call.
+- **`aqe code deps` returned 0 edges on TS/JS repos (#511).** The knowledge graph
+  was kept in-memory only, so `deps`/`search` (separate CLI processes from
+  `index`) always saw an empty graph. Nodes/edges are now persisted; relative
+  import specifiers resolve to their file nodes so the dependency graph actually
+  connects; and the dependency traversal no longer fabricates phantom cycles.
+- **`aqe code search` returned 0 results even for present terms (#511).** Indexed
+  content was written with a `{namespace}` store option but read back without it
+  (the #491 Bug 2 pattern), so every matched vector was silently dropped.
+- **Code-intelligence graph is now shared by CLI and MCP.** The graph is pinned to
+  a fixed `code-intelligence:kg` namespace instead of the backend default, so a
+  graph indexed by one tool is readable by the other and the init existence check
+  finds it. `index --incremental` prunes a file's stale entities/edges, the
+  FileReader cache is evicted before re-reading, and MCP `code_index` reports real
+  symbol/relation counts (was always 0/0).
+- **`index` is now honest about unsupported languages.** It warns when files are
+  indexed under a language with no dependency extractor instead of reporting edge
+  counts that `deps` then shows as 0.
+- **tree-sitter WASM grammars repaired.** The bundled python/java/c#/rust/swift
+  grammars were built with the pre-0.25 emscripten format and silently failed to
+  load with web-tree-sitter 0.26 (falling back to regex). Rebuilt with the
+  matching toolchain so they load correctly.
+
+### Changed
+
+- **Lint debt cleanup.** Removed dead imports across the tree, wrapped
+  case-clause declarations, documented intentional rule violations, ignored
+  `src/_archived`, and aligned the bounded-context count metadata (1072 → ~472
+  lint problems). No behavioral changes.
+
 ## [3.10.2] - 2026-06-02
 
 Self-learning hardening release with two critical hook/dream fixes reported by users.

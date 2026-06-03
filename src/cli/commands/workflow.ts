@@ -104,6 +104,7 @@ export function createWorkflowCommand(
           let lastStatus: WorkflowExecutionStatus | undefined;
           const startTime = Date.now();
 
+          // eslint-disable-next-line no-constant-condition -- polling loop; breaks internally
           while (true) {
             const status = context.workflowOrchestrator!.getWorkflowStatus(executionId);
             if (!status) break;

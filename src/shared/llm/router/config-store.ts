@@ -165,7 +165,7 @@ function stripApiKeys(config: Partial<RouterConfig>): Partial<RouterConfig> {
     return JSON.parse(JSON.stringify(config));
   }
   const cloned = JSON.parse(JSON.stringify(config)) as Partial<RouterConfig>;
-  let strippedProviders: string[] = [];
+  const strippedProviders: string[] = [];
   if (cloned.providers) {
     for (const provider of Object.keys(cloned.providers) as ExtendedProviderType[]) {
       const entry = cloned.providers[provider];

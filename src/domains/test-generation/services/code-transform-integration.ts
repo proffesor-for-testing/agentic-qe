@@ -19,8 +19,7 @@
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
-import type { Result } from '../../../shared/types';
-import type { TransformType, TransformResult, IAgentBoosterAdapter } from '../../../integrations/agentic-flow';
+import type { TransformType, IAgentBoosterAdapter } from '../../../integrations/agentic-flow';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================

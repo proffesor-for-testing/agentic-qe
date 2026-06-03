@@ -43,7 +43,6 @@ import {
 } from './errors';
 import { toError } from '../../shared/error-utils.js';
 import {
-  getVibiumFeatureFlags,
   isBrowserModeEnabled,
   isScreenshotCaptureEnabled,
   isAutoRetryEnabled,

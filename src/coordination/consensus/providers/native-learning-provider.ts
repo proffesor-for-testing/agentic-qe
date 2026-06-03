@@ -147,7 +147,7 @@ const DEFAULT_CONFIG = {
 export class NativeLearningProvider extends BaseModelProvider {
   readonly id = 'native-learning';
   readonly name = 'Native Learning (Local Patterns)';
-  readonly type: 'custom' = 'custom';
+  readonly type = 'custom' as const;
 
   // Required by BaseModelProvider
   protected costPerToken = { input: 0, output: 0 }; // Local patterns are free

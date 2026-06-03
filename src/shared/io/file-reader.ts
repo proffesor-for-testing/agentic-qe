@@ -7,7 +7,6 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { Result, ok, err } from '../types';
 import { validatePath } from '../security/path-traversal-validator.js';
-import type { PathValidationResult } from '../security/validators-interfaces.js';
 import { safeJsonParse } from '../safe-json.js';
 
 // ============================================================================

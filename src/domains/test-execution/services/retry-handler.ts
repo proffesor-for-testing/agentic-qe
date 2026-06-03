@@ -537,27 +537,27 @@ export class RetryHandlerService implements IRetryHandler {
     switch (runner) {
       case 'vitest':
         // vitest run --reporter=json testFile -t "testName"
-        const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
+        { const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
         if (testName) {
           vitestArgs.push('-t', testName);
         }
-        return { command: npx, args: vitestArgs };
+        return { command: npx, args: vitestArgs }; }
 
       case 'jest':
         // jest --json testFile -t "testName"
-        const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
+        { const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
         if (testName) {
           jestArgs.push('-t', testName);
         }
-        return { command: npx, args: jestArgs };
+        return { command: npx, args: jestArgs }; }
 
       case 'mocha':
         // mocha --reporter json testFile --grep "testName"
-        const mochaArgs = ['mocha', '--reporter', 'json', testFile];
+        { const mochaArgs = ['mocha', '--reporter', 'json', testFile];
         if (testName) {
           mochaArgs.push('--grep', testName);
         }
-        return { command: npx, args: mochaArgs };
+        return { command: npx, args: mochaArgs }; }
 
       default:
         throw new Error(`Unsupported test runner: ${runner}`);

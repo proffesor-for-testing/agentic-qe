@@ -1751,14 +1751,14 @@ class TypeScriptASTParser {
           complexity++;
           break;
         case ts.SyntaxKind.BinaryExpression:
-          const binary = n as ts.BinaryExpression;
+          { const binary = n as ts.BinaryExpression;
           if (
             binary.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
             binary.operatorToken.kind === ts.SyntaxKind.BarBarToken
           ) {
             complexity++;
           }
-          break;
+          break; }
       }
       ts.forEachChild(n, visit);
     };

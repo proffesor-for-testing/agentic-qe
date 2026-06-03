@@ -17,7 +17,6 @@ import { DomainName } from '../../../shared/types';
 // Import actual MinCut implementations
 import {
   SwarmGraph,
-  MinCutCalculator,
   createMinCutCalculator,
   MinCutHealthMonitor,
   // Use shared singleton for MCP tools + Queen integration

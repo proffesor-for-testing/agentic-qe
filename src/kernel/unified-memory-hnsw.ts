@@ -88,6 +88,7 @@ export class BinaryHeap<T> {
 
   private sinkDown(i: number): void {
     const n = this.data.length;
+    // eslint-disable-next-line no-constant-condition -- heap sift-down; loop breaks internally
     while (true) {
       let smallest = i;
       const left = 2 * i + 1;

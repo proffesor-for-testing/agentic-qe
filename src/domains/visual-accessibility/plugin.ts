@@ -33,7 +33,6 @@ import {
   CoordinatorConfig,
 } from './coordinator.js';
 import {
-  createVisualTesterService,
   createVisualTesterServiceWithDependencies,
   VisualTesterService,
   VisualTesterConfig,

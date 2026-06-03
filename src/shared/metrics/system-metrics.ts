@@ -196,10 +196,10 @@ export class SystemMetricsCollector {
         return metrics.cpu.loadAverage[2];
       default:
         // For unknown metrics, return from history or 0
-        const history = this.metricHistory.get(metricName);
+        { const history = this.metricHistory.get(metricName);
         return history && history.length > 0
           ? history[history.length - 1].value
-          : 0;
+          : 0; }
     }
   }
 

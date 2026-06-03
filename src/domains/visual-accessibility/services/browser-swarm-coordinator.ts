@@ -32,7 +32,6 @@ import {
 } from '../interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import {
-  createBrowserClient,
   getBrowserClientForUseCase,
   type IBrowserClient,
   type IAgentBrowserClient,

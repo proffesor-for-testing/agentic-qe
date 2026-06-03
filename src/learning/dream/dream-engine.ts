@@ -29,7 +29,6 @@ import { ConceptGraph } from './concept-graph.js';
 import {
   SpreadingActivation,
   type ActivationConfig,
-  type ActivationResult,
   type ConceptGraph as SpreadingConceptGraph,
 } from './spreading-activation.js';
 import {

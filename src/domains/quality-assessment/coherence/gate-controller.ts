@@ -18,7 +18,6 @@ import {
   QualityDimensions,
   RatchetConfig,
   RatchetState,
-  DEFAULT_RATCHET_CONFIG,
 } from './types';
 import { LambdaCalculator, createLambdaCalculator } from './lambda-calculator';
 
@@ -326,7 +325,7 @@ export class CoherenceGateController {
         return [];
 
       case QualityTier.REDUCED:
-        const reducedActions: QualityAction[] = [
+        { const reducedActions: QualityAction[] = [
           'runAdditionalTests',
           'notifyReviewers',
           'requireApproval',
@@ -334,10 +333,10 @@ export class CoherenceGateController {
         if (reason === 'lambdaDroppedFast') {
           reducedActions.push('increaseMonitoring');
         }
-        return reducedActions;
+        return reducedActions; }
 
       case QualityTier.SAFE:
-        const safeActions: QualityAction[] = [
+        { const safeActions: QualityAction[] = [
           'blockDeploy',
           'alertTeam',
           'scheduleReview',
@@ -346,10 +345,10 @@ export class CoherenceGateController {
         if (reason === 'testFailureSpike') {
           safeActions.push('runAdditionalTests');
         }
-        return safeActions;
+        return safeActions; }
 
       case QualityTier.QUARANTINE:
-        const quarantineActions: QualityAction[] = [
+        { const quarantineActions: QualityAction[] = [
           'blockAllDeploys',
           'escalateToLeads',
           'rollbackIfNeeded',
@@ -358,7 +357,7 @@ export class CoherenceGateController {
         if (reason === 'securityCritical') {
           quarantineActions.push('runSecurityScan');
         }
-        return quarantineActions;
+        return quarantineActions; }
     }
   }
 

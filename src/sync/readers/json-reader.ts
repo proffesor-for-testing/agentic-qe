@@ -82,7 +82,7 @@ export class JSONReader implements DataReader<JSONRecord> {
       const parsed = secureJsonParse.parse(content);
 
       // Extract data based on JSON path if specified
-      let records = this.extractRecords(parsed);
+      const records = this.extractRecords(parsed);
 
       // Transform records
       return records.map(record => this.transformRecord(record));

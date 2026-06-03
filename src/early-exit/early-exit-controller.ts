@@ -15,10 +15,9 @@ import {
   SpeculativeResult,
   QualitySignal,
   EarlyExitMetrics,
-  ExitReason,
   DEFAULT_EXIT_CONFIG,
 } from './types';
-import { calculateQualitySignal, calculateLambdaStability, calculateConfidence } from './quality-signal';
+import { calculateQualitySignal } from './quality-signal';
 import { CoherenceEarlyExit } from './early-exit-decision';
 import { SpeculativeExecutor } from './speculative-executor';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';

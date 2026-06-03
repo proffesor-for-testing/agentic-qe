@@ -8,13 +8,11 @@
 
 import {
   AssessmentOutput,
-  AssessmentSummary,
   TestIdea,
   ClarifyingQuestion,
   HTSMCategory,
   Priority,
   AutomationFitness,
-  CATEGORY_DESCRIPTIONS,
   CategoryAnalysis,
 } from '../types';
 

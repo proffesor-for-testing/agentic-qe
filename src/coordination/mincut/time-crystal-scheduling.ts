@@ -10,7 +10,6 @@ import type {
   CrystalLattice,
   CrystalObservation,
   ScheduleOptimization,
-  TimeCrystalConfig,
 } from './time-crystal-types';
 import type { TestFailureCausalGraph } from './causal-discovery';
 

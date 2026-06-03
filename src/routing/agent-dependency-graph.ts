@@ -142,7 +142,7 @@ export function parseDependenciesFromFrontmatter(content: string): AgentDependen
     if (st.section === 'agents' || st.section === 'mcp_servers') {
       const listStart = trimmed.match(/^-\s+(\w+):\s*(.*)$/);
       if (listStart) {
-        if (st.inList) { st.section === 'agents' ? flushAgent() : flushMcp(); }
+        if (st.inList) { if (st.section === 'agents') flushAgent(); else flushMcp(); }
         st.inList = true;
         st.item = { [listStart[1]]: parseYamlValue(listStart[2]) };
         continue;

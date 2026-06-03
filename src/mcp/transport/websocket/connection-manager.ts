@@ -10,7 +10,6 @@ import { EventEmitter } from 'events';
 import type {
   WebSocketConnection,
   WebSocketConnectionState,
-  WebSocketConnectionMetrics,
   WebSocketTransportMetrics,
   StateRecoveryEntry,
   EventServerMessage,

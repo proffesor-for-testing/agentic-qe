@@ -7,7 +7,7 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
-import { join, dirname, basename } from 'path';
+import { join } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js';
 import { validateFleetMcpDeps } from '../validation/steps/agent-mcp-validator.js';

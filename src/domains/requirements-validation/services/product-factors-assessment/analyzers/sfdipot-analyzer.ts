@@ -7,7 +7,6 @@
 
 import {
   HTSMCategory,
-  HTSMSubcategory,
   SFDIPOT_SUBCATEGORIES,
   CATEGORY_DESCRIPTIONS,
   StructureSubcategory,
@@ -19,15 +18,11 @@ import {
   TimeSubcategory,
   ProjectContext,
   ExtractedEntities,
-  CategoryAnalysis,
-  TestIdea,
-  ClarifyingQuestion,
 } from '../types';
 
 import {
   BrutalHonestyAnalyzer,
   RequirementsQualityScore,
-  BrutalHonestyFinding,
 } from './brutal-honesty-analyzer';
 
 export interface AnalysisInput {

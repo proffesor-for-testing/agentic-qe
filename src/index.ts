@@ -1,6 +1,6 @@
 /**
  * Agentic QE v3 - Main Entry Point
- * Domain-Driven Design Architecture with 12 Bounded Contexts
+ * Domain-Driven Design Architecture with 13 Bounded Contexts
  */
 
 import { createRequire } from 'module';
@@ -343,7 +343,7 @@ export type {
 
 // Version info - read from package.json
 export const VERSION: string = pkg.version;
-export const ARCHITECTURE = 'DDD with 12 Bounded Contexts';
+export const ARCHITECTURE = 'DDD with 13 Bounded Contexts';
 export const MAX_CONCURRENT_AGENTS = 15;
 
 /**

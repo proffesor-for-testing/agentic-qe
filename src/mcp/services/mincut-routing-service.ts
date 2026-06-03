@@ -15,7 +15,6 @@ import {
   createQEMinCutService,
   type AgentNode,
   type TaskGraph,
-  type RoutingTier,
   type HealthReport,
 } from '../../integrations/ruvector/mincut-wrapper.js';
 

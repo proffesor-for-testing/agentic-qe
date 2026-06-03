@@ -353,6 +353,7 @@ export class PostgresWriter implements CloudWriter {
       let jsonStr = JSON.stringify(value);
       if (columnName && this.isJsonbColumn(columnName)) {
         // Remove NUL chars (PostgreSQL JSONB rejects \u0000)
+        // eslint-disable-next-line no-control-regex -- NUL stripping required: PostgreSQL JSONB rejects \u0000
         jsonStr = jsonStr.replace(/\u0000/g, '');
         try {
           JSON.parse(jsonStr);
@@ -385,6 +386,7 @@ export class PostgresWriter implements CloudWriter {
       }
       // JSONB columns: validate JSON, sanitize NUL chars, wrap if invalid
       if (columnName && this.isJsonbColumn(columnName)) {
+        // eslint-disable-next-line no-control-regex -- NUL stripping required: PostgreSQL JSONB rejects \u0000
         const sanitized = value.replace(/\u0000/g, '');
         try {
           JSON.parse(sanitized);

@@ -8,7 +8,7 @@
  * Notification types: gate_failure, coverage_drop, flaky_detected, suggestion_available
  */
 
-import { writeFileSync, mkdirSync, readdirSync, readFileSync, unlinkSync, existsSync } from 'fs';
+import { writeFileSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'fs';
 import { join, resolve } from 'path';
 
 export type NotificationType =

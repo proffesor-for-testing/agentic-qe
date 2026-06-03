@@ -10,7 +10,6 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
-  readFileSync,
   writeFileSync,
   copyFileSync,
 } from 'fs';

@@ -135,7 +135,7 @@ export function approximateFiedlerValue(
   const trivial = new Float64Array(n).fill(1 / Math.sqrt(n));
 
   // First, estimate lambda_max using a few power iterations on L
-  let maxVec = new Float64Array(n);
+  const maxVec = new Float64Array(n);
   for (let i = 0; i < n; i++) maxVec[i] = Math.random() - 0.5;
   deflateVector(maxVec, trivial);
   normalizeInPlace(maxVec);
@@ -155,7 +155,7 @@ export function approximateFiedlerValue(
   // Now use power iteration on (lambdaMax * I - L) to find the
   // eigenvector corresponding to the LARGEST eigenvalue of (lambdaMax*I - L),
   // which corresponds to the SMALLEST non-trivial eigenvalue of L.
-  let v = new Float64Array(n);
+  const v = new Float64Array(n);
   for (let i = 0; i < n; i++) v[i] = Math.random() - 0.5;
   deflateVector(v, trivial);
   normalizeInPlace(v);

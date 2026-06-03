@@ -17,7 +17,6 @@ import type {
   SSERequest,
   SSEResponse,
   SSETransportMetrics,
-  AGUIEventTypeValue,
 } from './types.js';
 import { AGUIEventType } from './types.js';
 

@@ -9,7 +9,6 @@
 
 import { EventEmitter } from 'events';
 import type { AGUIEvent, AGUIEventType } from './event-types.js';
-import { getEventCategory } from './event-types.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
 // ============================================================================

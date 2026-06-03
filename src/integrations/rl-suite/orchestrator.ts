@@ -5,7 +5,6 @@
  * Provides unified interface for algorithm selection, training, and inference.
  */
 
-import { BaseRLAlgorithm } from './base-algorithm';
 import { QLearningAlgorithm } from './algorithms/q-learning';
 import { DecisionTransformerAlgorithm } from './algorithms/decision-transformer';
 import { SARSAAlgorithm } from './algorithms/sarsa';
@@ -26,7 +25,6 @@ import type {
   RLSuiteConfig,
   AlgorithmDomainMapping,
   DomainName,
-  RewardSignal,
   RewardContext,
   RewardCalculation,
 } from './interfaces';

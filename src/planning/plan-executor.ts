@@ -24,7 +24,6 @@ import type {
   StateConditions,
   ActionEffects,
 } from './types.js';
-import { DEFAULT_V3_WORLD_STATE } from './types.js';
 import type { GOAPPlanner } from './goap-planner.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';

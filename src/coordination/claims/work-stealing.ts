@@ -21,7 +21,7 @@ import {
   StealClaimInput,
 } from './interfaces';
 import { EventBus } from '../../kernel/interfaces';
-import { DomainEvent, DomainName, AgentType } from '../../shared/types';
+import { DomainEvent, AgentType } from '../../shared/types';
 
 // ============================================================================
 // Default Configuration

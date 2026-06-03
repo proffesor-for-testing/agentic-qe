@@ -9,7 +9,6 @@
 
 import { randomUUID } from 'crypto';
 import type {
-  PageState,
   PooledPage,
   BrowserPagePoolConfig,
   PagePoolStats,

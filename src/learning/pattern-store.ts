@@ -16,7 +16,6 @@ import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   QEPattern,
   QEPatternContext,
-  QEPatternTemplate,
   QEPatternType,
   QEDomain,
   CreateQEPatternOptions,
@@ -40,7 +39,6 @@ import {
   createHdcFingerprinter,
   HDCPatternFingerprinter,
   createHDCFingerprinter,
-  type PatternFingerprint,
 } from '../integrations/ruvector/hdc-fingerprint.js';
 import { DeltaTracker } from '../integrations/ruvector/delta-tracker.js';
 import {

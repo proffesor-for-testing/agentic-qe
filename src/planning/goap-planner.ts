@@ -19,18 +19,15 @@ import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../kernel
 import type {
   V3WorldState,
   StateConditions,
-  ActionEffects,
   GOAPAction,
   GOAPGoal,
   GOAPPlan,
-  ExecutionStep,
   PlanConstraints,
   GOAPActionRecord,
   GOAPGoalRecord,
   GOAPPlanRecord,
 } from './types.js';
-import { DEFAULT_V3_WORLD_STATE } from './types.js';
-import { getAllQEActions, QE_GOALS, toGOAPAction } from './actions/qe-action-library.js';
+import { getAllQEActions, QE_GOALS } from './actions/qe-action-library.js';
 
 // ============================================================================
 // MinHeap for A* Open Set (O(log n) insert/extract vs O(n log n) sort+shift)
@@ -82,6 +79,7 @@ class MinHeap<T> {
 
   private sinkDown(i: number): void {
     const n = this.data.length;
+    // eslint-disable-next-line no-constant-condition -- heap sift-down; loop breaks internally
     while (true) {
       let smallest = i;
       const left = 2 * i + 1;

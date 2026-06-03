@@ -9,7 +9,7 @@ import type {
   DomainEvent,
   AgentStatus,
 } from '../shared/types';
-import type { DomainHealth, AgentCoordinator, DomainPlugin } from '../kernel/interfaces';
+import type { DomainHealth, AgentCoordinator } from '../kernel/interfaces';
 import type { CrossDomainRouter } from './interfaces';
 
 // Cross-phase hooks

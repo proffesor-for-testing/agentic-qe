@@ -40,7 +40,6 @@ import {
   PrioritizedVisualTest,
 } from './interfaces.js';
 import {
-  createVisualTesterService,
   createVisualTesterServiceWithDependencies,
   VisualTesterConfig,
   VisualTesterService,
@@ -64,7 +63,6 @@ import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integrat
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 import {
@@ -1229,7 +1227,7 @@ export class VisualAccessibilityCoordinator
 
         case 'allocate':
           // Allocate based on resource availability
-          const agentCount = typeof prediction.action.value === 'object' ? (prediction.action.value as { agents?: number }).agents ?? 2 : 2;
+          { const agentCount = typeof prediction.action.value === 'object' ? (prediction.action.value as { agents?: number }).agents ?? 2 : 2;
           const testsPerAgent = Math.ceil(prioritized.length / agentCount);
           prioritized = prioritized.map((t, i) => ({
             ...t,
@@ -1237,11 +1235,11 @@ export class VisualAccessibilityCoordinator
             reason: `allocate-agent-${Math.floor(i / testsPerAgent)}`,
           }));
           strategy = 'allocate-by-agent';
-          break;
+          break; }
 
         case 'rebalance':
           // Rebalance based on viewport coverage
-          const viewportCounts = new Map<number, number>();
+          { const viewportCounts = new Map<number, number>();
           for (const t of prioritized) {
             viewportCounts.set(t.viewport.width, (viewportCounts.get(t.viewport.width) || 0) + 1);
           }
@@ -1252,7 +1250,7 @@ export class VisualAccessibilityCoordinator
             reason: 'rebalance-viewport-coverage',
           }));
           strategy = 'rebalance-viewport-coverage';
-          break;
+          break; }
 
         default:
           break;

@@ -18,11 +18,10 @@ import type {
   RLAlgorithmInfo,
   RewardSignal,
   RewardContext,
-  RewardCalculation,
-  RLAlgorithmError
+  RewardCalculation
 } from './interfaces';
 import { secureRandom, secureRandomInt } from '../../shared/utils/crypto-random.js';
-import { RLTrainingError, RLPredictionError, RLConfigError } from './interfaces';
+import { RLTrainingError, RLConfigError } from './interfaces';
 import { QValueStore } from './persistence/q-value-store.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { LoggerFactory } from '../../logging/index.js';

@@ -3,7 +3,7 @@
  * Integrates the quality assessment domain into the kernel
  */
 
-import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import {
   EventBus,
   MemoryBackend,

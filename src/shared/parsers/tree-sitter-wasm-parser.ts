@@ -1153,6 +1153,43 @@ export function isWasmAvailable(): boolean {
   }
 }
 
+// Cache of loaded grammars keyed by wasm filename, for the generic loader below.
+const loadedGrammarsByFile = new Map<string, TreeSitterLanguage>();
+
+/**
+ * Generic grammar loader for callers outside the GRAMMAR_CONFIG set (e.g. the
+ * code-intelligence TS/JS extractor). Reuses the proven WASM init + grammar
+ * path resolution. Returns a `parse(code)` that yields a tree-sitter tree
+ * (caller must call `tree.delete()`), or null if WASM/grammar is unavailable so
+ * the caller can fall back.
+ */
+export async function loadWasmGrammar(
+  wasmFile: string
+): Promise<{ parse: (code: string) => SyntaxNode } | null> {
+  if (!isWasmAvailable()) return null;
+  try {
+    await ensureTreeSitterInit();
+    let language = loadedGrammarsByFile.get(wasmFile);
+    if (!language) {
+      language = await treeSitterModule.Language.load(resolveGrammarPath(wasmFile));
+      loadedGrammarsByFile.set(wasmFile, language);
+    }
+    return {
+      parse: (code: string): SyntaxNode => {
+        // New parser per call (cheap) to avoid cross-call setLanguage races.
+        const ParserCtor = treeSitterModule.Parser ?? treeSitterModule;
+        const parser = new ParserCtor();
+        parser.setLanguage(language);
+        const tree = parser.parse(code);
+        parser.delete?.();
+        return tree;
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Reset internal state — for testing only.
  */

@@ -16,8 +16,6 @@ import type {
   RLTrainingStats,
   RLExperience,
   RLAlgorithmInfo,
-  TestExecutionState,
-  TestExecutionAction,
 } from '../interfaces';
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 

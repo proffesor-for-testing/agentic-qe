@@ -22,10 +22,7 @@ import {
   PlanExecutor,
   createMockExecutor,
   V3WorldState,
-  GOAPGoal,
-  GOAPAction,
   DEFAULT_V3_WORLD_STATE,
-  getActionsByCategory,
   getAllQEActions,
 } from '../../../planning/index.js';
 

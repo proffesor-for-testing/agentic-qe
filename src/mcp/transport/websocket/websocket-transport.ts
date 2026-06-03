@@ -22,7 +22,6 @@ import {
   WebSocketServerMessageType,
   type WebSocketTransportConfig,
   type WebSocketTransportMetrics,
-  type WebSocketConnection,
   type WebSocketAgentHandler,
   type AGUIEvent,
   type WebSocketClientMessage,
@@ -178,6 +177,7 @@ export class WebSocketTransport extends EventEmitter {
     socket: Socket,
     head: Buffer
   ): Promise<void> {
+    // eslint-disable-next-line no-async-promise-executor -- body is wrapped in try/catch that calls reject()
     return new Promise(async (resolve, reject) => {
       if (this.disposed) {
         socket.write('HTTP/1.1 503 Service Unavailable\r\n\r\n');

@@ -33,8 +33,8 @@ import type {
   AgentRoutingResult,
   RuVectorConfig,
 } from './interfaces';
-import { RuVectorQLearningRouter, type QLearningParams, createQLearningRouterSync } from './q-learning-router';
-import { QValueStore, type QValueStoreConfig, createQValueStore } from '../rl-suite/persistence/q-value-store';
+import { type QLearningParams, createQLearningRouterSync } from './q-learning-router';
+import { QValueStore, createQValueStore } from '../rl-suite/persistence/q-value-store';
 import type { RLAlgorithmType } from '../rl-suite/interfaces';
 import { toErrorMessage } from '../../shared/error-utils.js';
 

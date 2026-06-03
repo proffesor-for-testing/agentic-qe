@@ -16,7 +16,6 @@ import {
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
   BaseModelProvider,
-  buildVerificationPrompt,
 } from '../model-provider';
 
 // ============================================================================

@@ -21,12 +21,11 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { DomainName, Priority, Severity, DomainEvent } from '../../shared/types';
+import { DomainName, DomainEvent } from '../../shared/types';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { StrangeLoopController } from './strange-loop';
-import { WeakVertex, ReorganizationAction, ReorganizationResult } from './interfaces';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { secureRandom } from '../../shared/utils/crypto-random.js';
 
@@ -1287,14 +1286,14 @@ export class GOAPController {
 
       case 'terminate_agent':
         // Find and remove least connected agent
-        const weakVertices = this.calculator.findWeakVertices(this.graph);
+        { const weakVertices = this.calculator.findWeakVertices(this.graph);
         if (weakVertices.length > 0) {
           const weakestAgent = weakVertices.find((v) => v.vertex.type === 'agent');
           if (weakestAgent) {
             this.graph.removeVertex(weakestAgent.vertexId);
           }
         }
-        return { success: true, newState: action.simulate(state) };
+        return { success: true, newState: action.simulate(state) }; }
 
       case 'heal_topology':
         // Delegate to Strange Loop
@@ -1305,7 +1304,7 @@ export class GOAPController {
 
       case 'rebalance_load':
         // Reinforce edges between agents
-        const agents = this.graph.getVerticesByType('agent');
+        { const agents = this.graph.getVerticesByType('agent');
         if (agents.length >= 2) {
           const sorted = agents.sort(
             (a, b) => this.graph.weightedDegree(a.id) - this.graph.weightedDegree(b.id)
@@ -1322,7 +1321,7 @@ export class GOAPController {
             });
           }
         }
-        return { success: true, newState: action.simulate(state) };
+        return { success: true, newState: action.simulate(state) }; }
 
       case 'optimize_tests':
       case 'retry_failures':

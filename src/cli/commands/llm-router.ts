@@ -16,7 +16,6 @@ import { secureRandomInt } from '../../shared/utils/crypto-random.js';
 import chalk from 'chalk';
 import {
   ALL_PROVIDER_TYPES,
-  DEFAULT_ROUTER_CONFIG,
   DEFAULT_MODEL_MAPPINGS,
   type ExtendedProviderType,
   type RoutingMode,
@@ -709,7 +708,7 @@ async function checkProviderHealth(timeout: number): Promise<Array<{
 
 function findModel(modelId: string): ModelMapping | undefined {
   // Search by canonical ID first
-  let model = DEFAULT_MODEL_MAPPINGS.find(m => m.canonicalId === modelId);
+  const model = DEFAULT_MODEL_MAPPINGS.find(m => m.canonicalId === modelId);
   if (model) return model;
 
   // Search by provider-specific ID

@@ -9,7 +9,6 @@
  */
 
 import { EventEmitter } from 'events';
-import { CircularBuffer } from '../shared/utils/index.js';
 
 // ============================================================================
 // Module Constants

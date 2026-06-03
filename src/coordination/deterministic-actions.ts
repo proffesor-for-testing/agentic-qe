@@ -10,9 +10,8 @@
  * for live metrics — keeping execution fully deterministic (SQL-only).
  */
 
-import { Result, ok, err, DomainName } from '../shared/types/index.js';
+import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
-import { toErrorMessage } from '../shared/error-utils.js';
 
 // ============================================================================
 // Types

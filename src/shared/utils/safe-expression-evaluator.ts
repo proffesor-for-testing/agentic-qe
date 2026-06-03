@@ -223,6 +223,7 @@ class Parser {
   private parseExpression(minPrecedence: number): unknown {
     let left = this.parseUnary();
 
+    // eslint-disable-next-line no-constant-condition -- tokenizer loop; breaks internally
     while (true) {
       const token = this.current();
       if (token.type !== 'OPERATOR' || !BINARY_OPERATORS.has(token.value as string)) {
@@ -270,10 +271,10 @@ class Parser {
         return this.parseIdentifier();
 
       case 'LPAREN':
-        this.advance();
+        { this.advance();
         const result = this.parseExpression(0);
         this.expect('RPAREN');
-        return result;
+        return result; }
 
       default:
         throw new Error(`Unexpected token: ${token.raw}`);
@@ -282,7 +283,7 @@ class Parser {
 
   private parseIdentifier(): unknown {
     let value: unknown = this.context;
-    let name = this.advance().value as string;
+    const name = this.advance().value as string;
 
     // Get initial value from context
     if (typeof value === 'object' && value !== null && name in value) {

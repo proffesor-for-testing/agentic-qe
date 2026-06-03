@@ -82,11 +82,17 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         filesIndexed: indexResult.filesIndexed,
         nodesCreated: indexResult.nodesCreated,
         edgesCreated: indexResult.edgesCreated,
+        // MCP CodeIndexResult reports symbols/relations; map them from the KG's
+        // node/edge counts so `code_index` doesn't always report 0 (#511 MCP
+        // parity — the result mapper reads these exact field names).
+        symbolsExtracted: indexResult.nodesCreated,
+        relationsFound: indexResult.edgesCreated,
         target: targetPath,
         incremental: payload.incremental || false,
         languages: Array.from(detectedLanguages),
         duration: indexResult.duration,
         errors: indexResult.errors,
+        warnings: indexResult.warnings,
       });
     } catch (error) {
       return err(toError(error));

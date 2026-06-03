@@ -27,7 +27,7 @@
 
 import { PhaseScheduler, createPhaseScheduler, type SchedulerConfig } from './phase-scheduler';
 import { VitestPhaseExecutor, type VitestConfig } from './executors/vitest-executor';
-import { GitAwareTestSelector, createTestSelector, type TestSelectorConfig } from './git-aware/test-selector';
+import { GitAwareTestSelector, createTestSelector } from './git-aware/test-selector';
 import {
   FlakyTestTracker,
   createFlakyTracker,

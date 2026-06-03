@@ -5,14 +5,10 @@
  * @module mcp/transport/websocket/types
  */
 
-import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage } from 'http';
 import type {
   AGUIEvent,
-  AGUIEventTypeValue,
   AgentRequest,
-  AgentTool,
-  Message,
-  JsonPatchOperation,
 } from '../sse/types.js';
 
 // Re-export base types for convenience

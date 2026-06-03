@@ -29,12 +29,10 @@ import {
   SimilarPatterns,
   CoverageGap,
   TrendPoint,
-  CoverageQLState,
   CoverageQLAction,
   CoverageQLPrediction,
   QLPrioritizedTests,
   PrioritizedTest,
-  FileCoverage,
 } from './interfaces';
 import {
   CoverageAnalyzerService,
@@ -49,7 +47,6 @@ import type {
   RLState,
   RLAction,
   RLExperience,
-  RewardContext,
 } from '../../integrations/rl-suite/interfaces';
 import { COVERAGE_REWARDS } from '../../integrations/rl-suite/interfaces';
 
@@ -57,13 +54,10 @@ import { COVERAGE_REWARDS } from '../../integrations/rl-suite/interfaces';
 // MinCut & Consensus Mixin Imports (ADR-047, MM-001)
 // ============================================================================
 
-import {
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
+
+
 
 import {
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
@@ -955,8 +949,8 @@ export class CoverageAnalysisCoordinator
       case 'daily':
         return `${year}-${month}-${day}`;
       case 'weekly':
-        const weekNum = Math.floor(day / 7);
-        return `${year}-${month}-W${weekNum}`;
+        { const weekNum = Math.floor(day / 7);
+        return `${year}-${month}-W${weekNum}`; }
       case 'monthly':
         return `${year}-${month}`;
     }

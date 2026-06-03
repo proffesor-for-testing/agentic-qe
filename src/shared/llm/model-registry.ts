@@ -24,7 +24,6 @@
  */
 
 import {
-  MODEL_MAPPINGS,
   ProviderType,
   normalizeModelId,
   getModelMapping,

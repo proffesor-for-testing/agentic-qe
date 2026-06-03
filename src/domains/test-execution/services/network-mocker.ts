@@ -7,7 +7,6 @@
  */
 
 import type { AgentBrowserClient } from '../../../integrations/browser/agent-browser/client';
-import type { Result } from '../../../shared/types';
 
 // ============================================================================
 // Types

@@ -11,7 +11,7 @@ import {
   getSystemMetricsCollector,
 } from '../../../shared/metrics';
 import { MemoryBackend } from '../../../kernel/interfaces';
-import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import type { HybridRouter } from '../../../shared/llm';
 import {
   ChaosExperiment,
   ExperimentResult,
@@ -837,6 +837,7 @@ Provide:
       const busyStart = Date.now();
       while (Date.now() - busyStart < busyTime) {
         // Busy loop - CPU intensive operations
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- intentional CPU busy-loop
         secureRandom() * secureRandom();
       }
       // Note: Idle time is handled by the interval itself (10ms interval)
@@ -1020,8 +1021,8 @@ Provide:
       case 'gte':
         return actual >= (value as number);
       case 'between':
-        const [min, max] = value as [number, number];
-        return actual >= min && actual <= max;
+        { const [min, max] = value as [number, number];
+        return actual >= min && actual <= max; }
       default:
         return false;
     }

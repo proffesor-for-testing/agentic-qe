@@ -73,19 +73,15 @@ import {
 } from '../../learning/dream/index.js';
 
 // V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
-import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 // CQ-002: Base domain coordinator
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
-import {
-  type DomainFinding,
-  createDomainFinding,
-} from '../../coordination/consensus/domain-findings.js';
+
+
 
 // CQ-004: Extracted modules
 import * as LearningHelpers from './coordinator-helpers.js';

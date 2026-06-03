@@ -15,7 +15,6 @@ import {
 } from '../interfaces';
 import {
   BaseModelProvider,
-  buildVerificationPrompt,
 } from '../model-provider';
 import { CONSENSUS_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';

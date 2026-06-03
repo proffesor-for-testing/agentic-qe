@@ -6,9 +6,8 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 import { DomainName, ALL_DOMAINS } from '../../shared/types/index.js';
-import type { WorkflowDefinition, WorkflowStepDefinition, WorkflowTrigger, StepCondition, ConditionOperator } from '../../coordination/workflow-orchestrator.js';
+import type { WorkflowDefinition, WorkflowStepDefinition, WorkflowTrigger, ConditionOperator } from '../../coordination/workflow-orchestrator.js';
 
 // ============================================================================
 // Pipeline YAML Types (ADR-041 format)

@@ -19,7 +19,6 @@ import {
 import { TaskType } from '../../coordination/queen-coordinator';
 import {
   getTaskRouter,
-  type TaskRoutingResult,
   type RoutingLogEntry,
   type RoutingStats,
 } from '../services/task-router';

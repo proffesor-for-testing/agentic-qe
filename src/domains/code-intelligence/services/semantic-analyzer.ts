@@ -212,11 +212,16 @@ export class SemanticAnalyzerService implements ISemanticAnalyzerService {
         indexedAt: new Date().toISOString(),
       });
 
-      // Store content for retrieval
+      // Store content for retrieval.
+      // The key is already fully namespace-qualified, so do NOT also pass a
+      // {namespace} store option: every read path (semanticSearch/findSimilar/
+      // exact/fuzzy) and the storeVector() embedding write use the default
+      // namespace, and a write with {namespace} could not be read back without
+      // the same option (issue #491 Bug 2) — which silently dropped every
+      // search result (#511 follow-up).
       await this.memory.set(
         `${this.config.namespace}:content:${this.fileToKey(file)}`,
-        { file, content, metadata },
-        { namespace: this.config.namespace }
+        { file, content, metadata }
       );
 
       return ok(undefined);

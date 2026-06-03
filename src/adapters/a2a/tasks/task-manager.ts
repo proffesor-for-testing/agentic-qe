@@ -10,8 +10,7 @@
 
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
-import type { A2AMessage, TaskStatus, A2AArtifact, MessagePart, TextPart, DataPart, FilePart } from '../jsonrpc/methods.js';
-import { isTerminalStatus } from '../jsonrpc/methods.js';
+import type { A2AMessage, TaskStatus, A2AArtifact, TextPart, DataPart, FilePart } from '../jsonrpc/methods.js';
 import {
   TaskStore,
   createTaskStore,

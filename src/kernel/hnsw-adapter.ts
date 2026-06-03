@@ -15,7 +15,6 @@ import type {
   SearchResult,
   HnswConfig,
 } from './hnsw-index-provider.js';
-import { DEFAULT_HNSW_CONFIG } from './hnsw-index-provider.js';
 import { ProgressiveHnswBackend } from './progressive-hnsw-backend.js';
 import { NativeHnswBackend, NativeHnswUnavailableError } from './native-hnsw-backend.js';
 import { isNativeHNSWEnabled, isHnswHealthMonitorEnabled } from '../integrations/ruvector/feature-flags.js';

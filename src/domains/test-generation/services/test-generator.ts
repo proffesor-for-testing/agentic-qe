@@ -50,14 +50,13 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { TestQualityGate } from '../gates/index.js';
-import type { TestQualityGateResult } from '../gates/index.js';
 import { EdgeCaseInjector } from '../pattern-injection/index.js';
 import { treeSitterRegistry } from '../../../shared/parsers/multi-language-parser.js';
-import { getLanguageFromExtension, DEFAULT_FRAMEWORKS } from '../../../shared/types/test-frameworks.js';
+import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
 import type { SupportedLanguage, TestFramework as SharedTestFramework } from '../../../shared/types/test-frameworks.js';
 import type { ParsedFile } from '../../../shared/parsers/interfaces.js';
 import { PytestGenerator } from '../generators/pytest-generator.js';
-import { resolveRequest, detectLanguage } from '../../../shared/language-detector.js';
+import { resolveRequest } from '../../../shared/language-detector.js';
 import { compilationValidator } from './compilation-validator.js';
 import { resolveTestFilePath } from './test-file-resolver.js';
 import { getPromptConfig } from '../prompts/language-prompts.js';
@@ -975,8 +974,13 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const normalizedPath = filePath.replace(/\\/g, '/');
       const baseName = normalizedPath.split('/').pop()?.replace(/\.(ts|js|tsx|jsx|py)$/, '') || '';
 
-      // Search KG node vectors for this file's name to find related nodes
-      const nodeKeys = await this.memory.search(`code-intelligence:kg:node:*${baseName}*`, 50);
+      // Search KG node vectors for this file's name to find related nodes.
+      // KG persists under its own namespace (#511 parity) — read it there.
+      const nodeKeys = await this.memory.search(
+        `code-intelligence:kg:node:*${baseName}*`,
+        50,
+        { namespace: 'code-intelligence:kg' }
+      );
       for (const key of nodeKeys) {
         // Nodes matching this file's name that are from other files indicate callers
         if (!key.includes(baseName)) continue;

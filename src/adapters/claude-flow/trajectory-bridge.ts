@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
  * - Uses local pattern promotion (3+ successful uses)
  */
 
-import type { Trajectory, TrajectoryStep } from './types.js';
+import type { Trajectory } from './types.js';
 import { detectClaudeFlow, resolveCliPackage } from './detect.js';
 
 const cliPkg = resolveCliPackage();

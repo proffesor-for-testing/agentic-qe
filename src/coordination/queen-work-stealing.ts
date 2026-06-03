@@ -96,9 +96,7 @@ export function startWorkStealingTimer(
 ): NodeJS.Timeout {
   let workStealingFailures = 0;
   const maxConsecutiveFailures = 10;
-  let timer: NodeJS.Timeout;
-
-  timer = setInterval(async () => {
+  const timer: NodeJS.Timeout = setInterval(async () => {
     try {
       await doStealing();
       workStealingFailures = 0;

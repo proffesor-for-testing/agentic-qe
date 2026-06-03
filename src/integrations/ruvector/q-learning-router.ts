@@ -16,7 +16,7 @@ import type {
   RuVectorConfig,
 } from './interfaces';
 import { FallbackQLearningRouter } from './fallback';
-import type { AgentType, DomainName, Priority } from '../../shared/types';
+import type { AgentType, DomainName } from '../../shared/types';
 import { getUnifiedMemory, UnifiedMemoryManager } from '../../kernel/unified-memory.js';
 
 // ============================================================================

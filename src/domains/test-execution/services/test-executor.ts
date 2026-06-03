@@ -17,7 +17,7 @@ import {
   ExecutionStats,
 } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
-import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import type { HybridRouter } from '../../../shared/llm';
 import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';

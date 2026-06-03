@@ -16,7 +16,6 @@ import {
   ComponentBuilder,
   createComponentBuilder,
   type SurfaceGeneratorConfig,
-  type SurfaceState,
   type SurfaceUpdateMessage,
   type ComponentNode,
 } from '../renderer/index.js';

@@ -16,8 +16,6 @@ import {
   ExtendedAgentCard,
   AgentSkill,
   AgentCapabilities,
-  AgentProvider,
-  DEFAULT_CAPABILITIES,
   DEFAULT_INPUT_MODES,
   DEFAULT_OUTPUT_MODES,
   DEFAULT_QE_PROVIDER,

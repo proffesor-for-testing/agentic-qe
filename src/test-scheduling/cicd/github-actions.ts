@@ -13,7 +13,6 @@
 
 import type {
   PhaseResult,
-  TestResult,
   CIEnvironment,
   GitHubActionsOutput,
   GitHubAnnotation,

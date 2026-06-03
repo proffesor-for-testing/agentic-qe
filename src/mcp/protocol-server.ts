@@ -113,15 +113,12 @@ import {
   getConnectionPool,
   initializeConnectionPool,
   shutdownConnectionPool,
-  type PoolStats,
 } from './connection-pool';
 import {
   getLoadBalancer,
-  type LoadBalancingStrategy,
 } from './load-balancer';
 import {
   getPerformanceMonitor,
-  type PerformanceReport,
 } from './performance-monitor';
 
 // ADR-062: Loop detection for MCP tool calls
@@ -1661,7 +1658,7 @@ export class MCPProtocolServer {
             env: process.env,
           });
 
-          try { unlinkSync(transcriptPath); } catch {}
+          try { unlinkSync(transcriptPath); } catch { /* best-effort cleanup */ }
 
           const lines = result.split('\n');
           let jsonStr = '';
@@ -1679,7 +1676,7 @@ export class MCPProtocolServer {
           }
           return JSON.parse(jsonStr || '{}');
         } catch (err) {
-          try { unlinkSync(transcriptPath); } catch {}
+          try { unlinkSync(transcriptPath); } catch { /* best-effort cleanup */ }
           return { error: (err as Error).message?.slice(0, 300) ?? 'Unknown error' };
         }
       },

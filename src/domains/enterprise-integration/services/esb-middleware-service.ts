@@ -12,7 +12,6 @@ import { toError } from '../../../shared/error-utils.js';
 import type {
   MessageFlow,
   FlowNode,
-  FlowConnection,
   RoutingRule,
   TransformationSpec,
   TransformationType,

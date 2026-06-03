@@ -35,7 +35,7 @@
  * ```
  */
 
-import type { CausalAdapter, ICausalAdapter } from '../integrations/coherence/engines/causal-adapter.js';
+import type { ICausalAdapter } from '../integrations/coherence/engines/causal-adapter.js';
 import type { CausalData, CausalVerification, IWasmLoader } from '../integrations/coherence/types.js';
 import { createCausalAdapter } from '../integrations/coherence/engines/causal-adapter.js';
 

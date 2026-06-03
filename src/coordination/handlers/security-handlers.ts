@@ -8,7 +8,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ok, err } from '../../shared/types';
-import { toError, toErrorMessage } from '../../shared/error-utils.js';
+import { toError } from '../../shared/error-utils.js';
 import { FilePath } from '../../shared/value-objects/index.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles, generateSecurityRecommendations } from './handler-utils';

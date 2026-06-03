@@ -24,7 +24,7 @@ import { LoggerFactory } from '../logging/index.js';
 
 const logger = LoggerFactory.create('qe-unified-memory');
 
-import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../kernel/interfaces.js';
+import type { MemoryBackend, StoreOptions } from '../kernel/interfaces.js';
 import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
@@ -33,19 +33,13 @@ import { EMBEDDING_CONFIG } from '../shared/embeddings/types.js';
 // Import HNSWIndex types - using proper import to avoid re-export issues
 import type {
   HNSWIndexConfig,
-  IHNSWIndex,
   HNSWInsertItem,
   CoverageVectorMetadata,
-  HNSWSearchResult,
-  HNSWIndexStats,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
 import { toErrorMessage } from '../shared/error-utils.js';
 import {
-  DEFAULT_HNSW_CONFIG,
   HNSWIndex,
-  createHNSWIndex,
-  benchmarkHNSW,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
 // ============================================================================
@@ -942,7 +936,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     let totalEntries = 0;
     let totalVectors = 0;
     let totalIndexSize = 0;
-    let hnswHealthy = true;
+    const hnswHealthy = true;
 
     for (const domain of QE_MEMORY_DOMAINS) {
       let vectorCount = 0;
@@ -1054,7 +1048,7 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
     }
 
     let itemsMigrated = 0;
-    let itemsSkipped = 0;
+    const itemsSkipped = 0;
     const errors: string[] = [];
 
     try {
@@ -1176,10 +1170,10 @@ export class QEUnifiedMemory implements IQEUnifiedMemory {
   private extractRiskScore(domain: QEMemoryDomain, metadata: QEMemoryMetadata): number {
     switch (domain) {
       case 'defects':
-        const defectMeta = metadata as DefectMetadata;
+        { const defectMeta = metadata as DefectMetadata;
         // Map severity to risk score
         const severityMap = { critical: 1, high: 0.75, medium: 0.5, low: 0.25 };
-        return severityMap[defectMeta.severity] * defectMeta.confidence;
+        return severityMap[defectMeta.severity] * defectMeta.confidence; }
       case 'quality':
         return 1 - (metadata as QualityMetricsMetadata).qualityScore;
       case 'learning':

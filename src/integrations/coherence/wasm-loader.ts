@@ -53,7 +53,6 @@ import type {
 import { toErrorMessage, toError } from '../../shared/error-utils.js';
 import {
   DEFAULT_WASM_LOADER_CONFIG,
-  DEFAULT_FALLBACK_RESULT,
   WasmLoadError,
   WasmNotLoadedError,
 } from './types.js';

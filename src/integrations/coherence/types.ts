@@ -16,7 +16,7 @@
  * @module integrations/coherence/types
  */
 
-import type { AgentType, DomainName, Severity, Priority } from '../../shared/types';
+import type { AgentType, Severity } from '../../shared/types';
 
 // ============================================================================
 // Compute Lane Types

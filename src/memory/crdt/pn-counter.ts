@@ -9,7 +9,7 @@
  */
 
 import type { PNCounter, PNCounterState, GCounterState } from './types.js';
-import { createGCounter, createGCounterFromState } from './g-counter.js';
+import { createGCounter } from './g-counter.js';
 
 // =============================================================================
 // PN-Counter Implementation

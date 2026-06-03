@@ -12,12 +12,11 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 5, RM-002
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, extname } from 'path';
 import {
   LOCMetrics,
-  LOCSource,
   ToolAvailability,
   MetricCollectorConfig,
   DEFAULT_METRIC_CONFIG,

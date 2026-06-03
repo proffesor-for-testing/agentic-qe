@@ -10,7 +10,6 @@
  */
 
 import { governanceFlags, isMemoryWriteGateEnabled, isStrictMode } from './feature-flags.js';
-import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
  * Lazily loaded MemoryWriteGate from @claude-flow/guidance.

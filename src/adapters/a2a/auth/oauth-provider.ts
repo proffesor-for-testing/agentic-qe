@@ -16,18 +16,14 @@ import { createHash, timingSafeEqual } from 'crypto';
 import { TokenStore, createTokenStore, type TokenStoreConfig } from './token-store.js';
 import {
   signAccessToken,
-  signRefreshToken,
   verifyJWT,
-  decodeJWT,
   JWTError,
   type JWTPayload,
 } from './jwt-utils.js';
 import {
   validateScopes,
-  expandScopes,
   normalizeScopes,
   DEFAULT_CLIENT_SCOPES,
-  type A2AScope,
 } from './scopes.js';
 
 // ============================================================================

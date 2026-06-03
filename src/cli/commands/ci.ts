@@ -19,7 +19,6 @@ import {
   type CIPhase,
   type CIPhaseResult,
   type CIRunResult,
-  type CIPhaseType,
 } from '../utils/ci-config.js';
 import { writeOutput, toJSON } from '../utils/ci-output.js';
 import { buildCoverageData } from '../utils/coverage-data.js';

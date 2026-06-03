@@ -40,7 +40,6 @@ import type {
 } from '../interfaces.js';
 import type {
   VibiumClient,
-  ScreenshotResult,
   VisualComparisonResult,
 } from '../../../integrations/vibium/types.js';
 import { toError } from '../../../shared/error-utils.js';

@@ -17,7 +17,6 @@ import {
   WeakVertex,
   SwarmEdge,
   StrengtheningAction,
-  MinCutPriority,
 } from './interfaces';
 
 /**

@@ -79,7 +79,7 @@ export class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.INTUITIVE_DESIGN:
-        const hasNav = context.domMetrics?.semanticStructure?.hasNav;
+        { const hasNav = context.domMetrics?.semanticStructure?.hasNav;
         const focusable = context.accessibility?.focusableElementsCount || 0;
         if (hasNav && focusable > 10) {
           score = 82;
@@ -88,10 +88,10 @@ export class QXHeuristicsEngine {
           score = 55;
           issues.push({ description: 'Navigation or interaction patterns unclear', severity: 'medium' });
         }
-        break;
+        break; }
 
       case QXHeuristic.EXACTNESS_AND_CLARITY:
-        score = 70;
+        { score = 70;
         const hasSemanticStructure = context.domMetrics?.semanticStructure;
         const structureScore = [
           hasSemanticStructure?.hasHeader,
@@ -115,10 +115,10 @@ export class QXHeuristicsEngine {
           score += 10;
           findings.push('Page has descriptive metadata');
         }
-        break;
+        break; }
 
       case QXHeuristic.COUNTER_INTUITIVE_DESIGN:
-        score = 85; // High score means few counter-intuitive elements (good)
+        { score = 85; // High score means few counter-intuitive elements (good)
         const confusingNav =
           !context.domMetrics?.semanticStructure?.hasNav && (context.domMetrics?.interactiveElements || 0) > 10;
         const poorStructure =
@@ -136,11 +136,11 @@ export class QXHeuristicsEngine {
         if (score > 75) {
           findings.push('No counter-intuitive design patterns detected');
         }
-        break;
+        break; }
 
       // ========== Impact Analysis Heuristics (H5.x) ==========
       case QXHeuristic.USER_FEELINGS_IMPACT:
-        const altCoverage = context.accessibility?.altTextsCoverage || 0;
+        { const altCoverage = context.accessibility?.altTextsCoverage || 0;
         const loadTime = context.performance?.loadTime || 0;
         const ariaLabels = context.accessibility?.ariaLabelsCount || 0;
         const focusableElements = context.accessibility?.focusableElementsCount || 0;
@@ -202,10 +202,10 @@ export class QXHeuristicsEngine {
         }
 
         score = Math.max(20, Math.min(100, score));
-        break;
+        break; }
 
       case QXHeuristic.GUI_FLOW_IMPACT:
-        const interactiveElements = context.domMetrics?.interactiveElements || 0;
+        { const interactiveElements = context.domMetrics?.interactiveElements || 0;
         const forms = context.domMetrics?.forms || 0;
 
         if (interactiveElements > 20) {
@@ -220,7 +220,7 @@ export class QXHeuristicsEngine {
           score = 30;
           issues.push({ description: 'Limited user interaction capability', severity: 'high' });
         }
-        break;
+        break; }
 
       case QXHeuristic.CROSS_FUNCTIONAL_IMPACT:
         score = 70;
@@ -272,14 +272,14 @@ export class QXHeuristicsEngine {
 
       // ========== User Needs Heuristics (H2.x) ==========
       case QXHeuristic.USER_NEEDS_IDENTIFICATION:
-        score = userNeeds.alignmentScore;
+        { score = userNeeds.alignmentScore;
         findings.push(`${userNeeds.needs.length} user needs identified`);
         const mustHave = userNeeds.needs.filter((n) => n.priority === 'must-have').length;
         findings.push(`${mustHave} must-have features`);
         if (userNeeds.challenges.length > 0) {
           issues.push({ description: `${userNeeds.challenges.length} user need challenges found`, severity: 'medium' });
         }
-        break;
+        break; }
 
       case QXHeuristic.USER_NEEDS_SUITABILITY:
         score =
@@ -294,10 +294,10 @@ export class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.USER_NEEDS_VALIDATION:
-        const addressedNeeds = userNeeds.needs.filter((n) => n.addressed).length;
+        { const addressedNeeds = userNeeds.needs.filter((n) => n.addressed).length;
         score = userNeeds.needs.length > 0 ? (addressedNeeds / userNeeds.needs.length) * 100 : 50;
         findings.push(`${addressedNeeds}/${userNeeds.needs.length} needs validated and addressed`);
-        break;
+        break; }
 
       // ========== Business Needs Heuristics (H3.x) ==========
       case QXHeuristic.BUSINESS_NEEDS_IDENTIFICATION:
@@ -308,7 +308,7 @@ export class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.USER_VS_BUSINESS_BALANCE:
-        const balanceScore = 100 - Math.abs(userNeeds.alignmentScore - businessNeeds.alignmentScore);
+        { const balanceScore = 100 - Math.abs(userNeeds.alignmentScore - businessNeeds.alignmentScore);
         score = balanceScore;
         if (balanceScore > 80) {
           findings.push('Good balance between user and business needs');
@@ -316,7 +316,7 @@ export class QXHeuristicsEngine {
           issues.push({ description: 'Imbalance between user and business priorities', severity: 'medium' });
           recommendations.push('Align user and business objectives more closely');
         }
-        break;
+        break; }
 
       case QXHeuristic.KPI_IMPACT_ANALYSIS:
         score = businessNeeds.impactsKPIs ? 85 : 50;
@@ -344,7 +344,7 @@ export class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.SUPPORTING_DATA_ANALYSIS:
-        score = 75;
+        { score = 75;
         const hasData =
           (context.domMetrics?.forms || 0) > 0 || (context.domMetrics?.interactiveElements || 0) > 20;
         if (hasData) {
@@ -355,7 +355,7 @@ export class QXHeuristicsEngine {
           issues.push({ description: 'Limited data for comprehensive analysis', severity: 'medium' });
           recommendations.push('Collect more user interaction data');
         }
-        break;
+        break; }
 
       // ========== Creativity Heuristics (H6.x) ==========
       case QXHeuristic.COMPETITIVE_ANALYSIS:
@@ -374,7 +374,7 @@ export class QXHeuristicsEngine {
         break;
 
       case QXHeuristic.DOMAIN_INSPIRATION:
-        score = 72;
+        { score = 72;
         const hasModernElements = context.accessibility && (context.accessibility.ariaLabelsCount || 0) > 0;
         if (hasModernElements) {
           score = 80;
@@ -382,10 +382,10 @@ export class QXHeuristicsEngine {
         } else {
           recommendations.push('Research domain-specific design patterns and best practices');
         }
-        break;
+        break; }
 
       case QXHeuristic.INNOVATIVE_SOLUTIONS:
-        score = 65;
+        { score = 65;
         const hasAdvancedFeatures = (context.accessibility?.landmarkRoles || 0) > 3;
         if (hasAdvancedFeatures) {
           score = 75;
@@ -393,7 +393,7 @@ export class QXHeuristicsEngine {
         } else {
           recommendations.push('Explore innovative UX patterns to differentiate experience');
         }
-        break;
+        break; }
 
       default:
         // Generic heuristic evaluation based on category

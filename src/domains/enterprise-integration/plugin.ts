@@ -43,7 +43,6 @@ import type {
 import { toError } from '../../shared/error-utils.js';
 import {
   EnterpriseIntegrationCoordinator,
-  EnterpriseIntegrationEvents,
   CoordinatorConfig,
   WorkflowStatus,
 } from './coordinator.js';

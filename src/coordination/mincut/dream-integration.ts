@@ -23,11 +23,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
   SwarmObservation,
-  SelfModelPrediction,
   ReorganizationAction,
   ReorganizationResult,
-  WeakVertex,
-  MinCutHealth,
 } from './interfaces';
 import type { DomainName } from '../../shared/types/index.js';
 import { StrangeLoopController, StrangeLoopConfig } from './strange-loop';

@@ -12,7 +12,7 @@ import type {
   SystemPromptStrategy,
   ExtendedProviderType,
 } from '../router/types';
-import type { Message, TokenUsage, CostInfo, LLMResponse, LLMProviderType } from '../interfaces';
+import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfaces';
 
 // ============================================================================
 // System Prompt Handling

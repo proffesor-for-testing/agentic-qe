@@ -16,7 +16,6 @@ import { governanceFlags } from './feature-flags.js';
 import type { GovernanceFeatureFlags } from './feature-flags.js';
 import {
   evolutionPipelineIntegration,
-  type VariantTest,
 } from './evolution-pipeline-integration.js';
 
 // ============================================================================
