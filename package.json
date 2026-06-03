@@ -225,7 +225,7 @@
     "dotenv": "^17.2.3",
     "esbuild": "^0.28.0",
     "eslint": "^8.55.0",
-    "eslint-plugin-unused-imports": "^3.2.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
     "glob": "^13.0.0",
     "msw": "^2.12.7",
     "tsx": "^4.21.0",
