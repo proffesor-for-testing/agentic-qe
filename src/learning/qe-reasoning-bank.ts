@@ -191,11 +191,19 @@ export class QEReasoningBank implements IQEReasoningBank {
     }
     signal?.throwIfAborted();
 
+    // Mark initialized BEFORE seeding patterns. Pattern seeding goes through
+    // storePattern(), which ensure-inits via `if (!this.initialized) await
+    // this.initialize()`. The core stores (patternStore + SQLite) are already up
+    // at this point, so the bank is functionally ready — setting the flag here
+    // stops storePattern() from recursively re-entering initialize(). With the
+    // flag set only AFTER seeding, that re-entry recursed without bound and hung
+    // every MCP domain tool on a fresh install the first time patterns were
+    // seeded (CPU spin via async self-recursion).
+    this.initialized = true;
+
     // Load any pre-trained patterns
     await this.loadPretrainedPatterns(signal);
     signal?.throwIfAborted();
-
-    this.initialized = true;
 
     // Run cross-domain transfer ONCE per DB lifetime (not every init)
     // IMPORTANT: Set the flag BEFORE the transfer so that even if the transfer
