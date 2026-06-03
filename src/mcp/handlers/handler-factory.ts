@@ -538,6 +538,33 @@ let _feedbackLoopPromise: Promise<import('../../feedback/feedback-loop.js').Qual
 let cachedLearningEngine: import('../../learning/aqe-learning-engine.js').AQELearningEngine | null = null;
 
 /**
+ * Advisory-routing budget. Pattern search + model routing are optional hints, so
+ * they must never block a tool call. If they exceed this budget (e.g. a slow or
+ * stuck learning-engine init), we abandon the hint and proceed with default
+ * routing. Defense-in-depth after the QEReasoningBank init recursion that hung
+ * every MCP domain tool — a future async stall here can no longer block tools.
+ */
+const ROUTE_ADVISORY_TIMEOUT_MS = Number(process.env.AQE_ROUTE_TIMEOUT_MS) || 5000;
+
+/**
+ * Race a promise against a timeout, resolving to `fallback` if it doesn't settle
+ * in time. The underlying promise is left to settle in the background.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; resolve(fallback); }
+    }, ms);
+    if (typeof timer.unref === 'function') timer.unref();
+    promise.then(
+      (v) => { if (!settled) { settled = true; clearTimeout(timer); resolve(v); } },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(fallback); } }
+    );
+  });
+}
+
+/**
  * Get or create the task executor
  */
 export function getTaskExecutor(): DomainTaskExecutor {
@@ -596,12 +623,15 @@ async function getLearningEngine(): Promise<import('../../learning/aqe-learning-
     const { createAQELearningEngine } = await import('../../learning/aqe-learning-engine.js');
     const memory = kernel.memory;
 
-    cachedLearningEngine = createAQELearningEngine(memory, {
+    const engine = createAQELearningEngine(memory, {
       projectRoot: process.cwd(),
       enableClaudeFlow: false, // Don't need Claude Flow for pattern search
     });
 
-    await cachedLearningEngine.initialize();
+    // Cache only AFTER a successful init so a failed/slow init doesn't leave a
+    // half-initialized engine to be served on the next call.
+    await engine.initialize();
+    cachedLearningEngine = engine;
     return cachedLearningEngine;
   } catch (error) {
     // Non-critical - pattern search is optional
@@ -808,10 +838,17 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
     let routingResult: TaskRoutingResult | null = null;
 
     try {
-      // Step 2: Route task to optimal model tier (ADR-051)
+      // Step 2: Route task to optimal model tier (ADR-051).
+      // Bounded by ROUTE_ADVISORY_TIMEOUT_MS — routing is an advisory hint and
+      // must never block the tool; on timeout we proceed with null routing
+      // (mapToPayload handles a null routingResult).
       const taskDescription = buildTaskDescription(params);
       const codeContext = includeCodeContext?.(params);
-      routingResult = await routeDomainTask(taskDescription, domain, codeContext);
+      routingResult = await withTimeout(
+        routeDomainTask(taskDescription, domain, codeContext),
+        ROUTE_ADVISORY_TIMEOUT_MS,
+        null
+      );
 
       // Step 3: Build payload and submit task
       const payload = mapToPayload(params, routingResult);
