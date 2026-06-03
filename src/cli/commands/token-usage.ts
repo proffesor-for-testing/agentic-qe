@@ -17,10 +17,7 @@ import chalk from 'chalk';
 import {
   TokenMetricsCollector,
   SessionTokenSummary,
-  AgentTokenMetrics,
-  TokenUsage,
   Timeframe,
-  TokenEfficiencyReport,
   formatDashboardSummary,
 } from '../../learning/token-tracker.js';
 import { TokenOptimizerService } from '../../optimization/token-optimizer-service.js';

@@ -23,8 +23,6 @@ import { toError, toErrorMessage } from '../shared/error-utils.js';
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
   computeRealEmbedding,
-  computeBatchEmbeddings,
-  cosineSimilarity,
   isTransformerAvailable,
   getEmbeddingDimension,
   clearEmbeddingCache,
@@ -45,7 +43,6 @@ import {
   detectQEDomains,
   mapQEDomainToAQE,
   QE_DOMAIN_LIST,
-  PromotionCheck,
   shouldPromotePattern,
   type TestFramework,
   type ProgrammingLanguage,
@@ -68,7 +65,6 @@ import {
   memoryWriteGateIntegration,
   createMemoryPattern,
   isMemoryWriteGateEnabled,
-  type MemoryWriteGateDecision,
 } from '../governance/index.js';
 
 // ============================================================================

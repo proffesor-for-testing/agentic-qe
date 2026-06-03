@@ -14,7 +14,6 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   LLMProvider,
   LLMProviderType,
-  LLMResponse,
   createLLMError,
   isLLMError,
 } from '../interfaces';
@@ -24,7 +23,6 @@ import {
   RoutingRule,
   RouterConfig,
   RoutingDecision,
-  FallbackChain,
   ChatParams,
   ChatResponse,
   StreamChunk,
@@ -35,7 +33,6 @@ import {
   CostEstimate,
   AlternativeProvider,
   DEFAULT_ROUTER_CONFIG,
-  DEFAULT_FALLBACK_CHAIN,
 } from './types';
 import { RoutingRuleEngine, DEFAULT_QE_ROUTING_RULES } from './routing-rules';
 import {

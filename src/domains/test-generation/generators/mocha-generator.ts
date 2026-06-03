@@ -18,7 +18,6 @@ import type {
   FunctionInfo,
   ClassInfo,
   TestGenerationContext,
-  Pattern,
 } from '../interfaces';
 
 /**

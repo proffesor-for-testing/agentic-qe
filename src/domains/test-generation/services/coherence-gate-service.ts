@@ -9,7 +9,6 @@
  */
 
 import { LoggerFactory } from '../../../logging/index.js';
-import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type {
   ICoherenceService,
@@ -18,7 +17,6 @@ import type {
   CoherenceResult,
   CoherenceNode,
   ComputeLane,
-  Contradiction,
 } from '../../../integrations/coherence/types.js';
 
 // ============================================================================

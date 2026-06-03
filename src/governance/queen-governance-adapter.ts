@@ -28,26 +28,19 @@ import {
 import {
   continueGateIntegration,
   createActionRecord,
-  hashAction,
-  type ContinueGateDecision,
-  type AgentAction,
 } from './continue-gate-integration.js';
 import {
   memoryWriteGateIntegration,
   createMemoryPattern,
   type MemoryWriteGateDecision,
-  type MemoryPattern,
 } from './memory-write-gate-integration.js';
 import {
-  adversarialDefenseIntegration,
   quickThreatAssess,
-  isSafeInput,
   sanitizeUserInput,
   type ThreatAssessment,
 } from './adversarial-defense-integration.js';
 import {
   constitutionalEnforcer,
-  type EnforcementResult,
   type InvariantCheck,
 } from './constitutional-enforcer.js';
 import {

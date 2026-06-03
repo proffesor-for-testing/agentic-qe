@@ -13,11 +13,9 @@ import type {
   WorkersConfig,
   HooksConfig,
   AutoTuningConfig,
-  HNSWConfig,
   SkillsConfig,
 } from './types.js';
 import {
-  DEFAULT_HNSW_CONFIG,
   DEFAULT_LEARNING_CONFIG,
   DEFAULT_ROUTING_CONFIG,
   DEFAULT_WORKERS_CONFIG,

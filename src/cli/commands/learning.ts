@@ -25,7 +25,6 @@ import {
 } from '../../learning/metrics-tracker.js';
 import {
   createRegretTracker,
-  type DomainHealthSummary,
   type GrowthRate,
 } from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';

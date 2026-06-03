@@ -6,7 +6,6 @@
  * Refactored to use Command Pattern for reduced complexity and better reusability.
  */
 
-import chalk from 'chalk';
 import {
   BaseWizard,
   BaseWizardResult,

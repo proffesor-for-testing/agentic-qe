@@ -7,11 +7,9 @@
  */
 
 import type { EventBus } from '../kernel/interfaces.js';
-import type { DomainName, Result } from '../shared/types/index.js';
-import { ok, err } from '../shared/types/index.js';
+import type { DomainName } from '../shared/types/index.js';
 import {
   QEReasoningBank,
-  LearningOutcome,
   QERoutingRequest,
   QERoutingResult,
 } from './qe-reasoning-bank.js';
@@ -21,10 +19,8 @@ import { LoggerFactory } from '../logging/index.js';
 const logger = LoggerFactory.create('qe-hooks');
 
 import {
-  QEPatternType,
   QEDomain,
   QEPatternContext,
-  CreateQEPatternOptions,
   detectQEDomain,
 } from './qe-patterns.js';
 

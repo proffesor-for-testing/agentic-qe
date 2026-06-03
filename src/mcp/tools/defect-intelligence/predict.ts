@@ -10,7 +10,6 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
 import { DefectPredictorService } from '../../../domains/defect-intelligence/services/defect-predictor';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { Severity } from '../../../shared/types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 

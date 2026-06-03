@@ -18,7 +18,6 @@ import type {
   DomainTaskRequest,
   DomainTaskResult,
 } from '../kernel/interfaces';
-import type { CrossDomainRouter } from './interfaces';
 import type { TaskAuditLogger } from './services';
 
 // TinyDancer routing
@@ -31,7 +30,7 @@ import type { CoExecutionRepository } from '../routing/co-execution-repository.j
 // ADR-064 subsystems
 import type { DomainBreakerRegistry } from './circuit-breaker/index.js';
 import type { DomainTeamManager } from './agent-teams/domain-team-manager.js';
-import type { TierSelector, FleetTier, TierSelectionContext } from './fleet-tiers/index.js';
+import type { TierSelector } from './fleet-tiers/index.js';
 import type { TraceCollector, TraceContext } from './agent-teams/tracing.js';
 
 import type {

@@ -7,8 +7,6 @@
  */
 
 import chalk from 'chalk';
-import { createInterface } from 'readline';
-import * as readline from 'readline';
 import {
   BaseWizard,
   BaseWizardResult,

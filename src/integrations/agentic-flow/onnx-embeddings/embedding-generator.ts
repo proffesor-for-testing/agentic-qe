@@ -15,7 +15,6 @@ import type {
   EmbeddingStats
 } from './types.js';
 import { EmbeddingModel, EmbeddingError, EmbeddingErrorType } from './types.js';
-import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 /**
  * LRU Cache for embeddings

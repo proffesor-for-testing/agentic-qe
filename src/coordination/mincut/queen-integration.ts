@@ -36,7 +36,6 @@ import {
   MinCutHealth,
   MinCutHealthConfig,
   WeakVertex,
-  MinCutAlert,
   DEFAULT_MINCUT_HEALTH_CONFIG,
 } from './interfaces';
 

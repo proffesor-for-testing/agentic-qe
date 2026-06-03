@@ -7,7 +7,7 @@
 
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err, DomainEvent, type DomainName } from '../../shared/types/index.js';
+import { Result, ok, err, DomainEvent } from '../../shared/types/index.js';
 import { toError, toErrorMessage } from '../../shared/error-utils.js';
 import { FilePath, Version } from '../../shared/value-objects/index.js';
 import { HttpClient, createHttpClient } from '../../shared/http/index.js';
@@ -45,7 +45,6 @@ import { PersistentSONAEngine, createPersistentSONAEngine } from '../../integrat
 import { isSONAThreeLoopEnabled } from '../../integrations/ruvector/feature-flags.js';
 import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces.js';
 
-import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
   type DomainFinding,
@@ -56,7 +55,6 @@ import {
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 

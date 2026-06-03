@@ -15,7 +15,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { DomainName, Severity } from '../../shared/types';
+import { DomainName } from '../../shared/types';
 import { MinCutPriority } from './interfaces';
 
 // ============================================================================

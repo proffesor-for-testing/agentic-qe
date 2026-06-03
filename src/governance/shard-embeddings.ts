@@ -24,7 +24,6 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import {
   ShardRetrieverIntegration,
-  shardRetrieverIntegration,
   type ShardContent,
 } from './shard-retriever-integration.js';
 

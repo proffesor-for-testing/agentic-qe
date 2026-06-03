@@ -58,7 +58,6 @@
  */
 
 import { spawn, type ChildProcess } from 'child_process';
-import { v4 as uuidv4 } from 'uuid';
 import type { QESONAPattern } from './sona-wrapper.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';

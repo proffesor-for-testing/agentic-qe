@@ -12,7 +12,7 @@ import type {
   DataModelUpdateMessage,
   ComponentNode,
 } from '../message-types.js';
-import { literal, path, children, templateChildren } from '../message-types.js';
+import { literal, path, templateChildren } from '../message-types.js';
 import { createComponentBuilder } from '../component-builder.js';
 
 // ============================================================================

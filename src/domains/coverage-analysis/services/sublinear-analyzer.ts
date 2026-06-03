@@ -22,22 +22,18 @@ import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   CoverageData,
-  FileCoverage,
   CoverageGaps,
   CoverageGap,
   SimilarPatterns,
 } from '../interfaces';
 import {
-  HNSWIndex,
   IHNSWIndex,
   HNSWSearchResult,
-  HNSWIndexStats,
   CoverageVectorMetadata,
   createHNSWIndex,
 } from './hnsw-index';
 import { toError } from '../../../shared/error-utils.js';
 import {
-  CoverageEmbedder,
   ICoverageEmbedder,
   CoverageQuery,
   createCoverageEmbedder,

@@ -10,7 +10,6 @@
 import type { VibiumClient, ScreenshotResult, AccessibilityResult } from '@integrations/vibium';
 import type {
   IBrowserClient,
-  IAgentBrowserClient,
   ParsedSnapshot,
   ResourceBlockingConfig,
 } from '@integrations/browser';

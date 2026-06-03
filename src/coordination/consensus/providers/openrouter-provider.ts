@@ -10,7 +10,6 @@
  */
 
 import {
-  ModelProvider,
   ModelCompletionOptions,
   ModelHealthResult,
 } from '../interfaces';

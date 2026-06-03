@@ -17,8 +17,6 @@
 import { randomUUID } from 'crypto';
 import type {
   ConceptNode,
-  DreamInsight as BaseDreamInsight,
-  InsightType,
 } from './types.js';
 import type { ActivationResult } from './spreading-activation.js';
 

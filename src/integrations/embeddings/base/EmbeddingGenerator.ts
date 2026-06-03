@@ -22,7 +22,6 @@ import type {
   EmbeddingDimension,
   EmbeddingNamespace,
   QuantizationType,
-  PERFORMANCE_TARGETS,
 } from './types.js';
 
 // Export types for use in extensions

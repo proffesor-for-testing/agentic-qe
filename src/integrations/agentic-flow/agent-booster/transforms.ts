@@ -18,7 +18,6 @@ import type {
   CodeEdit,
   SourceLocation,
   AgentBoosterLogger,
-  DEFAULT_LOGGER,
 } from './types';
 
 // ============================================================================

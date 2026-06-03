@@ -11,7 +11,7 @@
 
 import { Command } from 'commander';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, resolve, basename, dirname } from 'path';
+import { join, resolve, basename } from 'path';
 import chalk from 'chalk';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import type { CLIContext } from '../handlers/interfaces.js';

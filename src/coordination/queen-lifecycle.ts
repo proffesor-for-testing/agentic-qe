@@ -9,7 +9,6 @@ import type {
   DomainPlugin,
   MemoryBackend,
 } from '../kernel/interfaces';
-import type { CrossDomainRouter } from './interfaces';
 import type { QueenMinCutBridge } from './mincut/queen-integration';
 import type { IMinCutAwareDomain } from './mixins/mincut-aware-domain.js';
 import type { TraceContext } from './agent-teams/tracing.js';

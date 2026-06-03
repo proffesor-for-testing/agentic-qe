@@ -25,7 +25,6 @@ export type { ConsensusStats } from '../consensus';
 import {
   DomainFinding,
   FindingSeverity,
-  isHighStakesFinding,
 } from '../consensus/domain-findings';
 import { Result, ok, err, Severity } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';

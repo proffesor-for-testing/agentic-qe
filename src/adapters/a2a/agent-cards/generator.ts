@@ -8,11 +8,10 @@
  */
 
 import { readFile, readdir, stat } from 'fs/promises';
-import { join, basename, dirname } from 'path';
+import { join, basename } from 'path';
 
 import { toError } from '../../../shared/error-utils.js';
 import {
-  AgentCard,
   AgentSkill,
   QEAgentCard,
   AgentCapabilities,

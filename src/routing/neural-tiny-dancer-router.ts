@@ -19,9 +19,7 @@
 import { performance } from 'perf_hooks';
 import type { QETask } from './types.js';
 import {
-  classifyTask,
   type ClassifiableTask,
-  type TaskComplexity,
   type ClaudeModel,
   type ClassificationResult,
 } from './task-classifier.js';
@@ -29,9 +27,7 @@ import {
   TinyDancerRouter,
   type RouteResult,
   type TinyDancerConfig,
-  type RoutingOutcome,
 } from './tiny-dancer-router.js';
-import type { QEDomain } from '../learning/qe-patterns.js';
 
 // Re-export SimpleNeuralRouter from its own module for backward compatibility
 export { SimpleNeuralRouter } from './simple-neural-router.js';

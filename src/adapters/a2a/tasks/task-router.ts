@@ -10,11 +10,11 @@
  */
 
 import { EventEmitter } from 'events';
-import type { A2AMessage, MessagePart, TaskStatus } from '../jsonrpc/methods.js';
-import { isTextPart, extractTextFromParts } from '../jsonrpc/methods.js';
+import type { A2AMessage } from '../jsonrpc/methods.js';
+import { extractTextFromParts } from '../jsonrpc/methods.js';
 import type { DiscoveryService, AgentSearchCriteria } from '../discovery/discovery-service.js';
 import type { QEAgentCard, AgentSkill, AgentCapabilities } from '../agent-cards/schema.js';
-import type { A2ATask, TaskMetadata } from './task-store.js';
+import type { A2ATask } from './task-store.js';
 
 // ============================================================================
 // Routing Types

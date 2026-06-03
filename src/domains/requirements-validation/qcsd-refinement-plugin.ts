@@ -19,7 +19,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Result, ok, err, DomainName } from '../../shared/types/index.js';
+import { Result, ok, err } from '../../shared/types/index.js';
 import { MemoryBackend } from '../../kernel/interfaces.js';
 import type { WorkflowOrchestrator, WorkflowContext } from '../../../src/coordination/workflow-orchestrator.js';
 import { toError } from '../../shared/error-utils.js';

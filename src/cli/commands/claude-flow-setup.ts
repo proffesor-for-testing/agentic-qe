@@ -23,7 +23,6 @@ import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import {
   detectClaudeFlow as smartDetectClaudeFlow,
-  getClaudeFlowNotFoundMessage,
 } from '../../adapters/claude-flow/detect.js';
 
 // ============================================================================

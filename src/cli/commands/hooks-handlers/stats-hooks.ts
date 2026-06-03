@@ -15,7 +15,6 @@ import {
   printJson,
   printSuccess,
   printError,
-  printGuidance,
 } from './hooks-shared.js';
 
 /**

@@ -40,7 +40,6 @@ import {
   PrioritizedVisualTest,
 } from './interfaces.js';
 import {
-  createVisualTesterService,
   createVisualTesterServiceWithDependencies,
   VisualTesterConfig,
   VisualTesterService,
@@ -64,7 +63,6 @@ import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integrat
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 import {

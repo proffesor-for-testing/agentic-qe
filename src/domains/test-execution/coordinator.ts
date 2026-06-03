@@ -49,13 +49,10 @@ import type { VibiumClient } from '../../integrations/vibium';
 // MinCut & Consensus Mixin Imports (ADR-047, MM-001)
 // ============================================================================
 
-import {
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
+
+
 
 import {
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 

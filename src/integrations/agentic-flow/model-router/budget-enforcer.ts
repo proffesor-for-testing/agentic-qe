@@ -19,10 +19,9 @@ import type {
   BudgetDecision,
   BudgetUsage,
   BudgetConfig,
-  TierBudget,
   ModelTier,
 } from './types';
-import { BudgetExceededError, TIER_METADATA } from './types';
+import { BudgetExceededError } from './types';
 
 // ============================================================================
 // Usage Tracking

@@ -22,9 +22,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName, DomainEvent } from '../../shared/types';
 import { EventBus, AgentCoordinator } from '../../kernel/interfaces';
-import { SwarmGraph, createSwarmGraph } from './swarm-graph';
+import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
-import { MinCutHealthMonitor } from './mincut-health-monitor';
 import { MinCutPersistence } from './mincut-persistence';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import {
@@ -32,9 +31,6 @@ import {
   SelfModelPrediction,
   ReorganizationAction,
   ReorganizationResult,
-  WeakVertex,
-  SwarmGraphSnapshot,
-  MinCutHealthConfig,
 } from './interfaces';
 
 // ============================================================================

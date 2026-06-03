@@ -15,7 +15,6 @@ import {
   generateV2Tests,
   detectAntiPatterns,
   generateTestId,
-  V2LearningFeedback,
 } from './handler-factory';
 import {
   TestGenerateParams,

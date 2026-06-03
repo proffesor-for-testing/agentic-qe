@@ -24,7 +24,6 @@ import {
   EvalProgress,
 } from '../../validation/parallel-eval-runner.js';
 import {
-  CommandEvalRunner,
   createCommandEvalRunner,
   isCommandEvalSuite,
   type CommandEvalResult,

@@ -17,7 +17,6 @@ import {
   parseCoverage,
   CoverageReport as ParsedCoverageReport,
 } from '../../../domains/coverage-analysis/services/coverage-parser';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import { FileCoverage as DomainFileCoverage, CoverageSummary as DomainCoverageSummary } from '../../../domains/coverage-analysis/interfaces';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 

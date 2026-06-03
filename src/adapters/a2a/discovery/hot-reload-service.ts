@@ -17,7 +17,6 @@ import { DiscoveryService } from './discovery-service.js';
 import {
   AgentFileWatcher,
   FileChangeEvent,
-  FileWatcherConfig,
   createAgentFileWatcher,
 } from './file-watcher.js';
 import { MetricsCollector, createMetricsCollector } from './metrics.js';

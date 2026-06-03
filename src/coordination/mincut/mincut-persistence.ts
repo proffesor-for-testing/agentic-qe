@@ -16,16 +16,12 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { UnifiedMemoryManager, getUnifiedMemory } from '../../kernel/unified-memory';
-import { SwarmGraph } from './swarm-graph';
 import {
   SwarmGraphSnapshot,
-  MinCutResult,
   WeakVertex,
   MinCutAlert,
   MinCutHistoryEntry,
-  ReorganizationAction,
   ReorganizationResult,
-  SwarmObservation,
   SelfModelPrediction,
 } from './interfaces';
 import { safeJsonParse } from '../../shared/safe-json.js';

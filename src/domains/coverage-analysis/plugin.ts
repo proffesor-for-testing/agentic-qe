@@ -3,7 +3,7 @@
  * Plugin implementation for the microkernel architecture
  */
 
-import { DomainName, DomainEvent, Result, ok, err } from '../../shared/types';
+import { DomainName, DomainEvent, Result, err } from '../../shared/types';
 import { EventBus, MemoryBackend, DomainHealth } from '../../kernel/interfaces';
 import { BaseDomainPlugin, TaskHandler } from '../domain-interface';
 import { TestExecutionEvents } from '../../shared/events';

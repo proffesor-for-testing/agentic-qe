@@ -57,7 +57,7 @@ import {
 
 // V3 Integration: RL Suite
 import { DQNAlgorithm } from '../../integrations/rl-suite/algorithms/dqn.js';
-import type { RLState, RLAction, RLExperience, RLPrediction } from '../../integrations/rl-suite/interfaces.js';
+import type { RLState, RLAction, RLExperience } from '../../integrations/rl-suite/interfaces.js';
 
 // V3 Integration: @ruvector wrappers
 import {
@@ -72,7 +72,6 @@ import {
   type ConsensusEngine,
   type ConsensusEngineConfig,
   type SecurityFinding,
-  type ConsensusResult,
   registerProvidersFromEnv,
 } from '../../coordination/consensus/index.js';
 
@@ -80,13 +79,10 @@ import {
 // MinCut & Consensus Mixin Imports (ADR-047, MM-001)
 // ============================================================================
 
-import {
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
+
+
 
 import {
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
@@ -99,7 +95,6 @@ import {
 import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration';
 
 import {
-  type DomainFinding,
   createDomainFinding,
 } from '../../coordination/consensus/domain-findings';
 

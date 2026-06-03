@@ -7,10 +7,9 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, DomainName } from '../../../shared/types/index.js';
 import { MemoryBackend } from '../../../kernel/interfaces.js';
-import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 import { rehydrateDates } from '../../../shared/utils/kv-date-rehydrate.js';
 import { TimeRange } from '../../../shared/value-objects/index.js';
-import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
+import type { HybridRouter } from '../../../shared/llm/index.js';
 import {
   LearnedPattern,
   PatternType,

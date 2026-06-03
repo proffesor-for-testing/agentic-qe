@@ -24,7 +24,6 @@ import {
   EpropNetwork,
   createEpropNetwork,
 } from '../../ruvector/eprop-learner.js';
-import type { EpropConfig } from '../../ruvector/eprop-learner.js';
 import { getRuVectorFeatureFlags } from '../../ruvector/feature-flags.js';
 
 // ============================================================================

@@ -120,7 +120,7 @@ export type {
 // Convenience Functions
 // ============================================================================
 
-import type { QualityMetricsInput, QualityGateDecision, QualityLambda } from './types.js';
+import type { QualityMetricsInput, QualityGateDecision } from './types.js';
 import { calculateQualityLambda } from './lambda-calculator.js';
 import { evaluateQualityGate } from './gate-controller.js';
 import { createPartitionDetector } from './partition-detector.js';

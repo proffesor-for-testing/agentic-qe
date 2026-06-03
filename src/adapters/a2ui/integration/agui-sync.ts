@@ -16,7 +16,6 @@ import type {
 } from '../../ag-ui/index.js';
 import type {
   SurfaceGenerator,
-  SurfaceState,
   SurfaceUpdateMessage,
   DataModelUpdateMessage,
   DeleteSurfaceMessage,

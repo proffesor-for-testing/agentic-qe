@@ -9,7 +9,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { LoggerFactory } from '../../logging/index.js';
-import { Result, ok, err, type DomainName } from '../../shared/types/index.js';
+import { Result, ok, err } from '../../shared/types/index.js';
 import { createEvent } from '../../shared/events/domain-events.js';
 import type {
   EventBus,
@@ -18,7 +18,6 @@ import type {
   AgentSpawnConfig,
 } from '../../kernel/interfaces.js';
 
-import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 import {
   type DomainFinding,
@@ -29,7 +28,6 @@ import {
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 import { toError } from '../../shared/error-utils.js';

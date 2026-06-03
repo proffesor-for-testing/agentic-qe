@@ -10,7 +10,7 @@
  * - .claude/guidance/shards/*.shard.md - 12 domain-specific governance rules
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';

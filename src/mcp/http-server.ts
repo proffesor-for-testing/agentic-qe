@@ -34,10 +34,6 @@ import {
   type RouteDefinition,
   type HttpRequest,
   type HttpResponse,
-  // Hot reload and health
-  createHotReloadService,
-  createAgentHealthChecker,
-  createAgentFileWatcher,
   type HotReloadService,
   type AgentHealthChecker,
 } from '../adapters/a2a/discovery/index.js';
@@ -53,10 +49,7 @@ import type { A2AMessage } from '../adapters/a2a/jsonrpc/methods.js';
 
 // OAuth imports
 import {
-  createJWTMiddleware,
   type JWTVerifier,
-  type JWTMiddlewareOptions,
-  type JWTAuthenticatedRequest,
 } from '../adapters/a2a/auth/middleware.js';
 
 // Push Notifications imports
@@ -65,7 +58,6 @@ import {
   createSubscriptionStore,
   type WebhookService,
   type SubscriptionStore,
-  type WebhookConfig,
 } from '../adapters/a2a/notifications/index.js';
 
 import {
@@ -88,7 +80,6 @@ import {
 
 import type {
   AgentRequest,
-  AGUIEvent,
   EventEmitter as SSEEventEmitter,
 } from './transport/sse/types.js';
 import { AGUIEventType } from './transport/sse/types.js';

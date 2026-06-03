@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { resolve, join, dirname } from 'path';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import type { N8nAgentType } from './types.js';

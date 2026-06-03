@@ -11,7 +11,6 @@ import { performance } from 'perf_hooks';
 import { type ITaskRouter, createSmartTinyDancerRouter, type TinyDancerConfig, type RouteResult } from './tiny-dancer-router.js';
 import type { AdvisorResult } from './advisor/types.js';
 import {
-  classifyTask,
   type ClassifiableTask,
   type TaskComplexity,
   type ClaudeModel,

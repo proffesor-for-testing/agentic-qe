@@ -11,7 +11,6 @@ import type {
   VibiumClient,
   ScreenshotResult,
   AccessibilityResult,
-  ElementInfo,
 } from '@integrations/vibium';
 import type {
   IBrowserClient,
@@ -24,9 +23,7 @@ import type { E2ETestCase } from '../../types';
 import type { UnifiedBrowserClient, E2ERunnerConfig } from './types';
 import { toErrorMessage } from '@shared/error-utils.js';
 import { AdaptiveLocatorService } from './adaptive-locator-service';
-import type { AdaptiveLocatorConfig, LocatorResolutionResult } from './adaptive-locator-types';
 import {
-  shouldBlockRequest,
   getResourceBlockingPreset,
   type ResourceBlockingConfig,
   type ResourceBlockingPreset,

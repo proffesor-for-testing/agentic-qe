@@ -11,7 +11,7 @@ import {
   getSystemMetricsCollector,
 } from '../../../shared/metrics';
 import { MemoryBackend } from '../../../kernel/interfaces';
-import type { HybridRouter, ChatResponse } from '../../../shared/llm';
+import type { HybridRouter } from '../../../shared/llm';
 import {
   ChaosExperiment,
   ExperimentResult,

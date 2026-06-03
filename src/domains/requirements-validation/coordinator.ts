@@ -52,13 +52,11 @@ import {
 } from '../../integrations/ruvector/wrappers.js';
 
 // V3 Integration: MinCut Awareness (ADR-047) - only import types needed beyond base
-import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integration.js';
 
 // CQ-002: Base domain coordinator
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 import {

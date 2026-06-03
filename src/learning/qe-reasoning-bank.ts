@@ -25,15 +25,11 @@ import { toError, toErrorMessage } from '../shared/error-utils.js';
 import {
   QEPattern,
   QEPatternContext,
-  QEPatternType,
   QEDomain,
   ProgrammingLanguage,
   TestFramework,
   CreateQEPatternOptions,
-  detectQEDomain,
   detectQEDomains,
-  mapQEDomainToAQE,
-  applyPatternTemplate,
   QE_DOMAIN_LIST,
 } from './qe-patterns.js';
 import {

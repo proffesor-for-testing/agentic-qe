@@ -30,7 +30,6 @@ import {
   GateFailure,
   CoverageGap,
 } from '../../types/cross-phase-signals.js';
-import type { CrossPhaseNamespace } from '../../memory/cross-phase-memory.js';
 
 // =============================================================================
 // Service Instances

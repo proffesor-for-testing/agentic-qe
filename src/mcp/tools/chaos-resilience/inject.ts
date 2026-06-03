@@ -10,7 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
+import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { ChaosEngineerService } from '../../../domains/chaos-resilience/services/chaos-engineer.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import {

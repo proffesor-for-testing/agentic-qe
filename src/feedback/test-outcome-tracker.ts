@@ -10,7 +10,6 @@ import type {
   TestOutcomeStats,
   CoverageMetrics,
   FeedbackConfig,
-  PatternTier,
 } from './types.js';
 import type { TestFramework, ProgrammingLanguage } from '../routing/types.js';
 import { DEFAULT_FEEDBACK_CONFIG } from './types.js';

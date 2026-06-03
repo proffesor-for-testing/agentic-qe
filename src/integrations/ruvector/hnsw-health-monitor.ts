@@ -14,7 +14,6 @@
  */
 
 import type { IHnswIndexProvider } from '../../kernel/hnsw-index-provider.js';
-import { isHnswHealthMonitorEnabled } from './feature-flags.js';
 
 // Re-export spectral math utilities for backward compatibility
 export {

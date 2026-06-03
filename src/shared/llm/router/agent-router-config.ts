@@ -9,7 +9,6 @@
  * - Agent category detection and preferred model resolution
  */
 
-import { LLMProviderType } from '../interfaces';
 import { ExtendedProviderType, RoutingRule, TaskComplexity } from './types';
 
 // ============================================================================

@@ -8,7 +8,7 @@
  * @module test-execution/services/e2e/adaptive-locator-service
  */
 
-import type { IBrowserClient, ElementTarget } from '@integrations/browser';
+import type { IBrowserClient } from '@integrations/browser';
 import type {
   ElementFingerprint,
   AdaptiveLocatorConfig,

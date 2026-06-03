@@ -6,13 +6,11 @@
  * Supports filtering, sorting, and expiry management.
  */
 
-import { v4 as uuidv4 } from 'uuid';
 import {
   Claim,
   ClaimMetadata,
   ClaimFilter,
   ClaimSortOptions,
-  ClaimStatus,
   IClaimRepository,
 } from './interfaces';
 import { MemoryBackend, StoreOptions } from '../../kernel/interfaces';

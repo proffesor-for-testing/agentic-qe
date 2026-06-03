@@ -18,7 +18,6 @@ import {
   QualityDimensions,
   RatchetConfig,
   RatchetState,
-  DEFAULT_RATCHET_CONFIG,
 } from './types';
 import { LambdaCalculator, createLambdaCalculator } from './lambda-calculator';
 

@@ -46,7 +46,6 @@ import {
 import {
   QCSDIdeationPlugin,
   createQCSDIdeationPlugin,
-  type IdeationReport,
 } from './qcsd-ideation-plugin.js';
 import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
 import { toError } from '../../shared/error-utils.js';

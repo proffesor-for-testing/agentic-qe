@@ -11,7 +11,7 @@
  */
 
 import { LoggerFactory } from '../../../../logging/index.js';
-import { Result, ok, err, Severity, Priority } from '@shared/types';
+import { Result, ok, err, Priority } from '@shared/types';
 import type { MemoryBackend, StoreOptions } from '@kernel/interfaces';
 import { NomicEmbedder, type NomicEmbedderConfig } from '@shared/embeddings';
 import type {

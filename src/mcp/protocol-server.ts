@@ -113,15 +113,12 @@ import {
   getConnectionPool,
   initializeConnectionPool,
   shutdownConnectionPool,
-  type PoolStats,
 } from './connection-pool';
 import {
   getLoadBalancer,
-  type LoadBalancingStrategy,
 } from './load-balancer';
 import {
   getPerformanceMonitor,
-  type PerformanceReport,
 } from './performance-monitor';
 
 // ADR-062: Loop detection for MCP tool calls

@@ -16,7 +16,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
-import type { DomainName } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { WitnessChain } from '../governance/witness-chain.js';
@@ -26,12 +25,11 @@ const logger = LoggerFactory.create('experience-capture');
 
 import { PROMOTION_THRESHOLD } from './qe-patterns.js';
 import type {
-  QEPattern,
   CreateQEPatternOptions,
   QEDomain,
   QEPatternType,
 } from './qe-patterns.js';
-import type { IPatternStore, PatternSearchResult } from './pattern-store.js';
+import type { IPatternStore } from './pattern-store.js';
 
 // ============================================================================
 // Types

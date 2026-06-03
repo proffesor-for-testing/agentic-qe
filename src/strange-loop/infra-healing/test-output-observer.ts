@@ -17,7 +17,6 @@ import type {
   InfraErrorSignature,
   ClassifiedError,
   TestOutputObservation,
-  TestOutputClassification,
 } from './types.js';
 
 // ============================================================================

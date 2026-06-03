@@ -16,7 +16,6 @@ import type {
   AccessibilityCheckOptions,
   AccessibilityResult,
   NavigateOptions,
-  FindOptions,
 } from '../../../integrations/vibium/types';
 
 // ============================================================================

@@ -8,7 +8,6 @@
 
 import { EmbeddingGenerator } from '../../integrations/embeddings/base/EmbeddingGenerator.js';
 import type { IEmbedding } from '../../integrations/embeddings/base/types.js';
-import { SQLiteReader } from '../readers/sqlite-reader.js';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { openDatabase } from '../../shared/safe-db.js';

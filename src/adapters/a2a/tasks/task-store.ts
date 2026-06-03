@@ -8,7 +8,7 @@
  * @see https://a2a-protocol.org/latest/specification/
  */
 
-import type { A2AMessage, TaskStatus, A2AArtifact, MessagePart } from '../jsonrpc/methods.js';
+import type { A2AMessage, TaskStatus, A2AArtifact } from '../jsonrpc/methods.js';
 
 // ============================================================================
 // Task Types

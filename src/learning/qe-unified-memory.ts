@@ -24,7 +24,7 @@ import { LoggerFactory } from '../logging/index.js';
 
 const logger = LoggerFactory.create('qe-unified-memory');
 
-import type { MemoryBackend, StoreOptions, VectorSearchResult } from '../kernel/interfaces.js';
+import type { MemoryBackend, StoreOptions } from '../kernel/interfaces.js';
 import type { QEDomain } from './qe-patterns.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
@@ -33,19 +33,13 @@ import { EMBEDDING_CONFIG } from '../shared/embeddings/types.js';
 // Import HNSWIndex types - using proper import to avoid re-export issues
 import type {
   HNSWIndexConfig,
-  IHNSWIndex,
   HNSWInsertItem,
   CoverageVectorMetadata,
-  HNSWSearchResult,
-  HNSWIndexStats,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
 import { toErrorMessage } from '../shared/error-utils.js';
 import {
-  DEFAULT_HNSW_CONFIG,
   HNSWIndex,
-  createHNSWIndex,
-  benchmarkHNSW,
 } from '../domains/coverage-analysis/services/hnsw-index.js';
 
 // ============================================================================

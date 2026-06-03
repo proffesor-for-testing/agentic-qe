@@ -12,7 +12,6 @@
 
 import {
   MetricsCollector,
-  LatencyPercentiles,
   LoadTestReport,
 } from './metrics-collector.js';
 

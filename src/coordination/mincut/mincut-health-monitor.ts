@@ -15,7 +15,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Severity, DomainEvent } from '../../shared/types';
 import { EventBus } from '../../kernel/interfaces';
-import { MinCutPriority } from './interfaces';
 import { MinCutPersistence } from './mincut-persistence';
 import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
@@ -25,7 +24,6 @@ import {
   MinCutHistoryEntry,
   MinCutAlert,
   WeakVertex,
-  MinCutEvent,
   MinCutEventType,
   DEFAULT_MINCUT_HEALTH_CONFIG,
 } from './interfaces';

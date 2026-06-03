@@ -14,10 +14,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { DomainName, DomainEvent, Result, ok, err } from '../shared/types';
-import { toError, toErrorMessage } from '../shared/error-utils.js';
+import { DomainName, Result } from '../shared/types';
+import { toErrorMessage } from '../shared/error-utils.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
-import { TaskType, QueenTask, TaskExecution } from './queen-coordinator';
+import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
 import { createLogger } from '../logging/logger-factory.js';
 
@@ -26,7 +26,6 @@ import {
   createAgentBoosterAdapter,
   type IAgentBoosterAdapter,
   type TransformType,
-  type TransformResult,
 } from '../integrations/agentic-flow/agent-booster';
 
 // ADR-051: Task Router for outcome recording
@@ -39,13 +38,10 @@ import {
   type GateEvaluation,
   createCoherenceActionGate,
 } from './coherence-action-gate';
-import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
+import type { QualityFeedbackLoop } from '../feedback/feedback-loop.js';
 
 // CQ-005: Import domain types only (no runtime dependency on domain modules)
-import type { CoverageData, FileCoverage } from '../domains/coverage-analysis';
-import type { FullScanResult } from '../domains/security-compliance';
-import type { TestGeneratorService, GeneratedTests } from '../domains/test-generation';
-import type { QualityReport } from '../domains/quality-assessment';
+import type { TestGeneratorService } from '../domains/test-generation';
 
 // CQ-005: Use DomainServiceRegistry instead of dynamic imports from domains/
 import { DomainServiceRegistry, ServiceKeys } from '../shared/domain-service-registry';

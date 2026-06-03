@@ -12,8 +12,6 @@ import {
   setAtPointer,
   deleteAtPointer,
   isParentPointer,
-  parseJsonPointer,
-  buildJsonPointer,
   pointerExists,
 } from './json-pointer-resolver.js';
 

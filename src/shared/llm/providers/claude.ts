@@ -19,7 +19,6 @@ import {
   CompletionResponse,
   HealthCheckResult,
   TokenUsage,
-  CostInfo,
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';

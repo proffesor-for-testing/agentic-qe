@@ -17,11 +17,9 @@ import { toError } from '../../../shared/error-utils.js';
 import {
   createTestPrioritizationState,
   mapToFeatures,
-  featuresToArray,
   type TestPrioritizationState,
   type TestPrioritizationAction,
   type TestPrioritizationContext,
-  type TestPrioritizationReward,
   calculatePrioritizationReward,
   type TestExecutionHistory,
   priorityToScore,

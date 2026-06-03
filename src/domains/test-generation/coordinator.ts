@@ -15,7 +15,7 @@ import {
   err,
   DomainEvent,
 } from '../../shared/types';
-import { toError, toErrorMessage } from '../../shared/error-utils.js';
+import { toError } from '../../shared/error-utils.js';
 import {
   EventBus,
   MemoryBackend,
@@ -46,7 +46,6 @@ import {
   TestGenerationAPI,
 } from './interfaces';
 import {
-  createTestGeneratorService,
   createTestGeneratorServiceWithDependencies,
   ITestGenerationService,
 } from './services/test-generator';
@@ -56,20 +55,17 @@ import {
 } from './services/pattern-matcher';
 
 // QE Hook integration for self-learning feedback loop (Issue #265)
-import type { QEHookRegistry, QEHookResult } from '../../learning/qe-hooks.js';
+import type { QEHookRegistry } from '../../learning/qe-hooks.js';
 import { QE_HOOK_EVENTS } from '../../learning/qe-hooks.js';
 
 // ============================================================================
 // MinCut & Consensus Mixin Imports (ADR-047, MM-001)
 // ============================================================================
 
-import {
-  type IMinCutAwareDomain,
-  type MinCutAwareConfig,
-} from '../../coordination/mixins/mincut-aware-domain';
+
+
 
 import {
-  type IConsensusEnabledDomain,
   type ConsensusEnabledConfig,
 } from '../../coordination/mixins/consensus-enabled-domain';
 
@@ -79,7 +75,6 @@ import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integrat
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 import {
@@ -120,14 +115,12 @@ import type {
   RLState,
   RLAction,
   RLPrediction,
-  RLExperience,
 } from '../../integrations/rl-suite/interfaces.js';
 
 // Coherence Gate Integration (ADR-052)
 import {
   TestGenerationCoherenceGate,
   createTestGenerationCoherenceGate,
-  CoherenceError as CoherenceGateError,
   type Requirement,
   type TestSpecification,
   type RequirementCoherenceResult,

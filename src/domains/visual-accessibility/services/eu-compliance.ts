@@ -16,7 +16,6 @@ import { toError } from '../../../shared/error-utils.js';
 import type {
   AccessibilityReport,
   AccessibilityViolation,
-  WCAGCriterion,
   EN301549Clause,
   EN301549ClauseResult,
   EAARequirement,

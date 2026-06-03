@@ -25,7 +25,6 @@ import type {
 } from '../types';
 import { WasmNotLoadedError, DEFAULT_COHERENCE_LOGGER } from '../types';
 import { createHash } from 'crypto';
-import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
 // Witness Adapter Interface

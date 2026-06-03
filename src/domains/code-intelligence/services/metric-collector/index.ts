@@ -27,7 +27,7 @@ import {
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
 import { countLOC, checkLOCTools } from './loc-counter.js';
-import { countTests, detectTestRunner, checkTestRunners } from './test-counter.js';
+import { countTests, checkTestRunners } from './test-counter.js';
 
 // ============================================================================
 // Export Types and Interfaces

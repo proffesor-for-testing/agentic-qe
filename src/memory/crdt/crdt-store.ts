@@ -22,9 +22,7 @@ import type {
   LWWRegister,
   LWWRegisterState,
   GCounter,
-  GCounterState,
   PNCounter,
-  PNCounterState,
   ORSet,
   ORSetState,
 } from './types.js';

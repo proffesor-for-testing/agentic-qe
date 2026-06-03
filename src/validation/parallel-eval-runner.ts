@@ -21,13 +21,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'yaml';
 import { toErrorMessage } from '../shared/error-utils.js';
-import { secureRandom, secureRandomInt, secureRandomFloat } from '../shared/utils/crypto-random.js';
+import { secureRandomInt, secureRandomFloat } from '../shared/utils/crypto-random.js';
 import {
   SkillValidationLearner,
   TestCaseResult,
   SkillValidationOutcome,
   SkillTrustTier,
-  ValidationLevel,
 } from '../learning/skill-validation-learner.js';
 
 // ============================================================================

@@ -20,8 +20,8 @@ import type {
   TranslatedTools,
 } from '../router/types';
 import type { Message, MessageRole } from '../interfaces';
-import { translateTools, getToolSchemaFormat } from './tool-translator';
-import { handleSystemPrompt, formatResponse } from './message-formatter';
+import { translateTools } from './tool-translator';
+import { handleSystemPrompt } from './message-formatter';
 import { safeJsonParse } from '../../safe-json.js';
 
 // ============================================================================

@@ -18,7 +18,6 @@ import { ok, err } from '../shared/types/index.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type {
   RvfNativeAdapter,
-  RvfSearchResult,
 } from '../integrations/ruvector/rvf-native-adapter.js';
 import {
   type QEPattern,

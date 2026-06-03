@@ -21,7 +21,6 @@ import {
   getSharedGOAPPlanner,
   PlanExecutor,
   createMockExecutor,
-  ExecutionResult,
 } from '../../../planning/index.js';
 
 // ============================================================================

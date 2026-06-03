@@ -24,11 +24,11 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { Result, ok, err } from '../shared/types/index.js';
+import type { Result } from '../shared/types/index.js';
 import type { DomainName } from '../shared/types/index.js';
 import type { QEPattern, QEPatternType, QEDomain, TestFramework, QEPatternTemplate } from '../learning/qe-patterns.js';
 import type { CreateQEPatternOptions } from '../learning/qe-reasoning-bank.js';
-import type { Trajectory, TrajectoryStep as AgenticFlowStep } from '../integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
+import type { Trajectory } from '../integrations/agentic-flow/reasoning-bank/trajectory-tracker.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toError } from '../shared/error-utils.js';

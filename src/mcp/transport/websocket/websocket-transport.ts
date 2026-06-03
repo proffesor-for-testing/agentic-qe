@@ -22,7 +22,6 @@ import {
   WebSocketServerMessageType,
   type WebSocketTransportConfig,
   type WebSocketTransportMetrics,
-  type WebSocketConnection,
   type WebSocketAgentHandler,
   type AGUIEvent,
   type WebSocketClientMessage,

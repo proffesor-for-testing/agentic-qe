@@ -8,14 +8,8 @@
  */
 
 import {
-  AgentCard,
-  AgentSkill,
   AgentCapabilities,
-  AgentProvider,
-  SecurityScheme,
-  AgentAuthentication,
   QEAgentCard,
-  isAgentCard,
   isAgentSkill,
   isSecurityScheme,
 } from './schema.js';

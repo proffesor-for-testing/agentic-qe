@@ -21,12 +21,11 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { DomainName, Priority, Severity, DomainEvent } from '../../shared/types';
+import { DomainName, DomainEvent } from '../../shared/types';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces';
 import { SwarmGraph } from './swarm-graph';
 import { MinCutCalculator, createMinCutCalculator } from './mincut-calculator';
 import { StrangeLoopController } from './strange-loop';
-import { WeakVertex, ReorganizationAction, ReorganizationResult } from './interfaces';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { secureRandom } from '../../shared/utils/crypto-random.js';
 

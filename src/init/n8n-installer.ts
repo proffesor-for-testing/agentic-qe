@@ -14,7 +14,7 @@ import {
   writeFileSync,
   copyFileSync,
 } from 'fs';
-import { join, basename } from 'path';
+import { join } from 'path';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { findPackageRoot } from './find-package-root.js';
 

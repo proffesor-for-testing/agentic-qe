@@ -13,7 +13,7 @@ import type {
   ITestGeneratorFactory,
 } from '../interfaces';
 import type { TestFramework } from '../../../shared/types/test-frameworks.js';
-import { FRAMEWORK_ALIASES, ALL_TEST_FRAMEWORKS, resolveFrameworkAlias } from '../../../shared/types/test-frameworks.js';
+import { ALL_TEST_FRAMEWORKS, resolveFrameworkAlias } from '../../../shared/types/test-frameworks.js';
 import {
   JestVitestGenerator,
   MochaGenerator,

@@ -14,7 +14,6 @@ import {
   type InitPhase,
   type InitContext,
   type InitOptions,
-  type PhaseResult,
 } from './phases/index.js';
 
 /**

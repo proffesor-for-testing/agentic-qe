@@ -14,7 +14,6 @@
  *  The act of observing changed what you observed."
  */
 
-import { v4 as uuidv4 } from 'uuid';
 import { LoggerFactory } from '../logging/index.js';
 import type { Logger } from '../logging/index.js';
 import type {
@@ -28,7 +27,6 @@ import type {
   StrangeLoopEventType,
   StrangeLoopEventListener,
   SwarmModelDelta,
-  TrendDirection,
   AgentHealthMetrics,
   Contradiction,
   ComputeLane,
@@ -51,7 +49,6 @@ import type {
   ICoherenceService,
   CoherenceNode,
   CoherenceResult,
-  CollapseRisk,
   SwarmState,
   Contradiction as CoherenceContradiction,
 } from '../integrations/coherence/index.js';

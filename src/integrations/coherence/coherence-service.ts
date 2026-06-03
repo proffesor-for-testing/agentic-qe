@@ -35,7 +35,6 @@ import type {
   CoherenceServiceConfig,
   CoherenceStats,
   ComputeLane,
-  ComputeLaneConfig,
   Belief,
   Contradiction,
   SwarmState,
@@ -57,12 +56,9 @@ import type {
 
 import {
   DEFAULT_COHERENCE_CONFIG,
-  DEFAULT_LANE_CONFIG,
   DEFAULT_COHERENCE_LOGGER,
   WasmNotLoadedError,
   CoherenceError,
-  CoherenceCheckError,
-  CoherenceTimeoutError,
 } from './types';
 
 import { toErrorMessage, toError } from '../../shared/error-utils.js';

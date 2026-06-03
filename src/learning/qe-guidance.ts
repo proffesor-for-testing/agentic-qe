@@ -6,7 +6,7 @@
  * recommendations to agents when generating tests or analyzing quality.
  */
 
-import type { QEDomain, QEPatternType, TestFramework, ProgrammingLanguage } from './qe-patterns.js';
+import type { QEDomain, TestFramework, ProgrammingLanguage } from './qe-patterns.js';
 
 // ============================================================================
 // Guidance Template Types

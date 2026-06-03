@@ -17,11 +17,8 @@ import { ToolResult } from '../../types';
 import {
   QualityCriteriaService,
   createQualityCriteriaService,
-  type QualityCriteriaInput,
   type QualityCriteriaAnalysis,
-  type HTSMCategory,
   type EvidencePoint,
-  type Priority,
   HTSM_CATEGORIES,
   NEVER_OMIT_CATEGORIES,
 } from '../../../domains/requirements-validation/index.js';

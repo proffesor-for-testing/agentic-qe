@@ -16,7 +16,7 @@
  */
 
 import type { HttpRequest, HttpResponse, NextFunction } from '../discovery/routes.js';
-import { createOAuthError, type OAuthError, type OAuthErrorType } from './middleware.js';
+import { createOAuthError, type OAuthErrorType } from './middleware.js';
 
 // ============================================================================
 // Types

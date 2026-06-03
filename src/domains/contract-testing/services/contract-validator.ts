@@ -6,7 +6,7 @@
 import { LoggerFactory } from '../../../logging/index.js';
 import { Result, ok, err } from '../../../shared/types/index.js';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
-import type { HybridRouter, ChatResponse } from '../../../shared/llm/index.js';
+import type { HybridRouter } from '../../../shared/llm/index.js';
 import { createSafeRegex } from '../../../shared/security/regex-safety-validator.js';
 import type {
   IContractValidationService,

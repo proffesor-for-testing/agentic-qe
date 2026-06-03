@@ -9,9 +9,7 @@
 
 import {
   resolvePointer,
-  pointerExists,
   isParentPointer,
-  parseJsonPointer,
 } from './json-pointer-resolver.js';
 
 // ============================================================================

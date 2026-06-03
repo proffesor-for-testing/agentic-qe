@@ -43,7 +43,6 @@ import {
   isConstitutionalEnforcerEnabled,
   complianceReporter,
   isComplianceReporterEnabled,
-  type MemoryWriteGateDecision,
   type InvariantCheck,
 } from '../../governance/index.js';
 

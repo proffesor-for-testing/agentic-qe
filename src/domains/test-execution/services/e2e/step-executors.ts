@@ -12,7 +12,6 @@ import type { VibiumClient } from '@integrations/vibium';
 import type { IBrowserClient, IAgentBrowserClient } from '@integrations/browser';
 import {
   type E2EStep,
-  type E2EStepResult,
   type NavigateStep,
   type ClickStep,
   type TypeStep,
@@ -20,7 +19,6 @@ import {
   type AssertStep,
   type ScreenshotStep,
   type A11yCheckStep,
-  type WaitConditionType,
   isNavigateStep,
   isClickStep,
   isTypeStep,

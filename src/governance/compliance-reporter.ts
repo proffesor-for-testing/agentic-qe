@@ -19,7 +19,6 @@ import { randomUUID } from 'node:crypto';
 
 import {
   governanceFlags,
-  type GovernanceFeatureFlags,
 } from './feature-flags.js';
 import {
   ProofEnvelopeIntegration,

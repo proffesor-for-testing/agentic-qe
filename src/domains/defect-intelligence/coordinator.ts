@@ -66,7 +66,6 @@ import {
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
 // R12: Granger Causality for temporal failure prediction (ADR-087)

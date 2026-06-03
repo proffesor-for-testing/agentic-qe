@@ -22,7 +22,6 @@ import {
   CodeIntelligenceEvents,
   KnowledgeGraphUpdatedPayload,
   ImpactAnalysisPayload,
-  C4DiagramsGeneratedPayload,
   createEvent,
 } from '../../shared/events/domain-events';
 import {
@@ -65,13 +64,11 @@ import { FileReader } from '../../shared/io';
 import {
   QEGNNEmbeddingIndex,
   QEGNNIndexFactory,
-  toIEmbedding,
   initGNN,
 } from '../../integrations/ruvector/wrappers';
 
 // Embeddings types
 import type {
-  IEmbedding,
   EmbeddingNamespace,
 } from '../../integrations/embeddings/base/types';
 
@@ -87,7 +84,6 @@ import type { RLState, RLAction } from '../../integrations/rl-suite/interfaces';
 
 // V3 Integration: MetricCollector for real code metrics (Phase 5)
 import {
-  MetricCollectorService,
   createMetricCollector,
   type IMetricCollectorService,
   type ProjectMetrics,
@@ -97,7 +93,6 @@ import {
 import {
   HypergraphEngine,
   createHypergraphEngine,
-  type HypergraphEngineConfig,
   type BuildResult as HypergraphBuildResult,
   type CodeIndexResult,
 } from '../../integrations/ruvector/hypergraph-engine.js';
@@ -113,13 +108,10 @@ import type { DomainName } from '../../shared/types';
 import {
   BaseDomainCoordinator,
   type BaseDomainCoordinatorConfig,
-  type BaseWorkflowStatus,
 } from '../base-domain-coordinator.js';
 
-import {
-  type DomainFinding,
-  createDomainFinding,
-} from '../../coordination/consensus/domain-findings';
+
+
 
 // CQ-004: Extracted modules
 import * as GNNHelpers from './coordinator-gnn.js';

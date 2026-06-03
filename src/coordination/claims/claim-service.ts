@@ -14,7 +14,6 @@ import {
   Claim,
   ClaimMetadata,
   ClaimStatus,
-  ClaimType,
   ClaimFilter,
   ClaimSortOptions,
   ClaimEvent,
@@ -31,7 +30,7 @@ import {
   IClaimService,
   IClaimRepository,
 } from './interfaces';
-import { EventBus, Subscription } from '../../kernel/interfaces';
+import { EventBus } from '../../kernel/interfaces';
 import { DomainEvent, DomainName } from '../../shared/types';
 
 // ============================================================================

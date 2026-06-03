@@ -7,8 +7,8 @@
  */
 
 import chalk from 'chalk';
-import { existsSync, statSync } from 'fs';
-import { resolve, join } from 'path';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import {
   BaseWizardCommand,
   WizardContext,

@@ -10,7 +10,7 @@
  */
 
 import type { ComponentNode, SurfaceUpdateMessage } from '../renderer/message-types.js';
-import type { A2UIAccessibility, AriaRole } from './aria-attributes.js';
+import type { A2UIAccessibility } from './aria-attributes.js';
 
 // ============================================================================
 // WCAG Types

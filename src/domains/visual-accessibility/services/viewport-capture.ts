@@ -24,7 +24,6 @@ import type {
 } from '../../../integrations/vibium/types.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import {
-  createAgentBrowserClient,
   getBrowserClientForUseCase,
   type IBrowserClient,
   type IAgentBrowserClient,

@@ -17,7 +17,7 @@
  * @version 3.0.0
  */
 
-import type { GOAPAction, StateConditions, ActionEffects } from '../types.js';
+import type { GOAPAction, StateConditions } from '../types.js';
 import type { QEDomain } from '../../learning/qe-patterns.js';
 
 // ============================================================================

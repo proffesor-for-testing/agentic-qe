@@ -14,7 +14,6 @@ import { ToolResult } from '../../types';
 import { KnowledgeGraphService } from '../../../domains/code-intelligence/services/knowledge-graph';
 import { SemanticAnalyzerService } from '../../../domains/code-intelligence/services/semantic-analyzer';
 import { ImpactAnalyzerService } from '../../../domains/code-intelligence/services/impact-analyzer';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces';
 import * as fs from 'fs';
 import * as path from 'path';
 import { toErrorMessage } from '../../../shared/error-utils.js';

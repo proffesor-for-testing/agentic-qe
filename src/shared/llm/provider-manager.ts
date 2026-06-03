@@ -29,7 +29,7 @@ import {
   createLLMError,
 } from './interfaces';
 import { secureRandomInt } from '../utils/crypto-random.js';
-import { CircuitBreaker, CircuitBreakerManager } from './circuit-breaker';
+import { CircuitBreakerManager } from './circuit-breaker';
 import { LLMResponseCache } from './cache';
 import { CostTracker, getGlobalCostTracker } from './cost-tracker';
 import { ClaudeProvider } from './providers/claude';

@@ -8,7 +8,6 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
 
-import { ModelProvider } from '../interfaces';
 import { ModelProviderRegistry, createProviderRegistry } from '../model-provider';
 
 // Export provider implementations

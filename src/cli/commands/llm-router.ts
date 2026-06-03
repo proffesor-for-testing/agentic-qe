@@ -16,7 +16,6 @@ import { secureRandomInt } from '../../shared/utils/crypto-random.js';
 import chalk from 'chalk';
 import {
   ALL_PROVIDER_TYPES,
-  DEFAULT_ROUTER_CONFIG,
   DEFAULT_MODEL_MAPPINGS,
   type ExtendedProviderType,
   type RoutingMode,

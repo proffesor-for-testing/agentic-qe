@@ -14,7 +14,7 @@ import type { ITransferCoherenceGate, CoherenceValidation } from './transfer-coh
 import { createTransferCoherenceGate } from './transfer-coherence-stub.js';
 import {
   TransferVerifier, createTransferVerifier,
-  type DomainPerformanceSnapshot, type TransferResultForVerification,
+  type DomainPerformanceSnapshot,
   type VerificationResult, type TransferVerificationConfig,
 } from './transfer-verification.js';
 import { getRuVectorFeatureFlags } from './feature-flags.js';

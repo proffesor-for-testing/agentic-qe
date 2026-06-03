@@ -9,7 +9,7 @@
 
 import { EventEmitter } from 'events';
 import type { AGUIEvent, AGUIEventType } from './event-types.js';
-import { getEventCategory, type AGUIEventCategory } from './event-types.js';
+import { type AGUIEventCategory } from './event-types.js';
 
 // ============================================================================
 // Configuration Types

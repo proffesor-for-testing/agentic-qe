@@ -11,7 +11,6 @@ import type { DomainName } from '../../shared/types/index.js';
 import type { EmbeddingDimension } from '../embeddings/base/types.js';
 import {
   QESONA,
-  createQESONA,
   createDomainQESONA,
   type QESONAConfig,
   QEFlashAttention,

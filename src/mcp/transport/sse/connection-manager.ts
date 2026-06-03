@@ -7,10 +7,8 @@ import { v4 as uuid } from 'uuid';
 import type {
   SSEConnection,
   ConnectionState,
-  ConnectionMetrics,
   SSETransportMetrics,
   SSEResponse,
-  AGUIEvent,
 } from './types.js';
 
 // ============================================================================

@@ -14,7 +14,7 @@
  * - Accessibility: Can use either tool
  */
 
-import type { Result, Severity } from '../../shared/types';
+import type { Result } from '../../shared/types';
 import type { ResourceBlockingConfig } from './resource-blocking';
 
 // ============================================================================

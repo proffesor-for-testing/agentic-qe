@@ -14,7 +14,6 @@
 
 import type {
   TypedPipeline,
-  TypedElement,
   TypeVerification,
   TypeMismatch,
   TypeMismatchRaw,

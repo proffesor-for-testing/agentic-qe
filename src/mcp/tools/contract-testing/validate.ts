@@ -10,7 +10,7 @@
 
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base.js';
 import { ToolResult } from '../../types.js';
-import { MemoryBackend, VectorSearchResult } from '../../../kernel/interfaces.js';
+import { MemoryBackend } from '../../../kernel/interfaces.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { Version } from '../../../shared/value-objects/index.js';
 import { ContractValidatorService } from '../../../domains/contract-testing/services/contract-validator.js';
