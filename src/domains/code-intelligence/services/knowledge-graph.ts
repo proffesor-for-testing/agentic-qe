@@ -29,6 +29,7 @@ import {
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { existsSync, statSync } from 'fs';
 import { dirname, resolve as resolvePath, join as joinPath } from 'path';
+import { extractTsJs } from '../../../shared/parsers/treesitter-ts-extractor.js';
 
 /**
  * Interface for the knowledge graph service
@@ -859,70 +860,62 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const extension = this.getFileExtension(filePath);
     const entities: ExtractedEntity[] = [];
 
-    // Use TypeScript parser for TS/JS files
+    // TS/JS files: prefer the bundled tree-sitter WASM grammars (typescript-free,
+    // works out of the box), and fall back to the TypeScript compiler API only if
+    // tree-sitter is unavailable AND `typescript` happens to be installed (#511).
     if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
+      const fileName = this.getFileName(filePath);
 
       if (fileResult.success) {
-        const fileName = this.getFileName(filePath);
-        const ast = this.tsParser.parseFile(fileName, fileResult.value);
+        let extracted = false;
 
-        // Extract functions
-        const functions = this.tsParser.extractFunctions(ast);
-        for (const func of functions) {
-          entities.push({
-            type: 'function',
-            name: func.name,
-            line: func.startLine,
-            visibility: 'public',
-            isAsync: func.isAsync,
-          });
+        // Primary: tree-sitter
+        try {
+          const ts = await extractTsJs(fileResult.value, extension);
+          if (ts) {
+            for (const f of ts.functions) {
+              entities.push({ type: 'function', name: f.name, line: f.startLine, visibility: f.visibility, isAsync: f.isAsync });
+            }
+            for (const c of ts.classes) {
+              entities.push({ type: 'class', name: c.name, line: c.startLine, visibility: 'public', isAsync: false });
+              for (const m of c.methods) {
+                entities.push({ type: 'function', name: `${c.name}.${m.name}`, line: m.startLine, visibility: m.visibility, isAsync: m.isAsync });
+              }
+            }
+            for (const iface of ts.interfaces) {
+              entities.push({ type: 'interface', name: iface.name, line: iface.startLine, visibility: 'public', isAsync: false });
+            }
+            extracted = true;
+          }
+        } catch {
+          // tree-sitter unavailable — fall through to the TS compiler path
         }
 
-        // Extract classes
-        const classes = this.tsParser.extractClasses(ast);
-        for (const cls of classes) {
-          entities.push({
-            type: 'class',
-            name: cls.name,
-            line: cls.startLine,
-            visibility: 'public',
-            isAsync: false,
-          });
-
-          // Add class methods as entities
-          for (const method of cls.methods) {
-            entities.push({
-              type: 'function',
-              name: `${cls.name}.${method.name}`,
-              line: method.startLine,
-              visibility: method.visibility,
-              isAsync: method.isAsync,
-            });
+        // Fallback: TypeScript compiler API (only when tree-sitter didn't run).
+        if (!extracted) {
+          try {
+            const ast = this.tsParser.parseFile(fileName, fileResult.value);
+            for (const func of this.tsParser.extractFunctions(ast)) {
+              entities.push({ type: 'function', name: func.name, line: func.startLine, visibility: 'public', isAsync: func.isAsync });
+            }
+            for (const cls of this.tsParser.extractClasses(ast)) {
+              entities.push({ type: 'class', name: cls.name, line: cls.startLine, visibility: 'public', isAsync: false });
+              for (const method of cls.methods) {
+                entities.push({ type: 'function', name: `${cls.name}.${method.name}`, line: method.startLine, visibility: method.visibility, isAsync: method.isAsync });
+              }
+            }
+            for (const iface of this.tsParser.extractInterfaces(ast)) {
+              entities.push({ type: 'interface', name: iface.name, line: iface.startLine, visibility: 'public', isAsync: false });
+            }
+          } catch {
+            // Neither tree-sitter nor the TypeScript compiler is available.
           }
         }
 
-        // Extract interfaces
-        const interfaces = this.tsParser.extractInterfaces(ast);
-        for (const iface of interfaces) {
-          entities.push({
-            type: 'interface',
-            name: iface.name,
-            line: iface.startLine,
-            visibility: 'public',
-            isAsync: false,
-          });
-        }
-
-        // If no entities found, create a module entity for the file
+        // If nothing was extracted, record a module entity for the file.
         if (entities.length === 0) {
-          entities.push({
-            type: 'module',
-            name: fileName.replace(/\.[^.]+$/, ''),
-            line: 1,
-            visibility: 'public',
-            isAsync: false,
-          });
+          entities.push({ type: 'module', name: fileName.replace(/\.[^.]+$/, ''), line: 1, visibility: 'public', isAsync: false });
         }
       } else {
         // Fallback: create a module entity for the file itself
@@ -1031,21 +1024,36 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const extension = this.getFileExtension(filePath);
     const importPaths: string[] = [];
 
-    // Use TypeScript parser for TS/JS files
+    // TS/JS: tree-sitter primary (typescript-free), TS compiler fallback (#511).
     if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
 
       if (fileResult.success) {
         const fileName = this.getFileName(filePath);
-        const ast = this.tsParser.parseFile(fileName, fileResult.value);
-        const imports = this.tsParser.extractImports(ast);
+        let modules: string[] | null = null;
 
-        // Extract import sources (module property in new API)
-        for (const importInfo of imports) {
-          // Only include relative imports and package imports
+        // Primary: tree-sitter
+        try {
+          const ts = await extractTsJs(fileResult.value, extension);
+          if (ts) modules = ts.imports;
+        } catch {
+          modules = null;
+        }
+
+        // Fallback: TypeScript compiler API
+        if (modules === null) {
+          try {
+            const ast = this.tsParser.parseFile(fileName, fileResult.value);
+            modules = this.tsParser.extractImports(ast).map((i) => i.module);
+          } catch {
+            modules = [];
+          }
+        }
+
+        for (const module of modules) {
           // Skip node built-ins for now
-          if (!importInfo.module.startsWith('node:')) {
-            importPaths.push(importInfo.module);
+          if (!module.startsWith('node:')) {
+            importPaths.push(module);
           }
         }
       }
