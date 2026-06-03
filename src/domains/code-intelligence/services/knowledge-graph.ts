@@ -102,6 +102,14 @@ const DEFAULT_CONFIG: KnowledgeGraphConfig = {
  */
 const logger = LoggerFactory.create('code-intelligence/knowledge-graph');
 
+/**
+ * File extensions for which the knowledge graph has a real entity/import
+ * extractor (the TypeScript Compiler API). Files outside this set are indexed
+ * as bare file nodes with no dependency edges — `index` warns about them so the
+ * downstream 0-edge result in `deps` is not silently misleading (#511 req #2).
+ */
+const DEP_EXTRACTOR_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx']);
+
 export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly config: KnowledgeGraphConfig;
   private readonly memory: MemoryBackend;
@@ -166,6 +174,10 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     const errors: IndexError[] = [];
     let nodesCreated = 0;
     let edgesCreated = 0;
+    // #511 req #2: count files indexed under a language with no dependency
+    // extractor, keyed by extension, so we can warn loudly instead of silently
+    // reporting a graph that `deps` then shows as 0 edges.
+    const unsupportedByExt = new Map<string, number>();
 
     try {
       const { paths, incremental = false, includeTests = true, languages } = request;
@@ -190,8 +202,13 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
             continue;
           }
 
+          const ext = this.getFileExtension(path);
+          if (!DEP_EXTRACTOR_EXTENSIONS.has(ext)) {
+            unsupportedByExt.set(ext || '(none)', (unsupportedByExt.get(ext || '(none)') ?? 0) + 1);
+          }
+
           // Index the file
-          const result = await this.indexFile(path);
+          const result = await this.indexFile(path, incremental);
           nodesCreated += result.nodes;
           edgesCreated += result.edges;
         } catch (fileError) {
@@ -203,6 +220,21 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
       }
 
       const duration = Date.now() - startTime;
+
+      // #511 req #2: surface a loud warning for unsupported languages so the
+      // caller understands why `deps`/`impact` will be empty for those files.
+      const warnings: string[] = [];
+      if (unsupportedByExt.size > 0) {
+        const supported = Array.from(DEP_EXTRACTOR_EXTENSIONS).join(', ');
+        for (const [ext, count] of unsupportedByExt) {
+          const msg =
+            `${count} file(s) with extension '.${ext}' were indexed as plain ` +
+            `nodes: no dependency extractor for this language, so 'deps'/'impact' ` +
+            `will report 0 edges for them. Supported: ${supported}.`;
+          warnings.push(msg);
+          logger.warn(msg);
+        }
+      }
 
       // Store indexing metadata
       await this.storeIndexMetadata({
@@ -219,6 +251,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         edgesCreated,
         duration,
         errors,
+        warnings,
       });
     } catch (error) {
       return err(toError(error));
@@ -360,6 +393,41 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
         await this.memory.delete(key);
       }
     }
+  }
+
+  /**
+   * Remove a single file's contribution to the graph (#511).
+   *
+   * Deletes the file node, its entity nodes, and edges that ORIGINATE from the
+   * file or its entities (contains + outgoing imports). Incoming edges (other
+   * files importing this one) are left intact — they belong to those files and
+   * remain valid until those files are themselves re-indexed. Used for
+   * incremental re-indexing so stale entities/imports don't persist.
+   */
+  private async removeFileFromGraph(filePath: string): Promise<void> {
+    const fileNodeId = this.pathToNodeId(filePath);
+    const ns = this.config.namespace;
+
+    // Delete the file node and all of its entity nodes (`:node:<file>` and
+    // `:node:<file>:<type>:<name>`).
+    const nodeKeys = await this.memory.search(`${ns}:node:${fileNodeId}*`, Number.MAX_SAFE_INTEGER);
+    for (const key of nodeKeys) {
+      await this.memory.delete(key);
+      this.nodeCache.delete(key.slice(`${ns}:node:`.length));
+    }
+
+    // Delete edges whose source is the file node or one of its entity nodes.
+    const edgeKeys = await this.memory.search(`${ns}:edge:*`, Number.MAX_SAFE_INTEGER);
+    for (const key of edgeKeys) {
+      const edge = await this.memory.get<KGEdge>(key);
+      if (edge && (edge.source === fileNodeId || edge.source.startsWith(`${fileNodeId}:`))) {
+        await this.memory.delete(key);
+      }
+    }
+
+    // Drop the file's source-keyed cache entry and invalidate the flat cache.
+    this.edgeIndex.delete(fileNodeId);
+    this.allEdgesCache = undefined;
   }
 
   // ============================================================================
@@ -582,10 +650,18 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
   // ============================================================================
 
   private async indexFile(
-    filePath: string
+    filePath: string,
+    incremental = false
   ): Promise<{ nodes: number; edges: number }> {
     let nodesCreated = 0;
     let edgesCreated = 0;
+
+    // #511: on an incremental re-index, drop this file's prior nodes/edges
+    // first so renamed/removed entities and stale outgoing imports don't
+    // linger as phantom dependencies. (A full index already cleared everything.)
+    if (incremental) {
+      await this.removeFileFromGraph(filePath);
+    }
 
     // Create file node
     const fileNode = await this.createFileNode(filePath);
@@ -763,7 +839,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const entities: ExtractedEntity[] = [];
 
     // Use TypeScript parser for TS/JS files
-    if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+    if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
 
       if (fileResult.success) {
@@ -935,7 +1011,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const importPaths: string[] = [];
 
     // Use TypeScript parser for TS/JS files
-    if (['ts', 'tsx', 'js', 'jsx'].includes(extension)) {
+    if (DEP_EXTRACTOR_EXTENSIONS.has(extension)) {
       const fileResult = await this.fileReader.readFile(filePath);
 
       if (fileResult.success) {

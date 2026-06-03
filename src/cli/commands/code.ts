@@ -106,7 +106,7 @@ Examples:
           });
 
           if (result.success && result.value) {
-            const idx = result.value as { filesIndexed: number; nodesCreated: number; edgesCreated: number; duration: number; errors: Array<{ file: string; error: string }> };
+            const idx = result.value as { filesIndexed: number; nodesCreated: number; edgesCreated: number; duration: number; errors: Array<{ file: string; error: string }>; warnings?: string[] };
             if (format === 'json') {
               writeOutput(toJSON(idx), options.output);
             } else {
@@ -116,6 +116,12 @@ Examples:
               console.log(`    Nodes created: ${chalk.white(idx.nodesCreated)}`);
               console.log(`    Edges created: ${chalk.white(idx.edgesCreated)}`);
               console.log(`    Duration: ${chalk.yellow(idx.duration + 'ms')}`);
+              if (idx.warnings && idx.warnings.length > 0) {
+                console.log(chalk.yellow(`\n  Warnings (${idx.warnings.length}):`));
+                for (const w of idx.warnings) {
+                  console.log(chalk.yellow(`    ⚠ ${w}`));
+                }
+              }
               if (idx.errors.length > 0) {
                 console.log(chalk.red(`\n  Errors (${idx.errors.length}):`));
                 for (const err of idx.errors.slice(0, 5)) {

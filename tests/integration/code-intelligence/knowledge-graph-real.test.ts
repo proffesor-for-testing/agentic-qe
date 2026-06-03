@@ -634,5 +634,59 @@ describe('Knowledge Graph Real I/O', () => {
       // app → math is acyclic; 'both' traversal must not fabricate A→B→A
       expect(depsResult.value!.cycles).toHaveLength(0);
     });
+
+    it('should warn when a file has no dependency extractor (#511 req #2)', async () => {
+      // Arrange: a Python file alongside the TS files — no TS-Compiler extractor
+      const pyPath = path.join(tmpDir, 'util.py');
+      await fs.writeFile(pyPath, 'def hello():\n    return 1\n');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+
+      // Act
+      const result = await indexer.index({
+        paths: [path.join(tmpDir, 'app.ts'), pyPath],
+      });
+
+      // Assert: a loud warning naming the unsupported extension is surfaced
+      expect(result.success).toBe(true);
+      const warnings = result.value!.warnings ?? [];
+      expect(warnings.some((w) => w.includes(".py"))).toBe(true);
+    });
+
+    it('should drop stale outgoing edges on incremental re-index (#511)', async () => {
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, mathPath] });
+
+      // app.ts no longer imports ./math. The incremental re-index runs on a
+      // fresh service instance to mirror the CLI (a separate process with a
+      // cold file-content cache), isolating the persistence-layer cleanup.
+      await fs.writeFile(appPath, 'export const total = 42;\n');
+      const reindexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await reindexer.index({ paths: [appPath, mathPath], incremental: true });
+
+      // The stale app → math import edge must be gone
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+      expect(depsResult.success).toBe(true);
+      const mathNode = depsResult.value!.nodes.find((n) => n.path === mathPath);
+      expect(mathNode?.inDegree).toBe(0);
+    });
   });
 });

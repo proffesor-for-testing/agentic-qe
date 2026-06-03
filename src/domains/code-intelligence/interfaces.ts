@@ -43,6 +43,11 @@ export interface IndexResult {
   edgesCreated: number;
   duration: number;
   errors: IndexError[];
+  /**
+   * Non-fatal warnings surfaced during indexing — e.g. files whose language has
+   * no dependency extractor, so `deps`/`impact` will show 0 edges for them (#511).
+   */
+  warnings?: string[];
 }
 
 export interface IndexError {
