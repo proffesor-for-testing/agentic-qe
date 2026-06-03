@@ -46,9 +46,12 @@ SPECS=("${GRAMMARS_TSJS[@]}")
 PKGS="$(printf '%s\n' "${SPECS[@]}" | cut -d: -f1 | sort -u | tr '\n' ' ')"
 
 # Build a shell program to run inside the container.
+# --legacy-peer-deps: grammar packages declare conflicting peers on tree-sitter
+# bindings, but we only consume their C source (src/parser.c) + skip native
+# builds (--ignore-scripts), so the peer graph is irrelevant.
 BUILD="set -e; cd /work; npm init -y >/dev/null 2>&1;"
-BUILD+=" npm i --no-audit --no-fund --ignore-scripts $PKGS >/dev/null 2>&1;"
-BUILD+=" npm i --no-audit --no-fund tree-sitter-cli@${TS_CLI_VERSION} >/dev/null 2>&1;"
+BUILD+=" npm i --no-audit --no-fund --ignore-scripts --legacy-peer-deps $PKGS >/dev/null 2>&1;"
+BUILD+=" npm i --no-audit --no-fund --legacy-peer-deps tree-sitter-cli@${TS_CLI_VERSION} >/dev/null 2>&1;"
 for spec in "${SPECS[@]}"; do
   pkg="$(echo "$spec" | cut -d: -f1)"
   sub="$(echo "$spec" | cut -d: -f2)"
