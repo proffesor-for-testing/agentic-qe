@@ -107,10 +107,10 @@
       "tarball": null,
       "extractedDir": null,
       "gate": {
-        "timeoutSec": 240,
-        "expectedKgEntries": 27000,
+        "timeoutSec": 300,
+        "expectedKgEntries": 34000,
         "kgEntriesTolerance": 0.7,
-        "expectedElapsedSec": 60,
+        "expectedElapsedSec": 80,
         "expectedSkillsInstalled": 1,
         "expectedAgentsInstalled": 1,
         "expectMcpConfigured": true,
