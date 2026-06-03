@@ -539,4 +539,100 @@ describe('Knowledge Graph Real I/O', () => {
       }
     });
   });
+
+  // ==========================================================================
+  // Regression: #511 — TS/JS dependency edges survive across processes
+  //
+  // `aqe code index` and `aqe code deps` run as SEPARATE CLI processes, so the
+  // graph must be persisted: an index by one service instance must be visible
+  // to mapDependencies() on a fresh instance sharing the same backend. Before
+  // the fix, nodes/edges were cache-only and `deps` returned 0 edges on TS
+  // repos even though `index` reported edges created.
+  // ==========================================================================
+  describe('#511 cross-instance TS dependency edges', () => {
+    let tmpDir: string;
+    let sharedMemory: MemoryBackend;
+
+    beforeEach(async () => {
+      sharedMemory = createMockMemoryBackend();
+      // Fixture must live under the project root: FileReader (SEC-004) rejects
+      // absolute paths outside process.cwd(), so os.tmpdir() would be unreadable.
+      tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-kg-511-'));
+      await fs.writeFile(
+        path.join(tmpDir, 'math.ts'),
+        'export function add(a: number, b: number): number { return a + b; }\n'
+      );
+      await fs.writeFile(
+        path.join(tmpDir, 'app.ts'),
+        "import { add } from './math';\nexport const total = add(1, 2);\n"
+      );
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('should expose import edges to a fresh service instance after indexing', async () => {
+      // Arrange: index with one service ("the index process")
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const indexResult = await indexer.index({ paths: [appPath, mathPath] });
+      expect(indexResult.success).toBe(true);
+
+      // Act: map dependencies with a SEPARATE instance sharing only the backend
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+
+      // Assert: the import edge survived persistence and connects the files
+      expect(depsResult.success).toBe(true);
+      const deps = depsResult.value!;
+      expect(deps.metrics.totalEdges).toBeGreaterThan(0);
+
+      const appNodeId = ':' + appPath.replace(/^[/\\]/, '').replace(/[/\\]/g, ':').replace(/\./g, '_');
+      const mathNodeId = ':' + mathPath.replace(/^[/\\]/, '').replace(/[/\\]/g, ':').replace(/\./g, '_');
+      const importEdge = deps.edges.find(
+        (e) => e.source === appNodeId && e.target === mathNodeId && e.type === 'import'
+      );
+      expect(importEdge).toBeDefined();
+
+      // math.ts is depended upon (inDegree > 0), confirming the graph connects
+      const mathNode = deps.nodes.find((n) => n.path === mathPath);
+      expect(mathNode?.inDegree).toBeGreaterThan(0);
+    });
+
+    it('should not report phantom cycles for a simple acyclic import chain', async () => {
+      const appPath = path.join(tmpDir, 'app.ts');
+      const mathPath = path.join(tmpDir, 'math.ts');
+      const indexer = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      await indexer.index({ paths: [appPath, mathPath] });
+
+      const reader = new KnowledgeGraphService(sharedMemory, {
+        enableVectorEmbeddings: false,
+        enableLLMExtraction: false,
+      });
+      const depsResult = await reader.mapDependencies({
+        files: [appPath, mathPath],
+        direction: 'both',
+        depth: 3,
+      });
+
+      expect(depsResult.success).toBe(true);
+      // app → math is acyclic; 'both' traversal must not fabricate A→B→A
+      expect(depsResult.value!.cycles).toHaveLength(0);
+    });
+  });
 });

@@ -27,6 +27,8 @@ import {
   DependencyMetrics,
 } from '../interfaces';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { existsSync, statSync } from 'fs';
+import { dirname, resolve as resolvePath, join as joinPath } from 'path';
 
 /**
  * Interface for the knowledge graph service
@@ -105,6 +107,13 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
   private readonly memory: MemoryBackend;
   private readonly nodeCache: Map<string, KGNode> = new Map();
   private readonly edgeIndex: Map<string, KGEdge[]> = new Map();
+  /**
+   * Lazily-hydrated flat list of all persisted edges (#511).
+   * Edges are persisted per-process during index(); cross-process reads
+   * (deps/search/impact) hydrate this once and filter by source/target.
+   * Invalidated on createEdge()/clear() to avoid serving stale data.
+   */
+  private allEdgesCache?: KGEdge[];
   private readonly tsParser: TypeScriptParser;
   private readonly fileReader: FileReader;
   private readonly embedder: NomicEmbedder;
@@ -299,31 +308,35 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     nodeId: string,
     direction: 'incoming' | 'outgoing' | 'both'
   ): Promise<KGEdge[]> {
-    const edges: KGEdge[] = [];
+    // Hydrate the full edge set from persistence once, then filter in-memory.
+    // This is required for cross-process reads (deps/search run as separate
+    // CLI processes from index) and for correct incoming/both lookups, which
+    // the old source-keyed edgeIndex could not serve (#511).
+    const allEdges = await this.loadAllEdges();
+    return this.filterEdgesByDirection(allEdges, nodeId, direction);
+  }
 
-    // Check index first
-    const cachedEdges = this.edgeIndex.get(nodeId);
-    if (cachedEdges) {
-      return this.filterEdgesByDirection(cachedEdges, nodeId, direction);
+  /**
+   * Load all persisted edges into a flat cache (#511).
+   * Cached for the lifetime of the read; invalidated by createEdge()/clear().
+   */
+  private async loadAllEdges(): Promise<KGEdge[]> {
+    if (this.allEdgesCache) {
+      return this.allEdgesCache;
     }
 
-    // Load from memory
+    const edges: KGEdge[] = [];
     const pattern = `${this.config.namespace}:edge:*`;
-    const keys = await this.memory.search(pattern, this.config.maxEdgesPerNode * 2);
+    const keys = await this.memory.search(pattern, Number.MAX_SAFE_INTEGER);
 
     for (const key of keys) {
       const edge = await this.memory.get<KGEdge>(key);
       if (edge) {
-        const matches =
-          (direction !== 'outgoing' && edge.target === nodeId) ||
-          (direction !== 'incoming' && edge.source === nodeId);
-
-        if (matches) {
-          edges.push(edge);
-        }
+        edges.push(edge);
       }
     }
 
+    this.allEdgesCache = edges;
     return edges;
   }
 
@@ -331,9 +344,22 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
    * Clear the knowledge graph
    */
   async clear(): Promise<void> {
-    // Cache-only: just clear in-memory caches, no kv_store cleanup needed
     this.nodeCache.clear();
     this.edgeIndex.clear();
+    this.allEdgesCache = undefined;
+
+    // Delete persisted nodes/edges so a non-incremental re-index does not
+    // accumulate stale graph state across runs (#511). Scoped to the KG
+    // namespace's :node:/:edge: keys only — never touches learning data.
+    for (const prefix of [
+      `${this.config.namespace}:node:`,
+      `${this.config.namespace}:edge:`,
+    ]) {
+      const keys = await this.memory.search(`${prefix}*`, Number.MAX_SAFE_INTEGER);
+      for (const key of keys) {
+        await this.memory.delete(key);
+      }
+    }
   }
 
   // ============================================================================
@@ -582,8 +608,12 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     const imports = await this.extractImports(filePath);
 
     for (const importPath of imports) {
-      // Create dependency edge
-      const targetNodeId = this.pathToNodeId(importPath);
+      // Resolve relative specifiers to the actual file so the import edge
+      // targets the imported file's node id (#511). Without this, an edge to
+      // './math' never matches the '/abs/path/math.ts' file node and the
+      // dependency graph stays disconnected (all nodes degree-0).
+      const resolvedPath = this.resolveImportPath(importPath, filePath);
+      const targetNodeId = this.pathToNodeId(resolvedPath);
       await this.createEdge(fileNode.id, targetNodeId, 'import');
       edgesCreated++;
     }
@@ -697,12 +727,15 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       type,
     };
 
-    // Cache-only: no kv_store persistence needed, KG is rebuilt from source on each init
-
-    // Update edge index
+    // Update in-memory edge index (source-keyed, used during same-process index)
     const sourceEdges = this.edgeIndex.get(sourceId) || [];
     sourceEdges.push(edge);
     this.edgeIndex.set(sourceId, sourceEdges);
+
+    // Persist so cross-process reads (deps/search/impact) see the graph (#511).
+    await this.memory.set(`${this.config.namespace}:edge:${edgeId}`, edge);
+    // Invalidate hydrated read cache so subsequent getEdges() reflects this write.
+    this.allEdgesCache = undefined;
 
     return edge;
   }
@@ -719,8 +752,10 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       }
     }
 
-    // Cache-only: KG is rebuilt from source on each init, no need for kv_store persistence
     this.nodeCache.set(node.id, node);
+
+    // Persist so cross-process reads (deps/search/impact) see the graph (#511).
+    await this.memory.set(`${this.config.namespace}:node:${node.id}`, node);
   }
 
   private async extractEntities(filePath: string): Promise<ExtractedEntity[]> {
@@ -1128,7 +1163,14 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     path.push(file);
 
     const nodeId = this.pathToNodeId(file);
-    const fileEdges = await this.getEdges(nodeId, direction);
+    // Only true dependency edges (import/call/extends/implements) belong in a
+    // dependency map — exclude structural 'contains' (file→entity) edges so the
+    // graph stays a file-to-file dependency view and entities don't leak in as
+    // pseudo file nodes (#511).
+    const DEPENDENCY_EDGE_TYPES = new Set(['import', 'call', 'extends', 'implements']);
+    const fileEdges = (await this.getEdges(nodeId, direction)).filter((e) =>
+      DEPENDENCY_EDGE_TYPES.has(e.type)
+    );
 
     // Create dependency node
     const inDegree = fileEdges.filter((e) => e.target === nodeId).length;
@@ -1154,11 +1196,15 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
         edges.push(depEdge);
       }
 
-      // Recursively traverse
-      const nextFile =
-        edge.source === nodeId
-          ? this.nodeIdToPath(edge.target)
-          : this.nodeIdToPath(edge.source);
+      // Recurse only along directed-forward (outgoing) edges so the traversal
+      // path represents a real directed dependency chain. Following 'both'
+      // adjacency backwards fabricated cycles like A→B→A (#511). Incoming
+      // neighbours are still surfaced as edges/degrees above and are visited
+      // as their own top-level entries.
+      if (edge.source !== nodeId) {
+        continue;
+      }
+      const nextFile = this.nodeIdToPath(edge.target);
 
       if (nextFile) {
         await this.traverseDependencies(
@@ -1251,7 +1297,8 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
     return edges.filter((edge) => {
       if (direction === 'incoming') return edge.target === nodeId;
       if (direction === 'outgoing') return edge.source === nodeId;
-      return true;
+      // 'both': edge touches nodeId on either end
+      return edge.source === nodeId || edge.target === nodeId;
     });
   }
 
@@ -1303,6 +1350,50 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
 
   private pathToNodeId(path: string): string {
     return path.replace(/[/\\]/g, ':').replace(/\./g, '_');
+  }
+
+  /**
+   * Resolve an import specifier to a concrete file path (#511).
+   *
+   * Relative specifiers ('./math', '../util') are resolved against the
+   * importing file's directory and probed for the usual TS/JS extensions and
+   * index files, so the resulting node id matches the imported file's node.
+   * Bare package specifiers ('react', '@scope/pkg') are returned unchanged and
+   * become external dependency nodes.
+   */
+  private resolveImportPath(importPath: string, fromFile: string): string {
+    if (!importPath.startsWith('.')) {
+      return importPath;
+    }
+
+    const base = resolvePath(dirname(fromFile), importPath);
+    const candidates = [
+      base,
+      `${base}.ts`,
+      `${base}.tsx`,
+      `${base}.js`,
+      `${base}.jsx`,
+      `${base}.mjs`,
+      `${base}.cjs`,
+      joinPath(base, 'index.ts'),
+      joinPath(base, 'index.tsx'),
+      joinPath(base, 'index.js'),
+      joinPath(base, 'index.jsx'),
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        if (existsSync(candidate) && statSync(candidate).isFile()) {
+          return candidate;
+        }
+      } catch {
+        // ignore unreadable candidates and keep probing
+      }
+    }
+
+    // Fall back to a '.ts' sibling so extensionless imports still link to a
+    // stable node id even when the file cannot be found on disk.
+    return `${base}.ts`;
   }
 
   private nodeIdToPath(nodeId: string): string | null {
