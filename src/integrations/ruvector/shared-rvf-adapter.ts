@@ -12,6 +12,9 @@
  */
 
 import type { RvfNativeAdapter, RvfCompactionResult, RvfStatus } from './rvf-native-adapter.js';
+// Issue #516: lightweight, sqlite-free project-root resolver (static import so it
+// resolves under the test runner; avoids pulling unified-memory's sqlite graph).
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 let sharedAdapter: RvfNativeAdapter | null = null;
 let initAttempted = false;
@@ -83,8 +86,6 @@ export function getSharedRvfAdapter(
     // A subfolder cwd (vendored builds, background workers, `aqe code index
     // docs/`) otherwise scatters stray patterns.rvf-only stores. Explicit
     // absolute dataDir args are honored as-is.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { findProjectRoot } = require('../../kernel/unified-memory.js');
     const baseDir = path.isAbsolute(dataDir)
       ? dataDir
       : path.join(process.env.AQE_PROJECT_ROOT ?? findProjectRoot(), dataDir);

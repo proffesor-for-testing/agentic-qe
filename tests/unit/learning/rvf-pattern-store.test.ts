@@ -320,26 +320,39 @@ describe('createPatternStore factory routing', () => {
       return;
     }
 
+    // Issue #516: createPatternStore now anchors the RVF dir to the project root
+    // (AQE_PROJECT_ROOT ?? findProjectRoot()) instead of a cwd-relative
+    // '.agentic-qe'. Pin a hermetic project root with an existing .agentic-qe so
+    // the RVF branch is taken deterministically regardless of test order or cwd
+    // side-effects (previously this relied on another test having created
+    // ./.agentic-qe in the process cwd).
+    const { mkdtempSync, mkdirSync, rmSync } = await import('fs');
+    const { tmpdir } = await import('os');
+    const { join } = await import('path');
+    const projectRoot = mkdtempSync(join(tmpdir(), 'aqe-rvf-factory-'));
+    mkdirSync(join(projectRoot, '.agentic-qe'), { recursive: true });
+    const savedRoot = process.env.AQE_PROJECT_ROOT;
+    process.env.AQE_PROJECT_ROOT = projectRoot;
+
     setRuVectorFeatureFlags({ useRVFPatternStore: true });
 
-    const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
-    const mockMemory = {
-      get: vi.fn(),
-      set: vi.fn(),
-      delete: vi.fn(),
-      list: vi.fn(() => []),
-      clear: vi.fn(),
-    };
-    const store = createPatternStore(mockMemory as any);
+    try {
+      const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
+      const mockMemory = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn(),
+        list: vi.fn(() => []),
+        clear: vi.fn(),
+      };
+      const store = createPatternStore(mockMemory as any);
 
-    expect(store.constructor.name).toBe('RvfPatternStore');
-    await store.dispose();
-
-    // Cleanup the .rvf file created
-    const { existsSync, unlinkSync } = await import('fs');
-    for (const ext of ['', '.idmap.json']) {
-      const p = `.agentic-qe/patterns.rvf${ext}`;
-      if (existsSync(p)) unlinkSync(p);
+      expect(store.constructor.name).toBe('RvfPatternStore');
+      await store.dispose();
+    } finally {
+      if (savedRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+      else process.env.AQE_PROJECT_ROOT = savedRoot;
+      rmSync(projectRoot, { recursive: true, force: true });
     }
   });
 });
