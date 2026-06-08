@@ -106,6 +106,7 @@ export class StdioTransport {
   private requestHandler: RequestHandler | null = null;
   private notificationHandler: NotificationHandler | null = null;
   private errorHandler: ((error: Error) => void) | null = null;
+  private closeHandler: (() => void) | null = null;
   private running = false;
   private metrics: TransportMetrics = {
     messagesReceived: 0,
@@ -159,8 +160,25 @@ export class StdioTransport {
     this.rl.on('close', () => {
       const wasRunning = this.running;
       this.running = false;
-      // If we were running and didn't explicitly stop, this is an unexpected close
-      if (wasRunning && this.errorHandler) {
+      if (!wasRunning) {
+        return; // explicit stop() — nothing to signal
+      }
+      // Issue #513: a readline 'close' caused by stdin reaching EOF means the
+      // parent process is gone. stdio cannot reconnect to a new parent, so
+      // this is TERMINAL — route it to the close handler and never to the
+      // error handler. Firing the error handler here triggers the reconnect
+      // path, which re-attaches readline to the already-ended stdin and
+      // busy-loops (close → error → reconnect → close ...) at high CPU.
+      const ended = (this.inputStream as Readable & { readableEnded?: boolean }).readableEnded === true;
+      if (ended) {
+        if (this.closeHandler) {
+          this.closeHandler();
+        }
+        return;
+      }
+      // Stream not ended (e.g. an internal readline close without EOF):
+      // keep the legacy transient-error behavior so socket-like callers can retry.
+      if (this.errorHandler) {
         this.errorHandler(new Error('Transport connection closed unexpectedly'));
       }
     });
@@ -214,10 +232,30 @@ export class StdioTransport {
   }
 
   /**
+   * Set handler for a terminal close (stdin EOF / parent process exited).
+   * Issue #513: lets the server shut down gracefully instead of attempting
+   * to reconnect to a stream that can never come back.
+   */
+  onClose(handler: () => void): void {
+    this.closeHandler = handler;
+  }
+
+  /**
    * Reconnect the transport by re-attaching to stdin/stdout.
    * Closes the existing readline interface and creates a new one.
    */
   reconnect(): void {
+    // Issue #513: never re-attach readline to an already-ended stdin. Doing so
+    // re-emits 'close' immediately and busy-loops. An ended input stream is
+    // terminal for stdio — signal the close handler and bail.
+    const ended = (this.inputStream as Readable & { readableEnded?: boolean }).readableEnded === true;
+    if (ended) {
+      this.running = false;
+      if (this.closeHandler) {
+        this.closeHandler();
+      }
+      return;
+    }
     if (this.rl) {
       this.rl.close();
       this.rl = null;

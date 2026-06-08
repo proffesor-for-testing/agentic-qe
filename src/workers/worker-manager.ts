@@ -450,6 +450,11 @@ export class WorkerManagerImpl implements IWorkerManager {
       }
     }, worker.config.intervalMs);
 
+    // Issue #513: don't let a background worker tick keep an orphaned process
+    // alive. The timer still fires while the process lives for other reasons;
+    // unref() only removes it as a standalone reason to stay running.
+    timer.unref?.();
+
     this.timers.set(worker.config.id, timer);
   }
 

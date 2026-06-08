@@ -48,35 +48,51 @@ async function main(): Promise<void> {
     } catch { /* ignore */ }
   };
 
-  process.on('SIGINT', async () => {
-    stopCleanupTimer();
-    await shutdownTokenTracking();
-    await shutdownDaemon();
-    if (httpServer) {
-      await httpServer.stop();
-    }
-    if (server) {
-      await server.stop();
-    }
-    // Close data stores AFTER server has drained connections
-    try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
-    process.exit(0);
-  });
+  // Issue #513: single idempotent shutdown shared by every termination trigger
+  // (signals + stdin EOF). A re-entrancy guard prevents overlapping runs, and
+  // an unref()'d watchdog guarantees the process exits even if a graceful step
+  // hangs — the old async SIGTERM handler could stall on an await that never
+  // resolved, which is why `kill <pid>` appeared to be "ignored" and only
+  // `kill -9` worked.
+  let shuttingDown = false;
+  const shutdown = async (reason: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    originalStderrWrite(`[AQE] Shutting down (${reason})\n`);
 
-  process.on('SIGTERM', async () => {
-    stopCleanupTimer();
-    await shutdownTokenTracking();
-    await shutdownDaemon();
-    if (httpServer) {
-      await httpServer.stop();
-    }
-    if (server) {
-      await server.stop();
-    }
-    // Close data stores AFTER server has drained connections
-    try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
+    const watchdog = setTimeout(() => {
+      originalStderrWrite('[AQE] Shutdown watchdog fired — forcing exit\n');
+      process.exit(0);
+    }, 3000);
+    watchdog.unref();
+
+    try {
+      stopCleanupTimer();
+      await shutdownTokenTracking();
+      await shutdownDaemon();
+      if (httpServer) {
+        await httpServer.stop();
+      }
+      if (server) {
+        await server.stop();
+      }
+      // Close data stores AFTER server has drained connections
+      try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
+    } catch { /* best-effort — the watchdog still guarantees exit */ }
     process.exit(0);
-  });
+  };
+
+  process.on('SIGINT', () => { void shutdown('SIGINT'); });
+  process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+
+  // Issue #513: when the parent (e.g. the Claude Code session) exits, our stdin
+  // reaches EOF. An orphaned stdio MCP server has no parent to serve, so exit
+  // instead of lingering at high CPU. Guarded to a piped stdin so an
+  // interactive TTY debug session (Ctrl-D) is unaffected.
+  if (!process.stdin.isTTY) {
+    process.stdin.on('end', () => { void shutdown('stdin-eof'); });
+    process.stdin.on('close', () => { void shutdown('stdin-close'); });
+  }
 
   // Catch unhandled exceptions/rejections to prevent MCP connection drops
   process.on('uncaughtException', (error) => {

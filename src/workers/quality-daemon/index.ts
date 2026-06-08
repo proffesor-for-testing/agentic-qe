@@ -199,6 +199,8 @@ export class QualityDaemon {
   private scheduleTick(): void {
     if (!this._running) return;
     this.tickTimer = setTimeout(() => this.tick(), this.config.tickIntervalMs);
+    // Issue #513: the tick loop must not keep an orphaned process alive on its own.
+    this.tickTimer.unref?.();
   }
 
   private async tick(): Promise<void> {
