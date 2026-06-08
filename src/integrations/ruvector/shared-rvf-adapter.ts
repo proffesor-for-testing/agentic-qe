@@ -78,7 +78,17 @@ export function getSharedRvfAdapter(
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require('path');
-    const rvfPath = path.join(dataDir, 'patterns.rvf');
+    // Issue #516: resolve a relative dataDir against the project root so the
+    // store lands in the project's own .agentic-qe/, not a cwd-relative one.
+    // A subfolder cwd (vendored builds, background workers, `aqe code index
+    // docs/`) otherwise scatters stray patterns.rvf-only stores. Explicit
+    // absolute dataDir args are honored as-is.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { findProjectRoot } = require('../../kernel/unified-memory.js');
+    const baseDir = path.isAbsolute(dataDir)
+      ? dataDir
+      : path.join(process.env.AQE_PROJECT_ROOT ?? findProjectRoot(), dataDir);
+    const rvfPath = path.join(baseDir, 'patterns.rvf');
 
     // Open-or-create with a try-ladder rather than `existsSync` gate.
     // Reasons:
