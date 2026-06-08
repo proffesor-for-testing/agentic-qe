@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-06-08T14:08:55.999Z",
+  "phase": 1,
+  "models": [
+    "gemma4:12b-mlx",
+    "qwen3:8b"
+  ],
+  "datasetSize": 150,
+  "reports": [
+    {
+      "model": "gemma4:12b-mlx",
+      "promptVariant": "simple",
+      "auroc": 0.9966777408637874,
+      "brierScore": 0.05688709677419356,
+      "ambiguousPct": 3.225806451612903,
+      "precisionAt20": 0.35,
+      "latencyP50": 17637,
+      "latencyP95": 20799,
+      "callCount": 62,
+      "errorCount": 0
+    },
+    {
+      "model": "qwen3:8b",
+      "promptVariant": "simple",
+      "auroc": 0.8928000000000003,
+      "brierScore": 0.13766266666666652,
+      "ambiguousPct": 38.666666666666664,
+      "precisionAt20": 0.3,
+      "latencyP50": 7934,
+      "latencyP95": 14512,
+      "callCount": 150,
+      "errorCount": 0
+    }
+  ],
+  "rawCallCount": 212
+}
