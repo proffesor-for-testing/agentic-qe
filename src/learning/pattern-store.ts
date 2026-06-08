@@ -8,6 +8,9 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend } from '../kernel/interfaces.js';
+// Issue #516: lightweight, sqlite-free project-root resolver (static import so it
+// resolves under the test runner; avoids pulling unified-memory's sqlite graph).
+import { findProjectRoot } from '../kernel/project-root.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { RvfPatternStore } from './rvf-pattern-store.js';
@@ -1851,7 +1854,6 @@ export function createPatternStore(
       // the project's own .agentic-qe/ rather than a cwd-relative stray store.
       const { existsSync } = require('fs');
       const { join: joinPath } = require('path');
-      const { findProjectRoot } = require('../kernel/unified-memory.js');
       const projectRoot = process.env.AQE_PROJECT_ROOT ?? findProjectRoot();
       const rvfDir = joinPath(projectRoot, '.agentic-qe');
       const rvfPath = joinPath(rvfDir, 'patterns.rvf');
