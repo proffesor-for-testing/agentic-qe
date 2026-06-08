@@ -11,6 +11,7 @@ import chalk from 'chalk';
 import path from 'node:path';
 import { QE_HOOK_EVENTS } from '../../../learning/qe-hooks.js';
 import { findProjectRoot, getUnifiedMemory } from '../../../kernel/unified-memory.js';
+import { getNagualClient, type NagualPattern } from '../../../learning/nagual-client.js';
 import {
   applyHookBusyTimeout,
   getHooksSystem,
@@ -51,6 +52,42 @@ function hashDescription(description: string): string {
 }
 
 /**
+ * QE domains where nagual patterns add meaningful context.
+ * Skipped for trivial/short tasks to avoid latency with no benefit.
+ */
+const NAGUAL_SEARCH_DOMAINS = new Set([
+  'test-generation',
+  'coverage-analysis',
+  'defect-intelligence',
+  'security-compliance',
+  'quality-assessment',
+  'requirements-validation',
+]);
+
+const NAGUAL_SEARCH_MIN_DESCRIPTION_LENGTH = 80;
+
+/**
+ * Search nagual for relevant patterns when the task is complex enough to benefit.
+ * Returns empty array silently on any failure — always best-effort.
+ */
+async function fetchNagualContext(
+  description: string,
+  domain: string | undefined,
+): Promise<NagualPattern[]> {
+  if (!process.env['NAGUAL_URL'] && !process.env['NAGUAL_CLOUD_URL'] && !process.env['NAGUAL_CLOUD_KEY']) {
+    return [];
+  }
+  if (description.length < NAGUAL_SEARCH_MIN_DESCRIPTION_LENGTH) {
+    return [];
+  }
+  if (domain && !NAGUAL_SEARCH_DOMAINS.has(domain)) {
+    return [];
+  }
+  const client = getNagualClient();
+  return client.search(description.slice(0, 300), domain, 3);
+}
+
+/**
  * Register pre-task and post-task subcommands on the hooks command.
  */
 export function registerTaskHooks(hooks: Command): void {
@@ -83,6 +120,12 @@ export function registerTaskHooks(hooks: Command): void {
           .slice(0, 5)
           .map((p) => p?.id)
           .filter((id): id is string => typeof id === 'string');
+
+        // Nagual context: search cross-project knowledge hub for complex tasks
+        const nagualDomain = routing?.domains?.[0];
+        const nagualPatterns = options.description
+          ? await fetchNagualContext(String(options.description), nagualDomain)
+          : [];
 
         // Patches 090/100/160/300/320: signals derived from memory.db.
         // All best-effort: failures fall through to empty/default values.
@@ -269,6 +312,14 @@ export function registerTaskHooks(hooks: Command): void {
             lowConfidence,
             // Bridge identifier so post-task can correlate (debug aid)
             bridgeKey,
+            // Nagual cross-project context
+            nagualPatterns: nagualPatterns.map((p) => ({
+              id: p.id,
+              problem: p.problem,
+              solution: p.solution.slice(0, 400),
+              domain: p.domain,
+              reward: p.reward,
+            })),
           });
         } else {
           console.log(chalk.bold('\n🚀 Pre-Task Analysis'));
@@ -278,6 +329,12 @@ export function registerTaskHooks(hooks: Command): void {
             console.log(chalk.dim(`  Confidence: ${(routing.confidence * 100).toFixed(1)}%`));
             if (lowConfidence) {
               console.log(chalk.yellow('  ⚠  Low confidence — consider providing more context'));
+            }
+          }
+          if (nagualPatterns.length > 0) {
+            console.log(chalk.bold('\n📚 Nagual context (cross-project):'));
+            for (const p of nagualPatterns) {
+              console.log(chalk.dim(`  [${p.domain}] ${p.problem.slice(0, 80)} (reward: ${p.reward.toFixed(2)})`));
             }
           }
         }
