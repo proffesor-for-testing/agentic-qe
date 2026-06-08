@@ -69,7 +69,7 @@ export async function getSharedRvfDualWriter(): Promise<RvfDualWriter | null> {
       }
 
       // Get DB handle from unified memory
-      const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+      const { getUnifiedMemory, findProjectRoot } = await import('../../kernel/unified-memory.js');
       const unifiedMemory = getUnifiedMemory();
       const db = unifiedMemory.getDatabase();
 
@@ -77,10 +77,15 @@ export async function getSharedRvfDualWriter(): Promise<RvfDualWriter | null> {
         return null;
       }
 
+      // Issue #516: anchor brain.rvf to the project root rather than a
+      // cwd-relative path, so a subfolder cwd doesn't scatter a stray store.
+      const { join: joinPath } = await import('node:path');
+      const rvfPath = joinPath(process.env.AQE_PROJECT_ROOT ?? findProjectRoot(), '.agentic-qe', 'brain.rvf');
+
       // Create dual-writer (dynamic import to avoid bundling .node files)
       const { RvfDualWriter: DualWriterClass } = await import('./rvf-dual-writer.js');
       const writer = new DualWriterClass(db, {
-        rvfPath: '.agentic-qe/brain.rvf',
+        rvfPath,
         mode: 'dual-write',
         dimensions: 384,
       });

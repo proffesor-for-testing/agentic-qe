@@ -11,7 +11,7 @@ Based on analysis of Thariq Shihipar's "Lessons from Building Claude Code: How W
 
 ## Appendix A: Nagual Knowledge Base Mining Results
 
-Queried Nagual (`nagual.profqe.com`, 5,316 patterns, 590 domains) on 2026-03-18. Found 32 directly relevant patterns across `agentic-qe` (19), `agentic-quality-engineering` (13), `writing.blog`, `quality-engineering`, and `swarm-orchestration` domains.
+Queried local Nagual knowledge base (5,316 patterns, 590 domains) on 2026-03-18. Found 32 directly relevant patterns across `agentic-qe` (19), `agentic-quality-engineering` (13), `writing.blog`, `quality-engineering`, and `swarm-orchestration` domains.
 
 ### Battle-Tested Gotchas from Quality Forge Blog Articles
 

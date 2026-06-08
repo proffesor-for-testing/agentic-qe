@@ -5,6 +5,39 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.4] - 2026-06-08
+
+Two correctness fixes that keep a project's self-learning where it belongs and
+stop orphaned MCP servers from burning CPU, plus opt-in support for running your
+own local Nagual pattern hub and LLM judge.
+
+### Added
+
+- **Optional local Nagual pattern hub + local LLM judge (opt-in).** Point the
+  cross-project knowledge hub at a locally-run `nagual serve` instance via
+  `NAGUAL_URL`, and score pattern quality with a local Ollama-compatible model
+  via `NAGUAL_JUDGE_URL` / `NAGUAL_JUDGE_MODEL`. When configured, pre-task
+  analysis surfaces relevant cross-project patterns for complex tasks in QE
+  domains. Entirely best-effort and disabled unless the env vars are set — no
+  behavior change for existing users.
+
+### Fixed
+
+- **Project learning was being written outside its own `.agentic-qe/` (#516).**
+  Two root-resolution defects are fixed: (1) `findProjectRoot()` now prefers the
+  **nearest** `.agentic-qe` instead of the topmost, so an ancestor store (e.g.
+  `~/.agentic-qe`, created by any `aqe` run from `$HOME`) no longer hijacks every
+  descendant project and fragments its learning into `$HOME`; (2) the RVF
+  substrate (`patterns.rvf` / `brain.rvf`) now resolves its location through the
+  project root instead of a cwd-relative default, so running a hook, worker, or
+  `aqe` command from a subfolder no longer scatters stray, orphaned stores.
+- **Orphaned `aqe-mcp` server busy-looped at high CPU and ignored SIGTERM (#513).**
+  When the parent Claude Code session exited, the stdio MCP server was reparented
+  and spun at 70–98% CPU indefinitely, surviving `kill` (only `kill -9` worked).
+  Stdin EOF is now treated as terminal — the server shuts down gracefully instead
+  of entering a reconnect busy-loop — backed by an idempotent shutdown path with a
+  watchdog timeout and `unref()`'d background timers so an orphan can never linger.
+
 ## [3.10.3] - 2026-06-03
 
 Code-intelligence overhaul for the JS/TS ecosystem (#511) plus a critical fix for

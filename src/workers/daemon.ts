@@ -99,6 +99,8 @@ export class QEDaemon implements IDaemon {
     this._healthCheckTimer = setInterval(() => {
       this.performHealthCheck();
     }, this.config.healthCheckIntervalMs);
+    // Issue #513: never keep an orphaned process alive on the health timer alone.
+    this._healthCheckTimer.unref?.();
 
     // Auto-start workers if configured
     if (this.config.autoStart) {

@@ -37,7 +37,7 @@ Thariq Shihipar (Anthropic, Claude Code team) published "Lessons from Building C
 
 ### Evidence from Failure Data
 
-**Nagual Knowledge Base** (5,316 patterns, nagual.profqe.com):
+**Nagual Knowledge Base** (5,316 patterns, local nagual instance):
 - "The Conductor Who Won't Stop Conducting": Agent violated "don't run full test suite" rule 20 times despite it being in CLAUDE.md. Fix: change the environment, not the instruction.
 - "When the Orchestra Learns to Tune Itself": Completion theater (hardcoded `3.0.0` shipped), incorrect scoping (97 vs 63 skills), wrong workflow selected 8+ sessions.
 - Crystal/reflex patterns (reward 0.92): "Agent swarms over-claim completion status, hiding 12 real integration gaps."

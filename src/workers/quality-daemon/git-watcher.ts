@@ -86,6 +86,8 @@ export class GitWatcher {
           console.debug('[GitWatcher] Poll error:', err);
         });
       }, this.options.pollIntervalMs);
+      // Issue #513: don't keep an orphaned process alive on the git poll timer.
+      this.pollTimer.unref?.();
     }
 
     this._running = true;

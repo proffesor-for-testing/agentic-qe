@@ -1846,10 +1846,15 @@ export function createPatternStore(
   try {
     const flags = getRuVectorFeatureFlags();
     if (flags.useRVFPatternStore && isRvfNativeAvailable()) {
-      // Only use RVF if the data directory exists (created by kernel init)
+      // Only use RVF if the data directory exists (created by kernel init).
+      // Issue #516: anchor to the project root so a subfolder cwd reads/writes
+      // the project's own .agentic-qe/ rather than a cwd-relative stray store.
       const { existsSync } = require('fs');
-      const rvfPath = '.agentic-qe/patterns.rvf';
-      const rvfDir = require('path').dirname(rvfPath);
+      const { join: joinPath } = require('path');
+      const { findProjectRoot } = require('../kernel/unified-memory.js');
+      const projectRoot = process.env.AQE_PROJECT_ROOT ?? findProjectRoot();
+      const rvfDir = joinPath(projectRoot, '.agentic-qe');
+      const rvfPath = joinPath(rvfDir, 'patterns.rvf');
       if (existsSync(rvfDir)) {
         const mergedConfig = { ...DEFAULT_PATTERN_STORE_CONFIG, ...config };
         // FIX: Route through getSharedRvfAdapter() singleton to avoid
