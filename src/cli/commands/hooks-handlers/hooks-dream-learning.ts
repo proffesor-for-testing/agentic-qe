@@ -357,6 +357,9 @@ export async function persistTaskOutcome(opts: {
   // by the experience-capture middleware, not the unified schema — on a fresh
   // .agentic-qe the whole Stream B transaction silently failed against the
   // missing table. Same canonical DDL as experience-replay.ts ensureSchema.
+  // Fail-soft: an unexpected legacy shape must not kill the learning txn —
+  // the inserts below will surface real problems.
+  try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS captured_experiences (
       id TEXT PRIMARY KEY,
@@ -393,6 +396,17 @@ export async function persistTaskOutcome(opts: {
     );
     CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
   `);
+  } catch { /* legacy shape — inserts below report real failures */ }
+
+  // ADR-101 hotfix (v3.10.5 publish gate): qe_trajectories created by older
+  // versions (and minimal test fixtures) lacks metadata_json — naming it in
+  // the INSERT threw and aborted the whole transaction. Migrate in place.
+  try {
+    const trajCols = db.prepare(`PRAGMA table_info(qe_trajectories)`).all() as Array<{ name: string }>;
+    if (trajCols.length > 0 && !trajCols.some((c) => c.name === 'metadata_json')) {
+      db.exec(`ALTER TABLE qe_trajectories ADD COLUMN metadata_json TEXT`);
+    }
+  } catch { /* fail-soft */ }
 
   const experienceId = `exp-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const taskField = `${opts.agent}:${opts.taskId}`;
