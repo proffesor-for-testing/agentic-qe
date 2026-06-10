@@ -22,6 +22,11 @@ import {
   printSuccess,
   printError,
 } from './hooks-shared.js';
+import {
+  ToolLoopGuardrail,
+  createProjectToolLoopGuardrail,
+  type ToolLoopCheck,
+} from './tool-loop-guardrail.js';
 
 /**
  * Detect test framework from a Bash command. Returns null when no recognized
@@ -244,6 +249,34 @@ export function registerCommandHooks(hooks: Command): void {
           .filter(p => p.pattern.test(command))
           .map(p => p.reason);
 
+        // ADR-100: tool-loop circuit breaker — flag commands that keep
+        // failing consecutively (state recorded by post-command). Fail-open.
+        let loopCheck: ToolLoopCheck | null = null;
+        try {
+          loopCheck = createProjectToolLoopGuardrail(findProjectRoot()).check(command);
+        } catch { /* guardrail must never break the hook */ }
+
+        if (loopCheck && loopCheck.verdict === 'block' && ToolLoopGuardrail.isStrict()) {
+          // Strict mode: deny like a dangerous command
+          if (options.json) {
+            printJson({
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: `Tool-loop breaker (AQE_STRICT_TOOL_LOOP): ${loopCheck.hint}`,
+              },
+            });
+          } else {
+            printError(`Blocked by tool-loop breaker: ${loopCheck.hint}`);
+          }
+          return;
+        }
+        if (loopCheck && loopCheck.verdict === 'block') {
+          warnings.push(`🛑 TOOL-LOOP BREAKER: ${loopCheck.hint}`);
+        } else if (loopCheck && loopCheck.verdict === 'warn') {
+          warnings.push(`Tool-loop breaker: ${loopCheck.hint}`);
+        }
+
         if (dangerMatch) {
           // BLOCK the command
           if (options.json) {
@@ -307,6 +340,12 @@ export function registerCommandHooks(hooks: Command): void {
         const success = options.success === 'true' || options.success === true;
         const exitCode = options.exitCode ? parseInt(options.exitCode, 10) : (success ? 0 : 1);
         const command = (options.command || '').substring(0, 200);
+
+        // ADR-100: feed the tool-loop breaker — success resets, failure
+        // increments. Synchronous sidecar write; fail-open.
+        try {
+          createProjectToolLoopGuardrail(findProjectRoot()).record(command, success);
+        } catch { /* guardrail must never break the hook */ }
 
         // Determine if this is a test/build/lint command for richer learning
         const isTestCmd = /\b(test|vitest|jest|pytest|mocha)\b/i.test(command);
