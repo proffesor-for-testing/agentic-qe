@@ -75,6 +75,10 @@ export interface TaskExecution {
   readonly result?: unknown;
   readonly error?: string;
   readonly retryCount: number;
+  /** ADR-101: agent that spawned this task (nested-subagent provenance) */
+  readonly parentAgentId?: string;
+  /** ADR-101: nesting depth, 0 = top-level (Anthropic cap is 5; bound is 32) */
+  readonly depth?: number;
 }
 
 /**
