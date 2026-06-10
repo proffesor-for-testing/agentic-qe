@@ -195,7 +195,7 @@ export function registerCommandHooks(hooks: Command): void {
         }
 
         return;
-      } catch (error) {
+      } catch {
         // On error, allow (fail-open for non-critical guard)
         if (options.json) {
           printJson({
@@ -311,7 +311,7 @@ export function registerCommandHooks(hooks: Command): void {
         }
 
         return;
-      } catch (error) {
+      } catch {
         // Fail-open on error
         if (options.json) {
           printJson({
