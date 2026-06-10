@@ -3,7 +3,7 @@ name: qcsd-development-swarm
 description: "Use when monitoring in-sprint code quality with TDD adherence checks, complexity analysis, coverage gap detection, or defect prediction in the QCSD Development phase."
 category: qcsd-phases
 priority: critical
-version: 1.0.0
+version: 1.1.0
 tokenEstimate: 3400
 # DDD Domain Mapping (from QCSD-AGENTIC-QE-MAPPING-FRAMEWORK.md)
 domains:
@@ -34,13 +34,14 @@ agents:
   total: 10
   sub_agents: 0
 skills: [tdd-london-chicago, mutation-testing, performance-testing, security-testing]
-# Execution Models (Task Tool is PRIMARY)
+# Execution Models (Workflow is PRIMARY where the harness supports it — ADR-102)
 execution:
-  primary: task-tool
-  alternatives: [mcp-tools, cli]
+  primary: workflow
+  workflow_name: qcsd-development-review
+  alternatives: [task-tool, mcp-tools, cli]
 swarm_pattern: true
 parallel_batches: 3
-last_updated: 2026-02-03
+last_updated: 2026-06-10
 enforcement_level: strict
 tags: [qcsd, development, tdd, complexity, coverage, security, performance, mutation, defect-prediction, swarm, parallel, ddd]
 trust_tier: 3
@@ -192,9 +193,29 @@ skip to step N. Ensure you have the required prerequisite data from prior steps.
 
 | Model | When to Use | Agent Spawn |
 |-------|-------------|-------------|
-| **Task Tool** (PRIMARY) | Claude Code sessions | `Task({ subagent_type, run_in_background: true })` |
+| **Workflow** (PRIMARY, ADR-102) | Harness with the Workflow tool | `Workflow({ name: "qcsd-development-review", args: { sourcePath, testPath } })` |
+| **Task Tool** (fallback) | Claude Code sessions without Workflow support | `Task({ subagent_type, run_in_background: true })` |
 | **MCP Tools** | MCP server available | `fleet_init({})` / `task_submit({})` |
 | **CLI** | Terminal/scripts | `swarm init` / `agent spawn` |
+
+### Workflow execution (ADR-102)
+
+`.claude/workflows/qcsd-development-review.js` runs the review as a deterministic
+pipeline: one finder per quality dimension (TDD adherence, complexity, coverage
+gaps — `args.dimensions` selects a subset) → **3 blind adversarial refuters per
+finding** (Loki-mode, ADR-074: refuters see only the bare claim + evidence,
+never the finder's confidence or each other; uncertainty defaults to refuted)
+→ deterministic synthesis into `finding-verdict@1` envelopes (ADR-103,
+`schemas/finding-verdict.schema.json`). A finding survives only if fewer than
+⌈N/2⌉ refuters kill it. The final report contains ONLY confirmed findings;
+killed findings are retained under `killed` with their refutations for audit.
+
+Args: `sourcePath` (required), `testPath`, `dimensions` (subset of
+`tdd-adherence|complexity|coverage-gaps`), `maxFindings` per dimension (default 5).
+
+When the Workflow tool is unavailable, fall back to the Task-tool protocol
+below — the report format and gates are identical, minus the adversarial
+verification stage (note this in the report header as `verification: none`).
 
 ---
 
