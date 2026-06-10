@@ -343,6 +343,11 @@ registerLazyCommand(program, {
   factory: () => import('./commands/security.js').then(m => m.createSecurityCommand(context, cleanupAndExit, ensureInitialized)),
 });
 registerLazyCommand(program, {
+  name: 'arena',
+  description: 'Competitive test-strategy tournaments (ADR-104)',
+  factory: () => import('./commands/arena.js').then(m => m.createArenaCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
   name: 'code',
   description: 'Code intelligence analysis',
   factory: () => import('./commands/code.js').then(m => m.createCodeCommand(context, cleanupAndExit, ensureInitialized)),
