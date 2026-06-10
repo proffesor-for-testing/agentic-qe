@@ -33,9 +33,15 @@
       ]
     }
   },
-  "postCreateCommand": "bash .devcontainer/install-tools.sh",
+  // node_modules lives in a named volume so the container installs its own
+  // (Linux) native binaries instead of seeing the host's (e.g. macOS) ones
+  // via the workspace bind mount. The host's node_modules is untouched.
+  // The volume is root-owned on first creation, hence the chown before npm ci.
+  "postCreateCommand": "sudo chown vscode:vscode node_modules && bash .devcontainer/install-tools.sh && npm ci",
   "shutdownAction": "none",
-  "mounts": [],
+  "mounts": [
+    "source=agentic-qe-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
   "capAdd": [
     "SYS_ADMIN",
     "SYS_PTRACE"

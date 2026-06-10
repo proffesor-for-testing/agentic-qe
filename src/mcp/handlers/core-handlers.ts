@@ -94,6 +94,43 @@ export function isFleetInitialized(): boolean {
 }
 
 /**
+ * Adopt already-initialized components into the fleet state.
+ *
+ * The CLI's autoInitialize() builds the same kernel/queen/router stack as
+ * handleFleetInit but kept it in its own CLIContext, so every handler guarded
+ * by isFleetInitialized() (memory, agent, task, team, pipeline) rejected CLI
+ * invocations with "Fleet not initialized" even after a successful auto-init.
+ * Bridging the components here gives the MCP server and the CLI one shared
+ * fleet state (MCP-CLI parity).
+ *
+ * Idempotent: if a fleet is already initialized, returns the existing fleetId
+ * without touching state.
+ */
+export function adoptExternalFleet(components: {
+  kernel: QEKernel;
+  queen: QueenCoordinator;
+  router?: CrossDomainEventRouter | null;
+  workflowOrchestrator?: WorkflowOrchestrator | null;
+  topology?: TopologyType;
+}): string {
+  if (isFleetInitialized()) {
+    return state.fleetId!;
+  }
+
+  state.fleetId = `fleet-${uuidv4().slice(0, 8)}`;
+  state.kernel = components.kernel;
+  state.queen = components.queen;
+  state.router = components.router ?? null;
+  state.workflowOrchestrator = components.workflowOrchestrator ?? null;
+  state.initialized = true;
+  state.initTime = new Date();
+  state.topology = components.topology ?? 'hierarchical';
+  state.agentLevels.clear();
+
+  return state.fleetId;
+}
+
+/**
  * Get the current fleet topology
  */
 export function getFleetTopology(): TopologyType {

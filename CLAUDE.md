@@ -244,7 +244,8 @@ npx ruflo memory retrieve --key "pattern-auth" --namespace patterns
 ## Quick Setup
 
 ```bash
-claude mcp add ruflo -- npx -y ruflo@3.5.18
+npm install -g ruflo@3            # install/refresh the global CLI (3.x)
+claude mcp add ruflo -- ruflo mcp start
 npx ruflo daemon start
 aqe health
 ```

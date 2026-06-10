@@ -327,12 +327,12 @@ if command_exists npm; then
         echo "ruflo is already installed"
     else
         echo "Installing ruflo via npm..."
-        if npm install -g ruflo@3.5.18 2>/dev/null; then
-            record_status "claude-flow" "✅ Success" "Installed via npm (ruflo@3.5.18)"
+        if npm install -g ruflo@3 2>/dev/null; then
+            record_status "claude-flow" "✅ Success" "Installed via npm (ruflo@3)"
         elif command_exists sudo; then
             echo "Retrying ruflo installation with sudo..."
-            if sudo npm install -g ruflo@3.5.18 2>/dev/null; then
-                record_status "claude-flow" "✅ Success" "Installed via npm with sudo (ruflo@3.5.18)"
+            if sudo npm install -g ruflo@3 2>/dev/null; then
+                record_status "claude-flow" "✅ Success" "Installed via npm with sudo (ruflo@3)"
             else
                 record_status "claude-flow" "❌ Failed" "npm installation failed"
             fi
@@ -554,12 +554,12 @@ if [ $FAILED_ITEMS -gt 0 ]; then
         echo "" >> "$REPORT_FILE"
         echo "**Install Claude Flow (alpha version):**" >> "$REPORT_FILE"
         echo '```bash' >> "$REPORT_FILE"
-        echo "npm install -g ruflo@3.5.18" >> "$REPORT_FILE"
+        echo "npm install -g ruflo@3" >> "$REPORT_FILE"
         echo '```' >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
         echo "**If you get permission errors, try:**" >> "$REPORT_FILE"
         echo '```bash' >> "$REPORT_FILE"
-        echo "sudo npm install -g ruflo@3.5.18" >> "$REPORT_FILE"
+        echo "sudo npm install -g ruflo@3" >> "$REPORT_FILE"
         echo '```' >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
         echo "**For more information, visit:** https://github.com/ruvnet/ruflo" >> "$REPORT_FILE"
