@@ -153,8 +153,13 @@ export class CostTracker {
       };
     }
 
-    // Convert from per-million to actual cost
-    const inputCost = (usage.promptTokens / 1_000_000) * pricing.input;
+    // Convert from per-million to actual cost.
+    // ADR-088: cache reads bill at ~0.1x input rate, cache writes at ~1.25x
+    // (5-minute TTL); promptTokens already excludes both.
+    const inputCost =
+      (usage.promptTokens / 1_000_000) * pricing.input +
+      ((usage.cacheReadTokens ?? 0) / 1_000_000) * pricing.input * 0.1 +
+      ((usage.cacheCreationTokens ?? 0) / 1_000_000) * pricing.input * 1.25;
     const outputCost = (usage.completionTokens / 1_000_000) * pricing.output;
 
     return {

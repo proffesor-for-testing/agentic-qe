@@ -197,6 +197,7 @@ Session End
 |--------|------|-------|
 | Proposed | 2026-04-01 | Initial creation from Claude Code internals research |
 | Implemented | 2026-04-02 | IMP-05 complete: PromptCacheLatch wired in claude-provider.ts, 13 tests passing |
+| Amended | 2026-06-10 | Option 5 implemented (issue #520, improvement 2): `ClaudeProvider.generate()` sends `system` as a content-block array with `cache_control: {type: "ephemeral"}` when `enableCache` (previously a dead flag); `cache_creation_input_tokens`/`cache_read_input_tokens` surfaced into `TokenUsage.cacheCreationTokens`/`cacheReadTokens`; `CostTracker.calculateCost` bills cache reads at 0.1x and writes at 1.25x input rate. Anthropic-native provider only (ADR-092). Note: prefixes below the model minimum (1024–4096 tokens by model) silently don't cache. 5 new provider tests. |
 
 ---
 

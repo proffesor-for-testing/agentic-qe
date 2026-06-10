@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agentic-qe.dev/schemas/coverage-gap.schema.json",
+  "title": "CoverageGap",
+  "type": "object",
+  "required": [
+    "contract",
+    "file",
+    "riskScore",
+    "suggestedTests"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "contract": {
+      "const": "coverage-gap@1"
+    },
+    "file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rangeStart": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rangeEnd": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "riskScore": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "suggestedTests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

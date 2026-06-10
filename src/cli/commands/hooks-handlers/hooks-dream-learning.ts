@@ -340,6 +340,10 @@ export async function persistTaskOutcome(opts: {
   domain?: string;
   success: boolean;
   durationMs?: number;
+  /** ADR-101: agent that spawned this task (nesting provenance) */
+  parentAgentId?: string;
+  /** ADR-101: nesting depth, 0 = top-level */
+  depth?: number;
 }): Promise<TaskOutcomeResult> {
   const { getUnifiedMemory } = await import('../../../kernel/unified-memory.js');
   const um = getUnifiedMemory();
@@ -348,6 +352,47 @@ export async function persistTaskOutcome(opts: {
   }
   const db = um.getDatabase();
   try { db.pragma('busy_timeout = 60000'); } catch { /* hook-side patient timeout (ADR-001 / patch 260) */ }
+
+  // Fresh-project fix (found by ADR-101 E2E): captured_experiences is created
+  // by the experience-capture middleware, not the unified schema — on a fresh
+  // .agentic-qe the whole Stream B transaction silently failed against the
+  // missing table. Same canonical DDL as experience-replay.ts ensureSchema.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS captured_experiences (
+      id TEXT PRIMARY KEY,
+      task TEXT NOT NULL,
+      agent TEXT NOT NULL,
+      domain TEXT NOT NULL DEFAULT '',
+      success INTEGER NOT NULL DEFAULT 0,
+      quality REAL NOT NULL DEFAULT 0.5,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      model_tier INTEGER,
+      routing_json TEXT,
+      steps_json TEXT,
+      result_json TEXT,
+      error TEXT,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      source TEXT DEFAULT 'middleware',
+      application_count INTEGER DEFAULT 0,
+      avg_token_savings REAL DEFAULT 0,
+      embedding BLOB,
+      embedding_dimension INTEGER,
+      tags TEXT,
+      last_applied_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS experience_applications (
+      id TEXT PRIMARY KEY,
+      experience_id TEXT NOT NULL,
+      task TEXT NOT NULL,
+      success INTEGER NOT NULL,
+      tokens_saved INTEGER DEFAULT 0,
+      feedback TEXT,
+      applied_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (experience_id) REFERENCES captured_experiences(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_exp_apps_experience ON experience_applications(experience_id);
+  `);
 
   const experienceId = `exp-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const taskField = `${opts.agent}:${opts.taskId}`;
@@ -509,10 +554,19 @@ export async function persistTaskOutcome(opts: {
     }
 
     // 5. Single-step qe_trajectories row
+    // ADR-101: nesting provenance lands in the metadata_json blob (stage 1 —
+    // no dedicated columns / schema migration)
     const trajId = `traj-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const provenanceJson =
+      opts.parentAgentId !== undefined || opts.depth !== undefined
+        ? JSON.stringify({
+            ...(opts.parentAgentId !== undefined ? { parentAgentId: opts.parentAgentId } : {}),
+            ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
+          })
+        : null;
     db.prepare(`
-      INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json)
-      VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?)
+      INSERT INTO qe_trajectories (id, task, agent, domain, started_at, ended_at, success, steps_json, metadata_json)
+      VALUES (?, ?, ?, ?, datetime('now'), datetime('now'), ?, ?, ?)
     `).run(
       trajId,
       taskField,
@@ -520,6 +574,7 @@ export async function persistTaskOutcome(opts: {
       opts.domain ?? 'general',
       opts.success ? 1 : 0,
       JSON.stringify([{ step: 1, task: opts.taskId, success: opts.success }]),
+      provenanceJson,
     );
 
     // 6. Multi-step stitch — siblings sharing the same suffix taskId in the

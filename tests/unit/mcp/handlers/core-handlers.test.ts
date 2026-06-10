@@ -15,8 +15,11 @@ import {
   handleFleetHealth,
   getFleetState,
   isFleetInitialized,
+  adoptExternalFleet,
   disposeFleet,
 } from '../../../../src/mcp/handlers/core-handlers';
+import type { QEKernel } from '../../../../src/kernel/interfaces';
+import type { QueenCoordinator } from '../../../../src/coordination/queen-coordinator';
 import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import type { FleetInitParams, FleetStatusParams, FleetHealthParams } from '../../../../src/mcp/types';
 
@@ -79,6 +82,83 @@ describe('Core Handlers', { timeout: 30000 }, () => {
       expect(state.kernel).not.toBeNull();
       expect(state.queen).not.toBeNull();
       expect(state.initTime).toBeInstanceOf(Date);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // adoptExternalFleet — CLI→MCP fleet-state bridge (MCP-CLI parity)
+  // --------------------------------------------------------------------------
+
+  describe('adoptExternalFleet', () => {
+    // Minimal stubs: disposeFleet() calls dispose() on adopted components
+    const makeStubComponents = () => ({
+      kernel: { dispose: vi.fn(async () => {}) } as unknown as QEKernel,
+      queen: { dispose: vi.fn(async () => {}) } as unknown as QueenCoordinator,
+    });
+
+    afterAll(async () => {
+      await disposeFleet();
+      resetUnifiedPersistence();
+    });
+
+    it('should mark the fleet initialized when adopting external components', async () => {
+      await disposeFleet();
+      const fleetId = adoptExternalFleet(makeStubComponents());
+
+      expect(isFleetInitialized()).toBe(true);
+      expect(fleetId).toMatch(/^fleet-/);
+    });
+
+    it('should expose adopted components via getFleetState', async () => {
+      await disposeFleet();
+      const components = makeStubComponents();
+
+      adoptExternalFleet(components);
+
+      const state = getFleetState();
+      expect(state.kernel).toBe(components.kernel);
+      expect(state.queen).toBe(components.queen);
+      expect(state.initTime).toBeInstanceOf(Date);
+    });
+
+    it('should default router and workflowOrchestrator to null when omitted', async () => {
+      await disposeFleet();
+
+      adoptExternalFleet(makeStubComponents());
+
+      const state = getFleetState();
+      expect(state.router).toBeNull();
+      expect(state.workflowOrchestrator).toBeNull();
+    });
+
+    it('should default topology to hierarchical when omitted', async () => {
+      await disposeFleet();
+
+      adoptExternalFleet(makeStubComponents());
+
+      expect(getFleetState().topology).toBe('hierarchical');
+    });
+
+    it('should be idempotent when a fleet was already adopted', async () => {
+      await disposeFleet();
+      const first = makeStubComponents();
+      const firstId = adoptExternalFleet(first);
+
+      const secondId = adoptExternalFleet(makeStubComponents());
+
+      expect(secondId).toBe(firstId);
+      expect(getFleetState().kernel).toBe(first.kernel);
+    });
+
+    it('should not clobber a fleet created by handleFleetInit', async () => {
+      await disposeFleet();
+      const initResult = await handleFleetInit({ memoryBackend: 'memory' });
+      const existingKernel = getFleetState().kernel;
+
+      const adoptedId = adoptExternalFleet(makeStubComponents());
+
+      expect(adoptedId).toBe(initResult.data?.fleetId);
+      expect(getFleetState().kernel).toBe(existingKernel);
     });
   });
 

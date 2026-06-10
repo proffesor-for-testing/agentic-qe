@@ -169,6 +169,19 @@ async function autoInitialize(): Promise<void> {
   );
   await context.queen.initialize();
 
+  // Bridge the CLI-initialized components into the MCP handlers' fleet state.
+  // The memory/agent/task/team/pipeline handlers are shared between the MCP
+  // server and the CLI and are guarded by isFleetInitialized(); without this
+  // bridge every CLI invocation failed with "Fleet not initialized" even
+  // after a successful auto-init (MCP-CLI parity).
+  const { adoptExternalFleet } = await import('../mcp/handlers/core-handlers.js');
+  adoptExternalFleet({
+    kernel: context.kernel,
+    queen: context.queen,
+    router: context.router,
+    workflowOrchestrator: context.workflowOrchestrator,
+  });
+
   context.initialized = true;
 }
 
@@ -328,6 +341,11 @@ registerLazyCommand(program, {
   name: 'security',
   description: 'Security scanning and URL validation',
   factory: () => import('./commands/security.js').then(m => m.createSecurityCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
+  name: 'arena',
+  description: 'Competitive test-strategy tournaments (ADR-104)',
+  factory: () => import('./commands/arena.js').then(m => m.createArenaCommand(context, cleanupAndExit, ensureInitialized)),
 });
 registerLazyCommand(program, {
   name: 'code',

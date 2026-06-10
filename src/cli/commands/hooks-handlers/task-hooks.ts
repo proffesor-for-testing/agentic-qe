@@ -26,6 +26,7 @@ import {
 import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
 import { deriveTaskType } from '../../../learning/agent-routing.js';
 import { detectQEDomains } from '../../../learning/qe-patterns.js';
+import { parseNestingProvenance } from './nesting-provenance.js';
 
 // ============================================================================
 // Constants — task-bridge / routing-quality / q-learning
@@ -359,10 +360,24 @@ export function registerTaskHooks(hooks: Command): void {
     .option('--agent <name>', 'Agent that executed the task')
     .option('--duration <ms>', 'Task duration in milliseconds')
     .option('-d, --description <desc>', 'Task description — fallback Q-state source when pre-task bridge is absent (issue #499)')
+    .option('--parent-agent-id <id>', 'Agent that spawned this task (ADR-101 nesting provenance)')
+    .option('--depth <n>', 'Nesting depth of this task, 0 = top-level (ADR-101)')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       try {
         const success = options.success === 'true' || options.success === true;
+
+        // ADR-101: validate nesting provenance before any persistence
+        const provenance = parseNestingProvenance(options.parentAgentId, options.depth);
+        if (provenance.error) {
+          if (options.json) {
+            console.log(JSON.stringify({ success: false, error: provenance.error }));
+          } else {
+            console.error(chalk.red(`  ✗ ${provenance.error}`));
+          }
+          process.exitCode = 1;
+          return;
+        }
 
         // Initialize hooks system and record learning outcome
         // BUG FIX: Must call getHooksSystem() FIRST to initialize, not check state.initialized
@@ -397,11 +412,16 @@ export function registerTaskHooks(hooks: Command): void {
             const agent = options.agent || 'unknown';
             const durationMs = options.duration ? parseInt(options.duration, 10) : 0;
 
+            // ADR-101: provenance rides in the feedback string so the
+            // learning loop can segment patterns per hierarchy level
+            const provenanceSuffix =
+              (provenance.parentAgentId ? `, Parent: ${provenance.parentAgentId}` : '') +
+              (provenance.depth !== undefined ? `, Depth: ${provenance.depth}` : '');
             await reasoningBank.recordOutcome({
               patternId: `task:${agent}:${effectiveTaskId}`,
               success,
               metrics: { executionTimeMs: durationMs },
-              feedback: `Agent: ${agent}, Task: ${effectiveTaskId}`,
+              feedback: `Agent: ${agent}, Task: ${effectiveTaskId}${provenanceSuffix}`,
             });
 
             // Stream B: full experience pipeline (captured_experiences,
@@ -413,6 +433,8 @@ export function registerTaskHooks(hooks: Command): void {
               agent,
               durationMs,
               success,
+              parentAgentId: provenance.parentAgentId,
+              depth: provenance.depth,
             });
 
             // Issue #460: when --agent arrives empty (Claude Code does not

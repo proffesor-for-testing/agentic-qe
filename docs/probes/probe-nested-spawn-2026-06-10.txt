@@ -1,0 +1,7 @@
+=== nested-spawn probe 2026-06-10T10:00:11.887Z ===
+verdict: level=1 status=NO_AGENT_TOOL (upstream denylist active — expected until Anthropic flips the gate)
+--- stdout ---
+level=0 task_tool=yes
+level=1 task_tool=no
+--- stderr ---
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.

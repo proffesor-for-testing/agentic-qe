@@ -209,6 +209,90 @@ describe('ClaudeProvider', () => {
     });
   });
 
+  describe('prompt caching (ADR-088)', () => {
+    const successResponse = (usage: Record<string, number>) => ({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          id: 'msg_test',
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'text', text: 'cached response' }],
+          model: 'claude-sonnet-4-6',
+          stop_reason: 'end_turn',
+          usage,
+        }),
+    });
+
+    it('should send system as content blocks with ephemeral cache_control when caching enabled (default)', async () => {
+      mockFetch.mockImplementationOnce((_url, options) => {
+        const body = JSON.parse((options as RequestInit).body as string);
+        expect(body.system).toEqual([
+          {
+            type: 'text',
+            text: 'You are a QE advisor',
+            cache_control: { type: 'ephemeral' },
+          },
+        ]);
+        return Promise.resolve(successResponse({ input_tokens: 10, output_tokens: 5 }));
+      });
+
+      await provider.generate('Test', { systemPrompt: 'You are a QE advisor' });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should send system as a plain string when enableCache is false', async () => {
+      const noCacheProvider = new ClaudeProvider({ apiKey: 'test-api-key', enableCache: false });
+      mockFetch.mockImplementationOnce((_url, options) => {
+        const body = JSON.parse((options as RequestInit).body as string);
+        expect(body.system).toBe('You are a QE advisor');
+        return Promise.resolve(successResponse({ input_tokens: 10, output_tokens: 5 }));
+      });
+
+      await noCacheProvider.generate('Test', { systemPrompt: 'You are a QE advisor' });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not send a system field when no systemPrompt is given', async () => {
+      mockFetch.mockImplementationOnce((_url, options) => {
+        const body = JSON.parse((options as RequestInit).body as string);
+        expect(body.system).toBeUndefined();
+        return Promise.resolve(successResponse({ input_tokens: 10, output_tokens: 5 }));
+      });
+
+      await provider.generate('Test');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should surface cache_read and cache_creation tokens in usage', async () => {
+      mockFetch.mockResolvedValueOnce(
+        successResponse({
+          input_tokens: 12,
+          output_tokens: 5,
+          cache_creation_input_tokens: 2000,
+          cache_read_input_tokens: 8000,
+        })
+      );
+
+      const response = await provider.generate('Test', { systemPrompt: 'big prompt' });
+
+      expect(response.usage.cacheCreationTokens).toBe(2000);
+      expect(response.usage.cacheReadTokens).toBe(8000);
+      // total = uncached input + cache write + cache read + output
+      expect(response.usage.totalTokens).toBe(12 + 2000 + 8000 + 5);
+    });
+
+    it('should default cache token fields to 0 when API omits them', async () => {
+      mockFetch.mockResolvedValueOnce(successResponse({ input_tokens: 10, output_tokens: 5 }));
+
+      const response = await provider.generate('Test');
+
+      expect(response.usage.cacheCreationTokens).toBe(0);
+      expect(response.usage.cacheReadTokens).toBe(0);
+      expect(response.usage.totalTokens).toBe(15);
+    });
+  });
+
   describe('embed', () => {
     it('should throw error as Claude does not support embeddings', async () => {
       await expect(provider.embed('test')).rejects.toMatchObject({
