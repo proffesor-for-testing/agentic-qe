@@ -5,6 +5,77 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.5] - 2026-06-10
+
+The Fable 5 / harness-parity release (#520): the CLI's memory and fleet
+commands work for the first time, prompt caching actually engages, the
+self-learning pipeline stays clean under reasoning-heavy models, and two new
+capabilities land — adversarially verified QCSD reviews and competitive
+test-strategy tournaments. Seven improvements, each with its own ADR and a
+reproduction-first verification record on #520.
+
+### Added
+
+- **`aqe arena` — competitive test-strategy tournaments (ADR-104, Phase 1).**
+  Strategies compete on *real* fitness: built-in operator mutants executed via
+  `node --test`, real line coverage, and a deterministic suite-cost term.
+  `aqe arena run --target fixtures/arena-demo --seed 42` produces a ranked
+  competitive array that reproduces byte-identically under the same seed;
+  `--evolve` hill-climbs the winner; runs persist to memory.db (`aqe arena list`).
+- **Adversarially verified QCSD reviews (ADR-102).** The development-phase
+  swarm now runs as a deterministic workflow: one finder per quality dimension,
+  then 3 blind refuters per finding (majority kill, Loki-mode rules from
+  ADR-074), then code-only synthesis. Reports contain only confirmed findings;
+  killed findings are retained with their refutations. In the validation run,
+  the gate filtered a factually-wrong finding that the old prompt-driven
+  fan-out would have shipped.
+- **Structured verdict contracts (ADR-103).** Versioned, additive envelopes —
+  `RiskDecision`, `FindingVerdict`, `CoverageGap` — with dependency-free
+  validators and published JSON Schemas (`schemas/*.schema.json`). The
+  `quality_assess` MCP tool now attaches a validated `riskDecision` envelope.
+- **Tool-loop circuit breaker (ADR-100).** When the same Bash command fails
+  3× consecutively the pre-command hook warns; at 5× it emits a block
+  recommendation with a recovery hint (`AQE_STRICT_TOOL_LOOP=1` upgrades to a
+  hard deny). Success resets; an open breaker grants a probe after 2 minutes.
+- **Nested-subagent readiness (ADR-101).** Anthropic announced depth-5 nested
+  subagents on 2026-06-09; AQE is ready the day the gate lifts: post-task
+  hooks accept `--parent-agent-id`/`--depth` (validated, persisted into
+  trajectory metadata for per-hierarchy-level learning), and a committed probe
+  script (`scripts/probe-nested-spawn-depth.mjs`) detects the upstream
+  rollout — current verdict: `NO_AGENT_TOOL`, denylist still active.
+- **LLM judge benchmark harness** (`scripts/judge-benchmark.ts`) with Phase-1
+  results.
+
+### Fixed
+
+- **`aqe memory` / `agent` / `task` / `team` / `pipeline` CLI commands always
+  failed with "Fleet not initialized".** The CLI initialized a full kernel but
+  never registered it with the shared MCP handlers' fleet state. A new bridge
+  (`adoptExternalFleet`) gives both entry points one fleet state — these
+  commands now work from the terminal for the first time.
+- **Prompt caching was dead code (ADR-088 amendment).** `enableCache: true`
+  existed but never set `cache_control`; every advisor/LLM call paid full
+  input price. The Anthropic provider now marks the system prompt as an
+  ephemeral cache breakpoint, surfaces `cacheRead/cacheCreation` tokens, and
+  bills them at the real 0.1×/1.25× rates in cost tracking.
+- **Pattern embeddings were contaminated by extended-thinking blocks
+  (ADR-099).** Reasoning-heavy models (Fable 5 era) emit large scratchpads
+  inside task results; these are now scrubbed (boundary-gated) at trajectory
+  ingestion, distillation, embedding backfill, and query time — prose that
+  merely mentions a tag survives byte-identical.
+- **Fresh-install learning silently no-oped.** `persistTaskOutcome` assumed
+  middleware-created tables (`captured_experiences`, `experience_applications`);
+  on a fresh `.agentic-qe` the whole post-task learning transaction failed
+  silently. The hook path now ensures the canonical schema.
+
+### Changed
+
+- Devcontainer now mounts `node_modules` as a named volume and installs
+  in-container, so Linux containers stop tripping over host (macOS) native
+  binaries (contributors only; takes effect on container rebuild).
+- Setup docs and the devcontainer install script no longer pin the long-stale
+  `ruflo@3.5.18` (now `ruflo@3` + global `ruflo mcp start`).
+
 ## [3.10.4] - 2026-06-08
 
 Two correctness fixes that keep a project's self-learning where it belongs and
