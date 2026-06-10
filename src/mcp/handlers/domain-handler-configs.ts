@@ -35,6 +35,11 @@ import {
   type SupportedLanguage,
   type TestFramework,
 } from '../../shared/types/test-frameworks.js';
+import {
+  buildRiskDecisionFromQualityGate,
+  validateRiskDecision,
+  type RiskDecision,
+} from '../../contracts/verdicts.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
@@ -92,6 +97,8 @@ export interface QualityAssessResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  /** ADR-103: versioned, schema-validated gate verdict (additive) */
+  riskDecision?: RiskDecision;
 }
 
 export interface SecurityScanResult {
@@ -551,16 +558,27 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
-    taskId,
-    status: 'completed',
-    qualityScore: (data.qualityScore as number) || 0,
-    passed: (data.passed as boolean) || false,
-    metrics: (data.metrics as Record<string, number>) || {},
-    recommendations: (data.recommendations as string[]) || [],
-    duration,
-    savedFiles,
-  }),
+  mapToResult: (taskId, data, duration, savedFiles) => {
+    // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
+    // boundary (additive — existing fields unchanged). Omit rather than
+    // emit an invalid envelope.
+    const riskDecision = buildRiskDecisionFromQualityGate({
+      passed: typeof data.passed === 'boolean' ? data.passed : undefined,
+      qualityScore: data.qualityScore as number | undefined,
+      recommendations: (data.recommendations as string[]) || [],
+    });
+    return {
+      taskId,
+      status: 'completed',
+      qualityScore: (data.qualityScore as number) || 0,
+      passed: (data.passed as boolean) || false,
+      metrics: (data.metrics as Record<string, number>) || {},
+      recommendations: (data.recommendations as string[]) || [],
+      duration,
+      savedFiles,
+      ...(validateRiskDecision(riskDecision).valid ? { riskDecision } : {}),
+    };
+  },
 };
 
 // ============================================================================
