@@ -56,6 +56,10 @@ interface ClaudeMessageResponse {
   usage: {
     input_tokens: number;
     output_tokens: number;
+    /** Present when a cache_control breakpoint wrote to the prompt cache */
+    cache_creation_input_tokens?: number;
+    /** Present when a prefix was served from the prompt cache */
+    cache_read_input_tokens?: number;
   };
 }
 
@@ -190,7 +194,15 @@ export class ClaudeProvider implements LLMProvider {
     };
 
     if (options?.systemPrompt) {
-      body.system = options.systemPrompt;
+      // ADR-088: when caching is enabled, send the system prompt as a
+      // content-block array with an ephemeral cache breakpoint — repeated
+      // calls within the TTL read the cached prefix at ~0.1x input price.
+      // Anthropic-native provider only (ADR-092: other providers untouched).
+      // Note: prefixes below the model's minimum (1024-4096 tokens) silently
+      // don't cache; the breakpoint is harmless in that case.
+      body.system = this.config.enableCache !== false
+        ? [{ type: 'text', text: options.systemPrompt, cache_control: { type: 'ephemeral' } }]
+        : options.systemPrompt;
     }
 
     if (options?.stopSequences && options.stopSequences.length > 0) {
@@ -243,10 +255,17 @@ export class ClaudeProvider implements LLMProvider {
 
       const data = await response.json() as ClaudeMessageResponse;
 
+      // ADR-088: input_tokens is the uncached remainder only — cache
+      // read/creation tokens are reported separately by the API.
+      const cacheCreationTokens = data.usage.cache_creation_input_tokens ?? 0;
+      const cacheReadTokens = data.usage.cache_read_input_tokens ?? 0;
       const usage: TokenUsage = {
         promptTokens: data.usage.input_tokens,
         completionTokens: data.usage.output_tokens,
-        totalTokens: data.usage.input_tokens + data.usage.output_tokens,
+        totalTokens:
+          data.usage.input_tokens + cacheCreationTokens + cacheReadTokens + data.usage.output_tokens,
+        cacheCreationTokens,
+        cacheReadTokens,
       };
 
       const cost = CostTracker.calculateCost(model, usage);

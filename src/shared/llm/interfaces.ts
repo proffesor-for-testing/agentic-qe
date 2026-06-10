@@ -38,6 +38,10 @@ export interface TokenUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  /** ADR-088: tokens written to the prompt cache this request (billed ~1.25x input rate) */
+  cacheCreationTokens?: number;
+  /** ADR-088: tokens served from the prompt cache this request (billed ~0.1x input rate) */
+  cacheReadTokens?: number;
 }
 
 /**
