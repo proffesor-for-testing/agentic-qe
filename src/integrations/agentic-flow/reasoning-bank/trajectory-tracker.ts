@@ -14,6 +14,7 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../../../kernel/uni
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { scrubReasoningBlocks, scrubReasoningDeep } from '../../../shared/reasoning-scrub.js';
 
 // ============================================================================
 // Types
@@ -446,6 +447,10 @@ export class TrajectoryTracker {
   async startTrajectory(task: string, options: TrajectoryOptions = {}): Promise<string> {
     this.ensureInitialized();
 
+    // ADR-099: strip reasoning scratchpad blocks before the task text enters
+    // persistence and (later) embedding generation
+    task = scrubReasoningBlocks(task);
+
     const id = uuidv4();
     const startedAt = new Date();
 
@@ -520,6 +525,15 @@ export class TrajectoryTracker {
 
     const stepId = uuidv4();
     const quality = options.quality ?? this.calculateStepQuality(result);
+
+    // ADR-099: scrub reasoning blocks from step content before it is held
+    // in memory (distilled into experiences at endTrajectory) and persisted
+    action = scrubReasoningBlocks(action);
+    result = {
+      ...result,
+      data: result.data ? scrubReasoningDeep(result.data) : result.data,
+      error: result.error ? scrubReasoningBlocks(result.error) : result.error,
+    };
 
     const step: TrajectoryStep = {
       id: stepId,

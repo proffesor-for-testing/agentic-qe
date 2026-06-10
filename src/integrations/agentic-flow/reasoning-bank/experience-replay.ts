@@ -26,6 +26,7 @@ import { CircularBuffer } from '../../../shared/utils/circular-buffer.js';
 import { HNSWEmbeddingIndex } from '../../embeddings/index/HNSWIndex.js';
 import type { IEmbedding } from '../../embeddings/base/types.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { scrubReasoningBlocks } from '../../../shared/reasoning-scrub.js';
 import { ExperienceConsolidator } from '../../../learning/experience-consolidation.js';
 import { getRuVectorFeatureFlags } from '../../ruvector/feature-flags.js';
 import { ReservoirReplayBuffer } from '../../ruvector/reservoir-replay.js';
@@ -283,7 +284,8 @@ export class ExperienceReplay {
         `);
         let written = 0;
         for (const row of ghosts) {
-          const text = `${row.domain ?? ''}: ${row.task}`.slice(0, 512);
+          // ADR-099: legacy rows may predate ingestion-time scrubbing
+          const text = scrubReasoningBlocks(`${row.domain ?? ''}: ${row.task}`).slice(0, 512);
           const embedding = await computeRealEmbedding(text);
           const buf = Buffer.from(new Float32Array(embedding).buffer);
           updateStmt.run(buf, embedding.length, row.id);
@@ -328,7 +330,8 @@ export class ExperienceReplay {
         const updateStmt = this.db.prepare(`UPDATE qe_trajectories SET embedding = ? WHERE id = ?`);
         let written = 0;
         for (const row of rows) {
-          const text = `${row.domain ?? ''}: ${row.task}`.slice(0, 512);
+          // ADR-099: legacy rows may predate ingestion-time scrubbing
+          const text = scrubReasoningBlocks(`${row.domain ?? ''}: ${row.task}`).slice(0, 512);
           const embedding = await computeRealEmbedding(text);
           updateStmt.run(Buffer.from(new Float32Array(embedding).buffer), row.id);
           written++;
@@ -558,12 +561,16 @@ export class ExperienceReplay {
     }
 
     // Extract key actions
+    // ADR-099: scrub reasoning scratchpad blocks so neither the stored
+    // experience nor its embedding carries extended-thinking text
+    const task = scrubReasoningBlocks(trajectory.task);
+    strategy = scrubReasoningBlocks(strategy);
     const keyActions = trajectory.steps
       .filter(s => s.result.outcome === 'success')
-      .map(s => s.action);
+      .map(s => scrubReasoningBlocks(s.action));
 
     // Generate embedding for similarity search
-    const embeddingText = `${trajectory.task} ${strategy} ${keyActions.join(' ')}`;
+    const embeddingText = `${task} ${strategy} ${keyActions.join(' ')}`;
     const embedding = await computeRealEmbedding(embeddingText, this.config.embedding);
 
     const id = uuidv4();
@@ -572,7 +579,7 @@ export class ExperienceReplay {
     const experience: Experience = {
       id,
       trajectoryId: trajectory.id,
-      task: trajectory.task,
+      task,
       domain,
       strategy,
       keyActions,
@@ -592,7 +599,7 @@ export class ExperienceReplay {
       const embeddingBuffer = embedding ? this.floatArrayToBuffer(embedding) : null;
       insertStmt.run(
         id,
-        trajectory.task,
+        task,
         strategy, // agent column stores strategy
         domain,
         trajectory.metrics.efficiencyScore,
@@ -761,6 +768,8 @@ export class ExperienceReplay {
     }
 
     // Generate embedding for the task
+    // ADR-099: scrub so query embeddings match the scrubbed stored embeddings
+    task = scrubReasoningBlocks(task);
     const taskEmbedding = await computeRealEmbedding(task, this.config.embedding);
 
     // Create query embedding for HNSW search
