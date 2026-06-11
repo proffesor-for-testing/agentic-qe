@@ -478,10 +478,12 @@ export class AQELearningEngine {
     }
 
     // Search for similar patterns before routing (Phase 5.1 & 5.3)
+    // ADR-110: pass context so previously-failed patterns are discounted here too
     const patternSearchResult = await this.searchPatternsForTask(request.task, {
       limit: 5,
       minConfidence: 0.4,
       domain: request.domain,
+      contextFingerprint: request.domain ? `${request.domain}:router` : undefined,
     });
 
     // Track pattern usage for found patterns (Phase 5.4)
@@ -534,6 +536,8 @@ export class AQELearningEngine {
       limit?: number;
       minConfidence?: number;
       domain?: QEDomain;
+      /** ADR-110: caller context so the null-discount can weight in-context failures hardest */
+      contextFingerprint?: string;
     } = {}
   ): Promise<Result<PatternSearchResult[]>> {
     if (!this.reasoningBank) {
@@ -545,6 +549,7 @@ export class AQELearningEngine {
         limit: options.limit || 5,
         minConfidence: options.minConfidence || 0.4,
         domain: options.domain,
+        contextFingerprint: options.contextFingerprint,
         useVectorSearch: true,
       });
     } catch (error) {
@@ -779,6 +784,20 @@ export class AQELearningEngine {
       }
     }
 
+    // ADR-110: retrieve the patterns that will GUIDE this task so a failure
+    // can be attributed to them as kept nulls. Fail-soft — guidance is
+    // best-effort and must never block task start.
+    const contextFingerprint = `${domain ?? 'unknown'}:${agent ?? 'unknown'}`;
+    let appliedPatterns: string[] | undefined;
+    try {
+      const guiding = await this.searchPatternsForTask(task, { domain, contextFingerprint });
+      if (guiding.success && guiding.value.length > 0) {
+        appliedPatterns = guiding.value.map(r => r.pattern.id);
+      }
+    } catch {
+      // guidance retrieval is non-critical; proceed without it
+    }
+
     // Start experience capture (linked to trajectory if available)
     let experienceId: string | undefined;
     if (this.experienceCapture) {
@@ -786,6 +805,7 @@ export class AQELearningEngine {
         agent,
         domain,
         trajectoryId: trajectoryId !== id ? trajectoryId : undefined,
+        appliedPatterns,
       });
     }
 
