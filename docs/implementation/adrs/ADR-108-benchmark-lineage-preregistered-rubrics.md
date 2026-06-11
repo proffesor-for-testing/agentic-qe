@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-108 |
-| **Status** | Proposed |
+| **Status** | Implemented |
 | **Date** | 2026-06-11 |
 | **Author** | AQE Core (Pattern Space cross-pollination initiative, gist `3efec1f`) |
 | **Review Cadence** | 6 months |

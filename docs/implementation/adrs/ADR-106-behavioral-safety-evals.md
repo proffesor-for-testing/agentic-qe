@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-106 |
-| **Status** | Proposed |
+| **Status** | Implemented (deterministic + live model-judgment matrix; all native Claude tiers pass every cell) |
 | **Date** | 2026-06-11 |
 | **Author** | AQE Core (Pattern Space cross-pollination initiative, gist `3efec1f`) |
 | **Review Cadence** | 3 months (safety-critical) |

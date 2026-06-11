@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-105 |
-| **Status** | Proposed |
+| **Status** | Implemented (validation pipeline; INFERRED domain-finding wiring is follow-up) |
 | **Date** | 2026-06-11 |
 | **Author** | AQE Core (Pattern Space cross-pollination initiative, gist `3efec1f`) |
 | **Review Cadence** | 6 months |

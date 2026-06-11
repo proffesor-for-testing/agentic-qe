@@ -246,3 +246,13 @@ v2-archive.tar.gz
 # committed.
 docs/reports/coherence-comparison-*.json
 docs/reports/coherence-comparison-*.md
+# Transient benchmark/eval run outputs — canonical evidence is force-added below
+benchmarks/interaction/results/*
+tests/safety/behavioral/results/*
+!benchmarks/interaction/results/README.md
+!benchmarks/interaction/results/results-run2.jsonl
+!benchmarks/interaction/results/summary-run2.json
+!tests/safety/behavioral/results/README.md
+!tests/safety/behavioral/results/live-haiku.json
+!tests/safety/behavioral/results/live-sonnet.json
+!tests/safety/behavioral/results/live-opus.json
