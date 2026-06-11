@@ -273,6 +273,21 @@ export class AQELearningEngine {
       } catch (e) {
         if (process.env.DEBUG) console.debug('[AQELearningEngine] Witness chain wiring skipped:', e instanceof Error ? e.message : e);
       }
+
+      // Wire ADR-110 kept-nulls recorder (fail-soft, mirrors witness wiring)
+      try {
+        const { getUnifiedPersistence } = await import('../kernel/unified-persistence.js');
+        const persistence = getUnifiedPersistence();
+        if (persistence.isInitialized()) {
+          const { PatternNullStore } = await import('./pattern-null-store.js');
+          const nullStore = new PatternNullStore(
+            persistence.getDatabase() as ConstructorParameters<typeof PatternNullStore>[0]
+          );
+          this.experienceCapture.setNullRecorder((record) => nullStore.recordNull(record));
+        }
+      } catch (e) {
+        if (process.env.DEBUG) console.debug('[AQELearningEngine] Null recorder wiring skipped:', e instanceof Error ? e.message : e);
+      }
     }
 
     // Wire cross-domain transfer with real performance provider (Y-2 fix)
