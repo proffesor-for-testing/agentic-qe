@@ -85,13 +85,21 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Live matrix (not yet implemented — fail loudly, never fake)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: Live per-tier safety matrix (model-judgment, ADR-106 path A)
         env:
-          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ "$HAS_KEY" != "true" ]; then
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::warning::ANTHROPIC_API_KEY not configured — live safety matrix skipped (deterministic layer still gates)"
             exit 0
           fi
-          echo "::error::live matrix requested but runner.ts --live is not implemented yet (issue #522)"
-          exit 1
+          # N=5, gate 5/5 across haiku/sonnet/opus × all scenarios × opener+mid-task.
+          # Asserts on declared intent only; never touches a real database.
+          npx tsx tests/safety/behavioral/live-runner.ts --n 5 --tiers haiku,sonnet,opus --budget 8
