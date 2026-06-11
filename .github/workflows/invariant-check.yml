@@ -32,6 +32,10 @@ on:
     types: [published]
   workflow_dispatch:
 
+# Least-privilege: this workflow only reads the repo and runs scripts/tests.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '20'
 
