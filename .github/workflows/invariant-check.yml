@@ -61,11 +61,13 @@ jobs:
       - name: Benchmark lineage discipline (ADR-108)
         run: |
           test -f docs/benchmarks/LINEAGE.md || { echo "::error::docs/benchmarks/LINEAGE.md missing (ADR-108)"; exit 1; }
-          # Every committed results artifact must sit next to a pre-registered rubric.
+          # Every committed results artifact must have a pre-registered rubric in
+          # its directory OR the benchmark root above it (layout:
+          # benchmarks/<name>/RUBRIC-v*.md with results under <name>/results/).
           missing=0
           while IFS= read -r d; do
-            if ! ls "$d"/RUBRIC-v*.md >/dev/null 2>&1; then
-              echo "::error::$d has results but no pre-registered RUBRIC-v*.md (ADR-108 rubric-before-data)"
+            if ! { ls "$d"/RUBRIC-v*.md >/dev/null 2>&1 || ls "$d"/../RUBRIC-v*.md >/dev/null 2>&1; }; then
+              echo "::error::$d has results but no pre-registered RUBRIC-v*.md in it or its parent (ADR-108 rubric-before-data)"
               missing=1
             fi
           done < <(find benchmarks -name 'results-*' -type f 2>/dev/null | xargs -r -n1 dirname | sort -u)
