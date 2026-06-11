@@ -5,6 +5,84 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.6] - 2026-06-11
+
+The Pattern Space cross-pollination release (#522): a quality review of a
+community framework ([universal-pattern-space](https://github.com/nikhilvallishayee/universal-pattern-space/issues/20))
+surfaced disciplines worth turning inward on AQE itself — evidence-labeled
+findings, a real safety eval for the data-protection rules, drift-proofing for
+shipped agents, and benchmark honesty. Six ADRs (105–110), each with a live
+verification record on #522.
+
+### Added
+
+- **Evidence-class labels on every finding (ADR-105).** QE findings now carry
+  an `evidenceClass` — `EXECUTED` (a command was run, output attached),
+  `STATIC` (from coverage/AST/lockfile data), `INFERRED` (LLM reasoning), or
+  `CONJECTURE` (heuristic). Quality gates block only on `EXECUTED`/`STATIC`;
+  `INFERRED` routes to adversarial verification (ADR-102) before it can gate;
+  `CONJECTURE` never gates. The `validation_pipeline` MCP tool exposes the
+  class and a `needsVerification` queue. All 51 standard `qe-*` agents now ship
+  an evidence-discipline contract.
+- **Behavioral safety eval for the data-protection absolutes (ADR-106).** The
+  rules that protect `memory.db` (never `rm` a `.db`, always back up first,
+  never claim a migration succeeded without verifying row counts) are now a
+  pass/fail gate instead of prose. A deterministic engine asserts on agent
+  trajectories, and a live model-judgment matrix runs the real model tiers
+  (Claude haiku/sonnet/opus) against temptation scenarios — as task openers
+  *and* mid-task — with an absolute 5/5 bar. All native tiers pass every cell;
+  the run itself caught and fixed a false-positive in the harness. Wired into
+  `safety-eval.yml`.
+- **Shipped-agent invariant verifier + CI (ADR-107).** `npm run verify:invariants`
+  asserts every shipped `qe-*.md` keeps its non-negotiable sections (with real
+  content, not keyword presence), that `assets/` and `.claude/` definitions
+  haven't drifted, and that versions are consistent. Enforced on PR + release
+  via `invariant-check.yml`. Caught real drift on first run.
+- **Benchmark lineage registry + pre-registered rubrics (ADR-108).** A
+  `docs/benchmarks/LINEAGE.md` registry plus a rubric-before-data discipline:
+  any judged benchmark commits its rubric (and the hash lands in every result
+  row) before data exists, so post-hoc edits are detectable. Includes an
+  antipattern list distilled from the external review.
+- **Interaction benchmark for qualitative agents (ADR-109).** Trust-tier-3 eval
+  infrastructure for agents whose output is prose (reviewers, advisors): a
+  reactive simulated developer, hidden-acceptance-test ground truth, and a
+  non-same-family judge (OpenAI under test, Gemini judge) with scenario-clustered
+  statistics. Validated with a live cross-family run.
+- **Kept-nulls in the learning loop (ADR-110).** When a learned pattern is
+  applied and fails, the failure is now recorded as a first-class negative
+  record (consolidated per context) instead of vanishing. Pattern retrieval
+  surfaces these nulls and discounts patterns by context-matched failure
+  density — so "worked elsewhere" no longer outranks "failed here."
+
+### Fixed
+
+- **`validation_pipeline` MCP projection dropped the evidence class.** The MCP
+  handler flattened findings to a fixed shape that stripped `evidenceClass`;
+  it now carries the class, optional artifact, and the `needsVerification`
+  queue through the protocol boundary.
+- **Learning-loop pattern guidance was recorded but never attributed.** The
+  engine now threads the patterns that guided a task into experience capture
+  and a context fingerprint into pattern search, so failures attach to the
+  right patterns and the null-discount weights in-context failures hardest.
+
+### Changed
+
+- **Validation-pipeline gating is evidence-aware.** A failed blocking step now
+  blocks only on verified (`EXECUTED`/`STATIC`) findings; a step that fails
+  purely on unverified inference downgrades to a warning and queues for
+  verification rather than silently passing or hard-failing.
+- **Database schema v10** adds the additive `qe_pattern_nulls` table
+  (migration verified against a copy of the production database; all
+  pre-existing row counts unchanged).
+
+### Notes
+
+- ADR-105's `INFERRED` path is in place but the validation pipeline is
+  legitimately all-`STATIC` today; wiring LLM-backed domain findings to emit
+  `INFERRED` is follow-up work.
+- ADR-109's scenario corpus is intentionally small (2) — the infrastructure is
+  complete and validated; scaling the corpus for statistical power is follow-up.
+
 ## [3.10.5] - 2026-06-10
 
 The Fable 5 / harness-parity release (#520): the CLI's memory and fleet
