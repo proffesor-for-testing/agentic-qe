@@ -40,7 +40,7 @@
 
 ## Implementation Sketch
 
-1. Add `evidence: 'EXECUTED' | 'STATIC' | 'INFERRED' | 'CONJECTURE'` (+ optional `evidenceArtifact`) to the finding types; require it in validation pipeline schemas.
+1. Add `evidenceClass: 'EXECUTED' | 'STATIC' | 'INFERRED' | 'CONJECTURE'` (+ optional `evidenceArtifact`) to the finding types; require it in validation pipeline schemas. (Field named `evidenceClass`, not `evidence` — `StepResult.evidence: string[]` already exists with a different meaning.)
 2. Quality-gate domain: filter gating inputs to EXECUTED/STATIC; INFERRED triggers verification dispatch.
 3. Update shipped `qe-*.md` agent definitions (`.claude/agents/v3/` and `assets/agents/v3/`) with the labeling rule — protected as an invariant block per ADR-107.
 4. Spot-audit worker: sample N EXECUTED findings per release, re-run their commands, record label fidelity into the learning DB.

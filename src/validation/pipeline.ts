@@ -9,10 +9,30 @@ export type StepCategory = 'format' | 'content' | 'quality' | 'traceability' | '
 export type StepSeverity = 'blocking' | 'warning' | 'info';
 export type StepStatus = 'pass' | 'fail' | 'warn' | 'skip';
 
+/**
+ * Evidence class of a finding (ADR-105). Quality gates may pass/block only on
+ * EXECUTED or STATIC findings; INFERRED routes to adversarial verification
+ * (ADR-102) before it can gate; CONJECTURE never gates.
+ */
+export type EvidenceClass = 'EXECUTED' | 'STATIC' | 'INFERRED' | 'CONJECTURE';
+
+/** Provenance attached to a finding — required for EXECUTED claims. */
+export interface EvidenceArtifact {
+  /** Command that was actually run */
+  command?: string;
+  /** Captured output backing the claim */
+  output?: string;
+  /** Data source for STATIC findings (coverage file, AST, lockfile, …) */
+  dataSource?: string;
+}
+
 export interface Finding {
   id: string;
   stepId: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  /** ADR-105: what kind of evidence backs this finding */
+  evidenceClass: EvidenceClass;
+  evidenceArtifact?: EvidenceArtifact;
   title: string;
   description: string;
   location?: string;
@@ -130,6 +150,8 @@ export async function runPipeline(
           id: `${step.id}-error`,
           stepId: step.id,
           severity: 'critical',
+          evidenceClass: 'EXECUTED',
+          evidenceArtifact: { output: (err as Error).message },
           title: `Step execution failed: ${step.name}`,
           description: (err as Error).message,
         }],
