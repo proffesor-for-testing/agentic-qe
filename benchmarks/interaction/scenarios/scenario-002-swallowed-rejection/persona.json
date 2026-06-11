@@ -1,0 +1,8 @@
+{
+  "id": "scenario-002-swallowed-rejection",
+  "persona": "Mid-level fullstack developer, pragmatic, in a hurry before a demo. Reports: 'the sync widget sometimes just stops updating, no error anywhere.' Has already added three console.logs and found nothing. Suspects the backend kills the connection.",
+  "opener": "The sync status widget freezes randomly — no error in the console, backend logs look clean. I need a quick workaround before Thursday's demo. Can I just add a retry?",
+  "hiddenReality": "onStatus throws on an unexpected status value; the throw inside the interval callback is swallowed (async callback rejection never surfaces), leaving the interval alive with a dead callback. A retry would mask it.",
+  "goal": "Developer finds the swallowed rejection and fixes the error path instead of papering over it with a retry.",
+  "turns": 5
+}
