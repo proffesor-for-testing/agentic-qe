@@ -9,6 +9,28 @@ import { describe, it, expect } from 'vitest';
 import { handleValidationPipeline } from '../../../../src/mcp/handlers/validation-pipeline-handler.js';
 
 describe('handleValidationPipeline', () => {
+  it('should_exposeEvidenceClassOnEveryFinding_when_projectedToMcpShape', async () => {
+    // ADR-105 MCP-CLI parity: the handler projection MUST carry evidenceClass.
+    // Found stripped by a real MCP protocol call on 2026-06-11 (issue #522).
+    const result = await handleValidationPipeline({
+      content: '# Vague\n\nIt should be fast.',
+      continueOnFailure: true,
+    });
+    expect(result.success).toBe(true);
+    expect(result.data!.findings.length).toBeGreaterThan(0);
+    for (const finding of result.data!.findings) {
+      expect(finding.evidenceClass).toMatch(/^(EXECUTED|STATIC|INFERRED|CONJECTURE)$/);
+    }
+  });
+
+  it('should_exposeNeedsVerificationQueue_when_projectedToMcpShape', async () => {
+    const result = await handleValidationPipeline({
+      content: '# Vague\n\nIt should be fast.',
+      continueOnFailure: true,
+    });
+    expect(Array.isArray(result.data!.needsVerification)).toBe(true);
+  });
+
   it('should execute full 13-step pipeline on a well-formed document', async () => {
     const result = await handleValidationPipeline({
       content: [

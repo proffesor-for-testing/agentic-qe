@@ -50,6 +50,21 @@ export interface ValidationPipelineResult {
     id: string;
     stepId: string;
     severity: string;
+    /** ADR-105: what kind of evidence backs this finding */
+    evidenceClass: string;
+    evidenceArtifact?: { command?: string; output?: string; dataSource?: string };
+    title: string;
+    description: string;
+  }>;
+  /**
+   * INFERRED findings from failed blocking steps (ADR-105) — queued for
+   * adversarial verification, not allowed to gate. Same projection as findings.
+   */
+  needsVerification: Array<{
+    id: string;
+    stepId: string;
+    severity: string;
+    evidenceClass: string;
     title: string;
     description: string;
   }>;
@@ -162,10 +177,20 @@ export async function handleValidationPipeline(
             id: f.id,
             stepId: f.stepId,
             severity: f.severity,
+            evidenceClass: f.evidenceClass,
+            evidenceArtifact: f.evidenceArtifact,
             title: f.title,
             description: f.description,
           }))
         ),
+        needsVerification: result.needsVerification.map(f => ({
+          id: f.id,
+          stepId: f.stepId,
+          severity: f.severity,
+          evidenceClass: f.evidenceClass,
+          title: f.title,
+          description: f.description,
+        })),
       },
     };
   } catch (error) {
