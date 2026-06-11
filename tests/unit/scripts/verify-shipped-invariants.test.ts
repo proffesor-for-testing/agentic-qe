@@ -71,9 +71,11 @@ describe('checkSections (mutation: section stripping)', () => {
   });
 
   it('should_pass_when_nonInvariantProseRewordedOnly', () => {
-    // Legitimate edits outside required sections must NOT trip the gate.
-    const reworded = CONFORMING_AGENT.replace('qe_agent_definition', 'qe_agent_definition') // no-op wrapper
-      .replace('name: qe-fixture', 'name: qe-fixture # renamed comment');
+    // Legitimate edits OUTSIDE required sections must NOT trip the gate:
+    // tweak the frontmatter description and add prose after the closing tag.
+    const reworded = CONFORMING_AGENT
+      .replace('name: qe-fixture', 'name: qe-fixture\ndescription: reworded for clarity')
+      + '\n<notes>Some non-invariant prose added later.</notes>\n';
     expect(checkSections('qe-fixture.md', reworded, REQUIRED)).toHaveLength(0);
   });
 });
