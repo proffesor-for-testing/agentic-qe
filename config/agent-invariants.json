@@ -6,7 +6,8 @@
     { "tag": "identity", "minChars": 200, "why": "agent role/mission — compression dropping this strands the agent" },
     { "tag": "default_to_action", "minChars": 200, "why": "autonomy + evidence discipline (ADR-105 labeling rule lands here)" },
     { "tag": "memory_namespace", "minChars": 150, "why": "aqe/* namespace conventions — wrong namespace corrupts shared memory" },
-    { "tag": "learning_protocol", "minChars": 200, "why": "post-task learning contract (ADR-110 null capture depends on it)" }
+    { "tag": "learning_protocol", "minChars": 200, "why": "post-task learning contract (ADR-110 null capture depends on it)" },
+    { "tag": "evidence_discipline", "minChars": 400, "why": "ADR-105 evidence-class labeling rule — gates depend on honest labels" }
   ],
   "exemptions": {
     "qe-integration-architect.md": "PRE-EXISTING DRIFT (found 2026-06-11, issue #522): legacy pre-v3 format, no XML sections at all; content is platform-integration work — needs maintainer rewrite-or-unship decision",
