@@ -59,6 +59,7 @@ import {
   SONA_PATTERNS_SCHEMA,
   FEEDBACK_SCHEMA,
   HYPERGRAPH_SCHEMA,
+  PATTERN_NULLS_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
 
@@ -538,6 +539,7 @@ export class UnifiedMemoryManager {
             SELECT rowid, name, description, pattern_type, qe_domain FROM qe_patterns;
           `);
         }
+        if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
