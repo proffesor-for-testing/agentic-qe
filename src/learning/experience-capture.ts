@@ -135,6 +135,9 @@ export interface TaskExperience {
   /** Extracted patterns (if any) */
   patterns?: string[];
 
+  /** Patterns that GUIDED this task (retrieved before execution) — null-capture targets on failure (ADR-110) */
+  appliedPatterns?: string[];
+
   /** Claude Flow trajectory ID (if available) */
   trajectoryId?: string;
 
@@ -280,6 +283,15 @@ export class ExperienceCaptureService {
   /** Optional witness chain for attaching audit receipts to experiences */
   private witnessChain?: WitnessChain;
 
+  /** Optional ADR-110 null recorder — wired by the composition root to PatternNullStore.recordNull */
+  private nullRecorder?: (record: {
+    patternId: string;
+    contextFingerprint: string;
+    failureMode: string;
+    trajectoryRef?: string;
+    evidenceClass: 'EXECUTED';
+  }) => void;
+
   constructor(
     private readonly memory: MemoryBackend,
     private readonly patternStore?: IPatternStore,
@@ -295,6 +307,11 @@ export class ExperienceCaptureService {
    */
   setWitnessChain(chain: WitnessChain): void {
     this.witnessChain = chain;
+  }
+
+  /** Wire the ADR-110 kept-nulls recorder (typically PatternNullStore.recordNull). */
+  setNullRecorder(recorder: NonNullable<typeof this.nullRecorder>): void {
+    this.nullRecorder = recorder;
   }
 
   /**
@@ -329,6 +346,8 @@ export class ExperienceCaptureService {
       model?: 'haiku' | 'sonnet' | 'opus';
       trajectoryId?: string;
       metadata?: Record<string, unknown>;
+      /** Pattern ids retrieved to guide this task — enables ADR-110 null capture on failure */
+      appliedPatterns?: string[];
     }
   ): string {
     const id = `exp-${Date.now()}-${uuidv4().slice(0, 8)}`;
@@ -347,6 +366,7 @@ export class ExperienceCaptureService {
       quality: 0,
       trajectoryId: options?.trajectoryId,
       metadata: options?.metadata,
+      appliedPatterns: options?.appliedPatterns,
     };
 
     this.activeExperiences.set(id, experience);
@@ -443,6 +463,29 @@ export class ExperienceCaptureService {
 
     // Update stats
     this.updateStats(experience);
+
+    // ADR-110: a pattern-guided failure is a kept null, not a discarded run.
+    // Failure = negative reward when a reward signal exists, else !success.
+    const failed = experience.reward !== undefined ? experience.reward < 0 : !experience.success;
+    if (this.nullRecorder && failed && experience.appliedPatterns?.length) {
+      const contextFingerprint = `${experience.domain ?? 'unknown'}:${experience.agent ?? 'unknown'}`;
+      for (const patternId of experience.appliedPatterns) {
+        try {
+          this.nullRecorder({
+            patternId,
+            contextFingerprint,
+            failureMode: experience.testOutcome ?? experience.feedback ?? 'task-failure',
+            trajectoryRef: experience.trajectoryId,
+            evidenceClass: 'EXECUTED',
+          });
+        } catch (nullError) {
+          logger.warn('Failed to record pattern null', {
+            patternId,
+            error: nullError instanceof Error ? nullError.message : String(nullError),
+          });
+        }
+      }
+    }
 
     // Extract patterns: require positive reward (or no reward signal) AND quality threshold
     // Zero or negative reward blocks extraction — only learn from genuinely positive outcomes
