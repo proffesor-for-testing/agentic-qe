@@ -6,15 +6,16 @@
  */
 
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
+import { PATTERN_NULLS_SCHEMA } from '../migrations/20260611_add_pattern_nulls_table.js';
 
 // Re-export for convenience
-export { HYPERGRAPH_SCHEMA };
+export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA };
 
 // ============================================================================
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 9; // v9: adds FTS5 full-text search for qe_patterns (hybrid vector/text search)
+export const SCHEMA_VERSION = 10; // v10: adds qe_pattern_nulls — kept negative pattern records (ADR-110)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (

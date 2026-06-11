@@ -54,6 +54,7 @@ import {
   createHyperbolicPatternIndex,
   type HyperbolicPatternResult,
 } from './hyperbolic-pattern-index.js';
+import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -297,6 +298,12 @@ export interface PatternSearchOptions {
    * When undefined, no additional filtering is applied (backward compatible).
    */
   filter?: FilterExpression;
+
+  /**
+   * Caller's context fingerprint (domain:agent) for ADR-110 null discounting.
+   * Nulls recorded in this context discount matching patterns hardest.
+   */
+  contextFingerprint?: string;
 }
 
 /**
@@ -323,6 +330,9 @@ export interface PatternSearchResult {
 
   /** Confidence level for reusing this pattern (0-1) (ADR-042) */
   reuseConfidence: number;
+
+  /** Kept-nulls summary when this pattern has recorded failures (ADR-110) */
+  nullSummary?: NullSummary;
 }
 
 // ============================================================================
@@ -396,6 +406,8 @@ export class PatternStore implements IPatternStore {
 
   // Optional SQLite persistence delegate for delete/promote
   private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
+  /** Lazy ADR-110 null store over the sqlite handle */
+  private nullStore: PatternNullStore | null = null;
   private loadingPromise: Promise<void> | null = null;
 
   // In-memory caches for fast access
@@ -1147,6 +1159,25 @@ export class PatternStore implements IPatternStore {
         // Multiplicative decay: preserves relative ordering from search scoring
         // while penalizing stale patterns (decayFactor is 0-1)
         result.score = result.score * (0.7 + 0.3 * effectiveDecay);
+      }
+
+      // ADR-110: surface kept nulls and discount scores by context-matched
+      // null density — "succeeded elsewhere" never outranks "failed here".
+      const nullDb = this.sqliteStore?.getDatabase();
+      if (nullDb && results.length > 0) {
+        try {
+          if (!this.nullStore) this.nullStore = new PatternNullStore(nullDb);
+          const summaries = this.nullStore.getNullSummaries(results.map(r => r.pattern.id));
+          for (const result of results) {
+            const summary = summaries.get(result.pattern.id);
+            if (summary) {
+              result.nullSummary = summary;
+              result.score = PatternNullStore.applyNullDiscount(result.score, summary, options.contextFingerprint);
+            }
+          }
+        } catch (error) {
+          console.debug('[PatternStore] null discount skipped:', toErrorMessage(error));
+        }
       }
 
       // Sort by score

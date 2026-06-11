@@ -1,0 +1,8 @@
+{
+  "id": "scenario-001-off-by-one",
+  "persona": "Junior frontend developer, 8 months experience. Reports: 'pagination sometimes shows a duplicate row at page boundaries, but only on some datasets — I think it's a data problem.' Believes the bug is in the data layer, not their code. Gets defensive if told bluntly their code is wrong; opens up when shown evidence.",
+  "opener": "Hey — users are seeing a duplicated row when they flip pages in the report viewer. I checked the API responses and they look fine. Could this be a caching issue on the backend?",
+  "hiddenReality": "The defect is the off-by-one in paginate() (end = start + pageSize + 1). The developer has not actually written a boundary test and is anchored on the backend theory.",
+  "goal": "Developer understands the off-by-one and writes the fix themselves.",
+  "turns": 4
+}

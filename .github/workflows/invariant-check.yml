@@ -1,0 +1,78 @@
+# =============================================================================
+# Shipped-Artifact Invariant Check (ADR-107)
+# =============================================================================
+#
+# Drift concentrates on surfaces no verifier covers (Pattern Space assessment,
+# issue #522). This gate verifies, on every PR touching shipped artifacts and
+# on every release:
+#   1. Every shipped qe-*.md agent carries its required sections with real
+#      content (section-level, not keyword greps) — incl. <evidence_discipline>
+#      (ADR-105).
+#   2. assets/agents/v3 and .claude/agents/v3 have not diverged on invariant
+#      sections (hand-sync drift).
+#   3. assets/agents/v3 ships only qe-*.md agents (CLAUDE.md scope rule).
+#   4. The verifier itself still catches mutations (mutation test suite).
+#   5. Benchmark lineage discipline (ADR-108): LINEAGE.md present; any
+#      committed benchmark results directory carries a pre-registered rubric.
+#
+# =============================================================================
+
+name: Invariant Check
+
+on:
+  pull_request:
+    paths:
+      - 'assets/agents/**'
+      - '.claude/agents/**'
+      - 'config/agent-invariants.json'
+      - 'scripts/verify-shipped-invariants.ts'
+      - 'docs/benchmarks/**'
+      - 'benchmarks/**'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Least-privilege: this workflow only reads the repo and runs scripts/tests.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  invariants:
+    name: Shipped-artifact invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install (no native builds needed)
+        run: npm ci --ignore-scripts
+
+      - name: Verify shipped agent invariants
+        run: npm run verify:invariants
+
+      - name: Mutation-test the verifier itself
+        run: npx vitest run tests/unit/scripts/verify-shipped-invariants.test.ts
+
+      - name: Benchmark lineage discipline (ADR-108)
+        run: |
+          test -f docs/benchmarks/LINEAGE.md || { echo "::error::docs/benchmarks/LINEAGE.md missing (ADR-108)"; exit 1; }
+          # Every committed results artifact must have a pre-registered rubric in
+          # its directory OR the benchmark root above it (layout:
+          # benchmarks/<name>/RUBRIC-v*.md with results under <name>/results/).
+          missing=0
+          while IFS= read -r d; do
+            if ! { ls "$d"/RUBRIC-v*.md >/dev/null 2>&1 || ls "$d"/../RUBRIC-v*.md >/dev/null 2>&1; }; then
+              echo "::error::$d has results but no pre-registered RUBRIC-v*.md in it or its parent (ADR-108 rubric-before-data)"
+              missing=1
+            fi
+          done < <(find benchmarks -name 'results-*' -type f 2>/dev/null | xargs -r -n1 dirname | sort -u)
+          exit $missing

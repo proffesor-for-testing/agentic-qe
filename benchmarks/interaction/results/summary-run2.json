@@ -1,0 +1,32 @@
+{
+  "scenarioCount": 2,
+  "scenarioWinsA": 1,
+  "scenarioWinsB": 1,
+  "scenarioTies": 0,
+  "pValue": 1,
+  "pooled": {
+    "rows": 3,
+    "winsA": 2,
+    "winsB": 1,
+    "ties": 0
+  },
+  "excludedRows": 1,
+  "groundTruth": {
+    "aFixRate": 0.5,
+    "bFixRate": 0,
+    "perScenario": [
+      {
+        "scenario": "scenario-001-off-by-one",
+        "aFix": true,
+        "bFix": false
+      },
+      {
+        "scenario": "scenario-002-swallowed-rejection",
+        "aFix": false,
+        "bFix": false
+      }
+    ]
+  },
+  "spentUsd": 0.003,
+  "rubricHash": "72ec3d1e06de5e9b091d5e7f5baedf0f15e2a8f3"
+}

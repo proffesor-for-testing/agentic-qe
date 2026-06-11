@@ -1,0 +1,21 @@
+{
+  "_comment": "ADR-107: invariant manifest for shipped agent definitions. Editing an invariant requires updating this manifest — that friction is the review trigger. Section assertions are content-level (min chars inside the tag), not keyword greps.",
+  "shippedGlob": "assets/agents/v3/qe-*.md",
+  "sourceRoot": ".claude/agents/v3",
+  "requiredSections": [
+    { "tag": "identity", "minChars": 200, "why": "agent role/mission — compression dropping this strands the agent" },
+    { "tag": "default_to_action", "minChars": 200, "why": "autonomy + evidence discipline (ADR-105 labeling rule lands here)" },
+    { "tag": "memory_namespace", "minChars": 150, "why": "aqe/* namespace conventions — wrong namespace corrupts shared memory" },
+    { "tag": "learning_protocol", "minChars": 200, "why": "post-task learning contract (ADR-110 null capture depends on it)" },
+    { "tag": "evidence_discipline", "minChars": 400, "why": "ADR-105 evidence-class labeling rule — gates depend on honest labels" }
+  ],
+  "exemptions": {
+    "qe-integration-architect.md": "PRE-EXISTING DRIFT (found 2026-06-11, issue #522): legacy pre-v3 format, no XML sections at all; content is platform-integration work — needs maintainer rewrite-or-unship decision",
+    "qe-queen-coordinator.md": "PRE-EXISTING DRIFT (found 2026-06-11, issue #522): coordinator archetype has <identity> but lacks default_to_action/memory_namespace/learning_protocol — needs sections added or a coordinator profile defined here"
+  },
+  "topLevelAllowlist": ["README.md"],
+  "versionPolicy": {
+    "mode": "warn",
+    "_comment": "Agent frontmatter version (3.0.0/3.1.0) vs package.json (3.10.5) — semantics unclear (schema version vs package version). Warn until maintainer decides; flip to fail after normalization."
+  }
+}

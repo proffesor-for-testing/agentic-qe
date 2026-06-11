@@ -9,10 +9,30 @@ export type StepCategory = 'format' | 'content' | 'quality' | 'traceability' | '
 export type StepSeverity = 'blocking' | 'warning' | 'info';
 export type StepStatus = 'pass' | 'fail' | 'warn' | 'skip';
 
+/**
+ * Evidence class of a finding (ADR-105). Quality gates may pass/block only on
+ * EXECUTED or STATIC findings; INFERRED routes to adversarial verification
+ * (ADR-102) before it can gate; CONJECTURE never gates.
+ */
+export type EvidenceClass = 'EXECUTED' | 'STATIC' | 'INFERRED' | 'CONJECTURE';
+
+/** Provenance attached to a finding — required for EXECUTED claims. */
+export interface EvidenceArtifact {
+  /** Command that was actually run */
+  command?: string;
+  /** Captured output backing the claim */
+  output?: string;
+  /** Data source for STATIC findings (coverage file, AST, lockfile, …) */
+  dataSource?: string;
+}
+
 export interface Finding {
   id: string;
   stepId: string;
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  /** ADR-105: what kind of evidence backs this finding */
+  evidenceClass: EvidenceClass;
+  evidenceArtifact?: EvidenceArtifact;
   title: string;
   description: string;
   location?: string;
@@ -70,7 +90,14 @@ export interface PipelineResult {
   overall: 'pass' | 'fail' | 'warn';
   score: number;          // Weighted average 0-100
   steps: StepResult[];
-  blockers: Finding[];    // Findings from blocking steps that failed
+  /** Findings from failed blocking steps that may gate (EXECUTED/STATIC only, ADR-105) */
+  blockers: Finding[];
+  /**
+   * INFERRED findings from failed blocking steps (ADR-105): not allowed to
+   * gate; queued for adversarial verification (ADR-102) to be promoted to
+   * blockers or demoted. Their presence downgrades overall to 'warn'.
+   */
+  needsVerification: Finding[];
   halted: boolean;        // Did pipeline halt early?
   haltedAt?: string;      // Step ID where it halted
   totalDuration: number;  // ms
@@ -106,6 +133,7 @@ export async function runPipeline(
 
   const stepResults: StepResult[] = [];
   const blockers: Finding[] = [];
+  const needsVerification: Finding[] = [];
   let halted = false;
   let haltedAt: string | undefined;
 
@@ -130,6 +158,8 @@ export async function runPipeline(
           id: `${step.id}-error`,
           stepId: step.id,
           severity: 'critical',
+          evidenceClass: 'EXECUTED',
+          evidenceArtifact: { output: (err as Error).message },
           title: `Step execution failed: ${step.name}`,
           description: (err as Error).message,
         }],
@@ -146,11 +176,18 @@ export async function runPipeline(
     stepResults.push(result);
     context.previousResults.push(result);
 
-    // Check for blocking failure
+    // Check for blocking failure (ADR-105: only EXECUTED/STATIC may gate)
     if (step.severity === 'blocking' && result.status === 'fail') {
-      blockers.push(...result.findings);
+      const gating = result.findings.filter(
+        f => f.evidenceClass === 'EXECUTED' || f.evidenceClass === 'STATIC',
+      );
+      needsVerification.push(...result.findings.filter(f => f.evidenceClass === 'INFERRED'));
+      // CONJECTURE findings stay visible on the step but never gate.
+      blockers.push(...gating);
 
-      if (!config.continueOnFailure) {
+      // Halt only when verified evidence blocks; a step that failed purely on
+      // unverified inference must not stop the pipeline.
+      if (gating.length > 0 && !config.continueOnFailure) {
         halted = true;
         haltedAt = step.id;
         break;
@@ -182,10 +219,14 @@ export async function runPipeline(
 
   const finalScore = totalWeight > 0 ? Math.round(weightedScore / totalWeight) : 0;
 
-  // Determine overall status
+  // Determine overall status (ADR-105: unverified inference warns, never fails)
   let overall: 'pass' | 'fail' | 'warn';
   if (blockers.length > 0) {
     overall = 'fail';
+  } else if (needsVerification.length > 0 || stepResults.some(r => r.status === 'fail')) {
+    // A failed step without gating evidence (INFERRED queued, or CONJECTURE
+    // suppressed) must never silently read as a clean pass.
+    overall = 'warn';
   } else if (stepResults.some(r => r.status === 'warn')) {
     overall = 'warn';
   } else if (finalScore >= 70) {
@@ -201,6 +242,7 @@ export async function runPipeline(
     score: finalScore,
     steps: stepResults,
     blockers,
+    needsVerification,
     halted,
     haltedAt,
     totalDuration: Date.now() - startTime,
@@ -244,10 +286,20 @@ export function formatPipelineReport(result: PipelineResult): string {
     lines.push('## Blockers');
     lines.push('');
     for (const blocker of result.blockers) {
-      lines.push(`- **${blocker.title}** (${blocker.severity}): ${blocker.description}`);
+      lines.push(`- **${blocker.title}** (${blocker.severity}, ${blocker.evidenceClass}): ${blocker.description}`);
       if (blocker.suggestion) {
         lines.push(`  - Suggestion: ${blocker.suggestion}`);
       }
+    }
+    lines.push('');
+  }
+
+  // Unverified inference awaiting adversarial verification (ADR-105/ADR-102)
+  if (result.needsVerification.length > 0) {
+    lines.push('## Needs Verification (INFERRED — did not gate)');
+    lines.push('');
+    for (const f of result.needsVerification) {
+      lines.push(`- **${f.title}** (${f.severity}): ${f.description}`);
     }
     lines.push('');
   }

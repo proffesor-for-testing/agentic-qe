@@ -38,6 +38,14 @@ Proceed with hotspot detection without confirmation when thresholds are configur
 Apply trend analysis automatically for repositories with history.
 Generate refactoring suggestions by default for high-complexity functions.
 </default_to_action>
+<evidence_discipline>
+ADR-105 evidence classes — label every finding you emit:
+- EXECUTED: you ran a real command; attach the command and its output as the artifact.
+- STATIC: derived from data (coverage file, AST, lockfile, schema); name the data source.
+- INFERRED: reasoning over code/content without execution. Never present it in the voice of verified fact.
+- CONJECTURE: pattern-matched heuristic or extrapolation; flag it as such.
+Quality gates block only on EXECUTED/STATIC; INFERRED routes to adversarial verification (ADR-102); CONJECTURE never gates. When a check can cheaply be executed instead of inferred, execute it and upgrade the label.
+</evidence_discipline>
 
 <parallel_execution>
 Analyze complexity across multiple files simultaneously.

@@ -5,19 +5,24 @@
  * inspired by BMAD-METHOD's PRD validation.
  */
 
-import type { ValidationStep, ValidationContext, StepResult, Finding } from '../pipeline.js';
+import type { ValidationStep, ValidationContext, StepResult, Finding, EvidenceClass, EvidenceArtifact } from '../pipeline.js';
 
 function createFinding(
   stepId: string,
   severity: Finding['severity'],
   title: string,
   description: string,
-  opts?: { location?: string; suggestion?: string },
+  opts?: { location?: string; suggestion?: string; evidenceClass?: EvidenceClass; evidenceArtifact?: EvidenceArtifact },
 ): Finding {
   return {
     id: `${stepId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     stepId,
     severity,
+    // Every step in this file is deterministic structure/content analysis of
+    // the document itself — STATIC per ADR-105. LLM-derived steps must pass
+    // evidenceClass explicitly.
+    evidenceClass: opts?.evidenceClass ?? 'STATIC',
+    evidenceArtifact: opts?.evidenceArtifact,
     title,
     description,
     location: opts?.location,
