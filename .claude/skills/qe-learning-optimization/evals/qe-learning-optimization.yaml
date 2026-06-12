@@ -5,8 +5,8 @@ description: >
   Tests pattern learning, cross-model comparison, and ReasoningBank integration.
 
 models_to_test:
-  - claude-3.5-sonnet
-  - claude-3-haiku
+  - claude-sonnet-4-6    # Primary (high accuracy expected)
+  - claude-haiku-4-5     # Fast model (minimum quality floor)
 
 mcp_integration:
   enabled: true
@@ -62,8 +62,8 @@ test_cases:
 
     input:
       models:
-        - "claude-3.5-sonnet"
-        - "claude-3-haiku"
+        - "claude-sonnet-4-6"
+        - "claude-haiku-4-5"
       test_case: "security_vulnerability"
 
     expected_output:
