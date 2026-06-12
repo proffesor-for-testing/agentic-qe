@@ -256,3 +256,6 @@ tests/safety/behavioral/results/*
 !tests/safety/behavioral/results/live-haiku.json
 !tests/safety/behavioral/results/live-sonnet.json
 !tests/safety/behavioral/results/live-opus.json
+
+# Local recovery artifacts (macOS native binary backups from container fixes)
+.agentic-qe/native-binary-backups/
