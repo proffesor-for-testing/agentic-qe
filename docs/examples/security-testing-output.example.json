@@ -380,7 +380,7 @@
     "executionTimeMs": 45230,
     "toolsUsed": ["semgrep", "npm-audit", "owasp-zap", "trivy"],
     "agentId": "qe-security-scanner",
-    "modelUsed": "claude-3.5-sonnet",
+    "modelUsed": "claude-sonnet-4-6",
     "inputHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "targetUrl": "https://example.com",
     "targetPath": "src/",

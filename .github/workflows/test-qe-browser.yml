@@ -186,7 +186,7 @@ jobs:
         run: |
           node dist/cli/bundle.js eval run \
             --skill qe-browser \
-            --model claude-3.5-sonnet \
+            --model claude-sonnet-4-6 \
             --output /tmp/qe-browser-eval.json
         env:
           CI: 'true'
