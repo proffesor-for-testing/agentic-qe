@@ -31,8 +31,8 @@ description: >
 # =============================================================================
 
 models_to_test:
-  - claude-3.5-sonnet    # Primary model
-  - claude-3-haiku       # Fast model (minimum quality)
+  - claude-sonnet-4-6    # Primary (high accuracy expected)
+  - claude-haiku-4-5     # Fast model (minimum quality floor)
 
 # =============================================================================
 # MCP Integration Configuration

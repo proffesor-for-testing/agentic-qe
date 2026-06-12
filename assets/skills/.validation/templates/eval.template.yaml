@@ -31,9 +31,9 @@ description: >
 # model-specific quirks. Results are compared to detect variance.
 
 models_to_test:
-  - claude-3.5-sonnet    # Primary model (high accuracy expected)
-  - claude-3-haiku       # Fast model (ensure it meets minimum quality)
-  # - gpt-4o             # Optional: Cross-vendor validation
+  - claude-sonnet-4-6    # Primary (high accuracy expected)
+  - claude-haiku-4-5     # Fast model (minimum quality floor)
+  # - gpt-4o             # Optional: cross-vendor validation
 
 # =============================================================================
 # MCP Integration Configuration (NEW in v1.4)
