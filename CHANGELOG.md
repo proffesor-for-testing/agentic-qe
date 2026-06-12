@@ -5,6 +5,47 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.7] - 2026-06-12
+
+A learning-integrity and supply-chain release. Two independent bugs were
+silently halting self-learning — the hook shim swallowed fatal native-binary
+errors, and the SONA learning engine treated reward feedback as a no-op — both
+now fixed. A new CI gate validates the published package the way a real user
+installs it, and the QE skill evaluation suite is back on current models.
+
+### Fixed
+
+- **Self-learning silently stopping on a native-binary mismatch.** The hook
+  shim (`aqe-hook.cjs`) discarded all stderr and always exited 0, so a
+  wrong-platform `better-sqlite3` binary (e.g. a macOS build inside a Linux
+  container) failed to open the learning database with zero trace — dropping
+  every captured experience for days while appearing healthy. Fatal native-init
+  failures are now teed to a throttled, durable `.agentic-qe/hooks-health.log`
+  with a one-line fix hint, so the outage is detectable instead of invisible.
+- **Reward feedback not changing SONA weights.** Bumped `@ruvector/sona`
+  0.1.5 → 0.1.7, which fixes an upstream bug where feedback produced zero weight
+  changes (and negative feedback failed to "unlearn"). AQE drives that learning
+  path on every reinforced trajectory, so reward signals were effectively inert
+  until now.
+
+### Added
+
+- **Consumer-side supply-chain audit gate (CI).** A new workflow packs the
+  tarball, installs it into a clean consumer project, and audits from the
+  consumer's perspective — on every dependency-affecting PR and push to `main`,
+  not only at publish time. This catches override-masked vulnerabilities (where
+  the in-repo `npm audit` reads clean but installers are exposed) before they
+  merge.
+
+### Changed
+
+- **QE skill evaluation model matrix refreshed to current models.** All 54 skill
+  eval suites, the eval templates, the eval JSON schema, and the npm-distribution
+  copy moved off retired model IDs (`claude-3.5-sonnet`, `claude-3-haiku`) to
+  `claude-sonnet-4-6` + `claude-haiku-4-5`, with `claude-opus-4-8` added as a
+  capability ceiling for the seven high-stakes security / chaos / defect skills.
+  Evaluations were previously pinned to model IDs that no longer resolve.
+
 ## [3.10.6] - 2026-06-11
 
 The Pattern Space cross-pollination release (#522): a quality review of a

@@ -202,8 +202,8 @@ validation:
 
   # Multi-model testing configuration
   validation_models:
-    - claude-3.5-sonnet
-    - claude-3-haiku
+    - claude-sonnet-4-6
+    - claude-haiku-4-5
     - gpt-4o
 
   # Evaluation metrics

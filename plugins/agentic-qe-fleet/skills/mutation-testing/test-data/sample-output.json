@@ -272,7 +272,7 @@
     "executionTimeMs": 125430,
     "toolsUsed": ["stryker"],
     "agentId": "qe-mutation-tester",
-    "modelUsed": "claude-3.5-sonnet",
+    "modelUsed": "claude-sonnet-4-6",
     "targetPath": "src/auth",
     "testPath": "tests/auth",
     "incremental": false,

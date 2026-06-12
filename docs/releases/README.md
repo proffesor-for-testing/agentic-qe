@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.10.7](v3.10.7.md) | 2026-06-12 | Learning-integrity + supply chain: fix silent self-learning loss (hook swallowed native-binary errors; SONA reward feedback was inert, fixed via `@ruvector/sona` 0.1.7); shift-left consumer-tarball audit gate; refresh QE skill evals to current models. |
 | [v3.10.6](v3.10.6.md) | 2026-06-11 | Pattern Space cross-pollination (#522): evidence-class labels on findings, pass/fail safety eval for data-protection rules, shipped-agent invariant CI, benchmark lineage + interaction benchmark, kept-nulls learning. ADR-105–110. |
 | [v3.10.5](v3.10.5.md) | 2026-06-10 | Fable 5 parity (#520): CLI fleet/memory commands fixed, prompt caching wired, reasoning-scrub for clean learning, adversarial QCSD reviews, `aqe arena` tournaments. ADR-099–104. |
 | [v3.10.4](v3.10.4.md) | 2026-06-08 | Keep project learning in its own `.agentic-qe/` (#516: nearest-root + RVF resolution); stop orphaned `aqe-mcp` busy-loop / SIGTERM-ignore (#513); opt-in local Nagual hub + LLM judge. |

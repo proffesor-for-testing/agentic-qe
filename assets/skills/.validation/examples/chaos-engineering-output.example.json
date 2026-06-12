@@ -500,7 +500,7 @@
     "executionTimeMs": 2160000,
     "toolsUsed": ["toxiproxy", "kubectl", "stress-ng", "custom"],
     "agentId": "qe-chaos-engineer",
-    "modelUsed": "claude-3.5-sonnet",
+    "modelUsed": "claude-sonnet-4-6",
     "environment": "staging"
   },
   "validation": {

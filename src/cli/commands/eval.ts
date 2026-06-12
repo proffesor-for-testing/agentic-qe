@@ -695,7 +695,7 @@ export function createEvalCommand(): Command {
     .requiredOption('-s, --skill <skill>', 'Skill name to evaluate')
     .requiredOption(
       '-m, --model <model>',
-      'Model to use (e.g., claude-3.5-sonnet)'
+      'Model to use (e.g., claude-sonnet-4-6)'
     )
     .option('-p, --parallel', 'Enable parallel execution', false)
     .option('-w, --workers <n>', 'Number of parallel workers', parseInt, 5)
@@ -731,7 +731,7 @@ export function createEvalCommand(): Command {
     .option(
       '--models <models>',
       'Comma-separated models to test',
-      'claude-3.5-sonnet'
+      'claude-sonnet-4-6'
     )
     .option('-p, --parallel', 'Enable parallel execution', true)
     .option('-w, --workers <n>', 'Number of parallel workers', parseInt, 5)

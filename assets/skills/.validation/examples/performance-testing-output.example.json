@@ -230,7 +230,7 @@
     "executionTimeMs": 305000,
     "toolsUsed": ["k6", "prometheus", "grafana"],
     "agentId": "qe-performance-tester",
-    "modelUsed": "claude-3.5-sonnet",
+    "modelUsed": "claude-sonnet-4-6",
     "targetUrl": "https://api.example.com",
     "environment": "staging"
   },

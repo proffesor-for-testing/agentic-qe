@@ -18,7 +18,10 @@
  *     .bin/.cmd wrapper) — or fall back to `npx agentic-qe` for npx-only installs
  *     (disable that fallback with AQE_HOOK_NPX=0);
  *   * if nothing resolves, no-op (a hook must never block a turn);
- *   * SWALLOW stderr;
+ *   * keep stderr OUT of the transcript, but tee fatal native-init markers
+ *     (e.g. better-sqlite3 `invalid ELF header`) to a throttled, durable
+ *     .agentic-qe/hooks-health.log so a dead persistence layer is detectable
+ *     instead of silently dropping all learning;
  *   * emit ONLY the top-level JSON object on stdout (drop leading init noise AND
  *     trailing async daemon logs) so the --json contract stays parseable;
  *   * ALWAYS exit 0.
@@ -71,14 +74,47 @@ if (bundle) {
   process.exit(0); // no project-local AQE and npx disabled -> no-op, never block
 }
 
+// Fatal init markers that mean the hook ran but its persistence layer is dead
+// (e.g. a host/container native-binary mismatch clobbering better-sqlite3 —
+// `invalid ELF header`). These used to vanish into the swallowed stderr, so a
+// broken binary silently stopped ALL learning for days with zero trace. We
+// still keep stderr OUT of the transcript, but tee fatal markers to a durable,
+// throttled health log so the failure is detectable instead of invisible.
+const FATAL_MARKERS = [
+  'invalid ELF header',
+  'Failed to initialize UnifiedMemoryManager',
+  'ERR_DLOPEN_FAILED',
+  'was compiled against a different Node.js version',
+];
+
+function recordHookHealth(stderr) {
+  try {
+    if (!stderr) return;
+    const hit = FATAL_MARKERS.find((m) => stderr.includes(m));
+    if (!hit) return;
+    const logPath = path.join(PROJECT, '.agentic-qe', 'hooks-health.log');
+    // Throttle: skip if we logged within the last 5 min (avoid a line/turn).
+    try {
+      const st = fs.statSync(logPath);
+      if (Date.now() - st.mtimeMs < 5 * 60 * 1000) return;
+    } catch { /* no log yet — fall through and create it */ }
+    const subcmd = args[0] || 'unknown';
+    const line = `[${new Date().toISOString()}] FATAL hook persistence failure `
+      + `(cmd=${subcmd}): "${hit}". Learning is NOT being captured. `
+      + `Fix: \`npm rebuild better-sqlite3\` (host/container native-binary mismatch).\n`;
+    fs.appendFileSync(logPath, line);
+  } catch { /* health logging must never block a turn */ }
+}
+
 let out = '';
 try {
   const res = spawnSync(cmd, cmdArgs, {
-    stdio: ['ignore', 'pipe', 'ignore'], // swallow stdin + stderr
+    stdio: ['ignore', 'pipe', 'pipe'], // swallow stdin; capture stderr to scan
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
   });
   out = (res && res.stdout) || '';
+  recordHookHealth((res && res.stderr) || ''); // tee fatal markers to health log
 } catch { /* never block a turn */ }
 
 // Emit only the top-level JSON object: the first line beginning with '{' through

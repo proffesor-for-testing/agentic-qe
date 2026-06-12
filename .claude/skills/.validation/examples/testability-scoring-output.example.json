@@ -318,7 +318,7 @@
     "executionTimeMs": 12450,
     "toolsUsed": ["playwright", "chrome-devtools", "axe-core"],
     "agentId": "qe-quality-analyzer",
-    "modelUsed": "claude-3.5-sonnet",
+    "modelUsed": "claude-sonnet-4-6",
     "inputHash": "7d865e959b2466918c9863afca942d0fb89d7c9ac0c99bafc3749504ded97730",
     "targetUrl": "https://example.com",
     "environment": "ci",

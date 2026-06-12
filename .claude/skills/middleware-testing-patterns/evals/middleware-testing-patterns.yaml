@@ -6,8 +6,8 @@ description: >
   ESB error handling, and Enterprise Integration Patterns.
 
 models_to_test:
-  - claude-3.5-sonnet
-  - claude-3-haiku
+  - claude-sonnet-4-6    # Primary (high accuracy expected)
+  - claude-haiku-4-5     # Fast model (minimum quality floor)
 
 mcp_integration:
   enabled: true
