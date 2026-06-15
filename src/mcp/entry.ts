@@ -140,14 +140,15 @@ async function main(): Promise<void> {
     // Token tracking, experience capture, infra-healing, and fleet init are
     // all independent — total startup time is bounded by the slowest task
     // rather than the sum of all tasks.
-    // Database-free mode (AQE_MEMORY_BACKEND=memory): boot lean. Skip every
-    // subsystem that opens/writes the SQLite memory.db (persistent token
-    // tracking, experience capture, background workers, ReasoningBank prewarm,
-    // QualityDaemon). This keeps .agentic-qe/ untouched AND avoids the
-    // SQLite-lock contention that made tools/list hang for some MCP clients.
+    // Database-free mode (AQE_MEMORY_BACKEND=memory): boot the SAME subsystems as
+    // normal — fleet, experience capture, ReasoningBank, workers, CrossPhaseHooks —
+    // but every persistence layer (unified memory, RVF, hypergraph, sessions,
+    // results) is gated to run in-memory and write nothing under .agentic-qe/.
+    // This keeps full functional parity (health, domains, memory delete,
+    // cross-phase stats) while remaining database-free.
     const memOnly = process.env.AQE_MEMORY_BACKEND === 'memory';
     if (memOnly) {
-      originalStderrWrite('[MCP] Database-free mode: in-memory backend, lean boot\n');
+      originalStderrWrite('[MCP] Database-free mode: in-memory backend (full feature parity)\n');
     }
 
     originalStderrWrite('[MCP] Initializing subsystems in parallel...\n');
@@ -165,12 +166,12 @@ async function main(): Promise<void> {
       },
       {
         // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
-        // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
-        // from the first request, rather than lazy-initializing on first domain tool call.
-        // Skipped in database-free mode (it opens memory.db).
+        // This ensures all tool invocations (domain, memory, core) use unified memory
+        // from the first request. In database-free mode unified memory is an ephemeral
+        // :memory: DB, so this is safe and keeps full functional parity.
         name: 'experience-capture',
         fn: async () => {
-          if (!memOnly) await initializeExperienceCapture();
+          await initializeExperienceCapture();
         },
       },
       {
@@ -215,19 +216,17 @@ async function main(): Promise<void> {
         },
       },
       {
-        // Auto-initialize fleet so tools work without requiring fleet_init call.
-        // Skipped in database-free mode: the kernel boot wires up ReasoningBank/
-        // SONA which open the unified memory.db and write patterns.rvf. Tools
-        // still register; anything needing a fleet lazily inits on fleet_init.
+        // Auto-initialize fleet so tools work without requiring an explicit
+        // fleet_init call. In database-free mode the kernel runs on the in-memory
+        // backend (and unified memory / RVF are gated to write nothing), so the
+        // fleet boots normally without touching .agentic-qe/.
         name: 'fleet-init',
         fn: async () => {
-          if (memOnly) {
-            originalStderrWrite('[MCP] Fleet auto-init skipped (database-free mode)\n');
-            return;
-          }
           const fleetResult = await handleFleetInit({
             topology: 'hierarchical',
             maxAgents: 15,
+            // handleFleetInit forces the in-memory kernel backend when
+            // AQE_MEMORY_BACKEND=memory, so 'hybrid' here is self-correcting.
             memoryBackend: 'hybrid',
             lazyLoading: true,
           });
@@ -262,7 +261,7 @@ async function main(): Promise<void> {
     // its initialize() (config-load + memory wiring) only runs when
     // explicitly called. Doing it here means hook events fire through a
     // fully-initialized executor from the first MCP request.
-    if (!memOnly) try {
+    try {
       const { getCrossPhaseHookExecutor } = await import('../hooks/cross-phase-hooks.js');
       await getCrossPhaseHookExecutor().initialize();
       originalStderrWrite('[MCP] CrossPhaseHooks initialized (eager init via patch 010)\n');
@@ -275,7 +274,7 @@ async function main(): Promise<void> {
     // builds the singleton + EnhancedReasoningBankAdapter.initialize() +
     // HNSW A index population. Without this, the first task_orchestrate pays
     // the cold-start cost and routing falls through to context-only matches.
-    if (!memOnly) void (async () => {
+    void (async () => {
       try {
         const { getReasoningBankService } = await import('./services/reasoning-bank-service.js');
         await getReasoningBankService();
@@ -285,10 +284,10 @@ async function main(): Promise<void> {
       }
     })();
 
-    // IMP-10: Start background workers (heartbeat scheduler, etc.)
-    // Skipped in database-free mode — every worker persists to memory.db and
-    // the QualityDaemon opens UnifiedMemoryManager (SQLite).
-    if (!memOnly) try {
+    // IMP-10: Start background workers (heartbeat scheduler, etc.). In
+    // database-free mode they run against the in-memory unified store, so they
+    // persist nothing to disk while keeping QualityDaemon/health functional.
+    try {
       const { getDaemon } = await import('../workers/daemon.js');
       // ADR-001 Bug A fix: use the canonical getDaemon() default. Passing
       // `{ autoStart: false }` here would neuter workerManager.startAll() —
