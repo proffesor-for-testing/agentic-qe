@@ -31,6 +31,8 @@ export class LearningPhase extends BasePhase<LearningResult> {
   readonly requiresPhases = ['database', 'configuration'] as const;
 
   async shouldRun(context: InitContext): Promise<boolean> {
+    // Database-free mode has no persistent store to seed patterns into.
+    if (context.options.memoryBackend === 'memory') return false;
     const config = context.config as AQEInitConfig;
     return config?.learning?.enabled ?? true;
   }

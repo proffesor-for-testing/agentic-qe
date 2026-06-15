@@ -70,6 +70,7 @@ export class ModularInitOrchestrator {
         wizardAnswers: options.wizardAnswers,
         noGovernance: options.noGovernance,
         noMcp: options.noMcp,
+        memoryBackend: options.memoryBackend,
       },
       config: {},
       enhancements: {
