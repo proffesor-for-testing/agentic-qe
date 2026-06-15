@@ -218,8 +218,12 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         projectRoot,
         installAgents: true,
         installSkills: true,
-        installTools: true,
+        // AQE tool .ts files are not in OpenCode's tool() format and are
+        // redundant with the MCP server — never install them.
+        installTools: false,
         overwrite: shouldOverwrite,
+        // Database-free install => MCP server configured to run in-memory.
+        memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
       });
 
       const ocResult = await openCodeInstaller.install();
