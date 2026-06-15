@@ -126,6 +126,26 @@ export class InitHandler implements ICommandHandler {
         return;
       }
 
+      // Platform provisioning (--with-opencode, --with-n8n, --with-<editor>, ...)
+      // and database-free mode (--no-database / --memory memory) are implemented
+      // ONLY in the modular orchestrator. The legacy runStandardInit path neither
+      // installs platform assets nor honors the in-memory backend (it boots the
+      // full kernel and writes .agentic-qe/memory.db). Route to modular so these
+      // flags actually take effect even without --auto.
+      const platformRequested = !!(
+        options.withOpencode || options.withN8n || options.withKiro ||
+        options.withCopilot || options.withCursor || options.withCline ||
+        options.withKilocode || options.withRoocode || options.withCodex ||
+        options.withWindsurf || options.withContinuedev || options.withAllPlatforms
+      );
+      const databaseFree = options.database === false || options.memory === 'memory';
+
+      if (options.modular || platformRequested || databaseFree) {
+        console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
+        await this.runModularInit(options, context);
+        return;
+      }
+
       // Standard init without wizard
       await this.runStandardInit(options, context);
     } catch (error) {
