@@ -118,11 +118,38 @@ async function main(): Promise<void> {
     return true;
   }) as typeof process.stderr.write;
 
+  // CRITICAL (stdio MCP framing): stdout must carry ONLY JSON-RPC messages.
+  // Lazily-loaded subsystems use console.log() for diagnostics (e.g.
+  // "[ParserRegistry] tree-sitter…", "[AdversarialDefense]…", "[Daemon] Not
+  // running"). Those stray lines interleave with the JSON-RPC stream and make
+  // strict clients (OpenCode, the official MCP SDK) fail with "Failed to get
+  // tools". console.log/info/debug default to stdout, so re-route them to the
+  // (filtered) stderr. JSON-RPC responses are written via the transport's
+  // process.stdout.write directly and are unaffected.
+  const routeConsoleToStderr = (...args: unknown[]): void => {
+    process.stderr.write(
+      args.map(a => (typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })())).join(' ') + '\n',
+    );
+  };
+  console.log = routeConsoleToStderr as typeof console.log;
+  console.info = routeConsoleToStderr as typeof console.info;
+  console.debug = routeConsoleToStderr as typeof console.debug;
+
   try {
     // IMP-06: Run independent init tasks in parallel via parallelPrefetch.
     // Token tracking, experience capture, infra-healing, and fleet init are
     // all independent — total startup time is bounded by the slowest task
     // rather than the sum of all tasks.
+    // Database-free mode (AQE_MEMORY_BACKEND=memory): boot lean. Skip every
+    // subsystem that opens/writes the SQLite memory.db (persistent token
+    // tracking, experience capture, background workers, ReasoningBank prewarm,
+    // QualityDaemon). This keeps .agentic-qe/ untouched AND avoids the
+    // SQLite-lock contention that made tools/list hang for some MCP clients.
+    const memOnly = process.env.AQE_MEMORY_BACKEND === 'memory';
+    if (memOnly) {
+      originalStderrWrite('[MCP] Database-free mode: in-memory backend, lean boot\n');
+    }
+
     originalStderrWrite('[MCP] Initializing subsystems in parallel...\n');
     const prefetchResult = await parallelPrefetch([
       {
@@ -131,7 +158,7 @@ async function main(): Promise<void> {
         fn: async () => {
           await bootstrapTokenTracking({
             enableOptimization: true,
-            enablePersistence: true,
+            enablePersistence: !memOnly,
             verbose: process.env.AQE_VERBOSE === 'true',
           });
         },
@@ -140,9 +167,10 @@ async function main(): Promise<void> {
         // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
         // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
         // from the first request, rather than lazy-initializing on first domain tool call.
+        // Skipped in database-free mode (it opens memory.db).
         name: 'experience-capture',
         fn: async () => {
-          await initializeExperienceCapture();
+          if (!memOnly) await initializeExperienceCapture();
         },
       },
       {
@@ -187,9 +215,16 @@ async function main(): Promise<void> {
         },
       },
       {
-        // Auto-initialize fleet so tools work without requiring fleet_init call
+        // Auto-initialize fleet so tools work without requiring fleet_init call.
+        // Skipped in database-free mode: the kernel boot wires up ReasoningBank/
+        // SONA which open the unified memory.db and write patterns.rvf. Tools
+        // still register; anything needing a fleet lazily inits on fleet_init.
         name: 'fleet-init',
         fn: async () => {
+          if (memOnly) {
+            originalStderrWrite('[MCP] Fleet auto-init skipped (database-free mode)\n');
+            return;
+          }
           const fleetResult = await handleFleetInit({
             topology: 'hierarchical',
             maxAgents: 15,
@@ -227,7 +262,7 @@ async function main(): Promise<void> {
     // its initialize() (config-load + memory wiring) only runs when
     // explicitly called. Doing it here means hook events fire through a
     // fully-initialized executor from the first MCP request.
-    try {
+    if (!memOnly) try {
       const { getCrossPhaseHookExecutor } = await import('../hooks/cross-phase-hooks.js');
       await getCrossPhaseHookExecutor().initialize();
       originalStderrWrite('[MCP] CrossPhaseHooks initialized (eager init via patch 010)\n');
@@ -240,7 +275,7 @@ async function main(): Promise<void> {
     // builds the singleton + EnhancedReasoningBankAdapter.initialize() +
     // HNSW A index population. Without this, the first task_orchestrate pays
     // the cold-start cost and routing falls through to context-only matches.
-    void (async () => {
+    if (!memOnly) void (async () => {
       try {
         const { getReasoningBankService } = await import('./services/reasoning-bank-service.js');
         await getReasoningBankService();
@@ -251,7 +286,9 @@ async function main(): Promise<void> {
     })();
 
     // IMP-10: Start background workers (heartbeat scheduler, etc.)
-    try {
+    // Skipped in database-free mode — every worker persists to memory.db and
+    // the QualityDaemon opens UnifiedMemoryManager (SQLite).
+    if (!memOnly) try {
       const { getDaemon } = await import('../workers/daemon.js');
       // ADR-001 Bug A fix: use the canonical getDaemon() default. Passing
       // `{ autoStart: false }` here would neuter workerManager.startAll() —
