@@ -149,6 +149,11 @@ export class ResultSaver {
     const timestamp = new Date();
     const files: SavedFile[] = [];
 
+    // Database-free mode (#534): do not write .agentic-qe/results/* to disk.
+    if (process.env.AQE_MEMORY_BACKEND === 'memory') {
+      return { taskId, taskType, timestamp, files, summary: this.extractSummary(taskType, result) };
+    }
+
     // Ensure directories exist
     await this.ensureDirectories(taskType);
 

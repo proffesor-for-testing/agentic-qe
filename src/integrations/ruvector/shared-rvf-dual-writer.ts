@@ -62,6 +62,12 @@ export async function getSharedRvfDualWriter(): Promise<RvfDualWriter | null> {
         return null;
       }
 
+      // Database-free mode (#534): no on-disk RVF store (brain.rvf). The unified
+      // DB is already in-memory, so there is nothing to dual-write to disk.
+      if (process.env.AQE_MEMORY_BACKEND === 'memory') {
+        return null;
+      }
+
       // Auto-detect native availability (dynamic import to avoid bundling .node files)
       const { isRvfNativeAvailable } = await import('./rvf-native-adapter.js');
       if (!isRvfNativeAvailable()) {
