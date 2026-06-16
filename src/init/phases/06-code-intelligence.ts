@@ -102,6 +102,12 @@ export class CodeIntelligencePhase extends BasePhase<CodeIntelligenceResult> {
    *     for the case where the corpus misses something in the wild.
    */
   async shouldRun(context: InitContext): Promise<boolean> {
+    // Database-free mode: the knowledge graph is persisted to the SQLite DB,
+    // which does not exist here. Build it later with `aqe code index`.
+    if (context.options.memoryBackend === 'memory') {
+      context.services.log('  Code intelligence skipped (database-free mode)');
+      return false;
+    }
     const envSkip = process.env.AQE_SKIP_CODE_INDEX;
     if (envSkip === '1' || envSkip === 'true') {
       context.services.log('  Code intelligence skipped (AQE_SKIP_CODE_INDEX=1)');

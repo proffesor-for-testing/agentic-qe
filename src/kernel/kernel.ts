@@ -200,8 +200,10 @@ export class QEKernelImpl implements QEKernel {
     const projectRoot = findProjectRoot();
     const dataDir = this._config.dataDir || path.join(projectRoot, '.agentic-qe');
 
-    // Ensure data directory exists
-    if (!fs.existsSync(dataDir)) {
+    // Ensure data directory exists. Skipped in database-free mode so the
+    // project's .agentic-qe/ is never created (the memory branch below uses a
+    // throwaway temp DB outside the project).
+    if (this._config.memoryBackend !== 'memory' && !fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }
 

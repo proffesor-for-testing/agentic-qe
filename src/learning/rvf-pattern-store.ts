@@ -102,6 +102,15 @@ export class RvfPatternStore implements IPatternStore {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    // Database-free mode (#534): never create an on-disk patterns.rvf (+ .idmap/.lock).
+    // Run adapter-less — the store degrades to metadata-only (the same graceful
+    // path used when the RVF native binding is unavailable), writing nothing.
+    if (process.env.AQE_MEMORY_BACKEND === 'memory') {
+      this.adapter = null;
+      this.initialized = true;
+      return;
+    }
+
     try {
       this.adapter = this.createAdapter(
         this.rvfPath,

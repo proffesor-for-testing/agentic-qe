@@ -527,8 +527,18 @@ export class MCPProtocolServer {
 
     this.initialized = true;
 
+    // Protocol-version negotiation (MCP spec): echo the client's requested
+    // version when we support it, otherwise fall back to our latest. Returning a
+    // hardcoded future version made strict SDK clients (e.g. OpenCode) reject the
+    // handshake with "Failed to get tools". Unknown/missing => latest supported.
+    const SUPPORTED_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
+    const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : undefined;
+    const negotiated = requested && SUPPORTED_PROTOCOL_VERSIONS.includes(requested)
+      ? requested
+      : SUPPORTED_PROTOCOL_VERSIONS[0];
+
     return {
-      protocolVersion: '2025-11-25',
+      protocolVersion: negotiated,
       capabilities: this.getCapabilities(),
       serverInfo: this.getServerInfo(),
     };

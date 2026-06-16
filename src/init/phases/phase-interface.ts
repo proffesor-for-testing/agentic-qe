@@ -144,6 +144,12 @@ export interface InitOptions {
   noMcp?: boolean;
   /** @deprecated Use default behavior instead — MCP is now enabled by default */
   withMcp?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the SQLite
+   * database phase is skipped and any MCP config is written to run in-memory.
+   * Undefined preserves the default persistent backend. Set via `--no-database`.
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 /**

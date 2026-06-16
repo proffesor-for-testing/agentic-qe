@@ -118,11 +118,39 @@ async function main(): Promise<void> {
     return true;
   }) as typeof process.stderr.write;
 
+  // CRITICAL (stdio MCP framing): stdout must carry ONLY JSON-RPC messages.
+  // Lazily-loaded subsystems use console.log() for diagnostics (e.g.
+  // "[ParserRegistry] tree-sitter…", "[AdversarialDefense]…", "[Daemon] Not
+  // running"). Those stray lines interleave with the JSON-RPC stream and make
+  // strict clients (OpenCode, the official MCP SDK) fail with "Failed to get
+  // tools". console.log/info/debug default to stdout, so re-route them to the
+  // (filtered) stderr. JSON-RPC responses are written via the transport's
+  // process.stdout.write directly and are unaffected.
+  const routeConsoleToStderr = (...args: unknown[]): void => {
+    process.stderr.write(
+      args.map(a => (typeof a === 'string' ? a : (() => { try { return JSON.stringify(a); } catch { return String(a); } })())).join(' ') + '\n',
+    );
+  };
+  console.log = routeConsoleToStderr as typeof console.log;
+  console.info = routeConsoleToStderr as typeof console.info;
+  console.debug = routeConsoleToStderr as typeof console.debug;
+
   try {
     // IMP-06: Run independent init tasks in parallel via parallelPrefetch.
     // Token tracking, experience capture, infra-healing, and fleet init are
     // all independent — total startup time is bounded by the slowest task
     // rather than the sum of all tasks.
+    // Database-free mode (AQE_MEMORY_BACKEND=memory): boot the SAME subsystems as
+    // normal — fleet, experience capture, ReasoningBank, workers, CrossPhaseHooks —
+    // but every persistence layer (unified memory, RVF, hypergraph, sessions,
+    // results) is gated to run in-memory and write nothing under .agentic-qe/.
+    // This keeps full functional parity (health, domains, memory delete,
+    // cross-phase stats) while remaining database-free.
+    const memOnly = process.env.AQE_MEMORY_BACKEND === 'memory';
+    if (memOnly) {
+      originalStderrWrite('[MCP] Database-free mode: in-memory backend (full feature parity)\n');
+    }
+
     originalStderrWrite('[MCP] Initializing subsystems in parallel...\n');
     const prefetchResult = await parallelPrefetch([
       {
@@ -131,15 +159,16 @@ async function main(): Promise<void> {
         fn: async () => {
           await bootstrapTokenTracking({
             enableOptimization: true,
-            enablePersistence: true,
+            enablePersistence: !memOnly,
             verbose: process.env.AQE_VERBOSE === 'true',
           });
         },
       },
       {
         // ADR-051: Initialize experience capture and unified memory BEFORE server starts.
-        // This ensures all tool invocations (domain, memory, core) write to v3 memory.db
-        // from the first request, rather than lazy-initializing on first domain tool call.
+        // This ensures all tool invocations (domain, memory, core) use unified memory
+        // from the first request. In database-free mode unified memory is an ephemeral
+        // :memory: DB, so this is safe and keeps full functional parity.
         name: 'experience-capture',
         fn: async () => {
           await initializeExperienceCapture();
@@ -187,12 +216,17 @@ async function main(): Promise<void> {
         },
       },
       {
-        // Auto-initialize fleet so tools work without requiring fleet_init call
+        // Auto-initialize fleet so tools work without requiring an explicit
+        // fleet_init call. In database-free mode the kernel runs on the in-memory
+        // backend (and unified memory / RVF are gated to write nothing), so the
+        // fleet boots normally without touching .agentic-qe/.
         name: 'fleet-init',
         fn: async () => {
           const fleetResult = await handleFleetInit({
             topology: 'hierarchical',
             maxAgents: 15,
+            // handleFleetInit forces the in-memory kernel backend when
+            // AQE_MEMORY_BACKEND=memory, so 'hybrid' here is self-correcting.
             memoryBackend: 'hybrid',
             lazyLoading: true,
           });
@@ -250,7 +284,9 @@ async function main(): Promise<void> {
       }
     })();
 
-    // IMP-10: Start background workers (heartbeat scheduler, etc.)
+    // IMP-10: Start background workers (heartbeat scheduler, etc.). In
+    // database-free mode they run against the in-memory unified store, so they
+    // persist nothing to disk while keeping QualityDaemon/health functional.
     try {
       const { getDaemon } = await import('../workers/daemon.js');
       // ADR-001 Bug A fix: use the canonical getDaemon() default. Passing

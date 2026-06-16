@@ -10,7 +10,17 @@ import { DomainName } from '../../shared/types';
 import { ToolResult, ToolResultMetadata } from '../types';
 import { MemoryBackend } from '../../kernel/interfaces';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend';
+import { InMemoryBackend } from '../../kernel/memory-backend.js';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
+
+/**
+ * Database-free mode: when AQE_MEMORY_BACKEND=memory, the MCP server keeps all
+ * state in-memory and writes nothing under .agentic-qe/. Used by `aqe init
+ * --no-database` and the in-memory opencode.json MCP config.
+ */
+export function isMemoryOnlyMode(): boolean {
+  return process.env.AQE_MEMORY_BACKEND === 'memory';
+}
 import * as path from 'path';
 import * as fs from 'fs';
 import { toErrorMessage } from '../../shared/error-utils.js';
@@ -54,6 +64,14 @@ export async function getSharedMemoryBackend(): Promise<MemoryBackend> {
 
   // Initialize new backend
   memoryInitPromise = (async () => {
+    // Database-free mode: pure in-memory backend, no directory, no SQLite file.
+    if (isMemoryOnlyMode()) {
+      const backend = new InMemoryBackend();
+      await backend.initialize();
+      sharedMemoryBackend = backend;
+      return backend;
+    }
+
     const projectRoot = findProjectRoot();
     const dataDir = path.join(projectRoot, '.agentic-qe');
 

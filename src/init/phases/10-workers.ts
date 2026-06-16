@@ -44,6 +44,9 @@ export class WorkersPhase extends BasePhase<WorkersResult> {
   readonly requiresPhases = ['configuration'] as const;
 
   async shouldRun(context: InitContext): Promise<boolean> {
+    // Background workers persist to the SQLite DB, which is absent in
+    // database-free mode.
+    if (context.options.memoryBackend === 'memory') return false;
     const config = context.config as AQEInitConfig;
     return config?.workers?.daemonAutoStart && (config?.workers?.enabled?.length ?? 0) > 0;
   }

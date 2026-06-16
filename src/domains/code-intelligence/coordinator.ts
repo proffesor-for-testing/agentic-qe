@@ -370,12 +370,17 @@ export class CodeIntelligenceCoordinator
       const path = await import('path');
       const { findProjectRoot } = await import('../../kernel/unified-memory.js');
       const projectRoot = findProjectRoot();
-      const dbPath = this.config.hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db');
+      // Database-free mode (#534): ephemeral in-memory hypergraph DB, never the
+      // project's .agentic-qe/memory.db.
+      const inMemory = process.env.AQE_MEMORY_BACKEND === 'memory';
+      const dbPath = inMemory ? ':memory:' : (this.config.hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db'));
 
       // Ensure directory exists
-      const dir = path.dirname(dbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      if (!inMemory) {
+        const dir = path.dirname(dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
       }
 
       // Create database connection

@@ -42,11 +42,14 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
 
     const checks: { name: string; passed: boolean }[] = [];
 
-    // Check database exists
+    // Database-free mode: there is no SQLite database to verify or write to.
+    const memOnly = context.options.memoryBackend === 'memory';
+
+    // Check database exists (in-memory mode has none — treated as satisfied).
     const dbPath = join(projectRoot, '.agentic-qe', 'memory.db');
     checks.push({
-      name: 'Database exists',
-      passed: existsSync(dbPath),
+      name: memOnly ? 'Database (in-memory mode)' : 'Database exists',
+      passed: memOnly || existsSync(dbPath),
     });
 
     // Check .agentic-qe directory
@@ -65,8 +68,11 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
       passed: existsSync(configPath),
     });
 
-    // Write version marker
-    const versionWritten = await this.writeVersionToDb(config.version, projectRoot);
+    // Write version marker. Skipped in database-free mode — there is no
+    // memory.db; the version is still recorded in config.yaml above.
+    const versionWritten = memOnly
+      ? true
+      : await this.writeVersionToDb(config.version, projectRoot);
     checks.push({
       name: 'Version marker',
       passed: versionWritten,

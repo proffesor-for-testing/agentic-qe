@@ -570,5 +570,13 @@ export function openRvfStoreReadonly(path: string): RvfNativeAdapter {
 
 /** Check whether the native binding is loadable on this platform */
 export function isRvfNativeAvailable(): boolean {
+  // Database-free mode (#534): report RVF as unavailable so every consumer
+  // (RVF pattern store, dual-writer, agent memory branches) takes its existing
+  // "no native RVF" degraded path and writes nothing to disk — no patterns.rvf,
+  // brain.rvf, or branches/*.rvf. This is the single central gate for all
+  // on-disk RVF stores.
+  if (process.env.AQE_MEMORY_BACKEND === 'memory') {
+    return false;
+  }
   return getNative() !== null;
 }
