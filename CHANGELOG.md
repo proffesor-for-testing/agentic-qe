@@ -5,6 +5,54 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.10.8] - 2026-06-16
+
+A database-free OpenCode install and a set of MCP stdio client-compatibility
+fixes (community contribution from @nagoodman), plus a dependency-security pass
+that clears two production high-severity advisories.
+
+### Added
+
+- **Database-free install mode** — `aqe init --with-opencode --no-database`
+  (alias `--memory memory`). Produces a fully working OpenCode install that
+  writes nothing under `.agentic-qe/`: every persistence path (memory manager,
+  RVF, code-intelligence hypergraph, fleet kernel, session/result stores) runs
+  in-memory, while the server still boots the same subsystems (fleet,
+  ReasoningBank, workers) so it stays healthy with all 14 domains. Opt-in; the
+  default persistent mode is unchanged. (#530, #534)
+
+### Fixed
+
+- **MCP stdio server is now spec-compliant for strict clients.** Subsystem
+  `console.log` output was leaking onto stdout and corrupting JSON-RPC framing,
+  and `initialize` hardcoded the protocol version — both made strict clients
+  (OpenCode, the official MCP SDK) fail with "Failed to get tools". Console
+  output is now routed to stderr and `protocolVersion` is negotiated. Applies in
+  all modes. (#527)
+- **OpenCode provisioning now ships a loadable format.** Agents and skills are
+  converted at install time to native `.opencode/agent/*.md` and
+  `.opencode/skills/<name>/SKILL.md` with per-agent permission frontmatter. (#529)
+- **protobufjs and ws production CVEs.** Cleared two high-severity advisories
+  flagged by the supply-chain audit gate: protobufjs (GHSA-f38q-mgvj-vph7,
+  GHSA-wcpc-wj8m-hjx6) → 7.6.4 and ws (GHSA-96hv-2xvq-fx4p) → 8.21.0, via
+  overrides that stay within each package's current major.
+
+### Changed
+
+- **OpenCode installs no longer copy non-loadable `.opencode/tools/*.ts`
+  wrappers.** They were never loadable by OpenCode's `tool()` API and are
+  redundant with the MCP server, which exposes the same tools. (#531)
+- Bumped `vite` 8.0.9 → 8.0.16 (dev dependency). (supersedes #536)
+
+### Known follow-ups
+
+- #528 — make `agentic-qe mcp` run in-process (currently mitigated by invoking
+  the `aqe-mcp` bin directly).
+- #532 — platform installs are additive, not exclusive.
+- #533 — propagate `AQE_MEMORY_BACKEND=memory` to all generated MCP client
+  configs, not just `opencode.json`.
+- #535 — pre-existing MCP tool bugs surfaced during smoke testing.
+
 ## [3.10.7] - 2026-06-12
 
 A learning-integrity and supply-chain release. Two independent bugs were
