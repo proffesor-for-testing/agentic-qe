@@ -671,6 +671,23 @@ export class MCPProtocolServer {
       // IMP-00: Execute post-tool-result middleware
       const processedResult = await this.middlewareChain.executePostHooks(processedCtx, result);
 
+      // Issue #535: a mutating tool must evict its domain's cached reads, or a
+      // follow-up read (e.g. memory_retrieve after memory_delete) serves a
+      // stale "found" result and the write looks like a no-op. Writes aren't
+      // cacheable themselves; gate on a mutation-verb suffix and invalidate the
+      // same domain the sibling reads were cached under. Best-effort.
+      if (!cacheable && process.env.AQE_SESSION_CACHE !== 'off' &&
+          /_(store|delete|set|share|update|remove|clear|promote|cleanup)$/.test(name) &&
+          this.isSuccessfulResult(processedResult)) {
+        try {
+          const { getSessionCache } = await import('../optimization/session-cache.js');
+          const { domain } = parseToolDomainAction(name);
+          getSessionCache().invalidateDomain(domain);
+        } catch {
+          // never block tool execution on cache invalidation
+        }
+      }
+
       // Issue #473: Store successful results for future cache hits.
       // Only cache successful results — error objects shouldn't be served back.
       if (cacheable && cacheFingerprint && this.isSuccessfulResult(processedResult)) {

@@ -216,6 +216,26 @@ export class SessionOperationCache {
     this.misses = 0;
   }
 
+  /**
+   * Invalidate every cached entry for a domain. Issue #535: a mutating tool
+   * (e.g. memory_delete / memory_store) must evict the sibling read entries in
+   * its domain, or a follow-up memory_retrieve serves a stale "found" result
+   * from cache and the delete looks like a no-op. Also drops the persisted
+   * rows so a later loadFromDb() can't resurrect the stale entries. Returns the
+   * number of entries removed.
+   */
+  invalidateDomain(domain: string): number {
+    let removed = 0;
+    for (const [key, entry] of this.cache) {
+      if (entry.domain === domain) {
+        this.cache.delete(key);
+        this.deletePersisted(entry.fingerprint);
+        removed++;
+      }
+    }
+    return removed;
+  }
+
   /** Evict the oldest entry by cachedAt */
   private evictOldest(): void {
     let oldestKey: string | null = null;
@@ -240,6 +260,19 @@ export class SessionOperationCache {
       ).run(`session_cache:${entry.fingerprint}`, JSON.stringify(entry), Date.now());
     } catch {
       /* non-critical - cache works without persistence */
+    }
+  }
+
+  /** Delete a single persisted entry from kv_store (used by invalidateDomain). */
+  private deletePersisted(fingerprint: string): void {
+    try {
+      const db = tryGetDb();
+      if (!db) return;
+      db.prepare(
+        `DELETE FROM kv_store WHERE namespace = 'session_cache' AND key = ?`
+      ).run(`session_cache:${fingerprint}`);
+    } catch {
+      /* non-critical */
     }
   }
 }
