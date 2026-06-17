@@ -40,6 +40,12 @@ export class MCPPhase extends BasePhase<MCPResult> {
   protected async run(context: InitContext): Promise<MCPResult> {
     const { projectRoot } = context;
 
+    // #532: --no-claude suppresses the Claude Code surface, including .mcp.json.
+    if (context.options.noClaude) {
+      context.services.log('  MCP: skipped (--no-claude — .mcp.json is the Claude Code surface)');
+      return { configured: false, mcpPath: '', serverName: '' };
+    }
+
     // MCP is enabled by default — skip only with --no-mcp
     if (context.options.noMcp) {
       context.services.log('  MCP: skipped (--no-mcp)');
@@ -54,14 +60,29 @@ export class MCPPhase extends BasePhase<MCPResult> {
     // AQE MCP server configuration
     // AQE_PROJECT_ROOT omitted — runtime discovery via findProjectRoot() is
     // portable across machines, devcontainers, and CI (#321)
+    //
+    // Issue #533: in database-free mode (--no-database / memoryBackend:'memory')
+    // the server must run in-memory and must not have learning/workers forced
+    // on (those persist to SQLite, recreating .agentic-qe/memory.db at runtime
+    // and defeating the db-free install). Those phases are already skipped at
+    // install time; mirror that in the generated env.
+    const dbFree = context.options.memoryBackend === 'memory';
+    const env: Record<string, string> = dbFree
+      ? {
+          AQE_MEMORY_BACKEND: 'memory',
+          AQE_LEARNING_ENABLED: 'false',
+          AQE_WORKERS_ENABLED: 'false',
+          NODE_ENV: 'production',
+        }
+      : {
+          AQE_LEARNING_ENABLED: 'true',
+          AQE_WORKERS_ENABLED: 'true',
+          NODE_ENV: 'production',
+        };
     const aqeServerConfig = {
       command: 'aqe-mcp',
       args: [],
-      env: {
-        AQE_LEARNING_ENABLED: 'true',
-        AQE_WORKERS_ENABLED: 'true',
-        NODE_ENV: 'production',
-      },
+      env,
     };
 
     // Write to .mcp.json at project root (the only location Claude Code reads)
@@ -88,8 +109,14 @@ export class MCPPhase extends BasePhase<MCPResult> {
 
     context.services.log(`  MCP config: ${rootMcpPath}`);
     context.services.log(`  Server: agentic-qe`);
-    context.services.log(`  Learning: enabled`);
-    context.services.log(`  Workers: enabled`);
+    if (dbFree) {
+      context.services.log(`  Memory backend: in-memory (database-free)`);
+      context.services.log(`  Learning: disabled (db-free)`);
+      context.services.log(`  Workers: disabled (db-free)`);
+    } else {
+      context.services.log(`  Learning: enabled`);
+      context.services.log(`  Workers: enabled`);
+    }
 
     return {
       configured: true,

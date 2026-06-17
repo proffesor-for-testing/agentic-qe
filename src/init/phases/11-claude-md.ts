@@ -28,6 +28,15 @@ export class ClaudeMdPhase extends BasePhase<ClaudeMdResult> {
   readonly critical = false;
   readonly requiresPhases = ['configuration'] as const;
 
+  async shouldRun(context: InitContext): Promise<boolean> {
+    // #532: --no-claude suppresses the Claude Code surface, including CLAUDE.md.
+    if (context.options.noClaude) {
+      context.services.log('  CLAUDE.md skipped (--no-claude)');
+      return false;
+    }
+    return true;
+  }
+
   protected async run(context: InitContext): Promise<ClaudeMdResult> {
     const config = context.config as AQEInitConfig;
     const { projectRoot } = context;

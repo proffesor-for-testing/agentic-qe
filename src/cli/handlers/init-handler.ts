@@ -72,6 +72,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
       .option('--no-governance', 'Skip governance configuration (ADR-058)')
+      .option('--no-claude', 'Suppress the default Claude Code surface (.claude/, .mcp.json, CLAUDE.md, governance, hooks) so --with-<platform> flags are the only install targets (#532)')
       .option('--modular', 'Use new modular init system (default for --auto)')
       .action(async (options) => {
         await this.execute(options, context);
@@ -168,6 +169,23 @@ export class InitHandler implements ICommandHandler {
       }
     }
 
+    // #532: `--no-claude` suppresses the default Claude Code surface so the
+    // `--with-<platform>` flags become the only targets. Commander maps the
+    // negatable flag to `options.claude === false`. Warn if it would produce an
+    // empty install (no platform selected) so the user isn't surprised.
+    const noClaude = options.claude === false;
+    if (noClaude) {
+      const anyPlatform = Boolean(
+        options.withOpencode || options.withN8n || options.withKiro ||
+        options.withCopilot || options.withCursor || options.withCline ||
+        options.withKilocode || options.withRoocode || options.withCodex ||
+        options.withWindsurf || options.withContinuedev || options.withAllPlatforms,
+      );
+      if (!anyPlatform && !isJsonMode) {
+        console.log(chalk.yellow('  --no-claude set without any --with-<platform>: this install will write almost nothing.\n'));
+      }
+    }
+
     const { createModularInitOrchestrator } = await import('../../init/orchestrator.js');
     const orchestrator = createModularInitOrchestrator({
       projectRoot: process.cwd(),
@@ -189,6 +207,7 @@ export class InitHandler implements ICommandHandler {
       withContinueDev: options.withContinuedev,
       noMcp: options.noMcp && !options.withMcp,
       noGovernance: options.noGovernance,
+      noClaude,
       memoryBackend: memoryOnly ? 'memory' : undefined,
     });
 
@@ -617,6 +636,8 @@ interface InitOptions {
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
+  /** commander negatable flag: `--no-claude` sets this to false (#532). */
+  claude?: boolean;
   modular?: boolean;
 }
 

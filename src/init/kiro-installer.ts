@@ -39,6 +39,11 @@ export interface KiroInstallerOptions {
   installSteering?: boolean;
   /** Overwrite existing files (default: false) */
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the Kiro MCP
+   * config runs the server in-memory (AQE_MEMORY_BACKEND=memory). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface KiroInstallResult {
@@ -213,10 +218,10 @@ export class KiroInstaller {
         'agentic-qe': {
           command: 'npx',
           args: ['-y', 'agentic-qe@latest', 'mcp'],
-          env: {
-            AQE_MEMORY_PATH: '.agentic-qe/memory.db',
-            AQE_V3_MODE: 'true',
-          },
+          // Issue #533: database-free installs run the MCP server in-memory.
+          env: this.options.memoryBackend === 'memory'
+            ? { AQE_MEMORY_BACKEND: 'memory', AQE_V3_MODE: 'true' }
+            : { AQE_MEMORY_PATH: '.agentic-qe/memory.db', AQE_V3_MODE: 'true' },
           disabled: false,
           autoApprove: [
             'fleet_init',

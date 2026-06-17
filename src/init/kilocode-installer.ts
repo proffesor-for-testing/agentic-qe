@@ -21,6 +21,11 @@ import {
 export interface KiloCodeInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the MCP config
+   * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface KiloCodeInstallResult {
@@ -39,11 +44,13 @@ export interface KiloCodeInstallResult {
 export class KiloCodeInstaller {
   private projectRoot: string;
   private overwrite: boolean;
+  private options: KiloCodeInstallerOptions;
   private generator: PlatformConfigGenerator;
 
   constructor(options: KiloCodeInstallerOptions) {
     this.projectRoot = options.projectRoot;
     this.overwrite = options.overwrite ?? false;
+    this.options = options;
     this.generator = createPlatformConfigGenerator();
   }
 
@@ -59,7 +66,7 @@ export class KiloCodeInstaller {
 
     try {
       // Generate MCP config
-      const mcpConfig = this.generator.generateMcpConfig('kilocode');
+      const mcpConfig = this.generator.generateMcpConfig('kilocode', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 

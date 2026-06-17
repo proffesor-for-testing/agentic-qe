@@ -21,6 +21,11 @@ import {
 export interface WindsurfInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the MCP config
+   * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface WindsurfInstallResult {
@@ -39,11 +44,13 @@ export interface WindsurfInstallResult {
 export class WindsurfInstaller {
   private projectRoot: string;
   private overwrite: boolean;
+  private options: WindsurfInstallerOptions;
   private generator: PlatformConfigGenerator;
 
   constructor(options: WindsurfInstallerOptions) {
     this.projectRoot = options.projectRoot;
     this.overwrite = options.overwrite ?? false;
+    this.options = options;
     this.generator = createPlatformConfigGenerator();
   }
 
@@ -59,7 +66,7 @@ export class WindsurfInstaller {
 
     try {
       // Generate MCP config (project-level .windsurf/mcp_config.json)
-      const mcpConfig = this.generator.generateMcpConfig('windsurf');
+      const mcpConfig = this.generator.generateMcpConfig('windsurf', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 

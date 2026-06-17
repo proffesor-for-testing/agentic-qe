@@ -21,6 +21,11 @@ import {
 export interface ContinueDevInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the MCP config
+   * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface ContinueDevInstallResult {
@@ -39,11 +44,13 @@ export interface ContinueDevInstallResult {
 export class ContinueDevInstaller {
   private projectRoot: string;
   private overwrite: boolean;
+  private options: ContinueDevInstallerOptions;
   private generator: PlatformConfigGenerator;
 
   constructor(options: ContinueDevInstallerOptions) {
     this.projectRoot = options.projectRoot;
     this.overwrite = options.overwrite ?? false;
+    this.options = options;
     this.generator = createPlatformConfigGenerator();
   }
 
@@ -59,7 +66,7 @@ export class ContinueDevInstaller {
 
     try {
       // Generate YAML MCP config
-      const mcpConfig = this.generator.generateMcpConfig('continuedev');
+      const mcpConfig = this.generator.generateMcpConfig('continuedev', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 
