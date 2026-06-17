@@ -20,6 +20,9 @@ import { join } from 'node:path';
 const ROOT = join(__dirname, '..', '..', '..');
 const MCP_BUNDLE = join(ROOT, 'dist', 'mcp', 'bundle.js');
 const BUILT = existsSync(MCP_BUNDLE);
+// C3: skip only for local unbuilt checkouts. In CI the bundle MUST exist (the
+// workflow builds first) — fail loudly rather than silently skip if it doesn't.
+const SKIP = !BUILT && !process.env.CI;
 
 interface ToolResponses { [id: number]: any }
 
@@ -76,7 +79,7 @@ function driveTools(calls: Array<{ id: number; name: string; arguments: Record<s
   });
 }
 
-describe.skipIf(!BUILT)('#535 — memory_delete is not masked by the session cache', () => {
+describe.skipIf(SKIP)('#535 — memory_delete is not masked by the session cache', () => {
   it('retrieve after delete returns found:false even with the cache enabled', async () => {
     // Arrange + Act — store, read (populates cache), delete, read again.
     const ns = 'reg535';

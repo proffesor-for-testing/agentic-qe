@@ -20,6 +20,10 @@ const ROOT = join(__dirname, '..', '..', '..');
 const CLI_BUNDLE = join(ROOT, 'dist', 'cli', 'bundle.js');
 const MCP_BUNDLE = join(ROOT, 'dist', 'mcp', 'bundle.js');
 const BUILT = existsSync(CLI_BUNDLE) && existsSync(MCP_BUNDLE);
+// C3: skip only for local unbuilt checkouts. In CI the bundles MUST exist
+// (the workflow builds first) — if they don't, fail loudly rather than skip,
+// so a missing build step can never silently turn this guard green again.
+const SKIP = !BUILT && !process.env.CI;
 
 interface DriveResult {
   initialize: boolean;
@@ -69,7 +73,7 @@ function driveMcp(args: string[]): Promise<DriveResult> {
   });
 }
 
-describe.skipIf(!BUILT)('#528 — `agentic-qe mcp` serves tools/list over piped stdin', () => {
+describe.skipIf(SKIP)('#528 — `agentic-qe mcp` serves tools/list over piped stdin', () => {
   it('answers initialize AND tools/list (not just initialize) when stdin EOFs', async () => {
     // Act
     const res = await driveMcp([CLI_BUNDLE, 'mcp']);
