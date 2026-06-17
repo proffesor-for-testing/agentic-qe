@@ -123,6 +123,12 @@ export class ContinueDevInstaller {
       // If existing config already has mcpServers key, append just the server entry
       // to avoid duplicate mcpServers keys (which produces invalid YAML)
       if (existing.includes('mcpServers:')) {
+        // #533: honor database-free mode on the merge path too — otherwise this
+        // hardcoded entry re-introduces AQE_MEMORY_PATH and the server recreates
+        // memory.db at runtime, defeating a --no-database install.
+        const envBlock = this.options.memoryBackend === 'memory'
+          ? `      AQE_MEMORY_BACKEND: memory\n      AQE_V3_MODE: "true"`
+          : `      AQE_MEMORY_PATH: .agentic-qe/memory.db\n      AQE_V3_MODE: "true"`;
         const serverEntry = `  - name: agentic-qe
     command: npx
     args:
@@ -130,8 +136,7 @@ export class ContinueDevInstaller {
       - agentic-qe@latest
       - mcp
     env:
-      AQE_MEMORY_PATH: .agentic-qe/memory.db
-      AQE_V3_MODE: "true"`;
+${envBlock}`;
         return existing.trimEnd() + '\n' + serverEntry + '\n';
       }
 

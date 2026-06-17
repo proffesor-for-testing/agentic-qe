@@ -140,8 +140,13 @@ export class InitHandler implements ICommandHandler {
         options.withWindsurf || options.withContinuedev || options.withAllPlatforms
       );
       const databaseFree = options.database === false || options.memory === 'memory';
+      // #532: `--no-claude` (commander negatable → options.claude === false) is
+      // only honored by the modular orchestrator. Route there too, or the flag
+      // silently falls through to runStandardInit and installs the full Claude
+      // surface it was meant to suppress.
+      const noClaudeRequested = options.claude === false;
 
-      if (options.modular || platformRequested || databaseFree) {
+      if (options.modular || platformRequested || databaseFree || noClaudeRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
         await this.runModularInit(options, context);
         return;
