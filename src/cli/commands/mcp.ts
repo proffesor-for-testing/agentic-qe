@@ -10,10 +10,9 @@
  */
 
 import { Command } from 'commander';
-import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { findPackageRoot } from '../../init/find-package-root.js';
 
 /**
@@ -25,14 +24,11 @@ export function createMcpCommand(): Command {
     .option('--http <port>', 'Also start HTTP server for AG-UI/A2A protocols', '0')
     .option('--verbose', 'Enable verbose logging')
     .action(async (options) => {
-      // Set up environment
-      const env: Record<string, string> = {
-        ...process.env as Record<string, string>,
-        AQE_HTTP_PORT: options.http || '0',
-      };
-
+      // Configure the server via env BEFORE importing the entry — entry.ts
+      // reads these at startup.
+      process.env.AQE_HTTP_PORT = options.http || '0';
       if (options.verbose) {
-        env.AQE_VERBOSE = 'true';
+        process.env.AQE_VERBOSE = 'true';
       }
 
       // Find the MCP entry point
@@ -44,32 +40,31 @@ export function createMcpCommand(): Command {
         process.exit(1);
       }
 
-      // Determine how to run the entry point
-      const isBundle = entryPath.endsWith('.js');
-      const command = 'node';
-      const args = isBundle
-        ? [entryPath]
-        : ['--import', 'tsx', entryPath];
-
-      // Spawn the MCP server, inheriting stdio for JSON-RPC communication
-      const child = spawn(command, args, {
-        env,
-        stdio: 'inherit',
-        cwd: process.cwd(),
-      });
-
-      child.on('error', (error) => {
-        console.error('Failed to start MCP server:', error.message);
+      // Run the MCP server IN-PROCESS instead of spawning a child (issue #528).
+      //
+      // The old path spawned `node <entry>` with stdio:'inherit'. With a piped
+      // stdin (any programmatic MCP client), the grandchild saw `stdin-eof`
+      // immediately after answering `initialize` and the Issue #513 stdin-EOF
+      // guard in entry.ts shut it down before it could serve `tools/list`.
+      // Importing the entry runs its top-level `main()`, which starts the
+      // server on THIS process's real stdio and installs its own
+      // signal/stdin shutdown handlers. The dynamic import resolves as soon as
+      // module evaluation kicks off `main()`; the server then keeps the
+      // process alive on stdin. This matches the working `aqe-mcp` bin, which
+      // runs the bundle directly.
+      try {
+        await import(pathToFileURL(entryPath).href);
+      } catch (error) {
+        console.error('Failed to start MCP server:', (error as Error).message);
         process.exit(1);
-      });
+      }
 
-      child.on('exit', (code) => {
-        process.exit(code ?? 0);
-      });
-
-      // Forward signals to child
-      process.on('SIGINT', () => child.kill('SIGINT'));
-      process.on('SIGTERM', () => child.kill('SIGTERM'));
+      // entry.ts kicks off `main()` fire-and-forget, so the import above
+      // resolves while the server's async init is still in flight. Keep this
+      // action pending forever so the CLI wrapper doesn't return (and exit)
+      // out from under the server. entry.ts owns shutdown — its signal and
+      // stdin-EOF handlers call process.exit when the client disconnects.
+      await new Promise<never>(() => { /* server owns the process lifecycle */ });
     });
 
   return cmd;
