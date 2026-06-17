@@ -174,14 +174,23 @@ const SAFE_AUTO_APPROVE_TOOLS = [
 // MCP Server Entry
 // ============================================================================
 
-function getMcpServerEntry(withAutoApprove: boolean): Record<string, unknown> {
+/**
+ * Build the MCP server env. Issue #533: in database-free mode the server must
+ * run in-memory (AQE_MEMORY_BACKEND=memory) and must NOT be pointed at a
+ * persistent db path — otherwise launching via this client recreates
+ * .agentic-qe/memory.db at runtime and defeats the --no-database install.
+ */
+function getMcpServerEnv(dbFree: boolean): Record<string, string> {
+  return dbFree
+    ? { AQE_MEMORY_BACKEND: 'memory', AQE_V3_MODE: 'true' }
+    : { AQE_MEMORY_PATH: '.agentic-qe/memory.db', AQE_V3_MODE: 'true' };
+}
+
+function getMcpServerEntry(withAutoApprove: boolean, dbFree: boolean): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     command: 'npx',
     args: ['-y', 'agentic-qe@latest', 'mcp'],
-    env: {
-      AQE_MEMORY_PATH: '.agentic-qe/memory.db',
-      AQE_V3_MODE: 'true',
-    },
+    env: getMcpServerEnv(dbFree),
   };
 
   if (withAutoApprove) {
@@ -196,8 +205,8 @@ function getMcpServerEntry(withAutoApprove: boolean): Record<string, unknown> {
 // Config Generators
 // ============================================================================
 
-function generateJsonConfig(platform: PlatformDefinition): string {
-  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove);
+function generateJsonConfig(platform: PlatformDefinition, dbFree: boolean): string {
+  const serverEntry = getMcpServerEntry(platform.supportsAutoApprove, dbFree);
 
   if (platform.id === 'copilot') {
     // Copilot uses "servers" key with "type": "stdio"
@@ -220,7 +229,10 @@ function generateJsonConfig(platform: PlatformDefinition): string {
   return JSON.stringify(config, null, 2) + '\n';
 }
 
-function generateTomlConfig(): string {
+function generateTomlConfig(dbFree: boolean): string {
+  const envLines = dbFree
+    ? `AQE_MEMORY_BACKEND = "memory"\nAQE_V3_MODE = "true"`
+    : `AQE_MEMORY_PATH = ".agentic-qe/memory.db"\nAQE_V3_MODE = "true"`;
   return `# Agentic QE MCP Server
 [mcp_servers.agentic-qe]
 type = "stdio"
@@ -228,12 +240,14 @@ command = "npx"
 args = ["-y", "agentic-qe@latest", "mcp"]
 
 [mcp_servers.agentic-qe.env]
-AQE_MEMORY_PATH = ".agentic-qe/memory.db"
-AQE_V3_MODE = "true"
+${envLines}
 `;
 }
 
-function generateYamlConfig(): string {
+function generateYamlConfig(dbFree: boolean): string {
+  const envLines = dbFree
+    ? `      AQE_MEMORY_BACKEND: memory\n      AQE_V3_MODE: "true"`
+    : `      AQE_MEMORY_PATH: .agentic-qe/memory.db\n      AQE_V3_MODE: "true"`;
   return `# Agentic QE MCP Server
 mcpServers:
   - name: agentic-qe
@@ -243,8 +257,7 @@ mcpServers:
       - agentic-qe@latest
       - mcp
     env:
-      AQE_MEMORY_PATH: .agentic-qe/memory.db
-      AQE_V3_MODE: "true"
+${envLines}
 `;
 }
 
@@ -335,20 +348,25 @@ export class PlatformConfigGenerator {
   /**
    * Generate the MCP config for a platform
    */
-  generateMcpConfig(platformId: PlatformId): GeneratedConfig {
+  generateMcpConfig(
+    platformId: PlatformId,
+    opts?: { memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid' },
+  ): GeneratedConfig {
     const platform = this.getPlatform(platformId);
+    // Issue #533: database-free installs propagate AQE_MEMORY_BACKEND=memory.
+    const dbFree = opts?.memoryBackend === 'memory';
 
     let content: string;
     switch (platform.configFormat) {
       case 'toml':
-        content = generateTomlConfig();
+        content = generateTomlConfig(dbFree);
         break;
       case 'yaml':
-        content = generateYamlConfig();
+        content = generateYamlConfig(dbFree);
         break;
       case 'json':
       default:
-        content = generateJsonConfig(platform);
+        content = generateJsonConfig(platform, dbFree);
         break;
     }
 

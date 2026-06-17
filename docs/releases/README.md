@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.10.9](v3.10.9.md) | 2026-06-17 | MCP reliability + db-free completeness (@nagoodman): `agentic-qe mcp` runs in-process so real clients get `tools/list` (#528); `memory_delete` no longer masked by stale session cache (#535); `--no-database` reaches all editor MCP configs (#533); new `--no-claude` exclusive install (#532). |
 | [v3.10.8](v3.10.8.md) | 2026-06-16 | Database-free OpenCode install (`--no-database`/`--memory memory`, #530/#534) + MCP stdio client-compat fixes (#527 stdout purity + negotiated protocol, #529 loadable OpenCode assets) from @nagoodman; cleared protobufjs + ws production CVEs; vite → 8.0.16. |
 | [v3.10.7](v3.10.7.md) | 2026-06-12 | Learning-integrity + supply chain: fix silent self-learning loss (hook swallowed native-binary errors; SONA reward feedback was inert, fixed via `@ruvector/sona` 0.1.7); shift-left consumer-tarball audit gate; refresh QE skill evals to current models. |
 | [v3.10.6](v3.10.6.md) | 2026-06-11 | Pattern Space cross-pollination (#522): evidence-class labels on findings, pass/fail safety eval for data-protection rules, shipped-agent invariant CI, benchmark lineage + interaction benchmark, kept-nulls learning. ADR-105–110. |

@@ -173,6 +173,24 @@ describe('ContinueDevInstaller', () => {
       expect(content).toContain('agentic-qe');
     });
 
+    it('honors database-free mode on the merge branch — no AQE_MEMORY_PATH (#533/C2)', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const existingYaml = `mcpServers:\n  - name: other-server\n    command: other\n`;
+      mockReadFileSync.mockReturnValue(existingYaml);
+
+      const { createContinueDevInstaller } = await import('../../../src/init/continuedev-installer.js');
+      const installer = createContinueDevInstaller({ projectRoot, overwrite: true, memoryBackend: 'memory' });
+      await installer.install();
+
+      const configCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => (c[0] as string).endsWith('config.yaml')
+      );
+      const content = configCall![1] as string;
+      // The appended agentic-qe entry must run in-memory, not point at a db path.
+      expect(content).toContain('AQE_MEMORY_BACKEND: memory');
+      expect(content).not.toContain('AQE_MEMORY_PATH');
+    });
+
     it('skips YAML merge if agentic-qe already present', async () => {
       mockExistsSync.mockReturnValue(true);
       const existingYaml = `mcpServers:

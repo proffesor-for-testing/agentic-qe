@@ -46,6 +46,11 @@ export class HooksPhase extends BasePhase<HooksResult> {
   readonly requiresPhases = ['configuration'] as const;
 
   async shouldRun(context: InitContext): Promise<boolean> {
+    // #532: hooks write into .claude/ — part of the Claude Code surface.
+    if (context.options.noClaude) {
+      context.services.log('  Hooks skipped (--no-claude)');
+      return false;
+    }
     const config = context.config as AQEInitConfig;
     return config?.hooks?.claudeCode ?? true;
   }

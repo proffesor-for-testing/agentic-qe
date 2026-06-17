@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.10.8",
+  "version": "3.10.9",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -66,7 +66,7 @@
     "test:all": "npm test -- --run",
     "test:mcp": "npm run test:unit:mcp",
     "test:mcp:integration": "npm test -- --run tests/integration/mcp/",
-    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
+    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/mcp/mcp-cli-inprocess.test.ts tests/integration/mcp/memory-delete-cache-invalidation.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
     "test:integration": "NODE_OPTIONS='--max-old-space-size=4096 --expose-gc' vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/*.e2e.test.ts'",
     "mcp:validate": "node scripts/smoke-mcp-protocol.mjs",
     "mcp:parity": "node scripts/audit-mcp-tool-parity.mjs",

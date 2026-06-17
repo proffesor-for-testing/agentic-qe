@@ -71,8 +71,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       context.services.log(`  Version upgrade detected: updating skills and agents`);
     }
 
-    // Install skills
-    if (config.skills.install) {
+    // Install skills (Claude Code surface — skipped with --no-claude, #532)
+    if (!options.noClaude && config.skills.install) {
       const skillsInstaller = createSkillsInstaller({
         projectRoot,
         installV2Skills: config.skills.installV2,
@@ -88,27 +88,29 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       }
     }
 
-    // Install agents
-    try {
-      const agentsInstaller = createAgentsInstaller({
-        projectRoot,
-        installQEAgents: true,
-        installSubagents: true,
-        overwrite: shouldOverwrite,
-      });
+    // Install agents (Claude Code surface — skipped with --no-claude, #532)
+    if (!options.noClaude) {
+      try {
+        const agentsInstaller = createAgentsInstaller({
+          projectRoot,
+          installQEAgents: true,
+          installSubagents: true,
+          overwrite: shouldOverwrite,
+        });
 
-      const agentsResult = await agentsInstaller.install();
-      agentsInstalled = agentsResult.installed.length;
+        const agentsResult = await agentsInstaller.install();
+        agentsInstalled = agentsResult.installed.length;
 
-      if (agentsResult.errors.length > 0) {
-        context.services.warn(`Agents warnings: ${agentsResult.errors.join(', ')}`);
+        if (agentsResult.errors.length > 0) {
+          context.services.warn(`Agents warnings: ${agentsResult.errors.join(', ')}`);
+        }
+      } catch (error) {
+        context.services.warn(`Agents install error: ${error instanceof Error ? error.message : error}`);
       }
-    } catch (error) {
-      context.services.warn(`Agents install error: ${error instanceof Error ? error.message : error}`);
-    }
 
-    // Initialize overlay configs in agent registry for runtime use
-    initializeOverlays(projectRoot);
+      // Initialize overlay configs in agent registry for runtime use
+      initializeOverlays(projectRoot);
+    }
 
     // Install Vibium browser engine for the qe-browser fleet skill.
     // Graceful — never fails init if Vibium cannot be installed.
@@ -257,6 +259,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         installHooks: true,
         installSteering: true,
         overwrite: shouldOverwrite,
+        memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
       });
 
       const kiroResult = await kiroInstaller.install();
@@ -282,7 +285,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withCopilot || (options.autoMode && existsSync(join(projectRoot, '.vscode')))) {
       const { createCopilotInstaller } = await import('../copilot-installer.js');
-      const installer = createCopilotInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createCopilotInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('copilot');
       if (res.errors.length > 0) context.services.warn(`Copilot warnings: ${res.errors.join(', ')}`);
@@ -292,7 +295,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withCursor || (options.autoMode && existsSync(join(projectRoot, '.cursor')))) {
       const { createCursorInstaller } = await import('../cursor-installer.js');
-      const installer = createCursorInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createCursorInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('cursor');
       if (res.errors.length > 0) context.services.warn(`Cursor warnings: ${res.errors.join(', ')}`);
@@ -302,7 +305,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withCline) {
       const { createClineInstaller } = await import('../cline-installer.js');
-      const installer = createClineInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createClineInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('cline');
       if (res.errors.length > 0) context.services.warn(`Cline warnings: ${res.errors.join(', ')}`);
@@ -312,7 +315,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withKiloCode || (options.autoMode && existsSync(join(projectRoot, '.kilocode')))) {
       const { createKiloCodeInstaller } = await import('../kilocode-installer.js');
-      const installer = createKiloCodeInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createKiloCodeInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('kilocode');
       if (res.errors.length > 0) context.services.warn(`Kilo Code warnings: ${res.errors.join(', ')}`);
@@ -322,7 +325,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withRooCode || (options.autoMode && existsSync(join(projectRoot, '.roo')))) {
       const { createRooCodeInstaller } = await import('../roocode-installer.js');
-      const installer = createRooCodeInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createRooCodeInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('roocode');
       if (res.errors.length > 0) context.services.warn(`Roo Code warnings: ${res.errors.join(', ')}`);
@@ -333,7 +336,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     // P2 platforms: Codex (TOML), Windsurf (JSON), Continue.dev (YAML)
     if (options.withCodex || (options.autoMode && existsSync(join(projectRoot, '.codex')))) {
       const { createCodexInstaller } = await import('../codex-installer.js');
-      const installer = createCodexInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createCodexInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('codex');
       if (res.errors.length > 0) context.services.warn(`Codex warnings: ${res.errors.join(', ')}`);
@@ -343,7 +346,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withWindsurf || (options.autoMode && existsSync(join(projectRoot, '.windsurf')))) {
       const { createWindsurfInstaller } = await import('../windsurf-installer.js');
-      const installer = createWindsurfInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createWindsurfInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('windsurf');
       if (res.errors.length > 0) context.services.warn(`Windsurf warnings: ${res.errors.join(', ')}`);
@@ -353,7 +356,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
     if (options.withContinueDev || (options.autoMode && existsSync(join(projectRoot, '.continue')))) {
       const { createContinueDevInstaller } = await import('../continuedev-installer.js');
-      const installer = createContinueDevInstaller({ projectRoot, overwrite: shouldOverwrite });
+      const installer = createContinueDevInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('continuedev');
       if (res.errors.length > 0) context.services.warn(`Continue.dev warnings: ${res.errors.join(', ')}`);

@@ -5,7 +5,43 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.10.8] - 2026-06-16
+## [3.10.9] - 2026-06-17
+
+MCP server reliability and database-free completeness, all from community-reported
+issues (@nagoodman). The `agentic-qe mcp` command now serves real MCP clients, a
+stale-cache bug that made `memory_delete` look broken is fixed, database-free mode
+now reaches every editor's MCP config, and a new opt-in lets you install for a
+single platform without the Claude Code surface.
+
+### Added
+
+- **`--no-claude` exclusive install mode** — `aqe init --no-claude --with-<platform>`
+  suppresses the default Claude Code surface (`.claude/`, `.mcp.json`, `CLAUDE.md`,
+  governance, hooks) so the `--with-*` flags become the only install targets — e.g.
+  a clean OpenCode-only project. Opt-in; the default install is unchanged. (#532)
+
+### Fixed
+
+- **`agentic-qe mcp` now works with programmatic MCP clients.** The command
+  double-spawned the server with inherited stdio, so a piped-stdin client received
+  EOF right after `initialize` and never got `tools/list`. The server now runs
+  in-process (like the `aqe-mcp` bin), and a failed startup exits non-zero instead
+  of hanging. (#528)
+- **`memory_delete` is no longer masked by a stale cached read.** Delete worked, but
+  the session cache served a stale `memory_retrieve` afterward (the tell-tale
+  identical timestamp), making delete look like a no-op. Mutating tools now
+  invalidate their domain's cached reads. (#535)
+- **Database-free mode reaches every MCP config, not just OpenCode.** `--no-database`
+  now propagates `AQE_MEMORY_BACKEND=memory` to `.mcp.json` (Claude Code), Cursor,
+  Cline, Continue.dev, Kilo Code, Roo Code, Windsurf, Codex, Copilot, and Kiro — so
+  launching the server through any client no longer recreates `.agentic-qe/memory.db`
+  at runtime. The default persistent backend is unchanged. (#533)
+
+### Changed
+
+- **`js-yaml` dev dependency bumped to 4.2.0.** (#540)
+
+
 
 A database-free OpenCode install and a set of MCP stdio client-compatibility
 fixes (community contribution from @nagoodman), plus a dependency-security pass

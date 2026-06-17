@@ -54,6 +54,12 @@ export class GovernancePhase extends BasePhase<GovernanceResult> {
    * Run unless --no-governance flag is set
    */
   async shouldRun(context: InitContext): Promise<boolean> {
+    // #532: governance is part of the Claude Code surface — skip with --no-claude.
+    if (context.options.noClaude) {
+      context.services.log('  Governance skipped (--no-claude)');
+      return false;
+    }
+
     // Check for --no-governance flag (via noGovernance option)
     if (context.options.noGovernance) {
       context.services.log('  Governance skipped (--no-governance flag)');

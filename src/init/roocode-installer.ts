@@ -21,6 +21,11 @@ import {
 export interface RooCodeInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the MCP config
+   * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface RooCodeInstallResult {
@@ -39,11 +44,13 @@ export interface RooCodeInstallResult {
 export class RooCodeInstaller {
   private projectRoot: string;
   private overwrite: boolean;
+  private options: RooCodeInstallerOptions;
   private generator: PlatformConfigGenerator;
 
   constructor(options: RooCodeInstallerOptions) {
     this.projectRoot = options.projectRoot;
     this.overwrite = options.overwrite ?? false;
+    this.options = options;
     this.generator = createPlatformConfigGenerator();
   }
 
@@ -59,7 +66,7 @@ export class RooCodeInstaller {
 
     try {
       // Generate MCP config
-      const mcpConfig = this.generator.generateMcpConfig('roocode');
+      const mcpConfig = this.generator.generateMcpConfig('roocode', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 

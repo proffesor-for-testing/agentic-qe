@@ -91,6 +91,35 @@ describe('PlatformConfigGenerator', () => {
     });
   });
 
+  describe('database-free mode (#533)', () => {
+    const ALL: PlatformId[] = ['copilot', 'cursor', 'cline', 'kilocode', 'roocode', 'codex', 'windsurf', 'continuedev'];
+
+    it('default (persistent) configs keep AQE_MEMORY_PATH and no AQE_MEMORY_BACKEND', () => {
+      for (const id of ALL) {
+        const content = generator.generateMcpConfig(id).content;
+        expect(content).toContain('AQE_MEMORY_PATH');
+        expect(content).not.toContain('AQE_MEMORY_BACKEND');
+      }
+    });
+
+    it("memoryBackend:'memory' emits AQE_MEMORY_BACKEND=memory and drops AQE_MEMORY_PATH for every platform", () => {
+      for (const id of ALL) {
+        const content = generator.generateMcpConfig(id, { memoryBackend: 'memory' }).content;
+        expect(content, `${id} should declare in-memory backend`).toContain('AQE_MEMORY_BACKEND');
+        expect(content.toLowerCase(), `${id} backend value`).toContain('memory');
+        expect(content, `${id} must not point at a db path in db-free mode`).not.toContain('AQE_MEMORY_PATH');
+      }
+    });
+
+    it("non-memory backends (sqlite/hybrid) stay persistent", () => {
+      for (const backend of ['sqlite', 'hybrid', 'agentdb'] as const) {
+        const content = generator.generateMcpConfig('cursor', { memoryBackend: backend }).content;
+        expect(content).toContain('AQE_MEMORY_PATH');
+        expect(content).not.toContain('AQE_MEMORY_BACKEND');
+      }
+    });
+  });
+
   describe('generateBehavioralRules()', () => {
     it('copilot returns markdown rules', () => {
       const rules = generator.generateBehavioralRules('copilot');

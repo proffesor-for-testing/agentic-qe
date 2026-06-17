@@ -364,4 +364,13 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// H3: main() runs fire-and-forget, so a rejection that escapes its internal
+// try/catch would otherwise hit the unhandledRejection handler above — which
+// deliberately keeps the server alive at *runtime*. A failed *startup* must
+// instead exit non-zero, especially on the in-process `agentic-qe mcp` path
+// (#528) where the CLI wrapper awaits a never-resolving promise and would
+// otherwise hang with a half-dead server and a zero exit code.
+main().catch((error) => {
+  process.stderr.write(`[MCP Entry] Fatal startup error: ${error instanceof Error ? error.stack || error.message : String(error)}\n`);
+  process.exit(1);
+});
