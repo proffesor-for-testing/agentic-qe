@@ -82,6 +82,21 @@ describe('TestGenerationCoordinator — free-tier opt-in', () => {
     await coordinator.dispose();
   });
 
+  it('should NOT use the free tier for multi-file requests (falls back so all files are covered)', async () => {
+    chatMock.mockResolvedValue({ ok: true, content: goodTest, latencyMs: 10 });
+    const coordinator = new TestGenerationCoordinator(
+      ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+      { ...baseConfig, enableFreeTier: true },
+    );
+
+    const multi: GenerateTestsRequest = { sourceFiles: ['/proj/a.ts', '/proj/b.ts'], testType: 'unit', framework: 'vitest' };
+    const result = await coordinator.generateTests(multi).catch(() => ({ success: false as const, error: new Error('x') }));
+
+    expect(chatMock).not.toHaveBeenCalled(); // free tier skipped for >1 file
+    if (result.success) expect(result.value.patternsUsed).not.toContain('free-tier-local');
+    await coordinator.dispose();
+  });
+
   it('should escalate to the HybridRouter (paid tier) when local + repair fail', async () => {
     // local never produces a valid test (initial + repair both junk)…
     chatMock.mockResolvedValue({ ok: true, content: 'prose only, no test', latencyMs: 5 });

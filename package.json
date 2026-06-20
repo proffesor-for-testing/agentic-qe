@@ -36,6 +36,10 @@
     "./governance": {
       "import": "./dist/governance/index.js",
       "types": "./dist/governance/index.d.ts"
+    },
+    "./routing/free-tier": {
+      "import": "./dist/routing/free-tier/index.js",
+      "types": "./dist/routing/free-tier/index.d.ts"
     }
   },
   "bin": {

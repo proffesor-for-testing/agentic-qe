@@ -675,7 +675,10 @@ export class TestGenerationCoordinator
     request: GenerateTestsRequest
   ): Promise<GeneratedTests | null> {
     if (!this.freeTierExecutor) return null;
-    const src = request.sourceFiles?.[0];
+    // Single-file only: the cheap-first path generates one test file. For
+    // multi-file requests fall back to the normal path so EVERY file is covered.
+    if (!request.sourceFiles || request.sourceFiles.length !== 1) return null;
+    const src = request.sourceFiles[0];
     if (!src) return null;
 
     let code = '';
