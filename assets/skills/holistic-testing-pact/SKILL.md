@@ -1,6 +1,6 @@
 ---
 name: holistic-testing-pact
-description: "Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
+description: "Apply the Holistic Testing Model evolved with PACTS (Proactive, Autonomous, Collaborative, Targeted, Structured) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
 category: testing-methodologies
 priority: critical
 tokenEstimate: 1100
@@ -10,26 +10,27 @@ optimization_version: 1.0
 last_optimized: 2025-12-02
 dependencies: []
 quick_reference_card: true
-tags: [holistic, pact, quality, whole-team, proactive, autonomous, collaborative, targeted]
+tags: [holistic, pacts, quality, whole-team, proactive, autonomous, collaborative, targeted, structured]
 trust_tier: 0
 validation:
 ---
 
-# Holistic Testing Model with PACT Principles
+# Holistic Testing Model with PACTS Principles
 
 <default_to_action>
 When designing test strategies or building quality into teams:
-1. APPLY PACT principles: Proactive (test before bugs), Autonomous (teams own quality), Collaborative (whole-team responsibility), Targeted (risk-focused)
+1. APPLY PACTS principles: Proactive (test before bugs), Autonomous (teams own quality), Collaborative (whole-team responsibility), Targeted (risk-focused), Structured (governance, observability, and explainability of agent behavior)
 2. IDENTIFY quadrant focus: Technology-facing (unit, integration, performance) or Business-facing (acceptance, exploratory, usability)
-3. SELECT agents based on PACT dimension and testing quadrant
+3. SELECT agents based on PACTS dimension and testing quadrant
 4. IMPLEMENT feedback loops that catch issues in minutes, not days
-5. MEASURE outcomes (bug escape rate, release confidence) not activities (test count)
+5. MEASURE outcomes (bug escape rate, release confidence, agent confidence) not activities (test count)
 
-**Quick PACT Application:**
+**Quick PACTS Application:**
 - Proactive → Design testability into architecture, risk analysis during refinement
 - Autonomous → Devs run tests locally, CI pipeline with no manual gates
 - Collaborative → Three Amigos, QE pairs with dev, shared test ownership
 - Targeted → Risk-based planning, focus on critical flows, kill valueless tests
+- Structured → Governance, observability, and explainability of agent behavior; measure confidence, not trust
 
 **Critical Success Factors:**
 - Quality is a whole-team responsibility, not a QA phase
@@ -45,13 +46,14 @@ When designing test strategies or building quality into teams:
 - Choosing testing approach for new projects
 - Evolving from sequential QA to concurrent quality
 
-### PACT Principles
+### PACTS Principles
 | Principle | Focus | Anti-Pattern |
 |-----------|-------|--------------|
 | **Proactive** | Test before code, design testability | Waiting for bugs to find you |
 | **Autonomous** | Teams deploy when ready | QA as manual gatekeepers |
 | **Collaborative** | Whole-team quality thinking | QA works in isolation |
 | **Targeted** | Risk-based, high-value tests | Exhaustive checkbox testing |
+| **Structured** | Governance, observability, explainability of agent behavior | Bolting agentic AI onto chaos |
 
 ### Holistic Testing Quadrants
 | Quadrant | Purpose | Examples |
@@ -61,17 +63,18 @@ When designing test strategies or building quality into teams:
 | Business + Support | Shared understanding | BDD, acceptance tests |
 | Business + Critique | Discover unknowns | Exploratory, usability, A/B |
 
-### Agent Selection by PACT + Quadrant
-| PACT Dimension | Agents |
+### Agent Selection by PACTS + Quadrant
+| PACTS Dimension | Agents |
 |----------------|--------|
 | Proactive + Tech | qe-test-generator, qe-requirements-validator |
 | Autonomous + Tech | qe-test-executor, qe-coverage-analyzer |
 | Collaborative | qe-fleet-commander (orchestration) |
 | Targeted | qe-regression-risk-analyzer, qe-quality-gate |
+| Structured | qe-fleet-commander, qe-quality-gate (governance, observability, explainability) |
 
 ---
 
-## PACT in Practice
+## PACTS in Practice
 
 ### Proactive: Test Before Bugs
 ```javascript
@@ -105,11 +108,41 @@ await Task("Risk-Based Planning", {
 }, "qe-regression-risk-analyzer");
 ```
 
+### Structured: Governance, Observability, Explainability
+The 5th principle for agentic systems. As agents take on quality work, you need
+governance (boundaries and guardrails), observability (what agents did and why),
+and explainability (decisions you can audit). Especially important in regulated
+industries.
+
+- We measure **CONFIDENCE, not trust** — trust is a human feeling; confidence can
+  be mathematically explained.
+- Ships with a playbook + readiness-assessment guide.
+- Anti-pattern: bolting agentic AI onto chaos. Structure first, then automate.
+
+```javascript
+// Make agent behavior auditable and explainable, not a black box
+await Task("Agent Governance Review", {
+  guardrails: ['scope-boundaries', 'approval-gates'],
+  observability: ['decision-traces', 'confidence-scores'],
+  explainability: 'every-decision-auditable'
+}, "qe-fleet-commander");
+```
+
+---
+
+## From PACT to PACTS
+
+PACT originated with Reuven Cohen (Agentics Foundation) and was adapted to quality
+engineering by Dragan Spiridonov. PACTS adds a fifth principle — **Structured** —
+inspired by DORA's research on AI-assisted delivery and platform-engineering
+quality measurement. The addition reflects that autonomous, agentic quality work
+needs governance, observability, and explainability to be trustworthy at scale.
+
 ---
 
 ## Evolution from Traditional
 
-| Old Way (Sequential) | Holistic + PACT (Concurrent) |
+| Old Way (Sequential) | Holistic + PACTS (Concurrent) |
 |---------------------|------------------------------|
 | Dev writes → QA tests → bugs found → fixes | Team discusses what to build and how to test |
 | Slow feedback, finger-pointing | Fast feedback, shared ownership |
@@ -133,7 +166,7 @@ await Task("Risk-Based Planning", {
 ### Memory Namespace
 ```
 aqe/holistic-testing/
-├── pact-assessment/*     - PACT maturity analysis
+├── pacts-assessment/*    - PACTS maturity analysis
 ├── quadrant-coverage/*   - Coverage per quadrant
 ├── team-metrics/*        - Quality ownership metrics
 └── feedback-loops/*      - Cycle time data
@@ -143,7 +176,7 @@ aqe/holistic-testing/
 ```typescript
 const holisticFleet = await FleetManager.coordinate({
   strategy: 'holistic-testing',
-  pact: { proactive: true, autonomous: true, collaborative: true, targeted: true },
+  pacts: { proactive: true, autonomous: true, collaborative: true, targeted: true, structured: true },
   agents: [
     'qe-fleet-commander',       // Orchestration
     'qe-test-generator',        // Tech quadrant
@@ -166,8 +199,8 @@ const holisticFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**PACT = Proactive + Autonomous + Collaborative + Targeted**
+**PACTS = Proactive + Autonomous + Collaborative + Targeted + Structured**
 
-Quality is built in, not tested in. Teams own quality. QA enables, doesn't gate. Test what matters, skip what doesn't. Measure outcomes, not activities.
+Quality is built in, not tested in. Teams own quality. QA enables, doesn't gate. Test what matters, skip what doesn't. Govern agent behavior with observability and explainability — measure confidence, not trust. Measure outcomes, not activities.
 
-**With Agents:** Agents analyze PACT maturity, recommend quadrant coverage, and coordinate whole-team quality. Use agents to scale holistic thinking while maintaining human judgment.
+**With Agents:** Agents analyze PACTS maturity, recommend quadrant coverage, and coordinate whole-team quality. Use agents to scale holistic thinking while maintaining human judgment.

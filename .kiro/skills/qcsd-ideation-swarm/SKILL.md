@@ -1249,7 +1249,7 @@ Task({
 
 ## METHODOLOGY
 
-Apply holistic-testing-pact methodology (PACT principles).
+Apply holistic-testing-pact methodology (PACTS principles).
 
 ## EPIC CONTENT
 
@@ -1259,7 +1259,7 @@ Apply holistic-testing-pact methodology (PACT principles).
 
 ## REQUIRED ANALYSIS (ALL SECTIONS MANDATORY)
 
-### 1. PACT Analysis
+### 1. Quality Experience Analysis (People, Activities, Contexts, Technologies)
 
 | Dimension | Analysis |
 |-----------|----------|
@@ -1477,7 +1477,7 @@ fi
 if [ "$HAS_UX" = "TRUE" ]; then
   npx @claude-flow/cli@latest agent spawn \
     --type qe-qx-partner \
-    --task "PACT quality experience analysis" &
+    --task "Quality experience analysis" &
 fi
 
 # Wait for conditional agents
@@ -1491,7 +1491,7 @@ I've launched [N] conditional agent(s) in parallel:
 
 [IF HAS_UI] ♿ qe-accessibility-auditor [Domain: visual-accessibility] - WCAG 2.1 AA assessment
 [IF HAS_SECURITY] 🔒 qe-security-auditor [Domain: security-compliance] - STRIDE threat modeling
-[IF HAS_UX] 💫 qe-qx-partner [Domain: cross-domain] - PACT quality experience analysis
+[IF HAS_UX] 💫 qe-qx-partner [Domain: cross-domain] - Quality experience analysis
 
 ⏳ WAITING for conditional agents to complete...
 ```
@@ -1894,7 +1894,7 @@ npx @claude-flow/cli@latest memory list --namespace qcsd-ideation
 1. `testability-scoring` - 10 testability principles
 2. `risk-based-testing` - Risk prioritization
 3. `context-driven-testing` - Context-appropriate strategy
-4. `holistic-testing-pact` - PACT methodology (People, Activities, Contexts, Technologies)
+4. `holistic-testing-pact` - PACTS methodology (Proactive, Autonomous, Collaborative, Targeted, Structured)
 
 ---
 

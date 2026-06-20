@@ -10,7 +10,7 @@
 
 **SPARC (Specification, Pseudocode, Architecture, Refinement, Completion)** — A methodology for structured agent work. Breaks complex tasks into 5 phases so agents don't skip steps. The `sparc-orchestrator` agent coordinates this cycle.
 
-**PACT (Proactive, Autonomous, Collaborative, Targeted)** — The foundational principles of Agentic QE. Agents are proactive (find problems before asked), autonomous (self-coordinate), collaborative (share knowledge), and targeted (focus on highest-risk areas).
+**PACTS (Proactive, Autonomous, Collaborative, Targeted, Structured)** — The foundational principles of Agentic QE. Agents are proactive (find problems before asked), autonomous (self-coordinate), collaborative (share knowledge), targeted (focus on highest-risk areas), and structured (governance, observability, and explainability of agent behavior — measure confidence, not trust). PACTS extends the original PACT (Reuven Cohen, Agentics Foundation; adapted to QE by Dragan Spiridonov) with the Structured principle.
 
 ---
 
