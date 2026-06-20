@@ -1,0 +1,56 @@
+{
+  "_provenance": {
+    "purpose": "GOAP plan A1 — a measured snapshot of AQE's DE-FACTO MCP governance posture, translated into the .harness/mcp-policy.json shape that MetaHarness `harness mcp-scan` reads, so the scanner enumerates AQE's real surface instead of reporting 'MCP not enabled' (AQE registers servers in .mcp.json, which mcp-scan does not read).",
+    "notATarget": "This file MIRRORS current reality to surface true findings. It is NOT a hand-tuned default-deny target. The remediation step (authoring an actual default-deny allowlist) is a separate deliverable.",
+    "generated": "2026-06-19",
+    "sources": [
+      "src/mcp/tools/registry.ts (QE_TOOLS: 30 core tool instances + ...MINCUT_TOOL_NAMES + ...COHERENCE_TOOL_NAMES; ~90 exposed via src/mcp/qe-tool-bridge.ts)",
+      "src/mcp/tool-scoping.ts (per-role allowlists incl. allowAll admin tiers)",
+      ".claude/settings.json (host permission allow/deny)",
+      ".mcp.json (registered servers: ruflo, agentic-qe)"
+    ]
+  },
+
+  "defaultDeny": false,
+  "_defaultDeny_evidence": "No default-deny posture exists. tool-scoping.ts grants two roles (fleet-admin, unrestricted) allowAll:true; isToolAllowed returns true wholesale for them. .claude/settings.json is allow-list based (ungranted tools prompt, are not denied). Matches `harness score` finding 'default-deny OFF'.",
+
+  "allowShell": true,
+  "_allowShell_evidence": "QE_TOOLS includes test_execute_parallel and chaos_test, which spawn test/runtime processes. No policy gates this.",
+
+  "allowNetwork": true,
+  "_allowNetwork_evidence": "QE_TOOLS includes qe/security/url-validate, embeddings (ONNX/model fetch), and model_route, which reach the network. No host-scoping.",
+
+  "allowFileWrite": true,
+  "_allowFileWrite_evidence": "QE_TOOLS includes test_generate_enhanced (writes test files) and report/coverage tools. No write-scoping in any MCP policy.",
+
+  "requireApprovalForDangerous": false,
+  "_requireApprovalForDangerous_evidence": "No approval gate exists on the MCP execution path; dangerous tools (chaos_test, test_execute) run without explicit consent.",
+
+  "auditLog": false,
+  "_auditLog_evidence": "src/audit/witness-chain.ts records INTERNAL events only (per GOAP plan A7); MCP tool-call auditing is not wired. Conservatively false until verified.",
+
+  "toolTimeoutMs": 0,
+  "_toolTimeoutMs_evidence": "No per-tool timeout configured in any MCP policy.",
+
+  "maxToolCallsPerTurn": 0,
+  "_maxToolCallsPerTurn_evidence": "No per-turn tool-call budget configured.",
+
+  "servers": {
+    "agentic-qe": { "command": "node", "tools": "~90 (QE fleet)" },
+    "ruflo": { "command": "ruflo mcp start", "tools": "claude-flow / ruflo platform" }
+  },
+
+  "roleAllowlists": {
+    "_note": "Verbatim from src/mcp/tool-scoping.ts DEFAULT_SCOPES. The two allowAll tiers are the predicted HIGH (over-broad grant).",
+    "test-generator": ["test_generate_enhanced", "test_execute_parallel", "coverage_analyze_sublinear", "code_index", "hypergraph_query", "memory_query", "memory_retrieve", "model_route"],
+    "coverage-analyzer": ["coverage_analyze_sublinear", "code_index", "hypergraph_query", "quality_assess", "memory_query", "memory_retrieve"],
+    "security-scanner": ["security_scan_comprehensive", "code_index", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "quality-assessor": ["quality_assess", "coverage_analyze_sublinear", "defect_predict", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "defect-predictor": ["defect_predict", "code_index", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "contract-validator": ["contract_validate", "memory_query", "memory_retrieve"],
+    "accessibility-tester": ["accessibility_test", "memory_query", "memory_retrieve"],
+    "chaos-engineer": ["chaos_test", "quality_assess", "memory_query", "memory_retrieve"],
+    "fleet-admin": "ALL (allowAll:true)",
+    "unrestricted": "ALL (allowAll:true)"
+  }
+}

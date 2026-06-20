@@ -1,0 +1,67 @@
+{
+  "dir": "/workspaces/agentic-qe/docs/metaharness/aqe-mcp-snapshot",
+  "mcpEnabled": true,
+  "findings": [
+    {
+      "id": "no-default-deny",
+      "severity": "high",
+      "title": "Policy is not default-deny",
+      "detail": "defaultDeny should be true so ungranted capabilities are refused, not silently allowed."
+    },
+    {
+      "id": "allow-shell",
+      "severity": "high",
+      "title": "Shell access granted",
+      "detail": "allowShell=true lets tools run arbitrary commands. Gate behind approval or disable."
+    },
+    {
+      "id": "allow-network",
+      "severity": "medium",
+      "title": "Network access granted",
+      "detail": "allowNetwork=true widens the exfiltration surface. Scope to specific hosts if possible."
+    },
+    {
+      "id": "allow-file-write",
+      "severity": "medium",
+      "title": "File-write access granted",
+      "detail": "allowFileWrite=true lets tools modify the filesystem. Confirm this is intended."
+    },
+    {
+      "id": "no-approval-gate",
+      "severity": "medium",
+      "title": "No approval gate for dangerous tools",
+      "detail": "requireApprovalForDangerous should be true so dangerous tools need explicit consent."
+    },
+    {
+      "id": "no-audit-log",
+      "severity": "medium",
+      "title": "Audit log disabled",
+      "detail": "auditLog=false means tool calls are not recorded — required for enterprise trust."
+    },
+    {
+      "id": "no-timeout",
+      "severity": "medium",
+      "title": "No tool timeout",
+      "detail": "toolTimeoutMs must be a positive number so a hung tool cannot stall the agent."
+    },
+    {
+      "id": "no-call-budget",
+      "severity": "low",
+      "title": "No per-turn tool-call budget",
+      "detail": "maxToolCallsPerTurn bounds runaway loops; set a positive limit."
+    },
+    {
+      "id": "no-secret-guard",
+      "severity": "medium",
+      "title": "Secrets not denied",
+      "detail": "permissions.deny should block Read(./.env*) so tools cannot read credentials."
+    },
+    {
+      "id": "unpinned-deps",
+      "severity": "low",
+      "title": "21 unpinned dependency range(s)",
+      "detail": "Floating ranges weaken supply-chain reproducibility: @huggingface/transformers, @ruvector/learning-wasm, @ruvector/router, @ruvector/rvf-node, @ruvector/sona, axe-core, better-sqlite3, chalk, cli-progress, commander, fast-glob, fast-json-patch, jose, ora, pg, prime-radiant-advanced-wasm, secure-json-parse, uuid, vibium, web-tree-sitter, yaml."
+    }
+  ],
+  "worst": "high"
+}

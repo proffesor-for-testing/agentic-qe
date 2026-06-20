@@ -1,0 +1,43 @@
+diff --git a/packages/darwin-mode/src/evolve.ts b/packages/darwin-mode/src/evolve.ts
+index ee22ca9..df74320 100644
+--- a/packages/darwin-mode/src/evolve.ts
++++ b/packages/darwin-mode/src/evolve.ts
+@@ -107,6 +107,12 @@ async function evaluateVariant(
+   parentScore: ScoreCard | null,
+ ): Promise<Evaluation> {
+   const timeout = cfg.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS;
++  // Host integration (D6): a custom evaluator replaces sandbox + frozen scorer,
++  // letting the host grade by its own objective (e.g. AQE mutation kill-rate).
++  if (cfg.customScore) {
++    const r = await cfg.customScore(variant, profile, parentScore, cfg.promotionDelta);
++    return { variant, traces: r.traces, score: r.score };
++  }
+   // ADR-102: in 'mock' mode the surfaces actually drive a deterministic agent
+   // loop, so the trace depends on surface content (manifold becomes live). The
+   // default 'real' mode runs the repo test command (surface-independent).
+diff --git a/packages/darwin-mode/src/types.ts b/packages/darwin-mode/src/types.ts
+index 0da3184..0dfbd1b 100644
+--- a/packages/darwin-mode/src/types.ts
++++ b/packages/darwin-mode/src/types.ts
+@@ -203,6 +203,21 @@ export interface EvolutionConfig {
+    * still passes the same validateGeneratedCode safety gate.
+    */
+   generator?: import('./mutator.js').CodeGenerator;
++  /**
++   * Custom evaluator hook (host integration; cross-pollination D6). When set, it
++   * REPLACES the sandbox + frozen scorer for each variant: evolve() delegates
++   * both running and scoring, so a host (e.g. AQE) can grade by its OWN
++   * objective — mutation kill-rate / coverage from a worker model on a real
++   * task — and still drive the unchanged archive/selection/generational loop.
++   * Must return a complete ScoreCard including the promotion verdict (use the
++   * host's mirror of the ADR-072 gate). Bypasses sandboxMode/mockTasks/agentTasks.
++   */
++  customScore?: (
++    variant: HarnessVariant,
++    profile: RepoProfile,
++    parentScore: ScoreCard | null,
++    promotionDelta: number,
++  ) => Promise<{ traces: RunTrace[]; score: ScoreCard }>;
+   /**
+    * Opt-in graded promotion (ADR-076). A hash-pinned benchmark suite. When set,
+    * each child is evaluated against its parent over the suite in the real
