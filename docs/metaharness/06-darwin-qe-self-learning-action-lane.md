@@ -222,4 +222,29 @@ ladder.bindings.local = { provider: 'free-tier',
   config: { kind: 'openai-compatible', model: 'llama-3.3-70b', baseUrl: 'https://api.groq.com/openai/v1', apiKeyEnv: 'GROQ_API_KEY' } };
 ```
 
-**Not yet wired (next):** the tracker is still dormant — no coordinator calls `recordOutcome` yet, and the free tier isn't invoked by the live router. D7-wire = call `resolveTier` + `freeTierChat` for the bottom tier inside a coordinator and feed real QE pass/fail into `recordOutcome` (→ D9 closes the loop into `routing-feedback`). That, plus **D8** (a repair loop *before* escalating), is what turns this prototype into the running economics.
+### D7-wire status — the running executor (PROTOTYPED + PROVEN LIVE 2026-06-20)
+
+**Shipped (additive, tested, zero production-hot-path edits):** `src/routing/free-tier/executor.ts` — `FreeTierEscalatingExecutor`, the primitive that makes the ladder *run* Ruv's economics for a QE task:
+1. run the task on the **cheap free local tier**, 2. **verify** with an objective QE oracle (pass/fail), 3. on failure **escalate this task up the ladder** until it passes or tops out, 4. record the **start-tier** verdict in the tracker so the base tier adapts across tasks.
+
+- Decoupled by injection: free tiers via `freeTierChat`; Claude tiers via an injected `ClaudeTierRunner` (a coordinator passes one that delegates to its existing `HybridRouter` — **no hard dep on the Anthropic SDK**). No runner → local-only mode (Claude tiers reported unavailable, never throws).
+- `onOutcome` sink = the D9 seam into `routing-feedback`.
+- **Tests: 8 new** (`tests/routing/free-tier/executor.test.ts`) — cheap-first happy path, escalation on verify-fail, transport-error→escalate, full-ladder failure, local-only mode, `maxEscalations` cap, **cross-task base-tier adaptation**, `onOutcome`. **53/53 green** across the free-tier+tracker suites; strict-tsc clean.
+
+**Live proof** (`prototype/d7-wire-proof.mjs`, qwen3:8b @ M5 host, Claude tier stubbed — no API spend):
+- real QE task → free local model produced a **correct vitest test that passed the objective verifier in 8.65s, $0, no escalation** (routine work stays free);
+- impossible-verify task → correctly climbed `local→haiku→sonnet→opus` and reported failure at the top.
+
+**Model pick: `qwen3:8b`** — most productive worker in the D0 benchmark (4/6 vs gemma4's 1/6) and 5.2 GB (fits the 8 GB-user story; qwen3:30b is 18.6 GB).
+
+**Coordinator adoption (one call — not yet applied; shipped hot-path edit needs sign-off):** e.g. in `src/domains/test-generation/coordinator.ts`, which already holds a `HybridRouter`:
+```ts
+const exec = new FreeTierEscalatingExecutor({
+  ladder: defaultFreeTierLadder('qwen3:8b'),
+  claudeRunner: (tier, msgs) => this.llmRouter.complete({ tier, messages: msgs }), // delegate to existing router
+  onOutcome: (o) => recordRoutingOutcome(o),                                        // D9
+});
+const r = await exec.execute({ agentId: `test-gen:${repo}`, messages, verify: runsGreen }); // verify = real test run
+```
+
+**Still ahead:** apply the adoption above behind a feature flag (needs OK — touches a shipped coordinator); **D8** repair loop *before* escalating (Ruv Round-2); **D9** wire `onOutcome` → `routing-feedback` to lift the 40% confidence.

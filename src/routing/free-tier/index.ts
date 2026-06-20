@@ -28,3 +28,12 @@ export {
   resolveTier,
   type ResolvedTier,
 } from './ladder.js';
+export {
+  FreeTierEscalatingExecutor,
+  type ClaudeTierRunner,
+  type QeVerifier,
+  type QeTaskRequest,
+  type QeExecutionResult,
+  type TierAttempt,
+  type FreeTierExecutorOptions,
+} from './executor.js';
