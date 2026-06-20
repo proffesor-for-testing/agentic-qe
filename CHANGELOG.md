@@ -5,6 +5,57 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2026-06-20
+
+Run test generation on **free local models first**, falling back to paid models
+only when needed. This release adds an opt-in "cheap-first" path: a local model
+(Ollama, OpenRouter free tier, or any OpenAI-compatible endpoint) attempts test
+generation with an automatic repair loop, and only the hard cases escalate up to
+your normal LLM tiers — so most routine generation can run at $0. Every cheap-vs-
+escalated outcome feeds routing feedback, so model selection improves over time.
+
+Off by default; nothing changes unless you opt in. Inspired by the "the harness
+matters as much as the model" economics from Ruv's MetaHarness Darwin Mode.
+
+### Added
+
+- **Free-tier local test generation (opt-in).** Enable with `AQE_FREE_TIER=1`
+  (or `enableFreeTier` in the test-generation coordinator config) to generate
+  tests on a free/local model before any paid LLM call. Default model `qwen3:8b`.
+  See the [Free-Tier Local Models guide](docs/guides/free-tier-local-models.md).
+- **Configurable free-tier providers** — local Ollama, cloud Ollama, OpenRouter
+  free models, or any OpenAI-compatible endpoint (vLLM, LM Studio, Groq, …). API
+  keys are read from named environment variables and never stored.
+- **Repair loop** — when the local model's first output isn't a valid test, the
+  failure is fed back and it retries before falling back (configurable retries).
+- **Automatic escalation** — hard cases the local model + repair can't solve
+  escalate up the existing model ladder (Haiku → Sonnet → Opus) via the router.
+- **Self-learning routing feedback** — free-tier outcomes feed the routing
+  calibrator and escalation tracker, improving model-tier confidence over time.
+- **`agentic-qe/routing/free-tier` package export** for programmatic configuration.
+
+### Fixed
+
+- **Restored `@ruvector/ruvllm-*` optional platform packages** dropped from the
+  lockfile by a Dependabot update, which could break `npm ci` for consumers. (#541)
+- **Multi-file test-generation requests** now correctly fall back to the full
+  generation path so every requested file is covered (the free-tier path handles
+  the single-file case).
+- Security bump of the transitive `hono` dev dependency. (#541)
+
+### Changed
+
+- **Auto-escalation tracker is now ladder-configurable** (generic over tier
+  names) so a free local tier can sit below the paid tiers. Fully backward
+  compatible — existing behavior and the default Claude ladder are unchanged.
+- **QE framework evolved PACT → PACTS** — adds a fifth principle, **Structured**
+  (governance, observability, and explainability of agent behavior; measure
+  *confidence*, not trust), inspired by DORA's research on AI-assisted delivery.
+  Ships with a playbook + readiness-assessment guide. The skill id/dir
+  `holistic-testing-pact` and schema slugs are unchanged (cross-repo stable); the
+  output schema gains an **optional** `structured` dimension (non-breaking).
+  PACT originated with Reuven Cohen (Agentics Foundation); PACTS adds Structured. (#545)
+
 ## [3.10.9] - 2026-06-17
 
 MCP server reliability and database-free completeness, all from community-reported

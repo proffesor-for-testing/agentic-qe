@@ -1,0 +1,318 @@
+{
+  "env": {
+    "AQE_MEMORY_PATH": ".agentic-qe/memory.db",
+    "AQE_MEMORY_ENABLED": "true",
+    "AQE_LEARNING_ENABLED": "true",
+    "AQE_V3_MODE": "true",
+    "AQE_V3_DDD_ENABLED": "true",
+    "AQE_V3_DOMAINS": "test-generation,test-execution,coverage-analysis,quality-assessment,defect-intelligence,learning-optimization,requirements-validation,code-intelligence,security-compliance,contract-testing,visual-accessibility,chaos-resilience",
+    "AQE_V3_SWARM_SIZE": "21",
+    "AQE_V3_TOPOLOGY": "hierarchical",
+    "AQE_V3_SUBLINEAR_ENABLED": "true",
+    "AQE_V3_HNSW_ENABLED": "true",
+    "AQE_V3_HOOKS_ENABLED": "true",
+    "AQE_V3_DOMAIN_WORKERS": ".claude/hooks/v3-domain-workers.json",
+    "AQE_V3_AISP_ENABLED": "true",
+    "AQE_V3_REASONING_BANK": ".agentic-qe/memory.db",
+    "AQE_V3_PATTERN_PROMOTION_THRESHOLD": "3",
+    "AQE_V3_SUCCESS_RATE_THRESHOLD": "0.7",
+    "NAGUAL_JUDGE_URL": "http://localhost:11434",
+    "NAGUAL_JUDGE_MODEL": "gemma4:12b-mlx"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" guard --file \"$TOOL_INPUT_file_path\" --json'",
+            "timeout": 3000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-edit --file \"$TOOL_INPUT_file_path\" --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-command --command \"$TOOL_INPUT_command\" --json'",
+            "timeout": 3000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^(Task|Agent)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" pre-task --description \"$TOOL_INPUT_prompt\" --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Write|Edit|MultiEdit)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-edit --file \"$TOOL_INPUT_file_path\" --success --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-command --command \"$TOOL_INPUT_command\" --success true --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "matcher": "^(Task|Agent)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" post-task --task-id \"$TOOL_RESULT_agent_id\" --agent \"$TOOL_INPUT_subagent_type\" --success true --description \"$TOOL_INPUT_prompt\" --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" route --task \"$PROMPT\" --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" session-start --session-id \"$SESSION_ID\" --json'",
+            "timeout": 10000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs\" verify --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" session-end --save-state --json'",
+            "timeout": 5000,
+            "continueOnError": true
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs\" export --json'",
+            "timeout": 60000,
+            "continueOnError": true
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "sh -c 'node \"${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/statusline-v3.cjs\" 2>/dev/null || echo \"▊ Agentic QE v3\"'",
+    "refreshMs": 5000,
+    "enabled": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx ruflo:*)",
+      "Bash(npx @ruflo/cli:*)",
+      "Bash(npx claude-flow:*)",
+      "Bash(npx @claude-flow/cli:*)",
+      "mcp__ruflo__*",
+      "mcp__claude-flow__*",
+      "mcp__agentic-qe__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf:*)"
+    ]
+  },
+  "includeCoAuthoredBy": true,
+  "enabledMcpjsonServers": [
+    "agentic-qe"
+  ],
+  "claudeFlow": {
+    "version": "3.0.0",
+    "enabled": true,
+    "modelPreferences": {
+      "default": "claude-opus-4-7",
+      "routing": "claude-haiku-4-5-20251001"
+    },
+    "swarm": {
+      "topology": "hierarchical-mesh",
+      "maxAgents": 15
+    },
+    "memory": {
+      "backend": "hybrid",
+      "enableHNSW": true
+    },
+    "neural": {
+      "enabled": true
+    },
+    "daemon": {
+      "autoStart": true,
+      "workers": [
+        "map",
+        "audit",
+        "optimize",
+        "consolidate",
+        "testgaps",
+        "ultralearn",
+        "deepdive",
+        "document",
+        "refactor",
+        "benchmark"
+      ],
+      "schedules": {
+        "audit": {
+          "interval": "1h",
+          "priority": "critical"
+        },
+        "optimize": {
+          "interval": "30m",
+          "priority": "high"
+        },
+        "consolidate": {
+          "interval": "2h",
+          "priority": "low"
+        },
+        "document": {
+          "interval": "1h",
+          "priority": "normal",
+          "triggers": [
+            "adr-update",
+            "api-change"
+          ]
+        },
+        "deepdive": {
+          "interval": "4h",
+          "priority": "normal",
+          "triggers": [
+            "complex-change"
+          ]
+        },
+        "ultralearn": {
+          "interval": "1h",
+          "priority": "normal"
+        }
+      }
+    },
+    "learning": {
+      "enabled": true,
+      "autoTrain": true,
+      "patterns": [
+        "coordination",
+        "optimization",
+        "prediction"
+      ],
+      "retention": {
+        "shortTerm": "24h",
+        "longTerm": "30d"
+      }
+    },
+    "adr": {
+      "autoGenerate": true,
+      "directory": "/docs/implementation/adrs",
+      "template": "madr"
+    },
+    "ddd": {
+      "trackDomains": true,
+      "validateBoundedContexts": true,
+      "directory": "/docs/implementation/ddd"
+    },
+    "security": {
+      "autoScan": true,
+      "scanOnEdit": true,
+      "cveCheck": true,
+      "threatModel": true
+    }
+  },
+  "v3Configuration": {
+    "domains": {
+      "total": 13,
+      "names": [
+        "test-generation",
+        "test-execution",
+        "coverage-analysis",
+        "quality-assessment",
+        "defect-intelligence",
+        "learning-optimization",
+        "requirements-validation",
+        "code-intelligence",
+        "security-compliance",
+        "contract-testing",
+        "visual-accessibility",
+        "chaos-resilience",
+        "enterprise-integration"
+      ]
+    },
+    "swarm": {
+      "totalAgents": 60,
+      "topology": "hierarchical",
+      "coordination": "queen-led"
+    }
+  },
+  "v3Learning": {
+    "enabled": true,
+    "reasoningBank": {
+      "dbPath": ".agentic-qe/memory.db",
+      "enableHNSW": true
+    },
+    "patternPromotion": {
+      "threshold": 3,
+      "successRateMin": 0.7
+    }
+  }
+}
