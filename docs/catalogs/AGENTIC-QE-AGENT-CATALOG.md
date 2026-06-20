@@ -33,19 +33,20 @@
 
 ## Overview
 
-The Agentic QE system provides AI-powered quality engineering through a fleet of specialized agents organized into 12 DDD (Domain-Driven Design) domains. These agents follow **PACT principles**:
+The Agentic QE system provides AI-powered quality engineering through a fleet of specialized agents organized into 12 DDD (Domain-Driven Design) domains. These agents follow **PACTS principles**:
 
 - **P**roactive: Analyze pre-merge, predict risk
 - **A**utonomous: Execute tests, fix flaky tests
 - **C**ollaborative: Multi-agent coordination
 - **T**argeted: Risk-based prioritization
+- **S**tructured: Governance, observability, and explainability of agent behavior (measure confidence, not trust)
 
 ### Key Frameworks
 
 | Framework | Purpose |
 |-----------|---------|
 | **SFDIPOT** | Test idea generation (Structure, Function, Data, Interfaces, Platform, Operations, Time) |
-| **PACT** | Agent behavior principles |
+| **PACTS** | Agent behavior principles |
 | **Holistic Testing Model** | Tech/Business x Support/Critique quadrants |
 | **QCSD Phases** | Ideation, Refinement, Development, CI/CD, Production Telemetry |
 
@@ -544,8 +545,8 @@ See `docs/architecture/CROSS-PHASE-MEMORY-IMPLEMENTATION.md` for full details.
 
 | Skill | Purpose |
 |-------|---------|
-| agentic-quality-engineering | Core PACT principles, 19-agent coordination |
-| holistic-testing-pact | PACT principles deep dive, quadrant model |
+| agentic-quality-engineering | Core PACTS principles, 19-agent coordination |
+| holistic-testing-pact | PACTS principles deep dive, quadrant model |
 | cicd-pipeline-qe-orchestrator | 5-phase CI/CD orchestration |
 | qe-iterative-loop | Autonomous iteration loops (Ralph Wiggum technique) |
 

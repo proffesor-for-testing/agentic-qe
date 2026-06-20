@@ -9,7 +9,7 @@
     {
       "name": "agentic-qe-fleet",
       "source": "./plugins/agentic-qe-fleet",
-      "description": "PACT-based agentic quality engineering fleet — 11 specialized QE agents (model-routed across Opus/Sonnet), 9 trust-tier-2/3 skills, 9 slash commands, and auto-registered MCP server"
+      "description": "PACTS-based agentic quality engineering fleet — 11 specialized QE agents (model-routed across Opus/Sonnet), 9 trust-tier-2/3 skills, 9 slash commands, and auto-registered MCP server"
     }
   ]
 }

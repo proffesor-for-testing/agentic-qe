@@ -1,8 +1,8 @@
 ---
 inclusion: auto
 name: qe-agentic-quality-engineering
-description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles."
-tags: [pact, agents, fleet, coordination, autonomous, foundational]
+description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACTS principles."
+tags: [pacts, agents, fleet, coordination, autonomous, structured, foundational]
 ---
 
 # Agentic Quality Engineering
@@ -11,7 +11,7 @@ tags: [pact, agents, fleet, coordination, autonomous, foundational]
 When implementing agentic QE or coordinating agents:
 1. SPAWN appropriate agent(s) for the task using `Task` tool with agent type
 2. CONFIGURE agent coordination (hierarchical/mesh/sequential)
-3. EXECUTE with PACT principles: Proactive analysis, Autonomous operation, Collaborative feedback, Targeted risk focus
+3. EXECUTE with PACTS principles: Proactive analysis, Autonomous operation, Collaborative feedback, Targeted risk focus, Structured governance (observability and explainability of agent behavior)
 4. VALIDATE results through quality gates before deployment
 5. LEARN from outcomes - store patterns in `aqe/learning/*` namespace
 
@@ -37,13 +37,14 @@ When implementing agentic QE or coordinating agents:
 - Implementing multi-agent coordination
 - Building CI/CD quality pipelines
 
-### PACT Principles
+### PACTS Principles
 | Principle | Agent Behavior | Human Role |
 |-----------|---------------|------------|
 | **P**roactive | Analyze pre-merge, predict risk | Set guardrails |
 | **A**utonomous | Execute tests, fix flaky tests | Review critical |
 | **C**ollaborative | Multi-agent coordination | Provide context |
 | **T**argeted | Risk-based prioritization | Define risk areas |
+| **S**tructured | Governance, observability, explainable decisions (measure confidence, not trust) | Audit behavior, set policy |
 
 ### 19-Agent Fleet
 | Category | Agents | Primary Use |
@@ -283,7 +284,7 @@ agent_assignments:
 ---
 
 ## Related Skills
-- `holistic-testing-pact` - PACT principles deep dive
+- `holistic-testing-pact` - PACTS principles deep dive
 - `risk-based-testing` - Prioritize agent focus
 - `quality-metrics` - Measure agent effectiveness
 - `api-testing-patterns`, `security-testing`, `performance-testing` - Specialized testing

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agentic-qe.dev/schemas/agentic-quality-engineering-output.json",
   "title": "Agentic Quality Engineering Skill Output Schema",
-  "description": "Schema for agentic quality engineering output with fleet status, agent coordination, and PACT principles validation.",
+  "description": "Schema for agentic quality engineering output with fleet status, agent coordination, and PACTS principles validation.",
   "type": "object",
   "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
   "properties": {
@@ -52,7 +52,7 @@
         },
         "pactPrinciples": {
           "$ref": "#/$defs/pactPrinciples",
-          "description": "PACT principles assessment (Proactive, Autonomous, Collaborative, Targeted)"
+          "description": "PACTS principles assessment (Proactive, Autonomous, Collaborative, Targeted, Structured)"
         },
         "qualityScore": {
           "$ref": "#/$defs/qualityScore",
@@ -272,11 +272,15 @@
           "$ref": "#/$defs/pactDimension",
           "description": "Targeted testing approach"
         },
+        "structured": {
+          "$ref": "#/$defs/pactDimension",
+          "description": "Structured governance, observability, and explainability of agent behavior (measure confidence, not trust)"
+        },
         "overallScore": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
-          "description": "Overall PACT score"
+          "description": "Overall PACTS score"
         }
       }
     },
