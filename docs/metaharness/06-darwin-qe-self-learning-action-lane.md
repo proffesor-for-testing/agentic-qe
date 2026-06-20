@@ -248,3 +248,14 @@ const r = await exec.execute({ agentId: `test-gen:${repo}`, messages, verify: ru
 ```
 
 **Still ahead:** apply the adoption above behind a feature flag (needs OK — touches a shipped coordinator); **D8** repair loop *before* escalating (Ruv Round-2); **D9** wire `onOutcome` → `routing-feedback` to lift the 40% confidence.
+
+### D7-wire APPLIED + D8 + D9 (SHIPPED 2026-06-20)
+
+All three landed; opt-in, off by default, every affected suite green (**111 tests**).
+
+- **Coordinator adoption (opt-in, no dev flag):** `src/domains/test-generation/coordinator.ts` now tries the **free local tier first** when opted in (`enableFreeTier` config or `AQE_FREE_TIER=1`), via a guarded `tryFreeTierGeneration()` that reads the source, prompts the local model, verifies the output is a real test (test block + assertion), and **falls through to the unchanged paid path on any miss**. Default OFF ⇒ zero impact (47 existing coordinator tests still green). New optional 8th ctor param `routingFeedback?` wires D9. Helpers `stripFence`/`deriveTestFilePath`. 4 new opt-in tests.
+- **D8 — repair loop:** `executor.ts` gained a same-tier repair loop (`repairAttempts`; verifier may return `{passed,feedback}` fed back into the retry) and an `escalate:false` repair-only mode. The coordinator path runs **local-only + repair, no paid escalation yet** (per the ask). +3 executor tests.
+- **D9 — routing-feedback sink:** `feedback-sink.ts` `createRoutingFeedbackSink()` maps executor outcomes onto the existing `RoutingFeedbackCollector.recordOutcome` (drives calibrator + escalation tracker + confidence), `usedAgent` = the tier that won so sustained cheap wins raise the cheap tier's confidence (lifts the stuck-40%). Best-effort (never breaks a task). 4 tests.
+- **User docs:** `docs/guides/free-tier-local-models.md` (setup for local/cloud Ollama, OpenRouter, OpenAI-compatible; config; troubleshooting), linked from `README.md` (LLM Providers section + Documentation table).
+
+**Still ahead:** turn on automatic paid escalation in the coordinator path (currently repair-only); wire D9 at the kernel layer where a live `RoutingFeedbackCollector` exists (coordinator exposes the injection point); the upstream `customScore` + `--ruvllm-timeout` PRs to `agent-harness-generator`.

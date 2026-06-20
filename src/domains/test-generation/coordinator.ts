@@ -10,12 +10,21 @@
 
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
+import { readFile } from 'node:fs/promises';
 import {
   Result,
+  ok,
   err,
   DomainEvent,
 } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
+// Opt-in free-tier local test generation (cross-pollination plan 06, D7-wire/D8/D9).
+import {
+  FreeTierEscalatingExecutor,
+  defaultFreeTierLadder,
+  createRoutingFeedbackSink,
+  type RoutingFeedbackLike,
+} from '../../routing/free-tier/index.js';
 import {
   EventBus,
   MemoryBackend,
@@ -178,6 +187,16 @@ export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
   blockOnIncoherentRequirements: boolean;
   enrichOnRetrievalLane: boolean;
   consensusConfig?: Partial<ConsensusEnabledConfig>;
+  /**
+   * Opt-in (plan 06, D7-wire): try a FREE local model first for test generation,
+   * with a same-tier repair loop (D8), before the normal LLM path. OFF by default
+   * — also enables via env `AQE_FREE_TIER=1`. Local-only / no paid escalation yet.
+   */
+  enableFreeTier?: boolean;
+  /** Local model id for the free tier (default 'qwen3:8b' or env AQE_FREE_TIER_MODEL). */
+  freeTierModel?: string;
+  /** Same-tier repair retries on a failed free-tier generation (D8). Default 1. */
+  freeTierRepairAttempts?: number;
 }
 
 type TestGenWorkflowType = 'generate' | 'tdd' | 'property' | 'data' | 'learn';
@@ -206,6 +225,8 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
   consensusThreshold: 0.7,
   consensusStrategy: 'weighted',
   consensusMinModels: 2,
+  // Free-tier local generation is OFF by default (opt-in).
+  enableFreeTier: false,
 };
 
 /**
@@ -227,12 +248,25 @@ const DEFAULT_CONFIG: CoordinatorConfig = {
  */
 const logger = LoggerFactory.create('test-generation');
 
+/** Strip a single ```fenced``` block if the model wrapped its output (free-tier path). */
+function stripFence(text: string): string {
+  const m = text.match(/```(?:[a-zA-Z0-9]+)?\n([\s\S]*?)\n```/);
+  return (m ? m[1] : text).trim();
+}
+
+/** Derive a test file path from a source path: `foo.ts` → `foo.test.ts` (free-tier path). */
+function deriveTestFilePath(src: string): string {
+  return src.replace(/\.([cm]?[jt]sx?)$/, '.test.$1');
+}
+
 export class TestGenerationCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, TestGenWorkflowType>
   implements ITestGenerationCoordinator
 {
   private readonly testGenerator: ITestGenerationService;
   private readonly patternMatcher: IPatternMatchingService;
+  /** Opt-in free-tier local executor (null unless enabled). */
+  private freeTierExecutor: FreeTierEscalatingExecutor | null = null;
 
   // @ruvector integrations (ADR-040)
   private qesona: PersistentSONAEngine | null = null;
@@ -263,7 +297,9 @@ export class TestGenerationCoordinator
     config: Partial<CoordinatorConfig> = {},
     llmRouter?: HybridRouter,
     private readonly coherenceService?: ICoherenceService | null,
-    private readonly hookRegistry?: QEHookRegistry | null
+    private readonly hookRegistry?: QEHookRegistry | null,
+    /** Optional D9 sink — when provided, free-tier outcomes feed routing-feedback. */
+    routingFeedback?: RoutingFeedbackLike | null
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -280,6 +316,21 @@ export class TestGenerationCoordinator
     // ADR-043 wiring: dependencies factory accepts llmRouter.
     this.testGenerator = createTestGeneratorServiceWithDependencies({ memory, llmRouter });
     this.patternMatcher = new PatternMatcherService(memory);
+
+    // Opt-in free-tier local generation (plan 06, D7-wire/D8/D9). OFF by default;
+    // local-only with a same-tier repair loop and NO paid escalation yet.
+    const freeTierOn = this.config.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
+    if (freeTierOn) {
+      const model = this.config.freeTierModel || process.env.AQE_FREE_TIER_MODEL || 'qwen3:8b';
+      this.freeTierExecutor = new FreeTierEscalatingExecutor({
+        ladder: defaultFreeTierLadder(model),
+        defaultRepairAttempts: this.config.freeTierRepairAttempts ?? 1,
+        onOutcome: routingFeedback
+          ? createRoutingFeedbackSink(routingFeedback, { taskKind: 'test-generation' }) // D9
+          : undefined,
+      });
+      logger.info(`Free-tier local test generation enabled (model=${model}, repair-only, no escalation)`);
+    }
 
     // Initialize coherence gate if service is provided (ADR-052)
     if (this.config.enableCoherenceGate && coherenceService) {
@@ -415,6 +466,21 @@ export class TestGenerationCoordinator
     try {
       // Create workflow tracking
       this.startWorkflow(workflowId, 'generate');
+
+      // Opt-in (plan 06, D7-wire): try the FREE local model first with a repair
+      // loop. Fully guarded — any miss falls through to the normal LLM path.
+      if (this.freeTierExecutor) {
+        try {
+          const ft = await this.tryFreeTierGeneration(request);
+          if (ft) {
+            this.completeWorkflow(workflowId);
+            logger.info(`Free-tier local generation produced ${ft.tests.length} test file(s); skipped paid path`);
+            return ok(ft);
+          }
+        } catch (e) {
+          logger.debug('Free-tier generation failed; falling back to the normal path');
+        }
+      }
 
       // ADR-047: Check topology health before expensive operations
       if (this.config.enableMinCutAwareness && !this.isTopologyHealthy()) {
@@ -574,6 +640,76 @@ export class TestGenerationCoordinator
       }
       return { success: false, error: err };
     }
+  }
+
+  /**
+   * Opt-in free-tier local test generation (plan 06, D7-wire/D8/D9).
+   * Reads the first source file, asks the FREE local model to write tests,
+   * verifies the output is a real test (has a test + an assertion) with a
+   * same-tier repair loop, and parses it into a minimal GeneratedTests.
+   * Returns null on ANY miss so the caller falls back to the normal path.
+   */
+  private async tryFreeTierGeneration(
+    request: GenerateTestsRequest
+  ): Promise<GeneratedTests | null> {
+    if (!this.freeTierExecutor) return null;
+    const src = request.sourceFiles?.[0];
+    if (!src) return null;
+
+    let code = '';
+    try {
+      code = await readFile(src, 'utf8');
+    } catch {
+      return null; // unreadable → fall back
+    }
+    if (!code.trim()) return null;
+
+    const framework = request.framework ?? 'vitest';
+    const messages = [
+      { role: 'system' as const, content: `You write ${framework} tests. Output ONLY a single fenced code block — no prose.` },
+      {
+        role: 'user' as const,
+        content:
+          `Write ${framework} ${request.testType ?? 'unit'} tests for this file ` +
+          `(aim for ~${request.coverageTarget ?? 80}% coverage). Use real assertions.\n\n` +
+          '```\n' + code.slice(0, 6000) + '\n```',
+      },
+    ];
+
+    // Objective oracle: output must contain a test block AND an assertion.
+    const verify = (out: string): { passed: boolean; feedback?: string } => {
+      const hasTest = /\b(test|it|describe)\s*\(/.test(out);
+      const hasAssert = /\b(expect|assert)\s*\(/.test(out);
+      return hasTest && hasAssert
+        ? { passed: true }
+        : { passed: false, feedback: 'output must contain a test (test/it/describe) with an assertion (expect/assert)' };
+    };
+
+    const r = await this.freeTierExecutor.execute({
+      agentId: `test-gen:${src}`,
+      messages,
+      verify,
+      escalate: false, // local-only, no paid escalation yet (plan D8)
+      repairAttempts: this.config.freeTierRepairAttempts ?? 1,
+    });
+    if (!r.ok) return null;
+
+    const testCode = stripFence(r.content);
+    const assertions = (testCode.match(/\b(?:expect|assert)\s*\(/g) ?? []).length;
+    if (assertions === 0) return null;
+
+    const test: GeneratedTest = {
+      id: uuidv4(),
+      name: `free-tier:${src.split('/').pop() ?? src}`,
+      sourceFile: src,
+      testFile: deriveTestFilePath(src),
+      testCode,
+      type: request.testType ?? 'unit',
+      assertions,
+      framework,
+      llmEnhanced: true,
+    };
+    return { tests: [test], coverageEstimate: 0, patternsUsed: ['free-tier-local'] };
   }
 
   /**

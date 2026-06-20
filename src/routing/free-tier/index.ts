@@ -32,8 +32,15 @@ export {
   FreeTierEscalatingExecutor,
   type ClaudeTierRunner,
   type QeVerifier,
+  type QeVerdict,
   type QeTaskRequest,
   type QeExecutionResult,
   type TierAttempt,
   type FreeTierExecutorOptions,
 } from './executor.js';
+export {
+  createRoutingFeedbackSink,
+  type RoutingFeedbackLike,
+  type FreeTierOutcomeEvent,
+  type RoutingFeedbackSinkOptions,
+} from './feedback-sink.js';

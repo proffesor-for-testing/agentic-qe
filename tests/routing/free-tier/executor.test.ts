@@ -110,6 +110,49 @@ describe('FreeTierEscalatingExecutor — escalation cap', () => {
   });
 });
 
+describe('FreeTierEscalatingExecutor — D8 repair loop', () => {
+  it('should repair in place at the same tier without escalating when repair succeeds', async () => {
+    // first call fails verify, repair call passes — both on the local tier
+    chatMock.mockResolvedValueOnce(localReply('draft: nope')).mockResolvedValueOnce(localReply('PASS after repair'));
+    const claudeRunner: ClaudeTierRunner = vi.fn(async () => ({ content: 'PASS' }));
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder(), claudeRunner });
+
+    const r = await exec.execute(task({ repairAttempts: 1 }));
+
+    expect(r.ok).toBe(true);
+    expect(r.tierUsed).toBe('local');
+    expect(r.escalated).toBe(false);
+    expect(r.repaired).toBe(true);
+    expect(r.attempts.map((a) => a.repairRound)).toEqual([0, 1]);
+    expect(claudeRunner).not.toHaveBeenCalled(); // repaired locally — no escalation
+  });
+
+  it('should pass the verifier feedback into the repair turn', async () => {
+    chatMock.mockResolvedValueOnce(localReply('bad')).mockResolvedValueOnce(localReply('PASS'));
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder('qwen3:8b') });
+    const verify = vi.fn((o: string) => (o.includes('PASS') ? true : { passed: false, feedback: 'missing expect()' }));
+
+    await exec.execute(task({ verify, repairAttempts: 1 }));
+
+    // the 2nd freeTierChat call (repair) must include the feedback text
+    const repairCallMessages = chatMock.mock.calls[1][1] as Array<{ role: string; content: string }>;
+    expect(JSON.stringify(repairCallMessages)).toContain('missing expect()');
+  });
+
+  it('should stay local in repair-only mode (escalate:false) and never call Claude', async () => {
+    chatMock.mockResolvedValue(localReply('always nope'));
+    const claudeRunner: ClaudeTierRunner = vi.fn(async () => ({ content: 'PASS' }));
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder(), claudeRunner });
+
+    const r = await exec.execute(task({ escalate: false, repairAttempts: 2 }));
+
+    expect(r.ok).toBe(false);
+    expect(r.attempts.every((a) => a.tier === 'local')).toBe(true);
+    expect(r.attempts).toHaveLength(3); // 1 initial + 2 repairs, no escalation
+    expect(claudeRunner).not.toHaveBeenCalled();
+  });
+});
+
 describe('FreeTierEscalatingExecutor — cross-task base-tier adaptation', () => {
   it('should raise the start tier after consecutive start-tier failures', async () => {
     chatMock.mockResolvedValue(localReply('nope')); // local always fails verify
