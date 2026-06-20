@@ -195,3 +195,31 @@ So the right product is **not** a generic `vertical:qe` that tries to beat front
 | **D9** | Feed escalation + repair outcomes into `routing-feedback` so the **40% confidence climbs** from real cheap-vs-escalated results | D7/D8 | self-learning loop closes; better upfront routing over time | M |
 
 These are **standalone wins independent of the A3 gate** (they pay off even if generic `vertical:qe` G-ABORTs) — same "floor" logic as plan 05's A1/A2/A5. D7 is the highest-leverage, lowest-cost next move after D2.
+
+### D7 status — free local tier in the escalation ladder (PROTOTYPED + PROVEN 2026-06-20)
+
+**Shipped (backward-compatible, tested):**
+- `src/routing/escalation/auto-escalation-tracker.ts` — made **generic over the tier-name type** with a configurable `tierOrder` (default ladder resolved in the constructor, *not* in `DEFAULT_ESCALATION_CONFIG`, so the exact-match config test stays green). Zero behaviour change for existing callers; **all 26 original tracker tests pass**.
+- `src/routing/free-tier/` — the configurable provider layer the user asked for:
+  - `types.ts` — `FreeTierProviderConfig` (kind/model/baseUrl/apiKeyEnv/…), `QeRoutingLadder`, `TierBinding`.
+  - `provider.ts` — `FREE_TIER_PRESETS` for **local-ollama / cloud-ollama / openrouter / openai-compatible**; `resolveFreeTierProvider()` (reads key from a named ENV VAR — **never stores secrets**); `freeTierChat()` (OpenAI-compatible `/v1/chat/completions`, reasoning-model aware, never-throws → a transport error is a tier *failure* that escalates).
+  - `ladder.ts` — `defaultFreeTierLadder()` (`local → haiku → sonnet → opus`), `createFreeTierEscalation()` (builds the real tracker), `resolveTier()` (tier name → concrete handler).
+- `tests/routing/free-tier/free-tier.test.ts` — **19 tests** (preset resolution, env-key handling, missingKey flag, ladder validation, escalation local→opus, de-escalation back to local, OpenRouter rebind). **45/45 green** with the tracker suite; strict-tsc clean.
+
+**Live proof** (`prototype/d7-proof.mjs`, real M5 host Ollama):
+- free `local` tier answered a QE question live (qwen3:8b, $0) — `ok=true`;
+- **escalated** `local → haiku → sonnet → opus` on consecutive failures (each resolving to the correct free/claude handler);
+- **de-escalated** `opus → sonnet → haiku → local` on sustained success.
+
+**User-facing config** (any of):
+```ts
+const ladder = defaultFreeTierLadder('qwen3:8b');                 // local Ollama (M5/dev box), $0
+ladder.bindings.local = { provider: 'free-tier',
+  config: { kind: 'openrouter', model: 'mistralai/devstral-small:free', apiKeyEnv: 'OPENROUTER_API_KEY' } };
+ladder.bindings.local = { provider: 'free-tier',
+  config: { kind: 'cloud-ollama', model: 'qwen3:8b', apiKeyEnv: 'OLLAMA_API_KEY' } };
+ladder.bindings.local = { provider: 'free-tier',
+  config: { kind: 'openai-compatible', model: 'llama-3.3-70b', baseUrl: 'https://api.groq.com/openai/v1', apiKeyEnv: 'GROQ_API_KEY' } };
+```
+
+**Not yet wired (next):** the tracker is still dormant — no coordinator calls `recordOutcome` yet, and the free tier isn't invoked by the live router. D7-wire = call `resolveTier` + `freeTierChat` for the bottom tier inside a coordinator and feed real QE pass/fail into `recordOutcome` (→ D9 closes the loop into `routing-feedback`). That, plus **D8** (a repair loop *before* escalating), is what turns this prototype into the running economics.

@@ -5,6 +5,14 @@
  * Tracks consecutive failures/successes per agent and recommends
  * tier escalation (after N failures) or de-escalation (after M successes).
  * Uses existing AgentTier and FallbackConfig.chain for tier ordering.
+ *
+ * D7 (cross-pollination plan 06): the class is generic over the tier-name type
+ * and the ladder is configurable via `EscalationConfig.tierOrder`. This lets a
+ * caller insert a FREE local tier BELOW haiku (e.g.
+ * `['local','haiku','sonnet','opus']`) so cheap/local models handle the bulk and
+ * only failures escalate up the chain (Ruv's SWE-bench Round-3 economics).
+ * Default behaviour is byte-identical to before: with no `tierOrder`, the ladder
+ * is the original `['booster','haiku','sonnet','opus']` over `AgentTier`.
  */
 
 import type { AgentTier } from '../routing-config.js';
@@ -13,15 +21,22 @@ import type { AgentTier } from '../routing-config.js';
 // Types
 // ============================================================================
 
-export interface EscalationConfig {
+export interface EscalationConfig<Tier extends string = AgentTier> {
   /** Consecutive failures before escalation (default: 2) */
   escalateAfterFailures: number;
   /** Consecutive successes before de-escalation (default: 5) */
   deEscalateAfterSuccesses: number;
   /** Maximum tier to escalate to (default: 'opus') */
-  maxTier: AgentTier;
+  maxTier: Tier;
   /** Minimum tier to de-escalate to (default: 'haiku') */
-  minTier: AgentTier;
+  minTier: Tier;
+  /**
+   * Tier ladder in ascending order of capability/cost. Optional — when omitted,
+   * resolves to the default Claude ladder `['booster','haiku','sonnet','opus']`.
+   * Supply a custom ladder to prepend a free local tier, e.g.
+   * `['local','haiku','sonnet','opus']`.
+   */
+  tierOrder?: Tier[];
 }
 
 export const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
@@ -31,10 +46,13 @@ export const DEFAULT_ESCALATION_CONFIG: EscalationConfig = {
   minTier: 'haiku',
 };
 
-export interface EscalationState {
+/** The default Claude ladder (kept out of DEFAULT_ESCALATION_CONFIG for back-compat). */
+export const DEFAULT_TIER_ORDER: AgentTier[] = ['booster', 'haiku', 'sonnet', 'opus'];
+
+export interface EscalationState<Tier extends string = AgentTier> {
   agentId: string;
-  currentTier: AgentTier;
-  baseTier: AgentTier;
+  currentTier: Tier;
+  baseTier: Tier;
   consecutiveFailures: number;
   consecutiveSuccesses: number;
   escalationCount: number;
@@ -43,39 +61,36 @@ export interface EscalationState {
   lastActionTimestamp: Date;
 }
 
-export type EscalationAction = {
+export type EscalationAction<Tier extends string = AgentTier> = {
   action: 'escalate' | 'de-escalate' | 'none';
-  previousTier: AgentTier;
-  newTier: AgentTier;
+  previousTier: Tier;
+  newTier: Tier;
 };
-
-// ============================================================================
-// Tier Ordering
-// ============================================================================
-
-/** Tiers in ascending order of capability/cost */
-const TIER_ORDER: AgentTier[] = ['booster', 'haiku', 'sonnet', 'opus'];
-
-function tierIndex(tier: AgentTier): number {
-  return TIER_ORDER.indexOf(tier);
-}
 
 // ============================================================================
 // Auto-Escalation Tracker
 // ============================================================================
 
-export class AutoEscalationTracker {
-  private readonly config: EscalationConfig;
-  private states: Map<string, EscalationState> = new Map();
+export class AutoEscalationTracker<Tier extends string = AgentTier> {
+  private readonly config: EscalationConfig<Tier>;
+  private readonly tierOrder: Tier[];
+  private states: Map<string, EscalationState<Tier>> = new Map();
 
-  constructor(config?: Partial<EscalationConfig>) {
-    this.config = { ...DEFAULT_ESCALATION_CONFIG, ...config };
+  constructor(config?: Partial<EscalationConfig<Tier>>) {
+    this.config = { ...(DEFAULT_ESCALATION_CONFIG as EscalationConfig<Tier>), ...config };
+    // Resolve the ladder here (not in DEFAULT_ESCALATION_CONFIG) so the exported
+    // default object stays a pure {failures, successes, maxTier, minTier}.
+    this.tierOrder = this.config.tierOrder ?? (DEFAULT_TIER_ORDER as unknown as Tier[]);
+  }
+
+  private tierIndex(tier: Tier): number {
+    return this.tierOrder.indexOf(tier);
   }
 
   /**
    * Record an outcome for an agent and determine escalation action.
    */
-  recordOutcome(agentId: string, success: boolean, baseTier: AgentTier): EscalationAction {
+  recordOutcome(agentId: string, success: boolean, baseTier: Tier): EscalationAction<Tier> {
     let state = this.states.get(agentId);
     if (!state) {
       state = {
@@ -99,11 +114,11 @@ export class AutoEscalationTracker {
       state.consecutiveSuccesses = 0;
 
       if (state.consecutiveFailures >= this.config.escalateAfterFailures) {
-        const currentIdx = tierIndex(state.currentTier);
-        const maxIdx = tierIndex(this.config.maxTier);
+        const currentIdx = this.tierIndex(state.currentTier);
+        const maxIdx = this.tierIndex(this.config.maxTier);
 
-        if (currentIdx < maxIdx) {
-          state.currentTier = TIER_ORDER[currentIdx + 1];
+        if (currentIdx >= 0 && currentIdx < maxIdx) {
+          state.currentTier = this.tierOrder[currentIdx + 1];
           state.escalationCount++;
           state.consecutiveFailures = 0;
           state.lastAction = 'escalate';
@@ -116,11 +131,11 @@ export class AutoEscalationTracker {
       state.consecutiveFailures = 0;
 
       if (state.consecutiveSuccesses >= this.config.deEscalateAfterSuccesses) {
-        const currentIdx = tierIndex(state.currentTier);
-        const minIdx = tierIndex(this.config.minTier);
+        const currentIdx = this.tierIndex(state.currentTier);
+        const minIdx = this.tierIndex(this.config.minTier);
 
         if (currentIdx > minIdx) {
-          state.currentTier = TIER_ORDER[currentIdx - 1];
+          state.currentTier = this.tierOrder[currentIdx - 1];
           state.deEscalationCount++;
           state.consecutiveSuccesses = 0;
           state.lastAction = 'de-escalate';
@@ -136,21 +151,21 @@ export class AutoEscalationTracker {
   /**
    * Get the current tier for an agent, or null if not tracked.
    */
-  getCurrentTier(agentId: string): AgentTier | null {
+  getCurrentTier(agentId: string): Tier | null {
     return this.states.get(agentId)?.currentTier ?? null;
   }
 
   /**
    * Get full escalation state for an agent, or null if not tracked.
    */
-  getState(agentId: string): EscalationState | null {
+  getState(agentId: string): EscalationState<Tier> | null {
     return this.states.get(agentId) ?? null;
   }
 
   /**
    * Get all tracked escalation states.
    */
-  getAllStates(): EscalationState[] {
+  getAllStates(): EscalationState<Tier>[] {
     return Array.from(this.states.values());
   }
 
