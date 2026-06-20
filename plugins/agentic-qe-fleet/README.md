@@ -1,6 +1,6 @@
 # agentic-qe-fleet
 
-PACT-based agentic quality engineering fleet for Claude Code — a slim starter bundle of the AQE platform with 11 specialized QE agents, 9 core skills, 9 slash commands, and the `agentic-qe` MCP server.
+PACTS-based agentic quality engineering fleet for Claude Code — a slim starter bundle of the AQE platform with 11 specialized QE agents, 9 core skills, 9 slash commands, and the `agentic-qe` MCP server.
 
 ## What's bundled
 

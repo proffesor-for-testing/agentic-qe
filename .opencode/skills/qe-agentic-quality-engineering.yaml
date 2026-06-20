@@ -1,13 +1,13 @@
 name: qe-agentic-quality-engineering
-description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles."
+description: "Use when orchestrating QE agents, understanding PACTS principles, configuring the AQE v3 fleet, or leveraging AI agents as force multipliers for quality work."
 minModelTier: tier1-any
-tags: ["pact", "agents", "fleet", "coordination", "autonomous", "foundational", "qe", "quality-engineering", "qe-core"]
+tags: ["pacts", "agents", "fleet", "coordination", "autonomous", "structured", "foundational", "qe", "quality-engineering", "qe-core"]
 steps:
-  - name: pact-principles
-    description: "PACT Principles"
+  - name: pacts-principles
+    description: "PACTS Principles"
     tools: ["bash", "read", "edit"]
     prompt: |
-      PACT Principles
+      PACTS Principles
   - name: 19-agent-fleet
     description: "19-Agent Fleet"
     tools: ["bash", "read"]
