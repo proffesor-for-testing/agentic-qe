@@ -29,6 +29,8 @@ import {
   CoordinatorConfig,
 } from './coordinator';
 import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
+// D9: live routing-feedback so free-tier outcomes lift routing confidence.
+import { RoutingFeedbackCollector } from '../../routing/routing-feedback.js';
 import {
   createTestGeneratorServiceWithDependencies,
   ITestGenerationService,
@@ -243,13 +245,34 @@ export class TestGenerationPlugin extends BaseDomainPlugin {
       this.pluginConfig.patternMatcher
     );
 
+    // D9: when the free tier is opted in, stand up a live RoutingFeedbackCollector
+    // (calibrator + auto-escalation enabled) so each cheap-vs-escalated outcome
+    // feeds routing confidence. Memory-only fallback if the DB is unavailable.
+    let routingFeedback: RoutingFeedbackCollector | undefined;
+    const freeTierOn =
+      this.pluginConfig.coordinator?.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
+    if (freeTierOn) {
+      routingFeedback = new RoutingFeedbackCollector(10000, {
+        enableEMACalibration: true,
+        enableAutoEscalation: true,
+      });
+      try {
+        await routingFeedback.initialize();
+      } catch {
+        // memory-only is fine — recording still drives calibration/escalation
+      }
+    }
+
     // Create coordinator
     this.coordinator = new TestGenerationCoordinator(
       this.eventBus,
       this.memory,
       this.agentCoordinator,
       this.pluginConfig.coordinator,
-      this.llmRouter
+      this.llmRouter,
+      undefined, // coherenceService
+      undefined, // hookRegistry
+      routingFeedback // D9 sink (undefined unless free tier is on)
     );
 
     // Initialize coordinator

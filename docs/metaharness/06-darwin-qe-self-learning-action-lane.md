@@ -258,4 +258,10 @@ All three landed; opt-in, off by default, every affected suite green (**111 test
 - **D9 — routing-feedback sink:** `feedback-sink.ts` `createRoutingFeedbackSink()` maps executor outcomes onto the existing `RoutingFeedbackCollector.recordOutcome` (drives calibrator + escalation tracker + confidence), `usedAgent` = the tier that won so sustained cheap wins raise the cheap tier's confidence (lifts the stuck-40%). Best-effort (never breaks a task). 4 tests.
 - **User docs:** `docs/guides/free-tier-local-models.md` (setup for local/cloud Ollama, OpenRouter, OpenAI-compatible; config; troubleshooting), linked from `README.md` (LLM Providers section + Documentation table).
 
-**Still ahead:** turn on automatic paid escalation in the coordinator path (currently repair-only); wire D9 at the kernel layer where a live `RoutingFeedbackCollector` exists (coordinator exposes the injection point); the upstream `customScore` + `--ruvllm-timeout` PRs to `agent-harness-generator`.
+### Paid escalation ON + D9 wired at the kernel layer (SHIPPED 2026-06-20)
+
+- **Automatic paid escalation:** the coordinator now builds a `claudeRunner` from its existing `HybridRouter` (tier → complexity hint: haiku→low, sonnet→medium, opus→high) and runs the free-tier path with `escalate: true`. Flow is now full **cheap-first → local repair → escalate the hard tail** to paid tiers via the router. Local-only still applies automatically when no router is wired (Claude tiers report unavailable → safe fallback).
+- **D9 at the kernel layer:** the **plugin** (`src/domains/test-generation/plugin.ts` `onInitialize`) now constructs a live `RoutingFeedbackCollector` (EMA calibration + auto-escalation enabled, memory-only fallback) when the free tier is opted in, and passes it to the coordinator as the `routingFeedback` arg → the sink records every cheap-vs-escalated outcome into the calibrator + escalation tracker + confidence metrics (lifts the stuck-40%). Constructed only when opted in (no overhead otherwise).
+- **Tests:** +2 (escalation-via-router, D9 sink invocation) → **113 green** across the affected suites; existing coordinator (47) + plugin (38) suites unchanged.
+
+**Still ahead:** the upstream `customScore` + `--ruvllm-timeout` PRs to `agent-harness-generator`; broaden the opt-in beyond test generation to other coordinators.

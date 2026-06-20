@@ -82,6 +82,46 @@ describe('TestGenerationCoordinator — free-tier opt-in', () => {
     await coordinator.dispose();
   });
 
+  it('should escalate to the HybridRouter (paid tier) when local + repair fail', async () => {
+    // local never produces a valid test (initial + repair both junk)…
+    chatMock.mockResolvedValue({ ok: true, content: 'prose only, no test', latencyMs: 5 });
+    // …but the injected router (paid tier) does.
+    const chat = vi.fn().mockResolvedValue({ content: goodTest });
+    const coordinator = new TestGenerationCoordinator(
+      ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+      { ...baseConfig, enableFreeTier: true, freeTierRepairAttempts: 1 },
+      { chat } as never,
+    );
+
+    const result = await coordinator.generateTests(request);
+
+    expect(chat).toHaveBeenCalled(); // escalated to the router
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.patternsUsed.some((p) => p.startsWith('tier:') && p !== 'tier:local')).toBe(true);
+    }
+    await coordinator.dispose();
+  });
+
+  it('should feed the outcome to routing-feedback (D9) when a collector is injected', async () => {
+    chatMock.mockResolvedValue({ ok: true, content: goodTest, latencyMs: 10 });
+    const recordOutcome = vi.fn().mockReturnValue({ id: 'o1' });
+    const coordinator = new TestGenerationCoordinator(
+      ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+      { ...baseConfig, enableFreeTier: true },
+      undefined, undefined, undefined,
+      { recordOutcome } as never,
+    );
+
+    await coordinator.generateTests(request);
+
+    expect(recordOutcome).toHaveBeenCalledOnce();
+    const [, , usedAgent, outcome] = recordOutcome.mock.calls[0];
+    expect(usedAgent).toBe('local');
+    expect(outcome).toMatchObject({ success: true });
+    await coordinator.dispose();
+  });
+
   it('should fall back (no free-tier result) when the local model never produces a valid test', async () => {
     chatMock.mockResolvedValue({ ok: true, content: 'no assertions here', latencyMs: 5 });
     const coordinator = new TestGenerationCoordinator(

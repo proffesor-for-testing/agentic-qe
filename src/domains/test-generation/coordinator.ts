@@ -25,6 +25,7 @@ import {
   createRoutingFeedbackSink,
   type RoutingFeedbackLike,
 } from '../../routing/free-tier/index.js';
+import type { AgentTier } from '../../routing/routing-config.js';
 import {
   EventBus,
   MemoryBackend,
@@ -322,14 +323,35 @@ export class TestGenerationCoordinator
     const freeTierOn = this.config.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
     if (freeTierOn) {
       const model = this.config.freeTierModel || process.env.AQE_FREE_TIER_MODEL || 'qwen3:8b';
+      // Paid escalation: delegate Claude tiers to the existing HybridRouter, mapping
+      // the ladder tier to a complexity hint so the router selects that tier. When no
+      // router is wired, the executor stays local-only (Claude tiers report unavailable).
+      const claudeRunner = llmRouter
+        ? async (
+            tier: AgentTier,
+            msgs: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+          ): Promise<{ content: string }> => {
+            const complexity = tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low';
+            const resp = await llmRouter.chat({
+              messages: msgs.map((m) => ({ role: m.role, content: m.content })),
+              agentType: 'qe-test-architect',
+              complexity,
+            });
+            return { content: resp.content };
+          }
+        : undefined;
       this.freeTierExecutor = new FreeTierEscalatingExecutor({
         ladder: defaultFreeTierLadder(model),
+        claudeRunner,
         defaultRepairAttempts: this.config.freeTierRepairAttempts ?? 1,
         onOutcome: routingFeedback
           ? createRoutingFeedbackSink(routingFeedback, { taskKind: 'test-generation' }) // D9
           : undefined,
       });
-      logger.info(`Free-tier local test generation enabled (model=${model}, repair-only, no escalation)`);
+      logger.info(
+        `Free-tier local test generation enabled (model=${model}, repair, ` +
+          `${claudeRunner ? 'escalation→HybridRouter' : 'local-only'})`,
+      );
     }
 
     // Initialize coherence gate if service is provided (ADR-052)
@@ -689,7 +711,9 @@ export class TestGenerationCoordinator
       agentId: `test-gen:${src}`,
       messages,
       verify,
-      escalate: false, // local-only, no paid escalation yet (plan D8)
+      // Cheap-first: try local + repair, then escalate the hard tail up the
+      // ladder via the HybridRouter (when wired). Local-only if no router.
+      escalate: true,
       repairAttempts: this.config.freeTierRepairAttempts ?? 1,
     });
     if (!r.ok) return null;
@@ -709,7 +733,7 @@ export class TestGenerationCoordinator
       framework,
       llmEnhanced: true,
     };
-    return { tests: [test], coverageEstimate: 0, patternsUsed: ['free-tier-local'] };
+    return { tests: [test], coverageEstimate: 0, patternsUsed: ['free-tier-local', `tier:${r.tierUsed}`] };
   }
 
   /**
