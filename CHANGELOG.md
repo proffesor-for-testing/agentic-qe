@@ -48,6 +48,13 @@ matters as much as the model" economics from Ruv's MetaHarness Darwin Mode.
 - **Auto-escalation tracker is now ladder-configurable** (generic over tier
   names) so a free local tier can sit below the paid tiers. Fully backward
   compatible — existing behavior and the default Claude ladder are unchanged.
+- **QE framework evolved PACT → PACTS** — adds a fifth principle, **Structured**
+  (governance, observability, and explainability of agent behavior; measure
+  *confidence*, not trust), inspired by DORA's research on AI-assisted delivery.
+  Ships with a playbook + readiness-assessment guide. The skill id/dir
+  `holistic-testing-pact` and schema slugs are unchanged (cross-repo stable); the
+  output schema gains an **optional** `structured` dimension (non-breaking).
+  PACT originated with Reuven Cohen (Agentics Foundation); PACTS adds Structured. (#545)
 
 ## [3.10.9] - 2026-06-17
 
