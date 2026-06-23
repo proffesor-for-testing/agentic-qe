@@ -181,4 +181,42 @@ describe('MCPPhase', () => {
       expect(logFn).toHaveBeenCalledWith(expect.stringContaining('agentic-qe'));
     });
   });
+
+  describe('database-free mode (#533)', () => {
+    it("writes AQE_MEMORY_BACKEND=memory and disables learning/workers when memoryBackend is 'memory'", async () => {
+      // Arrange — clear accumulated mock calls so .find() can't match an
+      // earlier test's write to the same path.
+      vi.mocked(writeFileSync).mockClear();
+      const context = createMockContext({ projectRoot: '/my/project', options: { memoryBackend: 'memory' } });
+
+      // Act
+      await phase.execute(context);
+
+      // Assert
+      const rootCall = vi.mocked(writeFileSync).mock.calls.find(
+        (call: any[]) => (call[0] as string) === '/my/project/.mcp.json'
+      );
+      const env = JSON.parse(rootCall![1] as string).mcpServers['agentic-qe'].env;
+      expect(env.AQE_MEMORY_BACKEND).toBe('memory');
+      expect(env.AQE_MEMORY_PATH).toBeUndefined();
+      expect(env.AQE_LEARNING_ENABLED).toBe('false');
+      expect(env.AQE_WORKERS_ENABLED).toBe('false');
+    });
+  });
+
+  describe('--no-claude (#532)', () => {
+    it('does not write .mcp.json and reports not configured', async () => {
+      // Arrange
+      vi.mocked(writeFileSync).mockClear();
+      const context = createMockContext({ options: { noClaude: true } });
+
+      // Act
+      const result = await phase.execute(context);
+
+      // Assert — .mcp.json is part of the suppressed Claude Code surface.
+      expect(writeFileSync).not.toHaveBeenCalled();
+      expect(result.success).toBe(true);
+      expect(result.data!.configured).toBe(false);
+    });
+  });
 });

@@ -209,10 +209,15 @@ export async function handleFleetInit(
     const enabledDomains: DomainName[] = params.enabledDomains || [...ALL_DOMAINS];
     const userFacingDomains: DomainName[] = enabledDomains.filter(d => d !== 'coordination') as DomainName[];
 
-    // Create kernel
+    // Create kernel. Database-free mode (#534): force the in-memory backend so a
+    // fleet_init tool call never builds a SQLite-backed kernel that writes
+    // .agentic-qe/memory.db. Explicit params still win when not in memory mode.
+    const memoryBackend = process.env.AQE_MEMORY_BACKEND === 'memory'
+      ? 'memory'
+      : (params.memoryBackend || 'hybrid');
     state.kernel = new QEKernelImpl({
       maxConcurrentAgents: params.maxAgents || 15,
-      memoryBackend: params.memoryBackend || 'hybrid',
+      memoryBackend,
       hnswEnabled: true,
       lazyLoading: params.lazyLoading !== false,
       enabledDomains,

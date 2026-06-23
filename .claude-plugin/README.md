@@ -20,7 +20,7 @@ Then browse and install plugins:
 
 ### `agentic-qe-fleet`
 
-PACT-based agentic quality engineering fleet — slim Claude Code bundle with 11 specialized QE agents, 9 trust-tier-2/3 skills, 9 `/aqe-*` slash commands, and an auto-registered MCP server.
+PACTS-based agentic quality engineering fleet — slim Claude Code bundle with 11 specialized QE agents, 9 trust-tier-2/3 skills, 9 `/aqe-*` slash commands, and an auto-registered MCP server.
 
 **Agents** (model-routed by cognitive load):
 - **Opus tier** (heavy reasoning): `qe-test-architect`, `qe-fleet-commander`, `qe-security-scanner`, `qe-chaos-engineer`, `qe-regression-analyzer`, `qe-requirements-validator`

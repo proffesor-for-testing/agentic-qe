@@ -142,8 +142,22 @@ export interface InitOptions {
   withAllPlatforms?: boolean;
   /** Skip MCP server config (MCP is enabled by default) */
   noMcp?: boolean;
+  /**
+   * Suppress the default Claude Code surface (#532). When true, init does NOT
+   * write `.claude/` skills+agents, `.mcp.json`, `CLAUDE.md`, governance, or
+   * hooks — making `--with-<platform>` flags the only install targets (e.g. an
+   * OpenCode-only install). Opt-in via `--no-claude`; default install is
+   * unchanged. Pairs naturally with `--no-database`.
+   */
+  noClaude?: boolean;
   /** @deprecated Use default behavior instead — MCP is now enabled by default */
   withMcp?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the SQLite
+   * database phase is skipped and any MCP config is written to run in-memory.
+   * Undefined preserves the default persistent backend. Set via `--no-database`.
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 /**

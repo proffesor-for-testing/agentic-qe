@@ -34,11 +34,16 @@ export async function initializeHypergraph(
   const path = await import('path');
   const { findProjectRoot } = await import('../../kernel/unified-memory.js');
   const projectRoot = findProjectRoot();
-  const dbPath = hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db');
+  // Database-free mode (#534): an ephemeral in-memory hypergraph DB, never the
+  // project's .agentic-qe/memory.db.
+  const inMemory = process.env.AQE_MEMORY_BACKEND === 'memory';
+  const dbPath = inMemory ? ':memory:' : (hypergraphDbPath || path.join(projectRoot, '.agentic-qe', 'memory.db'));
 
-  const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (!inMemory) {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
   }
 
   const db = openDatabase(dbPath);

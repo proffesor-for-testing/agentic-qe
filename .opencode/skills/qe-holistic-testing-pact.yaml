@@ -1,28 +1,28 @@
 name: qe-holistic-testing-pact
-description: "Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices."
+description: "Apply the Holistic Testing Model evolved with PACTS (Proactive, Autonomous, Collaborative, Targeted, Structured) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality"
 minModelTier: tier1-any
-tags: ["holistic", "pact", "quality", "whole-team", "proactive", "autonomous", "collaborative", "targeted", "qe", "quality-engineering", "testing-methodologies"]
+tags: ["holistic", "pacts", "quality", "whole-team", "proactive", "autonomous", "collaborative", "targeted", "structured", "qe", "quality-engineering", "testing-methodologies"]
 steps:
-  - name: pact-principles
-    description: "PACT Principles"
+  - name: pacts-principles
+    description: "PACTS Principles"
     tools: ["bash", "read", "grep"]
     prompt: |
-      PACT Principles
+      PACTS Principles
   - name: holistic-testing-quadrants
     description: "Holistic Testing Quadrants"
     tools: ["bash", "read", "grep"]
     prompt: |
       Holistic Testing Quadrants
-  - name: agent-selection-by-pact-quadrant
-    description: "Agent Selection by PACT + Quadrant"
+  - name: agent-selection-by-pacts-quadrant
+    description: "Agent Selection by PACTS + Quadrant"
     tools: ["bash", "read"]
     prompt: |
-      Agent Selection by PACT + Quadrant
-  - name: pact-in-practice
-    description: "PACT in Practice"
+      Agent Selection by PACTS + Quadrant
+  - name: pacts-in-practice
+    description: "PACTS in Practice"
     tools: ["bash", "read"]
     prompt: |
-      PACT in Practice
+      PACTS in Practice
   - name: proactive-test-before-bugs
     description: "Proactive: Test Before Bugs"
     tools: ["bash", "read"]

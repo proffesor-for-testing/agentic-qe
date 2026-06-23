@@ -40,6 +40,14 @@ export class DatabasePhase extends BasePhase<DatabaseResult> {
   readonly critical = true;
   readonly requiresPhases = ['configuration'] as const;
 
+  /**
+   * Database-free mode (`--no-database` / memoryBackend: 'memory'): skip the
+   * SQLite database entirely. Nothing is written under .agentic-qe/.
+   */
+  async shouldRun(context: InitContext): Promise<boolean> {
+    return context.options.memoryBackend !== 'memory';
+  }
+
   protected async run(context: InitContext): Promise<DatabaseResult> {
     const { projectRoot } = context;
 

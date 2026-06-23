@@ -267,6 +267,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The MCP integration tests in test:integration:fast drive the BUILT
+      # bundles (dist/cli + dist/mcp). Pull the artifact from the build job so
+      # they run for real instead of hard-failing on a missing bundle (their
+      # CI guard refuses to silently skip). See mcp-cli-inprocess /
+      # memory-delete-cache-invalidation.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Run integration seam tests
         run: npm run test:integration:fast
 

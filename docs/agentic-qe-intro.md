@@ -485,7 +485,7 @@ claude mcp add agentic-qe -- npx agentic-qe mcp
 #    /tdd-london-chicago           — London/Chicago school TDD
 #    /security-testing             — OWASP vulnerability testing
 #    /six-thinking-hats            — multi-perspective quality analysis
-#    /holistic-testing-pact        — PACT-based test strategy
+#    /holistic-testing-pact        — PACTS-based test strategy
 
 # 5. Or use CLI directly
 aqe test generate src/

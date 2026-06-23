@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.10.7",
+  "version": "3.11.0",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,6 +36,10 @@
     "./governance": {
       "import": "./dist/governance/index.js",
       "types": "./dist/governance/index.d.ts"
+    },
+    "./routing/free-tier": {
+      "import": "./dist/routing/free-tier/index.js",
+      "types": "./dist/routing/free-tier/index.d.ts"
     }
   },
   "bin": {
@@ -66,7 +70,7 @@
     "test:all": "npm test -- --run",
     "test:mcp": "npm run test:unit:mcp",
     "test:mcp:integration": "npm test -- --run tests/integration/mcp/",
-    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
+    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/mcp/mcp-cli-inprocess.test.ts tests/integration/mcp/memory-delete-cache-invalidation.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
     "test:integration": "NODE_OPTIONS='--max-old-space-size=4096 --expose-gc' vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/*.e2e.test.ts'",
     "mcp:validate": "node scripts/smoke-mcp-protocol.mjs",
     "mcp:parity": "node scripts/audit-mcp-tool-parity.mjs",
@@ -197,16 +201,18 @@
     "graceful-fs": "^4.2.11",
     "stack-utils": "^2.0.6",
     "tar": ">=7.5.7",
-    "protobufjs": "^7.5.6",
-    "@protobufjs/utf8": "^1.1.1"
+    "protobufjs": "^7.6.3",
+    "@protobufjs/utf8": "^1.1.1",
+    "ws": "^8.21.0"
   },
   "overrides": {
     "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
     "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
     "tar": ">=7.5.7",
     "markdown-it": ">=14.1.1",
-    "protobufjs": "^7.5.6",
+    "protobufjs": "^7.6.3",
     "@protobufjs/utf8": "^1.1.1",
+    "ws": "^8.21.0",
     "@opentelemetry/sdk-node": ">=0.217.0",
     "@opentelemetry/auto-instrumentations-node": ">=0.75.0",
     "@opentelemetry/exporter-prometheus": ">=0.217.0"

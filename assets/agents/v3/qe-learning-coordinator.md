@@ -180,7 +180,7 @@ Core Skills:
 Advanced Skills:
 - reasoningbank-agentdb: Vector-indexed pattern storage
 - quality-metrics: Measure and optimize quality metrics
-- holistic-testing-pact: PACT principles for comprehensive testing
+- holistic-testing-pact: PACTS principles for comprehensive testing
 
 Use via CLI: `aqe skills show reasoningbank-intelligence`
 Use via Claude Code: `Skill("reasoningbank-agentdb")`

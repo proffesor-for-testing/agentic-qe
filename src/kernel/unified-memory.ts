@@ -183,6 +183,15 @@ export class UnifiedMemoryManager {
     const resolvedDefaults = getResolvedDefaultConfig();
     this.config = { ...resolvedDefaults, ...config };
 
+    // Database-free mode (#534): keep ALL unified persistence in an ephemeral
+    // in-memory SQLite DB. Handlers/domains that reach for UnifiedMemoryManager
+    // (core-handlers, trajectory-judge, test-generator, experience-capture, …)
+    // keep working, but nothing is ever written under .agentic-qe/.
+    if (process.env.AQE_MEMORY_BACKEND === 'memory') {
+      this.config.dbPath = ':memory:';
+      return;
+    }
+
     if (!path.isAbsolute(this.config.dbPath)) {
       const projectRoot = findProjectRoot();
       this.config.dbPath = path.join(projectRoot, this.config.dbPath);
@@ -241,60 +250,68 @@ export class UnifiedMemoryManager {
     signal?.throwIfAborted();
 
     try {
-      // SAFETY: Detect test processes trying to open the production DB.
-      // If AQE_PROJECT_ROOT is set to a temp dir (vitest isolation) but the
-      // dbPath resolves to the REAL project's .agentic-qe/memory.db, redirect.
-      // Only redirect production paths — leave explicitly-set temp paths alone.
-      const envRoot = process.env.AQE_PROJECT_ROOT;
-      if (envRoot) {
-        const resolvedPath = path.resolve(this.config.dbPath);
-        const resolvedRoot = path.resolve(envRoot);
-        // Only redirect if path points OUTSIDE the env root AND into a real
-        // .agentic-qe directory (not another temp test dir)
-        if (!resolvedPath.startsWith(resolvedRoot) &&
-            !resolvedPath.startsWith(os.tmpdir()) &&
-            resolvedPath.includes('.agentic-qe')) {
-          console.error(
-            `[UnifiedMemory] WARNING: DB path "${this.config.dbPath}" points to a ` +
-            `production .agentic-qe/ while AQE_PROJECT_ROOT="${envRoot}". ` +
-            `Redirecting to test-safe path.`
-          );
-          this.config.dbPath = path.join(envRoot, '.agentic-qe', 'memory.db');
-        }
-      }
-
-      const dir = path.dirname(this.config.dbPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      // DATA LOSS PREVENTION: If the DB file already exists, record its size
-      // before opening. better-sqlite3's `new Database(path)` creates a fresh
-      // empty file when the path doesn't exist. If we expected an existing DB
-      // (dir exists, .agentic-qe present) but the file is missing, something
-      // deleted it — warn loudly and look for the most recent backup.
-      const dbExistedBefore = fs.existsSync(this.config.dbPath);
+      // Database-free mode (#534): ':memory:' is ephemeral — skip ALL filesystem
+      // work (dir creation, path redirect, backup recovery, size accounting).
+      const inMemory = this.config.dbPath === ':memory:';
+      let dir = '';
+      let dbExistedBefore = false;
       let dbSizeBefore = 0;
-      if (dbExistedBefore) {
-        dbSizeBefore = fs.statSync(this.config.dbPath).size;
-      } else if (fs.existsSync(dir)) {
-        // The .agentic-qe directory exists but memory.db is missing — suspect data loss
-        const backups = this.findRecentBackups(dir);
-        if (backups.length > 0) {
-          const newest = backups[0];
-          console.error(
-            `[UnifiedMemory] CRITICAL: Database file missing but directory exists!\n` +
-            `  Expected: ${this.config.dbPath}\n` +
-            `  Found ${backups.length} backup(s), newest: ${newest.path} (${(newest.size / 1024 / 1024).toFixed(1)}MB)\n` +
-            `  Restoring from backup to prevent data loss...`
-          );
-          fs.copyFileSync(newest.path, this.config.dbPath);
-          // Remove stale WAL/SHM that may belong to the old file
-          for (const suffix of ['-wal', '-shm']) {
-            const walPath = this.config.dbPath + suffix;
-            if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+
+      if (!inMemory) {
+        // SAFETY: Detect test processes trying to open the production DB.
+        // If AQE_PROJECT_ROOT is set to a temp dir (vitest isolation) but the
+        // dbPath resolves to the REAL project's .agentic-qe/memory.db, redirect.
+        // Only redirect production paths — leave explicitly-set temp paths alone.
+        const envRoot = process.env.AQE_PROJECT_ROOT;
+        if (envRoot) {
+          const resolvedPath = path.resolve(this.config.dbPath);
+          const resolvedRoot = path.resolve(envRoot);
+          // Only redirect if path points OUTSIDE the env root AND into a real
+          // .agentic-qe directory (not another temp test dir)
+          if (!resolvedPath.startsWith(resolvedRoot) &&
+              !resolvedPath.startsWith(os.tmpdir()) &&
+              resolvedPath.includes('.agentic-qe')) {
+            console.error(
+              `[UnifiedMemory] WARNING: DB path "${this.config.dbPath}" points to a ` +
+              `production .agentic-qe/ while AQE_PROJECT_ROOT="${envRoot}". ` +
+              `Redirecting to test-safe path.`
+            );
+            this.config.dbPath = path.join(envRoot, '.agentic-qe', 'memory.db');
           }
-          dbSizeBefore = newest.size;
+        }
+
+        dir = path.dirname(this.config.dbPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // DATA LOSS PREVENTION: If the DB file already exists, record its size
+        // before opening. better-sqlite3's `new Database(path)` creates a fresh
+        // empty file when the path doesn't exist. If we expected an existing DB
+        // (dir exists, .agentic-qe present) but the file is missing, something
+        // deleted it — warn loudly and look for the most recent backup.
+        dbExistedBefore = fs.existsSync(this.config.dbPath);
+        if (dbExistedBefore) {
+          dbSizeBefore = fs.statSync(this.config.dbPath).size;
+        } else if (fs.existsSync(dir)) {
+          // The .agentic-qe directory exists but memory.db is missing — suspect data loss
+          const backups = this.findRecentBackups(dir);
+          if (backups.length > 0) {
+            const newest = backups[0];
+            console.error(
+              `[UnifiedMemory] CRITICAL: Database file missing but directory exists!\n` +
+              `  Expected: ${this.config.dbPath}\n` +
+              `  Found ${backups.length} backup(s), newest: ${newest.path} (${(newest.size / 1024 / 1024).toFixed(1)}MB)\n` +
+              `  Restoring from backup to prevent data loss...`
+            );
+            fs.copyFileSync(newest.path, this.config.dbPath);
+            // Remove stale WAL/SHM that may belong to the old file
+            for (const suffix of ['-wal', '-shm']) {
+              const walPath = this.config.dbPath + suffix;
+              if (fs.existsSync(walPath)) fs.unlinkSync(walPath);
+            }
+            dbSizeBefore = newest.size;
+          }
         }
       }
 
@@ -407,6 +424,8 @@ export class UnifiedMemoryManager {
   }
 
   private warnIfDuplicateDatabases(): void {
+    // Database-free mode has no on-disk canonical DB to compare against.
+    if (this.config.dbPath === ':memory:') return;
     try {
       const projectRoot = findProjectRoot();
       const canonicalDb = path.resolve(this.config.dbPath);

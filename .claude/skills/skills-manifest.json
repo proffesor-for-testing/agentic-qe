@@ -308,7 +308,7 @@
     "agentic-quality-engineering": {
       "id": "agentic-quality-engineering",
       "name": "Agentic Quality Engineering",
-      "description": "Core foundational skill for all 19 QE agents with PACT principles (Proactive, Autonomous, Collaborative, Targeted).",
+      "description": "Core foundational skill for all 19 QE agents with PACTS principles (Proactive, Autonomous, Collaborative, Targeted, Structured).",
       "category": "qe-core",
       "priority": "critical",
       "file": "agentic-quality-engineering/SKILL.md",
@@ -317,19 +317,19 @@
       "optimizationStatus": "optimized",
       "optimizationVersion": "1.0",
       "lastOptimized": "2025-12-02",
-      "tags": ["agents", "pact", "core", "foundation", "autonomous-testing"],
+      "tags": ["agents", "pacts", "core", "foundation", "autonomous-testing"],
       "dependencies": [],
       "agents": ["qe-test-generator", "qe-test-executor", "qe-coverage-analyzer", "qe-quality-gate", "qe-quality-analyzer", "qe-performance-tester", "qe-security-scanner", "qe-requirements-validator", "qe-production-intelligence", "qe-fleet-commander", "qe-deployment-readiness", "qe-regression-risk-analyzer", "qe-test-data-architect", "qe-api-contract-validator", "qe-flaky-test-hunter", "qe-visual-tester", "qe-chaos-engineer", "qe-code-complexity", "qx-partner"]
     },
     "holistic-testing-pact": {
       "id": "holistic-testing-pact",
-      "name": "Holistic Testing with PACT Principles",
-      "description": "Holistic Testing Model evolved with PACT for whole-team quality in agentic systems.",
+      "name": "Holistic Testing with PACTS Principles",
+      "description": "Holistic Testing Model evolved with PACTS for whole-team quality in agentic systems.",
       "category": "qe-core",
       "priority": "critical",
       "file": "holistic-testing-pact/SKILL.md",
       "tokenEstimate": 1500,
-      "tags": ["pact", "holistic", "whole-team", "testing-quadrants"],
+      "tags": ["pacts", "holistic", "whole-team", "testing-quadrants"],
       "dependencies": ["agentic-quality-engineering"],
       "agents": ["qe-coverage-analyzer", "qe-quality-gate", "qe-fleet-commander"]
     },
@@ -939,7 +939,7 @@
   },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "3.10.7",
+    "fleetVersion": "3.11.0",
     "manifestVersion": "1.4.0",
     "lastUpdated": "2026-04-13T00:00:00.000Z",
     "contributors": [

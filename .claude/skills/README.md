@@ -19,7 +19,7 @@ Version-agnostic quality engineering best practices from the QE community.
 
 - **a11y-ally**: Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium → agent-browser → Playwright+Stealth.
 - **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification. Use when ensuring legal compliance (ADA, Section 508), testing for disabilities, or building accessible applications for 1 billion disabled users globally.
-- **agentic-quality-engineering**: AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACT principles.
+- **agentic-quality-engineering**: AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACTS principles.
 - **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies.
 - **browser**: Web browser automation with AI-optimized snapshots for claude-flow agents
 - **brutal-honesty-review**: Unvarnished technical criticism combining Linus Torvalds
@@ -36,7 +36,7 @@ Version-agnostic quality engineering best practices from the QE community.
 - **debug-loop**: Hypothesis-driven autonomous debugging with real command validation
 - **enterprise-integration-testing**: Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates.
 - **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks.
-- **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACT (Proactive, Autonomous, Collaborative, Targeted) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices.
+- **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACTS (Proactive, Autonomous, Collaborative, Targeted, Structured) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices.
 - **localization-testing**: Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages, and cultural appropriateness. Use when launching in new markets or building multi-language products.
 - **middleware-testing-patterns**: Enterprise middleware testing patterns for message routing, transformation, DLQ, protocol mediation, ESB error handling, and EIP patterns. Use when testing middleware layers, message brokers, ESBs, or integration buses.
 - **mobile-testing**: Comprehensive mobile testing for iOS and Android platforms including gestures, sensors, permissions, device fragmentation, and performance. Use when testing native apps, hybrid apps, or mobile web, ensuring quality across 1000+ device variants.

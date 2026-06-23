@@ -1,0 +1,48 @@
+{
+  "name": "agentic-qe-harness",
+  "hosts": [
+    "claude-code",
+    "codex"
+  ],
+  "template": "vertical:coding",
+  "archetypeId": "typescript-sdk-harness",
+  "confidence": 0.77,
+  "engine": "lexical",
+  "agents": [
+    "architect",
+    "implementer",
+    "reviewer",
+    "test-writer"
+  ],
+  "skills": [
+    "plan-change"
+  ],
+  "commands": [
+    "doctor",
+    "review-diff"
+  ],
+  "mcp": "local",
+  "policy": {
+    "defaultDeny": true,
+    "allowNetwork": false,
+    "allowShell": false,
+    "allowFileWrite": false,
+    "requireApprovalForDangerous": true,
+    "toolTimeoutMs": 30000,
+    "maxToolCallsPerTurn": 8,
+    "auditLog": true
+  },
+  "riskProfile": "shell gated, network gated, file-write read-scoped",
+  "suggestedCommands": [
+    {
+      "command": "npm run build",
+      "trust": "inferred",
+      "execution": "disabled"
+    },
+    {
+      "command": "npm test",
+      "trust": "inferred",
+      "execution": "disabled"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ QE skills are specialized knowledge modules that agents can invoke to enhance th
 #### agentic-quality-engineering
 **Using AI agents as force multipliers in quality work**
 
-Covers autonomous testing systems, PACT principles (Proactive, Autonomous, Collaborative, Targeted), and scaling quality engineering with intelligent agents.
+Covers autonomous testing systems, PACTS principles (Proactive, Autonomous, Collaborative, Targeted, Structured), and scaling quality engineering with intelligent agents.
 
 **Key Topics:**
 - AI-driven test generation
@@ -49,14 +49,14 @@ Skill("context-driven-testing")
 ---
 
 #### holistic-testing-pact
-**Holistic Testing Model evolved with PACT principles**
+**Holistic Testing Model evolved with PACTS principles**
 
-Applies the Holistic Testing Model with Proactive, Autonomous, Collaborative, and Targeted principles for comprehensive quality coverage.
+Applies the Holistic Testing Model with Proactive, Autonomous, Collaborative, Targeted, and Structured principles for comprehensive quality coverage.
 
 **Key Topics:**
 - Quadrant-based testing
 - Whole-team quality
-- PACT evolution
+- PACTS evolution
 - Agile testing strategies
 
 **Usage:**

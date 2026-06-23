@@ -1,0 +1,281 @@
+{
+  "name": "agentic-qe",
+  "version": "3.10.9",
+  "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./kernel": {
+      "import": "./dist/kernel/index.js",
+      "types": "./dist/kernel/index.d.ts"
+    },
+    "./kernel/hnsw-adapter": {
+      "import": "./dist/kernel/hnsw-adapter.js",
+      "types": "./dist/kernel/hnsw-adapter.d.ts"
+    },
+    "./shared": {
+      "import": "./dist/shared/index.js",
+      "types": "./dist/shared/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
+    },
+    "./ruvector": {
+      "import": "./dist/integrations/ruvector/wrappers.js",
+      "types": "./dist/integrations/ruvector/wrappers.d.ts"
+    },
+    "./sync": {
+      "import": "./dist/sync/index.js",
+      "types": "./dist/sync/index.d.ts"
+    },
+    "./governance": {
+      "import": "./dist/governance/index.js",
+      "types": "./dist/governance/index.d.ts"
+    }
+  },
+  "bin": {
+    "agentic-qe": "./dist/cli/bundle.js",
+    "aqe": "./dist/cli/bundle.js",
+    "aqe-v3": "./dist/cli/bundle.js",
+    "aqe-mcp": "./dist/mcp/bundle.js"
+  },
+  "scripts": {
+    "preinstall": "node scripts/preinstall.cjs || true",
+    "postinstall": "node scripts/postinstall.cjs",
+    "build": "tsc && npm run build:cli && npm run build:mcp",
+    "build:cli": "node scripts/build-cli.mjs",
+    "build:mcp": "node scripts/build-mcp.mjs",
+    "prepublishOnly": "node scripts/sync-agents.cjs && node scripts/prepare-assets.cjs",
+    "cli": "tsx src/cli/index.ts",
+    "aqe": "tsx src/cli/index.ts",
+    "mcp": "tsx src/mcp/entry.ts",
+    "test": "NODE_OPTIONS='--max-old-space-size=1024 --expose-gc' vitest run",
+    "test:unit": "npm run test:unit:fast && npm run test:unit:heavy && npm run test:unit:mcp",
+    "test:unit:fast": "vitest run --exclude='**/qe-reasoning-bank.test.ts' --exclude='**/qe-reasoning-bank-feedback-loop.test.ts' --exclude='**/aqe-learning-engine.test.ts' --exclude='**/aqe-learning-engine-patterns.test.ts' tests/unit/adapters tests/unit/shared tests/unit/cli tests/unit/learning tests/unit/kernel tests/unit/workers tests/unit/routing tests/unit/strange-loop tests/unit/sync tests/unit/feedback tests/unit/error-paths tests/unit/early-exit tests/unit/causal-discovery tests/unit/neural-optimizer tests/unit/test-scheduling tests/unit/logging tests/unit/validation tests/unit/memory tests/unit/performance tests/unit/scripts tests/unit/planning",
+    "test:unit:heavy": "vitest run tests/unit/coordination tests/unit/domains tests/unit/integrations tests/unit/optimization tests/unit/init --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/browser-swarm-coordinator.test.ts'",
+    "test:unit:mcp": "vitest run tests/unit/mcp --exclude='**/mcp/handlers/domain-handlers.test.ts' --fileParallelism=false",
+    "test:ci": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts'",
+    "test:e2e": "vitest run tests/integration/browser --testTimeout=120000",
+    "test:safe": "NODE_OPTIONS='--max-old-space-size=768 --expose-gc' vitest run --maxForks=1",
+    "test:dev": "npm run test:unit:fast",
+    "test:all": "npm test -- --run",
+    "test:mcp": "npm run test:unit:mcp",
+    "test:mcp:integration": "npm test -- --run tests/integration/mcp/",
+    "test:integration:fast": "NODE_OPTIONS='--max-old-space-size=2048 --expose-gc' vitest run tests/integration/mcp/fleet-init-wires-daemon.test.ts tests/integration/mcp/mcp-cli-inprocess.test.ts tests/integration/mcp/memory-delete-cache-invalidation.test.ts tests/integration/workers/workers-reach-domains.test.ts tests/integration/learning/coordinator-roundtrip.test.ts tests/integration/bridge/bridge-end-to-end.test.ts",
+    "test:integration": "NODE_OPTIONS='--max-old-space-size=4096 --expose-gc' vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/*.e2e.test.ts'",
+    "mcp:validate": "node scripts/smoke-mcp-protocol.mjs",
+    "mcp:parity": "node scripts/audit-mcp-tool-parity.mjs",
+    "mcp:report": "echo 'MCP Report: uses vitest for test reporting' && exit 0",
+    "test:code-intelligence": "npm test -- --run tests/unit/domains/code-intelligence/ tests/unit/coordination/mincut/",
+    "verify:invariants": "tsx scripts/verify-shipped-invariants.ts",
+    "verify:counts": "node -e \"const fs=require('fs'),g=require('glob'),p=require('path');const src=g.globSync('src/**/*.ts',{ignore:'src/**/*.test.ts'});const tests=g.globSync('tests/**/*.test.ts');const agents=g.globSync('.claude/agents/v3/qe-*.md');const skills=g.globSync('.claude/skills/**/*.md');const ok=src.length>500&&tests.length>300;const r={status:ok?'pass':'fail',srcFiles:src.length,testFiles:tests.length,agents:agents.length,skills:skills.length};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-counts.json'),JSON.stringify(r,null,2));console.log('Counts:',JSON.stringify(r));if(!ok)process.exit(1)\"",
+    "verify:agent-skills": "node -e \"const fs=require('fs'),g=require('glob'),p=require('path');const agents=g.globSync('.claude/agents/v3/qe-*.md');const skills=g.globSync('.claude/skills/**/*.md');const missing=[];for(const a of agents){const name=p.basename(a,'.md');const hasSkill=skills.some(s=>s.includes(name.replace('qe-','')));if(!hasSkill)missing.push(name)}const ok=missing.length<agents.length/2;const r={status:ok?'pass':'fail',agents:agents.length,skills:skills.length,unmatchedAgents:missing.length,missing:missing.slice(0,10)};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-agent-skills.json'),JSON.stringify(r,null,2));console.log('Agent-Skills:',JSON.stringify(r));if(!ok)process.exit(1)\"",
+    "verify:features": "node -e \"const fs=require('fs'),p=require('path');const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));const hasBin=!!pkg.bin&&Object.keys(pkg.bin).length>=2;const hasExports=!!pkg.exports&&Object.keys(pkg.exports).length>=3;const cliBundleExists=fs.existsSync('dist/cli/bundle.js');const mcpBundleExists=fs.existsSync('dist/mcp/bundle.js');const ok=hasBin&&hasExports&&cliBundleExists&&mcpBundleExists;const r={status:ok?'pass':'fail',binCount:Object.keys(pkg.bin||{}).length,exportsCount:Object.keys(pkg.exports||{}).length,cliBundleExists,mcpBundleExists};fs.mkdirSync('reports',{recursive:true});fs.writeFileSync(p.join('reports','verification-features.json'),JSON.stringify(r,null,2));console.log('Features:',JSON.stringify(r));if(!ok)process.exit(1)\"",
+    "test:contracts": "npm test -- --run tests/unit/domains/contract-testing/",
+    "test:infrastructure": "npm test -- --run tests/unit/kernel/ tests/unit/shared/",
+    "test:regression": "npm run test:unit",
+    "test:coverage": "vitest run --coverage --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts'",
+    "test:perf": "vitest bench tests/performance/",
+    "test:journeys": "npm test -- --run tests/integration/",
+    "test:journeys:ci": "vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/integration/mcp/**' --exclude='**/integration/sync/**' --exclude='**/integration/learning/**' --exclude='**/integration/domains/**' --exclude='**/integration/llm/**' --exclude='**/integration/n8n/**' --exclude='**/*.e2e.test.ts'",
+    "test:watch": "vitest",
+    "performance:gate": "npx tsx src/performance/run-gates.ts",
+    "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
+    "benchmark:token-reduction": "vitest bench tests/benchmarks/code-intelligence-token-reduction.bench.ts",
+    "benchmark:self-learning": "tsx scripts/benchmark-self-learning.ts",
+    "benchmark:rabitq": "tsx scripts/benchmark-rabitq.ts",
+    "plugin:smoke": "bash plugins/agentic-qe-fleet/scripts/smoke.sh",
+    "pretrain:history": "tsx scripts/pretrain-from-history.ts",
+    "dev": "node dist/cli/bundle.js",
+    "start": "node dist/cli/bundle.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "clean": "node -e \"const fs=require('fs');try{fs.rmSync('dist',{recursive:true,force:true})}catch{}\"",
+    "sync:agents": "node scripts/sync-agents.cjs",
+    "sync:agents:check": "node scripts/sync-agents-check.cjs",
+    "sync:cloud": "tsx src/cli/index.ts sync",
+    "sync:cloud:full": "tsx src/cli/index.ts sync --full",
+    "sync:cloud:status": "tsx src/cli/index.ts sync status",
+    "sync:cloud:verify": "tsx src/cli/index.ts sync verify",
+    "sync:cloud:init": "tsx src/cli/index.ts sync init --output ./src/sync/schema/cloud-schema.sql",
+    "sync:cloud:config": "tsx src/cli/index.ts sync config --sources",
+    "test:pg:up": "docker compose -f tests/docker-compose.test.yml up -d --wait",
+    "test:pg:down": "docker compose -f tests/docker-compose.test.yml down",
+    "test:integration:pg": "POSTGRES_URL=postgresql://aqe_test:aqe_test@localhost:15432/aqe_test vitest run tests/integration/sync/",
+    "sync:embeddings": "tsx scripts/generate-embeddings.ts --verbose",
+    "sync:embeddings:force": "tsx scripts/generate-embeddings.ts --force --verbose",
+    "sync:embeddings:search": "tsx scripts/generate-embeddings.ts --search",
+    "skills:update-manifest": "npx tsx scripts/update-skill-manifest.ts",
+    "skills:update-badges": "npx tsx scripts/update-skill-manifest.ts --generate-badges",
+    "skills:validate-tier3": "node scripts/validate-tier3.cjs"
+  },
+  "keywords": [
+    "quality-engineering",
+    "testing",
+    "automation",
+    "ai-agents",
+    "distributed-systems",
+    "swarm-intelligence",
+    "typescript-hooks",
+    "native-hooks",
+    "lifecycle-management",
+    "mcp-integration",
+    "agent-coordination",
+    "machine-learning",
+    "reinforcement-learning",
+    "pattern-matching",
+    "flaky-test-detection",
+    "continuous-improvement",
+    "cost-optimization",
+    "test-generation",
+    "coverage-analysis",
+    "ddd",
+    "domain-driven-design"
+  ],
+  "author": "AQE Development Team",
+  "license": "MIT",
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@ruvector/attention": "0.1.3",
+    "@ruvector/gnn": "0.1.25",
+    "@ruvector/learning-wasm": "^0.1.29",
+    "@ruvector/router": "^0.1.28",
+    "@ruvector/rvf-node": "^0.1.7",
+    "@ruvector/sona": "^0.1.7",
+    "axe-core": "^4.11.1",
+    "better-sqlite3": "^12.5.0",
+    "chalk": "^5.6.2",
+    "cli-progress": "^3.12.0",
+    "commander": "^14.0.3",
+    "fast-glob": "^3.3.3",
+    "fast-json-patch": "^3.1.1",
+    "jose": "^6.1.3",
+    "ora": "^9.0.0",
+    "pg": "^8.17.2",
+    "prime-radiant-advanced-wasm": "^0.1.3",
+    "secure-json-parse": "^4.1.0",
+    "uuid": "^14.0.0",
+    "vibium": "^0.1.2",
+    "web-tree-sitter": "~0.26.8",
+    "yaml": "^2.8.2"
+  },
+  "peerDependencies": {
+    "@claude-flow/browser": "3.0.0-alpha.1",
+    "@claude-flow/guidance": "3.0.0-alpha.1"
+  },
+  "peerDependenciesMeta": {
+    "@claude-flow/browser": {
+      "optional": true
+    },
+    "@claude-flow/guidance": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@ruvector/attention-darwin-arm64": "0.1.3",
+    "@ruvector/attention-darwin-x64": "0.1.3",
+    "@ruvector/attention-linux-arm64-gnu": "0.1.3",
+    "@ruvector/attention-linux-arm64-musl": "npm:@ruvector/attention-linux-arm64-gnu@0.1.3",
+    "@ruvector/attention-linux-x64-gnu": "0.1.3",
+    "@ruvector/attention-linux-x64-musl": "npm:@ruvector/attention-linux-x64-gnu@0.1.3",
+    "@ruvector/gnn-darwin-arm64": "0.1.25",
+    "@ruvector/gnn-darwin-x64": "0.1.25",
+    "@ruvector/gnn-linux-arm64-gnu": "0.1.25",
+    "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
+    "@ruvector/gnn-linux-x64-gnu": "0.1.25",
+    "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
+    "@ruvector/tiny-dancer-linux-arm64-gnu": "^0.1.17",
+    "hnswlib-node": "^3.0.0",
+    "rvlite": "^0.2.4"
+  },
+  "resolutions": {
+    "graceful-fs": "^4.2.11",
+    "stack-utils": "^2.0.6",
+    "tar": ">=7.5.7",
+    "protobufjs": "^7.6.3",
+    "@protobufjs/utf8": "^1.1.1",
+    "ws": "^8.21.0"
+  },
+  "overrides": {
+    "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
+    "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
+    "tar": ">=7.5.7",
+    "markdown-it": ">=14.1.1",
+    "protobufjs": "^7.6.3",
+    "@protobufjs/utf8": "^1.1.1",
+    "ws": "^8.21.0",
+    "@opentelemetry/sdk-node": ">=0.217.0",
+    "@opentelemetry/auto-instrumentations-node": ">=0.75.0",
+    "@opentelemetry/exporter-prometheus": ">=0.217.0"
+  },
+  "devDependencies": {
+    "@claude-flow/guidance": "3.0.0-alpha.1",
+    "@faker-js/faker": "^10.2.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^25.8.0",
+    "@types/pg": "^8.16.0",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.59.3",
+    "@typescript-eslint/parser": "^8.59.3",
+    "@vitest/coverage-v8": "^4.0.16",
+    "dotenv": "^17.2.3",
+    "esbuild": "^0.28.0",
+    "eslint": "^8.55.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "glob": "^13.0.0",
+    "msw": "^2.12.7",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/proffesor-for-testing/agentic-qe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
+  },
+  "homepage": "https://github.com/proffesor-for-testing/agentic-qe#readme",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.json",
+    "dist/**/*.node",
+    "assets/**",
+    "scripts/postinstall.cjs",
+    "scripts/preinstall.cjs",
+    "scripts/fetch-content.cjs",
+    "scripts/validate-skill.cjs",
+    "scripts/validator-lib.cjs",
+    "scripts/validate-skill-frontmatter.cjs",
+    "scripts/validate-tier3.cjs",
+    "scripts/validate-sfdipot-assessment.ts",
+    ".claude/agents",
+    ".claude/skills",
+    ".claude/commands",
+    ".claude/helpers",
+    ".claude/hooks",
+    ".opencode/agents",
+    ".opencode/skills",
+    ".opencode/tools",
+    ".opencode/permissions.yaml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

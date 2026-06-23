@@ -60,6 +60,10 @@ export class SessionStore {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
 
+  // Database-free mode (#534): keep session bookkeeping in memory but never
+  // write .agentic-qe/sessions/*.jsonl to disk.
+  private readonly persistDisabled: boolean = process.env.AQE_MEMORY_BACKEND === 'memory';
+
   constructor(sessionDir?: string) {
     this.sessionDir = sessionDir ?? DEFAULT_SESSION_DIR;
   }
@@ -114,6 +118,11 @@ export class SessionStore {
     this.entryCount++;
     this.lastActivityAt = fullEntry.timestamp;
     this.currentState = fullEntry.state;
+
+    // Database-free mode: bookkeeping done above; skip all disk I/O.
+    if (this.persistDisabled) {
+      return uuid;
+    }
 
     const line = JSON.stringify(fullEntry) + '\n';
 

@@ -405,6 +405,22 @@ export AQE_LLM_ROUTER_DISABLED=1   # env-only kill-switch
 
 Or programmatically: `new QEKernelImpl({ llmRouter: { enabled: false } })`.
 
+### Free local models (opt-in) — cheap-first test generation
+
+Run test generation on a **free local model first** (local Ollama, cloud Ollama,
+OpenRouter free models, or any OpenAI-compatible endpoint), with an automatic
+**repair loop**, falling back to your normal LLM path only when needed. Off by
+default — enable with `AQE_FREE_TIER=1`:
+
+```bash
+ollama pull qwen3:8b
+export AQE_FREE_TIER=1            # opt in (default model: qwen3:8b)
+```
+
+Most routine test generation is then handled locally at **$0**. See the
+[Free-Tier Local Models guide](docs/guides/free-tier-local-models.md) for
+provider options and configuration.
+
 ---
 
 ## Documentation
@@ -412,6 +428,7 @@ Or programmatically: `new QEKernelImpl({ llmRouter: { enabled: false } })`.
 | Guide | Description |
 |-------|-------------|
 | [Platform Setup](docs/platform-setup-guide.md) | Per-platform configuration instructions |
+| [Free-Tier Local Models](docs/guides/free-tier-local-models.md) | Cheap-first test generation on local/free models (opt-in) |
 | [Skill Validation](docs/guides/skill-validation.md) | Trust tiers and evaluation system |
 | [Learning System](docs/guides/reasoningbank-learning-system.md) | ReasoningBank pattern learning |
 | [Code Intelligence](docs/guides/fleet-code-intelligence-integration.md) | Knowledge graph and semantic search |

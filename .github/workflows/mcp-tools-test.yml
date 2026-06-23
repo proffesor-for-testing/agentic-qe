@@ -141,6 +141,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
+      # C3: integration tests under tests/integration/mcp drive the BUILT
+      # bundles (dist/cli + dist/mcp). Without this build step they were
+      # silently skipping (describe.skipIf(!BUILT)) — a false green.
+      - run: npm run build
 
       - name: Run MCP integration tests
         run: |
@@ -155,7 +159,9 @@ jobs:
           exit $EXIT
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-        continue-on-error: true
+        # C3: was `continue-on-error: true`, which let real failures pass as
+        # green. Removed so this job is an actual gate. The exit-124 hang
+        # tolerance above still absorbs the known vitest-hang flake.
 
       - name: Generate test report
         uses: dorny/test-reporter@v1

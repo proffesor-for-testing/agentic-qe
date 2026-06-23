@@ -5,6 +5,141 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0] - 2026-06-20
+
+Run test generation on **free local models first**, falling back to paid models
+only when needed. This release adds an opt-in "cheap-first" path: a local model
+(Ollama, OpenRouter free tier, or any OpenAI-compatible endpoint) attempts test
+generation with an automatic repair loop, and only the hard cases escalate up to
+your normal LLM tiers — so most routine generation can run at $0. Every cheap-vs-
+escalated outcome feeds routing feedback, so model selection improves over time.
+
+Off by default; nothing changes unless you opt in. Inspired by the "the harness
+matters as much as the model" economics from Ruv's MetaHarness Darwin Mode.
+
+### Added
+
+- **Free-tier local test generation (opt-in).** Enable with `AQE_FREE_TIER=1`
+  (or `enableFreeTier` in the test-generation coordinator config) to generate
+  tests on a free/local model before any paid LLM call. Default model `qwen3:8b`.
+  See the [Free-Tier Local Models guide](docs/guides/free-tier-local-models.md).
+- **Configurable free-tier providers** — local Ollama, cloud Ollama, OpenRouter
+  free models, or any OpenAI-compatible endpoint (vLLM, LM Studio, Groq, …). API
+  keys are read from named environment variables and never stored.
+- **Repair loop** — when the local model's first output isn't a valid test, the
+  failure is fed back and it retries before falling back (configurable retries).
+- **Automatic escalation** — hard cases the local model + repair can't solve
+  escalate up the existing model ladder (Haiku → Sonnet → Opus) via the router.
+- **Self-learning routing feedback** — free-tier outcomes feed the routing
+  calibrator and escalation tracker, improving model-tier confidence over time.
+- **`agentic-qe/routing/free-tier` package export** for programmatic configuration.
+
+### Fixed
+
+- **Restored `@ruvector/ruvllm-*` optional platform packages** dropped from the
+  lockfile by a Dependabot update, which could break `npm ci` for consumers. (#541)
+- **Multi-file test-generation requests** now correctly fall back to the full
+  generation path so every requested file is covered (the free-tier path handles
+  the single-file case).
+- Security bump of the transitive `hono` dev dependency. (#541)
+
+### Changed
+
+- **Auto-escalation tracker is now ladder-configurable** (generic over tier
+  names) so a free local tier can sit below the paid tiers. Fully backward
+  compatible — existing behavior and the default Claude ladder are unchanged.
+- **QE framework evolved PACT → PACTS** — adds a fifth principle, **Structured**
+  (governance, observability, and explainability of agent behavior; measure
+  *confidence*, not trust), inspired by DORA's research on AI-assisted delivery.
+  Ships with a playbook + readiness-assessment guide. The skill id/dir
+  `holistic-testing-pact` and schema slugs are unchanged (cross-repo stable); the
+  output schema gains an **optional** `structured` dimension (non-breaking).
+  PACT originated with Reuven Cohen (Agentics Foundation); PACTS adds Structured. (#545)
+
+## [3.10.9] - 2026-06-17
+
+MCP server reliability and database-free completeness, all from community-reported
+issues (@nagoodman). The `agentic-qe mcp` command now serves real MCP clients, a
+stale-cache bug that made `memory_delete` look broken is fixed, database-free mode
+now reaches every editor's MCP config, and a new opt-in lets you install for a
+single platform without the Claude Code surface.
+
+### Added
+
+- **`--no-claude` exclusive install mode** — `aqe init --no-claude --with-<platform>`
+  suppresses the default Claude Code surface (`.claude/`, `.mcp.json`, `CLAUDE.md`,
+  governance, hooks) so the `--with-*` flags become the only install targets — e.g.
+  a clean OpenCode-only project. Opt-in; the default install is unchanged. (#532)
+
+### Fixed
+
+- **`agentic-qe mcp` now works with programmatic MCP clients.** The command
+  double-spawned the server with inherited stdio, so a piped-stdin client received
+  EOF right after `initialize` and never got `tools/list`. The server now runs
+  in-process (like the `aqe-mcp` bin), and a failed startup exits non-zero instead
+  of hanging. (#528)
+- **`memory_delete` is no longer masked by a stale cached read.** Delete worked, but
+  the session cache served a stale `memory_retrieve` afterward (the tell-tale
+  identical timestamp), making delete look like a no-op. Mutating tools now
+  invalidate their domain's cached reads. (#535)
+- **Database-free mode reaches every MCP config, not just OpenCode.** `--no-database`
+  now propagates `AQE_MEMORY_BACKEND=memory` to `.mcp.json` (Claude Code), Cursor,
+  Cline, Continue.dev, Kilo Code, Roo Code, Windsurf, Codex, Copilot, and Kiro — so
+  launching the server through any client no longer recreates `.agentic-qe/memory.db`
+  at runtime. The default persistent backend is unchanged. (#533)
+
+### Changed
+
+- **`js-yaml` dev dependency bumped to 4.2.0.** (#540)
+
+
+
+A database-free OpenCode install and a set of MCP stdio client-compatibility
+fixes (community contribution from @nagoodman), plus a dependency-security pass
+that clears two production high-severity advisories.
+
+### Added
+
+- **Database-free install mode** — `aqe init --with-opencode --no-database`
+  (alias `--memory memory`). Produces a fully working OpenCode install that
+  writes nothing under `.agentic-qe/`: every persistence path (memory manager,
+  RVF, code-intelligence hypergraph, fleet kernel, session/result stores) runs
+  in-memory, while the server still boots the same subsystems (fleet,
+  ReasoningBank, workers) so it stays healthy with all 14 domains. Opt-in; the
+  default persistent mode is unchanged. (#530, #534)
+
+### Fixed
+
+- **MCP stdio server is now spec-compliant for strict clients.** Subsystem
+  `console.log` output was leaking onto stdout and corrupting JSON-RPC framing,
+  and `initialize` hardcoded the protocol version — both made strict clients
+  (OpenCode, the official MCP SDK) fail with "Failed to get tools". Console
+  output is now routed to stderr and `protocolVersion` is negotiated. Applies in
+  all modes. (#527)
+- **OpenCode provisioning now ships a loadable format.** Agents and skills are
+  converted at install time to native `.opencode/agent/*.md` and
+  `.opencode/skills/<name>/SKILL.md` with per-agent permission frontmatter. (#529)
+- **protobufjs and ws production CVEs.** Cleared two high-severity advisories
+  flagged by the supply-chain audit gate: protobufjs (GHSA-f38q-mgvj-vph7,
+  GHSA-wcpc-wj8m-hjx6) → 7.6.4 and ws (GHSA-96hv-2xvq-fx4p) → 8.21.0, via
+  overrides that stay within each package's current major.
+
+### Changed
+
+- **OpenCode installs no longer copy non-loadable `.opencode/tools/*.ts`
+  wrappers.** They were never loadable by OpenCode's `tool()` API and are
+  redundant with the MCP server, which exposes the same tools. (#531)
+- Bumped `vite` 8.0.9 → 8.0.16 (dev dependency). (supersedes #536)
+
+### Known follow-ups
+
+- #528 — make `agentic-qe mcp` run in-process (currently mitigated by invoking
+  the `aqe-mcp` bin directly).
+- #532 — platform installs are additive, not exclusive.
+- #533 — propagate `AQE_MEMORY_BACKEND=memory` to all generated MCP client
+  configs, not just `opencode.json`.
+- #535 — pre-existing MCP tool bugs surfaced during smoke testing.
+
 ## [3.10.7] - 2026-06-12
 
 A learning-integrity and supply-chain release. Two independent bugs were

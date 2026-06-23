@@ -21,6 +21,11 @@ import {
 export interface CopilotInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /**
+   * Memory backend for this install. 'memory' => database-free: the MCP config
+   * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
+   */
+  memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
 
 export interface CopilotInstallResult {
@@ -39,11 +44,13 @@ export interface CopilotInstallResult {
 export class CopilotInstaller {
   private projectRoot: string;
   private overwrite: boolean;
+  private options: CopilotInstallerOptions;
   private generator: PlatformConfigGenerator;
 
   constructor(options: CopilotInstallerOptions) {
     this.projectRoot = options.projectRoot;
     this.overwrite = options.overwrite ?? false;
+    this.options = options;
     this.generator = createPlatformConfigGenerator();
   }
 
@@ -59,7 +66,7 @@ export class CopilotInstaller {
 
     try {
       // Generate MCP config
-      const mcpConfig = this.generator.generateMcpConfig('copilot');
+      const mcpConfig = this.generator.generateMcpConfig('copilot', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 

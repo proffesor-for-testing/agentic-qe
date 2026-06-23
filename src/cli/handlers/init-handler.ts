@@ -44,7 +44,8 @@ export class InitHandler implements ICommandHandler {
       .description(this.description)
       .option('-d, --domains <domains>', 'Comma-separated list of domains to enable', 'all')
       .option('-m, --max-agents <number>', 'Maximum concurrent agents', '15')
-      .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid)', 'hybrid')
+      .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid|memory). "memory" = database-free, in-memory only.', 'hybrid')
+      .option('--no-database', 'Database-free install: alias for `--memory memory`. Skips the SQLite database phase and runs any MCP server in-memory — nothing is written to .agentic-qe/.')
       .option('--lazy', 'Enable lazy loading of domains')
       .option('--wizard', 'Run interactive setup wizard')
       .option('--auto', 'Auto-configure based on project analysis')
@@ -71,6 +72,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
       .option('--skip-claude-flow', 'Skip Claude Flow integration')
       .option('--no-governance', 'Skip governance configuration (ADR-058)')
+      .option('--no-claude', 'Suppress the default Claude Code surface (.claude/, .mcp.json, CLAUDE.md, governance, hooks) so --with-<platform> flags are the only install targets (#532)')
       .option('--modular', 'Use new modular init system (default for --auto)')
       .action(async (options) => {
         await this.execute(options, context);
@@ -125,6 +127,31 @@ export class InitHandler implements ICommandHandler {
         return;
       }
 
+      // Platform provisioning (--with-opencode, --with-n8n, --with-<editor>, ...)
+      // and database-free mode (--no-database / --memory memory) are implemented
+      // ONLY in the modular orchestrator. The legacy runStandardInit path neither
+      // installs platform assets nor honors the in-memory backend (it boots the
+      // full kernel and writes .agentic-qe/memory.db). Route to modular so these
+      // flags actually take effect even without --auto.
+      const platformRequested = !!(
+        options.withOpencode || options.withN8n || options.withKiro ||
+        options.withCopilot || options.withCursor || options.withCline ||
+        options.withKilocode || options.withRoocode || options.withCodex ||
+        options.withWindsurf || options.withContinuedev || options.withAllPlatforms
+      );
+      const databaseFree = options.database === false || options.memory === 'memory';
+      // #532: `--no-claude` (commander negatable → options.claude === false) is
+      // only honored by the modular orchestrator. Route there too, or the flag
+      // silently falls through to runStandardInit and installs the full Claude
+      // surface it was meant to suppress.
+      const noClaudeRequested = options.claude === false;
+
+      if (options.modular || platformRequested || databaseFree || noClaudeRequested) {
+        console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
+        await this.runModularInit(options, context);
+        return;
+      }
+
       // Standard init without wizard
       await this.runStandardInit(options, context);
     } catch (error) {
@@ -135,6 +162,34 @@ export class InitHandler implements ICommandHandler {
 
   private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
     const isJsonMode = options.json === true;
+
+    // Database-free mode: `--no-database` or `--memory memory`. Skips the SQLite
+    // database phase and configures any MCP server to run in-memory. Export the
+    // backend env up-front so every subsystem spawned during init honors it.
+    const memoryOnly = options.database === false || options.memory === 'memory';
+    if (memoryOnly) {
+      process.env.AQE_MEMORY_BACKEND = 'memory';
+      if (!isJsonMode) {
+        console.log(chalk.gray('  Database-free mode: in-memory backend (no .agentic-qe/memory.db)\n'));
+      }
+    }
+
+    // #532: `--no-claude` suppresses the default Claude Code surface so the
+    // `--with-<platform>` flags become the only targets. Commander maps the
+    // negatable flag to `options.claude === false`. Warn if it would produce an
+    // empty install (no platform selected) so the user isn't surprised.
+    const noClaude = options.claude === false;
+    if (noClaude) {
+      const anyPlatform = Boolean(
+        options.withOpencode || options.withN8n || options.withKiro ||
+        options.withCopilot || options.withCursor || options.withCline ||
+        options.withKilocode || options.withRoocode || options.withCodex ||
+        options.withWindsurf || options.withContinuedev || options.withAllPlatforms,
+      );
+      if (!anyPlatform && !isJsonMode) {
+        console.log(chalk.yellow('  --no-claude set without any --with-<platform>: this install will write almost nothing.\n'));
+      }
+    }
 
     const { createModularInitOrchestrator } = await import('../../init/orchestrator.js');
     const orchestrator = createModularInitOrchestrator({
@@ -157,6 +212,8 @@ export class InitHandler implements ICommandHandler {
       withContinueDev: options.withContinuedev,
       noMcp: options.noMcp && !options.withMcp,
       noGovernance: options.noGovernance,
+      noClaude,
+      memoryBackend: memoryOnly ? 'memory' : undefined,
     });
 
     console.log(chalk.white('  Analyzing project...\n'));
@@ -557,6 +614,8 @@ interface InitOptions {
   domains: string;
   maxAgents: string;
   memory: string;
+  /** commander negatable flag: `--no-database` sets this to false. */
+  database?: boolean;
   lazy?: boolean;
   wizard?: boolean;
   auto?: boolean;
@@ -582,6 +641,8 @@ interface InitOptions {
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
   noGovernance?: boolean;
+  /** commander negatable flag: `--no-claude` sets this to false (#532). */
+  claude?: boolean;
   modular?: boolean;
 }
 
