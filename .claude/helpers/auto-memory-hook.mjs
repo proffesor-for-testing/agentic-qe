@@ -31,6 +31,27 @@ const log = (msg) => console.log(`${CYAN}[AutoMemory] ${msg}${RESET}`);
 const success = (msg) => console.log(`${GREEN}[AutoMemory] ✓ ${msg}${RESET}`);
 const dim = (msg) => console.log(`  ${DIM}${msg}${RESET}`);
 
+const DEBUG = !!(process.env.RUFLO_DEBUG || process.env.DEBUG);
+
+// ── Graceful shutdown (FIX 3) ───────────────────────────────────────────────
+// Track the backend in use so a SIGTERM/SIGINT mid-run can still flush it
+// (the JSON backend persists; a SQLite-backed one closes/flushes WAL) instead
+// of leaving a half-written store or a stale lock behind.
+let activeBackend = null;
+let shuttingDown = false;
+function trackBackend(b) { activeBackend = b; return b; }
+async function gracefulExit(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (DEBUG) process.stderr.write(`[AutoMemory] received ${signal}, flushing backend before exit\n`);
+  try {
+    if (activeBackend && typeof activeBackend.shutdown === 'function') await activeBackend.shutdown();
+  } catch { /* best effort — never block exit on cleanup */ }
+  process.exit(0);
+}
+process.on('SIGTERM', () => { gracefulExit('SIGTERM'); });
+process.on('SIGINT', () => { gracefulExit('SIGINT'); });
+
 // Ensure data dir
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
@@ -219,7 +240,7 @@ async function doImport() {
   }
 
   const config = readConfig();
-  const backend = new JsonFileBackend(STORE_PATH);
+  const backend = trackBackend(new JsonFileBackend(STORE_PATH));
   await backend.initialize();
 
   const bridgeConfig = {
@@ -272,7 +293,7 @@ async function doSync() {
   }
 
   const config = readConfig();
-  const backend = new JsonFileBackend(STORE_PATH);
+  const backend = trackBackend(new JsonFileBackend(STORE_PATH));
   await backend.initialize();
 
   const entryCount = await backend.count();
@@ -348,6 +369,18 @@ async function doStatus() {
 
 const command = process.argv[2] || 'status';
 
+// Dynamic import() failures can surface as unhandled rejections on a later
+// microtask even when the awaiting call site already caught them, which would
+// otherwise force a non-zero exit. Swallow to keep hooks exit-0, but surface the
+// reason under RUFLO_DEBUG/DEBUG so genuine async bugs aren't silently hidden
+// (FIX 2 — the previous `() => {}` discarded every rejection process-wide).
+process.on('unhandledRejection', (reason) => {
+  if (DEBUG) {
+    const detail = reason && reason.message ? reason.message : String(reason);
+    process.stderr.write(`[AutoMemory] unhandledRejection (suppressed): ${detail}\n`);
+  }
+});
+
 try {
   switch (command) {
     case 'import': await doImport(); break;
@@ -361,5 +394,5 @@ try {
   // Hooks must never crash Claude Code - fail silently
   try { dim(`Error (non-critical): ${err.message}`); } catch (_) {}
 }
-// Hooks must ALWAYS exit 0
-process.exitCode = 0;
+// Force clean exit — process.exitCode alone isn't enough if async errors override it
+process.exit(0);

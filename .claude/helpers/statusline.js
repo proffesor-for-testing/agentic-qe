@@ -1,14 +1,45 @@
 #!/usr/bin/env node
 /**
- * Claude Flow V3 Statusline Generator
- * Displays real-time V3 implementation progress and system status
+ * RuFlo Statusline Generator
+ * Displays real-time V3 implementation progress and system status.
+ * Version is read from the installed @claude-flow/cli package.json at
+ * runtime — #1892 fix: previously hardcoded to V3.5 which drifted from
+ * the actual installed alpha series.
  *
  * Usage: node statusline.js [--json] [--compact]
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
+
+// #1892 — derive RuFlo banner version from the installed cli package.json
+// so the statusline never drifts from `ruflo doctor`. Falls back to a
+// generic "RuFlo" label only if every resolution path fails.
+function resolveBannerVersion() {
+  const candidates = [
+    // Local-checkout / monorepo case
+    path.join(__dirname, '..', '..', 'package.json'),
+    // npm-installed-as-dep case
+    path.join(__dirname, '..', '..', '..', '@claude-flow', 'cli', 'package.json'),
+    // npm-installed-globally case
+    path.join(__dirname, '..', '..', '..', 'cli', 'package.json'),
+  ];
+  for (const p of candidates) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      if (pkg.name && pkg.name.includes('claude-flow') && typeof pkg.version === 'string') {
+        // Render as "V<major>.<minor>" so the banner stays compact —
+        // patch+pre-release detail still shows under `doctor`.
+        const m = pkg.version.match(/^(\d+)\.(\d+)/);
+        if (m) return `V${m[1]}.${m[2]}`;
+        return `V${pkg.version}`;
+      }
+    } catch {/* try next */}
+  }
+  return ''; // empty → header just says "RuFlo"
+}
+const BANNER_VERSION = resolveBannerVersion();
 
 // Configuration
 const CONFIG = {
@@ -47,14 +78,19 @@ const c = {
 function getUserInfo() {
   let name = 'user';
   let gitBranch = '';
-  let modelName = 'Opus 4.5';
+  let modelName = 'Opus 4.6 (1M context)';
 
+  // audit_1776853149979: previously used execSync with a shell string for git
+  // commands. Switched to execFileSync('git', argv) so there is no shell
+  // interpretation — eliminates the *class* of injection regardless of whether
+  // user input ever reaches these args (defense in depth). Errors are caught
+  // and the defaults above remain.
   try {
-    name = execSync('git config user.name 2>/dev/null || echo "user"', { encoding: 'utf-8' }).trim();
-    gitBranch = execSync('git branch --show-current 2>/dev/null || echo ""', { encoding: 'utf-8' }).trim();
-  } catch (e) {
-    // Ignore errors
-  }
+    name = execFileSync('git', ['config', 'user.name'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || 'user';
+  } catch { /* not in a repo / no name set — keep default */ }
+  try {
+    gitBranch = execFileSync('git', ['branch', '--show-current'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch { /* not in a repo — keep empty */ }
 
   return { name, gitBranch, modelName };
 }
@@ -241,8 +277,8 @@ function generateStatusline() {
   const system = getSystemMetrics();
   const lines = [];
 
-  // Header Line
-  let header = `${c.bold}${c.brightPurple}▊ Claude Flow V3 ${c.reset}`;
+  // Header Line — #1892: BANNER_VERSION resolved at module load from package.json
+  let header = `${c.bold}${c.brightPurple}▊ RuFlo${BANNER_VERSION ? ' ' + BANNER_VERSION : ''} ${c.reset}`;
   header += `${swarm.coordinationActive ? c.brightCyan : c.dim}● ${c.brightCyan}${user.name}${c.reset}`;
   if (user.gitBranch) {
     header += `  ${c.dim}│${c.reset}  ${c.brightBlue}⎇ ${user.gitBranch}${c.reset}`;

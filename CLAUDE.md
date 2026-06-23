@@ -151,6 +151,50 @@ npm run lint
 - Never use CLI tools alone for execution — Task tool agents do the actual work
 - MUST call CLI tools AND Task tool in ONE message for complex work
 
+## Agent Comms (SendMessage-First Coordination)
+
+Named agents coordinate via `SendMessage`, not polling or shared state.
+
+```
+Lead (you) ←→ architect ←→ developer ←→ tester ←→ reviewer
+              (named agents message each other directly)
+```
+
+### Spawning a Coordinated Team
+
+```javascript
+// ALL agents in ONE message, each knows WHO to message next
+Agent({ prompt: "Research the codebase. SendMessage findings to 'architect'.",
+  subagent_type: "researcher", name: "researcher", run_in_background: true })
+Agent({ prompt: "Wait for 'researcher'. Design solution. SendMessage to 'coder'.",
+  subagent_type: "system-architect", name: "architect", run_in_background: true })
+Agent({ prompt: "Wait for 'architect'. Implement it. SendMessage to 'tester'.",
+  subagent_type: "coder", name: "coder", run_in_background: true })
+Agent({ prompt: "Wait for 'coder'. Write tests. SendMessage results to 'reviewer'.",
+  subagent_type: "tester", name: "tester", run_in_background: true })
+Agent({ prompt: "Wait for 'tester'. Review code quality and security.",
+  subagent_type: "reviewer", name: "reviewer", run_in_background: true })
+
+// Kick off the pipeline
+SendMessage({ to: "researcher", summary: "Start", message: "[task context]" })
+```
+
+### Patterns
+
+| Pattern | Flow | Use When |
+|---------|------|----------|
+| **Pipeline** | A → B → C → D | Sequential dependencies (feature dev) |
+| **Fan-out** | Lead → A, B, C → Lead | Independent parallel work (research) |
+| **Supervisor** | Lead ↔ workers | Ongoing coordination (complex refactor) |
+
+### Rules
+
+- ALWAYS name agents — `name: "role"` makes them addressable
+- ALWAYS include comms instructions in prompts — who to message, what to send
+- Spawn ALL agents in ONE message with `run_in_background: true`
+- After spawning: STOP, tell user what's running, wait for results
+- NEVER poll status — agents message back or complete automatically
+
 ### 3-Tier Model Routing (ADR-026)
 
 | Tier | Handler | Latency | Cost | Use Cases |
@@ -225,6 +269,22 @@ aqe health
 ### SPARC Methodology
 `sparc-coord`, `sparc-coder`, `specification`, `pseudocode`, `architecture`
 
+Any string works as a custom agent type.
+
+## MCP Tools (Coordination)
+
+Use `ToolSearch("keyword")` to discover and load schemas before calling.
+
+| Category | Key Tools |
+|----------|-----------|
+| **Memory** | `memory_store`, `memory_search`, `memory_search_unified` |
+| **Bridge** | `memory_import_claude`, `memory_bridge_status` |
+| **Swarm** | `swarm_init`, `swarm_status`, `swarm_health` |
+| **Agents** | `agent_spawn`, `agent_list`, `agent_status` |
+| **Hooks** | `hooks_route`, `hooks_post-task`, `hooks_worker-dispatch` |
+| **Security** | `aidefence_scan`, `aidefence_is_safe`, `aidefence_has_pii` |
+| **Hive-Mind** | `hive-mind_init`, `hive-mind_consensus`, `hive-mind_spawn` |
+
 ## Memory Commands Reference
 
 ```bash
@@ -249,6 +309,11 @@ claude mcp add ruflo -- ruflo mcp start
 npx ruflo daemon start
 aqe health
 ```
+
+> The background `daemon` is optional. It runs interval workers that each spawn
+> a headless `claude` session, so it consumes tokens continuously. Start it only
+> if you want those sweeps: `npx ruflo daemon start` (self-stops after 12h by
+> default; `--ttl 0` to disable, `daemon status --all` to audit running daemons).
 
 ## Claude Code vs CLI Tools
 
