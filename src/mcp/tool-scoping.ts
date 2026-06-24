@@ -21,13 +21,31 @@ export type AgentRole =
  * Tool scope definition for an agent role
  */
 export interface ToolScope {
-  /** Tools the agent can use (if empty/undefined, uses allowAll) */
+  /**
+   * Tools the agent can use. DEFAULT-DENY: if this is empty/undefined and
+   * `allowAll` is not set, the role is denied EVERY tool (`isToolAllowed`
+   * falls through to `return false`). It does NOT grant allowAll.
+   */
   allowed?: string[];
   /** Tools explicitly denied (overrides allowed) */
   denied?: string[];
-  /** Allow all tools (default for fleet-admin and unrestricted) */
+  /** Allow all tools — admin tiers only (fleet-admin, unrestricted). */
   allowAll?: boolean;
 }
+
+/** Every agent role, in declaration order — for governance/policy iteration. */
+export const ALL_AGENT_ROLES: AgentRole[] = [
+  'test-generator',
+  'coverage-analyzer',
+  'security-scanner',
+  'quality-assessor',
+  'defect-predictor',
+  'contract-validator',
+  'accessibility-tester',
+  'chaos-engineer',
+  'fleet-admin',
+  'unrestricted',
+];
 
 /**
  * Default tool scopes per agent role

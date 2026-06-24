@@ -99,6 +99,7 @@
     "start": "node dist/cli/bundle.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
+    "security:mcp-policy": "node scripts/mcp-policy-gate.mjs",
     "clean": "node -e \"const fs=require('fs');try{fs.rmSync('dist',{recursive:true,force:true})}catch{}\"",
     "sync:agents": "node scripts/sync-agents.cjs",
     "sync:agents:check": "node scripts/sync-agents-check.cjs",
