@@ -32,7 +32,9 @@ const MAX_MUTANTS = Number(process.env.D3_MUTANTS ?? 15);
 const REPAIRS = Number(process.env.D3_REPAIRS ?? 1);
 const OLLAMA = process.env.OLLAMA_HOST || 'http://host.docker.internal:11434';
 const LOCAL_MODEL = process.env.D3_LOCAL_MODEL || 'qwen3:30b-a3b';
-const JUDGE_MODEL = process.env.D3_JUDGE_MODEL || 'deepseek/deepseek-v4-flash';
+// One or more judges (comma-list) — compares whether a STRONGER judge helps.
+const JUDGE_MODELS = (process.env.D3_JUDGE_MODELS || 'deepseek/deepseek-v4-flash,deepseek/deepseek-v3.2')
+  .split(',').map((s) => s.trim()).filter(Boolean);
 
 const CORPUS = (process.env.D3_FIXTURES
   ? process.env.D3_FIXTURES.split(',').map((s) => s.trim()).filter(Boolean)
@@ -114,19 +116,20 @@ async function genCandidate(fx, seed, variant) {
   return { code: '', valid: false, composite: 0, killRate: 0 };
 }
 
-// The JUDGE — separate cheap model, BLIND to scores, picks the best candidate.
-async function judge(fx, candidates) {
+// The JUDGE — separate model, BLIND to scores, picks the best candidate.
+// FULL candidate code (no truncation confound; cap 8000 covers ~120-line suites).
+async function judge(model, fx, candidates) {
   let body = `Module under test:\n\`\`\`js\n${fx.src}\n\`\`\`\n\n`;
-  candidates.forEach((c, i) => { body += `Candidate ${i + 1}:\n\`\`\`js\n${c.code.slice(0, 2500)}\n\`\`\`\n\n`; });
+  candidates.forEach((c, i) => { body += `Candidate ${i + 1}:\n\`\`\`js\n${c.code.slice(0, 8000)}\n\`\`\`\n\n`; });
   body += `Which candidate is the BEST test suite — most thorough branch coverage, correct assertions, catches the most subtle bugs (wrong operator, off-by-one, swapped branch, boundary)? Reply with ONLY the candidate number (1-${candidates.length}).`;
-  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 45000);
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), 60000);
   try {
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', { method: 'POST',
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + process.env.OPENROUTER_API_KEY },
-      body: JSON.stringify({ model: JUDGE_MODEL, max_tokens: 200, temperature: 0,
+      body: JSON.stringify({ model, max_tokens: 2000, temperature: 0,
         messages: [{ role: 'system', content: 'You are a strict test-suite quality judge. Reply with ONLY a candidate number, no prose.' }, { role: 'user', content: body }] }), signal: ac.signal });
     const txt = (await r.json()).choices?.[0]?.message?.content ?? '';
-    const m = /\d+/.exec(txt);
+    const m = [...txt.matchAll(/\d+/g)].pop(); // last number (reasoning models may emit several)
     const idx = m ? Number(m[0]) - 1 : -1;
     return idx >= 0 && idx < candidates.length ? idx : 0; // default to first on parse-fail
   } catch { return 0; } finally { clearTimeout(t); }
@@ -135,10 +138,10 @@ async function judge(fx, candidates) {
 const mean = (xs) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
 const fmt = (x) => (x * 100).toFixed(1);
 
-console.log(`A11 JUDGE precision validation — writer=${LOCAL_MODEL} | judge=${JUDGE_MODEL} (OpenRouter)`);
+console.log(`A11 JUDGE precision validation — writer=${LOCAL_MODEL} | judges=${JUDGE_MODELS.join(', ')} (OpenRouter, full code)`);
 console.log(`corpus=${CORPUS.length} × ${N_PER} instances, k=${K}, repairs=${REPAIRS}\n`);
 
-const rows = []; // per judged instance
+const rows = []; // per judged instance (judgePicks keyed by judge model)
 let nInstances = 0, nJudged = 0;
 for (const fx of CORPUS) {
   for (let i = 0; i < N_PER; i++) {
@@ -153,40 +156,41 @@ for (const fx of CORPUS) {
 
     const best = Math.max(...valid.map((c) => c.composite));
     const worst = Math.min(...valid.map((c) => c.composite));
+    const firstValid = valid[0].composite;            // current executor behavior
+    const avg = mean(valid.map((c) => c.composite));   // random-pick expectation
     process.stdout.write(' judge');
-    const jIdx = await judge(fx, valid);
-    const judgePick = valid[jIdx]?.composite ?? valid[0].composite;
-    const firstValid = valid[0].composite;                 // current executor behavior
-    const avg = mean(valid.map((c) => c.composite));        // random-pick expectation
-    rows.push({ fixture: fx.name, nValid: valid.length, best, worst, judgePick, firstValid, avg, judgeIsBest: Math.abs(judgePick - best) < 1e-6, spread: best - worst });
-    console.log(` => best=${fmt(best)} judge=${fmt(judgePick)} firstValid=${fmt(firstValid)} ${Math.abs(judgePick - best) < 1e-6 ? '✓BEST' : ''}`);
+    const judgePicks = {};
+    for (const model of JUDGE_MODELS) { const jIdx = await judge(model, fx, valid); judgePicks[model] = valid[jIdx]?.composite ?? valid[0].composite; }
+    rows.push({ fixture: fx.name, nValid: valid.length, best, worst, firstValid, avg, judgePicks, spread: best - worst });
+    const picks = JUDGE_MODELS.map((m) => `${m.split('/').pop()}=${fmt(judgePicks[m])}${Math.abs(judgePicks[m] - best) < 1e-6 ? '✓' : ''}`).join(' ');
+    console.log(` => best=${fmt(best)} firstValid=${fmt(firstValid)} | ${picks}`);
   }
 }
 
 // --- precision verdict (ADR-183 discipline) ---
 console.log('\n=== A11 JUDGE VERDICT ===');
-console.log(`instances: ${nInstances} | judged (≥2 valid): ${nJudged} | discriminating (best>worst): ${rows.filter((r) => r.spread > 1e-6).length}`);
+const disc = rows.filter((r) => r.spread > 1e-6); // where the choice actually matters
+console.log(`instances: ${nInstances} | judged (≥2 valid): ${nJudged} | discriminating (best>worst): ${disc.length}`);
 if (rows.length) {
-  const acc = mean(rows.map((r) => (r.judgeIsBest ? 1 : 0)));
-  const disc = rows.filter((r) => r.spread > 1e-6); // where the choice actually matters
-  const accDisc = disc.length ? mean(disc.map((r) => (r.judgeIsBest ? 1 : 0))) : 0;
-  const judgeRegret = mean(rows.map((r) => r.best - r.judgePick));
   const firstRegret = mean(rows.map((r) => r.best - r.firstValid));
   const randRegret = mean(rows.map((r) => r.best - r.avg));
-  console.log(`judge picks the BEST: ${fmt(acc)}% overall | ${fmt(accDisc)}% on discriminating instances (Ruv's bar ≈ 88%)`);
-  console.log(`mean composite REGRET vs oracle:  judge=${fmt(judgeRegret)}  first-valid=${fmt(firstRegret)}  random=${fmt(randRegret)}`);
-  // Honest 3-way verdict: a regret gap within ~1 composite pt at small N is NOISE,
-  // not a refutation — report INCONCLUSIVE rather than overclaiming either way.
-  const gap = firstRegret - judgeRegret; // >0 ⇒ judge better
-  const MEANINGFUL = 1.0; // composite pts
-  const verdict = disc.length < 5 ? `INCONCLUSIVE (only ${disc.length} discriminating instances — candidates cluster; need n≥~20)`
-    : Math.abs(gap) < MEANINGFUL ? `INCONCLUSIVE — judge vs first-valid within noise (|Δregret|=${fmt(Math.abs(gap))} pts, <${MEANINGFUL}); no benefit measured → keep first-valid`
-    : (gap > 0 ? `JUDGE WINS — lower regret than first-valid by ${fmt(gap)} pts → wire it as the best-of-k selector`
-      : `JUDGE LOSES to first-valid by ${fmt(-gap)} pts → keep first-valid; do NOT trust the judge (ADR-183)`);
-  console.log(`\nVERDICT: ${verdict}`);
+  console.log(`baselines — first-valid regret=${fmt(firstRegret)}  random regret=${fmt(randRegret)}  (oracle=0)`);
+  console.log(`Ruv's judge bar ≈ 88% best-pick on discriminating instances.\n`);
+  const perJudge = {};
+  for (const model of JUDGE_MODELS) {
+    const accDisc = disc.length ? mean(disc.map((r) => (Math.abs(r.judgePicks[model] - r.best) < 1e-6 ? 1 : 0))) : 0;
+    const judgeRegret = mean(rows.map((r) => r.best - r.judgePicks[model]));
+    const gap = firstRegret - judgeRegret; // >0 ⇒ judge better
+    const MEANINGFUL = 1.0;
+    const v = disc.length < 5 ? `INCONCLUSIVE (only ${disc.length} discriminating — candidates cluster)`
+      : Math.abs(gap) < MEANINGFUL ? `INCONCLUSIVE — within noise of first-valid (|Δregret|=${fmt(Math.abs(gap))})`
+      : (gap > 0 ? `WINS first-valid by ${fmt(gap)} → wire it` : `LOSES to first-valid by ${fmt(-gap)} → keep first-valid`);
+    perJudge[model] = { accDisc, judgeRegret, gap, verdict: v };
+    console.log(`  ${model.padEnd(28)} best-pick(disc)=${fmt(accDisc)}%  regret=${fmt(judgeRegret)}  → ${v}`);
+  }
   const out = path.join(os.tmpdir(), 'd3-judge-result.json');
-  fs.writeFileSync(out, JSON.stringify({ config: { N_PER, K, REPAIRS, LOCAL_MODEL, JUDGE_MODEL, corpus: CORPUS.map((f) => f.moduleName) }, nInstances, nJudged, acc, accDisc, judgeRegret, firstRegret, randRegret, verdict, rows }, null, 2));
-  console.log(`artifact: ${out}`);
+  fs.writeFileSync(out, JSON.stringify({ config: { N_PER, K, REPAIRS, LOCAL_MODEL, JUDGE_MODELS, corpus: CORPUS.map((f) => f.moduleName) }, nInstances, nJudged, nDiscriminating: disc.length, firstRegret, randRegret, perJudge, rows }, null, 2));
+  console.log(`\nartifact: ${out}`);
 } else {
   console.log('No judged instances (need ≥2 valid candidates per instance).');
 }
