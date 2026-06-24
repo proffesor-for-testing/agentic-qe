@@ -175,10 +175,14 @@ if (rows.length) {
   const randRegret = mean(rows.map((r) => r.best - r.avg));
   console.log(`judge picks the BEST: ${fmt(acc)}% overall | ${fmt(accDisc)}% on discriminating instances (Ruv's bar ≈ 88%)`);
   console.log(`mean composite REGRET vs oracle:  judge=${fmt(judgeRegret)}  first-valid=${fmt(firstRegret)}  random=${fmt(randRegret)}`);
-  const better = judgeRegret < firstRegret - 1e-9;
-  const verdict = disc.length === 0 ? 'INCONCLUSIVE (no discriminating instances — candidates tied)'
-    : (better ? `JUDGE WINS — lower regret than first-valid by ${fmt(firstRegret - judgeRegret)} pts → wire it as the best-of-k selector`
-      : 'JUDGE DOES NOT BEAT first-valid → keep first-valid; do NOT trust the judge (ADR-183: hallucination filter)');
+  // Honest 3-way verdict: a regret gap within ~1 composite pt at small N is NOISE,
+  // not a refutation — report INCONCLUSIVE rather than overclaiming either way.
+  const gap = firstRegret - judgeRegret; // >0 ⇒ judge better
+  const MEANINGFUL = 1.0; // composite pts
+  const verdict = disc.length < 5 ? `INCONCLUSIVE (only ${disc.length} discriminating instances — candidates cluster; need n≥~20)`
+    : Math.abs(gap) < MEANINGFUL ? `INCONCLUSIVE — judge vs first-valid within noise (|Δregret|=${fmt(Math.abs(gap))} pts, <${MEANINGFUL}); no benefit measured → keep first-valid`
+    : (gap > 0 ? `JUDGE WINS — lower regret than first-valid by ${fmt(gap)} pts → wire it as the best-of-k selector`
+      : `JUDGE LOSES to first-valid by ${fmt(-gap)} pts → keep first-valid; do NOT trust the judge (ADR-183)`);
   console.log(`\nVERDICT: ${verdict}`);
   const out = path.join(os.tmpdir(), 'd3-judge-result.json');
   fs.writeFileSync(out, JSON.stringify({ config: { N_PER, K, REPAIRS, LOCAL_MODEL, JUDGE_MODEL, corpus: CORPUS.map((f) => f.moduleName) }, nInstances, nJudged, acc, accDisc, judgeRegret, firstRegret, randRegret, verdict, rows }, null, 2));
