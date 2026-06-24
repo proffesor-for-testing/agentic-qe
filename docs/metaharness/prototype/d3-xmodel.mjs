@@ -165,22 +165,32 @@ const judged = rows.filter((r) => r.nJudged);
 const disc = judged.filter((r) => r.spread > 1e-6);
 console.log(`instances: ${nInstances} | with ≥1 valid: ${rows.length} | judged (≥2 valid): ${judged.length} | discriminating: ${disc.length}`);
 if (rows.length) {
-  const meanUnionLift = mean(rows.map((r) => r.unionLift));
-  const instWithLift = rows.filter((r) => r.unionLift > 1e-6).length;
-  console.log(`\nUNION (does cross-model raise the best vs the best single model?):`);
-  console.log(`  mean cross-model best=${fmt(mean(rows.map((r) => r.bestXModel)))}  vs best-single-model=${fmt(mean(rows.map((r) => r.bestSingleModel)))}  → mean lift=${fmt(meanUnionLift)} (raised on ${instWithLift}/${rows.length} instances)`);
-  console.log(`  win share (best candidate came from):  ${GEN_MODELS.map((m) => `${shortModel(m)}=${winShare[m]}`).join('  ')}`);
-  console.log(`  per-model mean best:  ${GEN_MODELS.map((m) => `${shortModel(m)}=${fmt(mean(rows.map((r) => r.bestByModel[m] ?? 0)))}`).join('  ')}`);
+  // UNION lift vs each SINGLE model alone (null best -> 0; a model that produced
+  // no valid output "delivers" 0 for that instance — captures validity rescue).
+  // NOTE: lift vs max(single models) is tautologically 0 — compare vs each model.
+  const single = (r, m) => r.bestByModel[m] ?? 0;
+  console.log(`\nUNION CEILING — cross-model best vs a SINGLE model alone:`);
+  console.log(`  cross-model best (mean)=${fmt(mean(rows.map((r) => r.bestXModel)))}`);
+  for (const m of GEN_MODELS) {
+    const lift = mean(rows.map((r) => r.bestXModel - single(r, m)));
+    const raised = rows.filter((r) => r.bestXModel - single(r, m) > 1e-6).length;
+    const fails = rows.filter((r) => r.bestByModel[m] == null).length;
+    console.log(`  vs ${shortModel(m).padEnd(12)} alone=${fmt(mean(rows.map((r) => single(r, m))))}  → cross-model lift=+${fmt(lift)} (raised ${raised}/${rows.length}; ${shortModel(m)} 0-valid on ${fails})`);
+  }
+  console.log(`  win share (best came from):  ${GEN_MODELS.map((m) => `${shortModel(m)}=${winShare[m]}`).join('  ')}`);
   if (judged.length) {
     const accDisc = disc.length ? mean(disc.map((r) => (Math.abs(r.judgePick - r.bestXModel) < 1e-6 ? 1 : 0))) : 0;
-    const judgeRegret = mean(judged.map((r) => r.bestXModel - r.judgePick));
-    const firstRegret = mean(judged.map((r) => r.bestXModel - r.firstValid));
-    const gap = firstRegret - judgeRegret;
-    console.log(`\nJUDGE on the wider cross-model pool (deepseek-v3.2):`);
-    console.log(`  best-pick(disc)=${fmt(accDisc)}%  judge regret=${fmt(judgeRegret)}  vs first-valid regret=${fmt(firstRegret)}  → Δ=${fmt(gap)}`);
-    console.log(`  ${disc.length < 5 ? 'INCONCLUSIVE (few discriminating)' : Math.abs(gap) < 1 ? 'judge ≈ first-valid (within noise) — cross-model spread did NOT make the judge pay yet' : (gap > 0 ? `JUDGE WINS by ${fmt(gap)} → wire the cross-model + judge selector` : `judge loses by ${fmt(-gap)}`)}`);
+    const ceiling = mean(judged.map((r) => r.bestXModel));
+    const judgeDeliv = mean(judged.map((r) => r.judgePick));
+    const firstDeliv = mean(judged.map((r) => r.firstValid));
+    const firstGen = mean(judged.map((r) => single(r, GEN_MODELS[0]))); // default writer alone
+    console.log(`\nSELECTOR delivery (judged n=${judged.length}) — oracle ceiling=${fmt(ceiling)}:`);
+    console.log(`  judge=${fmt(judgeDeliv)} (regret ${fmt(ceiling - judgeDeliv)}, best-pick(disc)=${fmt(accDisc)}%)  |  first-valid=${fmt(firstDeliv)} (regret ${fmt(ceiling - firstDeliv)})  |  ${shortModel(GEN_MODELS[0])}-alone=${fmt(firstGen)}`);
+    const judgeOverFirst = judgeDeliv - firstDeliv;
+    const xmodelOverSingle = firstDeliv - firstGen;
+    console.log(`  → cross-model over single-model (even with first-valid): +${fmt(xmodelOverSingle)}.  judge over first-valid: +${fmt(judgeOverFirst)} ${Math.abs(judgeOverFirst) < 1 ? '(within noise — judge not worth it; cross-model is the lever)' : ''}`);
   }
   const out = path.join(os.tmpdir(), 'd3-xmodel-result.json');
-  fs.writeFileSync(out, JSON.stringify({ config: { N_PER, PER_MODEL, REPAIRS, GEN_MODELS, JUDGE_MODEL, corpus: CORPUS.map((f) => f.moduleName) }, nInstances, meanUnionLift, instWithLift, winShare, rows }, null, 2));
+  fs.writeFileSync(out, JSON.stringify({ config: { N_PER, PER_MODEL, REPAIRS, GEN_MODELS, JUDGE_MODEL, corpus: CORPUS.map((f) => f.moduleName) }, nInstances, winShare, rows }, null, 2));
   console.log(`\nartifact: ${out}`);
 }
