@@ -11,6 +11,10 @@
 | **02** | `02-product-analysis.md` | Thesis, personas, 5 user journeys, use cases, differentiators, beta-readiness |
 | **03** | `03-technical-capabilities.md` | Kernel subsystems, live WASM/NAPI surface, generator engine, provenance, DRACO |
 | **04** | `04-six-hats-cross-pollination.md` | Six Thinking Hats analysis of AQE ⇄ MetaHarness transfer opportunities |
+| **05** | `05-cross-pollination-goap-plan.md` | GOAP plan operationalizing the `04` moves through an empirical gate |
+| **06** | `06-darwin-qe-self-learning-action-lane.md` | Darwin-for-QE: cheap-local + asymmetric escalation lane; the D3 gate run; ADR-111 |
+
+> **Updated 2026-06-23** — the cross-pollination below moved from *plan* to *measured result*. See **"Update — 2026-06-23"** at the foot of this file for the D3 verdict and what shipped. The original evaluation body is unchanged (point-in-time, `working-may` snapshot, 2026-06-15).
 
 ---
 
@@ -68,6 +72,31 @@ MetaHarness is a **well-architected, genuinely useful scaffolding-and-governance
 | **P1** | **Right-size the kernel narrative** — be explicit the live runtime is the JS floor + MCP validation + (TS) witness; the Rust subsystems and `memory.rs` are roadmap, not shipped surface. Wire the witness path through the kernel (a literal `TODO` in `publish.ts`) or stop attributing it to "the kernel." |
 | **P1** | **Stop fabricating CLI output / unenforced safety in example READMEs** (trading/legal/research). Generate them from real `--scaffold` output or mark transcripts illustrative; move "paper-by-default" into enforced template code. |
 | **P2** | Close two branch gaps in the generator (`pinJson` non-2xx HTTP path; `upgrade --conflict=rej`); optionally de-duplicate `runWizard`'s three pick-loops; wire `harness verify` + `mcp-scan` as CI gates. |
+
+---
+
+## Update — 2026-06-23: the cross-pollination ran the gate
+
+The `04`/`05` plan is no longer hypothetical. The **DRACO-for-QE benchmark** (the gated brick that the table above said to build *last*) has been **built and run**, and a Darwin-for-QE self-learning lane shipped into AQE (opt-in, off by default). Detail in `06`; decision in **ADR-111** (`docs/implementation/adrs/ADR-111-darwin-qe-self-learning.md`, Accepted — scoped).
+
+**What was measured (D3 gate, real worker models → real ADR-104 mutant-kill + coverage scorer; fixture-diverse over 5 distinct modules, n=30, composite ±SE):**
+
+| arm | composite ±SE | kill | baseline-valid |
+|---|---|---|---|
+| vanilla cheap-local (qwen3:30b-a3b) | 58.6 ±6.5 | 61% | 73% |
+| **+ best-of-k local** | 67.3 ±5.6 | 71% | 83% |
+| vanilla frontier (sonnet-4.6) | 82.7 ±2.9 | 90% | 97% |
+| **cheap-first → repair → escalate** | **81.6 ±0.9** | 86% | 100% (escalated 5/30) |
+
+**Verdict — it confirms this report's own #1 finding, and it generalizes.** Just as DRACO/ADR-038 showed a generic harness *loses* to vanilla at the frontier, D3 shows **"cheap model replaces frontier" = G-ABORT** in **5/5 modules** (cheap-local best-of-k 67.3 ≪ frontier 82.7 — "the coder binds, not the oracle"). The **surviving, real win is the economic structure, not harness magic**: cheap-first handles the bulk, escalate only the hard tail → the escalation lane (81.6) is **within noise of frontier** (82.7; B−D gap 1.1, combined SE ±3.1) while **~83% of tasks stay $0-local**. Best-of-k lifts cheap in 5/5 modules. That is the honest, defensible product — and it reproduces MetaHarness's own intellectual honesty (publish the negative, keep the part that measures).
+
+**What shipped in AQE (all opt-in, off by default, ~516 tests green):**
+- A free-tier escalation executor (cheap-local → D8 repair → escalate via the existing router), with **best-of-k** diversity and a **Goodhart guard** (objective-oracle-only confidence feedback) — both empirically motivated by Ruv's own SWE-bench ablations and AQE's D3.
+- A reusable coordinator factory; the lane is wired into **test-generation** and **requirements-validation** (BDD/Gherkin), with routing-feedback (D9) closing the self-learning loop.
+
+**Honesty carried forward (adversarial self-review, per this report's own standard):** the verdict rests on a **single fixture** (n=10) — fixture-diverse confirmation is the open task; production gates on **structural proxy oracles**, not the benchmark's execution oracle; "competitive" is a point estimate, not a significance test; and the floor-clearing cheap model (qwen3:30b-a3b, 18.6 GB) does **not** fit the lane's original 8 GB target — the 8 GB user is below the QE *generation* floor and gets escalation-only value. These are recorded in `06`/ADR-111, not buried.
+
+**Net for the `vertical:qe` question (table above, "conditional yes"):** the *generic harness-beats-frontier* composite stays **G-ABORT** (as the DRACO prior predicted); the committed, measured product is the **asymmetric escalation lane**, not a cheap-only harness.
 
 ---
 

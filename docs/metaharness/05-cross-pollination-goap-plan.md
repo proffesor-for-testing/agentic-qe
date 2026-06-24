@@ -213,3 +213,62 @@ If deep coupling proves unwise at any point, the **decoupled wins stand alone**:
 ### Cross-link
 
 ADR-150's discovered `spawnSync` `shell:false` bug (args-with-spaces silently triggered graceful degradation, masking a real failure) is the **same bug class** as AQE **#528** (`agentic-qe mcp` double-spawned with `stdio:'inherit'`, dropping stdin → premature shutdown). #528 is fixed on `fix/528-mcp-in-process` (server now runs in-process; reproduction + regression test added). Lesson carried over: *graceful degradation is insufficient on its own — prove the non-degraded path works.*
+
+---
+
+## Plan update — 2026-06-24 (reconcile against the Darwin-for-QE lane + measured D3 + Ruv's oracle arc)
+
+**Status of this plan: PARTLY OBE.** Two things overtook it: (1) the [Darwin-for-QE lane](./06-darwin-qe-self-learning-action-lane.md) built and measured a *different* product than this plan's headline; (2) Ruv's `agent-harness-generator` `main` advanced +~50 commits (now `6fa4c25`, ADR-178→184) with an **oracle research arc** that supplies the missing piece for AQE's open work.
+
+### The gate resolved, and the committed product pivoted
+
+This plan's spine was **A3 (gate) → A6 (`vertical:qe`, conditional headline)**. Both moved:
+
+- **A3 — effectively resolved as G-ABORT for the generic composite, by a re-framed measurement.** The *literal* A3 arms (vanilla / bare-AQE-install / `vertical:qe` / `+verify`) were **never run**. Instead lane-06's **D3** ran cheap-local / best-of-k / frontier / escalate on a 5-module corpus (n=30) and measured **§11 "coder binds" — frontier > cheap in 5/5 modules**. That *is* the load-bearing prior for A6's G-ABORT, now empirical rather than inherited from ADR-038.
+- **A6 (`vertical:qe`) → RETIRE.** The generic harness-beats-frontier composite is confirmed G-ABORT; do not build it as a product.
+- **A NEW committed product emerged that this plan never contained:** the **asymmetric escalation lane (ADR-111**, Accepted-scoped) — cheap-first → repair → best-of-k → escalate, ~frontier QE quality at ~83% tasks $0-local. The ceiling moved from A6 → ADR-111.
+
+### Status of every action
+
+| # | Action | Status (2026-06-24) |
+|---|---|---|
+| **A1** | mcp-scan → default-deny allowlist + CI gate | **DONE (2026-06-24).** See "A1 — completed" below. 0 HIGH, CI gate fails-closed, drift-guard test. |
+| **A2** | Extract `@ruvector/adversarial-verify` | **NOT STARTED.** Refuter still in the workflow file. Cleanest zero-coupling IP win. |
+| **A3** | DRACO-for-QE gate | **Resolved (re-framed) → G-ABORT for generic composite** (D3, n=30). |
+| **A4** | Genome → QE-skill subset recommender | **NOT STARTED.** Standalone value remains (per-repo install vs wholesale). |
+| **A5** | MetaHarness embeds verify gate | **NOT STARTED** (blocked on A2). |
+| **A6** | `vertical:qe` minted harness | **RETIRED** (G-ABORT confirmed). |
+| **A7** | `witnessVerify` w/ Ed25519 chain | **NOT STARTED.** Still internal-events only. |
+| **A8** | Version contract + shared CI | **NOT STARTED (de-risked).** AQE still uses the structural type-mirror (`src/integrations/darwin/`); ruflo now *publishes* `@metaharness/darwin` so pinning it is concrete. |
+| **A9** | Graceful-degradation architecture | **NOT STARTED.** High-leverage (optional-dep/Dependabot fragility). |
+| **A10** | KRR cost-optimal router | **NOT STARTED.** The lane-06 D7–D9 escalation+feedback lifts the 40% confidence from the *outcome* angle, but the KRR predictor/bandit is untouched. |
+
+The lane-06 work (escalation lane / ADR-111) is **net-new** — it did **not** advance A1/A2/A4/A5/A7/A8. The decoupled "floor" of this plan (A1, A2) is still the highest-value undone work, exactly as the original "highest-leverage first move" called it.
+
+### New actions lifted from Ruv's oracle arc (ADR-178/182/183/184) — they answer lane-06's open gaps
+
+The devil's-advocate review of lane-06 left two open holes; Ruv's last-24h arc supplies the principled fix for both:
+
+- **A11 — Writer≠evaluator LLM-judge discriminator** *(M, the high-value one)*. lane-06's production oracles are **writer-evaluated structural proxies** (test+assertion regex; Gherkin structure) — Goodhart-prone (the DA's deepest finding). **ADR-178** (Best-of-N selection *without gold* via a separate LLM-judge, SWE-Search 73–84% selection accuracy) + **ADR-183** (`reproValid ∧ judgeOK ∧ passOnFix`, *writer ≠ evaluator*, **precision-validated against ground truth before trusting it**) is the answer: replace AQE's best-of-k *picker* with a separate cheap judge, and **validate that judge's precision against the mutation-kill ground truth offline** (AQE *has* that oracle — its structural advantage over SWE-bench). Kill it if it doesn't separate kill-rate-pass from kill-rate-fail ("a hallucination filtering a hallucination").
+- **A12 — Cold (not warm) + cross-model escalation** *(S)*. **ADR-182**: warm-starting the escalated tier with the failed cheap reasoning causes *correlated* failure, shrinking the union — escalate **cold/fresh**. AQE's `FreeTierEscalatingExecutor` currently feeds the failed attempt forward (repair messages) = **warm** → a measurable improvement is a cold escalation path. **xbo** (cross-*model* Best-of-N "union-raiser"): AQE's best-of-k varies temperature+prompt on one model; varying the *model* raises the union more.
+- **A13 — Cost-Pareto Value-Score framing** *(S, reporting)*. Ruv now leads with **quality-per-$** (Cost-Pareto leaderboard, Value Score), not absolute resolve — exactly ADR-111's "competitive cheaper than frontier" stance. Adopt the same headline metric for AQE trust tiers; pair with the **Agent Registry / measured-role-fit** idea (= lane-06 task #4, per-preset QE bench: assign models to QE roles by *measured* fit, not vendor rank).
+
+### Forward plan (this session)
+
+1. **Finish A1** — snapshot AQE's MCP surface to `.harness/mcp-policy.json`, run `metaharness mcp-scan`/`metaharness_mcp_scan`, author the default-deny allowlist, wire the CI gate. (Memory gotcha: mcp-scan false-negatives on `.mcp.json` layout → snapshot the policy file first.)
+2. **A2** — extract `@ruvector/adversarial-verify` (calibrate kill-rate; dogfood back into the workflow).
+3. Then the new oracle ideas, **A11 first** (it closes ADR-111's biggest open caveat and is independently measurable at ~$1, mirroring Ruv's ADR-183 discipline).
+
+A4/A7/A8/A9/A10 remain standalone candidates; A6 is retired.
+
+### A1 — completed (2026-06-24)
+
+Closed G1. The original "default-deny OFF, score 54/C" reading was a **scan false-negative**: MetaHarness `scanMcp` only inspects `.claude/settings.json` `mcpServers`, but AQE declares its server in `.mcp.json` → "No MCP surface" (INFO). Two grounded corrections + the deliverables:
+
+- **Enforcement was already default-deny.** `src/mcp/tool-scoping.ts` `isToolAllowed()` falls through to `return false`; only `fleet-admin`/`unrestricted` carry `allowAll`. The interface doc-comment *claimed* "empty/undefined → allowAll" — the opposite of the code; **fixed** (it denies). Added `ALL_AGENT_ROLES` export.
+- **Host permissions were already clean** — `.claude/settings.json` scopes to `mcp__<server>__*` (no `*`/`mcp__*` wildcard), denies `Read(./.env*)`, no `rm -rf`/`curl` allows.
+- **`.harness/mcp-policy.json`** — truthful default-deny snapshot (flags mapped to real enforcement in `_enforcement`: defaultDeny←tool-scoping, auditLog←witness-chain; postures/stated-intent labelled, not theater). With it present, **re-scan = 0 HIGH, 0 MEDIUM, 1 LOW** (caret app-deps, accepted N/A).
+- **CI gate** — `scripts/mcp-policy-gate.mjs` (self-contained mirror of the scanner's HIGH checks; also reads `.mcp.json`, closing the false-negative) + `.github/workflows/mcp-policy-gate.yml` + `npm run security:mcp-policy`. Exit 1 on any HIGH (verified: fails on a reintroduced `defaultDeny:false`/`allowShell:true`).
+- **Drift guard** — `tests/unit/mcp/mcp-policy-gate.test.ts` (14 tests) asserts the policy `roles` mirror `tool-scoping` enforcement per-role + the default-deny posture. 46/46 green with the existing scoping suite; strict-tsc clean.
+
+**Verification:** (a) scan runs ✓ (b) 0 HIGH ✓ (c) tool-scoping behaviour unchanged — additive export + comment only, 32 scoping tests still green ✓ (d) CI fails on a reintroduced HIGH ✓. **Next: A2** (extract `@ruvector/adversarial-verify`).
