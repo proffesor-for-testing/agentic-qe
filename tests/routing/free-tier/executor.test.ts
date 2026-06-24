@@ -178,3 +178,57 @@ describe('FreeTierEscalatingExecutor — cross-task base-tier adaptation', () =>
     );
   });
 });
+
+describe('FreeTierEscalatingExecutor — best-of-k diversity (06 §12)', () => {
+  it('should convert at the same tier via a diverse second attempt without escalating', async () => {
+    chatMock.mockResolvedValueOnce(localReply('first try nope')).mockResolvedValueOnce(localReply('PASS variant'));
+    const claudeRunner: ClaudeTierRunner = vi.fn(async () => ({ content: 'PASS from senior' }));
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder('qwen3:8b'), claudeRunner });
+
+    const r = await exec.execute(task({ bestOfK: 2 }));
+
+    expect(r.ok).toBe(true);
+    expect(r.tierUsed).toBe('local');
+    expect(r.escalated).toBe(false);
+    expect(r.bestOf).toBe(true);
+    expect(r.attempts).toHaveLength(2);
+    expect(r.attempts.map((a) => a.variant)).toEqual([0, 1]);
+    expect(claudeRunner).not.toHaveBeenCalled(); // diversity converted before the paid tail
+  });
+
+  it('should send a diversification nudge on variant attempts beyond the first', async () => {
+    chatMock.mockResolvedValueOnce(localReply('nope')).mockResolvedValueOnce(localReply('PASS'));
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder('qwen3:8b') });
+
+    await exec.execute(task({ bestOfK: 2 }));
+
+    const variantMessages = chatMock.mock.calls[1][1] as Array<{ role: string; content: string }>;
+    expect(JSON.stringify(variantMessages)).toContain('Alternative approach #1');
+  });
+});
+
+describe('FreeTierEscalatingExecutor — Goodhart guard (06 §10)', () => {
+  it('should NOT feed routing-feedback when the gate is a self-authored oracle', async () => {
+    chatMock.mockResolvedValue(localReply('PASS')); // model self-test "passes"
+    const onOutcome = vi.fn();
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder('qwen3:8b'), onOutcome });
+
+    const r = await exec.execute(task({ oracleKind: 'self-authored' }));
+
+    expect(r.ok).toBe(true);
+    expect(r.goodhartGuarded).toBe(true);
+    expect(onOutcome).not.toHaveBeenCalled(); // a weak self-oracle must not lift confidence
+    expect(exec.getTracker().getCurrentTier('qe:repoA')).toBeNull(); // tracker untouched
+  });
+
+  it('should record normally for the default objective oracle', async () => {
+    chatMock.mockResolvedValue(localReply('PASS'));
+    const onOutcome = vi.fn();
+    const exec = new FreeTierEscalatingExecutor({ ladder: defaultFreeTierLadder('qwen3:8b'), onOutcome });
+
+    const r = await exec.execute(task()); // oracleKind defaults to 'objective'
+
+    expect(r.goodhartGuarded).toBe(false);
+    expect(onOutcome).toHaveBeenCalledOnce();
+  });
+});

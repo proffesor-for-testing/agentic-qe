@@ -18,6 +18,12 @@ import {
   AgentSpawnConfig,
 } from '../../kernel/interfaces.js';
 import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
+import {
+  type FreeTierEscalatingExecutor,
+  buildFreeTierExecutor,
+  type FreeTierCoordinatorConfig,
+  type RoutingFeedbackLike,
+} from '../../routing/free-tier/index.js';
 import { createEvent } from '../../shared/events/domain-events.js';
 import {
   IRequirementsValidationCoordinator,
@@ -83,7 +89,7 @@ export const RequirementsValidationEvents = {
 /**
  * CQ-002: Extends BaseDomainCoordinatorConfig — removes duplicate fields
  */
-export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
+export interface CoordinatorConfig extends BaseDomainCoordinatorConfig, FreeTierCoordinatorConfig {
   minTestabilityThreshold: number;
   // V3: Enable RL and SONA integrations
   enablePPO: boolean;
@@ -182,6 +188,27 @@ type RequirementsWorkflowType = 'analyze' | 'generate-artifacts' | 'validate-spr
 
 const logger = LoggerFactory.create('requirements-validation');
 
+/** Strip a ```gherkin fence (truncation-robust); else return the text as-is. */
+function stripGherkinFence(s: string): string {
+  s = (s ?? '').trim();
+  const full = /```(?:gherkin|feature)?\s*([\s\S]*?)```/.exec(s);
+  if (full) return full[1].trim();
+  const open = /```(?:gherkin|feature)?[^\n]*\n([\s\S]*)$/.exec(s);
+  return open ? open[1].trim() : s;
+}
+
+const GHERKIN_STOPWORDS = new Set([
+  'given', 'when', 'then', 'scenario', 'feature', 'with', 'that', 'this', 'from', 'into',
+  'should', 'must', 'have', 'will', 'shall', 'able', 'user', 'users', 'system', 'value',
+  'valid', 'invalid', 'returns', 'return', 'apply', 'using', 'based', 'their', 'they',
+]);
+
+/** Significant lowercased terms (>3 chars, non-stopword) from a requirement. */
+function significantTerms(requirement: Requirement): string[] {
+  const src = `${requirement.title} ${(requirement.acceptanceCriteria ?? []).join(' ')}`.toLowerCase();
+  return Array.from(new Set(src.match(/[a-z][a-z0-9]{3,}/g) ?? [])).filter((w) => !GHERKIN_STOPWORDS.has(w));
+}
+
 export class RequirementsValidationCoordinator
   extends BaseDomainCoordinator<CoordinatorConfig, RequirementsWorkflowType>
   implements IRequirementsValidationCoordinator
@@ -190,6 +217,8 @@ export class RequirementsValidationCoordinator
   private readonly bddWriter: BDDScenarioWriterService;
   private readonly testabilityScorer: TestabilityScorerService;
   private readonly repository: IRequirementRepository;
+  /** Opt-in cheap-first BDD scenario generation (plan 06, ADR-111). Null = off. */
+  private readonly freeTierExecutor: FreeTierEscalatingExecutor | null;
 
   // V3: RL and SONA integrations
   private ppoAlgorithm?: PPOAlgorithm;
@@ -201,7 +230,9 @@ export class RequirementsValidationCoordinator
     private readonly memory: MemoryBackend,
     private readonly agentCoordinator: AgentCoordinator,
     config: Partial<CoordinatorConfig> = {},
-    llmRouter?: HybridRouter
+    llmRouter?: HybridRouter,
+    /** Optional D9 sink — when provided, free-tier outcomes feed routing-feedback. */
+    routingFeedback?: RoutingFeedbackLike | null
   ) {
     const fullConfig: CoordinatorConfig = { ...DEFAULT_CONFIG, ...config };
 
@@ -214,6 +245,17 @@ export class RequirementsValidationCoordinator
     this.bddWriter = new BDDScenarioWriterService(memory);
     this.testabilityScorer = new TestabilityScorerService(memory);
     this.repository = new InMemoryRequirementRepository(memory);
+
+    // Opt-in cheap-first BDD generation (plan 06 broadening; ADR-111 escalation
+    // lane). OFF by default; BDD/Gherkin is a bounded-gen + objective-oracle fit.
+    this.freeTierExecutor = buildFreeTierExecutor({
+      config: this.config,
+      agentType: 'qe-requirements-validator',
+      taskKind: 'requirements-validation',
+      llmRouter,
+      routingFeedback, // D9 sink (undefined unless wired by the plugin)
+      logger,
+    });
   }
 
   // ==========================================================================
@@ -419,6 +461,82 @@ export class RequirementsValidationCoordinator
   /**
    * Generate test artifacts from requirement
    */
+  /**
+   * Cheap-first BDD generation (plan 06 broadening; ADR-111 escalation lane).
+   * Generates raw Gherkin on the free local tier (best-effort), verifies Gherkin
+   * STRUCTURE as the objective oracle (§10 — never the model's own judgement),
+   * parses it back into structured scenarios, and escalates the hard tail via the
+   * router. Returns null when off or nothing usable → caller falls back to the
+   * normal structured path. Off by default.
+   */
+  private async tryFreeTierScenarios(
+    requirement: Requirement,
+    scenarioCount: number
+  ): Promise<BDDScenario[] | null> {
+    if (!this.freeTierExecutor) return null;
+
+    const ac = (requirement.acceptanceCriteria ?? []).map((c, i) => `${i + 1}. ${c}`).join('\n');
+    const system =
+      'You write Gherkin .feature files. Output ONLY a single fenced ```gherkin code block — no prose.';
+    const user =
+      `Write a Gherkin feature with ~${scenarioCount} scenarios for this requirement. ` +
+      'Use Feature/Scenario/Given/When/Then; cover the acceptance criteria and edge cases.\n\n' +
+      `Title: ${requirement.title}\nDescription: ${requirement.description}\n` +
+      (ac ? `Acceptance criteria:\n${ac}\n` : '');
+
+    // Objective oracle (structural proxy — does NOT execute the scenarios). Beyond
+    // bare structure it requires: parses to >=1 scenario, EVERY scenario has a
+    // non-empty Given/When/Then, AND the feature is RELEVANT to the requirement
+    // (token overlap) — so generic off-topic boilerplate is rejected, not rewarded
+    // (resists the §10 Goodhart trap). Still a proxy, not semantic ground truth.
+    const sigTerms = significantTerms(requirement);
+    const verify = (out: string): { passed: boolean; feedback?: string } => {
+      const text = stripGherkinFence(out);
+      const structural =
+        /\bFeature:/i.test(text) && /\bScenario:/i.test(text) &&
+        /\bGiven\b/i.test(text) && /\bWhen\b/i.test(text) && /\bThen\b/i.test(text);
+      if (!structural) {
+        return { passed: false, feedback: 'must be valid Gherkin: Feature:, Scenario:, and Given/When/Then steps' };
+      }
+      const parsed = this.bddWriter.parseGherkin(text);
+      if (!parsed.success || parsed.value.length === 0) {
+        return { passed: false, feedback: 'Gherkin did not parse into any scenario' };
+      }
+      const wellFormed = parsed.value.every((s) => s.given.length > 0 && s.when.length > 0 && s.then.length > 0);
+      if (!wellFormed) {
+        return { passed: false, feedback: 'every scenario needs at least one Given, one When, and one Then step' };
+      }
+      if (sigTerms.length > 0) {
+        const lower = text.toLowerCase();
+        const hits = sigTerms.filter((t) => lower.includes(t)).length;
+        if (hits < Math.min(2, sigTerms.length)) {
+          return { passed: false, feedback: `scenarios must address THIS requirement — reference its terms (e.g. ${sigTerms.slice(0, 6).join(', ')})` };
+        }
+      }
+      return { passed: true };
+    };
+
+    const r = await this.freeTierExecutor.execute({
+      agentId: `requirements:${requirement.id}`,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      verify,
+      escalate: true,
+      bestOfK: this.config.freeTierBestOfK ?? 2, // §12, matches the D3-validated config
+      repairAttempts: this.config.freeTierRepairAttempts ?? 1,
+    });
+    if (!r.ok) return null;
+
+    const parsed = this.bddWriter.parseGherkin(stripGherkinFence(r.content));
+    if (!parsed.success || parsed.value.length === 0) return null;
+    logger.info(
+      `Free-tier BDD scenarios for ${requirement.id} via tier=${r.tierUsed} (${parsed.value.length} scenarios)`
+    );
+    return parsed.value;
+  }
+
   async generateTestArtifacts(requirementId: string): Promise<Result<TestArtifacts>> {
     const workflowId = uuidv4();
 
@@ -451,20 +569,25 @@ export class RequirementsValidationCoordinator
         }
       }
 
-      // Generate BDD scenarios with optimized count
-      const scenariosResult = await this.bddWriter.generateScenariosWithExamples(
-        requirement,
-        optimizedScenarioCount
-      );
+      // Cheap-first (opt-in, ADR-111): generate Gherkin on the free local tier,
+      // verify its structure (objective oracle), parse back to scenarios. Falls
+      // through to the normal structured path on any miss (off by default).
+      let scenarios = await this.tryFreeTierScenarios(requirement, optimizedScenarioCount);
+      if (!scenarios) {
+        const scenariosResult = await this.bddWriter.generateScenariosWithExamples(
+          requirement,
+          optimizedScenarioCount
+        );
 
-      if (!scenariosResult.success) {
-        this.failWorkflow(workflowId, scenariosResult.error.message);
-        return err(scenariosResult.error);
+        if (!scenariosResult.success) {
+          this.failWorkflow(workflowId, scenariosResult.error.message);
+          return err(scenariosResult.error);
+        }
+        scenarios = scenariosResult.value;
       }
       this.updateWorkflowProgress(workflowId, 50);
 
       // V3: Use PPO to optimize scenario ordering
-      let scenarios = scenariosResult.value;
       if (this.config.enablePPO && this.ppoAlgorithm) {
         scenarios = await this.optimizeScenarioOrdering(requirement, scenarios);
       }

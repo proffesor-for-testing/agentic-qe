@@ -48,6 +48,7 @@ import {
   createQCSDIdeationPlugin,
 } from './qcsd-ideation-plugin.js';
 import type { WorkflowOrchestrator } from '../../coordination/workflow-orchestrator.js';
+import { RoutingFeedbackCollector } from '../../routing/routing-feedback.js';
 import { toError } from '../../shared/error-utils.js';
 
 // ============================================================================
@@ -328,13 +329,32 @@ export class RequirementsValidationPlugin extends BaseDomainPlugin {
       this.pluginConfig.testabilityScorer
     );
 
+    // D9: when the free tier is opted in, stand up a live RoutingFeedbackCollector
+    // (calibrator + auto-escalation) so each cheap-vs-escalated BDD outcome feeds
+    // routing confidence. Memory-only fallback if the DB is unavailable.
+    let routingFeedback: RoutingFeedbackCollector | undefined;
+    const freeTierOn =
+      this.pluginConfig.coordinator?.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
+    if (freeTierOn) {
+      routingFeedback = new RoutingFeedbackCollector(10000, {
+        enableEMACalibration: true,
+        enableAutoEscalation: true,
+      });
+      try {
+        await routingFeedback.initialize();
+      } catch {
+        // memory-only is fine — recording still drives calibration/escalation
+      }
+    }
+
     // Create and initialize coordinator
     this.coordinator = new RequirementsValidationCoordinator(
       this.eventBus,
       this.memory,
       this.agentCoordinator,
       this.pluginConfig.coordinator,
-      this.llmRouter
+      this.llmRouter,
+      routingFeedback // D9 sink (undefined unless free tier is on)
     );
 
     await this.coordinator.initialize();
