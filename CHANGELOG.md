@@ -5,6 +5,55 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.1] - 2026-06-25
+
+Benchmark-driven deepening of the opt-in "cheap-first" test generation from
+v3.11.0. We ran real model-vs-model benchmarks scored by a real oracle (mutation
+kill-rate + coverage) and shipped only what the measurements earned: **best-of-k**
+generation, **cross-model** diversity, and a **self-test Goodhart guard** — plus a
+reusable adversarial-verification gate, MCP self-governance, and signed provenance
+for delivered findings. Everything stays **opt-in and off by default**.
+
+See the new [Darwin-QE Self-Learning guide](docs/guides/darwin-qe-self-learning.md)
+for the benchmarks, what we learned, and how to use it.
+
+### Added
+
+- **Best-of-k generation** — tries a few diverse candidates and keeps the first
+  that passes the objective check; the extra call happens only when the first one
+  fails. Enable via `freeTierBestOfK`.
+- **Cross-model best-of-k (opt-in)** — draw those candidates from *different* model
+  families (e.g. a local model + a cloud model) so they cover each other's failures.
+  Measured **~+6 quality points** over a single model. Configure with
+  `freeTierCandidateProviders`.
+- **Cheap-first lane broadened beyond test generation** — now also covers
+  requirements → BDD/Gherkin scenario generation (opt-in), with an off-topic
+  relevance gate so generic boilerplate is rejected.
+- **`@ruvector/adversarial-verify`** — a host-agnostic blind-refuter verification
+  primitive (N independent refuters, majority-kill, default-refuted on uncertainty)
+  plus an opt-in **`verifyGate`** output gate that drops unverified findings before
+  they're emitted. New `agentic-qe/verification/adversarial-verify` export.
+- **MCP self-governance** — a default-deny policy for AQE's own MCP tool surface
+  (`.harness/mcp-policy.json`) with a CI gate that fails on any high-severity finding.
+- **Cost-Pareto value scoring** — rank models by quality-per-dollar (and compute the
+  non-dominated frontier) from *measured* data, not vendor claims. New
+  `agentic-qe/routing/value-score` export.
+- **Witnessed finding delivery** — delivered findings are recorded in the Ed25519
+  hash-chained witness log with fail-closed verification (tampering throws).
+- **Graceful optional-module loading** — native/optional dependencies now degrade
+  instead of crashing when a platform binary is absent, with a CI "absent drill"
+  that proves the degraded path (and never masks a real load failure).
+
+### Changed
+
+- **Default free-tier model is now `qwen3:30b-a3b`** (was `qwen3:8b`). A benchmark
+  showed the 8B model is below the test-generation quality floor; the 30B clears it
+  (~89% mutation kill). Set `freeTierModel` to fit your hardware — small-RAM users
+  get escalation-only value. Only affects users who opt into the free tier.
+- **Goodhart guard** — only an *objective* check (real test run, coverage, mutation,
+  schema) can lift routing confidence; a model's own self-authored "passing" test
+  never does.
+
 ## [3.11.0] - 2026-06-20
 
 Run test generation on **free local models first**, falling back to paid models

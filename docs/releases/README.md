@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.11.1](v3.11.1.md) | 2026-06-25 | Benchmark-driven deepening of the cheap-first lane (opt-in): best-of-k + cross-model generation (~+6 quality pts), self-test Goodhart guard, `@ruvector/adversarial-verify` + verify gate, MCP default-deny self-governance, cost-Pareto value scoring, witnessed finding delivery, graceful optional-module loading. Default free-tier model → `qwen3:30b-a3b`. |
 | [v3.11.0](v3.11.0.md) | 2026-06-20 | Free-tier local test generation (opt-in, `AQE_FREE_TIER=1`): cheap-first on local/OpenRouter/OpenAI-compatible models with a repair loop, auto-escalation to paid tiers, and self-learning routing feedback. PACT → PACTS framework (adds Structured principle, #545). Restores Dependabot-dropped `@ruvector/ruvllm-*` deps (#541). |
 | [v3.10.9](v3.10.9.md) | 2026-06-17 | MCP reliability + db-free completeness (@nagoodman): `agentic-qe mcp` runs in-process so real clients get `tools/list` (#528); `memory_delete` no longer masked by stale session cache (#535); `--no-database` reaches all editor MCP configs (#533); new `--no-claude` exclusive install (#532). |
 | [v3.10.8](v3.10.8.md) | 2026-06-16 | Database-free OpenCode install (`--no-database`/`--memory memory`, #530/#534) + MCP stdio client-compat fixes (#527 stdout purity + negotiated protocol, #529 loadable OpenCode assets) from @nagoodman; cleared protobufjs + ws production CVEs; vite → 8.0.16. |
