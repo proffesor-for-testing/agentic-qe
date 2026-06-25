@@ -136,6 +136,10 @@ const reviewed = await pipeline(
 )
 
 // ── Synthesize (deterministic — plain code, no agent) ───────────────────────
+// CANONICAL: this is @ruvector/adversarial-verify `synthesizeVerdict` (k-of-n
+// majority kill, default-uncertain). Mirrored inline because the Workflow sandbox
+// has no module resolution; src/verification/adversarial-verify is the source of
+// truth and tests/unit/verification/adversarial-verify/parity.test.ts guards drift.
 const all = reviewed.filter(Boolean).flat()
 const verdicts = all.map(({ dimension, finding, votes }) => {
   const refutations = votes.filter((v) => v.refuted).map((v) => v.reasoning)

@@ -233,7 +233,7 @@ This plan's spine was **A3 (gate) → A6 (`vertical:qe`, conditional headline)**
 | # | Action | Status (2026-06-24) |
 |---|---|---|
 | **A1** | mcp-scan → default-deny allowlist + CI gate | **DONE (2026-06-24).** See "A1 — completed" below. 0 HIGH, CI gate fails-closed, drift-guard test. |
-| **A2** | Extract `@ruvector/adversarial-verify` | **NOT STARTED.** Refuter still in the workflow file. Cleanest zero-coupling IP win. |
+| **A2** | Extract `@ruvector/adversarial-verify` | **DONE (in-repo, 2026-06-25).** See "A2 — completed" below. Host-agnostic module, 25 tests, parity-guarded. Empirical real-LLM false-kill calibration on a labeled corpus is the remaining (optional) step. Not published (no-publish-without-OK). |
 | **A3** | DRACO-for-QE gate | **Resolved (re-framed) → G-ABORT for generic composite** (D3, n=30). |
 | **A4** | Genome → QE-skill subset recommender | **NOT STARTED.** Standalone value remains (per-repo install vs wholesale). |
 | **A5** | MetaHarness embeds verify gate | **NOT STARTED** (blocked on A2). |
@@ -279,4 +279,18 @@ Closed G1. The original "default-deny OFF, score 54/C" reading was a **scan fals
 - **CI gate** — `scripts/mcp-policy-gate.mjs` (self-contained mirror of the scanner's HIGH checks; also reads `.mcp.json`, closing the false-negative) + `.github/workflows/mcp-policy-gate.yml` + `npm run security:mcp-policy`. Exit 1 on any HIGH (verified: fails on a reintroduced `defaultDeny:false`/`allowShell:true`).
 - **Drift guard** — `tests/unit/mcp/mcp-policy-gate.test.ts` (14 tests) asserts the policy `roles` mirror `tool-scoping` enforcement per-role + the default-deny posture. 46/46 green with the existing scoping suite; strict-tsc clean.
 
-**Verification:** (a) scan runs ✓ (b) 0 HIGH ✓ (c) tool-scoping behaviour unchanged — additive export + comment only, 32 scoping tests still green ✓ (d) CI fails on a reintroduced HIGH ✓. **Next: A2** (extract `@ruvector/adversarial-verify`).
+**Verification:** (a) scan runs ✓ (b) 0 HIGH ✓ (c) tool-scoping behaviour unchanged — additive export + comment only, 32 scoping tests still green ✓ (d) CI fails on a reintroduced HIGH ✓.
+
+### A2 — completed (in-repo, 2026-06-25)
+
+Closed G2. Extracted the blind-refuter primitive from `.claude/workflows/qcsd-development-review.js` into a **host-agnostic, zero-AQE-dependency** module `src/verification/adversarial-verify/` (trivially extractable to `@ruvector/*` later; **not published** per no-publish-without-OK):
+
+- `types.ts` — `Finding`, `RefuterVote`, `FindingVerdict` (= finding-verdict@1), and the injected **`Judge`** interface (the LLM call — the decoupling seam, so NO `agent()`/Claude-Code dep).
+- `prompts.ts` — `refuterPrompt` + `DEFAULT_LENSES` (ADR-074 Loki-mode: blind, anti-sycophancy, default-refuted on uncertainty).
+- `synthesize.ts` — pure k-of-n majority-kill (`synthesizeVerdict`, `majorityKill`, `isFindingVerdict`).
+- `verify.ts` — `adversarialVerify(findings, {judge, refuters, lenses, killThreshold})` → verdicts; N blind refuters per finding in parallel; failed votes excluded; `partitionVerdicts`.
+- `calibrate.ts` — `calibrate(labeled, opts)` → false-kill / false-keep confusion vs ground truth (works with any Judge — stub or real LLM).
+
+**Verification (plan A2):** (a) synthesis + orchestration tests (k-of-n, default-uncertain, blind-prompt, failed-vote exclusion) ✓; (b) calibration: `calibrate()` utility + deterministic test characterizing the aggregation (majority-of-3 ≤ single-refuter error; unanimous threshold trades false-kill↓ for false-keep↑) ✓; (c) **regression parity** — `parity.test.ts` proves the package reproduces the workflow's inline synthesis **byte-identical** (the workflow can't literally `import` — the Workflow harness sandboxes it — so it inline-mirrors the package, annotated as canonical, parity-guarded against drift) ✓; (d) **zero AQE/Claude-Code import** (grep-verified) ✓. **25 tests green, strict-tsc clean.**
+
+**Remaining (optional, empirical):** real-LLM false-kill calibration — inject a real Judge (local/OpenRouter, per preference) + a labeled corpus of known-real/known-false findings into `calibrate()` to state the empirical operating point. Mechanism ready; needs the labeled corpus + model runs. **Unblocks A5** (MetaHarness embeds the verify gate).
