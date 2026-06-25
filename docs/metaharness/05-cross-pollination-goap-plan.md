@@ -236,7 +236,7 @@ This plan's spine was **A3 (gate) → A6 (`vertical:qe`, conditional headline)**
 | **A2** | Extract `@ruvector/adversarial-verify` | **DONE (in-repo, 2026-06-25).** See "A2 — completed" below. Host-agnostic module, 25 tests, parity-guarded. Empirical real-LLM false-kill calibration on a labeled corpus is the remaining (optional) step. Not published (no-publish-without-OK). |
 | **A3** | DRACO-for-QE gate | **Resolved (re-framed) → G-ABORT for generic composite** (D3, n=30). |
 | **A4** | Genome → QE-skill subset recommender | **NOT STARTED.** Standalone value remains (per-repo install vs wholesale). |
-| **A5** | MetaHarness embeds verify gate | **NOT STARTED** (blocked on A2). |
+| **A5** | MetaHarness embeds verify gate | **Primitive DONE (2026-06-25), embedding SPEC'd.** `verifyGate` shipped + tested (all 4 plan criteria); the MetaHarness-side template wiring is grounded but needs the package vendored/published + Ruv's OK (separate repo). See "A5 — status" below. |
 | **A6** | `vertical:qe` minted harness | **RETIRED** (G-ABORT confirmed). |
 | **A7** | `witnessVerify` w/ Ed25519 chain | **NOT STARTED.** Still internal-events only. |
 | **A8** | Version contract + shared CI | **NOT STARTED (de-risked).** AQE still uses the structural type-mirror (`src/integrations/darwin/`); ruflo now *publishes* `@metaharness/darwin` so pinning it is concrete. |
@@ -293,4 +293,14 @@ Closed G2. Extracted the blind-refuter primitive from `.claude/workflows/qcsd-de
 
 **Verification (plan A2):** (a) synthesis + orchestration tests (k-of-n, default-uncertain, blind-prompt, failed-vote exclusion) ✓; (b) calibration: `calibrate()` utility + deterministic test characterizing the aggregation (majority-of-3 ≤ single-refuter error; unanimous threshold trades false-kill↓ for false-keep↑) ✓; (c) **regression parity** — `parity.test.ts` proves the package reproduces the workflow's inline synthesis **byte-identical** (the workflow can't literally `import` — the Workflow harness sandboxes it — so it inline-mirrors the package, annotated as canonical, parity-guarded against drift) ✓; (d) **zero AQE/Claude-Code import** (grep-verified) ✓. **25 tests green, strict-tsc clean.**
 
-**Remaining (optional, empirical):** real-LLM false-kill calibration — inject a real Judge (local/OpenRouter, per preference) + a labeled corpus of known-real/known-false findings into `calibrate()` to state the empirical operating point. Mechanism ready; needs the labeled corpus + model runs. **Unblocks A5** (MetaHarness embeds the verify gate).
+**Remaining (optional, empirical):** real-LLM false-kill calibration — inject a real Judge (local/OpenRouter, per preference) + a labeled corpus of known-real/known-false findings into `calibrate()` to state the empirical operating point. Mechanism ready; needs the labeled corpus + model runs.
+
+### A5 — status (primitive done 2026-06-25; embedding spec'd)
+
+**AQE-side DONE:** `src/verification/adversarial-verify/gate.ts` — `verifyGate(findings, {judge, enabled, dropUncertain, ...})` → `{ emitted, blocked, all, latencyMs, judgeCalls }`. An opt-in "verify before you emit" output gate: route findings through the blind refuters, drop the refuted, surface every verdict for witness, report overhead. **All 4 plan-A5 criteria tested** (`gate.test.ts`, 6 tests): (a) seeded false claim killed ✓ (b) true claim survives ✓ (c) **no-op with ZERO judge calls when `enabled:false`** — cost-neutral ✓ (d) overhead measured (`latencyMs` + `judgeCalls` as the token-cost proxy) ✓. Vendor-ready (zero deps beyond the module). **31 tests green across the module.**
+
+**MetaHarness-side (cross-repo, needs Ruv's OK + vendor/publish — NOT done):** verticals are template *scaffolds* (`VerticalManifest` = files + vars, `packages/vertical-base`), so the gate belongs in the GENERATED harness's runtime, not the manifest. Ready-to-apply spec:
+1. Add a template file `templates/verify-gate.ts.tmpl` to a vertical pack that imports `@ruvector/adversarial-verify` `verifyGate` and wraps the harness's finding emission (`emitted` → act; `blocked` → log/witness).
+2. Add a manifest `var` `enableVerifyGate` (default `false` — "default off for cheap verticals", plan A5).
+3. The host adapter supplies its model as the injected `Judge`; surface `all` verdicts into the witness (ties to A7).
+Blocked only on: publishing `@ruvector/adversarial-verify` (or vendoring the zero-dep module into the pack) **+** modifying the separate `agent-harness-generator` repo — both need explicit OK.
