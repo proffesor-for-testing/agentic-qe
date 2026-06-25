@@ -1,0 +1,80 @@
+# =============================================================================
+# Degraded-Mode Absent Drill (plan 05 / A9; ADR-150 pattern)
+# =============================================================================
+#
+# AQE's native/optional deps (@ruvector/{gnn,attention,sona,...}, hnswlib-node,
+# rvlite) live in `optionalDependencies`, so a platform without a prebuilt binary
+# — or a Dependabot-pruned lockfile — must DEGRADE, not crash. This drill installs
+# WITHOUT the optionals and proves the degraded path works.
+#
+# #528 lesson: graceful degradation is insufficient on its own — the regular
+# install job (npm-publish.yml / optimized-ci.yml) proves the NON-degraded path;
+# this proves the absent path. Both must be green.
+# =============================================================================
+
+name: Degraded-Mode Absent Drill
+
+on:
+  pull_request:
+    paths:
+      - 'src/shared/optional-module.ts'
+      - 'src/integrations/ruvector/**'
+      - 'src/kernel/**hnsw**'
+      - 'package.json'
+      - '.github/workflows/degraded-mode.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  absent-drill:
+    name: Install without optional/native deps + prove degraded path
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # Normal install + build (the test runner — vitest/rolldown — and esbuild
+      # have their OWN native optionals; a blanket `--omit=optional` removes those
+      # too and breaks the toolchain. So install normally, then simulate ONLY the
+      # APP's native deps being absent below).
+      - name: Install + build
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      - name: Simulate the APP's native optionals ABSENT
+        run: |
+          rm -rf node_modules/@ruvector/gnn* node_modules/@ruvector/attention* \
+                 node_modules/@ruvector/sona node_modules/@ruvector/learning-wasm \
+                 node_modules/hnswlib-node node_modules/rvlite
+          echo "removed app native optionals (@ruvector/*, hnswlib-node, rvlite)"
+
+      # Pure-node degraded-path proof — NO test runner (which needs rolldown native).
+      - name: Prove degraded path (pure node)
+        run: |
+          set -e
+          echo "--- CLI boots without app natives ---"
+          EXPECTED="$(node -p "require('./package.json').version")"
+          GOT="$(node dist/cli/bundle.js --version)"
+          test "$GOT" = "$EXPECTED" || { echo "version mismatch: got '$GOT' expected '$EXPECTED'"; exit 1; }
+          echo "CLI --version = $GOT"
+          echo "--- loadOptionalModule degrades on a genuinely-absent app native ---"
+          node --input-type=module -e "
+            const { loadOptionalModule } = await import('./dist/shared/optional-module.js');
+            const r = loadOptionalModule('@ruvector/gnn');
+            if (!r.degraded) { console.error('FAIL: expected degraded for absent @ruvector/gnn'); process.exit(1); }
+            const ok = loadOptionalModule('node:os');
+            if (!ok.available) { console.error('FAIL: present module should be available'); process.exit(1); }
+            console.log('OK: degrades on absence, loads present modules, never crashes');
+          "

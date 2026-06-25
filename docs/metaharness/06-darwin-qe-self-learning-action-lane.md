@@ -265,3 +265,142 @@ All three landed; opt-in, off by default, every affected suite green (**111 test
 - **Tests:** +2 (escalation-via-router, D9 sink invocation) → **113 green** across the affected suites; existing coordinator (47) + plugin (38) suites unchanged.
 
 **Still ahead:** the upstream `customScore` + `--ruvllm-timeout` PRs to `agent-harness-generator`; broaden the opt-in beyond test generation to other coordinators.
+
+---
+
+## Update — 2026-06-23: Ruv's full SWE-bench road-to-#1 arc (ADR-169→176) revises the escalation design
+
+**Trigger:** pulled `agent-harness-generator` `main` (now `6f15460`, 2026-06-23) and read the entire Darwin SWE-bench campaign Ruv ran 06-21→06-23 (`LEARNINGS.md` §8–12, `SOTA_HORIZON.md`, ADR-173/174/175/176), plus confirmed ruflo **v3.14.0** now depends on `metaharness ~0.2.6`, `@metaharness/router ~0.3.2`, `@metaharness/kernel ~0.1.0`, `@metaharness/darwin ~0.3.1` (published deps → the `metaharness_*` MCP tools). Ruv's private-group note framed an "Asymmetric Compute Routing" thesis (cheap oracle + cheap coder + Opus-sniper tail). **His own commits in the same 24h falsify the cheap halves of it** — the message is the aspirational pitch; the repo is the measured correction. This update records the corrections that bear on our D-lane.
+
+### What Ruv measured (authoritative, gold-graded, Wilson CIs)
+
+| Finding | Evidence | Bearing on AQE |
+|---|---|---|
+| **The CODER binds, not the oracle. Cheap-Pareto FALSIFIED.** Opus-oracle+cheap-coder = 16%; Opus+Opus = 33%; cheap coder caps ~12–16% *regardless of oracle quality* | `LEARNINGS.md §11` (2×2+D ablation, `c92cbd5`) | You can make the *oracle/verifier* cheap; you cannot make the *generator* cheap on reasoning-dense work. AQE's cheap tier only survives where generation is **bounded** (a unit test, a coverage probe), not on cross-file reasoning. |
+| **The asymmetric Opus-sniper is REFUTED.** A single repro-gated Opus shot drove in-loop repro-pass 7→23/25, cost +$25.34, **added ZERO gold resolves** — it overfits the oracle | `LEARNINGS.md §12` (`6f15460`) | **Single gated escalation shots Goodhart.** What converts is **best-of-k diversity** (Arm D Opus best-of-3 = 33%). Our `FreeTierEscalatingExecutor` does single-attempt-per-tier → must do best-of-k at the paid tier. |
+| **Goodhart on weak self-oracle:** combined self-repro-gated set was a STRICT SUBSET of the floor's, *losing* real wins; "a weak model cannot author a faithful repro, so its self-oracle is an unreliable selection target" | `LEARNINGS.md §10` | Direct hit on D8/D9: **never gate the loop on the local model's own self-authored test.** Gate on the ground-truth arena/coverage oracle (the D6 substrate already does this) — this is AQE's structural escape that SWE-bench lacks. |
+| **MiniMax-M2.7 patch swap FALSIFIED** (20.0% = DeepSeek at 2.2× cost); **qwen3-coder catastrophic in-scaffold** (0–4%) despite leaderboard-#10 | `d25be2b`, §11 | A model's external leaderboard rank **does not transfer** to your scaffold. Benchmark each free-tier preset on *your* QE scorer; the winner is repo/task-specific. |
+| **The ceiling tracks frontier-model quality:** opus-4 → opus-4.8 = +13pp (55.3 → 68.3%) on identical inputs | `LEARNINGS.md §8` (`4ddcaf8`) | Model choice is a first-class lever, not noise (we already saw qwen3≫gemma4 in D0). Keep the Sage/top tier swappable. |
+| **Oracle-ON (you hold the acceptance test) = 68.3% legit *product* mode**, distinct from conformant ~20% leaderboard | `LEARNINGS.md §9`, ADR-175 | Adopt the same reporting split for trust tiers: "QE quality when handed the acceptance test" vs "cold." Don't conflate. |
+| **Verification Kernel is deterministic** (py_compile, repro, patch-quality — *no LLM in the accept gate*) | ADR-176 | Mirror it: AQE's quality gate / arena scorer stays pure code. This is what immunizes against Goodhart and the DRACO/ADR-038 loss pattern. |
+
+### Net effect on this lane
+
+Our **D7→D9 escalation lane is architecturally correct** and matches the part of Ruv's arc that survived contact with data (tiered escalation as a **Pareto-cost** win — *not* "SOTA at pennies", which §11 explicitly calls dead). Two corrections fold in:
+
+1. **Best-of-k at the paid tier**, not a single escalated shot (§12), picked by the objective oracle.
+2. **Gate everything on the deterministic arena/coverage oracle, never the model's self-test** (§10) — the QE-specific advantage, only valid if we don't throw it away.
+
+And one graduation: ruflo now consumes **published `@metaharness/darwin`**, so A8's "real dep + version contract" is unblocked — we can retire the structural type-mirror (plan A8) and land our two ready upstream PRs (`customScore` hook, `--ruvllm-timeout` flags).
+
+### Promotion plan → ADR-111 ACCEPTED
+
+The lane graduates to a formal **ADR-111** once Phase 1 (D3 — the gate) lands a measured verdict. Tracked tasks:
+
+1. **D3-real** *(PENDING — the gate)* — wire the real `QeEvaluator` (host Ollama qwen3:8b worker + ADR-104 `runArena()` real mutants/coverage) behind the D6 `customScore` hook; run the gate (vanilla-local / vanilla-frontier / evolved-genome / +best-of-k) on one small AQE module with Wilson CIs. **This is the empirical authorization for ADR-111.**
+2. **Best-of-k escalation** *(DONE 2026-06-23)* — `FreeTierEscalatingExecutor` gained `bestOfK`: round-0 runs k deterministic diverse attempts per tier, accepts the first that passes the objective verifier, else repairs/escalates. +2 tests (convert-via-variant, diversification nudge). `executor.ts` `diversify()`.
+3. **Goodhart guard** *(DONE 2026-06-23)* — `oracleKind: 'objective' | 'self-authored'` (default `objective`); a self-authored gate is withheld from `tracker.recordOutcome` + `onOutcome` so a Goodharted self-test pass can never lift confidence (`result.goodhartGuarded`). +2 tests. **64 green across the lane (free-tier 38 + tracker 26), strict-tsc clean.**
+4. **Per-preset QE bench** *(PENDING)* — measure each `FREE_TIER_PRESETS` model on the AQE scorer for the corpus module; record the winner per task (don't trust external ranks).
+5. **Upstream PRs** *(PENDING — needs OK; shared-state)* — open `customScore` hook + `--ruvllm-timeout`/`--ruvllm-max-tokens` against `agent-harness-generator`; pin `@metaharness/darwin` as a real dep (retire the type-mirror).
+6. **Author ADR-111** *(SCAFFOLDED 2026-06-23 — `Proposed`)* — `docs/implementation/adrs/ADR-111-darwin-qe-self-learning.md` folds D1/D2/D6/D7-wire/D8/D9 + the §10/§12 corrections; flips to `Accepted` if D3 shows evolved-genome/best-of-k > both vanilla arms, else records the negative per **G-ABORT** and ships D1/D2/D7 standalone.
+
+### D3 status — first gate run (EXECUTED 2026-06-23, real models + real ADR-104 scorer)
+
+`docs/metaharness/prototype/d3-proof.mjs` — REAL throughout: worker models generate a `node --test` suite for `fixtures/arena-demo/src/pricing.mjs`; the scorer runs a baseline + every mutant (ADR-104 kill-rate + coverage). Arms: A vanilla-local (qwen3:8b), C best-of-k local (k=2 + D8 repair, pick best by the oracle), B vanilla-frontier (claude-sonnet-4-6), D cheap+escalate. Pilot n=3, 12 mutants.
+
+| arm | composite | killRate | coverage | baseline-valid [Wilson95] |
+|---|---|---|---|---|
+| A vanilla-local | 0.0 | 0% | 0 | **0/3** [0, 56.2] |
+| C best-of-k local | 0.0 | 0% | 0 | 0/3 |
+| B vanilla-frontier | **84.1** | **91.7%** | 97.1 | 3/3 [43.8, 100] |
+| D cheap+escalate | 84.1 | 91.7% | 97.1 | 3/3 (escalated **3/3**) |
+
+**Finding — reproduces Ruv's §11 "the coder binds" on a real AQE QE task.** sonnet writes baseline-valid ~92%-kill suites every time; **qwen3:8b could not produce even a *baseline-valid* suite** across 3 instances — best-of-k + D8 repair gave **0/3 lift** (you cannot pick or repair your way out of an invalid base). The "cheap-replaces-frontier" composite **leans G-ABORT here**; the escalation lane still *delivers frontier quality* (D arm), but with **no cost saving on this task** because the cheap tier escalated every time.
+
+**Two confounds — this run is PRELIMINARY:** (1) several qwen3:8b calls hit the 150 s abort (infra latency, not pure capability); (2) `/no_think` did not engage (one 17.3 KB ramble). **The fix was model choice, not harness tuning** — see the qwen3:30b re-run below.
+
+### D3 re-run — qwen3:30b-a3b cheap arm (EXECUTED 2026-06-23) — the verdict FLIPS
+
+Same harness/fixture/scorer, cheap arm swapped to **qwen3:30b-a3b** (MoE, 3B active — D0's fastest), n=3, k=2, repairs=1:
+
+| arm | composite | killRate | coverage | baseline-valid [Wilson95] |
+|---|---|---|---|---|
+| A vanilla-local (qwen3:30b) | 53.9 | 58.3% | 62.9 | 2/3 [20.8, 93.9] |
+| **C best-of-k local** | **81.9** | **88.9%** | 95.2 | **3/3** [43.8, 100] |
+| B vanilla-frontier (sonnet) | 28.0* | 30.6%* | 32.4 | 1/3* |
+| D cheap+escalate | 81.9 | 88.9% | 95.2 | 3/3 (escalated **0/3**) |
+
+**Findings (the qwen3:8b G-ABORT lean is reversed by a floor-clearing model):**
+1. **§12 best-of-k VALIDATED on a real QE task.** Best-of-k lifted the cheap arm **53.9 → 81.9 composite (+28 pts)** and baseline-valid **2/3 → 3/3** — diversity converts an otherwise-invalid base, exactly the mechanism. This is the first *measured* QE-domain confirmation of the §12 correction now shipped in `FreeTierEscalatingExecutor`.
+2. **§8 "model choice is a first-class lever" CONFIRMED.** qwen3:30b-a3b clears the floor qwen3:8b face-planted on (0/3 → **3/3 valid, 88.9% mutation kill at $0**). The 8B→30B gap *is* the result — mirrors Ruv's opus-4→4.8 (+13pp) and qwen≫gemma findings. **Practical: ship qwen3:30b-a3b (or larger), NOT qwen3:8b, as the cheap QE tier for test generation** (task #4 per-preset signal).
+3. **\*Frontier 28.0 is a MEASUREMENT ARTIFACT, not "cheap beats frontier."** `repairs=1` starved sonnet's aggressive suites — it tripped its own baseline on over-precise RangeError/NaN assertions 2/3 times; the qwen3:8b run measured sonnet at a clean **84.1**. **Do not claim cheap > frontier from this run.** The defensible claim: **cheap-local best-of-k reaches strong absolute QE quality (88.9% kill, $0) and is competitive.**
+
+**Status:** the n=3 run *leaned* PASS but had a frontier confound (`repairs=1`). Resolved by the clean confirmation below.
+
+### D3 confirmation — clean, fair repair budget (EXECUTED 2026-06-23) — THE GATE VERDICT
+
+Same harness/scorer/fixture; qwen3:30b-a3b cheap arm vs claude-sonnet-4-6 frontier; **n=10, k=2, repairs=2 (equal budget both arms)** — the confound is removed (frontier now 100% valid):
+
+| arm | composite | killRate | coverage | baseline-valid [Wilson95] |
+|---|---|---|---|---|
+| A vanilla-local (qwen3:30b) | 39.3 | 42.0% | 47.1 | 50% [23.7, 76.3] |
+| C best-of-k local | 56.1 | 60.0% | 66.9 | 70% [39.7, 89.2] |
+| B vanilla-frontier (sonnet) | **85.1** | 93.3% | 97.1 | 100% [72.2, 100] |
+| **D cheap+escalate** | **81.6** | 88.0% | 96.0 | 100% [72.2, 100] |
+
+§12 best-of-k > single-shot: **4/10** instances, mean lift **+16.7** composite pts. Coder-binds: frontier − cheap = **+29.1** pts. Escalations fired: **3/10**.
+
+**THE VERDICT (dual, honest):**
+1. **§12 best-of-k — VALIDATED.** +16.7 composite pts (A 39.3 → C 56.1), baseline-valid 50% → 70%, single-shot failures rescued 4/10. The `bestOfK` change shipped in `executor.ts` is empirically earned on a real QE task.
+2. **§11 coder-binds — CONFIRMED.** Frontier (85.1) beats cheap best-of-k (56.1) by +29 pts. **"Cheap-local replaces frontier" = G-ABORT** — the cheap model alone does not reach frontier QE quality. (The n=3 "PASS" was the `repairs=1` frontier artifact, now eliminated.)
+3. **The escalation lane — PARETO-leaning (the candidate product).** Arm **D = 81.6 / 88% kill** vs frontier **85.1 / 93%** — *competitive* while keeping **7/10 tasks $0-local** (escalated 3/10). This is Ruv's surviving thesis: competitive QE quality cheaper than pure-frontier — a Pareto point, not "SOTA at pennies."
+
+**Honest limits of this run (do not over-read the verdict — flagged by an adversarial review):**
+- **No significance test on composite.** The Wilson CIs above are on *baseline-valid* (saturated at 100% for both B and D) — `d3-proof.mjs` computes **no CI/SE on the composite** the verdict rests on. "D ≈ B" is a point-estimate comparison (n=10, **single fixture** `pricing.mjs`), **not** a proven statistical tie. Treat +16.7 (best-of-k) and the D≈B gap as suggestive, not significant.
+- **"~30% cost" is escalation rate, not a measured cost ratio.** The harness records no tokens/$$ (runtime term dropped). Escalation fired 3/10 — Wilson 95% CI **[0.11, 0.60]** — and escalated tasks pay *both* k local attempts *and* the frontier call. State it as "escalated 3/10 on this fixture", not a cost figure.
+- **Arm D is an upper bound.** `d3-proof.mjs:191` picks `max(cheap, frontier)` on escalation; production (`executor.ts`) ships the escalated output unconditionally. Production-D ≤ benchmark-D.
+- **The cheap-arm numbers are still `/no_think`-confounded.** It was never confirmed to engage on qwen3:30b either; the fix was model choice, not removing the confound. A/C absolute values (39.3 / 56.1) carry that caveat.
+- **The benchmark oracle ≠ the production oracle.** D3 graded with the *real* execution oracle (run mutants). The shipped coordinators gate on **structural proxies** (test+assertion regex; Gherkin structure+relevance) that do **not execute** — so the production confidence signal (D9) is only as trustworthy as those proxies. Closing this (run-the-test oracle in the hot path, or sampled offline) is open work.
+
+**Consequence for ADR-111:** **Accepted, scoped to the escalation lane** (D1/D2/D6/D7/D8/D9 + §12 best-of-k + §10 Goodhart guard). The naive "cheap composite replaces frontier" is **recorded as G-ABORT** (the planned R1 branch). The single-fixture caveat was the main open risk — **closed by the fixture-diverse run below.** Artifacts: `/tmp/d3-gate-result.json`, `docs/metaharness/prototype/d3-proof.mjs`.
+
+### D3 fixture-diverse confirmation (EXECUTED 2026-06-23) — the verdict GENERALIZES + the composite-SE overclaim is fixed
+
+Re-ran the harness over a **5-module corpus** (`pricing`, `strings`, `stats`, `validate`, `timefmt` — distinct shapes; `docs/metaharness/prototype/d3-corpus/`), **6 instances each → n=30**, qwen3:30b-a3b vs sonnet-4.6, k=2, repairs=2. The harness now reports **composite ±SE** (the audit's #3 fix — earlier "indistinguishable" wrongly cited the saturated `validRate` Wilson CI).
+
+| arm | composite ±SE | killRate | coverage | baseline-valid [Wilson95] |
+|---|---|---|---|---|
+| A vanilla-local | 58.6 ±6.5 | 61.3% | 72.7 | 73.3% [55.6, 85.8] |
+| C best-of-k local | 67.3 ±5.6 | 70.9% | 82.6 | 83.3% [66.4, 92.7] |
+| B vanilla-frontier | 82.7 ±2.9 | 89.8% | 96.2 | 96.7% [83.3, 99.4] |
+| **D cheap+escalate** | **81.6 ±0.9** | 86.4% | 99.1 | 100% [88.6, 100] |
+
+Per-fixture composite (A / C / B / D, escalations):
+
+| module | A | C | B | D | esc |
+|---|---|---|---|---|---|
+| pricing | 39.0 | 52.5 | 71.0\* | 80.9 | 2/6 |
+| strings | 50.0 | 63.7 | 80.7 | 76.7 | 1/6 |
+| stats | 78.0 | 78.7 | 82.0 | 78.7 | 0/6 |
+| validate | 67.0 | 67.7 | 90.0 | 82.7 | 1/6 |
+| timefmt | 59.1 | 74.1 | 90.0 | 89.1 | 1/6 |
+
+**Verdict — it generalizes (this is what the run was for):**
+- **§12 best-of-k VALIDATED across 5/5 modules** (aggregate A→C +8.7 composite, valid 73%→83%; rescued an invalid cheap attempt 7/30). Not pricing-specific.
+- **§11 coder-binds CONFIRMED across 5/5 modules** (B > C by +15.4 composite / +18.9 kill). Cheap-replaces-frontier stays **G-ABORT**, now on diverse fixtures.
+- **Escalation lane ≈ frontier, now honestly:** **B−D composite gap = 1.1, combined SE ±3.1 → within noise** — a real significance check on the *composite* (n=30), not the saturated valid-rate. D keeps **~83% of tasks $0-local** (escalated 5/30, ~17% — *better* cost story than the n=10's 30%) at 100% valid.
+- **\*Caveat preserved:** pricing B=71.0 is dragged by **one** frontier baseline failure (sonnet wrote an over-precise assertion, even at repairs=2); D=80.9>B there partly because benchmark-D takes `max(cheap,frontier)` on escalation (the known upper-bound peek — production-D would ship the escalated output). So read **B as the ceiling and D as competitive-with-B**, not "D beats frontier."
+
+**This closes the single-fixture risk.** ADR-111's "Accepted (scoped to the escalation lane)" now rests on **5 diverse modules with a proper dispersion estimate**, and the §10/§12 mechanisms hold across all of them. Remaining open work is the *production* execution-oracle gap (structural proxies ≠ the benchmark's run-the-mutants oracle) and the 8 GB-floor reality — both already recorded.
+
+### Broadening the opt-in beyond test generation (SHIPPED 2026-06-23)
+
+The inline free-tier wiring (30 LoC duplicated in the test-gen coordinator) was extracted into a reusable factory so any coordinator opts in with a few lines:
+- `src/routing/free-tier/coordinator-support.ts` — `buildFreeTierExecutor()` (config + router → executor, or `null` when off), `runFreeTierTextTask()` generic bounded-gen helper, `FreeTierCoordinatorConfig`. **Default cheap model raised to `qwen3:30b-a3b`** (D3: the 8B is below the floor). Test-gen refactored onto the factory.
+- **`bestOfK` now SHIPPED (validated-vs-shipped gap closed).** D3 validated k=2, but the first cut of the coordinators ran `bestOfK=1` (single-shot — the config the executor warns Goodharts). Both coordinators now pass `bestOfK: config.freeTierBestOfK ?? 2`, matching the benchmarked config; best-of-k costs an extra local call ONLY when variant 0 fails. New test asserts the shipped path runs k=2 and converts a failed first variant without escalating.
+- **The 8 GB / CPU target tension (called out honestly):** `qwen3:30b-a3b` is **18.6 GB** — it does **not** fit the lane's stated 8 GB envelope (§"Hardware envelope"). D3 is *why*: the 8 GB-runnable `qwen3:8b` (5.2 GB) scored **0/3 baseline-valid** — i.e. **the 8 GB user is below the QE *generation* floor.** So the lane's promise for 8 GB users narrows to *escalation-only* value (cheap tier mostly fails → escalates), not local generation. Users set `freeTierModel` to fit their box; the default targets users who can run the 30B. This partially refutes the lane's original "cheap-local QE down to 8 GB" framing — recorded, not hidden.
+- **Second adopter — `requirements-validation`**: opt-in cheap-first **BDD/Gherkin** generation in `generateTestArtifacts()` (`tryFreeTierScenarios`) — generates raw Gherkin on the local tier, gates on a **strengthened** oracle (valid structure + `parseGherkin` ≥1 scenario + **every scenario has non-empty Given/When/Then** + **relevance**: must reference the requirement's significant terms — so off-topic boilerplate is rejected, resisting the §10 Goodhart trap), and `parseGherkin()`s it back into structured `BDDScenario[]`; falls through to the structured path on a hard miss. Off by default. New test proves off-topic-but-valid Gherkin is rejected. **D9 wired** (coordinator `routingFeedback` arg + plugin `RoutingFeedbackCollector`).
+  - **Known limits (adversarial review):** the oracle is a *structural proxy*, not semantic ground truth — it can't catch a relevant-looking-but-wrong scenario; and `parseGherkin` is lossy (drops doc-strings, data tables, `Background:`, tags; collapses `And/But`), so a non-empty cheap result **bypasses** the structured path's negative-scenario / per-AC / Examples synthesis. Acceptable for an off-by-default fast path; a sampled execution oracle is the real fix.
+- **Fit criterion (enforced by judgement, not blanket adoption):** only coordinators whose work is **bounded generation graded by an objective oracle** qualify (test code → test+assertion; BDD → valid Gherkin). Analysis/judgement coordinators do **not** — the §11 "coder binds" finding means a cheap model can't carry open-ended reasoning. coverage-analysis's `generate-unit` is an RL action label (no direct code gen) → not a fit.
+- **Tests:** `tests/routing/free-tier/coordinator-support.test.ts` (8) + `tests/unit/domains/requirements-validation/free-tier-optin.test.ts` (4, incl. D9). Full sweep green across free-tier + escalation + both coordinator domains; strict-tsc clean.
+- **Still ahead:** broaden to further bounded-gen coordinators as they arise (the factory + D9 pattern is now turnkey).

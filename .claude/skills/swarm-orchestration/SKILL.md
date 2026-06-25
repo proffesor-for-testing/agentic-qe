@@ -11,7 +11,7 @@ Orchestrates multi-agent swarms using agentic-flow's advanced coordination syste
 
 ## Prerequisites
 
-- agentic-flow v3.0.0-alpha.1+
+- agentic-flow v1.5.11+
 - Node.js 18+
 - Understanding of distributed systems (helpful)
 

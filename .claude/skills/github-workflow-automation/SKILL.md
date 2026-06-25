@@ -1,25 +1,7 @@
 ---
 name: github-workflow-automation
-version: 1.0.0
-category: github
-description: Advanced GitHub Actions workflow automation with AI swarm coordination, intelligent CI/CD pipelines, and comprehensive repository management
-tags:
-  - github
-  - github-actions
-  - ci-cd
-  - workflow-automation
-  - swarm-coordination
-  - deployment
-  - security
-authors:
-  - claude-flow
-requires:
-  - gh (GitHub CLI)
-  - git
-  - claude-flow@alpha
-  - node (v16+)
-priority: high
-progressive_disclosure: true
+description: |
+  Advanced GitHub Actions workflow automation with AI swarm coordination, intelligent CI/CD pipelines, and comprehensive repository management
 ---
 
 # GitHub Workflow Automation Skill
@@ -184,7 +166,7 @@ jobs:
   swarm-analysis:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Initialize Swarm
         uses: ruvnet/swarm-action@v1
@@ -210,7 +192,7 @@ jobs:
   detect-and-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Detect Languages
         id: detect
@@ -837,7 +819,7 @@ jobs:
     needs: initialize
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Backend Tests
         run: |
           npx ruv-swarm agents spawn --type tester \
@@ -848,7 +830,7 @@ jobs:
     needs: initialize
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Frontend Tests
         run: |
           npx ruv-swarm agents spawn --type tester \
@@ -859,7 +841,7 @@ jobs:
     needs: initialize
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Security Scan
         run: |
           npx ruv-swarm agents spawn --type security \
@@ -889,7 +871,7 @@ jobs:
     outputs:
       packages: ${{ steps.detect.outputs.packages }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 

@@ -66,7 +66,7 @@ Claude-Flow is the ultimate multi-terminal orchestration platform that revolutio
 
 ### Initialize with SPARC:
 ```bash
-npx -y ruflo init --sparc
+npx -y claude-flow@latest init --sparc
 ```
 
 ### Start a development swarm:

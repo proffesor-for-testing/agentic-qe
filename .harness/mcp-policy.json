@@ -1,0 +1,36 @@
+{
+  "$schema": "https://metaharness.dev/schemas/mcp-policy.json",
+  "_about": "AQE MCP governance posture, snapshotted for `harness mcp-scan` (plan 05 / A1). Default-deny is ENFORCED by src/mcp/tool-scoping.ts (isToolAllowed falls through to `return false`; only fleet-admin/unrestricted carry allowAll). This file is the declarative mirror + CI gate input. See _enforcement for what is wired vs stated-intent.",
+  "defaultDeny": true,
+  "allowShell": false,
+  "allowNetwork": false,
+  "allowFileWrite": false,
+  "requireApprovalForDangerous": true,
+  "auditLog": true,
+  "toolTimeoutMs": 30000,
+  "maxToolCallsPerTurn": 50,
+  "roles": {
+    "test-generator": ["test_generate_enhanced", "test_execute_parallel", "coverage_analyze_sublinear", "code_index", "hypergraph_query", "memory_query", "memory_retrieve", "model_route"],
+    "coverage-analyzer": ["coverage_analyze_sublinear", "code_index", "hypergraph_query", "quality_assess", "memory_query", "memory_retrieve"],
+    "security-scanner": ["security_scan_comprehensive", "code_index", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "quality-assessor": ["quality_assess", "coverage_analyze_sublinear", "defect_predict", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "defect-predictor": ["defect_predict", "code_index", "hypergraph_query", "memory_query", "memory_retrieve"],
+    "contract-validator": ["contract_validate", "memory_query", "memory_retrieve"],
+    "accessibility-tester": ["accessibility_test", "memory_query", "memory_retrieve"],
+    "chaos-engineer": ["chaos_test", "quality_assess", "memory_query", "memory_retrieve"],
+    "fleet-admin": "allowAll",
+    "unrestricted": "allowAll"
+  },
+  "acceptedRisks": {
+    "allowAll-admin-tiers": "fleet-admin and unrestricted carry allowAll by design (admin/orchestration tiers). They are NOT host-exposed default roles; agents are scoped to a named non-admin role. Tracked for future tightening of `unrestricted`.",
+    "unpinned-app-deps": "package.json carries caret/tilde ranges (21/23) — normal for a 23-dep application; the scan's dep-pinning check targets minted single-purpose harnesses, N/A here."
+  },
+  "_enforcement": {
+    "defaultDeny": "ENFORCED — src/mcp/tool-scoping.ts isToolAllowed() returns false unless a role's allowlist (or allowAll) matches.",
+    "roles": "ENFORCED — mirrors DEFAULT_SCOPES in src/mcp/tool-scoping.ts (kept in sync; see mcp-policy-gate test).",
+    "auditLog": "ENFORCED — src/audit/witness-chain.ts (Ed25519 event chain).",
+    "allowShell": "POSTURE re: the EXPOSED tool surface — no AQE QE tool grants the model arbitrary command execution (the surface is test_generate/coverage_analyze/etc., not a generic exec/terminal tool). The QE tool RUNTIME does spawn SCOPED test subprocesses (node --test, mutation runs); that is gated, not arbitrary. (The bundled ruflo server in .mcp.json is a separate governance domain with its own shell-capable agents.)",
+    "allowNetwork/allowFileWrite": "POSTURE — QE MCP tools operate on the local workspace and return data; outbound model calls go through the host routing layer, not tool-granted capabilities.",
+    "toolTimeoutMs/maxToolCallsPerTurn/requireApprovalForDangerous": "STATED — declared bounds; host enforcement is the follow-up wiring."
+  }
+}

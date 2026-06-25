@@ -44,3 +44,11 @@ export {
   type FreeTierOutcomeEvent,
   type RoutingFeedbackSinkOptions,
 } from './feedback-sink.js';
+export {
+  buildFreeTierExecutor,
+  runFreeTierTextTask,
+  DEFAULT_FREE_TIER_MODEL,
+  type FreeTierCoordinatorConfig,
+  type FreeTierLlmRouter,
+  type BuildFreeTierExecutorOptions,
+} from './coordinator-support.js';

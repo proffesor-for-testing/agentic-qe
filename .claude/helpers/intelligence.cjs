@@ -25,6 +25,10 @@ const PENDING_PATH = path.join(DATA_DIR, 'pending-insights.jsonl');
 const SESSION_DIR = path.join(process.cwd(), '.claude-flow', 'sessions');
 const SESSION_FILE = path.join(SESSION_DIR, 'current.json');
 
+// ── Safety limits (fixes #1530, #1531) ─────────────────────────────────────
+const MAX_DATA_FILE_SIZE = 10 * 1024 * 1024; // 10 MB — skip files larger than this
+const MAX_GRAPH_NODES = 5000;                 // skip PageRank if graph exceeds this
+
 // ── Stop words for trigram matching ──────────────────────────────────────────
 
 const STOP_WORDS = new Set([
@@ -46,6 +50,14 @@ function ensureDataDir() {
 }
 
 function readJSON(filePath) {
+  // Safety: skip files exceeding MAX_DATA_FILE_SIZE (#1531)
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size > MAX_DATA_FILE_SIZE) {
+      process.stderr.write("[INTELLIGENCE] WARN: Skipping " + path.basename(filePath) + " (" + Math.round(stat.size / 1048576) + "MB exceeds 10MB limit)\n");
+      return null;
+    }
+  } catch { /* file may not exist yet */ }
   try {
     if (fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   } catch { /* corrupt file — start fresh */ }
@@ -78,6 +90,63 @@ function jaccardSimilarity(setA, setB) {
   let intersection = 0;
   for (const item of setA) { if (setB.has(item)) intersection++; }
   return intersection / (setA.size + setB.size - intersection);
+}
+
+// ── Deduplication helper (fixes #1518) ──────────────────────────────────────
+
+function deduplicateById(entries) {
+  if (!entries || !Array.isArray(entries)) return entries;
+  const seen = new Map();
+  for (const entry of entries) {
+    const id = entry.id || entry.key;
+    if (id) {
+      seen.set(id, entry);
+    } else {
+      seen.set(`__no_id_${seen.size}`, entry);
+    }
+  }
+  return Array.from(seen.values());
+}
+
+// ADR-095 G6 — content-hash dedup. The April audit measured 5,706 entries
+// in the auto-memory store with only ~20 unique by content; 5,686 dupes
+// were the same MEMORY.md sections imported from sibling project dirs
+// with different IDs. deduplicateById can't catch these (the IDs really
+// are different); we need a content fingerprint.
+//
+// Fast non-cryptographic fingerprint — collisions on 64-bit FNV-1a are
+// vanishingly rare for human prose at the scale of an auto-memory store.
+// Whitespace-normalized so trivially-different formatting doesn't bypass dedup.
+function fingerprintContent(text) {
+  if (typeof text !== 'string' || text.length === 0) return '0';
+  const norm = text.replace(/\s+/g, ' ').trim().toLowerCase();
+  // FNV-1a 64-bit (split into 32-bit halves to stay within Number safe int)
+  let h1 = 0x811c9dc5, h2 = 0xcbf29ce4;
+  for (let i = 0; i < norm.length; i++) {
+    const c = norm.charCodeAt(i);
+    h1 ^= c; h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 ^= c; h2 = Math.imul(h2, 0x100000001b3 & 0xffffffff) >>> 0;
+  }
+  return `${h1.toString(16)}_${h2.toString(16)}_${norm.length}`;
+}
+
+function deduplicateByContent(entries) {
+  if (!entries || !Array.isArray(entries)) return entries;
+  const seen = new Map();
+  for (const entry of entries) {
+    const content = entry.content || entry.summary || entry.value || '';
+    const fp = fingerprintContent(typeof content === 'string' ? content : JSON.stringify(content));
+    if (!seen.has(fp)) {
+      seen.set(fp, entry);
+    } else {
+      // Keep the entry with the higher accessCount or earlier createdAt
+      const existing = seen.get(fp);
+      const existingAccess = existing.accessCount || 0;
+      const candidateAccess = entry.accessCount || 0;
+      if (candidateAccess > existingAccess) seen.set(fp, entry);
+    }
+  }
+  return Array.from(seen.values());
 }
 
 // ── Session state helpers ────────────────────────────────────────────────────
@@ -189,14 +258,24 @@ function buildEdges(entries) {
     }
   }
 
-  // Similarity edges within categories (Jaccard > 0.3)
+  // Similarity edges within categories (Jaccard > 0.3).
+  // ADR-095 G6 perf: hoist the trigram computation outside the inner
+  // loop. Previously we re-tokenized + re-trigrammed group[j] for every
+  // i — O(n²) extra work for nothing. Now compute once per entry.
   for (const cat of Object.keys(byCategory)) {
     const group = byCategory[cat];
+    if (group.length < 2) continue;
+
+    // Cache trigram sets for every entry in the group.
+    const triCache = new Array(group.length);
     for (let i = 0; i < group.length; i++) {
-      const triA = trigrams(tokenize(group[i].content || group[i].summary || ''));
+      triCache[i] = trigrams(tokenize(group[i].content || group[i].summary || ''));
+    }
+
+    for (let i = 0; i < group.length; i++) {
+      const triA = triCache[i];
       for (let j = i + 1; j < group.length; j++) {
-        const triB = trigrams(tokenize(group[j].content || group[j].summary || ''));
-        const sim = jaccardSimilarity(triA, triB);
+        const sim = jaccardSimilarity(triA, triCache[j]);
         if (sim > 0.3) {
           edges.push({
             sourceId: group[i].id,
@@ -236,15 +315,17 @@ function bootstrapFromMemoryFiles() {
   for (const base of candidates) {
     if (!fs.existsSync(base)) continue;
 
-    // For the projects dir, scan subdirectories for memory/
+    // For the projects dir, scope to CURRENT project only (not all 51+ dirs)
     if (base.endsWith('projects')) {
       try {
-        const projectDirs = fs.readdirSync(base);
-        for (const pdir of projectDirs) {
-          const memDir = path.join(base, pdir, 'memory');
-          if (fs.existsSync(memDir)) {
-            parseMemoryDir(memDir, entries);
-          }
+        // Match Claude Code's project-dir slug: every non-alphanumeric char -> '-'
+        // (e.g. "G:\\My Drive\\TJ_Vault" -> "G--My-Drive-TJ-Vault"). The old version
+        // only handled POSIX '/', so on Windows the slug kept ':' and '\\' and never
+        // matched the real <projects>/<slug>/memory dir — bootstrap found nothing (FIX 5).
+        const projectSlug = cwd.replace(/[^a-zA-Z0-9]/g, '-');
+        const memDir = path.join(base, projectSlug, 'memory');
+        if (fs.existsSync(memDir)) {
+          parseMemoryDir(memDir, entries);
         }
       } catch { /* skip */ }
     } else if (fs.existsSync(base)) {
@@ -253,6 +334,16 @@ function bootstrapFromMemoryFiles() {
   }
 
   return entries;
+}
+
+// Truncation transparency (FIX 4): mark the cut with an ellipsis and warn under
+// debug, so later reasoning isn't silently built on severed text.
+const CLIP_DEBUG = !!(process.env.RUFLO_DEBUG || process.env.DEBUG);
+function clip(text, max, label) {
+  text = text == null ? '' : String(text);
+  if (text.length <= max) return text;
+  if (CLIP_DEBUG) process.stderr.write(`[INTELLIGENCE] WARN: truncated ${label || 'value'} from ${text.length} to ${max} chars\n`);
+  return text.slice(0, max - 1) + '…';
 }
 
 function parseMemoryDir(dir, entries) {
@@ -265,17 +356,18 @@ function parseMemoryDir(dir, entries) {
 
       // Parse markdown sections as separate entries
       const sections = content.split(/^##?\s+/m).filter(Boolean);
-      for (const section of sections) {
+      for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+        const section = sections[sIdx];
         const lines = section.trim().split('\n');
         const title = lines[0].trim();
         const body = lines.slice(1).join('\n').trim();
         if (!body || body.length < 10) continue;
 
-        const id = `mem-${file.replace('.md', '')}-${title.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 30)}`;
+        const id = `mem-${file.replace('.md', '')}-${title.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 30)}-${sIdx}`;
         entries.push({
           id,
           key: title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50),
-          content: body.slice(0, 500),
+          content: clip(body, 500, 'memory content'),
           summary: title,
           namespace: file === 'MEMORY.md' ? 'core' : file.replace('.md', ''),
           type: 'semantic',
@@ -312,8 +404,27 @@ function init() {
     }
   }
 
+  // Deduplicate store entries by ID (fixes #1518 — 194MB → ~79KB)
+  let deduped = deduplicateById(store);
+  // ADR-095 G6: also dedupe by content fingerprint. The April audit
+  // measured 5,706 entries with only ~20 unique by content because the
+  // same MEMORY.md sections get imported from sibling project dirs with
+  // different IDs. deduplicateById can't catch that; deduplicateByContent
+  // can. Cuts the graph from O(n²) over near-identical duplicates down
+  // to O(unique²), which is the difference between a 100MB graph-state
+  // and a kilobytes-scale one for typical workloads.
+  const beforeContentDedup = deduped.length;
+  deduped = deduplicateByContent(deduped);
+  if (deduped.length < store.length) {
+    process.stderr.write(
+      `[INTELLIGENCE] Deduped store: ${store.length} -> ${deduped.length} entries ` +
+      `(by-id: ${store.length - beforeContentDedup} dropped, by-content: ${beforeContentDedup - deduped.length} dropped)\n`
+    );
+    writeJSON(STORE_PATH, deduped);
+  }
+
   // Skip rebuild if graph is fresh and store hasn't changed
-  if (graphState && graphState.nodeCount === store.length) {
+  if (graphState && graphState.nodeCount === deduped.length) {
     const age = Date.now() - (graphState.updatedAt || 0);
     if (age < 60000) {
       return {
@@ -324,9 +435,9 @@ function init() {
     }
   }
 
-  // Build nodes
+  // Build nodes from deduped entries
   const nodes = {};
-  for (const entry of store) {
+  for (const entry of deduped) {
     const id = entry.id || entry.key || `entry-${Math.random().toString(36).slice(2, 8)}`;
     nodes[id] = {
       id,
@@ -340,10 +451,17 @@ function init() {
   }
 
   // Build edges
-  const edges = buildEdges(store);
+  const edges = buildEdges(deduped);
 
-  // Compute PageRank
-  const pageRanks = computePageRank(nodes, edges, 0.85, 30);
+  // Compute PageRank (skip if graph too large — #1531)
+  const nodeCount = Object.keys(nodes).length;
+  let pageRanks = {};
+  if (nodeCount > MAX_GRAPH_NODES) {
+    process.stderr.write("[INTELLIGENCE] WARN: Graph has " + nodeCount + " nodes (>" + MAX_GRAPH_NODES + "), skipping PageRank\n");
+    for (const id of Object.keys(nodes)) pageRanks[id] = 1 / nodeCount;
+  } else {
+    pageRanks = computePageRank(nodes, edges, 0.85, 30);
+  }
 
   // Write graph state
   const graph = {
@@ -357,7 +475,7 @@ function init() {
   writeJSON(GRAPH_PATH, graph);
 
   // Build ranked context for fast lookup
-  const rankedEntries = store.map(entry => {
+  const rankedEntries = deduped.map(entry => {
     const id = entry.id;
     const content = entry.content || entry.value || '';
     const summary = entry.summary || entry.key || '';
@@ -515,10 +633,14 @@ function boostConfidence(ids, amount) {
 function consolidate() {
   ensureDataDir();
 
-  const store = readJSON(STORE_PATH);
+  let store = readJSON(STORE_PATH);
   if (!store || !Array.isArray(store)) {
     return { entries: 0, edges: 0, newEntries: 0, message: 'No store to consolidate' };
   }
+
+  // Deduplicate store entries by ID before processing (fixes #1518)
+  const preDedupCount = store.length;
+  store = deduplicateById(store);
 
   // 1. Process pending insights
   let newEntries = 0;
@@ -595,8 +717,15 @@ function consolidate() {
     };
   }
 
-  // 5. Recompute PageRank
-  const pageRanks = computePageRank(nodes, edges, 0.85, 30);
+  // 5. Recompute PageRank (skip if graph too large — #1531)
+  const nodeCount = Object.keys(nodes).length;
+  let pageRanks = {};
+  if (nodeCount > MAX_GRAPH_NODES) {
+    process.stderr.write("[INTELLIGENCE] WARN: Graph has " + nodeCount + " nodes (>" + MAX_GRAPH_NODES + "), skipping PageRank in consolidate\n");
+    for (const id of Object.keys(nodes)) pageRanks[id] = 1 / nodeCount;
+  } else {
+    pageRanks = computePageRank(nodes, edges, 0.85, 30);
+  }
 
   // 6. Write updated graph
   writeJSON(GRAPH_PATH, {
@@ -636,8 +765,8 @@ function consolidate() {
     entries: rankedEntries,
   });
 
-  // 8. Persist updated store (with new insight entries)
-  if (newEntries > 0) writeJSON(STORE_PATH, store);
+  // 8. Persist updated store (deduped or with new insight entries)
+  if (newEntries > 0 || store.length < preDedupCount) writeJSON(STORE_PATH, store);
 
   // 9. Save snapshot for delta tracking
   const updatedGraph = readJSON(GRAPH_PATH);

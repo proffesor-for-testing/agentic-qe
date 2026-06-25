@@ -1,0 +1,97 @@
+{
+  "swarm": "qcsd-development-swarm",
+  "version": "1.0",
+  "adr": "ADR-102",
+  "date": "2026-06-15",
+  "subject": {
+    "repo": "ruvnet/agent-harness-generator",
+    "alias": "MetaHarness",
+    "version": "0.1.x",
+    "snapshot": "working-may",
+    "sourcePath": "/workspaces/agent-harness-generator/packages/create-agent-harness/src",
+    "testPaths": [
+      "/workspaces/agent-harness-generator/packages/create-agent-harness/__tests__",
+      "/workspaces/agent-harness-generator/__tests__"
+    ]
+  },
+  "flags": {
+    "HAS_SECURITY_CODE": true,
+    "HAS_PERFORMANCE_CODE": false,
+    "HAS_CRITICAL_CODE": true,
+    "HAS_MIDDLEWARE": false,
+    "HAS_SAP_INTEGRATION": false,
+    "HAS_AUTHORIZATION": true
+  },
+  "agents": [
+    "qe-tdd-specialist",
+    "qe-code-complexity",
+    "qe-coverage-specialist",
+    "qe-security-scanner",
+    "qe-mutation-tester",
+    "qe-defect-predictor"
+  ],
+  "notes_on_flags": {
+    "HAS_PERFORMANCE_CODE": "FALSE — one-shot scaffolder CLI; file I/O + 2 network fetches, no hot paths/caching/concurrency. qe-performance-tester (load/stress) N/A.",
+    "HAS_CRITICAL_CODE": "TRUE — product's safety-critical surface is its governance/provenance code (witness, mcp-scan HIGH rules, secret redaction, injection-safe renderer); justified qe-mutation-tester for test-effectiveness.",
+    "HAS_AUTHORIZATION": "TRUE — federate trust-tiers + MCP default-deny policy; mapped qe-sod-analyzer is SAP-GRC-specific and N/A, so the authorization surface was folded into qe-security-scanner."
+  },
+  "metrics": {
+    "tdd_adherence_pct": 68,
+    "tdd_gate": "CONDITIONAL",
+    "complexity_avg_cyclomatic": 7.18,
+    "complexity_max": 52,
+    "complexity_gate": "SHIP",
+    "coverage_lines_pct": 82.32,
+    "coverage_branch_pct": 73.33,
+    "coverage_functions_pct": 94.59,
+    "coverage_gate": "SHIP",
+    "coverage_measured": true,
+    "mutation_score_pct": 53.6,
+    "mutation_killed": 15,
+    "mutation_total": 28,
+    "mutation_gate": "CONDITIONAL",
+    "mutation_measured": true,
+    "security_high": 2,
+    "security_medium": 5,
+    "security_low": 4,
+    "npm_audit": "clean",
+    "security_gate": "HOLD",
+    "tests_total": 530,
+    "tests_passing": 530
+  },
+  "final_gate": "HOLD",
+  "gate_driver": "Two HIGH security findings in provenance/secret-handling code (witness no-op verifier; secret leak into 'sanitised' bundles). Step 5 HOLD rule: any HIGH/CRITICAL in security code forces HOLD.",
+  "supersedes": "Earlier 3-dimension qcsd-development-review workflow pass (docs/metaharness/01-quality-analysis.md) rated the generator 'SHIP-grade'; it never ran security, mutation, or defect analysis.",
+  "high_findings": [
+    {
+      "id": "HIGH-1",
+      "title": "Witness verification is a guaranteed no-op (security theater)",
+      "file": "/workspaces/agent-harness-generator/packages/create-agent-harness/src/witness-client.ts:74,86",
+      "corroborated_by": ["qe-security-scanner", "qe-mutation-tester", "qe-defect-predictor"]
+    },
+    {
+      "id": "HIGH-2",
+      "title": "secrets fetch leaks raw secret to stdout; bundle redaction is key-name-based not value-based",
+      "file": "/workspaces/agent-harness-generator/packages/create-agent-harness/src/secrets.ts:156,182",
+      "corroborated_by": ["qe-security-scanner", "qe-mutation-tester"]
+    }
+  ],
+  "process_findings": [
+    "CI coverage understates truth by ~27 pts: tests import compiled dist/*.js via file:// so v8 attributes execution to excluded dist/ files; add a dist->src resolve alias.",
+    "coverage.reportOnFailure=false while 3 repo-hygiene tests fail => CI silently produces no coverage report.",
+    "secrets tests contain environment-gated escape hatches that no-op when gcloud is absent (CI), giving illusory DI coverage.",
+    "No red-green-refactor evidence (0 TDD commits; 16/16 modules add src+test in same commit)."
+  ],
+  "aqe_tooling_caveats_carried_over": [
+    "Target repo != CWD: agents were given absolute paths and an explicit warning to inspect BOTH co-located and root __tests__; the prior qcsd-development-review run mis-targeted CWD and missed the co-located suite."
+  ],
+  "reports": {
+    "01-executive-summary.md": "synthesis + HOLD decision",
+    "02-tdd-analysis.md": "qe-tdd-specialist",
+    "03-complexity-analysis.md": "qe-code-complexity",
+    "04-coverage-analysis.md": "qe-coverage-specialist",
+    "05-security-scan.md": "qe-security-scanner",
+    "07-mutation-testing.md": "qe-mutation-tester",
+    "12-defect-prediction.md": "qe-defect-predictor"
+  }
+}

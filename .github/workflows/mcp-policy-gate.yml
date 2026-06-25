@@ -1,0 +1,56 @@
+# =============================================================================
+# MCP Policy Gate (plan 05 / A1 — "npm audit for agent tools", ADR-022)
+# =============================================================================
+#
+# Default-deny self-governance for AQE's ~90-tool MCP surface. Mirrors
+# MetaHarness `mcp-scan`'s HIGH-severity checks (self-contained, no cross-repo
+# dep) against .harness/mcp-policy.json + .claude/settings.json + .mcp.json and
+# fails the build on ANY high finding (not default-deny, shell granted, wildcard
+# tool permission, or an MCP server with no policy).
+# =============================================================================
+
+name: MCP Policy Gate
+
+on:
+  pull_request:
+    paths:
+      - '.harness/mcp-policy.json'
+      - '.claude/settings.json'
+      - '.mcp.json'
+      - 'src/mcp/tool-scoping.ts'
+      - 'scripts/mcp-policy-gate.mjs'
+      - '.github/workflows/mcp-policy-gate.yml'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  mcp-policy:
+    name: MCP default-deny gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # The gate itself is dependency-free pure Node — runs before install.
+      - name: MCP policy gate (exit 1 on HIGH)
+        run: node scripts/mcp-policy-gate.mjs
+
+      - name: Install (no native builds needed)
+        run: npm ci --ignore-scripts
+
+      # Drift guard: policy roles must stay in sync with src/mcp/tool-scoping.ts.
+      - name: Policy ↔ tool-scoping sync test
+        run: npx vitest run tests/unit/mcp/mcp-policy-gate.test.ts

@@ -71,14 +71,37 @@ describe('TestGenerationCoordinator — free-tier opt-in', () => {
       .mockResolvedValueOnce({ ok: true, content: goodTest, latencyMs: 8 });
     const coordinator = new TestGenerationCoordinator(
       ctx.eventBus, ctx.memory, ctx.agentCoordinator,
-      { ...baseConfig, enableFreeTier: true, freeTierRepairAttempts: 1 },
+      { ...baseConfig, enableFreeTier: true, freeTierRepairAttempts: 1, freeTierBestOfK: 1 },
     );
 
     const result = await coordinator.generateTests(request);
 
-    expect(chatMock).toHaveBeenCalledTimes(2); // initial + 1 repair
+    expect(chatMock).toHaveBeenCalledTimes(2); // initial + 1 repair (bestOfK pinned to 1)
     expect(result.success).toBe(true);
     if (result.success) expect(result.value.patternsUsed).toContain('free-tier-local');
+    await coordinator.dispose();
+  });
+
+  it('should run best-of-k (k=2) on the local tier by default, rescuing a failed first variant', async () => {
+    // variant 0 invalid (no assertion), variant 1 valid — best-of-k must convert
+    // WITHOUT a repair round and WITHOUT escalating. Proves the shipped path uses
+    // the D3-validated k=2, not single-shot.
+    chatMock
+      .mockResolvedValueOnce({ ok: true, content: 'just prose, no test', latencyMs: 5 })
+      .mockResolvedValueOnce({ ok: true, content: goodTest, latencyMs: 6 });
+    const chat = vi.fn().mockResolvedValue({ content: 'PAID — should not be reached' });
+    const coordinator = new TestGenerationCoordinator(
+      ctx.eventBus, ctx.memory, ctx.agentCoordinator,
+      { ...baseConfig, enableFreeTier: true, freeTierRepairAttempts: 0 }, // no repair → only best-of-k can save it
+      { chat } as never,
+    );
+
+    const result = await coordinator.generateTests(request);
+
+    expect(chatMock).toHaveBeenCalledTimes(2); // two local variants at round 0
+    expect(chat).not.toHaveBeenCalled(); // converted locally, no paid escalation
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.patternsUsed).toContain('tier:local');
     await coordinator.dispose();
   });
 

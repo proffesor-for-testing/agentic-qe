@@ -207,9 +207,111 @@ If deep coupling proves unwise at any point, the **decoupled wins stand alone**:
 
 ### New candidate actions lifted from ADR-150 (standalone, no coupling)
 
-- **A9 — Graceful-degradation architecture** *(S, low risk)*: adopt ADR-150's `optionalDependencies` + `MODULE_NOT_FOUND → {degraded:true}` + CI "absent drill" pattern. Pays off twice: (1) fixes the `@ruvector/ruvllm` optional-dep fragility that keeps breaking Dependabot lockfiles (it broke PR #540), and (2) is the clean substrate for database-free mode (issues #533/#535). Highest leverage of the new items.
+- **A9 — Graceful-degradation architecture** *(CORE DONE 2026-06-25; migration follow-up)*: adopt ADR-150's `optionalDependencies` + `MODULE_NOT_FOUND → {degraded:true}` + CI "absent drill". Pays off twice: (1) the `@ruvector/*` optional-dep fragility that keeps breaking Dependabot lockfiles, (2) substrate for database-free mode (#533/#535).
+  - **Shipped:** `src/shared/optional-module.ts` — `loadOptionalModule(name, req?)` → `{available}|{degraded}`. Key correctness fix vs the existing ad-hoc `try{require}catch{}` (in 6+ ruvector wrappers): it degrades **only on genuine absence** (MODULE_NOT_FOUND) and **RE-THROWS real load failures** (ABI mismatch, corrupt `.node`) — the existing catch-all *masks* those (the #528 anti-pattern). 8 tests incl. the rethrow property + real present/absent via the default require. `.github/workflows/degraded-mode.yml` — the CI **absent drill** (`npm ci --omit=optional --ignore-scripts` → run the degraded-path tests); pairs with the regular install job that proves the non-degraded path (#528: prove both).
+  - **Follow-up (CI-verified, not done):** migrate the 6+ ad-hoc `try{require('@ruvector/*')}catch{}` sites + the **static** `import` in `sona-wrapper.ts:12` (which crashes the whole module if absent — worst case) onto `loadOptionalModule`. This changes a production native-load path (a broken binary would surface instead of silently degrading — correct, but verify across platforms in CI), so held for review.
 - **A10 — KRR cost-optimal router** *(M, med risk)*: lift ADR-150 L3 (Kernel Ridge Regression + k-NN quality predict + Thompson-sampling bandit shadow + 3-criterion AND-gate promotion: `quality +>2% AND cost +<1% AND p95 +<5%`) into AQE's `model_route`/`routing_economics`. AQE router confidence sits at ~40% across 2165 requests — concrete upside.
 
 ### Cross-link
 
 ADR-150's discovered `spawnSync` `shell:false` bug (args-with-spaces silently triggered graceful degradation, masking a real failure) is the **same bug class** as AQE **#528** (`agentic-qe mcp` double-spawned with `stdio:'inherit'`, dropping stdin → premature shutdown). #528 is fixed on `fix/528-mcp-in-process` (server now runs in-process; reproduction + regression test added). Lesson carried over: *graceful degradation is insufficient on its own — prove the non-degraded path works.*
+
+---
+
+## Plan update — 2026-06-24 (reconcile against the Darwin-for-QE lane + measured D3 + Ruv's oracle arc)
+
+**Status of this plan: PARTLY OBE.** Two things overtook it: (1) the [Darwin-for-QE lane](./06-darwin-qe-self-learning-action-lane.md) built and measured a *different* product than this plan's headline; (2) Ruv's `agent-harness-generator` `main` advanced +~50 commits (now `6fa4c25`, ADR-178→184) with an **oracle research arc** that supplies the missing piece for AQE's open work.
+
+### The gate resolved, and the committed product pivoted
+
+This plan's spine was **A3 (gate) → A6 (`vertical:qe`, conditional headline)**. Both moved:
+
+- **A3 — effectively resolved as G-ABORT for the generic composite, by a re-framed measurement.** The *literal* A3 arms (vanilla / bare-AQE-install / `vertical:qe` / `+verify`) were **never run**. Instead lane-06's **D3** ran cheap-local / best-of-k / frontier / escalate on a 5-module corpus (n=30) and measured **§11 "coder binds" — frontier > cheap in 5/5 modules**. That *is* the load-bearing prior for A6's G-ABORT, now empirical rather than inherited from ADR-038.
+- **A6 (`vertical:qe`) → RETIRE.** The generic harness-beats-frontier composite is confirmed G-ABORT; do not build it as a product.
+- **A NEW committed product emerged that this plan never contained:** the **asymmetric escalation lane (ADR-111**, Accepted-scoped) — cheap-first → repair → best-of-k → escalate, ~frontier QE quality at ~83% tasks $0-local. The ceiling moved from A6 → ADR-111.
+
+### Status of every action
+
+| # | Action | Status (2026-06-24) |
+|---|---|---|
+| **A1** | mcp-scan → default-deny allowlist + CI gate | **DONE (2026-06-24).** See "A1 — completed" below. 0 HIGH, CI gate fails-closed, drift-guard test. |
+| **A2** | Extract `@ruvector/adversarial-verify` | **DONE (in-repo, 2026-06-25).** See "A2 — completed" below. Host-agnostic module, 25 tests, parity-guarded. Empirical real-LLM false-kill calibration on a labeled corpus is the remaining (optional) step. Not published (no-publish-without-OK). |
+| **A3** | DRACO-for-QE gate | **Resolved (re-framed) → G-ABORT for generic composite** (D3, n=30). |
+| **A4** | Genome → QE-skill subset recommender | **NOT STARTED.** Standalone value remains (per-repo install vs wholesale). |
+| **A5** | MetaHarness embeds verify gate | **Primitive DONE (2026-06-25), embedding SPEC'd.** `verifyGate` shipped + tested (all 4 plan criteria); the MetaHarness-side template wiring is grounded but needs the package vendored/published + Ruv's OK (separate repo). See "A5 — status" below. |
+| **A6** | `vertical:qe` minted harness | **RETIRED** (G-ABORT confirmed). |
+| **A7** | `witnessVerify` w/ Ed25519 chain | **NOT STARTED.** Still internal-events only. |
+| **A8** | Version contract + shared CI | **Version contract DONE (2026-06-25); dep-swap deliberately NOT taken.** Mirror confirmed identical to upstream ScoreCard @ 0.2.1–0.7.0 + drift-guard test. See "A8 — status" below. |
+| **A9** | Graceful-degradation architecture | **NOT STARTED.** High-leverage (optional-dep/Dependabot fragility). |
+| **A10** | KRR cost-optimal router | **NOT STARTED.** The lane-06 D7–D9 escalation+feedback lifts the 40% confidence from the *outcome* angle, but the KRR predictor/bandit is untouched. |
+
+The lane-06 work (escalation lane / ADR-111) is **net-new** — it did **not** advance A1/A2/A4/A5/A7/A8. The decoupled "floor" of this plan (A1, A2) is still the highest-value undone work, exactly as the original "highest-leverage first move" called it.
+
+### New actions lifted from Ruv's oracle arc (ADR-178/182/183/184) — they answer lane-06's open gaps
+
+The devil's-advocate review of lane-06 left two open holes; Ruv's last-24h arc supplies the principled fix for both:
+
+- **A11 — Writer≠evaluator LLM-judge discriminator** *(MEASURED 2026-06-24, v1 then RETRY → judge VALIDATED; payoff gated on candidate spread)*. Replace lane-06's structural-proxy best-of-k *picker* with a separate judge, **precision-validated against the mutation-kill ground truth** (AQE *has* that oracle). `docs/metaharness/prototype/d3-judge.mjs` (writer=local qwen3:30b, judge=OpenRouter — **no Anthropic**, per preference).
+  - **v1 (n=20, truncated code, v4-flash judge):** 71.4% best-pick → looked NEGATIVE. But two confounds: candidate code truncated to 2500 chars, and the cheapest judge.
+  - **Retry (n=30, FULL code, v4-flash vs v3.2):** removing truncation lifted v4-flash to **77.8%**; the stronger **deepseek-v3.2 hit 88.9% (8/9 discriminating) — clears Ruv's 88% bar.** So v1's "don't trust it" was a measurement artifact, **overturned.** The judge IS reliable.
+  - **But aggregate regret gain over first-valid is only ~0.5 pts (within noise, n=9 discriminating)** — because qwen's candidates **cluster** (little spread to exploit). The judge's value shows where spread exists (e.g. validate#4: judge 90.0 vs first-valid 77.4, +12.6 rescue). **Conclusion:** judge validated; its payoff is **gated on candidate diversity** → unlock with **A12 (cross-model best-of-N)**, then re-measure with the v3.2 judge and wire if the aggregate gain becomes meaningful. A11 proved the judge works; A12 gives it spread to act on.
+- **A12 — Cross-model best-of-N** *(S)*. **ADR-182** cold-escalation: warm-starting the escalated tier with failed cheap reasoning causes *correlated* failure, shrinking the union. **Code check (2026-06-24): `FreeTierEscalatingExecutor` is ALREADY cold across tiers** — each escalated tier's round-0 prompt is `req.messages`, not the prior tier's output; warm context is correctly scoped to within-tier repair only. So the cold half is satisfied; the open lever is **xbo cross-*model* Best-of-N** (AQE's best-of-k varies temperature+prompt on ONE model; varying the *model* raises the union — `d3-xmodel.mjs`).
+- **A13 — Cost-Pareto Value-Score framing** *(DONE 2026-06-25)*. Ruv leads with **quality-per-$** (ADR-179 Value Score), not absolute resolve — ADR-111's "competitive cheaper than frontier" stance. Built `src/routing/value-score.ts` (pure, 8 tests): `valueScore(m, {costWeight})` (the tunable slider), `rankByValue`, and **`paretoFrontier`** (the non-dominated set a router should choose from — drops models that are strictly worse on both cost AND quality). Seeded `MEASURED_QE_TEST_GEN` — a **measured** (D3/A12, dated) economics snapshot, NOT vendor claims (the qwen3-coder-rank-didn't-transfer lesson): qwen3:8b dominated (below floor), qwen3:30b-a3b + sonnet on the frontier. Router refreshes it from routing-feedback. (Agent Registry / measured-role-fit = the same principle; the snapshot is the seed.)
+
+### Forward plan (this session)
+
+1. **A1** — ✅ DONE (2026-06-24, see below).
+2. **A11** — ✅ MEASURED (2026-06-24): judge **VALIDATED** (deepseek-v3.2 = 88.9% best-pick, clears Ruv's bar; v1 "negative" was a truncation+weak-judge artifact, overturned). Aggregate gain over first-valid small (~0.5 pts) because qwen candidates cluster → payoff gated on candidate spread. Not yet wired.
+3. **A12 (IN PROGRESS 2026-06-24)** — cross-model best-of-N. **Two parts, re-scoped after reading the code:**
+   - **(a) Cross-model best-of-N** *(MEASURED 2026-06-24, n=20 → WIN; `d3-xmodel.mjs`)*: generators qwen3:30b-a3b (local) + z-ai/glm-5.2 (OpenRouter, cross-family); judge deepseek-v3.2 (third family). **Result (14 judged):** cross-model best **84.8** vs qwen-alone **63.5** / glm-alone **71.2**; the two models **cover each other's validity failures** (qwen 0-valid on 4 instances, glm on 3, both-valid on 11). **Selector delivery:** judge **82.8** vs first-valid **82.2** (Δ 0.6, within noise) vs qwen-alone **76.1**. **→ Cross-model best-of-N is the real, robust win (+6 composite over single-model), and it barely needs the judge** — the value is pool-quality + mutual validity rescue, which even first-valid captures (falls through to the valid model). The A11 judge's same-model skill (88.9%) did NOT transfer cross-model (33% best-pick — cross-family stylistic discrimination is harder). **Production lever = cross-model generation + cheap selection (first-valid / objective oracle), NOT a judge.** *(Metric note: the harness's first "lift=0.0" was a tautology — it compared vs max(single models)=the cross-model best; corrected to lift vs each model alone.)*
+   - **WIRED (2026-06-24, opt-in, off by default):** `FreeTierEscalatingExecutor` gained `candidateProviders?: FreeTierProviderConfig[]` — when set, round-0 best-of-k draws each candidate from a DIFFERENT provider (e.g. local qwen + an OpenRouter model) at the start free tier, selected by the existing objective verifier (first-pass = validity rescue, the +6). Per-candidate `attempt.model` telemetry. Surfaced through the factory as `FreeTierCoordinatorConfig.freeTierCandidateProviders`. +2 executor tests (rescue + single-model unchanged); 87 green across the lane, strict-tsc clean. No judge wired (A12 showed it doesn't beat first-valid on the cross-model pool).
+   - **(b) Cold escalation — ALREADY SATISFIED (verified in code, NOT a change).** The plan's earlier "executor escalates warm" claim is **wrong**: `executor.ts:248-251` builds each escalated tier's round-0 messages from `req.messages` (cold), not the prior tier's failed output; the only warm context is within-tier `repairMessages` (correct — repair should see its own attempt). So the executor already implements ADR-182's cold-start across tiers. No change needed; claim corrected.
+   - **Model note:** Qwable-3.6-27b (local, Qwen3.5 dense, the user's download) is genuinely diverse but **too slow** (9.3 tok/s ≈ 3 min/candidate) for the loop — unloaded; OpenRouter GLM-5.2 used as the cross-family generator instead. GLM-5.2 cost on OpenRouter is mid ($3/M out), not "low", but absolute benchmark spend is small (~$0.40).
+4. **A2** — extract `@ruvector/adversarial-verify` (calibrate kill-rate; dogfood back).
+
+A4/A7/A8/A9/A10 remain standalone candidates; A6 is retired.
+
+### A1 — completed (2026-06-24)
+
+Closed G1. The original "default-deny OFF, score 54/C" reading was a **scan false-negative**: MetaHarness `scanMcp` only inspects `.claude/settings.json` `mcpServers`, but AQE declares its server in `.mcp.json` → "No MCP surface" (INFO). Two grounded corrections + the deliverables:
+
+- **Enforcement was already default-deny.** `src/mcp/tool-scoping.ts` `isToolAllowed()` falls through to `return false`; only `fleet-admin`/`unrestricted` carry `allowAll`. The interface doc-comment *claimed* "empty/undefined → allowAll" — the opposite of the code; **fixed** (it denies). Added `ALL_AGENT_ROLES` export.
+- **Host permissions were already clean** — `.claude/settings.json` scopes to `mcp__<server>__*` (no `*`/`mcp__*` wildcard), denies `Read(./.env*)`, no `rm -rf`/`curl` allows.
+- **`.harness/mcp-policy.json`** — truthful default-deny snapshot (flags mapped to real enforcement in `_enforcement`: defaultDeny←tool-scoping, auditLog←witness-chain; postures/stated-intent labelled, not theater). With it present, **re-scan = 0 HIGH, 0 MEDIUM, 1 LOW** (caret app-deps, accepted N/A).
+- **CI gate** — `scripts/mcp-policy-gate.mjs` (self-contained mirror of the scanner's HIGH checks; also reads `.mcp.json`, closing the false-negative) + `.github/workflows/mcp-policy-gate.yml` + `npm run security:mcp-policy`. Exit 1 on any HIGH (verified: fails on a reintroduced `defaultDeny:false`/`allowShell:true`).
+- **Drift guard** — `tests/unit/mcp/mcp-policy-gate.test.ts` (14 tests) asserts the policy `roles` mirror `tool-scoping` enforcement per-role + the default-deny posture. 46/46 green with the existing scoping suite; strict-tsc clean.
+
+**Verification:** (a) scan runs ✓ (b) 0 HIGH ✓ (c) tool-scoping behaviour unchanged — additive export + comment only, 32 scoping tests still green ✓ (d) CI fails on a reintroduced HIGH ✓.
+
+### A2 — completed (in-repo, 2026-06-25)
+
+Closed G2. Extracted the blind-refuter primitive from `.claude/workflows/qcsd-development-review.js` into a **host-agnostic, zero-AQE-dependency** module `src/verification/adversarial-verify/` (trivially extractable to `@ruvector/*` later; **not published** per no-publish-without-OK):
+
+- `types.ts` — `Finding`, `RefuterVote`, `FindingVerdict` (= finding-verdict@1), and the injected **`Judge`** interface (the LLM call — the decoupling seam, so NO `agent()`/Claude-Code dep).
+- `prompts.ts` — `refuterPrompt` + `DEFAULT_LENSES` (ADR-074 Loki-mode: blind, anti-sycophancy, default-refuted on uncertainty).
+- `synthesize.ts` — pure k-of-n majority-kill (`synthesizeVerdict`, `majorityKill`, `isFindingVerdict`).
+- `verify.ts` — `adversarialVerify(findings, {judge, refuters, lenses, killThreshold})` → verdicts; N blind refuters per finding in parallel; failed votes excluded; `partitionVerdicts`.
+- `calibrate.ts` — `calibrate(labeled, opts)` → false-kill / false-keep confusion vs ground truth (works with any Judge — stub or real LLM).
+
+**Verification (plan A2):** (a) synthesis + orchestration tests (k-of-n, default-uncertain, blind-prompt, failed-vote exclusion) ✓; (b) calibration: `calibrate()` utility + deterministic test characterizing the aggregation (majority-of-3 ≤ single-refuter error; unanimous threshold trades false-kill↓ for false-keep↑) ✓; (c) **regression parity** — `parity.test.ts` proves the package reproduces the workflow's inline synthesis **byte-identical** (the workflow can't literally `import` — the Workflow harness sandboxes it — so it inline-mirrors the package, annotated as canonical, parity-guarded against drift) ✓; (d) **zero AQE/Claude-Code import** (grep-verified) ✓. **25 tests green, strict-tsc clean.**
+
+**Remaining (optional, empirical):** real-LLM false-kill calibration — inject a real Judge (local/OpenRouter, per preference) + a labeled corpus of known-real/known-false findings into `calibrate()` to state the empirical operating point. Mechanism ready; needs the labeled corpus + model runs.
+
+### A5 — status (primitive done 2026-06-25; embedding spec'd)
+
+**AQE-side DONE:** `src/verification/adversarial-verify/gate.ts` — `verifyGate(findings, {judge, enabled, dropUncertain, ...})` → `{ emitted, blocked, all, latencyMs, judgeCalls }`. An opt-in "verify before you emit" output gate: route findings through the blind refuters, drop the refuted, surface every verdict for witness, report overhead. **All 4 plan-A5 criteria tested** (`gate.test.ts`, 6 tests): (a) seeded false claim killed ✓ (b) true claim survives ✓ (c) **no-op with ZERO judge calls when `enabled:false`** — cost-neutral ✓ (d) overhead measured (`latencyMs` + `judgeCalls` as the token-cost proxy) ✓. Vendor-ready (zero deps beyond the module). **31 tests green across the module.**
+
+**MetaHarness-side (cross-repo, needs Ruv's OK + vendor/publish — NOT done):** verticals are template *scaffolds* (`VerticalManifest` = files + vars, `packages/vertical-base`), so the gate belongs in the GENERATED harness's runtime, not the manifest. Ready-to-apply spec:
+1. Add a template file `templates/verify-gate.ts.tmpl` to a vertical pack that imports `@ruvector/adversarial-verify` `verifyGate` and wraps the harness's finding emission (`emitted` → act; `blocked` → log/witness).
+2. Add a manifest `var` `enableVerifyGate` (default `false` — "default off for cheap verticals", plan A5).
+3. The host adapter supplies its model as the injected `Judge`; surface `all` verdicts into the witness (ties to A7).
+Blocked only on: publishing `@ruvector/adversarial-verify` (or vendoring the zero-dep module into the pack) **+** modifying the separate `agent-harness-generator` repo — both need explicit OK.
+
+### A8 — status (version contract done; dep-swap held with rationale, 2026-06-25)
+
+The plan's A8 = "pin `@metaharness/darwin` as a real dep + retire the type-mirror." Investigated and **deliberately split**:
+
+- **Type-compat verified:** AQE's `DarwinScoreCard` mirror is **byte-identical** to upstream `ScoreCard` from `@metaharness/darwin@0.2.1` THROUGH the published **0.7.0** (no drift across 5 minors). So a swap would be type-safe.
+- **But the dep-swap is NOT worth the risk — held:** the upstream is a fast-moving pre-1.0 package whose tarball pulls **napi/wasm transitive deps**; adding it changes every user's `npm install` + lockfile, which **can't be verified locally** (host-shared-node_modules breaks native rebuilds — see that memory) and only proves out in CI. The zero-coupling mirror was deliberate (Phase-0) and remains the lower-risk substrate. Replacing 74 stable lines with a fast-moving dependency is negative-EV.
+- **What shipped (the version-contract half — the real point of A8):** the mirror's provenance now pins the verified upstream range (0.2.1–0.7.0), and `tests/integrations/darwin/darwin-version-contract.test.ts` **drift-guards the field set** — any divergence fails CI, forcing a re-verification against upstream. 17 tests green.
+- **If/when to actually swap:** only after `@metaharness/darwin` stabilizes (≥1.0 or a pinned LTS) AND a CI run confirms the transitive-dep/native-build impact on `npm ci`. Needs explicit OK (affects published-package installs). The "shared integration CI" half of A8 is a follow-up (a CI job running both repos' tests against the integration).

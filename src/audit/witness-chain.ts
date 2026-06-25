@@ -18,6 +18,9 @@ export type WitnessActionType =
   | 'DREAM_MERGE' | 'DREAM_DISCARD'
   | 'QUALITY_GATE_PASS' | 'QUALITY_GATE_FAIL'
   | 'ROUTING_DECISION'
+  // A7: provenance of DELIVERED review findings (adversarially-verified survivors)
+  // and the ones the verify gate BLOCKED — tamper-evident, optionally Ed25519-signed.
+  | 'FINDING_DELIVERED' | 'FINDING_BLOCKED'
   | 'BRANCH_MERGE' | 'BRANCH_DISCARD' | 'HEBBIAN_PENALTY' | 'KEY_ROTATION';
 
 export interface WitnessEntry {

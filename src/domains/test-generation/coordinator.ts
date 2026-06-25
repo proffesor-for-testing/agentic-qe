@@ -20,12 +20,10 @@ import {
 import { toError } from '../../shared/error-utils.js';
 // Opt-in free-tier local test generation (cross-pollination plan 06, D7-wire/D8/D9).
 import {
-  FreeTierEscalatingExecutor,
-  defaultFreeTierLadder,
-  createRoutingFeedbackSink,
+  type FreeTierEscalatingExecutor,
+  buildFreeTierExecutor,
   type RoutingFeedbackLike,
 } from '../../routing/free-tier/index.js';
-import type { AgentTier } from '../../routing/routing-config.js';
 import {
   EventBus,
   MemoryBackend,
@@ -194,10 +192,12 @@ export interface CoordinatorConfig extends BaseDomainCoordinatorConfig {
    * — also enables via env `AQE_FREE_TIER=1`. Local-only / no paid escalation yet.
    */
   enableFreeTier?: boolean;
-  /** Local model id for the free tier (default 'qwen3:8b' or env AQE_FREE_TIER_MODEL). */
+  /** Local model id for the free tier (default qwen3:30b-a3b or env AQE_FREE_TIER_MODEL). */
   freeTierModel?: string;
   /** Same-tier repair retries on a failed free-tier generation (D8). Default 1. */
   freeTierRepairAttempts?: number;
+  /** Best-of-k diverse local attempts per tier (§12; D3-validated k=2). Default 2. */
+  freeTierBestOfK?: number;
 }
 
 type TestGenWorkflowType = 'generate' | 'tdd' | 'property' | 'data' | 'learn';
@@ -318,41 +318,16 @@ export class TestGenerationCoordinator
     this.testGenerator = createTestGeneratorServiceWithDependencies({ memory, llmRouter });
     this.patternMatcher = new PatternMatcherService(memory);
 
-    // Opt-in free-tier local generation (plan 06, D7-wire/D8/D9). OFF by default;
-    // local-only with a same-tier repair loop and NO paid escalation yet.
-    const freeTierOn = this.config.enableFreeTier === true || process.env.AQE_FREE_TIER === '1';
-    if (freeTierOn) {
-      const model = this.config.freeTierModel || process.env.AQE_FREE_TIER_MODEL || 'qwen3:8b';
-      // Paid escalation: delegate Claude tiers to the existing HybridRouter, mapping
-      // the ladder tier to a complexity hint so the router selects that tier. When no
-      // router is wired, the executor stays local-only (Claude tiers report unavailable).
-      const claudeRunner = llmRouter
-        ? async (
-            tier: AgentTier,
-            msgs: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-          ): Promise<{ content: string }> => {
-            const complexity = tier === 'opus' ? 'high' : tier === 'sonnet' ? 'medium' : 'low';
-            const resp = await llmRouter.chat({
-              messages: msgs.map((m) => ({ role: m.role, content: m.content })),
-              agentType: 'qe-test-architect',
-              complexity,
-            });
-            return { content: resp.content };
-          }
-        : undefined;
-      this.freeTierExecutor = new FreeTierEscalatingExecutor({
-        ladder: defaultFreeTierLadder(model),
-        claudeRunner,
-        defaultRepairAttempts: this.config.freeTierRepairAttempts ?? 1,
-        onOutcome: routingFeedback
-          ? createRoutingFeedbackSink(routingFeedback, { taskKind: 'test-generation' }) // D9
-          : undefined,
-      });
-      logger.info(
-        `Free-tier local test generation enabled (model=${model}, repair, ` +
-          `${claudeRunner ? 'escalation→HybridRouter' : 'local-only'})`,
-      );
-    }
+    // Opt-in free-tier local generation (plan 06, D7-wire/D8/D9; ADR-111).
+    // OFF by default. Generic wiring lives in the shared factory now.
+    this.freeTierExecutor = buildFreeTierExecutor({
+      config: this.config,
+      agentType: 'qe-test-architect',
+      taskKind: 'test-generation',
+      llmRouter,
+      routingFeedback,
+      logger,
+    });
 
     // Initialize coherence gate if service is provided (ADR-052)
     if (this.config.enableCoherenceGate && coherenceService) {
@@ -714,9 +689,11 @@ export class TestGenerationCoordinator
       agentId: `test-gen:${src}`,
       messages,
       verify,
-      // Cheap-first: try local + repair, then escalate the hard tail up the
-      // ladder via the HybridRouter (when wired). Local-only if no router.
+      // Cheap-first: best-of-k (§12) + repair on the local tier, then escalate the
+      // hard tail up the ladder via the HybridRouter (when wired). Matches the D3
+      // config that was validated (k=2). Local-only if no router.
       escalate: true,
+      bestOfK: this.config.freeTierBestOfK ?? 2,
       repairAttempts: this.config.freeTierRepairAttempts ?? 1,
     });
     if (!r.ok) return null;
