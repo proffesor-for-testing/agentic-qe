@@ -16,6 +16,7 @@ import { FreeTierEscalatingExecutor, type QeExecutionResult, type QeVerifier } f
 import { defaultFreeTierLadder } from './ladder.js';
 import { createRoutingFeedbackSink, type RoutingFeedbackLike } from './feedback-sink.js';
 import type { ChatMessage } from './provider.js';
+import type { FreeTierProviderConfig } from './types.js';
 import type { AgentTier } from '../routing-config.js';
 
 /** Default cheap tier. qwen3:30b-a3b, NOT qwen3:8b — D3 (2026-06-23) measured the
@@ -36,6 +37,13 @@ export interface FreeTierCoordinatorConfig {
    * call ONLY when variant 0 fails (the loop breaks on first pass). Default 2.
    */
   freeTierBestOfK?: number;
+  /**
+   * Cross-model best-of-k generator pool (A12, measured +6 composite over single-
+   * model via mutual validity rescue). When set, round-0 best-of-k draws candidates
+   * across these providers (e.g. local qwen + an OpenRouter model) instead of one
+   * model's variants. Omit ⇒ single-model. Set `freeTierBestOfK ≥ pool size`.
+   */
+  freeTierCandidateProviders?: FreeTierProviderConfig[];
 }
 
 /** Structural view of the HybridRouter — avoids a hard import (decoupling). */
@@ -91,6 +99,7 @@ export function buildFreeTierExecutor(opts: BuildFreeTierExecutorOptions): FreeT
     ladder: defaultFreeTierLadder(model),
     claudeRunner,
     defaultRepairAttempts: opts.config.freeTierRepairAttempts ?? 1,
+    candidateProviders: opts.config.freeTierCandidateProviders, // A12 cross-model (off unless set)
     onOutcome: opts.routingFeedback
       ? createRoutingFeedbackSink(opts.routingFeedback, { taskKind: opts.taskKind })
       : undefined,

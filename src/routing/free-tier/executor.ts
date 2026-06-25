@@ -15,10 +15,10 @@
  * never leaves the start tier (the "no escalation yet" mode).
  */
 
-import { freeTierChat, type ChatMessage } from './provider.js';
+import { freeTierChat, resolveFreeTierProvider, type ChatMessage } from './provider.js';
 import { resolveTier, type ResolvedTier } from './ladder.js';
 import { AutoEscalationTracker } from '../escalation/auto-escalation-tracker.js';
-import type { QeRoutingLadder } from './types.js';
+import type { QeRoutingLadder, FreeTierProviderConfig, ResolvedFreeTierProvider } from './types.js';
 import type { AgentTier } from '../routing-config.js';
 
 /** Serves a Claude tier. Injected by the host (e.g. delegates to HybridRouter). */
@@ -73,6 +73,8 @@ export interface TierAttempt {
   repairRound: number;
   /** Best-of-k variant index within round 0 (0 = primary, 1.. = diversified). */
   variant?: number;
+  /** Generator model that produced this candidate (set for cross-model best-of-k). */
+  model?: string;
   ok: boolean;
   passed: boolean;
   latencyMs: number;
@@ -112,6 +114,15 @@ export interface FreeTierExecutorOptions {
   env?: NodeJS.ProcessEnv;
   /** Default same-tier repair retries when a request omits `repairAttempts`. */
   defaultRepairAttempts?: number;
+  /**
+   * Cross-model best-of-k (A12, measured +6 composite over single-model). When set
+   * AND the START tier is free-tier, round-0 best-of-k draws each candidate from a
+   * DIFFERENT provider in this pool (e.g. local qwen + an OpenRouter model) instead
+   * of one model's temperature/prompt variants — diverse models cover each other's
+   * failures and raise the union. Selection stays the objective verifier (first-pass).
+   * Omit ⇒ single-model best-of-k (unchanged).
+   */
+  candidateProviders?: FreeTierProviderConfig[];
   /** D9 sink: record each completed task outcome (→ routing-feedback). */
   onOutcome?: (o: {
     agentId: string;
@@ -141,6 +152,8 @@ export class FreeTierEscalatingExecutor {
   private readonly baseTier: string;
   private readonly defaultRepairAttempts: number;
   private readonly onOutcome?: FreeTierExecutorOptions['onOutcome'];
+  /** Resolved cross-model generator pool (A12); undefined ⇒ single-model best-of-k. */
+  private readonly candidateProviders?: ResolvedFreeTierProvider[];
 
   constructor(opts: FreeTierExecutorOptions) {
     this.ladder = opts.ladder;
@@ -149,6 +162,9 @@ export class FreeTierEscalatingExecutor {
     this.onOutcome = opts.onOutcome;
     this.defaultRepairAttempts = opts.defaultRepairAttempts ?? 0;
     this.baseTier = opts.ladder.tierOrder[0];
+    this.candidateProviders = opts.candidateProviders?.length
+      ? opts.candidateProviders.map((c) => resolveFreeTierProvider(c, this.env))
+      : undefined;
     this.tracker =
       opts.tracker ??
       new AutoEscalationTracker<string>({
@@ -242,16 +258,25 @@ export class FreeTierEscalatingExecutor {
       const resolved = resolveTier(this.ladder, tier, this.env);
 
       // round 0 = best-of-k diverse attempts (06 §12); rounds 1..repairAttempts = single repair turns (D8)
+      // A12: at the START free tier, round-0 candidates draw from a CROSS-MODEL pool
+      // (diverse models cover each other's failures) instead of one model's variants.
+      const pool = this.candidateProviders;
+      const xModelHere = !!pool && idx === startIdx && resolved.provider === 'free-tier';
       for (let round = 0; round <= repairAttempts; round++) {
         const attemptsThisRound = round === 0 ? bestOfK : 1;
         for (let k = 0; k < attemptsThisRound; k++) {
+          const candProvider = round === 0 && xModelHere && pool ? pool[k % pool.length] : undefined;
+          const candResolved: ResolvedTier = candProvider ? { provider: 'free-tier', resolved: candProvider } : resolved;
           const messages =
-            round === 0
-              ? (k === 0 ? req.messages : this.diversify(req.messages, k))
-              : this.repairMessages(req.messages, result.content, attempts[attempts.length - 1]?.feedback);
-          const run = await this.runTier(resolved, messages);
+            round !== 0
+              ? this.repairMessages(req.messages, result.content, attempts[attempts.length - 1]?.feedback)
+              : candProvider
+                // model difference IS the diversity; only nudge when k wraps past the pool
+                ? (pool && k < pool.length ? req.messages : this.diversify(req.messages, k))
+                : (k === 0 ? req.messages : this.diversify(req.messages, k));
+          const run = await this.runTier(candResolved, messages);
           const verdict = run.ok ? normalizeVerdict(await Promise.resolve(req.verify(run.content))) : { passed: false, feedback: run.error };
-          attempts.push({ tier, provider: resolved.provider, repairRound: round, variant: round === 0 ? k : undefined, ok: run.ok, passed: verdict.passed, latencyMs: run.latencyMs, feedback: verdict.feedback, error: run.error });
+          attempts.push({ tier, provider: candResolved.provider, repairRound: round, variant: round === 0 ? k : undefined, model: candProvider?.model, ok: run.ok, passed: verdict.passed, latencyMs: run.latencyMs, feedback: verdict.feedback, error: run.error });
 
           // start-tier capability for adaptation: did ANY round-0 attempt pass?
           if (idx === startIdx && round === 0 && verdict.passed) passedAtStart = true;
