@@ -1,0 +1,64 @@
+# =============================================================================
+# Degraded-Mode Absent Drill (plan 05 / A9; ADR-150 pattern)
+# =============================================================================
+#
+# AQE's native/optional deps (@ruvector/{gnn,attention,sona,...}, hnswlib-node,
+# rvlite) live in `optionalDependencies`, so a platform without a prebuilt binary
+# — or a Dependabot-pruned lockfile — must DEGRADE, not crash. This drill installs
+# WITHOUT the optionals and proves the degraded path works.
+#
+# #528 lesson: graceful degradation is insufficient on its own — the regular
+# install job (npm-publish.yml / optimized-ci.yml) proves the NON-degraded path;
+# this proves the absent path. Both must be green.
+# =============================================================================
+
+name: Degraded-Mode Absent Drill
+
+on:
+  pull_request:
+    paths:
+      - 'src/shared/optional-module.ts'
+      - 'src/integrations/ruvector/**'
+      - 'src/kernel/**hnsw**'
+      - 'package.json'
+      - '.github/workflows/degraded-mode.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  absent-drill:
+    name: Install without optional/native deps + prove degraded path
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # The drill: omit optionalDependencies + skip native build scripts.
+      - name: Install WITHOUT optional/native deps
+        run: npm ci --omit=optional --ignore-scripts
+
+      - name: Confirm native optionals are absent
+        run: |
+          for m in @ruvector/gnn @ruvector/attention hnswlib-node; do
+            if [ -d "node_modules/$m" ]; then
+              echo "::warning::$m present despite --omit=optional (drill weaker than intended)"
+            else
+              echo "ok: $m absent"
+            fi
+          done
+
+      # The degraded-path contract: the loader degrades on absence, rethrows real
+      # failures, and the pure modules run with no native deps present.
+      - name: Degraded-path tests
+        run: npx vitest run tests/unit/shared/optional-module.test.ts tests/unit/verification/adversarial-verify/ tests/unit/routing/value-score.test.ts
