@@ -239,7 +239,7 @@ This plan's spine was **A3 (gate) → A6 (`vertical:qe`, conditional headline)**
 | **A5** | MetaHarness embeds verify gate | **Primitive DONE (2026-06-25), embedding SPEC'd.** `verifyGate` shipped + tested (all 4 plan criteria); the MetaHarness-side template wiring is grounded but needs the package vendored/published + Ruv's OK (separate repo). See "A5 — status" below. |
 | **A6** | `vertical:qe` minted harness | **RETIRED** (G-ABORT confirmed). |
 | **A7** | `witnessVerify` w/ Ed25519 chain | **NOT STARTED.** Still internal-events only. |
-| **A8** | Version contract + shared CI | **NOT STARTED (de-risked).** AQE still uses the structural type-mirror (`src/integrations/darwin/`); ruflo now *publishes* `@metaharness/darwin` so pinning it is concrete. |
+| **A8** | Version contract + shared CI | **Version contract DONE (2026-06-25); dep-swap deliberately NOT taken.** Mirror confirmed identical to upstream ScoreCard @ 0.2.1–0.7.0 + drift-guard test. See "A8 — status" below. |
 | **A9** | Graceful-degradation architecture | **NOT STARTED.** High-leverage (optional-dep/Dependabot fragility). |
 | **A10** | KRR cost-optimal router | **NOT STARTED.** The lane-06 D7–D9 escalation+feedback lifts the 40% confidence from the *outcome* angle, but the KRR predictor/bandit is untouched. |
 
@@ -304,3 +304,12 @@ Closed G2. Extracted the blind-refuter primitive from `.claude/workflows/qcsd-de
 2. Add a manifest `var` `enableVerifyGate` (default `false` — "default off for cheap verticals", plan A5).
 3. The host adapter supplies its model as the injected `Judge`; surface `all` verdicts into the witness (ties to A7).
 Blocked only on: publishing `@ruvector/adversarial-verify` (or vendoring the zero-dep module into the pack) **+** modifying the separate `agent-harness-generator` repo — both need explicit OK.
+
+### A8 — status (version contract done; dep-swap held with rationale, 2026-06-25)
+
+The plan's A8 = "pin `@metaharness/darwin` as a real dep + retire the type-mirror." Investigated and **deliberately split**:
+
+- **Type-compat verified:** AQE's `DarwinScoreCard` mirror is **byte-identical** to upstream `ScoreCard` from `@metaharness/darwin@0.2.1` THROUGH the published **0.7.0** (no drift across 5 minors). So a swap would be type-safe.
+- **But the dep-swap is NOT worth the risk — held:** the upstream is a fast-moving pre-1.0 package whose tarball pulls **napi/wasm transitive deps**; adding it changes every user's `npm install` + lockfile, which **can't be verified locally** (host-shared-node_modules breaks native rebuilds — see that memory) and only proves out in CI. The zero-coupling mirror was deliberate (Phase-0) and remains the lower-risk substrate. Replacing 74 stable lines with a fast-moving dependency is negative-EV.
+- **What shipped (the version-contract half — the real point of A8):** the mirror's provenance now pins the verified upstream range (0.2.1–0.7.0), and `tests/integrations/darwin/darwin-version-contract.test.ts` **drift-guards the field set** — any divergence fails CI, forcing a re-verification against upstream. 17 tests green.
+- **If/when to actually swap:** only after `@metaharness/darwin` stabilizes (≥1.0 or a pinned LTS) AND a CI run confirms the transitive-dep/native-build impact on `npm ci`. Needs explicit OK (affects published-package installs). The "shared integration CI" half of A8 is a follow-up (a CI job running both repos' tests against the integration).

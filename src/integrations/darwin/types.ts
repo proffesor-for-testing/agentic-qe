@@ -5,10 +5,17 @@
  * `packages/darwin-mode/src/types.ts` (ADR-072 ScoreCard) so AQE can produce
  * Darwin-compatible scores WITHOUT a build-time dependency on the pre-1.0
  * MetaHarness package (per cross-pollination plan 05: Phase-0 actions stay
- * decoupled). If/when a version contract lands (plan A8), replace this with a
- * real import.
+ * decoupled).
  *
- * Source of truth at time of writing: @metaharness/darwin@0.2.1.
+ * VERSION CONTRACT (plan A8, verified 2026-06-25): `DarwinScoreCard` is byte-for-
+ * byte structurally identical to upstream `ScoreCard` from @metaharness/darwin@0.2.1
+ * THROUGH @0.7.0 (no drift across 5 minors). The mirror is INTENTIONALLY KEPT, not
+ * replaced by a real import: the upstream is a fast-moving pre-1.0 package whose
+ * tarball pulls napi/wasm transitive deps, so the zero-coupling mirror is the lower-
+ * risk substrate (see plan 05 "A8 — status"). `tests/.../darwin-version-contract.test.ts`
+ * pins the mirror's field set so any divergence is caught.
+ *
+ * Pinned upstream contract: @metaharness/darwin ScoreCard @ 0.2.1–0.7.0.
  */
 
 /** The seven mutation surfaces (mirror of Darwin's MutationSurface). */
