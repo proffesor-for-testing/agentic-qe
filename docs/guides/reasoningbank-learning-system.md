@@ -283,6 +283,96 @@ Note: The `coverage-analysis` and `code-intelligence` domains maintain **separat
 
 ---
 
+## Data Model — `memory.db` Schema
+
+Everything persists in a single SQLite file (`.agentic-qe/memory.db`, schema version tracked in `schema_version`). The learning store centers on **`qe_patterns`**; the tables around it record *how findable*, *how used*, *how evolved*, and *what outcome* each pattern had.
+
+### `qe_patterns` — the canonical strategy record
+
+One row = one learned QE strategy. Columns group into five concerns:
+
+| Group | Columns | Purpose |
+|---|---|---|
+| **Identity** | `id` (UUID PK), `pattern_type`, `qe_domain`, `domain`, `name`, `description` | Classification. UNIQUE index on `(name, qe_domain, pattern_type)` enforces dedup — outcomes upsert, never duplicate. |
+| **Scoring** | `confidence`, `usage_count`, `successful_uses`, `success_rate`, `quality_score` | The JUDGE outputs. `success_rate = successful_uses/usage_count`; `quality_score = confidence*0.3 + min(usage/100,1)*0.2 + success_rate*0.5`. |
+| **Lifecycle** | `tier`, `consecutive_failures`, `promotion_date`, `deprecated_at`, `created_at`, `updated_at`, `last_used_at` | `short-term → long-term` at `successful_uses≥3 ∧ success_rate≥0.7 ∧ confidence≥0.6`; `consecutive_failures` drives quarantine. |
+| **Content** | `template_json`, `context_json` | The reusable code/prompt/workflow (with `{{variables}}`) + the context it applies to. |
+| **Economics** | `tokens_used`, `input_tokens`, `output_tokens`, `latency_ms`, `reusable`, `reuse_count`, `average_token_savings`, `total_tokens_saved` | Token-savings telemetry. |
+
+### Tables bound directly to a pattern (`pattern_id`)
+
+FK-enforced with cascade delete (live and die with the pattern):
+
+| Table | Role |
+|---|---|
+| `qe_pattern_embeddings` | 384-dim `all-MiniLM-L6-v2` vector (BLOB) per pattern — powers HNSW semantic search |
+| `qe_pattern_nulls` | Kept-nulls (ADR-110): one row per `(pattern_id, context_fingerprint)` failure, with `failure_mode`, `evidence_class`, `consolidated_count` |
+| `pattern_versions` | Snapshot of embedding + scores at each version (drift/evolution history) |
+| `pattern_evolution_events` | Audit log of `update`/`branch`/`deprecate` events |
+| `pattern_relationships` | Pattern→pattern graph edges (`similar`, `derived-from`, …) with `similarity_score` |
+
+Linked by convention (`pattern_id` column, **no** FK — survive independently):
+
+| Table | Role |
+|---|---|
+| `qe_pattern_usage` | Append-only audit: one row per application (`success`, `metrics_json`, `feedback`) — the ledger `success_rate` derives from |
+| `pattern_deltas` | RVF copy-on-write patches (`genesis`/`update`/`rollback`) with forward + reverse JSON-patch — enables time-travel/branching |
+| `qe_patterns_fts` | FTS5 virtual table over `name/description/pattern_type/qe_domain` — keyword search alongside vector search |
+
+### Outcome / feedback tables (link patterns → results)
+
+These connect JUDGE outcomes and the router back to patterns (joined via the `kv_store` task-bridge, not a FK):
+
+| Table | Role |
+|---|---|
+| `captured_experiences` | One row per executed task (agent, domain, success, quality, duration) — the trajectory backbone |
+| `experience_applications` | Fan-out rows linking an experience → each `pattern_id` it used (where task-bridge attribution lands) |
+| `qe_trajectories` / `trajectory_steps` | Multi-step task journeys; `related_patterns` ties steps back to patterns |
+| `routing_outcomes` | Every routing decision + actual result (`used_agent`, `success`, `quality_score`, `exploration`) — the "N requests" behind routing confidence |
+| `rl_q_values` | Q-learning table `(algorithm, agent_id, state_key, action_key) → q_value, visits` — the router's learned per-agent value |
+
+### Shared memory backbone (not pattern-specific)
+
+| Table | Role |
+|---|---|
+| `kv_store` | Namespaced key→value with TTL (`expires_at`); holds the transient **`task-bridge`** entries (RETRIEVE→JUDGE handoff), verdicts, reasoning-bank state |
+| `vectors` | General-purpose namespaced embedding store (distinct from `qe_pattern_embeddings`) for experiences / arbitrary semantic memory |
+| `dream_cycles` / `dream_insights` | CONSOLIDATE stage: offline runs + the insights they generate (some auto-promoted to patterns) |
+| `concept_nodes` / `concept_edges` | The dream engine's concept graph for spreading activation |
+| `schema_version` | Single row gating additive migrations |
+
+> The DB also contains `goap_*`, `mincut_*`, `sona_*`, and `witness_chain*` clusters — planning, self-organizing routing, SONA fine-tuning, and audit/provenance respectively. They're part of the broader platform, not the pattern-learning path.
+
+### How it hangs together
+
+```
+                         ┌──────────────────────────────┐
+   semantic search ◄─────│        qe_patterns           │─────► qe_patterns_fts (keyword)
+ qe_pattern_embeddings   │  (the learned strategy)      │
+   (384-dim BLOB)        └──────────────┬───────────────┘
+                                        │ pattern_id
+        ┌───────────────┬───────────────┼───────────────┬────────────────┐
+        ▼               ▼               ▼               ▼                ▼
+ qe_pattern_usage  qe_pattern_nulls  pattern_versions  pattern_       pattern_
+ (success ledger)  (failures/110)    + pattern_deltas  evolution_      relationships
+        │                              (history)        events          (graph)
+        │ success_rate
+        ▼
+   JUDGE attribution                kv_store[task-bridge]  ◄── RETRIEVE writes selectedPatternIds
+        ▲                                 │  one-shot
+        └──── experience_applications ◄───┘
+                    │ experience_id
+              captured_experiences ──► qe_trajectories ──► routing_outcomes ──► rl_q_values
+                    (every task)         (journeys)        (router feedback)    (Q-learning)
+                                                                    │
+                                                          dream_cycles / dream_insights
+                                                            (CONSOLIDATE → new patterns)
+```
+
+**Mental model:** `qe_patterns` is the canonical record; its **embeddings/FTS** make it findable, its **usage/nulls** record what happened when used, its **versions/deltas/evolution/relationships** track change over time, and the **experience → trajectory → routing → Q-value** chain (joined via the `kv_store` task-bridge) is the feedback loop that updates its scores and the router that picks it.
+
+---
+
 ## Key Implementation Files (v3)
 
 | File | Role |
