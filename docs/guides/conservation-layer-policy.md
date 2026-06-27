@@ -15,7 +15,20 @@ support volume rises later"). These surfaces must change **slowly and additively
 | **Output schemas** (report JSON keys) | CI pipelines parse them | `verify:conservation` (`output-schemas`) |
 | **MCP tool names** | agents depend on the protocol | `npm run mcp:parity` |
 | **qe-dashboard API** (exported symbols) | importers depend on it | `verify:conservation` (`dashboard-api`) |
+| **Skill trees** (assets, plugins mirror canonical) | shipped to users/plugins | `verify:skill-parity` (strict body-mirror) |
+| **.kiro skills** (divergent IDE variant) | curated 86-skill variant | `verify:conservation` (`kiro-skills`, presence) |
 | **Rendered UIs** (dashboards, users' apps) | learned visual mental models | visual-regression (`aqe visual test`) |
+
+### Skill-tree gating: mirrors vs variants
+
+- **Strict body-mirrors** — `assets/skills` (npm) and `plugins/agentic-qe-fleet/skills` (curated
+  subset). Every skill they ship must match canonical `.claude/skills` *body* (their own frontmatter
+  may differ). Guarded by `npm run verify:skill-parity`. Resync after an intended canonical change:
+  `tsx scripts/check-skill-parity.ts --sync` (preserves each mirror's frontmatter, adopts canonical body).
+- **Divergent variant** — `.kiro/skills` is an IDE-specific variant with its own `qe-`-prefixed names
+  and intentionally different bodies (some skills, e.g. `qcsd-cicd-swarm`, carry large .kiro-only
+  content). Forcing body-equality would destroy that, so it is gated by **presence** (`kiro-skills`
+  surface): dropping a .kiro skill is a breaking change; body edits are allowed.
 
 ## The rule
 

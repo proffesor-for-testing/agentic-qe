@@ -10,15 +10,17 @@
  *   tsx scripts/check-skill-parity.ts --mirror assets/skills
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import { buildParityReport, type ParityReport } from '../src/validation/skill-parity.js';
+import { buildParityReport, reconcileBody, type ParityReport } from '../src/validation/skill-parity.js';
 
 const CANONICAL = '.claude/skills';
-// Trees expected to mirror canonical bodies. plugins/ and .kiro/ are independent
-// distributions today (own conventions + content); add them here once reconciled.
-const DEFAULT_MIRRORS = ['assets/skills'];
+// Strict body-mirrors: every skill they ship must match canonical's body (their own
+// frontmatter may differ). assets = npm mirror; plugins = curated subset (ships ~9 skills).
+// .kiro is an intentionally divergent variant — gated by presence, not body, via the
+// conservation guard's `kiro-skills` surface (see scripts/conservation-guard.ts).
+const DEFAULT_MIRRORS = ['assets/skills', 'plugins/agentic-qe-fleet/skills'];
 
 function listSkills(dir: string): string[] {
   if (!existsSync(dir)) return [];
@@ -45,12 +47,29 @@ function reportFor(mirror: string, canonicalSkills: string[], canonicalMap: Reco
 function main(): void {
   const args = process.argv.slice(2);
   const ci = args.includes('--ci');
+  const sync = args.includes('--sync');
   const mirrorArg = args.includes('--mirror') ? args[args.indexOf('--mirror') + 1] : undefined;
   const mirrors = mirrorArg ? [mirrorArg] : DEFAULT_MIRRORS;
 
   const canonicalSkills = listSkills(CANONICAL);
   const canonicalMap: Record<string, string> = {};
   for (const sk of canonicalSkills) canonicalMap[sk] = readFileSync(join(CANONICAL, sk, 'SKILL.md'), 'utf8');
+
+  // --sync: resync drifted mirror bodies to canonical, preserving each mirror's frontmatter.
+  if (sync) {
+    for (const mirror of mirrors) {
+      const report = reportFor(mirror, canonicalSkills, canonicalMap);
+      let fixed = 0;
+      for (const e of report.entries) {
+        if (e.status !== 'drift') continue;
+        const p = join(mirror, e.skill, 'SKILL.md');
+        writeFileSync(p, reconcileBody(readFileSync(p, 'utf8'), canonicalMap[e.skill]));
+        fixed++;
+      }
+      console.log(`${mirror}: synced ${fixed} drifted skill(s) to canonical body`);
+    }
+    return;
+  }
 
   let anyDrift = false;
   for (const mirror of mirrors) {

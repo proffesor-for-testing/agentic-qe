@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { stripFrontmatter, bodiesMatch, buildParityReport } from '../../../src/validation/skill-parity';
+import { stripFrontmatter, bodiesMatch, buildParityReport, splitFrontmatter, reconcileBody } from '../../../src/validation/skill-parity';
 
 const withFrontmatter = (fm: string, body: string) => `---\n${fm}\n---\n\n${body}\n`;
 
@@ -58,5 +58,22 @@ describe('buildParityReport', () => {
     const report = buildParityReport('assets/skills', canonical, { alpha: withFrontmatter('n: a', 'A') });
     expect(report.absent).toBe(1);
     expect(report.clean).toBe(true); // absent != drift
+  });
+});
+
+describe('reconcileBody (frontmatter-preserving resync)', () => {
+  it("keeps the mirror's frontmatter but adopts canonical's body", () => {
+    const mirror = withFrontmatter('name: x\nallowed-tools:\n  - Read', 'OLD BODY');
+    const canonical = withFrontmatter('name: x\ntrust_tier: 3', 'NEW BODY');
+
+    const result = reconcileBody(mirror, canonical);
+
+    expect(splitFrontmatter(result).frontmatter).toContain('allowed-tools'); // mirror frontmatter kept
+    expect(stripFrontmatter(result)).toBe('NEW BODY'); // canonical body adopted
+    expect(bodiesMatch(result, canonical)).toBe(true);
+  });
+
+  it('falls back to canonical content when the mirror has no frontmatter', () => {
+    expect(reconcileBody('plain mirror', withFrontmatter('n: a', 'BODY'))).toBe(withFrontmatter('n: a', 'BODY'));
   });
 });

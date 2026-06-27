@@ -31,9 +31,13 @@ on:
       # Conservation layer surfaces (ADR-114)
       - 'src/cli/index.ts'
       - '.claude/skills/**'
+      - 'assets/skills/**'
+      - 'plugins/agentic-qe-fleet/skills/**'
+      - '.kiro/skills/**'
       - 'src/integrations/browser/qe-dashboard/**'
       - 'verification/conservation/**'
       - 'scripts/conservation-guard.ts'
+      - 'scripts/check-skill-parity.ts'
   release:
     types: [published]
   workflow_dispatch:
@@ -65,9 +69,14 @@ jobs:
       - name: Verify shipped agent invariants
         run: npm run verify:invariants
 
-      # Conservation layer (ADR-114): fail on breaking CLI/output-schema/dashboard-API
-      # removals not in the deprecation registry. Non-blocking initially — flip by
-      # removing continue-on-error once rebaseline-on-intended-change is routine.
+      # Skill-tree parity (ADR-113/114): assets + plugins must mirror canonical
+      # .claude/skills bodies. Blocking — drift here is the recurring bug this guards.
+      - name: Skill-tree parity (assets + plugins mirror canonical)
+        run: npm run verify:skill-parity
+
+      # Conservation layer (ADR-114): fail on breaking CLI/output-schema/dashboard-API/
+      # kiro-skills removals not in the deprecation registry. Non-blocking initially —
+      # remove continue-on-error once rebaseline-on-intended-change is routine.
       - name: Conservation guard (surface stability)
         continue-on-error: true
         run: npm run verify:conservation

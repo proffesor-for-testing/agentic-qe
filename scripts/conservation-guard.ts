@@ -78,6 +78,22 @@ function extractDashboardApi(): string[] {
   return [...names].sort();
 }
 
+/**
+ * Skills shipped by the .kiro tree. .kiro is an INTENTIONALLY divergent variant
+ * (its own frontmatter convention + some skills carry large .kiro-specific bodies,
+ * e.g. qcsd-cicd-swarm), so it is gated by PRESENCE here — a skill disappearing
+ * from .kiro is a regression — rather than by body-equality (which would force
+ * destroying that divergence). Faithful body-mirrors (assets, plugins) are gated
+ * strictly by `npm run verify:skill-parity`.
+ */
+function extractKiroSkills(): string[] {
+  const dir = '.kiro/skills';
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((n) => existsSync(join(dir, n, 'SKILL.md')))
+    .sort();
+}
+
 function loadDeprecations(): Record<string, string[]> {
   if (!existsSync(DEPRECATIONS_PATH)) return {};
   try {
@@ -99,6 +115,7 @@ function main(): void {
     'cli-commands': extractCliCommands(),
     'output-schemas': extractOutputSchemaKeys(),
     'dashboard-api': extractDashboardApi(),
+    'kiro-skills': extractKiroSkills(),
   };
   const deprecations = loadDeprecations();
   mkdirSync(BASE_DIR, { recursive: true });

@@ -52,6 +52,38 @@ export function bodiesMatch(canonical: string, copy: string): boolean {
 }
 
 /**
+ * Split a skill doc into its leading YAML frontmatter block (including the `---`
+ * delimiters) and the markdown body. When there is no frontmatter, `frontmatter`
+ * is empty and `body` is the whole document.
+ */
+export function splitFrontmatter(markdown: string): { frontmatter: string; body: string } {
+  const lines = markdown.split('\n');
+  if (lines[0]?.trim() === '---') {
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === '---') {
+        return {
+          frontmatter: lines.slice(0, i + 1).join('\n'),
+          body: lines.slice(i + 1).join('\n'),
+        };
+      }
+    }
+  }
+  return { frontmatter: '', body: markdown };
+}
+
+/**
+ * Reconcile a mirror copy to canonical: keep the MIRROR's frontmatter (per-tree
+ * conventions like allowed-tools / inclusion) but replace its body with canonical's.
+ * This is how a faithful mirror is resynced without losing its frontmatter.
+ */
+export function reconcileBody(mirrorContent: string, canonicalContent: string): string {
+  const mirror = splitFrontmatter(mirrorContent);
+  const canon = splitFrontmatter(canonicalContent);
+  if (!mirror.frontmatter) return canonicalContent; // no frontmatter to preserve
+  return `${mirror.frontmatter}\n${canon.body.replace(/^\n+/, '')}`;
+}
+
+/**
  * Build a parity report from already-read file contents.
  * `canonical` maps skill name → SKILL.md content (the source of truth).
  * `mirror` maps skill name → SKILL.md content (undefined when absent in the mirror).

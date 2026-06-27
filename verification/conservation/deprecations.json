@@ -3,7 +3,8 @@
   "surfaces": {
     "cli-commands": [],
     "output-schemas": [],
-    "dashboard-api": []
+    "dashboard-api": [],
+    "kiro-skills": []
   },
   "_example": {
     "surfaces": {
