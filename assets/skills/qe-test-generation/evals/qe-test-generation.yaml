@@ -134,6 +134,43 @@ test_cases:
       schema_check: true
       allow_partial: true
 
+  # ORACLE CASE (ADR-113): grade the generated test by running it against a
+  # reference impl + operator mutants. Skips under the simulating runner; runs
+  # in the live eval lane (a provider must produce the test). This is what makes
+  # this eval a real oracle instead of a keyword grep.
+  - id: tc006_oracle_generated_test
+    description: "Generated test kills mutants of a reference function"
+    category: oracle
+    priority: critical
+
+    input:
+      code: |
+        export function classify(score, bonus) {
+          const total = score + bonus;
+          if (total >= 90 && bonus > 0) return 'A';
+          if (total >= 70) return 'B';
+          return 'C';
+        }
+      context:
+        language: javascript
+
+    expected_output: {}
+
+    oracle:
+      module_name: classify
+      reference_impl: |
+        export function classify(score, bonus) {
+          const total = score + bonus;
+          if (total >= 90 && bonus > 0) return 'A';
+          if (total >= 70) return 'B';
+          return 'C';
+        }
+      threshold: 0.6
+      extract: first_code_block
+
+    validation:
+      oracle: true
+
 success_criteria:
   pass_rate: 0.9
   critical_pass_rate: 1.0

@@ -28,6 +28,12 @@ on:
       - 'scripts/verify-shipped-invariants.ts'
       - 'docs/benchmarks/**'
       - 'benchmarks/**'
+      # Conservation layer surfaces (ADR-114)
+      - 'src/cli/index.ts'
+      - '.claude/skills/**'
+      - 'src/integrations/browser/qe-dashboard/**'
+      - 'verification/conservation/**'
+      - 'scripts/conservation-guard.ts'
   release:
     types: [published]
   workflow_dispatch:
@@ -58,6 +64,13 @@ jobs:
 
       - name: Verify shipped agent invariants
         run: npm run verify:invariants
+
+      # Conservation layer (ADR-114): fail on breaking CLI/output-schema/dashboard-API
+      # removals not in the deprecation registry. Non-blocking initially — flip by
+      # removing continue-on-error once rebaseline-on-intended-change is routine.
+      - name: Conservation guard (surface stability)
+        continue-on-error: true
+        run: npm run verify:conservation
 
       - name: Mutation-test the verifier itself
         run: npx vitest run tests/unit/scripts/verify-shipped-invariants.test.ts

@@ -1,6 +1,6 @@
 ---
 name: "qe-test-generation"
-description: "Generates unit, integration, and e2e tests from code analysis including branch coverage, error paths, and edge cases. Use when creating tests for new or changed code, filling coverage gaps, or migrating test suites between Jest, Vitest, and Playwright."
+description: "Generates durable-first tests — invariants, contracts, and property-based tests at boundaries that survive a reimplementation — plus unit, integration, and e2e coverage. Use when creating tests for new or changed code, filling coverage gaps, or migrating test suites between Jest, Vitest, and Playwright."
 trust_tier: 3
 validation:
   schema_path: schemas/output.json
@@ -13,6 +13,31 @@ validation:
 ## Purpose
 
 Guide the use of v3's AI-powered test generation capabilities including pattern-based test synthesis, multi-framework support, and intelligent test case derivation from code analysis.
+
+## Write durable-first (the core rule)
+
+When AI makes code cheap to regenerate, the durable asset is the test that still
+holds after the implementation is thrown away and rewritten. Generate tests in
+**durability tiers**, and lead with the durable ones (ADR-113):
+
+| Tier | What it is | Survives a rewrite? | When to write |
+|------|-----------|---------------------|---------------|
+| **Durable** | Invariants, contracts/schemas, property-based tests, behavioral e2e — specified at the module's public boundary | **Yes** | **Always — ≥1 per target** |
+| **Ephemeral** | Example-based unit tests, mock-call/interaction tests (TDD-London style) | No (coupled to impl) | For the red-green loop; label them, delete freely |
+| **Live** | Monitoring / drift / cost assertions that run against reality | Continuously | For deployed behavior |
+
+**The language-swap heuristic:** *if reimplementing this module in another language
+would invalidate the test, the test is at the wrong boundary.* Push it up a tier —
+assert on the observable contract, not on how the current code happens to work.
+
+Every generated target MUST include at least one **durable** assertion (an invariant,
+a contract check, or a property). Mock-call assertions (`toHaveBeenCalledWith`) are
+ephemeral by definition — never let them be the only thing testing a target. Tag each
+generated test `// @tier durable|ephemeral|live` so its lifetime is explicit.
+
+These tests are graded as **oracles**: a good test passes against the real code and
+*fails* against a seeded bug (mutant). A test that asserts nothing, or only the happy
+path, kills no mutants and is rejected — see `/mutation-testing` and ADR-113.
 
 ## Activation
 
@@ -41,25 +66,29 @@ aqe test generate --pattern repository --target src/repositories/
 ## Agent Workflow
 
 ```typescript
-// Spawn test generation agents
-Task("Generate unit tests", `
-  Analyze src/services/PaymentService.ts and generate comprehensive Jest tests.
-  Include:
-  - Happy path tests for all public methods
-  - Edge cases and boundary conditions
-  - Error handling scenarios
-  - Mock external dependencies
+// Spawn test generation agents — durable-first
+Task("Generate durable-first tests", `
+  Analyze src/services/PaymentService.ts and generate Jest tests in tier order.
+  1. DURABLE (write these first, >=1 per public method):
+     - Invariants ("a refund never makes a balance negative")
+     - Contract/schema checks on inputs and outputs crossing the boundary
+     - Property-based tests (fast-check) over input ranges, not single examples
+  2. EPHEMERAL (the red-green loop; tag '// @tier ephemeral'):
+     - Specific happy-path examples and error paths
+     - Mock external dependencies ONLY — never let a mock-call assertion be the
+       only test for a method
+  Apply the language-swap check: if a Python rewrite of PaymentService would break
+  the test, move it up to the durable tier.
   Output to tests/unit/services/PaymentService.test.ts
-`, "qe-test-generator")
+`, "qe-test-architect")
 
-// Pattern-based generation
-Task("Apply test patterns", `
-  Scan src/repositories/ and apply repository test pattern:
-  - CRUD operation tests
-  - Query builder tests
-  - Transaction tests
-  - Connection error handling
-`, "qe-pattern-matcher")
+// Property + contract generation (first-class, not opt-in)
+Task("Generate property and contract tests", `
+  For src/repositories/, derive:
+  - Properties: round-trip (write→read returns same), idempotence, ordering invariants
+  - Contracts: the repository interface schema, enforced on every CRUD result
+  These survive a storage-engine swap; example-based CRUD tests do not.
+`, "qe-property-tester")
 ```
 
 ## Test Generation Strategies
@@ -122,6 +151,15 @@ await testGenerator.fillCoverageGaps({
 
 ```yaml
 quality_checks:
+  durability:                  # the primary check (ADR-113)
+    durable_assertions_per_target: 1   # >=1 invariant/contract/property each
+    language_swap_safe: true           # would survive a reimplementation
+    tier_tags_present: true            # every test tagged durable|ephemeral|live
+
+  fault_detection:             # do the tests actually catch bugs?
+    mutation_score_min: 0.6            # kill rate against seeded mutants
+    no_assertionless_tests: true       # reject tests that kill 0 mutants
+
   assertions:
     minimum_per_test: 1
     meaningful: true
@@ -134,7 +172,7 @@ quality_checks:
     descriptive: true
     follows_convention: true
 
-  coverage:
+  coverage:                    # necessary but NOT sufficient — see fault_detection
     branches: 80
     statements: 85
 ```

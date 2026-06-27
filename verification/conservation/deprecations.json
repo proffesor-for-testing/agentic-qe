@@ -1,0 +1,21 @@
+{
+  "description": "Deprecation registry for AQE's conservation layer (ADR-114). To remove or rename a surface entry (CLI command, output-schema key), first add it here with a deprecation window; the conservation guard then treats its removal as deliberate rather than breaking. Policy: docs/guides/conservation-layer-policy.md.",
+  "surfaces": {
+    "cli-commands": [],
+    "output-schemas": [],
+    "dashboard-api": []
+  },
+  "_example": {
+    "surfaces": {
+      "cli-commands": [
+        {
+          "entry": "old-command",
+          "deprecatedIn": "3.12.0",
+          "removeAfter": "3.14.0",
+          "replacement": "new-command",
+          "reason": "renamed for clarity"
+        }
+      ]
+    }
+  }
+}

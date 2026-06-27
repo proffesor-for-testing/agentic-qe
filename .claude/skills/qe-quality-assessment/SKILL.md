@@ -94,6 +94,10 @@ await qualityAnalyzer.assessCode({
 await qualityGate.evaluate({
   gates: {
     coverage: { min: 80, blocking: true },
+    // Fault detection — coverage is necessary but NOT sufficient (ADR-113).
+    // A suite can hit 90% coverage and catch no bugs; mutation score does not lie.
+    mutationScore: { min: 0.6, blocking: false },   // warn-by-default; opt-in blocking
+    regenerability: { min: 0.5, blocking: false },  // Deletion Test: durable oracle backing per module
     complexity: { max: 15, blocking: false },
     vulnerabilities: { critical: 0, high: 0, blocking: true },
     duplications: { max: 3, blocking: false },
@@ -106,6 +110,27 @@ await qualityGate.evaluate({
   }
 });
 ```
+
+### 2a. Regenerability gate (ADR-113)
+
+Coverage measures lines executed; **mutation score** measures whether the tests would
+*notice a bug*, and **regenerability** answers the Deletion Test — "if this module were
+deleted and regenerated, would a wrong rebuild be caught?" Regenerability = mutation
+score discounted by the durability tier backing the module (durable > live > ephemeral
+> none); ephemeral-only tests score low because they don't survive a reimplementation.
+
+```typescript
+import { evaluateRegenerabilityGate } from '../../../src/feedback/regenerability-gate.js';
+
+const verdict = evaluateRegenerabilityGate(moduleProfiles, {
+  mutationScoreMin: 0.6,
+  regenerabilityMin: 0.5,
+  mode: 'warn',   // 'block' to fail CI; warn-by-default so adoption never breaks pipelines
+});
+// verdict.passed (thresholds met) · verdict.blocking (should fail CI) · verdict.failures[]
+```
+
+Surface it next to coverage in reports: `Coverage 88% ✅ / Mutation 41% ⚠️ / Regenerability: ephemeral-only ⚠️`.
 
 ### 3. Deployment Readiness
 

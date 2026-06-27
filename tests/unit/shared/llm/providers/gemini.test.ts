@@ -59,12 +59,11 @@ describe('GeminiProvider', () => {
       expect(provider.name).toBe('Google Gemini');
     });
 
-    it('should return supported models', () => {
+    it('should return current supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('gemini-pro');
-      expect(models).toContain('gemini-1.5-pro');
-      expect(models).toContain('gemini-1.5-flash');
-      expect(models).toContain('gemini-ultra');
+      expect(models).toContain('gemini-2.5-pro');
+      expect(models).toContain('gemini-2.5-flash');
+      expect(models).toContain('gemini-flash-latest'); // rot-proof alias
     });
 
     it('should return cost per token', () => {
