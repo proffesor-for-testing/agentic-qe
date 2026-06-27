@@ -72,6 +72,12 @@ export interface KnowledgeGraphConfig {
   llmModelTier?: number;
   /** ADR-051: Max tokens for LLM responses */
   llmMaxTokens?: number;
+  /**
+   * ADR-112 C2: base directory for file reads. Defaults to cwd. Set to a
+   * project root so analyzing a repo OUTSIDE cwd (e.g. `aqe code c4 /other`)
+   * doesn't trip the FileReader path-traversal guard.
+   */
+  basePath?: string;
 }
 
 /**
@@ -152,7 +158,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
     }
 
     this.tsParser = new TypeScriptParser();
-    this.fileReader = new FileReader();
+    this.fileReader = new FileReader(this.config.basePath ? { basePath: this.config.basePath } : undefined);
     this.embedder = new NomicEmbedder({
       enableFallback: true,
     });
@@ -524,7 +530,7 @@ Be precise and only report high-confidence findings.`,
       }
 
       return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
-    } catch (error) {
+    } catch {
       logger.warn('LLM relationship extraction failed:');
       return { semanticRelationships: [], designPatterns: [], architecturalBoundaries: [], dependencyImpacts: [] };
     }
@@ -653,7 +659,7 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
       }
 
       return { enhancedResults: results, insights: [] };
-    } catch (error) {
+    } catch {
       logger.warn('LLM query enhancement failed:');
       return { enhancedResults: results, insights: [] };
     }

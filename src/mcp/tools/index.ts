@@ -144,6 +144,14 @@ export {
   type DependencyResult,
 } from './code-intelligence/analyze';
 
+export {
+  CodeC4Tool,
+  type CodeC4Params,
+  type CodeC4Result,
+  type C4GenerateResult,
+  type C4SearchResult,
+} from './code-intelligence/c4';
+
 // ============================================================================
 // Security Compliance Domain
 // ============================================================================

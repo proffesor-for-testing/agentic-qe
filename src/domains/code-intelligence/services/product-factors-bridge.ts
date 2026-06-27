@@ -40,9 +40,16 @@ import {
   isCacheValid,
   sanitizeId,
   inferComponentType,
-  IC4DiagramGenerator,
+  assessC4Confidence,
 } from '../../../shared/c4-model';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { C4ModelService } from './c4-model';
+import {
+  toContextRequest,
+  toContainerRequest,
+  toComponentRequest,
+} from './c4-model/from-detected';
+import type { RelationshipResolver } from './c4-model/kg-relationships';
 
 // ============================================================================
 // Configuration
@@ -57,6 +64,18 @@ export interface ProductFactorsBridgeConfig {
   excludePatterns: string[];
   /** Maximum files to analyze */
   maxFiles: number;
+  /**
+   * ADR-112 C2: optional resolver that returns REAL component relationships
+   * from the Knowledge Graph. When it yields edges, they replace the naming
+   * heuristic; otherwise the heuristic stands. Off by default (no resolver).
+   */
+  relationshipResolver?: RelationshipResolver;
+  /**
+   * ADR-112: persist diagram embeddings so they're semantically searchable
+   * (`qe/code/c4 search`). Off by default — the internal product-factors path
+   * stays fast/offline; surfaces that expose search (MCP) turn it on.
+   */
+  enableC4Embeddings?: boolean;
 }
 
 const DEFAULT_CONFIG: ProductFactorsBridgeConfig = {
@@ -176,11 +195,13 @@ export interface IProductFactorsBridge {
 const logger = LoggerFactory.create('code-intelligence/product-factors-bridge');
 
 export class ProductFactorsBridgeService
-  implements IProductFactorsBridge, IC4DiagramGenerator
+  implements IProductFactorsBridge
 {
   private readonly config: ProductFactorsBridgeConfig;
   private initialized = false;
   private eventSubscriptions: Subscription[] = [];
+  /** ADR-112: the consolidated render+analyze+store engine (lazily built). */
+  private c4Service?: C4ModelService;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -188,6 +209,20 @@ export class ProductFactorsBridgeService
     config: Partial<ProductFactorsBridgeConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * ADR-112: lazily construct the shared C4ModelService.
+   * Embeddings are OFF on this internal product-factors path (keeps it offline +
+   * fast); the CLI/MCP surfaces opt embeddings in when semantic search is wanted.
+   */
+  private getC4Service(): C4ModelService {
+    if (!this.c4Service) {
+      this.c4Service = new C4ModelService(this.memory, {
+        enableEmbeddings: this.config.enableC4Embeddings ?? false,
+      });
+    }
+    return this.c4Service;
   }
 
   // ==========================================================================
@@ -234,7 +269,7 @@ export class ProductFactorsBridgeService
   }
 
   private async handleKnowledgeGraphUpdated(
-    event: DomainEvent
+    _event: DomainEvent
   ): Promise<void> {
     // Invalidate relevant caches when knowledge graph is updated
     logger.info(
@@ -334,23 +369,22 @@ export class ProductFactorsBridgeService
         couplingAnalysis = this.analyzeCoupling(components, relationships);
       }
 
-      // Generate diagrams
+      // Generate diagrams. ADR-112: the three C4 levels render through the
+      // consolidated C4ModelService (richer + stored + searchable); the bridge
+      // keeps only detection. Inline generators remain as a safety fallback.
       const diagrams: C4Diagrams = {};
 
       if (request.includeContext !== false) {
-        diagrams.context = this.generateContextDiagram(projectInfo, externalSystems);
+        diagrams.context = await this.renderContext(projectInfo, externalSystems);
       }
 
       if (request.includeContainer !== false) {
-        diagrams.container = this.generateContainerDiagram(
-          projectInfo,
-          externalSystems
-        );
+        diagrams.container = await this.renderContainer(projectInfo, externalSystems);
       }
 
       if (request.includeComponent !== false && components.length > 0) {
-        diagrams.component = this.generateComponentDiagram(
-          projectInfo.name,
+        diagrams.component = await this.renderComponent(
+          projectInfo,
           components,
           relationships
         );
@@ -363,16 +397,24 @@ export class ProductFactorsBridgeService
         );
       }
 
+      const filesAnalyzed = components.reduce((sum, c) => sum + c.files.length, 0);
       const metadata: C4DiagramMetadata = {
         projectName: projectInfo.name,
         projectDescription: projectInfo.description,
         generatedAt: new Date(),
         source: 'codebase-analysis',
         analysisMetadata: {
-          filesAnalyzed: components.reduce((sum, c) => sum + c.files.length, 0),
+          filesAnalyzed,
           componentsDetected: components.length,
           externalSystemsDetected: externalSystems.length,
           analysisTimeMs: Date.now() - startTime,
+          // ADR-112: deterministic confidence gate — never present a wrong diagram as truth.
+          confidence: assessC4Confidence({
+            componentsDetected: components.length,
+            relationshipsDetected: relationships.length,
+            externalSystemsDetected: externalSystems.length,
+            filesAnalyzed,
+          }),
         },
       };
 
@@ -391,96 +433,57 @@ export class ProductFactorsBridgeService
   }
 
   // ==========================================================================
-  // IC4DiagramGenerator Implementation
+  // ADR-112: render via the consolidated C4ModelService (the single engine).
+  // On failure we FAIL LOUD — propagate the error so the caller surfaces it —
+  // rather than silently degrading to a weaker inline diagram. A masked render
+  // failure is worse than a surfaced one (ADR-050: no silent degradation).
   // ==========================================================================
 
-  generateContextDiagram(
-    project: C4ProjectInfo,
+  private async renderContext(
+    projectInfo: C4ProjectInfo,
     externalSystems: DetectedExternalSystem[]
-  ): string {
-    let mermaid = `C4Context
-  title System Context diagram for ${project.name}
-
-  Person(user, "User", "A user of the system")
-  System(system, "${project.name}", "${project.description}")
-`;
-
-    for (const sys of externalSystems) {
-      mermaid += `  System_Ext(${sys.id}, "${sys.name}", "${sys.type}")
-`;
+  ): Promise<string> {
+    const res = await this.getC4Service().buildContext(
+      toContextRequest(projectInfo, externalSystems)
+    );
+    if (!res.success) {
+      logger.error('[ProductFactorsBridge] C4 context render failed', res.error);
+      throw res.error;
     }
-
-    mermaid += `
-  Rel(user, system, "Uses")
-`;
-
-    for (const sys of externalSystems) {
-      mermaid += `  Rel(system, ${sys.id}, "${sys.relationship}")
-`;
-    }
-
-    return mermaid;
+    return res.value.mermaid;
   }
 
-  generateContainerDiagram(
-    project: C4ProjectInfo,
+  private async renderContainer(
+    projectInfo: C4ProjectInfo,
     externalSystems: DetectedExternalSystem[]
-  ): string {
-    let mermaid = `C4Container
-  title Container diagram for ${project.name}
-
-  Person(user, "User", "A user of the system")
-
-  Container_Boundary(c1, "${project.name}") {
-    Container(app, "Application", "TypeScript", "Main application")
-  }
-`;
-
-    for (const sys of externalSystems) {
-      mermaid += `  System_Ext(${sys.id}, "${sys.name}", "${sys.type}")
-`;
+  ): Promise<string> {
+    const res = await this.getC4Service().buildContainer(
+      toContainerRequest(projectInfo, externalSystems)
+    );
+    if (!res.success) {
+      logger.error('[ProductFactorsBridge] C4 container render failed', res.error);
+      throw res.error;
     }
-
-    mermaid += `
-  Rel(user, app, "Uses")
-`;
-
-    for (const sys of externalSystems) {
-      mermaid += `  Rel(app, ${sys.id}, "${sys.relationship}")
-`;
-    }
-
-    return mermaid;
+    return res.value.mermaid;
   }
 
-  generateComponentDiagram(
-    projectName: string,
+  private async renderComponent(
+    projectInfo: C4ProjectInfo,
     components: DetectedComponent[],
     relationships: DetectedRelationship[]
-  ): string {
-    let mermaid = `C4Component
-  title Component diagram for ${projectName}
-
-  Container_Boundary(app, "Application") {
-`;
-
-    for (const comp of components) {
-      const responsibility = comp.responsibilities?.[0] || '';
-      mermaid += `    Component(${comp.id}, "${comp.name}", "${comp.technology || 'TypeScript'}", "${responsibility}")
-`;
+  ): Promise<string> {
+    const res = await this.getC4Service().buildComponent(
+      toComponentRequest(components, relationships)
+    );
+    if (!res.success) {
+      logger.error('[ProductFactorsBridge] C4 component render failed', res.error);
+      throw res.error;
     }
-
-    mermaid += `  }
-`;
-
-    for (const rel of relationships) {
-      mermaid += `  Rel(${rel.sourceId}, ${rel.targetId}, "${rel.type}")
-`;
-    }
-
-    return mermaid;
+    return res.value.mermaid;
   }
 
+  // The dependency graph is NOT a C4 level and C4ModelService does not render
+  // it, so this stays as the bridge's own renderer.
   generateDependencyGraph(
     components: DetectedComponent[],
     relationships: DetectedRelationship[]
@@ -652,6 +655,19 @@ export class ProductFactorsBridgeService
       logger.error('Component analysis failed:', error instanceof Error ? error : undefined);
     }
 
+    // ADR-112 C2: prefer REAL KG-derived edges (AST import/call graph) over the
+    // naming heuristic. The resolver returns null on any miss → heuristic stands.
+    if (this.config.relationshipResolver && components.length > 0) {
+      try {
+        const resolved = await this.config.relationshipResolver(components, projectPath);
+        if (resolved && resolved.length > 0) {
+          return { components, relationships: resolved };
+        }
+      } catch (error) {
+        logger.debug(`KG relationship resolver failed; using heuristic: ${toError(error).message}`);
+      }
+    }
+
     return { components, relationships };
   }
 
@@ -693,7 +709,7 @@ export class ProductFactorsBridgeService
             files.push(relativePath);
           }
         }
-      } catch (error) {
+      } catch {
         // Non-critical: permission errors when scanning directories
         logger.debug('Directory scan error:');
       }

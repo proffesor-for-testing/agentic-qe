@@ -363,7 +363,7 @@ _aqe_completions() {
     local protocol_subcmds="run"
     local completions_subcmds="bash zsh fish powershell install"
     local brain_subcmds="export import info diff search witness-backfill"
-    local code_actions="index search impact deps"
+    local code_actions="index search impact deps complexity c4"
     local test_actions="generate execute"
 
     # Domains
@@ -1307,6 +1307,9 @@ complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcom
 complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcommand_from index search impact deps" -a "search" -d "Search code"
 complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcommand_from index search impact deps" -a "impact" -d "Analyze impact"
 complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcommand_from index search impact deps" -a "deps" -d "Map dependencies"
+complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcommand_from index search impact deps complexity c4" -a "complexity" -d "Code complexity metrics"
+complete -c aqe -n "__fish_seen_subcommand_from code; and not __fish_seen_subcommand_from index search impact deps complexity c4" -a "c4" -d "Generate C4 architecture diagrams"
+complete -c aqe -n "__fish_seen_subcommand_from code; and __fish_seen_subcommand_from c4" -l level -d "C4 level" -xa "context container component all"
 complete -c aqe -n "__fish_seen_subcommand_from code" -l depth -d "Analysis depth" -xa "1 2 3 4 5"
 complete -c aqe -n "__fish_seen_subcommand_from code" -l include-tests -d "Include test files"
 # Directory completion for code actions
