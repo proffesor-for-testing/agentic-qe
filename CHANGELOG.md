@@ -5,6 +5,42 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.3] - 2026-06-27
+
+Tests and evals you can actually trust, cheaper model options, and a guard that
+keeps AQE's commands and outputs stable for your scripts.
+
+AQE now grades a generated test by **running it** — against the real code (it must
+pass) and against deliberately-broken versions (it must catch them) — instead of
+checking for keywords. Test generation leads with **durable tests** (invariants,
+contracts, properties) that survive a rewrite, and quality reports add a
+**mutation-score / regenerability** signal next to coverage. See the new
+[oracle-evals plan](docs/plans/oracle-evals-durable-tests-plan.md) (ADR-113) and the
+[conservation-layer policy](docs/guides/conservation-layer-policy.md) (ADR-114).
+
+### Added
+
+- **Oracle evals** — skill evals run the generated test against a reference
+  implementation plus seeded mutants; an assertion-less or wrong test is rejected.
+- **Durable-first test generation** — `qe-test-generation` now emits invariants,
+  contracts, and property-based tests first (with a "would this survive a rewrite?"
+  check), keeping happy-path/mock tests as a labeled, disposable tier.
+- **Regenerability gate** — `qe-quality-assessment` reports mutation score + a
+  per-module regenerability score alongside coverage (warn by default, opt-in blocking).
+- **Conservation guard** — `npm run verify:conservation` + `verify:skill-parity` catch
+  breaking changes to CLI commands, report output schemas, the dashboard API, and skill
+  trees, with a deprecation policy so removals are deliberate and announced.
+- **Cheaper model lanes** — pick a budget or local model for test generation and prove
+  it clears the oracle: `npm run providers:health`, `eval:models`, `eval:live:*`. See the
+  [cheaper-model guide](docs/guides/cheaper-model-eval-lanes.md).
+
+### Fixed
+
+- **OpenRouter provider** now works through the provider manager (it previously failed
+  to route because it identified itself as `openai`).
+- **Gemini provider** default model updated to a current model (`gemini-2.5-flash`); the
+  old default had been retired by Google. Supported-model list and pricing refreshed.
+
 ## [3.11.2] - 2026-06-27
 
 First-class **C4 architecture diagrams** generated straight from your codebase —
