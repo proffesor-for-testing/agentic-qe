@@ -1,0 +1,52 @@
+{
+  "swarm": "qcsd-development-swarm",
+  "version": "1.0",
+  "adr": "ADR-102",
+  "execution_model": "task-tool-specialized-qe-agents",
+  "subject": "ruvnet/agent-harness-generator (MetaHarness)",
+  "snapshot": { "head": "5f63ac6", "describe": "v0.1.15-467-g5f63ac6", "branch": "claude/darwin-mode-evolve-polyglot", "date": "2026-06-27" },
+  "round": 2,
+  "prior_round": { "date": "2026-06-15", "snapshot": "working-may", "gate": "HOLD" },
+  "targets": ["packages/create-agent-harness/src", "packages/darwin-mode/src"],
+  "flags": { "HAS_SECURITY_CODE": true, "HAS_CRITICAL_CODE": true, "HAS_PERFORMANCE_CODE": true, "HAS_MIDDLEWARE": false, "HAS_SAP_INTEGRATION": false, "HAS_AUTHORIZATION": false },
+  "agents": ["qe-tdd-specialist", "qe-code-complexity", "qe-coverage-specialist", "qe-security-scanner", "qe-mutation-tester", "qe-performance-tester", "qe-defect-predictor"],
+  "final_gate": "HOLD",
+  "gate_reason": "Two HIGH security findings in security code (witness no-op HIGH-1, value-blind redaction HIGH-2), both carried over from round 1 and still unfixed; HIGH-1 regressed (now test-enshrined).",
+  "metrics": {
+    "create-agent-harness": {
+      "tdd_adherence_pct": 67, "tdd_gate": "CONDITIONAL",
+      "complexity_avg_cyc": 6.53, "complexity_median": 4, "complexity_max": 33, "complexity_gate": "SHIP",
+      "coverage_lines_pct": 84.86, "coverage_branch_pct": 77.08, "coverage_func_pct": 87.88, "coverage_gate": "SHIP",
+      "mutation_critical_pct": 38.1, "mutation_note": "survivor-weighted sample; honest read ~53.6% unchanged from prior", "mutation_gate": "CONDITIONAL",
+      "security": { "critical": 0, "high": 2, "medium": 6, "low": 5, "npm_audit": "clean", "gate": "HOLD" },
+      "top_defect_modules": [ {"file": "index.ts", "risk": 0.72}, {"file": "subcommands.ts", "risk": 0.68, "realized": true} ]
+    },
+    "darwin-mode": {
+      "tdd_adherence_pct": 72, "tdd_gate": "CONDITIONAL",
+      "complexity_avg_cyc": 3.53, "complexity_median": 2, "complexity_max": 53, "complexity_max_fn": "evolve()", "complexity_gate": "SHIP",
+      "coverage_lines_pct": 84.19, "coverage_branch_pct": 83.88, "coverage_func_pct": 91.47, "coverage_gate": "SHIP",
+      "mutation_critical_pct": 60.0, "mutation_note": "every primary safety-gate mutant KILLED; survivors are redundant defense-in-depth", "mutation_gate": "CONDITIONAL_SHIP_BOUNDARY",
+      "performance_gate": "CONDITIONAL",
+      "safety_boundary": "verified strong (mutation-proven)",
+      "top_defect_modules": [ {"file": "evolve.ts", "risk": 0.74, "repo_wide_rank": 1} ]
+    }
+  },
+  "test_repro": { "build": "RED (env: @ruvector/tiny-dancer missing from node_modules)", "build_assessment": "environmental, inferred-restorable via npm ci", "tests_via_vitest": { "total": 1855, "pass": 1831, "skip": 14, "fail": 10, "files": 206 }, "badge_claim": 568, "badge_stale_factor": 3.2 },
+  "prior_findings_status": {
+    "P0-1_draco_claim": "fixed_reframed",
+    "P0-2_pretest_build": "partially_fixed_env_red",
+    "P0-3_status_story": "partially_fixed",
+    "P0-4_parity_test": "still_open",
+    "HIGH-1_witness_noop": "regressed_test_enshrined",
+    "HIGH-2_secret_redaction": "still_open_plus_new_dead_code_bug",
+    "upgrade_ts_defect": "fixed",
+    "mutation_critical_53pct": "still_open_11of11_survivors_recur"
+  },
+  "new_findings": [
+    "openclaw host fails validate (doctor allowlist omits .openclaw/openclaw.json) — realized, 4 failing tests",
+    "tier-2 darwin sandbox dynamic import+exec without inspectVariant (MED, opt-in)",
+    "darwin scaffold version drift ^0.2.2 vs 0.7.1",
+    "darwin HTTP mutators no AbortController/timeout + serial mutation phase (perf)",
+    "harness-diag.test.ts:229 hardcoded kernel_version regression"
+  ]
+}
