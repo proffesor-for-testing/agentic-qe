@@ -17,8 +17,8 @@ describe('QE Tool Registry', () => {
   describe('QE_TOOL_NAMES', () => {
     it('should have all tool names', () => {
       const names = Object.values(QE_TOOL_NAMES);
-      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) = 37 tools
-      expect(names.length).toBe(37);
+      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) = 38 tools
+      expect(names.length).toBe(38);
     });
 
     it('should follow qe/* naming convention', () => {
@@ -87,15 +87,15 @@ describe('QE Tool Registry', () => {
 
   describe('QE_TOOLS', () => {
     it('should have all tool instances', () => {
-      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) = 37 tools
-      expect(QE_TOOLS.length).toBe(37);
+      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) = 38 tools
+      expect(QE_TOOLS.length).toBe(38);
     });
 
     it('should have all unique names', () => {
       const names = QE_TOOLS.map(t => t.name);
       const uniqueNames = new Set(names);
-      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) = 37 tools
-      expect(uniqueNames.size).toBe(37);
+      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) = 38 tools
+      expect(uniqueNames.size).toBe(38);
     });
 
     it('should have descriptions for all tools', () => {
@@ -204,8 +204,8 @@ describe('QE Tool Registry', () => {
   describe('getAllToolDefinitions', () => {
     it('should return all tool definitions', () => {
       const definitions = getAllToolDefinitions();
-      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) = 37 tools
-      expect(definitions.length).toBe(37);
+      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) = 38 tools
+      expect(definitions.length).toBe(38);
     });
 
     it('should return MCP-compatible definitions', () => {
@@ -223,8 +223,8 @@ describe('QE Tool Registry', () => {
       const definitions = getAllToolDefinitions();
       const names = definitions.map(d => d.name);
       const uniqueNames = new Set(names);
-      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) = 37 tools
-      expect(uniqueNames.size).toBe(37);
+      // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) = 38 tools
+      expect(uniqueNames.size).toBe(38);
     });
   });
 

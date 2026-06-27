@@ -7,6 +7,7 @@
  * - QESONA: Learns and adapts code patterns for improved intelligence
  */
 
+import { existsSync } from 'node:fs';
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, DomainEvent } from '../../shared/types';
@@ -32,6 +33,7 @@ import {
   ProductFactorsBridgeService,
   IProductFactorsBridge,
 } from './services/product-factors-bridge';
+import { createKnowledgeGraphRelationshipResolver } from './services/c4-model/kg-relationships';
 import {
   CodeIntelligenceAPI,
   IndexRequest,
@@ -312,9 +314,14 @@ export class CodeIntelligenceCoordinator
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
     this.fileReader = new FileReader();
 
-    // Initialize Product Factors Bridge
+    // Initialize Product Factors Bridge.
+    // ADR-112 C2: inject a KG-backed relationship resolver so C4 component
+    // diagrams use REAL import/call edges (not the naming heuristic).
     this.productFactorsBridge = new ProductFactorsBridgeService(eventBus, memory, {
       publishEvents: this.config.publishEvents,
+      relationshipResolver: createKnowledgeGraphRelationshipResolver(
+        (projectPath) => new KnowledgeGraphService({ memory, llmRouter }, { basePath: projectPath }),
+      ),
     });
   }
 
@@ -1437,9 +1444,8 @@ export class CodeIntelligenceCoordinator
       for (const marker of markers) {
         try {
           const markerPath = `${currentPath}/${marker}`;
-          // Use synchronous check (since we're in async context anyway)
-          const fs = require('fs');
-          if (fs.existsSync(markerPath)) {
+          // Synchronous existence check (we're in an async context anyway).
+          if (existsSync(markerPath)) {
             return currentPath;
           }
         } catch {

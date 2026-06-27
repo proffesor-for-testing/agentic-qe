@@ -17,6 +17,7 @@ import { DefectPredictTool } from './defect-intelligence/predict';
 import { RequirementsValidateTool } from './requirements-validation/validate';
 import { QualityCriteriaTool } from './requirements-validation/quality-criteria';
 import { CodeAnalyzeTool } from './code-intelligence/analyze';
+import { CodeC4Tool } from './code-intelligence/c4';
 import { SecurityScanTool } from './security-compliance/scan';
 import { ContractValidateTool } from './contract-testing/validate';
 import { VisualCompareTool, A11yAuditTool } from './visual-accessibility';
@@ -66,6 +67,7 @@ export const QE_TOOL_NAMES = {
 
   // Code Intelligence
   CODE_ANALYZE: 'qe/code/analyze',
+  CODE_C4: 'qe/code/c4',
 
   // Security Compliance
   SECURITY_SCAN: 'qe/security/scan',
@@ -151,6 +153,7 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Code Intelligence Domain
   new CodeAnalyzeTool(),
+  new CodeC4Tool(),
 
   // Security Compliance Domain
   new SecurityScanTool(),

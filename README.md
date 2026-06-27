@@ -359,6 +359,7 @@ aqe code search "authentication"     # Semantic code search
 aqe code impact src/                 # Change impact analysis
 aqe code deps src/                   # Dependency mapping
 aqe code complexity src/             # Complexity metrics and hotspots
+aqe code c4 .                        # C4 architecture diagrams (Mermaid) + confidence
 ```
 
 ---

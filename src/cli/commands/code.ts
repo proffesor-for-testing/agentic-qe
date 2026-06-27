@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { walkSourceFiles, SOURCE_EXTENSIONS } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
+import type { C4DiagramResult } from '../../shared/c4-model';
 
 export function createCodeCommand(
   context: CLIContext,
@@ -17,12 +18,13 @@ export function createCodeCommand(
 ): Command {
   const codeCmd = new Command('code')
     .description('Code intelligence analysis')
-    .argument('<action>', 'Action (index|search|impact|deps|complexity)')
+    .argument('<action>', 'Action (index|search|impact|deps|complexity|c4)')
     .argument('[target]', 'Target path or query')
     .option('--depth <depth>', 'Analysis depth', '3')
     .option('--include-tests', 'Include test files')
     .option('--incremental', 'Incremental indexing (index action only)')
     .option('--git-since <ref>', 'Index changes since git ref (index action only)')
+    .option('--level <level>', 'C4 level for c4 action (context|container|component|all)', 'all')
     .option('-F, --format <format>', 'Output format (text|json)', 'text')
     .option('-o, --output <path>', 'Write output to file')
     .addHelpText('after', `
@@ -34,6 +36,9 @@ Examples:
   aqe code impact src/auth/            Analyze change impact
   aqe code deps src/                   Map dependencies
   aqe code complexity src/             Analyze code complexity metrics
+  aqe code c4 .                        Generate C4 architecture diagrams (Mermaid)
+  aqe code c4 src/ --level component   Only the C4 component diagram
+  aqe code c4 . --format json -o c4.json   Full C4 result as JSON
 `)
     .action(async (action: string, target: string, options) => {
       if (!await ensureInitialized()) return;
@@ -45,6 +50,9 @@ Examples:
           analyzeImpact(request: { changedFiles: string[]; depth?: number; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           mapDependencies(request: { files: string[]; direction: string; depth?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           getSemanticAnalyzer(): { analyze(code: string): Promise<{ success: boolean; value?: { concepts: string[]; patterns: string[]; complexity: { cyclomatic: number; cognitive: number; halstead: { vocabulary: number; length: number; difficulty: number; effort: number; time: number; bugs: number } }; dependencies: string[]; suggestions: string[] }; error?: Error }> } | null;
+          getCoordinator?(): {
+            generateC4Diagrams(projectPath: string, options?: Record<string, unknown>): Promise<{ success: boolean; value?: C4DiagramResult; error?: Error }>;
+          } | null;
         }>('code-intelligence');
 
         if (!codeAPI) {
@@ -389,9 +397,85 @@ Examples:
             }
           }
 
+        } else if (action === 'c4') {
+          const targetPath = path.resolve(target || '.');
+          const level = String(options.level || 'all').toLowerCase();
+          const validLevels = ['context', 'container', 'component', 'all'];
+          if (!validLevels.includes(level)) {
+            console.log(chalk.red(`Invalid --level: "${level}" (must be ${validLevels.join('|')})`));
+            return await cleanupAndExit(1);
+          }
+
+          if (typeof codeAPI.getCoordinator !== 'function' || !codeAPI.getCoordinator()) {
+            console.log(chalk.red('C4 generation not available — ensure the fleet is initialized'));
+            return await cleanupAndExit(1);
+          }
+
+          console.log(chalk.blue(`\n Generating C4 diagrams for ${targetPath} (level: ${level})...\n`));
+
+          const want = (l: string) => level === 'all' || level === l;
+          const result = await codeAPI.getCoordinator()!.generateC4Diagrams(targetPath, {
+            includeContext: want('context'),
+            includeContainer: want('container'),
+            includeComponent: want('component'),
+            includeDependency: level === 'all',
+            analyzeComponents: true,
+            detectExternalSystems: true,
+            analyzeCoupling: true,
+          });
+
+          if (!result.success || !result.value) {
+            console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            return await cleanupAndExit(1);
+          }
+
+          const c4 = result.value;
+          const confidence = c4.metadata.analysisMetadata?.confidence;
+
+          if (format === 'json') {
+            writeOutput(toJSON(c4), options.output);
+          } else {
+            // Build the Markdown (fenced mermaid blocks) — copy-paste into GitHub/IDE.
+            const blocks: string[] = [];
+            const add = (titleLevel: string, code?: string) => {
+              if (code) blocks.push(`### C4 ${titleLevel}\n\n\`\`\`mermaid\n${code.trim()}\n\`\`\``);
+            };
+            add('Context', c4.diagrams.context);
+            add('Container', c4.diagrams.container);
+            add('Component', c4.diagrams.component);
+            if (c4.diagrams.dependency) blocks.push(`### Dependency Graph\n\n\`\`\`mermaid\n${c4.diagrams.dependency.trim()}\n\`\`\``);
+            const markdown = `# C4 Architecture — ${c4.metadata.projectName}\n\n${blocks.join('\n\n')}\n`;
+
+            if (options.output) {
+              writeOutput(markdown, options.output);
+            } else {
+              console.log(markdown);
+            }
+
+            // Confidence banner (ADR-112 quality gate) — always to stderr-style console.
+            if (confidence) {
+              const color = confidence.level === 'high' ? chalk.green : confidence.level === 'medium' ? chalk.yellow : chalk.red;
+              console.log(color(`Confidence: ${confidence.level.toUpperCase()} (${(confidence.score * 100).toFixed(0)}%)`));
+              if (confidence.level !== 'high') {
+                for (const reason of confidence.reasons) {
+                  console.log(chalk.gray(`  - ${reason}`));
+                }
+              }
+            }
+
+            // Architecture analysis (coupling/cycles).
+            const coupling = c4.couplingAnalysis ?? [];
+            const circular = coupling.filter((c) => c.isCircular);
+            console.log(chalk.cyan(`\n  Components: ${chalk.white(c4.components.length)}  External systems: ${chalk.white(c4.externalSystems.length)}  Relationships: ${chalk.white(c4.relationships.length)}`));
+            if (circular.length > 0) {
+              console.log(chalk.red(`  Circular dependencies: ${circular.length}`));
+              for (const c of circular.slice(0, 3)) console.log(chalk.red(`    ${c.moduleA} <-> ${c.moduleB}`));
+            }
+          }
+
         } else {
           console.log(chalk.red(`\nUnknown action: ${action}`));
-          console.log(chalk.gray('  Available: index, search, impact, deps, complexity\n'));
+          console.log(chalk.gray('  Available: index, search, impact, deps, complexity, c4\n'));
           await cleanupAndExit(1);
         }
 

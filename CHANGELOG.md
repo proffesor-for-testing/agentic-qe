@@ -5,6 +5,41 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.2] - 2026-06-27
+
+First-class **C4 architecture diagrams** generated straight from your codebase —
+with a confidence score so you know how much to trust them. AQE detects your
+components, the external systems they depend on, and their *real* relationships
+(from the code's import/call graph), renders standard [C4](https://c4model.com/)
+Mermaid you can paste into GitHub or an IDE, and exposes it through both the CLI
+and an MCP tool.
+
+See the new [C4 architecture diagrams guide](docs/guides/c4-architecture-diagrams.md).
+
+### Added
+
+- **`aqe code c4 <path>`** — generate Context / Container / Component C4 diagrams
+  (Mermaid) for a repository, with `--level context|container|component|all`,
+  `--format text|json`, and `-o <file>`.
+- **`qe/code/c4` MCP tool** — the same generation for agents and IDEs, plus
+  semantic `search` over previously generated diagrams.
+- **Confidence gate** — every diagram is scored high / medium / low (deterministic,
+  no AI judging another AI) with the reasons, so an auto-detected diagram is never
+  presented as ground truth. Large or under-segmented repos are flagged as drafts.
+- **Real relationships from the Knowledge Graph** — component arrows now come from
+  actual import/call edges (AST), not name-based guessing.
+
+### Changed
+
+- C4 generation is consolidated onto a single engine. On a render failure it now
+  **reports the error** instead of silently falling back to a weaker diagram.
+
+### Fixed
+
+- Knowledge Graph file reads can be scoped to a project root, so analyzing a
+  repository outside the current working directory no longer trips the file-path
+  safety guard.
+
 ## [3.11.1] - 2026-06-25
 
 Benchmark-driven deepening of the opt-in "cheap-first" test generation from

@@ -39,6 +39,9 @@ aqe code deps src/
 
 # Analyze complexity and find hotspots
 aqe code complexity src/
+
+# Generate C4 architecture diagrams (Mermaid) with a confidence score
+aqe code c4 .
 ```
 
 ## Agent Workflow

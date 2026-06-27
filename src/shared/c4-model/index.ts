@@ -9,6 +9,9 @@
  * https://c4model.com/
  */
 
+export * from './confidence';
+import type { C4ConfidenceAssessment } from './confidence';
+
 // ============================================================================
 // C4 Diagram Types
 // ============================================================================
@@ -64,6 +67,8 @@ export interface C4AnalysisMetadata {
   externalSystemsDetected: number;
   /** Analysis duration in milliseconds */
   analysisTimeMs: number;
+  /** ADR-112: deterministic confidence gate for the generated diagrams */
+  confidence?: C4ConfidenceAssessment;
 }
 
 // ============================================================================
