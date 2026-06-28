@@ -44,7 +44,7 @@ export interface GeminiConfig extends LLMConfig {
  * Default Gemini configuration
  */
 export const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
-  model: 'gemini-1.5-pro',
+  model: 'gemini-2.5-flash', // gemini-1.5-pro was retired ("not found for API version"); 2.5-flash is current
   maxTokens: 8192,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -141,6 +141,10 @@ export const GEMINI_PRICING: Record<string, { input: number; output: number }> =
   'gemini-1.5-flash': { input: 0.075, output: 0.3 },
   'gemini-1.5-flash-latest': { input: 0.075, output: 0.3 },
   'gemini-2.0-flash-exp': { input: 0.075, output: 0.3 },
+  // Gemini 2.5 (current generation)
+  'gemini-2.5-pro': { input: 1.25, output: 10.0 },
+  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  'gemini-flash-latest': { input: 0.3, output: 2.5 },
   // Gemini Ultra (flagship)
   'gemini-ultra': { input: 7.0, output: 21.0 },
   'gemini-1.0-ultra': { input: 7.0, output: 21.0 },
@@ -611,15 +615,18 @@ export class GeminiProvider implements LLMProvider {
       return this.cachedModels;
     }
 
+    // Current text-generation models (verified via Gemini ListModels API 2026-06-27).
+    // Prefer the `-latest` aliases as defaults so they don't rot (gemini-1.5-pro was retired).
     return [
-      'gemini-pro',
-      'gemini-1.0-pro',
-      'gemini-1.5-pro',
-      'gemini-1.5-pro-latest',
-      'gemini-1.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-exp',
-      'gemini-ultra',
+      'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-flash-lite-latest',
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-3.5-flash',
     ];
   }
 
@@ -724,7 +731,6 @@ export class GeminiProvider implements LLMProvider {
     model: string
   ): never {
     const message = data.error?.message ?? 'Unknown API error';
-    const errorStatus = data.error?.status ?? '';
 
     switch (status) {
       case 400:

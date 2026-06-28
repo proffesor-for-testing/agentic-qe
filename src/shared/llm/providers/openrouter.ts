@@ -175,7 +175,7 @@ export const OPENROUTER_PRICING: Record<string, { input: number; output: number 
  * OpenRouter LLM provider implementation
  */
 export class OpenRouterProvider implements LLMProvider {
-  readonly type: LLMProviderType = 'openai'; // Compatible with OpenAI interface
+  readonly type: LLMProviderType = 'openrouter';
   readonly name: string = 'OpenRouter';
 
   private config: OpenRouterConfig;
@@ -274,7 +274,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         'OpenRouter API key not configured',
         'API_KEY_MISSING',
-        { provider: 'openai', retryable: false }
+        { provider: 'openrouter', retryable: false }
       );
     }
 
@@ -356,7 +356,7 @@ export class OpenRouterProvider implements LLMProvider {
       return {
         content,
         model: data.model,
-        provider: 'openai', // Report as openai for compatibility
+        provider: 'openrouter',
         usage,
         cost,
         latencyMs,
@@ -371,7 +371,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         error instanceof Error ? error.message : 'Request failed',
         'NETWORK_ERROR',
-        { provider: 'openai', model, retryable: true, cause: error as Error }
+        { provider: 'openrouter', model, retryable: true, cause: error as Error }
       );
     }
   }
@@ -390,7 +390,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         'OpenRouter API key not configured',
         'API_KEY_MISSING',
-        { provider: 'openai', retryable: false }
+        { provider: 'openrouter', retryable: false }
       );
     }
 
@@ -435,7 +435,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         'No response body for streaming',
         'NETWORK_ERROR',
-        { provider: 'openai', model, retryable: true }
+        { provider: 'openrouter', model, retryable: true }
       );
     }
 
@@ -518,7 +518,7 @@ export class OpenRouterProvider implements LLMProvider {
     return {
       content: fullContent,
       model: responseModel,
-      provider: 'openai',
+      provider: 'openrouter',
       usage,
       cost,
       latencyMs,
@@ -539,7 +539,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         'OpenRouter API key not configured',
         'API_KEY_MISSING',
-        { provider: 'openai', retryable: false }
+        { provider: 'openrouter', retryable: false }
       );
     }
 
@@ -581,7 +581,7 @@ export class OpenRouterProvider implements LLMProvider {
       return {
         embedding: data.data[0].embedding,
         model: data.model,
-        provider: 'openai',
+        provider: 'openrouter',
         tokenCount: data.usage.total_tokens,
         latencyMs,
         cached: false,
@@ -593,7 +593,7 @@ export class OpenRouterProvider implements LLMProvider {
       throw createLLMError(
         error instanceof Error ? error.message : 'Embedding request failed',
         'NETWORK_ERROR',
-        { provider: 'openai', model, retryable: true, cause: error as Error }
+        { provider: 'openrouter', model, retryable: true, cause: error as Error }
       );
     }
   }
@@ -616,7 +616,7 @@ export class OpenRouterProvider implements LLMProvider {
     return {
       completion: response.content,
       model: response.model,
-      provider: 'openai',
+      provider: 'openrouter',
       usage: response.usage,
       latencyMs: response.latencyMs,
       cached: response.cached,
@@ -792,19 +792,19 @@ export class OpenRouterProvider implements LLMProvider {
     switch (status) {
       case 401:
         throw createLLMError(message, 'API_KEY_INVALID', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: false,
         });
       case 402:
         throw createLLMError(message, 'COST_LIMIT_EXCEEDED', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: false,
         });
       case 429:
         throw createLLMError(message, 'RATE_LIMITED', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: true,
           retryAfterMs: 60000,
@@ -812,19 +812,19 @@ export class OpenRouterProvider implements LLMProvider {
       case 400:
         if (errorCode === 'context_length_exceeded' || errorType === 'invalid_request_error') {
           throw createLLMError(message, 'CONTEXT_LENGTH_EXCEEDED', {
-            provider: 'openai',
+            provider: 'openrouter',
             model,
             retryable: false,
           });
         }
         throw createLLMError(message, 'UNKNOWN', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: false,
         });
       case 404:
         throw createLLMError(message, 'MODEL_NOT_FOUND', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: false,
         });
@@ -832,14 +832,14 @@ export class OpenRouterProvider implements LLMProvider {
       case 502:
       case 503:
         throw createLLMError(message, 'PROVIDER_UNAVAILABLE', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: true,
           retryAfterMs: 5000,
         });
       default:
         throw createLLMError(message, 'UNKNOWN', {
-          provider: 'openai',
+          provider: 'openrouter',
           model,
           retryable: false,
         });
@@ -866,7 +866,7 @@ export class OpenRouterProvider implements LLMProvider {
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw createLLMError('Request timed out', 'TIMEOUT', {
-          provider: 'openai',
+          provider: 'openrouter',
           retryable: true,
         });
       }

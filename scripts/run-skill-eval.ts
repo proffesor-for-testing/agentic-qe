@@ -24,6 +24,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { evaluateOracle } from '../src/validation/oracle-eval.js';
 
 // For YAML parsing - using dynamic import for ESM compatibility
 let yaml: typeof import('yaml');
@@ -46,7 +47,21 @@ interface TestCase {
   input: TestInput;
   expected_output: ExpectedOutput;
   validation?: ValidationConfig;
+  oracle?: OracleConfig;
   timeout_ms?: number;
+}
+
+/**
+ * Oracle-mode config: grade the skill's generated test by running it against a
+ * reference implementation (must pass) and its operator mutants (each surviving
+ * mutant is a missed bug). See src/validation/oracle-eval.ts and ADR-113.
+ */
+interface OracleConfig {
+  module_name: string;
+  reference_impl: string;
+  max_mutants?: number;
+  threshold?: number;
+  extract?: 'raw' | 'first_code_block';
 }
 
 interface TestInput {
@@ -86,6 +101,10 @@ interface ValidationConfig {
   semantic_similarity_min?: number;
   allow_partial?: boolean;
   adaptive_rubric?: boolean;
+  /** Grade as an oracle (run + mutate) instead of keyword/semantic matching. Requires test_case.oracle. */
+  oracle?: boolean;
+  /** Minimum mutation kill rate for an oracle case (overrides oracle.threshold). */
+  mutation_score_min?: number;
   grading_rubric?: {
     completeness?: number;
     accuracy?: number;
@@ -178,6 +197,12 @@ interface TestCaseResult {
     };
     adaptive_keywords_extracted?: string[];
   };
+  /** Oracle-mode results (present only for oracle test cases). */
+  oracle_baseline_passed?: boolean;
+  mutation_score?: number;
+  mutants_killed?: number;
+  mutants_total?: number;
+  survived_mutant_ids?: string[];
   raw_output?: string;
   error?: string;
 }
@@ -413,10 +438,21 @@ class MCPClient {
 // Evaluation Engine
 // =============================================================================
 
-class SkillEvaluationRunner {
+/**
+ * Pull the test source out of a model's output. With `first_code_block`
+ * (default), returns the contents of the first fenced ```code block``` if
+ * present (LLMs wrap code in fences); otherwise returns the output verbatim.
+ */
+export function extractTestSource(output: string, mode: 'raw' | 'first_code_block' = 'first_code_block'): string {
+  if (mode === 'raw') return output;
+  const fence = /```(?:[a-zA-Z0-9_-]*)\n([\s\S]*?)```/.exec(output);
+  return fence ? fence[1] : output;
+}
+
+export class SkillEvaluationRunner {
   private suite: EvalSuite;
   private mcpClient: MCPClient;
-  private verbose: boolean;
+  protected verbose: boolean;
 
   constructor(suite: EvalSuite, verbose = false) {
     this.suite = suite;
@@ -573,11 +609,77 @@ class SkillEvaluationRunner {
       };
     }
 
+    // Oracle cases need real model output to grade; under the simulating runner
+    // they are skipped (not failed), so evals can ship oracle cases that only
+    // activate in the live eval lane. LiveSkillEvaluationRunner overrides isLive().
+    if (testCase.oracle && testCase.validation?.oracle && !this.isLive()) {
+      return {
+        id: testCase.id,
+        description: testCase.description,
+        category: testCase.category,
+        priority: testCase.priority,
+        passed: true,
+        skipped: true,
+        skip_reason: 'oracle case requires a live provider (run scripts/validate-live-oracle.ts or the live eval lane)',
+        execution_time_ms: 0,
+        keyword_match_score: 0,
+        reasoning_quality_score: 0,
+        validation_details: {
+          must_contain_matches: [],
+          must_contain_misses: [],
+          must_not_contain_violations: [],
+          regex_matches: [],
+          regex_misses: [],
+          severity_matched: false,
+          finding_count_matched: false,
+        },
+      };
+    }
+
     try {
-      // In production, this would invoke the actual skill via Claude API
-      // For now, we simulate the output based on test case expectations
-      const output = await this.simulateSkillExecution(testCase, model);
+      // The skill's output. In production this is the LLM response; the default
+      // implementation simulates it. Subclasses/live wiring override produceSkillOutput.
+      const output = await this.produceSkillOutput(testCase, model);
       const executionTime = Date.now() - startTime;
+
+      // Oracle mode: the output IS a generated test — grade it by running it
+      // against the reference implementation and its operator mutants (ADR-113).
+      if (testCase.oracle && testCase.validation?.oracle) {
+        const generatedTest = extractTestSource(output, testCase.oracle.extract);
+        const oracle = evaluateOracle({
+          moduleName: testCase.oracle.module_name,
+          referenceImpl: testCase.oracle.reference_impl,
+          generatedTest,
+          maxMutants: testCase.oracle.max_mutants,
+          threshold: testCase.validation.mutation_score_min ?? testCase.oracle.threshold,
+        });
+        return {
+          id: testCase.id,
+          description: testCase.description,
+          category: testCase.category,
+          priority: testCase.priority,
+          passed: oracle.passed,
+          skipped: false,
+          execution_time_ms: executionTime,
+          keyword_match_score: 0,
+          reasoning_quality_score: 0,
+          validation_details: {
+            must_contain_matches: [],
+            must_contain_misses: [],
+            must_not_contain_violations: [],
+            regex_matches: [],
+            regex_misses: [],
+            severity_matched: false,
+            finding_count_matched: false,
+          },
+          oracle_baseline_passed: oracle.baselinePassed,
+          mutation_score: oracle.mutationScore,
+          mutants_killed: oracle.mutantsKilled,
+          mutants_total: oracle.mutantsTotal,
+          survived_mutant_ids: oracle.survivedMutantIds,
+          raw_output: this.verbose ? output : undefined,
+        };
+      }
 
       // Validate output against expectations
       const validation = this.validateOutput(output, testCase.expected_output, testCase.validation, testCase);
@@ -627,7 +729,12 @@ class SkillEvaluationRunner {
    * 2. Call the LLM API with the skill prompt and test input
    * 3. Return the actual LLM output
    */
-  private async simulateSkillExecution(testCase: TestCase, model: string): Promise<string> {
+  /** True when produceSkillOutput calls a real provider. Overridden by live runners. */
+  protected isLive(): boolean {
+    return false;
+  }
+
+  protected async produceSkillOutput(testCase: TestCase, model: string): Promise<string> {
     // Simulate some processing time
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -1293,5 +1400,7 @@ async function main(): Promise<void> {
   }
 }
 
-// Run if executed directly
-main().catch(console.error);
+// Run only when executed directly (not when imported, e.g. by tests/live wiring)
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch(console.error);
+}

@@ -1,0 +1,20 @@
+{
+  "surface": "dashboard-api",
+  "count": 14,
+  "entries": [
+    "DashboardData",
+    "DomainStats",
+    "EMBEDDING_DIM",
+    "EmbeddablePattern",
+    "Pattern",
+    "PatternCluster",
+    "PatternExplorer",
+    "SearchResult",
+    "StoreStats",
+    "WasmVectorStore",
+    "cosineSimilarity",
+    "generateEmbedding",
+    "generateQueryEmbedding",
+    "kMeansClustering"
+  ]
+}

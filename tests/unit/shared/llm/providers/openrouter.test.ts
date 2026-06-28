@@ -80,7 +80,7 @@ describe('OpenRouterProvider', () => {
     });
 
     it('should have correct provider type and name', () => {
-      expect(provider.type).toBe('openai'); // Compatible with OpenAI interface
+      expect(provider.type).toBe('openrouter'); // must match the ProviderManager registry key
       expect(provider.name).toBe('OpenRouter');
     });
   });
@@ -213,7 +213,7 @@ describe('OpenRouterProvider', () => {
       const response = await provider.generate('Test prompt');
 
       expect(response.content).toBe('OpenRouter response');
-      expect(response.provider).toBe('openai');
+      expect(response.provider).toBe('openrouter');
       expect(response.usage.promptTokens).toBe(10);
       expect(response.usage.completionTokens).toBe(20);
       expect(response.cost.totalCost).toBeGreaterThan(0);
@@ -593,7 +593,7 @@ describe('OpenRouterProvider', () => {
       const response = await provider.embed('Test text');
 
       expect(response.embedding).toEqual(mockEmbedding);
-      expect(response.provider).toBe('openai');
+      expect(response.provider).toBe('openrouter');
       expect(response.tokenCount).toBe(5);
     });
 
@@ -637,7 +637,7 @@ describe('OpenRouterProvider', () => {
       const response = await provider.complete('function add(');
 
       expect(response.completion).toBe('a, b) { return a + b; }');
-      expect(response.provider).toBe('openai');
+      expect(response.provider).toBe('openrouter');
     });
 
     it('should use low temperature for completion', async () => {

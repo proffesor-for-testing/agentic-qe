@@ -333,6 +333,42 @@ test_cases:
         accuracy: 0.4
         actionability: 0.2
 
+  # ---------------------------------------------------------------------------
+  # ORACLE CASE (preferred for test-generating skills) — ADR-113
+  # ---------------------------------------------------------------------------
+  # Instead of keyword-matching the output, RUN the generated test against a
+  # reference implementation (must pass) and its operator mutants (each surviving
+  # mutant is a missed bug). Mutation kill rate is the pass signal — a test that
+  # asserts nothing scores 0 and fails. Requires the skill output to be a test
+  # that imports the impl as `../src/<module_name>.mjs`.
+  - id: tc050_oracle_generated_test
+    description: "Generated test kills mutants of a reference implementation"
+    category: oracle
+    priority: critical
+
+    input:
+      code: |
+        export function inRange(x, lo, hi) {
+          return x >= lo && x <= hi;
+        }
+      context:
+        language: javascript
+
+    expected_output: {}   # not used in oracle mode
+
+    oracle:
+      module_name: inRange
+      reference_impl: |
+        export function inRange(x, lo, hi) {
+          return x >= lo && x <= hi;
+        }
+      threshold: 0.6        # minimum mutation kill rate
+      extract: first_code_block   # pull the test from the first ```code block``` in output
+
+    validation:
+      oracle: true          # grade as an oracle, not by keyword matching
+      # mutation_score_min: 0.6   # optional override of oracle.threshold
+
 # =============================================================================
 # Success Criteria
 # =============================================================================

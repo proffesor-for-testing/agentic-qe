@@ -4,7 +4,12 @@
   "title": "AQE Skill Evaluation Test Suite Schema",
   "description": "Schema for skill evaluation YAML test suites used in Trust Tier 3 validation. Supports multi-model testing, AQE MCP integration, and ReasoningBank learning.",
   "type": "object",
-  "required": ["skill", "version", "test_cases", "success_criteria"],
+  "required": [
+    "skill",
+    "version",
+    "test_cases",
+    "success_criteria"
+  ],
   "properties": {
     "skill": {
       "type": "string",
@@ -36,7 +41,9 @@
           "gpt-4-turbo"
         ]
       },
-      "default": ["claude-sonnet-4-6"],
+      "default": [
+        "claude-sonnet-4-6"
+      ],
       "minItems": 1,
       "uniqueItems": true,
       "description": "Models to run evaluation against for cross-model validation"
@@ -59,12 +66,16 @@
       "properties": {
         "required_tools": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Tools that must be available"
         },
         "environment_variables": {
           "type": "object",
-          "additionalProperties": { "type": "string" },
+          "additionalProperties": {
+            "type": "string"
+          },
           "description": "Environment variables to set"
         },
         "fixtures": {
@@ -72,9 +83,15 @@
           "items": {
             "type": "object",
             "properties": {
-              "name": { "type": "string" },
-              "path": { "type": "string" },
-              "content": { "type": "string" }
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              }
             }
           },
           "description": "Test fixtures to create"
@@ -91,7 +108,9 @@
     },
     "success_criteria": {
       "type": "object",
-      "required": ["pass_rate"],
+      "required": [
+        "pass_rate"
+      ],
       "properties": {
         "pass_rate": {
           "type": "number",
@@ -128,17 +147,32 @@
     "metadata": {
       "type": "object",
       "properties": {
-        "author": { "type": "string" },
-        "created": { "type": "string", "format": "date" },
-        "last_updated": { "type": "string", "format": "date" },
-        "coverage_target": { "type": "string" }
+        "author": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string",
+          "format": "date"
+        },
+        "last_updated": {
+          "type": "string",
+          "format": "date"
+        },
+        "coverage_target": {
+          "type": "string"
+        }
       }
     }
   },
   "$defs": {
     "test_case": {
       "type": "object",
-      "required": ["id", "description", "input", "expected_output"],
+      "required": [
+        "id",
+        "description",
+        "input",
+        "expected_output"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -155,7 +189,12 @@
         },
         "priority": {
           "type": "string",
-          "enum": ["critical", "high", "medium", "low"],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ],
           "default": "medium",
           "description": "Test priority"
         },
@@ -182,6 +221,9 @@
           "minimum": 1000,
           "default": 30000,
           "description": "Test timeout in milliseconds"
+        },
+        "oracle": {
+          "$ref": "#/$defs/oracle_config"
         }
       }
     },
@@ -219,7 +261,11 @@
             },
             "environment": {
               "type": "string",
-              "enum": ["development", "staging", "production"],
+              "enum": [
+                "development",
+                "staging",
+                "production"
+              ],
               "description": "Target environment"
             }
           }
@@ -237,37 +283,61 @@
       "properties": {
         "must_contain": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Strings that must appear in output"
         },
         "must_not_contain": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Strings that must not appear in output"
         },
         "must_match_regex": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Regex patterns output must match"
         },
         "severity_classification": {
           "type": "string",
-          "enum": ["critical", "high", "medium", "low", "info"],
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "info"
+          ],
           "description": "Expected severity classification"
         },
         "finding_count": {
           "type": "object",
           "properties": {
-            "min": { "type": "integer", "minimum": 0 },
-            "max": { "type": "integer", "minimum": 0 }
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "description": "Expected range of findings"
         },
         "recommendation_count": {
           "type": "object",
           "properties": {
-            "min": { "type": "integer", "minimum": 0 },
-            "max": { "type": "integer", "minimum": 0 }
+            "min": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "description": "Expected range of recommendations"
         },
@@ -282,9 +352,15 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["jsonpath", "semantic", "function"]
+                "enum": [
+                  "jsonpath",
+                  "semantic",
+                  "function"
+                ]
               },
-              "expression": { "type": "string" },
+              "expression": {
+                "type": "string"
+              },
               "expected": {}
             }
           },
@@ -328,11 +404,34 @@
         "grading_rubric": {
           "type": "object",
           "properties": {
-            "completeness": { "type": "number", "minimum": 0, "maximum": 1 },
-            "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
-            "actionability": { "type": "number", "minimum": 0, "maximum": 1 }
+            "completeness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "accuracy": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "actionability": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
           },
           "description": "Weighted grading rubric (weights should sum to 1.0)"
+        },
+        "oracle": {
+          "type": "boolean",
+          "default": false,
+          "description": "Grade this case as an oracle (run+mutate) instead of keyword/semantic matching. Requires test_case.oracle."
+        },
+        "mutation_score_min": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum mutation kill rate for an oracle case (overrides oracle.threshold when set)"
         }
       }
     },
@@ -377,8 +476,13 @@
         },
         "target_agents": {
           "type": "array",
-          "items": { "type": "string" },
-          "default": ["qe-learning-coordinator", "qe-queen-coordinator"],
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "qe-learning-coordinator",
+            "qe-queen-coordinator"
+          ],
           "description": "Agent IDs to share learning with"
         }
       }
@@ -446,6 +550,45 @@
           "type": "boolean",
           "default": true,
           "description": "Include token usage statistics"
+        }
+      }
+    },
+    "oracle_config": {
+      "type": "object",
+      "description": "Oracle-mode evaluation: run the skill's generated test against a reference implementation (must pass) and against operator mutants of it (each surviving mutant is a missed bug). Mutation kill rate is the pass signal. Reuses the qe-arena mutator + node --test runner (ADR-104).",
+      "required": [
+        "module_name",
+        "reference_impl"
+      ],
+      "properties": {
+        "module_name": {
+          "type": "string",
+          "description": "Base name (no extension) of the module under test; the generated test imports it as ../src/<module_name>.mjs"
+        },
+        "reference_impl": {
+          "type": "string",
+          "description": "ESM source of the correct implementation the generated test is graded against"
+        },
+        "max_mutants": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Cap on mutants evaluated (deterministic position-sorted prefix). Omit to evaluate all."
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5,
+          "description": "Minimum mutation kill rate required to pass"
+        },
+        "extract": {
+          "type": "string",
+          "enum": [
+            "raw",
+            "first_code_block"
+          ],
+          "default": "first_code_block",
+          "description": "How to obtain the test source from model output: use it verbatim, or take the first fenced code block"
         }
       }
     }
