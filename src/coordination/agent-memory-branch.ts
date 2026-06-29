@@ -1,17 +1,29 @@
 /**
  * Agent Memory Branching via RVF Copy-on-Write (ADR-067)
  *
- * Provides per-agent isolated memory branches using RVF's COW derive().
- * Each spawned agent gets a lightweight .rvf branch file that shares
- * the parent's data via copy-on-write. Writes are isolated to the branch.
+ * Provides per-agent isolated memory branches using RVF's native derive().
+ * Each spawned agent gets a lightweight .rvf branch file as an ISOLATED
+ * write layer. Writes are isolated to the branch and never touch the parent
+ * until an explicit merge.
+ *
+ * IMPORTANT — published-binary semantics (verified against @ruvector/rvf-node
+ * 0.1.8, 2026-06-29): native `derive()` is lineage/provenance-only. The child
+ * starts EMPTY and does NOT read through to the parent — a query against the
+ * child sees only the child's own writes, not the parent's vectors. (The
+ * parent∪child read-through "union" branch lives in upstream RuVector HEAD as
+ * `branch()`/`freeze()`/`read_all_vectors`, but is NOT in the published NAPI.)
+ * Do NOT query a branch expecting to see parent data — this layer does not
+ * provide it. Merge works by replaying the child's ingest log into the parent
+ * (see {@link BranchHandle.ingestLog}), which is why it is correct without
+ * read-through.
  *
  * Lifecycle:
- *   spawn → createBranch() → agent works on isolated branch
- *   success → mergeBranch() → changed vectors flow back to parent
+ *   spawn → createBranch() → agent writes into the isolated branch
+ *   success → mergeBranch() → child's ingest-logged vectors replay into parent
  *   failure → discardBranch() → delete branch file (zero cost)
  *
- * Storage cost: ~0.5% of parent for typical agent workloads
- * (only changed vectors are physically copied).
+ * Storage cost: the empty child is tiny (KB); it grows only with the agent's
+ * own writes, independent of parent size.
  *
  * @module coordination/agent-memory-branch
  */
@@ -112,8 +124,10 @@ export class AgentMemoryBranch {
 
   /**
    * Create a COW branch for an agent.
-   * The child .rvf inherits all parent data via copy-on-write.
-   * Reads fall through to parent; writes are isolated to the child.
+   * The child .rvf is an isolated write layer that starts EMPTY (native
+   * derive is lineage-only on the published rvf-node binary — it does NOT
+   * read through to the parent; see the module doc). Agent writes stay in
+   * the child and are replayed into the parent on {@link mergeBranch}.
    */
   createBranch(agentId: string): BranchHandle {
     if (this.activeBranches.has(agentId)) {

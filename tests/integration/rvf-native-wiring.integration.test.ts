@@ -158,6 +158,48 @@ describe('RVF Native Wiring Integration', () => {
   });
 
   // --------------------------------------------------------------------------
+  // 4b. derive() COW semantics — lineage-only on the published binary (ADR-067)
+  // --------------------------------------------------------------------------
+
+  // Pins the semantic verified against @ruvector/rvf-node 0.1.8 (2026-06-29):
+  // native derive() is lineage-only — the child starts EMPTY and does NOT read
+  // through to the parent. agent-memory-branch.ts (ADR-067) depends on this:
+  // it uses the child as an isolated write layer and replays an ingest log on
+  // merge, NOT on read-through.
+  //
+  // EARLY-WARNING ORACLE: if a future rvf-node release adds the upstream
+  // `branch()`/read-through union, the asserted child.size() below will change
+  // and this test will fail loudly — that is the signal to revisit ADR-067 and
+  // adopt the native union query (the COW fork→verify→promote pilot).
+  it('derive() is lineage-only — child does NOT read through to parent (published-binary contract)', () => {
+    const parentPath = tmpPath('derive-parent');
+    const childPath = tmpPath('derive-child');
+
+    const parent = createStoreDirect(parentPath, 4);
+    parent.ingest([{ id: 'parent-vec', vector: new Float32Array([1, 0, 0, 0]) }]);
+    expect(parent.size()).toBe(1);
+
+    const child = parent.derive(childPath);
+
+    // Lineage-only: child starts empty, parent's vector is NOT visible through it.
+    expect(child.size()).toBe(0);
+
+    // Writes are isolated to the child and do not pull in the parent's data.
+    child.ingest([{ id: 'child-vec', vector: new Float32Array([0, 1, 0, 0]) }]);
+    expect(child.size()).toBe(1); // 1, not 2 — no parent read-through
+
+    // A query against the child sees only the child's own write, never the parent's.
+    const childResults = child.search(new Float32Array([1, 0, 0, 0]), 5);
+    expect(childResults.map(r => r.id)).not.toContain('parent-vec');
+
+    // Parent is unaffected by the child's write (independent stores).
+    expect(parent.size()).toBe(1);
+
+    parent.close();
+    child.close();
+  });
+
+  // --------------------------------------------------------------------------
   // 5. Exports accessible from ruvector index
   // --------------------------------------------------------------------------
 

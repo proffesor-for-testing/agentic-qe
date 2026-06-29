@@ -127,7 +127,16 @@ export interface RvfNativeAdapter {
   indexStats(): RvfIndexStats;
   /** Freeze the RVF file (makes immutable, returns segment count). Graceful no-op if unsupported. */
   freeze(): number;
-  /** COW-derive a child RVF (native derive, falls back to file copy if unsupported). */
+  /**
+   * Derive a child RVF.
+   * NOTE the two paths differ in what the child can read:
+   *  - native `derive` (published rvf-node 0.1.8): lineage-only — the child
+   *    starts EMPTY and does NOT read through to the parent's vectors.
+   *  - file-copy fallback (`fork`, used when native derive is unavailable):
+   *    the child is a full physical copy, so it DOES see the parent's data.
+   * Callers must not assume parent read-through; treat the child as an
+   * isolated write layer (see coordination/agent-memory-branch.ts, ADR-067).
+   */
   derive(childPath: string): RvfNativeAdapter;
 }
 
