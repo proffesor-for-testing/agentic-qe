@@ -19,9 +19,12 @@ import type { ChatMessage } from './provider.js';
 import type { FreeTierProviderConfig } from './types.js';
 import type { AgentTier } from '../routing-config.js';
 
-/** Default cheap tier. qwen3:30b-a3b, NOT qwen3:8b — D3 (2026-06-23) measured the
- *  8B below the QE generation floor (0/3 baseline-valid); the 30B MoE clears it. */
-export const DEFAULT_FREE_TIER_MODEL = 'qwen3:30b-a3b';
+/** Default cheap tier. qwen3-coder:30b — same 30B MoE class/RAM as qwen3:30b-a3b
+ *  and IDENTICAL measured quality (2026-06-29 oracle bench, 8 fixtures: both 6/8,
+ *  75% avg mutation kill), but ~14× faster wall-clock (the code-tuned model does
+ *  not spend ~70s "thinking" before answering). qwen3:8b stays off-default: D3
+ *  measured it well below this (3/8). */
+export const DEFAULT_FREE_TIER_MODEL = 'qwen3-coder:30b';
 
 /** Per-coordinator config knobs (mix into a coordinator's CoordinatorConfig). */
 export interface FreeTierCoordinatorConfig {

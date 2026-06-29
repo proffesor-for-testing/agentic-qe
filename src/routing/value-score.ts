@@ -72,6 +72,8 @@ export function paretoFrontier<T extends ModelEconomics>(models: T[]): T[] {
 export const MEASURED_QE_TEST_GEN: readonly ModelEconomics[] = [
   { model: 'qwen3:8b', quality: 0.0, costPerInstance: 0 },         // D3: below the generation floor (0/3 valid)
   { model: 'qwen3:30b-a3b', quality: 0.62, costPerInstance: 0 },   // D3: clears the floor (best-of-k ~0.673 on judged)
+  { model: 'qwen3-coder:30b', quality: 0.62, costPerInstance: 0 }, // 2026-06-29 oracle bench: ties 30b-a3b (both 6/8, 75% mut) but ~14× faster wall-clock; default local test-gen model
+  { model: 'qwen2.5-coder:1.5b', quality: 0.08, costPerInstance: 0 }, // 2026-06-29: stock 1.5B coder = 1/8 (8%); below floor, size dominates coder-tuning at tiny scale
   { model: 'z-ai/glm-5.2', quality: 0.71, costPerInstance: 0.0065 }, // A12: diverse, higher per-model best
   { model: 'claude-sonnet-4-6', quality: 0.83, costPerInstance: 0.045 }, // D3: frontier ceiling
 ];

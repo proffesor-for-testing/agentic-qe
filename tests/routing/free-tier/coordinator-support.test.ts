@@ -36,11 +36,11 @@ describe('buildFreeTierExecutor — opt-in gating', () => {
     expect(exec).not.toBeNull();
   });
 
-  it('should default to qwen3:30b-a3b (D3: 8B is below the floor)', () => {
+  it('should default to qwen3-coder:30b (2026-06-29 oracle bench: ties 30b-a3b quality, ~14× faster)', () => {
     const info = vi.fn();
     buildFreeTierExecutor({ config: { enableFreeTier: true }, agentType: 'qe-x', taskKind: 'gen', env: {}, logger: { info } });
-    expect(DEFAULT_FREE_TIER_MODEL).toBe('qwen3:30b-a3b');
-    expect(info.mock.calls[0][0]).toContain('qwen3:30b-a3b');
+    expect(DEFAULT_FREE_TIER_MODEL).toBe('qwen3-coder:30b');
+    expect(info.mock.calls[0][0]).toContain('qwen3-coder:30b');
   });
 
   it('should report local-only when no router is wired', () => {
