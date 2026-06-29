@@ -18,6 +18,7 @@
  */
 
 import { LoggerFactory } from '../logging/index.js';
+import { resolveOllamaBaseUrl } from '../shared/llm/ollama-url.js';
 
 const logger = LoggerFactory.create('local-judge');
 
@@ -64,7 +65,7 @@ export class LocalJudgeClient {
   readonly enabled: boolean;
 
   constructor(opts?: { url?: string; model?: string }) {
-    this.baseUrl = opts?.url ?? process.env['NAGUAL_JUDGE_URL'] ?? DEFAULT_URL;
+    this.baseUrl = opts?.url ?? process.env['NAGUAL_JUDGE_URL'] ?? resolveOllamaBaseUrl(DEFAULT_URL);
     this.model = opts?.model ?? process.env['NAGUAL_JUDGE_MODEL'] ?? DEFAULT_MODEL;
     // Only active when explicitly configured via env or constructor options
     this.enabled = Boolean(

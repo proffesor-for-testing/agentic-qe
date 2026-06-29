@@ -10,6 +10,7 @@ import {
   OllamaHealthResponse,
   EMBEDDING_CONFIG,
 } from './types';
+import { resolveOllamaBaseUrl } from '../llm/ollama-url.js';
 
 /**
  * Client for Ollama API
@@ -21,7 +22,7 @@ export class OllamaClient {
   private timeoutMs: number;
 
   constructor(
-    baseUrl: string = EMBEDDING_CONFIG.DEFAULT_OLLAMA_URL,
+    baseUrl: string = resolveOllamaBaseUrl(EMBEDDING_CONFIG.DEFAULT_OLLAMA_URL),
     maxRetries: number = EMBEDDING_CONFIG.MAX_RETRIES,
     retryDelayMs: number = EMBEDDING_CONFIG.RETRY_DELAY_MS,
     timeoutMs: number = EMBEDDING_CONFIG.TIMEOUT_MS

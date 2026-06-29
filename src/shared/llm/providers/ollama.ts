@@ -23,13 +23,15 @@ import {
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
+import { resolveOllamaBaseUrl } from '../ollama-url.js';
+import { computeAdaptiveTimeoutMs } from './ollama-timeout.js';
 
 /**
  * Default Ollama configuration
  */
 export const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
   model: 'llama3.1',
-  baseUrl: 'http://localhost:11434',
+  baseUrl: resolveOllamaBaseUrl('http://localhost:11434'),
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 120000, // Longer timeout for local models
@@ -105,9 +107,31 @@ export class OllamaProvider implements LLMProvider {
   private config: OllamaConfig;
   private requestId: number = 0;
   private availableModels: string[] = [];
+  /** EMA of observed generation throughput (tok/s) per model, for adaptive timeouts (#3). */
+  private observedTokPerSec = new Map<string, number>();
 
   constructor(config: Partial<OllamaConfig> = {}) {
     this.config = { ...DEFAULT_OLLAMA_CONFIG, ...config };
+  }
+
+  /**
+   * Adaptive per-request timeout (#3). An explicitly customized config.timeoutMs
+   * (≠ the built-in default) is honored as the caller's intent; otherwise the
+   * timeout is sized from num_predict and the model's observed throughput.
+   */
+  private timeoutFor(model: string, numPredict: number): number {
+    const configured = this.config.timeoutMs;
+    if (configured && configured !== DEFAULT_OLLAMA_CONFIG.timeoutMs) return configured;
+    return computeAdaptiveTimeoutMs(numPredict, this.observedTokPerSec.get(model));
+  }
+
+  /** Fold a completed generation's throughput into the per-model EMA. */
+  private recordThroughput(model: string, evalCount?: number, evalDurationNs?: number): void {
+    if (!evalCount || !evalDurationNs || evalDurationNs <= 0) return;
+    const sample = evalCount / (evalDurationNs / 1e9);
+    if (!Number.isFinite(sample) || sample <= 0) return;
+    const prev = this.observedTokPerSec.get(model);
+    this.observedTokPerSec.set(model, prev ? prev * 0.5 + sample * 0.5 : sample);
   }
 
   /**
@@ -233,7 +257,7 @@ export class OllamaProvider implements LLMProvider {
               },
             }),
           },
-          options?.timeoutMs ?? this.config.timeoutMs ?? 120000
+          options?.timeoutMs ?? this.timeoutFor(model, maxTokens)
         );
 
         if (!response.ok) {
@@ -242,6 +266,7 @@ export class OllamaProvider implements LLMProvider {
 
         const data = await response.json() as OllamaChatResponse;
         content = data.message.content;
+        this.recordThroughput(model, data.eval_count, data.eval_duration);
         promptTokens = data.prompt_eval_count ?? this.estimateTokens(JSON.stringify(messages));
         completionTokens = data.eval_count ?? this.estimateTokens(content);
       } else {
@@ -265,7 +290,7 @@ export class OllamaProvider implements LLMProvider {
               },
             }),
           },
-          options?.timeoutMs ?? this.config.timeoutMs ?? 120000
+          options?.timeoutMs ?? this.timeoutFor(model, maxTokens)
         );
 
         if (!response.ok) {
@@ -274,6 +299,7 @@ export class OllamaProvider implements LLMProvider {
 
         const data = await response.json() as OllamaGenerateResponse;
         content = data.response;
+        this.recordThroughput(model, data.eval_count, data.eval_duration);
         promptTokens = data.prompt_eval_count ?? this.estimateTokens(prompt);
         completionTokens = data.eval_count ?? this.estimateTokens(content);
       }
@@ -478,7 +504,7 @@ export class OllamaProvider implements LLMProvider {
    * Get base URL
    */
   private getBaseUrl(): string {
-    return (this.config.baseUrl ?? 'http://localhost:11434').replace(/\/$/, '');
+    return (this.config.baseUrl ?? resolveOllamaBaseUrl()).replace(/\/$/, '');
   }
 
   /**

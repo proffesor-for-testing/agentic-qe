@@ -12,6 +12,7 @@ import type {
   FreeTierProviderConfig,
   ResolvedFreeTierProvider,
 } from './types.js';
+import { resolveOllamaBaseUrl } from '../../shared/llm/ollama-url.js';
 
 interface Preset {
   baseUrl: string;
@@ -46,7 +47,15 @@ export function resolveFreeTierProvider(
   const preset = FREE_TIER_PRESETS[cfg.kind];
   if (!preset) throw new Error(`free-tier: unknown provider kind "${cfg.kind}"`);
 
-  const baseUrl = (cfg.baseUrl ?? preset.baseUrl).replace(/\/$/, '');
+  // For the local Ollama preset, honour AQE_OLLAMA_URL / OLLAMA_URL (keeping the
+  // host.docker.internal default + the /v1 OpenAI-compat suffix) so the free
+  // tier follows the same single knob as every other local client. An explicit
+  // cfg.baseUrl still wins.
+  const presetBaseUrl =
+    cfg.kind === 'local-ollama' && !cfg.baseUrl
+      ? `${resolveOllamaBaseUrl('http://host.docker.internal:11434', env)}/v1`
+      : preset.baseUrl;
+  const baseUrl = (cfg.baseUrl ?? presetBaseUrl).replace(/\/$/, '');
   if (!baseUrl) {
     throw new Error(`free-tier: kind "${cfg.kind}" requires an explicit baseUrl`);
   }

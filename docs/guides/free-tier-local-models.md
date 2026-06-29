@@ -125,6 +125,7 @@ When constructing the test-generation coordinator (or via project config):
 | `enableFreeTier` | `AQE_FREE_TIER=1` | `false` | Turn the free tier on |
 | `freeTierModel` | `AQE_FREE_TIER_MODEL` | `qwen3:8b` | Local model id |
 | `freeTierRepairAttempts` | — | `1` | Same-tier repair retries before fallback |
+| Ollama base URL | `AQE_OLLAMA_URL` (or `OLLAMA_URL`) | per-client default (`localhost:11434`, or `host.docker.internal:11434` for the free tier) | One knob that points **every** local client — chat provider, consensus, local judge, embeddings, free tier — at your Ollama. Set it to reach a remote GPU box or a non-default host. The judge still honours its own `NAGUAL_JUDGE_URL` first. |
 
 ---
 
