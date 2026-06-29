@@ -54,6 +54,7 @@ import {
   getModelMapping,
   type ProviderType as ModelProviderType,
 } from '../model-mapping';
+import { modelSupportsTools } from '../model-registry';
 
 // ============================================================================
 // Decision Cache
@@ -640,8 +641,27 @@ export class HybridRouter {
       }
     }
 
+    // Capability-aware guard: when the request needs tools, drop any candidate
+    // whose model is KNOWN to lack tool support (e.g. local llama3, codellama,
+    // mistral) so we don't silently strip tool definitions and return a
+    // degraded answer. Fail-open — if every candidate is tool-less (or
+    // unrecognized) we keep the original order rather than strand the request.
+    let order = executionOrder;
+    if (params.requiresTools) {
+      const toolCapable = executionOrder.filter((e) => modelSupportsTools(e.model));
+      if (toolCapable.length > 0 && toolCapable.length < executionOrder.length) {
+        const skipped = executionOrder
+          .filter((e) => !modelSupportsTools(e.model))
+          .map((e) => `${e.provider}:${e.model}`);
+        console.warn(
+          `[llm-router] requiresTools: skipping tool-less model(s) ${skipped.join(', ')}`,
+        );
+        order = toolCapable;
+      }
+    }
+
     // Execute with fallback
-    for (const { provider: providerType, model } of executionOrder) {
+    for (const { provider: providerType, model } of order) {
       if (attempts >= fallbackBehavior.maxAttempts) break;
 
       const provider = this.providerManager.getProvider(providerType);
