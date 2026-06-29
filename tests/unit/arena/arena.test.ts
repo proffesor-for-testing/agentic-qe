@@ -117,4 +117,16 @@ describe('runArena (real engine, demo fixture)', { timeout: 180_000 }, () => {
       row.forEach((v, j) => expect(v + result.competitiveArray[j][i]).toBe(0));
     });
   });
+
+  it('should attach a darwin-guard screen that is a no-op on an all-valid honest population', () => {
+    const result = runArena({ target: FIXTURE, strategies: 3, seed: 42, maxMutants: 6 });
+
+    // Honest strategies are all structurally valid → nothing excluded, and the
+    // guard seeds selection from the same winner the raw ranking would.
+    expect(result.guard.contract).toBe('darwin-guard@1');
+    expect(result.guard.excluded).toEqual([]);
+    expect(result.guard.validRanking).toEqual(result.ranking);
+    expect(result.guard.seededWinner).toBe(result.ranking[0]);
+    expect(result.guard.population.count).toBe(result.strategies.length);
+  });
 });

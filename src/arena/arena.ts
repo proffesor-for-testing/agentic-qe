@@ -26,6 +26,12 @@ import {
   cleanupTmpRoot,
   type FixtureLayout,
 } from './runner.js';
+import {
+  arenaStrategiesToScoreCards,
+  screenCandidates,
+  populationStats,
+  type PopulationStats,
+} from '../integrations/darwin/index.js';
 
 export interface ArenaStrategy {
   id: string;
@@ -57,6 +63,24 @@ export interface ArenaResult {
   competitiveArray: number[][];
   evolution: Array<{ step: number; groups: string[]; fitness: number; accepted: boolean }>;
   informational: { runtimesMs: Record<string, number> };
+  /**
+   * Darwin-Guard (RuVector #615 / ADR-271 §4) rigor screen over the evaluated
+   * population. Deterministic — part of the reproducibility contract. For an
+   * all-valid population `excluded` is empty and `seededWinner === ranking[0]`,
+   * so the guard is a no-op on honest runs and only changes behavior when a
+   * gamed / NaN / out-of-bounds strategy would otherwise have been selected.
+   */
+  guard: {
+    contract: 'darwin-guard@1';
+    /** Candidates removed from selection stats, with the exclusion reason. */
+    excluded: Array<{ id: string; reason: string }>;
+    /** finalScore stats over the VALID subset only — the advantage baseline. */
+    population: PopulationStats;
+    /** `ranking` restricted to valid candidates (best→worst). */
+    validRanking: string[];
+    /** Strategy id used to seed the hill-climb (best valid, or ranking[0] if none valid). */
+    seededWinner: string;
+  };
 }
 
 export interface ArenaOptions {
@@ -189,13 +213,30 @@ export function runArena(options: ArenaOptions): ArenaResult {
       evaluated.map((b) => (a.fitness > b.fitness ? 1 : a.fitness < b.fitness ? -1 : 0))
     );
 
+    // Darwin-Guard (ADR-271 §4): screen the evaluated population so a gamed /
+    // NaN / out-of-bounds strategy is EXCLUDED from selection stats (not scored
+    // 0 — a 0 would still bias the advantage baseline). The hill-climb then
+    // seeds from the best VALID strategy. For an all-valid population this is a
+    // no-op (ranking[0] is already the best valid), preserving reproducibility.
+    const scoreCards = arenaStrategiesToScoreCards(evaluated);
+    const screen = screenCandidates(ranking.map((id) => scoreCards[id]));
+    const validIds = new Set(screen.valid.map((c) => c.variantId));
+    const validRanking = ranking.filter((id) => validIds.has(id));
+    const guard: ArenaResult['guard'] = {
+      contract: 'darwin-guard@1',
+      excluded: screen.excluded.map((e) => ({ id: e.card.variantId, reason: e.reason })),
+      population: populationStats(screen.valid),
+      validRanking,
+      seededWinner: validRanking[0] ?? ranking[0],
+    };
+
     // Optional hill-climb from the winner: seeded single-group flips,
     // accept only on real fitness improvement
     const evolution: ArenaResult['evolution'] = [];
     if (options.evolveSteps && options.evolveSteps > 0) {
       const allGroups = Object.keys(layout.testGroups).sort();
-      let bestGroups = evaluated.find((s) => s.id === ranking[0])!.groups;
-      let bestFitness = evaluated.find((s) => s.id === ranking[0])!.fitness;
+      let bestGroups = evaluated.find((s) => s.id === guard.seededWinner)!.groups;
+      let bestFitness = evaluated.find((s) => s.id === guard.seededWinner)!.fitness;
       for (let step = 1; step <= options.evolveSteps; step++) {
         const flip = allGroups[nextInt(rng, allGroups.length)];
         const candidate = bestGroups.includes(flip)
@@ -227,6 +268,7 @@ export function runArena(options: ArenaOptions): ArenaResult {
       ranking,
       competitiveArray,
       evolution,
+      guard,
       informational: { runtimesMs },
     };
   } finally {

@@ -16,3 +16,14 @@ export {
   type QeScoreOptions,
   type EvaluatedStrategyLike,
 } from './qe-fitness.js';
+export {
+  candidateExclusionReason,
+  screenCandidates,
+  populationStats,
+  applyJudgeVeto,
+  assertTrainEvalDisjoint,
+  filterHoldout,
+  type CandidateScreen,
+  type PopulationStats,
+  type JudgeVerdict,
+} from './darwin-guard.js';

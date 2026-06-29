@@ -93,7 +93,17 @@ Examples:
             console.log(`    step ${e.step}: [${e.groups.join('+')}] fitness ${e.fitness.toFixed(4)} ${e.accepted ? chalk.green('accepted') : 'rejected'}`);
           }
         }
-        const winner = byId.get(result.ranking[0])!;
+        // Darwin-Guard (ADR-271 §4): selection seeds from the best VALID candidate.
+        const g = result.guard;
+        console.log(
+          `\n  darwin-guard: ${g.population.count} valid` +
+          (g.excluded.length > 0 ? chalk.yellow(`, ${g.excluded.length} excluded`) : '') +
+          ` · baseline mean ${g.population.mean.toFixed(4)} (max ${g.population.max.toFixed(4)})`
+        );
+        for (const ex of g.excluded) {
+          console.log(chalk.yellow(`    excluded ${ex.id}: ${ex.reason}`));
+        }
+        const winner = byId.get(g.seededWinner)!;
         console.log(chalk.green(`\n  winner: ${winner.id} [${winner.name}] — kill ${(winner.killRate * 100).toFixed(1)}%, fitness ${winner.fitness.toFixed(4)}\n`));
       } catch (error) {
         console.error(chalk.red(`  ✗ ${toErrorMessage(error)}`));
