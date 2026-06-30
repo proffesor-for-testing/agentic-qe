@@ -1,0 +1,90 @@
+# =============================================================================
+# Dependency Security Audit — SCHEDULED (ADR-115)
+# =============================================================================
+#
+# The gap this closes: every other dependency check in the repo
+# (consumer-audit.yml, the npm-publish gate) is triggered by CHANGES to
+# package.json / package-lock.json. A CVE freshly disclosed against an
+# already-pinned, unchanged dependency therefore stays invisible until someone
+# happens to edit a dep file. That is exactly how @grpc/grpc-js@1.14.3 sat with
+# a HIGH (CVE-2026-48068) while our own CI stayed green — a cold-outreach vendor
+# noticed before we did.
+#
+# This workflow runs the authoritative CONSUMER-POV audit (pack tarball, clean
+# install, audit what a real `npm install agentic-qe` user gets — root overrides
+# do NOT apply downstream) on a daily schedule. On any HIGH/CRITICAL it opens or
+# updates a single tracking issue so the finding surfaces on its own.
+# =============================================================================
+
+name: Dependency Security Audit
+
+on:
+  schedule:
+    # Daily 07:00 UTC — off-peak, after most upstreams publish their nightly.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+# Least-privilege: read the repo, write only the tracking issue.
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: dependency-audit-scheduled
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.13.0'
+  ISSUE_TITLE: 'Dependency audit: HIGH/CRITICAL CVE reachable by consumers'
+
+jobs:
+  audit:
+    name: Consumer-POV scheduled audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (tarball must match what publish ships)
+        run: npm run build
+
+      - name: Consumer-POV audit (HIGH/CRITICAL gate)
+        id: audit
+        continue-on-error: true
+        run: node scripts/dependency-audit.mjs --consumer --level=high
+
+      - name: Open or update tracking issue
+        if: steps.audit.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BODY_FILE=reports/dependency-audit.md
+          [ -f "$BODY_FILE" ] || echo "Audit failed but no report produced — see workflow logs." > "$BODY_FILE"
+          printf '\n\n_Auto-filed by `%s` run [%s](%s/%s/actions/runs/%s)._\n' \
+            "dependency-audit.yml" "${GITHUB_RUN_ID}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "${GITHUB_RUN_ID}" >> "$BODY_FILE"
+          EXISTING=$(gh issue list --state open --search "in:title ${ISSUE_TITLE}" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Updating existing issue #${EXISTING}"
+            gh issue comment "$EXISTING" --body-file "$BODY_FILE"
+          else
+            echo "Opening new tracking issue"
+            gh issue create --title "$ISSUE_TITLE" --body-file "$BODY_FILE" --label dependencies,security || \
+            gh issue create --title "$ISSUE_TITLE" --body-file "$BODY_FILE"
+          fi
+
+      - name: Fail the run when blocking findings exist
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::error::Consumer-reachable HIGH/CRITICAL CVE found — tracking issue filed. Run scripts/dependency-update.mjs or bump manually."
+          exit 1
