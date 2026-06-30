@@ -31,6 +31,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { MEMORY_CONSTANTS } from './constants.js';
 import { LoggerFactory } from '../logging/index.js';
+import { HashChainGate } from '../integrations/ruvector/proof-gate.js';
 
 const logger = LoggerFactory.create('unified-memory');
 
@@ -178,6 +179,13 @@ export class UnifiedMemoryManager {
 
   // CRDT store for distributed state synchronization
   private crdtStore: CRDTStore | null = null;
+
+  // Proof-gate (ADR-194): tamper-evident SHA-256 hash chain over kv writes.
+  // Off by default; enable per audit window via enableProofGate() / AQE_PROOF_GATE=1.
+  private proofGate: HashChainGate | null = null;
+  private proofGateEnvChecked = false;
+  private static readonly PROOF_NS = '__proofgate__';
+  private static readonly PROOF_KEY = 'chain';
 
   private constructor(config?: Partial<UnifiedMemoryConfig>) {
     const resolvedDefaults = getResolvedDefaultConfig();
@@ -602,6 +610,8 @@ export class UnifiedMemoryManager {
       INSERT OR REPLACE INTO kv_store (key, namespace, value, expires_at)
       VALUES (?, ?, ?, ?)
     `).run(key, namespace, serialized, expiresAt);
+    // ADR-194: tamper-evident audit (no-op unless the proof-gate is enabled).
+    this.auditWrite('kvSet', namespace, key, serialized);
   }
 
   async kvGet<T>(key: string, namespace: string = 'default'): Promise<T | undefined> {
@@ -626,6 +636,8 @@ export class UnifiedMemoryManager {
     const result = this.db!.prepare(
       'DELETE FROM kv_store WHERE key = ? AND namespace = ?'
     ).run(key, namespace);
+    // ADR-194: audit deletes too (no-op unless the proof-gate is enabled).
+    if (result.changes > 0) this.auditWrite('kvDelete', namespace, key, '');
     return result.changes > 0;
   }
 
@@ -656,6 +668,103 @@ export class UnifiedMemoryManager {
       'DELETE FROM kv_store WHERE expires_at IS NOT NULL AND expires_at < ?'
     ).run(Date.now());
     return result.changes;
+  }
+
+  // ============================================================================
+  // Proof-Gate: tamper-evident write audit (ADR-194)
+  // ============================================================================
+
+  /**
+   * Enable the tamper-evident proof-gate audit. OFF by default — once enabled,
+   * every kv write/delete admits a receipt to a persisted SHA-256 hash chain so
+   * {@link verifyMemoryIntegrity} can later prove no admitted write was mutated,
+   * reordered, or dropped. Restores any chain persisted from a prior process.
+   *
+   * Intended for BOUNDED audit windows (a sync / migration / publish gate), not
+   * permanent always-on use: the chain grows O(n) with audited writes and its
+   * snapshot is rewritten per write. Idempotent.
+   */
+  enableProofGate(): void {
+    this.ensureInitialized();
+    this.proofGateEnvChecked = true;
+    if (this.proofGate) return;
+    this.proofGate = this.loadProofChain() ?? new HashChainGate();
+  }
+
+  isProofGateEnabled(): boolean {
+    return this.proofGate !== null;
+  }
+
+  /**
+   * Re-derive the proof-gate chain from genesis. Returns true iff no admitted
+   * write was mutated, reordered, or dropped. Throws if the gate is not enabled.
+   */
+  verifyMemoryIntegrity(): boolean {
+    if (!this.proofGate) {
+      throw new Error('Proof-gate not enabled — call enableProofGate() or set AQE_PROOF_GATE=1');
+    }
+    return this.proofGate.verifyIntegrity();
+  }
+
+  /** Current proof-gate chain head (hex), or null if the gate is not enabled. */
+  getProofChainRoot(): string | null {
+    return this.proofGate ? this.proofGate.chainRoot() : null;
+  }
+
+  /** Number of writes admitted to the proof-gate chain (0 if not enabled). */
+  getProofChainLength(): number {
+    return this.proofGate ? this.proofGate.length : 0;
+  }
+
+  /**
+   * Best-effort audit of a kv mutation. Admits a content-bound receipt and
+   * persists the chain. NEVER throws into the caller — the actual write has
+   * already committed; a failed audit must not break or alter it.
+   */
+  private auditWrite(op: string, namespace: string, key: string, serializedValue: string): void {
+    // Lazy env-enable so an operator can turn auditing on without a code change.
+    if (!this.proofGate) {
+      if (this.proofGateEnvChecked) return;
+      this.proofGateEnvChecked = true;
+      if (process.env.AQE_PROOF_GATE !== '1') return;
+      this.proofGate = this.loadProofChain() ?? new HashChainGate();
+    }
+    // Never audit the chain's own persistence namespace (no self-reference / recursion).
+    if (namespace === UnifiedMemoryManager.PROOF_NS) return;
+    try {
+      this.proofGate.admit({ op, ns: namespace, key, value: serializedValue });
+      this.persistProofChain();
+    } catch (error) {
+      logger.warn(`proof-gate audit skipped for ${namespace}/${key}: ${toErrorMessage(error)}`);
+    }
+  }
+
+  /** Persist the chain snapshot via a DIRECT write (bypasses kvSet → no recursion). */
+  private persistProofChain(): void {
+    if (!this.proofGate || !this.db) return;
+    this.db.prepare(`
+      INSERT OR REPLACE INTO kv_store (key, namespace, value, expires_at)
+      VALUES (?, ?, ?, NULL)
+    `).run(
+      UnifiedMemoryManager.PROOF_KEY,
+      UnifiedMemoryManager.PROOF_NS,
+      JSON.stringify(this.proofGate.toJSON()),
+    );
+  }
+
+  /** Restore a persisted chain from the reserved namespace, or null if none/corrupt. */
+  private loadProofChain(): HashChainGate | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(`
+      SELECT value FROM kv_store WHERE key = ? AND namespace = ?
+    `).get(UnifiedMemoryManager.PROOF_KEY, UnifiedMemoryManager.PROOF_NS) as { value: string } | undefined;
+    if (!row) return null;
+    try {
+      return HashChainGate.fromJSON(JSON.parse(row.value));
+    } catch (error) {
+      logger.warn(`proof-gate chain failed to load (starting fresh): ${toErrorMessage(error)}`);
+      return null;
+    }
   }
 
   // ============================================================================
