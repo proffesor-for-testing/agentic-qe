@@ -1,0 +1,90 @@
+# =============================================================================
+# Dependency Update — SCHEDULED security PR (ADR-115)
+# =============================================================================
+#
+# Why not Dependabot/Renovate: this repo declares 15 optionalDependencies (the
+# @ruvector/* native binaries per-platform, hnswlib-node, rvlite). Dependabot
+# regenerates the lockfile on the runner's single platform and PRUNES the
+# optional entries for every OTHER platform, producing a lock that fails
+# `npm ci` with EUSAGE elsewhere. So we run our own updater, which GUARDS that
+# no optional platform dep is dropped before proposing anything.
+#
+# Default mode is security-targeted (`npm audit fix --package-lock-only`):
+# only vulnerable packages move, in-range, no major bumps — small reviewable
+# PRs. A human can run `scripts/dependency-update.mjs --all` for a broader
+# lockfile-maintenance sweep when desired.
+#
+# Uses the gh CLI (no third-party PR action) — supply-chain hygiene applies to
+# our own pipeline too.
+# =============================================================================
+
+name: Dependency Update
+
+on:
+  schedule:
+    # Weekly, Monday 06:00 UTC — before the Monday/Wednesday release cadence.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: dependency-update-scheduled
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24.13.0'
+  BRANCH: deps/auto-security-update
+
+jobs:
+  update:
+    name: In-range security update
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run in-range security updater (optional-dep guard enforced)
+        run: node scripts/dependency-update.mjs
+
+      - name: Open PR if the lockfile changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then
+            echo "No in-range security updates — nothing to propose."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${BRANCH}"
+          git add package-lock.json
+          git commit -m "chore(deps): in-range security updates (automated, ADR-115)"
+          git push --force-with-lease -u origin "${BRANCH}"
+          # Reuse an open PR from this branch if present, else create one.
+          if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number // empty')" ]; then
+            gh pr create --base main --head "${BRANCH}" \
+              --title "chore(deps): automated in-range security updates" \
+              --body-file reports/dependency-update.md \
+              --label dependencies,security || \
+            gh pr create --base main --head "${BRANCH}" \
+              --title "chore(deps): automated in-range security updates" \
+              --body-file reports/dependency-update.md
+          else
+            echo "Existing PR updated by force-push."
+          fi
