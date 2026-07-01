@@ -39,6 +39,13 @@ export {
   type FreeTierExecutorOptions,
 } from './executor.js';
 export {
+  TestGenPatternCache,
+  normalizeCode,
+  cosineSimilarity,
+  type CodeEmbedder,
+  type PatternCacheOptions,
+} from './pattern-cache.js';
+export {
   createRoutingFeedbackSink,
   type RoutingFeedbackLike,
   type FreeTierOutcomeEvent,

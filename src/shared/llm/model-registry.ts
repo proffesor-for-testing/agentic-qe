@@ -789,6 +789,81 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
       outputCostPerMillion: 0,
     },
   },
+  'qwen3:8b': {
+    name: 'Qwen3 8B',
+    family: 'qwen',
+    tier: 'economy',
+    description: 'Alibaba Qwen3 8B — tools + thinking; below the QE test-gen floor (use for judge/triage)',
+    releaseDate: '2025-04-29',
+    recommended: false,
+    capabilities: {
+      contextLength: 40960,
+      maxOutputTokens: 8192,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 0,
+      outputCostPerMillion: 0,
+    },
+  },
+  'qwen3:30b-a3b': {
+    name: 'Qwen3 30B-A3B',
+    family: 'qwen',
+    tier: 'economy',
+    description: 'Alibaba Qwen3 30B MoE (3B active) — fast general local model; clears the QE test-gen floor',
+    releaseDate: '2025-04-29',
+    recommended: true,
+    capabilities: {
+      contextLength: 262144,
+      maxOutputTokens: 8192,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 0,
+      outputCostPerMillion: 0,
+    },
+  },
+  'qwen3-coder:30b': {
+    name: 'Qwen3 Coder 30B-A3B',
+    family: 'qwen',
+    tier: 'economy',
+    description: 'Alibaba Qwen3-Coder 30B MoE (3B active) — code-tuned, non-thinking; preferred local QE test-gen model',
+    releaseDate: '2025-07-31',
+    recommended: true,
+    capabilities: {
+      contextLength: 262144,
+      maxOutputTokens: 8192,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: false,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 0,
+      outputCostPerMillion: 0,
+    },
+  },
 };
 
 // ============================================================================
@@ -822,6 +897,23 @@ export function getModelCapabilities(modelId: string): ModelCapabilities {
   }
 
   return { ...entry.capabilities };
+}
+
+/**
+ * Whether a model is KNOWN to support tool / function calling.
+ *
+ * Fail-open: an unknown model id (not in the registry) returns `true` so a
+ * capability guard never strands a request on an unrecognized id — the guard
+ * only acts on models the registry explicitly marks tool-less.
+ *
+ * @param modelId - Any model ID (canonical or provider-specific)
+ */
+export function modelSupportsTools(modelId: string): boolean {
+  try {
+    return getModelCapabilities(modelId).supportsTools;
+  } catch {
+    return true;
+  }
 }
 
 /**

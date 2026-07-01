@@ -16,6 +16,7 @@ import {
 import { BaseModelProvider } from '../model-provider';
 import { CONSENSUS_CONSTANTS, OLLAMA_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { resolveOllamaBaseUrl } from '../../../shared/llm/ollama-url.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -224,7 +225,7 @@ const DEFAULT_CONFIG: {
   retryDelayMs: number;
   enableLogging: boolean;
 } = {
-  baseUrl: OLLAMA_CONSTANTS.DEFAULT_BASE_URL,
+  baseUrl: resolveOllamaBaseUrl(OLLAMA_CONSTANTS.DEFAULT_BASE_URL),
   defaultModel: 'llama3.1' as OllamaModel,
   defaultTimeout: CONSENSUS_CONSTANTS.OLLAMA_TIMEOUT_MS, // 5 minutes (local models can be slow)
   maxRetries: 2,
@@ -562,7 +563,7 @@ export function createMultiOllamaProviders(
  * @returns True if Ollama is running and accessible
  */
 export async function isOllamaAvailable(
-  baseUrl: string = 'http://localhost:11434'
+  baseUrl: string = resolveOllamaBaseUrl(OLLAMA_CONSTANTS.DEFAULT_BASE_URL)
 ): Promise<boolean> {
   try {
     const controller = new AbortController();

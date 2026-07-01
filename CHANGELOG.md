@@ -5,6 +5,54 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.4] - 2026-07-01
+
+Better free local-model support, a tamper-evident guard for AQE's learning
+database, and a self-running dependency-security system — so known CVEs surface
+on their own instead of sitting unnoticed.
+
+Local test generation now defaults to a **code-tuned** local model and skips the
+paid path when a cached pattern already fits. A new opt-in **proof-gate** lets you
+cryptographically verify that nothing tampered with `memory.db` across a sync or
+migration. And AQE now audits its own dependencies on a schedule and opens
+in-range security-fix PRs automatically. See
+[ADR-116](docs/implementation/adrs/ADR-116-proof-gate-memory-integrity.md) (proof-gate),
+[ADR-115](docs/implementation/adrs/ADR-115-dependency-security-system.md) (dependency security),
+and the [free-tier local-models guide](docs/guides/free-tier-local-models.md).
+
+### Added
+
+- **Free-tier local test generation** — run test generation on a local Ollama
+  model (default `qwen3-coder:30b`), with an objective "is this a real test?"
+  check and a repair loop; a ruvLLM-style **pattern cache** skips the model
+  entirely when a prior result fits, and the paid path is used only as fallback.
+- **Local-model plumbing** — unified `AQE_OLLAMA_URL`, adaptive Ollama timeouts,
+  registered qwen3 models, and a capability-aware tool-routing guard so a model
+  is only asked to use tools it actually supports.
+- **Proof-gate (opt-in)** — a tamper-evident SHA-256 hash chain over the
+  `memory.db` kv write path: enable it for a sync/migration/publish window
+  (`AQE_PROOF_GATE=1`) and `verifyMemoryIntegrity()` proves no write was mutated,
+  reordered, or dropped. Off by default, fail-soft, single-store (ADR-116).
+- **Dependency-security system** — a daily scheduled consumer-POV `npm audit`
+  that files a tracking issue on new HIGH/CRITICAL CVEs (even against unchanged,
+  pinned deps), plus a weekly updater that opens small in-range security-fix PRs
+  and refuses to drop optional platform binaries. `npm run deps:audit` /
+  `deps:update` locally (ADR-115).
+
+### Fixed
+
+- **`@grpc/grpc-js` HIGH CVE** (CVE-2026-48068 / -48069, server-crash DoS)
+  resolved by an in-range bump to 1.14.4.
+- **Reduced advisory noise** — in-range dependency updates cut moderate
+  advisories from 29 to 7 (OpenTelemetry W3C-Baggage family and others), with all
+  15 optional platform dependencies preserved.
+
+### Changed
+
+- **Default local test-gen model** is now `qwen3-coder:30b` (code-tuned MoE),
+  replacing the general-purpose `qwen3:30b-a3b` — lower latency and more reliable
+  test output.
+
 ## [3.11.3] - 2026-06-27
 
 Tests and evals you can actually trust, cheaper model options, and a guard that

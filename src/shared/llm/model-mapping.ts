@@ -317,6 +317,32 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
       openrouter: 'qwen/qwen-2-7b-instruct',
     },
   },
+  // Qwen3 local models (Ollama). Canonical id == Ollama tag so normalizeModelId
+  // resolves the tags AQE's local clients actually use.
+  'qwen3:8b': {
+    canonical: 'Qwen3 8B',
+    family: 'qwen',
+    tier: 'economy',
+    providers: {
+      ollama: 'qwen3:8b',
+    },
+  },
+  'qwen3:30b-a3b': {
+    canonical: 'Qwen3 30B-A3B',
+    family: 'qwen',
+    tier: 'economy',
+    providers: {
+      ollama: 'qwen3:30b-a3b',
+    },
+  },
+  'qwen3-coder:30b': {
+    canonical: 'Qwen3 Coder 30B-A3B',
+    family: 'qwen',
+    tier: 'economy',
+    providers: {
+      ollama: 'qwen3-coder:30b',
+    },
+  },
 };
 
 // ============================================================================

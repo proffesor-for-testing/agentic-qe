@@ -16,6 +16,7 @@
  */
 
 import { freeTierChat, resolveFreeTierProvider, type ChatMessage } from './provider.js';
+import { TestGenPatternCache } from './pattern-cache.js';
 import { resolveTier, type ResolvedTier } from './ladder.js';
 import { AutoEscalationTracker } from '../escalation/auto-escalation-tracker.js';
 import type { QeRoutingLadder, FreeTierProviderConfig, ResolvedFreeTierProvider } from './types.js';
@@ -64,6 +65,12 @@ export interface QeTaskRequest {
    * `objective` (existing callers inject real oracles, e.g. a coverage/test run).
    */
   oracleKind?: 'objective' | 'self-authored';
+  /**
+   * #6: the code under test, for the pattern cache. When set AND the executor
+   * has a `patternCache`, a cache hit (re-verified by `verify`) short-circuits
+   * generation entirely. Omit to disable caching for this task.
+   */
+  cacheText?: string;
 }
 
 export interface TierAttempt {
@@ -123,6 +130,11 @@ export interface FreeTierExecutorOptions {
    * Omit ⇒ single-model best-of-k (unchanged).
    */
   candidateProviders?: FreeTierProviderConfig[];
+  /**
+   * #6: ruvLLM-style pattern cache. When provided and a request carries
+   * `cacheText`, a verified cache hit skips all LLM tiers. Omit to disable.
+   */
+  patternCache?: TestGenPatternCache;
   /** D9 sink: record each completed task outcome (→ routing-feedback). */
   onOutcome?: (o: {
     agentId: string;
@@ -154,9 +166,12 @@ export class FreeTierEscalatingExecutor {
   private readonly onOutcome?: FreeTierExecutorOptions['onOutcome'];
   /** Resolved cross-model generator pool (A12); undefined ⇒ single-model best-of-k. */
   private readonly candidateProviders?: ResolvedFreeTierProvider[];
+  /** #6: optional pattern cache; undefined ⇒ caching disabled. */
+  private readonly patternCache?: TestGenPatternCache;
 
   constructor(opts: FreeTierExecutorOptions) {
     this.ladder = opts.ladder;
+    this.patternCache = opts.patternCache;
     this.claudeRunner = opts.claudeRunner;
     this.env = opts.env ?? process.env;
     this.onOutcome = opts.onOutcome;
@@ -253,6 +268,21 @@ export class FreeTierEscalatingExecutor {
     const t0 = Date.now();
     let result: QeExecutionResult = { ok: false, content: '', tierUsed: startTier, escalated: false, repaired: false, bestOf: false, goodhartGuarded: false, attempts };
 
+    // #6: pattern-cache skip. A hit is only a CANDIDATE — re-verify with the same
+    // objective oracle before returning, so a stale/wrong hit falls through to
+    // real generation. Cache hits are NOT fed to the tracker/onOutcome (they are
+    // not a tier-capability signal).
+    if (this.patternCache && req.cacheText) {
+      const cached = await this.patternCache.lookup(req.cacheText);
+      if (cached !== undefined) {
+        const verdict = normalizeVerdict(await Promise.resolve(req.verify(cached)));
+        attempts.push({ tier: 'cache', provider: 'free-tier', repairRound: 0, ok: true, passed: verdict.passed, latencyMs: 0, feedback: verdict.feedback });
+        if (verdict.passed) {
+          return { ok: true, content: cached, tierUsed: 'cache', escalated: false, repaired: false, bestOf: false, goodhartGuarded: !objectiveOracle, attempts };
+        }
+      }
+    }
+
     outer: for (let idx = startIdx; idx <= topIdx; idx++) {
       const tier = order[idx];
       const resolved = resolveTier(this.ladder, tier, this.env);
@@ -283,6 +313,9 @@ export class FreeTierEscalatingExecutor {
 
           if (verdict.passed) {
             result = { ok: true, content: run.content, tierUsed: tier, escalated: idx > startIdx, repaired: round > 0, bestOf: round === 0 && k > 0, goodhartGuarded: false, attempts };
+            // #6: cache the VERIFIED output so an identical/near-identical code
+            // under test can skip generation next time.
+            if (this.patternCache && req.cacheText) await this.patternCache.put(req.cacheText, run.content);
             break outer;
           }
           result = { ok: false, content: run.content || result.content, tierUsed: tier, escalated: idx > startIdx, repaired: round > 0, bestOf: false, goodhartGuarded: false, attempts };
