@@ -19,5 +19,9 @@ export function resolveOllamaBaseUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   const raw = env['AQE_OLLAMA_URL'] ?? env['OLLAMA_URL'] ?? fallback;
-  return raw.replace(/\/+$/, '');
+  // Strip trailing slashes via a linear char-scan — a `/\/+$/` regex backtracks
+  // polynomially on adversarial input (many '/'), a ReDoS flagged by CodeQL.
+  let end = raw.length;
+  while (end > 0 && raw.charCodeAt(end - 1) === 47 /* '/' */) end -= 1;
+  return raw.slice(0, end);
 }

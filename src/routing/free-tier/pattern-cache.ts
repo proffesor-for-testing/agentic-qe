@@ -39,11 +39,34 @@ interface Entry {
 
 /** Strip line/block comments and collapse whitespace → stable exact-match key. */
 export function normalizeCode(code: string): string {
-  return code
-    .replace(/\/\*[\s\S]*?\*\//g, ' ') // block comments
-    .replace(/\/\/[^\n]*/g, ' ') // line comments
+  return stripBlockComments(code)
+    .replace(/\/\/[^\n]*/g, ' ') // line comments (linear, single quantifier)
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Remove `/* ... *\/` block comments in a single linear pass. A regex here
+ * (`/\/\*[\s\S]*?\*\//g`) backtracks polynomially on unterminated `/*` input —
+ * a ReDoS CodeQL flags — so we scan with native `indexOf` instead. An
+ * unterminated block comment is left in place, matching the old regex behavior.
+ */
+function stripBlockComments(code: string): string {
+  let out = '';
+  let i = 0;
+  const n = code.length;
+  while (i < n) {
+    if (code.charCodeAt(i) === 47 /* / */ && code.charCodeAt(i + 1) === 42 /* * */) {
+      const end = code.indexOf('*/', i + 2);
+      if (end === -1) { out += code.slice(i); break; } // unterminated → leave as-is
+      out += ' ';
+      i = end + 2;
+    } else {
+      out += code[i];
+      i += 1;
+    }
+  }
+  return out;
 }
 
 /** Cosine similarity of two equal-length vectors; 0 for empty/mismatched/zero. */
