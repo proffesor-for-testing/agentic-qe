@@ -1,5 +1,6 @@
 /**
- * Tests for the HashChainGate TS port (ported from ruvector-proof-gate, ADR-194).
+ * Tests for the HashChainGate TS port (ported from ruvector-proof-gate,
+ * upstream ADR-194; AQE ADR-116).
  * Mirrors the Rust crate's re-derivation tamper cases + adds persistence round-trip.
  */
 

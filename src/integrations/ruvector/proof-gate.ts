@@ -1,6 +1,7 @@
 /**
  * Tamper-evident hash-chain audit gate — a faithful, dependency-free TypeScript
- * port of RuVector's `ruvector-proof-gate` `HashChainGate` (ADR-194).
+ * port of RuVector's `ruvector-proof-gate` `HashChainGate` (upstream ADR-194;
+ * AQE-side integration decision: ADR-116).
  *
  * Why ported rather than bound: the Rust crate ships no NAPI/WASM binding, and
  * the algorithm is small and exact. This uses only Node's `crypto` (no native

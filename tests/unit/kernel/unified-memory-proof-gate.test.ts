@@ -1,5 +1,5 @@
 /**
- * Proof-gate wiring into the live memory.db kv path (ADR-194).
+ * Proof-gate wiring into the live memory.db kv path (AQE ADR-116; upstream ADR-194).
  *
  * Verifies the tamper-evident hash-chain audit added to UnifiedMemoryManager:
  * opt-in, no-op when disabled, one receipt per write once enabled, persistence

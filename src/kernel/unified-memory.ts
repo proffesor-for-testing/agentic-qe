@@ -180,7 +180,7 @@ export class UnifiedMemoryManager {
   // CRDT store for distributed state synchronization
   private crdtStore: CRDTStore | null = null;
 
-  // Proof-gate (ADR-194): tamper-evident SHA-256 hash chain over kv writes.
+  // Proof-gate (AQE ADR-116; upstream ADR-194): tamper-evident SHA-256 hash chain over kv writes.
   // Off by default; enable per audit window via enableProofGate() / AQE_PROOF_GATE=1.
   private proofGate: HashChainGate | null = null;
   private proofGateEnvChecked = false;
