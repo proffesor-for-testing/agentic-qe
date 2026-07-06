@@ -20,8 +20,18 @@
  *    permanently dampened in the exact deployment case ADR-095 was meant
  *    to help.
  *
- * Treat empty/uninitialized graph as "no signal" (full ε rate). Only
- * consult `isCritical()` when the graph has actual vertices.
+ *    A16 correction (2026-07-06): `graph.isEmpty()` alone doesn't catch
+ *    this — `QueenMinCutBridge` always seeds ~14 `domain:*` scaffold
+ *    vertices + workflow edges on init, so `isEmpty()` is false as soon as
+ *    Queen starts, even with zero real agents ever spawned. The mincut
+ *    over those scaffold-only edges (one-directional, `defect-intelligence`
+ *    a pure sink) computes to exactly 0.0 — still degenerate, still
+ *    "critical" by the threshold check. Check for real `agent:*` vertices
+ *    specifically (same fix `QueenMinCutBridge.isEmptyTopology()` already
+ *    applies internally), not raw vertex count.
+ *
+ * Treat a graph with no real agent vertices as "no signal" (full ε rate).
+ * Only consult `isCritical()` once at least one agent has actually spawned.
  */
 
 import {
@@ -49,7 +59,9 @@ export function resolveTopologyCriticalFromSharedMincut(): boolean {
     if (!isSharedMinCutMonitorInitialized()) return false;
     if (!isSharedMinCutGraphInitialized()) return false;
     const graph = getSharedMinCutGraph();
-    if (graph.isEmpty()) return false;
+    // Domain-coordinator scaffold vertices/edges are always present once
+    // Queen initializes; they don't count as "the graph has real signal".
+    if (graph.getVerticesByType('agent').length === 0) return false;
     return getSharedMinCutMonitor().isCritical();
   } catch {
     return false;

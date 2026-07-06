@@ -133,7 +133,10 @@ export function startMetricsCollectionTimer(ctx: MetricsCollectionContext): Node
     await ctx.publishEvent('MetricsCollected', { metrics });
 
     await ctx.memory.set(`queen:metrics:${Date.now()}`, metrics, {
-      ttl: 86400000, // 24 hours
+      // MemoryBackend.set's ttl is in SECONDS, not ms (unified-memory.ts:607
+      // does Date.now() + ttl * 1000) — this was 86400000, making rows live
+      // 1000 days instead of 1, hence unbounded kv_store growth.
+      ttl: 86400, // 24 hours
       namespace: 'queen-coordinator',
     });
 

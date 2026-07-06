@@ -14,6 +14,26 @@ import {
 } from '../../../../src/domains/learning-optimization/interfaces';
 import { DomainName, AgentId } from '../../../../src/shared/types';
 
+// ADR-110 null-recording wiring — mocked so tests control whether the
+// unified persistence layer is "available" without needing a real DB.
+const { recordNullMock, isInitializedMock } = vi.hoisted(() => ({
+  recordNullMock: vi.fn(),
+  isInitializedMock: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock('../../../../src/kernel/unified-persistence.js', () => ({
+  getUnifiedPersistence: () => ({
+    isInitialized: isInitializedMock,
+    getDatabase: () => ({}),
+  }),
+}));
+
+vi.mock('../../../../src/learning/pattern-null-store.js', () => ({
+  PatternNullStore: class {
+    recordNull = recordNullMock;
+  },
+}));
+
 // Mock MemoryBackend
 function createMockMemoryBackend(): MemoryBackend {
   const storage = new Map<string, unknown>();
@@ -66,6 +86,7 @@ function createTestExperience(overrides: Partial<Experience> = {}): Experience {
     },
     reward: overrides.reward ?? 0.8,
     timestamp: overrides.timestamp || new Date(),
+    appliedPatternIds: overrides.appliedPatternIds,
   };
 }
 
@@ -76,6 +97,8 @@ describe('LearningCoordinatorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new LearningCoordinatorService({ memory: mockMemory });
+    recordNullMock.mockClear();
+    isInitializedMock.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -415,6 +438,69 @@ describe('LearningCoordinatorService', () => {
       const calls = (mockMemory.set as ReturnType<typeof vi.fn>).mock.calls;
       const indexCalls = calls.filter((c) => (c[0] as string).includes(':index:'));
       expect(indexCalls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    // ADR-110: a pattern-guided failure is a kept null, not a discarded run.
+    describe('ADR-110 null recording', () => {
+      it('records a null for each applied pattern when a pattern-guided experience fails', async () => {
+        isInitializedMock.mockReturnValue(true);
+        const experience = createTestExperience({
+          domain: 'test-generation',
+          action: 'test-generated',
+          result: { success: false, outcome: { error: 'flaky-timeout' }, duration: 500 },
+          appliedPatternIds: ['pattern-a', 'pattern-b'],
+        });
+        const { id: _id, timestamp: _timestamp, ...experienceData } = experience;
+
+        await service.recordExperience(experienceData);
+
+        expect(recordNullMock).toHaveBeenCalledTimes(2);
+        expect(recordNullMock).toHaveBeenCalledWith(
+          expect.objectContaining({ patternId: 'pattern-a', contextFingerprint: 'test-generation:test-generated' })
+        );
+        expect(recordNullMock).toHaveBeenCalledWith(
+          expect.objectContaining({ patternId: 'pattern-b', contextFingerprint: 'test-generation:test-generated' })
+        );
+      });
+
+      it('does not record a null when the experience succeeds, even with applied patterns', async () => {
+        isInitializedMock.mockReturnValue(true);
+        const experience = createTestExperience({
+          result: { success: true, outcome: {}, duration: 500 },
+          appliedPatternIds: ['pattern-a'],
+        });
+        const { id: _id, timestamp: _timestamp, ...experienceData } = experience;
+
+        await service.recordExperience(experienceData);
+
+        expect(recordNullMock).not.toHaveBeenCalled();
+      });
+
+      it('does not record a null when no patterns were applied, even on failure', async () => {
+        isInitializedMock.mockReturnValue(true);
+        const experience = createTestExperience({
+          result: { success: false, outcome: {}, duration: 500 },
+        });
+        const { id: _id, timestamp: _timestamp, ...experienceData } = experience;
+
+        await service.recordExperience(experienceData);
+
+        expect(recordNullMock).not.toHaveBeenCalled();
+      });
+
+      it('fails soft (does not throw or block recordExperience) when persistence is unavailable', async () => {
+        isInitializedMock.mockReturnValue(false);
+        const experience = createTestExperience({
+          result: { success: false, outcome: {}, duration: 500 },
+          appliedPatternIds: ['pattern-a'],
+        });
+        const { id: _id, timestamp: _timestamp, ...experienceData } = experience;
+
+        const result = await service.recordExperience(experienceData);
+
+        expect(result.success).toBe(true);
+        expect(recordNullMock).not.toHaveBeenCalled();
+      });
     });
   });
 

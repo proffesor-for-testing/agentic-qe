@@ -4,8 +4,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../../../../src/mcp/tools/base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getKernel } from '../../../../src/mcp/tools/base';
 import { ToolResult } from '../../../../src/mcp/types';
+import type { QEKernel } from '../../../../src/kernel/interfaces';
 
 // ============================================================================
 // Test Implementation
@@ -63,6 +64,30 @@ class TestTool extends MCPToolBase<TestParams, TestResult> {
         processed: params.count || 1,
       },
     };
+  }
+}
+
+interface KernelEchoResult {
+  hasKernel: boolean;
+}
+
+class KernelEchoTool extends MCPToolBase<TestParams, KernelEchoResult> {
+  readonly config: MCPToolConfig = {
+    name: 'test/kernel-echo',
+    description: 'Echoes whether context.kernel was populated',
+    domain: 'test-generation',
+    schema: {
+      type: 'object',
+      properties: { input: { type: 'string', description: 'Input text' } },
+      required: ['input'],
+    },
+  };
+
+  async execute(
+    _params: TestParams,
+    context: MCPToolContext
+  ): Promise<ToolResult<KernelEchoResult>> {
+    return { success: true, data: { hasKernel: context.kernel !== undefined } };
   }
 }
 
@@ -257,6 +282,45 @@ describe('MCPToolBase', () => {
       expect(result.metadata?.executionTime).toBeGreaterThanOrEqual(0);
       expect(result.metadata?.domain).toBe('test-generation');
     });
+  });
+
+  describe('A14: kernel context threading', () => {
+    let kernelTool: KernelEchoTool;
+
+    beforeEach(() => {
+      kernelTool = new KernelEchoTool();
+    });
+
+    it('should leave context.kernel undefined when not provided to invoke()', async () => {
+      const result = await kernelTool.invoke({ input: 'x' });
+      expect(result.data?.hasKernel).toBe(false);
+    });
+
+    it('should populate context.kernel when passed via invoke() options', async () => {
+      const fakeKernel = {} as QEKernel;
+      const result = await kernelTool.invoke({ input: 'x' }, { kernel: fakeKernel });
+      expect(result.data?.hasKernel).toBe(true);
+    });
+  });
+});
+
+describe('getKernel', () => {
+  it('should return context.kernel directly when present, without touching the fleet singleton', async () => {
+    const fakeKernel = { getDomainAPI: vi.fn() } as unknown as QEKernel;
+    const kernel = await getKernel({ kernel: fakeKernel } as MCPToolContext);
+    expect(kernel).toBe(fakeKernel);
+  });
+
+  it('should return undefined (not throw) when no context and no fleet has been initialized', async () => {
+    // No fleet_init has run in this test process, so core-handlers.ts's
+    // fleet state has kernel: null — getKernel() must degrade gracefully.
+    const kernel = await getKernel();
+    expect(kernel).toBeUndefined();
+  });
+
+  it('should return undefined (not throw) when called with an empty context', async () => {
+    const kernel = await getKernel({} as MCPToolContext);
+    expect(kernel).toBeUndefined();
   });
 });
 

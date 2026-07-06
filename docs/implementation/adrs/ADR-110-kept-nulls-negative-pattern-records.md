@@ -11,6 +11,12 @@
 
 ---
 
+## Status Verification (2026-07-06, system-integrity remediation, A11)
+
+A system-integrity audit (2026-07-04) found `qe_pattern_nulls` had 0 rows in the production DB despite this ADR's "Implemented" status — the recorder existed but was never wired into any production capture path (`AQELearningEngine` had a path; `LearningCoordinatorService`, the one that actually runs in production, did not). Fixed 2026-07-05: wired `recordPatternNulls()` into `LearningCoordinatorService.recordExperience()`, firing on `!result.success && appliedPatternIds?.length`; test-generation is the only domain currently threading real `appliedPatternIds` through (other domains' "pattern" namespaces, e.g. `gap-pattern:`/`defect-patterns:`, are not `qe_patterns.id` values and must not be reused for this). "Implemented" is accurate as of this fix. Details in `docs/plans/SYSTEM-INTEGRITY-REMEDIATION-GOAP-PLAN-2026-07-04.md` (A11).
+
+---
+
 ## WH(Y) Decision Statement
 
 **In the context of** AQE's learning loop — ReasoningBank trajectories with verdicts, distilled patterns in `qe_patterns`, arena tournament outcomes — where retrieval surfaces patterns that previously *succeeded*,

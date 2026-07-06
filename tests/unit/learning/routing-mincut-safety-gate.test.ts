@@ -73,6 +73,35 @@ describe('resolveTopologyCriticalFromSharedMincut (CRITICAL #1 — ADR-095 follo
     expect(resolveTopologyCriticalFromSharedMincut()).toBe(false);
   });
 
+  it('returns false when the graph only has domain-coordinator scaffold vertices (A16 — the real production case)', () => {
+    // This is what actually happens in production: QueenMinCutBridge seeds
+    // ~14 `domain:*` vertices + workflow edges on init, unconditionally,
+    // whether or not any real agent has ever spawned. graph.isEmpty() is
+    // FALSE here (there are vertices), so the old check would incorrectly
+    // fall through to isCritical() — which is true, because the one-way
+    // workflow edges make at least one domain vertex a pure sink (weighted
+    // degree 0, mincut 0.0). This is the exact 200-identical-rows pattern
+    // observed in the live memory.db before the A16 fix.
+    const graph = getSharedMinCutGraph();
+    const monitor = getSharedMinCutMonitor();
+    graph.addVertex({ id: 'domain:test-generation', type: 'domain', weight: 1.0, createdAt: new Date() });
+    graph.addVertex({ id: 'domain:defect-intelligence', type: 'domain', weight: 1.0, createdAt: new Date() });
+    graph.addEdge({
+      source: 'domain:test-generation',
+      target: 'domain:defect-intelligence',
+      weight: 1.5,
+      type: 'workflow',
+      bidirectional: false,
+    });
+
+    expect(graph.isEmpty()).toBe(false); // vertices exist — the old, insufficient check
+    expect(graph.getVerticesByType('agent')).toHaveLength(0); // but none are real agents
+    expect(monitor.isCritical()).toBe(true); // sink vertex still trips the threshold
+
+    // The fix: no real agents means no signal, regardless of isCritical().
+    expect(resolveTopologyCriticalFromSharedMincut()).toBe(false);
+  });
+
   it('returns true ONLY when the graph has vertices AND isCritical() is true', () => {
     const graph = getSharedMinCutGraph();
     const monitor = getSharedMinCutMonitor();

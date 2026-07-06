@@ -73,6 +73,13 @@ export interface Experience {
   readonly result: ExperienceResult;
   readonly reward: number;
   readonly timestamp: Date;
+  /**
+   * ReasoningBank pattern IDs that were applied/matched to produce this
+   * experience (ADR-110 kept-nulls). Optional — most domains don't yet
+   * track which pattern influenced a given operation; only populate this
+   * when real matched-pattern data exists, never a placeholder.
+   */
+  readonly appliedPatternIds?: readonly string[];
 }
 
 export interface StateSnapshot {

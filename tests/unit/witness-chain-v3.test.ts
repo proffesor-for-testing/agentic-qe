@@ -30,8 +30,13 @@ import {
   type WitnessEntry,
   type WitnessActionType,
 } from '../../src/audit/witness-chain.js';
-import { WitnessKeyManager } from '../../src/audit/witness-key-manager.js';
+import {
+  WitnessKeyManager,
+  getDefaultWitnessKeyManager,
+  _resetDefaultWitnessKeyManagerForTests,
+} from '../../src/audit/witness-key-manager.js';
 import { backfillWitnessChain } from '../../src/audit/witness-backfill.js';
+import { clearProjectRootCache } from '../../src/kernel/project-root.js';
 
 // ============================================================================
 // Helpers
@@ -629,6 +634,60 @@ describe('6.2b: Key Persistence', () => {
     const data = Buffer.from('test', 'utf-8');
     const { signature, keyId } = km.sign(data);
     expect(km.verify(data, signature, keyId)).toBe(true);
+  });
+});
+
+// ============================================================================
+// A13: Default (project-wide) WitnessKeyManager — production wiring
+// ============================================================================
+
+describe('getDefaultWitnessKeyManager', () => {
+  let tmpProjectRoot: string;
+  const originalEnv = process.env.AQE_PROJECT_ROOT;
+
+  beforeEach(() => {
+    const { mkdtempSync } = require('fs');
+    const { join } = require('path');
+    const os = require('os');
+    tmpProjectRoot = mkdtempSync(join(os.tmpdir(), 'witness-default-key-'));
+    process.env.AQE_PROJECT_ROOT = tmpProjectRoot;
+    clearProjectRootCache();
+    _resetDefaultWitnessKeyManagerForTests();
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.AQE_PROJECT_ROOT;
+    else process.env.AQE_PROJECT_ROOT = originalEnv;
+    clearProjectRootCache();
+    _resetDefaultWitnessKeyManagerForTests();
+  });
+
+  it('should persist keys under <projectRoot>/.agentic-qe/witness-keys', () => {
+    const { join } = require('path');
+    const { existsSync } = require('fs');
+
+    getDefaultWitnessKeyManager();
+
+    const keyDir = join(tmpProjectRoot, '.agentic-qe', 'witness-keys');
+    expect(existsSync(keyDir)).toBe(true);
+  });
+
+  it('should return the same instance on repeated calls within a process', () => {
+    const km1 = getDefaultWitnessKeyManager();
+    const km2 = getDefaultWitnessKeyManager();
+    expect(km1).toBe(km2);
+  });
+
+  it('should let a signature from one "process" (fresh instance, same keyDir) verify in another', () => {
+    const km1 = getDefaultWitnessKeyManager();
+    const data = Buffer.from('cross-process signature', 'utf-8');
+    const { signature, keyId } = km1.sign(data);
+
+    // Simulate a fresh process: reset the singleton but keep the same keyDir on disk.
+    _resetDefaultWitnessKeyManagerForTests();
+    const km2 = getDefaultWitnessKeyManager();
+
+    expect(km2.verify(data, signature, keyId)).toBe(true);
   });
 });
 

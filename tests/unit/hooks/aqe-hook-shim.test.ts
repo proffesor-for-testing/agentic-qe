@@ -13,7 +13,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -21,13 +21,17 @@ const REPO_ROOT = resolve(__dirname, '../../..');
 const SHIM = resolve(REPO_ROOT, '.claude/hooks/aqe-hook.cjs');
 
 /** Run the shim via node, returning { stdout, stderr, code }; never throws on non-zero. */
-function runShim(args: string[], projectDir: string): { stdout: string; stderr: string; code: number } {
+function runShim(
+  args: string[],
+  projectDir: string,
+  extraEnv: Record<string, string> = {},
+): { stdout: string; stderr: string; code: number } {
   try {
     const stdout = execFileSync('node', [SHIM, ...args], {
       cwd: REPO_ROOT,
       // AQE_HOOK_NPX=0 disables the npx fallback so the no-local-bundle cases
       // no-op deterministically instead of reaching the network.
-      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, AQE_HOOK_NPX: '0' },
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, AQE_HOOK_NPX: '0', ...extraEnv },
       encoding: 'utf-8',
       timeout: 60_000,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -50,11 +54,22 @@ describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
   });
 
   it('exits 0 on an unknown subcommand and never leaks stderr to the caller', () => {
-    // '.' (the repo) has dist/cli/bundle.js, so the bundle runs and errors on the
-    // bogus subcommand; the shim must swallow that and exit 0 cleanly.
-    const r = runShim(['__definitely_not_a_hook__', '--json'], '.');
-    expect(r.code).toBe(0);
-    expect(r.stderr).toBe('');
+    // Copy the REAL built bundle into a tmpdir rather than pointing projectDir
+    // at '.' (the repo) — using the repo root here would make this test's
+    // expected-failure (EMPTY-RESULT: unknown subcommand exits non-zero with
+    // no JSON) write a real line to the actual project's hooks-health.log on
+    // every test run, polluting it with test noise instead of real findings.
+    const tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+    try {
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      const realBundle = resolve(REPO_ROOT, 'dist/cli/bundle.js');
+      writeFileSync(join(tmp, 'dist', 'cli', 'bundle.js'), readFileSync(realBundle));
+      const r = runShim(['__definitely_not_a_hook__', '--json'], tmp);
+      expect(r.code).toBe(0);
+      expect(r.stderr).toBe('');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   // JSON-extraction contract, tested deterministically against a FAKE bundle
@@ -115,6 +130,96 @@ describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
       const r = runShim(['route', '--json'], tmp);
       expect(r.code).toBe(0);
       expect(JSON.parse(r.stdout)).toEqual({ from: 'installed' });
+    });
+  });
+
+  // Postmortem regression tests (2026-06-02): the shim's own SPAWN_TIMEOUT_MS
+  // was previously unbounded and unobserved — a slow/hung child was killed
+  // only by the Claude Code harness's OUTER timeout, which kills this whole
+  // process too, so nothing ever got logged. routing_outcomes silently
+  // stopped receiving writes for a month with zero trace. These tests assert
+  // the shim now (a) still never blocks a turn and (b) leaves a durable,
+  // inspectable record of *why* an invocation produced no output.
+  describe('hooks-health.log observability (2026-06-02 postmortem)', () => {
+    let tmp: string;
+    afterEach(() => { if (tmp) rmSync(tmp, { recursive: true, force: true }); });
+
+    function healthLog(projectDir: string): string {
+      const p = join(projectDir, '.agentic-qe', 'hooks-health.log');
+      return existsSync(p) ? readFileSync(p, 'utf-8') : '';
+    }
+
+    it('logs a TIMEOUT entry and still exits 0/empty when the child exceeds AQE_HOOK_TIMEOUT_MS', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      // Fake bundle that outlives the (tiny, test-only) spawn timeout.
+      writeFileSync(
+        join(tmp, 'dist', 'cli', 'bundle.js'),
+        `setTimeout(() => console.log(JSON.stringify({ ok: true })), 5000);`,
+      );
+      const r = runShim(['route', '--json'], tmp, { AQE_HOOK_TIMEOUT_MS: '200' });
+      expect(r.code).toBe(0);
+      expect(r.stdout.trim()).toBe('');
+      const log = healthLog(tmp);
+      expect(log).toContain('TIMEOUT');
+      expect(log).toContain('cmd=route');
+      expect(log).toContain('NOT captured');
+    });
+
+    it('logs an EMPTY-RESULT entry when the child exits non-zero with no JSON payload', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      // Mirrors routing-hooks.ts's "No task provided" throw when $PROMPT
+      // resolves empty — exits non-zero, prints nothing parseable.
+      writeFileSync(
+        join(tmp, 'dist', 'cli', 'bundle.js'),
+        `console.error('Error: No task provided.'); process.exit(1);`,
+      );
+      const r = runShim(['route', '--json'], tmp);
+      expect(r.code).toBe(0);
+      expect(r.stdout.trim()).toBe('');
+      const log = healthLog(tmp);
+      expect(log).toContain('EMPTY-RESULT');
+      expect(log).toContain('cmd=route');
+    });
+
+    it('forwards stdin to the child (2026-07-05 regression: Claude Code delivers hook events via stdin JSON, not $PROMPT)', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      // Fake bundle that echoes back whatever it received on stdin — proves
+      // the shim no longer discards it (previously stdio: ['ignore', ...]).
+      writeFileSync(
+        join(tmp, 'dist', 'cli', 'bundle.js'),
+        `
+        let data = '';
+        process.stdin.setEncoding('utf8');
+        process.stdin.on('data', (c) => { data += c; });
+        process.stdin.on('end', () => { console.log(JSON.stringify({ receivedStdin: data })); });
+        `,
+      );
+      const stdout = execFileSync('node', [SHIM, 'route', '--json'], {
+        cwd: REPO_ROOT,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: tmp, AQE_HOOK_NPX: '0' },
+        input: JSON.stringify({ prompt: 'find flaky tests in the coverage module' }),
+        encoding: 'utf-8',
+        timeout: 60_000,
+      });
+      expect(JSON.parse(stdout)).toEqual({
+        receivedStdin: JSON.stringify({ prompt: 'find flaky tests in the coverage module' }),
+      });
+    });
+
+    it('does NOT log anything when the child succeeds normally', () => {
+      tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-'));
+      mkdirSync(join(tmp, 'dist', 'cli'), { recursive: true });
+      writeFileSync(
+        join(tmp, 'dist', 'cli', 'bundle.js'),
+        `console.log(JSON.stringify({ ok: true }));`,
+      );
+      const r = runShim(['route', '--json'], tmp);
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({ ok: true });
+      expect(existsSync(join(tmp, '.agentic-qe', 'hooks-health.log'))).toBe(false);
     });
   });
 });

@@ -699,7 +699,8 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
       },
       {
         namespace: 'coordination',
-        ttl: 86400000, // 24 hours
+        // ttl is in SECONDS, not ms (unified-memory.ts:607) — was 1000x too long.
+        ttl: 86400, // 24 hours
       }
     );
   }

@@ -64,4 +64,5 @@ export type {
   ExecutedStep,
   AgentSpawner,
   AgentSpawnResult,
+  GetDomainAPIFn,
 } from './plan-executor.js';

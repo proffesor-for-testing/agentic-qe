@@ -409,12 +409,10 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
   /**
    * Apply an insight to create a REAL pattern in QEReasoningBank.
    *
-   * This fixes the issue where applyInsight was generating fake pattern IDs.
-   * Now it:
-   * 1. Gets the insight details from pending insights
-   * 2. Creates a REAL pattern in QEReasoningBank with proper structure
-   * 3. Marks the insight as applied in the engine
-   * 4. Returns the REAL pattern ID
+   * DreamEngine.applyInsight() is the single implementation (shared with the
+   * scheduler's autoApplyInsights) — it creates the real pattern, wires the
+   * RVF dual-writer, and updates dream_insights.pattern_id to point at the
+   * real row. This handler is a thin wrapper around it.
    */
   private async applyInsight(
     params: DreamCycleParams,
@@ -434,104 +432,30 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
 
     try {
       const engine = await this.getEngine();
+      const applyResult = await engine.applyInsight(params.insightId);
 
-      // Step 1: Find the insight from pending insights
-      const pendingInsights = await engine.getPendingInsights(100);
-      const insight = pendingInsights.find((i) => i.id === params.insightId);
-
-      if (!insight) {
-        // Check if already applied or doesn't exist
+      if (!applyResult.success) {
         return {
           success: false,
-          error: `Insight not found or already applied: ${params.insightId}`,
+          error: applyResult.error,
           data: {
             action: 'apply',
             success: false,
-            error: `Insight not found or already applied: ${params.insightId}`,
+            error: applyResult.error,
           },
         };
       }
-
-      if (!insight.actionable) {
-        return {
-          success: false,
-          error: 'Insight is not actionable',
-          data: {
-            action: 'apply',
-            success: false,
-            error: 'Insight is not actionable',
-          },
-        };
-      }
-
-      // Step 2: Create a REAL pattern in QEReasoningBank
-      const memoryBackend = await getSharedMemoryBackend();
-      const reasoningBank = createQEReasoningBank(memoryBackend);
-      await reasoningBank.initialize();
-
-      // Wire RVF dual-writer (optional, best-effort)
-      try {
-        const { getSharedRvfDualWriter } = await import('../../../integrations/ruvector/shared-rvf-dual-writer.js');
-        const dualWriter = await getSharedRvfDualWriter();
-        if (dualWriter) reasoningBank.setRvfDualWriter(dualWriter);
-      } catch (e) {
-        if (process.env.DEBUG) this.logger.info('RVF wiring skipped', { error: String(e) });
-      }
-
-      // Map insight type to QE pattern type
-      const patternType = this.mapInsightTypeToPatternType(insight.type);
-
-      // Create the pattern with proper structure
-      const patternResult = await reasoningBank.storePattern({
-        patternType,
-        name: `Dream Insight: ${insight.type}`,
-        description: `${insight.description} (confidence: ${insight.confidenceScore.toFixed(2)})`,
-        template: {
-          type: 'workflow',
-          content: insight.suggestedAction || insight.description,
-          variables: [],
-        },
-        context: {
-          tags: ['dream-generated', insight.type, ...insight.sourceConcepts.slice(0, 3)],
-          complexity: 'medium',
-        },
-      });
-
-      if (!patternResult.success) {
-        const errorMsg = patternResult.error?.message || 'Unknown error';
-        return {
-          success: false,
-          error: `Failed to create pattern: ${errorMsg}`,
-          data: {
-            action: 'apply',
-            success: false,
-            error: `Failed to create pattern: ${errorMsg}`,
-          },
-        };
-      }
-
-      const realPatternId = patternResult.value.id;
-
-      // Step 3: Mark insight as applied in the engine
-      // This updates the engine's internal database (ignore its fake pattern ID)
-      await engine.applyInsight(params.insightId);
 
       this.logger.info(
-        `Applied insight ${params.insightId} → REAL pattern ${realPatternId} in ReasoningBank`
+        `Applied insight ${params.insightId} → REAL pattern ${applyResult.patternId} in ReasoningBank`
       );
-
-      const applyResult: ApplyInsightResult = {
-        insightId: params.insightId,
-        success: true,
-        patternId: realPatternId, // Return the REAL pattern ID
-      };
 
       return {
         success: true,
         data: {
           action: 'apply',
           success: true,
-          applyResult,
+          applyResult: { insightId: params.insightId, ...applyResult },
         },
       };
     } catch (error) {
@@ -546,30 +470,6 @@ export class DreamCycleTool extends MCPToolBase<DreamCycleParams, DreamCycleTool
         },
       };
     }
-  }
-
-  /**
-   * Map DreamInsight type to QEPatternType.
-   *
-   * Dream insights have types like 'cross-domain', 'novel-path', etc.
-   * QEPatterns have types like 'test-template', 'coverage-strategy', etc.
-   */
-  private mapInsightTypeToPatternType(
-    insightType: string
-  ): 'test-template' | 'assertion-pattern' | 'mock-pattern' | 'coverage-strategy' |
-     'mutation-strategy' | 'api-contract' | 'visual-baseline' | 'a11y-check' |
-     'perf-benchmark' | 'flaky-fix' | 'refactor-safe' | 'error-handling' {
-    // Map insight types to the most appropriate pattern type
-    const mapping: Record<string, typeof this.mapInsightTypeToPatternType extends
-      (arg: string) => infer R ? R : never> = {
-      'cross-domain': 'coverage-strategy',    // Cross-domain insights suggest coverage approaches
-      'novel-path': 'test-template',          // Novel paths suggest new test templates
-      'cluster': 'refactor-safe',             // Clusters suggest refactoring patterns
-      'high-activation': 'assertion-pattern', // High activation suggests important assertions
-      'bridge': 'mock-pattern',               // Bridges between concepts suggest mocking
-    };
-
-    return mapping[insightType] || 'test-template';
   }
 
   /**

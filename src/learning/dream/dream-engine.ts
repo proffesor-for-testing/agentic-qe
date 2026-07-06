@@ -52,7 +52,10 @@ import type {
   ConceptEdge,
   ConceptGraphStats,
   PatternImportData,
+  FailureImportData,
+  SuccessImportData,
 } from './types.js';
+import type { QEPatternType } from '../qe-patterns.js';
 
 // ============================================================================
 // Configuration Types
@@ -618,6 +621,26 @@ export class DreamEngine {
   }
 
   /**
+   * Load real ADR-110 pattern-null (failure) data as 'error' concept nodes
+   * (A8-EXT) — public wrapper for direct/test use; `ensureConceptsLoaded()`
+   * calls this automatically from the real qe_pattern_nulls table.
+   */
+  async loadFailuresAsConcepts(failures: FailureImportData[]): Promise<number> {
+    this.ensureInitialized();
+    return this.graph!.loadFailuresAsErrors(failures);
+  }
+
+  /**
+   * Load real qe_pattern_usage success data as 'outcome' concept nodes
+   * (A8-EXT) — public wrapper for direct/test use; `ensureConceptsLoaded()`
+   * calls this automatically from the real qe_pattern_usage table.
+   */
+  async loadSuccessesAsConcepts(successes: SuccessImportData[]): Promise<number> {
+    this.ensureInitialized();
+    return this.graph!.loadSuccessesAsOutcomes(successes);
+  }
+
+  /**
    * Ensure sufficient concepts are loaded for dreaming.
    * If the concept graph has fewer nodes than minConceptsRequired,
    * auto-loads patterns from the qe_patterns table.
@@ -626,19 +649,78 @@ export class DreamEngine {
    */
   async ensureConceptsLoaded(): Promise<number> {
     this.ensureInitialized();
+
+    // A8-EXT follow-up fix: this refresh must NOT be gated behind the
+    // "do we have enough concepts to dream at all" check below — on any
+    // project that's run more than a handful of dream cycles,
+    // `existing.length` permanently exceeds `minConceptsRequired`, so the
+    // gate would make this whole block unreachable in real, automatic
+    // operation forever (only reachable via the direct
+    // loadFailuresAsConcepts()/loadSuccessesAsConcepts() test/manual
+    // wrappers). Runs on every call instead: loadFailuresAsErrors() /
+    // loadSuccessesAsOutcomes() are idempotent (synthetic
+    // `error:<id>`/`outcome:<id>` keys), and each query is a single
+    // indexed LIMIT-100 read, so refreshing every dream cycle is cheap.
+    try {
+      const failureRows = this.db!.prepare(
+        `SELECT n.id as id, n.pattern_id as sourcePatternId, p.qe_domain as domain, n.failure_mode as failureMode
+         FROM qe_pattern_nulls n
+         JOIN qe_patterns p ON p.id = n.pattern_id
+         ORDER BY n.updated_at DESC
+         LIMIT 100`
+      ).all() as FailureImportData[];
+      if (failureRows.length > 0) {
+        await this.graph!.loadFailuresAsErrors(failureRows);
+      }
+
+      const successRows = this.db!.prepare(
+        `SELECT u.id as id, u.pattern_id as sourcePatternId, p.qe_domain as domain,
+                ('Pattern "' || p.name || '" applied successfully') as description
+         FROM qe_pattern_usage u
+         JOIN qe_patterns p ON p.id = u.pattern_id
+         WHERE u.success = 1
+         ORDER BY u.created_at DESC
+         LIMIT 100`
+      ).all() as SuccessImportData[];
+      if (successRows.length > 0) {
+        await this.graph!.loadSuccessesAsOutcomes(successRows);
+      }
+    } catch (error) {
+      if (process.env.DEBUG) {
+        dreamLogger.debug('Error/outcome concept loading skipped', { error: toErrorMessage(error) });
+      }
+    }
+
     const existing = await this.graph!.getActiveNodes(0);
     if (existing.length >= this.config.minConceptsRequired) {
       return 0;
     }
 
-    // Load patterns from qe_patterns table in the shared unified DB
+    // Load patterns from qe_patterns table in the shared unified DB.
+    // A8-EXT: the top-160-by-quality pool alone starves detectOptimizations —
+    // quality_score already weights success_rate at 0.5, so the best-quality
+    // patterns are, by construction, rarely the "room for improvement"
+    // candidates that detector looks for. Union in a genuine low-performer
+    // sample (bottom-40 by success_rate among confidence>=0.3 patterns) so
+    // real optimization candidates actually reach the detector.
     const rows = this.db!.prepare(
-      `SELECT id, name, description, qe_domain as domain, pattern_type as patternType,
-              confidence, success_rate as successRate
-       FROM qe_patterns
-       WHERE confidence >= 0.3
-       ORDER BY quality_score DESC
-       LIMIT 200`
+      `SELECT * FROM (
+         SELECT id, name, description, qe_domain as domain, pattern_type as patternType,
+                confidence, success_rate as successRate
+         FROM qe_patterns
+         WHERE confidence >= 0.3
+         ORDER BY quality_score DESC
+         LIMIT 160
+       )
+       UNION
+       SELECT * FROM (
+         SELECT id, name, description, qe_domain as domain, pattern_type as patternType,
+                confidence, success_rate as successRate
+         FROM qe_patterns
+         WHERE confidence >= 0.3 AND success_rate < 0.7
+         ORDER BY usage_count DESC
+         LIMIT 40
+       )`
     ).all() as PatternImportData[];
 
     if (rows.length === 0) {
@@ -680,10 +762,61 @@ export class DreamEngine {
         };
       }
 
-      // Generate a pattern ID
-      const patternId = `dream-pattern-${uuidv4()}`;
+      // Create a REAL pattern in QEReasoningBank — this used to mint a fake
+      // `dream-pattern-<uuid>` that never resolved to any qe_patterns row.
+      // Single implementation shared with the MCP `apply` action (dream.ts)
+      // and the scheduler's autoApplyInsights, both of which call this method
+      // directly — no duplicate pattern-creation logic to drift out of sync.
+      const { getSharedMemoryBackend } = await import('../../mcp/tools/base.js');
+      const { createQEReasoningBank } = await import('../qe-reasoning-bank.js');
 
-      // Mark insight as applied
+      const memoryBackend = await getSharedMemoryBackend();
+      const reasoningBank = createQEReasoningBank(memoryBackend);
+      await reasoningBank.initialize();
+
+      // Wire RVF dual-writer (optional, best-effort — matches the prior
+      // MCP-only implementation's parity with other pattern-creation paths).
+      try {
+        const { getSharedRvfDualWriter } = await import('../../integrations/ruvector/shared-rvf-dual-writer.js');
+        const dualWriter = await getSharedRvfDualWriter();
+        if (dualWriter) reasoningBank.setRvfDualWriter(dualWriter);
+      } catch (e) {
+        if (process.env.DEBUG) dreamLogger.debug('RVF wiring skipped', { error: toErrorMessage(e) });
+      }
+
+      let sourceConcepts: string[] = [];
+      try {
+        sourceConcepts = safeJsonParse<string[]>(insightRow.source_concepts);
+      } catch {
+        // Malformed source_concepts shouldn't block pattern creation.
+      }
+      const patternResult = await reasoningBank.storePattern({
+        patternType: mapInsightTypeToPatternType(insightRow.insight_type),
+        name: `Dream Insight: ${insightRow.insight_type}`,
+        description: `${insightRow.description} (confidence: ${insightRow.confidence_score.toFixed(2)})`,
+        template: {
+          type: 'workflow',
+          content: insightRow.suggested_action || insightRow.description,
+          variables: [],
+        },
+        context: {
+          tags: ['dream-generated', insightRow.insight_type, ...sourceConcepts.slice(0, 3)],
+          complexity: 'medium',
+        },
+      });
+
+      if (!patternResult.success) {
+        // Do NOT mark applied — leave it retryable rather than silently
+        // swallowing a real pattern-creation failure behind a fake success.
+        return {
+          success: false,
+          error: `Failed to create pattern: ${patternResult.error?.message ?? 'unknown error'}`,
+        };
+      }
+
+      const patternId = patternResult.value.id;
+
+      // Mark insight as applied — pattern_id now points at the REAL row.
       const stmt = this.db!.prepare(`
         UPDATE dream_insights
         SET applied = 1, pattern_id = ?
@@ -955,6 +1088,22 @@ interface CycleRow {
   status: string;
   error: string | null;
   created_at: string;
+}
+
+/**
+ * Map a dream insight type to the closest QEPatternType. Shared by
+ * DreamEngine.applyInsight — the single implementation used by both the
+ * MCP `apply` action and the scheduler's auto-apply path.
+ */
+function mapInsightTypeToPatternType(insightType: string): QEPatternType {
+  const mapping: Record<string, QEPatternType> = {
+    'cross-domain': 'coverage-strategy',
+    'novel-path': 'test-template',
+    'cluster': 'refactor-safe',
+    'high-activation': 'assertion-pattern',
+    'bridge': 'mock-pattern',
+  };
+  return mapping[insightType] || 'test-template';
 }
 
 interface InsightRow {

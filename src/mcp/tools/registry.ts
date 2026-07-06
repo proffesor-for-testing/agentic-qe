@@ -232,9 +232,14 @@ export function registerAllQETools(registry: ToolRegistry): void {
       // ADR-043: forward the shared HybridRouter so the tool's
       // MCPToolContext.llmRouter is populated explicitly.
       async (params) => {
-        const { getSharedLLMRouter } = await import('./base.js');
+        const { getSharedLLMRouter, getKernel } = await import('./base.js');
         const llmRouter = (await getSharedLLMRouter()) ?? undefined;
-        return tool.invoke(params as Record<string, unknown>, { llmRouter });
+        // A14: forward the fleet_init kernel singleton (if initialized) so
+        // tools that dispatch to real domain APIs (e.g. GOAPExecuteTool)
+        // can reach them — this is the actual registration path QE_TOOLS
+        // (including the GOAP planning tools) goes through in production.
+        const kernel = await getKernel();
+        return tool.invoke(params as Record<string, unknown>, { llmRouter, kernel });
       }
     );
   }

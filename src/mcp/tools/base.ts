@@ -237,6 +237,32 @@ export async function getLLMRouter(context?: MCPToolContext): Promise<
   return shared ?? undefined;
 }
 
+/**
+ * A14: get the initialized kernel from context, or fall back to the
+ * fleet_init singleton (`core-handlers.ts`'s module-level fleet state) if
+ * one has been initialized in-process. Returns undefined — never throws —
+ * when no kernel is available (fleet_init hasn't run); callers must degrade
+ * gracefully.
+ *
+ * Dynamic import here, not a static one: core-handlers.ts transitively
+ * imports tools/registry.ts, which imports every tool that extends
+ * MCPToolBase (this file) — a static import would be circular.
+ */
+export async function getKernel(
+  context?: MCPToolContext
+): Promise<import('../../kernel/interfaces.js').QEKernel | undefined> {
+  if (context?.kernel) {
+    return context.kernel;
+  }
+  try {
+    const { getFleetState } = await import('../handlers/core-handlers.js');
+    const state = getFleetState();
+    return state.kernel ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // ============================================================================
 // Tool Schema Types (JSON Schema compatible)
 // ============================================================================
@@ -305,6 +331,17 @@ export interface MCPToolContext {
    * bag so isLLMAnalysisAvailable() returns true.
    */
   llmRouter?: import('../../shared/llm/router/hybrid-router.js').HybridRouter;
+  /**
+   * A14: initialized kernel instance, for tools that need to reach a real
+   * domain plugin's public API (`kernel.getDomainAPI<T>(domain)`) rather
+   * than constructing their own service instance — the pattern
+   * `DefaultProtocolExecutor` already uses for real (non-mocked) action
+   * dispatch. Only populated when `fleet_init` has run in-process and
+   * handed its kernel to the MCP runtime (see qe-tool-bridge.ts); undefined
+   * otherwise. Tools MUST tolerate an undefined kernel and degrade
+   * gracefully (e.g. "run fleet_init first") rather than assume it's set.
+   */
+  kernel?: import('../../kernel/interfaces.js').QEKernel;
 }
 
 /**
@@ -524,6 +561,12 @@ export abstract class MCPToolBase<
        * lazy build path.
        */
       llmRouter?: import('../../shared/llm/router/hybrid-router.js').HybridRouter;
+      /**
+       * A14: optional kernel injection, mirroring the memory/llmRouter
+       * pattern — the MCP runtime forwards the fleet_init kernel singleton
+       * here (see qe-tool-bridge.ts) when one has been initialized.
+       */
+      kernel?: import('../../kernel/interfaces.js').QEKernel;
     } = {}
   ): Promise<ToolResult<TResult>> {
     const startTime = Date.now();
@@ -558,6 +601,7 @@ export abstract class MCPToolBase<
       demoMode: options.demoMode,
       memory: options.memory,
       llmRouter: options.llmRouter,
+      kernel: options.kernel,
     };
 
     try {

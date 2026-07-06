@@ -42,6 +42,12 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.95,
     category: 'coverage',
     qeDomain: 'coverage-analysis',
+    // A14: coordinator.ts:525 analyze() — real, but expects pre-collected
+    // coverageData a GOAP plan step doesn't carry; will error on missing
+    // required params rather than being given a fabricated value.
+    method: 'analyze',
+    params: {},
+    implemented: true,
   },
   {
     name: 'analyze-coverage-gaps',
@@ -54,6 +60,9 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'coverage',
     qeDomain: 'coverage-analysis',
+    method: 'detectGaps', // coordinator.ts:555
+    params: {},
+    implemented: true,
   },
   {
     name: 'generate-coverage-tests',
@@ -66,6 +75,9 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.8,
     category: 'coverage',
     qeDomain: 'test-generation',
+    method: 'generateTests', // coordinator.ts:458
+    params: {},
+    implemented: true,
   },
   {
     name: 'run-mutation-testing',
@@ -78,6 +90,9 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'coverage',
     qeDomain: 'coverage-analysis',
+    // A14: no mutation-testing capability exists anywhere in src/domains —
+    // do not fake it. GOAPExecutor must report this as not implemented.
+    implemented: false,
   },
   {
     name: 'prioritize-uncovered-paths',
@@ -90,6 +105,9 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.92,
     category: 'coverage',
     qeDomain: 'coverage-analysis',
+    method: 'calculateRisk', // coordinator.ts:607
+    params: {},
+    implemented: true,
   },
   {
     name: 'generate-branch-tests',
@@ -105,6 +123,9 @@ const coverageActions: QEActionTemplate[] = [
     successRate: 0.78,
     category: 'coverage',
     qeDomain: 'test-generation',
+    method: 'generateTests', // coordinator.ts:458 — no branch-target param; same caveat as generate-coverage-tests
+    params: {},
+    implemented: true,
   },
 ];
 
@@ -124,6 +145,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.95,
     category: 'test',
     qeDomain: 'test-execution',
+    method: 'runTests', // plugin.ts:51
+    params: {},
+    implemented: true,
   },
   {
     name: 'run-integration-tests',
@@ -136,6 +160,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'test',
     qeDomain: 'test-execution',
+    method: 'execute', // plugin.ts:52 — framework/env selection is caller's job
+    params: {},
+    implemented: true,
   },
   {
     name: 'run-e2e-tests',
@@ -148,6 +175,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.8,
     category: 'test',
     qeDomain: 'test-execution',
+    method: 'executeE2ETestSuite', // plugin.ts:57
+    params: {},
+    implemented: true,
   },
   {
     name: 'fix-failing-tests',
@@ -160,6 +190,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.75,
     category: 'test',
     qeDomain: 'test-generation',
+    // A14: test-generation only generates; there's no "repair a failing
+    // test" capability anywhere in src/domains.
+    implemented: false,
   },
   {
     name: 'fix-flaky-tests',
@@ -172,6 +205,12 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.7,
     category: 'test',
     qeDomain: 'test-execution',
+    // A14: detectFlaky() only detects, doesn't stabilize — name/effects
+    // ("fix"/-3 flaky count) overstate what this binding actually does;
+    // still real, non-fabricated detection work, so kept implemented.
+    method: 'detectFlaky', // plugin.ts:54
+    params: {},
+    implemented: true,
   },
   {
     name: 'generate-property-tests',
@@ -184,6 +223,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.82,
     category: 'test',
     qeDomain: 'test-generation',
+    method: 'generatePropertyTests', // coordinator.ts:759
+    params: {},
+    implemented: true,
   },
   {
     name: 'run-contract-tests',
@@ -196,6 +238,9 @@ const testActions: QEActionTemplate[] = [
     successRate: 0.88,
     category: 'test',
     qeDomain: 'contract-testing',
+    method: 'verifyAllConsumers', // plugin.ts:163
+    params: {},
+    implemented: true,
   },
 ];
 
@@ -215,6 +260,9 @@ const securityActions: QEActionTemplate[] = [
     successRate: 0.95,
     category: 'security',
     qeDomain: 'security-compliance',
+    method: 'runSecurityAudit', // plugin.ts:142
+    params: {},
+    implemented: true,
   },
   {
     name: 'fix-vulnerabilities',
@@ -233,6 +281,9 @@ const securityActions: QEActionTemplate[] = [
     successRate: 0.7,
     category: 'security',
     qeDomain: 'security-compliance',
+    // A14: only triageVulnerabilities() (identification) exists — no
+    // remediation/dependency-update capability anywhere in src/domains.
+    implemented: false,
   },
   {
     name: 'owasp-audit',
@@ -245,6 +296,9 @@ const securityActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'security',
     qeDomain: 'security-compliance',
+    method: 'runComplianceCheck', // plugin.ts:147
+    params: { standard: 'owasp' },
+    implemented: true,
   },
   {
     name: 'scan-secrets',
@@ -257,6 +311,11 @@ const securityActions: QEActionTemplate[] = [
     successRate: 0.98,
     category: 'security',
     qeDomain: 'security-compliance',
+    // A14: no dedicated secrets-scan method — includeSecrets is a flag on
+    // runSecurityAudit (plugin.ts:179), not a standalone capability.
+    method: 'runSecurityAudit',
+    params: { includeSecrets: true },
+    implemented: true,
   },
   {
     name: 'run-dast',
@@ -269,6 +328,9 @@ const securityActions: QEActionTemplate[] = [
     successRate: 0.8,
     category: 'security',
     qeDomain: 'security-compliance',
+    method: 'runDASTScan', // plugin.ts:145
+    params: {},
+    implemented: true,
   },
 ];
 
@@ -288,6 +350,9 @@ const performanceActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'performance',
     qeDomain: 'chaos-resilience',
+    // A14: no baseline-benchmark concept exists — load testing is
+    // semantically different (see load-test below), not a substitute.
+    implemented: false,
   },
   {
     name: 'load-test',
@@ -300,6 +365,9 @@ const performanceActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'performance',
     qeDomain: 'chaos-resilience',
+    method: 'runLoadTestSuite', // plugin.ts:168
+    params: {},
+    implemented: true,
   },
   {
     name: 'stress-test',
@@ -315,6 +383,12 @@ const performanceActions: QEActionTemplate[] = [
     successRate: 0.8,
     category: 'performance',
     qeDomain: 'chaos-resilience',
+    // A14: real chaos-resilience test path (plugin.ts runTest), typed as
+    // 'stress' — createTest() is a separate prep step this binding doesn't
+    // perform, so this may error without a pre-created test id.
+    method: 'runTest',
+    params: { type: 'stress' },
+    implemented: true,
   },
   {
     name: 'profile-memory',
@@ -327,6 +401,8 @@ const performanceActions: QEActionTemplate[] = [
     successRate: 0.88,
     category: 'performance',
     qeDomain: 'chaos-resilience',
+    // A14: no memory-profiling capability exists anywhere in src/domains.
+    implemented: false,
   },
   {
     name: 'optimize-slow-tests',
@@ -339,6 +415,8 @@ const performanceActions: QEActionTemplate[] = [
     successRate: 0.82,
     category: 'performance',
     qeDomain: 'test-execution',
+    // A14: getStats() reports timing only — no "optimize" action exists.
+    implemented: false,
   },
 ];
 
@@ -357,7 +435,13 @@ const analysisActions: QEActionTemplate[] = [
     estimatedDurationMs: 15000,
     successRate: 0.95,
     category: 'analysis',
-    qeDomain: 'code-intelligence',
+    // A14: fixed domain-assignment bug — analyzeComplexity() actually lives
+    // on quality-assessment (plugin.ts:393), not code-intelligence, which
+    // has no complexity/smell/technical-debt methods at all.
+    qeDomain: 'quality-assessment',
+    method: 'analyzeComplexity',
+    params: {},
+    implemented: true,
   },
   {
     name: 'detect-code-smells',
@@ -370,6 +454,8 @@ const analysisActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'analysis',
     qeDomain: 'code-intelligence',
+    // A14: no code-smell/anti-pattern detector exists anywhere in src/domains.
+    implemented: false,
   },
   {
     name: 'analyze-dependencies',
@@ -382,6 +468,9 @@ const analysisActions: QEActionTemplate[] = [
     successRate: 0.92,
     category: 'analysis',
     qeDomain: 'code-intelligence',
+    method: 'mapDependencies', // plugin.ts:373
+    params: {},
+    implemented: true,
   },
   {
     name: 'measure-technical-debt',
@@ -397,6 +486,8 @@ const analysisActions: QEActionTemplate[] = [
     successRate: 0.88,
     category: 'analysis',
     qeDomain: 'code-intelligence',
+    // A14: no technical-debt measurement capability exists anywhere in src/domains.
+    implemented: false,
   },
   {
     name: 'build-knowledge-graph',
@@ -409,6 +500,9 @@ const analysisActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'analysis',
     qeDomain: 'code-intelligence',
+    method: 'index', // plugin.ts:317 — real KG/semantic index build
+    params: {},
+    implemented: true,
   },
 ];
 
@@ -428,6 +522,9 @@ const fleetActions: QEActionTemplate[] = [
     successRate: 0.95,
     category: 'fleet',
     qeDomain: 'test-execution',
+    // A14: agent spawning is a Queen/fleet coordinator concern, not exposed
+    // via any domain API method — no real binding exists for this today.
+    implemented: false,
   },
   {
     name: 'optimize-fleet-topology',
@@ -439,6 +536,8 @@ const fleetActions: QEActionTemplate[] = [
     estimatedDurationMs: 10000,
     successRate: 0.85,
     category: 'fleet',
+    // A14: no qeDomain — a pure fleet/Queen concern with no domain API to bind to.
+    implemented: false,
   },
   {
     name: 'scale-down-fleet',
@@ -450,6 +549,7 @@ const fleetActions: QEActionTemplate[] = [
     estimatedDurationMs: 3000,
     successRate: 0.98,
     category: 'fleet',
+    implemented: false,
   },
   {
     name: 'spawn-specialist-agent',
@@ -467,6 +567,7 @@ const fleetActions: QEActionTemplate[] = [
     estimatedDurationMs: 8000,
     successRate: 0.9,
     category: 'fleet',
+    implemented: false,
   },
   {
     name: 'rebalance-workload',
@@ -478,6 +579,7 @@ const fleetActions: QEActionTemplate[] = [
     estimatedDurationMs: 5000,
     successRate: 0.92,
     category: 'fleet',
+    implemented: false,
   },
 ];
 
@@ -500,6 +602,9 @@ const qualityActions: QEActionTemplate[] = [
     successRate: 0.95,
     category: 'quality',
     qeDomain: 'quality-assessment',
+    method: 'analyzeQuality', // plugin.ts:353
+    params: {},
+    implemented: true,
   },
   {
     name: 'enforce-quality-gate',
@@ -512,6 +617,9 @@ const qualityActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'quality',
     qeDomain: 'quality-assessment',
+    method: 'evaluateGate', // plugin.ts:333
+    params: {},
+    implemented: true,
   },
   {
     name: 'validate-requirements',
@@ -524,6 +632,9 @@ const qualityActions: QEActionTemplate[] = [
     successRate: 0.88,
     category: 'quality',
     qeDomain: 'requirements-validation',
+    method: 'validate', // plugin.ts:427
+    params: {},
+    implemented: true,
   },
   {
     name: 'predict-defects',
@@ -539,6 +650,9 @@ const qualityActions: QEActionTemplate[] = [
     successRate: 0.82,
     category: 'quality',
     qeDomain: 'defect-intelligence',
+    method: 'predictDefects', // plugin.ts:366
+    params: {},
+    implemented: true,
   },
   {
     name: 'generate-deployment-report',
@@ -554,6 +668,9 @@ const qualityActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'quality',
     qeDomain: 'quality-assessment',
+    method: 'getDeploymentAdvice', // plugin.ts:373
+    params: {},
+    implemented: true,
   },
 ];
 
@@ -573,6 +690,9 @@ const accessibilityActions: QEActionTemplate[] = [
     successRate: 0.9,
     category: 'quality',
     qeDomain: 'visual-accessibility',
+    method: 'runAccessibilityAudit', // plugin.ts:143
+    params: {},
+    implemented: true,
   },
   {
     name: 'run-visual-regression',
@@ -585,6 +705,9 @@ const accessibilityActions: QEActionTemplate[] = [
     successRate: 0.85,
     category: 'quality',
     qeDomain: 'visual-accessibility',
+    method: 'runVisualTests', // plugin.ts:142
+    params: {},
+    implemented: true,
   },
 ];
 

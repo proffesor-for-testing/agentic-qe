@@ -340,6 +340,31 @@ export interface PatternImportData {
 }
 
 /**
+ * Real ADR-110 pattern-null (recorded failure) data for importing as
+ * 'error' concept nodes — A8-EXT.
+ */
+export interface FailureImportData {
+  /** qe_pattern_nulls.id — unique, used as the node's synthetic patternId key */
+  id: string;
+  /** The pattern that failed (NOT used to create an edge — that would trivially satisfy "hasResolution") */
+  sourcePatternId: string;
+  domain: string;
+  failureMode: string;
+}
+
+/**
+ * Real qe_pattern_usage (successful application) data for importing as
+ * 'outcome' concept nodes — A8-EXT.
+ */
+export interface SuccessImportData {
+  /** qe_pattern_usage.id — unique, used as the node's synthetic patternId key */
+  id: number;
+  sourcePatternId: string;
+  domain: string;
+  description: string;
+}
+
+/**
  * Neighbor result with node and edge
  */
 export interface NeighborResult {

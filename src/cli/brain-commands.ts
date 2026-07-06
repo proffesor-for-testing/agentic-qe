@@ -40,6 +40,7 @@ import {
 } from '../integrations/ruvector/brain-search.js';
 import { createWitnessChain } from '../audit/witness-chain.js';
 import { backfillWitnessChain } from '../audit/witness-backfill.js';
+import { getDefaultWitnessKeyManager } from '../audit/witness-key-manager.js';
 
 /** Unified manifest type covering both formats */
 export type BrainManifest = BrainExportManifest | RvfBrainManifest;
@@ -185,7 +186,7 @@ export async function witnessBackfill(
 ): Promise<WitnessBackfillResult> {
   const db = openDatabase(dbPath);
   try {
-    const chain = createWitnessChain(db);
+    const chain = createWitnessChain(db, getDefaultWitnessKeyManager());
     await chain.initialize();
     return backfillWitnessChain(db, chain);
   } finally {

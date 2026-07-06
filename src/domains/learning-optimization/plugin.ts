@@ -652,6 +652,7 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
       testId: string;
       testFile: string;
       testType: string;
+      patternsUsed?: string[];
     };
 
     // Record as experience
@@ -673,6 +674,11 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
         duration: 0,
       },
       reward: 0.8,
+      // ADR-110: real matched-pattern IDs from test-generation/coordinator.ts's
+      // GeneratedTests.patternsUsed. This event always represents a successful
+      // generation, so nulls won't fire from here in practice — threaded for
+      // correctness/future use, not for immediate null-recording payoff.
+      appliedPatternIds: payload.patternsUsed,
     });
   }
 

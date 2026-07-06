@@ -373,6 +373,79 @@ describe('DefectPredictorService', () => {
 
       expect(metrics.precision).toBeDefined();
     });
+
+    // getHistoricalDefectPatterns reads `${modelNamespace}:defect-patterns:${file}`
+    // and `${modelNamespace}:common-defect-patterns` — previously nothing wrote to
+    // either key, so historical-pattern lookup always returned empty. These tests
+    // cover the write side that closes that loop.
+    it('records the confirmed defect type per-file and in the general pool', async () => {
+      const feedback: PredictionFeedback = {
+        predictionId: 'pred-901',
+        file: 'src/auth.ts',
+        predictedProbability: 0.9,
+        actualDefect: true,
+        defectType: 'null-pointer',
+      };
+
+      await service.updateModel(feedback);
+
+      const perFile = await mockMemory.get<{ patterns: string[] }>(
+        'defect-intelligence:predictor:defect-patterns:src/auth.ts'
+      );
+      expect(perFile?.patterns).toEqual(['null-pointer']);
+
+      const general = await mockMemory.get<string[]>(
+        'defect-intelligence:predictor:common-defect-patterns'
+      );
+      expect(general).toEqual(['null-pointer']);
+    });
+
+    it('dedupes repeated defect types instead of accumulating duplicates', async () => {
+      const feedback: PredictionFeedback = {
+        predictionId: 'pred-902',
+        file: 'src/auth.ts',
+        predictedProbability: 0.9,
+        actualDefect: true,
+        defectType: 'null-pointer',
+      };
+
+      await service.updateModel(feedback);
+      await service.updateModel({ ...feedback, predictionId: 'pred-903' });
+
+      const perFile = await mockMemory.get<{ patterns: string[] }>(
+        'defect-intelligence:predictor:defect-patterns:src/auth.ts'
+      );
+      expect(perFile?.patterns).toEqual(['null-pointer']);
+    });
+
+    it('does not record a pattern when actualDefect is false (false positive)', async () => {
+      const feedback: PredictionFeedback = {
+        predictionId: 'pred-904',
+        file: 'src/clean.ts',
+        predictedProbability: 0.6,
+        actualDefect: false,
+        defectType: 'null-pointer',
+      };
+
+      await service.updateModel(feedback);
+
+      const perFile = await mockMemory.get('defect-intelligence:predictor:defect-patterns:src/clean.ts');
+      expect(perFile).toBeUndefined();
+    });
+
+    it('does not record a pattern when defectType is absent', async () => {
+      const feedback: PredictionFeedback = {
+        predictionId: 'pred-905',
+        file: 'src/unknown.ts',
+        predictedProbability: 0.6,
+        actualDefect: true,
+      };
+
+      await service.updateModel(feedback);
+
+      const perFile = await mockMemory.get('defect-intelligence:predictor:defect-patterns:src/unknown.ts');
+      expect(perFile).toBeUndefined();
+    });
   });
 
   describe('getModelMetrics', () => {

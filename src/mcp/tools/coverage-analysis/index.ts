@@ -8,7 +8,7 @@
  * Uses actual LCOV/JSON parsing and vector-based gap detection.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter, getKernel } from '../base';
 import { ToolResult } from '../../types';
 import { CoverageAnalyzerService } from '../../../domains/coverage-analysis/services/coverage-analyzer';
 import { GapDetectorService } from '../../../domains/coverage-analysis/services/gap-detector';
@@ -591,14 +591,15 @@ export class CoverageGapsTool extends MCPToolBase<CoverageGapsParams, CoverageGa
       // ADR-059: Include ghost coverage analysis if requested
       interface GhostCoverageGap { category: string; severity: string; description: string; confidence: number }
       interface GhostCoverageAPI { analyzeGhostCoverage?(files: string[], target: string): Promise<{ success: boolean; value?: { gaps?: GhostCoverageGap[] } }> }
-      interface GhostKernel { getDomainAPIAsync(name: string): Promise<GhostCoverageAPI | undefined> }
       let ghostGaps: GhostCoverageGap[] | undefined;
       if (params.includeGhost) {
         try {
-          const contextExt = context as MCPToolContext & { kernel?: GhostKernel };
-          const kernel = contextExt.kernel;
-          if (kernel) {
-            const coordAPI = await kernel.getDomainAPIAsync('coverage-analysis');
+          // A14: context.kernel is now a real MCPToolContext field (was
+          // previously always undefined — nothing set it — so this branch
+          // was dead code regardless of --includeGhost).
+          const kernel = await getKernel(context);
+          if (kernel?.getDomainAPIAsync) {
+            const coordAPI = await kernel.getDomainAPIAsync<GhostCoverageAPI>('coverage-analysis');
             if (coordAPI?.analyzeGhostCoverage) {
               const ghostResult = await coordAPI.analyzeGhostCoverage(
                 domainFiles.map((f: DomainFileCoverage) => f.path),

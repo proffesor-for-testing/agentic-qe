@@ -893,7 +893,9 @@ export class ProductFactorsBridgeService
 
     await this.memory.set(cacheKey, cacheEntry, {
       namespace: 'code-intelligence',
-      ttl: this.config.cacheTtlMs,
+      // MemoryBackend.set's ttl is in SECONDS (unified-memory.ts:607 does
+      // Date.now() + ttl * 1000) — cacheTtlMs is milliseconds, so convert.
+      ttl: this.config.cacheTtlMs / 1000,
     });
   }
 

@@ -270,7 +270,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       this.analysisCache.set(testId, cachedAnalysis);
       await this.memory.set(`flaky-analysis:${testId}`, cachedAnalysis, {
         namespace: 'test-execution',
-        ttl: 3600000, // 1 hour
+        ttl: 3600, // 1 hour (ttl is in SECONDS — unified-memory.ts:607)
       });
 
       return ok(analysis);

@@ -131,6 +131,8 @@ coordination/orchestration/*
 !src/adapters/claude-flow/
 .agentic-qe/aqe.rvf.manifest.json
 .agentic-qe/memory/
+# ADR-070: Ed25519 witness-chain signing keys — never commit private key material
+.agentic-qe/witness-keys/
 .agentic-qe/data/learning/state.json
 .agentic-qe/data/improvement/state.json
 .agentic-qe/a11y-scans/

@@ -87,21 +87,24 @@ const FATAL_MARKERS = [
   'was compiled against a different Node.js version',
 ];
 
-function recordHookHealth(stderr) {
+// Internal timeout for the spawned bundle process. Kept BELOW the harness's
+// own hook timeout (settings.json) so THIS script observes and logs a stall
+// itself — if the harness timeout fires first, this whole process is killed
+// too and never gets to write the log line. (2026-06-02 postmortem: a 5s
+// harness timeout vs. this shim's own admitted ~30-60s cold start left
+// routing_outcomes writes silently dropped for a month — nothing recorded
+// the mismatch because nothing was watching for it.)
+const SPAWN_TIMEOUT_MS = Number(process.env.AQE_HOOK_TIMEOUT_MS) || 18000;
+
+function recordHookHealth(line) {
   try {
-    if (!stderr) return;
-    const hit = FATAL_MARKERS.find((m) => stderr.includes(m));
-    if (!hit) return;
     const logPath = path.join(PROJECT, '.agentic-qe', 'hooks-health.log');
     // Throttle: skip if we logged within the last 5 min (avoid a line/turn).
     try {
       const st = fs.statSync(logPath);
       if (Date.now() - st.mtimeMs < 5 * 60 * 1000) return;
     } catch { /* no log yet — fall through and create it */ }
-    const subcmd = args[0] || 'unknown';
-    const line = `[${new Date().toISOString()}] FATAL hook persistence failure `
-      + `(cmd=${subcmd}): "${hit}". Learning is NOT being captured. `
-      + `Fix: \`npm rebuild better-sqlite3\` (host/container native-binary mismatch).\n`;
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
     fs.appendFileSync(logPath, line);
   } catch { /* health logging must never block a turn */ }
 }
@@ -109,12 +112,43 @@ function recordHookHealth(stderr) {
 let out = '';
 try {
   const res = spawnSync(cmd, cmdArgs, {
-    stdio: ['ignore', 'pipe', 'pipe'], // swallow stdin; capture stderr to scan
+    // Claude Code delivers hook event data (prompt, tool_input, etc.) as JSON
+    // on stdin — `$PROMPT`/`$TOOL_INPUT_*` env-var substitution is NOT
+    // reliable on every hook surface (see hooks-shared.ts:readStdinJsonEvent's
+    // own docstring). Discarding stdin here silently broke the CLI's
+    // existing, already-safe stdin fallback (500ms internal timeout, never
+    // hangs) — inherit it instead so that fallback can actually run.
+    stdio: ['inherit', 'pipe', 'pipe'],
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
+    timeout: SPAWN_TIMEOUT_MS,
   });
   out = (res && res.stdout) || '';
-  recordHookHealth((res && res.stderr) || ''); // tee fatal markers to health log
+  const subcmd = args[0] || 'unknown';
+  const stderr = (res && res.stderr) || '';
+  const hit = FATAL_MARKERS.find((m) => stderr.includes(m));
+  const ts = () => new Date().toISOString();
+  if (hit) {
+    recordHookHealth(`[${ts()}] FATAL hook persistence failure `
+      + `(cmd=${subcmd}): "${hit}". Learning is NOT being captured. `
+      + `Fix: \`npm rebuild better-sqlite3\` (host/container native-binary mismatch).\n`);
+  } else if (res && res.signal) {
+    // Killed by our own SPAWN_TIMEOUT_MS (or another signal) before finishing.
+    // No output means no persistence happened for this invocation.
+    recordHookHealth(`[${ts()}] TIMEOUT hook did not complete `
+      + `(cmd=${subcmd}, signal=${res.signal}, budget=${SPAWN_TIMEOUT_MS}ms). `
+      + `Learning for this invocation was NOT captured.\n`);
+  } else if (res && res.error) {
+    // spawnSync couldn't even launch the child (ENOENT/EACCES/etc).
+    recordHookHealth(`[${ts()}] SPAWN-FAILED hook could not start `
+      + `(cmd=${subcmd}): ${res.error.message || res.error}. `
+      + `Learning for this invocation was NOT captured.\n`);
+  } else if (res && res.status !== 0 && !out.includes('{')) {
+    // Child exited non-zero with no JSON payload — e.g. an empty-task throw
+    // when the harness didn't populate $PROMPT/$TOOL_INPUT_*.
+    recordHookHealth(`[${ts()}] EMPTY-RESULT hook exited status=${res.status} `
+      + `with no JSON output (cmd=${subcmd}). stderr: ${stderr.slice(0, 300)}\n`);
+  }
 } catch { /* never block a turn */ }
 
 // Emit only the top-level JSON object: the first line beginning with '{' through

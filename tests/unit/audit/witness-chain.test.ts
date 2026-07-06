@@ -303,4 +303,108 @@ describe('WitnessChain', () => {
       expect(result.valid).toBe(true);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Archival (ADR-070): archiving old entries must not break verify() for the
+  // entries that remain live.
+  // --------------------------------------------------------------------------
+
+  describe('archival', () => {
+    // A cutoff in the future so every entry created "now" counts as archivable.
+    const FUTURE_CUTOFF = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    it('should move old entries to witness_chain_archive and delete them from the live table', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.append('PATTERN_UPDATE', { id: '1' }, 'system');
+      chain.append('PATTERN_PROMOTE', { id: '1' }, 'system');
+
+      const { archived } = chain.archiveEntries(FUTURE_CUTOFF);
+
+      // Genesis (id=1) is never archived; the other 2 are.
+      expect(archived).toBe(2);
+      expect(chain.getChainLength()).toBe(1);
+      const archiveRows = db.prepare('SELECT COUNT(*) as cnt FROM witness_chain_archive').get() as { cnt: number };
+      expect(archiveRows.cnt).toBe(2);
+    });
+
+    it('should never archive the genesis entry (id=1)', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.archiveEntries(FUTURE_CUTOFF);
+
+      expect(chain.getChainLength()).toBe(1);
+      const genesis = db.prepare('SELECT * FROM witness_chain WHERE id = 1').get();
+      expect(genesis).toBeDefined();
+    });
+
+    it('verify() (live-only) should stay valid after archival — the actual bug this fixes', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.append('PATTERN_UPDATE', { id: '1' }, 'system');
+      chain.append('PATTERN_PROMOTE', { id: '1' }, 'system');
+      chain.append('QUALITY_GATE_PASS', { gate: 'deploy' }, 'quality-gate');
+      chain.append('ROUTING_DECISION', { agent: 'coder' }, 'router');
+
+      // Archive everything except the newest entry (and genesis, which is
+      // always exempt) — leaves a gap between id=1 and the last surviving id.
+      chain.archiveEntries(FUTURE_CUTOFF);
+      chain.append('BRANCH_MERGE', {}, 'router'); // new entry chained onto the pre-archival tail
+
+      const result = chain.verify();
+      expect(result.valid).toBe(true);
+      // Before the fix, this would report brokenAt at the first surviving
+      // entry after the archived gap because verify() diffed against
+      // whatever row happened to be array-adjacent, not the true predecessor.
+    });
+
+    it('verify({includeArchive:true}) should validate the full historical chain, archive included', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.append('PATTERN_UPDATE', { id: '1' }, 'system');
+      chain.append('PATTERN_PROMOTE', { id: '1' }, 'system');
+
+      chain.archiveEntries(FUTURE_CUTOFF);
+      chain.append('QUALITY_GATE_PASS', { gate: 'deploy' }, 'quality-gate');
+
+      const liveOnly = chain.verify();
+      const full = chain.verify({ includeArchive: true });
+
+      expect(liveOnly.valid).toBe(true);
+      expect(liveOnly.entriesChecked).toBe(2); // genesis + the post-archival entry
+      expect(full.valid).toBe(true);
+      expect(full.entriesChecked).toBe(4); // all 4 entries ever appended
+    });
+
+    it('verify({includeArchive:true}) should detect tampering with an already-archived entry', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.append('PATTERN_UPDATE', { id: '1' }, 'system');
+      chain.append('PATTERN_PROMOTE', { id: '1' }, 'system');
+      chain.archiveEntries(FUTURE_CUTOFF);
+
+      // Tamper with the archived copy of entry 2.
+      db.prepare('UPDATE witness_chain_archive SET action_data = ? WHERE id = 2').run(
+        JSON.stringify({ id: '1', tampered: true })
+      );
+
+      const liveOnly = chain.verify();
+      const full = chain.verify({ includeArchive: true });
+
+      // Live-only verify can't see the archive, so tampering there is invisible to it.
+      expect(liveOnly.valid).toBe(true);
+      // The deep check catches it.
+      expect(full.valid).toBe(false);
+      expect(full.brokenAt).toBe(2);
+    });
+
+    it('should still report a genuine broken chain (illegitimate deletion, not archival) as invalid', () => {
+      chain.append('PATTERN_CREATE', { id: '1' }, 'system');
+      chain.append('PATTERN_UPDATE', { id: '1' }, 'system');
+      chain.append('PATTERN_PROMOTE', { id: '1' }, 'system');
+
+      // Delete id=2 directly, bypassing archiveEntries — nothing lands in
+      // witness_chain_archive, so this must still be flagged as tampering.
+      db.prepare('DELETE FROM witness_chain WHERE id = 2').run();
+
+      const result = chain.verify();
+      expect(result.valid).toBe(false);
+      expect(result.brokenAt).toBe(3);
+    });
+  });
 });

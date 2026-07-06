@@ -22,6 +22,8 @@ import {
   updateRoutingOutcomeQuality,
   printJson,
   printSuccess,
+  extractAgentFromEvent,
+  readStdinJsonEvent,
 } from './hooks-shared.js';
 import { ensureRoutingOutcomesAdr095Columns } from '../../../routing/routing-outcomes-migration.js';
 import { deriveTaskType } from '../../../learning/agent-routing.js';
@@ -366,6 +368,23 @@ export function registerTaskHooks(hooks: Command): void {
     .action(async (options) => {
       try {
         const success = options.success === 'true' || options.success === true;
+
+        // Issue #460 fix: `$TOOL_INPUT_subagent_type` env-var substitution is
+        // not reliable on every hook surface (same class of problem as
+        // #453's file-path fallback) — fall back to the Claude Code hook
+        // event JSON on stdin when --agent resolves empty. Without this,
+        // `agent` collapses to 'unknown' below and every Q-value lands in
+        // the same bucket, so the router can never learn per-agent
+        // differentiation (rl_q_values stuck near-empty vs. routing_outcomes).
+        if (!options.agent || !String(options.agent).trim()) {
+          try {
+            const rawEvent = await readStdinJsonEvent();
+            const eventAgent = extractAgentFromEvent(rawEvent);
+            if (eventAgent) options.agent = eventAgent;
+          } catch {
+            // best-effort — never crash the hook host
+          }
+        }
 
         // ADR-101: validate nesting provenance before any persistence
         const provenance = parseNestingProvenance(options.parentAgentId, options.depth);

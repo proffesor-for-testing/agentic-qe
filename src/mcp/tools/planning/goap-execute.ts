@@ -13,6 +13,7 @@ import {
   MCPToolConfig,
   MCPToolContext,
   MCPToolSchema,
+  getKernel,
 } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
@@ -20,8 +21,10 @@ import {
   GOAPPlanner,
   getSharedGOAPPlanner,
   PlanExecutor,
-  createMockExecutor,
+  MockAgentSpawner,
+  type GetDomainAPIFn,
 } from '../../../planning/index.js';
+import type { QEKernel } from '../../../kernel/interfaces.js';
 
 // ============================================================================
 // Types
@@ -79,8 +82,11 @@ export class GOAPExecuteTool extends MCPToolBase<GOAPExecuteParams, GOAPExecuteR
   readonly config: MCPToolConfig = {
     name: 'qe/planning/goap_execute',
     description:
-      'Execute a GOAP plan, spawning agents to perform each action step. ' +
-      'Supports dry-run mode to simulate execution without actual agent spawning.',
+      'Execute a GOAP plan. Each action dispatches to a real domain API method ' +
+      "when the action is marked implemented and a kernel is available (run fleet_init " +
+      'first); actions with no real implementation, or with no domain/kernel available, ' +
+      'fail with a specific reason rather than reporting a fabricated success. ' +
+      'Supports dry-run mode to preview the plan without executing anything.',
     domain: 'coordination',
     schema: this.buildSchema(),
     timeout: 300000, // 5 minutes for plan execution
@@ -128,21 +134,37 @@ export class GOAPExecuteTool extends MCPToolBase<GOAPExecuteParams, GOAPExecuteR
   }
 
   /**
-   * Get or create the plan executor instance
+   * Get or create the plan executor instance.
+   *
+   * A14: previously always built a mock executor (createMockExecutor,
+   * successRate: 0.95) regardless of whether real domain services were
+   * available — every "real execution" was actually a fabricated coin
+   * flip. Now constructs a real PlanExecutor with a getDomainAPI closure:
+   * `implemented: true` actions dispatch to the real domain method;
+   * `implemented: false` actions fail honestly (see PlanExecutor.executeStep).
+   *
+   * The closure is passed even when `kernel` is undefined (fleet_init
+   * hasn't run) — PlanExecutor.executeRealAction() then reports a clear
+   * "domain not available" error per step, which is what the user should
+   * see instead of a silent fallback to simulation.
    */
-  private async getExecutor(): Promise<PlanExecutor> {
+  private async getExecutor(kernel: QEKernel | undefined): Promise<PlanExecutor> {
     if (!this.executor) {
       const planner = await this.getPlanner();
-      this.executor = createMockExecutor(planner, {
-        successRate: 0.95, // High success rate for mock executor
-        config: {
+      const getDomainAPI: GetDomainAPIFn = (domain) => kernel?.getDomainAPI(domain);
+      this.executor = new PlanExecutor(
+        planner,
+        new MockAgentSpawner(), // fallback only for actions with no `implemented` classification (e.g. custom addAction() calls) — see PlanExecutor's backward-compat contract
+        undefined,
+        {
           maxRetries: 2,
           stepTimeoutMs: 60000,
           replanOnFailure: true,
           parallelExecution: false,
           recordWorldState: true,
         },
-      });
+        getDomainAPI
+      );
       await this.executor.initialize();
     }
     return this.executor;
@@ -200,7 +222,8 @@ export class GOAPExecuteTool extends MCPToolBase<GOAPExecuteParams, GOAPExecuteR
       }
 
       // Real execution
-      const executor = await this.getExecutor();
+      const kernel = await getKernel(context);
+      const executor = await this.getExecutor(kernel);
 
       // Check if already executing
       if (executor.isExecuting()) {

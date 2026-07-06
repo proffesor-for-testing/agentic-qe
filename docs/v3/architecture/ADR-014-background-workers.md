@@ -253,3 +253,7 @@ class CustomWorker extends BaseWorker {
 - **Author**: Agentic QE Team
 - **Status**: Accepted
 - **Supersedes**: None
+
+### Status Verification (2026-07-06, system-integrity remediation, A18)
+
+A system-integrity audit (2026-07-04) found two real gaps in this ADR's promised visibility: (1) `aqe health` had no way to tell whether the detached background-worker daemon (`.agentic-qe/workers/start-daemon.cjs`, PID in `daemon.pid`) was actually running — a stopped daemon looked identical to a healthy one; (2) `learning_daily_snapshots` only ever populated via the manual `aqe learning dashboard --save-snapshot` flag, never automatically from the `LearningConsolidationWorker`'s real ~30-min cadence — the production DB had 0 rows despite months of activity. Both fixed: `checkDaemonLiveness()` added to `aqe health` (mirrors the existing `stop-daemon.cjs` liveness check); `saveSnapshot()` now called from the consolidation worker's existing best-effort `finally` block alongside `recordLoopHealth`. **Verified by**: `tests/unit/cli/handlers/status-handler.test.ts` (4/4), `tests/unit/workers/workers/learning-consolidation-snapshot.test.ts` (3/3); real verification against this actual dev environment found a genuine stale `daemon.pid` (PID 17513) that `aqe health` now correctly surfaces instead of silently reporting healthy. Details in `docs/plans/SYSTEM-INTEGRITY-REMEDIATION-GOAP-PLAN-2026-07-04.md` (A18).

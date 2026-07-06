@@ -99,6 +99,9 @@ export class LearningCoordinatorService
    */
   private flashAttention: QEFlashAttention | null = null;
 
+  /** ADR-110 null store, lazily wired. undefined = not yet attempted; null = attempted and unavailable. */
+  private _nullStore?: import('../../../learning/pattern-null-store.js').PatternNullStore | null;
+
   constructor(
     dependencies: LearningCoordinatorDependencies,
     config: Partial<LearningCoordinatorConfig> = {}
@@ -629,9 +632,65 @@ Provide:
       // Index by agent and domain for faster retrieval
       await this.indexExperience(fullExperience);
 
+      // ADR-110: a pattern-guided failure is a kept null, not a discarded
+      // run. Only fires when the caller supplied real matched-pattern IDs
+      // (appliedPatternIds) — most domains don't track this yet, so this is
+      // a no-op for them, which is correct (nothing to blame the failure on).
+      if (!experience.result.success && experience.appliedPatternIds?.length) {
+        await this.recordPatternNulls(fullExperience);
+      }
+
       return ok(id);
     } catch (error) {
       return err(toError(error));
+    }
+  }
+
+  /**
+   * Lazily wire the ADR-110 null store (fail-soft — mirrors the witness-chain
+   * wiring pattern in AQELearningEngine). Cached after first successful init;
+   * silently no-ops if the unified persistence layer isn't available (e.g.
+   * memory-only mode) so a learning-side failure never blocks the caller.
+   */
+  private async getNullStore(): Promise<import('../../../learning/pattern-null-store.js').PatternNullStore | undefined> {
+    if (this._nullStore !== undefined) return this._nullStore || undefined;
+    try {
+      const { getUnifiedPersistence } = await import('../../../kernel/unified-persistence.js');
+      const persistence = getUnifiedPersistence();
+      if (!persistence.isInitialized()) {
+        this._nullStore = null;
+        return undefined;
+      }
+      const { PatternNullStore } = await import('../../../learning/pattern-null-store.js');
+      this._nullStore = new PatternNullStore(
+        persistence.getDatabase() as ConstructorParameters<typeof PatternNullStore>[0]
+      );
+      return this._nullStore;
+    } catch (e) {
+      this._nullStore = null;
+      logger.warn('Null store wiring skipped', { error: e instanceof Error ? e.message : String(e) });
+      return undefined;
+    }
+  }
+
+  private async recordPatternNulls(experience: Experience): Promise<void> {
+    const nullStore = await this.getNullStore();
+    if (!nullStore) return;
+    const contextFingerprint = `${experience.domain}:${experience.action}`;
+    for (const patternId of experience.appliedPatternIds ?? []) {
+      try {
+        nullStore.recordNull({
+          patternId,
+          contextFingerprint,
+          failureMode: String(experience.result.outcome?.error ?? experience.action),
+          evidenceClass: 'EXECUTED',
+        });
+      } catch (e) {
+        logger.warn('Failed to record pattern null', {
+          patternId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
   }
 

@@ -28,6 +28,16 @@ import type { GOAPPlanner } from './goap-planner.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import type { DomainName } from '../shared/types/index.js';
+
+/**
+ * A14: resolves a real, initialized domain plugin's public API — the same
+ * shape `Kernel.getDomainAPI<T>()` returns and `DefaultProtocolExecutor`
+ * dispatches through. Returns undefined when the domain isn't loaded/no
+ * kernel is available; PlanExecutor must degrade to a clear "not
+ * available" error, never a fabricated result, when this returns undefined.
+ */
+export type GetDomainAPIFn = (domain: DomainName) => unknown | undefined;
 
 // ============================================================================
 // Configuration Types
@@ -54,6 +64,16 @@ export interface ExecutionConfig {
    * @default true
    */
   useUnified: boolean;
+  /**
+   * A14: when true, every step is simulated via the injected AgentSpawner
+   * regardless of an action's `implemented` flag — for previews/testing.
+   * When false (default), implemented actions dispatch to a real domain API
+   * method (via the constructor's `getDomainAPI`); actions with no real
+   * binding return a clear "not implemented" failure rather than a
+   * simulated success.
+   * @default false
+   */
+  dryRun: boolean;
 }
 
 /**
@@ -66,7 +86,23 @@ const DEFAULT_CONFIG: ExecutionConfig = {
   parallelExecution: false,
   recordWorldState: true,
   useUnified: true, // ADR-046: Default to unified storage
+  dryRun: false, // A14: real dispatch is the default going forward
 };
+
+/**
+ * A14: safely render a real domain method's return value into
+ * ExecutedStep.agentOutput (a string field). Truncates to keep large
+ * results (e.g. a full coverage report) out of the execution log; never
+ * throws on circular references or non-serializable values.
+ */
+function safeStringify(value: unknown, maxLength = 2000): string {
+  try {
+    const str = typeof value === 'string' ? value : JSON.stringify(value);
+    return str.length > maxLength ? `${str.slice(0, maxLength)}...(truncated)` : str;
+  } catch {
+    return String(value);
+  }
+}
 
 // ============================================================================
 // Result Types
@@ -148,34 +184,34 @@ export interface AgentSpawner {
 // Database Record Types
 // ============================================================================
 
-interface ExecutionResultRecord {
+/** A14: matches the canonical goap_execution_steps schema (unified-memory-schemas.ts GOAP_SCHEMA). */
+interface GoapExecutionStepRecord {
   id: string;
   plan_id: string;
-  status: string;
-  steps_completed: number;
-  steps_failed: number;
-  total_duration_ms: number;
-  final_world_state: string | null;
-  error_message: string | null;
-  created_at: string;
-}
-
-interface ExecutedStepRecord {
-  id: string;
   execution_id: string;
-  plan_id: string;
   action_id: string;
   step_order: number;
   status: string;
   retries: number;
-  started_at: string;
-  completed_at: string | null;
+  started_at: string | null;
   duration_ms: number | null;
   agent_id: string | null;
   agent_output: string | null;
   world_state_before: string | null;
   world_state_after: string | null;
   error_message: string | null;
+  created_at: string;
+}
+
+interface ExecutionHistoryAggregateRow {
+  execution_id: string;
+  plan_id: string;
+  started_at: string;
+  steps_completed: number;
+  steps_failed: number;
+  total_duration_ms: number;
+  steps_recorded: number;
+  last_error: string | null;
 }
 
 // ============================================================================
@@ -221,7 +257,19 @@ export class PlanExecutor {
     planner: GOAPPlanner,
     spawner: AgentSpawner,
     dbPath?: string,
-    config?: Partial<ExecutionConfig>
+    config?: Partial<ExecutionConfig>,
+    /**
+     * A14: resolves real domain plugin APIs, mirroring
+     * DefaultProtocolExecutor's constructor-injected getDomainAPI. When
+     * provided (non-undefined), `implemented: true` actions dispatch to a
+     * real domain method instead of the simulated `spawner` — this is an
+     * opt-in so every EXISTING caller/test that constructs a PlanExecutor
+     * without this param keeps its current (simulated) behavior unchanged.
+     * `implemented: false` actions always fail clearly regardless of this
+     * param — fabricating success for a known-unimplemented action is
+     * exactly the problem this exists to eliminate.
+     */
+    private readonly getDomainAPI?: GetDomainAPIFn
   ) {
     this.planner = planner;
     this.spawner = spawner;
@@ -270,51 +318,40 @@ export class PlanExecutor {
   }
 
   /**
-   * Create execution tracking tables
+   * Create execution tracking tables.
+   *
+   * A14: previously invented parallel execution_results/executed_steps
+   * tables with no relationship to the canonical schema. Now uses the same
+   * goap_execution_steps table the unified-storage path relies on (created
+   * via unified-memory-schemas.ts's GOAP_SCHEMA + v11 migration) — this
+   * legacy (non-unified) path just needs to create it directly since it
+   * doesn't go through that migration chain.
    */
   private createTables(): void {
-    // Execution results table
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS execution_results (
+      CREATE TABLE IF NOT EXISTS goap_execution_steps (
         id TEXT PRIMARY KEY,
         plan_id TEXT NOT NULL,
-        status TEXT NOT NULL,
-        steps_completed INTEGER DEFAULT 0,
-        steps_failed INTEGER DEFAULT 0,
-        total_duration_ms INTEGER DEFAULT 0,
-        final_world_state TEXT,
+        execution_id TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        step_order INTEGER NOT NULL,
+        world_state_before TEXT,
+        world_state_after TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        retries INTEGER DEFAULT 0,
+        started_at TEXT,
+        duration_ms INTEGER,
+        agent_id TEXT,
+        agent_output TEXT,
         error_message TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       )
     `);
 
-    // Executed steps table
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS executed_steps (
-        id TEXT PRIMARY KEY,
-        execution_id TEXT NOT NULL,
-        plan_id TEXT NOT NULL,
-        action_id TEXT NOT NULL,
-        step_order INTEGER NOT NULL,
-        status TEXT NOT NULL,
-        retries INTEGER DEFAULT 0,
-        started_at TEXT NOT NULL,
-        completed_at TEXT,
-        duration_ms INTEGER,
-        agent_id TEXT,
-        agent_output TEXT,
-        world_state_before TEXT,
-        world_state_after TEXT,
-        error_message TEXT,
-        FOREIGN KEY (execution_id) REFERENCES execution_results(id)
-      )
-    `);
-
-    // Indexes
-    this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_exec_results_plan ON execution_results(plan_id);
-      CREATE INDEX IF NOT EXISTS idx_exec_steps_execution ON executed_steps(execution_id);
-      CREATE INDEX IF NOT EXISTS idx_exec_steps_action ON executed_steps(action_id);
+      CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_plan ON goap_execution_steps(plan_id);
+      CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_execution ON goap_execution_steps(execution_id);
+      CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_action ON goap_execution_steps(action_id);
     `);
   }
 
@@ -533,6 +570,27 @@ export class PlanExecutor {
       };
     }
 
+    // A14: an action explicitly marked as having no real domain backing
+    // must never report a fabricated success — regardless of dryRun or
+    // whether a kernel is available. This is the actual fix for the "mock
+    // executor fabricates successRate: 0.95 results indistinguishable from
+    // real execution" problem: known-unimplemented actions now fail
+    // honestly instead of rolling dice.
+    if (action.implemented === false) {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Action '${action.name}' has no real implementation yet (not simulated — see GOAPAction.implemented)`,
+      };
+    }
+
+    // A14: real dispatch — opt-in via constructor-injected getDomainAPI
+    // (mirrors DefaultProtocolExecutor). Existing callers that construct a
+    // PlanExecutor without it keep today's simulated behavior unchanged.
+    if (!this.config.dryRun && this.getDomainAPI && action.implemented === true) {
+      return this.executeRealAction(action, currentState);
+    }
+
     // Build task description
     const taskDescription = this.buildTaskDescription(action);
 
@@ -565,6 +623,93 @@ export class PlanExecutor {
           error: agentResult.error || 'Agent execution failed',
         };
       }
+    } catch (error) {
+      return {
+        success: false,
+        newState: currentState,
+        error: toErrorMessage(error),
+      };
+    }
+  }
+
+  /**
+   * A14: dispatch an `implemented: true` action to its real domain API
+   * method — mirrors DefaultProtocolExecutor.executeAction()'s resolve →
+   * lookup → invoke pattern, but for GOAPActions instead of ProtocolActions.
+   * Every non-success path returns a clear, specific reason (no domain
+   * loaded, no such method, threw, timed out) rather than a generic
+   * failure — this is what a user should see instead of a fabricated
+   * `successRate: 0.95` roll.
+   */
+  private async executeRealAction(
+    action: GOAPAction,
+    currentState: V3WorldState
+  ): Promise<{
+    success: boolean;
+    newState: V3WorldState;
+    output?: string;
+    agentId?: string;
+    error?: string;
+  }> {
+    if (!action.qeDomain) {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Action '${action.name}' has no qeDomain to resolve a real API from`,
+      };
+    }
+    if (!action.method) {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Action '${action.name}' is marked implemented but has no method binding`,
+      };
+    }
+
+    let api: unknown;
+    try {
+      api = this.getDomainAPI!(action.qeDomain);
+    } catch (error) {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Failed to resolve domain '${action.qeDomain}': ${toErrorMessage(error)}`,
+      };
+    }
+    if (!api) {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Domain '${action.qeDomain}' is not available (kernel not initialized, or the domain isn't loaded — try fleet_init)`,
+      };
+    }
+
+    const method = (api as Record<string, unknown>)[action.method];
+    if (typeof method !== 'function') {
+      return {
+        success: false,
+        newState: currentState,
+        error: `Domain '${action.qeDomain}' has no method '${action.method}'`,
+      };
+    }
+
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Step timeout after ${this.config.stepTimeoutMs}ms`)),
+          this.config.stepTimeoutMs
+        )
+      );
+      const invokePromise = (method as (...args: unknown[]) => Promise<unknown>).call(api, action.params ?? {});
+      const result = await Promise.race([invokePromise, timeoutPromise]);
+
+      const newState = this.applyEffects(currentState, action.effects);
+      return {
+        success: true,
+        newState,
+        output: safeStringify(result),
+        agentId: `domain:${action.qeDomain}`,
+      };
     } catch (error) {
       return {
         success: false,
@@ -661,7 +806,17 @@ export class PlanExecutor {
   // ==========================================================================
 
   /**
-   * Get execution history
+   * Get execution history.
+   *
+   * A14: reconstructed from goap_execution_steps (grouped by execution_id)
+   * instead of read from an invented execution_results table. The
+   * execution-level `status` is derived, not stored directly — steps don't
+   * carry an execution-level concept of 'partial' (a replan-specific
+   * in-memory result of executeWithCallbacks' recursion), so a replanned
+   * execution that ultimately succeeded may read back here as 'completed'
+   * rather than 'partial'. 'cancelled' is inferred from recording fewer
+   * steps than the plan called for; 'failed' takes priority when any step
+   * failed.
    *
    * @param planId - Filter by plan ID (optional)
    * @param limit - Maximum number of results (default: 100)
@@ -673,7 +828,18 @@ export class PlanExecutor {
   ): Promise<ExecutionResult[]> {
     await this.initialize();
 
-    let query = 'SELECT * FROM execution_results';
+    let query = `
+      SELECT
+        execution_id,
+        plan_id,
+        MIN(created_at) as started_at,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as steps_completed,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as steps_failed,
+        SUM(COALESCE(duration_ms, 0)) as total_duration_ms,
+        COUNT(*) as steps_recorded,
+        MAX(CASE WHEN status = 'failed' THEN error_message END) as last_error
+      FROM goap_execution_steps
+    `;
     const params: unknown[] = [];
 
     if (planId) {
@@ -681,28 +847,44 @@ export class PlanExecutor {
       params.push(planId);
     }
 
-    query += ' ORDER BY created_at DESC LIMIT ?';
+    query += ' GROUP BY execution_id, plan_id ORDER BY started_at DESC LIMIT ?';
     params.push(limit);
 
-    const rows = this.db.prepare(query).all(...params) as ExecutionResultRecord[];
+    const rows = this.db.prepare(query).all(...params) as ExecutionHistoryAggregateRow[];
 
     return Promise.all(
       rows.map(async (row) => {
-        const steps = await this.getExecutedSteps(row.id);
+        const steps = await this.getExecutedSteps(row.execution_id);
+        const finalWorldState = [...steps].reverse().find((s) => s.worldStateAfter)?.worldStateAfter;
+        const plannedStepCount = this.getPlannedActionCount(row.plan_id);
+
+        let status: ExecutionResult['status'];
+        if (row.steps_failed > 0) status = 'failed';
+        else if (plannedStepCount != null && row.steps_recorded < plannedStepCount) status = 'cancelled';
+        else status = 'completed';
+
         return {
           planId: row.plan_id,
-          status: row.status as ExecutionResult['status'],
+          status,
           stepsCompleted: row.steps_completed,
           stepsFailed: row.steps_failed,
           totalDurationMs: row.total_duration_ms,
-          finalWorldState: row.final_world_state
-            ? safeJsonParse(row.final_world_state)
-            : undefined,
-          error: row.error_message ?? undefined,
+          finalWorldState,
+          error: row.last_error ?? undefined,
           steps,
         };
       })
     );
+  }
+
+  /** Number of actions in a saved plan, or null if the plan can't be found/parsed. */
+  private getPlannedActionCount(planId: string): number | null {
+    const row = this.db
+      .prepare('SELECT action_sequence FROM goap_plans WHERE id = ?')
+      .get(planId) as { action_sequence: string } | undefined;
+    if (!row) return null;
+    const actionIds = safeJsonParse<string[]>(row.action_sequence);
+    return Array.isArray(actionIds) ? actionIds.length : null;
   }
 
   /**
@@ -711,9 +893,9 @@ export class PlanExecutor {
   private async getExecutedSteps(executionId: string): Promise<ExecutedStep[]> {
     const rows = this.db
       .prepare(
-        `SELECT * FROM executed_steps WHERE execution_id = ? ORDER BY step_order`
+        `SELECT * FROM goap_execution_steps WHERE execution_id = ? ORDER BY step_order`
       )
-      .all(executionId) as ExecutedStepRecord[];
+      .all(executionId) as GoapExecutionStepRecord[];
 
     return rows.map((row) => ({
       id: row.id,
@@ -735,8 +917,11 @@ export class PlanExecutor {
       agentId: row.agent_id ?? undefined,
       error: row.error_message ?? undefined,
       retries: row.retries,
-      startedAt: new Date(row.started_at),
-      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      startedAt: row.started_at ? new Date(row.started_at) : new Date(row.created_at),
+      completedAt:
+        row.started_at && row.duration_ms != null
+          ? new Date(new Date(row.started_at).getTime() + row.duration_ms)
+          : undefined,
       agentOutput: row.agent_output ?? undefined,
       worldStateBefore: row.world_state_before
         ? safeJsonParse(row.world_state_before)
@@ -752,53 +937,38 @@ export class PlanExecutor {
   // ==========================================================================
 
   /**
-   * Persist execution result to database
+   * Persist execution result to database.
+   *
+   * A14: writes to the canonical goap_execution_steps table (one row per
+   * step per execution attempt, grouped by executionId) instead of an
+   * invented execution_results/executed_steps pair. The execution-level
+   * summary (status/timing) that execution_results used to hold now lives
+   * on goap_plans itself — status/executed_at/completed_at were already
+   * part of that table's schema but never actually written by anything
+   * before this fix.
    */
   private async persistExecutionResult(
     executionId: string,
     result: ExecutionResult
   ): Promise<void> {
-    // Insert execution result
-    this.db
-      .prepare(
-        `
-      INSERT INTO execution_results (
-        id, plan_id, status, steps_completed, steps_failed,
-        total_duration_ms, final_world_state, error_message
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        executionId,
-        result.planId,
-        result.status,
-        result.stepsCompleted,
-        result.stepsFailed,
-        result.totalDurationMs,
-        result.finalWorldState ? JSON.stringify(result.finalWorldState) : null,
-        result.error ?? null
-      );
-
-    // Insert executed steps
     const insertStep = this.db.prepare(`
-      INSERT INTO executed_steps (
-        id, execution_id, plan_id, action_id, step_order, status,
-        retries, started_at, completed_at, duration_ms, agent_id,
+      INSERT INTO goap_execution_steps (
+        id, plan_id, execution_id, action_id, step_order, status,
+        retries, started_at, duration_ms, agent_id,
         agent_output, world_state_before, world_state_after, error_message
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const step of result.steps) {
       insertStep.run(
         step.id,
-        executionId,
         step.planId,
+        executionId,
         step.action.id,
         step.stepOrder,
         step.status,
         step.retries,
         step.startedAt.toISOString(),
-        step.completedAt?.toISOString() ?? null,
         step.durationMs ?? null,
         step.agentId ?? null,
         step.agentOutput ?? null,
@@ -806,6 +976,29 @@ export class PlanExecutor {
         step.worldStateAfter ? JSON.stringify(step.worldStateAfter) : null,
         step.error ?? null
       );
+    }
+
+    // Reflects only the most recent execution attempt for this plan — a
+    // deliberate, documented scope limit: goap_plans is one row per plan,
+    // not per attempt. Full per-attempt history remains queryable via
+    // goap_execution_steps grouped by execution_id (see getExecutionHistory).
+    try {
+      this.db.prepare(`
+        UPDATE goap_plans SET status = ?, executed_at = COALESCE(executed_at, ?), completed_at = ?
+        WHERE id = ?
+      `).run(
+        result.status === 'completed' ? 'completed'
+          : result.status === 'cancelled' ? 'cancelled'
+          : 'failed',
+        new Date(Date.now() - result.totalDurationMs).toISOString(),
+        new Date().toISOString(),
+        result.planId
+      );
+    } catch (error) {
+      // Best-effort — a plan row might not exist yet in edge cases (e.g.
+      // executing a plan object that was never saved). Must not fail the
+      // execution result the caller is waiting on.
+      console.warn('[PlanExecutor] Failed to update goap_plans status (non-fatal):', error);
     }
   }
 

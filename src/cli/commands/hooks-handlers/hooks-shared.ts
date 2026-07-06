@@ -406,6 +406,42 @@ export function extractFilePathFromEvent(raw: string): string {
   return '';
 }
 
+/**
+ * Extract the subagent/agent type from a Claude Code PostToolUse hook event
+ * for a Task/Agent tool call. `$TOOL_INPUT_subagent_type` env-var
+ * substitution is not reliable on every hook surface (same class of problem
+ * `extractFilePathFromEvent`/`extractPromptFromEvent` exist to work around —
+ * see #460: the router can never learn per-agent Q-values while every
+ * invocation collapses to 'unknown'). Checks `tool_input.subagent_type`
+ * (Claude Code's real shape) and a few historical/camelCase variants.
+ * Returns '' when no recognized field is present.
+ *
+ * Exported for unit testing.
+ */
+export function extractAgentFromEvent(raw: string): string {
+  if (!raw.trim()) return '';
+  let event: Record<string, unknown>;
+  try {
+    event = JSON.parse(raw);
+  } catch {
+    return '';
+  }
+  const toolInputSnake = event.tool_input as Record<string, unknown> | undefined;
+  const toolInputCamel = event.toolInput as Record<string, unknown> | undefined;
+  const candidates = [
+    toolInputSnake?.subagent_type,
+    toolInputSnake?.subagentType,
+    toolInputCamel?.subagent_type,
+    toolInputCamel?.subagentType,
+    event.subagent_type,
+    event.subagentType,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c;
+  }
+  return '';
+}
+
 // ============================================================================
 // Dream Scheduler & Learning — re-exported from hooks-dream-learning.ts
 // ============================================================================

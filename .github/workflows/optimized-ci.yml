@@ -46,6 +46,23 @@ jobs:
         if: always()
         run: npm audit --audit-level=high || echo "::warning::devDep CVEs found — fix before they migrate into prod"
 
+  # ─── Witness chain audit gate (ADR-070 Phase 6.2 / A13) ───
+  # Seeds a throwaway chain (append -> archive -> verify, then a deliberate
+  # tamper) and exercises the real `aqe audit verify --chain=audit` path
+  # end-to-end. Cheap, independent of the test shards, runs against source
+  # via tsx — no committed memory.db to check, so this guards the verify()
+  # logic and CLI wiring itself, not any specific historical data.
+  witness-chain-audit-gate:
+    name: Witness Chain Audit Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24.13.0', cache: 'npm' }
+      - run: npm ci
+      - run: npx tsx scripts/witness-chain-audit-gate.ts
+
   # ─── Journey Tests: 4 parallel shards ───
   # Previously a single 25-min job that timed out. Now 4 shards of ~5-8 min each.
 

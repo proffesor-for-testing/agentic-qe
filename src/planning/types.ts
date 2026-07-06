@@ -181,6 +181,30 @@ export interface GOAPAction {
 
   /** QE domain this action belongs to */
   qeDomain?: QEDomain;
+
+  /**
+   * A14: real domain API method to invoke when this action is executed —
+   * `kernel.getDomainAPI(qeDomain)[method](params)`, mirroring how
+   * DefaultProtocolExecutor dispatches ProtocolActions. Undefined when
+   * `implemented` is not true.
+   */
+  method?: string;
+
+  /**
+   * Static params template passed to `method`. GOAP actions are abstract
+   * plan steps (not bound to concrete files/targets at definition time),
+   * so this is often `{}` — many real domain methods need runtime context
+   * a plan step doesn't carry, and will legitimately error on missing
+   * required params rather than being fabricated a plausible-looking value.
+   */
+  params?: Record<string, unknown>;
+
+  /**
+   * True only when `method` names a real, non-stub domain API method.
+   * Actions without a real implementation MUST report "not implemented"
+   * when executed, not a fabricated success/failure — see GOAPExecutor.
+   */
+  implemented?: boolean;
 }
 
 // ============================================================================
@@ -388,6 +412,12 @@ export interface GOAPActionRecord {
   qe_domain: string | null;
   created_at: string;
   updated_at: string;
+  /** A14: real domain API method binding, null when not implemented */
+  method: string | null;
+  /** A14: JSON params template */
+  params: string | null;
+  /** A14: 1 when `method` is a real (non-stub) domain API binding, else 0 */
+  implemented: number;
 }
 
 /**

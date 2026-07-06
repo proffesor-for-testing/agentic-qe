@@ -58,7 +58,10 @@ export interface IGenerateTestsRequest {
 export interface IGeneratedTests {
   tests: IGeneratedTest[];
   coverageEstimate: number;
+  /** Human-readable pattern names, for display (reports, CLI output). */
   patternsUsed: string[];
+  /** Real qe_patterns.id values for the same patterns, for usage/ADR-110 tracking. */
+  patternIds?: string[];
 }
 
 export interface IGeneratedTest {

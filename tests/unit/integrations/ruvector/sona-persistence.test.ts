@@ -812,5 +812,38 @@ describe('PersistentSONAEngine', () => {
 
       await engine2.close();
     });
+
+    // A10: requestCount previously only survived via restoreFisher(), which
+    // only runs once a Fisher row already exists — but writing the FIRST
+    // Fisher row requires requestCount to reach consolidationInterval (100).
+    // Fresh short-lived processes could never accumulate past the threshold:
+    // cold-start deadlock, sona_fisher_matrices stuck at 0 rows forever.
+    it('accumulates the request counter across process restarts instead of resetting to 0 (A10)', async () => {
+      const domain = 'test-generation' as DomainName;
+      const config = createTestConfig({ domain });
+
+      const engine1 = await createPersistentSONAEngine(config);
+      expect(engine1.getRequestCount()).toBe(0);
+
+      engine1.instantAdapt([0.1, 0.2, 0.3]);
+      engine1.instantAdapt([0.2, 0.3, 0.4]);
+      engine1.instantAdapt([0.3, 0.4, 0.5]);
+      expect(engine1.getRequestCount()).toBe(3);
+
+      // No Fisher row exists yet (3 << consolidationInterval=100) — the OLD
+      // behavior would lose this progress entirely on the next process.
+      await engine1.close();
+
+      const engine2 = await createPersistentSONAEngine(config);
+      expect(engine2.getRequestCount()).toBe(3); // restored, NOT reset to 0
+
+      engine2.instantAdapt([0.4, 0.5, 0.6]);
+      expect(engine2.getRequestCount()).toBe(4);
+      await engine2.close();
+
+      const engine3 = await createPersistentSONAEngine(config);
+      expect(engine3.getRequestCount()).toBe(4); // keeps accumulating
+      await engine3.close();
+    });
   });
 });

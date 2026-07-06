@@ -242,7 +242,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
         timestamp: event.timestamp,
         sourceFiles: payload.sourceFiles,
       },
-      { namespace: 'test-execution', ttl: 86400000 } // 24 hours
+      { namespace: 'test-execution', ttl: 86400 } // 24 hours (ttl is in SECONDS — unified-memory.ts:607)
     );
   }
 
@@ -262,7 +262,7 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
           requiresRetry: true,
           failedChecks: payload.checks.filter(c => !c.passed).map(c => c.name),
         },
-        { namespace: 'test-execution', ttl: 3600000 } // 1 hour
+        { namespace: 'test-execution', ttl: 3600 } // 1 hour (ttl is in SECONDS — unified-memory.ts:607)
       );
     }
 

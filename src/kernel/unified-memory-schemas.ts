@@ -15,7 +15,7 @@ export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA };
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 10; // v10: adds qe_pattern_nulls — kept negative pattern records (ADR-110)
+export const SCHEMA_VERSION = 11; // v11: adds goap_execution_steps — canonical GOAP execution history (A14)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -108,7 +108,13 @@ export const GOAP_SCHEMA = `
     category TEXT NOT NULL,
     qe_domain TEXT,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    -- A14: real domain API method binding (kernel.getDomainAPI(qe_domain)[method](params)).
+    -- method/implemented are NULL/0 for actions with no real backing yet —
+    -- GOAPExecutor must report those as "not implemented", never simulate them.
+    method TEXT,
+    params TEXT,
+    implemented INTEGER DEFAULT 0
   );
 
   -- GOAP Plans
@@ -142,11 +148,50 @@ export const GOAP_SCHEMA = `
     created_at TEXT DEFAULT (datetime('now'))
   );
 
+  -- A14: canonical per-step execution history (was previously undefined in
+  -- this schema — plan-executor.ts invented its own parallel
+  -- execution_results/executed_steps tables instead). One row per action
+  -- step per execution attempt (execution_id groups steps from the same
+  -- plan.execute() call, since a plan can be executed/retried more than
+  -- once). Aggregate per-execution stats (steps completed/failed, total
+  -- duration, final world state) are derived by querying this table rather
+  -- than maintained in a separate denormalized summary table.
+  CREATE TABLE IF NOT EXISTS goap_execution_steps (
+    id TEXT PRIMARY KEY,
+    plan_id TEXT NOT NULL,
+    execution_id TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    step_order INTEGER NOT NULL,
+    world_state_before TEXT,
+    world_state_after TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    retries INTEGER DEFAULT 0,
+    started_at TEXT,
+    duration_ms INTEGER,
+    agent_id TEXT,
+    agent_output TEXT,
+    error_message TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+    -- Deliberately no FK to goap_plans/goap_actions: PlanExecutor.execute()
+    -- can legitimately run an ad-hoc GOAPPlan/GOAPAction that was never
+    -- saved via savePlan()/addAction() (e.g. programmatic orchestration
+    -- bypassing the A* planner). unified-memory.ts enables the
+    -- foreign_keys pragma, so an enforced FK here would reject that
+    -- entirely legitimate usage, not just catch real corruption.
+  );
+
   -- GOAP Indexes
   CREATE INDEX IF NOT EXISTS idx_goap_actions_category ON goap_actions(category);
   CREATE INDEX IF NOT EXISTS idx_goap_actions_agent ON goap_actions(agent_type);
   CREATE INDEX IF NOT EXISTS idx_goap_plans_status ON goap_plans(status);
   CREATE INDEX IF NOT EXISTS idx_goap_sig_goal ON goap_plan_signatures(goal_hash);
+  CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_plan ON goap_execution_steps(plan_id);
+  CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_action ON goap_execution_steps(action_id);
+  -- idx_goap_exec_steps_execution is NOT created here: databases with a
+  -- pre-existing narrower goap_execution_steps table (missing execution_id)
+  -- would fail on "no such column" since CREATE TABLE IF NOT EXISTS above
+  -- silently no-ops against them. unified-memory.ts's v11 migration creates
+  -- this index only after confirming/backfilling the column.
 `;
 
 export const DREAM_SCHEMA = `
@@ -620,6 +665,7 @@ export const STATS_TABLES = [
   'goap_goals',
   'goap_plans',
   'goap_plan_signatures',
+  'goap_execution_steps',
   'concept_nodes',
   'concept_edges',
   'dream_cycles',
