@@ -511,18 +511,31 @@ export class RvfPatternStore implements IPatternStore {
   async getStats(): Promise<PatternStoreStats> {
     const rvfStatus = this.adapter?.status();
 
-    // Get pattern count from RVF if available, otherwise fall back to SQLite
-    let totalPatterns = rvfStatus?.totalVectors ?? 0;
-    if (totalPatterns === 0 && this.sqliteStore) {
+    // qe_patterns (SQLite) is the source of truth for pattern count and
+    // domain/tier breakdown — the RVF vector index only covers patterns
+    // that have actually been embedded, and is reported separately via
+    // hnswStats.vectorCount. Previously this used RVF's totalVectors as the
+    // headline count, which silently hid any pattern stored without a
+    // matching embedding (#553).
+    let totalPatterns = 0;
+    let byDomain = {} as Record<QEDomain, number>;
+    let byTier = { shortTerm: 0, longTerm: 0 };
+    if (this.sqliteStore) {
       try {
-        totalPatterns = this.sqliteStore.getStats().totalPatterns;
+        const sqliteStats = this.sqliteStore.getStats();
+        totalPatterns = sqliteStats.totalPatterns;
+        byDomain = sqliteStats.byDomain as Record<QEDomain, number>;
+        byTier = {
+          shortTerm: sqliteStats.byTier['short-term'] ?? 0,
+          longTerm: sqliteStats.byTier['long-term'] ?? 0,
+        };
       } catch { /* best effort */ }
     }
 
     return {
       totalPatterns,
-      byTier: { shortTerm: 0, longTerm: 0 },
-      byDomain: {} as Record<QEDomain, number>,
+      byTier,
+      byDomain,
       byType: {} as Record<QEPatternType, number>,
       avgConfidence: 0,
       avgQualityScore: 0,
