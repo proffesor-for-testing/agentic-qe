@@ -462,12 +462,17 @@ export class RvfPatternStore implements IPatternStore {
   // IPatternStore — Mutation operations
   // --------------------------------------------------------------------------
 
-  async recordUsage(id: string, success: boolean): Promise<Result<void>> {
+  async recordUsage(
+    id: string,
+    success: boolean,
+    metrics?: Record<string, unknown>,
+    feedback?: string
+  ): Promise<Result<void>> {
     if (!this.sqliteStore) {
       return err(new Error('No SQLite store attached'));
     }
     try {
-      this.sqliteStore.recordUsage(id, success);
+      this.sqliteStore.recordUsage(id, success, metrics, feedback);
       return ok(undefined);
     } catch (error) {
       return err(new Error(`recordUsage failed: ${toErrorMessage(error)}`));
