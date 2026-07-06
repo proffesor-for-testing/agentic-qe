@@ -211,7 +211,7 @@ export class GOAPExecuteTool extends MCPToolBase<GOAPExecuteParams, GOAPExecuteR
             stepsCompleted: plan.actions.length,
             stepsFailed: 0,
             totalDurationMs: plan.estimatedDurationMs,
-            steps: plan.actions.map((a, i) => ({
+            steps: plan.actions.map((a) => ({
               action: a.name,
               status: 'would-execute',
               retries: 0,

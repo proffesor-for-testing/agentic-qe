@@ -125,31 +125,6 @@ interface PlanNode {
 }
 
 /**
- * Plan signature for similarity matching
- */
-interface PlanSignature {
-  id: string;
-  planId: string;
-  goalHash: string;
-  stateVector: number[];
-  actionSequence: string[];
-  totalCost: number;
-  successRate: number;
-  usageCount: number;
-  createdAt: string;
-}
-
-/**
- * Similar plan result
- */
-interface SimilarPlan {
-  planId: string;
-  signature: PlanSignature;
-  similarityScore: number;
-  goalMatch: boolean;
-}
-
-/**
  * Plan reuse statistics
  */
 interface PlanReuseStats {
@@ -979,7 +954,7 @@ export class GOAPPlanner {
   async updateActionStats(
     actionId: string,
     success: boolean,
-    durationMs: number
+    _durationMs: number
   ): Promise<void> {
     await this.initialize();
 
@@ -1109,7 +1084,7 @@ export class GOAPPlanner {
    */
   async findSimilarPlan(
     goal: StateConditions,
-    similarityThreshold = 0.75
+    _similarityThreshold = 0.75
   ): Promise<GOAPPlan | null> {
     await this.initialize();
 
