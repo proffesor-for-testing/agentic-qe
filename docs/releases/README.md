@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.11.5](v3.11.5.md) | 2026-07-07 | System-integrity sweep of the self-learning loop: dream-cycle insights now genuinely become reusable patterns (gate + fake-counter fixes); pattern usage stats fixed (double-write, id-desync lookup failures, mid-session regression); witness-chain signing/archival, agent-topology tracking, GOAP real execution, and SONA cold-start bugs fixed. |
 | [v3.11.4](v3.11.4.md) | 2026-07-01 | Free-tier local test-gen defaults to code-tuned `qwen3-coder:30b` + pattern-cache skip; unified `AQE_OLLAMA_URL` + adaptive timeouts + capability-aware tool routing; opt-in proof-gate for tamper-evident `memory.db` integrity (ADR-116); self-running dependency-security system (daily audit + weekly in-range PRs, ADR-115); grpc-js HIGH CVE fixed, moderates 29→7. Additive. |
 | [v3.11.3](v3.11.3.md) | 2026-06-27 | Oracle evals (run + mutate generated tests, ADR-113), durable-first test generation, mutation-score/regenerability gate, conservation guard for CLI/output/skill surfaces (ADR-114), cheaper-model lanes; fixed OpenRouter + Gemini providers. Additive. |
 | [v3.11.2](v3.11.2.md) | 2026-06-27 | First-class C4 architecture diagrams from your codebase: `aqe code c4` CLI + `qe/code/c4` MCP tool generate Context/Container/Component Mermaid with a deterministic confidence gate, real Knowledge-Graph-derived relationships, and semantic diagram search. Additive. |

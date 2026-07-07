@@ -5,6 +5,64 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.5] - 2026-07-07
+
+A system-integrity sweep of the self-learning loop: dream-cycle insights now
+genuinely turn into reusable patterns instead of silently piling up, pattern
+usage stats are accurate again (no more double-counting or mid-session
+regressions), and the witness-chain audit trail, agent-topology tracking, GOAP
+plan execution, and SONA continual learning all had real dormant-code or
+data-integrity bugs fixed. See
+[SYSTEM-INTEGRITY-AUDIT-2026-07-04](docs/analysis/SYSTEM-INTEGRITY-AUDIT-2026-07-04.md)
+and the [remediation plan](docs/plans/SYSTEM-INTEGRITY-REMEDIATION-GOAP-PLAN-2026-07-04.md)
+for full findings and verification evidence.
+
+### Fixed
+
+- **Dream-cycle insights now genuinely become reusable patterns** — a gate in
+  the concept-loading path meant the fix that lets `detectGaps`/
+  `detectOptimizations`/`detectPatternMerges` see real failure/success data
+  only ever ran in manual tests, never in real scheduled dream cycles. Also
+  fixed the mechanism that marks an insight "applied": it previously
+  incremented a counter on the 3 newest insights on every successful task
+  regardless of whether anything was actually promoted (proven live in
+  production, with counts as high as 16) — it now only marks an insight
+  applied when it's genuinely turned into a new pattern.
+- **`aqe learning stats` reported the wrong pattern counts** — Total and "By
+  Domain" now come from the real pattern store instead of an incomplete
+  vector-index count that silently excluded any pattern without an embedding.
+- **Pattern usage was recorded twice per outcome**, inflating usage counts and
+  success-rate stats 2x; now written once.
+- **Pattern lookups could silently fail after a name collision** ("Pattern not
+  found") because an internal id could go out of sync between the in-memory
+  cache and the database; fixed for both pattern-store backends.
+- **Learning stats could regress mid-session** — reported totals could drop
+  below the real historical count right after the first pattern-usage event
+  in a session; now always reports the correct, non-decreasing total.
+- **Witness-chain audit trail** — cryptographic signing now covers all new
+  entries, and a bug that silently broke chain verification for every entry
+  after an archival operation is fixed, plus a new CI gate to catch
+  regressions.
+- **Agent-topology tracking (mincut)** now reflects real agent activity
+  instead of a constant placeholder reading, removing a false "critical"
+  routing state that could occur on an empty graph.
+- **GOAP plan execution** now dispatches real domain-API calls for the
+  majority of actions instead of always simulating (mocking) results.
+- **SONA continual-learning cold start** — the self-learning weight-update
+  mechanism no longer needs 100 requests to accumulate within a single
+  process lifetime before it can save its first update; progress now
+  persists across restarts.
+- Assorted smaller integrity fixes: pattern-null (failure record) capture
+  wasn't wired into the production learning path; a stale/expired daemon
+  process could look "healthy"; a TTL bug caused several cache entries to
+  live 1000x longer than intended.
+
+### Changed
+
+- Cleaned up dead data left over from now-fixed bugs (degenerate agent-topology
+  snapshots, orphaned GOAP test-fixture rows, a corrupted insight-tracking
+  counter) — internal only, no user-facing behavior change.
+
 ## [3.11.4] - 2026-07-01
 
 Better free local-model support, a tamper-evident guard for AQE's learning
