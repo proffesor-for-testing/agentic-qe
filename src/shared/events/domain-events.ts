@@ -36,6 +36,8 @@ export interface TestGeneratedPayload {
   framework: string;
   sourceFile: string;
   testType: 'unit' | 'integration' | 'e2e' | 'property';
+  /** ReasoningBank pattern IDs applied across the generation request (ADR-110). */
+  patternsUsed?: string[];
 }
 
 export interface TestSuiteCreatedPayload {

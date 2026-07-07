@@ -521,6 +521,8 @@ export class SQLitePatternStore {
       throw new Error('Prepared statements not ready');
     }
 
+    let actualId = id;
+
     // Use transaction for atomicity
     const transaction = this.db.transaction(() => {
       insertPattern.run(
@@ -536,23 +538,26 @@ export class SQLitePatternStore {
         JSON.stringify(pattern.context)
       );
 
+      // #447: ON CONFLICT(name, qe_domain, pattern_type) preserves the
+      // existing row's id instead of `id`. Resolve the actual id BEFORE
+      // inserting the embedding — qe_pattern_embeddings.pattern_id has a
+      // FOREIGN KEY on qe_patterns(id), so inserting under the discarded
+      // `id` (no such row) throws "FOREIGN KEY constraint failed".
+      const actualRow = this.db!
+        .prepare('SELECT id FROM qe_patterns WHERE name = ? AND qe_domain = ? AND pattern_type = ?')
+        .get(pattern.name, pattern.qeDomain ?? '', pattern.patternType ?? '') as { id: string } | undefined;
+      actualId = actualRow ? actualRow.id : id;
+
       if (embedding) {
         // Store embedding as BLOB (Float32Array)
         const buffer = Buffer.from(new Float32Array(embedding).buffer);
-        insertEmbedding.run(id, buffer, embedding.length, 'all-MiniLM-L6-v2');
+        insertEmbedding.run(actualId, buffer, embedding.length, 'all-MiniLM-L6-v2');
       }
     });
 
     transaction();
 
-    // #447: ON CONFLICT(name, qe_domain, pattern_type) preserves the existing
-    // row's id, so the new `id` we just tried to insert may not be what's
-    // actually stored. SELECT the actual id back so callers (rvf-pattern-store,
-    // qe-hooks) can stay consistent with HNSW and downstream usage tables.
-    const actualRow = this.db
-      .prepare('SELECT id FROM qe_patterns WHERE name = ? AND qe_domain = ? AND pattern_type = ?')
-      .get(pattern.name, pattern.qeDomain ?? '', pattern.patternType ?? '') as { id: string } | undefined;
-    return actualRow ? actualRow.id : id;
+    return actualId;
   }
 
   /**

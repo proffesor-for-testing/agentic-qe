@@ -583,7 +583,7 @@ export class TestGenerationCoordinator
           await this.publishTestSuiteCreated(result.value, request);
 
           for (const test of result.value.tests) {
-            await this.publishTestGenerated(test, request.framework ?? 'vitest');
+            await this.publishTestGenerated(test, request.framework ?? 'vitest', result.value.patternsUsed);
           }
         }
 
@@ -911,7 +911,8 @@ export class TestGenerationCoordinator
 
   private async publishTestGenerated(
     test: GeneratedTest,
-    framework: string
+    framework: string,
+    patternsUsed?: string[]
   ): Promise<void> {
     const payload: TestGeneratedPayload = {
       testId: test.id,
@@ -919,6 +920,7 @@ export class TestGenerationCoordinator
       framework,
       sourceFile: test.sourceFile,
       testType: test.type,
+      patternsUsed,
     };
 
     const event = createEvent(
@@ -1295,13 +1297,24 @@ export class TestGenerationCoordinator
   // ============================================================================
 
   private async learnFromGeneration(tests: GeneratedTests): Promise<void> {
-    // Record successful patterns for future use
-    for (const patternId of tests.patternsUsed) {
-      const pattern = await this.patternMatcher.getPattern(patternId);
-      if (pattern) {
-        // Pattern was successfully used, increase its applicability
-        // This is handled internally by recordPatternUsage
+    // A7: this was previously a no-op — the comment claimed usage tracking
+    // "is handled internally by recordPatternUsage" but nothing was ever
+    // called, and tests.patternsUsed (display names) wasn't even a valid
+    // pattern ID to begin with. Only called on the success path (coordinator
+    // line ~618), so success:true is honest here.
+    const patternIds = tests.patternIds ?? [];
+    if (patternIds.length === 0) return;
+    try {
+      const { getUnifiedMemory } = await import('../../kernel/unified-memory.js');
+      const { recordPatternUsage } = await import('../../learning/pattern-usage-recorder.js');
+      const db = getUnifiedMemory().getDatabase();
+      for (const patternId of patternIds) {
+        recordPatternUsage(db, { patternId, success: true });
       }
+    } catch (error) {
+      logger.warn('Pattern usage recording skipped', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

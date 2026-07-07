@@ -429,6 +429,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
       const tests: GeneratedTest[] = [];
       const patternsUsed: string[] = [];
+      const patternIds: string[] = [];
 
       for (const sourceFile of sourceFiles) {
         const fileTests = await this.generateTestsForFile(
@@ -443,6 +444,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         if (fileTests.success) {
           tests.push(...fileTests.value.tests);
           patternsUsed.push(...fileTests.value.patternsUsed);
+          patternIds.push(...fileTests.value.patternIds);
         }
       }
 
@@ -462,6 +464,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         tests,
         coverageEstimate,
         patternsUsed: Array.from(new Set(patternsUsed)),
+        patternIds: Array.from(new Set(patternIds)),
       });
     } catch (error) {
       return err(toError(error));
@@ -547,12 +550,17 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     patterns: string[],
     effectiveLanguage?: SupportedLanguage,
     originalRequest?: GenerateTestsRequest,
-  ): Promise<Result<{ tests: GeneratedTest[]; patternsUsed: string[] }, Error>> {
+  ): Promise<Result<{ tests: GeneratedTest[]; patternsUsed: string[]; patternIds: string[] }, Error>> {
     const testFile = this.getTestFilePath(sourceFile, framework);
     const patternsUsed: string[] = [];
+    // Real qe_patterns.id values, parallel to patternsUsed (names) — feeds
+    // recordPatternUsage/ADR-110 appliedPatternIds, which would silently
+    // no-op against a display name instead of a real pattern ID.
+    const patternIds: string[] = [];
 
     const applicablePatterns = await this.findApplicablePatterns(sourceFile, patterns);
     patternsUsed.push(...applicablePatterns.map((p) => p.name));
+    patternIds.push(...applicablePatterns.map((p) => p.id));
 
     let codeAnalysis: CodeAnalysis | null = null;
     let sourceContent = '';
@@ -642,7 +650,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       );
     }
 
-    return ok({ tests: [test], patternsUsed });
+    return ok({ tests: [test], patternsUsed, patternIds });
   }
 
   private async generateTestForLines(

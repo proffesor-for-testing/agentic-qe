@@ -125,31 +125,6 @@ interface PlanNode {
 }
 
 /**
- * Plan signature for similarity matching
- */
-interface PlanSignature {
-  id: string;
-  planId: string;
-  goalHash: string;
-  stateVector: number[];
-  actionSequence: string[];
-  totalCost: number;
-  successRate: number;
-  usageCount: number;
-  createdAt: string;
-}
-
-/**
- * Similar plan result
- */
-interface SimilarPlan {
-  planId: string;
-  signature: PlanSignature;
-  similarityScore: number;
-  goalMatch: boolean;
-}
-
-/**
  * Plan reuse statistics
  */
 interface PlanReuseStats {
@@ -236,6 +211,14 @@ export class GOAPPlanner {
       this.seedDefaultActions();
     }
 
+    // A14: backfill real method/params/implemented bindings onto
+    // already-seeded rows (matched by name — seed-time ids are random, not
+    // stable across the qe-action-library.ts source) BEFORE loading into
+    // the in-memory cache, so this.actions reflects current bindings even
+    // for databases seeded before this feature existed, or before a given
+    // action's binding was added to the library.
+    this.backfillActionMethodBindings();
+
     await this.loadActions();
     this.initialized = true;
     console.log(`[GOAPPlanner] Initialized: ${this.persistence.getDbPath()}`);
@@ -250,8 +233,8 @@ export class GOAPPlanner {
     const allActions = getAllQEActions();
     const db = this.ensureDb();
     const insertAction = db.prepare(`
-      INSERT INTO goap_actions (id, name, description, category, preconditions, effects, cost, qe_domain, agent_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO goap_actions (id, name, description, category, preconditions, effects, cost, qe_domain, agent_type, method, params, implemented)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const action of allActions) {
@@ -265,7 +248,10 @@ export class GOAPPlanner {
         JSON.stringify(action.effects),
         action.cost,
         action.qeDomain ?? null,
-        action.agentType ?? null
+        action.agentType ?? null,
+        action.method ?? null,
+        action.params ? JSON.stringify(action.params) : null,
+        action.implemented ? 1 : 0
       );
     }
 
@@ -289,6 +275,30 @@ export class GOAPPlanner {
 
     // eslint-disable-next-line no-console
     console.log(`[GOAPPlanner] Seeded ${allActions.length} actions and ${QE_GOALS.length} goals`);
+  }
+
+  /**
+   * A14: backfill method/params/implemented onto already-seeded action rows,
+   * matched by `name` against the current qe-action-library.ts definitions.
+   *
+   * Action ids are randomly generated at seed time (`action-<timestamp>-
+   * <uuid>`), not stable across the library source, so this can't match by
+   * id. Only touches rows currently missing a binding the library now has
+   * (`method IS NULL AND library.implemented`), so it's cheap and
+   * idempotent on every initialize() call — and picks up newly-added real
+   * bindings on already-seeded databases without requiring a full re-seed.
+   */
+  private backfillActionMethodBindings(): void {
+    const db = this.ensureDb();
+    const update = db.prepare(`
+      UPDATE goap_actions SET method = ?, params = ?, implemented = 1
+      WHERE name = ? AND (method IS NULL OR implemented = 0)
+    `);
+
+    for (const action of getAllQEActions()) {
+      if (!action.implemented || !action.method) continue;
+      update.run(action.method, action.params ? JSON.stringify(action.params) : '{}', action.name);
+    }
   }
 
   // ==========================================================================
@@ -318,13 +328,18 @@ export class GOAPPlanner {
       if (reusedPlan && this.validatePlanForState(reusedPlan, currentState)) {
         // Update reuse stats
         this.recordPlanReuse(reusedPlan.id, true);
-        return {
+        const clonedPlan: GOAPPlan = {
           ...reusedPlan,
           id: `plan-${Date.now()}-${randomUUID().slice(0, 8)}`,
           initialState: this.cloneState(currentState),
           reusedFrom: reusedPlan.id,
           status: 'pending',
         };
+        // A14: persist so goap_execute can find this plan by id — findPlan()
+        // previously only ever stored a reuse-lookup signature, never the
+        // plan itself, so every returned planId 404'd on execute.
+        await this.savePlan(clonedPlan);
+        return clonedPlan;
       }
     }
 
@@ -356,6 +371,10 @@ export class GOAPPlanner {
       ),
       status: 'pending',
     };
+
+    // A14: persist the plan itself (not just its reuse signature) so
+    // goap_execute can find it by id — see savePlan() below.
+    await this.savePlan(plan);
 
     // Store plan signature for future reuse
     await this.storePlanSignature(plan);
@@ -872,6 +891,9 @@ export class GOAPPlanner {
         executionCount: row.execution_count,
         category: row.category as GOAPAction['category'],
         qeDomain: row.qe_domain as GOAPAction['qeDomain'],
+        method: row.method ?? undefined,
+        params: row.params ? safeJsonParse(row.params) : undefined,
+        implemented: row.implemented === 1,
       };
 
       this.actions.set(action.id, action);
@@ -893,8 +915,9 @@ export class GOAPPlanner {
         `
       INSERT INTO goap_actions (
         id, name, description, agent_type, preconditions, effects,
-        cost, estimated_duration_ms, success_rate, execution_count, category, qe_domain
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+        cost, estimated_duration_ms, success_rate, execution_count, category, qe_domain,
+        method, params, implemented
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
     `
       )
       .run(
@@ -908,7 +931,10 @@ export class GOAPPlanner {
         action.estimatedDurationMs ?? null,
         action.successRate,
         action.category,
-        action.qeDomain ?? null
+        action.qeDomain ?? null,
+        action.method ?? null,
+        action.params ? JSON.stringify(action.params) : null,
+        action.implemented ? 1 : 0
       );
 
     // Update in-memory cache
@@ -928,7 +954,7 @@ export class GOAPPlanner {
   async updateActionStats(
     actionId: string,
     success: boolean,
-    durationMs: number
+    _durationMs: number
   ): Promise<void> {
     await this.initialize();
 
@@ -1058,7 +1084,7 @@ export class GOAPPlanner {
    */
   async findSimilarPlan(
     goal: StateConditions,
-    similarityThreshold = 0.75
+    _similarityThreshold = 0.75
   ): Promise<GOAPPlan | null> {
     await this.initialize();
 

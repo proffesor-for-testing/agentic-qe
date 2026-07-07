@@ -373,7 +373,7 @@ export class QueenMinCutBridge {
 
     // Agent status changed
     const onAgentStatusChanged = async (event: DomainEvent) => {
-      const { agentId, status, domain } = event.payload as {
+      const { agentId, status } = event.payload as {
         agentId: string;
         status: string;
         domain: DomainName;
@@ -396,7 +396,7 @@ export class QueenMinCutBridge {
 
     // Task coordination (agent-to-agent communication)
     const onTaskCoordination = async (event: DomainEvent) => {
-      const { fromAgent, toAgent, messageType } = event.payload as {
+      const { fromAgent, toAgent } = event.payload as {
         fromAgent: string;
         toAgent: string;
         messageType: string;
@@ -430,11 +430,25 @@ export class QueenMinCutBridge {
       }
     };
 
-    // Subscribe to events (would use eventBus.subscribe in real implementation)
-    // For now, we store the handlers for cleanup
-    this.eventSubscriptions.push(() => {
-      // Cleanup placeholder - actual unsubscribe would go here
-    });
+    // A16: these handlers existed but were never actually subscribed — the
+    // topology graph only ever saw its static domain-coordinator scaffold,
+    // never a real agent, no matter how many agents Queen actually spawned.
+    // `QueenCoordinator.publishEvent()` prefixes every event with "Queen"
+    // (e.g. `AgentSpawned` -> `QueenAgentSpawned`); only that one has a real
+    // publisher today (`queen-coordinator.ts`). The other three are wired to
+    // the same convention so they activate automatically if/when a publisher
+    // for agent termination / status-change / cross-agent coordination is
+    // added — they are current no-ops otherwise, not fabricated coverage.
+    const spawnedSub = this.eventBus.subscribe('QueenAgentSpawned', onAgentSpawned);
+    const terminatedSub = this.eventBus.subscribe('QueenAgentTerminated', onAgentTerminated);
+    const statusSub = this.eventBus.subscribe('QueenAgentStatusChanged', onAgentStatusChanged);
+    const taskCoordSub = this.eventBus.subscribe('QueenTaskCoordination', onTaskCoordination);
+    this.eventSubscriptions.push(
+      () => spawnedSub.unsubscribe(),
+      () => terminatedSub.unsubscribe(),
+      () => statusSub.unsubscribe(),
+      () => taskCoordSub.unsubscribe(),
+    );
   }
 
   // ==========================================================================
@@ -568,6 +582,14 @@ export class QueenMinCutBridge {
    */
   private startSnapshotTimer(): void {
     this.snapshotTimer = setInterval(async () => {
+      // A16: skip the periodic write entirely when no real agents have
+      // spawned yet — the domain-coordinator scaffold is static, so an
+      // empty-of-agents graph produces the exact same degenerate reading
+      // (14 vertices, mincut 0.0) every tick forever, which is noise, not
+      // signal. The dispose()-time final snapshot still runs unconditionally
+      // since that's a single row, not a recurring accumulation.
+      if (this.isEmptyTopology()) return;
+
       await this.saveSnapshot();
 
       // Also record history

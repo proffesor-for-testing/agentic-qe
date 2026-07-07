@@ -971,6 +971,24 @@ export class SONAThreeLoopEngine {
     return this.requestCount;
   }
 
+  /**
+   * Restore the request counter independently of Fisher state (A10 fix).
+   *
+   * Previously requestCount only survived process restarts via
+   * restoreFisher(), which only runs `if (saved)` — i.e. only after a
+   * Fisher row already exists. Since consolidation (the thing that WRITES
+   * the first Fisher row) requires requestCount to reach
+   * consolidationInterval (default 100), and each CLI/MCP invocation is a
+   * fresh short-lived process doing ~1 instantAdapt() call, requestCount
+   * could never accumulate across processes: cold-start deadlock, 0 rows
+   * in sona_fisher_matrices forever. Call this at init (independently of
+   * whether a Fisher row exists) so the counter accumulates across process
+   * restarts even before the first consolidation ever happens.
+   */
+  restoreRequestCount(count: number): void {
+    this.requestCount = count;
+  }
+
   /** Get the engine configuration */
   getConfig(): ThreeLoopConfig {
     return { ...this.config };

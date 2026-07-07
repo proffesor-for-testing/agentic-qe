@@ -486,6 +486,23 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
   }
 
   /**
+   * Write side of getHistoricalDefectPatterns — records a confirmed defect's
+   * type both per-file and in the general pool, capped and deduped to match
+   * what the reader expects.
+   */
+  private async recordConfirmedDefectPattern(file: string, defectType: string): Promise<void> {
+    const fileKey = `${this.config.modelNamespace}:defect-patterns:${file}`;
+    const existing = await this.memory.get<{ patterns: string[] }>(fileKey);
+    const patterns = [...new Set([...(existing?.patterns ?? []), defectType])].slice(-20);
+    await this.memory.set(fileKey, { patterns }, { namespace: 'defect-intelligence', persist: true });
+
+    const generalKey = `${this.config.modelNamespace}:common-defect-patterns`;
+    const existingGeneral = (await this.memory.get<string[]>(generalKey)) ?? [];
+    const general = [...new Set([...existingGeneral, defectType])].slice(-50);
+    await this.memory.set(generalKey, general, { namespace: 'defect-intelligence', persist: true });
+  }
+
+  /**
    * Analyze regression risk for a changeset
    */
   async analyzeRegressionRisk(
@@ -550,6 +567,13 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
 
       // Update model metrics based on feedback
       await this.recalculateMetrics(feedback);
+
+      // A confirmed defect with a known type is the write side of
+      // getHistoricalDefectPatterns' read — previously nothing populated
+      // these keys, so historical-pattern lookup always returned empty.
+      if (feedback.actualDefect && feedback.defectType) {
+        await this.recordConfirmedDefectPattern(feedback.file, feedback.defectType);
+      }
 
       return ok(undefined);
     } catch (error) {

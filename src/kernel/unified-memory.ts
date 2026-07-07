@@ -567,6 +567,7 @@ export class UnifiedMemoryManager {
           `);
         }
         if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
+        if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
@@ -577,6 +578,50 @@ export class UnifiedMemoryManager {
       migrate();
       console.log(`[UnifiedMemory] Migration complete`);
     }
+  }
+
+  /**
+   * A14: create/backfill goap_execution_steps and goap_actions' real-method
+   * binding columns (method/params/implemented).
+   *
+   * Re-running GOAP_SCHEMA's `CREATE TABLE IF NOT EXISTS` alone is
+   * insufficient here: some databases (this project's own dev DB included)
+   * already have a `goap_execution_steps` table left over from an older,
+   * narrower schema version that predates unified-memory-schemas.ts
+   * tracking this table at all — `IF NOT EXISTS` silently no-ops against it,
+   * permanently missing the columns plan-executor.ts now needs. Likewise
+   * `goap_actions` already exists in every migrated database (it's been
+   * part of the schema since v3), so the new method/params/implemented
+   * columns need an explicit ALTER, not just GOAP_SCHEMA's CREATE TABLE.
+   *
+   * Note: this only adds the columns — it does NOT backfill real method
+   * bindings onto already-seeded action rows (those exist with random,
+   * non-deterministic ids assigned at seed time, not stable across the
+   * qe-action-library.ts source). That backfill is a planning-layer
+   * concern, keyed by action `name` against the current library
+   * definitions — see GOAPPlanner.backfillActionMethodBindings().
+   */
+  private migrateToV11GoapExecutionSteps(): void {
+    const db = this.db!;
+    db.exec(GOAP_SCHEMA); // no-op for goap_goals/plans/signatures if already present; creates goap_execution_steps fresh if absent entirely; adds goap_actions if absent entirely (fresh installs only)
+
+    const addColumnIfMissing = (table: string, column: string, definition: string): void => {
+      const cols = db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all() as { name: string }[];
+      if (!cols.some((c) => c.name === column)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+      }
+    };
+    // Nullable even though new rows always populate them — ALTER TABLE can't
+    // retroactively backfill a NOT NULL value for a pre-existing table.
+    addColumnIfMissing('goap_execution_steps', 'execution_id', 'TEXT');
+    addColumnIfMissing('goap_execution_steps', 'retries', 'INTEGER DEFAULT 0');
+    addColumnIfMissing('goap_execution_steps', 'started_at', 'TEXT');
+    addColumnIfMissing('goap_execution_steps', 'agent_output', 'TEXT');
+    addColumnIfMissing('goap_actions', 'method', 'TEXT');
+    addColumnIfMissing('goap_actions', 'params', 'TEXT');
+    addColumnIfMissing('goap_actions', 'implemented', 'INTEGER DEFAULT 0');
+
+    db.exec('CREATE INDEX IF NOT EXISTS idx_goap_exec_steps_execution ON goap_execution_steps(execution_id)');
   }
 
   private async loadVectorIndex(): Promise<void> {

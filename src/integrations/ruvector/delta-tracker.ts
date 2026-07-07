@@ -10,7 +10,17 @@
 
 import { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
-import * as fastJsonPatch from 'fast-json-patch';
+import * as fastJsonPatchNs from 'fast-json-patch';
+
+// fast-json-patch ships two entry points with different export shapes: its CJS
+// entry (index.js) attaches named exports directly via Object.assign(exports,
+// core), but its ESM entry (index.mjs) only exports a single default object
+// bundling everything — it has no named `compare`/`applyPatch` exports. Which
+// shape `import * as fastJsonPatchNs` lands on depends on the resolving
+// loader/bundler, so `fastJsonPatchNs.compare` can be undefined even though
+// the package is installed and working. Normalize once so callers don't care.
+const fastJsonPatch = ((fastJsonPatchNs as { default?: typeof fastJsonPatchNs }).default
+  ?? fastJsonPatchNs);
 
 // ============================================================================
 // Interfaces
@@ -108,7 +118,7 @@ function applyPatches(
   patches: JsonPatch[],
 ): Record<string, unknown> {
   const cloned = JSON.parse(JSON.stringify(obj)) as Record<string, unknown>;
-  const result = fastJsonPatch.applyPatch(cloned, patches as fastJsonPatch.Operation[]);
+  const result = fastJsonPatch.applyPatch(cloned, patches as fastJsonPatchNs.Operation[]);
   return result.newDocument as Record<string, unknown>;
 }
 

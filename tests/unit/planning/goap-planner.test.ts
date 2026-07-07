@@ -15,7 +15,7 @@ import {
   type GOAPAction,
   DEFAULT_V3_WORLD_STATE,
 } from '../../../src/planning/index.js';
-import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
+import { resetUnifiedPersistence, initializeUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 
 // Use system temp directory — NEVER use relative '.agentic-qe' which hits production DB
 const UNIFIED_DB_DIR = path.join(os.tmpdir(), `aqe-test-goap-${process.pid}`);
@@ -41,6 +41,14 @@ describe('GOAPPlanner', () => {
     // Reset unified persistence for test isolation
     resetUnifiedPersistence();
     cleanupUnifiedDb();
+    fs.mkdirSync(UNIFIED_DB_DIR, { recursive: true });
+
+    // A14: getUnifiedPersistence() is a singleton that only honors config on
+    // first construction — GOAPPlanner.initialize() calls it with NO config,
+    // so unless the singleton is pre-configured with our isolated temp path
+    // here, it resolves to the real project .agentic-qe/memory.db (this was
+    // the root cause of the 45% test-fixture pollution in goap_actions).
+    await initializeUnifiedPersistence({ dbPath: UNIFIED_DB_PATH });
 
     planner = new GOAPPlanner();
     await planner.initialize();
@@ -118,6 +126,69 @@ describe('GOAPPlanner', () => {
       expect(action).toBeDefined();
       expect(action!.executionCount).toBe(2);
       expect(action!.successRate).toBeLessThan(1);
+    });
+
+    it('A14: should persist and reload method/params/implemented bindings across a fresh load', async () => {
+      const actionId = await planner.addAction({
+        name: 'Real Domain Action',
+        agentType: 'qe-coverage-specialist',
+        preconditions: {},
+        effects: { 'coverage.measured': true },
+        cost: 1.0,
+        successRate: 0.9,
+        category: 'coverage',
+        qeDomain: 'coverage-analysis',
+        method: 'analyze',
+        params: { includeGhost: false },
+        implemented: true,
+      });
+
+      // Force a fresh reconstruction from the DB (not the in-memory cache
+      // populated at addAction() time) to prove the columns round-trip.
+      await planner.loadActions();
+
+      const actions = await planner.getActionsByCategory('coverage');
+      const action = actions.find((a) => a.id === actionId);
+      expect(action).toBeDefined();
+      expect(action!.method).toBe('analyze');
+      expect(action!.params).toEqual({ includeGhost: false });
+      expect(action!.implemented).toBe(true);
+    });
+
+    it('A14: should leave method/params undefined and implemented false for actions without a real binding', async () => {
+      const actionId = await planner.addAction({
+        name: 'Unimplemented Action',
+        agentType: 'queen-coordinator',
+        preconditions: {},
+        effects: {},
+        cost: 1.0,
+        successRate: 0.9,
+        category: 'fleet',
+      });
+
+      await planner.loadActions();
+
+      const actions = await planner.getActionsByCategory('fleet');
+      const action = actions.find((a) => a.id === actionId);
+      expect(action).toBeDefined();
+      expect(action!.method).toBeUndefined();
+      expect(action!.implemented).toBe(false);
+    });
+
+    it('A14: backfillActionMethodBindings should update already-seeded rows to match the current action library', async () => {
+      // The default-seeded actions (40 from qe-action-library.ts) already
+      // went through backfillActionMethodBindings() during this planner's
+      // initialize() — verify a known real-mappable one picked up its
+      // binding, and a known not-yet-implemented one did not.
+      const coverageActions = await planner.getActionsByCategory('coverage');
+      const measureCoverage = coverageActions.find((a) => a.name === 'measure-coverage');
+      expect(measureCoverage).toBeDefined();
+      expect(measureCoverage!.method).toBe('analyze');
+      expect(measureCoverage!.implemented).toBe(true);
+
+      const mutationTesting = coverageActions.find((a) => a.name === 'run-mutation-testing');
+      expect(mutationTesting).toBeDefined();
+      expect(mutationTesting!.implemented).toBe(false);
     });
   });
 
@@ -303,6 +374,32 @@ describe('GOAPPlanner', () => {
       expect(retrieved!.id).toBe(plan!.id);
       expect(retrieved!.totalCost).toBe(plan!.totalCost);
     });
+
+    it('A14: findPlan() alone (no manual savePlan call) must produce a plan retrievable via getPlan() — the "Plan not found" bug', async () => {
+      planner.addAction({
+        id: 'save-plan-fix-action',
+        name: 'save-plan-fix-action',
+        agentType: 'test-agent',
+        preconditions: {},
+        effects: { 'quality.testsPassing': { delta: 10 } },
+        cost: 1.0,
+        successRate: 1.0,
+        category: 'test',
+      });
+
+      const plan = await planner.findPlan(DEFAULT_V3_WORLD_STATE, {
+        'quality.testsPassing': { min: 10 },
+      });
+      expect(plan).not.toBeNull();
+
+      // No manual savePlan() call here — this is exactly what goap_execute
+      // does: call findPlan() (via goap_plan), then look the id up later.
+      const retrieved = await planner.getPlan(plan!.id);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.id).toBe(plan!.id);
+      expect(retrieved!.totalCost).toBe(plan!.totalCost);
+    });
   });
 
   describe('plan reuse', () => {
@@ -346,6 +443,43 @@ describe('GOAPPlanner', () => {
       expect(stats).toHaveProperty('reusedPlans');
       expect(stats).toHaveProperty('reuseRate');
       expect(stats).toHaveProperty('avgSuccessRate');
+    });
+
+    it('A14: a plan returned via the reuse path (findPlan finding a similar plan) must also be persisted', async () => {
+      await planner.addAction({
+        name: 'Increase Coverage Reuse',
+        agentType: 'coverage-analyzer',
+        preconditions: {},
+        effects: { 'coverage.line': { delta: 30 } },
+        cost: 1.0,
+        successRate: 1.0,
+        category: 'coverage',
+      });
+
+      const goal = { 'coverage.line': { min: 80 } };
+      const initialState: V3WorldState = {
+        ...DEFAULT_V3_WORLD_STATE,
+        coverage: { ...DEFAULT_V3_WORLD_STATE.coverage, line: 60 },
+      };
+
+      planner.setPlanReuseEnabled(true);
+      const firstPlan = await planner.findPlan(initialState, goal);
+      expect(firstPlan).not.toBeNull();
+
+      // Second call with the same state/goal should hit the reuse branch
+      // (findSimilarPlan) inside findPlan() itself — not findSimilarPlan()
+      // called directly. That branch previously returned an unpersisted
+      // plan clone, so getPlan() on its id would 404 exactly like the
+      // non-reuse path did.
+      const secondPlan = await planner.findPlan(initialState, goal);
+      expect(secondPlan).not.toBeNull();
+      // Confirms this test actually exercises the reuse branch, not just
+      // two independent A* plans that happen to both persist correctly.
+      expect(secondPlan!.reusedFrom).toBe(firstPlan!.id);
+
+      const retrieved = await planner.getPlan(secondPlan!.id);
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.id).toBe(secondPlan!.id);
     });
   });
 

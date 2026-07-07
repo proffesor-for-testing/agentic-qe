@@ -642,30 +642,57 @@ export async function persistTaskOutcome(opts: {
       console.error(chalk.dim(`[hooks] post-task stitch: ${stitchErr instanceof Error ? stitchErr.message : 'unknown'}`));
     }
 
-    // 7. dream_insights.applied counter — only on success
-    if (opts.success) {
-      try {
-        const result = db.prepare(`
-          UPDATE dream_insights
-          SET applied = COALESCE(applied, 0) + 1
-          WHERE id IN (
-            SELECT id FROM dream_insights
-            WHERE actionable = 1
-            ORDER BY created_at DESC
-            LIMIT 3
-          )
-        `).run();
-        insightsApplied = result.changes ?? 0;
-      } catch {
-        // dream_insights may not exist on minimal schemas
-      }
-    }
   });
 
   try {
     txn();
   } catch (error) {
     console.error(chalk.dim(`[hooks] persistTaskOutcome txn: ${error instanceof Error ? error.message : 'unknown'}`));
+  }
+
+  // 7. Apply real pending dream insights (system-integrity remediation
+  // follow-up, 2026-07-06). Previously this unconditionally bumped
+  // `dream_insights.applied = COALESCE(applied, 0) + 1` on the 3
+  // most-recently-created actionable rows on every successful task,
+  // regardless of whether any insight was genuinely promoted — proven still
+  // live via production `applied` values up to 16 (only possible via
+  // unconditional increment). That is semantically incompatible with
+  // dream-engine.ts's real applyInsight(), which treats `applied` as a
+  // boolean and sets it to exactly 1 on real qe_patterns promotion. It also
+  // never touched the actual backlog: the query re-selected the same newest
+  // 3 rows every time instead of draining older unapplied ones. Runs outside
+  // the sqlite transaction (applyInsight is async and opens its own
+  // ReasoningBank), calling the SAME genuine promotion path
+  // checkAndTriggerDream already uses — no second, disconnected "applied"
+  // writer. Self-limiting: short-circuits at the query below once the
+  // backlog is drained, so steady-state cost is one indexed SELECT.
+  if (opts.success) {
+    try {
+      const pending = db.prepare(`
+        SELECT id FROM dream_insights
+        WHERE actionable = 1 AND (applied = 0 OR applied IS NULL)
+        ORDER BY created_at DESC
+        LIMIT 3
+      `).all() as Array<{ id: string }>;
+
+      if (pending.length > 0) {
+        const { createDreamEngine } = await import('../../../learning/dream/index.js');
+        const insightEngine = createDreamEngine();
+        await insightEngine.initialize();
+        try {
+          for (const row of pending) {
+            const applyResult = await insightEngine.applyInsight(row.id);
+            if (applyResult.success && applyResult.patternId) {
+              insightsApplied++;
+            }
+          }
+        } finally {
+          await insightEngine.close();
+        }
+      }
+    } catch (err) {
+      console.error(chalk.dim(`[hooks] post-task insight apply: ${err instanceof Error ? err.message : 'unknown'}`));
+    }
   }
 
   // Fire-and-forget embedding write for the captured_experiences row inserted

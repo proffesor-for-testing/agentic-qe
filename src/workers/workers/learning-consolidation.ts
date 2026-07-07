@@ -34,11 +34,12 @@ import {
   type PatternCandidate,
   type PatternLifecycleStats,
 } from '../../learning/pattern-lifecycle.js';
-import { getUnifiedMemory } from '../../kernel/unified-memory.js';
+import { getUnifiedMemory, findProjectRoot } from '../../kernel/unified-memory.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
 import { recordLoopHealth } from '../../learning/loop-health.js';
 import { pruneStaleDreamInsights } from '../../learning/dream/dream-insights-pruner.js';
+import { createLearningMetricsTracker } from '../../learning/metrics-tracker.js';
 
 const CONFIG: WorkerConfig = {
   id: 'learning-consolidation',
@@ -295,6 +296,24 @@ export class LearningConsolidationWorker extends BaseWorker {
         context.logger.warn('recordLoopHealth failed (non-fatal)', {
           error: recordErr instanceof Error ? recordErr.message : String(recordErr),
         });
+      }
+
+      // A18: learning_daily_snapshots previously only populated via the
+      // manual `aqe learning dashboard --save-snapshot` flag — it never
+      // advanced on its own. Piggyback on this worker's existing ~30-min
+      // cadence instead of adding a new timer. Best-effort, own DB handle
+      // closed every tick (LearningMetricsTracker opens a connection
+      // separate from the shared unified-memory one context.memory uses).
+      const tracker = createLearningMetricsTracker(findProjectRoot());
+      try {
+        await tracker.initialize();
+        await tracker.saveSnapshot();
+      } catch (snapshotErr) {
+        context.logger.warn('learning_daily_snapshots saveSnapshot failed (non-fatal)', {
+          error: snapshotErr instanceof Error ? snapshotErr.message : String(snapshotErr),
+        });
+      } finally {
+        tracker.close();
       }
     }
   }

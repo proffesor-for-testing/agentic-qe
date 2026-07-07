@@ -587,7 +587,9 @@ export class AQELearningEngine {
       const key = `pattern-usage:search:${Date.now()}-${randomUUID().slice(0, 8)}`;
       await this.memory.set(key, searchEvent, {
         persist: true,
-        ttl: 7 * 24 * 60 * 60 * 1000, // 7 days retention
+        // ttl is in SECONDS, not ms (unified-memory.ts:607) — the extra
+        // * 1000 made this ~19,178 years instead of 7 days.
+        ttl: 7 * 24 * 60 * 60, // 7 days retention
       });
     } catch (error) {
       // Non-critical - don't fail if tracking fails

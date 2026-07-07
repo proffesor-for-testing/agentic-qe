@@ -46,10 +46,11 @@ describe('QueenMinCutBridge', () => {
   beforeEach(() => {
     vi.useFakeTimers();
 
-    // Mock EventBus
+    // Mock EventBus — subscribe returns a real Subscription-shaped object
+    // (matching kernel/interfaces.ts) since A16 wired real unsubscribe() calls.
     mockEventBus = {
       publish: vi.fn().mockResolvedValue(undefined),
-      subscribe: vi.fn(),
+      subscribe: vi.fn(() => ({ unsubscribe: vi.fn() })),
       unsubscribe: vi.fn(),
     } as unknown as EventBus;
 
@@ -523,6 +524,113 @@ describe('QueenMinCutBridge', () => {
       // The bridge sets up internal handlers
       // We just verify it initializes without error
       expect(bridge).toBeDefined();
+    });
+
+    it('should subscribe to the real "QueenAgentSpawned" event (A16 — was a no-op before)', async () => {
+      bridge = createQueenMinCutBridge(mockEventBus, mockAgentCoordinator, {
+        autoUpdateFromEvents: true,
+        persistData: false,
+      });
+
+      await bridge.initialize();
+
+      // QueenCoordinator.publishEvent() prefixes every event with "Queen"
+      // (queen-coordinator.ts:632, 800-808) — this must match exactly, or
+      // the subscription is wired to an event that's never published.
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith('QueenAgentSpawned', expect.any(Function));
+    });
+
+    it('should add a real agent vertex when QueenAgentSpawned fires', async () => {
+      bridge = createQueenMinCutBridge(mockEventBus, mockAgentCoordinator, {
+        autoUpdateFromEvents: true,
+        persistData: false,
+      });
+      await bridge.initialize();
+
+      const beforeCount = bridge.getGraph().getVerticesByType('agent').length;
+
+      const subscribeMock = mockEventBus.subscribe as ReturnType<typeof vi.fn>;
+      const spawnedCall = subscribeMock.mock.calls.find(([eventType]) => eventType === 'QueenAgentSpawned');
+      expect(spawnedCall).toBeDefined();
+      const handler = spawnedCall![1] as (event: unknown) => Promise<void>;
+
+      await handler({
+        id: 'evt-1',
+        type: 'QueenAgentSpawned',
+        timestamp: new Date(),
+        source: 'queen-coordinator',
+        payload: { agentId: 'new-agent-1', domain: 'test-generation', type: 'worker', capabilities: ['execute'] },
+      });
+
+      expect(bridge.getGraph().getVerticesByType('agent').length).toBe(beforeCount + 1);
+      expect(bridge.getGraph().hasVertex('agent:new-agent-1')).toBe(true);
+    });
+
+    it('should unsubscribe all event handlers on dispose without throwing', async () => {
+      bridge = createQueenMinCutBridge(mockEventBus, mockAgentCoordinator, {
+        autoUpdateFromEvents: true,
+        persistData: false,
+      });
+      await bridge.initialize();
+
+      const subscribeMock = mockEventBus.subscribe as ReturnType<typeof vi.fn>;
+      const returnedSubscriptions = subscribeMock.mock.results.map(r => r.value);
+      expect(returnedSubscriptions.length).toBeGreaterThan(0);
+
+      await bridge.dispose(); // throws on failure, failing the test
+
+      for (const sub of returnedSubscriptions) {
+        expect(sub.unsubscribe).toHaveBeenCalled();
+      }
+    });
+  });
+
+  // ==========================================================================
+  // Snapshot Timer (A16 — gated on real agents)
+  // ==========================================================================
+
+  describe('Snapshot Timer', () => {
+    it('should NOT write a snapshot/history row on tick when no real agents have spawned', async () => {
+      (mockAgentCoordinator.listAgents as ReturnType<typeof vi.fn>).mockReturnValue([]);
+      bridge = createQueenMinCutBridge(mockEventBus, mockAgentCoordinator, {
+        persistData: true,
+        autoUpdateFromEvents: false,
+        snapshotIntervalMs: 1000,
+      });
+      await bridge.initialize();
+
+      const saveSnapshotSpy = vi.spyOn(bridge.getPersistence(), 'saveSnapshot').mockResolvedValue(undefined);
+      const recordHistorySpy = vi.spyOn(bridge.getPersistence(), 'recordHistory').mockResolvedValue(undefined);
+
+      // Before the fix this tick would still write the same 14-vertex,
+      // mincut-0.0 scaffold-only reading — the exact "200 identical rows"
+      // pattern found in the live memory.db.
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(saveSnapshotSpy).not.toHaveBeenCalled();
+      expect(recordHistorySpy).not.toHaveBeenCalled();
+
+      await bridge.dispose();
+    });
+
+    it('should write a snapshot/history row on tick once real agents exist', async () => {
+      // Default mockAgentCoordinator.listAgents() returns 3 real agents.
+      bridge = createQueenMinCutBridge(mockEventBus, mockAgentCoordinator, {
+        persistData: true,
+        autoUpdateFromEvents: false,
+        snapshotIntervalMs: 1000,
+      });
+      await bridge.initialize();
+
+      const saveSnapshotSpy = vi.spyOn(bridge.getPersistence(), 'saveSnapshot').mockResolvedValue(undefined);
+      const recordHistorySpy = vi.spyOn(bridge.getPersistence(), 'recordHistory').mockResolvedValue(undefined);
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(saveSnapshotSpy).toHaveBeenCalledTimes(1);
+      expect(recordHistorySpy).toHaveBeenCalledTimes(1);
+
+      await bridge.dispose();
     });
   });
 

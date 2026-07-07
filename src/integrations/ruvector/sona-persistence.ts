@@ -296,6 +296,22 @@ export class PersistentSONAEngine {
               taskBoundaries: saved.taskBoundaries,
             });
           }
+        } else {
+          // A10 fix: no Fisher row exists yet (the common case pre-first-
+          // consolidation), but the request counter may still have
+          // accumulated across prior short-lived processes — restore it
+          // independently so it isn't reset to 0 every time.
+          const savedCount = this._loadRequestCountUnsafe(this.config.domain);
+          if (savedCount !== null) {
+            const engine = this.baseEngine.getThreeLoopEngine();
+            if (engine) {
+              engine.restoreRequestCount(savedCount);
+              logger.info('Three-loop engine restored request count independently of Fisher state', {
+                domain: this.config.domain,
+                requestCount: savedCount,
+              });
+            }
+          }
         }
 
         logger.info('Three-loop engine initialized with Fisher persistence', {
@@ -835,6 +851,15 @@ export class PersistentSONAEngine {
   }
 
   /**
+   * Get the three-loop engine's current request count (A10), or null if the
+   * three-loop engine is not active.
+   */
+  getRequestCount(): number | null {
+    this.ensureInitialized();
+    return this.baseEngine.getThreeLoopEngine()?.getRequestCount() ?? null;
+  }
+
+  /**
    * Record the outcome of a request for REINFORCE-style gradient estimation (Loop 1b).
    *
    * Must be called after instantAdapt() with the reward signal.
@@ -1094,6 +1119,19 @@ export class PersistentSONAEngine {
       this.pendingSaves.clear();
     }
 
+    // A10 fix: checkpoint the request counter once per process lifetime
+    // (cheap — not on the instantAdapt hot path) so short-lived CLI/MCP
+    // processes accumulate progress toward consolidationInterval instead of
+    // resetting to 0 every time.
+    try {
+      const engine = this.baseEngine.getThreeLoopEngine();
+      if (engine && this.db) {
+        this.saveRequestCount(this.config.domain, engine.getRequestCount());
+      }
+    } catch (err) {
+      console.warn('[PersistentSONAEngine] Request count checkpoint failed:', err instanceof Error ? err.message : err);
+    }
+
     this.prepared.clear();
     this.db = null;
     this.persistence = null;
@@ -1229,6 +1267,46 @@ export class PersistentSONAEngine {
 
     const result = stmt.run(domain);
     return result.changes > 0;
+  }
+
+  /**
+   * A10 fix: persist the three-loop engine's request counter independently
+   * of the Fisher row, in kv_store (namespace 'sona'). Consolidation (the
+   * thing that writes the FIRST Fisher row) requires requestCount to reach
+   * consolidationInterval — but requestCount previously only survived via
+   * restoreFisher(), which only runs once a Fisher row already exists.
+   * Fresh short-lived CLI/MCP processes doing ~1 instantAdapt() each could
+   * never accumulate past the threshold: cold-start deadlock. This lets the
+   * counter accumulate across process restarts before any consolidation
+   * has ever happened.
+   */
+  saveRequestCount(domain: string, requestCount: number): void {
+    if (!this.db) return;
+    this.db.prepare(`
+      INSERT INTO kv_store (namespace, key, value)
+      VALUES ('sona', ?, ?)
+      ON CONFLICT(namespace, key) DO UPDATE SET value = excluded.value
+    `).run(`request-count:${domain}`, String(requestCount));
+  }
+
+  /** Load the persisted request counter for a domain, or null if never saved. */
+  loadRequestCount(domain: string): number | null {
+    this.ensureInitialized();
+    return this._loadRequestCountUnsafe(domain);
+  }
+
+  /**
+   * Internal variant of loadRequestCount that skips ensureInitialized() —
+   * used during _doInitialize(), mirroring _loadFisherMatrixUnsafe.
+   */
+  private _loadRequestCountUnsafe(domain: string): number | null {
+    if (!this.db) return null;
+    const row = this.db.prepare(
+      `SELECT value FROM kv_store WHERE namespace = 'sona' AND key = ?`
+    ).get(`request-count:${domain}`) as { value: string } | undefined;
+    if (!row) return null;
+    const parsed = Number(row.value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   // ==========================================================================

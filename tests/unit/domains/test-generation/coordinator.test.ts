@@ -36,7 +36,26 @@ import type {
   PropertyTestRequest,
   TestDataRequest,
   LearnPatternsRequest,
+  GeneratedTests,
 } from '../../../../src/domains/test-generation/interfaces';
+
+// A7: learnFromGeneration dynamically imports these — mock so tests can
+// verify real recordPatternUsage calls without a real database.
+const { recordPatternUsageMock } = vi.hoisted(() => ({
+  recordPatternUsageMock: vi.fn(),
+}));
+
+vi.mock('../../../../src/kernel/unified-memory.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../src/kernel/unified-memory.js')>();
+  return {
+    ...actual,
+    getUnifiedMemory: () => ({ getDatabase: () => ({}) }),
+  };
+});
+
+vi.mock('../../../../src/learning/pattern-usage-recorder.js', () => ({
+  recordPatternUsage: recordPatternUsageMock,
+}));
 
 describe('TestGenerationCoordinator', () => {
   let ctx: CoordinatorTestContext;
@@ -387,6 +406,60 @@ describe('TestGenerationCoordinator', () => {
       await learningCoordinator.learnPatterns(request);
 
       expectEventPublished(ctx.eventBus, TestGenerationEvents.PatternLearned);
+    });
+  });
+
+  // A7: learnFromGeneration was a no-op stub — a comment claimed usage
+  // tracking "is handled internally by recordPatternUsage" but nothing was
+  // ever called. These tests cover the real wiring.
+  describe('learnFromGeneration (A7 pattern usage tracking)', () => {
+    beforeEach(() => {
+      recordPatternUsageMock.mockClear();
+    });
+
+    function makeGeneratedTests(overrides: Partial<GeneratedTests> = {}): GeneratedTests {
+      return {
+        tests: [],
+        coverageEstimate: 80,
+        patternsUsed: ['AAA Unit Test Pattern'],
+        patternIds: ['pattern-uuid-1'],
+        ...overrides,
+      };
+    }
+
+    it('records real pattern usage for each patternId', async () => {
+      const tests = makeGeneratedTests({ patternIds: ['pattern-uuid-1', 'pattern-uuid-2'] });
+
+      await (coordinator as unknown as { learnFromGeneration(t: GeneratedTests): Promise<void> })
+        .learnFromGeneration(tests);
+
+      expect(recordPatternUsageMock).toHaveBeenCalledTimes(2);
+      expect(recordPatternUsageMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ patternId: 'pattern-uuid-1', success: true })
+      );
+      expect(recordPatternUsageMock).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ patternId: 'pattern-uuid-2', success: true })
+      );
+    });
+
+    it('does nothing when patternIds is absent (e.g. free-tier-local synthetic labels)', async () => {
+      const tests = makeGeneratedTests({ patternIds: undefined });
+
+      await (coordinator as unknown as { learnFromGeneration(t: GeneratedTests): Promise<void> })
+        .learnFromGeneration(tests);
+
+      expect(recordPatternUsageMock).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when patternIds is empty', async () => {
+      const tests = makeGeneratedTests({ patternIds: [] });
+
+      await (coordinator as unknown as { learnFromGeneration(t: GeneratedTests): Promise<void> })
+        .learnFromGeneration(tests);
+
+      expect(recordPatternUsageMock).not.toHaveBeenCalled();
     });
   });
 

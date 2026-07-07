@@ -1294,23 +1294,25 @@ export class CodeIntelligenceCoordinator
   ): Promise<void> {
     const key = `c4-diagrams:latest:${this.hashCode(projectPath)}`;
 
+    // ttl is in SECONDS, not ms (unified-memory.ts:607) — these were
+    // 3600000, making cache entries live ~41.6 days instead of 1 hour.
     await this.memory.set(key, result, {
       namespace: 'code-intelligence',
       persist: true,
-      ttl: 3600000, // 1 hour
+      ttl: 3600, // 1 hour
     });
 
     // Also store components and external systems separately for quick access
     await this.memory.set(
       `c4-components:${this.hashCode(projectPath)}`,
       result.components,
-      { namespace: 'code-intelligence', ttl: 3600000 }
+      { namespace: 'code-intelligence', ttl: 3600 }
     );
 
     await this.memory.set(
       `c4-external-systems:${this.hashCode(projectPath)}`,
       result.externalSystems,
-      { namespace: 'code-intelligence', ttl: 3600000 }
+      { namespace: 'code-intelligence', ttl: 3600 }
     );
   }
 
@@ -1396,23 +1398,25 @@ export class CodeIntelligenceCoordinator
   ): Promise<void> {
     const key = `project-metrics:latest:${this.hashCode(projectPath)}`;
 
+    // ttl is in SECONDS, not ms (unified-memory.ts:607) — these were
+    // 300000, making entries live ~3.47 days instead of 5 minutes.
     await this.memory.set(key, metrics, {
       namespace: 'code-intelligence',
       persist: true,
-      ttl: 300000, // 5 minutes (metrics can change frequently)
+      ttl: 300, // 5 minutes (metrics can change frequently)
     });
 
     // Store LOC and test counts separately for quick access
     await this.memory.set(
       `loc-metrics:${this.hashCode(projectPath)}`,
       metrics.loc,
-      { namespace: 'code-intelligence', ttl: 300000 }
+      { namespace: 'code-intelligence', ttl: 300 }
     );
 
     await this.memory.set(
       `test-metrics:${this.hashCode(projectPath)}`,
       metrics.tests,
-      { namespace: 'code-intelligence', ttl: 300000 }
+      { namespace: 'code-intelligence', ttl: 300 }
     );
   }
 

@@ -424,24 +424,17 @@ export class QEReasoningBank implements IQEReasoningBank {
       return ok(undefined);
     }
 
+    // Single writer (#486 Gap B): patternStore.recordUsage() persists to SQLite
+    // itself (updates qe_patterns row AND inserts qe_pattern_usage) when a
+    // SQLitePatternStore is wired via setSqliteStore(). A second explicit
+    // SQLite write here previously double-counted every outcome — two
+    // qe_pattern_usage rows and a +2 usage_count for one recordOutcome() call.
     const result = await this.patternStore.recordUsage(
       outcome.patternId,
-      outcome.success
+      outcome.success,
+      outcome.metrics as Record<string, unknown> | undefined,
+      outcome.feedback
     );
-
-    // Persist usage to SQLite (updates qe_patterns row AND inserts qe_pattern_usage)
-    try {
-      const store = this.getSqliteStore();
-      store.recordUsage(
-        outcome.patternId,
-        outcome.success,
-        outcome.metrics as Record<string, unknown> | undefined,
-        outcome.feedback
-      );
-    } catch (persistError) {
-      // Non-critical — don't fail if persistence fails
-      logger.warn('SQLite pattern usage persist failed', { error: toErrorMessage(persistError) });
-    }
 
     if (result.success) {
       this.stats.learningOutcomes++;
@@ -738,9 +731,18 @@ export class QEReasoningBank implements IQEReasoningBank {
     // DB fallback (#454): in-memory `this.stats` is reset on every process
     // start, but every hook invocation spawns a fresh node. Without a DB
     // fallback, `aqe hooks stats` always reports zeros even when historical
-    // routing_outcomes / qe_pattern_usage rows exist. We use the in-memory
-    // counters when they're non-zero (live, current-process data), otherwise
-    // fall back to aggregated DB totals.
+    // routing_outcomes / qe_pattern_usage rows exist.
+    //
+    // routing_outcomes / qe_pattern_usage are written synchronously on every
+    // recordOutcome()/routeTask() call, so the DB aggregate is always a
+    // superset of (>=) the in-memory counters for this process. Previously
+    // this only consulted the DB when the in-memory counter was exactly
+    // zero, which made reported totals regress the moment in-memory ticked
+    // past zero mid-session — a cold-start call would correctly report the
+    // historical DB total, then the very next call after one recordOutcome()
+    // would drop to reporting just "1" instead of "historical total + 1".
+    // Taking the max keeps the number monotonic while still tolerating a
+    // failed/unavailable DB aggregate (falls back to in-memory).
     let routingRequests = this.stats.routingRequests;
     let avgRoutingConfidence =
       this.stats.routingRequests > 0
@@ -752,25 +754,23 @@ export class QEReasoningBank implements IQEReasoningBank {
         ? this.stats.successfulOutcomes / this.stats.learningOutcomes
         : 0;
 
-    if (routingRequests === 0 || learningOutcomes === 0) {
-      try {
-        const agg = this.getSqliteStore().getAggregateOutcomeStats();
-        if (routingRequests === 0 && agg.routingRequests > 0) {
-          routingRequests = agg.routingRequests;
-          avgRoutingConfidence = agg.avgRoutingConfidence;
-        }
-        if (learningOutcomes === 0 && agg.learningOutcomes > 0) {
-          learningOutcomes = agg.learningOutcomes;
-          // Prefer per-usage success rate (closer to recordOutcome semantics);
-          // fall back to qe_patterns.success_rate aggregate when no usage rows.
-          patternSuccessRate =
-            agg.learningOutcomes > 0
-              ? agg.successfulOutcomes / agg.learningOutcomes
-              : agg.avgPatternSuccessRate;
-        }
-      } catch {
-        // best-effort — never let stats reporting crash the host
+    try {
+      const agg = this.getSqliteStore().getAggregateOutcomeStats();
+      if (agg.routingRequests > routingRequests) {
+        routingRequests = agg.routingRequests;
+        avgRoutingConfidence = agg.avgRoutingConfidence;
       }
+      if (agg.learningOutcomes > learningOutcomes) {
+        learningOutcomes = agg.learningOutcomes;
+        // Prefer per-usage success rate (closer to recordOutcome semantics);
+        // fall back to qe_patterns.success_rate aggregate when no usage rows.
+        patternSuccessRate =
+          agg.learningOutcomes > 0
+            ? agg.successfulOutcomes / agg.learningOutcomes
+            : agg.avgPatternSuccessRate;
+      }
+    } catch {
+      // best-effort — never let stats reporting crash the host
     }
 
     return {

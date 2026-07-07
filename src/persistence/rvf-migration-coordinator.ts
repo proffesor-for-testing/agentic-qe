@@ -159,7 +159,8 @@ export class RvfMigrationCoordinator {
     // Try to attach witness chain
     try {
       const { WitnessChain } = await import('../audit/witness-chain.js');
-      const wc = new WitnessChain();
+      const { getDefaultWitnessKeyManager } = await import('../audit/witness-key-manager.js');
+      const wc = new WitnessChain(undefined, getDefaultWitnessKeyManager());
       await wc.initialize();
       this.attachWitnessChain(wc);
     } catch {

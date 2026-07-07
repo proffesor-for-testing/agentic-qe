@@ -367,7 +367,9 @@ export interface IPatternStore {
   /** Update pattern after use */
   recordUsage(
     id: string,
-    success: boolean
+    success: boolean,
+    metrics?: Record<string, unknown>,
+    feedback?: string
   ): Promise<Result<void>>;
 
   /** Promote pattern from short-term to long-term */
@@ -806,7 +808,18 @@ export class PatternStore implements IPatternStore {
     // Persist to SQLite (pattern + embedding atomically)
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.storePattern(pattern, pattern.embedding);
+        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding);
+        // #447: ON CONFLICT(name, qe_domain, pattern_type) may preserve an
+        // existing row's id instead of the one we generated — realign the
+        // in-memory indices (and pattern.id itself) or every later
+        // recordUsage()/promote()/delete() call for this pattern throws
+        // "Pattern not found" against SQLite while silently succeeding
+        // in-memory, permanently desyncing usage stats from qe_pattern_usage.
+        if (actualId && actualId !== pattern.id) {
+          this.unindexPattern(pattern);
+          (pattern as { id: string }).id = actualId;
+          this.indexPattern(pattern);
+        }
       } catch (error) {
         console.warn(`[PatternStore] SQLite persist failed for ${pattern.id}:`, toErrorMessage(error));
       }
@@ -1418,7 +1431,12 @@ export class PatternStore implements IPatternStore {
   /**
    * Record pattern usage and update stats
    */
-  async recordUsage(id: string, success: boolean): Promise<Result<void>> {
+  async recordUsage(
+    id: string,
+    success: boolean,
+    metrics?: Record<string, unknown>,
+    feedback?: string
+  ): Promise<Result<void>> {
     const pattern = await this.get(id);
     if (!pattern) {
       return err(new Error(`Pattern not found: ${id}`));
@@ -1455,7 +1473,7 @@ export class PatternStore implements IPatternStore {
     // Persist usage to SQLite
     if (this.sqliteStore) {
       try {
-        this.sqliteStore.recordUsage(id, success);
+        this.sqliteStore.recordUsage(id, success, metrics, feedback);
       } catch (error) {
         console.warn(`[PatternStore] SQLite recordUsage failed for ${id}:`, toErrorMessage(error));
       }

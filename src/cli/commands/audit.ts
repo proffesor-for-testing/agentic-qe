@@ -135,6 +135,75 @@ export async function handleAuditVerify(options: {
 }
 
 /**
+ * Verify the `src/audit/witness-chain.ts` full audit trail — the
+ * SHAKE-256/Ed25519 chain that records pattern/dream/routing/review
+ * decisions (tens of thousands of rows), as distinct from the 29-row
+ * governance receipt chain `handleAuditVerify` checks above.
+ *
+ * This is the chain CI should gate on: it's what actually accumulates
+ * from real QE agent activity.
+ */
+export async function handleAuditChainVerify(options: {
+  format?: 'json' | 'text';
+}): Promise<AuditVerifyOutput> {
+  const { WitnessChain, hashWith, serializeEntry } = await import('../../audit/witness-chain.js');
+
+  const root = findProjectRoot();
+  const dbPath = path.join(root, '.agentic-qe', 'memory.db');
+
+  let output: AuditVerifyOutput;
+  if (!existsSync(dbPath)) {
+    output = {
+      featureEnabled: true,
+      chainLength: 0,
+      integrity: true,
+      brokenAt: -1,
+      lastHash: '',
+      message: `No database found at ${dbPath} — nothing to verify`,
+    };
+  } else {
+    const { default: Database } = await import('better-sqlite3');
+    const db = new Database(dbPath, { readonly: true });
+    try {
+      const chain = new WitnessChain(db);
+      await chain.initialize();
+      const result = chain.verify({ includeArchive: true, checkSignatures: true });
+
+      const lastEntry = db.prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1').get() as
+        | { hash_algo?: string; [key: string]: unknown }
+        | undefined;
+      const lastHash = lastEntry
+        ? hashWith(lastEntry.hash_algo || 'sha256', serializeEntry(lastEntry as never))
+        : '';
+
+      output = {
+        featureEnabled: true,
+        chainLength: result.entriesChecked,
+        integrity: result.valid,
+        brokenAt: result.brokenAt ?? -1,
+        lastHash,
+        message: result.valid
+          ? `Audit chain verified: ${result.entriesChecked} entries checked, ${result.signatureFailures ?? 0} signature failures`
+          : `Audit chain BROKEN at id=${result.brokenAt} (${result.entriesChecked} entries checked before the break)`,
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  if (options.format === 'json') {
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    console.log(formatVerificationText(
+      { valid: output.integrity, length: output.chainLength, brokenAt: output.brokenAt, lastHash: output.lastHash, message: output.message },
+      output.featureEnabled,
+    ));
+  }
+
+  return output;
+}
+
+/**
  * Create the audit command group following the project convention.
  */
 export function createAuditCommand(
@@ -149,12 +218,14 @@ export function createAuditCommand(
     .command('verify')
     .description('Verify witness chain integrity')
     .option('-F, --format <format>', 'Output format (json|text)', 'text')
+    .option('-C, --chain <chain>', 'Which chain to verify: governance (29 decision receipts) or audit (full QE audit trail)', 'governance')
     .action(async (options) => {
       try {
-        await handleAuditVerify({
-          format: options.format as 'json' | 'text',
-        });
-        await cleanupAndExit(0);
+        const format = options.format as 'json' | 'text';
+        const result = options.chain === 'audit'
+          ? await handleAuditChainVerify({ format })
+          : await handleAuditVerify({ format });
+        await cleanupAndExit(result.integrity ? 0 : 1);
       } catch (error) {
         console.error('Failed to verify witness chain:', error);
         await cleanupAndExit(1);

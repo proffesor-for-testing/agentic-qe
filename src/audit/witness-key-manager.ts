@@ -18,6 +18,7 @@ import {
 } from 'crypto';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { findProjectRoot } from '../kernel/project-root.js';
 
 // ============================================================================
 // Types
@@ -277,4 +278,31 @@ export class WitnessKeyManager {
       }
     }
   }
+}
+
+// ============================================================================
+// Default (project-wide) instance — ADR-070 Phase 6.2 production wiring
+// ============================================================================
+
+let _defaultInstance: WitnessKeyManager | null = null;
+
+/**
+ * Get the process-wide default WitnessKeyManager, backed by a persistent
+ * `.agentic-qe/witness-keys/` directory under the project root. Every
+ * production `WitnessChain` construction site should use this (instead of
+ * an ephemeral in-memory-only manager) so a signature created by one process
+ * can still be verified by a later one — an ephemeral key dies with the
+ * process that made it, permanently orphaning every signature it produced.
+ */
+export function getDefaultWitnessKeyManager(): WitnessKeyManager {
+  if (!_defaultInstance) {
+    const keyDir = join(findProjectRoot(), '.agentic-qe', 'witness-keys');
+    _defaultInstance = new WitnessKeyManager({ keyDir });
+  }
+  return _defaultInstance;
+}
+
+/** Test-only: reset the default key manager singleton between test files. */
+export function _resetDefaultWitnessKeyManagerForTests(): void {
+  _defaultInstance = null;
 }

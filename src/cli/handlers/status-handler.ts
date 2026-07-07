@@ -6,6 +6,8 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   ICommandHandler,
   CLIContext,
@@ -14,6 +16,48 @@ import {
 } from './interfaces.js';
 import { DomainName } from '../../shared/types/index.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
+import { findProjectRoot } from '../../kernel/unified-memory.js';
+
+// ============================================================================
+// Background worker daemon liveness (A18)
+// ============================================================================
+
+export interface DaemonLivenessStatus {
+  /** A daemon.pid file exists (`aqe`/`npx ruflo daemon start` was run at least once) */
+  configured: boolean;
+  /** The PID in daemon.pid corresponds to a live process right now */
+  running: boolean;
+  pid?: number;
+}
+
+/**
+ * Check whether the detached background-worker daemon (`.agentic-qe/workers/
+ * start-daemon.cjs`, PID recorded in `daemon.pid` — see `10-workers.ts`) is
+ * actually alive. Mirrors the exact liveness check `stop-daemon.cjs` uses
+ * (`process.kill(pid, 0)`) rather than inventing a new protocol.
+ *
+ * Distinct from `aqe daemon status` (in `cli/commands/daemon.ts`), which
+ * tracks a *different*, in-process `QualityDaemon` instance that can't see a
+ * truly detached process across separate CLI invocations anyway.
+ */
+export function checkDaemonLiveness(): DaemonLivenessStatus {
+  try {
+    const pidFile = join(findProjectRoot(), '.agentic-qe', 'workers', 'daemon.pid');
+    if (!existsSync(pidFile)) return { configured: false, running: false };
+
+    const pid = parseInt(readFileSync(pidFile, 'utf-8').trim(), 10);
+    if (!Number.isFinite(pid)) return { configured: true, running: false };
+
+    try {
+      process.kill(pid, 0); // signal 0: existence check only, doesn't actually kill
+      return { configured: true, running: true, pid };
+    } catch {
+      return { configured: true, running: false, pid };
+    }
+  } catch {
+    return { configured: false, running: false };
+  }
+}
 
 // ============================================================================
 // Status Handler
@@ -230,6 +274,7 @@ export class HealthHandler implements ICommandHandler {
             lastCheck: health.lastHealthCheck.toISOString(),
             domains: domainSummary,
             issues: health.issues,
+            daemon: checkDaemonLiveness(),
           }), options.output);
         }
         await this.cleanupAndExit(0);
@@ -282,6 +327,18 @@ export class HealthHandler implements ICommandHandler {
         // Issue #205 fix: Add helpful tip for fresh installs
         if (idle > 0 && healthy === 0 && degraded === 0 && unhealthy === 0) {
           console.log(chalk.gray('\n  Tip: Domains are idle (ready). Run a task to spawn agents.'));
+        }
+
+        // A18: background worker daemon liveness \u2014 was previously invisible,
+        // so a stopped daemon looked identical to "everything's fine".
+        const daemon = checkDaemonLiveness();
+        console.log(chalk.blue('\n  Background Daemon:'));
+        if (!daemon.configured) {
+          console.log(`  ${chalk.gray('\u25CB')} Not configured (never started \u2014 run "npx ruflo daemon start")`);
+        } else if (daemon.running) {
+          console.log(`  ${chalk.green('\u25CF')} Running (PID: ${daemon.pid})`);
+        } else {
+          console.log(`  ${chalk.red('\u25CF')} Not running (stale PID: ${daemon.pid ?? 'unknown'}) \u2014 learning/consolidation snapshots will not advance`);
         }
       }
 

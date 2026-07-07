@@ -10,6 +10,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   PlanExecutor,
   MockAgentSpawner,
@@ -20,6 +23,24 @@ import {
 } from '../../../src/planning/plan-executor.js';
 import { GOAPPlanner } from '../../../src/planning/goap-planner.js';
 import { GOAPPlan, GOAPAction, V3WorldState, DEFAULT_V3_WORLD_STATE } from '../../../src/planning/types.js';
+import { resetUnifiedPersistence, initializeUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
+import { resetUnifiedMemory, initializeUnifiedMemory } from '../../../src/kernel/unified-memory.js';
+
+// A14: isolated temp DB — NEVER rely on the default, which resolves to the
+// real project .agentic-qe/memory.db via findProjectRoot(). PlanExecutor and
+// GOAPPlanner each use a DIFFERENT unified-storage singleton
+// (getUnifiedMemory / getUnifiedPersistence respectively) — both must be
+// pre-configured with the isolated path before either is constructed, since
+// both singletons only honor config on first construction.
+const UNIFIED_DB_DIR = path.join(os.tmpdir(), `aqe-test-plan-executor-${process.pid}`);
+const UNIFIED_DB_PATH = path.join(UNIFIED_DB_DIR, 'memory.db');
+
+function cleanupUnifiedDb(): void {
+  for (const suffix of ['', '-wal', '-shm']) {
+    const p = `${UNIFIED_DB_PATH}${suffix}`;
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+}
 
 describe('PlanExecutor', () => {
   let planner: GOAPPlanner;
@@ -27,6 +48,13 @@ describe('PlanExecutor', () => {
   let mockSpawner: MockAgentSpawner;
 
   beforeEach(async () => {
+    resetUnifiedPersistence();
+    resetUnifiedMemory();
+    cleanupUnifiedDb();
+    fs.mkdirSync(UNIFIED_DB_DIR, { recursive: true });
+    await initializeUnifiedPersistence({ dbPath: UNIFIED_DB_PATH });
+    await initializeUnifiedMemory({ dbPath: UNIFIED_DB_PATH });
+
     planner = new GOAPPlanner();
     await planner.initialize();
     mockSpawner = new MockAgentSpawner({ successRate: 1.0, executionDelay: 10 });
@@ -37,6 +65,9 @@ describe('PlanExecutor', () => {
   afterEach(async () => {
     await executor.close();
     await planner.close();
+    resetUnifiedPersistence();
+    resetUnifiedMemory();
+    cleanupUnifiedDb();
   });
 
   // Helper to create test actions
@@ -354,6 +385,143 @@ describe('PlanExecutor', () => {
       expect(result.status).toBe('completed');
 
       await mockExecutor.close();
+    });
+  });
+
+  describe('A14: real domain dispatch', () => {
+    function createBoundAction(overrides: Partial<GOAPAction>): GOAPAction {
+      return {
+        ...createTestAction('action-1', 'Real Dispatch Test'),
+        qeDomain: 'test-generation',
+        ...overrides,
+      };
+    }
+
+    it('should hard-fail an implemented:false action without ever calling the spawner', async () => {
+      const spawnSpy = vi.spyOn(mockSpawner, 'spawn');
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, vi.fn());
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: false });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].error).toContain('no real implementation');
+      expect(spawnSpy).not.toHaveBeenCalled();
+
+      await realExecutor.close();
+    });
+
+    it('should dispatch an implemented:true action to the real domain API method', async () => {
+      const realMethod = vi.fn().mockResolvedValue({ analyzed: true });
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
+      await realExecutor.initialize();
+
+      const action = createBoundAction({
+        implemented: true,
+        method: 'generateTests',
+        params: { target: 'src/foo.ts' },
+      });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('completed');
+      expect(getDomainAPI).toHaveBeenCalledWith('test-generation');
+      expect(realMethod).toHaveBeenCalledWith({ target: 'src/foo.ts' });
+      expect(result.steps[0].agentId).toBe('domain:test-generation');
+      expect(result.steps[0].agentOutput).toContain('analyzed');
+
+      await realExecutor.close();
+    });
+
+    it('should fail clearly (not fabricate success) when the domain is not available', async () => {
+      const getDomainAPI = vi.fn().mockReturnValue(undefined); // kernel not initialized / domain not loaded
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests' });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].error).toContain('not available');
+
+      await realExecutor.close();
+    });
+
+    it('should fail clearly when the resolved domain API has no such method', async () => {
+      const getDomainAPI = vi.fn().mockReturnValue({ someOtherMethod: vi.fn() });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests' });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].error).toContain("has no method 'generateTests'");
+
+      await realExecutor.close();
+    });
+
+    it('should surface the real method throwing as a real failure, not a fabricated one', async () => {
+      const realMethod = vi.fn().mockRejectedValue(new Error('domain-specific real failure'));
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests' });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].error).toContain('domain-specific real failure');
+
+      await realExecutor.close();
+    });
+
+    it('dryRun:true should force simulation even when getDomainAPI is injected', async () => {
+      const realMethod = vi.fn();
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, { dryRun: true }, getDomainAPI);
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests' });
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('completed'); // via mockSpawner (successRate: 1.0)
+      expect(realMethod).not.toHaveBeenCalled();
+      expect(getDomainAPI).not.toHaveBeenCalled();
+
+      await realExecutor.close();
+    });
+
+    it('should preserve existing simulated behavior for actions with no implemented classification (backward compat)', async () => {
+      const realMethod = vi.fn();
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
+      await realExecutor.initialize();
+
+      // No `implemented` field at all — e.g. an ad-hoc/programmatic action,
+      // or one added via addAction() before this classification existed.
+      const action = createTestAction('action-1', 'Untagged Action');
+      const plan = createTestPlan([action]);
+
+      const result = await realExecutor.execute(plan);
+
+      expect(result.status).toBe('completed'); // via mockSpawner, not real dispatch
+      expect(getDomainAPI).not.toHaveBeenCalled();
+
+      await realExecutor.close();
     });
   });
 });

@@ -187,6 +187,7 @@ class MincutRouter implements ModelRouter {
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-02-22 | Initial creation. Mincut-gated model routing replacing static complexity thresholds for topology-aware cost optimization. |
+| Verified (partial) | 2026-07-06 | Note: the top-of-doc Status field says "Implemented" but this history table never recorded that transition — flagging the inconsistency rather than silently perpetuating it. System-integrity remediation (A16) confirmed the mincut graph this ADR's routing decision depends on (`resolveTopologyCriticalFromSharedMincut`) was structurally broken: domain-coordinator scaffold vertices made `graph.isEmpty()` always false, so the shared mincut computed a degenerate 0.0 value and reported "critical" on every fresh/agent-less topology — the exact false-positive that would have defeated topology-aware routing (permanently dampening to the low-tier path regardless of real system health). Fixed to check real agent-vertex presence instead of raw vertex count. **Verified by**: `tests/unit/learning/routing-mincut-safety-gate.test.ts` (5/5, including a regression test reproducing this exact scaffold-only scenario); details in `docs/plans/SYSTEM-INTEGRITY-REMEDIATION-GOAP-PLAN-2026-07-04.md` (A16). Scope note: this verifies the mincut *signal* is now structurally sound — the model-routing consumption side (Haiku vs Sonnet/Opus tier selection) was not independently re-tested this pass. |
 
 ---
 

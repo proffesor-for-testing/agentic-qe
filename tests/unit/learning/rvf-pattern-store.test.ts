@@ -6,10 +6,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { RvfPatternStore } from '../../../src/learning/rvf-pattern-store.js';
 import type { RvfNativeAdapter } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
 import type { QEPattern } from '../../../src/learning/qe-patterns.js';
 import { migratePatterns } from '../../../src/learning/rvf-pattern-migration.js';
+import { createSQLitePatternStore } from '../../../src/learning/sqlite-persistence.js';
 import {
   setRuVectorFeatureFlags,
   resetRuVectorFeatureFlags,
@@ -129,6 +133,7 @@ function makePattern(overrides: Partial<QEPattern> = {}): QEPattern {
 describe('RvfPatternStore', () => {
   let store: RvfPatternStore;
   let adapter: RvfNativeAdapter;
+  let tmpDir: string;
 
   beforeEach(async () => {
     adapter = createMockAdapter();
@@ -136,11 +141,24 @@ describe('RvfPatternStore', () => {
       () => adapter,
       { rvfPath: '/tmp/test.rvf', base: undefined as any },
     );
+    // Attach an isolated, non-unified SQLite store per test — without this,
+    // RvfPatternStore.initialize() auto-attaches the ADR-046 unified
+    // singleton (memory.db, shared for the whole worker process), so
+    // totalPatterns/byDomain leak across tests/files now that getStats()
+    // reads them from SQLite. Same pattern as sqlite-aggregate-stats.test.ts.
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-rvf-pattern-store-'));
+    const sqliteStore = createSQLitePatternStore({
+      useUnified: false,
+      dbPath: path.join(tmpDir, 'patterns.db'),
+    });
+    await sqliteStore.initialize();
+    store.setSqliteStore(sqliteStore);
     await store.initialize();
   });
 
   afterEach(async () => {
     await store.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   describe('Initialization', () => {

@@ -28,6 +28,8 @@ import type {
   EdgeType,
   CreateConceptNodeInput,
   PatternImportData,
+  FailureImportData,
+  SuccessImportData,
   NeighborResult,
 } from './types.js';
 
@@ -494,6 +496,21 @@ export class ConceptGraph {
   // ==========================================================================
 
   /**
+   * QEPatternType values representing methodology/approach — loaded as
+   * conceptType 'technique' rather than 'pattern' (A8-EXT). Without this
+   * split, no 'technique' node ever existed, so detectPatternMerges'
+   * pattern-OR-technique check and detectGaps' technique-presence check
+   * could never see a technique.
+   */
+  private static readonly TECHNIQUE_PATTERN_TYPES = new Set([
+    'coverage-strategy',
+    'mutation-strategy',
+    'refactor-safe',
+    'error-handling',
+    'meta-optimization',
+  ]);
+
+  /**
    * Load patterns into the concept graph as nodes with edge discovery.
    * Idempotent — skips patterns whose pattern_id already has a node.
    * After loading, creates similarity edges only between NEW nodes and
@@ -513,8 +530,12 @@ export class ConceptGraph {
         const existing = await this.findNodeByPatternId(pattern.id);
         if (existing) continue;
 
+        const conceptType: ConceptType = pattern.patternType && ConceptGraph.TECHNIQUE_PATTERN_TYPES.has(pattern.patternType)
+          ? 'technique'
+          : 'pattern';
+
         const patternNodeId = await this.addNode({
-          conceptType: 'pattern',
+          conceptType,
           content: `${pattern.name}: ${pattern.description}`,
           patternId: pattern.id,
           metadata: {
@@ -605,7 +626,7 @@ export class ConceptGraph {
 
         // Get existing (non-new) same-domain nodes
         const allDomainNodes = this.db.prepare(
-          "SELECT id, metadata FROM concept_nodes WHERE concept_type = 'pattern'"
+          "SELECT id, metadata FROM concept_nodes WHERE concept_type IN ('pattern', 'technique')"
         ).all() as NodeRow[];
 
         const existingDomainNodes = allDomainNodes.filter((n) => {
@@ -707,6 +728,110 @@ export class ConceptGraph {
     return edgesCreated;
   }
 
+  // ==========================================================================
+  // Failure / Success Import (A8-EXT — detectGaps real data)
+  // ==========================================================================
+
+  /**
+   * Connect a newly-created node to up to `limit` existing pattern/technique
+   * nodes in the same domain — the resolution/technique signal detectGaps
+   * checks for. Deliberately domain-scoped only (never wired directly to the
+   * record's own source pattern) so "hasResolution" reflects whether some
+   * OTHER real pattern addresses the domain, not a trivial self-reference.
+   */
+  private connectToDomainMates(
+    nodeId: string,
+    domain: string,
+    excludePatternId: string,
+    limit = 10,
+  ): void {
+    if (!this.db) return;
+    const mates = this.db.prepare(
+      `SELECT id FROM concept_nodes
+       WHERE concept_type IN ('pattern', 'technique')
+         AND json_extract(metadata, '$.domain') = ?
+         AND (pattern_id IS NULL OR pattern_id != ?)
+       LIMIT ?`
+    ).all(domain, excludePatternId, limit) as Array<{ id: string }>;
+
+    for (const mate of mates) {
+      const existing = this.prepared.get('getEdge')?.get(nodeId, mate.id);
+      if (!existing) {
+        this.prepared.get('insertEdge')!.run(uuidv4(), nodeId, mate.id, 'co_occurrence', 0.4, 1);
+      }
+    }
+  }
+
+  /**
+   * Load real ADR-110 pattern-null (recorded failure) rows as 'error'
+   * concept nodes — real data source for detectGaps' "error without
+   * resolution" check. Idempotent via the synthetic `error:<null.id>` key
+   * stored in pattern_id (concept_nodes.pattern_id has no FK, so this
+   * distinctly-prefixed key space never collides with a real qe_patterns.id).
+   */
+  async loadFailuresAsErrors(failures: FailureImportData[]): Promise<number> {
+    this.ensureInitialized();
+    let loaded = 0;
+
+    for (const failure of failures) {
+      try {
+        const syntheticKey = `error:${failure.id}`;
+        const existing = await this.findNodeByPatternId(syntheticKey);
+        if (existing) continue;
+
+        const errorNodeId = await this.addNode({
+          conceptType: 'error',
+          content: failure.failureMode,
+          patternId: syntheticKey,
+          metadata: { domain: failure.domain, sourcePatternId: failure.sourcePatternId },
+        });
+        loaded++;
+
+        this.connectToDomainMates(errorNodeId, failure.domain, failure.sourcePatternId);
+      } catch (error) {
+        if (this.config.debug) {
+          console.error(`[ConceptGraph] Failed to load failure: ${failure.id}`, error);
+        }
+      }
+    }
+
+    return loaded;
+  }
+
+  /**
+   * Load real qe_pattern_usage success rows as 'outcome' concept nodes —
+   * real data source for detectGaps' "outcome without technique" check.
+   * Same idempotency/domain-edge treatment as loadFailuresAsErrors.
+   */
+  async loadSuccessesAsOutcomes(successes: SuccessImportData[]): Promise<number> {
+    this.ensureInitialized();
+    let loaded = 0;
+
+    for (const success of successes) {
+      try {
+        const syntheticKey = `outcome:${success.id}`;
+        const existing = await this.findNodeByPatternId(syntheticKey);
+        if (existing) continue;
+
+        const outcomeNodeId = await this.addNode({
+          conceptType: 'outcome',
+          content: success.description,
+          patternId: syntheticKey,
+          metadata: { domain: success.domain, sourcePatternId: success.sourcePatternId },
+        });
+        loaded++;
+
+        this.connectToDomainMates(outcomeNodeId, success.domain, success.sourcePatternId);
+      } catch (error) {
+        if (this.config.debug) {
+          console.error(`[ConceptGraph] Failed to load success: ${success.id}`, error);
+        }
+      }
+    }
+
+    return loaded;
+  }
+
   /**
    * Count existing similarity edges for a domain.
    * Uses concept_nodes metadata to identify domain membership.
@@ -719,7 +844,7 @@ export class ConceptGraph {
       SELECT COUNT(*) as count FROM concept_edges e
       JOIN concept_nodes n ON e.source = n.id
       WHERE e.edge_type = 'similarity'
-        AND n.concept_type = 'pattern'
+        AND n.concept_type IN ('pattern', 'technique')
         AND json_extract(n.metadata, '$.domain') = ?
     `).get(domain) as { count: number };
 

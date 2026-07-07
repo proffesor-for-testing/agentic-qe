@@ -9,7 +9,7 @@
 import { createHash } from 'crypto';
 import { type Database as DatabaseType } from 'better-sqlite3';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
-import { type WitnessKeyManager } from './witness-key-manager.js';
+import { type WitnessKeyManager, getDefaultWitnessKeyManager } from './witness-key-manager.js';
 
 // --- Types ---
 
@@ -48,6 +48,15 @@ export interface WitnessFilter {
 export interface VerifyOptions {
   /** Also verify Ed25519 signatures. Requires keyManager on the chain. */
   checkSignatures?: boolean;
+  /**
+   * Also walk `witness_chain_archive` and validate it as part of the same
+   * hash chain (archived rows are hash-linked to each other and to the live
+   * table exactly like un-archived rows). Off by default: the live-only walk
+   * is enough to catch tampering with current data and already correctly
+   * bridges the archival boundary; this option adds full historical coverage
+   * for a deep CI gate at the cost of reading the (potentially large) archive.
+   */
+  includeArchive?: boolean;
 }
 
 export interface VerifyResult {
@@ -194,32 +203,47 @@ export class WitnessChain {
     };
   }
 
+  /**
+   * Find the entry with the given id, checking the live table first and then
+   * the archive. Used to recover a predecessor that array-adjacency can't
+   * see directly (it was archived, possibly by an earlier archival run than
+   * the one that affects the entry currently being checked).
+   */
+  private findEntryById(id: number): WitnessEntry | undefined {
+    if (!this.db) return undefined;
+    return (this.db.prepare('SELECT * FROM witness_chain WHERE id = ?').get(id) as WitnessEntry | undefined)
+      ?? (this.db.prepare('SELECT * FROM witness_chain_archive WHERE id = ?').get(id) as WitnessEntry | undefined);
+  }
+
+  /**
+   * Check one entry's self-hash and chain link. `arrayAdjacent` is whatever
+   * entry sits immediately before `current` in the array currently being
+   * scanned (undefined at the start of that array) — it's tried first since
+   * it's free (already fetched); a cross-table lookup by id only runs on a
+   * mismatch, e.g. because the true predecessor was moved to the archive by
+   * a *different* archival run than the one this scan is walking.
+   */
+  private checkEntryLink(current: WitnessEntry, arrayAdjacent: WitnessEntry | undefined): boolean {
+    const algo = current.hash_algo || 'sha256';
+    if (current.action_hash !== hashWith(algo, current.action_data)) return false;
+    if (current.id === 1) return current.prev_hash === GENESIS_PREV_HASH; // genesis, never archived
+
+    if (arrayAdjacent && current.prev_hash === hashWith(algo, serializeEntry(arrayAdjacent))) {
+      return true;
+    }
+    const predecessor = this.findEntryById(current.id - 1);
+    return predecessor !== undefined && current.prev_hash === hashWith(algo, serializeEntry(predecessor));
+  }
+
   /** Verify chain integrity. Supports mixed SHA-256/SHAKE-256 and optional signature checks. */
   verify(options?: VerifyOptions): VerifyResult {
     if (!this.db) throw new Error('WitnessChain not initialized');
-    const entries = this.db.prepare('SELECT * FROM witness_chain ORDER BY id ASC').all() as WitnessEntry[];
-    if (entries.length === 0) return { valid: true, entriesChecked: 0 };
+    const live = this.db.prepare('SELECT * FROM witness_chain ORDER BY id ASC').all() as WitnessEntry[];
+    if (live.length === 0) return { valid: true, entriesChecked: 0 };
 
     let signatureFailures = 0;
     const checkSigs = options?.checkSignatures === true && this.keyManager !== null;
-
-    for (let i = 0; i < entries.length; i++) {
-      const current = entries[i];
-      const algo = current.hash_algo || 'sha256';
-
-      if (current.action_hash !== hashWith(algo, current.action_data)) {
-        return { valid: false, brokenAt: current.id, entriesChecked: i + 1, signatureFailures };
-      }
-      if (i === 0) {
-        if (current.prev_hash !== GENESIS_PREV_HASH) {
-          return { valid: false, brokenAt: current.id, entriesChecked: 1, signatureFailures };
-        }
-      } else {
-        const expectedPrevHash = hashWith(algo, serializeEntry(entries[i - 1]));
-        if (current.prev_hash !== expectedPrevHash) {
-          return { valid: false, brokenAt: current.id, entriesChecked: i + 1, signatureFailures };
-        }
-      }
+    const checkSignature = (current: WitnessEntry): void => {
       if (checkSigs && current.signature && current.signer_key_id) {
         const sigData = Buffer.from(
           current.prev_hash + current.action_hash + current.action_type + current.timestamp + current.actor, 'utf-8'
@@ -228,12 +252,43 @@ export class WitnessChain {
           signatureFailures++;
         }
       }
+    };
+
+    // Live table: always its own valid chain, since append() always chains
+    // to whatever the live tail is at write time — array-adjacency is right
+    // by construction *except* at a boundary where the true predecessor has
+    // since been archived, which checkEntryLink()'s fallback covers.
+    for (let i = 0; i < live.length; i++) {
+      const current = live[i];
+      if (!this.checkEntryLink(current, i > 0 ? live[i - 1] : undefined)) {
+        return { valid: false, brokenAt: current.id, entriesChecked: i + 1, signatureFailures };
+      }
+      checkSignature(current);
+    }
+
+    let entriesChecked = live.length;
+
+    if (options?.includeArchive) {
+      // The archived segment is its own contiguous slice of history (by id)
+      // and is checked the same way — NOT by merging archive+live into one
+      // id-sorted array, which would wrongly treat an archived row as the
+      // predecessor of a live row that was actually appended (and correctly
+      // chained to the live tail) well after that row was archived.
+      const archived = this.db.prepare('SELECT * FROM witness_chain_archive ORDER BY id ASC').all() as WitnessEntry[];
+      for (let i = 0; i < archived.length; i++) {
+        const current = archived[i];
+        if (!this.checkEntryLink(current, i > 0 ? archived[i - 1] : undefined)) {
+          return { valid: false, brokenAt: current.id, entriesChecked: entriesChecked + i + 1, signatureFailures };
+        }
+        checkSignature(current);
+      }
+      entriesChecked += archived.length;
     }
 
     const valid = signatureFailures === 0;
     return {
-      valid, entriesChecked: entries.length, signatureFailures,
-      ...(signatureFailures > 0 ? { brokenAt: entries[0].id } : {}),
+      valid, entriesChecked, signatureFailures,
+      ...(signatureFailures > 0 ? { brokenAt: live[0].id } : {}),
     };
   }
 
@@ -319,7 +374,12 @@ export class WitnessChain {
 let _instance: WitnessChain | null = null;
 
 export async function getWitnessChain(): Promise<WitnessChain> {
-  if (!_instance) { _instance = new WitnessChain(); await _instance.initialize(); }
+  if (!_instance) {
+    // ADR-070 Phase 6.2: sign with the persistent, project-wide default key
+    // manager so entries get real signatures that survive process restarts.
+    _instance = new WitnessChain(undefined, getDefaultWitnessKeyManager());
+    await _instance.initialize();
+  }
   return _instance;
 }
 

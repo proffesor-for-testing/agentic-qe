@@ -82,6 +82,8 @@ export type {
 
   // Pattern Import
   PatternImportData,
+  FailureImportData,
+  SuccessImportData,
   NeighborResult,
 
   // DreamEngine types

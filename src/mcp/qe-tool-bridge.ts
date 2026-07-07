@@ -105,9 +105,14 @@ export function registerMissingQETools(
         // lazily for MCP-only contexts) so the MCPToolContext.llmRouter
         // field carries the actual instance rather than relying on each
         // tool's getLLMRouter(context) singleton fallback.
-        const { getSharedLLMRouter } = await import('./tools/base.js');
+        const { getSharedLLMRouter, getKernel } = await import('./tools/base.js');
         const llmRouter = (await getSharedLLMRouter()) ?? undefined;
-        const result = await tool.invoke(params as Record<string, unknown>, { llmRouter });
+        // A14: forward the fleet_init kernel singleton (if one exists) the
+        // same way, so tools that resolve real domain APIs
+        // (kernel.getDomainAPI) work through this bridge too, not just
+        // through whatever other entry point happens to pass one.
+        const kernel = await getKernel();
+        const result = await tool.invoke(params as Record<string, unknown>, { llmRouter, kernel });
         return result;
       },
     };

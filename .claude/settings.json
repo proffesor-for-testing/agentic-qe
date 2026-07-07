@@ -150,7 +150,7 @@
           {
             "type": "command",
             "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" route --task \"$PROMPT\" --json'",
-            "timeout": 5000,
+            "timeout": 20000,
             "continueOnError": true
           },
           {
@@ -167,7 +167,7 @@
           {
             "type": "command",
             "command": "sh -c 'exec node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs\" session-start --session-id \"$SESSION_ID\" --json'",
-            "timeout": 10000,
+            "timeout": 25000,
             "continueOnError": true
           },
           {
