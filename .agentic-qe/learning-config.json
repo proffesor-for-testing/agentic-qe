@@ -1,8 +1,8 @@
 {
   "version": "1.0.1",
   "enabled": true,
-  "rebuildMode": true,
-  "rebuildModeNote": "ACCELERATED CONFIG - Set rebuildMode to false after learning data is rebuilt",
+  "rebuildMode": false,
+  "rebuildModeNote": "Rebuild completed; accelerated config cleared 2026-07-08 (data rebuilt since 2025-12).",
   "scheduler": {
     "mode": "continuous",
     "schedule": {
@@ -30,6 +30,6 @@
     }
   },
   "createdAt": "2025-12-29T13:03:38.969Z",
-  "updatedAt": "2025-12-29T19:15:00.000Z",
+  "updatedAt": "2026-07-08T00:00:00.000Z",
   "rebuildStartedAt": "2025-12-29T19:15:00.000Z"
 }

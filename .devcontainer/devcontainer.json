@@ -11,6 +11,17 @@
     "--memory-swappiness=60"
   ],
   "remoteUser": "vscode",
+  // Environment mitigations for this macOS virtiofs bind mount (see the
+  // postStartCommand backup loop and .agentic-qe/DISABLE_BRAIN_CHECKPOINT):
+  //  - AQE_DISABLE_WAL: rollback-journal instead of WAL (WAL mmap corrupts here).
+  //  - RUVECTOR_USE_RVF_PATTERN_STORE=false: RVF native init FsyncFails on this
+  //    mount; fall back to SQLite HNSW. (Takes effect after `npm run build`.)
+  //  - AQE_DISABLE_BRAIN_CHECKPOINT: stop the leaking `brain export` hook.
+  "remoteEnv": {
+    "AQE_DISABLE_WAL": "1",
+    "RUVECTOR_USE_RVF_PATTERN_STORE": "false",
+    "AQE_DISABLE_BRAIN_CHECKPOINT": "1"
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/node:1": {},
@@ -38,6 +49,12 @@
   // via the workspace bind mount. The host's node_modules is untouched.
   // The volume is root-owned on first creation, hence the chown before npm ci.
   "postCreateCommand": "sudo chown vscode:vscode node_modules && bash .devcontainer/install-tools.sh && npm ci",
+  // Auto-restart the verified learning-DB backup loop on every container start.
+  // memory.db lives on the macOS virtiofs bind mount (WAL-corruption prone), so
+  // scripts/aqe-db-backup.sh takes consistent, integrity-checked snapshots to
+  // .agentic-qe/backups/verified/ every 30 min — durable if the container dies.
+  // Idempotent: skips if a loop is already running.
+  "postStartCommand": "pgrep -f 'aqe-db-backup.sh loop' >/dev/null || (nohup bash scripts/aqe-db-backup.sh loop 1800 >/dev/null 2>&1 &)",
   "shutdownAction": "none",
   "mounts": [
     "source=agentic-qe-node-modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
