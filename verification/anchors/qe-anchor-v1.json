@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "passBar": {
+    "mutationThreshold": 0.8,
+    "checklistCoverage": 1
+  },
+  "anchorTol": 0,
+  "contentHash": "e566f31a608705bf543195f38211643a94d86f5f4c92293e1b61efc0af77507a",
+  "items": [
+    {
+      "id": "A1-inRange",
+      "moduleName": "inRange",
+      "inputUnderTest": "Generate a test for inRange(x, lo, hi) which returns true iff x is within [lo, hi] inclusive.",
+      "referenceImpl": "export function inRange(x, lo, hi) { return x >= lo && x <= hi; }",
+      "requirements": [
+        "value inside the range returns true",
+        "the low boundary is included",
+        "the high boundary is included",
+        "a value outside the range returns false"
+      ],
+      "expectedMutants": 3
+    },
+    {
+      "id": "A2-letterGrade",
+      "moduleName": "letterGrade",
+      "inputUnderTest": "Generate a test for letterGrade(score): A for >=90, D for >=60, else F.",
+      "referenceImpl": "export function letterGrade(score) { if (score >= 90) return 'A'; if (score >= 60) return 'D'; return 'F'; }",
+      "requirements": [
+        "a score at/above 90 is A",
+        "the 90 boundary maps to A (not the lower grade)",
+        "the 60 boundary maps to D",
+        "a score below 60 is F"
+      ],
+      "expectedMutants": 2
+    },
+    {
+      "id": "A3-isBlank",
+      "moduleName": "isBlank",
+      "inputUnderTest": "Generate a test for isBlank(s): true when s is null/undefined or only whitespace.",
+      "referenceImpl": "export function isBlank(s) { return s == null || s.trim().length === 0; }",
+      "requirements": [
+        "an empty string is blank",
+        "a whitespace-only string is blank",
+        "a non-empty string is not blank",
+        "null/undefined is blank"
+      ],
+      "expectedMutants": 2
+    },
+    {
+      "id": "A4-countAbove",
+      "moduleName": "countAbove",
+      "inputUnderTest": "Generate a test for countAbove(arr, t): count of elements strictly greater than t.",
+      "referenceImpl": "export function countAbove(arr, t) { return arr.filter(x => x > t).length; }",
+      "requirements": [
+        "counts elements strictly greater than the threshold",
+        "a value equal to the threshold is excluded",
+        "returns 0 when no elements are above",
+        "an empty array returns 0"
+      ],
+      "expectedMutants": 1
+    },
+    {
+      "id": "A5-parseBool",
+      "moduleName": "parseBool",
+      "inputUnderTest": "Generate a test for parseBool(s): case-insensitive \"true\"/\"false\" -> boolean, throws on invalid.",
+      "referenceImpl": "export function parseBool(s) { const v = String(s).toLowerCase(); if (v === 'true') return true; if (v === 'false') return false; throw new Error('invalid boolean'); }",
+      "requirements": [
+        "\"true\" in any case parses to true",
+        "\"false\" parses to false",
+        "invalid input throws",
+        "case-insensitivity is verified"
+      ],
+      "expectedMutants": 2
+    }
+  ]
+}

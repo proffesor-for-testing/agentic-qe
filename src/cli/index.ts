@@ -338,6 +338,11 @@ registerLazyCommand(program, {
   factory: () => import('./commands/quality.js').then(m => m.createQualityCommand(context, cleanupAndExit, ensureInitialized)),
 });
 registerLazyCommand(program, {
+  name: 'quality-gate',
+  description: 'Two-gate, three-valued quality verdict against a pinned checklist (ADR-119)',
+  factory: () => import('./commands/quality-gate.js').then(m => m.createQualityGateCommand(context, cleanupAndExit, ensureInitialized)),
+});
+registerLazyCommand(program, {
   name: 'security',
   description: 'Security scanning and URL validation',
   factory: () => import('./commands/security.js').then(m => m.createSecurityCommand(context, cleanupAndExit, ensureInitialized)),
