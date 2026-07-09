@@ -96,7 +96,12 @@ async function callModel(model: string, system: string, user: string, temperatur
   });
 }
 
-function stripFence(s: string): string { const f = s.match(/```(?:javascript|js|mjs|ts)?\s*([\s\S]*?)```/); return (f ? f[1] : s).trim(); }
+// Strip markdown code fences — handles UNCLOSED fences too (a model that emits
+// an opening ```javascript with no closing ``` used to leave a syntax-error line
+// in the test → false baseline failure; see DOE §Results caveat 2).
+function stripFence(s: string): string {
+  return s.replace(/^\s*```[a-z]*\s*$/gim, '').replace(/```/g, '').trim();
+}
 
 async function generateTest(cell: any, item: AnchorItem, examples: string): Promise<{ code: string; inTok: number; outTok: number }> {
   const sys = SYS[cell.prompt];
