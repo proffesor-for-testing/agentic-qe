@@ -1,0 +1,1 @@
+Disabled 2026-07-08: brain export deadlocks on virtiofs bind mount (ignores SIGTERM, leaks). Delete this file to re-enable.
