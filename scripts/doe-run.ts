@@ -18,8 +18,9 @@
  * Only the --stub path has no external dependency: the heavy imports (better-sqlite3,
  * the oracle, the anchor set, the retriever) are loaded lazily inside the real-run
  * branch, so `node scripts/doe-run.ts --stub` runs the whole design→run→JSONL
- * pipeline with type-stripping alone. Cloud models use a raw Anthropic fetch;
- * qwen uses Ollama. .env is loaded for the key (never printed).
+ * pipeline with type-stripping alone. Cloud models go through OpenRouter
+ * (vendor/model ids, exact per-call cost from usage.cost); qwen uses local Ollama.
+ * .env is loaded for OPENROUTER_API_KEY (never printed).
  */
 import { readFileSync, existsSync, appendFileSync } from 'node:fs';
 import type { AnchorItem } from '../src/validation/anchor-set.js';
@@ -27,7 +28,7 @@ import type { AnchorItem } from '../src/validation/anchor-set.js';
 if (existsSync('.env')) for (const l of readFileSync('.env', 'utf8').split('\n')) {
   const m = l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/); if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
 }
-const KEY = process.env.ANTHROPIC_API_KEY;
+const ORKEY = process.env.OPENROUTER_API_KEY; // cloud path is OpenRouter (vendor/model ids)
 const OLLAMA = 'http://host.docker.internal:11434/api/generate';
 const args = process.argv.slice(2);
 const STUB = args.includes('--stub');
@@ -43,15 +44,16 @@ const ONLY = args.find((a) => a.startsWith('--only='))?.split('=')[1];
 const ONLY_ITEM = args.find((a) => a.startsWith('--item='))?.split('=')[1];
 const RESULTS_FILE = process.env.DOE_RESULTS_FILE ?? '';
 const MODELS = ONLY ? [ONLY]
-  : STUB ? ['qwen3-coder:30b', 'claude-haiku-4-5', 'claude-opus-4-7']
+  : STUB ? ['qwen3-coder:30b', 'anthropic/claude-haiku-4.5', 'anthropic/claude-opus-4.8']
   : SMOKE ? ['qwen3-coder:30b']
-  : ['qwen3-coder:30b', 'claude-haiku-4-5', 'claude-opus-4-7'];
+  : ['qwen3-coder:30b', 'anthropic/claude-haiku-4.5', 'anthropic/claude-opus-4.8'];
 const PROMPTS = ['neutral', 'TDD', 'ATDD'];
 const RETRIEVAL = ['off', 'on'];
 const SCAFFOLD = ['none', 'plan-and-solve', 'reflexion'];
-// per-Mtok [in, out] USD
+// Fallback per-Mtok [in, out] USD for the stub display only; real runs use the
+// exact per-call cost OpenRouter returns in usage.cost.
 const PRICE: Record<string, [number, number]> = {
-  'qwen3-coder:30b': [0, 0], 'claude-haiku-4-5': [1, 5], 'claude-opus-4-7': [5, 25],
+  'qwen3-coder:30b': [0, 0], 'anthropic/claude-haiku-4.5': [1, 5], 'anthropic/claude-opus-4.8': [5, 25],
 };
 
 interface Cell { model: string; prompt: string; retrieval: string; scaffold: string }
@@ -92,26 +94,26 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
   throw lastErr;
 }
 
-async function callModel(model: string, system: string, user: string, temperature: number, seed: number): Promise<{ text: string; inTok: number; outTok: number }> {
+async function callModel(model: string, system: string, user: string, temperature: number, seed: number): Promise<{ text: string; inTok: number; outTok: number; cost: number }> {
   return withRetry(async () => {
   if (model.startsWith('qwen')) {
     const r = await fetch(OLLAMA, { method: 'POST', body: JSON.stringify({ model, system, prompt: user, stream: false, options: { temperature, seed, num_predict: 600 } }), signal: AbortSignal.timeout(120000) });
     const j: any = await r.json();
-    return { text: j.response ?? '', inTok: j.prompt_eval_count ?? 0, outTok: j.eval_count ?? 0 };
+    return { text: j.response ?? '', inTok: j.prompt_eval_count ?? 0, outTok: j.eval_count ?? 0, cost: 0 };
   }
-  // opus-4-7 is a reasoning model that DEPRECATED `temperature` (400 if sent).
-  // Anthropic has no seed param; temperature > 0 alone yields the stochastic
-  // variance the replicates need.
-  const body: Record<string, unknown> = { model, max_tokens: 700, system, messages: [{ role: 'user', content: user }] };
+  // Cloud path = OpenRouter (OpenAI-compatible). opus is a reasoning model that
+  // may reject `temperature`; omit it for opus (its own sampling still yields the
+  // stochastic variance the replicates need). No seed param upstream for Anthropic.
+  const body: Record<string, unknown> = { model, max_tokens: 700, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] };
   if (!model.includes('opus')) body.temperature = temperature;
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': KEY!, 'anthropic-version': '2023-06-01' },
+  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST', headers: { authorization: `Bearer ${ORKEY!}`, 'content-type': 'application/json' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(120000),
   });
   const j: any = await r.json();
-  if (!r.ok) throw new Error('anthropic ' + r.status + ' ' + JSON.stringify(j).slice(0, 120));
-  return { text: j.content?.[0]?.text ?? '', inTok: j.usage?.input_tokens ?? 0, outTok: j.usage?.output_tokens ?? 0 };
+  if (!r.ok) throw new Error('openrouter ' + r.status + ' ' + JSON.stringify(j).slice(0, 160));
+  return { text: j.choices?.[0]?.message?.content ?? '', inTok: j.usage?.prompt_tokens ?? 0, outTok: j.usage?.completion_tokens ?? 0, cost: j.usage?.cost ?? 0 };
   });
 }
 
@@ -122,24 +124,24 @@ function stripFence(s: string): string {
   return s.replace(/^\s*```[a-z]*\s*$/gim, '').replace(/```/g, '').trim();
 }
 
-async function generateTest(cell: Cell, item: AnchorItem, examples: string, seed: number): Promise<{ code: string; inTok: number; outTok: number }> {
+async function generateTest(cell: Cell, item: AnchorItem, examples: string, seed: number): Promise<{ code: string; inTok: number; outTok: number; cost: number }> {
   const sys = SYS[cell.prompt];
   const base = `Write a Node.js unit test using node:test and node:assert. Import: import { ${item.moduleName} } from '../src/${item.moduleName}.mjs';\n\nSpec: ${item.inputUnderTest}\nRequirements to cover: ${item.requirements.join('; ')}\n${examples}\nOutput ONLY the test code.`;
-  let inTok = 0, outTok = 0;
+  let inTok = 0, outTok = 0, cost = 0;
   if (cell.scaffold === 'none') {
-    const r = await callModel(cell.model, sys, base, GEN_TEMP, seed); inTok += r.inTok; outTok += r.outTok; return { code: stripFence(r.text), inTok, outTok };
+    const r = await callModel(cell.model, sys, base, GEN_TEMP, seed); inTok += r.inTok; outTok += r.outTok; cost += r.cost; return { code: stripFence(r.text), inTok, outTok, cost };
   }
   if (cell.scaffold === 'plan-and-solve') {
     const p = await callModel(cell.model, sys, `List the edge cases and boundary conditions to test for:\n${item.inputUnderTest}\nRequirements: ${item.requirements.join('; ')}\nJust a terse list.`, GEN_TEMP, seed);
-    inTok += p.inTok; outTok += p.outTok;
-    const r = await callModel(cell.model, sys, base + `\n\nUse this test plan:\n${p.text}`, GEN_TEMP, seed + 1); inTok += r.inTok; outTok += r.outTok;
-    return { code: stripFence(r.text), inTok, outTok };
+    inTok += p.inTok; outTok += p.outTok; cost += p.cost;
+    const r = await callModel(cell.model, sys, base + `\n\nUse this test plan:\n${p.text}`, GEN_TEMP, seed + 1); inTok += r.inTok; outTok += r.outTok; cost += r.cost;
+    return { code: stripFence(r.text), inTok, outTok, cost };
   }
   // reflexion: draft then critique+revise
-  const d = await callModel(cell.model, sys, base, GEN_TEMP, seed); inTok += d.inTok; outTok += d.outTok;
+  const d = await callModel(cell.model, sys, base, GEN_TEMP, seed); inTok += d.inTok; outTok += d.outTok; cost += d.cost;
   const r = await callModel(cell.model, sys, `Here is a test:\n${stripFence(d.text)}\n\nCritique it for missing boundary/edge/error cases per the spec (${item.inputUnderTest}) and output an IMPROVED complete test. Output ONLY code.`, GEN_TEMP, seed + 1);
-  inTok += r.inTok; outTok += r.outTok;
-  return { code: stripFence(r.text), inTok, outTok };
+  inTok += r.inTok; outTok += r.outTok; cost += r.cost;
+  return { code: stripFence(r.text), inTok, outTok, cost };
 }
 
 // ---------------------------------------------------------------------------
@@ -220,16 +222,18 @@ async function runReal(): Promise<CellRow[]> {
       examples = ex.length ? `\nRelated patterns (inspiration):\n${ex.map((e: any, i: number) => `${i + 1}. ${e.name}: ${e.body.slice(0, 120)}`).join('\n')}\n` : '';
     }
     const reps: number[] = [];
-    let cIn = 0, cOut = 0;
+    let cIn = 0, cOut = 0, cCost = 0;
     for (let r = 0; r < REPLICATES; r++) {
       const seed = 1000 + r; // distinct seed per replicate
       const g = await generateTest(cell, item, examples, seed);
-      cIn += g.inTok; cOut += g.outTok; gens++;
+      cIn += g.inTok; cOut += g.outTok; cCost += g.cost; gens++;
       const res = evaluateOracle({ moduleName: item.moduleName, referenceImpl: item.referenceImpl, generatedTest: g.code, threshold: 0.8, maxMutants: 6 });
       reps.push(res.baselinePassed && res.mutationScore >= 0.8 ? 1 : 0);
     }
-    const [pi, po] = PRICE[cell.model];
-    const cost = (cIn / 1e6) * pi + (cOut / 1e6) * po;
+    // Prefer OpenRouter's exact per-call cost; fall back to the price table only if
+    // the provider didn't return usage.cost (e.g. local qwen → 0).
+    const [pi, po] = PRICE[cell.model] ?? [0, 0];
+    const cost = cCost > 0 ? cCost : (cIn / 1e6) * pi + (cOut / 1e6) * po;
     totalCost += cost;
     const pass = reps.reduce((a, b) => a + b, 0);
     const row: CellRow = { ...cell, item: item.id, reps, passProp: pass / reps.length, inTok: cIn, outTok: cOut, cost };
@@ -244,7 +248,7 @@ async function runReal(): Promise<CellRow[]> {
 
 (async () => {
   if (!STUB && !SMOKE && !CONFIRMED) { console.log('Refusing to spend without --confirm-spend. Use --stub for a $0 deterministic run, or --smoke for a $0 qwen-only real run.'); process.exit(0); }
-  if (!STUB && !SMOKE && !KEY) { console.log('No ANTHROPIC_API_KEY — cannot run cloud cells.'); process.exit(2); }
+  if (!STUB && !SMOKE && !ORKEY) { console.log('No OPENROUTER_API_KEY in .env — cannot run cloud cells.'); process.exit(2); }
 
   const results = STUB ? await runStub() : await runReal();
 

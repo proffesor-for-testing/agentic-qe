@@ -307,7 +307,28 @@ N=5). **Nothing has run. $0 spent so far.**
 
 ---
 
-## RESULTS — executed 2026-07-09 (25 of 27 cells; ~$1.25, well under budget)
+## RESULTS (DEFINITIVE) — re-executed 2026-07-10 (27/27 cells, $1.538, real F-test)
+
+Supersedes the 2026-07-09 directional run below. Complete design, correct statistics, reproducible: run via `scripts/doe-run.ts` (qwen=local Ollama $0, cloud=**OpenRouter** — `anthropic/claude-haiku-4.5` + `anthropic/claude-opus-4.8`) with the **CRIT-2 response fix** (N=5 genuine stochastic replicates of ONE fixed item, `A1-inRange`, at temp=0.6, per-replicate seed — a real within-cell error term), then `scripts/doe-aggregate.mjs` (real main-effects ANOVA, F via regularized incomplete beta). **Raw per-cell data persisted at `docs/implementation/doe-run-2026-07-10.jsonl`** (the 2026-07-09 raw data was never saved — fixed here). 135 binary observations, grand pass-rate 0.459, within-cell MS_error=0.0481 (df=108).
+
+| Factor | levels (pass-rate) | F-test | SS share | Verdict |
+|---|---|---|---|---|
+| **scaffold** | none **1.000** ≫ plan-and-solve 0.311 ≫ reflexion 0.067 | **F(2,108)=218.9, p=1.0e-38** | **71.9%** | both **DROP** — significant but strongly NEGATIVE |
+| **model** | qwen **0.644** > haiku 0.400 > opus 0.333 | F(2,108)=25.1, p=1.1e-9 | 8.2% | local qwen wins; opus 5×+ cost buys negative value |
+| **prompt** | TDD 0.533 > ATDD 0.467 > neutral 0.378 | F(2,108)=5.7, p=4.5e-3 | 1.9% | TDD best, modest |
+| **retrieval** | off 0.480 > on 0.433 | F(1,108)=1.5, **p=0.22 (n.s.)** | 0.2% | **DROP** — beads: +cost, no significant gain (and slightly negative) |
+
+**scaffold (headline, now p=10⁻³⁸):** every no-scaffold replicate passed (1.00) across ALL three models; both scaffolds crater (reflexion to 0.067). This is retort's *"more harness lowers reliability"* with overwhelming significance — the pre-registered over-iteration hypothesis confirmed. The unclosed-fence artifact (now fixed in `stripFence`) is NOT the cause: scaffolds fail by genuinely OVER-REACHING past the spec (e.g. reflexion invents a "reversed range" rule and asserts `inRange(5,10,1)===true`, contradicting the reference).
+
+**retrieval (the ADR-118 flywheel feature on trial):** p=0.22 — **formally not significant**, and slightly negative (−0.047 pass, +$0.014 cost). Retrieval as a generation aid does not improve test quality on this item. This is **explained** (not merely observed) by the 2026-07-10 coupling experiment: `A1-inRange` is a NO-HEADROOM item the models know cold, so a retrieved exemplar has nothing to add. Retrieval helps ONLY when the corpus supplies knowledge the base model lacks (see ADR-118 status + `scripts/coupling-experiment.ts` positive control, gain +1.00).
+
+**model (complete, no unequal-n):** qwen3-coder:30b (local, $0) 0.644 > haiku-4.5 0.400 > opus-4.8 0.333 — F=25.1, p=1e-9. On this item the frontier models OVER-THINK a trivial range check; local qwen is both best and free. (The 2026-07-09 run's haiku>opus>qwen ordering was over unequal n and no F-test; this complete run reverses it and it's significant.)
+
+**Bottom line (unchanged in spirit, now inferential):** the SIMPLEST, CHEAPEST stack wins — **none-scaffold + retrieval-off + TDD + local qwen**. Every added feature (scaffold, retrieval) hurt reliability while adding cost. **Scope caveat still holds:** one fixed toy item the models know well; scaffolds/retrieval may help on genuinely hard, unfamiliar tasks (the coupling positive control shows the corpus mechanism CAN help when there's headroom). Fixture-difficulty augmentation remains the planned next step.
+
+---
+
+## RESULTS (SUPERSEDED, directional) — executed 2026-07-09 (25 of 27 cells; ~$1.25, well under budget)
 
 Run via `scripts/doe-run.ts` (qwen=Ollama, cloud=raw Anthropic fetch) + `scripts/doe-aggregate.mjs`. Task = the 5 frozen anchor items; pass = mutation-kill ≥ 0.8 via the ADR-113 oracle. 2 opus cells missing (account API usage-limit reached at $1.25 — NOT the $11 budget); opus n=7.
 

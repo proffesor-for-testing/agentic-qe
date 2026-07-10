@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-122 |
-| **Status** | RUN 2026-07-09 (25/27 cells, $1.25) — `scripts/doe-run.ts` + `doe-aggregate.mjs`. **Finding: scaffold dominates reliability (Δ0.64): none 0.71 ≫ plan 0.30 ≫ reflexion 0.075; retrieval is beads (−0.02 pass, +cost → DROP); model barely matters (haiku ≥ opus).** Simplest+cheapest stack wins. Results in DOE-HARNESS-SCREEN-DESIGN.md §Results. |
+| **Status** | RE-RUN 2026-07-10 (27/27 cells, $1.538, OpenRouter + real F-test) — supersedes the 2026-07-09 directional run. `scripts/doe-run.ts` (qwen local $0 + `anthropic/claude-haiku-4.5` + `anthropic/claude-opus-4.8` via OpenRouter, N=5 stochastic replicates of fixed item A1-inRange) + `doe-aggregate.mjs` (real main-effects ANOVA). **Findings, now significance-tested: scaffold DOMINATES and is NEGATIVE — none 1.00 ≫ plan 0.31 ≫ reflexion 0.067, F(2,108)=218.9 p=1e-38, 71.9% of variance → both DROP; retrieval is beads — F(1,108)=1.5 p=0.22 n.s., slightly negative → DROP (explained by the 2026-07-10 coupling no-headroom finding); model qwen 0.644 > haiku 0.400 > opus 0.333, F=25.1 p=1e-9 (local qwen best, opus 5×+ cost = negative value); prompt TDD best p=4.5e-3.** Simplest+cheapest stack wins (none/off/TDD/local-qwen). Raw data persisted at `docs/implementation/doe-run-2026-07-10.jsonl` (reproducibility gap from the first run fixed). Full writeup: DOE-HARNESS-SCREEN-DESIGN.md §Results (DEFINITIVE). |
 | **Date** | 2026-07-07 |
 | **Author** | AQE Core |
 | **Review Cadence** | 3 months |
@@ -142,6 +142,8 @@ Screen results are recorded append-only; no destructive DB operations. Pre-regis
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-07-07 | Initial creation; extracted from 2026-07-07 cross-repo analysis |
+| Run (directional) | 2026-07-09 | 25/27 cells, $1.25; level-mean ranges, no F-test; 2 opus cells cut at usage limit; raw data not persisted |
+| Re-run (definitive) | 2026-07-10 | 27/27 cells, $1.538 via OpenRouter (opus-4.8); real ANOVA F-tests; scaffold p=1e-38 NEGATIVE, retrieval p=0.22 beads, model p=1e-9 (qwen best); raw data persisted in-repo |
 
 ---
 
