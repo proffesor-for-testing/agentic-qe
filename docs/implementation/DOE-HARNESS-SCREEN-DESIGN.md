@@ -324,7 +324,7 @@ Run via `scripts/doe-run.ts` (qwen=Ollama, cloud=raw Anthropic fetch) + `scripts
 
 **retrieval (the ADR-118 flywheel feature on trial):** `off`=0.386 vs `on`=0.364 → −0.022 pass, +$0.008 cost ⇒ **DROP** — the exact `beads` signature. Retrieval as a generation aid does not help on this task.
 
-**model:** haiku=0.444 ≥ opus=0.343 ≈ qwen=0.333. Paying 5× for Opus buys nothing here; **haiku is the value pick**, qwen (local, $0) is within noise.
+**model:** haiku=0.444 ≥ opus=0.343 ≈ qwen=0.333. Paying 5× for Opus buys nothing here; **haiku is the value pick**, qwen (local, $0) is within noise. **UNEQUAL n — read the opus number with caution:** the model means are over different sample sizes (opus n=7 vs haiku/qwen n=9), because 2 opus cells were cut when the account usage limit was hit at $1.25. Opus's 0.343 is the least reliable of the three, and the whole "which factor moves reliability" ranking here is **directional**, not inferential — the original run reported level-mean ranges with **no F-test / significance test** (see the separate stats fix). Treat the ordering as a screen signal to confirm, not a decided result.
 
 **prompt:** TDD=0.444 > ATDD=0.371 > neutral=0.311. TDD modestly best.
 

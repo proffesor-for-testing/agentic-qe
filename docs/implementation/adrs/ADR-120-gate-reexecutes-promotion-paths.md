@@ -103,6 +103,22 @@ Parity test against `@metaharness/flywheel` `verifyReplayBundle` on identical bu
 
 ---
 
+## Threat model and limits (honest)
+
+`gateReExecutes` is narrower than "the promotion gate is correct." State precisely what it does and does not buy:
+
+- **What it catches: a LYING LOG.** A recorded verdict that disagrees with re-executing the *same* frozen rule on the *same* sealed inputs — the A8-EXT fake-`applied`-counter class (a path that logged `applied: true`/`promoted: true` without the rule actually granting it). Re-execution reproduces the rule's real verdict and the disagreement is flagged. This is the `should_CATCH_a_forged_promote_the_rule_would_reject_A8EXT` case in the tests, and the round-trip/log-lie guarantees in `tests/unit/validation/rule-consistency.test.ts`.
+
+- **What it does NOT catch: a BUGGY GATE.** The sealing (ADR-116) and the rule (`accept/v1`) run in the **same process** at decision time; verification re-runs that **same rule** on those **same sealed inputs**. So if the seal is computed wrong, or the rule itself encodes the wrong acceptance logic, re-executing the wrong rule on mis-sealed inputs **reproduces the wrong verdict** and `gateReExecutes` passes green. Re-execution proves *reproducibility*, not *correctness*. A wrong-but-consistent gate is invisible to it — the rule's correctness is out of scope and must be established separately (by the frozen-anchor no-regression check, the conformance parity test, and rule review).
+
+- **The realistic failure mode here is an honest bug, not a malicious forgery.** The A8-EXT counter was a coding mistake on a single-user local `memory.db`, not an adversary forging receipts. Re-execution is worth having because it structurally closes the *honest-bug* class (a stale/fake counter can no longer masquerade as a real promotion), but the cryptographic framing ("forgery cannot survive") oversells the actual threat: there is no untrusted writer to defend against on this DB. The value is regression-proofing an honest bug class, not defeating an attacker.
+
+- **The crypto does not answer the ADR-118 question.** `gateReExecutes` verifies that *the recorded decision was reproducibly what the rule said* — it says nothing about whether **promotion actually improves QE quality**. That is ADR-118's open question, and its live runs produced honest nulls (see ADR-118 status). Re-execution can make a null result trustworthy; it cannot turn a null into a win.
+
+In one line: **re-execution guarantees the log did not lie about the rule's verdict; it does not guarantee the rule, the seal, or the value of promotion.**
+
+---
+
 ## Dependencies
 
 | Relationship | ADR ID | Title | Notes |

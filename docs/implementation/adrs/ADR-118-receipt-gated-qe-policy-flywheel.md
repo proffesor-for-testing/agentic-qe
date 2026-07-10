@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-118 |
-| **Status** | Accepted (2026-07-08) — core built `src/learning/qe-flywheel/` (policy, Ed25519 receipt, generation loop): frozen `accept/v1` gate via ADR-120, anchor no-regression via ADR-117, provenance tier via ADR-121, compounding lineage, honest-null, drift canary + reversible pointer; 17 tests. Corpus scorer (harvest `qe_patterns` + retrieval eval + anchor grading) is the injected seam, wired separately (the DB/model-touching part). |
+| **Status** | Accepted as INFRASTRUCTURE AWAITING A VALIDATED SIGNAL (2026-07-09) — the receipt-gated machinery is built and tested (`src/learning/qe-flywheel/`: policy, Ed25519 receipt, generation loop; frozen `accept/v1` gate via ADR-120, anchor no-regression via ADR-117, provenance tier via ADR-121, compounding lineage, honest-null, drift canary + reversible pointer; 17 tests), but **live runs produced honest nulls**: lift showed only on a self-supervised retrieval proxy while the ADR-117 anchor held flat, and the coupled anchor did not move on the real qwen model. The ADR-122 DoE independently rated retrieval as `beads` (null pass-proportion effect, positive cost — see DOE-HARNESS-SCREEN-DESIGN.md §Results). So this is validated *plumbing*, not a demonstrated QE-quality improvement — the mechanism is sound and reversible, but no promotion-improves-quality signal has yet cleared the gate. Corpus scorer (harvest `qe_patterns` + retrieval eval + anchor grading) remains the injected seam, wired separately (the DB/model-touching part). |
 | **Date** | 2026-07-07 |
 | **Author** | AQE Core |
 | **Review Cadence** | 3 months |

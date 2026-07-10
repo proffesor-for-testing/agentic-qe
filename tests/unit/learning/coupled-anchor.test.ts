@@ -1,9 +1,22 @@
 /**
- * ADR-118 coupled anchor: retrieval → test-gen → anchor makes the anchor MOVE.
+ * ADR-118 coupled anchor — MECHANISM test (scripted generator, NOT real-model evidence).
  *
- * The core claim: `anchorMean` now varies with the retrieval policy. A policy
- * that retrieves a helpful example yields a stronger generated test (kills all
- * mutants → 1.0); one that doesn't yields a weak test (misses mutants → < 1.0).
+ * WHAT THIS PROVES: the WIRING propagates end-to-end —
+ *   retrieve(policy) → examples → generate(examples) → evaluateOracle → anchorMean.
+ * When the injected generator produces a stronger test given a helpful retrieved
+ * example, the real oracle (subprocess mutation run) scores it higher and the
+ * anchor mean moves. That is a real check of the plumbing and of the oracle.
+ *
+ * WHAT THIS DOES NOT PROVE: that a REAL model actually writes better tests when
+ * given retrieved examples. The `generate` below is a SCRIPTED fake that returns
+ * the STRONG test iff a 'boundary' example was retrieved — it hardcodes the very
+ * outcome the "anchor moves" story wants, so the causal link (retrieval → better
+ * tests) is assumed here, not demonstrated. The live qwen coupled run was an
+ * HONEST NULL: retrieval did not move the anchor for the real model (see the
+ * coupling experiment / the DOE where retrieval landed in the "beads" — a lever
+ * that added harness without improving reliability). Do not cite this test as
+ * evidence that coupling helps; it only shows the seam is connected correctly.
+ *
  * Uses a temp single-item frozen anchor + real evaluateOracle (subprocess).
  */
 
@@ -41,16 +54,18 @@ const ITEM: AnchorItem = {
   expectedMutants: 3,
 };
 
-// Fake retriever: a body-favoring policy (bodyWeight >= 1) surfaces the helpful
-// example; a body-starved one (bodyWeight < 1) retrieves nothing useful.
+// SCRIPTED retriever: a body-favoring policy (bodyWeight >= 1) surfaces the
+// helpful example; a body-starved one (bodyWeight < 1) retrieves nothing useful.
 const retrieve: RetrieveFn = (_q, policy) =>
   policy.bodyWeight >= 1 ? [{ id: 'good', name: 'boundary-example', body: 'covers boundaries' }] : [];
 
-// Fake generator: strong test iff a helpful example was retrieved.
+// SCRIPTED generator: hardcodes the outcome under test — returns the STRONG test
+// iff a 'boundary' example was retrieved. This ASSUMES retrieval → better tests
+// (it does not demonstrate it); a real model showed no such effect (honest null).
 const generate: TestGenerator = (_input, examples) =>
   examples.some((e) => e.name.includes('boundary')) ? STRONG : WEAK;
 
-describe('createCoupledAnchorScorer — the anchor moves with the policy', () => {
+describe('createCoupledAnchorScorer — MECHANISM (scripted generator, NOT real-model evidence)', () => {
   let dir: string;
   let anchorPath: string;
 
@@ -68,12 +83,15 @@ describe('createCoupledAnchorScorer — the anchor moves with the policy', () =>
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('should_score_higher_when_the_policy_retrieves_a_helpful_example', async () => {
+  it('should_propagate_retrieval_through_generation_to_the_oracle_score_when_the_generator_is_scripted', async () => {
+    // The SCRIPTED generator (not a model) decides strong-vs-weak from the
+    // retrieved example, so this asserts the SEAM carries that decision into a
+    // real oracle score — it is NOT evidence that retrieval helps a real model.
     const score = createCoupledAnchorScorer({ anchorPath, retrieve, generate });
-    const good = await score({ ...DEFAULT_POLICY, bodyWeight: 1.5 }); // retrieves helper → strong test
-    const bad = await score({ ...DEFAULT_POLICY, bodyWeight: 0.5 });  // no helper → weak test
-    expect(good).toBeGreaterThan(bad);       // THE ANCHOR MOVED
-    expect(good).toBe(1);                    // strong test kills all 3 mutants
-    expect(bad).toBeLessThan(1);             // weak test misses mutants
+    const good = await score({ ...DEFAULT_POLICY, bodyWeight: 1.5 }); // scripted → strong test
+    const bad = await score({ ...DEFAULT_POLICY, bodyWeight: 0.5 });  // scripted → weak test
+    expect(good).toBeGreaterThan(bad);       // the wiring carried the scripted difference through
+    expect(good).toBe(1);                    // strong test kills all 3 mutants (real oracle)
+    expect(bad).toBeLessThan(1);             // weak test misses mutants (real oracle)
   }, 30000);
 });
