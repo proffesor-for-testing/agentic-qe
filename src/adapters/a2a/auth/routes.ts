@@ -692,9 +692,15 @@ export function validateRedirectUri(uri: string, allowedUris: string[]): boolean
 
       // Wildcard match (e.g., "https://*.example.com/callback")
       if (allowed.includes('*')) {
+        // A wildcard binds to a SINGLE subdomain label — it must not match '.' or
+        // '/'. Using '.*' here let an attacker satisfy the pattern via the URL
+        // PATH: 'https://evil.com/x.example.com/cb' matches '^https://.*\.example\.com/cb$',
+        // an open-redirect bypass (CodeQL js/incomplete-hostname-regexp — the '.' in
+        // '.*' is the "unescaped dot before the host"). '[^./]+' pins the wildcard to
+        // one label so the host cannot be spoofed via extra dots or path segments.
         const pattern = allowed
           .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*');
+          .replace(/\*/g, '[^./]+');
         const regex = new RegExp(`^${pattern}$`);
         if (regex.test(uri)) {
           return true;

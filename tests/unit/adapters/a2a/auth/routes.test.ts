@@ -517,6 +517,28 @@ describe('validateRedirectUri', () => {
       validateRedirectUri('https://app.example.com/cb', ['not-a-uri', 'https://app.example.com/cb'])
     ).toBe(true);
   });
+
+  // Security regression: the wildcard must bind to a single subdomain label so a
+  // wildcard allow-list entry cannot be satisfied by an attacker-controlled host
+  // that carries the allowed suffix in its PATH (open-redirect bypass — the old
+  // '.*' expansion matched '.' and '/'). CodeQL js/incomplete-hostname-regexp.
+  it('rejects an attacker host that spoofs the allowed suffix via the URL path', () => {
+    expect(
+      validateRedirectUri('https://evil.com/x.example.com/cb', ['https://*.example.com/cb'])
+    ).toBe(false);
+  });
+
+  it('rejects a wildcard match that spans multiple subdomain labels', () => {
+    expect(
+      validateRedirectUri('https://a.b.example.com/cb', ['https://*.example.com/cb'])
+    ).toBe(false);
+  });
+
+  it('rejects a wildcard whose label contains an embedded slash', () => {
+    expect(
+      validateRedirectUri('https://a/b.example.com/cb', ['https://*.example.com/cb'])
+    ).toBe(false);
+  });
 });
 
 // ============================================================================
