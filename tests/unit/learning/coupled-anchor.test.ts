@@ -94,4 +94,37 @@ describe('createCoupledAnchorScorer — MECHANISM (scripted generator, NOT real-
     expect(good).toBe(1);                    // strong test kills all 3 mutants (real oracle)
     expect(bad).toBeLessThan(1);             // weak test misses mutants (real oracle)
   }, 30000);
+
+  // The ONLY test that would be genuine evidence that coupling helps: a REAL
+  // model-backed generator (not the scripted fake above) writing tests from
+  // policy-retrieved examples, end to end into the real oracle. SKIPPED by
+  // default — it needs a live model (no model / no network in CI), and as of the
+  // last live qwen coupled run it was an HONEST NULL: retrieval did NOT move the
+  // anchor (the effect the mechanism test only ASSUMES). Enable with
+  // AQE_LIVE_COUPLING=1 AND a real TestGenerator injected below. Do NOT weaken
+  // the assertion to make it pass on the scripted fake — flip it to `it` only
+  // when a real model demonstrably benefits from retrieval.
+  const runLive = process.env.AQE_LIVE_COUPLING === '1';
+  (runLive ? it : it.skip)(
+    'should_show_a_REAL_model_writes_stronger_tests_from_retrieved_examples__HONEST_NULL_needs_live_model',
+    async () => {
+      // Replace with a real model-backed generator (e.g. an LLM test-gen client).
+      // Left unimplemented on purpose: the experiment fails LOUDLY rather than
+      // fabricating a pass if enabled without a model. The mechanism test does the
+      // wiring proof; this slot is reserved for real-model evidence.
+      const realGenerate: TestGenerator = async () => {
+        throw new Error(
+          'AQE_LIVE_COUPLING=1 but no real model-backed TestGenerator was injected — ' +
+          'this is the real-model coupling experiment (last live qwen run: honest null).',
+        );
+      };
+      const score = createCoupledAnchorScorer({ anchorPath, retrieve, generate: realGenerate });
+      const withRetrieval = await score({ ...DEFAULT_POLICY, bodyWeight: 1.5 });
+      const withoutRetrieval = await score({ ...DEFAULT_POLICY, bodyWeight: 0.5 });
+      // The causal claim the mechanism test assumes but cannot prove. Observed to
+      // NOT hold for a real qwen generator — hence this test stays skipped.
+      expect(withRetrieval).toBeGreaterThan(withoutRetrieval);
+    },
+    120000,
+  );
 });
