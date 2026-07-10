@@ -706,7 +706,11 @@ export function validateRedirectUri(uri: string, allowedUris: string[]): boolean
       const MARKER = 'wildcardlabelplaceholder';
       let pattern: URL;
       try {
-        pattern = new URL(allowed.replace('*', MARKER));
+        // Replace EVERY '*' (global) — a first-occurrence-only replace would leave
+        // later '*' chars in the string. Any multi-wildcard pattern still gets
+        // rejected below because its suffix would then contain MARKER, which no
+        // real host can end with.
+        pattern = new URL(allowed.replace(/\*/g, MARKER));
       } catch {
         continue; // malformed wildcard entry — skip
       }

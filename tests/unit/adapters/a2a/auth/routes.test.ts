@@ -539,6 +539,14 @@ describe('validateRedirectUri', () => {
       validateRedirectUri('https://a/b.example.com/cb', ['https://*.example.com/cb'])
     ).toBe(false);
   });
+
+  it('rejects a multi-wildcard pattern rather than partially expanding it', () => {
+    // Every '*' is substituted, so a multi-star pattern cannot be satisfied by a
+    // real host (its suffix would contain the placeholder label).
+    expect(
+      validateRedirectUri('https://a.b.example.com/cb', ['https://*.*.example.com/cb'])
+    ).toBe(false);
+  });
 });
 
 // ============================================================================
