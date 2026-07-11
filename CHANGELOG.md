@@ -5,6 +5,58 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.0] - 2026-07-10
+
+Adds a **learning-integrity layer** so the self-learning system can only promote
+what it can prove. Test-quality is now measured against a frozen, hash-pinned
+oracle benchmark; promotions are gated by the *quality of their evidence*
+(real test execution beats an LLM judge beats a structural heuristic), recorded
+as cryptographically-signed, replayable receipts, and re-checked against the
+exact frozen rule before they take effect. A new two-gate quality command
+(mechanical checks + an independent frontier-model judge) is exposed on both the
+CLI and MCP. Ships with a designed-experiment tool that measures — with real
+statistics — whether a given harness feature actually improves test quality or
+just adds cost. See ADRs
+[117](docs/implementation/adrs/ADR-117-frozen-oracle-anchor-set.md)–[122](docs/implementation/adrs/ADR-122-designed-experiment-harness-gate.md)
+and [v3.12.0 release notes](docs/releases/v3.12.0.md).
+
+### Added
+
+- **`aqe quality-gate` CLI command and `qe/quality/gate` MCP tool** — a two-gate
+  quality verdict: a mechanical gate (the code must actually run and kill
+  mutations) plus an independent frontier-model judge that checks the test
+  against the spec. Returns a three-valued verdict (pass / fail / inconclusive)
+  and degrades honestly to "inconclusive" when the judge is unavailable rather
+  than guessing.
+- **Frozen oracle anchor set** — a hash-pinned benchmark of graded test items
+  with a constant denominator, so a drop in the learning system's test-quality
+  is detectable as a real regression instead of being hidden by a moving target.
+- **Provenance-tiered promotion** — every learning promotion now carries an
+  evidence tier (test-execution > LLM-judge > structural heuristic), and a
+  policy can require a minimum tier before anything is promoted.
+- **Receipt-gated policy flywheel** — retrieval-policy improvements are recorded
+  as Ed25519-signed, replayable receipts with a compounding lineage, so every
+  promotion is auditable, re-verifiable offline, and reversible.
+- **Gate re-execution on promotion paths** — before a promotion takes effect the
+  frozen accept-rule is re-run on the sealed inputs, catching any promotion that
+  was logged but that the rule would actually reject.
+- **Designed-experiment harness tool** (`scripts/doe-run.ts` +
+  `scripts/doe-aggregate.mjs`) — runs a factorial screen (model × prompt ×
+  retrieval × scaffold) with replicates and a real main-effects ANOVA, so you
+  can tell whether a harness feature helps reliability or is just cost. First
+  screen found that heavy scaffolding *lowers* reliability and that retrieval
+  adds no measurable quality on already-known tasks.
+
+### Fixed
+
+- **Brain-export hook no longer leaks** deadlocked background exports that could
+  respawn, and database backups are hardened for virtiofs bind-mounts (a
+  VACUUM-INTO backup path that avoids the WAL-corruption failure mode).
+- **`AQE_DISABLE_WAL` / `AQE_JOURNAL_MODE` env override** for SQLite journal mode,
+  so environments prone to bind-mount WAL corruption can opt into a safer mode.
+- **Pattern-lifecycle promotion** now records and gates on provenance tier
+  (additive column migration, conservative backfill).
+
 ## [3.11.5] - 2026-07-07
 
 A system-integrity sweep of the self-learning loop: dream-cycle insights now

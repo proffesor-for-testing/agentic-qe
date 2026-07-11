@@ -681,45 +681,70 @@ export function createOAuthRoutes(
  * @returns True if URI is allowed
  */
 export function validateRedirectUri(uri: string, allowedUris: string[]): boolean {
+  let target: URL;
   try {
-    const parsed = new URL(uri);
-
-    for (const allowed of allowedUris) {
-      // Exact match
-      if (allowed === uri) {
-        return true;
-      }
-
-      // Wildcard match (e.g., "https://*.example.com/callback")
-      if (allowed.includes('*')) {
-        const pattern = allowed
-          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*');
-        const regex = new RegExp(`^${pattern}$`);
-        if (regex.test(uri)) {
-          return true;
-        }
-      }
-
-      // Same origin match
-      try {
-        const allowedParsed = new URL(allowed);
-        if (
-          parsed.protocol === allowedParsed.protocol &&
-          parsed.host === allowedParsed.host &&
-          parsed.pathname.startsWith(allowedParsed.pathname)
-        ) {
-          return true;
-        }
-      } catch {
-        // Invalid allowed URI, skip
-      }
-    }
-
-    return false;
+    target = new URL(uri);
   } catch {
     return false;
   }
+
+  for (const allowed of allowedUris) {
+    // Exact match
+    if (allowed === uri) {
+      return true;
+    }
+
+    // Wildcard match (e.g., "https://*.example.com/callback"). Compared
+    // STRUCTURALLY on parsed URL components — NEVER by building a RegExp from a
+    // URL string. A regex approach (`.replace(/\*/g, '.*')`) let an attacker
+    // spoof the host via the PATH, e.g. "https://evil.com/x.example.com/cb"
+    // satisfied "^https://.*\.example\.com/cb$" (open redirect; also the CodeQL
+    // js/incomplete-hostname-regexp finding). Here only the single leftmost
+    // subdomain label may be wildcarded, and it must be a non-empty, dot-free
+    // label — so the host cannot be spoofed via extra dots or path segments.
+    if (allowed.includes('*')) {
+      const MARKER = 'wildcardlabelplaceholder';
+      let pattern: URL;
+      try {
+        // Replace EVERY '*' (global) — a first-occurrence-only replace would leave
+        // later '*' chars in the string. Any multi-wildcard pattern still gets
+        // rejected below because its suffix would then contain MARKER, which no
+        // real host can end with.
+        pattern = new URL(allowed.replace(/\*/g, MARKER));
+      } catch {
+        continue; // malformed wildcard entry — skip
+      }
+      if (pattern.protocol !== target.protocol) continue;
+      if (pattern.port !== target.port) continue;
+      // The wildcard must be the leftmost host label: "<MARKER>.<suffix>".
+      if (!pattern.hostname.startsWith(`${MARKER}.`)) continue;
+      const suffix = pattern.hostname.slice(MARKER.length); // ".example.com"
+      if (!target.hostname.endsWith(suffix)) continue;
+      const label = target.hostname.slice(0, target.hostname.length - suffix.length);
+      if (label.length === 0 || label.includes('.')) continue; // exactly one label
+      // Path matches exactly or as a prefix (same semantics as the same-origin case).
+      if (target.pathname === pattern.pathname || target.pathname.startsWith(pattern.pathname)) {
+        return true;
+      }
+      continue;
+    }
+
+    // Same origin match (exact protocol + host, path-prefix)
+    try {
+      const allowedParsed = new URL(allowed);
+      if (
+        target.protocol === allowedParsed.protocol &&
+        target.host === allowedParsed.host &&
+        target.pathname.startsWith(allowedParsed.pathname)
+      ) {
+        return true;
+      }
+    } catch {
+      // Invalid allowed URI, skip
+    }
+  }
+
+  return false;
 }
 
 /**

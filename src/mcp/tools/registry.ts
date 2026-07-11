@@ -13,6 +13,7 @@ import { TestGenerateTool } from './test-generation/generate';
 import { TestExecuteTool } from './test-execution/execute';
 import { CoverageAnalyzeTool, CoverageGapsTool } from './coverage-analysis';
 import { QualityEvaluateTool } from './quality-assessment/evaluate';
+import { QualityGateTool } from './quality-assessment/gate';
 import { DefectPredictTool } from './defect-intelligence/predict';
 import { RequirementsValidateTool } from './requirements-validation/validate';
 import { QualityCriteriaTool } from './requirements-validation/quality-criteria';
@@ -57,6 +58,7 @@ export const QE_TOOL_NAMES = {
 
   // Quality Assessment
   QUALITY_EVALUATE: 'qe/quality/evaluate',
+  QUALITY_GATE: 'qe/quality/gate',
 
   // Defect Intelligence
   DEFECT_PREDICT: 'qe/defects/predict',
@@ -143,6 +145,7 @@ export const QE_TOOLS: MCPToolBase[] = [
 
   // Quality Assessment Domain
   new QualityEvaluateTool(),
+  new QualityGateTool(),
 
   // Defect Intelligence Domain
   new DefectPredictTool(),

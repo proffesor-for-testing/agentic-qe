@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 2,
+  "passBar": {
+    "mutationThreshold": 0.8,
+    "checklistCoverage": 1
+  },
+  "anchorTol": 0,
+  "contentHash": "eb46ca49d21675520740a78b558ac0a882f78e3acac649ce52de6c38aa64ea9b",
+  "items": [
+    {
+      "id": "B1-median",
+      "moduleName": "median",
+      "expectedMutants": 1,
+      "inputUnderTest": "median(arr): return the median of a numeric array (average the two middle values for even length).",
+      "referenceImpl": "export function median(arr){const s=[...arr].sort((a,b)=>a-b);const n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2;}",
+      "requirements": [
+        "odd-length returns the middle element",
+        "even-length averages the two middle elements",
+        "a single-element array returns that element",
+        "unsorted input is handled"
+      ]
+    },
+    {
+      "id": "B2-rangeOverlap",
+      "moduleName": "rangeOverlap",
+      "expectedMutants": 3,
+      "inputUnderTest": "rangeOverlap(a1,a2,b1,b2): do the inclusive ranges [a1,a2] and [b1,b2] overlap?",
+      "referenceImpl": "export function rangeOverlap(a1,a2,b1,b2){return a1<=b2&&b1<=a2;}",
+      "requirements": [
+        "clearly overlapping ranges return true",
+        "disjoint ranges return false",
+        "ranges touching at exactly one endpoint return true (inclusive)",
+        "one range fully inside another returns true"
+      ]
+    },
+    {
+      "id": "B3-truncateWords",
+      "moduleName": "truncateWords",
+      "expectedMutants": 2,
+      "inputUnderTest": "truncateWords(s,n): keep the first n words; append '...' only if the string had MORE than n words.",
+      "referenceImpl": "export function truncateWords(s,n){const w=s.split(' ');return w.length<=n?s:w.slice(0,n).join(' ')+'...';}",
+      "requirements": [
+        "fewer than n words returns the string unchanged",
+        "exactly n words returns unchanged with NO ellipsis",
+        "more than n words truncates and appends the ellipsis",
+        "the ellipsis is only added when actually truncated"
+      ]
+    },
+    {
+      "id": "B4-isLeapYear",
+      "moduleName": "isLeapYear",
+      "expectedMutants": 5,
+      "inputUnderTest": "isLeapYear(y): Gregorian leap year — divisible by 4, except centuries which must be divisible by 400.",
+      "referenceImpl": "export function isLeapYear(y){return y%4===0&&(y%100!==0||y%400===0);}",
+      "requirements": [
+        "a year divisible by 4 (non-century) is a leap year",
+        "a year not divisible by 4 is not",
+        "a century year NOT divisible by 400 is NOT a leap year",
+        "a century year divisible by 400 IS a leap year"
+      ]
+    },
+    {
+      "id": "B5-classifyNumber",
+      "moduleName": "classifyNumber",
+      "expectedMutants": 2,
+      "inputUnderTest": "classifyNumber(n): return 'neg' if n<0, 'zero' if n===0, else 'pos'.",
+      "referenceImpl": "export function classifyNumber(n){return n<0?'neg':n===0?'zero':'pos';}",
+      "requirements": [
+        "a negative number returns 'neg'",
+        "zero returns 'zero'",
+        "a positive number returns 'pos'",
+        "the zero boundary is distinct from positive"
+      ]
+    }
+  ]
+}

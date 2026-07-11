@@ -922,6 +922,14 @@ export function isHyperbolicHnswEnabled(): boolean {
 export function initFeatureFlagsFromEnv(): void {
   const envFlags: Partial<RuVectorFeatureFlags> = {};
 
+  // RVF-backed PatternStore (ADR-066). Was the only flag WITHOUT an env override,
+  // so an environment where RVF native init fails (e.g. `RVF error 0x0303:
+  // FsyncFailed` on a macOS virtiofs bind mount) had no runtime way to fall back
+  // to the SQLite HNSW PatternStore. Set RUVECTOR_USE_RVF_PATTERN_STORE=false there.
+  if (process.env.RUVECTOR_USE_RVF_PATTERN_STORE !== undefined) {
+    envFlags.useRVFPatternStore = process.env.RUVECTOR_USE_RVF_PATTERN_STORE === 'true';
+  }
+
   if (process.env.RUVECTOR_USE_SONA !== undefined) {
     envFlags.useQESONA = process.env.RUVECTOR_USE_SONA === 'true';
   }

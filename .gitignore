@@ -266,3 +266,12 @@ tests/safety/behavioral/results/*
 
 # Local recovery artifacts (macOS native binary backups from container fixes)
 .agentic-qe/native-binary-backups/
+
+# WAL monitor (option C) local artifacts
+.agentic-qe/wal-monitor.log
+.agentic-qe/wal-monitor.ALERT
+.agentic-qe/*.moncopy-*
+
+# LLM-generated security audit reports dumped to root by the ruflo audit worker (daemon now disabled)
+SECURITY_AUDIT_*.json
+security-audit-*.json

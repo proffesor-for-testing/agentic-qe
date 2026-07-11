@@ -18,6 +18,16 @@ const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
 
+// Mount-local kill switch. `brain export` (below) spawns a native RVF writer
+// that, on a macOS Docker virtiofs bind mount, deadlocks in a futex and IGNORES
+// the SIGTERM that execFileSync's timeout sends — so the 60s timeout can't reap
+// it and orphaned exporters pile up (~1.5GB RSS observed 2026-07-08). Disable
+// via env `AQE_DISABLE_BRAIN_CHECKPOINT=1` or a `.agentic-qe/DISABLE_BRAIN_CHECKPOINT`
+// marker file. Opt-in: shipped installs without the flag behave exactly as before.
+const CHECKPOINT_DISABLED =
+  process.env.AQE_DISABLE_BRAIN_CHECKPOINT === '1' ||
+  fs.existsSync(path.join(AQE_DIR, 'DISABLE_BRAIN_CHECKPOINT'));
+
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\n'); }
 
 function exportBrain() {
@@ -54,5 +64,10 @@ function verifyBrain() {
 }
 
 const cmd = process.argv[2] || 'verify';
-const result = cmd === 'export' ? exportBrain() : verifyBrain();
+let result;
+if (CHECKPOINT_DISABLED) {
+  result = { disabled: true, reason: 'brain-checkpoint disabled on this mount' };
+} else {
+  result = cmd === 'export' ? exportBrain() : verifyBrain();
+}
 if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result));

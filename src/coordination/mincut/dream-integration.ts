@@ -30,6 +30,15 @@ import type { DomainName } from '../../shared/types/index.js';
 import { StrangeLoopController, StrangeLoopConfig } from './strange-loop';
 import { MinCutPersistence } from './mincut-persistence';
 import { SwarmGraph } from './swarm-graph';
+import { DEFAULT_PROVENANCE_TIER } from '../../learning/provenance-tier.js';
+import {
+  reExecutePathGate,
+  pathGateFingerprint,
+  pathSealedHash,
+  verifyPathPromotion,
+  type PathSealedInputs,
+  type PathPromotionReceipt,
+} from '../../validation/gate-reexecute.js';
 
 // ============================================================================
 // Try to import Dream module (graceful fallback if unavailable)
@@ -67,6 +76,11 @@ interface DreamInsight {
   applied: boolean;
   suggestedAction?: string;
   createdAt: Date;
+  /**
+   * ADR-121 evidence tier of the insight. Absent → the conservative default
+   * (`proxy:structural`), which the ADR-120 dream-apply gate will not apply.
+   */
+  provenanceTier?: string;
 }
 
 interface PatternImportData {
@@ -237,6 +251,13 @@ export interface DreamIntegrationConfig {
 
   /** Whether to auto-apply high-confidence insights */
   autoApplyInsights: boolean;
+
+  /**
+   * ADR-121: whether `judge:llm`-tier insights may be applied. A single LLM
+   * judgment is noisy, so judge-tier apply is opt-in (default false). Oracle
+   * tier always applies; proxy tier never does.
+   */
+  allowJudgeTierApply?: boolean;
 }
 
 /**
@@ -1364,19 +1385,46 @@ export class DreamMinCutController {
       }
 
       const action = this.integration.convertInsightToAction(insight);
-      if (action && action.type !== 'no_action') {
-        // Record as adaptation
-        this.integration.getMetaTracker().recordAdaptation({
-          timestamp: new Date(),
-          type: 'insight_applied',
-          trigger: 'dream_insight',
-          stateBefore: { minCutValue: 0, weakVertexCount: 0 },
-          stateAfter: { minCutValue: 0, weakVertexCount: 0 },
-          improvement: insight.noveltyScore * insight.confidenceScore,
-          insightId: insight.id,
-        });
-        appliedCount++;
+      const actionable = !!action && action.type !== 'no_action';
+
+      // ADR-120: seal the apply decision's inputs and re-execute the frozen
+      // `dream-apply/v1` rule. This is the A8-EXT fake-`applied`-counter home:
+      // a logged apply the frozen rule would reject (proxy-tier evidence, or an
+      // insight that produced no real reorganization) is a forgery. Only a
+      // receipt that re-executes to `promote` on intact sealed inputs is
+      // counted as applied — the log no longer decides, the re-run does.
+      const sealed: PathSealedInputs = {
+        provenanceTier: insight.provenanceTier ?? DEFAULT_PROVENANCE_TIER,
+        allowJudgeTier: this.config.allowJudgeTierApply,
+        insightConfidence: insight.confidenceScore,
+        insightConfidenceThreshold: this.config.insightConfidenceThreshold,
+        insightActionable: actionable,
+      };
+      const rerun = reExecutePathGate('dream-apply/v1', sealed);
+      const receipt: PathPromotionReceipt = {
+        ruleVersion: 'dream-apply/v1',
+        ruleFingerprint: pathGateFingerprint('dream-apply/v1'),
+        sealedHash: pathSealedHash(sealed),
+        sealed,
+        recordedVerdict: rerun.promote ? 'promote' : 'reject',
+      };
+      const verdict = verifyPathPromotion(receipt);
+      if (!verdict.valid || !rerun.promote) {
+        continue; // not reproducibly applicable under the frozen rule — do not count
       }
+
+      // Record as adaptation
+      this.integration.getMetaTracker().recordAdaptation({
+        timestamp: new Date(),
+        type: 'insight_applied',
+        trigger: 'dream_insight',
+        stateBefore: { minCutValue: 0, weakVertexCount: 0 },
+        stateAfter: { minCutValue: 0, weakVertexCount: 0 },
+        improvement: insight.noveltyScore * insight.confidenceScore,
+        insightId: insight.id,
+      });
+      insight.applied = true;
+      appliedCount++;
     }
 
     return appliedCount;

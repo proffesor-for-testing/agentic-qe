@@ -13,6 +13,15 @@ import type { Database as DatabaseType } from 'better-sqlite3';
 import { PROMOTION_THRESHOLD, type QEPattern, type QEDomain, type QEPatternType } from './qe-patterns.js';
 import { AsymmetricLearningEngine, type AsymmetricLearningConfig } from './asymmetric-learning.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { tierAllowsPromotion, DEFAULT_PROVENANCE_TIER } from './provenance-tier.js';
+import {
+  reExecutePathGate,
+  pathGateFingerprint,
+  pathSealedHash,
+  verifyPathPromotion,
+  type PathSealedInputs,
+  type PathPromotionReceipt,
+} from '../validation/gate-reexecute.js';
 import { LoggerFactory } from '../logging/index.js';
 import type { WitnessChain } from '../audit/witness-chain.js';
 import type { TemporalCompressionService, CompressedVector } from '../integrations/ruvector/temporal-compression.js';
@@ -57,6 +66,13 @@ export interface PatternLifecycleConfig {
 
   /** ADR-061: Asymmetric learning config */
   asymmetricLearning: Partial<AsymmetricLearningConfig>;
+
+  /**
+   * ADR-121: allow `judge:llm`-tier evidence to promote patterns. A single LLM
+   * judgment is noisy (ADR-119), so judge-tier promotion is an explicit,
+   * cost-bearing opt-in. Default false — only `oracle:test-exec` promotes.
+   */
+  allowJudgeTierPromotion: boolean;
 }
 
 /**
@@ -73,6 +89,7 @@ export const DEFAULT_LIFECYCLE_CONFIG: PatternLifecycleConfig = {
   maxAgeForActivePatterns: 90,
   promotionActivityWindowDays: 30,
   asymmetricLearning: {},
+  allowJudgeTierPromotion: false,
 };
 
 // ============================================================================
@@ -169,6 +186,10 @@ export interface PromotionCheckResult {
   currentReward: number;
   currentOccurrences: number;
   currentSuccessRate: number;
+  /** ADR-121: evidence tier of the pattern (gates promotion). */
+  provenanceTier: string;
+  /** ADR-121: whether the pattern's evidence tier is strong enough to promote. */
+  meetsProvenanceTier: boolean;
 }
 
 /**
@@ -271,6 +292,23 @@ export class PatternLifecycleManager {
         ALTER TABLE qe_patterns ADD COLUMN promotion_date TEXT DEFAULT NULL
       `);
       console.log('[PatternLifecycle] Added promotion_date column to qe_patterns');
+    }
+
+    // ADR-121: provenance_tier — additive, conservative-default migration.
+    // The DEFAULT backfills every existing row as 'proxy:structural', which can
+    // never over-credit legacy history. Rows re-derived from execution evidence
+    // are re-tiered upward through the normal write path (never up-tiered here).
+    // Distinct from the lifecycle `tier` (short-term/long-term) column.
+    try {
+      this.db.prepare(`
+        SELECT provenance_tier FROM qe_patterns LIMIT 1
+      `).get();
+    } catch (e) {
+      logger.debug('Adding missing provenance_tier column', { error: e instanceof Error ? e.message : String(e) });
+      this.db.exec(`
+        ALTER TABLE qe_patterns ADD COLUMN provenance_tier TEXT DEFAULT '${DEFAULT_PROVENANCE_TIER}'
+      `);
+      console.log(`[PatternLifecycle] Added provenance_tier column to qe_patterns (backfilled '${DEFAULT_PROVENANCE_TIER}')`);
     }
   }
 
@@ -519,6 +557,22 @@ Pattern extracted from ${exp.count} successful experiences.`;
   // ============================================================================
 
   /**
+   * ADR-121: read a pattern's provenance tier. Tolerant of an un-migrated DB
+   * (column absent) and of a NULL/unknown value — both degrade to the
+   * conservative default so the gate can never be bypassed by a missing tier.
+   */
+  private getProvenanceTier(patternId: string): string {
+    try {
+      const row = this.db.prepare(
+        `SELECT provenance_tier FROM qe_patterns WHERE id = ?`
+      ).get(patternId) as { provenance_tier?: string | null } | undefined;
+      return row?.provenance_tier ?? DEFAULT_PROVENANCE_TIER;
+    } catch {
+      return DEFAULT_PROVENANCE_TIER;
+    }
+  }
+
+  /**
    * Check if a pattern should be promoted
    */
   checkPromotion(patternId: string): PromotionCheckResult {
@@ -533,6 +587,8 @@ Pattern extracted from ${exp.count} successful experiences.`;
         currentReward: 0,
         currentOccurrences: 0,
         currentSuccessRate: 0,
+        provenanceTier: DEFAULT_PROVENANCE_TIER,
+        meetsProvenanceTier: false,
       };
     }
 
@@ -541,6 +597,15 @@ Pattern extracted from ${exp.count} successful experiences.`;
     const meetsOccurrences = pattern.usageCount >= this.config.promotionMinOccurrences;
     const meetsSuccessRate = pattern.successRate >= this.config.promotionMinSuccessRate;
 
+    // ADR-121: evidence-tier gate. Only oracle:test-exec (or judge:llm under an
+    // explicit budget flag) may promote; proxy:structural is never auto-promoted.
+    // Read the tier directly — the column is additive and may be absent on an
+    // un-migrated DB, in which case it defaults to the conservative tier.
+    const provenanceTier = this.getProvenanceTier(patternId);
+    const meetsProvenanceTier = tierAllowsPromotion(provenanceTier, {
+      allowJudgeTier: this.config.allowJudgeTierPromotion,
+    });
+
     // Temporal window: require activity within configured window to prevent
     // promoting stale patterns that haven't been validated recently
     const PROMOTION_ACTIVITY_WINDOW_MS = this.config.promotionActivityWindowDays * 24 * 60 * 60 * 1000;
@@ -548,11 +613,13 @@ Pattern extracted from ${exp.count} successful experiences.`;
     const meetsActivityWindow = (Date.now() - lastActivity) < PROMOTION_ACTIVITY_WINDOW_MS;
 
     return {
-      shouldPromote: pattern.tier === 'short-term' && meetsReward && meetsOccurrences && meetsSuccessRate && meetsActivityWindow,
+      shouldPromote: pattern.tier === 'short-term' && meetsProvenanceTier && meetsReward && meetsOccurrences && meetsSuccessRate && meetsActivityWindow,
       meetsRewardThreshold: meetsReward,
       meetsOccurrenceThreshold: meetsOccurrences,
       meetsSuccessRateThreshold: meetsSuccessRate,
       meetsActivityWindow,
+      provenanceTier,
+      meetsProvenanceTier,
       currentReward: avgReward,
       currentOccurrences: pattern.usageCount,
       currentSuccessRate: pattern.successRate,
@@ -565,6 +632,39 @@ Pattern extracted from ${exp.count} successful experiences.`;
   promotePattern(patternId: string): boolean {
     const check = this.checkPromotion(patternId);
     if (!check.shouldPromote) {
+      return false;
+    }
+
+    // ADR-120: re-execute the frozen `pattern-promote/v1` rule on the sealed
+    // check result before writing. `checkPromotion` is advisory; the frozen
+    // rule is authoritative. A forged/stale promote (proxy-tier or sub-threshold
+    // inputs logged as `promote`) fails `verifyPathPromotion` and the UPDATE is
+    // skipped — the same defense the flywheel accept path gets (ADR-120 §5).
+    const sealed: PathSealedInputs = {
+      provenanceTier: check.provenanceTier,
+      allowJudgeTier: this.config.allowJudgeTierPromotion,
+      reward: check.currentReward,
+      rewardThreshold: this.config.promotionRewardThreshold,
+      occurrences: check.currentOccurrences,
+      occurrenceThreshold: this.config.promotionMinOccurrences,
+      successRate: check.currentSuccessRate,
+      successRateThreshold: this.config.promotionMinSuccessRate,
+      withinActivityWindow: check.meetsActivityWindow,
+    };
+    const rerun = reExecutePathGate('pattern-promote/v1', sealed);
+    const receipt: PathPromotionReceipt = {
+      ruleVersion: 'pattern-promote/v1',
+      ruleFingerprint: pathGateFingerprint('pattern-promote/v1'),
+      sealedHash: pathSealedHash(sealed),
+      sealed,
+      recordedVerdict: rerun.promote ? 'promote' : 'reject',
+    };
+    const verdict = verifyPathPromotion(receipt);
+    if (!verdict.valid || !rerun.promote) {
+      // The advisory verdict is not reproducible under the frozen rule — refuse.
+      console.warn(
+        `[PatternLifecycle] Refusing to promote ${patternId}: ${rerun.reason} (${verdict.reason})`
+      );
       return false;
     }
 

@@ -129,9 +129,22 @@ try {
   const hit = FATAL_MARKERS.find((m) => stderr.includes(m));
   const ts = () => new Date().toISOString();
   if (hit) {
+    // The fix depends on WHICH failure hit. A native-binary marker (invalid ELF
+    // header / ERR_DLOPEN_FAILED / wrong Node version) is a real rebuild case.
+    // But "Failed to initialize UnifiedMemoryManager" is almost always LOCK
+    // CONTENTION — another AQE process (MCP server, daemon, hooks) holding
+    // memory.db, often amplified by a WAL-hostile bind mount — NOT a bad binary.
+    // Suggesting `npm rebuild` there sends people down the wrong path (verified
+    // 2026-07-08: better-sqlite3 loaded fine while this marker still fired).
+    const nativeMismatch = /invalid ELF header|ERR_DLOPEN_FAILED|different Node\.js version/.test(hit);
+    const fix = nativeMismatch
+      ? '`npm rebuild better-sqlite3` (host/container native-binary mismatch).'
+      : 'lock contention — check for concurrent AQE processes holding memory.db '
+        + '(MCP server / daemon / other hooks) and WAL safety on bind mounts '
+        + '(AQE_DISABLE_WAL); NOT a native-binary rebuild.';
     recordHookHealth(`[${ts()}] FATAL hook persistence failure `
       + `(cmd=${subcmd}): "${hit}". Learning is NOT being captured. `
-      + `Fix: \`npm rebuild better-sqlite3\` (host/container native-binary mismatch).\n`);
+      + `Fix: ${fix}\n`);
   } else if (res && res.signal) {
     // Killed by our own SPAWN_TIMEOUT_MS (or another signal) before finishing.
     // No output means no persistence happened for this invocation.
