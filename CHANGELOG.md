@@ -5,6 +5,41 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.1] - 2026-07-12
+
+Makes `aqe init` non-destructive to configuration users already have in their
+project. Previously, running `aqe init` (e.g. after `ruflo init`) could overwrite
+a project's `.claude/settings.json` — clobbering a custom status line, an explicit
+`includeCoAuthoredBy` choice, user-tuned `AQE_*` environment variables, and even
+another tool's hooks. Init now merges rather than overwrites, preserves the user's
+values, and takes a one-time backup of the original file — the same treatment
+`CLAUDE.md` already received.
+
+### Fixed
+
+- **`aqe init` no longer strips ruflo / Claude Flow hooks.** The AQE hook-detection
+  patterns were too broad (matching anything under `.claude/helpers/` or any
+  `ruflo` command), so re-running init in a project that had already run
+  `ruflo init` deleted the user's hooks. Detection is now scoped to AQE's own
+  hook markers, so other tools' hooks are preserved.
+- **`aqe init` preserves a user's custom `statusLine`.** Init only writes its own
+  status line when none exists or the existing one is AQE's — a user's (or another
+  tool's) custom status line is kept.
+- **`aqe init` respects an explicit `includeCoAuthoredBy` setting.** Init only sets
+  the default when the user has not chosen a value.
+- **`aqe init` preserves user overrides of `AQE_*` environment variables.** Re-init
+  fills in only the missing keys; values the user changed (e.g.
+  `AQE_LEARNING_ENABLED=false`) are kept.
+- **`v3Configuration` / `v3Learning` sections are deep-merged**, so user-added keys
+  in those sections survive re-init instead of being replaced wholesale.
+
+### Added
+
+- **`.claude/settings.json.backup`** — `aqe init` now writes a one-time backup of
+  the pristine original `settings.json` before modifying it (mirroring the
+  existing `CLAUDE.md.backup` behavior). The backup is never overwritten on
+  subsequent re-inits, so the original is always recoverable.
+
 ## [3.12.0] - 2026-07-10
 
 Adds a **learning-integrity layer** so the self-learning system can only promote

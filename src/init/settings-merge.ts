@@ -8,18 +8,50 @@
  * - Generates full env vars and v3 settings sections
  */
 
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+
 import type { AQEInitConfig } from './types.js';
 
-// Patterns that identify a hook command as belonging to AQE
+/**
+ * Create a one-time `.backup` of an existing settings.json before AQE modifies
+ * it — mirroring the CLAUDE.md backup convention.
+ *
+ * The backup captures the pristine, pre-AQE file and is NOT overwritten on
+ * subsequent re-inits, so the user's original settings are always recoverable.
+ * No-op when the file does not exist yet (fresh install) or a backup already
+ * exists. Failures are swallowed — a backup problem must never block init.
+ *
+ * @returns the backup path when a backup was written, otherwise null.
+ */
+export function backupSettingsFile(settingsPath: string): string | null {
+  if (!existsSync(settingsPath)) return null;
+  const backupPath = `${settingsPath}.backup`;
+  if (existsSync(backupPath)) return null; // keep the pristine original
+  try {
+    writeFileSync(backupPath, readFileSync(settingsPath, 'utf-8'), 'utf-8');
+    return backupPath;
+  } catch {
+    return null;
+  }
+}
+
+// Patterns that identify a hook command as belonging to AQE.
+//
+// These MUST be specific to AQE's own hooks. They must NOT match hooks that
+// other tools install (e.g. ruflo / claude-flow), otherwise re-running
+// `aqe init` in a project that already ran `ruflo init` would strip the user's
+// ruflo hooks. In particular:
+//   - do NOT match on `.claude/helpers/` broadly — ruflo's hook-handler.cjs and
+//     auto-memory-hook.mjs live there too (match AQE's own helpers by name)
+//   - do NOT match on `ruflo` — those are the user's hooks, preserve them
 const AQE_COMMAND_PATTERNS = [
   /\baqe\b/i,
   /\bagentic-qe\b/i,
   /\bnpx\s+agentic-qe\b/i,
   /\bnpx\s+@anthropics\/agentic-qe\b/i,
+  /aqe-hook\.cjs/i,
   /brain-checkpoint\.cjs/i,
-  /\.claude\/helpers\//i,
-  /\bruflo\b/i,
-  /dist\/cli\/bundle\.js/i,
+  /statusline-v3\.cjs/i,
 ];
 
 type HookEntry = {
@@ -81,6 +113,23 @@ export function mergeHooksSmart(
 }
 
 /**
+ * Merge AQE's environment variables into a user's existing `env` block WITHOUT
+ * clobbering values the user already set — including AQE_-prefixed ones.
+ *
+ * Re-running `aqe init` fills in any missing AQE env vars but leaves every
+ * existing value untouched, so a user who intentionally flipped, say,
+ * `AQE_LEARNING_ENABLED=false` keeps their choice. Non-AQE env vars are always
+ * preserved. Returns a new object; inputs are not mutated.
+ */
+export function mergeAqeEnv(
+  existingEnv: Record<string, string> | undefined,
+  aqeEnv: Record<string, string>,
+): Record<string, string> {
+  // AQE defaults first, then existing values win on any key collision.
+  return { ...aqeEnv, ...(existingEnv || {}) };
+}
+
+/**
  * Generate the full set of AQE environment variables for settings.json.
  */
 export function generateAqeEnvVars(config: AQEInitConfig): Record<string, string> {
@@ -103,6 +152,78 @@ export function generateAqeEnvVars(config: AQEInitConfig): Record<string, string
     AQE_V3_PATTERN_PROMOTION_THRESHOLD: String(config.learning?.promotionThreshold ?? 3),
     AQE_V3_SUCCESS_RATE_THRESHOLD: String(config.learning?.qualityThreshold ?? 0.7),
   };
+}
+
+/**
+ * Detect whether a `statusLine` block is one AQE generated (vs. a user's own).
+ * AQE's status line invokes the statusline-v3.cjs helper (or falls back to the
+ * "Agentic QE v3" banner). Anything else is treated as user-owned and preserved.
+ */
+export function isAqeStatusLine(statusLine: unknown): boolean {
+  const cmd = (statusLine as { command?: string })?.command;
+  return typeof cmd === 'string' && /statusline-v3\.cjs|Agentic QE v3/.test(cmd);
+}
+
+/**
+ * Deep-merge `source` (AQE-owned values) onto `target` (whatever the user has):
+ * plain-object subtrees merge recursively so a user's extra keys survive, while
+ * AQE's values win on conflicting leaves. Arrays and primitives are replaced by
+ * the AQE value (these sections are AQE-managed).
+ */
+function deepMergeOwned(target: unknown, source: unknown): unknown {
+  if (!isPlainObject(target) || !isPlainObject(source)) return source;
+  const out: Record<string, unknown> = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    out[key] = deepMergeOwned(out[key], value);
+  }
+  return out;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Apply the generated v3 settings sections onto an existing settings object
+ * WITHOUT clobbering configuration the user already set:
+ *
+ * - `_aqePermissions`: union-merge into `permissions.allow`, preserving the
+ *   user's existing allow/deny entries (#362).
+ * - `statusLine`: generic Claude Code setting — only written when absent or when
+ *   the existing one is AQE's own (so a user's custom status line is preserved).
+ * - `includeCoAuthoredBy`: generic Claude Code setting — only written when the
+ *   user has not set it explicitly (respects an intentional `false`).
+ * - `aqe` / `v3Configuration` / `v3Learning`: AQE-owned sections, deep-merged so
+ *   AQE values are refreshed while any user-added keys survive.
+ *
+ * Mutates and returns `settings`.
+ */
+export function applyV3Sections(
+  settings: Record<string, unknown>,
+  sections: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const [key, value] of Object.entries(sections)) {
+    if (key === '_aqePermissions') {
+      const existingPerms = (settings.permissions as { allow?: string[]; deny?: string[] }) || {};
+      const existingAllow = existingPerms.allow || [];
+      const merged = [...new Set([...existingAllow, ...(value as string[])])];
+      settings.permissions = { ...existingPerms, allow: merged };
+    } else if (key === 'statusLine') {
+      // Preserve a user's (or another tool's) custom status line.
+      if (settings.statusLine === undefined || isAqeStatusLine(settings.statusLine)) {
+        settings.statusLine = value;
+      }
+    } else if (key === 'includeCoAuthoredBy') {
+      // Respect an explicit user choice; only set the default when unset.
+      if (settings.includeCoAuthoredBy === undefined) {
+        settings.includeCoAuthoredBy = value;
+      }
+    } else {
+      // AQE-owned section — deep-merge so user additions are not dropped.
+      settings[key] = deepMergeOwned(settings[key], value);
+    }
+  }
+  return settings;
 }
 
 /**
