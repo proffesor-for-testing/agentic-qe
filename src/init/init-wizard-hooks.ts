@@ -17,6 +17,9 @@ import {
   mergeHooksSmart,
   generateAqeEnvVars,
   generateV3SettingsSections,
+  applyV3Sections,
+  mergeAqeEnv,
+  backupSettingsFile,
 } from './settings-merge.js';
 
 import type { AQEInitConfig } from './types.js';
@@ -197,31 +200,16 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
   const existingHooks = (settings.hooks as Record<string, unknown[]>) || {};
   settings.hooks = mergeHooksSmart(existingHooks, aqeHooks);
 
-  // Set full AQE environment variables
-  const existingEnv = (settings.env as Record<string, string>) || {};
-  settings.env = {
-    ...existingEnv,
-    ...generateAqeEnvVars(config),
-  };
+  // Add AQE environment variables without clobbering any value the user already
+  // set — including AQE_-prefixed overrides (only missing keys are added).
+  const existingEnv = settings.env as Record<string, string> | undefined;
+  settings.env = mergeAqeEnv(existingEnv, generateAqeEnvVars(config));
 
-  // Apply v3 settings sections
-  // Permissions are union-merged to preserve user entries (#362)
+  // Apply v3 settings sections non-destructively: permissions union-merged,
+  // statusLine / includeCoAuthoredBy preserved when user-set, AQE-owned
+  // sections deep-merged so user additions survive (#362 follow-up).
   const v3Sections = generateV3SettingsSections(config, projectRoot);
-  for (const [key, value] of Object.entries(v3Sections)) {
-    if (key === '_aqePermissions') {
-      // Union-merge: add AQE entries without removing user-added permissions
-      const existingPerms = (settings.permissions as { allow?: string[]; deny?: string[] }) || {};
-      const existingAllow = existingPerms.allow || [];
-      const aqeEntries = value as string[];
-      const merged = [...new Set([...existingAllow, ...aqeEntries])];
-      settings.permissions = {
-        ...existingPerms,
-        allow: merged,
-      };
-    } else {
-      settings[key] = value;
-    }
-  }
+  applyV3Sections(settings, v3Sections);
 
   // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
   let existingMcp = (settings.enabledMcpjsonServers as string[]) || [];
@@ -230,6 +218,9 @@ export async function configureHooks(projectRoot: string, config: AQEInitConfig)
     existingMcp.push('agentic-qe');
   }
   settings.enabledMcpjsonServers = existingMcp;
+
+  // Back up the pristine original settings.json before writing (like CLAUDE.md)
+  backupSettingsFile(settingsPath);
 
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
 
