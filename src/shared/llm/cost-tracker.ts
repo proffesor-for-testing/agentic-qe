@@ -235,12 +235,14 @@ export class CostTracker {
 
     const byProvider: Record<LLMProviderType, number> = {
       claude: 0,
+      'claude-code': 0,
       openai: 0,
       ollama: 0,
       openrouter: 0,
       bedrock: 0,
       'azure-openai': 0,
       gemini: 0,
+      cognitum: 0,
     };
 
     const byModel: Record<string, number> = {};

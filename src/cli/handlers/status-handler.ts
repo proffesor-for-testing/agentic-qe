@@ -17,6 +17,9 @@ import {
 import { DomainName } from '../../shared/types/index.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
+import { loadRouterConfig } from '../../shared/llm/router/config-store.js';
+import { billingModeForType } from '../../shared/llm/billing-modes.js';
+import type { LLMProviderType } from '../../shared/llm/interfaces.js';
 
 // ============================================================================
 // Background worker daemon liveness (A18)
@@ -40,6 +43,36 @@ export interface DaemonLivenessStatus {
  * tracks a *different*, in-process `QualityDaemon` instance that can't see a
  * truly detached process across separate CLI invocations anyway.
  */
+/**
+ * ADR-123 (issue #557): print how the active LLM provider bills, plus any
+ * configured per-run budget cap. Best-effort — never throws into `aqe health`.
+ */
+export function printLlmBilling(): void {
+  try {
+    const config = loadRouterConfig();
+    const primary = config.defaultProvider as LLMProviderType;
+    const mode = billingModeForType(primary);
+    const modeLabel: Record<string, string> = {
+      'metered-api': `${chalk.red('●')} pay-per-token API key (no cap)`,
+      'metered-capped': `${chalk.yellow('●')} pay-per-token with server-side cap`,
+      subscription: `${chalk.green('●')} Claude subscription (no per-token charge)`,
+      local: `${chalk.green('●')} local (no cost)`,
+    };
+    console.log(chalk.blue('\n  LLM Billing:'));
+    console.log(`  Provider: ${chalk.cyan(primary)}  ${modeLabel[mode] ?? mode}`);
+
+    const cap = Number.parseFloat(process.env.AQE_MAX_BUDGET_USD ?? '');
+    if (Number.isFinite(cap) && cap > 0) {
+      console.log(`  Per-run budget cap: ${chalk.cyan('$' + cap.toFixed(2))}`);
+    } else if (mode === 'metered-api') {
+      console.log(chalk.gray('  No budget cap set — use AQE_MAX_BUDGET_USD or --max-budget-usd.'));
+      console.log(chalk.gray('  Tip: AQE_LLM_PROVIDER=claude-code runs on your Claude subscription.'));
+    }
+  } catch {
+    // Billing display is informational; failures must not break health.
+  }
+}
+
 export function checkDaemonLiveness(): DaemonLivenessStatus {
   try {
     const pidFile = join(findProjectRoot(), '.agentic-qe', 'workers', 'daemon.pid');
@@ -340,6 +373,10 @@ export class HealthHandler implements ICommandHandler {
         } else {
           console.log(`  ${chalk.red('\u25CF')} Not running (stale PID: ${daemon.pid ?? 'unknown'}) \u2014 learning/consolidation snapshots will not advance`);
         }
+
+        // ADR-123 (issue #557): make LLM billing visible so a paid API key is
+        // never a silent surprise.
+        printLlmBilling();
       }
 
       console.log('');
