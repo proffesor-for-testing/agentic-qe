@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.12.1",
+  "version": "3.12.2",
   "description": "Agentic Quality Engineering — AI-powered QE platform with 60 specialized agents, 75+ skills, sublinear coverage analysis, ReasoningBank pattern learning, and deep MCP integration for Claude Code and 11 coding agent platforms",
   "author": {
     "name": "Agentic QE Team",

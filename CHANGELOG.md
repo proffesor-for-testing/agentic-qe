@@ -5,6 +5,54 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.2] - 2026-07-13
+
+Billing-aware LLM execution. AQE could previously only bill the paid Anthropic
+Developer API (`ANTHROPIC_API_KEY`), even for users on a Claude Pro/Max plan that
+already covers Claude Code usage — and its declared budget caps were never
+actually enforced. This release adds a subscription execution path, real
+cross-process spend caps, transparent billing modes, and a metered-capped
+gateway provider. It also fixes `aqe eval run`, which had been scoring
+fabricated (mock) responses instead of real model output. See ADR-123.
+
+### Added
+
+- **Run QE on your Claude subscription (`AQE_LLM_PROVIDER=claude-code`).** A new
+  provider shells out to `claude -p` and draws from your Pro/Max plan's shared
+  usage instead of a pay-per-token API key. Worst case becomes "hit your plan
+  limit and pause" rather than a surprise bill. The spawned CLI has all
+  API-billing keys stripped from its environment so it can't silently revert to
+  API billing.
+- **Enforced spend budgets.** `--max-budget-usd` (and `AQE_MAX_BUDGET_USD`) cap
+  total LLM spend for a run; the cap is persisted to `.agentic-qe/memory.db` so
+  it holds **across a whole fleet of processes**, not just one. Requests that
+  would exceed the cap abort with `COST_LIMIT_EXCEEDED` before any spend.
+- **Cognitum provider (`AQE_LLM_PROVIDER=cognitum`).** An OpenAI/Anthropic-
+  compatible gateway (`api.cognitum.one`) with authoritative per-request cost
+  receipts, cloud embeddings, and a server-side hard spend cap.
+- **Billing transparency.** A one-line notice at startup and a new "LLM Billing"
+  section in `aqe health` show how the active provider bills (pay-per-token /
+  server-capped / subscription / local), so a paid API key is never a silent
+  surprise.
+
+### Fixed
+
+- **`aqe eval run` now makes real model calls.** It previously defaulted to a
+  mock executor that returned canned, keyword-matched responses, so eval results
+  were fabricated. Eval now runs against a real provider by default (inheriting
+  budget caps and provider selection), errors clearly when no provider is
+  configured, and offers an explicit `--mock` flag for offline testing.
+- **Budget caps are now actually enforced.** The `maxCostPerHour/Day` settings
+  existed but were dead code, and enforcement was bypassed on the primary
+  routing path (`HybridRouter`). Both are fixed.
+- **An explicit `enabled: false` for a provider is honored** even when its API
+  key is present in the environment (previously the key silently re-enabled it).
+
+### Changed
+
+- The multi-model consensus verification path now prints a billing warning when
+  it uses an Anthropic API key, so that spend isn't silent either.
+
 ## [3.12.1] - 2026-07-12
 
 Makes `aqe init` non-destructive to configuration users already have in their
