@@ -6,6 +6,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   PersistentSONAEngine,
   createPersistentSONAEngine,
@@ -18,25 +20,19 @@ import type { RLState, RLAction, DomainName } from '../../../../src/integrations
 import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import { resetUnifiedMemory } from '../../../../src/kernel/unified-memory';
 
-// Test database path
-const TEST_DB_DIR = '/tmp/agentic-qe-test-sona-persistence';
-const TEST_DB_PATH = `${TEST_DB_DIR}/memory.db`;
+// Each test gets its OWN unique DB dir (assigned in beforeEach). A fixed shared
+// path (`/tmp/agentic-qe-test-sona-persistence`) let persisted state — notably
+// the kv_store request counter — leak between tests, flaking the "starts at 0"
+// assertions in the full-suite run. Uniqueness guarantees a clean slate per test
+// while still letting engine1→engine2→engine3 in a single test reopen the SAME
+// path to exercise cross-restart persistence.
+let TEST_DB_DIR = '';
+let TEST_DB_PATH = '';
 
-// Ensure test directory exists
+// Create a fresh, unique test database directory.
 function setupTestDb(): void {
-  if (!fs.existsSync(TEST_DB_DIR)) {
-    fs.mkdirSync(TEST_DB_DIR, { recursive: true });
-  }
-  // Clean up any existing test database
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
-  }
-  if (fs.existsSync(`${TEST_DB_PATH}-wal`)) {
-    fs.unlinkSync(`${TEST_DB_PATH}-wal`);
-  }
-  if (fs.existsSync(`${TEST_DB_PATH}-shm`)) {
-    fs.unlinkSync(`${TEST_DB_PATH}-shm`);
-  }
+  TEST_DB_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-qe-test-sona-persistence-'));
+  TEST_DB_PATH = path.join(TEST_DB_DIR, 'memory.db');
 }
 
 // Test fixtures
@@ -91,6 +87,10 @@ describe('PersistentSONAEngine', () => {
     resetUnifiedPersistence();
     resetUnifiedMemory();
     delete process.env.AQE_DB_PATH;
+    // Remove this test's unique DB dir so nothing lingers between tests/runs.
+    if (TEST_DB_DIR) {
+      fs.rmSync(TEST_DB_DIR, { recursive: true, force: true });
+    }
   });
 
   describe('Factory Functions', () => {
