@@ -545,12 +545,14 @@ function formatCost(cost?: number): string {
 function getDefaultModelForProvider(provider: ExtendedProviderType): string {
   const defaults: Record<ExtendedProviderType, string> = {
     claude: 'claude-sonnet-4-6',
+    'claude-code': 'sonnet',
     openai: 'gpt-4o',
     ollama: 'llama3.1',
     openrouter: 'anthropic/claude-sonnet-4',
     gemini: 'gemini-2.0-pro',
     'azure-openai': 'gpt-4o',
     bedrock: 'anthropic.claude-sonnet-4-v1:0',
+    cognitum: 'cognitum-auto',
     onnx: 'phi-4',
   };
   return defaults[provider] || '';

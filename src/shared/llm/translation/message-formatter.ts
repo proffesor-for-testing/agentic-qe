@@ -23,12 +23,14 @@ import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfa
  */
 const SYSTEM_PROMPT_STRATEGIES: Record<ExtendedProviderType, SystemPromptStrategy> = {
   claude: 'native',           // Anthropic supports separate system param
+  'claude-code': 'native',    // ADR-123: passed via --append-system-prompt
   openai: 'native',           // OpenAI supports system role messages
   ollama: 'native',           // Ollama supports system role
   openrouter: 'native',       // OpenRouter passes through to underlying provider
   gemini: 'native',           // Gemini supports systemInstruction
   'azure-openai': 'native',   // Azure OpenAI same as OpenAI
   bedrock: 'native',          // Bedrock supports system for Claude
+  cognitum: 'native',         // ADR-123: OpenAI-compatible system role
   onnx: 'first-message',      // ONNX models typically don't have system prompt support
 };
 

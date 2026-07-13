@@ -22,7 +22,11 @@ import {
   DEFAULT_PARALLEL_EVAL_CONFIG,
   ParallelEvalResult,
   EvalProgress,
+  MockLLMExecutor,
+  type LLMExecutor,
 } from '../../validation/parallel-eval-runner.js';
+import { resolveEvalExecutor } from '../../validation/provider-llm-executor.js';
+import type { ProviderManager } from '../../shared/llm/provider-manager.js';
 import {
   createCommandEvalRunner,
   isCommandEvalSuite,
@@ -52,6 +56,8 @@ interface EvalCommandOptions {
   retry: boolean;
   output: string;
   verbose: boolean;
+  /** Issue #557 follow-up: use canned MockLLMExecutor (offline; not real results). */
+  mock?: boolean;
 }
 
 interface RunAllOptions {
@@ -61,6 +67,7 @@ interface RunAllOptions {
   workers: number;
   output: string;
   verbose: boolean;
+  mock?: boolean;
 }
 
 interface ReportOptions {
@@ -108,6 +115,17 @@ const P2_SKILLS = [
 /**
  * Get skills for a specific tier
  */
+/**
+ * ADR-123: propagate a `--max-budget-usd` flag to the provider layer via the
+ * AQE_MAX_BUDGET_USD env var, which ProviderManager reads as a per-run cap.
+ */
+function applyMaxBudget(maxBudgetUsd?: number): void {
+  if (typeof maxBudgetUsd === 'number' && Number.isFinite(maxBudgetUsd) && maxBudgetUsd > 0) {
+    process.env.AQE_MAX_BUDGET_USD = String(maxBudgetUsd);
+    console.log(chalk.gray(`  Budget cap: $${maxBudgetUsd.toFixed(2)} for this run`));
+  }
+}
+
 function getSkillsByTier(tier: number): string[] {
   switch (tier) {
     case 3:
@@ -407,6 +425,41 @@ async function handleRunCommand(options: EvalCommandOptions): Promise<void> {
     process.exit(result.passed ? 0 : 1);
   }
 
+  // Issue #557 follow-up: resolve a REAL LLM executor by default. `--mock`
+  // opts into canned responses (offline testing only). If neither a provider
+  // is configured nor --mock is passed, fail loudly rather than fabricate.
+  let executor: LLMExecutor | undefined;
+  let evalManager: ProviderManager | undefined;
+  if (options.mock) {
+    console.log(
+      chalk.yellow.bold(
+        '  ⚠️  MOCK MODE: canned responses, NOT real model output. Results are not valid eval evidence.'
+      )
+    );
+    executor = new MockLLMExecutor();
+  } else {
+    const resolved = await resolveEvalExecutor();
+    if (!resolved.executor) {
+      console.error(chalk.red('\n  Cannot run real eval: ') + (resolved.reason ?? 'no provider'));
+      process.exit(1);
+    }
+    executor = resolved.executor;
+    evalManager = resolved.manager;
+    const modeLabel =
+      resolved.billingMode === 'subscription'
+        ? chalk.green('subscription (no per-token charge)')
+        : resolved.billingMode === 'local'
+          ? chalk.green('local (no cost)')
+          : resolved.billingMode === 'metered-capped'
+            ? chalk.yellow('metered (server-side cap)')
+            : chalk.red('pay-per-token API');
+    console.log(`  LLM provider: ${chalk.cyan(resolved.providerType)}  billing: ${modeLabel}`);
+    if (process.env.AQE_MAX_BUDGET_USD) {
+      console.log(chalk.gray(`  Budget cap: $${process.env.AQE_MAX_BUDGET_USD} for this run`));
+    }
+    console.log('');
+  }
+
   const { runner, reasoningBank } = await initializeRunner();
 
   try {
@@ -421,7 +474,8 @@ async function handleRunCommand(options: EvalCommandOptions): Promise<void> {
 
     const customRunner = createParallelEvalRunner(
       createSkillValidationLearner(reasoningBank),
-      config
+      config,
+      executor
     );
 
     // Set up progress reporting
@@ -463,12 +517,34 @@ async function handleRunCommand(options: EvalCommandOptions): Promise<void> {
     process.exit(result.passed ? 0 : 1);
   } finally {
     await reasoningBank.dispose();
+    if (evalManager) await evalManager.dispose();
   }
 }
 
 async function handleRunAllCommand(options: RunAllOptions): Promise<void> {
   console.log(chalk.bold('\nAQE Parallel Eval Runner - Multi-Skill'));
   console.log(chalk.dim('ADR-056 Phase 5: Worker Pool Pattern\n'));
+
+  // Issue #557 follow-up: real executor by default; --mock is offline-only.
+  let executor: LLMExecutor | undefined;
+  let evalManager: ProviderManager | undefined;
+  if (options.mock) {
+    console.log(
+      chalk.yellow.bold(
+        '  ⚠️  MOCK MODE: canned responses, NOT real model output. Results are not valid eval evidence.'
+      )
+    );
+    executor = new MockLLMExecutor();
+  } else {
+    const resolved = await resolveEvalExecutor();
+    if (!resolved.executor) {
+      console.error(chalk.red('\n  Cannot run real eval: ') + (resolved.reason ?? 'no provider'));
+      process.exit(1);
+    }
+    executor = resolved.executor;
+    evalManager = resolved.manager;
+    console.log(`  LLM provider: ${chalk.cyan(resolved.providerType)}  billing: ${resolved.billingMode}`);
+  }
 
   const { runner, learner, reasoningBank } = await initializeRunner();
 
@@ -494,7 +570,7 @@ async function handleRunAllCommand(options: RunAllOptions): Promise<void> {
       maxWorkers: options.parallel ? options.workers : 1,
     };
 
-    const customRunner = createParallelEvalRunner(learner, config);
+    const customRunner = createParallelEvalRunner(learner, config, executor);
 
     // Run all evals
     const results = await customRunner.runMultipleEvalsParallel(skills, models);
@@ -545,6 +621,7 @@ async function handleRunAllCommand(options: RunAllOptions): Promise<void> {
     process.exit(totalFailed === 0 ? 0 : 1);
   } finally {
     await reasoningBank.dispose();
+    if (evalManager) await evalManager.dispose();
   }
 }
 
@@ -704,7 +781,18 @@ export function createEvalCommand(): Command {
     .option('--no-retry', 'Disable retry of failed tests')
     .option('-o, --output <path>', 'Output file path for results')
     .option('-v, --verbose', 'Show progress during execution', false)
+    .option(
+      '--max-budget-usd <n>',
+      'ADR-123: cap total LLM spend for this run in USD (aborts with COST_LIMIT_EXCEEDED past the cap)',
+      parseFloat
+    )
+    .option(
+      '--mock',
+      'Use canned responses instead of real model calls (offline testing only — results are NOT valid eval evidence)',
+      false
+    )
     .action(async (opts) => {
+      applyMaxBudget(opts.maxBudgetUsd);
       await handleRunCommand({
         skill: opts.skill,
         model: opts.model,
@@ -715,6 +803,7 @@ export function createEvalCommand(): Command {
         retry: opts.retry !== false,
         output: opts.output,
         verbose: opts.verbose,
+        mock: opts.mock === true,
       });
     });
 
@@ -737,7 +826,18 @@ export function createEvalCommand(): Command {
     .option('-w, --workers <n>', 'Number of parallel workers', parseInt, 5)
     .option('-o, --output <path>', 'Output file path for report')
     .option('-v, --verbose', 'Show progress during execution', false)
+    .option(
+      '--max-budget-usd <n>',
+      'ADR-123: cap total LLM spend for this run in USD (aborts with COST_LIMIT_EXCEEDED past the cap)',
+      parseFloat
+    )
+    .option(
+      '--mock',
+      'Use canned responses instead of real model calls (offline testing only — results are NOT valid eval evidence)',
+      false
+    )
     .action(async (opts) => {
+      applyMaxBudget(opts.maxBudgetUsd);
       await handleRunAllCommand({
         skillsTier: opts.skillsTier,
         models: opts.models,
@@ -745,6 +845,7 @@ export function createEvalCommand(): Command {
         workers: opts.workers,
         output: opts.output,
         verbose: opts.verbose,
+        mock: opts.mock === true,
       });
     });
 

@@ -16,7 +16,7 @@
 /**
  * Supported LLM provider types
  */
-export type LLMProviderType = 'claude' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini';
+export type LLMProviderType = 'claude' | 'claude-code' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini' | 'cognitum';
 
 /**
  * Message role in a conversation
@@ -45,6 +45,27 @@ export interface TokenUsage {
 }
 
 /**
+ * How a provider bills for usage (ADR-123).
+ *
+ * - `metered-api`: pay-per-token against an API key with no server-side cap
+ *   (Anthropic API, OpenAI, OpenRouter, Gemini, Azure, Bedrock). Unbounded
+ *   spend — relies on AQE's local enforced budget.
+ * - `metered-capped`: pay-per-token but the provider enforces its own hard
+ *   spend cap server-side (Cognitum `hardCapUsd`). Worst case: provider pauses.
+ * - `subscription`: draws from a Pro/Max plan's shared usage allowance
+ *   (claude-code provider). Worst case: hit the plan rate limit and pause.
+ * - `local`: on-device compute, no monetary cost (Ollama, ONNX).
+ */
+export type BillingMode = 'metered-api' | 'metered-capped' | 'subscription' | 'local';
+
+/**
+ * Where a request's cost figure came from (ADR-123). Provider-reported
+ * receipts (e.g. Cognitum's `x_cognitum.price_usd`) are authoritative and
+ * preferred over locally computed price-table estimates.
+ */
+export type CostSource = 'provider-receipt' | 'local-estimate';
+
+/**
  * Cost information for a request
  */
 export interface CostInfo {
@@ -52,6 +73,11 @@ export interface CostInfo {
   outputCost: number;
   totalCost: number;
   currency: 'USD';
+  /**
+   * ADR-123: provenance of `totalCost`. Absent is treated as
+   * `local-estimate` for backward compatibility.
+   */
+  source?: CostSource;
 }
 
 // ============================================================================
@@ -271,6 +297,27 @@ export interface BedrockConfig extends LLMConfig {
 }
 
 /**
+ * Claude Code (subscription) provider configuration (ADR-123).
+ * Runs `claude -p` on the user's Pro/Max subscription instead of an API key.
+ */
+export interface ClaudeCodeConfig extends LLMConfig {
+  /** Path to the `claude` binary (default: 'claude' on PATH). */
+  binaryPath?: string;
+  /** Max concurrent `claude -p` subprocesses. */
+  maxConcurrency?: number;
+  /** Tools to disallow in the headless session (safety). */
+  disallowedTools?: string[];
+}
+
+/**
+ * Cognitum provider configuration (ADR-123). OpenAI-compatible gateway with
+ * per-request cost receipts and a server-side hard spend cap.
+ */
+export interface CognitumConfig extends LLMConfig {
+  model: 'cognitum-auto' | 'cognitum-low' | 'cognitum-mid' | 'cognitum-high' | string;
+}
+
+/**
  * Provider manager configuration
  */
 export interface ProviderManagerConfig {
@@ -283,19 +330,28 @@ export interface ProviderManagerConfig {
   /** Provider-specific configurations (ADR-043: All 7 providers) */
   providers: {
     claude?: ClaudeConfig;
+    'claude-code'?: ClaudeCodeConfig;
     openai?: OpenAIConfig;
     ollama?: OllamaConfig;
     openrouter?: OpenRouterConfig;
     gemini?: GeminiConfig;
     'azure-openai'?: AzureOpenAIConfig;
     bedrock?: BedrockConfig;
+    cognitum?: CognitumConfig;
   };
   /** Global settings */
   global?: {
-    /** Max total cost per hour in USD */
+    /** Max total cost per hour in USD (ADR-123: enforced cross-process) */
     maxCostPerHour?: number;
-    /** Max total cost per day in USD */
+    /** Max total cost per day in USD (ADR-123: enforced cross-process) */
     maxCostPerDay?: number;
+    /**
+     * ADR-123: max spend for a single run/process in USD. Set via
+     * `--max-budget-usd` or `AQE_MAX_BUDGET_USD`. Enforced against this
+     * process's cumulative spend, so it caps one invocation regardless of the
+     * shared hourly/daily ledger.
+     */
+    maxCostPerRun?: number;
     /** Enable cost tracking */
     enableCostTracking?: boolean;
     /** Enable metrics collection */
@@ -385,6 +441,13 @@ export interface LLMProvider {
 
   /** Provider display name */
   readonly name: string;
+
+  /**
+   * ADR-123: how this provider bills. Optional for backward compatibility
+   * with existing/mock implementations; when absent, callers resolve it from
+   * the provider type via `resolveBillingMode()`.
+   */
+  readonly billingMode?: BillingMode;
 
   /** Check if provider is available and configured */
   isAvailable(): Promise<boolean>;

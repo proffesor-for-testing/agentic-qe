@@ -660,6 +660,16 @@ export class HybridRouter {
       }
     }
 
+    // ADR-123 (issue #557): enforce the spend budget on the PRIMARY QE
+    // execution path. Domains call HybridRouter.chat() directly, which runs
+    // provider.generate() below — bypassing ProviderManager.generate() where
+    // the budget is otherwise checked. Gate once per request (not per fallback
+    // attempt); throws COST_LIMIT_EXCEEDED, or no-ops when no budget is set.
+    this.providerManager.assertWithinBudget(params.messages, {
+      model: order[0]?.model,
+      maxTokens: params.maxTokens,
+    });
+
     // Execute with fallback
     for (const { provider: providerType, model } of order) {
       if (attempts >= fallbackBehavior.maxAttempts) break;
@@ -681,6 +691,10 @@ export class HybridRouter {
           skipCache: params.skipCache,
           metadata: params.metadata,
         });
+
+        // ADR-123: persist the charge to the cross-process ledger so budgets
+        // hold across a fleet of processes.
+        this.providerManager.recordResponseSpend(response);
 
         const callLatency = Date.now() - callStartTime;
 
@@ -832,8 +846,12 @@ export class HybridRouter {
     providerType: LLMProviderType
   ): { canonicalModel: string; providerModelId: string } {
     // Map provider type to model-mapping provider format
-    const providerMapping: Record<LLMProviderType, ModelProviderType> = {
+    // Partial: claude-code shares Anthropic model IDs; cognitum uses its own
+    // tier names (cognitum-low/mid/high) that aren't in the mapping table, so
+    // it falls through the `!mappingProvider` guard below to pass-through.
+    const providerMapping: Partial<Record<LLMProviderType, ModelProviderType>> = {
       claude: 'anthropic',
+      'claude-code': 'anthropic',
       openai: 'openai',
       ollama: 'ollama',
       openrouter: 'openrouter',

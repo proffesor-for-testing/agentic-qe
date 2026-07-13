@@ -103,6 +103,7 @@ export interface GeminiSchema {
 export function getToolSchemaFormat(provider: ExtendedProviderType): ToolSchemaFormat {
   switch (provider) {
     case 'claude':
+    case 'claude-code': // ADR-123: Anthropic-native
     case 'bedrock':
       return 'anthropic';
     case 'openai':
@@ -110,6 +111,7 @@ export function getToolSchemaFormat(provider: ExtendedProviderType): ToolSchemaF
     case 'openrouter':
     case 'ollama':
     case 'onnx':
+    case 'cognitum': // ADR-123: OpenAI-compatible
       return 'openai';
     case 'gemini':
       return 'gemini';
