@@ -30,9 +30,16 @@ export interface Signer {
   sign(message: string): string;
 }
 
-/** Derive a stable key id from a public key PEM. */
+/**
+ * Derive a stable key id from a public key PEM. The PEM is trimmed first so the id
+ * is invariant to trailing whitespace (PEM exports carry a trailing newline) AND
+ * matches the Cognitum platform witness fingerprint scheme — `sha256(pem.trim())`
+ * truncated to 16 hex (qe-harness `witness.ts` / meta-llm `qe-witness.ts`). This lets
+ * a flywheel receipt signed with the platform key carry the SAME id the platform
+ * allowlist (`QE_WITNESS_PUBLIC_KEYS_JSON`) recognizes. See platform-signer.ts.
+ */
 function keyIdOf(publicKeyPem: string): string {
-  return createHash('sha256').update(publicKeyPem).digest('hex').slice(0, 16);
+  return createHash('sha256').update(publicKeyPem.trim()).digest('hex').slice(0, 16);
 }
 
 /**
