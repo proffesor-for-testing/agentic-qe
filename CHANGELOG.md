@@ -5,6 +5,45 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.3] - 2026-07-17
+
+Fixes a bug that could silently switch off vector search — permanently. If an
+export of the RVF store was interrupted (a hook timing out, a session ending, a
+hard kill), it left behind a store file that AQE could neither open nor replace.
+Every later run fell back to SQLite without saying so, and only deleting the
+file by hand brought it back. One reporting project hit this three times in a
+day; this repository turned out to have been running degraded for nine days.
+Existing broken projects self-heal on the next run — no manual cleanup. Thanks
+to @pacphi for the detailed report (#563).
+
+### Fixed
+
+- **An interrupted brain export no longer breaks the store (#563).** Exports
+  are now written to a temporary file and moved into place only once complete,
+  so an interruption leaves your previous store untouched instead of destroying
+  it. Abandoned temporary files are cleaned up on the next export.
+- **Unusable stores are repaired automatically instead of silently disabling
+  vector search (#563).** When a store can neither be opened nor rebuilt over,
+  AQE now sets it aside (as `<name>.rvf.corrupt-<pid>` — kept, not deleted, in
+  case you want to report it) and rebuilds the cache from `memory.db`. This
+  applies to `brain.rvf`, `patterns.rvf`, and the pattern-store path. Previously
+  each of these degraded quietly, for every subsequent run.
+- **RVF failures are no longer silent.** Falling back to SQLite now logs why,
+  rather than vanishing into an empty `catch`.
+- **A live process's store is no longer at risk during lock cleanup (#563).**
+  Stale-lock recovery previously removed lock files unconditionally, which could
+  break a store another process was actively using. Locks are now checked
+  against their owning process and left alone when it is still running.
+
+### Added
+
+- **Flywheel receipts are signed with the Cognitum platform identity (#562).**
+  The QE-policy flywheel now signs its evolve receipts with the same
+  externally-verifiable platform key (`f1ac28607da49ec1`) used elsewhere, so all
+  QE evidence — engine campaign and flywheel promotion — chains to one identity
+  a verifier can attribute. Falls back to the local key when the platform
+  identity is unavailable.
+
 ## [3.12.2] - 2026-07-13
 
 Billing-aware LLM execution. AQE could previously only bill the paid Anthropic
