@@ -77,6 +77,10 @@ describe('Kernel ↔ LLM router wiring (ADR-043)', () => {
   it('does not build a router in auto mode when no provider is available', async () => {
     // Save and clear any provider keys from the host env so this test
     // is hermetic (the dev shell may have keys exported from .env).
+    // Keep this list in sync with the providers ProviderManager can detect —
+    // it silently went stale when ADR-123 added cognitum and claude-code, so
+    // the test failed for any developer holding a COGNITUM_API_KEY while
+    // still passing in CI, where none of these are set.
     const saved = {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
       OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -84,6 +88,9 @@ describe('Kernel ↔ LLM router wiring (ADR-043)', () => {
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY,
       GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+      COGNITUM_API_KEY: process.env.COGNITUM_API_KEY,
+      CLAUDE_API_KEY: process.env.CLAUDE_API_KEY,
+      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
     };
     for (const k of Object.keys(saved)) delete process.env[k];
 
@@ -267,7 +274,8 @@ describe('Kernel ↔ LLM router wiring (ADR-043)', () => {
 
   describe('Init failure observability (Fix #7)', () => {
     it('publishes kernel.llm-router.init-no-provider event when enabled=true but no provider available', async () => {
-      // Hermetic: clear all provider keys
+      // Hermetic: clear all provider keys (see the note above — keep in sync
+      // with the providers ProviderManager can detect).
       const saved: Record<string, string | undefined> = {
         ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
@@ -275,6 +283,9 @@ describe('Kernel ↔ LLM router wiring (ADR-043)', () => {
         GEMINI_API_KEY: process.env.GEMINI_API_KEY,
         GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY,
         GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        COGNITUM_API_KEY: process.env.COGNITUM_API_KEY,
+        CLAUDE_API_KEY: process.env.CLAUDE_API_KEY,
+        ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
       };
       for (const k of Object.keys(saved)) delete process.env[k];
 
