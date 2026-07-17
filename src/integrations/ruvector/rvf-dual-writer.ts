@@ -179,14 +179,34 @@ export class RvfDualWriter {
       try {
         nativeAdapter = adapter.openRvfStore(this.config.rvfPath);
       } catch {
-        nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
+        try {
+          nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
+        } catch (createErr) {
+          // Issue #563: open failed *and* create failed, so the file on disk is
+          // provably unusable — the signature of an export killed mid-write
+          // (open → ManifestNotFound, create → FsyncFailed because the path
+          // exists). Previously this fell to the catch below and disabled RVF
+          // silently for the whole run. Quarantine and rebuild instead.
+          const { quarantineUnusableStore } = await import('./rvf-store-integrity.js');
+          const quarantined = quarantineUnusableStore(
+            this.config.rvfPath,
+            createErr instanceof Error ? createErr.message : String(createErr),
+          );
+          if (!quarantined) throw createErr; // live peer, or nothing to move
+          nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
+        }
       }
 
       this.rvfStore = wrapNativeAdapter(nativeAdapter, this.config.dimensions);
       this.rvfAvailable = true;
-    } catch {
-      // Native adapter module not available at all
+    } catch (err) {
+      // Native adapter unavailable, or recovery itself failed. Degrade to
+      // sqlite-only — but say so, instead of vanishing silently (#563).
       this.rvfAvailable = false;
+      console.warn(
+        `[RVF] Dual-writer disabled for ${this.config.rvfPath}; falling back to SQLite: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
