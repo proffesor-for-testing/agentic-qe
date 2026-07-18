@@ -10,6 +10,7 @@
  */
 
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { attemptAutoRestore } from './db-recovery.js';
 
 export interface SafeDbOptions {
   /** Open in read-only mode (default: false) */
@@ -20,6 +21,16 @@ export interface SafeDbOptions {
   busyTimeout?: number;
   /** Enable WAL mode (default: true for writable, false for readonly) */
   walMode?: boolean;
+  /**
+   * M3.2: on a malformed/corrupt existing DB, auto-restore the newest verified
+   * backup (from `.agentic-qe/backups/verified/`) and park the corrupt original,
+   * instead of opening a broken DB. Default false; enable for the unified
+   * `memory.db` open. Non-destructive: the corrupt file is renamed, never deleted,
+   * and nothing happens if no verified backup exists. Ignored for readonly opens.
+   */
+  autoRestore?: boolean;
+  /** Override the verified-backup directory used by autoRestore. */
+  backupDir?: string;
 }
 
 /**
@@ -36,6 +47,26 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
   const fileMustExist = opts?.fileMustExist ?? false;
   const busyTimeout = opts?.busyTimeout ?? 5000;
   const walMode = opts?.walMode ?? !readonly;
+
+  // M3.2: recover a malformed DB from a verified backup BEFORE opening it, so a
+  // corrupt memory.db self-heals instead of surfacing errors on first query.
+  // Non-destructive + no-op unless enabled and actually needed.
+  if (opts?.autoRestore && !readonly) {
+    const result = attemptAutoRestore(dbPath, { backupDir: opts.backupDir });
+    if (result.restored) {
+      console.warn(
+        `[safe-db] memory DB at ${dbPath} was malformed; auto-restored from ` +
+          `${result.backupUsed}. Corrupt original parked at ${result.parkedTo}.`
+      );
+    } else if (result.reason === 'no-verified-backup') {
+      // Reached only when the DB is malformed (attemptAutoRestore short-circuits
+      // 'healthy' first) — corrupt AND no backup to restore from.
+      console.error(
+        `[safe-db] memory DB at ${dbPath} appears malformed and NO verified backup ` +
+          `was found to restore from. Leaving it in place for manual inspection.`
+      );
+    }
+  }
 
   // Environment override for filesystems where WAL is UNSAFE. WAL prevents
   // concurrent-writer corruption on a normal filesystem, but on a macOS

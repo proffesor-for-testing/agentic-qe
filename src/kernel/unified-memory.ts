@@ -330,6 +330,10 @@ export class UnifiedMemoryManager {
       this.db = openSafeDatabase(this.config.dbPath, {
         walMode: this.config.walMode,
         busyTimeout: this.config.busyTimeout,
+        // M3.2: the missing-file case is handled above; this covers the
+        // EXISTS-but-MALFORMED case — auto-restore the newest verified backup and
+        // park the corrupt original (non-destructive) instead of opening a broken DB.
+        autoRestore: true,
       });
       this.db.pragma(`mmap_size = ${this.config.mmapSize}`);
       this.db.pragma(`cache_size = ${this.config.cacheSize}`);
