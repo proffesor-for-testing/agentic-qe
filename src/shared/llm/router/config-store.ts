@@ -38,12 +38,18 @@ export const ROUTER_CONFIG_FILENAME = 'llm-config.json';
  */
 const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
   claude: ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
+  // ADR-123: claude-code authenticates via the user's Claude Code OAuth login
+  // (subscription), NOT an env key. Empty array = "no key required"; actual
+  // availability is gated on the `claude` binary being on PATH (see the
+  // provider's isAvailable()).
+  'claude-code': [],
   openai: ['OPENAI_API_KEY'],
   ollama: [], // ollama is local; no key required
   openrouter: ['OPENROUTER_API_KEY'],
   gemini: ['GOOGLE_AI_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY'],
   'azure-openai': ['AZURE_OPENAI_API_KEY'],
   bedrock: ['AWS_ACCESS_KEY_ID'], // bedrock auth is more complex; presence is a hint
+  cognitum: ['COGNITUM_API_KEY'], // ADR-123: metered-capped gateway
   onnx: [], // local
 };
 
@@ -57,12 +63,14 @@ const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
  */
 const RUNTIME_CONSTRUCTIBLE_PROVIDERS: ReadonlySet<ExtendedProviderType> = new Set([
   'claude',
+  'claude-code',
   'openai',
   'ollama',
   'openrouter',
   'gemini',
   'azure-openai',
   'bedrock',
+  'cognitum',
 ]);
 
 /**
@@ -222,17 +230,24 @@ export function mergeRouterConfig(
  * GOOGLE_API_KEY doesn't also have to remember to flip gemini.enabled
  * to true). Providers without keys are left at their existing setting.
  *
- * COUNTERINTUITIVE: env presence OVERRIDES an explicit `enabled: false`
- * on disk. The reasoning: env is more recent / more authoritative than
- * a stale checked-in config file, and users who set an API key in env
- * usually intend to use the provider. To truly disable a provider that
- * has a key in env, either unset the env key OR set the env-only
- * kill-switch `AQE_LLM_ROUTER_DISABLED=1` (which disables the entire
- * router). This precedence is documented in ADR-043's addendum.
+ * ADR-123 AMENDMENT to ADR-043's addendum: env presence force-enables a
+ * provider ONLY when the user has not *explicitly* disabled it on disk. An
+ * explicit `enabled: false` in `.agentic-qe/llm-config.json` now wins over
+ * key presence — the previous behavior (env always overrides disk) meant
+ * merely exporting `ANTHROPIC_API_KEY` silently opted a user into paid API
+ * billing even after they had turned the provider off (issue #557). A
+ * provider left unset on disk is still force-enabled when its key is present
+ * (the convenient default). To disable a provider that has a key in env, set
+ * `enabled: false` for it on disk, unset the env key, or use the env-only
+ * kill-switch `AQE_LLM_ROUTER_DISABLED=1` (disables the whole router).
+ *
+ * @param explicitlyDisabled providers the user set to `enabled: false` in the
+ *   raw on-disk config; these are never force-enabled by env detection.
  */
 export function applyEnvProviderDetection(
   config: RouterConfig,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  explicitlyDisabled: ReadonlySet<ExtendedProviderType> = new Set()
 ): RouterConfig {
   const available = detectAvailableProvidersFromEnv(env);
   const merged: RouterConfig = {
@@ -242,6 +257,7 @@ export function applyEnvProviderDetection(
   for (const provider of available) {
     const keys = PROVIDER_ENV_KEYS[provider];
     if (keys.length === 0) continue; // local provider, leave default
+    if (explicitlyDisabled.has(provider)) continue; // ADR-123: honor explicit off
     const current = merged.providers![provider] ?? { enabled: false };
     if (!current.enabled) {
       merged.providers![provider] = { ...current, enabled: true };
@@ -251,9 +267,51 @@ export function applyEnvProviderDetection(
 }
 
 /**
- * The full load path: defaults <- disk <- env detection <- override.
- * This is what the kernel and CLI both call. Returns a fully-resolved
- * RouterConfig ready to hand to HybridRouter.
+ * Collect providers the user *explicitly* set to `enabled: false` in the raw
+ * on-disk config (as opposed to a default `false`). Used so env detection
+ * doesn't resurrect a provider the user deliberately turned off (ADR-123).
+ */
+export function collectExplicitlyDisabled(
+  onDisk: Partial<RouterConfig>
+): Set<ExtendedProviderType> {
+  const disabled = new Set<ExtendedProviderType>();
+  if (!onDisk.providers) return disabled;
+  for (const [provider, cfg] of Object.entries(onDisk.providers)) {
+    if (cfg && (cfg as { enabled?: boolean }).enabled === false) {
+      disabled.add(provider as ExtendedProviderType);
+    }
+  }
+  return disabled;
+}
+
+/**
+ * ADR-123: highest-precedence provider selector. `AQE_LLM_PROVIDER=<type>`
+ * (e.g. `claude-code`, `cognitum`, `openai`) overrides `defaultProvider` and
+ * force-enables that provider, so a user can switch the execution provider for
+ * a single run without editing `llm-config.json`. `anthropic` is accepted as
+ * an alias for `claude`. Unknown values are ignored (a warning is logged).
+ */
+export function resolveProviderOverrideFromEnv(
+  env: NodeJS.ProcessEnv = process.env
+): ExtendedProviderType | undefined {
+  const raw = (env.AQE_LLM_PROVIDER ?? '').trim().toLowerCase();
+  if (!raw) return undefined;
+  const normalized = raw === 'anthropic' ? 'claude' : raw;
+  if ((ALL_PROVIDER_TYPES as readonly string[]).includes(normalized)) {
+    return normalized as ExtendedProviderType;
+  }
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[router-config] Ignoring AQE_LLM_PROVIDER="${raw}": not a known provider. ` +
+    `Valid values: ${ALL_PROVIDER_TYPES.join(', ')}.`
+  );
+  return undefined;
+}
+
+/**
+ * The full load path: defaults <- disk <- env detection <- AQE_LLM_PROVIDER
+ * override <- explicit override. This is what the kernel and CLI both call.
+ * Returns a fully-resolved RouterConfig ready to hand to HybridRouter.
  */
 export function loadRouterConfig(
   options: {
@@ -262,9 +320,29 @@ export function loadRouterConfig(
     env?: NodeJS.ProcessEnv;
   } = {}
 ): RouterConfig {
+  const env = options.env ?? process.env;
   const onDisk = loadRouterConfigFile(options.projectRoot);
   const merged = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, onDisk);
-  const withEnv = applyEnvProviderDetection(merged, options.env);
+  // ADR-123: an explicit `enabled: false` on disk is never resurrected by env.
+  const explicitlyDisabled = collectExplicitlyDisabled(onDisk);
+  let withEnv = applyEnvProviderDetection(merged, env, explicitlyDisabled);
+
+  // ADR-123: AQE_LLM_PROVIDER pins the default provider and enables it.
+  const providerOverride = resolveProviderOverrideFromEnv(env);
+  if (providerOverride) {
+    withEnv = {
+      ...withEnv,
+      defaultProvider: providerOverride,
+      providers: {
+        ...withEnv.providers,
+        [providerOverride]: {
+          ...(withEnv.providers?.[providerOverride] ?? {}),
+          enabled: true,
+        },
+      },
+    };
+  }
+
   return options.override ? mergeRouterConfig(withEnv, options.override) : withEnv;
 }
 

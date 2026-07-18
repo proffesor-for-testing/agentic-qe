@@ -288,6 +288,19 @@ export function registerProvidersFromEnv(enableLogging: boolean = false): ModelP
     config.claude = {
       apiKey: process.env.ANTHROPIC_API_KEY,
     };
+    // ADR-123 (issue #557): this consensus/multi-model-verification path bills
+    // the pay-per-token Anthropic API, not a Claude subscription, and has no
+    // budget cap of its own. Surface it so the spend isn't silent. (Full
+    // subscription + budget support for the consensus ModelProvider layer is
+    // tracked as ADR-123 follow-up — it uses a different interface than the
+    // shared LLM ProviderManager.)
+    if ((process.env.AQE_LLM_NO_BILLING_NOTICE ?? '') !== '1') {
+      // eslint-disable-next-line no-console
+      console.error(
+        '⚠️  Consensus verification will use the Anthropic API key (pay-per-token, ' +
+        'no budget cap). Unset ANTHROPIC_API_KEY to disable this path.'
+      );
+    }
   }
 
   // Detect OpenAI

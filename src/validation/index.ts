@@ -52,6 +52,13 @@ export {
   MockLLMExecutor,
 } from './parallel-eval-runner.js';
 
+// Issue #557 follow-up: real (non-mock) eval executor.
+export {
+  ProviderLLMExecutor,
+  resolveEvalExecutor,
+  type EvalExecutorResolution,
+} from './provider-llm-executor.js';
+
 export type {
   ParallelEvalConfig,
   EvalTestCase,

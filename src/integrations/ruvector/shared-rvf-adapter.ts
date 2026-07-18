@@ -15,6 +15,13 @@ import type { RvfNativeAdapter, RvfCompactionResult, RvfStatus } from './rvf-nat
 // Issue #516: lightweight, sqlite-free project-root resolver (static import so it
 // resolves under the test runner; avoids pulling unified-memory's sqlite graph).
 import { findProjectRoot } from '../../kernel/project-root.js';
+// Issue #563: static import — this module is fs-only, and a require() here
+// would not resolve under the test runner.
+import {
+  quarantineUnusableStore,
+  isLockHeldByLiveProcess,
+  readLockOwnerPid,
+} from './rvf-store-integrity.js';
 
 let sharedAdapter: RvfNativeAdapter | null = null;
 let initAttempted = false;
@@ -157,16 +164,24 @@ function openOrCreateRvf(
   // .lock that subsequent invocations interpret as `LockHeld`. Since AQE
   // CLI is overwhelmingly single-shot serial, the realistic case is "the
   // prior process is dead and the lock is stale". We unlink the .lock and
-  // retry open exactly once. If a genuinely-live peer existed, it still
-  // holds the file open — but the binding's lock is content-based (lock
-  // file presence), so this is a best-effort cooperative recovery rather
-  // than an OS-level lock break.
+  // retry open exactly once.
+  //
+  // Issue #563: the lock record turns out to carry its owner's pid (u32 LE at
+  // offset 4, after the `FLVR` magic), so "is it stale?" is now a check rather
+  // than an assumption. This previously unlinked the lock unconditionally,
+  // which breaks a genuinely-live peer — the one case the old comment admitted
+  // it could not distinguish.
   if (!opened && isLockHeld(openErr)) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
       const lockPath = `${rvfPath}.lock`;
-      if (fs.existsSync(lockPath)) {
+      if (fs.existsSync(lockPath) && isLockHeldByLiveProcess(rvfPath)) {
+        console.warn(
+          `[RVF] ${rvfPath} is locked by a live process (pid ${readLockOwnerPid(rvfPath)}) — ` +
+            'not breaking the lock; degrading to SQLite for this run.',
+        );
+      } else if (fs.existsSync(lockPath)) {
         fs.unlinkSync(lockPath);
         console.warn(
           `[RVF] Removed stale lock file at ${lockPath} (prior process exited without closing). ` +
@@ -216,6 +231,17 @@ function openOrCreateRvf(
       }
       return reopened;
     } catch {
+      // Pass 4 (#563): open failed, create failed, re-open failed. The file is
+      // provably unusable — the signature of an export killed mid-write, which
+      // used to disable the RVF backend permanently. Quarantine it (unless a
+      // live process holds its lock) and rebuild the derived cache.
+      const quarantined = quarantineUnusableStore(
+        rvfPath,
+        createErr instanceof Error ? createErr.message : String(createErr),
+      );
+      if (quarantined) {
+        return createFn(rvfPath, dimensions);
+      }
       // Fall through with the more informative original error.
       throw createErr instanceof Error ? createErr : new Error(String(createErr));
     }

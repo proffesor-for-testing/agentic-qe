@@ -32,7 +32,15 @@ import { secureRandomInt } from '../utils/crypto-random.js';
 import { CircuitBreakerManager } from './circuit-breaker';
 import { LLMResponseCache } from './cache';
 import { CostTracker, getGlobalCostTracker } from './cost-tracker';
+import {
+  type SpendLedger,
+  createDefaultSpendLedger,
+  InMemorySpendLedger,
+} from './spend-ledger';
+import { resolveBillingMode, billingNotice } from './billing-modes';
 import { ClaudeProvider } from './providers/claude';
+import { ClaudeCodeProvider } from './providers/claude-code';
+import { CognitumProvider } from './providers/cognitum';
 import { OpenAIProvider } from './providers/openai';
 import { OllamaProvider } from './providers/ollama';
 import { OpenRouterProvider } from './providers/openrouter';
@@ -80,6 +88,12 @@ export class ProviderManager {
   private metrics: Map<LLMProviderType, ProviderMetricsInternal> = new Map();
   private roundRobinIndex: number = 0;
   private initialized: boolean = false;
+  /** ADR-123: cross-process spend ledger (memory.db-backed by default). */
+  private spendLedger?: SpendLedger;
+  private injectedLedger?: SpendLedger;
+  /** ADR-123: per-run cap in USD (from AQE_MAX_BUDGET_USD or global.maxCostPerRun). */
+  private maxCostPerRun?: number;
+  private billingNoticeShown = false;
 
   constructor(
     config: Partial<ProviderManagerConfig> = {},
@@ -87,12 +101,20 @@ export class ProviderManager {
       circuitBreakerConfig?: Partial<CircuitBreakerConfig>;
       cacheConfig?: Partial<LLMCacheConfig>;
       costTracker?: CostTracker;
+      /** ADR-123: inject a ledger (tests / kernel with an open DB handle). */
+      spendLedger?: SpendLedger;
     }
   ) {
     this.config = { ...DEFAULT_PROVIDER_MANAGER_CONFIG, ...config };
     this.circuitBreakers = new CircuitBreakerManager(options?.circuitBreakerConfig);
     this.cache = new LLMResponseCache(options?.cacheConfig);
     this.costTracker = options?.costTracker ?? getGlobalCostTracker();
+    this.injectedLedger = options?.spendLedger;
+    // AQE_MAX_BUDGET_USD env overrides an unset per-run cap.
+    const envRun = Number.parseFloat(process.env.AQE_MAX_BUDGET_USD ?? '');
+    this.maxCostPerRun =
+      this.config.global?.maxCostPerRun ??
+      (Number.isFinite(envRun) && envRun > 0 ? envRun : undefined);
   }
 
   /**
@@ -111,7 +133,141 @@ export class ProviderManager {
       this.initializeMetrics(type);
     }
 
+    // ADR-123: resolve the spend ledger only when a budget is actually
+    // configured — no DB work for callers who never set a cap.
+    if (this.budgetConfigured()) {
+      this.spendLedger =
+        this.injectedLedger ??
+        (await createDefaultSpendLedger().catch(() => new InMemorySpendLedger()));
+    }
+
+    this.emitBillingNotice();
+
     this.initialized = true;
+  }
+
+  /** ADR-123: whether any spend cap is configured. */
+  private budgetConfigured(): boolean {
+    const g = this.config.global;
+    return Boolean(
+      this.maxCostPerRun ||
+        (g?.maxCostPerHour && g.maxCostPerHour > 0) ||
+        (g?.maxCostPerDay && g.maxCostPerDay > 0)
+    );
+  }
+
+  /**
+   * ADR-123: print a one-line notice describing how the primary provider bills,
+   * once per manager, unless silenced with AQE_LLM_NO_BILLING_NOTICE=1.
+   */
+  private emitBillingNotice(): void {
+    if (this.billingNoticeShown) return;
+    if ((process.env.AQE_LLM_NO_BILLING_NOTICE ?? '') === '1') return;
+    const primary = this.providers.get(this.config.primary);
+    if (!primary) return;
+    const mode = resolveBillingMode(primary);
+    const notice = billingNotice(primary.type, mode);
+    if (notice) {
+      // eslint-disable-next-line no-console
+      console.error(notice);
+    }
+    this.billingNoticeShown = true;
+  }
+
+  /**
+   * ADR-123: throw COST_LIMIT_EXCEEDED before a call that would breach a
+   * configured budget. Estimate is conservative: prompt tokens from input
+   * length, completion tokens from the requested `maxTokens`. Local providers
+   * ($0) never trip a cap.
+   */
+  private enforceBudget(
+    input: string | Message[],
+    options?: GenerateOptions | CompleteOptions
+  ): void {
+    if (!this.budgetConfigured() || !this.spendLedger) return;
+
+    // Resolve the concrete model that will actually be billed: the caller's
+    // override, else the primary provider's configured model. `config.primary`
+    // is a provider *type*, not a model id, so it can't be priced directly.
+    const model =
+      options?.model ??
+      this.providers.get(this.config.primary)?.getConfig().model ??
+      this.config.primary;
+
+    const inputStr = typeof input === 'string' ? input : JSON.stringify(input);
+    const estPromptTokens = Math.ceil(inputStr.length / 4);
+    const estCompletionTokens = options?.maxTokens ?? 4096;
+    const estCost = this.costTracker.estimateCost(
+      model,
+      estPromptTokens,
+      estCompletionTokens
+    ).totalCost;
+
+    // Free/local models can't breach a spend cap.
+    if (estCost === 0) return;
+
+    const g = this.config.global;
+    const checks: Array<{ limit?: number; spent: number; label: string }> = [
+      {
+        limit: this.maxCostPerRun,
+        spent: this.costTracker.getCurrentCost('all'),
+        label: 'per-run',
+      },
+      {
+        limit: g?.maxCostPerHour,
+        spent: this.spendLedger.spentSince(3_600_000),
+        label: 'hourly',
+      },
+      {
+        limit: g?.maxCostPerDay,
+        spent: this.spendLedger.spentSince(86_400_000),
+        label: 'daily',
+      },
+    ];
+
+    for (const { limit, spent, label } of checks) {
+      if (limit && limit > 0 && spent + estCost > limit) {
+        throw createLLMError(
+          `LLM ${label} budget exceeded: $${spent.toFixed(4)} spent + ` +
+            `$${estCost.toFixed(4)} estimated > $${limit.toFixed(2)} cap. ` +
+            `Raise --max-budget-usd / maxCost* or switch to a local/subscription provider.`,
+          'COST_LIMIT_EXCEEDED',
+          { retryable: false }
+        );
+      }
+    }
+  }
+
+  /** ADR-123: persist a completed charge to the cross-process ledger. */
+  private recordSpend(response: LLMResponse): void {
+    if (!this.spendLedger) return;
+    this.spendLedger.record({
+      provider: response.provider,
+      model: response.model,
+      costUsd: response.cost.totalCost,
+      costSource: response.cost.source ?? 'local-estimate',
+      promptTokens: response.usage.promptTokens,
+      completionTokens: response.usage.completionTokens,
+      requestId: response.requestId,
+    });
+  }
+
+  /**
+   * ADR-123: public budget gate for callers that execute providers WITHOUT
+   * going through `generate()`/`complete()` — notably HybridRouter, which is
+   * the primary QE domain/fleet execution path. Throws COST_LIMIT_EXCEEDED
+   * when a configured cap would be breached; a no-op when no budget is set.
+   */
+  assertWithinBudget(
+    input: string | Message[],
+    options?: GenerateOptions | CompleteOptions
+  ): void {
+    this.enforceBudget(input, options);
+  }
+
+  /** ADR-123: public spend recorder for those same bypassing callers. */
+  recordResponseSpend(response: LLMResponse): void {
+    this.recordSpend(response);
   }
 
   /**
@@ -138,6 +294,9 @@ export class ProviderManager {
       }
     }
 
+    // ADR-123: enforce budget before spending anything.
+    this.enforceBudget(input, options);
+
     // Select provider and execute with failover
     const response = await this.executeWithFailover(
       'generate',
@@ -156,13 +315,14 @@ export class ProviderManager {
       });
     }
 
-    // Track cost
+    // Track cost (in-process) and persist to the cross-process ledger.
     this.costTracker.recordUsage(
       response.provider,
       response.model,
       response.usage,
       response.requestId
     );
+    this.recordSpend(response);
 
     return response;
   }
@@ -182,7 +342,8 @@ export class ProviderManager {
     }
 
     // For embeddings, prefer providers that support them
-    const embeddingProviders: LLMProviderType[] = ['openai', 'ollama'];
+    // ADR-123: cognitum exposes /v1/embeddings, so it can serve embeddings too.
+    const embeddingProviders: LLMProviderType[] = ['openai', 'ollama', 'cognitum'];
 
     const response = await this.executeWithFailover(
       'embed',
@@ -220,6 +381,9 @@ export class ProviderManager {
       }
     }
 
+    // ADR-123: enforce budget before spending anything.
+    this.enforceBudget(prompt, options);
+
     const response = await this.executeWithFailover(
       'complete',
       async (provider) => provider.complete(prompt, options)
@@ -233,6 +397,25 @@ export class ProviderManager {
         maxTokens: options?.maxTokens,
       });
     }
+
+    // ADR-123: persist to the cross-process ledger (completion has usage too).
+    this.costTracker.recordUsage(
+      response.provider,
+      response.model,
+      response.usage,
+      `complete-${response.model}-${Date.now()}`
+    );
+    this.recordSpend({
+      content: response.completion,
+      model: response.model,
+      provider: response.provider,
+      usage: response.usage,
+      cost: CostTracker.calculateCost(response.model, response.usage),
+      latencyMs: response.latencyMs,
+      finishReason: 'stop',
+      cached: response.cached,
+      requestId: `complete-${response.model}-${Date.now()}`,
+    });
 
     return response;
   }
@@ -381,6 +564,10 @@ export class ProviderManager {
     switch (type) {
       case 'claude':
         return new ClaudeProvider(this.config.providers.claude);
+      case 'claude-code':
+        return new ClaudeCodeProvider(this.config.providers['claude-code']);
+      case 'cognitum':
+        return new CognitumProvider(this.config.providers.cognitum);
       case 'openai':
         return new OpenAIProvider(this.config.providers.openai);
       case 'ollama':

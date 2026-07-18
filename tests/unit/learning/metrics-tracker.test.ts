@@ -5,11 +5,14 @@
  * field added in the march-fixes-and-improvements branch.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import Database from 'better-sqlite3';
 import {
   LearningMetricsTracker,
   createLearningMetricsTracker,
-  type DashboardData,
 } from '../../../src/learning/metrics-tracker.js';
 import type { DomainHealthSummary } from '../../../src/learning/regret-tracker.js';
 
@@ -18,18 +21,29 @@ import type { DomainHealthSummary } from '../../../src/learning/regret-tracker.j
 // ============================================================================
 
 describe('LearningMetricsTracker — Regression: getDashboardDataWithRegret', () => {
-  // Note: LearningMetricsTracker requires a real SQLite database at
-  // .agentic-qe/memory.db. We test against the actual project database
-  // in read-only fashion, or skip if unavailable.
+  // These tests run against an ISOLATED temp SQLite database — never the real
+  // project `.agentic-qe/memory.db` (that is our live learning DB; a stray
+  // write would corrupt it, and reading it caused "database is locked" flakes
+  // under the bind-mounted/parallel test runner). The tracker tolerates missing
+  // learning tables (it probes sqlite_master first), so an empty DB exercises
+  // the real getDashboardData* code paths and returns zeroed metrics.
 
   let tracker: LearningMetricsTracker;
+  let projectRoot: string;
 
   beforeEach(() => {
-    tracker = createLearningMetricsTracker(process.cwd());
+    // Temp projectRoot with an empty-but-valid .agentic-qe/memory.db
+    projectRoot = mkdtempSync(join(tmpdir(), 'aqe-metrics-tracker-'));
+    mkdirSync(join(projectRoot, '.agentic-qe'), { recursive: true });
+    // better-sqlite3 creates a valid empty SQLite file the tracker can reopen.
+    new Database(join(projectRoot, '.agentic-qe', 'memory.db')).close();
+
+    tracker = createLearningMetricsTracker(projectRoot);
   });
 
   afterEach(() => {
     tracker.close();
+    rmSync(projectRoot, { recursive: true, force: true });
   });
 
   it('should create tracker instance', () => {
@@ -38,18 +52,13 @@ describe('LearningMetricsTracker — Regression: getDashboardDataWithRegret', ()
   });
 
   it('getDashboardDataWithRegret should return data without regret health', async () => {
-    try {
-      const data = await tracker.getDashboardDataWithRegret();
-      expect(data).toBeDefined();
-      expect(data.current).toBeDefined();
-      expect(data.history).toBeDefined();
-      expect(data.trends).toBeDefined();
-      expect(data.topDomains).toBeDefined();
-      expect(data.regretHealth).toBeUndefined();
-    } catch (e) {
-      // Database may not exist in test environment — that's acceptable
-      expect((e as Error).message).toContain('Database not found');
-    }
+    const data = await tracker.getDashboardDataWithRegret();
+    expect(data).toBeDefined();
+    expect(data.current).toBeDefined();
+    expect(data.history).toBeDefined();
+    expect(data.trends).toBeDefined();
+    expect(data.topDomains).toBeDefined();
+    expect(data.regretHealth).toBeUndefined();
   });
 
   it('getDashboardDataWithRegret should attach regret health when provided', async () => {
@@ -76,36 +85,35 @@ describe('LearningMetricsTracker — Regression: getDashboardDataWithRegret', ()
       },
     ];
 
-    try {
-      const data = await tracker.getDashboardDataWithRegret(mockRegretHealth);
-      expect(data).toBeDefined();
-      expect(data.regretHealth).toBeDefined();
-      expect(data.regretHealth).toHaveLength(2);
-      expect(data.regretHealth![0].domain).toBe('test-generation');
-      expect(data.regretHealth![0].isLearning).toBe(true);
-      expect(data.regretHealth![1].growthRate).toBe('insufficient-data');
-    } catch (e) {
-      expect((e as Error).message).toContain('Database not found');
-    }
+    const data = await tracker.getDashboardDataWithRegret(mockRegretHealth);
+    expect(data).toBeDefined();
+    expect(data.regretHealth).toBeDefined();
+    expect(data.regretHealth).toHaveLength(2);
+    expect(data.regretHealth![0].domain).toBe('test-generation');
+    expect(data.regretHealth![0].isLearning).toBe(true);
+    expect(data.regretHealth![1].growthRate).toBe('insufficient-data');
   });
 
   it('getDashboardDataWithRegret should not attach regret health when empty array', async () => {
-    try {
-      const data = await tracker.getDashboardDataWithRegret([]);
-      expect(data.regretHealth).toBeUndefined();
-    } catch (e) {
-      expect((e as Error).message).toContain('Database not found');
-    }
+    const data = await tracker.getDashboardDataWithRegret([]);
+    expect(data.regretHealth).toBeUndefined();
   });
 
   it('getDashboardData should return base data without regretHealth field', async () => {
+    const data = await tracker.getDashboardData();
+    expect(data).toBeDefined();
+    // regretHealth should not be set by getDashboardData (only by getDashboardDataWithRegret)
+    expect(data.regretHealth).toBeUndefined();
+  });
+
+  it('should throw a clear error when the database file is absent', async () => {
+    const missingRoot = mkdtempSync(join(tmpdir(), 'aqe-metrics-tracker-missing-'));
+    const t = createLearningMetricsTracker(missingRoot);
     try {
-      const data = await tracker.getDashboardData();
-      expect(data).toBeDefined();
-      // regretHealth should not be set by getDashboardData (only by getDashboardDataWithRegret)
-      expect(data.regretHealth).toBeUndefined();
-    } catch (e) {
-      expect((e as Error).message).toContain('Database not found');
+      await expect(t.getDashboardData()).rejects.toThrow('Database not found');
+    } finally {
+      t.close();
+      rmSync(missingRoot, { recursive: true, force: true });
     }
   });
 });

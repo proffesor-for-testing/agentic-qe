@@ -125,6 +125,9 @@ function createMockProviderManager(providers: Map<LLMProviderType, LLMProvider>)
     generate: vi.fn(),
     healthCheck: vi.fn(),
     dispose: vi.fn(),
+    // ADR-123: HybridRouter now gates spend via these on the exec path.
+    assertWithinBudget: vi.fn(),
+    recordResponseSpend: vi.fn(),
   };
 
   return manager as unknown as ProviderManager;
@@ -860,6 +863,40 @@ describe('HybridRouter', () => {
 
       const response = await router.chat(params);
       expect(response).toBeDefined();
+    });
+  });
+
+  // ==========================================================================
+  // ADR-123 (issue #557): budget enforcement on the HybridRouter exec path.
+  // This is the PRIMARY QE path (domains call chat() directly), so the gate
+  // must fire here — not only in ProviderManager.generate().
+  // ==========================================================================
+  describe('ADR-123 budget enforcement', () => {
+    beforeEach(async () => {
+      await router.initialize();
+    });
+
+    it('should_gateBudgetBeforeCallingProvider_when_chatInvoked', async () => {
+      await router.chat({ messages: [{ role: 'user', content: 'hi' }] });
+      expect(providerManager.assertWithinBudget).toHaveBeenCalledTimes(1);
+    });
+
+    it('should_propagateCostLimitExceeded_and_notCallProvider_when_overBudget', async () => {
+      (providerManager.assertWithinBudget as Mock).mockImplementation(() => {
+        throw createLLMError('over budget', 'COST_LIMIT_EXCEEDED', { retryable: false });
+      });
+
+      await expect(
+        router.chat({ messages: [{ role: 'user', content: 'hi' }] })
+      ).rejects.toMatchObject({ code: 'COST_LIMIT_EXCEEDED' });
+
+      // The provider must never be reached once the budget is blown.
+      expect(claudeProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('should_recordSpend_when_generationSucceeds', async () => {
+      await router.chat({ messages: [{ role: 'user', content: 'hi' }] });
+      expect(providerManager.recordResponseSpend).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -140,10 +140,12 @@ export function detectMessageFormat(messages: ExtendedMessage[]): MessageFormat 
 export function getTargetFormat(provider: ExtendedProviderType): MessageFormat {
   switch (provider) {
     case 'claude':
+    case 'claude-code': // ADR-123: Anthropic-native (runs via `claude -p`)
     case 'bedrock':
       return 'anthropic';
     case 'openai':
     case 'azure-openai':
+    case 'cognitum': // ADR-123: OpenAI-compatible gateway
       return 'openai';
     case 'gemini':
       return 'gemini';

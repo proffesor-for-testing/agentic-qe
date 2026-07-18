@@ -4,8 +4,8 @@
  * Falls back to JSONL directory format when the native binding is unavailable.
  */
 
-import { existsSync, statSync, unlinkSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
+import { basename, dirname, join, resolve } from 'path';
 import Database from 'better-sqlite3';
 import {
   createRvfStore,
@@ -92,6 +92,75 @@ export interface RvfBrainImportResult {
 
 // --- Export ---
 
+/**
+ * Sidecar suffixes that make up a complete store on disk. `''` is the store
+ * itself; the adapter writes `.idmap.json` on close, and we write the manifest.
+ */
+const RVF_STORE_SUFFIXES = ['', '.idmap.json', '.manifest.json'] as const;
+
+/**
+ * Everything an abandoned tmp export can leave behind. `.lock` is cleaned up
+ * but deliberately absent from RVF_STORE_SUFFIXES — renaming a lock into the
+ * final path is the very corruption this fix exists to prevent.
+ */
+const RVF_CLEANUP_SUFFIXES = [...RVF_STORE_SUFFIXES, '.lock'] as const;
+
+/** Best-effort removal of a store and its sidecars at `base`. */
+function removeStoreFiles(base: string): void {
+  for (const suffix of RVF_CLEANUP_SUFFIXES) {
+    try {
+      const p = `${base}${suffix}`;
+      if (existsSync(p)) unlinkSync(p);
+    } catch {
+      // best-effort — a leftover tmp is inert, unlike a corrupt final store
+    }
+  }
+}
+
+/**
+ * Remove tmp stores orphaned by killed exports (#563). Each interrupted export
+ * strands a full-size tmp store, so on a project where the checkpoint hook is
+ * killed regularly these would accumulate unbounded.
+ *
+ * Only tmps whose owning pid is gone are removed: a live pid means a concurrent
+ * export is mid-write, and deleting its tmp would corrupt exactly what this
+ * change exists to protect.
+ */
+function sweepStaleTmpFiles(outPath: string): void {
+  const dir = dirname(outPath);
+  const prefix = `${basename(outPath)}.tmp.`;
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix)) continue;
+    // `<name>.rvf.tmp.<pid>` and its `<...>.tmp.<pid>.idmap.json` siblings.
+    const pid = Number.parseInt(entry.slice(prefix.length).split('.')[0], 10);
+    if (!Number.isInteger(pid) || pid <= 0) continue;
+    if (pid !== process.pid && isPidAlive(pid)) continue;
+    try {
+      unlinkSync(join(dir, entry));
+    } catch {
+      // best-effort
+    }
+  }
+}
+
+/** True when a process with `pid` exists (signal 0 probes without delivering). */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means it exists but belongs to another user — still alive.
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 /** Export brain state to a single `.rvf` file with vector embeddings + kernel. */
 export function exportBrainToRvf(
   db: Database.Database,
@@ -107,13 +176,21 @@ export function exportBrainToRvf(
   const outPath = resolve(options.outputPath);
   const dimension = options.dimension ?? 384;
 
-  // Clean up any existing file
-  if (existsSync(outPath)) unlinkSync(outPath);
-  const idmapPath = `${outPath}.idmap.json`;
-  if (existsSync(idmapPath)) unlinkSync(idmapPath);
+  // Issue #563: build the store at a private tmp path and rename it over the
+  // final path only once it is closed and complete. The previous code deleted
+  // the old store and then built the new one in place, so any interruption
+  // (hook timeout, session teardown, SIGKILL) left a created-but-incomplete
+  // store that could neither be opened (ManifestNotFound) nor created over
+  // (FsyncFailed) — permanently disabling the RVF backend. With tmp+rename an
+  // interrupted export leaves the *previous* good store untouched and orphans
+  // only an inert tmp file, which the next export sweeps.
+  const tmpPath = `${outPath}.tmp.${process.pid}`;
+  sweepStaleTmpFiles(outPath);
+  removeStoreFiles(tmpPath);
 
   // Create RVF container via adapter (handles idmap automatically)
-  const rvf = createRvfStore(outPath, dimension);
+  const rvf = createRvfStore(tmpPath, dimension);
+  let closed = false;
 
   try {
     // --- Export all tables using TABLE_CONFIGS ---
@@ -273,12 +350,35 @@ export function exportBrainToRvf(
     }
 
     // Persist manifest as sidecar JSON alongside the .rvf file
-    const manifestPath = `${outPath}.manifest.json`;
-    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    writeFileSync(`${tmpPath}.manifest.json`, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    // Close before promoting: close() flushes the store and writes the idmap
+    // sidecar, so renaming any earlier would publish an incomplete store.
+    rvf.close();
+    closed = true;
+
+    // Promote tmp → final. The store itself goes last: until it lands, the
+    // previous store (if any) is still the one on disk, and a crash mid-promote
+    // leaves the old store readable rather than a half-written new one.
+    for (const suffix of [...RVF_STORE_SUFFIXES].reverse()) {
+      const from = `${tmpPath}${suffix}`;
+      const to = `${outPath}${suffix}`;
+      if (existsSync(from)) {
+        renameSync(from, to);
+      } else if (existsSync(to)) {
+        // No new sidecar produced — drop the stale one so it can't be read
+        // against the new store.
+        unlinkSync(to);
+      }
+    }
 
     return manifest;
-  } finally {
-    rvf.close();
+  } catch (err) {
+    if (!closed) {
+      try { rvf.close(); } catch { /* best-effort */ }
+    }
+    removeStoreFiles(tmpPath);
+    throw err;
   }
 }
 

@@ -207,10 +207,18 @@ describe('loadRouterConfig (full path)', () => {
     expect(cfg.defaultProvider).toBe('openai');
   });
 
-  it('env detection enables providers regardless of disk', () => {
-    saveRouterConfigFile({ providers: { gemini: { enabled: false } } as any }, tmpRoot);
+  // ADR-123 (issue #557): reversed. An explicit `enabled: false` on disk is
+  // now honored over env key presence — see config-store-adr123.test.ts.
+  it('env detection enables a provider that is NOT explicitly disabled on disk', () => {
+    // gemini has no disk entry at all → key presence force-enables it.
     const cfg = loadRouterConfig({ projectRoot: tmpRoot, env: { GOOGLE_API_KEY: 'x' } });
     expect(cfg.providers?.gemini?.enabled).toBe(true);
+  });
+
+  it('env detection does NOT resurrect an explicitly disabled provider (ADR-123)', () => {
+    saveRouterConfigFile({ providers: { gemini: { enabled: false } } as any }, tmpRoot);
+    const cfg = loadRouterConfig({ projectRoot: tmpRoot, env: { GOOGLE_API_KEY: 'x' } });
+    expect(cfg.providers?.gemini?.enabled).toBe(false);
   });
 
   it('explicit override beats env and disk', () => {

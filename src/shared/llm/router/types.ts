@@ -50,12 +50,14 @@ export type ExtendedProviderType =
  */
 export const ALL_PROVIDER_TYPES: readonly ExtendedProviderType[] = [
   'claude',
+  'claude-code',   // ADR-123: subscription-billed via `claude -p`
   'openai',
   'ollama',
   'openrouter',
   'gemini',
   'azure-openai',
   'bedrock',
+  'cognitum',      // ADR-123: metered-capped gateway (api.cognitum.one)
   'onnx',
 ] as const;
 
@@ -1152,12 +1154,17 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   fallbackBehavior: DEFAULT_FALLBACK_BEHAVIOR,
   providers: {
     claude: { enabled: true, defaultModel: 'claude-sonnet-4-6' },
+    // ADR-123: opt-in (issue #557 — don't default the subscription/fleet path
+    // on). Enabled explicitly via AQE_LLM_PROVIDER=claude-code or disk config.
+    'claude-code': { enabled: false, defaultModel: 'claude-sonnet-4-6' },
     openai: { enabled: true, defaultModel: 'gpt-4o' },
     ollama: { enabled: true, defaultModel: 'llama3.1' },
     openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-4' },
     gemini: { enabled: false, defaultModel: 'gemini-pro' },
     'azure-openai': { enabled: false },
     bedrock: { enabled: false },
+    // ADR-123: opt-in; enabled when COGNITUM_API_KEY present or via override.
+    cognitum: { enabled: false, defaultModel: 'cognitum-auto' },
     onnx: { enabled: true, defaultModel: 'phi-4' },
   },
   enableMetrics: true,

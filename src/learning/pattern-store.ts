@@ -14,7 +14,17 @@ import { findProjectRoot } from '../kernel/project-root.js';
 import type { Result } from '../shared/types/index.js';
 import { ok, err } from '../shared/types/index.js';
 import { RvfPatternStore } from './rvf-pattern-store.js';
-import { createRvfStore as _createRvfStore, isRvfNativeAvailable } from '../integrations/ruvector/rvf-native-adapter.js';
+import {
+  createRvfStore as _createRvfStore,
+  openRvfStore as _openRvfStore,
+  isRvfNativeAvailable,
+} from '../integrations/ruvector/rvf-native-adapter.js';
+// Issue #563: static imports — a require() of a source module resolves in the
+// esbuild bundle but throws under the test runner, which silently changed which
+// code path tests exercised. Neither module loads the native binding at import
+// time, so this costs nothing at startup.
+import { quarantineUnusableStore } from '../integrations/ruvector/rvf-store-integrity.js';
+import { getSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
   QEPattern,
@@ -1916,7 +1926,9 @@ export function createPatternStore(
         // deadlock on the native lock.
         let useSharedAdapter = false;
         try {
-          const { getSharedRvfAdapter } = require('../integrations/ruvector/shared-rvf-adapter.js');
+          // Statically imported (#563): this require() throws "Cannot find
+          // module" under the test runner, so every test silently took the
+          // fallback ladder below instead of this preferred path.
           const shared = getSharedRvfAdapter(rvfDir, mergedConfig.embeddingDimension);
           if (shared) {
             useSharedAdapter = true;
@@ -1940,10 +1952,12 @@ export function createPatternStore(
           // (Jordi #439 / RUFLO P020.)
           const store = new RvfPatternStore(
             (path: string, dim: number) => {
-              // eslint-disable-next-line @typescript-eslint/no-require-imports
-              const { openRvfStore } = require('../integrations/ruvector/rvf-native-adapter.js');
+              // Statically imported (#563): a require() here resolves in the
+              // esbuild bundle but throws "Cannot find module" under the test
+              // runner, so this ladder — including its corruption recovery —
+              // was unreachable from any test.
               const tryOpen = () => {
-                try { return openRvfStore(path); } catch { return null; }
+                try { return _openRvfStore(path); } catch { return null; }
               };
               let adapter = tryOpen();
               if (adapter) {
@@ -1960,6 +1974,14 @@ export function createPatternStore(
               } catch (createErr) {
                 adapter = tryOpen();
                 if (adapter && adapter.dimension() === dim) return adapter;
+                // Issue #563: open failed, create failed, re-open failed — the
+                // store is provably unusable (an export killed mid-write leaves
+                // exactly this). Without recovery, RvfPatternStore.initialize()
+                // logs "vector search is DISABLED" and stays that way for the
+                // life of the process.
+                if (quarantineUnusableStore(path, createErr instanceof Error ? createErr.message : String(createErr))) {
+                  return _createRvfStore(path, dim);
+                }
                 throw createErr;
               }
             },

@@ -4,6 +4,18 @@
  */
 
 export { ClaudeProvider, DEFAULT_CLAUDE_CONFIG } from './claude';
+export {
+  ClaudeCodeProvider,
+  DEFAULT_CLAUDE_CODE_CONFIG,
+  API_BILLING_ENV_VARS,
+  type ClaudeCodeConfig,
+} from './claude-code';
+export {
+  CognitumProvider,
+  DEFAULT_COGNITUM_CONFIG,
+  type CognitumConfig,
+  type CognitumBudget,
+} from './cognitum';
 export { OpenAIProvider, DEFAULT_OPENAI_CONFIG } from './openai';
 export { OllamaProvider, DEFAULT_OLLAMA_CONFIG } from './ollama';
 export {

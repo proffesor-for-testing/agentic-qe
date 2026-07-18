@@ -5,6 +5,93 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.12.3] - 2026-07-17
+
+Fixes a bug that could silently switch off vector search — permanently. If an
+export of the RVF store was interrupted (a hook timing out, a session ending, a
+hard kill), it left behind a store file that AQE could neither open nor replace.
+Every later run fell back to SQLite without saying so, and only deleting the
+file by hand brought it back. One reporting project hit this three times in a
+day; this repository turned out to have been running degraded for nine days.
+Existing broken projects self-heal on the next run — no manual cleanup. Thanks
+to @pacphi for the detailed report (#563).
+
+### Fixed
+
+- **An interrupted brain export no longer breaks the store (#563).** Exports
+  are now written to a temporary file and moved into place only once complete,
+  so an interruption leaves your previous store untouched instead of destroying
+  it. Abandoned temporary files are cleaned up on the next export.
+- **Unusable stores are repaired automatically instead of silently disabling
+  vector search (#563).** When a store can neither be opened nor rebuilt over,
+  AQE now sets it aside (as `<name>.rvf.corrupt-<pid>` — kept, not deleted, in
+  case you want to report it) and rebuilds the cache from `memory.db`. This
+  applies to `brain.rvf`, `patterns.rvf`, and the pattern-store path. Previously
+  each of these degraded quietly, for every subsequent run.
+- **RVF failures are no longer silent.** Falling back to SQLite now logs why,
+  rather than vanishing into an empty `catch`.
+- **A live process's store is no longer at risk during lock cleanup (#563).**
+  Stale-lock recovery previously removed lock files unconditionally, which could
+  break a store another process was actively using. Locks are now checked
+  against their owning process and left alone when it is still running.
+
+### Added
+
+- **Flywheel receipts are signed with the Cognitum platform identity (#562).**
+  The QE-policy flywheel now signs its evolve receipts with the same
+  externally-verifiable platform key (`f1ac28607da49ec1`) used elsewhere, so all
+  QE evidence — engine campaign and flywheel promotion — chains to one identity
+  a verifier can attribute. Falls back to the local key when the platform
+  identity is unavailable.
+
+## [3.12.2] - 2026-07-13
+
+Billing-aware LLM execution. AQE could previously only bill the paid Anthropic
+Developer API (`ANTHROPIC_API_KEY`), even for users on a Claude Pro/Max plan that
+already covers Claude Code usage — and its declared budget caps were never
+actually enforced. This release adds a subscription execution path, real
+cross-process spend caps, transparent billing modes, and a metered-capped
+gateway provider. It also fixes `aqe eval run`, which had been scoring
+fabricated (mock) responses instead of real model output. See ADR-123.
+
+### Added
+
+- **Run QE on your Claude subscription (`AQE_LLM_PROVIDER=claude-code`).** A new
+  provider shells out to `claude -p` and draws from your Pro/Max plan's shared
+  usage instead of a pay-per-token API key. Worst case becomes "hit your plan
+  limit and pause" rather than a surprise bill. The spawned CLI has all
+  API-billing keys stripped from its environment so it can't silently revert to
+  API billing.
+- **Enforced spend budgets.** `--max-budget-usd` (and `AQE_MAX_BUDGET_USD`) cap
+  total LLM spend for a run; the cap is persisted to `.agentic-qe/memory.db` so
+  it holds **across a whole fleet of processes**, not just one. Requests that
+  would exceed the cap abort with `COST_LIMIT_EXCEEDED` before any spend.
+- **Cognitum provider (`AQE_LLM_PROVIDER=cognitum`).** An OpenAI/Anthropic-
+  compatible gateway (`api.cognitum.one`) with authoritative per-request cost
+  receipts, cloud embeddings, and a server-side hard spend cap.
+- **Billing transparency.** A one-line notice at startup and a new "LLM Billing"
+  section in `aqe health` show how the active provider bills (pay-per-token /
+  server-capped / subscription / local), so a paid API key is never a silent
+  surprise.
+
+### Fixed
+
+- **`aqe eval run` now makes real model calls.** It previously defaulted to a
+  mock executor that returned canned, keyword-matched responses, so eval results
+  were fabricated. Eval now runs against a real provider by default (inheriting
+  budget caps and provider selection), errors clearly when no provider is
+  configured, and offers an explicit `--mock` flag for offline testing.
+- **Budget caps are now actually enforced.** The `maxCostPerHour/Day` settings
+  existed but were dead code, and enforcement was bypassed on the primary
+  routing path (`HybridRouter`). Both are fixed.
+- **An explicit `enabled: false` for a provider is honored** even when its API
+  key is present in the environment (previously the key silently re-enabled it).
+
+### Changed
+
+- The multi-model consensus verification path now prints a billing warning when
+  it uses an Anthropic API key, so that spend isn't silent either.
+
 ## [3.12.1] - 2026-07-12
 
 Makes `aqe init` non-destructive to configuration users already have in their
