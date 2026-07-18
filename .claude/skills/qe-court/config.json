@@ -1,0 +1,27 @@
+{
+  "$schema": "./config-schema.json",
+  "_description": "QE-Court adversarial review configuration (ADR-124). Auto-created on first run. Edit `routing` to choose which provider/model runs each court role. All providers route through AQE's ADR-123 provider layer (budget caps + receipts apply).",
+  "prosecutors": ["devils-advocate", "brutal-honesty", "sherlock", "security-scanner", "mutation", "codex-review"],
+  "overturnDepth": 2,
+  "emitScore": false,
+  "routing": {
+    "_note": "provider ids: claude-code | cognitum-{low,mid,high} | openrouter | codex | claude | openai | gemini | ollama. Cognitum resolves multiple models behind its tiers; use openrouter when you want to name several distinct models for breadth.",
+    "defense": { "provider": "cognitum-low" },
+    "prosecutor.devils-advocate": { "provider": "cognitum-mid" },
+    "prosecutor.brutal-honesty": { "provider": "claude-code", "model": "sonnet" },
+    "prosecutor.sherlock": { "provider": "cognitum-high" },
+    "prosecutor.security-scanner": { "provider": "cognitum-mid" },
+    "prosecutor.mutation": { "provider": "ollama" },
+    "prosecutor.codex-review": { "provider": "codex" },
+    "jury": { "provider": "cognitum-high" },
+    "deeperReviewer": { "provider": "codex" }
+  },
+  "options": {
+    "blindFiling": true,
+    "writerIsNeverJuror": true,
+    "minDistinctVendors": 2,
+    "requireDoeGatedScore": true,
+    "signCourtRecord": true
+  },
+  "_setupPrompt": "If unsure, keep the default 3-vendor panel (Claude + Cognitum + Codex/GPT). ALWAYS include 'security-scanner' and 'mutation' for security- or test-quality-sensitive deliveries — omitting them is how a false SHIP happens. The jury provider MUST differ in vendor from the writer/defense (writerIsNeverJuror). Set emitScore=true only after the scoring rubric has passed the ADR-122 ANOVA screen."
+}

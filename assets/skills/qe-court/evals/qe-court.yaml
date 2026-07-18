@@ -1,0 +1,63 @@
+skill: qe-court
+version: 0.2.0
+description: >
+  Evaluation suite for the QE-Court adversarial review protocol (ADR-124).
+  Every case is an ORACLE: it passes against correct behavior and FAILS against a
+  seeded regression. Promotion to trust_tier 3 requires all 5 running green
+  through the eval runner; status stays `unknown` until then.
+
+models_to_test:
+  - claude-sonnet-4-6    # jury / strong prosecutor tier
+  - cognitum-high        # jury alternative (cross-vendor)
+  - codex                # cross-vendor prosecutor (GPT via ChatGPT subscription)
+
+cases:
+  - id: overturn-catches-mutant
+    intent: >
+      A delivery with a seeded, non-obvious defect that a single shallow reviewer
+      rates SHIP. The overturn round MUST flip the verdict by surfacing the mutant.
+    given:
+      delivery: fixtures/seeded-mutant-delivery/
+      shallow_verdict: SHIP
+    expect:
+      final_verdict_in: [BLOCK, REMAND]
+      surviving_charge_reproduces: true
+    kill_condition: >
+      With overturnDepth=0 (mechanic disabled) this case MUST regress to
+      final_verdict==SHIP — proving the overturn round is what catches the mutant.
+
+  - id: no-score-without-doe-gate
+    intent: A numeric score is emitted ONLY if its rubric passed the ADR-122 ANOVA screen.
+    expect:
+      numeric_score_present_implies_doe_passed: true
+    kill_condition: If emitScore=true with an un-screened rubric, the run MUST suppress the number.
+
+  - id: writer-not-juror-enforced
+    intent: The jury provider's vendor must differ from the writer/defense vendor.
+    given:
+      routing_violation: { writer: codex, jury: codex }
+    expect:
+      run_rejected_with: writerIsNeverJuror
+    kill_condition: A config where writer and jury share a vendor MUST be rejected, not run.
+
+  - id: blind-filing-independence
+    intent: Prosecutors do not see each other's charges before filing (independent probe sets).
+    expect:
+      charge_sets_generated_independently: true
+      no_prosecutor_references_anothers_charge_pre_filing: true
+    kill_condition: If a prosecutor's prompt includes peers' charges pre-filing, this case FAILS.
+
+  - id: vendor-diversity-enforced
+    intent: The seated panel spans >= minDistinctVendors (default 2) distinct vendors.
+    expect:
+      distinct_vendor_count_gte: 2
+    kill_condition: A single-vendor panel MUST fail this case (that is just one Einstein).
+
+result_format:
+  json_output: true
+  include_timing: true
+  include_token_usage: true
+
+learning:
+  store_success_patterns: true
+  pattern_ttl_days: 90
