@@ -118,9 +118,44 @@ Finish `totalQESkills` 81→82 (+ nested block + notes string) in **both** manif
 |---|--------|--------------|-------|
 | 3.1 | Contribute AQE's DoE/ANOVA rigor upstream to ruflo **ADR-176** flywheel (issue/PR + convo with Ruv). | OSS→ruflo · S | Shared-repo → PR only, per-item OK |
 | 3.2 | Read ruflo v3.25.2 **AgentDB atomic-flush** fix; check AQE `memory.db` virtiofs exposure. | OSS-AQE · S | No import (different engines); read-and-assess |
-| 3.3 | Trial **Lattice WASM embedder** for `qe_pattern_embeddings` (verify npm-shipped first). | OSS-AQE · M | Same "verify what npm ships" discipline as ruvllm mock-mode |
+| 3.3 | Trial a **Lattice embedder** — **⚠️ NUANCED (2026-07-18): npm "Lattice WASM" = vaporware; `ohdearquant/lattice` = real but not drop-in** | OSS-AQE | See detail below |
 | 3.4 | Doc note: **ruflo is dev-time, not an AQE runtime dep.** | OSS-AQE · S | Prevents contributor confusion |
 | 3.5 | **Codex as an AQE subscription model provider** (ADR-123-style, mirrors the `claude-code` provider): spawn `codex exec --json` with API keys stripped so it bills the ChatGPT subscription. Unlocks GPT-family as a first-class AQE provider (prosecutor/juror diversity, fallback). | OSS-AQE · M | New from 2026-07-18 Codex probe; billing-mode = `subscription` |
+
+### M3.3 detail (2026-07-18, evidence-verified — two different "lattices")
+**(A) npm "Lattice WASM embedder" (ruflo/@ruvector) — ❌ VAPORWARE.** `@ruvector/lattice`,
+`@ruvector/lattice-wasm`, `lattice-embedder` all npm E404. `@claude-flow/cli@3.32.7`'s own
+`wasm-embedder.js` admits the default `@ruvector/lattice-wasm` "does not exist — npm 404"; the
+"Lattice WASM tier" is an inert opt-in adapter slot (`RUFLO_EMBED_WASM_PKG`), nothing shipped —
+naming-only, the **ruvllm mock-mode pattern** ([[project_ruvllm_mock_mode_qwen_verified]]). The one
+real npm WASM embedder (`ruvector-onnx-embeddings-wasm@0.1.2`) is broken-in-Node-as-published AND
+runs the same MiniLM AQE already uses (zero delta).
+
+**(B) `ohdearquant/lattice` (crates.io/GitHub-release) — ✅ REAL engine, ⚠️ not a drop-in.**
+Verified by running the binary (aarch64 — this container is arm64, not x86_64): real pure-Rust
+inference engine, actively developed (pushed 2026-07-18). Findings:
+- Shipped `lattice` binary is **chat-only** (`chat`/`serve`/`doctor`); `serve` exposes only
+  `/v1/chat/completions`, `/v1/models`, `/health` — **no `/v1/embeddings`** (confirmed in binary
+  strings + source `crates/inference/src/serve/mod.rs:248`).
+- Embeddings live in a **separate `lattice-embed` crate NOT in the release** — source-build only,
+  and it's a **CLI (JSON on stdout), not an HTTP server**. crates.io 404 → source-only.
+- Models: **BGE-small 384-dim (default)**, BGE-base 768, BGE-large 1024, all-MiniLM-L6 384,
+  Qwen3-Embedding-0.6B →1024.
+- **AQE integration is NOT "zero-dep endpoint" as-shipped** (no `/v1/embeddings` server). Would need
+  build-from-source + either a `/v1/embeddings` shim over `lattice-embed`, or a new CLI-shelling
+  adapter — new Rust maintenance surface.
+- *(Real-vector cosine proof was still building `lattice-embed` from source when the investigator
+  went unresponsive; it's a real crate with SIMD benches so genuine vectors are near-certain, and the
+  verdict does not hinge on it.)*
+
+**Verdict: GO-with-caveats, but not the cheapest path to the near-term win.** The genuine upgrade on
+offer is **BGE-small @ 384-dim** (same dim as AQE's index, MTEB-stronger than MiniLM — no dimensional
+reindex, though a model switch re-embeds stored vectors since values change). AQE can get that **exact
+model via its existing transformers.js path** (`Xenova/bge-small-en-v1.5`, HF ONNX) — no lattice, no
+Rust, no shim. **Recommendation:** for the near-term embedding upgrade, do BGE-small via transformers.js
+through the existing `EmbedderEndpointClient`/dynamic-import path; keep `ohdearquant/lattice` on the
+radar for a *bigger* move (Qwen3-Embedding-1024, SIMD perf at scale, or Cognitum-side embedding serving)
+where its Rust engine earns the from-source cost.
 
 **Gate ▶ APPROVAL #4 per item** (3.1 is outward-facing to ruvnet/ruflo).
 
