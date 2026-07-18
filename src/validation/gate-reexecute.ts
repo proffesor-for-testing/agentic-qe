@@ -97,6 +97,15 @@ const acceptV1: AcceptanceRule = (s) => {
  * Fail-closed: if the paired sample vectors are absent or mismatched, it does
  * NOT promote (a significance claim it cannot verify is a rejection).
  */
+/** Minimum paired sample size for a meaningful bootstrap CI. Below this, a "95%
+ *  CI" is just the raw delta dressed up (n=1 → ciLow == delta), so we fail closed
+ *  rather than certify noise as significant (qe-court finding). */
+const MIN_SIG_SAMPLES = 8;
+/** Tolerance for mean(samples) vs the sealed scalar — guards forged scalar/vector pairs. */
+const SAMPLE_MEAN_TOL = 1e-6;
+
+const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length;
+
 const acceptV1Sig: AcceptanceRule = (s) => {
   const base = acceptV1(s);
   if (!base.promote) return base;
@@ -108,6 +117,25 @@ const acceptV1Sig: AcceptanceRule = (s) => {
       promote: false,
       reason: `significance gate: missing/mismatched paired held-out samples ` +
         `(need equal-length candidate & baseline per-task vectors)`,
+    };
+  }
+  if (cand.length < MIN_SIG_SAMPLES) {
+    return {
+      promote: false,
+      reason: `significance gate: only ${cand.length} paired samples (< ${MIN_SIG_SAMPLES}) — ` +
+        `a bootstrap CI is not meaningful; fail closed rather than certify noise`,
+    };
+  }
+  // The sealed scalar means MUST match the sealed sample vectors, or a forged
+  // receipt could pair a passing scalar with an unrelated (or noisy) vector to
+  // spoof significance. This module's whole job is to defend against forged
+  // receipts (ADR-120), so it asserts the two describe the same evaluation.
+  if (Math.abs(mean(cand) - s.candidateHeldOut) > SAMPLE_MEAN_TOL ||
+      Math.abs(mean(bl) - s.baselineHeldOut) > SAMPLE_MEAN_TOL) {
+    return {
+      promote: false,
+      reason: `significance gate: sealed sample means do not match the sealed held-out ` +
+        `scalars — inconsistent/forged evaluation`,
     };
   }
   const ciLow = bootstrapDeltaCILow(pairedDeltas(cand, bl));

@@ -113,6 +113,46 @@ describe('attemptAutoRestore', () => {
     expect(row.tag).toBe('healthy-old');
   });
 
+  it('should_NEVER_parkAHeaderValidDb_evenWithABadShm_F3regression', () => {
+    // F3: a healthy WAL db whose -shm is zeroed/inaccessible (virtiofs) must NOT
+    // be mistaken for corrupt. isDbHealthy is header-based, so a valid main file
+    // is healthy regardless of its sidecars — and a verified backup is present,
+    // so the ONLY reason it stays put is the correct health verdict.
+    const d = tempDir();
+    const p = path.join(d, 'memory.db');
+    const backupDir = path.join(d, 'backups', 'verified');
+    fs.mkdirSync(backupDir, { recursive: true });
+    writeGoodDb(path.join(backupDir, 'memory-1.db'), 'backup');
+    writeGoodDb(p, 'LIVE-and-healthy');
+    fs.writeFileSync(p + '-shm', Buffer.alloc(32)); // zeroed -shm sidecar
+
+    const res = attemptAutoRestore(p, { backupDir });
+
+    expect(res.restored).toBe(false);
+    expect(res.reason).toBe('healthy');
+    // The live DB (and its data) is untouched — NOT reverted to the backup.
+    const db = new Database(p, { readonly: true });
+    expect((db.prepare('SELECT tag FROM qe_patterns').get() as { tag: string }).tag).toBe('LIVE-and-healthy');
+    db.close();
+  });
+
+  it('should_skipRestore_whenARestoreLockExists', () => {
+    const d = tempDir();
+    const p = path.join(d, 'memory.db');
+    const backupDir = path.join(d, 'backups', 'verified');
+    fs.mkdirSync(backupDir, { recursive: true });
+    writeGoodDb(path.join(backupDir, 'memory-1.db'), 'backup');
+    fs.writeFileSync(p, 'garbage'); // corrupt header
+    fs.writeFileSync(`${p}.restore.lock`, '99999'); // a peer is "restoring"
+
+    const res = attemptAutoRestore(p, { backupDir });
+
+    expect(res.restored).toBe(false);
+    expect(res.reason).toBe('restore-in-progress');
+    // Corrupt original left untouched (peer owns the restore).
+    expect(fs.readFileSync(p, 'utf8')).toBe('garbage');
+  });
+
   it('should_beNonDestructive_whenNoVerifiedBackupExists', () => {
     const d = tempDir();
     const p = path.join(d, 'memory.db');

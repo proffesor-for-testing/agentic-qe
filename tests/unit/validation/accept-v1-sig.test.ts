@@ -48,32 +48,66 @@ describe('bootstrapDeltaCILow', () => {
   });
 });
 
+const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
 describe('accept/v1+sig via reExecuteGate', () => {
   it('should_promote_when_pairedGainIsSignificant', () => {
+    const cand = [0.85, 0.86, 0.84, 0.85, 0.85, 0.86, 0.84, 0.85]; // n=8, ~+0.05 over baseline
+    const bl = [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8];
     const sealed: SealedInputs = {
       ...baseSealed,
-      candidateHeldOut: 0.85,
-      baselineHeldOut: 0.8,
-      candidateHeldOutSamples: [0.85, 0.86, 0.84, 0.85, 0.85],
-      baselineHeldOutSamples: [0.8, 0.8, 0.8, 0.8, 0.8],
+      candidateHeldOut: avg(cand),
+      baselineHeldOut: avg(bl),
+      candidateHeldOutSamples: cand,
+      baselineHeldOutSamples: bl,
     };
     expect(reExecuteGate('accept/v1+sig', sealed).promote).toBe(true);
   });
 
   it('should_REJECT_aWithinNoiseGain_thatAcceptV1_PROMOTES', () => {
-    // candidate mean (0.802) beats baseline (0.80) → accept/v1 promotes …
+    const cand = [0.98, 0.62, 0.98, 0.62, 0.98, 0.62, 0.81, 0.81]; // mean ~0.8025, high variance
+    const bl = [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8];
     const sealed: SealedInputs = {
       ...baseSealed,
-      candidateHeldOut: 0.802,
-      baselineHeldOut: 0.8,
-      candidateHeldOutSamples: [0.98, 0.62, 0.98, 0.62, 0.81],
-      baselineHeldOutSamples: [0.8, 0.8, 0.8, 0.8, 0.8],
+      candidateHeldOut: avg(cand), // > baseline mean → accept/v1 promotes …
+      baselineHeldOut: avg(bl),
+      candidateHeldOutSamples: cand,
+      baselineHeldOutSamples: bl,
     };
     // … but the paired gain is within noise → accept/v1+sig rejects. THIS is the gap.
     expect(reExecuteGate('accept/v1', sealed).promote).toBe(true);
     const sig = reExecuteGate('accept/v1+sig', sealed);
     expect(sig.promote).toBe(false);
     expect(sig.reason).toMatch(/significan/i);
+  });
+
+  it('should_failClosed_whenTooFewPairedSamples', () => {
+    const cand = [0.85, 0.86, 0.84]; // n=3 < MIN_SIG_SAMPLES(8)
+    const bl = [0.8, 0.8, 0.8];
+    const sealed: SealedInputs = {
+      ...baseSealed,
+      candidateHeldOut: avg(cand),
+      baselineHeldOut: avg(bl),
+      candidateHeldOutSamples: cand,
+      baselineHeldOutSamples: bl,
+    };
+    const sig = reExecuteGate('accept/v1+sig', sealed);
+    expect(sig.promote).toBe(false);
+    expect(sig.reason).toMatch(/paired samples/i);
+  });
+
+  it('should_failClosed_whenSealedMeansDoNotMatchTheSampleVectors', () => {
+    // Forged: a passing scalar sealed with an unrelated noisy vector.
+    const sealed: SealedInputs = {
+      ...baseSealed,
+      candidateHeldOut: 0.95, // claims 0.95 …
+      baselineHeldOut: 0.8,
+      candidateHeldOutSamples: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], // … but samples mean 0.5
+      baselineHeldOutSamples: [0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8],
+    };
+    const sig = reExecuteGate('accept/v1+sig', sealed);
+    expect(sig.promote).toBe(false);
+    expect(sig.reason).toMatch(/do not match|inconsistent|forged/i);
   });
 
   it('should_failClosed_whenPairedSamplesAreMissing', () => {

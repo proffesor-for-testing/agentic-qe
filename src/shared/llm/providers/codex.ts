@@ -343,10 +343,19 @@ export class CodexProvider implements LLMProvider {
         resolve({ code: code ?? 0, stdout, stderr });
       });
 
-      if (stdin !== undefined) {
-        child.stdin.write(stdin);
+      // EPIPE guard: if codex exits before reading stdin (e.g. not logged in),
+      // the write/end can emit 'error' on the stdin stream. Without a listener
+      // Node throws an uncaught exception that crashes the calling process. The
+      // 'close'/'error' handlers above already capture the real outcome.
+      child.stdin.on('error', () => { /* swallow EPIPE — outcome handled via close/error */ });
+      try {
+        if (stdin !== undefined) {
+          child.stdin.write(stdin);
+        }
+        child.stdin.end();
+      } catch {
+        /* stream already torn down — the process handlers report the failure */
       }
-      child.stdin.end();
     });
   }
 

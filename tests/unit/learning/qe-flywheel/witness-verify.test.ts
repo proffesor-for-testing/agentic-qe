@@ -76,13 +76,19 @@ describe('stableStringify', () => {
 });
 
 describe('verifyAqeReceipt', () => {
-  it('should_verifyAGenuineReceipt', () => {
-    expect(verifyAqeReceipt(makeSignedReceipt()).valid).toBe(true);
+  it('should_failClosed_underEmptyAllowlist_withoutSelfSignedOptIn', () => {
+    // qe-court finding: no trust root ⇒ a self-signed forgery must NOT be "valid".
+    const res = verifyAqeReceipt(makeSignedReceipt());
+    expect(res.valid).toBe(false);
+    expect(res.reason).toBe('no-trust-root');
+  });
+  it('should_verifyAGenuineReceipt_whenSelfSignedIsExplicitlyAllowed', () => {
+    expect(verifyAqeReceipt(makeSignedReceipt(), undefined, { allowSelfSigned: true }).valid).toBe(true);
   });
   it('should_rejectATamperedBody', () => {
     const r = makeSignedReceipt();
     r.verdict = 'reject'; // body changed, signature no longer matches
-    const res = verifyAqeReceipt(r);
+    const res = verifyAqeReceipt(r, undefined, { allowSelfSigned: true });
     expect(res.valid).toBe(false);
     expect(res.reason).toBe('bad-signature');
   });
@@ -118,6 +124,14 @@ describe('verifyHarnessWitness', () => {
     const res = verifyHarnessWitness(bundle as never, new Map());
     expect(res.valid).toBe(false);
     expect(res.reason).toBe('fingerprint-not-in-allowlist');
+  });
+  it('should_rejectAnUnsupportedAlgorithm_beforeVerifying', () => {
+    const { bundle, pem } = makeHarnessBundle();
+    (bundle.witness as { alg: string }).alg = 'rsa'; // not ed25519
+    const allow: PublicKeyAllowlist = new Map([[keyFingerprint(pem), pem]]);
+    const res = verifyHarnessWitness(bundle as never, allow);
+    expect(res.valid).toBe(false);
+    expect(res.reason).toBe('unsupported-alg');
   });
 });
 

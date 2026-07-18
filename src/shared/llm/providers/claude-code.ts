@@ -384,10 +384,18 @@ export class ClaudeCodeProvider implements LLMProvider {
         resolve({ code: code ?? 0, stdout, stderr });
       });
 
-      if (stdin !== undefined) {
-        child.stdin.write(stdin);
+      // EPIPE guard (qe-court finding): if `claude` exits before reading stdin,
+      // an unhandled 'error' on the stdin stream crashes the calling process. The
+      // 'close'/'error' handlers above already capture the real outcome.
+      child.stdin.on('error', () => { /* swallow EPIPE */ });
+      try {
+        if (stdin !== undefined) {
+          child.stdin.write(stdin);
+        }
+        child.stdin.end();
+      } catch {
+        /* stream already torn down — process handlers report the failure */
       }
-      child.stdin.end();
     });
   }
 

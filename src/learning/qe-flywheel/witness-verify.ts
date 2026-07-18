@@ -53,7 +53,12 @@ export function loadAllowlist(json: string | undefined = process.env.QE_WITNESS_
       if (typeof pem === 'string') map.set(fp, pem);
     }
   } catch {
-    /* An unparseable allowlist yields an empty (fail-closed) trust root. */
+    // An unparseable allowlist yields an empty (fail-closed) trust root — but log
+    // it loudly, or a typo'd env var silently disables verification (qe-court finding).
+    console.error(
+      '[witness-verify] QE_WITNESS_PUBLIC_KEYS_JSON is set but not valid JSON — ' +
+        'treating the trust root as EMPTY (verification will fail closed).'
+    );
   }
   return map;
 }
@@ -107,7 +112,11 @@ export interface VerifyResult {
  * NOTE: this is signature verification; the full AQE trust model ALSO re-executes
  * the frozen gate (ADR-120) — do that separately for promotion decisions.
  */
-export function verifyAqeReceipt(receipt: EvolveReceipt, allowlist?: PublicKeyAllowlist): VerifyResult {
+export function verifyAqeReceipt(
+  receipt: EvolveReceipt,
+  allowlist?: PublicKeyAllowlist,
+  opts?: { allowSelfSigned?: boolean }
+): VerifyResult {
   const fingerprint = keyFingerprint(receipt.publicKeyPem);
   if (allowlist && allowlist.size > 0) {
     const allowed = allowlist.get(fingerprint);
@@ -115,6 +124,13 @@ export function verifyAqeReceipt(receipt: EvolveReceipt, allowlist?: PublicKeyAl
     if (allowed.trim() !== receipt.publicKeyPem.trim()) {
       return { valid: false, format: 'aqe-receipt', fingerprint, reason: 'allowlist-pem-mismatch' };
     }
+  } else if (!opts?.allowSelfSigned) {
+    // FAIL-CLOSED (qe-court finding): with no trust root, verifying against the
+    // receipt's OWN embedded key just proves internal consistency — anyone can
+    // self-sign a forged receipt. A caller must either provide an allowlist or
+    // explicitly opt into self-signed verification (e.g. a consistency check that
+    // is NOT used as authorization).
+    return { valid: false, format: 'aqe-receipt', fingerprint, reason: 'no-trust-root' };
   }
   const ok = verifySignature(receipt.publicKeyPem, receiptBodyString(receipt), receipt.signature);
   return { valid: ok, format: 'aqe-receipt', fingerprint, reason: ok ? undefined : 'bad-signature' };
@@ -132,6 +148,11 @@ export function verifyHarnessWitness(
 ): VerifyResult {
   const w = bundle.witness;
   const fingerprint = w?.publicKeyFingerprint;
+  // Fail closed on an unexpected algorithm — never verify a non-Ed25519-declared
+  // witness as Ed25519 (qe-court finding: ambiguous alg across implementations).
+  if (w?.alg !== 'ed25519') {
+    return { valid: false, format: 'harness-witness', fingerprint, reason: 'unsupported-alg' };
+  }
   const pem = fingerprint ? allowlist.get(fingerprint) : undefined;
   if (!pem) return { valid: false, format: 'harness-witness', fingerprint, reason: 'fingerprint-not-in-allowlist' };
 

@@ -75,6 +75,15 @@ CREATE INDEX IF NOT EXISTS idx_llm_spend_ts ON llm_spend(ts);
  */
 export class SqliteSpendLedger implements SpendLedger {
   private readonly db: DatabaseType;
+  /**
+   * Whether the `agent_type` column exists. If the additive migration couldn't
+   * run (e.g. transient lock), this stays false and record() INSERTs WITHOUT the
+   * column — so spend is still recorded and the ADR-123 budget cap still holds.
+   * A qe-court review (ADR-124) caught the original bug: a swallowed migration
+   * made every INSERT reference a missing column, throw, get caught, and silently
+   * drop ALL spend — bypassing the budget cap (the #557 class).
+   */
+  private hasAgentColumn = false;
 
   constructor(db: DatabaseType) {
     this.db = db;
@@ -89,30 +98,53 @@ export class SqliteSpendLedger implements SpendLedger {
         this.db.exec(`ALTER TABLE llm_spend ADD COLUMN agent_type TEXT`);
       }
       this.db.exec(`CREATE INDEX IF NOT EXISTS idx_llm_spend_agent ON llm_spend(agent_type)`);
+      this.hasAgentColumn = true;
     } catch {
       // Attribution is best-effort; never block ledger use on the migration.
+      // hasAgentColumn stays false → record() degrades to un-attributed INSERTs.
     }
   }
 
   record(entry: SpendEntry): void {
     try {
-      this.db
-        .prepare(
-          `INSERT INTO llm_spend
-             (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id, agent_type)
-           VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id, @agent_type)`
-        )
-        .run({
-          ts: Date.now(),
-          provider: entry.provider,
-          model: entry.model,
-          cost_usd: entry.costUsd,
-          cost_source: entry.costSource,
-          prompt_tokens: entry.promptTokens,
-          completion_tokens: entry.completionTokens,
-          request_id: entry.requestId,
-          agent_type: entry.agent ?? null,
-        });
+      if (this.hasAgentColumn) {
+        this.db
+          .prepare(
+            `INSERT INTO llm_spend
+               (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id, agent_type)
+             VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id, @agent_type)`
+          )
+          .run({
+            ts: Date.now(),
+            provider: entry.provider,
+            model: entry.model,
+            cost_usd: entry.costUsd,
+            cost_source: entry.costSource,
+            prompt_tokens: entry.promptTokens,
+            completion_tokens: entry.completionTokens,
+            request_id: entry.requestId,
+            agent_type: entry.agent ?? null,
+          });
+      } else {
+        // Column absent (migration couldn't run) — still record spend so the
+        // budget cap holds; just without per-agent attribution.
+        this.db
+          .prepare(
+            `INSERT INTO llm_spend
+               (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id)
+             VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id)`
+          )
+          .run({
+            ts: Date.now(),
+            provider: entry.provider,
+            model: entry.model,
+            cost_usd: entry.costUsd,
+            cost_source: entry.costSource,
+            prompt_tokens: entry.promptTokens,
+            completion_tokens: entry.completionTokens,
+            request_id: entry.requestId,
+          });
+      }
     } catch {
       // A ledger write must never break a generation call.
     }
