@@ -130,7 +130,7 @@ Tier 0 is pure de-risking — cheap, and everything above depends on the answers
 
 1. **Does the "qe-harness" repo exist, and is it Cognitum-internal or public?** Not discoverable from AQE alone — needs a human answer. *(→ action 0.2)*
 2. **Is the inference API the same backend as the funnel/auth API?** ADR-308 lists both `/v1/chat/completions` and `/v1/proxy/chat/completions` — unresolved. *(→ action 0.3)*
-3. **Has ruflo's ADR-176 flywheel been DoE-validated?** Its "2 compounding promotions" with a flat human anchor pattern-matches AQE's own "beads" null. Don't adopt as fact until validated. *(→ action 2.1)*
+3. **Has ruflo's ADR-176 flywheel been DoE-validated? — ✅ RESOLVED (2026-07-18): YES, and rigorously.** Source-verified in `/workspaces/ruflo` (`v3/@claude-flow/cli/src/services/evolve-proof.ts:174-183`): promotion is gated on `significant = bootstrapDeltaCILow(paired holdout deltas) > 0` (rule `accept/v1+sig`, one-sided 95% **paired** bootstrap, n≥20). That is *stronger* than the unpaired ANOVA we'd have proposed (2-group ANOVA F = t², and it drops the pairing). The flat human anchor is a no-regression guard, not the objective. Our "beads" concern does not apply — **no contribution PR (would be redundant + weaker)**. See `M3.1-ruflo-doe-contribution-DRAFT.md` (superseded). This retires action 2.1 / M3.1.
 4. **Runtime vs. dev-time coupling** — worth a one-line architecture doc note so contributors don't assume ruflo is a shipped dependency.
 
 ---

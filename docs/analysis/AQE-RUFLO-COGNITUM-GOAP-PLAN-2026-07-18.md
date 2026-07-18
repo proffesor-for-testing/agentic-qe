@@ -116,7 +116,7 @@ Finish `totalQESkills` 81→82 (+ nested block + notes string) in **both** manif
 
 | # | Action | Type · Effort | Notes |
 |---|--------|--------------|-------|
-| 3.1 | Contribute AQE's DoE/ANOVA rigor upstream to ruflo **ADR-176** flywheel. | OSS→ruflo · S | **✅ DRAFTED** (`M3.1-ruflo-doe-contribution-DRAFT.md`); **holding — needs user to post to ruvnet/ruflo** |
+| 3.1 | ~~Contribute DoE/ANOVA rigor to ruflo ADR-176 flywheel~~ | OSS→ruflo | **❌ RETIRED — premise wrong.** ruflo already gates promotion on a *paired* bootstrap significance CI (`accept/v1+sig`, stronger than our ANOVA). No PR. See report open-Q #3 + `M3.1-...-DRAFT.md` (superseded) |
 | 3.2 | Read ruflo v3.25.2 **AgentDB atomic-flush** fix; check AQE `memory.db` exposure. | OSS-AQE · S | **✅ DONE (assessed)** — see below |
 | 3.3 | Trial a **Lattice embedder** — **⚠️ NUANCED (2026-07-18): npm "Lattice WASM" = vaporware; `ohdearquant/lattice` = real but not drop-in** | OSS-AQE | See detail below |
 | 3.4 | Doc note: **ruflo is dev-time, not an AQE runtime dep.** | OSS-AQE · S | **✅ DONE** — added to `CONTRIBUTING.md` (Agent Execution Model section) |
