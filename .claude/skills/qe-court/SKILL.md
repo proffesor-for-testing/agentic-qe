@@ -3,6 +3,8 @@ name: "qe-court"
 description: "Adversarial review court — a delivery (diff, PR, test suite, or artifact) is prosecuted by independent AI reviewers from different vendors, each with its own probe set, then a SHIP verdict must SURVIVE escalating deeper reviewers before it stands. Use when you want more than one reviewer's opinion on whether something is safe to ship: pre-merge gating, release go/no-go, catching a too-easy PASS, or any 'is this actually done?' decision where a shallow approval is a risk. Produces a signed court record with a three-valued verdict (SHIP / REMAND / BLOCK) and a human as final judge. Learns over time: reproduced charges and overturned SHIPs feed the QE flywheel."
 trust_tier: 3
 validation:
+  schema_path: schemas/output.json
+  validator_path: scripts/validate-config.json
   eval_path: evals/qe-court.yaml
   status: passing
   passRate: 1.0
