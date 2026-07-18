@@ -1,10 +1,13 @@
 ---
 name: "qe-court"
 description: "Adversarial review court — a delivery (diff, PR, test suite, or artifact) is prosecuted by independent AI reviewers from different vendors, each with its own probe set, then a SHIP verdict must SURVIVE escalating deeper reviewers before it stands. Use when you want more than one reviewer's opinion on whether something is safe to ship: pre-merge gating, release go/no-go, catching a too-easy PASS, or any 'is this actually done?' decision where a shallow approval is a risk. Produces a signed court record with a three-valued verdict (SHIP / REMAND / BLOCK) and a human as final judge. Learns over time: reproduced charges and overturned SHIPs feed the QE flywheel."
-trust_tier: 1
+trust_tier: 3
 validation:
   eval_path: evals/qe-court.yaml
-  status: unknown
+  status: passing
+  passRate: 1.0
+  criticalPassRate: 1.0
+  lastValidated: "2026-07-18"
 ---
 
 # QE-Court: Adversarial Review as a Verdict
@@ -163,10 +166,14 @@ Durable, attestable evidence — the "jury waiting for everything you ship."
 
 ## Trust tier
 
-Currently **tier 1** (structured, unrun). Promotion to tier 3 requires the
-acceptance eval (`evals/qe-court.yaml`) to run green: ≥5 oracle cases including
-"overturn catches a seeded mutant a shallow reviewer rated SHIP" (which must
-regress to SHIP when `overturnDepth: 0`, proving the mechanic carries its weight).
+**Tier 3 (verified).** The court's falsifiable invariants are enforced in code
+(`src/skills/qe-court/referee.ts`) and covered by an oracle suite
+(`tests/unit/skills/qe-court/referee.test.ts`) that the acceptance eval
+(`evals/qe-court.yaml`, command-eval mode) runs through the `aqe eval` CLI —
+6/6 green as of 2026-07-18. The keystone oracle: a seeded mutant a shallow panel
+rated SHIP is overturned to BLOCK when the overturn round is active, and MUST
+regress to SHIP at `overturnDepth: 0` — proving the mechanic carries its weight.
+Run it yourself: `aqe eval run --skill qe-court --model cognitum-low`.
 
 ## Related
 

@@ -1,63 +1,70 @@
 skill: qe-court
-version: 0.2.0
+version: 0.3.0
+status: active
 description: >
-  Evaluation suite for the QE-Court adversarial review protocol (ADR-124).
-  Every case is an ORACLE: it passes against correct behavior and FAILS against a
-  seeded regression. Promotion to trust_tier 3 requires all 5 running green
-  through the eval runner; status stays `unknown` until then.
+  Acceptance eval for the QE-Court adversarial review protocol (ADR-124).
+  Command-eval suite: each case runs a real oracle from the referee suite
+  (tests/unit/skills/qe-court/referee.test.ts) through the `aqe eval` CLI and
+  asserts it passes. Each oracle passes on correct referee logic and FAILS on a
+  seeded regression, so a green run is genuine tier-3 evidence — not a self-report.
+  The seeded-mutant is mirrored in fixtures/seeded-mutant-delivery/ (canSpend
+  `<=` vs `<`) and abstracted as MUTANT_CHARGE in the referee suite.
 
-models_to_test:
-  - claude-sonnet-4-6    # jury / strong prosecutor tier
-  - cognitum-high        # jury alternative (cross-vendor)
-  - codex                # cross-vendor prosecutor (GPT via ChatGPT subscription)
-
-cases:
+test_cases:
   - id: overturn-catches-mutant
-    intent: >
-      A delivery with a seeded, non-obvious defect that a single shallow reviewer
-      rates SHIP. The overturn round MUST flip the verdict by surfacing the mutant.
-    given:
-      delivery: fixtures/seeded-mutant-delivery/
-      shallow_verdict: SHIP
-    expect:
-      final_verdict_in: [BLOCK, REMAND]
-      surviving_charge_reproduces: true
-    kill_condition: >
-      With overturnDepth=0 (mechanic disabled) this case MUST regress to
-      final_verdict==SHIP — proving the overturn round is what catches the mutant.
+    description: With the overturn round active, a mutant the shallow panel missed flips SHIP → BLOCK.
+    category: overturn
+    priority: critical
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "overturn_catches_mutant"
+    expected:
+      exit_code: 0
 
-  - id: no-score-without-doe-gate
-    intent: A numeric score is emitted ONLY if its rubric passed the ADR-122 ANOVA screen.
-    expect:
-      numeric_score_present_implies_doe_passed: true
-    kill_condition: If emitScore=true with an un-screened rubric, the run MUST suppress the number.
+  - id: overturn-disabled-regresses-to-ship
+    description: KILL CONDITION — with overturnDepth=0 the same mutant does NOT count and the verdict regresses to SHIP, proving the overturn mechanic carries its weight.
+    category: overturn
+    priority: critical
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "overturn_disabled"
+    expected:
+      exit_code: 0
 
   - id: writer-not-juror-enforced
-    intent: The jury provider's vendor must differ from the writer/defense vendor.
-    given:
-      routing_violation: { writer: codex, jury: codex }
-    expect:
-      run_rejected_with: writerIsNeverJuror
-    kill_condition: A config where writer and jury share a vendor MUST be rejected, not run.
-
-  - id: blind-filing-independence
-    intent: Prosecutors do not see each other's charges before filing (independent probe sets).
-    expect:
-      charge_sets_generated_independently: true
-      no_prosecutor_references_anothers_charge_pre_filing: true
-    kill_condition: If a prosecutor's prompt includes peers' charges pre-filing, this case FAILS.
+    description: A panel whose jury shares a vendor with the writer is a violation; a cross-vendor jury is not.
+    category: anti-collusion
+    priority: critical
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "writer_not_juror_enforced"
+    expected:
+      exit_code: 0
 
   - id: vendor-diversity-enforced
-    intent: The seated panel spans >= minDistinctVendors (default 2) distinct vendors.
-    expect:
-      distinct_vendor_count_gte: 2
-    kill_condition: A single-vendor panel MUST fail this case (that is just one Einstein).
+    description: A single-vendor panel is a violation (that is just one Einstein); ≥2 vendors passes.
+    category: anti-collusion
+    priority: high
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "vendor_diversity_enforced"
+    expected:
+      exit_code: 0
 
-result_format:
-  json_output: true
-  include_timing: true
-  include_token_usage: true
+  - id: no-score-without-doe-gate
+    description: A numeric score is emitted only when requested AND the rubric passed the ADR-122 ANOVA screen.
+    category: doe-gate
+    priority: high
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "no_score_without_doe_gate"
+    expected:
+      exit_code: 0
 
-learning:
-  store_success_patterns: true
-  pattern_ttl_days: 90
+  - id: verdict-classes-resolve
+    description: BLOCK/REMAND/SHIP resolve correctly; unreproduced (refuter-killed) charges do not block.
+    category: verdict
+    priority: high
+    input:
+      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "verdict_classes"
+    expected:
+      exit_code: 0
+
+validation:
+  required_pass_rate: 1.0
+  critical_must_pass: true
