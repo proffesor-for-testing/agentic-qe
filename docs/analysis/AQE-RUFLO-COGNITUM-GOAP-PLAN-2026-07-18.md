@@ -81,11 +81,11 @@ Finish `totalQESkills` 81→82 (+ nested block + notes string) in **both** manif
 
 ---
 
-## MILESTONE 1 — Resolve the live Cognitum unknown (Tier 0 remainder). `Cognitum · S`
-**Precondition:** `COGNITUM_API_KEY` in env (✓). **Effect:** report open-Q #2 resolved.
-- Read-only probe `api.cognitum.one`: compare `/v1/chat/completions` vs `/v1/proxy/chat/completions` (same model list? same receipt shape? same latency/routing headers?) to determine shared-backend vs distinct-service. Never hit paid endpoints beyond a minimal probe; respect the server hard cap.
-**Verify:** a short findings note with evidence; updates the report's open-questions.
-**Gate ▶ APPROVAL #2** (probing a live billed API).
+## MILESTONE 1 — Resolve the live Cognitum unknown (Tier 0 remainder). `Cognitum · S` — ✅ DONE 2026-07-18
+**Result (probed live, read-only, ~$0.00003 spent):** the inference API and the ADR-308 funnel/proxy API are **NOT the same backend.**
+- **Inference host `api.cognitum.one`** (Express on GCP, `X-API-Key` auth): `/v1/chat/completions`, `/v1/messages`, `/v1/embeddings`, `/v1/responses`, `/v1/models`, `/v1/usage` all live. Tiers resolve to a model marketplace under the hood (`cognitum-low → z-ai/glm-5.2`). Receipt carries `price_usd`. `/v1/usage.budget`: `hardCapUsd: 20`, `headroomUsd: 19.34`, status active.
+- **Funnel/proxy contract (ADR-308)** — `/v1/proxy/chat/completions`, `/v1/credits`, `/v1/events`, `/v1/funnel-policy` — all **404 ROUTE_NOT_FOUND** on this host. Not deployed here; the funnel layer (if live) is a separate service, confirming ADR-308's own addendum. Auth work → follow meta-proxy `oauth/client.rs`, not this host.
+- **`/v1/qe/verdict` → 404**: the `/v1/qe/*` namespace is **free to reserve** — build ADR-124 Phase 2 as a NEW route on the existing inference Express app (where the real X-API-Key/receipt service lives), NOT on the non-existent funnel service.
 
 ---
 
