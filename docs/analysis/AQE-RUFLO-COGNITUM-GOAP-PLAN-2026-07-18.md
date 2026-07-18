@@ -99,6 +99,17 @@ Finish `totalQESkills` 81→82 (+ nested block + notes string) in **both** manif
 
 **Gate ▶ APPROVAL #3 per item** (2.1/2.2 touch shared Cognitum surfaces & the qe-harness repo).
 
+### M2 status (2026-07-18)
+- **2.1 ✅ DONE** — `docs/api/qe-verdict-v1.openapi.yaml` (commit 42e5bf9b).
+- **2.3 ✅ DONE** — per-agent attribution in `spend-ledger.ts` (commit 64d4936c).
+- **2.2 ⏳ AQE-side DONE; blocked on owner for full cross-verify** —
+  - *Already aligned (the bridge exists):* both AQE and `cognitum-one/qe-harness` use Ed25519, the same secret `QE_WITNESS_SIGNING_KEY` (JSON PEM), and the **identical fingerprint scheme** `sha256(pem.trim())[:16]` — both sign as `f1ac28607da49ec1`. Proven by test (keyFingerprint === signer.keyId).
+  - *Built (AQE-only, no shared-repo change):* `src/learning/qe-flywheel/witness-verify.ts` — one verifier for BOTH artifact formats (AQE receipt: fixed-order JSON body, hex; qe-harness: `stableStringify` `sha256:` digest, base64, nested `witness{}`), allowlist-driven, tamper-detecting. 15 tests green.
+  - **NEEDS THE qe-harness OWNER (ruvnet / Cognitum eng) — surface, do NOT do unilaterally:**
+    1. **Provision the public key** for `f1ac28607da49ec1` to AQE via `QE_WITNESS_PUBLIC_KEYS_JSON` — committed to NEITHER repo today (lives on meta-llm). Until then AQE can sign-as but not offline-verify platform bundles. (Like the cog_ key — the user may be able to provide it.)
+    2. **Confirm byte-parity** of `witness-verify.ts`'s harness path against a REAL qe-harness sample bundle before it gates anything.
+    3. **Decide canonicalization convergence:** AQE's `receiptBodyString` hand-lists fields (silently drops new ones from the signature — a real latent bug); recommend both sides adopt `stableStringify`. This changes AQE's receipt signing format → coordinated change, needs agreement.
+
 ---
 
 ## MILESTONE 3 — Tier 2 cross-pollinate & harden (independent; can interleave)
