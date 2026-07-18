@@ -164,7 +164,6 @@
   "author": "AQE Development Team",
   "license": "MIT",
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "@ruvector/attention": "0.1.3",
     "@ruvector/gnn": "0.1.25",
     "@ruvector/learning-wasm": "^0.1.29",
@@ -190,13 +189,17 @@
   },
   "peerDependencies": {
     "@claude-flow/browser": "3.0.0-alpha.1",
-    "@claude-flow/guidance": "3.0.0-alpha.1"
+    "@claude-flow/guidance": "3.0.0-alpha.1",
+    "@huggingface/transformers": "^4.2.0"
   },
   "peerDependenciesMeta": {
     "@claude-flow/browser": {
       "optional": true
     },
     "@claude-flow/guidance": {
+      "optional": true
+    },
+    "@huggingface/transformers": {
       "optional": true
     }
   },
@@ -240,6 +243,7 @@
   "devDependencies": {
     "@claude-flow/guidance": "3.0.0-alpha.1",
     "@faker-js/faker": "^10.2.0",
+    "@huggingface/transformers": "^4.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cli-progress": "^3.11.6",
     "@types/node": "^25.8.0",
