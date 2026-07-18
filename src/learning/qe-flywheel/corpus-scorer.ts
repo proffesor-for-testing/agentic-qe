@@ -213,12 +213,18 @@ function selectHeldOut(docs: CorpusDoc[], ratio: number): CorpusDoc[] {
  * candidate pool. In [0, 1]; higher = the policy weights better recover the
  * corpus from its own body signal.
  */
-function scoreHeldOut(docs: CorpusDoc[], policy: RetrievalPolicy, ratio: number): number {
-  if (docs.length === 0) return 0;
+function scoreHeldOut(
+  docs: CorpusDoc[],
+  policy: RetrievalPolicy,
+  ratio: number
+): { mean: number; samples: number[] } {
+  if (docs.length === 0) return { mean: 0, samples: [] };
   const queries = selectHeldOut(docs, ratio);
-  if (queries.length === 0) return 0;
+  if (queries.length === 0) return { mean: 0, samples: [] };
 
-  let sumReciprocalRank = 0;
+  // Per-query reciprocal ranks: the mean is the held-out signal; the vector is
+  // the paired sample the accept/v1+sig significance gate needs (ADR-118).
+  const samples: number[] = [];
   for (const queried of queries) {
     const query = queried.bodyTokens; // subject deliberately withheld
     const rels = docs.map((d) => ({ doc: d, rel: relevance(query, d, queried, policy) }));
@@ -240,9 +246,10 @@ function scoreHeldOut(docs: CorpusDoc[], policy: RetrievalPolicy, ratio: number)
     }
     const ranked = rankMMR(pool, policy.mmrLambda);
     const rank = ranked.indexOf(queried.id) + 1; // 1-based; 0 -> not found
-    sumReciprocalRank += rank > 0 ? 1 / rank : 0;
+    samples.push(rank > 0 ? 1 / rank : 0);
   }
-  return sumReciprocalRank / queries.length;
+  const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+  return { mean, samples };
 }
 
 // ---------------------------------------------------------------------------
@@ -355,10 +362,10 @@ export function createCorpusScorer(opts: CorpusScorerOptions): PolicyScorer {
   let anchorMeanCached: number | null = null;
 
   return (policy: RetrievalPolicy): PolicyScores => {
-    const heldOut = scoreHeldOut(corpus, policy, ratio);
+    const held = scoreHeldOut(corpus, policy, ratio);
     if (anchorMeanCached === null) {
       anchorMeanCached = gradeAnchor(anchorPath);
     }
-    return { heldOut, anchorMean: anchorMeanCached };
+    return { heldOut: held.mean, anchorMean: anchorMeanCached, heldOutSamples: held.samples };
   };
 }

@@ -693,8 +693,8 @@ export class HybridRouter {
         });
 
         // ADR-123: persist the charge to the cross-process ledger so budgets
-        // hold across a fleet of processes.
-        this.providerManager.recordResponseSpend(response);
+        // hold across a fleet of processes. ADR-124 M2.3: attribute to the agent.
+        this.providerManager.recordResponseSpend(response, params.agentType);
 
         const callLatency = Date.now() - callStartTime;
 

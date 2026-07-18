@@ -40,6 +40,7 @@ import {
 import { resolveBillingMode, billingNotice } from './billing-modes';
 import { ClaudeProvider } from './providers/claude';
 import { ClaudeCodeProvider } from './providers/claude-code';
+import { CodexProvider } from './providers/codex';
 import { CognitumProvider } from './providers/cognitum';
 import { OpenAIProvider } from './providers/openai';
 import { OllamaProvider } from './providers/ollama';
@@ -239,7 +240,7 @@ export class ProviderManager {
   }
 
   /** ADR-123: persist a completed charge to the cross-process ledger. */
-  private recordSpend(response: LLMResponse): void {
+  private recordSpend(response: LLMResponse, agent?: string): void {
     if (!this.spendLedger) return;
     this.spendLedger.record({
       provider: response.provider,
@@ -249,6 +250,7 @@ export class ProviderManager {
       promptTokens: response.usage.promptTokens,
       completionTokens: response.usage.completionTokens,
       requestId: response.requestId,
+      agent, // ADR-124 M2.3: per-agent attribution when the caller has context.
     });
   }
 
@@ -266,8 +268,8 @@ export class ProviderManager {
   }
 
   /** ADR-123: public spend recorder for those same bypassing callers. */
-  recordResponseSpend(response: LLMResponse): void {
-    this.recordSpend(response);
+  recordResponseSpend(response: LLMResponse, agent?: string): void {
+    this.recordSpend(response, agent);
   }
 
   /**
@@ -566,6 +568,8 @@ export class ProviderManager {
         return new ClaudeProvider(this.config.providers.claude);
       case 'claude-code':
         return new ClaudeCodeProvider(this.config.providers['claude-code']);
+      case 'codex':
+        return new CodexProvider(this.config.providers.codex);
       case 'cognitum':
         return new CognitumProvider(this.config.providers.cognitum);
       case 'openai':

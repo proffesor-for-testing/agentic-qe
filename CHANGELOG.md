@@ -5,6 +5,71 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.0] - 2026-07-18
+
+Introduces **QE-Court** — an adversarial review court where a change is
+prosecuted by independent AI reviewers from *different vendors*, each with its
+own probe set, and a `SHIP` verdict must survive an escalating deeper review
+before it stands (`SHIP` / `REMAND` / `BLOCK`). It debuted by reviewing this
+very release — and blocked it, catching three data-loss/crash bugs a green unit
+suite had missed (all fixed below). This release also adds a Codex (GPT) provider
+so the court can seat a genuinely cross-vendor reviewer, a statistical
+significance gate for the self-learning flywheel, automatic `memory.db` recovery,
+and per-agent cost tracking.
+
+### Added
+
+- **QE-Court — adversarial review as a verdict (`/qe-court`).** Convenes
+  independent, cross-vendor reviewers (Codex/GPT, Cognitum, Claude) against a
+  diff/PR/test-suite; a passing grade must *survive* an escalating overturn round
+  before it stands. Emits a signed court record with a three-valued verdict. The
+  court's rules are enforced in code and verified by a runnable acceptance eval
+  (`aqe eval run --skill qe-court`) — trust tier 3.
+- **Codex CLI provider — run QE on your ChatGPT subscription.** A `codex`
+  provider (like the existing `claude-code` one) shells out to `codex exec`, so
+  GPT-family models cost against your subscription rather than a per-token API
+  key. Gives the fleet a cross-vendor engine for review diversity and fallback.
+- **Statistical significance gate for the self-learning flywheel.** A new
+  `accept/v1+sig` promotion rule requires a candidate's held-out gain to be
+  *statistically significant* (paired bootstrap CI > 0), not just larger by any
+  amount — so the flywheel no longer promotes within-noise improvements.
+- **Automatic `memory.db` recovery.** If the learning database opens genuinely
+  corrupt, AQE now restores the newest integrity-verified backup automatically
+  and parks the corrupt file (never deletes it), instead of asking you to restore
+  by hand. Deliberately conservative — a healthy database is never touched.
+- **Per-agent cost attribution.** The spend ledger now records which QE agent
+  incurred each LLM charge, so cost can be broken down across the fleet.
+- **Cognitum QE cost-Pareto benchmark** (`scripts/cognitum-qe-bench/`). A
+  self-contained harness that measures, per QE task, the cheapest model tier that
+  clears the quality bar against `api.cognitum.one` — so tier routing is set by
+  evidence. First finding: on these tasks the cheap tier matched or beat the
+  frontier tier at 3–4× less cost.
+- Draft `/v1/qe/verdict` API specification for a future hosted QE-Court service.
+
+### Fixed
+
+- **4 HIGH-severity CVEs no longer reach consumers (#565).** `@huggingface/`
+  `transformers` (which pulled a vulnerable `onnxruntime-node` → `adm-zip`) is now
+  an optional peer dependency, so a default `npm install agentic-qe` no longer
+  installs it. Local/in-process embeddings still work when the package is present;
+  endpoint-based embeddings are unaffected.
+- **Three data-loss / crash bugs caught by QE-Court's own first review.**
+  (1) A subscription-provider subprocess exiting early could crash the calling
+  process with an unhandled `EPIPE`; (2) the new auto-restore could tear the
+  database under concurrent access or misdiagnose a *healthy* database on certain
+  bind-mount filesystems and revert to an older backup — both fixed to be atomic,
+  locked, and conservative; (3) a failed spend-ledger migration could silently
+  stop recording spend, bypassing the budget cap. Plus witness-verification now
+  fails closed by default and the flywheel gate rejects statistically
+  under-powered samples.
+
+### Changed
+
+- The user-facing QE skill count is now **76** (adds `qe-court`), with **50**
+  Tier-3 verified skills. `CONTRIBUTING.md` now clarifies that `ruflo` /
+  `claude-flow` are development-time tooling, **not** runtime dependencies of the
+  shipped package.
+
 ## [3.12.3] - 2026-07-17
 
 Fixes a bug that could silently switch off vector search — permanently. If an

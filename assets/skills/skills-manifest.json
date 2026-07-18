@@ -1,9 +1,9 @@
 {
   "version": "1.4.0",
   "generated": "2026-04-09T00:00:00.000Z",
-  "totalSkills": 49,
-  "totalQESkills": 81,
-  "description": "Agentic QE Fleet skills manifest - 49 Tier 3 verified QE skills. Total 81 QE skills on disk (49 Tier 3 + 32 additional including QCSD swarms, n8n testing, enterprise integration, pentest validation, qe-* domains, qe-browser via ADR-091).",
+  "totalSkills": 50,
+  "totalQESkills": 82,
+  "description": "Agentic QE Fleet skills manifest - 50 Tier 3 verified QE skills. Total 82 QE skills on disk (50 Tier 3 + 32 additional including QCSD swarms, n8n testing, enterprise integration, pentest validation, qe-* domains, qe-browser via ADR-091, qe-court adversarial review via ADR-124).",
   "categories": {
     "qcsd-phases": {
       "description": "QCSD (Quality Conscious Software Delivery) phase swarms for shift-left quality",
@@ -63,6 +63,7 @@
         "code-review-quality",
         "brutal-honesty-review",
         "sherlock-review",
+        "qe-court",
         "six-thinking-hats",
         "quality-metrics",
         "verification-quality"
@@ -939,7 +940,7 @@
   },
   "metadata": {
     "generatedBy": "Agentic QE Fleet",
-    "fleetVersion": "3.12.3",
+    "fleetVersion": "3.13.0",
     "manifestVersion": "1.4.0",
     "lastUpdated": "2026-04-13T00:00:00.000Z",
     "contributors": [
@@ -949,13 +950,13 @@
         "url": "https://github.com/fndlalit"
       }
     ],
-    "notes": "This manifest tracks 49 Tier 3 verified QE skills. Total 81 QE skills on disk (49 Tier 3 + 32 additional). qe-browser added 2026-04-09 per ADR-091. Claude Flow platform skills (33) are managed separately.",
+    "notes": "This manifest tracks 50 Tier 3 verified QE skills. Total 82 QE skills on disk (50 Tier 3 + 32 additional). qe-browser added 2026-04-09 per ADR-091. qe-court (adversarial review) added 2026-07-18 per ADR-124, promoted to tier 3 same day (acceptance eval 6/6 green via `aqe eval run --skill qe-court`). Claude Flow platform skills (33) are managed separately.",
     "skillBreakdown": {
-      "qeSkillsTier3": 49,
+      "qeSkillsTier3": 50,
       "qeSkillsAdditional": 32,
-      "totalQESkills": 81,
+      "totalQESkills": 82,
       "platformSkills": 36,
-      "totalOnDisk": 114
+      "totalOnDisk": 115
     },
     "excludedCategories": {
       "reason": "Platform skills are available but not tracked in this QE-focused manifest",

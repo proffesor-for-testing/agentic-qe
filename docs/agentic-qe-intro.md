@@ -115,7 +115,7 @@ Skills are slash commands invoked directly in Claude Code or any tool that suppo
   → Outputs ranked test strategy
 ```
 
-**Selected QE skills available (75 total):**
+**Selected QE skills available (76 total):**
 
 | Category | Skills |
 |----------|--------|
@@ -130,7 +130,7 @@ Skills are slash commands invoked directly in Claude Code or any tool that suppo
 | **Enterprise** | `/enterprise-integration-testing`, `/wms-testing-patterns`, `/middleware-testing-patterns` |
 | **Quality** | `/quality-metrics`, `/bug-reporting-excellence`, `/code-review-quality`, `/testability-scoring` |
 | **Domain** | `/contract-testing`, `/database-testing`, `/compliance-testing`, `/localization-testing` |
-| **Review** | `/brutal-honesty-review`, `/pr-review`, `/pentest-validation`, `/validation-pipeline` |
+| **Review** | `/brutal-honesty-review`, `/qe-court` (adversarial review court — SHIP/REMAND/BLOCK), `/pr-review`, `/pentest-validation`, `/validation-pipeline` |
 
 ### 2. Agents (Subagents) — For Specialized Deep Work
 

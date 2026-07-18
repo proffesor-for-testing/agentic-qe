@@ -546,6 +546,7 @@ function getDefaultModelForProvider(provider: ExtendedProviderType): string {
   const defaults: Record<ExtendedProviderType, string> = {
     claude: 'claude-sonnet-4-6',
     'claude-code': 'sonnet',
+    codex: 'gpt-5-codex',
     openai: 'gpt-4o',
     ollama: 'llama3.1',
     openrouter: 'anthropic/claude-sonnet-4',

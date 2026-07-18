@@ -147,7 +147,7 @@ Or invoke an agent through the Task tool:
 | | **Plugin** | **`aqe init`** |
 |---|---|---|
 | Setup | One slash command | Full project setup |
-| Scope | 11 agents, 9 skills | 60 agents, 85 skills |
+| Scope | 11 agents, 9 skills | 60 agents, 86 skills |
 | Persistent learning DB | No (uses MCP server's) | Yes (`.agentic-qe/memory.db`) |
 | Cross-platform support | Claude Code only | 11 platforms (Cursor, Copilot, Cline, etc.) |
 | Use when | Quick start, single Claude Code project | Production team setup, multi-platform, full fleet |
@@ -275,7 +275,7 @@ Agents automatically apply relevant skills from the skill library. Skills are ra
 | **Tier 0 — Advisory** | 5 | Guidance only |
 
 <details>
-<summary><b>View all 75 skills</b></summary>
+<summary><b>View all 76 skills</b></summary>
 
 **Core Testing (12):** agentic-quality-engineering, holistic-testing-pact, context-driven-testing, tdd-london-chicago, xp-practices, risk-based-testing, test-automation-strategy, refactoring-patterns, shift-left-testing, shift-right-testing, regression-testing, verification-quality
 
@@ -285,7 +285,7 @@ Agents automatically apply relevant skills from the skill library. Skills are ra
 
 **Domain Skills (11):** qe-test-generation, qe-test-execution, qe-coverage-analysis, qe-quality-assessment, qe-defect-intelligence, qe-requirements-validation, qe-code-intelligence, qe-visual-accessibility, qe-chaos-resilience, qe-learning-optimization, qe-iterative-loop
 
-**Strategic (8):** six-thinking-hats, brutal-honesty-review, sherlock-review, cicd-pipeline-qe-orchestrator, bug-reporting-excellence, consultancy-practices, quality-metrics, pair-programming
+**Strategic (9):** six-thinking-hats, brutal-honesty-review, sherlock-review, qe-court (adversarial review court — SHIP/REMAND/BLOCK verdict that must survive escalating cross-vendor reviewers; see [ADR-124](docs/implementation/adrs/ADR-124-qe-court-adversarial-verdict-service.md)), cicd-pipeline-qe-orchestrator, bug-reporting-excellence, consultancy-practices, quality-metrics, pair-programming
 
 **Testing Techniques (9):** exploratory-testing-advanced, test-design-techniques, test-data-management, test-environment-management, test-reporting-analytics, testability-scoring, technical-writing, code-review-quality, api-testing-patterns
 

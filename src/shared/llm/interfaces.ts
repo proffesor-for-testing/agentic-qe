@@ -16,7 +16,7 @@
 /**
  * Supported LLM provider types
  */
-export type LLMProviderType = 'claude' | 'claude-code' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini' | 'cognitum';
+export type LLMProviderType = 'claude' | 'claude-code' | 'codex' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini' | 'cognitum';
 
 /**
  * Message role in a conversation
@@ -310,6 +310,19 @@ export interface ClaudeCodeConfig extends LLMConfig {
 }
 
 /**
+ * Codex CLI (subscription) provider configuration (ADR-123 / ADR-124 M3.5).
+ * Runs on the user's ChatGPT subscription by shelling out to `codex exec`,
+ * mirroring the claude-code provider. Gives AQE a cross-vendor (GPT-family)
+ * engine for provider fallback and qe-court prosecutor/juror diversity.
+ */
+export interface CodexConfig extends LLMConfig {
+  /** Path to the `codex` binary (default: 'codex' on PATH). */
+  binaryPath?: string;
+  /** Max concurrent `codex exec` subprocesses. */
+  maxConcurrency?: number;
+}
+
+/**
  * Cognitum provider configuration (ADR-123). OpenAI-compatible gateway with
  * per-request cost receipts and a server-side hard spend cap.
  */
@@ -331,6 +344,7 @@ export interface ProviderManagerConfig {
   providers: {
     claude?: ClaudeConfig;
     'claude-code'?: ClaudeCodeConfig;
+    codex?: CodexConfig;
     openai?: OpenAIConfig;
     ollama?: OllamaConfig;
     openrouter?: OpenRouterConfig;

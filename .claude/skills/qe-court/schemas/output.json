@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qe-court-output.json",
+  "title": "AQE QE-Court Skill Output Schema",
+  "description": "Schema for the QE-Court adversarial review skill output — a signed court record with a three-valued verdict (SHIP / REMAND / BLOCK) over a delivery, produced by an independent cross-vendor panel with an overturn round (ADR-124).",
+  "type": "object",
+  "required": ["skillName", "version", "timestamp", "status", "trustTier", "output"],
+  "properties": {
+    "skillName": { "type": "string", "const": "qe-court" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9]+)?$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["success", "partial", "failed", "skipped"] },
+    "trustTier": { "type": "integer", "const": 3 },
+    "output": {
+      "type": "object",
+      "required": ["summary", "verdict", "charges", "panel"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 20, "maxLength": 2000 },
+        "verdict": {
+          "type": "string",
+          "enum": ["SHIP", "REMAND", "BLOCK"],
+          "description": "SHIP survived the overturn round; REMAND has fixable charges; BLOCK has a surviving fatal charge."
+        },
+        "score": {
+          "type": ["number", "null"],
+          "description": "Present only when a score was requested AND its rubric passed the ADR-122 DoE screen; otherwise null."
+        },
+        "charges": {
+          "type": "array",
+          "description": "Surviving prosecution charges (killed/refuted charges are excluded).",
+          "items": {
+            "type": "object",
+            "required": ["id", "fatal", "reproduced", "provenance"],
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "fatal": { "type": "boolean" },
+              "reproduced": { "type": "boolean" },
+              "depthFound": { "type": "integer", "minimum": 0 },
+              "provenance": {
+                "type": "string",
+                "enum": ["oracle:test-exec", "judge:llm", "proxy:structural"]
+              },
+              "filedBy": { "type": "string", "description": "The prosecutor/vendor that filed it." },
+              "reproduction": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "panel": {
+          "type": "array",
+          "description": "The seated panel (for auditing writer!=juror + vendor diversity).",
+          "items": {
+            "type": "object",
+            "required": ["role", "provider"],
+            "properties": {
+              "role": { "type": "string" },
+              "provider": { "type": "string" },
+              "vendor": {
+                "type": "string",
+                "enum": ["claude", "cognitum", "gpt", "openrouter", "local", "unknown"]
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "overturnTranscript": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "depth": { "type": "integer" },
+              "newCharges": { "type": "integer" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "signature": {
+          "type": "object",
+          "description": "Ed25519 signature over the canonical court record (ADR-118).",
+          "properties": {
+            "signerKeyId": { "type": "string" },
+            "signature": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

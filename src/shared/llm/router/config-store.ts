@@ -43,6 +43,10 @@ const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
   // availability is gated on the `claude` binary being on PATH (see the
   // provider's isAvailable()).
   'claude-code': [],
+  // ADR-124 M3.5: codex authenticates via the user's ChatGPT login
+  // (subscription), NOT an env key. Availability is gated on the `codex`
+  // binary being on PATH (see the provider's isAvailable()).
+  codex: [],
   openai: ['OPENAI_API_KEY'],
   ollama: [], // ollama is local; no key required
   openrouter: ['OPENROUTER_API_KEY'],
@@ -64,6 +68,7 @@ const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
 const RUNTIME_CONSTRUCTIBLE_PROVIDERS: ReadonlySet<ExtendedProviderType> = new Set([
   'claude',
   'claude-code',
+  'codex',
   'openai',
   'ollama',
   'openrouter',

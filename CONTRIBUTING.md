@@ -209,6 +209,22 @@ When developing agents, you're creating:
 3. MCP handlers in `src/mcp/handlers/`
 4. Tests in `tests/agents/` and `tests/integration/`
 
+### `ruflo` / `claude-flow` are dev-time tooling, NOT runtime dependencies
+
+The `CLAUDE.md` in this repo references `ruflo`/`claude-flow` MCP tools heavily —
+this can read as if the shipped package depends on them. It does not. Those tools
+are **development-time coordination tooling** used by Claude Code sessions that
+*work on* AQE (swarm init, memory, hooks). The published `agentic-qe` package does
+**not** import the `ruflo` npm package at all — check `package.json`: runtime deps
+are `@ruvector/*` primitives (attention, gnn, learning-wasm, router, rvf-node,
+sona) plus two **optional** `@claude-flow/*` peers (`browser`, `guidance`). So:
+
+- `npm ls ruflo` in this repo is correctly empty.
+- Don't add `ruflo` as a runtime dependency, and don't wire product code to a
+  `ruflo` CLI/MCP call — that coupling doesn't exist and shouldn't be introduced.
+- Learning-integrity work (flywheel, witness chain, provenance) is built *in this
+  repo* (`src/learning/`), inspired by ruflo's ADRs but not importing them.
+
 ### Installation Steps
 
 1. **Clone the repository:**

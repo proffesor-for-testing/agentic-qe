@@ -69,6 +69,7 @@ const V3_DOMAIN_SKILLS = [
   'qe-visual-accessibility',    // Visual regression, WCAG
   'qe-chaos-resilience',        // Fault injection, resilience
   'qe-learning-optimization',   // Transfer learning, self-improvement
+  'qe-court',                   // Adversarial review court — overturn-gated SHIP/REMAND/BLOCK verdict (ADR-124)
   // V3 utilities
   'qe-iterative-loop',          // QE iteration patterns
   // New skills (ADR-086 skill design standards)

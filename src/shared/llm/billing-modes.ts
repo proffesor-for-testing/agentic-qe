@@ -13,6 +13,7 @@ import type { BillingMode, LLMProvider, LLMProviderType } from './interfaces';
 const BILLING_MODE_BY_TYPE: Record<LLMProviderType, BillingMode> = {
   claude: 'metered-api',
   'claude-code': 'subscription',
+  codex: 'subscription',
   openai: 'metered-api',
   openrouter: 'metered-api',
   gemini: 'metered-api',
@@ -60,12 +61,14 @@ export function billingNotice(
         `ℹ️  LLM provider "${provider}" bills per-token but enforces a server-side ` +
         `hard spend cap; it will pause at the cap rather than overspend.`
       );
-    case 'subscription':
+    case 'subscription': {
+      const sub = provider === 'codex' ? 'ChatGPT' : 'Claude Code';
       return (
-        `ℹ️  LLM provider "${provider}" runs on your Claude Code subscription ` +
+        `ℹ️  LLM provider "${provider}" runs on your ${sub} subscription ` +
         `(shared plan usage). Worst case is hitting your plan's rate limit and pausing — ` +
         `no per-token API charges.`
       );
+    }
     case 'local':
       return undefined;
   }

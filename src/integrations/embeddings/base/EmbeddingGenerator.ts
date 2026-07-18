@@ -39,7 +39,13 @@ export type {
 };
 
 import { EmbeddingCache } from '../cache/EmbeddingCache.js';
-import { pipeline } from '@huggingface/transformers';
+// `@huggingface/transformers` is an OPTIONAL dependency (#565): it transitively
+// pulls onnxruntime-node → adm-zip@0.5.17 (GHSA-xcpc-8h2w-3j85). It is only
+// needed for in-process/local embeddings; consumers using an embedding endpoint
+// (e.g. Cognitum /v1/embeddings) never load it. It is therefore imported lazily
+// inside `initialize()` so its absence degrades gracefully instead of failing at
+// module load. The `Tensor` type import below is `import type` — fully erased at
+// compile time, so it creates no runtime dependency.
 import type { Tensor } from '@huggingface/transformers';
 import { cosineSimilarity } from '../../../shared/utils/vector-math.js';
 
@@ -127,6 +133,20 @@ export class EmbeddingGenerator {
         this.config.quantization === 'none' ? 'fp32' :
         this.config.quantization === 'fp16' ? 'fp16' :
         this.config.quantization === 'int8' ? 'int8' : 'q8';
+      // Lazy-load the optional transformers backend (#565). If it isn't
+      // installed, fail with an actionable message pointing at the endpoint path.
+      let pipeline: (typeof import('@huggingface/transformers'))['pipeline'];
+      try {
+        ({ pipeline } = await import('@huggingface/transformers'));
+      } catch (err) {
+        throw new Error(
+          'Local (in-process) embeddings require the optional dependency ' +
+          '"@huggingface/transformers", which is not installed. Either run ' +
+          '`npm install @huggingface/transformers`, or configure an embedding ' +
+          'endpoint (e.g. Cognitum /v1/embeddings) so the local backend is not needed. ' +
+          `Underlying import error: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
       this.model = await pipeline(
         'feature-extraction',
         this.config.model,
