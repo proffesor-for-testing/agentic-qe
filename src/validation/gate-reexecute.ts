@@ -26,6 +26,7 @@
 import { createHash } from 'node:crypto';
 import { meetsNoRegression } from './anchor-set.js';
 import { tierAllowsPromotion } from '../learning/provenance-tier.js';
+import { bootstrapDeltaCILow, pairedDeltas } from './paired-bootstrap.js';
 
 /** The inputs a promotion decision was made on — sealed at decision time. */
 export interface SealedInputs {
@@ -45,6 +46,15 @@ export interface SealedInputs {
   provenanceTier: string;
   /** Whether judge-tier promotion was explicitly budgeted (ADR-121). */
   allowJudgeTier?: boolean;
+  /**
+   * accept/v1+sig only: the candidate's PER-HELD-OUT-TASK scores, matched by
+   * index to `baselineHeldOutSamples`. Optional and omitted from the sealed hash
+   * when undefined (so `accept/v1` receipts are byte-identical). The paired
+   * bootstrap significance gate needs these; `accept/v1` ignores them.
+   */
+  candidateHeldOutSamples?: number[];
+  /** accept/v1+sig only: the baseline's per-held-out-task scores (paired by index). */
+  baselineHeldOutSamples?: number[];
 }
 
 export interface RuleResult {
@@ -77,9 +87,44 @@ const acceptV1: AcceptanceRule = (s) => {
   return { promote: true, reason: 'held-out gain, no anchor regression, oracle-tier evidence' };
 };
 
+/**
+ * accept/v1+sig — accept/v1 PLUS a paired-bootstrap significance gate on the
+ * held-out delta (adopted from ruflo's flywheel gate). A NEW frozen version:
+ * `accept/v1` is untouched. Promotes only when accept/v1 passes AND the paired
+ * per-task held-out gain is significant (one-sided 95% CI lower bound > 0) —
+ * closing accept/v1's "promote any positive mean-beat, even within noise" gap.
+ *
+ * Fail-closed: if the paired sample vectors are absent or mismatched, it does
+ * NOT promote (a significance claim it cannot verify is a rejection).
+ */
+const acceptV1Sig: AcceptanceRule = (s) => {
+  const base = acceptV1(s);
+  if (!base.promote) return base;
+
+  const cand = s.candidateHeldOutSamples;
+  const bl = s.baselineHeldOutSamples;
+  if (!cand || !bl || cand.length === 0 || cand.length !== bl.length) {
+    return {
+      promote: false,
+      reason: `significance gate: missing/mismatched paired held-out samples ` +
+        `(need equal-length candidate & baseline per-task vectors)`,
+    };
+  }
+  const ciLow = bootstrapDeltaCILow(pairedDeltas(cand, bl));
+  if (!(ciLow > 0)) {
+    return {
+      promote: false,
+      reason: `significance gate: paired held-out gain not significant ` +
+        `(95% CI lower bound ${ciLow.toFixed(4)} ≤ 0)`,
+    };
+  }
+  return { promote: true, reason: `${base.reason}; paired gain significant (CI low ${ciLow.toFixed(4)} > 0)` };
+};
+
 /** Registry of versioned frozen rules. Add a NEW key to change a rule; never edit in place. */
 export const ACCEPTANCE_RULES: Readonly<Record<string, AcceptanceRule>> = Object.freeze({
   'accept/v1': acceptV1,
+  'accept/v1+sig': acceptV1Sig,
 });
 
 /**

@@ -39,6 +39,13 @@ export interface PolicyScores {
   heldOut: number;
   /** Mean over the ADR-117 frozen anchor items (the no-regression signal). */
   anchorMean: number;
+  /**
+   * Per-held-out-task scores whose mean is `heldOut`. Optional — when present and
+   * paired index-for-index with the baseline's, they enable the accept/v1+sig
+   * paired-bootstrap significance gate (ADR-118). Scorers that don't provide them
+   * simply can't use accept/v1+sig (it fail-closes).
+   */
+  heldOutSamples?: number[];
 }
 
 /** Injected: evaluate a policy → its held-out + anchor scores. */
@@ -123,6 +130,11 @@ export async function runFlywheelGeneration(input: GenerationInput): Promise<Gen
     anchorTol: input.anchorTol,
     provenanceTier,
     allowJudgeTier: input.allowJudgeTier,
+    // ADR-118 accept/v1+sig: seal the paired per-task samples ONLY when the sig
+    // rule is in use. Left undefined for accept/v1 (and thus absent from the
+    // sealed hash), so accept/v1 receipts remain byte-identical to before.
+    candidateHeldOutSamples: ruleVersion === 'accept/v1+sig' ? candidateScores.heldOutSamples : undefined,
+    baselineHeldOutSamples: ruleVersion === 'accept/v1+sig' ? baselineScores.heldOutSamples : undefined,
   };
 
   const ruleResult = reExecuteGate(ruleVersion, sealed);

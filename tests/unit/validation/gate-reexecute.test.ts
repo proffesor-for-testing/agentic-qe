@@ -75,7 +75,8 @@ describe('gateFingerprint / reExecuteGate — unregistered rules', () => {
     expect(() => reExecuteGate('accept/v99', goodSealed)).toThrow(/Unknown acceptance rule/);
   });
   it('should_only_expose_frozen_registered_rules', () => {
-    expect(Object.keys(ACCEPTANCE_RULES)).toEqual(['accept/v1']);
+    // accept/v1+sig added the ADR-120 way (new key, never edit accept/v1 in place).
+    expect(Object.keys(ACCEPTANCE_RULES).sort()).toEqual(['accept/v1', 'accept/v1+sig']);
   });
 });
 
