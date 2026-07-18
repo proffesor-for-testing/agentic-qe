@@ -104,3 +104,60 @@ describe('InMemorySpendLedger', () => {
     expect(b.spentSince(3_600_000)).toBe(0);
   });
 });
+
+const entryFor = (costUsd: number, agent?: string) => ({ ...entry(costUsd), requestId: `r-${agent}-${costUsd}`, agent });
+
+describe('per-agent attribution (ADR-124 M2.3)', () => {
+  it('should_groupSpendByAgentType_when_charges_have_agents', () => {
+    const ledger = new SqliteSpendLedger(new Database(tempDbPath()));
+    ledger.record(entryFor(1, 'qe-security-scanner'));
+    ledger.record(entryFor(2, 'qe-security-scanner'));
+    ledger.record(entryFor(3, 'qe-coverage-specialist'));
+
+    const byAgent = ledger.spentByAgentSince(3_600_000);
+    expect(byAgent['qe-security-scanner']).toBeCloseTo(3, 6);
+    expect(byAgent['qe-coverage-specialist']).toBeCloseTo(3, 6);
+    // The total still reconciles with the flat sum.
+    expect(ledger.spentSince(3_600_000)).toBeCloseTo(6, 6);
+  });
+
+  it('should_bucketChargesWithNoAgent_under_unattributed', () => {
+    const ledger = new SqliteSpendLedger(new Database(tempDbPath()));
+    ledger.record(entry(4)); // no agent field
+
+    const byAgent = ledger.spentByAgentSince(3_600_000);
+    expect(byAgent['(unattributed)']).toBeCloseTo(4, 6);
+  });
+
+  it('should_migrateAnOldSchemaTable_when_agentColumnIsMissing', () => {
+    // Simulate a memory.db written before M2.3: llm_spend without agent_type.
+    const dbPath = tempDbPath();
+    const raw = new Database(dbPath);
+    raw.exec(
+      `CREATE TABLE llm_spend (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL,
+        provider TEXT NOT NULL, model TEXT NOT NULL, cost_usd REAL NOT NULL,
+        cost_source TEXT NOT NULL, prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0, request_id TEXT)`
+    );
+    raw.prepare(
+      `INSERT INTO llm_spend (ts, provider, model, cost_usd, cost_source) VALUES (?,?,?,?,?)`
+    ).run(Date.now(), 'claude', 'sonnet', 5, 'local-estimate'); // legacy row, no agent
+    raw.close();
+
+    // Constructing the ledger runs the additive ALTER without dropping the legacy row.
+    const ledger = new SqliteSpendLedger(new Database(dbPath));
+    ledger.record(entryFor(2, 'qe-flaky-hunter'));
+
+    expect(ledger.spentSince(3_600_000)).toBeCloseTo(7, 6); // legacy 5 + new 2 — no data lost
+    const byAgent = ledger.spentByAgentSince(3_600_000);
+    expect(byAgent['(unattributed)']).toBeCloseTo(5, 6); // legacy row bucketed
+    expect(byAgent['qe-flaky-hunter']).toBeCloseTo(2, 6);
+  });
+
+  it('should_attributeInMemoryLedger_too', () => {
+    const ledger = new InMemorySpendLedger();
+    ledger.record(entryFor(1.5, 'qe-mutation-tester'));
+    ledger.record(entryFor(0.5, 'qe-mutation-tester'));
+    expect(ledger.spentByAgentSince(3_600_000)['qe-mutation-tester']).toBeCloseTo(2, 6);
+  });
+});

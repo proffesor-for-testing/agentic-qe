@@ -30,6 +30,12 @@ export interface SpendEntry {
   promptTokens: number;
   completionTokens: number;
   requestId: string;
+  /**
+   * ADR-124 M2.3: the QE agent type/name this charge is attributed to (e.g.
+   * 'qe-security-scanner'). Optional — null when the call site has no agent
+   * context. Enables per-agent cost attribution across the fleet.
+   */
+  agent?: string;
 }
 
 /** Cross-process spend ledger. */
@@ -38,7 +44,15 @@ export interface SpendLedger {
   record(entry: SpendEntry): void;
   /** Total USD charged within the last `windowMs` (rolling window ending now). */
   spentSince(windowMs: number, nowMs?: number): number;
+  /**
+   * ADR-124 M2.3: USD charged within the last `windowMs`, broken down by agent
+   * type. Charges with no agent are grouped under '(unattributed)'.
+   */
+  spentByAgentSince(windowMs: number, nowMs?: number): Record<string, number>;
 }
+
+/** Bucket used for charges recorded without an agent context. */
+export const UNATTRIBUTED_AGENT = '(unattributed)';
 
 const CREATE_TABLE_SQL = `
 CREATE TABLE IF NOT EXISTS llm_spend (
@@ -66,6 +80,18 @@ export class SqliteSpendLedger implements SpendLedger {
     this.db = db;
     // Additive schema only — CREATE TABLE/INDEX IF NOT EXISTS never drops data.
     this.db.exec(CREATE_TABLE_SQL);
+    // ADR-124 M2.3: additive `agent_type` column for per-agent attribution.
+    // ALTER TABLE ADD COLUMN is non-destructive (existing rows get NULL); guarded
+    // so re-opening an already-migrated DB is a no-op. Never drops or rewrites.
+    try {
+      const cols = this.db.prepare(`PRAGMA table_info(llm_spend)`).all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === 'agent_type')) {
+        this.db.exec(`ALTER TABLE llm_spend ADD COLUMN agent_type TEXT`);
+      }
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_llm_spend_agent ON llm_spend(agent_type)`);
+    } catch {
+      // Attribution is best-effort; never block ledger use on the migration.
+    }
   }
 
   record(entry: SpendEntry): void {
@@ -73,8 +99,8 @@ export class SqliteSpendLedger implements SpendLedger {
       this.db
         .prepare(
           `INSERT INTO llm_spend
-             (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id)
-           VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id)`
+             (ts, provider, model, cost_usd, cost_source, prompt_tokens, completion_tokens, request_id, agent_type)
+           VALUES (@ts, @provider, @model, @cost_usd, @cost_source, @prompt_tokens, @completion_tokens, @request_id, @agent_type)`
         )
         .run({
           ts: Date.now(),
@@ -85,6 +111,7 @@ export class SqliteSpendLedger implements SpendLedger {
           prompt_tokens: entry.promptTokens,
           completion_tokens: entry.completionTokens,
           request_id: entry.requestId,
+          agent_type: entry.agent ?? null,
         });
     } catch {
       // A ledger write must never break a generation call.
@@ -103,6 +130,22 @@ export class SqliteSpendLedger implements SpendLedger {
       return 0;
     }
   }
+
+  spentByAgentSince(windowMs: number, nowMs: number = Date.now()): Record<string, number> {
+    try {
+      const rows = this.db
+        .prepare(
+          `SELECT COALESCE(agent_type, ?) AS agent, COALESCE(SUM(cost_usd), 0) AS total
+             FROM llm_spend WHERE ts >= ? GROUP BY COALESCE(agent_type, ?)`
+        )
+        .all(UNATTRIBUTED_AGENT, nowMs - windowMs, UNATTRIBUTED_AGENT) as Array<{ agent: string; total: number }>;
+      const out: Record<string, number> = {};
+      for (const r of rows) out[r.agent] = r.total;
+      return out;
+    } catch {
+      return {};
+    }
+  }
 }
 
 /**
@@ -110,10 +153,10 @@ export class SqliteSpendLedger implements SpendLedger {
  * within the current process only — no worse than the pre-ADR-123 behavior.
  */
 export class InMemorySpendLedger implements SpendLedger {
-  private readonly entries: Array<{ ts: number; costUsd: number }> = [];
+  private readonly entries: Array<{ ts: number; costUsd: number; agent: string }> = [];
 
   record(entry: SpendEntry): void {
-    this.entries.push({ ts: Date.now(), costUsd: entry.costUsd });
+    this.entries.push({ ts: Date.now(), costUsd: entry.costUsd, agent: entry.agent ?? UNATTRIBUTED_AGENT });
   }
 
   spentSince(windowMs: number, nowMs: number = Date.now()): number {
@@ -123,6 +166,15 @@ export class InMemorySpendLedger implements SpendLedger {
       if (e.ts >= cutoff) total += e.costUsd;
     }
     return total;
+  }
+
+  spentByAgentSince(windowMs: number, nowMs: number = Date.now()): Record<string, number> {
+    const cutoff = nowMs - windowMs;
+    const out: Record<string, number> = {};
+    for (const e of this.entries) {
+      if (e.ts >= cutoff) out[e.agent] = (out[e.agent] ?? 0) + e.costUsd;
+    }
+    return out;
   }
 }
 
