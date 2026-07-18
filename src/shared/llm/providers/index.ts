@@ -11,6 +11,12 @@ export {
   type ClaudeCodeConfig,
 } from './claude-code';
 export {
+  CodexProvider,
+  DEFAULT_CODEX_CONFIG,
+  CODEX_DEFAULT_MODEL,
+  type CodexConfig,
+} from './codex';
+export {
   CognitumProvider,
   DEFAULT_COGNITUM_CONFIG,
   type CognitumConfig,

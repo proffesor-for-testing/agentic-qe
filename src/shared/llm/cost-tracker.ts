@@ -236,6 +236,7 @@ export class CostTracker {
     const byProvider: Record<LLMProviderType, number> = {
       claude: 0,
       'claude-code': 0,
+      codex: 0,
       openai: 0,
       ollama: 0,
       openrouter: 0,

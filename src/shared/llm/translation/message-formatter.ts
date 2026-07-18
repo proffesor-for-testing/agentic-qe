@@ -24,6 +24,7 @@ import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfa
 const SYSTEM_PROMPT_STRATEGIES: Record<ExtendedProviderType, SystemPromptStrategy> = {
   claude: 'native',           // Anthropic supports separate system param
   'claude-code': 'native',    // ADR-123: passed via --append-system-prompt
+  codex: 'native',            // ADR-124 M3.5: provider flattens system into the prompt
   openai: 'native',           // OpenAI supports system role messages
   ollama: 'native',           // Ollama supports system role
   openrouter: 'native',       // OpenRouter passes through to underlying provider

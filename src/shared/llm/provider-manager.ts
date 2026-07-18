@@ -40,6 +40,7 @@ import {
 import { resolveBillingMode, billingNotice } from './billing-modes';
 import { ClaudeProvider } from './providers/claude';
 import { ClaudeCodeProvider } from './providers/claude-code';
+import { CodexProvider } from './providers/codex';
 import { CognitumProvider } from './providers/cognitum';
 import { OpenAIProvider } from './providers/openai';
 import { OllamaProvider } from './providers/ollama';
@@ -566,6 +567,8 @@ export class ProviderManager {
         return new ClaudeProvider(this.config.providers.claude);
       case 'claude-code':
         return new ClaudeCodeProvider(this.config.providers['claude-code']);
+      case 'codex':
+        return new CodexProvider(this.config.providers.codex);
       case 'cognitum':
         return new CognitumProvider(this.config.providers.cognitum);
       case 'openai':
