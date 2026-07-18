@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  title: Cognitum QE Verdict API
+  version: "1.0.0-draft"
+  description: >
+    Hosted QE-Court (ADR-124 Phase 2). A caller POSTs a delivery (diff / patch /
+    file set) and receives a signed, overturn-tested adversarial-review verdict
+    without running the AQE fleet locally — "a jury waiting for everything you
+    ship."
+
+    Deployment (per the 2026-07-18 live probe, AQE ADR-124 M1): this is a NEW
+    route on the existing api.cognitum.one inference service (Express/GCP,
+    X-API-Key auth, x_cognitum receipts). It is NOT part of the ADR-308
+    funnel/proxy contract (which is a separate, not-yet-deployed service). The
+    /v1/qe/* namespace was confirmed free (404) on 2026-07-18.
+
+    Verdict semantics are defined by the open-source referee
+    (agentic-qe: src/skills/qe-court/referee.ts) so client and server agree on
+    the rules: 3-valued verdict, the overturn mechanic, writer≠juror, vendor
+    diversity, and DoE-gated scoring.
+servers:
+  - url: https://api.cognitum.one
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /v1/qe/verdict:
+    post:
+      operationId: createVerdict
+      summary: Convene the court on a delivery (synchronous for small deliveries).
+      description: >
+        Runs the full protocol: defense → blind prosecution panel → refuter kill
+        round → jury → overturn loop → signed court record. For large deliveries
+        or deep panels, prefer the async job model (return_mode=async) to avoid
+        request timeouts. Cost is metered per the caller's tier budget and the
+        response carries an x_cognitum receipt; the server hard cap (GET
+        /v1/usage) applies exactly as for /v1/chat/completions.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string }
+          description: Dedupe retries; the same key returns the same verdict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VerdictRequest' }
+      responses:
+        '200':
+          description: Verdict produced (return_mode=sync).
+          headers:
+            X-Cognitum-Request-Id: { schema: { type: string } }
+            X-Cognitum-Resolved-Tier: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CourtRecord' }
+        '202':
+          description: Accepted for async processing (return_mode=async). Poll the job.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerdictJob' }
+        '400': { $ref: '#/components/responses/BadDelivery' }
+        '422': { $ref: '#/components/responses/InvariantViolation' }
+        '402': { $ref: '#/components/responses/BudgetExhausted' }
+
+  /v1/qe/verdict/{jobId}:
+    get:
+      operationId: getVerdictJob
+      summary: Poll an async verdict job.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job status; `record` present once status=completed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerdictJob' }
+        '404': { description: Unknown job id. }
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    VerdictRequest:
+      type: object
+      required: [delivery]
+      properties:
+        delivery:
+          $ref: '#/components/schemas/Delivery'
+        panel:
+          $ref: '#/components/schemas/PanelConfig'
+        overturnDepth:
+          type: integer
+          minimum: 0
+          default: 2
+          description: >
+            Consecutive dry deeper rounds required for SHIP to stand. 0 disables
+            the overturn mechanic (mutants found only at depth ≥1 do not count) —
+            for testing/comparison only; never for a real gate.
+        emitScore:
+          type: boolean
+          default: false
+          description: >
+            Request a numeric score. Honored ONLY if the server's scoring rubric
+            passed the ADR-122 ANOVA screen (shouldEmitScore); otherwise the
+            response carries verdict + charges and score is null.
+        return_mode:
+          type: string
+          enum: [sync, async]
+          default: sync
+        sign:
+          type: boolean
+          default: true
+          description: Ed25519-sign the court record (ADR-118). Required for attestable evidence.
+
+    Delivery:
+      type: object
+      description: What is on trial. Provide exactly one of `diff` or `files`.
+      properties:
+        kind:
+          type: string
+          enum: [diff, files, pr]
+        diff:
+          type: string
+          description: Unified diff / patch text.
+        files:
+          type: array
+          items:
+            type: object
+            required: [path, content]
+            properties:
+              path: { type: string }
+              content: { type: string }
+        pr:
+          type: object
+          description: Optional PR context (title/body/base) for framing.
+          additionalProperties: true
+        context:
+          type: string
+          description: Optional free-text framing (what changed and why).
+
+    PanelConfig:
+      type: object
+      description: >
+        Which reviewers to seat and how to route them. Server enforces the
+        anti-collusion invariants (validatePanel): ≥ minVendors distinct vendors,
+        and the jury vendor ≠ writer/defense vendor. Violations → 422.
+      properties:
+        prosecutors:
+          type: array
+          items:
+            type: string
+            enum: [devils-advocate, brutal-honesty, sherlock, security-scanner, mutation, codex-review]
+          default: [devils-advocate, brutal-honesty, sherlock, security-scanner, mutation, codex-review]
+        routing:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RouteSpec'
+          description: >
+            role → provider/model. Roles: defense, jury, deeperReviewer,
+            prosecutor.<name>. Providers map to vendors (claude|cognitum|gpt|
+            openrouter|local) for the diversity/writer≠juror checks.
+        minVendors:
+          type: integer
+          default: 2
+
+    RouteSpec:
+      type: object
+      properties:
+        provider: { type: string, example: cognitum-high }
+        model: { type: string }
+
+    CourtRecord:
+      type: object
+      required: [verdict, charges, contract]
+      properties:
+        contract:
+          type: string
+          const: qe-court-record@1
+        verdict:
+          type: string
+          enum: [SHIP, REMAND, BLOCK]
+          description: 3-valued (referee.resolveVerdict). SHIP survived the overturn round.
+        score:
+          type: [number, "null"]
+          description: Present only when emitScore AND the rubric passed the DoE screen; else null.
+        defenseSummary:
+          type: string
+          description: The case-for-ship (writer model; never a juror).
+        charges:
+          type: array
+          items: { $ref: '#/components/schemas/Charge' }
+        overturnTranscript:
+          type: array
+          description: Per deeper round — what the escalated reviewer found (or "dry").
+          items:
+            type: object
+            properties:
+              depth: { type: integer }
+              newCharges: { type: integer }
+        panelSeated:
+          type: array
+          items:
+            type: object
+            properties:
+              role: { type: string }
+              provider: { type: string }
+              vendor: { type: string, enum: [claude, cognitum, gpt, openrouter, local, unknown] }
+          description: The resolved panel, for auditing writer≠juror / vendor diversity.
+        signature:
+          $ref: '#/components/schemas/Signature'
+        x_cognitum:
+          $ref: '#/components/schemas/Receipt'
+
+    Charge:
+      type: object
+      description: A surviving prosecution charge (referee.Charge + evidence).
+      required: [id, fatal, reproduced, depthFound, provenance]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        fatal:
+          type: boolean
+          description: Fatal → BLOCK; non-fatal surviving → REMAND.
+        reproduced:
+          type: boolean
+          description: Oracle-grade (reproduced) vs claim. Unreproduced charges are killed in the refuter round.
+        depthFound:
+          type: integer
+          description: Overturn depth at which it surfaced (0 = base panel).
+        provenance:
+          type: string
+          enum: ["oracle:test-exec", "judge:llm", "proxy:structural"]
+          description: ADR-121 tier. A reproduced charge is oracle-grade.
+        filedBy:
+          type: string
+          description: Which prosecutor/vendor filed it (independent probe set).
+        reproduction:
+          type: string
+          description: Minimal steps/input that reproduce the finding.
+
+    Signature:
+      type: object
+      description: Ed25519 signature over the canonical record body (ADR-118).
+      properties:
+        signerKeyId: { type: string, description: hash of the public key (keyIdOf). }
+        signature: { type: string, description: hex Ed25519 signature. }
+
+    Receipt:
+      type: object
+      description: Standard Cognitum per-request receipt (same shape as other endpoints).
+      properties:
+        request_id: { type: string }
+        resolved_tier: { type: string }
+        price_usd: { type: number }
+        escalated: { type: boolean }
+        cap_degraded: { type: boolean }
+
+    VerdictJob:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId: { type: string }
+        status: { type: string, enum: [queued, running, completed, failed] }
+        record:
+          oneOf:
+            - { $ref: '#/components/schemas/CourtRecord' }
+            - { type: "null" }
+        error: { type: [string, "null"] }
+
+  responses:
+    BadDelivery:
+      description: Malformed delivery (no diff/files, or unparseable).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              code: { type: string, const: BAD_DELIVERY }
+    InvariantViolation:
+      description: >
+        Panel config violates a court invariant (validatePanel) — e.g.
+        writerIsNeverJuror or vendor-diversity. The court refuses to run a
+        rigged panel rather than emit a compromised verdict.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              code: { type: string, const: PANEL_INVARIANT_VIOLATION }
+              violations:
+                type: array
+                items: { type: string, enum: [writerIsNeverJuror, vendor-diversity] }
+    BudgetExhausted:
+      description: Tier budget / server hard cap reached (mirrors /v1/chat/completions cap semantics).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              code: { type: string, const: BUDGET_EXHAUSTED }
