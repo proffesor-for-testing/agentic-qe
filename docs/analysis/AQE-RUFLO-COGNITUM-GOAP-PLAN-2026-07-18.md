@@ -116,11 +116,27 @@ Finish `totalQESkills` 81→82 (+ nested block + notes string) in **both** manif
 
 | # | Action | Type · Effort | Notes |
 |---|--------|--------------|-------|
-| 3.1 | Contribute AQE's DoE/ANOVA rigor upstream to ruflo **ADR-176** flywheel (issue/PR + convo with Ruv). | OSS→ruflo · S | Shared-repo → PR only, per-item OK |
-| 3.2 | Read ruflo v3.25.2 **AgentDB atomic-flush** fix; check AQE `memory.db` virtiofs exposure. | OSS-AQE · S | No import (different engines); read-and-assess |
+| 3.1 | Contribute AQE's DoE/ANOVA rigor upstream to ruflo **ADR-176** flywheel. | OSS→ruflo · S | **✅ DRAFTED** (`M3.1-ruflo-doe-contribution-DRAFT.md`); **holding — needs user to post to ruvnet/ruflo** |
+| 3.2 | Read ruflo v3.25.2 **AgentDB atomic-flush** fix; check AQE `memory.db` exposure. | OSS-AQE · S | **✅ DONE (assessed)** — see below |
 | 3.3 | Trial a **Lattice embedder** — **⚠️ NUANCED (2026-07-18): npm "Lattice WASM" = vaporware; `ohdearquant/lattice` = real but not drop-in** | OSS-AQE | See detail below |
-| 3.4 | Doc note: **ruflo is dev-time, not an AQE runtime dep.** | OSS-AQE · S | Prevents contributor confusion |
+| 3.4 | Doc note: **ruflo is dev-time, not an AQE runtime dep.** | OSS-AQE · S | **✅ DONE** — added to `CONTRIBUTING.md` (Agent Execution Model section) |
 | 3.5 | **Codex as an AQE subscription model provider** (ADR-123-style, mirrors the `claude-code` provider): spawn `codex exec --json` with API keys stripped so it bills the ChatGPT subscription. Unlocks GPT-family as a first-class AQE provider (prosecutor/juror diversity, fallback). | OSS-AQE · M | New from 2026-07-18 Codex probe; billing-mode = `subscription` |
+
+### M3.2 findings (2026-07-18) — ruflo AgentDB fix vs AQE `memory.db`
+ruflo v3.25.2 (#2584) fixed AgentDB (**sql.js**) `database disk image is malformed` under
+**torn/concurrent full-image flushes** — every full-image write now goes temp → fsync → rename,
+plus **backup auto-restore** (restore newest `integrity_check=ok` snapshot on a malformed open).
+- **The torn-full-image bug does NOT apply to AQE** — AQE uses **better-sqlite3** (native SQLite,
+  WAL, atomic commits via SQLite's own WAL/transaction machinery — no full-image serialization).
+  `src/shared/safe-db.ts` already forces WAL + busy_timeout and documents AQE's *actual* corruption
+  class (virtiofs WAL/shm zeroing on bind mounts, observed 2026-06-08 / 2026-07-07) — a different
+  root cause, already mitigated (relocation-to-volume planned).
+- **Transferable lesson (candidate follow-up):** ruflo's **auto-restore-on-malformed-open**. AQE has
+  the ingredients (backups via `scripts/aqe-db-backup.sh` + snapshots) but recovery is **manual**
+  (`unified-memory.ts:365` → "restore manually"). Auto-restoring the newest `integrity_check=ok`
+  backup on a corrupt open would turn total loss into automatic recovery. NOT built here — it touches
+  `memory.db` recovery (data-protection-sensitive) and deserves its own scoped change + test on a DB
+  copy. Filed as a recommendation.
 
 ### M3.3 detail (2026-07-18, evidence-verified — two different "lattices")
 **(A) npm "Lattice WASM embedder" (ruflo/@ruvector) — ❌ VAPORWARE.** `@ruvector/lattice`,
