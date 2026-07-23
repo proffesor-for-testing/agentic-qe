@@ -570,7 +570,12 @@ export interface CoverageAnalyzeResult {
   taskId: string;
   status: string;
   duration: number;
-  lineCoverage: number;
+  /**
+   * #569: `null` when no coverage figure was produced at all (no report, no
+   * instrumentation run, nothing to estimate from). `0` means a measured zero;
+   * `null` means "we don't know" — the two must not be conflated.
+   */
+  lineCoverage: number | null;
   /**
    * #569: `null` when branch data was not collected. Never report a branch
    * percentage — least of all 100% — that no instrumentation produced.
@@ -582,7 +587,8 @@ export interface CoverageAnalyzeResult {
   riskScore?: number;
   savedFiles?: string[];
   // V2-compatible fields (optional, flexible typing)
-  statementCoverage?: number;
+  /** #569: `null` when no figure was produced — see `lineCoverage`. */
+  statementCoverage?: number | null;
   totalFiles?: number;
   coverageByFile?: unknown[];
   gapAnalysis?: Record<string, unknown>;

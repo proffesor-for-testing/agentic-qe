@@ -332,3 +332,40 @@ describe('SessionOperationCache', () => {
     });
   });
 });
+
+describe('#569 follow-up — cache keys must not outlive the build that made them', () => {
+  afterEach(() => {
+    delete process.env.AQE_SESSION_CACHE_SALT;
+  });
+
+  it('changes the fingerprint when the build identity changes', () => {
+    // Entries persist to kv_store and survive package upgrades. Keyed on inputs
+    // alone, an upgraded install replays the PREVIOUS version's answers until
+    // the TTL lapses. That is exactly what happened while verifying #569: a
+    // project analyzed before the fix kept returning the old fabricated
+    // coverage (lineCoverage: 0, measured: true) from cache, making the fix
+    // look broken.
+    const cache = new SessionOperationCache();
+    const input = { target: '.', detectGaps: true };
+
+    const before = cache.computeFingerprint('coverage', 'analyze_sublinear', input);
+    process.env.AQE_SESSION_CACHE_SALT = 'next-build';
+    const after = cache.computeFingerprint('coverage', 'analyze_sublinear', input);
+
+    expect(after).not.toBe(before);
+  });
+
+  it('is still deterministic for identical inputs within one build', () => {
+    // Guard against over-correction: the cache must still actually cache.
+    const cache = new SessionOperationCache();
+    const input = { target: '.', detectGaps: true };
+    expect(cache.computeFingerprint('coverage', 'analyze_sublinear', input))
+      .toBe(cache.computeFingerprint('coverage', 'analyze_sublinear', input));
+  });
+
+  it('still distinguishes different inputs', () => {
+    const cache = new SessionOperationCache();
+    expect(cache.computeFingerprint('coverage', 'analyze_sublinear', { target: 'a' }))
+      .not.toBe(cache.computeFingerprint('coverage', 'analyze_sublinear', { target: 'b' }));
+  });
+});

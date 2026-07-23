@@ -463,27 +463,44 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     // The domain returns CoverageReport { summary: { line, branch, function, statement, files }, ... }
     // Map from both nested (domain) and flat (legacy) field shapes.
     const summary = data.summary as { line?: number; branch?: number; function?: number; statement?: number; files?: number } | undefined;
-    const lineCoverage = summary?.line ?? (data.lineCoverage as number) ?? 0;
-    const statementCoverage = summary?.statement ?? (data.statementCoverage as number) ?? lineCoverage;
     const totalFiles = summary?.files ?? (data.totalFiles as number) ?? 0;
     const gaps = (data.gaps as unknown[]) || [];
 
-    // #569: branch/function coverage is `null` when the metric was not
-    // collected. `?? 0` would turn "we don't know" into "0%", and the old
-    // `?? 0` on branch was how a run with no branch data at all ended up
-    // reporting 100% branch coverage alongside 0% function coverage.
-    const branchDataCollected = data.branchDataCollected !== false;
-    const functionDataCollected = data.functionDataCollected !== false;
+    // #569/ADR-126: an ABSENT provenance flag means "unknown", never "collected".
+    //
+    // Defaulting these to `true` (`!== false`) meant any producer that supplies
+    // no provenance at all — notably the coverage-analysis domain plugin, whose
+    // handler returns a nested-`summary` CoverageReport — surfaced the exact
+    // impossible pair from the issue: 100% branch coverage alongside 0% function
+    // coverage, labelled `measured: true` with `confidence: 0.7` on its gaps.
+    // Requiring an explicit `true` makes an unprovenanced result honest (`null`)
+    // instead of confidently wrong.
+    const branchDataCollected = data.branchDataCollected === true;
+    const functionDataCollected = data.functionDataCollected === true;
     const branchCoverage = branchDataCollected
-      ? (summary?.branch ?? (data.branchCoverage as number) ?? 0)
+      ? (summary?.branch ?? (data.branchCoverage as number) ?? null)
       : null;
     const functionCoverage = functionDataCollected
-      ? (summary?.function ?? (data.functionCoverage as number) ?? 0)
+      ? (summary?.function ?? (data.functionCoverage as number) ?? null)
       : null;
 
     // #569: is this a measurement or a static estimate? Everything downstream —
     // gap confidence, AI insights, risk assessment — must be qualified by it.
     const estimated = data.estimated === true;
+
+    // #569/ADR-126: `measured` is NOT the complement of `estimated` — there is a
+    // third state where nothing was collected at all. Deriving it as `!estimated`
+    // reported an empty project (no sources, no coverage report, nothing run) as
+    // `lineCoverage: 0, measured: true` — "we measured 0%" when the truth is "we
+    // measured nothing". Trust only an explicit claim from the producer.
+    const measured = data.measured === true;
+
+    // Likewise, a `null` line/statement figure must survive as `null`. `?? 0`
+    // turns "no data" into a plottable 0%.
+    const rawLine = summary?.line ?? (data.lineCoverage as number | null | undefined);
+    const lineCoverage = rawLine ?? null;
+    const rawStatement = summary?.statement ?? (data.statementCoverage as number | null | undefined);
+    const statementCoverage = rawStatement ?? lineCoverage;
 
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
@@ -504,10 +521,11 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
         suggestion: (g.suggestedTest as string) || 'Add test coverage',
         suggestedTest: (g.suggestedTest as string) || 'Add test coverage',
         riskScore: (g.riskScore as number) || 0.5,
-        // #569: don't attach a 0.7 default confidence to a gap that came out of
-        // a static estimate. An estimated gap carries its own low confidence
-        // from the handler; only measured gaps get the old default.
-        confidence: (g.confidence as number) ?? (estimated ? 0.2 : 0.7),
+        // #569: the 0.7 default confidence is only defensible for a gap derived
+        // from a real measurement. An estimated gap carries its own low
+        // confidence from the handler; a gap with no provenance at all is not
+        // known to be measured either, so it gets the cautious value too.
+        confidence: (g.confidence as number) ?? (measured ? 0.7 : 0.2),
         estimated: g.estimated === true || estimated,
       };
     }).filter((g): g is NonNullable<typeof g> => g !== null);
@@ -551,10 +569,12 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
           : ((data.recommendations as string[]) || [
               'Run tests with coverage enabled to get accurate metrics',
             ]),
-        riskAssessment: estimated
+        // #569: risk can only be graded off a real number. `null < 70` is
+        // `false` in JS, which would have silently graded "no data" as 'low'.
+        riskAssessment: (estimated || !measured || lineCoverage === null)
           ? 'unknown'
           : (lineCoverage < 70 ? 'high' : lineCoverage < 85 ? 'medium' : 'low'),
-        confidence: estimated ? 0.2 : 0.88,
+        confidence: estimated ? 0.2 : (measured ? 0.88 : 0),
       } : {
         recommendations: [
           'No coverage data found. Run tests with coverage first (e.g., npm test -- --coverage, or pytest --cov)',
@@ -577,7 +597,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       // #569: provenance travels with the numbers so a caller can never mistake
       // a static estimate for a measurement.
       estimated,
-      measured: !estimated,
+      measured,
       coverageMethod: (data.coverageMethod as string) ?? 'unknown',
       branchDataCollected,
       functionDataCollected,
