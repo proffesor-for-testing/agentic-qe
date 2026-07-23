@@ -627,3 +627,46 @@ describe('#569 — findCargoRoot must not over-claim', () => {
     expect(isRustProject(path.join(crate, 'src'))).toBe(true);
   });
 });
+
+describe('#569 — classification must be relative to the analysis root', () => {
+  let base: string;
+  let proj: string;
+
+  beforeEach(() => {
+    // A perfectly ordinary project that happens to live under an ancestor
+    // directory named "tests" — a CI workspace, ~/examples/myapp, or a monorepo
+    // packages/test-utils/ subtree.
+    base = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-569-root-'));
+    proj = path.join(base, 'tests', 'myapp');
+    fs.mkdirSync(path.join(proj, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(proj, 'Cargo.toml'), '[package]\nname = "myapp"\n');
+    fs.writeFileSync(
+      path.join(proj, 'src', 'lib.rs'),
+      'pub fn f(x: u8) -> u8 {\n    if x > 0 { x } else { 0 }\n}\n'
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(base, { recursive: true, force: true });
+  });
+
+  it('does not classify production code as test code because of an ancestor directory', () => {
+    // Court charge (CONFIRMED): against the ABSOLUTE path, every file in this
+    // project matched the `tests` segment, so the whole project was dropped and
+    // coverage analysis returned null.
+    const lib = path.join(proj, 'src', 'lib.rs');
+    expect(isTestPath(lib, proj)).toBe(false);
+  });
+
+  it('still classifies a tests/ directory INSIDE the analyzed tree', () => {
+    const inner = path.join(proj, 'tests', 'it.rs');
+    expect(isTestPath(inner, proj)).toBe(true);
+  });
+
+  it('analyzes a project living under an ancestor "tests" directory', () => {
+    const result = buildEstimatedCoverage(proj);
+    expect(result).not.toBeNull();
+    expect(result!.data.files.length).toBeGreaterThan(0);
+    expect(result!.data.files.some(f => f.path.endsWith('lib.rs'))).toBe(true);
+  });
+});

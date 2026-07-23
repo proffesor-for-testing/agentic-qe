@@ -74,7 +74,7 @@ async function collectCoverage(
 ): Promise<{ collected: CollectedCoverage | null; ranTests: boolean }> {
   const existing = await loadCoverageData(targetPath);
   if (existing) {
-    const productionFiles = existing.files.filter(f => !isTestPath(f.path));
+    const productionFiles = existing.files.filter(f => !isTestPath(f.path, targetPath));
     const files = productionFiles.length > 0 ? productionFiles : existing.files;
     return {
       collected: {
@@ -100,7 +100,7 @@ async function collectCoverage(
   const ranTests = await tryRunJsCoverage(targetPath);
   const afterRun = await loadCoverageData(targetPath);
   if (afterRun) {
-    const productionFiles = afterRun.files.filter(f => !isTestPath(f.path));
+    const productionFiles = afterRun.files.filter(f => !isTestPath(f.path, targetPath));
     const files = productionFiles.length > 0 ? productionFiles : afterRun.files;
     return {
       collected: {

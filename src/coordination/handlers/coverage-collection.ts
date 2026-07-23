@@ -109,13 +109,29 @@ const TEST_FILENAME_PATTERNS: RegExp[] = [
  * as a production gap (the original bug), a false positive silently drops real
  * production code from the denominator. Hence anchored patterns, not substrings.
  */
-export function isTestPath(filePath: string): boolean {
+export function isTestPath(filePath: string, rootDir?: string): boolean {
   const normalized = filePath.split(path.sep).join('/');
   const basename = path.basename(normalized);
 
   if (TEST_FILENAME_PATTERNS.some(p => p.test(basename))) return true;
+
+  // Directory check must run on the path RELATIVE to the analysis root.
+  // Against the absolute path, a project that merely *lives* under a directory
+  // called `tests` — `~/examples/myapp`, a CI workspace at `/build/spec/proj`,
+  // a monorepo `packages/test-utils/` — has every one of its source files
+  // classified as test code, and coverage analysis returns null for the whole
+  // project. Only directories *inside* the analyzed tree are meaningful.
+  let relative = normalized;
+  if (rootDir) {
+    const normalizedRoot = path.resolve(rootDir).split(path.sep).join('/');
+    const absolute = path.resolve(filePath).split(path.sep).join('/');
+    if (absolute === normalizedRoot || absolute.startsWith(`${normalizedRoot}/`)) {
+      relative = absolute.slice(normalizedRoot.length).replace(/^\//, '');
+    }
+  }
+
   // Rust convention: `foo_test.rs` handled above; `tests/` dir handled here.
-  return normalized.split('/').some(segment => TEST_DIRS.has(segment));
+  return relative.split('/').some(segment => TEST_DIRS.has(segment));
 }
 
 /**
@@ -409,7 +425,7 @@ export async function collectRustCoverage(
     const parsed = parseLcovInfo(fs.readFileSync(outPath, 'utf-8'));
 
     // Drop test targets from the production-coverage view (#569 contradiction 3).
-    const productionFiles = parsed.files.filter(f => !isTestPath(f.path));
+    const productionFiles = parsed.files.filter(f => !isTestPath(f.path, crateRoot));
     if (productionFiles.length === 0) return null;
 
     const data = withRecomputedSummary(productionFiles);
@@ -491,6 +507,8 @@ function withRecomputedSummary(files: FileCoverage[]): CoverageData {
 
 function walkSourceFiles(targetPath: string): string[] {
   const found: string[] = [];
+  // Classification is relative to the analysis root (see isTestPath).
+  const rootDir = targetPath;
 
   function walk(dir: string, depth: number): void {
     if (depth > 6) return;
@@ -504,7 +522,7 @@ function walkSourceFiles(targetPath: string): string[] {
         walk(full, depth + 1);
       } else if (entry.isFile()) {
         if (!SOURCE_EXTENSIONS.has(path.extname(entry.name))) continue;
-        if (isTestPath(full)) continue;
+        if (isTestPath(full, rootDir)) continue;
         found.push(full);
       }
     }
