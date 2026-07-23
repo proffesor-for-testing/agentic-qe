@@ -28,7 +28,12 @@ export interface TaskHandlerContext {
   /** Lazy service getters */
   getCoverageAnalyzer(): CoverageAnalyzerService;
   getSecurityScanner(): SecurityScannerService;
-  getTestGenerator(): TestGeneratorService;
+  /**
+   * Async (#567): resolves the ADR-043 LLM router before constructing the
+   * service. Pass `useLLM: false` to get a router-free generator (deterministic
+   * templates only) for callers that set `aiEnhancement: false`.
+   */
+  getTestGenerator(useLLM?: boolean): Promise<TestGeneratorService>;
   getKnowledgeGraph(): KnowledgeGraphService;
   getQualityAnalyzer(): QualityAnalyzerService;
 

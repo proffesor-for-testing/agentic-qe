@@ -32,6 +32,54 @@ import {
   shouldEnableRouter,
   detectAvailableProvidersFromEnv,
 } from './router/config-store.js';
+import {
+  setAgentProviderOverrides,
+  createOverrideRoutingRules,
+} from './router/agent-router-config.js';
+import { DEFAULT_QE_ROUTING_RULES } from './router/routing-rules.js';
+import { createLogger } from '../../logging/logger-factory.js';
+
+const routerServiceLogger = createLogger('llm/router-service');
+
+/**
+ * Issue #568: make `.agentic-qe/llm-config.json`'s `agentOverrides` map actually
+ * take effect.
+ *
+ * Two steps, and both are needed:
+ *   1. install the map so `getPreferredModelForAgent()` consults it, and
+ *   2. materialize a routing rule per overridden agent and put it *ahead* of the
+ *      rules the router would otherwise evaluate.
+ *
+ * Step 2 is the part that was missing before: `HybridRouter` only ever evaluates
+ * `config.rules` (falling back to `DEFAULT_QE_ROUTING_RULES`), and the generated
+ * per-agent ruleset was never installed into either — which is why the whole
+ * `agent-router-config` mechanism was unreachable from outside a single call
+ * stack.
+ *
+ * No overrides on disk => returns the config untouched.
+ */
+function applyAgentOverrides(config: RouterConfig): RouterConfig {
+  // Pass each provider's own default model so a `{ "provider": "ollama" }`
+  // override resolves to a model ollama can serve, not the Claude model id the
+  // agent's category default happened to carry.
+  const providerDefaultModels: Partial<Record<ExtendedProviderType, string>> = {};
+  for (const [provider, cfg] of Object.entries(config.providers ?? {})) {
+    if (cfg?.defaultModel) {
+      providerDefaultModels[provider as ExtendedProviderType] = cfg.defaultModel;
+    }
+  }
+  setAgentProviderOverrides(config.agentOverrides, providerDefaultModels);
+
+  const overrideRules = createOverrideRoutingRules();
+  if (overrideRules.length === 0) {
+    return config;
+  }
+
+  // Mirror HybridRouter's own fallback so materializing overrides never has the
+  // side effect of dropping the default QE rules.
+  const baseRules = config.rules.length > 0 ? config.rules : DEFAULT_QE_ROUTING_RULES;
+  return { ...config, rules: [...overrideRules, ...baseRules] };
+}
 
 /**
  * Options accepted by createLLMRouterService(). All optional — defaults
@@ -90,11 +138,11 @@ export async function createLLMRouterService(
 ): Promise<BuiltLLMRouter | null> {
   // Honor the test-injected ProviderManager path first.
   if (options.providerManager) {
-    const config = loadRouterConfig({
+    const config = applyAgentOverrides(loadRouterConfig({
       projectRoot: options.projectRoot,
       override: options.override,
       env: options.env,
-    });
+    }));
     const router = new HybridRouter(options.providerManager, config);
     await router.initialize();
     return {
@@ -109,15 +157,32 @@ export async function createLLMRouterService(
     return null;
   }
 
-  const config = loadRouterConfig({
+  const config = applyAgentOverrides(loadRouterConfig({
     projectRoot: options.projectRoot,
     override: options.override,
     env: options.env,
-  });
+  }));
 
   const enabled = pickEnabledProviders(config, options.env ?? process.env);
   if (enabled.length === 0) {
     return null;
+  }
+
+  // Issue #568: an override naming a provider that isn't enabled would silently
+  // fall through to the default chain — the exact "configured it and nothing
+  // happened" failure this feature exists to avoid. Say so out loud. We do NOT
+  // auto-enable it: that would opt the user into a provider (and possibly paid
+  // billing) they never turned on.
+  const enabledSet = new Set<ExtendedProviderType>(enabled);
+  for (const [agentType, override] of Object.entries(config.agentOverrides ?? {})) {
+    if (override.provider && !enabledSet.has(override.provider)) {
+      routerServiceLogger.warn(
+        `[llm-config] agentOverrides["${agentType}"] routes to provider ` +
+        `"${override.provider}", which is not enabled (no API key detected and not ` +
+        `enabled in .agentic-qe/llm-config.json). This override will not take effect ` +
+        `until that provider is available.`
+      );
+    }
   }
 
   const { primary, fallbacks } = pickPrimaryAndFallbacks(config, enabled);

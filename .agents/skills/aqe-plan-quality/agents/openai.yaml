@@ -1,0 +1,4 @@
+interface:
+  display_name: "AQE Plan Quality"
+  short_description: "Build risk-based QE plans with the AQE fleet"
+  default_prompt: "Use $aqe-plan-quality to create a risk-based quality plan for this change."

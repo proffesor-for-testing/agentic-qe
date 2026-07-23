@@ -132,7 +132,7 @@ export interface InitOptions {
   withKiloCode?: boolean;
   /** Install Roo Code MCP config and custom mode */
   withRooCode?: boolean;
-  /** Install OpenAI Codex CLI MCP config and AGENTS.md */
+  /** Install OpenAI Codex CLI MCP, AGENTS.md, hooks, and QE skills */
   withCodex?: boolean;
   /** Install Windsurf MCP config and rules */
   withWindsurf?: boolean;

@@ -110,3 +110,48 @@ process, SLAs, and the override-review cadence in
   dep guard set and `overrides` block are manually maintained.
 - **Reversible:** scripts and workflows are additive and independently
   removable; they touch no production runtime code.
+
+---
+
+## Amendment (2026-07-23) — optional peers are consumer-reachable (issue #565)
+
+**Trigger.** The daily audit filed [#565](https://github.com/proffesor-for-testing/agentic-qe/issues/565):
+4 HIGH findings on `agentic-qe`, `@huggingface/transformers`, `onnxruntime-node`,
+and `adm-zip` ([GHSA-xcpc-8h2w-3j85](https://github.com/advisories/GHSA-xcpc-8h2w-3j85),
+crafted ZIP triggers a 4 GB allocation) — all four the same chain, all four with
+`Fix: none`.
+
+**What we had got wrong.** `@huggingface/transformers` was declared an *optional*
+`peerDependency`. We had already made the code side safe — it is loaded through a
+lazy `await import()` and degrades to a clear "not installed" error — but
+`peerDependenciesMeta.optional: true` does **not** mean "not installed". npm ≥7
+auto-installs optional peers; `optional` only suppresses the error when the peer
+*cannot* be resolved. So every `npm install agentic-qe` really did pull
+`@huggingface/transformers → onnxruntime-node → adm-zip@0.5.x`, and the consumer
+audit was right to flag it.
+
+**Why no in-range fix exists.** `adm-zip@0.6.0` is published, but the current
+`onnxruntime-node@1.27.0` still declares `adm-zip: "^0.5.16"`, and the current
+`@huggingface/transformers@4.2.0` pins `onnxruntime-node@1.24.3`. Root `overrides`
+would fix our own tree and, per the policy above, reach no consumer. There is no
+version of this dependency chain a consumer can resolve to that is not vulnerable.
+
+**Decision.** Remove `@huggingface/transformers` from `peerDependencies` /
+`peerDependenciesMeta`. It stays a `devDependency` (so our own tests and the
+in-process embedding path keep working) and becomes an explicit, documented opt-in
+for users who want local in-process embeddings. Both load sites
+(`integrations/embeddings/base/EmbeddingGenerator.ts`,
+`learning/real-embeddings.ts`) raise an actionable install/endpoint message when it
+is absent. `adm-zip: ">=0.6.0"` is added to `overrides`/`resolutions` for our own
+dev tree.
+
+**Generalized rule.** *An optional `peerDependency` is consumer-reachable and is in
+scope for the consumer audit.* Making a dependency optional at the **code** level
+(lazy import + graceful degradation) does not make it optional at the **install**
+level. Removing an optional peer is not a breaking change — consumers who were
+relying on the transitive install get a precise error telling them what to install.
+
+**Consequence.** Users who want in-process embeddings must now
+`npm install @huggingface/transformers` themselves, accepting the advisory
+knowingly. Everyone using an embedding endpoint (the default) no longer carries a
+HIGH CVE they never asked for.

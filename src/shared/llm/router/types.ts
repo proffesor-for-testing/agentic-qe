@@ -51,6 +51,7 @@ export type ExtendedProviderType =
 export const ALL_PROVIDER_TYPES: readonly ExtendedProviderType[] = [
   'claude',
   'claude-code',   // ADR-123: subscription-billed via `claude -p`
+  'codex',         // ADR-124 M3.5: subscription-billed via `codex exec` (issue #568)
   'openai',
   'ollama',
   'openrouter',
@@ -781,6 +782,52 @@ export interface RouterConfig {
 
   /** Audit logging configuration (ADR-043) */
   auditConfig?: AuditConfig;
+
+  /**
+   * Per-agent-type provider/model overrides (issue #568).
+   *
+   * Keyed by agent type (`qe-security-scanner`, `qe-test-architect`, ...).
+   * These take priority over the category defaults in
+   * `agent-router-config.ts` (`AGENT_CATEGORY_MAP` -> `DEFAULT_CATEGORY_MODELS`),
+   * letting a user route security-sensitive agents to a stronger model and
+   * mechanical ones to a cheap/local provider without touching
+   * `defaultProvider`.
+   *
+   * Set on disk in `.agentic-qe/llm-config.json`:
+   * ```jsonc
+   * {
+   *   "defaultProvider": "claude-code",
+   *   "agentOverrides": {
+   *     "qe-security-scanner": { "provider": "cognitum", "model": "cognitum-high" },
+   *     "qe-mutation-tester":  { "provider": "ollama" }
+   *   }
+   * }
+   * ```
+   * Unset fields keep their category default. Never put API keys here.
+   */
+  agentOverrides?: Record<string, AgentProviderOverride>;
+}
+
+/**
+ * On-disk, per-agent-type routing override (issue #568).
+ *
+ * A deliberately narrow, hand-editable subset of `ModelPreference` from
+ * `agent-router-config.ts`: `provider` and `model` are the only fields a user
+ * realistically wants to set by hand, but `temperature`/`maxTokens`/`priority`
+ * are accepted for parity with the in-process `AgentRoutingOverride` mechanism.
+ * Every field is optional and falls back to the agent's category default.
+ */
+export interface AgentProviderOverride {
+  /** Provider to route this agent type through. */
+  provider?: ExtendedProviderType;
+  /** Model identifier within that provider. */
+  model?: string;
+  /** Sampling temperature. */
+  temperature?: number;
+  /** Max tokens for typical requests. */
+  maxTokens?: number;
+  /** Rule priority; higher wins. Defaults to above the category rule. */
+  priority?: number;
 }
 
 // ============================================================================

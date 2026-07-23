@@ -69,6 +69,7 @@ export type {
 
   // Configuration
   RouterConfig,
+  AgentProviderOverride,
 
   // Chat types
   ChatParams,
@@ -151,6 +152,11 @@ export {
   createCategoryRoutingRules,
   createAgentAwareRules,
   createAllAgentRoutingRules,
+  // On-disk per-agent overrides (issue #568)
+  setAgentProviderOverrides,
+  getAgentProviderOverrides,
+  resetAgentProviderOverrides,
+  createOverrideRoutingRules,
   // Alternative models
   getAlternativeModelsForAgent,
   // Configuration builder

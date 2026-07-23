@@ -10,19 +10,33 @@ vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs');
   return {
     ...actual,
+    copyFileSync: vi.fn(),
     existsSync: vi.fn(),
     mkdirSync: vi.fn(),
+    readdirSync: vi.fn(),
+    statSync: vi.fn(),
     writeFileSync: vi.fn(),
     readFileSync: vi.fn(),
   };
 });
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  readFileSync,
+} from 'fs';
 
 const mockExistsSync = existsSync as ReturnType<typeof vi.fn>;
 const mockMkdirSync = mkdirSync as ReturnType<typeof vi.fn>;
 const mockWriteFileSync = writeFileSync as ReturnType<typeof vi.fn>;
 const mockReadFileSync = readFileSync as ReturnType<typeof vi.fn>;
+const mockCopyFileSync = copyFileSync as ReturnType<typeof vi.fn>;
+const mockReaddirSync = readdirSync as ReturnType<typeof vi.fn>;
+const mockStatSync = statSync as ReturnType<typeof vi.fn>;
 
 describe('CodexInstaller', () => {
   const projectRoot = '/test/project';
@@ -88,6 +102,8 @@ describe('CodexInstaller', () => {
       expect(result.success).toBe(true);
       expect(result.mcpConfigured).toBe(true);
       expect(result.agentsMdInstalled).toBe(true);
+      expect(result.hooksConfigured).toBe(false);
+      expect(result.skillsInstalled).toBe(0);
       expect(result.errors).toEqual([]);
       expect(result.configPath).toBe(join(projectRoot, '.codex/config.toml'));
       expect(result.agentsMdPath).toBe(join(projectRoot, 'AGENTS.md'));
@@ -107,6 +123,57 @@ describe('CodexInstaller', () => {
       expect(content).toMatch(/^command = "npx"$/m);
       expect(content).toMatch(/^args = \["-y", "agentic-qe@latest", "mcp"\]$/m);
       expect(content).toMatch(/^\[mcp_servers\.agentic-qe\.env\]$/m);
+    });
+  });
+
+  describe('install() - Codex hooks and skills', () => {
+    it('installs packaged hooks and AQE skills', async () => {
+      mockExistsSync.mockImplementation((value: unknown) => {
+        const file = String(value);
+        return file.includes('/workspaces/agentic-qe/.codex')
+          || file.includes('/workspaces/agentic-qe/.agents')
+          || file.includes('/workspaces/agentic-qe/.claude/hooks/aqe-hook.cjs')
+          || file.includes('/workspaces/agentic-qe/.claude/helpers/ruflo-hook.cjs');
+      });
+      mockReaddirSync.mockImplementation((value: unknown) => {
+        const dir = String(value);
+        if (dir.endsWith('.codex/hooks')) return ['aqe-codex-hook.cjs', 'ruflo-codex-hook.cjs'];
+        if (dir.endsWith('.agents/skills')) return ['aqe-plan-quality'];
+        if (dir.endsWith('aqe-plan-quality')) return ['SKILL.md'];
+        return [];
+      });
+      mockStatSync.mockImplementation((value: unknown) => ({
+        isFile: () => String(value).endsWith('.cjs') || String(value).endsWith('.md'),
+        isDirectory: () => !String(value).endsWith('.cjs') && !String(value).endsWith('.md'),
+      }));
+      mockReadFileSync.mockImplementation((value: unknown) => {
+        if (String(value).endsWith('.codex/hooks.json')) {
+          return JSON.stringify({ hooks: { SessionStart: [] } });
+        }
+        return '';
+      });
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot }).install();
+
+      expect(result.hooksConfigured).toBe(true);
+      expect(result.skillsInstalled).toBe(1);
+      expect(mockCopyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('aqe-codex-hook.cjs'),
+        join(projectRoot, '.codex/hooks/aqe-codex-hook.cjs'),
+      );
+      expect(mockCopyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('.claude/hooks/aqe-hook.cjs'),
+        join(projectRoot, '.codex/hooks/aqe-runtime.cjs'),
+      );
+      expect(mockCopyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('.claude/helpers/ruflo-hook.cjs'),
+        join(projectRoot, '.codex/hooks/ruflo-runtime.cjs'),
+      );
+      expect(mockCopyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('SKILL.md'),
+        join(projectRoot, '.agents/skills/aqe-plan-quality/SKILL.md'),
+      );
     });
   });
 

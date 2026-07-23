@@ -62,7 +62,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-cline', 'Include Cline MCP config and custom QE mode')
       .option('--with-kilocode', 'Include Kilo Code MCP config and custom QE mode')
       .option('--with-roocode', 'Include Roo Code MCP config and custom QE mode')
-      .option('--with-codex', 'Include OpenAI Codex CLI MCP config and AGENTS.md')
+      .option('--with-codex', 'Include OpenAI Codex CLI MCP, AGENTS.md, hooks, and QE skills')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
       .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')

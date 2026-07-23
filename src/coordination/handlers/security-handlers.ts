@@ -276,8 +276,23 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         jstsFilesScanned: jstsFiles.length,
         otherFilesScanned: otherFiles.length,
         coverage: sastResult?.coverage,
-        ...(otherFiles.length > 0 && jstsFiles.length === 0 ? {
-          note: 'Non-JS/TS files were scanned with cross-language pattern matching. For deeper analysis, use language-specific security tools.',
+        // #569 (companion note): "zero findings" from a scan that ran no
+        // language-specific analysis is not evidence of absence, and combined
+        // with a coverage number it reads as "this code is clean and covered".
+        // Say plainly which depth of analysis actually ran.
+        deepAnalysisPerformed: jstsFiles.length > 0,
+        analysisDepth: jstsFiles.length > 0
+          ? (otherFiles.length > 0 ? 'full-sast-on-js-ts; pattern-matching-on-other-languages' : 'full-sast')
+          : 'pattern-matching-only',
+        ...(jstsFiles.length === 0 ? {
+          note: otherFiles.length > 0
+            ? 'NO LANGUAGE-SPECIFIC ANALYSIS RAN. Only cross-language pattern matching ' +
+              '(secrets, CORS, eval/exec) was applied to these files — full SAST is ' +
+              'implemented for JS/TS only. A zero-finding result here means "nothing ' +
+              'matched a generic pattern", NOT "no vulnerabilities". Run a ' +
+              'language-specific tool (cargo audit / clippy, bandit, gosec, semgrep) ' +
+              'for real coverage of this codebase.'
+            : 'No source files were analyzed.',
         } : {}),
       });
     } catch (error) {

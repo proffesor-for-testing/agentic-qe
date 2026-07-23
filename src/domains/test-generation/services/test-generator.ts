@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
+import { toErrorMessage } from '../../../shared/error-utils.js';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   GenerateTestsRequest,
@@ -227,8 +228,8 @@ export class TestGeneratorService implements ITestGenerationService {
     sourceCode: string,
     analysis: CodeAnalysis | null,
     context?: TestGenerationContext
-  ): Promise<string> {
-    if (!this.llmRouter) return testCode;
+  ): Promise<{ code: string; enhanced: boolean }> {
+    if (!this.llmRouter) return { code: testCode, enhanced: false };
 
     try {
       let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
@@ -292,6 +293,10 @@ Return ONLY the enhanced test code, no explanations.`,
         model: modelId,
         maxTokens: this.config.llmMaxTokens,
         temperature: 0.3, // Low temperature for consistent code generation
+        // Issue #568: the router's per-agent routing rules (including the user's
+        // on-disk `agentOverrides`) match on `agentType`. Without it, an override
+        // for `qe-test-architect` silently never fires on this call.
+        agentType: 'qe-test-architect',
       });
 
       if (response.content && response.content.length > 0) {
@@ -301,13 +306,22 @@ Return ONLY the enhanced test code, no explanations.`,
         if (codeMatch) {
           enhancedCode = codeMatch[1].trim();
         }
-        return enhancedCode || testCode;
+        // #567: only claim enhancement when the model actually returned code.
+        // An empty/unusable response falls back to the template, and the caller
+        // must be told that is what happened.
+        return enhancedCode
+          ? { code: enhancedCode, enhanced: true }
+          : { code: testCode, enhanced: false };
       }
 
-      return testCode;
+      return { code: testCode, enhanced: false };
     } catch (error) {
-      logger.warn('LLM enhancement failed, using original:');
-      return testCode;
+      // #567: a configured-but-broken provider (401, timeout, wrong model) used
+      // to fall back to the template while the result still reported
+      // `llmEnhanced: true` — the exact "silently receives non-LLM scaffolding"
+      // failure this issue is about, just one layer deeper. Report the truth.
+      logger.warn(`LLM enhancement failed, using deterministic template: ${toErrorMessage(error)}`);
+      return { code: testCode, enhanced: false };
     }
   }
 
@@ -379,6 +393,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         model: modelId,
         maxTokens: 1024,
         temperature: 0.5,
+        // Issue #568: see above — required for per-agent routing to apply.
+        agentType: 'qe-test-architect',
       });
 
       if (response.content) {
@@ -604,9 +620,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
     let testCode = generator.generateTests(context);
 
-    // ADR-051: Enhance with LLM if enabled and available
+    // ADR-051: Enhance with LLM if enabled and available.
+    // #567: `llmEnhanced` reflects whether the LLM actually produced the code,
+    // not merely whether a router was configured — a broken provider must not
+    // report AI-enhanced output it did not produce.
+    let llmEnhanced = false;
     if (this.isLLMEnhancementAvailable() && sourceContent) {
-      testCode = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis, context);
+      const result = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis, context);
+      testCode = result.code;
+      llmEnhanced = result.enhanced;
     }
 
     const test: GeneratedTest = {
@@ -620,8 +642,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       // ADR-078: Include detected language and framework
       language: effectiveLanguage as SupportedLanguage | undefined,
       framework: framework,
-      // ADR-051: Mark if LLM-enhanced
-      llmEnhanced: this.isLLMEnhancementAvailable(),
+      // ADR-051 / #567: true only when the LLM actually produced this code.
+      llmEnhanced,
     };
 
     // ADR-077: Compilation validation if requested

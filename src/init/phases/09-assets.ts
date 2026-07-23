@@ -342,6 +342,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       if (res.errors.length > 0) context.services.warn(`Codex warnings: ${res.errors.join(', ')}`);
       if (res.mcpConfigured) context.services.log(`  Codex MCP: ${res.configPath}`);
       if (res.agentsMdInstalled) context.services.log(`  Codex AGENTS.md: ${res.agentsMdPath}`);
+      if (res.hooksConfigured) context.services.log(`  Codex hooks: ${res.hooksPath}`);
+      if (res.skillsInstalled > 0) context.services.log(`  Codex skills: ${res.skillsInstalled} installed`);
     }
 
     if (options.withWindsurf || (options.autoMode && existsSync(join(projectRoot, '.windsurf')))) {

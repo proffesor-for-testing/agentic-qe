@@ -85,11 +85,14 @@ function resolveSecurityScannerService(memory: MemoryBackend): SecurityScannerSe
   return factory(memory);
 }
 
-function resolveTestGeneratorService(memory: MemoryBackend): TestGeneratorService {
-  const factory = DomainServiceRegistry.resolve<(m: MemoryBackend) => TestGeneratorService>(
-    ServiceKeys.createTestGeneratorService
-  );
-  return factory(memory);
+function resolveTestGeneratorService(
+  memory: MemoryBackend,
+  llmRouter?: unknown
+): TestGeneratorService {
+  const factory = DomainServiceRegistry.resolve<
+    (m: MemoryBackend, r?: unknown) => TestGeneratorService
+  >(ServiceKeys.createTestGeneratorService);
+  return factory(memory, llmRouter);
 }
 
 function resolveKnowledgeGraphService(memory: MemoryBackend): KnowledgeGraphService {
@@ -209,6 +212,8 @@ export class DomainTaskExecutor implements TaskHandlerContext {
   private coverageAnalyzer: CoverageAnalyzerService | null = null;
   private securityScanner: SecurityScannerService | null = null;
   private testGenerator: TestGeneratorService | null = null;
+  /** #567: router-free instance for callers that opt out of LLM enhancement. */
+  private deterministicTestGenerator: TestGeneratorService | null = null;
   private knowledgeGraph: KnowledgeGraphService | null = null;
   private qualityAnalyzer: QualityAnalyzerService | null = null;
 
@@ -280,11 +285,60 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     return this.securityScanner;
   }
 
-  getTestGenerator(): TestGeneratorService {
+  /**
+   * Issue #567: async so the ADR-043 LLM router can be resolved before the
+   * generator is constructed. `TestGeneratorService` captures `llmRouter` in its
+   * constructor, so a router obtained after construction would never be seen —
+   * the service must not be built until we know whether one exists.
+   *
+   * Router resolution order:
+   *   1. `kernel.llmRouter` — set during `QEKernelImpl.initialize()`.
+   *   2. the shared MCP singleton — same instance the kernel registers via
+   *      `setSharedLLMRouter()`, and the lazily-built one in standalone MCP mode.
+   *
+   * Both may be absent (no provider keys, no llm-config.json, or the
+   * `AQE_LLM_ROUTER_DISABLED` kill-switch). That is not an error: the generator
+   * falls back to deterministic template generation exactly as before.
+   */
+  async getTestGenerator(useLLM = true): Promise<TestGeneratorService> {
+    // Two cached instances, because the router is a constructor-captured
+    // dependency: callers passing `aiEnhancement: false` must get a service
+    // that was never handed a router, not one that merely declines to use it.
+    if (!useLLM) {
+      if (!this.deterministicTestGenerator) {
+        this.deterministicTestGenerator = resolveTestGeneratorService(this.kernel.memory);
+      }
+      return this.deterministicTestGenerator;
+    }
     if (!this.testGenerator) {
-      this.testGenerator = resolveTestGeneratorService(this.kernel.memory);
+      this.testGenerator = resolveTestGeneratorService(
+        this.kernel.memory,
+        await this.resolveLLMRouter()
+      );
     }
     return this.testGenerator;
+  }
+
+  /**
+   * Best-effort LLM router lookup. Never throws — a missing or failed router
+   * degrades to `undefined` so deterministic generation still runs.
+   *
+   * The import is dynamic: `mcp/tools/base` transitively reaches back into
+   * coordination, so a static import here would be circular.
+   */
+  private async resolveLLMRouter(): Promise<unknown> {
+    if (this.kernel.llmRouter) {
+      return this.kernel.llmRouter;
+    }
+    try {
+      const { getSharedLLMRouter } = await import('../mcp/tools/base.js');
+      return (await getSharedLLMRouter()) ?? undefined;
+    } catch (error) {
+      logger.debug('LLM router unavailable; using deterministic generation', {
+        error: toErrorMessage(error),
+      });
+      return undefined;
+    }
   }
 
   getKnowledgeGraph(): KnowledgeGraphService {

@@ -82,11 +82,31 @@ export {
 // ============================================================================
 import { DomainServiceRegistry, ServiceKeys } from '../../shared/domain-service-registry';
 import type { MemoryBackend } from '../../kernel/interfaces';
-import { createTestGeneratorService as _createTestGeneratorService } from './services/test-generator';
+import type { HybridRouter } from '../../shared/llm/router/hybrid-router';
+import {
+  createTestGeneratorService as _createTestGeneratorService,
+  createTestGeneratorServiceWithDependencies as _createTestGeneratorServiceWithDependencies,
+} from './services/test-generator';
 
+/**
+ * Issue #567: the factory MUST accept an optional `llmRouter`.
+ *
+ * The flat MCP tool `test_generate_enhanced` and the CLI both reach the
+ * generator through the task-executor, which resolves it from this registry.
+ * When the factory dropped `llmRouter` on the floor,
+ * `TestGeneratorService.isLLMEnhancementAvailable()` was permanently false and
+ * the ADR-051 LLM branch was unreachable on those paths — the tool silently
+ * returned generic template scaffolding no matter how the provider was
+ * configured. Keep the second parameter optional so the router stays a
+ * degradation-friendly dependency: no router => deterministic templates, same
+ * as before.
+ */
 DomainServiceRegistry.register(
   ServiceKeys.createTestGeneratorService,
-  (memory: MemoryBackend) => _createTestGeneratorService(memory),
+  (memory: MemoryBackend, llmRouter?: HybridRouter) =>
+    llmRouter
+      ? _createTestGeneratorServiceWithDependencies({ memory, llmRouter })
+      : _createTestGeneratorService(memory),
 );
 
 export type {

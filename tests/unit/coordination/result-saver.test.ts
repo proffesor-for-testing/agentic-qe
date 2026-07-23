@@ -6,7 +6,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync } from 'fs';
+import * as os from 'os';
 import {
   ResultSaver,
   createResultSaver,
@@ -38,6 +39,11 @@ const COVERAGE_RESULT = {
   functionCoverage: 82.1,
   statementCoverage: 76.3,
   totalFiles: 42,
+  // #569: LCOV is only emitted for genuinely measured coverage — this fixture
+  // represents an instrumented run, so it declares its provenance.
+  estimated: false,
+  measured: true,
+  coverageMethod: 'instrumented-report',
   gaps: [
     { file: 'src/complex-module.ts', lines: [15, 22, 45, 67], risk: 'high' },
     { file: 'src/edge-cases.ts', lines: [8, 12], risk: 'medium' },
@@ -649,5 +655,56 @@ describe('ResultSaver integration', () => {
       'workflow_003',
       'workflow_004',
     ]);
+  });
+});
+
+describe('#569 — LCOV must never serialize an unmeasured result', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(os.tmpdir(), 'aqe-lcov-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const base = { branchCoverage: null, functionCoverage: null, totalFiles: 3, gaps: [] };
+
+  async function savedFormats(data: Record<string, unknown>): Promise<string[]> {
+    const saver = createResultSaver(dir);
+    const result = await saver.save('t', 'analyze-coverage' as never, data, {});
+    return result.files.map(f => f.format);
+  }
+
+  it('writes no LCOV for a static estimate', async () => {
+    // CONFIRMED CHARGE (cross-vendor reviewer): LCOV has nowhere to record
+    // provenance, so emitting it for an estimate hands downstream tools a file
+    // indistinguishable from instrumented output.
+    const formats = await savedFormats({
+      ...base, lineCoverage: 78, statementCoverage: 78,
+      estimated: true, measured: false, coverageMethod: 'static-estimation',
+    });
+    expect(formats).not.toContain('lcov');
+    expect(formats).toContain('json'); // the provenance-carrying artifact remains
+  });
+
+  it('writes no LCOV when nothing was collected', async () => {
+    // `null` would have serialized as `DA:1,0 / LF:100 / LH:0` — a measured 0%
+    // over 100 lines that nothing ever measured.
+    const formats = await savedFormats({
+      ...base, lineCoverage: null, statementCoverage: null, totalFiles: 0,
+      estimated: false, measured: false, coverageMethod: 'none',
+    });
+    expect(formats).not.toContain('lcov');
+  });
+
+  it('still writes LCOV for genuinely measured coverage', async () => {
+    const formats = await savedFormats({
+      ...base, lineCoverage: 69.2, branchCoverage: 55, functionCoverage: 72,
+      statementCoverage: 69.2, estimated: false, measured: true,
+      coverageMethod: 'cargo-llvm-cov',
+    });
+    expect(formats).toContain('lcov');
   });
 });

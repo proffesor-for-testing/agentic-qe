@@ -72,10 +72,12 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       framework: string;
       testType: 'unit' | 'integration' | 'e2e';
       coverageGoal: number;
+      aiEnhancement?: boolean;
     };
 
     try {
-      const generator = ctx.getTestGenerator();
+      // #567: honor the tool's documented `aiEnhancement` knob (default true).
+      const generator = await ctx.getTestGenerator(payload.aiEnhancement !== false);
 
       // Determine source files to analyze
       let sourceFiles: string[] = [];
@@ -161,11 +163,26 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         };
       });
 
+      // #567: surface whether the LLM branch actually ran. Previously the only
+      // clue that generation had silently fallen back to template scaffolding
+      // was a suspiciously constant coverage estimate and a sub-20ms duration.
+      const llmEnhanced = generatedTests.tests.some(t => t.llmEnhanced === true);
+
       return ok({
         testsGenerated: tests.length,
         coverageEstimate: generatedTests.coverageEstimate,
         tests,
         patternsUsed: generatedTests.patternsUsed,
+        llmEnhanced,
+        ...(llmEnhanced ? {} : {
+          generationMode: 'deterministic-template' as const,
+          note: payload.aiEnhancement === false
+            ? 'LLM enhancement was disabled by the caller (aiEnhancement: false).'
+            : 'No LLM provider was available, so tests are deterministic template ' +
+              'scaffolding rather than source-aware. Configure a provider in ' +
+              '.agentic-qe/llm-config.json (or set a provider API key) and ensure ' +
+              'AQE_LLM_ROUTER_DISABLED is not set.',
+        }),
       });
     } catch (error) {
       return err(toError(error));

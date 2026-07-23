@@ -15,6 +15,20 @@
 
 import { createHash } from 'crypto';
 
+/**
+ * Build identity mixed into every cache fingerprint so persisted entries never
+ * outlive the code that produced them. `__CLI_VERSION__` is substituted at bundle
+ * time; in source/test runs it is undefined and we fall back to a dev marker.
+ *
+ * `AQE_SESSION_CACHE_SALT` lets an operator force a cold cache without deleting
+ * anything (e.g. after a local rebuild that keeps the same version string).
+ */
+function getBuildIdentity(): string {
+  const version = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : 'dev';
+  const salt = (process.env.AQE_SESSION_CACHE_SALT ?? '').trim();
+  return salt ? `${version}+${salt}` : version;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -91,11 +105,23 @@ export class SessionOperationCache {
   }
 
   /**
-   * Compute a deterministic fingerprint from domain + action + input.
+   * Compute a deterministic fingerprint from build + domain + action + input.
    * Uses SHA-256 of the canonicalized JSON (recursively sorted keys), truncated to 16 hex chars.
+   *
+   * The build identity is part of the key on purpose. Entries are persisted to
+   * `kv_store` and survive process restarts *and package upgrades*, so a
+   * fingerprint over inputs alone means an upgraded install keeps replaying the
+   * previous version's answers until the TTL lapses — the fix looks like it did
+   * not work. That is exactly what happened while verifying issue #569: a
+   * project analyzed before the fix kept returning the old fabricated coverage
+   * numbers (`lineCoverage: 0, measured: true`) from cache, while an untouched
+   * project returned the corrected result.
+   *
+   * Including the version means an upgrade misses cleanly rather than serving
+   * stale answers; entries from the old build simply age out.
    */
   computeFingerprint(domain: string, action: string, input: Record<string, unknown>): string {
-    const canonical = canonicalStringify({ action, domain, input });
+    const canonical = canonicalStringify({ action, build: getBuildIdentity(), domain, input });
     return createHash('sha256').update(canonical).digest('hex').slice(0, 16);
   }
 

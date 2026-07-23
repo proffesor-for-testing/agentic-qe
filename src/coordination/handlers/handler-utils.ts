@@ -353,10 +353,17 @@ export function parseCoberturaXml(content: string): CoverageData {
       }
     }
 
-    // If no lines parsed, estimate from rates
+    // No per-line <line> entries — fall back to the file's reported line-rate.
+    //
+    // #569/ADR-126: the previous form (`linesTotal = 1; linesCovered = rate >= 0.5
+    // ? 1 : 0`) turned a measured 47% into 0% and a measured 51% into 100%, and
+    // the result was still labelled `estimated: false`. The line-rate itself IS
+    // instrumented data; only the per-line detail is missing. Scale it to a
+    // 100-line denominator so the measured rate survives at 1% granularity
+    // instead of being rounded to an extreme.
     if (linesTotal === 0 && !isNaN(lineRate)) {
-      linesTotal = 1;
-      linesCovered = lineRate >= 0.5 ? 1 : 0;
+      linesTotal = 100;
+      linesCovered = Math.round(Math.max(0, Math.min(1, lineRate)) * 100);
     }
 
     files.push({
