@@ -52,7 +52,11 @@ function main() {
 
   if (commandExists('ruflo')) { invokeHook('ruflo', [], hookArgs, stdinData); done(); }
   if (commandExists('claude-flow')) { invokeHook('claude-flow', [], hookArgs, stdinData); done(); }
-  invokeHook('npx', ['--prefer-offline', '--yes', 'ruflo@latest'], hookArgs, stdinData);
+  // Repository-local Codex hooks disable the network-capable fallback. They
+  // should use an installed stack binary and quietly no-op when it is absent.
+  if (process.env.RUFLO_HOOK_NPX !== '0') {
+    invokeHook('npx', ['--prefer-offline', '--yes', 'ruflo@latest'], hookArgs, stdinData);
+  }
   done();
 }
 
