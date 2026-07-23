@@ -1,13 +1,13 @@
 {
   "manifest": {
-    "version": "3.32.4",
+    "version": "3.32.2",
     "files": {
       "auto-memory-hook.mjs": "e3e1033b24704992ddef6b31c7fa9dd7fcd9e1af7935dd77ef73402b916b31e6",
       "hook-handler.cjs": "f87ec28684bfc5fd0a54c46bd2a53a3fb037defe71d0ea4b8a5cb88a2cd87a3f",
       "intelligence.cjs": "5a55d979cb7ba5c8c4f27f3b2e6d686fbb1045d180023b803da672a37e05b915",
-      "statusline.cjs": "af2703bdd710fb52af3221669266771ba1684157f34d77de21373890b5c2a126"
+      "statusline.cjs": "f6fcaedad7b521248ba57c494eb1a0ce696679fa3f8709f81edf3fdecef369c2"
     }
   },
-  "signature": "sexJgMxhPXdN6hdOAUxiBupen/PSnwe93zxnEiqok8TkWlA9ltiajTkC2ImizGlSUhuYBP6yfLoNCvH+nNlXCw==",
+  "signature": "r7TaWKVLZ6gxssGRM31J6usZrRm1Y5TAZXNmOfeLn+7VzWMrH6pZZPGTfSv6WMW49j8Ko3aamDBtahasWybSAw==",
   "algorithm": "ed25519"
 }

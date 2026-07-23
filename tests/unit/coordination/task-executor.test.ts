@@ -334,7 +334,7 @@ describe('DomainTaskExecutor', () => {
       }
     });
 
-    it('should save coverage results with LCOV', async () => {
+    it('should save coverage results, emitting LCOV only when measured', async () => {
       const task = createTestTask('analyze-coverage', {
         target: 'src/',
         detectGaps: true,
@@ -343,8 +343,20 @@ describe('DomainTaskExecutor', () => {
       const result = await executor.execute(task);
 
       expect(result.savedFiles).toBeDefined();
+      // The JSON artifact carries the full result including provenance and is
+      // always written.
+      expect(result.savedFiles!.find(f => f.endsWith('.json'))).toBeDefined();
+
+      // #569: LCOV has nowhere to record provenance, so it is written ONLY for
+      // genuinely measured coverage. Asserting it unconditionally would enshrine
+      // the bug where a static estimate was serialized as instrumented output.
+      const data = result.data as { measured?: boolean };
       const lcovFile = result.savedFiles!.find(f => f.endsWith('.lcov'));
-      expect(lcovFile).toBeDefined();
+      if (data.measured === true) {
+        expect(lcovFile).toBeDefined();
+      } else {
+        expect(lcovFile).toBeUndefined();
+      }
     });
   });
 

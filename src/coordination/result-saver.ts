@@ -280,6 +280,7 @@ export class ResultSaver {
       statementCoverage: number | null;
       totalFiles: number;
       estimated?: boolean;
+      measured?: boolean;
       coverageMethod?: string;
       warning?: string;
       gaps: Array<{ file: string; lines: number[]; risk: string }>;
@@ -292,8 +293,15 @@ export class ResultSaver {
     await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
     files.push(await this.createFileEntry(jsonPath, 'json'));
 
-    // Save LCOV format
-    if (options.includeSecondary !== false) {
+    // Save LCOV format — ONLY for genuinely measured coverage.
+    //
+    // #569/ADR-126: LCOV has nowhere to record provenance. Emitting it for an
+    // estimated (or absent) result hands downstream tools a file that is
+    // indistinguishable from instrumented output — `null` would serialize as
+    // `DA:1,0 / LF:100 / LH:0`, asserting a measured 0% over 100 lines that
+    // nothing ever measured. The JSON artifact above keeps the full result with
+    // its provenance; the lossy format is simply not written when it would lie.
+    if (options.includeSecondary !== false && data.measured === true) {
       const lcovPath = path.join(coverageDir, `${prefix}_coverage.lcov`);
       const lcovContent = this.generateLcov(data);
       await fs.writeFile(lcovPath, lcovContent);

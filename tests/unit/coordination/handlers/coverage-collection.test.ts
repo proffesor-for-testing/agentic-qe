@@ -735,3 +735,68 @@ describe('#569 — AQE_COVERAGE_NO_EXEC opt-out', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Charges filed by the cross-vendor (Codex/GPT) reviewer against the finished
+// work, confirmed by reproduction.
+// ---------------------------------------------------------------------------
+
+describe('#569 — an instrumented report must not launder test coverage', () => {
+  let dir: string;
+
+  function writeLcov(entries: Array<{ file: string; total: number; covered: number }>): void {
+    const body = entries.map(e => {
+      const da = Array.from({ length: e.total }, (_, i) => `DA:${i + 1},${i < e.covered ? 1 : 0}`).join('\n');
+      return `TN:\nSF:${e.file}\n${da}\nLF:${e.total}\nLH:${e.covered}\nend_of_record`;
+    }).join('\n');
+    fs.mkdirSync(path.join(dir, 'coverage'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'coverage', 'lcov.info'), body);
+  }
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-569-report-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reports the production figure, not one blended with test files', async () => {
+    // src at 10%, tests at 100%. The headline must be the production number.
+    writeLcov([
+      { file: 'src/lib.rs', total: 100, covered: 10 },
+      { file: 'tests/integration.rs', total: 100, covered: 100 },
+    ]);
+
+    const data = await analyzeDir(dir);
+    expect(data.lineCoverage).toBe(10);
+    expect((data.coverageByFile as Array<{ file: string }>).map(f => f.file))
+      .toEqual(['src/lib.rs']);
+  }, 120000);
+
+  it('reports no production coverage when the report contains only test files', async () => {
+    // CONFIRMED CHARGE: the empty-production-set fallback restored the
+    // unfiltered list, so `tests/verifier_matrix.rs` came back as a measured
+    // 79% coverage target — #569's third contradiction, verbatim.
+    writeLcov([{ file: 'tests/verifier_matrix.rs', total: 100, covered: 79 }]);
+
+    const data = await analyzeDir(dir);
+    expect(data.coverageByFile).toEqual([]);
+    expect(data.lineCoverage).toBeNull();
+    expect(data.measured).toBe(false);
+    expect(String(data.warning)).toMatch(/only test files/i);
+  }, 120000);
+});
+
+async function analyzeDir(dir: string): Promise<Record<string, unknown>> {
+  const executor = createTaskExecutor(createKernel() as never, {
+    saveResults: false, resultsDir: dir,
+    defaultLanguage: 'rust', defaultFramework: 'rust-test',
+  });
+  const result = await executor.execute({
+    id: `task-${dir}`, type: 'analyze-coverage', priority: 'p1', targetDomains: [],
+    payload: { target: dir, detectGaps: true }, timeout: 60000, createdAt: new Date(),
+  } as unknown as QueenTask);
+  expect(result.success).toBe(true);
+  return result.data as Record<string, unknown>;
+}

@@ -12,6 +12,7 @@ import { toError } from '../../shared/error-utils.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import type { TaskHandlerContext } from './handler-types';
 import { loadCoverageData } from './handler-utils';
+import type { CoverageData } from '../../domains/coverage-analysis/interfaces';
 import {
   buildEstimatedCoverage,
   collectRustCoverage,
@@ -66,6 +67,55 @@ async function tryRunJsCoverage(targetPath: string): Promise<boolean> {
 }
 
 /**
+ * Narrow an instrumented report to production files only, recomputing the
+ * aggregate from what survives.
+ *
+ * Returns `null` when the report contains no production files at all — the
+ * caller must NOT fall back to the unfiltered set, because that reports the test
+ * files' own coverage as the project's (#569's third contradiction).
+ */
+function productionOnly(
+  report: { files: CoverageData['files']; summary: CoverageData['summary'] },
+  targetPath: string
+): CollectedCoverage | null {
+  const files = report.files.filter(f => !isTestPath(f.path, targetPath));
+  if (files.length === 0) return null;
+
+  // Recompute rather than carrying the original summary: it was computed over
+  // the unfiltered set, so keeping it would blend test-file coverage into the
+  // production headline figure.
+  const sum = (pick: (f: CoverageData['files'][number]) => number) =>
+    files.reduce((acc, f) => acc + pick(f), 0);
+  const pct = (covered: number, total: number) =>
+    total > 0 ? Math.round((covered / total) * 100) : 0;
+
+  const totalLines = sum(f => f.lines.total);
+  const coveredLines = sum(f => f.lines.covered);
+  const branchDataCollected = files.some(f => f.branches.total > 0);
+  const functionDataCollected = files.some(f => f.functions.total > 0);
+
+  return {
+    data: {
+      files,
+      summary: {
+        line: pct(coveredLines, totalLines),
+        branch: pct(sum(f => f.branches.covered), sum(f => f.branches.total)),
+        function: pct(sum(f => f.functions.covered), sum(f => f.functions.total)),
+        statement: pct(coveredLines, totalLines),
+        files: files.length,
+      },
+    },
+    provenance: {
+      method: 'instrumented-report',
+      estimated: false,
+      branchDataCollected,
+      functionDataCollected,
+      notes: [],
+    },
+  };
+}
+
+/**
  * Collect coverage for a target, preferring real measurement over estimation
  * and always reporting which one happened (#569).
  *
@@ -77,24 +127,16 @@ async function tryRunJsCoverage(targetPath: string): Promise<boolean> {
  */
 async function collectCoverage(
   targetPath: string
-): Promise<{ collected: CollectedCoverage | null; ranTests: boolean }> {
+): Promise<{ collected: CollectedCoverage | null; ranTests: boolean; testOnlyReport?: boolean }> {
   const existing = await loadCoverageData(targetPath);
   if (existing) {
-    const productionFiles = existing.files.filter(f => !isTestPath(f.path, targetPath));
-    const files = productionFiles.length > 0 ? productionFiles : existing.files;
-    return {
-      collected: {
-        data: { ...existing, files, summary: { ...existing.summary, files: files.length } },
-        provenance: {
-          method: 'instrumented-report',
-          estimated: false,
-          branchDataCollected: files.some(f => f.branches.total > 0),
-          functionDataCollected: files.some(f => f.functions.total > 0),
-          notes: [],
-        },
-      },
-      ranTests: false,
-    };
+    const fromReport = productionOnly(existing, targetPath);
+    // A report whose only entries are test files yields NO production coverage.
+    // Falling back to the unfiltered set here would report the test files'
+    // own coverage as the project's — recreating #569's third contradiction
+    // (`tests/verifier_matrix.rs` analysed at 79.2% as if it were a target).
+    if (!fromReport) return { collected: null, ranTests: false, testOnlyReport: true };
+    return { collected: fromReport, ranTests: false };
   }
 
   // #569 work item 1: delegate to real instrumentation where available.
@@ -106,21 +148,9 @@ async function collectCoverage(
   const ranTests = await tryRunJsCoverage(targetPath);
   const afterRun = await loadCoverageData(targetPath);
   if (afterRun) {
-    const productionFiles = afterRun.files.filter(f => !isTestPath(f.path, targetPath));
-    const files = productionFiles.length > 0 ? productionFiles : afterRun.files;
-    return {
-      collected: {
-        data: { ...afterRun, files, summary: { ...afterRun.summary, files: files.length } },
-        provenance: {
-          method: 'instrumented-report',
-          estimated: false,
-          branchDataCollected: files.some(f => f.branches.total > 0),
-          functionDataCollected: files.some(f => f.functions.total > 0),
-          notes: [],
-        },
-      },
-      ranTests,
-    };
+    const fromRun = productionOnly(afterRun, targetPath);
+    if (!fromRun) return { collected: null, ranTests, testOnlyReport: true };
+    return { collected: fromRun, ranTests };
   }
 
   return { collected: buildEstimatedCoverage(targetPath), ranTests };
@@ -160,7 +190,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests } = await collectCoverage(targetPath);
+      const { collected, ranTests, testOnlyReport } = await collectCoverage(targetPath);
 
       if (!collected) {
         return ok({
@@ -175,9 +205,13 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
           measured: false,
           coverageMethod: 'none',
           algorithm: 'sublinear-O(log n)',
-          warning: ranTests
-            ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
-            : 'No coverage data found and could not run tests automatically. ' + estimationGuidance(targetPath),
+          warning: testOnlyReport
+            ? 'The coverage report contains only test files, so there is no production ' +
+              'coverage to report. Coverage OF a test file is not a meaningful metric. ' +
+              'Check that your coverage tool is instrumenting your source directory.'
+            : ranTests
+              ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
+              : 'No coverage data found and could not run tests automatically. ' + estimationGuidance(targetPath),
         });
       }
 
