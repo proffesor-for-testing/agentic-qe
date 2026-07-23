@@ -15,6 +15,7 @@ import { loadCoverageData } from './handler-utils';
 import {
   buildEstimatedCoverage,
   collectRustCoverage,
+  isCoverageExecDisabled,
   isRustProject,
   isTestPath,
   type CollectedCoverage,
@@ -26,6 +27,11 @@ import {
  * written — the caller re-checks disk).
  */
 async function tryRunJsCoverage(targetPath: string): Promise<boolean> {
+  // Running the project's test suite executes code from the analyzed repository
+  // (the tests themselves, plus npm lifecycle scripts via npx). Honor the
+  // opt-out before doing that.
+  if (isCoverageExecDisabled()) return false;
+
   try {
     const { execSync } = await import('child_process');
     let coverageCmd = 'npx vitest run --coverage --reporter=json 2>/dev/null';
@@ -125,6 +131,13 @@ async function collectCoverage(
  * measurement, tailored to what the target actually is.
  */
 function estimationGuidance(targetPath: string): string {
+  // When the caller turned execution off, naming the tool to install is the
+  // wrong advice — nothing will be run either way until they opt back in.
+  if (isCoverageExecDisabled()) {
+    return 'Coverage tooling execution is disabled (AQE_COVERAGE_NO_EXEC). No tests ' +
+      'were run and no build tooling was invoked. Unset it, or generate a coverage ' +
+      'report yourself and re-run, to get real measurements.';
+  }
   if (isRustProject(targetPath)) {
     return 'To get real measurements for this Rust crate, install cargo-llvm-cov ' +
       '(`cargo install cargo-llvm-cov`) and re-run; agentic-qe will invoke it automatically.';

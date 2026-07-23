@@ -62,6 +62,30 @@ export interface CollectedCoverage {
   provenance: CoverageProvenance;
 }
 
+/**
+ * Is the "never execute build tooling" kill-switch set?
+ *
+ * Measuring coverage means *running the project's own tests*, which means
+ * executing code from the analyzed repository: `npx vitest/jest/nyc` runs its
+ * test suite and npm lifecycle scripts, and `cargo llvm-cov` additionally
+ * compiles and runs `build.rs` and honors any `runner`/linker directive in that
+ * repo's `.cargo/config.toml`. For a trusted project — your own repo, CI on your
+ * own code — that is exactly what the caller wants and is how coverage has always
+ * been collected here.
+ *
+ * It is surprising, though, for an operation that reads like a static query, and
+ * an agent can be pointed at an untrusted checkout. `AQE_COVERAGE_NO_EXEC=1`
+ * disables execution entirely: already-present coverage reports are still parsed,
+ * and everything else degrades to clearly-labelled static estimation.
+ *
+ * Follows the same parsing convention as `AQE_LLM_ROUTER_DISABLED`.
+ */
+export function isCoverageExecDisabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = (env.AQE_COVERAGE_NO_EXEC ?? '').trim().toLowerCase();
+  if (!v) return false;
+  return v !== 'false' && v !== '0' && v !== 'no' && v !== 'off';
+}
+
 // ============================================================================
 // Shared file classification
 // ============================================================================
@@ -395,6 +419,11 @@ export async function collectRustCoverage(
   targetPath: string,
   options: { timeoutMs?: number } = {}
 ): Promise<CollectedCoverage | null> {
+  // Running cargo compiles and executes code from the analyzed repository
+  // (test binaries, `build.rs`, `.cargo/config.toml` runner directives).
+  // Honor the opt-out before doing any of that.
+  if (isCoverageExecDisabled()) return null;
+
   const { execSync } = await import('child_process');
   const timeout = options.timeoutMs ?? 300000;
 

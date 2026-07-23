@@ -125,6 +125,43 @@ as such all the way to the caller.
 
 ---
 
+## Companion decision: measuring coverage executes the analyzed repository
+
+Raised by the adversarial review and worth stating explicitly, because it is easy
+to miss: **collecting real coverage means running the project's own tests**, and
+that means executing code from the analyzed repository.
+
+- the JS/TS path runs `npx vitest|jest|nyc` with `cwd` = the target — the test
+  suite plus any npm lifecycle scripts (pre-existing behavior);
+- the Rust path added here runs `cargo llvm-cov`, which compiles and runs test
+  binaries, executes `build.rs`, and honors any `runner`/linker directive in that
+  repository's `.cargo/config.toml`.
+
+For a trusted project — your own repo, CI on your own code — this is precisely
+what the caller wants, and it is how coverage has always been collected. It is
+nevertheless surprising for an operation that *reads* like a static query, and an
+agent can be pointed at an untrusted checkout.
+
+**Decision:** keep execution as the default (it is the only way to produce a
+measurement, and refusing by default would push every result back to the
+estimation path this ADR exists to discourage), but make it opt-out and disclosed:
+
+- `AQE_COVERAGE_NO_EXEC=1` disables *all* build-tool execution. Coverage reports
+  already on disk are still parsed; everything else degrades to clearly-labelled
+  static estimation, and the guidance text says why.
+- The result already discloses what ran, after the fact, via `coverageMethod`
+  (`cargo-llvm-cov` / `instrumented-report` / `static-estimation` / `none`).
+
+**Rejected:** requiring opt-*in* for execution — it would make measured coverage
+the exceptional case and estimated coverage the norm, which inverts this ADR's
+whole point. Also rejected: sandboxing the build tool, which is a much larger
+change than this issue warrants and would not be reliable across toolchains.
+
+**Watch:** the same reasoning applies to any future language delegation (Go,
+Python, Java). Each must honor the same switch.
+
+---
+
 ## Companion change: security scan honesty
 
 The same issue noted that `security_scan_comprehensive` on the same crate

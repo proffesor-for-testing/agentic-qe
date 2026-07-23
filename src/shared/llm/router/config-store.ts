@@ -312,10 +312,19 @@ export function sanitizeAgentOverrides(
     if (typeof entry.priority === 'number' && Number.isFinite(entry.priority)) {
       cleaned.priority = entry.priority;
     }
-    if ('apiKey' in entry) {
+    // Secrets are already dropped by construction: `cleaned` is an ALLOW-LIST,
+    // so anything not explicitly copied above never survives. This check exists
+    // only so a user who pasted a credential in here is TOLD it was discarded
+    // rather than silently wondering why their key isn't being used.
+    // Deliberately does not echo the value.
+    const secretish = Object.keys(entry).filter(k =>
+      /^(api[-_]?key|key|token|secret|password|passwd|auth|authorization|bearer|credential)s?$/i.test(k)
+    );
+    if (secretish.length > 0) {
       warnings.push(
-        `agentOverrides["${agentType}"] contained an apiKey — stripped. API keys belong in ` +
-        `environment variables, never in .agentic-qe/llm-config.json.`
+        `agentOverrides["${agentType}"] contained credential-shaped field(s) ` +
+        `[${secretish.join(', ')}] — discarded, not persisted, not logged. Credentials belong ` +
+        `in environment variables, never in .agentic-qe/llm-config.json.`
       );
     }
 

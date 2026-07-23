@@ -22,7 +22,9 @@ import * as path from 'path';
 import { vi } from 'vitest';
 import {
   buildEstimatedCoverage,
+  collectRustCoverage,
   countLines,
+  isCoverageExecDisabled,
   findCargoRoot,
   findInlineTestRanges,
   isRustProject,
@@ -668,5 +670,68 @@ describe('#569 — classification must be relative to the analysis root', () => 
     expect(result).not.toBeNull();
     expect(result!.data.files.length).toBeGreaterThan(0);
     expect(result!.data.files.some(f => f.path.endsWith('lib.rs'))).toBe(true);
+  });
+});
+
+describe('#569 — AQE_COVERAGE_NO_EXEC opt-out', () => {
+  afterEach(() => {
+    delete process.env.AQE_COVERAGE_NO_EXEC;
+  });
+
+  it('is off by default', () => {
+    delete process.env.AQE_COVERAGE_NO_EXEC;
+    expect(isCoverageExecDisabled({})).toBe(false);
+  });
+
+  it('parses truthy and falsy forms like the other AQE kill-switches', () => {
+    for (const on of ['1', 'true', 'yes', 'on', 'TRUE']) {
+      expect(isCoverageExecDisabled({ AQE_COVERAGE_NO_EXEC: on }), on).toBe(true);
+    }
+    for (const off of ['', '0', 'false', 'no', 'off']) {
+      expect(isCoverageExecDisabled({ AQE_COVERAGE_NO_EXEC: off }), off).toBe(false);
+    }
+  });
+
+  it('prevents collectRustCoverage from invoking cargo at all', async () => {
+    // Measuring Rust coverage compiles and runs code from the analyzed repo —
+    // test binaries, build.rs, and any `runner` directive in its
+    // .cargo/config.toml. With the switch on, nothing may be executed.
+    //
+    // Proven behaviorally with a fake `cargo` earlier on PATH that leaves a
+    // marker file when invoked. This works whether or not real cargo is
+    // installed, and (unlike a spy) exercises the actual execSync path.
+    const crate = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-569-noexec-'));
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-569-bin-'));
+    const marker = path.join(binDir, 'cargo-was-invoked');
+    const originalPath = process.env.PATH;
+
+    try {
+      makeRustCrate(crate);
+      fs.writeFileSync(
+        path.join(binDir, 'cargo'),
+        `#!/bin/sh\necho invoked >> ${JSON.stringify(marker)}\nexit 1\n`
+      );
+      fs.chmodSync(path.join(binDir, 'cargo'), 0o755);
+      process.env.PATH = `${binDir}:${originalPath}`;
+
+      // Control: with the switch OFF the shim IS reached, proving the test
+      // itself can detect execution.
+      delete process.env.AQE_COVERAGE_NO_EXEC;
+      await collectRustCoverage(crate);
+      expect(fs.existsSync(marker), 'control: cargo should have been invoked').toBe(true);
+
+      fs.rmSync(marker);
+
+      // With the switch ON, nothing is executed.
+      process.env.AQE_COVERAGE_NO_EXEC = '1';
+      const result = await collectRustCoverage(crate);
+
+      expect(result).toBeNull();
+      expect(fs.existsSync(marker), 'cargo was executed despite AQE_COVERAGE_NO_EXEC').toBe(false);
+    } finally {
+      process.env.PATH = originalPath;
+      fs.rmSync(crate, { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
   });
 });

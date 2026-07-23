@@ -73,7 +73,33 @@ describe('#568 — sanitizeAgentOverrides', () => {
     });
     expect(overrides['qe-test-architect']).toEqual({ provider: 'openai' });
     expect(overrides['qe-test-architect']).not.toHaveProperty('apiKey');
-    expect(warnings.join(' ')).toMatch(/apiKey/);
+    expect(warnings.join(' ')).toMatch(/apiKey/i);
+  });
+
+  it('drops every credential-shaped field, not just apiKey', () => {
+    // The entry is built as an ALLOW-LIST, so unknown fields never survive —
+    // this asserts that property holds and that the user is told.
+    const { overrides, warnings } = sanitizeAgentOverrides({
+      'qe-test-architect': {
+        provider: 'openai',
+        apiKey: 'sk-a', token: 'tok-b', password: 'pw-c',
+        secret: 's-d', authorization: 'Bearer e', credentials: 'f',
+      },
+    });
+    expect(overrides['qe-test-architect']).toEqual({ provider: 'openai' });
+    for (const leaked of ['apiKey', 'token', 'password', 'secret', 'authorization', 'credentials']) {
+      expect(overrides['qe-test-architect']).not.toHaveProperty(leaked);
+    }
+    expect(warnings.join(' ')).toMatch(/credential-shaped/i);
+  });
+
+  it('never echoes a credential value into a warning', () => {
+    // A warning that quotes the secret just moves it from the config file into
+    // the log file.
+    const { warnings } = sanitizeAgentOverrides({
+      'qe-test-architect': { provider: 'openai', apiKey: 'sk-SUPERSECRET-VALUE' },
+    });
+    expect(warnings.join(' ')).not.toContain('sk-SUPERSECRET-VALUE');
   });
 
   it('ignores a malformed map without throwing', () => {
