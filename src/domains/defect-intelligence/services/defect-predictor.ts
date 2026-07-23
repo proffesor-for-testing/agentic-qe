@@ -263,6 +263,10 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
         model: modelId,
         maxTokens: this.config.llmMaxTokens ?? 2048,
         temperature: 0.3, // Low temperature for consistent analysis
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-defect-predictor',
       });
 
       if (response.content && response.content.length > 0) {

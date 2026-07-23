@@ -523,6 +523,10 @@ Be precise and only report high-confidence findings.`,
         model: modelId,
         maxTokens: this.config.llmMaxTokens ?? 2048,
         temperature: 0.2, // Low temperature for consistent analysis
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-code-intelligence',
       });
 
       if (response.content) {
@@ -626,6 +630,10 @@ Return JSON: { "rankedIds": ["id1", "id2", ...], "insights": ["insight1", "insig
         model: modelId,
         maxTokens: 1024,
         temperature: 0.3,
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-code-intelligence',
       });
 
       if (response.content) {

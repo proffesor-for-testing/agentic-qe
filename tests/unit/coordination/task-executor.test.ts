@@ -307,18 +307,30 @@ describe('DomainTaskExecutor', () => {
       expect(result.domain).toBe('coverage-analysis');
 
       const data = result.data as {
-        lineCoverage: number;
-        branchCoverage: number;
+        lineCoverage: number | null;
+        branchCoverage: number | null;
+        estimated?: boolean;
         gaps: Array<{ file: string }>;
         warning?: string;
       };
-      // When no coverage data file exists, returns zeros with warning
-      expect(data.lineCoverage).toBeGreaterThanOrEqual(0);
-      expect(data.branchCoverage).toBeGreaterThanOrEqual(0);
       expect(data.gaps).toBeDefined();
-      // When no coverage data found, may have a warning
-      if (data.lineCoverage === 0 && data.warning) {
-        expect(data.warning).toBeDefined();
+
+      // #569: branch coverage is `null` when no branch data was collected —
+      // it is NOT coerced to 0, and never invented as 100%.
+      if (data.branchCoverage !== null) {
+        expect(data.branchCoverage).toBeGreaterThanOrEqual(0);
+      }
+      if (data.lineCoverage !== null) {
+        expect(data.lineCoverage).toBeGreaterThanOrEqual(0);
+      }
+
+      // #569: whatever came back must declare whether it was measured.
+      if (data.lineCoverage !== null) {
+        expect(typeof data.estimated).toBe('boolean');
+        // An estimate must carry its caveat.
+        if (data.estimated) {
+          expect(data.warning).toBeDefined();
+        }
       }
     });
 

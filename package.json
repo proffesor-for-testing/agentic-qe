@@ -189,17 +189,13 @@
   },
   "peerDependencies": {
     "@claude-flow/browser": "3.0.0-alpha.1",
-    "@claude-flow/guidance": "3.0.0-alpha.1",
-    "@huggingface/transformers": "^4.2.0"
+    "@claude-flow/guidance": "3.0.0-alpha.1"
   },
   "peerDependenciesMeta": {
     "@claude-flow/browser": {
       "optional": true
     },
     "@claude-flow/guidance": {
-      "optional": true
-    },
-    "@huggingface/transformers": {
       "optional": true
     }
   },
@@ -221,6 +217,7 @@
     "rvlite": "^0.2.4"
   },
   "resolutions": {
+    "adm-zip": ">=0.6.0",
     "graceful-fs": "^4.2.11",
     "stack-utils": "^2.0.6",
     "tar": ">=7.5.7",
@@ -229,6 +226,7 @@
     "ws": "^8.21.0"
   },
   "overrides": {
+    "adm-zip": ">=0.6.0",
     "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
     "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
     "tar": ">=7.5.7",

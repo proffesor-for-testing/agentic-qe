@@ -233,6 +233,10 @@ Provide deployment advice specific to these metrics.`,
         model: modelId,
         maxTokens: 2048,
         temperature: 0.3, // Low temperature for consistent advice
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-deployment-advisor',
       });
 
       if (response.content) {
