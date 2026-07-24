@@ -364,13 +364,26 @@ describe('Unusable-store quarantine (#563)', () => {
     expect(quarantineUnusableStore(join(dir, 'absent.rvf'), 'test')).toBeNull();
   });
 
-  it('treats the current process as not-a-peer so a self-owned lock is recoverable', () => {
+  it('treats a current-process lock as live so duplicate openers cannot break it', () => {
     const dir = workDir();
     const rvfPath = join(dir, 'brain.rvf');
-    // Our own pid is alive by definition, but a lock we ourselves left behind
-    // must not block our own recovery.
+    // A second RVF initialization path can run in this same process while the
+    // first adapter still owns the store. PID equality is not evidence that
+    // the lock is stale; breaking it can quarantine a store we still have open.
     writeFileSync(`${rvfPath}.lock`, lockRecord(process.pid));
 
-    expect(isLockHeldByLiveProcess(rvfPath)).toBe(false);
+    expect(isLockHeldByLiveProcess(rvfPath)).toBe(true);
+  });
+
+  it('refuses to quarantine a store held by the current process', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    writeFileSync(rvfPath, Buffer.concat([Buffer.from('SFVR'), Buffer.alloc(158)]));
+    writeFileSync(`${rvfPath}.lock`, lockRecord(process.pid));
+
+    expect(quarantineUnusableStore(rvfPath, 'duplicate same-process opener')).toBeNull();
+    expect(existsSync(rvfPath)).toBe(true);
+    expect(existsSync(`${rvfPath}.lock`)).toBe(true);
+    expect(existsSync(`${rvfPath}.corrupt-${process.pid}`)).toBe(false);
   });
 });
