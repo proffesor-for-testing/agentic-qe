@@ -270,12 +270,19 @@ export class ResultSaver {
     options: SaveOptions
   ): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
+    // #569: branch/function coverage are nullable — `null` means the metric was
+    // never collected, which the report must render as "n/a" rather than crash
+    // on (or, worse, print as 0.0%).
     const data = result as {
-      lineCoverage: number;
-      branchCoverage: number;
-      functionCoverage: number;
-      statementCoverage: number;
+      lineCoverage: number | null;
+      branchCoverage: number | null;
+      functionCoverage: number | null;
+      statementCoverage: number | null;
       totalFiles: number;
+      estimated?: boolean;
+      measured?: boolean;
+      coverageMethod?: string;
+      warning?: string;
       gaps: Array<{ file: string; lines: number[]; risk: string }>;
     };
 
@@ -286,8 +293,15 @@ export class ResultSaver {
     await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
     files.push(await this.createFileEntry(jsonPath, 'json'));
 
-    // Save LCOV format
-    if (options.includeSecondary !== false) {
+    // Save LCOV format — ONLY for genuinely measured coverage.
+    //
+    // #569/ADR-126: LCOV has nowhere to record provenance. Emitting it for an
+    // estimated (or absent) result hands downstream tools a file that is
+    // indistinguishable from instrumented output — `null` would serialize as
+    // `DA:1,0 / LF:100 / LH:0`, asserting a measured 0% over 100 lines that
+    // nothing ever measured. The JSON artifact above keeps the full result with
+    // its provenance; the lossy format is simply not written when it would lie.
+    if (options.includeSecondary !== false && data.measured === true) {
       const lcovPath = path.join(coverageDir, `${prefix}_coverage.lcov`);
       const lcovContent = this.generateLcov(data);
       await fs.writeFile(lcovPath, lcovContent);
@@ -485,15 +499,16 @@ export class ResultSaver {
   // ==========================================================================
 
   private generateLcov(data: {
-    lineCoverage: number;
+    lineCoverage: number | null;
     totalFiles: number;
   }): string {
     // Simplified LCOV - real implementation would have per-file data
+    const line = Math.round(data.lineCoverage ?? 0);
     return `TN:agentic-qe-coverage
 SF:summary
-DA:1,${Math.round(data.lineCoverage)}
+DA:1,${line}
 LF:100
-LH:${Math.round(data.lineCoverage)}
+LH:${line}
 end_of_record
 `;
   }
@@ -565,26 +580,43 @@ ${data.tests.map(t => `### ${t.name}
   }
 
   private generateCoverageReport(data: {
-    lineCoverage: number;
-    branchCoverage: number;
-    functionCoverage: number;
-    statementCoverage: number;
+    lineCoverage: number | null;
+    branchCoverage: number | null;
+    functionCoverage: number | null;
+    statementCoverage: number | null;
     totalFiles: number;
+    estimated?: boolean;
+    coverageMethod?: string;
+    warning?: string;
     gaps: Array<{ file: string; lines: number[]; risk: string }>;
   }): string {
+    // #569: a metric that was never collected renders as "not collected", not
+    // as a number. Rendering `null` as 0.0% is how "no branch data" became
+    // "0% branch coverage" — and the inverse formula made it 100%.
+    const metric = (value: number | null): string =>
+      value === null ? '_not collected_' : `${value.toFixed(1)}%`;
+
+    const provenanceBanner = data.estimated
+      ? `\n> ⚠️ **ESTIMATED — NOT MEASURED.** No instrumentation ran; these figures are a\n` +
+        `> static estimate derived from source shape. Do not treat them as coverage\n` +
+        `> measurements or act on individual gaps without running real instrumentation.\n` +
+        (data.warning ? `>\n> ${data.warning}\n` : '')
+      : '';
+
     return `# Coverage Analysis Report
 
 **Generated:** ${new Date().toISOString()}
 **Algorithm:** Sublinear O(log n)
+**Method:** ${data.coverageMethod ?? 'unknown'}${provenanceBanner}
 
 ## Summary
 
 | Metric | Coverage |
 |--------|----------|
-| Line Coverage | ${data.lineCoverage.toFixed(1)}% |
-| Branch Coverage | ${data.branchCoverage.toFixed(1)}% |
-| Function Coverage | ${data.functionCoverage.toFixed(1)}% |
-| Statement Coverage | ${data.statementCoverage.toFixed(1)}% |
+| Line Coverage | ${metric(data.lineCoverage)} |
+| Branch Coverage | ${metric(data.branchCoverage)} |
+| Function Coverage | ${metric(data.functionCoverage)} |
+| Statement Coverage | ${metric(data.statementCoverage)} |
 | Total Files | ${data.totalFiles} |
 
 ## Coverage Gaps

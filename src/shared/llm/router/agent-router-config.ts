@@ -9,7 +9,7 @@
  * - Agent category detection and preferred model resolution
  */
 
-import { ExtendedProviderType, RoutingRule, TaskComplexity } from './types';
+import { ExtendedProviderType, RoutingRule, TaskComplexity, AgentProviderOverride } from './types';
 
 // ============================================================================
 // Agent Category Types
@@ -476,14 +476,110 @@ export function getAgentRoutingCategory(agentType: string): AgentCategory {
   return 'general';
 }
 
+// ============================================================================
+// On-disk per-agent overrides (issue #568)
+// ============================================================================
+
 /**
- * Get the preferred model for an agent type
+ * Per-agent-type overrides sourced from `.agentic-qe/llm-config.json`'s
+ * `agentOverrides` key.
+ *
+ * Module-level state, deliberately: `getPreferredModelForAgent` is a synchronous
+ * pure-lookup function called from many places (rule construction, capability
+ * resolution, the router's own dispatch), and threading a config object through
+ * all of them would be a far larger change than this feature warrants. The
+ * router installs the loaded map once at construction via
+ * `setAgentProviderOverrides`.
+ *
+ * Empty by default, so behavior is unchanged for anyone who never writes the
+ * key — the category defaults below remain authoritative.
+ */
+let agentProviderOverrides: Record<string, AgentProviderOverride> = {};
+
+/**
+ * Per-provider default model, from the router config's `providers` map.
+ *
+ * Needed because the category defaults in `DEFAULT_CATEGORY_MODELS` pair a
+ * provider with a provider-specific model id. If a user writes
+ * `{ "provider": "ollama" }` and we inherited the category *model* too, the
+ * agent would be routed to ollama asking for `claude-sonnet-4-6` — a model that
+ * provider cannot serve. Changing provider without naming a model must fall
+ * back to that provider's own default, not the previous provider's model.
+ */
+let providerDefaultModels: Partial<Record<ExtendedProviderType, string>> = {};
+
+/**
+ * Install the on-disk per-agent overrides (issue #568). Called by the router
+ * service after `loadRouterConfig()` has validated them.
+ *
+ * Replaces the whole map rather than merging, so reloading a config that
+ * removed an entry actually removes it.
+ *
+ * @param overrides validated `agentOverrides` map
+ * @param defaultModels per-provider default model ids, so a provider-only
+ *   override resolves to a model that provider can actually serve
+ */
+export function setAgentProviderOverrides(
+  overrides: Record<string, AgentProviderOverride> | undefined,
+  defaultModels?: Partial<Record<ExtendedProviderType, string>>
+): void {
+  agentProviderOverrides = { ...(overrides ?? {}) };
+  providerDefaultModels = { ...(defaultModels ?? {}) };
+}
+
+/** Current on-disk per-agent overrides. Primarily for diagnostics and tests. */
+export function getAgentProviderOverrides(): Readonly<Record<string, AgentProviderOverride>> {
+  return agentProviderOverrides;
+}
+
+/** Clear installed overrides. For tests. */
+export function resetAgentProviderOverrides(): void {
+  agentProviderOverrides = {};
+  providerDefaultModels = {};
+}
+
+/**
+ * Get the preferred model for an agent type.
+ *
+ * Resolution order (issue #568):
+ *   1. `agentOverrides[agentType]` from `.agentic-qe/llm-config.json` — the
+ *      user's explicit, hand-written intent, so it wins.
+ *   2. the agent's category default (`AGENT_CATEGORY_MAP` ->
+ *      `DEFAULT_CATEGORY_MODELS`).
+ *
+ * An override is a *partial*: fields it does not set keep their category
+ * default, so `{ "provider": "ollama" }` re-provisions the provider without
+ * forcing the user to also restate temperature, token budget, and priority.
+ *
  * @param agentType - The agent type identifier
  * @returns The model preference configuration
  */
 export function getPreferredModelForAgent(agentType: string): ModelPreference {
   const category = getAgentRoutingCategory(agentType);
-  return DEFAULT_CATEGORY_MODELS[category];
+  const base = DEFAULT_CATEGORY_MODELS[category];
+
+  const override = agentProviderOverrides[agentType];
+  if (!override) return base;
+
+  // Changing provider without naming a model must NOT inherit the previous
+  // provider's model id (see `providerDefaultModels`). Prefer that provider's
+  // own default; only keep the category model when the provider is unchanged.
+  const switchingProvider =
+    override.provider !== undefined && override.provider !== base.provider;
+  const resolvedModel =
+    override.model ??
+    (switchingProvider ? providerDefaultModels[override.provider!] : undefined);
+
+  return {
+    ...base,
+    ...(override.provider !== undefined ? { provider: override.provider } : {}),
+    ...(resolvedModel !== undefined ? { model: resolvedModel } : {}),
+    ...(override.temperature !== undefined ? { temperature: override.temperature } : {}),
+    ...(override.maxTokens !== undefined ? { maxTokens: override.maxTokens } : {}),
+    // An explicit on-disk entry outranks the built-in category rule by default,
+    // so it isn't quietly out-prioritized by DEFAULT_ROUTING_OVERRIDES.
+    priority: override.priority ?? base.priority + 100,
+  };
 }
 
 /**
@@ -569,6 +665,47 @@ export function createAgentRoutingRule(agentType: string): RoutingRule {
     enabled: true,
     priority: preference.priority,
   };
+}
+
+/**
+ * Build routing rules for exactly the agent types the user overrode on disk
+ * (issue #568).
+ *
+ * Why a separate builder rather than `createAgentRoutingRule`: that one also
+ * constrains on `requiresReasoning`, which is right for the generated
+ * whole-roster ruleset but wrong here — a user who wrote
+ * `"qe-mutation-tester": { "provider": "ollama" }` means *always*, not "only when
+ * the request happens to be flagged as needing reasoning". These rules match on
+ * agent type alone.
+ *
+ * Returns `[]` when nothing is overridden, so a project without the key gets the
+ * exact rule set it got before.
+ *
+ * @returns Routing rules, highest priority first
+ */
+export function createOverrideRoutingRules(): RoutingRule[] {
+  return Object.keys(agentProviderOverrides)
+    .map((agentType) => {
+      const preference = getPreferredModelForAgent(agentType);
+      return {
+        id: `agent-override-${agentType}`,
+        name: `User override: ${agentType} -> ${preference.provider}/${preference.model}`,
+        description:
+          `Per-agent routing override from .agentic-qe/llm-config.json ` +
+          `(agentOverrides["${agentType}"])`,
+        condition: { agentType: [agentType] },
+        action: {
+          provider: preference.provider,
+          model: preference.model,
+          temperature: preference.temperature,
+          maxTokens: preference.maxTokens,
+          priority: preference.priority,
+        },
+        enabled: true,
+        priority: preference.priority,
+      } satisfies RoutingRule;
+    })
+    .sort((a, b) => b.priority - a.priority);
 }
 
 /**

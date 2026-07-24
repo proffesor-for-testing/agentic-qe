@@ -543,6 +543,15 @@ export interface TestGenerateResult {
   suggestions?: string[];
   savedFiles?: string[];
   patternsUsed?: string[];
+  /**
+   * #567: true when the ADR-051 LLM branch actually ran. When false the tests
+   * are deterministic template scaffolding — see `generationMode`/`note`.
+   */
+  llmEnhanced?: boolean;
+  /** #567: set to 'deterministic-template' when no LLM enhancement was applied. */
+  generationMode?: string;
+  /** #567: human-readable reason the LLM branch did not run. */
+  note?: string;
   // V2-compatible fields (optional, flexible typing for backwards compatibility)
   tests?: unknown[];
   antiPatterns?: unknown[];
@@ -561,20 +570,47 @@ export interface CoverageAnalyzeResult {
   taskId: string;
   status: string;
   duration: number;
-  lineCoverage: number;
-  branchCoverage: number;
-  functionCoverage: number;
+  /**
+   * #569: `null` when no coverage figure was produced at all (no report, no
+   * instrumentation run, nothing to estimate from). `0` means a measured zero;
+   * `null` means "we don't know" — the two must not be conflated.
+   */
+  lineCoverage: number | null;
+  /**
+   * #569: `null` when branch data was not collected. Never report a branch
+   * percentage — least of all 100% — that no instrumentation produced.
+   */
+  branchCoverage: number | null;
+  /** #569: `null` when function-level data was not collected. */
+  functionCoverage: number | null;
   gaps?: CoverageGap[];
   riskScore?: number;
   savedFiles?: string[];
   // V2-compatible fields (optional, flexible typing)
-  statementCoverage?: number;
+  /** #569: `null` when no figure was produced — see `lineCoverage`. */
+  statementCoverage?: number | null;
   totalFiles?: number;
   coverageByFile?: unknown[];
   gapAnalysis?: Record<string, unknown>;
   trends?: Record<string, unknown>;
   aiInsights?: Record<string, unknown>;
   learning?: Record<string, unknown>;
+  /**
+   * #569 provenance. `true` means the figures are a STATIC ESTIMATE derived
+   * from source shape, not measured coverage. Callers must not present an
+   * estimated result as a measurement.
+   */
+  estimated?: boolean;
+  /** Inverse of `estimated`: real instrumentation produced these numbers. */
+  measured?: boolean;
+  /** How the numbers were obtained: instrumented-report | cargo-llvm-cov | static-estimation | none. */
+  coverageMethod?: string;
+  /** Whether branch data was actually collected. */
+  branchDataCollected?: boolean;
+  /** Whether function-level data was actually collected. */
+  functionDataCollected?: boolean;
+  /** Caveats the caller should surface (e.g. "no instrumentation ran"). */
+  warning?: string;
 }
 
 /**
@@ -594,6 +630,8 @@ export interface CoverageGap {
   priority?: string;
   suggestedTest?: string;
   riskScore?: number;
+  /** #569: true when this gap came from a static estimate, not a measurement. */
+  estimated?: boolean;
 }
 
 /**

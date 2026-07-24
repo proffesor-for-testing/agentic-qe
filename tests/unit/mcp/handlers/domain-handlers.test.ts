@@ -378,8 +378,18 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.lineCoverage).toBeGreaterThanOrEqual(0);
-      expect(result.data!.branchCoverage).toBeGreaterThanOrEqual(0);
-      expect(result.data!.functionCoverage).toBeGreaterThanOrEqual(0);
+
+      // #569: branch/function coverage are `number | null` — `null` means the
+      // metric was not collected. Asserting `>= 0` unconditionally passes only
+      // where a coverage report happens to exist on disk, and would pressure a
+      // future change to coerce "not collected" back to 0.
+      for (const metric of [result.data!.branchCoverage, result.data!.functionCoverage]) {
+        if (metric !== null) {
+          expect(metric).toBeGreaterThanOrEqual(0);
+        }
+      }
+      // Whatever came back must declare its provenance.
+      expect(typeof result.data!.estimated).toBe('boolean');
     }, 30000);
 
     it('should detect gaps when enabled', async () => {

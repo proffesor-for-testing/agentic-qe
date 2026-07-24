@@ -5,6 +5,100 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.1] - 2026-07-23
+
+Fixes four reported issues, three of which come down to the same thing: a tool
+told you something it had not actually established. Coverage analysis reported
+numbers it never measured, test generation claimed AI enhancement it never
+performed, and a security advisory reached users through a dependency they never
+asked for.
+
+### Fixed
+
+- **Coverage analysis no longer reports numbers it did not measure** ([#569]).
+  On a Rust crate, `coverage_analyze_sublinear` returned `78.3%` lines,
+  `100%` branches and `0%` functions — none of it measured. It flagged
+  `#[cfg(test)]` blocks as untested production code, cited line numbers past the
+  end of the file, and analysed test files as coverage targets, all with a
+  confidence score attached. Rust crates are now measured with `cargo llvm-cov`
+  when it is available. When nothing can be measured, the result says so
+  (`estimated: true`, `measured: false`) instead of presenting a guess as data.
+- **`test_generate_enhanced` actually calls your LLM now** ([#567]). The tool
+  advertised AI-powered generation but the LLM router never reached the code path
+  it runs, so it always returned the same generic scaffold regardless of how you
+  configured your provider. It now routes through your configured model, and the
+  result reports `llmEnhanced` so a silent fall back to templates is visible
+  rather than something you infer from a suspiciously fast response. A broken
+  provider (bad key, timeout) reports the fallback honestly instead of claiming
+  enhancement it did not perform.
+- **A HIGH-severity advisory no longer reaches consumers** ([#565]).
+  `@huggingface/transformers` was declared an *optional* peer dependency, but npm
+  installs optional peers — so every install pulled in
+  `onnxruntime-node -> adm-zip` and its advisory. It is now an explicit opt-in:
+  install it yourself only if you want local in-process embeddings. Everyone
+  using an embedding endpoint (the default) no longer carries the advisory.
+- **`codex` is selectable through the LLM router.** The provider existed and
+  worked, but was missing from the router's provider list, so it could never
+  actually be chosen.
+- **Fixes now take effect immediately after an upgrade.** Operation results were
+  cached per project and keyed without the build version, so an upgraded install
+  could keep replaying the previous version's answers for up to an hour — making
+  a fix look like it had not worked. Set `AQE_SESSION_CACHE_SALT` to force a cold
+  cache at any time.
+
+### Added
+
+- **Per-agent LLM routing you can configure on disk** ([#568]). Route individual
+  agent types through different providers via an `agentOverrides` map in
+  `.agentic-qe/llm-config.json` — a strong reasoning model for security agents, a
+  free local model for mechanical ones — without changing your global default:
+
+  ```jsonc
+  {
+    "defaultProvider": "ollama",
+    "agentOverrides": {
+      "qe-security-scanner": { "provider": "claude-code", "model": "opus" },
+      "qe-mutation-tester":  { "provider": "ollama" }
+    }
+  }
+  ```
+
+  Entries are partial (unset fields keep their defaults), invalid entries are
+  dropped with an explanation rather than failing startup, and credentials are
+  never persisted here. See `docs/guides/llm-provider-routing.md`.
+- **`AQE_COVERAGE_NO_EXEC=1` — opt out of running build tooling.** Measuring
+  coverage means running your project's tests, which executes code from the
+  analysed repository (`cargo` also runs `build.rs`; `npx` runs lifecycle
+  scripts). That is what you want for your own code, but is worth being able to
+  turn off when pointing the tool at something you do not trust. Existing
+  coverage reports are still read; everything else degrades to a labelled
+  estimate.
+- **QE skills and lifecycle hooks for the Codex CLI.** `aqe init` now installs
+  three Codex-native skills — `aqe-test-change`, `aqe-review-quality`,
+  `aqe-plan-quality` — under `.agents/skills/`, plus Codex lifecycle hooks in
+  `.codex/`, and an `AGENTS.md` describing the repository's conventions. If you
+  drive this project with Codex rather than Claude Code, the QE workflows are now
+  available there natively instead of Claude-only.
+- **Security scans state how deeply they looked.** Full SAST is implemented for
+  JS/TS only; other languages get cross-language pattern matching. Results now
+  carry `analysisDepth`, so a zero-finding scan reads as "nothing matched a
+  generic pattern" rather than "no vulnerabilities".
+
+### Changed
+
+- **BREAKING (result shape):** `coverage_analyze_sublinear` now returns
+  `null` — not `0` — for any coverage metric that was not collected.
+  `lineCoverage`, `statementCoverage`, `branchCoverage` and `functionCoverage`
+  are all `number | null`. `0` now means a measured zero; `null` means unknown.
+  Callers doing arithmetic or comparisons on these fields should handle `null`;
+  check the new `measured` / `estimated` flags to tell the cases apart. This is
+  deliberately a visible break rather than a silent wrong number.
+
+[#565]: https://github.com/proffesor-for-testing/agentic-qe/issues/565
+[#567]: https://github.com/proffesor-for-testing/agentic-qe/issues/567
+[#568]: https://github.com/proffesor-for-testing/agentic-qe/issues/568
+[#569]: https://github.com/proffesor-for-testing/agentic-qe/issues/569
+
 ## [3.13.0] - 2026-07-18
 
 Introduces **QE-Court** — an adversarial review court where a change is

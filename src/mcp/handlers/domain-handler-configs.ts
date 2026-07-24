@@ -289,6 +289,10 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
       && domainTests[0].testCode;
 
+    // #567: did the ADR-051 LLM branch actually run? Report it instead of
+    // asserting `aiGenerated: true` unconditionally.
+    const llmEnhanced = data.llmEnhanced === true;
+
     const tests = hasRealTests
       ? domainTests!.map((t, i) => ({
           id: generateTestId(),
@@ -300,7 +304,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
             : [`test assertion ${i}`],
           expectedResult: null,
           estimatedDuration: t.type === 'integration' ? 2000 : 1000,
-          aiGenerated: true,
+          aiGenerated: llmEnhanced,
           testCode: t.testCode,
           sourceFile: t.sourceFile,
           testFile: t.testFile || t.file,
@@ -315,7 +319,9 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       aiInsights,
       coverage: {
         predicted: (data.coverageEstimate as number) || params?.coverageGoal || 80,
-        confidence: 0.9,
+        // #567: a template scaffold's coverage prediction is a guess, not a
+        // 0.9-confidence estimate. Don't dress it up as one.
+        confidence: llmEnhanced ? 0.9 : 0.3,
         achievable: true,
       },
       properties: tests.filter(t => t.type === 'property').map(t => ({
@@ -333,6 +339,10 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
       savedFiles,
+      // #567: propagate the LLM-enhancement signal to the MCP caller.
+      llmEnhanced,
+      ...(data.generationMode ? { generationMode: data.generationMode as string } : {}),
+      ...(data.note ? { note: data.note as string } : {}),
     };
   },
 };
@@ -453,12 +463,44 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     // The domain returns CoverageReport { summary: { line, branch, function, statement, files }, ... }
     // Map from both nested (domain) and flat (legacy) field shapes.
     const summary = data.summary as { line?: number; branch?: number; function?: number; statement?: number; files?: number } | undefined;
-    const lineCoverage = summary?.line ?? (data.lineCoverage as number) ?? 0;
-    const branchCoverage = summary?.branch ?? (data.branchCoverage as number) ?? 0;
-    const functionCoverage = summary?.function ?? (data.functionCoverage as number) ?? 0;
-    const statementCoverage = summary?.statement ?? (data.statementCoverage as number) ?? lineCoverage;
     const totalFiles = summary?.files ?? (data.totalFiles as number) ?? 0;
     const gaps = (data.gaps as unknown[]) || [];
+
+    // #569/ADR-126: an ABSENT provenance flag means "unknown", never "collected".
+    //
+    // Defaulting these to `true` (`!== false`) meant any producer that supplies
+    // no provenance at all — notably the coverage-analysis domain plugin, whose
+    // handler returns a nested-`summary` CoverageReport — surfaced the exact
+    // impossible pair from the issue: 100% branch coverage alongside 0% function
+    // coverage, labelled `measured: true` with `confidence: 0.7` on its gaps.
+    // Requiring an explicit `true` makes an unprovenanced result honest (`null`)
+    // instead of confidently wrong.
+    const branchDataCollected = data.branchDataCollected === true;
+    const functionDataCollected = data.functionDataCollected === true;
+    const branchCoverage = branchDataCollected
+      ? (summary?.branch ?? (data.branchCoverage as number) ?? null)
+      : null;
+    const functionCoverage = functionDataCollected
+      ? (summary?.function ?? (data.functionCoverage as number) ?? null)
+      : null;
+
+    // #569: is this a measurement or a static estimate? Everything downstream —
+    // gap confidence, AI insights, risk assessment — must be qualified by it.
+    const estimated = data.estimated === true;
+
+    // #569/ADR-126: `measured` is NOT the complement of `estimated` — there is a
+    // third state where nothing was collected at all. Deriving it as `!estimated`
+    // reported an empty project (no sources, no coverage report, nothing run) as
+    // `lineCoverage: 0, measured: true` — "we measured 0%" when the truth is "we
+    // measured nothing". Trust only an explicit claim from the producer.
+    const measured = data.measured === true;
+
+    // Likewise, a `null` line/statement figure must survive as `null`. `?? 0`
+    // turns "no data" into a plottable 0%.
+    const rawLine = summary?.line ?? (data.lineCoverage as number | null | undefined);
+    const lineCoverage = rawLine ?? null;
+    const rawStatement = summary?.statement ?? (data.statementCoverage as number | null | undefined);
+    const statementCoverage = rawStatement ?? lineCoverage;
 
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
@@ -479,7 +521,12 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
         suggestion: (g.suggestedTest as string) || 'Add test coverage',
         suggestedTest: (g.suggestedTest as string) || 'Add test coverage',
         riskScore: (g.riskScore as number) || 0.5,
-        confidence: (g.confidence as number) || 0.7,
+        // #569: the 0.7 default confidence is only defensible for a gap derived
+        // from a real measurement. An estimated gap carries its own low
+        // confidence from the handler; a gap with no provenance at all is not
+        // known to be measured either, so it gets the cautious value too.
+        confidence: (g.confidence as number) ?? (measured ? 0.7 : 0.2),
+        estimated: g.estimated === true || estimated,
       };
     }).filter((g): g is NonNullable<typeof g> => g !== null);
 
@@ -489,8 +536,9 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       ? coverageByFileData.map(f => ({
           file: f.file as string,
           lineCoverage: (f.lineCoverage as number) || 0,
-          branchCoverage: (f.branchCoverage as number) || 0,
-          functionCoverage: (f.functionCoverage as number) || 0,
+          // #569: preserve null (metric not collected) instead of collapsing to 0.
+          branchCoverage: (f.branchCoverage as number | null) ?? null,
+          functionCoverage: (f.functionCoverage as number | null) ?? null,
         }))
       : [];
 
@@ -508,11 +556,25 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
         weeklyChange: 0,
       },
       aiInsights: totalFiles > 0 ? {
-        recommendations: (data.recommendations as string[]) || [
-          'Run tests with coverage enabled to get accurate metrics',
-        ],
-        riskAssessment: lineCoverage < 70 ? 'high' : lineCoverage < 85 ? 'medium' : 'low',
-        confidence: 0.88,
+        recommendations: estimated
+          // #569: the reported insights ("Coverage is 15.9% below threshold",
+          // "Function coverage is below 70%") were all derived from estimated
+          // numbers and presented as findings. Lead with the caveat.
+          ? [
+              'ESTIMATED RESULT — no instrumentation ran. The figures below are a ' +
+              'static guess from source shape, not measured coverage. Do not act on ' +
+              'individual gaps without running real instrumentation first.',
+              ...((data.recommendations as string[]) || []),
+            ]
+          : ((data.recommendations as string[]) || [
+              'Run tests with coverage enabled to get accurate metrics',
+            ]),
+        // #569: risk can only be graded off a real number. `null < 70` is
+        // `false` in JS, which would have silently graded "no data" as 'low'.
+        riskAssessment: (estimated || !measured || lineCoverage === null)
+          ? 'unknown'
+          : (lineCoverage < 70 ? 'high' : lineCoverage < 85 ? 'medium' : 'low'),
+        confidence: estimated ? 0.2 : (measured ? 0.88 : 0),
       } : {
         recommendations: [
           'No coverage data found. Run tests with coverage first (e.g., npm test -- --coverage, or pytest --cov)',
@@ -532,6 +594,14 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       gaps: detailedGaps,
       duration,
       savedFiles,
+      // #569: provenance travels with the numbers so a caller can never mistake
+      // a static estimate for a measurement.
+      estimated,
+      measured,
+      coverageMethod: (data.coverageMethod as string) ?? 'unknown',
+      branchDataCollected,
+      functionDataCollected,
+      ...(data.warning ? { warning: data.warning as string } : {}),
     };
   },
 };

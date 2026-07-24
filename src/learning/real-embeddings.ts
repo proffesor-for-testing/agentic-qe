@@ -215,7 +215,22 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
       }
 
       // In-process branch — only here do we import the transformers package.
-      const transformers = await import('@huggingface/transformers');
+      // #565: `@huggingface/transformers` is NOT installed automatically (it
+      // transitively pulls onnxruntime-node -> adm-zip <0.6.0, GHSA-xcpc-8h2w-3j85,
+      // which upstream has not fixed). Users who want in-process embeddings opt in
+      // explicitly; everyone else uses an embedding endpoint. Translate the raw
+      // module-resolution failure into actionable guidance.
+      let transformers: typeof import('@huggingface/transformers');
+      try {
+        transformers = await import('@huggingface/transformers');
+      } catch {
+        throw new Error(
+          'In-process embeddings require the optional package "@huggingface/transformers", ' +
+          'which is not installed. Either run `npm install @huggingface/transformers`, or ' +
+          'configure an embedding endpoint (EmbeddingConfig.endpoint / AQE_EMBEDDING_ENDPOINT) ' +
+          'so no local model is loaded.'
+        );
+      }
       pipeline = transformers.pipeline;
 
       console.log(`[RealEmbeddings] Loading model: ${fullConfig.modelName}`);

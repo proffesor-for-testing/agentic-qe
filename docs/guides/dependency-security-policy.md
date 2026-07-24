@@ -60,6 +60,20 @@ Reports are written to `reports/dependency-audit.{json,md}` and
 shows only in the in-repo audit but not the consumer audit is masked by
 `overrides` and does not reach users — note it, don't panic.
 
+### Optional peers ARE consumer-reachable
+
+`peerDependenciesMeta.<pkg>.optional: true` does **not** mean "not installed".
+npm ≥7 auto-installs optional peers; `optional` only suppresses the error when
+the peer cannot be resolved. So an optional peer lands in every consumer's
+`node_modules` and every CVE underneath it is a real consumer CVE.
+
+Making a dependency optional at the **code** level (lazy `await import()` +
+graceful degradation) does not make it optional at the **install** level. If the
+code can already run without it, take it out of `peerDependencies` too — keep it
+as a `devDependency` and give the load site an actionable "not installed, run
+`npm install <pkg>`" error. That is not a breaking change for consumers.
+See ADR-115's 2026-07-23 amendment (issue #565, `@huggingface/transformers`).
+
 ## Fix decision tree
 
 - **`fixAvailable: in-range`** → `npm run deps:update` (or
@@ -68,7 +82,10 @@ shows only in the in-repo audit but not the consumer audit is masked by
 - **`fixAvailable: breaking`** → manual major bump, replacement, or drop the
   vulnerable path. Open a PR; do not auto-merge.
 - **No fix yet** → add a time-boxed `overrides` pin if a safe version exists
-  upstream, or document the accepted risk and the watch.
+  upstream, or document the accepted risk and the watch. If the vulnerable path
+  enters through an **optional peer that the code already degrades without**,
+  prefer dropping the peer outright — `overrides` are root-only and never reach
+  consumers, so a pin here fixes our audit and nothing for users.
 
 ## Reviewing `overrides`
 

@@ -21,8 +21,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { findProjectRoot } from '../../../kernel/unified-memory.js';
-import type { RouterConfig, ExtendedProviderType } from './types.js';
+import type { RouterConfig, ExtendedProviderType, AgentProviderOverride } from './types.js';
 import { DEFAULT_ROUTER_CONFIG, ALL_PROVIDER_TYPES } from './types.js';
+import { createLogger } from '../../../logging/logger-factory.js';
+
+// `console.warn` is not usable here: in MCP stdio mode stdout is the protocol
+// channel and console output is suppressed, so a config warning written that
+// way is invisible in the most common way AQE runs (issue #568).
+const logger = createLogger('llm/router/config-store');
 
 /** Filename under .agentic-qe/ */
 export const ROUTER_CONFIG_FILENAME = 'llm-config.json';
@@ -226,7 +232,110 @@ export function mergeRouterConfig(
     }
   }
 
+  // Issue #568: `agentOverrides` gets keyed-object merge semantics (like
+  // `providers`), NOT the shallow-replace treatment `fallbackChain` gets.
+  // Overriding one agent type must not wipe the rest.
+  if (base.agentOverrides || override.agentOverrides) {
+    merged.agentOverrides = { ...(base.agentOverrides ?? {}) };
+    for (const [agentType, cfg] of Object.entries(override.agentOverrides ?? {})) {
+      if (!cfg) continue;
+      merged.agentOverrides[agentType] = {
+        ...(base.agentOverrides?.[agentType] ?? {}),
+        ...cfg,
+      };
+    }
+  }
+
   return merged;
+}
+
+/**
+ * Validate and normalize an on-disk `agentOverrides` map (issue #568).
+ *
+ * User-hand-edited config is untrusted input: drop entries that name a provider
+ * we cannot construct, and strip any `apiKey`-shaped field that leaked in — the
+ * same "never persist API keys" discipline `saveRouterConfigFile` already
+ * enforces for `providers.*`.
+ *
+ * Returns the cleaned map plus human-readable warnings for the caller to log.
+ * Invalid entries are dropped, never thrown on: a typo in one agent key must not
+ * take down router initialization for the whole project.
+ */
+export function sanitizeAgentOverrides(
+  raw: unknown
+): { overrides: Record<string, AgentProviderOverride>; warnings: string[] } {
+  const overrides: Record<string, AgentProviderOverride> = {};
+  const warnings: string[] = [];
+
+  if (raw === undefined || raw === null) return { overrides, warnings };
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    warnings.push('`agentOverrides` must be an object keyed by agent type; ignoring it.');
+    return { overrides, warnings };
+  }
+
+  for (const [agentType, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!agentType.trim()) continue;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      warnings.push(`agentOverrides["${agentType}"] must be an object; ignoring it.`);
+      continue;
+    }
+    const entry = value as Record<string, unknown>;
+    const cleaned: AgentProviderOverride = {};
+
+    if (entry.provider !== undefined) {
+      const provider = entry.provider as ExtendedProviderType;
+      if (!ALL_PROVIDER_TYPES.includes(provider)) {
+        warnings.push(
+          `agentOverrides["${agentType}"].provider "${String(entry.provider)}" is not a known ` +
+          `provider (${ALL_PROVIDER_TYPES.join(', ')}); ignoring this entry.`
+        );
+        continue;
+      }
+      if (!RUNTIME_CONSTRUCTIBLE_PROVIDERS.has(provider)) {
+        warnings.push(
+          `agentOverrides["${agentType}"].provider "${provider}" cannot be instantiated at ` +
+          `runtime yet; ignoring this entry.`
+        );
+        continue;
+      }
+      cleaned.provider = provider;
+    }
+    if (typeof entry.model === 'string' && entry.model.trim()) {
+      cleaned.model = entry.model.trim();
+    }
+    if (typeof entry.temperature === 'number' && Number.isFinite(entry.temperature)) {
+      cleaned.temperature = entry.temperature;
+    }
+    if (typeof entry.maxTokens === 'number' && Number.isFinite(entry.maxTokens)) {
+      cleaned.maxTokens = entry.maxTokens;
+    }
+    if (typeof entry.priority === 'number' && Number.isFinite(entry.priority)) {
+      cleaned.priority = entry.priority;
+    }
+    // Secrets are already dropped by construction: `cleaned` is an ALLOW-LIST,
+    // so anything not explicitly copied above never survives. This check exists
+    // only so a user who pasted a credential in here is TOLD it was discarded
+    // rather than silently wondering why their key isn't being used.
+    // Deliberately does not echo the value.
+    const secretish = Object.keys(entry).filter(k =>
+      /^(api[-_]?key|key|token|secret|password|passwd|auth|authorization|bearer|credential)s?$/i.test(k)
+    );
+    if (secretish.length > 0) {
+      warnings.push(
+        `agentOverrides["${agentType}"] contained credential-shaped field(s) ` +
+        `[${secretish.join(', ')}] — discarded, not persisted, not logged. Credentials belong ` +
+        `in environment variables, never in .agentic-qe/llm-config.json.`
+      );
+    }
+
+    if (Object.keys(cleaned).length === 0) {
+      warnings.push(`agentOverrides["${agentType}"] had no usable fields; ignoring it.`);
+      continue;
+    }
+    overrides[agentType] = cleaned;
+  }
+
+  return { overrides, warnings };
 }
 
 /**
@@ -327,6 +436,17 @@ export function loadRouterConfig(
 ): RouterConfig {
   const env = options.env ?? process.env;
   const onDisk = loadRouterConfigFile(options.projectRoot);
+
+  // Issue #568: validate the hand-editable per-agent map before it reaches the
+  // router. Bad entries are dropped with a warning, never fatal.
+  if (onDisk.agentOverrides !== undefined) {
+    const { overrides, warnings } = sanitizeAgentOverrides(onDisk.agentOverrides);
+    for (const warning of warnings) {
+      logger.warn(`[llm-config] ${warning}`);
+    }
+    onDisk.agentOverrides = overrides;
+  }
+
   const merged = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, onDisk);
   // ADR-123: an explicit `enabled: false` on disk is never resurrected by env.
   const explicitlyDisabled = collectExplicitlyDisabled(onDisk);

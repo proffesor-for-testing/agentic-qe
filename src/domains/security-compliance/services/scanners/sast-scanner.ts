@@ -721,6 +721,10 @@ Provide detailed remediation advice specific to this code.`,
         model: modelId,
         maxTokens: 1500,
         temperature: 0.2,
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-security-scanner',
       });
 
       if (response.content) {

@@ -226,6 +226,10 @@ Return JSON in this exact format:
         model: modelId,
         maxTokens: this.config.llmMaxTokens ?? 2048,
         temperature: 0.3, // Low temperature for consistent analysis
+        // Issue #568: per-agent routing rules (including the user's on-disk
+        // `agentOverrides`) match on `agentType`; without it an override for
+        // this agent never fires.
+        agentType: 'qe-gap-detector',
       });
 
       if (response.content) {
