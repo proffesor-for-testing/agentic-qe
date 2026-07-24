@@ -13,6 +13,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { existsSync, unlinkSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { tmpdir } from 'os';
 import { RvfPatternStore } from '../../src/learning/rvf-pattern-store.js';
 import {
   createRvfStore,
@@ -24,7 +25,9 @@ import type { QEPattern } from '../../src/learning/qe-patterns.js';
 // Helpers
 // ============================================================================
 
-const BENCH_DIR = join(process.cwd(), '.agentic-qe', 'bench-tmp');
+// Use a run-specific location. A fixed project-relative path lets interrupted
+// or concurrent benchmark runs reopen stale native state and inflate counts.
+const BENCH_DIR = join(tmpdir(), `aqe-rvf-bench-${process.pid}-${Date.now()}`);
 const RVF_PATH = join(BENCH_DIR, 'bench-patterns.rvf');
 const DIM = 384;
 
@@ -123,9 +126,11 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
     );
 
     const stats = await store.getStats();
-    console.log(`[REAL BENCH] RVF status: ${stats.totalPatterns} vectors, ${stats.hnswStats.indexSizeBytes} bytes`);
+    console.log(`[REAL BENCH] RVF status: ${stats.hnswStats.vectorCount} vectors, ${stats.hnswStats.indexSizeBytes} bytes`);
 
-    expect(stats.totalPatterns).toBe(PATTERN_COUNT);
+    // totalPatterns is the shared SQLite source-of-truth count. This
+    // benchmark measures the isolated native RVF index created above.
+    expect(stats.hnswStats.vectorCount).toBe(PATTERN_COUNT);
     expect(ingestMs).toBeLessThan(10000); // generous limit for CI
 
     await store.dispose();

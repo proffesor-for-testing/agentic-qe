@@ -89,6 +89,11 @@ function loadFixture(namespace: string, limit: number): RealEmbedding[] | null {
         ),
       ),
     }));
+  } catch {
+    // A developer may have a valid SQLite database from an older schema.
+    // Treat it like a missing optional fixture instead of failing test
+    // discovery before runIf can skip the recall assertions.
+    return null;
   } finally {
     db.close();
   }

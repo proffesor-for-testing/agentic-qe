@@ -130,10 +130,12 @@ describe('CodexInstaller', () => {
     it('installs packaged hooks and AQE skills', async () => {
       mockExistsSync.mockImplementation((value: unknown) => {
         const file = String(value);
-        return file.includes('/workspaces/agentic-qe/.codex')
-          || file.includes('/workspaces/agentic-qe/.agents')
-          || file.includes('/workspaces/agentic-qe/.claude/hooks/aqe-hook.cjs')
-          || file.includes('/workspaces/agentic-qe/.claude/helpers/ruflo-hook.cjs');
+        if (file.startsWith(projectRoot)) return false;
+        return file.endsWith('/.codex/hooks.json')
+          || file.endsWith('/.codex/hooks')
+          || file.endsWith('/.agents/skills')
+          || file.endsWith('/.claude/hooks/aqe-hook.cjs')
+          || file.endsWith('/.claude/helpers/ruflo-hook.cjs');
       });
       mockReaddirSync.mockImplementation((value: unknown) => {
         const dir = String(value);

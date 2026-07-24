@@ -198,6 +198,10 @@ describe('DomainTaskExecutor', () => {
   let executor: DomainTaskExecutor;
 
   beforeEach(async () => {
+    // These executor tests exercise domain dispatch, not paid LLM enhancement.
+    // Keep developer credentials and local router configuration from changing
+    // their behavior or causing real provider calls.
+    vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
     kernel = new MockQEKernel();
     await kernel.initialize();
     executor = createTaskExecutor(kernel, {
@@ -210,6 +214,7 @@ describe('DomainTaskExecutor', () => {
 
   afterEach(async () => {
     await kernel.dispose();
+    vi.unstubAllEnvs();
     try {
       await fs.rm(TEST_RESULTS_DIR, { recursive: true, force: true });
     } catch {
@@ -766,6 +771,7 @@ describe('TaskExecutor integration', () => {
   let executor: DomainTaskExecutor;
 
   beforeEach(async () => {
+    vi.stubEnv('AQE_LLM_ROUTER_DISABLED', '1');
     kernel = new MockQEKernel();
     await kernel.initialize();
     executor = createTaskExecutor(kernel, {
@@ -776,6 +782,7 @@ describe('TaskExecutor integration', () => {
 
   afterEach(async () => {
     await kernel.dispose();
+    vi.unstubAllEnvs();
     try {
       await fs.rm(TEST_DIR, { recursive: true, force: true });
     } catch {

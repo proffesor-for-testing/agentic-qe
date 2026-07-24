@@ -330,9 +330,10 @@ describe('createPersistentScheduler factory', () => {
   });
 
   it('should accept custom config', () => {
-    // Use /tmp path which is allowed by security validation
+    // Use the platform's actual temp root. On macOS /tmp is a symlink to
+    // /private/tmp while os.tmpdir() may resolve under /var/folders.
     const scheduler = createPersistentScheduler({
-      schedulesPath: '/tmp/aqe-test/schedules.json',
+      schedulesPath: path.join(os.tmpdir(), 'aqe-test', 'schedules.json'),
       debug: true,
     });
     expect(scheduler).toBeInstanceOf(PersistentScheduler);

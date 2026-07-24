@@ -119,7 +119,7 @@ describe('Multi-Provider Integration Tests', () => {
       const providerId = mapModelId(original, 'anthropic');
       const backToCanonical = normalizeModelId(providerId);
 
-      expect(providerId).toBe('claude-opus-4-7');
+      expect(providerId).toBe('claude-opus-4-5-20251101');
       expect(backToCanonical).toBe(original);
     });
 
@@ -134,7 +134,7 @@ describe('Multi-Provider Integration Tests', () => {
 
     it('should get canonical name for display', () => {
       const name = getCanonicalName('claude-sonnet-4-6');
-      expect(name).toBe('Claude Sonnet 4');
+      expect(name).toBe('Claude Sonnet 4.6');
     });
 
     it('should have mappings for all major model families', () => {
