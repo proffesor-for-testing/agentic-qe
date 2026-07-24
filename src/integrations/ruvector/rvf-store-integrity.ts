@@ -83,7 +83,11 @@ export function readLockOwnerPid(rvfPath: string): number | null {
 export function isLockHeldByLiveProcess(rvfPath: string): boolean {
   const pid = readLockOwnerPid(rvfPath);
   if (pid === null) return false;
-  return pid !== process.pid && isPidAlive(pid);
+  // A same-PID lock can belong to another adapter initialized through a
+  // different in-process path. PID equality does not prove that handle was
+  // closed, and breaking the lock can quarantine/replace a store that this
+  // process still has open. Treat every live owner conservatively.
+  return isPidAlive(pid);
 }
 
 /**

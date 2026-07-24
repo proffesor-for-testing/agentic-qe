@@ -12,6 +12,7 @@ import { Command } from 'commander';
 import { QE_HOOK_EVENTS } from '../../learning/qe-hooks.js';
 import {
   getHooksSystem,
+  disposeHooksSystem,
   state,
   type HooksSystemState,
 } from './hooks-handlers/hooks-shared.js';
@@ -67,6 +68,13 @@ Examples:
   registerTaskHooks(hooks);
   registerCommandHooks(hooks);
 
+  // Every hook command is a short-lived process. Close native RVF handles
+  // before it exits so the next invocation never mistakes an unfinalized store
+  // for corruption and enters a quarantine/rebuild loop.
+  hooks.hook('postAction', async () => {
+    await disposeHooksSystem();
+  });
+
   return hooks;
 }
 
@@ -76,6 +84,7 @@ Examples:
 
 export {
   getHooksSystem,
+  disposeHooksSystem,
   state as hooksState,
   QE_HOOK_EVENTS,
   type HooksSystemState,

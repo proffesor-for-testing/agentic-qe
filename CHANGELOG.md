@@ -5,6 +5,35 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.2] - 2026-07-24
+
+Stops short-lived learning hooks from repeatedly producing
+`brain.rvf.corrupt-*` and `patterns.rvf.corrupt-*` files. A busy project could
+accumulate thousands of these derived-cache artifacts while vector search
+repeatedly fell back to SQLite.
+
+### Fixed
+
+- **Hook processes now close every RVF store before exiting** ([#574]).
+  Every `aqe hooks` invocation opened the shared pattern index and brain
+  dual-writer, but the CLI had no teardown step. The native stores therefore
+  exited without a clean close; the next hook found an unusable 162-byte store,
+  quarantined it, rebuilt it, and repeated the cycle. Hook commands now dispose
+  the reasoning bank and reset both RVF singletons after every action.
+- **A duplicate opener can no longer break its own process's live RVF lock**
+  ([#574]). Recovery protected locks owned by other live processes but treated
+  a lock containing the current PID as stale. Another initialization path in
+  that process could then remove the lock and replace a store still in use.
+  Every live owner is now protected; duplicate paths degrade safely to SQLite
+  instead of moving a live store.
+
+### Changed
+
+- **RVF hook cleanup is idempotent and fail-open.** Partial initialization,
+  optional native bindings, or an individual close failure cannot block the
+  host editor or command. True stale locks remain recoverable after their owner
+  exits.
+
 ## [3.13.1] - 2026-07-23
 
 Fixes four reported issues, three of which come down to the same thing: a tool

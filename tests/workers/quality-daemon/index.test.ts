@@ -54,6 +54,10 @@ describe('QualityDaemon', () => {
       tickIntervalMs: 100,
       ciPollIntervalMs: 500,
       coverageCheckIntervalMs: 300,
+      // Queue-processing tests must not depend on the host's instantaneous
+      // memory pressure or load average.
+      cpuThreshold: 1.1,
+      memoryThreshold: 1.1,
     });
     memory = createMockMemory();
   });
@@ -105,14 +109,14 @@ describe('QualityDaemon', () => {
 
   it('reports uptime after start', async () => {
     await daemon.start(memory);
-    vi.advanceTimersByTime(5000);
+    await vi.advanceTimersByTimeAsync(5000);
     const status = daemon.getStatus();
     expect(status.uptimeSeconds).toBeGreaterThanOrEqual(4);
   });
 
   it('tracks tick count', async () => {
     await daemon.start(memory);
-    vi.advanceTimersByTime(350);
+    await vi.advanceTimersByTimeAsync(350);
     const status = daemon.getStatus();
     expect(status.tickCount).toBeGreaterThanOrEqual(1);
   });
@@ -139,7 +143,7 @@ describe('QualityDaemon', () => {
       source: 'test',
     });
 
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
 
     expect(dequeueSpy).toHaveBeenCalled();
     expect(daemon.queue.isEmpty).toBe(true);
@@ -163,7 +167,7 @@ describe('QualityDaemon', () => {
       source: 'test',
     });
 
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
 
     expect(daemon.queue.isEmpty).toBe(true);
     expect(daemon.notificationService.sentCount).toBeGreaterThanOrEqual(1);
@@ -186,7 +190,7 @@ describe('QualityDaemon', () => {
       source: 'test',
     });
 
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
 
     expect(daemon.queue.isEmpty).toBe(true);
     // coverage_delta handler checks pending suggestions (not re-analyze)
@@ -209,7 +213,7 @@ describe('QualityDaemon', () => {
       source: 'test',
     });
 
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
 
     expect(daemon.queue.isEmpty).toBe(true);
     expect(executeSpy).toHaveBeenCalled();
@@ -221,7 +225,7 @@ describe('QualityDaemon', () => {
 
   it('persists state to memory on stop', async () => {
     await daemon.start(memory);
-    vi.advanceTimersByTime(200);
+    await vi.advanceTimersByTimeAsync(200);
     await daemon.stop();
 
     const state = await memory.get<{ stoppedAt: number }>('quality-daemon:state');

@@ -359,7 +359,12 @@ export function findCargoRoot(targetPath: string, maxDepth = 6): string | null {
   }
 
   for (let i = 0; i <= maxDepth; i++) {
-    if (fs.existsSync(path.join(dir, 'Cargo.toml'))) return dir;
+    if (fs.existsSync(path.join(dir, 'Cargo.toml'))) {
+      // macOS exposes /tmp through the /private/tmp symlink. Return the
+      // canonical path so callers receive one stable crate identity regardless
+      // of which alias the target used.
+      return fs.realpathSync(dir);
+    }
     const parent = path.dirname(dir);
     if (parent === dir) break; // reached filesystem root
     dir = parent;

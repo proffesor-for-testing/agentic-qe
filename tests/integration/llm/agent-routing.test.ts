@@ -128,6 +128,8 @@ function createMockProviderManager(providers: Map<LLMProviderType, LLMProvider>)
       return metrics;
     }),
     generate: vi.fn(),
+    assertWithinBudget: vi.fn(),
+    recordResponseSpend: vi.fn(),
     healthCheck: vi.fn(),
     dispose: vi.fn(),
   };
