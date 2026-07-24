@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.13.2](v3.13.2.md) | 2026-07-24 | Stops hook-driven `brain.rvf`/`patterns.rvf` corruption loops by closing native stores after every hook and protecting same-process live locks (#574). |
 | [v3.13.1](v3.13.1.md) | 2026-07-23 | Honesty release: coverage analysis no longer reports numbers it never measured (real `cargo llvm-cov` for Rust; uncollected metrics are `null`, not 0 or 100), `test_generate_enhanced` actually calls your LLM (#567), and a HIGH advisory no longer ships via an optional peer (#565). Adds on-disk per-agent LLM routing (#568) and Codex CLI QE skills. BREAKING: coverage metrics are now `number \| null`. |
 | [v3.13.0](v3.13.0.md) | 2026-07-18 | QE-Court: adversarial review where a change is prosecuted by independent cross-vendor AI reviewers and a SHIP verdict must survive an escalating deeper review — it reviewed this release and blocked it, catching 3 data-loss/crash bugs. Adds a Codex (GPT) provider, a significance gate for the flywheel, automatic memory.db recovery, per-agent cost tracking, and clears 4 HIGH CVEs from consumer installs (#565). |
 | [v3.12.3](v3.12.3.md) | 2026-07-17 | Fixes vector search silently switching off for good: an interrupted RVF export left a store AQE could neither open nor replace, degrading to SQLite on every later run. Exports are now atomic; unusable stores quarantine and rebuild themselves — no manual cleanup. Flywheel receipts signed with the Cognitum platform identity. |
