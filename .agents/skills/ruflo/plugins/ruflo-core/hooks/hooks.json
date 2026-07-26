@@ -1,0 +1,76 @@
+{
+  "_note": "#1921/#2613/#2721 — hook commands invoke scripts/ruflo-hook.cjs (resilient shim): prefers a locally-installed `ruflo`/`claude-flow` binary, falls back to `npx --prefer-offline`, and always exits 0 so a CLI/install failure (e.g. arborist `Invalid Version` on npm 10.8.x) never surfaces an error in Claude Code or blocks a turn. PreToolUse commands additionally echo a valid `{\"permission\":\"allow\"}` verdict on stdout: Claude Code ignores it (JSON-shaped stdout is still valid), while Cursor (which imports third-party hooks under its stricter preToolUse contract and requires JSON-verdict stdout) receives a well-formed permission response and does not fail-closed. DO NOT revert to a bare `npx <pkg>@alpha hooks …` per fire.",
+  "_platform_note": "#2721 — every command below is a `node -e` bootstrap: it resolves this plugin's scripts/ruflo-hook.cjs from process.env.CLAUDE_PLUGIN_ROOT INSIDE Node (no shell `${VAR}`/`%VAR%` expansion, so the exact same command string runs unchanged on Windows, macOS, and Linux), then requires it with process.argv pre-seeded for the target subcommand. No bash, sh, cmd.exe, jq, or .sh scripts are involved.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','modify-bash'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','modify-file'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','post-command'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','post-edit'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','precompact-manual'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','precompact-auto'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"process.argv=[process.argv[0],'x','session-end','--generate-summary','true','--persist-state','true','--export-metrics','true'];require(require('path').join(process.env.CLAUDE_PLUGIN_ROOT,'scripts','ruflo-hook.cjs'))\""
+          }
+        ]
+      }
+    ]
+  }
+}

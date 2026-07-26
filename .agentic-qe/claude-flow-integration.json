@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "projectRoot": "/workspaces/agentic-qe-new",
+  "projectRoot": "/workspaces/agentic-qe",
   "integration": {
     "enabled": true,
     "features": {

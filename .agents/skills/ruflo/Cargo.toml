@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = [
+  "v3/crates/ruflo-federation-peer",
+  "v3/plugins/gastown-bridge",
+]
+
+# ruflo is primarily TypeScript; this workspace manifest exists so the
+# repo-scorecard analyzer sees ruflo's Rust components (federation peer
+# binary, gastown-bridge plugin) without traversing deep subdirs.

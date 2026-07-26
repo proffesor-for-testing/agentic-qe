@@ -4,22 +4,22 @@ This directory contains Quality Engineering skills managed by Agentic QE.
 
 ## Summary
 
-- **Total QE Skills**: 85
-- **V2 Methodology Skills**: 62
-- **V3 Domain Skills**: 24
-- **Platform Skills**: 30 (Claude Flow managed)
+- **Total QE Skills**: 88
+- **V2 Methodology Skills**: 65
+- **V3 Domain Skills**: 23
+- **Platform Skills**: 32 (Claude Flow managed)
 - **Validation Infrastructure**: ✅ Installed
 
 > **Note**: Platform skills (agentdb, github, flow-nexus, etc.) are managed by claude-flow.
 > Only QE-specific skills are installed/updated by `aqe init`.
 
-## V2 Methodology Skills (62)
+## V2 Methodology Skills (65)
 
 Version-agnostic quality engineering best practices from the QE community.
 
-- **a11y-ally**: Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium → agent-browser → Playwright+Stealth.
+- **a11y-ally**: Use when running comprehensive WCAG accessibility audits with axe-core + pa11y + Lighthouse, generating context-aware remediation, or testing video accessibility. Supports 3-tier browser cascade with graceful degradation.
 - **accessibility-testing**: WCAG 2.2 compliance testing, screen reader validation, and inclusive design verification. Use when ensuring legal compliance (ADA, Section 508), testing for disabilities, or building accessible applications for 1 billion disabled users globally.
-- **agentic-quality-engineering**: AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACTS principles.
+- **agentic-quality-engineering**: Use when orchestrating QE agents, understanding PACTS principles, configuring the AQE v3 fleet, or leveraging AI agents as force multipliers for quality work.
 - **api-testing-patterns**: Comprehensive API testing patterns including contract testing, REST/GraphQL testing, and integration testing. Use when testing APIs or designing API test strategies.
 - **browser**: Web browser automation with AI-optimized snapshots for claude-flow agents
 - **brutal-honesty-review**: Unvarnished technical criticism combining Linus Torvalds
@@ -33,8 +33,8 @@ Version-agnostic quality engineering best practices from the QE community.
 - **context-driven-testing**: Apply context-driven testing principles where practices are chosen based on project context, not universal
 - **contract-testing**: Consumer-driven contract testing for microservices using Pact, schema validation, API versioning, and backward compatibility testing. Use when testing API contracts or coordinating distributed teams.
 - **database-testing**: Database schema validation, data integrity testing, migration testing, transaction isolation, and query performance. Use when testing data persistence, ensuring referential integrity, or validating database migrations.
-- **debug-loop**: Hypothesis-driven autonomous debugging with real command validation
-- **enterprise-integration-testing**: Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates.
+- **debug-loop**: Use when debugging a failing test or runtime error with hypothesis-driven investigation, autonomous command validation, and systematic root cause elimination.
+- **enterprise-integration-testing**: Use when testing enterprise integrations across SAP, middleware, WMS, or backend systems, validating E2E enterprise flows, testing SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), or enforcing cross-system quality gates.
 - **exploratory-testing-advanced**: Advanced exploratory testing techniques with Session-Based Test Management (SBTM), RST heuristics, and test tours. Use when planning exploration sessions, investigating bugs, or discovering unknown quality risks.
 - **holistic-testing-pact**: Apply the Holistic Testing Model evolved with PACTS (Proactive, Autonomous, Collaborative, Targeted, Structured) principles. Use when designing comprehensive test strategies for Classical, AI-assisted, Agent based, or Agentic Systems building quality into the team, or implementing whole-team quality practices.
 - **localization-testing**: Internationalization (i18n) and localization (l10n) testing for global products including translations, locale formats, RTL languages, and cultural appropriateness. Use when launching in new markets or building multi-language products.
@@ -48,18 +48,20 @@ Version-agnostic quality engineering best practices from the QE community.
 - **n8n-workflow-testing-fundamentals**: Comprehensive n8n workflow testing including execution lifecycle, node connection patterns, data flow validation, and error handling strategies. Use when testing n8n workflow automation applications.
 - **observability-testing-patterns**: Observability and monitoring validation patterns for dashboards, alerting, log aggregation, APM traces, and SLA/SLO verification. Use when testing monitoring infrastructure, dashboard accuracy, alert rules, or metric pipelines.
 - **pair-programming**: AI-assisted pair programming with multiple modes (driver/navigator/switch), real-time verification, quality monitoring, and comprehensive testing. Supports TDD, debugging, refactoring, and learning sessions. Features automatic role switching, continuous code review, security scanning, and performance optimization with truth-score verification.
-- **performance-testing**: Test application performance, scalability, and resilience. Use when planning load testing, stress testing, or optimizing system performance.
-- **pr-review**: Scope-aware GitHub PR review with user-friendly tone and trust tier validation
-- **qcsd-cicd-swarm**: QCSD Verification phase swarm for CI/CD pipeline quality gates using regression analysis, flaky test detection, quality gate enforcement, and deployment readiness assessment. Consumes Development outputs (SHIP/CONDITIONAL/HOLD decisions, quality metrics) and produces signals for Production monitoring.
-- **qcsd-development-swarm**: QCSD Development phase swarm for in-sprint code quality assurance using TDD adherence, code complexity analysis, coverage gap detection, and defect prediction. Consumes Refinement outputs (BDD scenarios, SFDIPOT priorities) and produces signals for Verification.
-- **qcsd-ideation-swarm**: QCSD Ideation phase swarm for Quality Criteria sessions using HTSM v6.3, Risk Storming, and Testability analysis before development begins. Uses 5-tier browser cascade: Vibium → agent-browser → Playwright+Stealth → WebFetch → WebSearch-fallback.
-- **qcsd-production-swarm**: QCSD Production Telemetry phase swarm for post-release production health assessment using DORA metrics, root cause analysis, defect prediction, and cross-phase feedback loops. Consumes CI/CD outputs (RELEASE/REMEDIATE/BLOCK decisions, release readiness metrics) and produces feedback signals to Ideation and Refinement.
-- **qcsd-refinement-swarm**: QCSD Refinement phase swarm for Sprint Refinement sessions using SFDIPOT product factors, BDD scenario generation, and requirements validation.
-- **quality-metrics**: Measure quality effectively with actionable metrics. Use when establishing quality dashboards, defining KPIs, or evaluating test effectiveness.
+- **performance-testing**: Profiles application performance under load using k6, Artillery, or JMeter to measure latency, throughput, and error rates. Use when planning load tests, stress tests, soak tests, benchmarking APIs, or identifying performance bottlenecks.
+- **pr-review**: Use when reviewing a GitHub PR for quality, scope correctness, trust tier compliance, or generating user-friendly review feedback.
+- **qcsd-cicd-swarm**: Use when enforcing CI/CD quality gates before release, running regression analysis, detecting flaky tests, or assessing deployment readiness in the QCSD Verification phase.
+- **qcsd-development-swarm**: Use when monitoring in-sprint code quality with TDD adherence checks, complexity analysis, coverage gap detection, or defect prediction in the QCSD Development phase.
+- **qcsd-ideation-swarm**: Use when running Quality Criteria sessions during PI/Sprint planning with HTSM v6.3, Risk Storming, or Testability analysis in the QCSD Ideation phase.
+- **qcsd-production-swarm**: Use when assessing post-release production health with DORA metrics, root cause analysis, defect prediction, or cross-phase feedback loops in the QCSD Production phase.
+- **qcsd-refinement-swarm**: Use when running Sprint Refinement sessions with SFDIPOT product factors, generating BDD scenarios, or validating requirements in the QCSD Refinement phase.
+- **qe-court**: Adversarial review court — a delivery (diff, PR, test suite, or artifact) is prosecuted by independent AI reviewers from different vendors, each with its own probe set, then a SHIP verdict must SURVIVE escalating deeper reviewers before it stands. Use when you want more than one reviewer
+- **quality-metrics**: Tracks quality metrics including defect density, test effectiveness ratio, DORA metrics, and mean time to detection. Use when establishing quality dashboards, defining KPIs, evaluating test suite effectiveness, or reporting quality trends to stakeholders.
 - **refactoring-patterns**: Apply safe refactoring patterns to improve code structure without changing behavior. Use when cleaning up code, reducing technical debt, or improving maintainability.
 - **regression-testing**: Strategic regression testing with test selection, impact analysis, and continuous regression management. Use when verifying fixes don
 - **risk-based-testing**: Focus testing effort on highest-risk areas using risk assessment and prioritization. Use when planning test strategy, allocating testing resources, or making coverage decisions.
-- **security-testing**: Test for security vulnerabilities using OWASP principles. Use when conducting security audits, testing auth, or implementing security practices.
+- **ruflo**: Ruflo is a multi-agent orchestration platform for AI coding agents (Claude Code, Cursor, Codex, Copilot, Gemini, Amp, +12 more). Use this skill when the user wants to (1) install/init ruflo in a project, (2) run multi-agent swarms with hierarchical coordination, (3) use ruflo
+- **security-testing**: Scans for security vulnerabilities including XSS, SQL injection, CSRF, and auth flaws using OWASP Top 10 methodology. Use when conducting SAST/DAST scans, auditing authentication flows, testing authorization rules, or implementing security test automation.
 - **security-visual-testing**: Security-first visual testing combining URL validation, PII detection, and visual regression with parallel viewport support. Use when testing web applications that handle sensitive data, need visual regression coverage, or require WCAG accessibility compliance.
 - **sfdipot-product-factors**: James Bach
 - **sherlock-review**: Evidence-based investigative code review using deductive reasoning to determine what actually happened versus what was claimed. Use when verifying implementation claims, investigating bugs, validating fixes, or conducting root cause analysis. Elementary approach to finding truth through systematic observation.
@@ -75,55 +77,41 @@ Version-agnostic quality engineering best practices from the QE community.
 - **test-idea-rewriting**: Transform passive
 - **test-reporting-analytics**: Advanced test reporting, quality dashboards, predictive analytics, trend analysis, and executive reporting for QE metrics. Use when communicating quality status, tracking trends, or making data-driven decisions.
 - **testability-scoring**: AI-powered testability assessment using 10 principles of intrinsic testability with Playwright and optional Vibium integration. Evaluates web applications against Observability, Controllability, Algorithmic Simplicity, Transparency, Stability, Explainability, Unbugginess, Smallness, Decomposability, and Similarity. Use when assessing software testability, evaluating test readiness, identifying testability improvements, or generating testability reports.
-- **verification-quality**: Comprehensive truth scoring, code quality verification, and automatic rollback system with 0.95 accuracy threshold for ensuring high-quality agent outputs and codebase reliability.
+- **validation-pipeline**: Runs multi-stage validation gates with per-step scoring, pass/fail verdicts, and aggregate quality reports. Use when validating requirements, code, or artifacts through structured gate enforcement before merge or release.
+- **verification-quality**: |
 - **visual-testing-advanced**: Advanced visual regression testing with pixel-perfect comparison, AI-powered diff analysis, responsive design validation, and cross-browser visual consistency. Use when detecting UI regressions, validating designs, or ensuring visual consistency.
 - **wms-testing-patterns**: Warehouse Management System testing patterns for inventory operations, pick/pack/ship workflows, wave management, EDI X12/EDIFACT compliance, RF/barcode scanning, and WMS-ERP integration. Use when testing WMS platforms (Blue Yonder, Manhattan, SAP EWM).
 - **xp-practices**: Apply XP practices including pair programming, ensemble programming, continuous integration, and sustainable pace. Use when implementing agile development practices, improving team collaboration, or adopting technical excellence practices.
 
-## V3 Domain Skills (24)
+## V3 Domain Skills (23)
 
-V3-specific implementation guides for the 12 DDD bounded contexts plus on-demand hooks, investigation runbooks, and measurement tools.
+V3-specific implementation guides for the 12 DDD bounded contexts.
 
-- **pentest-validation**: Orchestrate security finding validation through graduated exploitation. 4-phase pipeline: recon (SAST/DAST), analysis (code review), validation (exploit proof), report (No Exploit, No Report gate). Eliminates false positives by proving exploitability.
-- **qe-browser**: Browser automation fleet skill built on Vibium (WebDriver BiDi, ~10MB Go binary, auto-installed by `aqe init`). Ships 5 helpers: typed assertions with 16 check kinds, multi-step batch executor, pixel-perfect visual-diff against baselines, prompt-injection scanner with 14 patterns, and semantic intent scorer with 15 intents (accept_cookies, submit_form, fill_email, etc.). Emits a `skipped` envelope with exit code 2 if vibium isn't installed. Supersedes per-skill browser glue in a11y-ally, e2e-flow-verifier, visual-testing-advanced, and 8 other skills. See [ADR-091](../../../docs/implementation/adrs/ADR-091-qe-browser-skill-vibium-engine.md).
-- **qe-chaos-resilience**: Chaos engineering and resilience testing including fault injection, load testing, and system recovery validation.
-- **qe-code-intelligence**: Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval.
-- **qe-coverage-analysis**: O(log n) sublinear coverage gap detection with risk-weighted analysis and intelligent test prioritization.
-- **qe-defect-intelligence**: AI-powered defect prediction, pattern learning, and root cause analysis for proactive quality management.
-- **qe-iterative-loop**: Quality Engineering iteration loops for autonomous test improvement, coverage achievement, and quality gate compliance. Use when tests need to pass, coverage targets must be met, quality gates require compliance, or flaky tests need stabilization. Integrates with AQE v3 fleet agents for coordinated quality iteration.
-- **qe-learning-optimization**: Transfer learning, metrics optimization, and continuous improvement for AI-powered QE agents.
-- **qe-quality-assessment**: Comprehensive quality gates, metrics analysis, and deployment readiness assessment for continuous quality assurance.
-- **qe-requirements-validation**: Requirements traceability, acceptance criteria validation, and BDD scenario management for complete requirements coverage.
-- **qe-test-execution**: Parallel test execution orchestration with intelligent scheduling, retry logic, and comprehensive result aggregation.
-- **qe-test-generation**: AI-powered test generation using pattern recognition, code analysis, and intelligent test synthesis for comprehensive test coverage.
-- **qe-visual-accessibility**: Visual regression testing, responsive design validation, and WCAG accessibility compliance testing.
+- **coverage-drop-investigator**: Use when test coverage has dropped and you need to find which changes caused it and what tests to add. Traces coverage regressions to specific commits and files.
+- **coverage-guard**: Use when you want to prevent coverage regressions during development. Activate with /coverage-guard to warn when coverage drops below threshold after code changes.
+- **e2e-flow-verifier**: Use when verifying complete user flows end-to-end with the qe-browser skill (Vibium), recording session evidence, and asserting state at each step. For product verification with real browser automation.
+- **freeze-tests**: Use when refactoring production code and you want to ensure test files are not modified. Activate with /freeze-tests to block all edits to test files for safe refactoring.
+- **no-skip**: Use when you want to prevent .skip(), .only(), xit(), and xdescribe() from being committed to test files. Activate with /no-skip for session-scoped test skip prevention.
+- **pentest-validation**: Use when validating security findings from SAST/DAST scans, proving exploitability of reported vulnerabilities, eliminating false positives, or running the 4-phase pentest pipeline (recon, analysis, validation, report).
+- **qe-browser**: Browser automation for QE agents using Vibium (WebDriver BiDi) with assertions, batch execution, visual diff, prompt-injection scanning, and semantic intents. Use when any QE skill needs to drive a real browser — visual testing, accessibility audits, E2E flow verification, pentest validation, or exploratory testing.
+- **qe-chaos-resilience**: Injects controlled faults (network partition, latency, process kill, disk pressure) into distributed systems and validates recovery behavior. Use when testing circuit breakers, failover paths, retry logic, or building confidence in system resilience through chaos engineering.
+- **qe-code-intelligence**: Builds semantic code indexes, maps dependency graphs, and performs intelligent code search across large codebases. Use when understanding unfamiliar code, tracing call chains, analyzing import dependencies, or reducing context window usage through targeted retrieval.
+- **qe-coverage-analysis**: Analyzes test coverage data (Istanbul, c8, lcov) to identify uncovered lines, branches, and functions with risk-weighted gap detection. Use when analyzing coverage reports, identifying coverage gaps, comparing coverage between branches, or prioritizing which untested code to cover first.
+- **qe-defect-intelligence**: Predicts defect-prone code using change frequency, complexity metrics, and historical bug patterns. Use when predicting defects before they escape, analyzing root causes of test failures, learning from past defect patterns, or implementing proactive quality management.
+- **qe-iterative-loop**: Runs autonomous red-green-refactor loops to fix failing tests, reach coverage targets, and satisfy quality gates. Use when tests need to pass, coverage thresholds must be met, quality gates require compliance, or flaky tests need stabilization.
+- **qe-learning-optimization**: Optimizes QE agent performance through transfer learning, hyperparameter tuning, and pattern distillation across test domains. Use when improving agent accuracy, applying learned patterns to new projects, tuning quality thresholds, or implementing continuous improvement loops for AI-powered testing.
+- **qe-quality-assessment**: Evaluates code quality through complexity analysis, lint results, code smell detection, and test health metrics. Use when assessing deployment readiness, configuring quality gates, scoring a codebase for release, or generating quality reports with pass/fail verdicts.
+- **qe-requirements-validation**: Validates acceptance criteria for testability, traces requirements to test cases, and generates BDD scenarios from user stories. Use when validating acceptance criteria, building requirements traceability matrices, managing Gherkin scenarios, or ensuring complete requirements coverage before development.
+- **qe-test-execution**: Orchestrates test suite execution with parallel sharding, intelligent retry, and real-time reporting across Jest, Vitest, and Playwright. Use when running test suites, optimizing execution time, handling flaky tests, configuring CI test pipelines, or analyzing test run results.
+- **qe-test-generation**: Generates durable-first tests — invariants, contracts, and property-based tests at boundaries that survive a reimplementation — plus unit, integration, and e2e coverage. Use when creating tests for new or changed code, filling coverage gaps, or migrating test suites between Jest, Vitest, and Playwright.
+- **qe-visual-accessibility**: Captures and compares screenshots across viewports, runs axe-core accessibility scans, and detects visual regressions with pixel-diff analysis. Use when detecting UI regressions, validating responsive layouts, testing WCAG compliance, or ensuring visual consistency after CSS or component changes.
+- **security-watch**: Use when working on security-sensitive code to catch secrets, eval(), innerHTML, and other dangerous patterns before they
+- **skill-stats**: Use when reviewing which QE skills are being used, finding undertriggering skills, or analyzing skill effectiveness. Shows usage patterns and recommendations.
+- **strict-tdd**: Use when enforcing TDD discipline — blocks writing production code unless a failing test exists first. Activate with /strict-tdd to enable session-scoped Red-Green-Refactor guardrail.
+- **test-failure-investigator**: Use when a test is failing and you need to determine root cause: is it flaky, an environment issue, or a real regression? Traces failure from symptom to fix.
+- **test-metrics-dashboard**: Use when querying test history, analyzing flakiness rates, tracking MTTR, or building quality trend dashboards from test execution data.
 
-### On-Demand Hooks
-
-- **strict-tdd**: Enforces strict TDD red-green-refactor discipline. Blocks code changes that lack a failing test first.
-- **no-skip**: Prevents use of .skip, .only, or xdescribe in test files. Ensures all tests are active.
-- **coverage-guard**: Blocks merges when coverage drops below configured thresholds. Enforces coverage-only-goes-up policy.
-- **freeze-tests**: Locks the test suite during stabilization periods. Prevents new test additions or modifications.
-- **security-watch**: Scans code changes for security anti-patterns (hardcoded secrets, SQL injection, etc.) on every commit.
-
-### Runbook Skills
-
-- **test-failure-investigator**: Automated runbook for investigating test failures. Gathers logs, diffs, recent changes, and flaky-test history to diagnose root cause.
-- **coverage-drop-investigator**: Automated runbook for diagnosing coverage drops. Identifies uncovered lines, maps to recent commits, and suggests targeted tests.
-
-### Product Verification
-
-- **e2e-flow-verifier**: End-to-end user flow verification against acceptance criteria. Validates critical paths through the application match expected behavior.
-
-### Data & Analysis
-
-- **test-metrics-dashboard**: Aggregates test results, coverage trends, flaky-test rates, and execution times into a unified dashboard view.
-
-### Measurement
-
-- **skill-stats**: Measures skill usage frequency, success rates, and token costs. Provides data for skill portfolio optimization.
-
-## Platform Skills (30)
+## Platform Skills (32)
 
 Claude Flow platform skills (managed separately).
 
@@ -141,8 +129,10 @@ Claude Flow platform skills (managed separately).
 - github-release-management
 - github-workflow-automation
 - hooks-automation
+- iterative-loop
 - reasoningbank-agentdb
 - reasoningbank-intelligence
+- release
 - skill-builder
 - sparc-methodology
 - stream-chain
@@ -171,4 +161,4 @@ See `.validation/README.md` for usage instructions.
 
 ---
 
-*Generated by AQE v3 init on 2026-03-11T09:00:19.526Z*
+*Generated by AQE v3 init on 2026-07-26T08:24:02.025Z*
