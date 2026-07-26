@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" session-start",
-            "timeout": 25,
+            "timeout": 30,
             "statusMessage": "Loading AQE learning context"
           },
           {
@@ -26,7 +26,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" route",
-            "timeout": 20,
+            "timeout": 30,
             "statusMessage": "Routing through the AQE fleet"
           },
           {
@@ -45,7 +45,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" pre-command",
-            "timeout": 20,
+            "timeout": 30,
             "statusMessage": "Applying AQE command guardrails"
           },
           {
@@ -62,7 +62,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" pre-edit",
-            "timeout": 20,
+            "timeout": 30,
             "statusMessage": "Applying AQE edit guardrails"
           },
           {
@@ -81,7 +81,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" post-command",
-            "timeout": 20,
+            "timeout": 30,
             "statusMessage": "Recording AQE command outcome"
           },
           {
@@ -98,7 +98,7 @@
           {
             "type": "command",
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" post-edit",
-            "timeout": 20,
+            "timeout": 30,
             "statusMessage": "Recording AQE edit outcome"
           },
           {
@@ -152,9 +152,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" session-end",
-            "timeout": 20,
-            "statusMessage": "Saving AQE session state"
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" stop",
+            "timeout": 60,
+            "statusMessage": "Closing AQE learning outcome and saving session state"
           },
           {
             "type": "command",
