@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-119 |
-| **Status** | Accepted (2026-07-08) — `quality-verdict.ts` core (8 tests) + frontier `frontier-judge.ts` (preflight→inconclusive, injectable provider seam) + `quality-gate-runner.ts` (CLI/MCP parity) + `aqe quality-gate` CLI + `qe/quality/gate` MCP tool. Unit-tested; MCP protocol-level integration test deferred to CI. |
+| **Status** | Accepted (2026-07-08) — core implemented; live test-generation adoption repair in progress |
 | **Date** | 2026-07-07 |
+| **Updated** | 2026-07-28 |
 | **Author** | AQE Core |
 | **Review Cadence** | 3 months |
 | **Supersedes** | — |
@@ -86,6 +87,10 @@ One local/Haiku judgment, pass/fail.
 
 ### 1. Mechanical gate (reuse ADR-113)
 Tests that do not execute ⇒ `fail`. No judge is consulted until the mechanical gate is satisfied — an artifact whose tests didn't run is never "pass," regardless of judge opinion.
+
+At `aqe test generate`, syntax-invalid or assertion-free output cannot receive a passing structural
+result and the CLI cannot persist it. This is a prerequisite, not a claim that live generation already
+executes the candidate; staged execution remains a follow-up under ADR-113.
 
 ### 2. Spec gate — frontier judge vs pinned checklist
 The judge model is **always frontier-tier** (never the cheap writer lane — ADR-111 §"deterministic verification kernel stays uncheapened," extended here to the LLM-judge case). It scores the artifact against the ADR-117 pinned checklist (constant denominator). `requirement_coverage == 1.0` ⇒ candidate pass for that attempt.

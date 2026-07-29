@@ -538,7 +538,7 @@ export class RetryHandlerService implements IRetryHandler {
       case 'vitest':
         // vitest run --reporter=json testFile -t "testName"
         { const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
-        if (testName) {
+        if (testName && testName !== testFile) {
           vitestArgs.push('-t', testName);
         }
         return { command: npx, args: vitestArgs }; }
@@ -546,7 +546,7 @@ export class RetryHandlerService implements IRetryHandler {
       case 'jest':
         // jest --json testFile -t "testName"
         { const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
-        if (testName) {
+        if (testName && testName !== testFile) {
           jestArgs.push('-t', testName);
         }
         return { command: npx, args: jestArgs }; }
@@ -554,7 +554,7 @@ export class RetryHandlerService implements IRetryHandler {
       case 'mocha':
         // mocha --reporter json testFile --grep "testName"
         { const mochaArgs = ['mocha', '--reporter', 'json', testFile];
-        if (testName) {
+        if (testName && testName !== testFile) {
           mochaArgs.push('--grep', testName);
         }
         return { command: npx, args: mochaArgs }; }

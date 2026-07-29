@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-113 |
-| **Status** | Accepted (2026-06-27) — implemented P0–P5 (38 tests green; durable-first proven to lift mutation score 0%→100% on a worked module). Follow-ups: reconcile 5 pre-existing assets/ drifts; wire live `aqe test generate` into oracle evals (CLI+MCP) |
+| **Status** | Accepted (2026-06-27) — P0–P5 implemented; live `aqe test generate` mechanical validation repair in progress |
 | **Date** | 2026-06-27 |
+| **Updated** | 2026-07-28 |
 | **Author** | AQE Core |
 | **Review Cadence** | 3 months |
 | **Supersedes** | — |
@@ -80,6 +81,14 @@ Oracle outcomes written to `memory.db` are append-only; back up and verify row c
 - **Positive:** evals certify real fault detection; generated suites survive reimplementation; quality verdicts reflect bug-catching power; end users get a regenerability score unique to AQE.
 - **Cost:** durable evals cost more to author; oracle runs are subprocess-heavy (sampled/nightly mitigation).
 - **Reversible:** keyword matching remains as a fallback; the gate is non-blocking until explicitly opted in.
+
+### 2026-07-28 live-generator correction
+
+The unfinished live-generator follow-up allowed invalid JavaScript to receive a passing structural
+score. The live generation boundary now requires syntax validity and real assertions before a
+structural pass, and the CLI refuses gate-failed output. Actual execution remains explicitly
+unproven until the staged Test Execution integration is built; mutation grading remains the deeper
+durability oracle.
 
 ## Status of work (38 tests green)
 

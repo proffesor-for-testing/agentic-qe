@@ -7,8 +7,61 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { type OutputFormat, type QualityGateResult, writeOutput, toJSON, qualityGateToMarkdown } from '../utils/ci-output.js';
+
+export async function loadQualityEvidence(memory: MemoryBackend): Promise<{
+  coverage: number;
+  testsPassing: number;
+}> {
+  const coverage = await memory.get<{ line?: number }>('coverage:latest');
+  const tests = await memory.get<{ passed?: number; failed?: number; skipped?: number }>(
+    'test-run:latest',
+    { namespace: 'test-execution' }
+  );
+  if (!coverage || !tests) {
+    throw new Error(
+      'No measured quality evidence found in AgentDB. Run coverage and `aqe test execute` before `aqe quality --gate`.'
+    );
+  }
+  const total = (tests.passed ?? 0) + (tests.failed ?? 0) + (tests.skipped ?? 0);
+  if (!Number.isFinite(coverage.line) || total <= 0 || !Number.isFinite(tests.passed)) {
+    throw new Error('Measured quality evidence is malformed or incomplete.');
+  }
+  return {
+    coverage: coverage.line!,
+    testsPassing: ((tests.passed ?? 0) / total) * 100,
+  };
+}
+
+export function evaluateMeasuredQualityEvidence(measured: {
+  coverage: number;
+  testsPassing: number;
+}): QualityGateResult {
+  const checks = [
+    {
+      name: 'coverage',
+      passed: measured.coverage >= 80,
+      value: measured.coverage,
+      threshold: 80,
+    },
+    {
+      name: 'testsPassing',
+      passed: measured.testsPassing >= 95,
+      value: measured.testsPassing,
+      threshold: 95,
+    },
+  ];
+  return {
+    passed: checks.every(check => check.passed),
+    score: 'N/A',
+    checks,
+    recommendations: checks
+      .filter(check => !check.passed)
+      .map(check => `${check.name} is below its measured threshold.`),
+  };
+}
 
 export function createQualityCommand(
   context: CLIContext,
@@ -33,101 +86,32 @@ export function createQualityCommand(
             console.log(chalk.blue(`\n Running quality gate evaluation...\n`));
           }
 
-          const qualityAPI = await context.kernel!.getDomainAPIAsync!<{
-            evaluateGate(request: { gateName?: string; metrics?: Record<string, number>; thresholds?: Record<string, { min?: number; max?: number }> }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-          }>('quality-assessment');
+          const measured = await loadQualityEvidence(context.kernel!.memory);
+          const gateResult = evaluateMeasuredQualityEvidence(measured);
 
-          if (!qualityAPI) {
-            console.log(chalk.red('Quality assessment domain not available'));
-            await cleanupAndExit(1);
-          }
-
-          // Provide default metrics when user doesn't supply explicit values.
-          // The gate service requires metrics + thresholds to evaluate.
-          const defaultMetrics = {
-            coverage: 0,
-            testsPassing: 0,
-            criticalBugs: 0,
-            codeSmells: 0,
-            securityVulnerabilities: 0,
-            technicalDebt: 0,
-            duplications: 0,
-          };
-          const defaultThresholds = {
-            coverage: { min: 80 },
-            testsPassing: { min: 95 },
-            criticalBugs: { max: 0 },
-            codeSmells: { max: 20 },
-            securityVulnerabilities: { max: 0 },
-            technicalDebt: { max: 5 },
-            duplications: { max: 5 },
-          };
-          const result = await qualityAPI!.evaluateGate({
-            gateName: 'standard',
-            metrics: defaultMetrics,
-            thresholds: defaultThresholds,
-          });
-
-          if (result.success && result.value) {
-            const assessment = result.value as {
-              passed?: boolean;
-              score?: string;
-              grade?: string;
-              checks?: Array<{ name: string; passed: boolean; value: number | string; threshold: number | string }>;
-              recommendations?: string[];
-              meetsThreshold?: boolean;
-              summary?: { line: number; branch: number; function: number; statement: number };
-            };
-
-            const gateResult: QualityGateResult = {
-              passed: assessment.passed ?? assessment.meetsThreshold ?? true,
-              score: assessment.score ?? assessment.grade ?? 'N/A',
-              checks: assessment.checks || [],
-              recommendations: assessment.recommendations || [],
-            };
-
-            if (format === 'json') {
-              writeOutput(toJSON(gateResult), options.output);
-            } else if (format === 'markdown') {
-              writeOutput(qualityGateToMarkdown(gateResult), options.output);
-            } else {
-              // Text output
-              const statusIcon = gateResult.passed ? chalk.green('✓ PASSED') : chalk.red('✗ FAILED');
-              console.log(`  Quality Gate: ${statusIcon}`);
-              console.log(`  Score: ${chalk.cyan(gateResult.score)}\n`);
-
-              if (gateResult.checks.length > 0) {
-                console.log(chalk.cyan('  Checks:'));
-                for (const check of gateResult.checks) {
-                  const icon = check.passed ? chalk.green('✓') : chalk.red('✗');
-                  console.log(`    ${icon} ${check.name}: ${check.value} (threshold: ${check.threshold})`);
-                }
-              }
-
-              if (gateResult.recommendations && gateResult.recommendations.length > 0) {
-                console.log(chalk.cyan('\n  Recommendations:'));
-                for (const rec of gateResult.recommendations) {
-                  console.log(chalk.gray(`    - ${rec}`));
-                }
-              }
-              console.log('');
-            }
-
-            // Exit codes: 1 = gate failed, 2 = warning (score within 5% of threshold), 0 = passed
-            if (!gateResult.passed) {
-              await cleanupAndExit(1);
-            }
-            const scoreNum = parseFloat(String(gateResult.score));
-            if (!isNaN(scoreNum) && scoreNum < 100 && scoreNum >= 95) {
-              // Score is within 5% of perfect — warn
-              await cleanupAndExit(2);
-            }
-            await cleanupAndExit(0);
+          if (format === 'json') {
+            writeOutput(toJSON(gateResult), options.output);
+          } else if (format === 'markdown') {
+            writeOutput(qualityGateToMarkdown(gateResult), options.output);
           } else {
-            console.log(chalk.red(`Quality gate failed: ${result.error?.message || 'Unknown error'}`));
-            await cleanupAndExit(1);
+            const statusIcon = gateResult.passed ? chalk.green('✓ PASSED') : chalk.red('✗ FAILED');
+            console.log(`  Quality Gate: ${statusIcon}`);
+            console.log(`  Score: ${chalk.cyan(gateResult.score)}\n`);
+            console.log(chalk.cyan('  Checks:'));
+            for (const check of gateResult.checks) {
+              const icon = check.passed ? chalk.green('✓') : chalk.red('✗');
+              console.log(`    ${icon} ${check.name}: ${check.value} (threshold: ${check.threshold})`);
+            }
+            if (gateResult.recommendations && gateResult.recommendations.length > 0) {
+              console.log(chalk.cyan('\n  Recommendations:'));
+              for (const rec of gateResult.recommendations) {
+                console.log(chalk.gray(`    - ${rec}`));
+              }
+            }
+            console.log('');
           }
 
+          await cleanupAndExit(gateResult.passed ? 0 : 1);
         }
 
       } catch (error) {

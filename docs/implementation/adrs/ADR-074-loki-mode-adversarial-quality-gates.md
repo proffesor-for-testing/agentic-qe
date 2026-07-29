@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-074 |
-| **Status** | Accepted |
+| **Status** | Accepted — implementation drift repair in progress |
 | **Date** | 2026-03-04 |
+| **Updated** | 2026-07-28 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 6 months |
 | **Relates To** | ADR-026 (Intelligent Model Routing), ADR-064 (Agent Teams Integration) |
@@ -122,6 +123,15 @@ enableComplexityComposition?: boolean; // default: true
 - Full test suite: 17,955 tests passing, 0 failures
 - Build clean (tsc + CLI + MCP bundles)
 - All features verified behind config flags with default-off behavior
+
+### 2026-07-28 implementation correction
+
+The generated-test gate was found to be advisory and regex-only: syntactically invalid JavaScript
+could receive `passed: true` and `score: 100`. This contradicts the accepted decision to prevent
+hollow tests from inflating quality metrics. The repair makes syntax validity, at least one real
+assertion mandatory before generated JavaScript/TypeScript can pass the structural gate. The CLI
+refuses gate-failed output. Real execution remains a downstream Test Execution responsibility until
+the staged execution-and-rollback path is implemented.
 
 ---
 

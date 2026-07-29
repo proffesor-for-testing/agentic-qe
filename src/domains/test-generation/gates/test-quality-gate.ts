@@ -8,14 +8,18 @@
  * 3. Empty test bodies - it('...', () => {}) with no assertions
  * 4. Mirrored assertions - expected values copy-pasted from source literals
  *
- * All detection is regex-based, no LLM calls.
+ * Detection is deterministic (TypeScript parser plus structural checks), with no LLM calls.
  */
+
+import ts from 'typescript';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type TestQualityIssueType =
+  | 'syntax-error'
+  | 'no-assertions'
   | 'no-source-import'
   | 'tautological-assertion'
   | 'empty-test-body'
@@ -46,6 +50,92 @@ export interface TestQualityGateConfig {
   checkMirroredAssertions: boolean;
   /** Minimum score to pass (default: 60) */
   minPassScore: number;
+}
+
+function scriptKindFor(filePath: string): ts.ScriptKind {
+  if (/\.(?:jsx)$/i.test(filePath)) return ts.ScriptKind.JSX;
+  if (/\.(?:tsx)$/i.test(filePath)) return ts.ScriptKind.TSX;
+  if (/\.(?:js|mjs|cjs)$/i.test(filePath)) return ts.ScriptKind.JS;
+  return ts.ScriptKind.TS;
+}
+
+function isJavaScriptFamily(filePath: string): boolean {
+  return /\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i.test(filePath);
+}
+
+function parseGeneratedTest(testCode: string, sourceFilePath: string): ts.SourceFile {
+  const extension = sourceFilePath.match(/\.(?:tsx?|jsx?|mjs|cjs|mts|cts)$/i)?.[0] ?? '.ts';
+  return ts.createSourceFile(
+    `generated.test${extension}`,
+    testCode,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindFor(sourceFilePath),
+  );
+}
+
+/**
+ * Return parser errors for generated JavaScript/TypeScript.
+ * This is deliberately exported so generation can reject malformed LLM output
+ * before replacing a valid deterministic template.
+ */
+export function getGeneratedTestSyntaxIssues(
+  testCode: string,
+  sourceFilePath: string,
+): TestQualityIssue[] {
+  if (!isJavaScriptFamily(sourceFilePath)) return [];
+
+  const sourceFile = parseGeneratedTest(testCode, sourceFilePath);
+  const diagnostics = (
+    sourceFile as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }
+  ).parseDiagnostics ?? [];
+
+  return diagnostics.map((diagnostic) => {
+    const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start ?? 0);
+    return {
+      type: 'syntax-error' as const,
+      severity: 'error' as const,
+      line: position.line + 1,
+      description: `Generated test has invalid syntax: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`,
+      suggestion: 'Repair the generated test syntax before accepting or executing it.',
+    };
+  });
+}
+
+function hasExecutableAssertion(testCode: string, sourceFilePath: string): boolean {
+  if (!isJavaScriptFamily(sourceFilePath)) {
+    return /\b(?:assert\w*|expect)\s*(?:[.(])/i.test(testCode);
+  }
+
+  const sourceFile = parseGeneratedTest(testCode, sourceFilePath);
+  let found = false;
+
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression;
+      if (ts.isIdentifier(expression)) {
+        found = expression.text === 'expect' || expression.text === 'assert';
+      } else if (ts.isPropertyAccessExpression(expression)) {
+        let root: ts.Expression = expression.expression;
+        while (ts.isPropertyAccessExpression(root)) root = root.expression;
+        if (ts.isIdentifier(root) && root.text === 'assert') {
+          found = true;
+        } else if (
+          ts.isIdentifier(root)
+          && root.text === 'expect'
+          && expression.name.text !== 'assertions'
+          && expression.name.text !== 'hasAssertions'
+        ) {
+          found = true;
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return found;
 }
 
 const DEFAULT_CONFIG: TestQualityGateConfig = {
@@ -80,7 +170,16 @@ export class TestQualityGate {
     sourceFilePath: string,
     sourceCode?: string
   ): TestQualityGateResult {
-    const issues: TestQualityIssue[] = [];
+    const issues: TestQualityIssue[] = getGeneratedTestSyntaxIssues(testCode, sourceFilePath);
+
+    if (!hasExecutableAssertion(testCode, sourceFilePath)) {
+      issues.push({
+        type: 'no-assertions',
+        severity: 'error',
+        description: 'Generated test contains no executable assertions.',
+        suggestion: 'Add at least one assertion that observes behavior from the source under test.',
+      });
+    }
 
     if (this.config.checkSourceImports) {
       issues.push(...this.detectMissingSourceImports(testCode, sourceFilePath));
@@ -98,8 +197,12 @@ export class TestQualityGate {
       issues.push(...this.detectMirroredAssertions(testCode, sourceCode));
     }
 
-    const score = this.calculateScore(issues);
-    const passed = score >= this.config.minPassScore;
+    const mechanicallyInvalid = issues.some(
+      issue => issue.type === 'syntax-error' || issue.type === 'no-assertions',
+    );
+    const hasError = issues.some(issue => issue.severity === 'error');
+    const score = mechanicallyInvalid ? 0 : this.calculateScore(issues);
+    const passed = !hasError && score >= this.config.minPassScore;
 
     return { passed, issues, score };
   }

@@ -51,6 +51,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { TestQualityGate } from '../gates/index.js';
+import { getGeneratedTestSyntaxIssues } from '../gates/test-quality-gate.js';
 import { EdgeCaseInjector } from '../pattern-injection/index.js';
 import { treeSitterRegistry } from '../../../shared/parsers/multi-language-parser.js';
 import { getLanguageFromExtension } from '../../../shared/types/test-frameworks.js';
@@ -227,6 +228,7 @@ export class TestGeneratorService implements ITestGenerationService {
     testCode: string,
     sourceCode: string,
     analysis: CodeAnalysis | null,
+    sourceFilePath: string,
     context?: TestGenerationContext
   ): Promise<{ code: string; enhanced: boolean }> {
     if (!this.llmRouter) return { code: testCode, enhanced: false };
@@ -305,6 +307,10 @@ Return ONLY the enhanced test code, no explanations.`,
         const codeMatch = enhancedCode.match(/```(?:typescript|javascript|ts|js)?\n?([\s\S]*?)```/);
         if (codeMatch) {
           enhancedCode = codeMatch[1].trim();
+        }
+        if (getGeneratedTestSyntaxIssues(enhancedCode, sourceFilePath).length > 0) {
+          logger.warn('LLM enhancement produced invalid syntax, using deterministic template');
+          return { code: testCode, enhanced: false };
         }
         // #567: only claim enhancement when the model actually returned code.
         // An empty/unusable response falls back to the template, and the caller
@@ -626,7 +632,13 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     // report AI-enhanced output it did not produce.
     let llmEnhanced = false;
     if (this.isLLMEnhancementAvailable() && sourceContent) {
-      const result = await this.enhanceTestWithLLM(testCode, sourceContent, codeAnalysis, context);
+      const result = await this.enhanceTestWithLLM(
+        testCode,
+        sourceContent,
+        codeAnalysis,
+        sourceFile,
+        context,
+      );
       testCode = result.code;
       llmEnhanced = result.enhanced;
     }

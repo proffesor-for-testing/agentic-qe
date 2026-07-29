@@ -323,7 +323,9 @@ export class TestExecutionCoordinator
 
     const framework = this.detectFramework(testsToRun);
     const workers = request.workers ?? Math.min(4, Math.max(1, testsToRun.length));
-    const timeout = request.timeout ?? 60000;
+    // Batched runners own internal parallelism, so the timeout applies to the
+    // whole discovered suite rather than one file.
+    const timeout = request.timeout ?? Math.max(60000, testsToRun.length * 2000);
 
     // Use parallel execution by default (unless explicitly disabled)
     if (request.parallel !== false && testsToRun.length > 1) {
@@ -767,7 +769,7 @@ export class TestExecutionCoordinator
           maxRetries: request.maxRetries,
           backoffType: request.backoff ?? 'exponential',
         },
-        0.7 + (testsToRetry.length / 100) // Higher confidence for larger batches
+        Math.min(1, 0.7 + (testsToRetry.length / 100)) // Higher confidence for larger batches
       );
 
       if (!isStrategyVerified) {

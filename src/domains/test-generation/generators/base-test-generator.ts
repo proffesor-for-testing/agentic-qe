@@ -182,20 +182,6 @@ export abstract class BaseTestGenerator implements ITestGenerator {
               : `const action = () => ${fn.name}(${paramsWithUndefined});`,
             assertion: 'expect(action).toThrow();',
           });
-        } else {
-          // Function has no explicit throw — but may still crash on property access.
-          // Use try-catch pattern that accepts either behavior.
-          const undefinedCall = fn.isAsync
-            ? `await ${fn.name}(${paramsWithUndefined})`
-            : `${fn.name}(${paramsWithUndefined})`;
-          testCases.push({
-            description: `should handle undefined ${param.name}`,
-            type: 'edge-case',
-            action: fn.isAsync
-              ? `let threw = false;\n    try {\n      await ${fn.name}(${paramsWithUndefined});\n    } catch (e) {\n      threw = true;\n      expect(e).toBeInstanceOf(Error);\n    }`
-              : `let threw = false;\n    try {\n      ${fn.name}(${paramsWithUndefined});\n    } catch (e) {\n      threw = true;\n      expect(e).toBeInstanceOf(Error);\n    }`,
-            assertion: `expect(true).toBe(true); // function either handles undefined or throws TypeError`,
-          });
         }
       }
 

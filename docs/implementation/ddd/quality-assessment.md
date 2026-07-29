@@ -1,5 +1,9 @@
 # Quality Assessment Domain
 
+**Status**: Accepted — implementation alignment in progress
+**Date**: 2026-01-18
+**Updated**: 2026-07-28
+
 ## Bounded Context Overview
 
 **Domain**: Quality Assessment
@@ -15,6 +19,7 @@ The Quality Assessment domain evaluates software quality metrics, enforces quali
 | **Quality Gate** | Set of thresholds that must pass for release |
 | **Gate Check** | Individual threshold evaluation |
 | **Quality Score** | Aggregate quality rating (A-E) |
+| **Mechanical Gate** | Fail-closed proof that an artifact parsed and its tests actually executed |
 | **Deployment Advice** | AI recommendation for release decisions |
 | **Complexity Hotspot** | High-complexity code requiring attention |
 | **Technical Debt** | Accumulated quality issues requiring remediation |
@@ -36,6 +41,15 @@ interface GateResult {
   failedChecks: string[];
 }
 ```
+
+### Assessment invariants
+
+- Quality Assessment consumes measured execution/coverage evidence, never a missing result coerced to
+  zero or success.
+- The CLI gate reports only metrics present in canonical AgentDB evidence. It does not invent zero
+  security, debt, duplication, bug, or smell counts.
+- Non-execution is a failed mechanical gate or an explicit inconclusive result, never a passing score.
+- Structural heuristics may explain quality but cannot override syntax or execution failure.
 
 #### QualityReport (Aggregate Root)
 Comprehensive quality analysis with recommendations.
@@ -278,3 +292,5 @@ thresholds:
 
 - **ADR-051**: LLM-powered quality insights
 - **ADR-010**: Claims-based authorization for gate overrides
+- **ADR-113**: Execution and mutation oracles
+- **ADR-119**: Two-gate, three-valued quality verdicts

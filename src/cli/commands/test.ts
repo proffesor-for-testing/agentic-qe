@@ -67,8 +67,23 @@ export function createTestCommand(
           });
 
           if (result.success && result.value) {
-            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number }>; coverageEstimate: number; patternsUsed: string[] };
+            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number; patternsUsed: string[] };
             const format = options.format as OutputFormat;
+            const rejected = generated.tests.filter(
+              test => test.qualityGateResult?.passed !== true
+            );
+            if (rejected.length > 0) {
+              const details = rejected.map(test => {
+                const issues = test.qualityGateResult?.issues
+                  ?.map(issue => issue.description)
+                  .filter(Boolean)
+                  .join('; ') || 'missing passing quality evidence';
+                return `${test.sourceFile}: ${issues}`;
+              });
+              console.error(chalk.red(`Generation rejected ${rejected.length} invalid or unvalidated test artifact(s):`));
+              for (const detail of details) console.error(chalk.red(`  - ${detail}`));
+              await cleanupAndExit(1);
+            }
 
             if (format === 'json') {
               writeOutput(toJSON(generated), options.output);
@@ -145,6 +160,14 @@ export function createTestCommand(
           if (result.success && result.value) {
             const run = result.value as TestRunSummary;
             const format = options.format as OutputFormat;
+            const total = run.passed + run.failed + run.skipped;
+            await context.kernel!.memory.set('test-run:latest', {
+              passed: run.passed,
+              failed: run.failed,
+              skipped: run.skipped,
+              duration: run.duration,
+              measuredAt: new Date().toISOString(),
+            }, { namespace: 'test-execution', persist: true });
 
             if (format === 'json') {
               writeOutput(toJSON(run), options.output);
@@ -154,7 +177,6 @@ export function createTestCommand(
               writeOutput(testRunToMarkdown(run), options.output);
             } else {
               // Default text output
-              const total = run.passed + run.failed + run.skipped;
               console.log(chalk.green(`Test run complete`));
               console.log(`\n  Results:`);
               console.log(`    Total: ${chalk.white(total)}`);
@@ -168,7 +190,6 @@ export function createTestCommand(
             if (run.failed > 0) {
               await cleanupAndExit(1);
             }
-            const total = run.passed + run.failed + run.skipped;
             if (total > 0 && run.skipped / total > 0.2) {
               await cleanupAndExit(2);
             }

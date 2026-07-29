@@ -90,4 +90,25 @@ describe('Framework-aware import generation (bug #2)', () => {
     expect(mainImport).toBe('@jest/globals');
     expect(stubImport).toBe('@jest/globals');
   });
+
+  it('uses a valid namespace identifier for dotted JavaScript module filenames', () => {
+    const code = new JestVitestGenerator('vitest').generateTests({
+      moduleName: 'policy.default.mjs',
+      importPath: './policy.default.mjs',
+      testType: 'unit',
+      patterns: [],
+      analysis: { functions: [], classes: [] },
+    });
+
+    expect(code).toContain("import * as moduleUnderTest from './policy.default.mjs';");
+    expect(code).not.toContain('import { policy.default.mjs }');
+    expect(code).toContain('expect(moduleUnderTest).toBeDefined()');
+  });
+
+  it('does not invent an undefined-input contract when the function has no validation', () => {
+    const code = new JestVitestGenerator('vitest').generateTests(makeContext());
+
+    expect(code).not.toContain('expect(true).toBe(true)');
+    expect(code).not.toContain('should handle undefined');
+  });
 });

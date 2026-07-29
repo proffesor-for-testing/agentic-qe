@@ -428,16 +428,15 @@ describe('TestQualityGate - configuration', () => {
     expect(mirroredIssues).toHaveLength(0);
   });
 
-  it('should use custom minPassScore', () => {
+  it('should never pass error-level issues even when minPassScore is lower', () => {
     const gate = new TestQualityGate({ minPassScore: 50, checkSourceImports: false });
-    // Two errors: score = 60 >= 50 => pass
     const testCode = `
       expect(true).toBe(true);
       expect(false).toBe(false);
     `;
     const result = gate.validate(testCode, 'source.ts');
-    // 2 errors = score 60, which is >= 50
-    expect(result.passed).toBe(true);
+    expect(result.score).toBe(60);
+    expect(result.passed).toBe(false);
   });
 });
 
@@ -462,9 +461,36 @@ describe('TestQualityGate - edge cases', () => {
       const y = 2;
     `;
     const result = gate.validate(testCode, 'source.ts');
-    // No assertions means no tautological or empty body issues
-    // (no it/test blocks to be empty)
-    expect(result.score).toBe(100);
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        type: 'no-assertions',
+        severity: 'error',
+      }),
+    );
+  });
+
+  it('should fail closed for syntax-invalid generated JavaScript', () => {
+    const gate = new TestQualityGate({ checkSourceImports: false });
+    const testCode = `
+      import { describe, it, expect } from 'vitest';
+      import { policy } from './policy.default.mjs';
+      describe('policy defaults', () => {
+        it('denies by default', () => {
+          expect(policy.defaultDeny).toBe(true);
+    `;
+
+    const result = gate.validate(testCode, 'src/policy.default.mjs');
+
+    expect(result.passed).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        type: 'syntax-error',
+        severity: 'error',
+      }),
+    );
   });
 
   it('should handle source code with no extractable literals', () => {

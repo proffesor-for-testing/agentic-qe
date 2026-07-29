@@ -242,15 +242,6 @@ ${importStatement}
           code += `\n    it('should handle invalid ${param.name}', ${asyncPrefix}() => {\n`;
           code += `      expect(() => instance.${method.name}(${paramsWithUndefined})).toThrow();\n`;
           code += `    });\n`;
-        } else {
-          // Use try-catch to handle both throwing (TypeError from property access) and non-throwing
-          code += `\n    it('should handle undefined ${param.name}', ${asyncPrefix}() => {\n`;
-          code += `      try {\n`;
-          code += `        ${method.isAsync ? 'await ' : ''}instance.${method.name}(${paramsWithUndefined});\n`;
-          code += `      } catch (e) {\n`;
-          code += `        expect(e).toBeInstanceOf(Error);\n`;
-          code += `      }\n`;
-          code += `    });\n`;
         }
       }
     }
@@ -265,10 +256,11 @@ ${importStatement}
   generateStubTests(context: TestGenerationContext): string {
     const { moduleName, importPath, testType, patterns, dependencies, similarCode } = context;
     const patternComment = this.generatePatternComment(patterns);
+    const moduleIdentifier = 'moduleUnderTest';
 
-    const basicOpsTest = this.generateBasicOpsTest(moduleName, patterns);
-    const edgeCaseTest = this.generateEdgeCaseTest(moduleName, patterns);
-    const errorHandlingTest = this.generateErrorHandlingTest(moduleName, patterns);
+    const basicOpsTest = this.generateBasicOpsTest(moduleIdentifier, patterns);
+    const edgeCaseTest = this.generateEdgeCaseTest(moduleIdentifier, patterns);
+    const errorHandlingTest = this.generateErrorHandlingTest(moduleIdentifier, patterns);
 
     // KG: Generate mock declarations for external (non-relative) dependencies only
     let mockDeclarations = '';
@@ -298,9 +290,9 @@ ${importStatement}
     if (dependencies && dependencies.imports.length > 0) {
       depTest += `\n    it('should interact with dependencies correctly', () => {\n`;
       depTest += `      // KG-informed: module depends on ${dependencies.imports.length} imports\n`;
-      depTest += `      const instance = typeof ${moduleName} === 'function'\n`;
-      depTest += `        ? new ${moduleName}()\n`;
-      depTest += `        : ${moduleName};\n`;
+      depTest += `      const instance = typeof ${moduleIdentifier} === 'function'\n`;
+      depTest += `        ? new ${moduleIdentifier}()\n`;
+      depTest += `        : ${moduleIdentifier};\n`;
       depTest += `      expect(instance).toBeDefined();\n`;
       depTest += `    });\n`;
     }
@@ -310,9 +302,9 @@ ${importStatement}
     if (dependencies && dependencies.importedBy.length > 0) {
       callerTest += `\n    it('should expose stable API for ${dependencies.importedBy.length} consumers', () => {\n`;
       callerTest += `      // KG-informed: used by ${dependencies.importedBy.slice(0, 3).join(', ')}\n`;
-      callerTest += `      const publicKeys = Object.keys(typeof ${moduleName} === 'function'\n`;
-      callerTest += `        ? ${moduleName}.prototype || {}\n`;
-      callerTest += `        : ${moduleName});\n`;
+      callerTest += `      const publicKeys = Object.keys(typeof ${moduleIdentifier} === 'function'\n`;
+      callerTest += `        ? ${moduleIdentifier}.prototype || {}\n`;
+      callerTest += `        : ${moduleIdentifier});\n`;
       callerTest += `      expect(publicKeys.length).toBeGreaterThan(0);\n`;
       callerTest += `    });\n`;
     }
@@ -321,12 +313,12 @@ ${importStatement}
     const stubMockImport = this.framework === 'vitest' ? ', vi' : ', jest';
 
     return `${patternComment}import { describe, it, expect, beforeEach${stubMockImport} } from '${stubImportSource}';
-import { ${moduleName} } from '${importPath}';
+import * as ${moduleIdentifier} from '${importPath}';
 ${mockDeclarations}
 describe('${moduleName}', () => {
 ${similarityComment}  describe('${testType} tests', () => {
     it('should be defined', () => {
-      expect(${moduleName}).toBeDefined();
+      expect(${moduleIdentifier}).toBeDefined();
     });
 
 ${basicOpsTest}
