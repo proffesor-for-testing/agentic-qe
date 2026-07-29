@@ -62,7 +62,7 @@ budget caps and cost receipts apply automatically.
 
 | Step | Default provider / tier | Why |
 |------|------------------------|-----|
-| **Defense** | `cognitum-low` or `claude-code` (may equal writer) | Cheap; states the case, never grades |
+| **Defense** | `claude-code` (default) or `cognitum-low` (may equal writer) | Cheap; states the case, never grades. Must differ in vendor from the jury |
 | Prosecutor — devils-advocate | `cognitum-mid` | Gap/assumption hunting |
 | Prosecutor — brutal-honesty | `claude-code` (Opus/Sonnet) | Rigor lens, different family from jury |
 | Prosecutor — sherlock | `cognitum-high` | Deductive/root-cause needs a strong model |
@@ -83,7 +83,14 @@ when you explicitly want to name several different models.
 **Enforced invariants** (defaults; do not weaken without reason):
 1. **≥2 distinct vendors** across the panel — Claude / Cognitum / GPT-via-Codex — not just tiers.
 2. **Jury provider ∉ {writer, defense}** — no model grades its own or its writer's output.
+   Vendor is compared **coarsely**: `cognitum-low` and `cognitum-high` are the same
+   vendor, so pairing them across defense and jury is a violation, not a diverse panel.
 3. All calls routed through `ProviderManager` → ADR-123 budget cap + receipts.
+
+Invariants 1–2 are machine-checked by `validateCourtConfig()` in `referee.ts`, which
+the court MUST call before seating a panel (see *How to run it*). The `options` block
+below binds directly to that check — `minDistinctVendors` and `writerIsNeverJuror` are
+read, not decorative.
 
 ## The protocol
 
@@ -150,7 +157,20 @@ composing existing agents/skills — there is no monolithic binary yet (a thin
 `aqe court` CLI wrapper is planned as ADR-124 Phase 1; the hosted `/v1/qe/verdict`
 is Phase 2). To run a court now:
 
-1. Read `config.json` for the panel + `routing` + `overturnDepth`.
+1. Read `config.json` for the panel + `routing` + `overturnDepth`, then **validate
+   the panel before seating it** — this step is not optional:
+
+   ```ts
+   import { validateCourtConfig } from 'src/skills/qe-court/referee';
+   const violations = validateCourtConfig(config);   // [] == valid
+   if (violations.length) throw new Error(`Cannot convene: ${violations.join(', ')}`);
+   ```
+
+   A non-empty result means the panel cannot render a trustworthy verdict
+   (colluding jury, too few vendors, no jury at all). **ABORT the court and tell
+   the user which invariant failed** — do not proceed with a degraded panel and
+   do not silently re-route around it. A court that convenes an invalid panel
+   produces exactly the false SHIP it exists to catch.
 2. Spawn the prosecutors **in one message, in parallel** (`Task`/`Agent`,
    `run_in_background: true`), each with its routed provider; run
    `codex exec review` for the cross-vendor lens via Bash.
@@ -172,7 +192,9 @@ Durable, attestable evidence — the "jury waiting for everything you ship."
 (`src/skills/qe-court/referee.ts`) and covered by an oracle suite
 (`tests/unit/skills/qe-court/referee.test.ts`) that the acceptance eval
 (`evals/qe-court.yaml`, command-eval mode) runs through the `aqe eval` CLI —
-6/6 green as of 2026-07-18. The keystone oracle: a seeded mutant a shallow panel
+15/15 green as of 2026-07-29. That suite now validates the **shipped `config.json`
+itself**, so a routing edit that seats a colluding panel fails in CI rather than in
+a user's court (issue #576). The keystone oracle: a seeded mutant a shallow panel
 rated SHIP is overturned to BLOCK when the overturn round is active, and MUST
 regress to SHIP at `overturnDepth: 0` — proving the mechanic carries its weight.
 Run it yourself: `aqe eval run --skill qe-court --model cognitum-low`.

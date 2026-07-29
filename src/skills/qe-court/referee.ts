@@ -64,6 +64,19 @@ export function resolveVerdict(charges: Charge[], overturnDepth: number): Verdic
 export interface PanelPolicy {
   /** Minimum number of DISTINCT vendors on the panel (default 2). */
   minVendors?: number;
+  /**
+   * Spelling used by the shipped `config.json` `options` block. Accepted as a
+   * synonym for `minVendors` so the config's declared policy actually binds to
+   * the validator instead of silently doing nothing (issue #576).
+   */
+  minDistinctVendors?: number;
+  /**
+   * Enforce that the jury vendor differs from the writer/defense vendor.
+   * Defaults to TRUE. Setting it to `false` deliberately weakens the court's
+   * central anti-collusion rule — the option exists so `config.json` controls
+   * what it claims to control, not as an invitation to disable it.
+   */
+  writerIsNeverJuror?: boolean;
 }
 
 /**
@@ -71,9 +84,10 @@ export interface PanelPolicy {
  * Returns a list of violation codes (empty == valid).
  *   - 'writerIsNeverJuror' : the jury shares a vendor with the writer/defense.
  *   - 'vendor-diversity'   : fewer than `minVendors` distinct vendors seated.
+ *   - 'missing-jury'       : no jury seated, so no verdict can be rendered.
  */
 export function validatePanel(panel: PanelSeat[], policy: PanelPolicy = {}): string[] {
-  const minVendors = policy.minVendors ?? 2;
+  const minVendors = policy.minVendors ?? policy.minDistinctVendors ?? 2;
   const violations: string[] = [];
 
   const vendorsSeated = new Set(panel.map((s) => vendorOf(s.provider)));
@@ -81,13 +95,57 @@ export function validatePanel(panel: PanelSeat[], policy: PanelPolicy = {}): str
 
   const jury = panel.find((s) => s.role === 'jury');
   const writerLike = panel.filter((s) => s.role === 'writer' || s.role === 'defense');
-  if (jury) {
+  if (!jury) {
+    violations.push('missing-jury');
+  } else if (policy.writerIsNeverJuror !== false) {
     const juryVendor = vendorOf(jury.provider);
     if (writerLike.some((w) => vendorOf(w.provider) === juryVendor)) {
       violations.push('writerIsNeverJuror');
     }
   }
   return violations;
+}
+
+/** A `routing` entry in the skill's `config.json`: one seat, one provider. */
+export interface RoutingSeat {
+  provider?: string;
+  model?: string;
+}
+
+/** The `routing` map in `config.json`, keyed by role. `_`-prefixed keys are notes. */
+export type CourtRouting = Record<string, RoutingSeat | undefined>;
+
+/**
+ * Seat a panel from the skill's `config.json` `routing` map.
+ *
+ * This is the missing link that let a bad panel ship: the invariants were
+ * enforceable but nothing converted config → panel, so `validatePanel` was
+ * never reached outside its own unit test (issue #576). Meta keys (`_note`,
+ * `_description`, …) and provider-less entries are skipped, never seated.
+ */
+export function panelFromRouting(routing: CourtRouting): PanelSeat[] {
+  return Object.entries(routing ?? {})
+    .filter(([role]) => !role.startsWith('_'))
+    .filter(([, seat]) => typeof seat?.provider === 'string' && seat.provider.length > 0)
+    .map(([role, seat]) => ({ role, provider: seat!.provider! }));
+}
+
+/** The subset of the skill's `config.json` the referee needs to rule on a panel. */
+export interface CourtConfig {
+  routing?: CourtRouting;
+  options?: PanelPolicy;
+}
+
+/**
+ * Validate a whole `config.json` — seat the panel from `routing`, then apply
+ * `options` as the policy. Returns violation codes (empty == valid).
+ *
+ * The court MUST call this before convening; a non-empty result means the panel
+ * cannot render a trustworthy verdict and the run should abort rather than seat
+ * a colluding panel.
+ */
+export function validateCourtConfig(config: CourtConfig): string[] {
+  return validatePanel(panelFromRouting(config.routing ?? {}), config.options ?? {});
 }
 
 /**
