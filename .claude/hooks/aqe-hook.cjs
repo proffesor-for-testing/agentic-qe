@@ -137,11 +137,32 @@ try {
     // Suggesting `npm rebuild` there sends people down the wrong path (verified
     // 2026-07-08: better-sqlite3 loaded fine while this marker still fired).
     const nativeMismatch = /invalid ELF header|ERR_DLOPEN_FAILED|different Node\.js version/.test(hit);
+    // Only claim lock contention when the child ACTUALLY reported a lock error.
+    // "Failed to initialize UnifiedMemoryManager" also covers corruption, EACCES,
+    // ENOSPC and schema faults; asserting "a process is holding the DB" for those
+    // is the same over-confident guidance that cost six days, just pointing a new
+    // wrong way (codex review r2 #2).
+    const lockContention = /SQLITE_BUSY|SQLITE_LOCKED|database is locked/i.test(stderr);
     const fix = nativeMismatch
       ? '`npm rebuild better-sqlite3` (host/container native-binary mismatch).'
-      : 'lock contention — check for concurrent AQE processes holding memory.db '
-        + '(MCP server / daemon / other hooks) and WAL safety on bind mounts '
-        + '(AQE_DISABLE_WAL); NOT a native-binary rebuild.';
+      : !lockContention
+      ? 'persistence init failed for a reason that is NOT lock contention. Do not guess — '
+        + 'read the actual error above, then check: disk space (`df -h`), permissions on '
+        + '.agentic-qe/, and DB health (`sqlite3 .agentic-qe/memory.db "PRAGMA integrity_check;"` '
+        + '— note quick_check does NOT verify indexes).'
+      // 2026-07-23..29: this hint used to say "check for concurrent AQE processes
+      // (MCP server / daemon / other hooks)". Operators checked exactly those,
+      // found nothing, and capture stayed dead for SIX DAYS — because the holder
+      // was `npm exec agentic-qe@latest mcp` from the npx cache, which matches
+      // neither "aqe" nor the servers in .mcp.json. Never name a guessed culprit:
+      // give the command that finds the ACTUAL holder, whatever it is.
+      : 'a process is holding memory.db open (this blocks the journal_mode switch '
+        + 'that AQE_DISABLE_WAL requires). Do NOT guess which process — list them:\n'
+        + '  for p in /proc/[0-9]*; do for f in $p/fd/*; do readlink "$f" 2>/dev/null '
+        + '| grep -q memory.db && echo "$(basename $p) $(tr \'\\0\' \' \' < $p/cmdline)"; '
+        + 'done; done | sort -u\n'
+        + '  (stale `npm exec agentic-qe mcp` from the npx cache is a known culprit '
+        + 'and does NOT match a search for "aqe"). NOT a native-binary rebuild.';
     recordHookHealth(`[${ts()}] FATAL hook persistence failure `
       + `(cmd=${subcmd}): "${hit}". Learning is NOT being captured. `
       + `Fix: ${fix}\n`);

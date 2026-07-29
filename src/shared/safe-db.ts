@@ -10,6 +10,7 @@
  */
 
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
+import { basename } from 'node:path';
 import { attemptAutoRestore } from './db-recovery.js';
 
 export interface SafeDbOptions {
@@ -95,7 +96,70 @@ export function openDatabase(dbPath: string, opts?: SafeDbOptions): DatabaseType
     // Explicit opt-out of WAL for this environment. Readonly connections cannot
     // change journal_mode, so only apply to writable opens.
     if (!readonly) {
-      db.pragma(`journal_mode = ${journalOverride || 'DELETE'}`);
+      const desired = (journalOverride || 'DELETE').toUpperCase();
+      const current = String(db.pragma('journal_mode', { simple: true }) ?? '').toUpperCase();
+
+      // Only attempt the migration when the mode is actually wrong. Setting a
+      // journal_mode that is already in effect is a no-op that needs NO lock, so
+      // the steady state never races. Re-attempting it on every open (the old
+      // behavior) kept a one-time migration permanently in the hot path.
+      if (current !== desired) {
+        // Switching OUT of WAL needs an EXCLUSIVE lock, and busy_timeout does not
+        // help against a long-lived reader that keeps re-acquiring.
+        //
+        // 2026-07-23..29 postmortem: a stale `npm exec agentic-qe mcp` (npx cache,
+        // NOT the `aqe-mcp` in .mcp.json) held memory.db + -wal open for days, so
+        // this threw SQLITE_BUSY on every writable open and capture froze for six
+        // days. The old health-log hint sent us hunting the wrong processes — the
+        // culprit did not match a search for "aqe".
+        //
+        // We FAIL CLOSED here rather than writing anyway. AQE_DISABLE_WAL=1 is the
+        // operator declaring "WAL corrupts on this mount" (observed 2026-06-08 and
+        // 2026-07-07), so continuing to write in WAL would trade a loud outage for
+        // silent corruption. Availability is not worth that; the message below
+        // carries the exact command that finds the real holder.
+        try {
+          db.pragma(`journal_mode = ${desired}`);
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException)?.code;
+          db.close();
+          // Anything that is NOT lock contention (I/O error, corruption, readonly
+          // FS, bad mode string) must surface unchanged instead of being reported
+          // as a lock problem.
+          if (code !== 'SQLITE_BUSY' && code !== 'SQLITE_LOCKED') throw err;
+          // Name the ACTUAL database being opened — openDatabase serves many paths,
+          // so a hardcoded "memory.db" would send the operator hunting for a file
+          // that isn't the one that failed (codex review r2 #1).
+          const dbFile = basename(dbPath);
+          // Report the effective setting, not an assumed one: AQE_JOURNAL_MODE
+          // alone triggers this path without AQE_DISABLE_WAL ever being set (r2 #4).
+          const via =
+            process.env.AQE_DISABLE_WAL === '1'
+              ? 'AQE_DISABLE_WAL=1'
+              : `AQE_JOURNAL_MODE=${journalOverride}`;
+          throw new Error(
+            `[safe-db] cannot switch ${dbPath} from '${current}' to '${desired}' — ` +
+              `another process holds the database open. ${via} declares WAL unsafe on ` +
+              `this filesystem, so writing in '${current}' is NOT safe and this open is ` +
+              `refused. Find the holder with:\n` +
+              `  for p in /proc/[0-9]*; do for f in $p/fd/*; do ` +
+              `readlink "$f" 2>/dev/null | grep -q ${JSON.stringify(dbFile)} && ` +
+              `echo "$(basename $p) $(tr '\\0' ' ' < $p/cmdline)"; done; done | sort -u\n` +
+              `then stop it and retry. Original error: ${(err as Error).message}`
+          );
+        }
+
+        // Verify the switch actually took effect — a silently-ignored pragma would
+        // otherwise leave us writing in the unsafe mode believing we were safe.
+        const after = String(db.pragma('journal_mode', { simple: true }) ?? '').toUpperCase();
+        if (after !== desired) {
+          db.close();
+          throw new Error(
+            `[safe-db] journal_mode switch to '${desired}' silently did not take on ` +
+              `${dbPath} (still '${after}'). Refusing to write in an unsafe mode.`
+          );
+        }
+      }
     }
   } else if (walMode) {
     // WAL mode for writable connections prevents corruption from concurrent
