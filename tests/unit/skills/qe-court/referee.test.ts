@@ -7,12 +7,17 @@
  * mechanic that lets a mutant SHIP).
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   resolveVerdict,
   validatePanel,
+  validateCourtConfig,
+  panelFromRouting,
   shouldEmitScore,
   vendorOf,
   type Charge,
+  type CourtConfig,
   type PanelSeat,
 } from '../../../../src/skills/qe-court/referee';
 
@@ -87,5 +92,90 @@ describe('qe-court referee', () => {
     expect(vendorOf('cognitum-high')).toBe('cognitum');
     expect(vendorOf('codex')).toBe('gpt');
     expect(vendorOf('ollama')).toBe('local');
+  });
+
+  it('missing_jury__is_a_violation__no_jury_no_verdict', () => {
+    const juryless: PanelSeat[] = [
+      { role: 'defense', provider: 'claude-code' },
+      { role: 'prosecutor.codex-review', provider: 'codex' },
+    ];
+    expect(validatePanel(juryless)).toContain('missing-jury');
+  });
+
+  it('config_option_names_bind__minDistinctVendors_is_honored', () => {
+    // KILL CONDITION: config.json spells the policy `minDistinctVendors`, but
+    // PanelPolicy only accepted `minVendors` — so the shipped policy silently did
+    // nothing and only APPEARED to work because both defaulted to 2 (issue #576).
+    const twoVendors: PanelSeat[] = [
+      { role: 'defense', provider: 'claude-code' },  // claude
+      { role: 'jury', provider: 'cognitum-high' },   // cognitum
+    ];
+    expect(validatePanel(twoVendors, { minDistinctVendors: 2 })).not.toContain('vendor-diversity');
+    expect(validatePanel(twoVendors, { minDistinctVendors: 3 })).toContain('vendor-diversity');
+  });
+
+  it('writerIsNeverJuror_option_binds__false_disables_the_check', () => {
+    const colluding: PanelSeat[] = [
+      { role: 'defense', provider: 'cognitum-low' },
+      { role: 'jury', provider: 'cognitum-high' },
+      { role: 'prosecutor.codex-review', provider: 'codex' },
+    ];
+    // Default (and explicit true) enforce it; only an explicit false weakens it.
+    expect(validatePanel(colluding)).toContain('writerIsNeverJuror');
+    expect(validatePanel(colluding, { writerIsNeverJuror: true })).toContain('writerIsNeverJuror');
+    expect(validatePanel(colluding, { writerIsNeverJuror: false })).not.toContain('writerIsNeverJuror');
+  });
+
+  it('panelFromRouting__seats_roles_and_skips_meta_keys', () => {
+    const panel = panelFromRouting({
+      _note: undefined,
+      defense: { provider: 'claude-code' },
+      jury: { provider: 'cognitum-high' },
+      'prosecutor.broken': {},           // no provider → never seated
+    } as never);
+    expect(panel).toEqual([
+      { role: 'defense', provider: 'claude-code' },
+      { role: 'jury', provider: 'cognitum-high' },
+    ]);
+  });
+});
+
+/**
+ * THE REGRESSION GUARD for issue #576.
+ *
+ * The court's invariants were enforceable and unit-tested, but nothing ever ran
+ * them against the config we actually SHIP — so the default template violated
+ * `writerIsNeverJuror` from the moment it was copied into a user's project, with
+ * zero user action. These cases validate the real files on disk, so a future
+ * routing edit that re-breaks the panel fails here instead of in a user's court.
+ */
+describe('qe-court shipped config is a valid panel (issue #576)', () => {
+  const CONFIGS = {
+    'assets/skills/qe-court/config.json': resolve(__dirname, '../../../../assets/skills/qe-court/config.json'),
+    '.claude/skills/qe-court/config.json': resolve(__dirname, '../../../../.claude/skills/qe-court/config.json'),
+  };
+
+  for (const [label, path] of Object.entries(CONFIGS)) {
+    it(`${label}__seats_a_panel_with_no_violations`, () => {
+      const config = JSON.parse(readFileSync(path, 'utf8')) as CourtConfig;
+      expect(validateCourtConfig(config)).toEqual([]);
+    });
+  }
+
+  it('the_two_shipped_copies_do_not_drift', () => {
+    const [a, b] = Object.values(CONFIGS).map((p) => readFileSync(p, 'utf8'));
+    expect(a).toEqual(b);
+  });
+
+  it('shipped_panel_keeps_the_overturn_round_cross_vendor', () => {
+    // Not a validatePanel rule, but the reason we moved `defense` rather than
+    // `jury`: an escalation reviewed by the jury's own vendor is a weaker
+    // overturn round, which is the mechanic the whole court rests on.
+    const config = JSON.parse(
+      readFileSync(CONFIGS['assets/skills/qe-court/config.json'], 'utf8'),
+    ) as CourtConfig;
+    const seatOf = (role: string) =>
+      panelFromRouting(config.routing!).find((s) => s.role === role)!;
+    expect(vendorOf(seatOf('jury').provider)).not.toBe(vendorOf(seatOf('deeperReviewer').provider));
   });
 });

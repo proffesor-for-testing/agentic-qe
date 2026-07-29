@@ -6,7 +6,7 @@
   "emitScore": false,
   "routing": {
     "_note": "provider ids: claude-code | cognitum-{low,mid,high} | openrouter | codex | claude | openai | gemini | ollama. Cognitum resolves multiple models behind its tiers; use openrouter when you want to name several distinct models for breadth.",
-    "defense": { "provider": "cognitum-low" },
+    "defense": { "provider": "claude-code" },
     "prosecutor.devils-advocate": { "provider": "cognitum-mid" },
     "prosecutor.brutal-honesty": { "provider": "claude-code", "model": "sonnet" },
     "prosecutor.sherlock": { "provider": "cognitum-high" },
