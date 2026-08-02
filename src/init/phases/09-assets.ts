@@ -336,7 +336,13 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     // P2 platforms: Codex (TOML), Windsurf (JSON), Continue.dev (YAML)
     if (options.withCodex || (options.autoMode && existsSync(join(projectRoot, '.codex')))) {
       const { createCodexInstaller } = await import('../codex-installer.js');
-      const installer = createCodexInstaller({ projectRoot, overwrite: shouldOverwrite, memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined });
+      const installer = createCodexInstaller({
+        projectRoot,
+        overwrite: shouldOverwrite,
+        installMcp: !options.noMcp,
+        includeRufloSkill: context.enhancements.claudeFlow,
+        memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
+      });
       const res = await installer.install();
       if (res.mcpConfigured) platformsConfigured.push('codex');
       if (res.errors.length > 0) context.services.warn(`Codex warnings: ${res.errors.join(', ')}`);

@@ -105,6 +105,8 @@ describe('CodexInstaller', () => {
       expect(result.hooksConfigured).toBe(false);
       expect(result.skillsInstalled).toBe(0);
       expect(result.errors).toEqual([]);
+      expect(result.components.mcp.status).toBe('installed');
+      expect(result.components.rules.status).toBe('installed');
       expect(result.configPath).toBe(join(projectRoot, '.codex/config.toml'));
       expect(result.agentsMdPath).toBe(join(projectRoot, 'AGENTS.md'));
     });
@@ -134,6 +136,7 @@ describe('CodexInstaller', () => {
         return file.endsWith('/.codex/hooks.json')
           || file.endsWith('/.codex/hooks')
           || file.endsWith('/.agents/skills')
+          || file.endsWith('/.agents/skills/aqe-plan-quality')
           || file.endsWith('/.claude/hooks/aqe-hook.cjs')
           || file.endsWith('/.claude/helpers/ruflo-hook.cjs');
       });
@@ -177,6 +180,92 @@ describe('CodexInstaller', () => {
         join(projectRoot, '.agents/skills/aqe-plan-quality/SKILL.md'),
       );
     });
+
+    it('does not write MCP config when installMcp is false', async () => {
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, installMcp: false }).install();
+
+      expect(result.mcpConfigured).toBe(false);
+      expect(mockWriteFileSync.mock.calls.some(
+        (c: unknown[]) => String(c[0]).endsWith('config.toml'),
+      )).toBe(false);
+      expect(mockWriteFileSync.mock.calls.some(
+        (c: unknown[]) => String(c[0]).endsWith('AGENTS.md'),
+      )).toBe(true);
+    });
+
+    it('merges hooks idempotently without overwrite and preserves user groups', async () => {
+      const generatedGroup = { hooks: [{ command: '$PROJECT_ROOT/.codex/hooks/aqe-codex-hook.cjs' }] };
+      const oldOwnedGroup = { hooks: [{ command: '$PROJECT_ROOT/.codex/hooks/aqe-codex-hook.cjs --old' }] };
+      const userGroup = { hooks: [{ command: './custom-hook.sh' }] };
+      mockExistsSync.mockImplementation((value: unknown) => {
+        const file = String(value);
+        if (file === join(projectRoot, '.codex', 'hooks.json')) return true;
+        if (file.startsWith(projectRoot)) return false;
+        return file.endsWith('/.codex/hooks.json') || file.endsWith('/.codex/hooks');
+      });
+      mockReaddirSync.mockReturnValue([]);
+      mockReadFileSync.mockImplementation((value: unknown) => {
+        if (String(value) === join(projectRoot, '.codex', 'hooks.json')) {
+          return JSON.stringify({ custom: true, hooks: { SessionStart: [userGroup, oldOwnedGroup] } });
+        }
+        return JSON.stringify({ description: 'AQE hooks', hooks: { SessionStart: [generatedGroup] } });
+      });
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, installMcp: false }).install();
+
+      expect(result.hooksConfigured).toBe(true);
+      const hooksWrite = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[0]) === join(projectRoot, '.codex', 'hooks.json'),
+      );
+      const merged = JSON.parse(hooksWrite![1] as string);
+      expect(merged.custom).toBe(true);
+      expect(merged.hooks.SessionStart).toEqual([userGroup, generatedGroup]);
+    });
+
+    it('isolates malformed hooks and still installs available skills', async () => {
+      mockExistsSync.mockImplementation((value: unknown) => {
+        const file = String(value);
+        if (file.startsWith(projectRoot)) return false;
+        return file.endsWith('/.codex/hooks.json')
+          || file.endsWith('/.codex/hooks')
+          || file.endsWith('/.agents/skills')
+          || file.endsWith('/aqe-plan-quality')
+          || file.endsWith('/aqe-plan-quality/SKILL.md');
+      });
+      mockReaddirSync.mockImplementation((value: unknown) =>
+        String(value).endsWith('.codex/hooks') ? [] : ['SKILL.md']);
+      mockStatSync.mockImplementation((value: unknown) => ({
+        isFile: () => String(value).endsWith('.md'),
+        isDirectory: () => !String(value).endsWith('.md'),
+      }));
+      mockReadFileSync.mockReturnValue('{ malformed hooks');
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot }).install();
+
+      expect(result.success).toBe(false);
+      expect(result.mcpConfigured).toBe(true);
+      expect(result.agentsMdInstalled).toBe(true);
+      expect(result.hooksConfigured).toBe(false);
+      expect(result.components.hooks.status).toBe('failed');
+      expect(result.components.hooks.error).toContain('JSON');
+      expect(result.skillsInstalled).toBe(1);
+      expect(result.components.skills.status).toBe('installed');
+    });
+
+    it('reports packaged hooks and skills as unavailable without failing core install', async () => {
+      mockExistsSync.mockImplementation((value: unknown) => String(value).startsWith(projectRoot) ? false : false);
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot }).install();
+
+      expect(result.success).toBe(true);
+      expect(result.components.hooks.status).toBe('unavailable');
+      expect(result.components.skills.status).toBe('unavailable');
+      expect(result.skillsInstalled).toBe(0);
+    });
   });
 
   describe('install() - existing files', () => {
@@ -189,7 +278,9 @@ describe('CodexInstaller', () => {
 
       expect(result.mcpConfigured).toBe(false);
       expect(result.agentsMdInstalled).toBe(false);
-      expect(mockWriteFileSync).not.toHaveBeenCalled();
+      expect(mockWriteFileSync.mock.calls.some(
+        (c: unknown[]) => String(c[0]).endsWith('config.toml') || String(c[0]).endsWith('AGENTS.md'),
+      )).toBe(false);
     });
 
     it('appends to existing TOML when overwrite is true', async () => {
@@ -213,11 +304,20 @@ default = "gpt-4"
       expect(content).toContain('[mcp_servers.agentic-qe]');
     });
 
-    it('skips TOML merge if agentic-qe already present', async () => {
+    it('upgrades an existing AQE TOML block while preserving user tables', async () => {
       mockExistsSync.mockReturnValue(true);
-      const existingToml = `[mcp_servers.agentic-qe]
+      const existingToml = `[model]
+default = "custom"
+
+[mcp_servers.agentic-qe]
 type = "stdio"
-command = "npx"
+command = "old-aqe"
+
+[mcp_servers.agentic-qe.env] # old generated environment
+AQE_V3_MODE = "false"
+
+[features]
+web_search = true
 `;
       mockReadFileSync.mockReturnValue(existingToml);
 
@@ -229,8 +329,12 @@ command = "npx"
         (c: unknown[]) => (c[0] as string).endsWith('config.toml')
       );
       const content = configCall![1] as string;
-      // Should return existing content unchanged
-      expect(content).toBe(existingToml);
+      expect(content).toContain('default = "custom"');
+      expect(content).toContain('[features]');
+      expect(content).toContain('web_search = true');
+      expect(content).not.toContain('old-aqe');
+      expect(content).toContain('command = "npx"');
+      expect(content.match(/\[mcp_servers\.agentic-qe\]/g)).toHaveLength(1);
     });
 
     it('appends to existing AGENTS.md when overwrite is true', async () => {
@@ -249,6 +353,26 @@ command = "npx"
       const content = rulesCall![1] as string;
       expect(content).toContain('My Project Agents');
       expect(content).toContain('Quality Engineering Standards');
+      expect(content).toContain('<!-- BEGIN AGENTIC-QE CODEX -->');
+    });
+
+    it('replaces only a marked AQE AGENTS section and preserves user references', async () => {
+      mockExistsSync.mockReturnValue(true);
+      const existingAgentsMd = '# Project\n\nUse fleet_init in our own docs.\n\n' +
+        '<!-- BEGIN AGENTIC-QE CODEX -->\nOld AQE rules\n<!-- END AGENTIC-QE CODEX -->\n\nKeep me.';
+      mockReadFileSync.mockReturnValue(existingAgentsMd);
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      await createCodexInstaller({ projectRoot, overwrite: true }).install();
+
+      const rulesCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[0]).endsWith('AGENTS.md'),
+      );
+      const content = rulesCall![1] as string;
+      expect(content).toContain('Use fleet_init in our own docs.');
+      expect(content).toContain('Keep me.');
+      expect(content).not.toContain('Old AQE rules');
+      expect(content.match(/BEGIN AGENTIC-QE CODEX/g)).toHaveLength(1);
     });
   });
 
@@ -265,7 +389,8 @@ command = "npx"
 
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors[0]).toContain('Codex installation failed');
+      expect(result.errors[0]).toContain('Codex mcp installation failed');
+      expect(result.components.mcp.status).toBe('failed');
     });
   });
 

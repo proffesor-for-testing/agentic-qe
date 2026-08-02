@@ -1,0 +1,4 @@
+interface:
+  display_name: "AQE Plan Work"
+  short_description: "Dependency-aware plans for AQE programs"
+  default_prompt: "Use $aqe-plan-work to turn this objective into a dependency-aware execution and verification plan."

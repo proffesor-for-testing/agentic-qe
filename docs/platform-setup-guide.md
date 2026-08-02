@@ -267,7 +267,23 @@ AQE_MEMORY_PATH = ".agentic-qe/memory.db"
 AQE_V3_MODE = "true"
 ```
 
-The installer also creates `AGENTS.md` with QE behavioral rules (Codex's equivalent of CLAUDE.md).
+The installer provisions the complete repository-scoped Codex QE surface:
+
+- `.codex/config.toml` with the Agentic QE MCP server;
+- `AGENTS.md` with QE behavioral rules;
+- `.codex/hooks.json` and local hook adapters/runtimes for routing, guardrails,
+  outcome learning, and optional Ruflo coordination; and
+- curated Codex-native QE skills under `.agents/skills/`.
+
+Verify every installed component after setup:
+
+```bash
+npx agentic-qe platform verify codex
+```
+
+The command reports MCP config, instructions, hooks, adapters, runtimes, and
+discoverable QE skills separately, and exits unsuccessfully when a component is
+missing or invalid.
 
 > **Codex-specific**: Uses TOML config format and `AGENTS.md` for behavioral instructions.
 

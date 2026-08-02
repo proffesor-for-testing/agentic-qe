@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(__dirname, '../../..');
 const ADAPTER = join(REPO_ROOT, '.codex/hooks/aqe-codex-hook.cjs');
+const RUFLO_ADAPTER = join(REPO_ROOT, '.codex/hooks/ruflo-codex-hook.cjs');
 
 describe('Codex AQE hook adapter', () => {
   let projectRoot = '';
@@ -102,5 +103,80 @@ describe('Codex AQE hook adapter', () => {
       'post-route --success true --json',
       'session-end --save-state --json',
     ]);
+  });
+});
+
+describe('Codex Ruflo hook adapter', () => {
+  let projectRoot = '';
+
+  afterEach(() => {
+    if (projectRoot) rmSync(projectRoot, { recursive: true, force: true });
+    projectRoot = '';
+  });
+
+  function arrangeRuntime(): string {
+    projectRoot = mkdtempSync(join(tmpdir(), 'ruflo-codex-hook-'));
+    execFileSync('git', ['init', '--quiet', projectRoot]);
+    mkdirSync(join(projectRoot, '.codex/hooks'), { recursive: true });
+    copyFileSync(RUFLO_ADAPTER, join(projectRoot, '.codex/hooks/ruflo-codex-hook.cjs'));
+    writeFileSync(
+      join(projectRoot, '.codex/hooks/ruflo-runtime.cjs'),
+      `
+        const fs = require('node:fs');
+        const path = require('node:path');
+        fs.writeFileSync(path.join(process.cwd(), 'ruflo-call.json'), JSON.stringify({
+          args: process.argv.slice(2),
+          input: fs.readFileSync(0, 'utf8'),
+          npx: process.env.RUFLO_HOOK_NPX,
+        }));
+        process.stderr.write('provider-specific output');
+      `,
+    );
+    return join(projectRoot, '.codex/hooks/ruflo-codex-hook.cjs');
+  }
+
+  it('should_mapPromptAndSuppressProviderOutput_when_routeRuns', () => {
+    const adapter = arrangeRuntime();
+    const input = { cwd: projectRoot, prompt: 'plan a contract migration' };
+
+    const stdout = execFileSync('node', [adapter, 'route'], {
+      cwd: projectRoot,
+      input: JSON.stringify(input),
+      encoding: 'utf8',
+    });
+
+    expect(stdout).toBe('');
+    expect(JSON.parse(readFileSync(join(projectRoot, 'ruflo-call.json'), 'utf8'))).toEqual({
+      args: ['route', '--task', 'plan a contract migration'],
+      input: JSON.stringify(input),
+      npx: '0',
+    });
+  });
+
+  it('should_mapCommandOutcome_when_postCommandRuns', () => {
+    const adapter = arrangeRuntime();
+
+    execFileSync('node', [adapter, 'post-command'], {
+      cwd: projectRoot,
+      input: JSON.stringify({
+        cwd: projectRoot,
+        tool_input: { command: 'npm test' },
+        tool_response: { success: false },
+      }),
+    });
+
+    expect(JSON.parse(readFileSync(join(projectRoot, 'ruflo-call.json'), 'utf8')).args).toEqual([
+      'post-command', '--command', 'npm test', '--success', 'false',
+    ]);
+  });
+
+  it('should_failOpen_when_runtimeIsMissing', () => {
+    const adapter = arrangeRuntime();
+    rmSync(join(projectRoot, '.codex/hooks/ruflo-runtime.cjs'));
+
+    expect(() => execFileSync('node', [adapter, 'route'], {
+      cwd: projectRoot,
+      input: JSON.stringify({ cwd: projectRoot, prompt: 'research' }),
+    })).not.toThrow();
   });
 });
