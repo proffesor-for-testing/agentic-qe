@@ -33,8 +33,8 @@ export interface CodexInstallerOptions {
   overwrite?: boolean;
   /** Whether to install the AQE MCP server entry. Defaults to true. */
   installMcp?: boolean;
-  /** Install the lightweight Ruflo orchestration skill when Ruflo is detected. */
-  includeRufloSkill?: boolean;
+  /** Install optional Ruflo guidance, adapter, runtime, and lifecycle groups. */
+  includeRuflo?: boolean;
   /**
    * Memory backend for this install. 'memory' => database-free: the MCP config
    * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
@@ -160,22 +160,15 @@ export class CodexInstaller {
     }
 
     try {
-      this.installCodexHooks(result);
-      if (result.hooksConfigured) result.components.hooks.status = 'installed';
+      result.components.hooks.status = this.installCodexHooks(result);
     } catch (error) {
       this.recordComponentFailure(result, 'hooks', error);
     }
 
     try {
-      result.skillsInstalled = this.installCodexSkills();
-      const sourceRoot = this.resolvePackageRoot();
-      const assetsAvailable = sourceRoot
-        && existsSync(join(sourceRoot, '.agents', 'skills'));
-      result.components.skills.status = !assetsAvailable
-        ? 'unavailable'
-        : result.skillsInstalled > 0
-          ? 'installed'
-          : 'preserved';
+      const skills = this.installCodexSkills();
+      result.skillsInstalled = skills.count;
+      result.components.skills.status = skills.status;
     } catch (error) {
       this.recordComponentFailure(result, 'skills', error);
     }
@@ -198,19 +191,20 @@ export class CodexInstaller {
    * Install Codex-native lifecycle adapters and merge AQE/ruflo hook groups
    * without removing user-defined hooks.
    */
-  private installCodexHooks(result: CodexInstallResult): void {
+  private installCodexHooks(result: CodexInstallResult): CodexComponentOutcome['status'] {
     const sourceRoot = this.resolvePackageRoot();
-    if (!sourceRoot) return;
+    if (!sourceRoot) return 'unavailable';
 
     const sourceConfig = join(sourceRoot, '.codex', 'hooks.json');
     const sourceScripts = join(sourceRoot, '.codex', 'hooks');
-    if (!existsSync(sourceConfig) || !existsSync(sourceScripts)) return;
+    if (!existsSync(sourceConfig) || !existsSync(sourceScripts)) return 'unavailable';
 
     const targetCodexDir = join(this.projectRoot, '.codex');
     const targetScripts = join(targetCodexDir, 'hooks');
     mkdirSync(targetScripts, { recursive: true });
 
     for (const file of readdirSync(sourceScripts)) {
+      if (!this.options.includeRuflo && file === 'ruflo-codex-hook.cjs') continue;
       const source = join(sourceScripts, file);
       if (!statSync(source).isFile()) continue;
       const target = join(targetScripts, file);
@@ -223,10 +217,10 @@ export class CodexInstaller {
         source: join(sourceRoot, '.claude', 'hooks', 'aqe-hook.cjs'),
         target: join(targetScripts, 'aqe-runtime.cjs'),
       },
-      {
+      ...(this.options.includeRuflo ? [{
         source: join(sourceRoot, '.claude', 'helpers', 'ruflo-hook.cjs'),
         target: join(targetScripts, 'ruflo-runtime.cjs'),
-      },
+      }] : []),
     ];
     for (const runtime of runtimes) {
       if (existsSync(runtime.source) && (!existsSync(runtime.target) || this.overwrite)) {
@@ -234,16 +228,25 @@ export class CodexInstaller {
       }
     }
 
-    const generated = JSON.parse(readFileSync(sourceConfig, 'utf-8')) as {
+    const generatedSource = JSON.parse(readFileSync(sourceConfig, 'utf-8')) as {
       description?: string;
       hooks?: Record<string, unknown[]>;
+    };
+    const isRufloGroup = (value: unknown): boolean =>
+      JSON.stringify(value).includes('ruflo-codex-hook.cjs');
+    const generated = {
+      ...generatedSource,
+      hooks: Object.fromEntries(Object.entries(generatedSource.hooks || {}).map(([event, groups]) => [
+        event,
+        this.options.includeRuflo ? groups : groups.filter((group) => !isRufloGroup(group)),
+      ])),
     };
     const targetConfig = join(targetCodexDir, 'hooks.json');
 
     if (!existsSync(targetConfig)) {
       writeFileSync(targetConfig, JSON.stringify(generated, null, 2) + '\n');
       result.hooksConfigured = true;
-      return;
+      return 'installed';
     }
     const existing = JSON.parse(readFileSync(targetConfig, 'utf-8')) as {
       description?: string;
@@ -267,28 +270,35 @@ export class CodexInstaller {
       JSON.stringify({ ...existing, description: generated.description, hooks: mergedHooks }, null, 2) + '\n',
     );
     result.hooksConfigured = true;
+    return 'updated';
   }
 
   /** Install the curated repo-scoped AQE skills Codex discovers automatically. */
-  private installCodexSkills(): number {
+  private installCodexSkills(): { count: number; status: CodexComponentOutcome['status'] } {
     const sourceRoot = this.resolvePackageRoot();
-    if (!sourceRoot) return 0;
+    if (!sourceRoot) return { count: 0, status: 'unavailable' };
     const sourceSkills = join(sourceRoot, '.agents', 'skills');
-    if (!existsSync(sourceSkills)) return 0;
+    if (!existsSync(sourceSkills)) return { count: 0, status: 'unavailable' };
 
     const targetSkills = join(this.projectRoot, '.agents', 'skills');
     mkdirSync(targetSkills, { recursive: true });
     let installed = 0;
-    for (const skill of selectCodexSkills({ includeRuflo: this.options.includeRufloSkill })) {
+    let updated = 0;
+    for (const skill of selectCodexSkills({ includeRuflo: this.options.includeRuflo })) {
       const source = join(sourceSkills, skill.name);
-      if (!existsSync(source) || !statSync(source).isDirectory()) continue;
+      if (!existsSync(source) || !statSync(source).isDirectory()) {
+        throw new Error(`Missing packaged Codex skill directory: ${skill.name}`);
+      }
       const target = join(targetSkills, skill.name);
       if (existsSync(target) && !this.overwrite) continue;
+      const targetExisted = existsSync(target);
       if (skill.files) {
         mkdirSync(target, { recursive: true });
         for (const relativeFile of skill.files) {
           const from = join(source, relativeFile);
-          if (!existsSync(from) || !statSync(from).isFile()) continue;
+          if (!existsSync(from) || !statSync(from).isFile()) {
+            throw new Error(`Missing packaged Codex skill file: ${skill.name}/${relativeFile}`);
+          }
           const to = join(target, relativeFile);
           mkdirSync(dirname(to), { recursive: true });
           copyFileSync(from, to);
@@ -296,9 +306,14 @@ export class CodexInstaller {
       } else {
         this.copyDirectory(source, target);
       }
-      installed++;
+      if (targetExisted) updated++;
+      else installed++;
     }
-    return installed;
+    const count = installed + updated;
+    return {
+      count,
+      status: updated > 0 ? 'updated' : installed > 0 ? 'installed' : 'preserved',
+    };
   }
 
   private copyDirectory(source: string, target: string): void {
@@ -336,10 +351,9 @@ export class CodexInstaller {
    * setting. AQE owns the exact `mcp_servers.agentic-qe` table prefix.
    */
   private mergeExistingTomlConfig(configPath: string, newContent: string): string {
-    try {
-      const existing = readFileSync(configPath, 'utf-8');
+    const existing = readFileSync(configPath, 'utf-8');
 
-      const aqeTable = /^\s*\[mcp_servers\.agentic-qe(?:\.[^\]]+)?\]\s*(?:#.*)?$/;
+      const aqeTable = /^\s*\[mcp_servers\.(?:agentic-qe|"agentic-qe")(?:\.(?:[^\]]+))?\]\s*(?:#.*)?$/;
       const lines = existing.split(/\r?\n/);
       const kept: string[] = [];
       let inOwnedTable = false;
@@ -349,10 +363,7 @@ export class CodexInstaller {
         }
         if (!inOwnedTable) kept.push(line);
       }
-      return kept.join('\n').trimEnd() + '\n\n' + newContent.trim() + '\n';
-    } catch {
-      return newContent;
-    }
+    return kept.join('\n').trimEnd() + '\n\n' + newContent.trim() + '\n';
   }
 
   /**
@@ -360,8 +371,7 @@ export class CodexInstaller {
    * Replaces a previously marked AQE section or appends a new marked section.
    */
   private mergeExistingAgentsMd(agentsMdPath: string, newContent: string): string {
-    try {
-      const existing = readFileSync(agentsMdPath, 'utf-8');
+    const existing = readFileSync(agentsMdPath, 'utf-8');
 
       const marked = this.markAgentsSection(newContent);
       const start = CodexInstaller.AGENTS_START;
@@ -374,10 +384,7 @@ export class CodexInstaller {
             + existing.slice(endIndex + end.length);
         }
       }
-      return existing.trimEnd() + '\n\n---\n\n' + marked;
-    } catch {
-      return newContent;
-    }
+    return existing.trimEnd() + '\n\n---\n\n' + marked;
   }
 
   private markAgentsSection(content: string): string {

@@ -16,7 +16,8 @@ hooks and skills.
 - **A curated Codex-native QE workflow fleet** ([#587]). New research,
   dependency-aware planning, and lightweight Ruflo orchestration skills join
   the existing quality-planning, testing, and review workflows. Ruflo remains
-  optional development-time guidance and is not a runtime dependency.
+  optional development-time guidance, enabled explicitly with `--with-ruflo`,
+  and is not a runtime dependency.
 - **End-to-end Codex installation verification.** `aqe platform verify codex`
   now checks MCP configuration, AQE instructions, lifecycle hooks, adapters,
   runtimes, and every required skill, with a failing exit code when the install

@@ -129,22 +129,22 @@ describe('CodexInstaller', () => {
   });
 
   describe('install() - Codex hooks and skills', () => {
-    it('installs packaged hooks and AQE skills', async () => {
+    it('installs packaged AQE hooks and skills without Ruflo by default', async () => {
       mockExistsSync.mockImplementation((value: unknown) => {
         const file = String(value);
         if (file.startsWith(projectRoot)) return false;
         return file.endsWith('/.codex/hooks.json')
           || file.endsWith('/.codex/hooks')
           || file.endsWith('/.agents/skills')
-          || file.endsWith('/.agents/skills/aqe-plan-quality')
+          || /\/\.agents\/skills\/aqe-[^/]+$/.test(file)
           || file.endsWith('/.claude/hooks/aqe-hook.cjs')
           || file.endsWith('/.claude/helpers/ruflo-hook.cjs');
       });
       mockReaddirSync.mockImplementation((value: unknown) => {
         const dir = String(value);
         if (dir.endsWith('.codex/hooks')) return ['aqe-codex-hook.cjs', 'ruflo-codex-hook.cjs'];
-        if (dir.endsWith('.agents/skills')) return ['aqe-plan-quality'];
-        if (dir.endsWith('aqe-plan-quality')) return ['SKILL.md'];
+        if (dir.endsWith('.agents/skills')) return [];
+        if (/\/aqe-[^/]+$/.test(dir)) return ['SKILL.md'];
         return [];
       });
       mockStatSync.mockImplementation((value: unknown) => ({
@@ -162,7 +162,7 @@ describe('CodexInstaller', () => {
       const result = await createCodexInstaller({ projectRoot }).install();
 
       expect(result.hooksConfigured).toBe(true);
-      expect(result.skillsInstalled).toBe(1);
+      expect(result.skillsInstalled).toBe(5);
       expect(mockCopyFileSync).toHaveBeenCalledWith(
         expect.stringContaining('aqe-codex-hook.cjs'),
         join(projectRoot, '.codex/hooks/aqe-codex-hook.cjs'),
@@ -171,13 +171,51 @@ describe('CodexInstaller', () => {
         expect.stringContaining('.claude/hooks/aqe-hook.cjs'),
         join(projectRoot, '.codex/hooks/aqe-runtime.cjs'),
       );
+      expect(mockCopyFileSync).not.toHaveBeenCalledWith(
+        expect.stringContaining('ruflo'),
+        expect.anything(),
+      );
+      expect(mockCopyFileSync).toHaveBeenCalledWith(
+        expect.stringContaining('SKILL.md'),
+        join(projectRoot, '.agents/skills/aqe-plan-quality/SKILL.md'),
+      );
+    });
+
+    it('installs Ruflo assets only when explicitly requested', async () => {
+      mockExistsSync.mockImplementation((value: unknown) => {
+        const file = String(value);
+        if (file.startsWith(projectRoot)) return false;
+        return file.endsWith('/.codex/hooks.json')
+          || file.endsWith('/.codex/hooks')
+          || file.endsWith('/.agents/skills')
+          || /\/\.agents\/skills\/aqe-[^/]+$/.test(file)
+          || file.endsWith('/aqe-ruflo/SKILL.md')
+          || file.endsWith('/.claude/hooks/aqe-hook.cjs')
+          || file.endsWith('/.claude/helpers/ruflo-hook.cjs');
+      });
+      mockReaddirSync.mockImplementation((value: unknown) =>
+        String(value).endsWith('.codex/hooks')
+          ? ['aqe-codex-hook.cjs', 'ruflo-codex-hook.cjs']
+          : ['SKILL.md']);
+      mockStatSync.mockImplementation((value: unknown) => ({
+        isFile: () => String(value).endsWith('.cjs') || String(value).endsWith('.md'),
+        isDirectory: () => !String(value).endsWith('.cjs') && !String(value).endsWith('.md'),
+      }));
+      mockReadFileSync.mockImplementation((value: unknown) => String(value).endsWith('.codex/hooks.json')
+        ? JSON.stringify({ hooks: { SessionStart: [{ hooks: [{ command: 'node .codex/hooks/ruflo-codex-hook.cjs' }] }] } })
+        : '');
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, includeRuflo: true }).install();
+
+      expect(result.skillsInstalled).toBe(6);
       expect(mockCopyFileSync).toHaveBeenCalledWith(
         expect.stringContaining('.claude/helpers/ruflo-hook.cjs'),
         join(projectRoot, '.codex/hooks/ruflo-runtime.cjs'),
       );
       expect(mockCopyFileSync).toHaveBeenCalledWith(
-        expect.stringContaining('SKILL.md'),
-        join(projectRoot, '.agents/skills/aqe-plan-quality/SKILL.md'),
+        expect.stringContaining('ruflo-codex-hook.cjs'),
+        join(projectRoot, '.codex/hooks/ruflo-codex-hook.cjs'),
       );
     });
 
@@ -231,8 +269,8 @@ describe('CodexInstaller', () => {
         return file.endsWith('/.codex/hooks.json')
           || file.endsWith('/.codex/hooks')
           || file.endsWith('/.agents/skills')
-          || file.endsWith('/aqe-plan-quality')
-          || file.endsWith('/aqe-plan-quality/SKILL.md');
+          || /\/aqe-[^/]+$/.test(file)
+          || /\/aqe-[^/]+\/SKILL\.md$/.test(file);
       });
       mockReaddirSync.mockImplementation((value: unknown) =>
         String(value).endsWith('.codex/hooks') ? [] : ['SKILL.md']);
@@ -251,7 +289,7 @@ describe('CodexInstaller', () => {
       expect(result.hooksConfigured).toBe(false);
       expect(result.components.hooks.status).toBe('failed');
       expect(result.components.hooks.error).toContain('JSON');
-      expect(result.skillsInstalled).toBe(1);
+      expect(result.skillsInstalled).toBe(5);
       expect(result.components.skills.status).toBe('installed');
     });
 
@@ -354,6 +392,57 @@ web_search = true
       expect(content).toContain('My Project Agents');
       expect(content).toContain('Quality Engineering Standards');
       expect(content).toContain('<!-- BEGIN AGENTIC-QE CODEX -->');
+    });
+
+    it('replaces a quoted AQE TOML table without creating a duplicate server', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(`[mcp_servers."agentic-qe"]\ncommand = "old-aqe"\n\n[mcp_servers."agentic-qe".env]\nAQE_V3_MODE = "false"\n`);
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      await createCodexInstaller({ projectRoot, overwrite: true }).install();
+
+      const configCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[0]).endsWith('config.toml'),
+      );
+      const content = configCall![1] as string;
+      expect(content).not.toContain('old-aqe');
+      expect(content).not.toContain('[mcp_servers."agentic-qe"]');
+      expect(content.match(/\[mcp_servers\.agentic-qe\]/g)).toHaveLength(1);
+    });
+
+    it('fails closed when existing user configuration cannot be read', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockImplementation((value: unknown) => {
+        if (String(value).endsWith('config.toml')) throw new Error('EACCES');
+        return '{}';
+      });
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, overwrite: true }).install();
+
+      expect(result.success).toBe(false);
+      expect(result.components.mcp.status).toBe('failed');
+      expect(mockWriteFileSync.mock.calls.some(
+        (c: unknown[]) => String(c[0]).endsWith('config.toml'),
+      )).toBe(false);
+    });
+
+    it('does not overwrite AGENTS.md when existing instructions cannot be read', async () => {
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockImplementation((value: unknown) => {
+        if (String(value).endsWith('AGENTS.md')) throw new Error('EACCES');
+        if (String(value).endsWith('hooks.json')) return JSON.stringify({ hooks: {} });
+        return '[mcp_servers.agentic-qe]\ncommand = "npx"\n';
+      });
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, overwrite: true }).install();
+
+      expect(result.success).toBe(false);
+      expect(result.components.rules.status).toBe('failed');
+      expect(mockWriteFileSync.mock.calls.some(
+        (c: unknown[]) => String(c[0]).endsWith('AGENTS.md'),
+      )).toBe(false);
     });
 
     it('replaces only a marked AQE AGENTS section and preserves user references', async () => {

@@ -63,6 +63,7 @@ export class ModularInitOrchestrator {
         withKiloCode: options.withKiloCode || allPlatforms,
         withRooCode: options.withRooCode || allPlatforms,
         withCodex: options.withCodex || allPlatforms,
+        withRuflo: options.withRuflo,
         withWindsurf: options.withWindsurf || allPlatforms,
         withContinueDev: options.withContinueDev || allPlatforms,
         withAllPlatforms: options.withAllPlatforms,

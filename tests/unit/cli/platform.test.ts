@@ -34,7 +34,6 @@ describe('verifyPlatformConfiguration', () => {
     }));
     write(projectRoot, '.codex/hooks/aqe-codex-hook.cjs', 'module.exports = {};\n');
     write(projectRoot, '.codex/hooks/aqe-runtime.cjs', 'module.exports = {};\n');
-    write(projectRoot, '.codex/hooks/ruflo-runtime.cjs', 'module.exports = {};\n');
     for (const skill of selectCodexSkills()) {
       write(projectRoot, `.agents/skills/${skill.name}/SKILL.md`, `---\nname: ${skill.name}\n---\n`);
     }
@@ -63,7 +62,12 @@ describe('verifyPlatformConfiguration', () => {
   it('should_reportMissingRuntime_when_CodexHooksCannotExecute', () => {
     const projectRoot = root();
     arrangeCompleteCodexInstall(projectRoot);
-    rmSync(join(projectRoot, '.codex/hooks/ruflo-runtime.cjs'));
+    write(projectRoot, '.codex/hooks.json', JSON.stringify({
+      hooks: {
+        SessionStart: [{ hooks: [{ command: 'node .codex/hooks/ruflo-codex-hook.cjs' }] }],
+      },
+    }));
+    write(projectRoot, '.codex/hooks/ruflo-codex-hook.cjs', 'module.exports = {};\n');
 
     const result = verifyPlatformConfiguration(projectRoot, 'codex');
 
@@ -73,6 +77,34 @@ describe('verifyPlatformConfiguration', () => {
       passed: false,
       detail: 'missing: ruflo-runtime.cjs',
     });
+  });
+
+  it('should_pass_withoutMcp_when_McpWasDeliberatelyDisabled', () => {
+    const projectRoot = root();
+    arrangeCompleteCodexInstall(projectRoot);
+    rmSync(join(projectRoot, '.codex/config.toml'));
+
+    const result = verifyPlatformConfiguration(projectRoot, 'codex', { expectMcp: false });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks).toContainEqual({
+      label: 'MCP configuration',
+      passed: true,
+      detail: 'intentionally disabled',
+    });
+  });
+
+  it('should_requireRufloSkill_only_when_RufloIsRequested', () => {
+    const projectRoot = root();
+    arrangeCompleteCodexInstall(projectRoot);
+
+    const defaultResult = verifyPlatformConfiguration(projectRoot, 'codex');
+    const rufloResult = verifyPlatformConfiguration(projectRoot, 'codex', { expectRuflo: true });
+
+    expect(defaultResult.passed).toBe(true);
+    expect(rufloResult.passed).toBe(false);
+    expect(rufloResult.checks.find((check) => check.label === 'QE skills')?.detail)
+      .toContain('aqe-ruflo');
   });
 
   it('should_reportEveryMissingCuratedSkill_when_installIsPartial', () => {

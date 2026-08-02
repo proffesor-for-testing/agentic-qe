@@ -134,6 +134,8 @@ export interface InitOptions {
   withRooCode?: boolean;
   /** Install OpenAI Codex CLI MCP, AGENTS.md, hooks, and QE skills */
   withCodex?: boolean;
+  /** Include optional Ruflo guidance and Codex lifecycle integration */
+  withRuflo?: boolean;
   /** Install Windsurf MCP config and rules */
   withWindsurf?: boolean;
   /** Install Continue.dev MCP config and rules */

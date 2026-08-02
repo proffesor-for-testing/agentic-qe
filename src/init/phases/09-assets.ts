@@ -340,7 +340,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         projectRoot,
         overwrite: shouldOverwrite,
         installMcp: !options.noMcp,
-        includeRufloSkill: context.enhancements.claudeFlow,
+        includeRuflo: options.withRuflo,
         memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
       });
       const res = await installer.install();
@@ -350,6 +350,9 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       if (res.agentsMdInstalled) context.services.log(`  Codex AGENTS.md: ${res.agentsMdPath}`);
       if (res.hooksConfigured) context.services.log(`  Codex hooks: ${res.hooksPath}`);
       if (res.skillsInstalled > 0) context.services.log(`  Codex skills: ${res.skillsInstalled} installed`);
+      context.services.log(options.withRuflo
+        ? '  Codex Ruflo integration: enabled'
+        : '  Codex Ruflo integration: not installed (opt in with --with-ruflo)');
     }
 
     if (options.withWindsurf || (options.autoMode && existsSync(join(projectRoot, '.windsurf')))) {

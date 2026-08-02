@@ -63,6 +63,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-kilocode', 'Include Kilo Code MCP config and custom QE mode')
       .option('--with-roocode', 'Include Roo Code MCP config and custom QE mode')
       .option('--with-codex', 'Include OpenAI Codex CLI MCP, AGENTS.md, hooks, and QE skills')
+      .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks to the Codex setup')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
       .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
@@ -208,6 +209,7 @@ export class InitHandler implements ICommandHandler {
       withKiloCode: options.withKilocode,
       withRooCode: options.withRoocode,
       withCodex: options.withCodex,
+      withRuflo: options.withRuflo,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
       noMcp: options.noMcp && !options.withMcp,
@@ -529,6 +531,8 @@ Options:
   --skip-patterns            Skip loading pre-trained patterns
   --with-n8n                 Install n8n workflow testing agents and skills
   --with-opencode            Include OpenCode agent/skill provisioning
+  --with-codex               Include OpenAI Codex hooks, instructions, skills, and MCP
+  --with-ruflo               Opt into Ruflo guidance and lifecycle hooks for Codex
   --auto-migrate             Automatically migrate from v2 if detected
   --with-claude-flow         Force Claude Flow integration setup
   --skip-claude-flow         Skip Claude Flow integration
@@ -551,6 +555,8 @@ Governance:
 
 Examples:
   aqe init --auto            # Auto-configure based on project (keeps existing skills)
+  aqe init --auto --with-codex --with-ruflo
+                             # Codex plus optional Ruflo coordination
   aqe init --auto --upgrade  # Auto-configure AND update all skills/agents
   aqe init --upgrade         # Upgrade existing installation
   aqe init --wizard          # Run interactive wizard
@@ -633,6 +639,7 @@ interface InitOptions {
   withKilocode?: boolean;
   withRoocode?: boolean;
   withCodex?: boolean;
+  withRuflo?: boolean;
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
