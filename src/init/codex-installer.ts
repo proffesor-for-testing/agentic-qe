@@ -18,6 +18,7 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { selectCodexSkills } from './codex-skill-manifest.js';
 import {
   createPlatformConfigGenerator,
   type PlatformConfigGenerator,
@@ -30,6 +31,10 @@ import {
 export interface CodexInstallerOptions {
   projectRoot: string;
   overwrite?: boolean;
+  /** Whether to install the AQE MCP server entry. Defaults to true. */
+  installMcp?: boolean;
+  /** Install optional Ruflo guidance, adapter, runtime, and lifecycle groups. */
+  includeRuflo?: boolean;
   /**
    * Memory backend for this install. 'memory' => database-free: the MCP config
    * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
@@ -48,6 +53,18 @@ export interface CodexInstallResult {
   agentsMdPath: string;
   hooksPath: string;
   skillsPath: string;
+  /** Per-component outcomes. Legacy booleans above remain supported. */
+  components: {
+    mcp: CodexComponentOutcome;
+    rules: CodexComponentOutcome;
+    hooks: CodexComponentOutcome;
+    skills: CodexComponentOutcome;
+  };
+}
+
+export interface CodexComponentOutcome {
+  status: 'installed' | 'updated' | 'preserved' | 'skipped' | 'unavailable' | 'failed';
+  error?: string;
 }
 
 // ============================================================================
@@ -59,6 +76,9 @@ export class CodexInstaller {
   private overwrite: boolean;
   private options: CodexInstallerOptions;
   private generator: PlatformConfigGenerator;
+
+  private static readonly AGENTS_START = '<!-- BEGIN AGENTIC-QE CODEX -->';
+  private static readonly AGENTS_END = '<!-- END AGENTIC-QE CODEX -->';
 
   constructor(options: CodexInstallerOptions) {
     this.projectRoot = options.projectRoot;
@@ -79,15 +99,23 @@ export class CodexInstaller {
       agentsMdPath: '',
       hooksPath: join(this.projectRoot, '.codex', 'hooks.json'),
       skillsPath: join(this.projectRoot, '.agents', 'skills'),
+      components: {
+        mcp: { status: 'skipped' },
+        rules: { status: 'skipped' },
+        hooks: { status: 'unavailable' },
+        skills: { status: 'unavailable' },
+      },
     };
 
     try {
-      // Generate TOML MCP config
       const mcpConfig = this.generator.generateMcpConfig('codex', { memoryBackend: this.options.memoryBackend });
       const configPath = join(this.projectRoot, mcpConfig.path);
       result.configPath = configPath;
 
-      if (!existsSync(configPath) || this.overwrite) {
+      // Generate TOML MCP config unless the caller explicitly requested a
+      // platform-only install (rules, hooks, and skills remain useful).
+      const configExists = existsSync(configPath);
+      if (this.options.installMcp !== false && (!configExists || this.overwrite)) {
         const configDir = dirname(configPath);
         if (!existsSync(configDir)) {
           mkdirSync(configDir, { recursive: true });
@@ -100,50 +128,83 @@ export class CodexInstaller {
           writeFileSync(configPath, mcpConfig.content);
         }
         result.mcpConfigured = true;
+        result.components.mcp.status = configExists ? 'updated' : 'installed';
+      } else if (this.options.installMcp !== false && configExists) {
+        result.components.mcp.status = 'preserved';
       }
+    } catch (error) {
+      this.recordComponentFailure(result, 'mcp', error);
+    }
 
+    try {
       // Generate AGENTS.md behavioral rules
       const rules = this.generator.generateBehavioralRules('codex');
       const agentsMdPath = join(this.projectRoot, rules.path);
       result.agentsMdPath = agentsMdPath;
 
-      if (!existsSync(agentsMdPath) || this.overwrite) {
-        if (existsSync(agentsMdPath) && this.overwrite) {
+      const rulesExist = existsSync(agentsMdPath);
+      if (!rulesExist || this.overwrite) {
+        if (rulesExist && this.overwrite) {
           const merged = this.mergeExistingAgentsMd(agentsMdPath, rules.content);
           writeFileSync(agentsMdPath, merged);
         } else {
-          writeFileSync(agentsMdPath, rules.content);
+          writeFileSync(agentsMdPath, this.markAgentsSection(rules.content));
         }
         result.agentsMdInstalled = true;
+        result.components.rules.status = rulesExist ? 'updated' : 'installed';
+      } else {
+        result.components.rules.status = 'preserved';
       }
-
-      this.installCodexHooks(result);
-      result.skillsInstalled = this.installCodexSkills();
     } catch (error) {
-      result.success = false;
-      result.errors.push(`Codex installation failed: ${toErrorMessage(error)}`);
+      this.recordComponentFailure(result, 'rules', error);
     }
 
+    try {
+      result.components.hooks.status = this.installCodexHooks(result);
+    } catch (error) {
+      this.recordComponentFailure(result, 'hooks', error);
+    }
+
+    try {
+      const skills = this.installCodexSkills();
+      result.skillsInstalled = skills.count;
+      result.components.skills.status = skills.status;
+    } catch (error) {
+      this.recordComponentFailure(result, 'skills', error);
+    }
+
+    result.success = result.errors.length === 0;
     return result;
+  }
+
+  private recordComponentFailure(
+    result: CodexInstallResult,
+    component: keyof CodexInstallResult['components'],
+    error: unknown,
+  ): void {
+    const message = toErrorMessage(error);
+    result.components[component] = { status: 'failed', error: message };
+    result.errors.push(`Codex ${component} installation failed: ${message}`);
   }
 
   /**
    * Install Codex-native lifecycle adapters and merge AQE/ruflo hook groups
    * without removing user-defined hooks.
    */
-  private installCodexHooks(result: CodexInstallResult): void {
+  private installCodexHooks(result: CodexInstallResult): CodexComponentOutcome['status'] {
     const sourceRoot = this.resolvePackageRoot();
-    if (!sourceRoot) return;
+    if (!sourceRoot) return 'unavailable';
 
     const sourceConfig = join(sourceRoot, '.codex', 'hooks.json');
     const sourceScripts = join(sourceRoot, '.codex', 'hooks');
-    if (!existsSync(sourceConfig) || !existsSync(sourceScripts)) return;
+    if (!existsSync(sourceConfig) || !existsSync(sourceScripts)) return 'unavailable';
 
     const targetCodexDir = join(this.projectRoot, '.codex');
     const targetScripts = join(targetCodexDir, 'hooks');
     mkdirSync(targetScripts, { recursive: true });
 
     for (const file of readdirSync(sourceScripts)) {
+      if (!this.options.includeRuflo && file === 'ruflo-codex-hook.cjs') continue;
       const source = join(sourceScripts, file);
       if (!statSync(source).isFile()) continue;
       const target = join(targetScripts, file);
@@ -156,10 +217,10 @@ export class CodexInstaller {
         source: join(sourceRoot, '.claude', 'hooks', 'aqe-hook.cjs'),
         target: join(targetScripts, 'aqe-runtime.cjs'),
       },
-      {
+      ...(this.options.includeRuflo ? [{
         source: join(sourceRoot, '.claude', 'helpers', 'ruflo-hook.cjs'),
         target: join(targetScripts, 'ruflo-runtime.cjs'),
-      },
+      }] : []),
     ];
     for (const runtime of runtimes) {
       if (existsSync(runtime.source) && (!existsSync(runtime.target) || this.overwrite)) {
@@ -167,19 +228,26 @@ export class CodexInstaller {
       }
     }
 
-    const generated = JSON.parse(readFileSync(sourceConfig, 'utf-8')) as {
+    const generatedSource = JSON.parse(readFileSync(sourceConfig, 'utf-8')) as {
       description?: string;
       hooks?: Record<string, unknown[]>;
+    };
+    const isRufloGroup = (value: unknown): boolean =>
+      JSON.stringify(value).includes('ruflo-codex-hook.cjs');
+    const generated = {
+      ...generatedSource,
+      hooks: Object.fromEntries(Object.entries(generatedSource.hooks || {}).map(([event, groups]) => [
+        event,
+        this.options.includeRuflo ? groups : groups.filter((group) => !isRufloGroup(group)),
+      ])),
     };
     const targetConfig = join(targetCodexDir, 'hooks.json');
 
     if (!existsSync(targetConfig)) {
       writeFileSync(targetConfig, JSON.stringify(generated, null, 2) + '\n');
       result.hooksConfigured = true;
-      return;
+      return 'installed';
     }
-    if (!this.overwrite) return;
-
     const existing = JSON.parse(readFileSync(targetConfig, 'utf-8')) as {
       description?: string;
       hooks?: Record<string, unknown[]>;
@@ -202,28 +270,50 @@ export class CodexInstaller {
       JSON.stringify({ ...existing, description: generated.description, hooks: mergedHooks }, null, 2) + '\n',
     );
     result.hooksConfigured = true;
+    return 'updated';
   }
 
   /** Install the curated repo-scoped AQE skills Codex discovers automatically. */
-  private installCodexSkills(): number {
+  private installCodexSkills(): { count: number; status: CodexComponentOutcome['status'] } {
     const sourceRoot = this.resolvePackageRoot();
-    if (!sourceRoot) return 0;
+    if (!sourceRoot) return { count: 0, status: 'unavailable' };
     const sourceSkills = join(sourceRoot, '.agents', 'skills');
-    if (!existsSync(sourceSkills)) return 0;
+    if (!existsSync(sourceSkills)) return { count: 0, status: 'unavailable' };
 
     const targetSkills = join(this.projectRoot, '.agents', 'skills');
     mkdirSync(targetSkills, { recursive: true });
     let installed = 0;
-    for (const skill of readdirSync(sourceSkills)) {
-      if (!skill.startsWith('aqe-')) continue;
-      const source = join(sourceSkills, skill);
-      if (!statSync(source).isDirectory()) continue;
-      const target = join(targetSkills, skill);
+    let updated = 0;
+    for (const skill of selectCodexSkills({ includeRuflo: this.options.includeRuflo })) {
+      const source = join(sourceSkills, skill.name);
+      if (!existsSync(source) || !statSync(source).isDirectory()) {
+        throw new Error(`Missing packaged Codex skill directory: ${skill.name}`);
+      }
+      const target = join(targetSkills, skill.name);
       if (existsSync(target) && !this.overwrite) continue;
-      this.copyDirectory(source, target);
-      installed++;
+      const targetExisted = existsSync(target);
+      if (skill.files) {
+        mkdirSync(target, { recursive: true });
+        for (const relativeFile of skill.files) {
+          const from = join(source, relativeFile);
+          if (!existsSync(from) || !statSync(from).isFile()) {
+            throw new Error(`Missing packaged Codex skill file: ${skill.name}/${relativeFile}`);
+          }
+          const to = join(target, relativeFile);
+          mkdirSync(dirname(to), { recursive: true });
+          copyFileSync(from, to);
+        }
+      } else {
+        this.copyDirectory(source, target);
+      }
+      if (targetExisted) updated++;
+      else installed++;
     }
-    return installed;
+    const count = installed + updated;
+    return {
+      count,
+      status: updated > 0 ? 'updated' : installed > 0 ? 'installed' : 'preserved',
+    };
   }
 
   private copyDirectory(source: string, target: string): void {
@@ -257,43 +347,48 @@ export class CodexInstaller {
 
   /**
    * Merge AQE MCP server config into existing TOML.
-   * Simple approach: if [mcp_servers.agentic-qe] already exists, skip.
-   * Otherwise, append the AQE block at the end.
+   * Replace only AQE-owned TOML tables, preserving every user-owned table and
+   * setting. AQE owns the exact `mcp_servers.agentic-qe` table prefix.
    */
   private mergeExistingTomlConfig(configPath: string, newContent: string): string {
-    try {
-      const existing = readFileSync(configPath, 'utf-8');
+    const existing = readFileSync(configPath, 'utf-8');
 
-      // If AQE server already configured, return as-is
-      if (existing.includes('[mcp_servers.agentic-qe]')) {
-        return existing;
+      const aqeTable = /^\s*\[mcp_servers\.(?:agentic-qe|"agentic-qe")(?:\.(?:[^\]]+))?\]\s*(?:#.*)?$/;
+      const lines = existing.split(/\r?\n/);
+      const kept: string[] = [];
+      let inOwnedTable = false;
+      for (const line of lines) {
+        if (/^\s*\[[^\]]+\]\s*(?:#.*)?$/.test(line)) {
+          inOwnedTable = aqeTable.test(line);
+        }
+        if (!inOwnedTable) kept.push(line);
       }
-
-      // Append AQE config block
-      return existing.trimEnd() + '\n\n' + newContent;
-    } catch {
-      return newContent;
-    }
+    return kept.join('\n').trimEnd() + '\n\n' + newContent.trim() + '\n';
   }
 
   /**
    * Merge AQE section into existing AGENTS.md.
-   * Appends the AQE section if not already present.
+   * Replaces a previously marked AQE section or appends a new marked section.
    */
   private mergeExistingAgentsMd(agentsMdPath: string, newContent: string): string {
-    try {
-      const existing = readFileSync(agentsMdPath, 'utf-8');
+    const existing = readFileSync(agentsMdPath, 'utf-8');
 
-      // If AQE section already present, return as-is
-      if (existing.includes('Agentic QE') || existing.includes('fleet_init')) {
-        return existing;
+      const marked = this.markAgentsSection(newContent);
+      const start = CodexInstaller.AGENTS_START;
+      const end = CodexInstaller.AGENTS_END;
+      const startIndex = existing.indexOf(start);
+      if (startIndex >= 0) {
+        const endIndex = existing.indexOf(end, startIndex);
+        if (endIndex >= 0) {
+          return existing.slice(0, startIndex) + marked
+            + existing.slice(endIndex + end.length);
+        }
       }
+    return existing.trimEnd() + '\n\n---\n\n' + marked;
+  }
 
-      // Append AQE section
-      return existing.trimEnd() + '\n\n---\n\n' + newContent;
-    } catch {
-      return newContent;
-    }
+  private markAgentsSection(content: string): string {
+    return `${CodexInstaller.AGENTS_START}\n${content.trim()}\n${CodexInstaller.AGENTS_END}\n`;
   }
 }
 

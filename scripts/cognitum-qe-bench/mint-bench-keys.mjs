@@ -62,6 +62,17 @@ const ROLES = {
     permissions: ['completions:high', 'completions:mid', 'analytics:read'],
     secret: 'COG_QE_BENCH_JUDGE_KEY',
   },
+  // lowonly — mirrors a real SEED-ORDER key, which carries completions:low and nothing
+  // higher. As of 2026-07-20 that is 529 of 535 active prod keys, so it is the shape most
+  // customers actually hold; worker/judge both hold `mid` and therefore cannot exercise the
+  // scope-shortfall paths (best_effort degradation, 402 upgrade_required) at all. Needed to
+  // regression-test meta-llm#187 against the live service rather than only in unit/e2e.
+  lowonly: {
+    accountId: 'qe-bench-lowonly',
+    name: 'dragan+qe-bench-lowonly@cognitum.one',
+    permissions: ['completions:low', 'analytics:read'],
+    secret: 'COG_QE_BENCH_LOWONLY_KEY',
+  },
 };
 
 if (!ROLES[ROLE]) {

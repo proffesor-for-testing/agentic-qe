@@ -1,0 +1,39 @@
+# Agent Customization Overlay Example
+#
+# Copy this file and rename it to match your agent:
+#   .claude/agent-overrides/qe-test-architect.override.yaml
+#
+# Fields in "replace" OVERWRITE the base agent value.
+# Fields in "append" are ADDED to the base agent value.
+# Fields in "config" provide runtime configuration overrides.
+
+# Which agent this overlay applies to
+agent: qe-test-architect
+
+# Replace base agent fields (overwrites)
+# replace:
+#   description: "Custom test architect with focus on integration tests"
+#   domains:
+#     - test-generation
+#     - integration-testing
+#   complexity: complex
+
+# Append to base agent (additions)
+# append:
+#   instructions: |
+#     Additional custom instructions for this agent.
+#     These are appended to the end of the agent's instructions.
+#   capabilities:
+#     - custom-framework-support
+#   tags:
+#     - custom
+#     - team-specific
+
+# Runtime configuration overrides
+# config:
+#   minimumFindings: 5
+#   maxParallelAgents: 4
+#   preferredFrameworks:
+#     - vitest
+#     - playwright
+#   needsContext: true

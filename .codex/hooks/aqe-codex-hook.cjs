@@ -26,14 +26,39 @@ const codexShim = path.join(root, '.codex', 'hooks', 'aqe-runtime.cjs');
 const shim = require('node:fs').existsSync(codexShim)
   ? codexShim
   : path.join(root, '.claude', 'hooks', 'aqe-hook.cjs');
-const result = spawnSync(process.execPath, [shim, subcommand, '--json'], {
-  cwd: root,
-  env: { ...process.env, CLAUDE_PROJECT_DIR: root },
-  input: JSON.stringify(input),
-  encoding: 'utf8',
-  timeout: Number(process.env.AQE_CODEX_HOOK_TIMEOUT_MS) || 20000,
-  maxBuffer: 4 * 1024 * 1024,
-});
+const adapterTimeout = Number(process.env.AQE_CODEX_HOOK_TIMEOUT_MS) || 25000;
+const runtimeTimeout = Number(process.env.AQE_HOOK_TIMEOUT_MS)
+  || Math.max(1000, adapterTimeout - 3000);
+
+function runAqe(command, extraArgs = []) {
+  return spawnSync(process.execPath, [shim, command, ...extraArgs, '--json'], {
+    cwd: root,
+    env: {
+      ...process.env,
+      CLAUDE_PROJECT_DIR: root,
+      AQE_HOOK_TIMEOUT_MS: String(runtimeTimeout),
+    },
+    input: JSON.stringify(input),
+    encoding: 'utf8',
+    timeout: adapterTimeout,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+}
+
+// Stop closes the current route-learning sentinel before session cleanup.
+// Both AQE commands emit internal telemetry, so return no Codex JSON.
+if (subcommand === 'stop') {
+  runAqe('post-route', ['--success', 'true']);
+  runAqe('session-end', ['--save-state']);
+  process.exit(0);
+}
+
+const result = runAqe(subcommand);
+
+// These commands produce AQE/Claude hook response shapes. Codex treats an
+// empty successful response as continue, which preserves their side effects
+// without forwarding unsupported permissionDecision or telemetry fields.
+if (subcommand !== 'route') process.exit(0);
 
 if (!result.stdout) process.exit(0);
 
@@ -46,7 +71,7 @@ try {
 
 // AQE route results are useful context but are not themselves a Codex hook
 // response. Wrap them in the supported additional-context envelope.
-if (subcommand === 'route' && !output.hookSpecificOutput) {
+if (!output.hookSpecificOutput) {
   const agent = output.recommendedAgent || 'unspecified';
   const confidence = Number.isFinite(output.confidence)
     ? ` (${Math.round(output.confidence * 100)}% confidence)`

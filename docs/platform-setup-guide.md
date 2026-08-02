@@ -252,6 +252,18 @@ npx agentic-qe init --auto --with-codex
 npx agentic-qe platform setup codex
 ```
 
+Ruflo integration is deliberately opt-in. Add it only when you want its
+development-time coordination guidance and lifecycle hooks:
+
+```bash
+npx agentic-qe init --auto --with-codex --with-ruflo
+# or
+npx agentic-qe platform setup codex --with-ruflo
+```
+
+Without `--with-ruflo`, setup prints that Ruflo was not installed and shows the
+opt-in flag. AQE hooks and the five default Codex QE skills are still installed.
+
 ### Manual Setup
 
 Create `.codex/config.toml`:
@@ -267,7 +279,34 @@ AQE_MEMORY_PATH = ".agentic-qe/memory.db"
 AQE_V3_MODE = "true"
 ```
 
-The installer also creates `AGENTS.md` with QE behavioral rules (Codex's equivalent of CLAUDE.md).
+The installer provisions the complete repository-scoped Codex QE surface:
+
+- `.codex/config.toml` with the Agentic QE MCP server;
+- `AGENTS.md` with QE behavioral rules;
+- `.codex/hooks.json` and local AQE hook adapters/runtimes for routing,
+  guardrails, and outcome learning;
+- curated Codex-native QE skills under `.agents/skills/`.
+
+When `--with-ruflo` is selected, setup additionally installs the Ruflo adapter,
+runtime bridge, lifecycle groups, and `aqe-ruflo` guidance skill. It does not
+add Ruflo as an Agentic QE runtime dependency.
+
+Verify every installed component after setup:
+
+```bash
+npx agentic-qe platform verify codex
+```
+
+For deliberate variants, verify the same intent explicitly:
+
+```bash
+npx agentic-qe platform verify codex --no-mcp
+npx agentic-qe platform verify codex --with-ruflo
+```
+
+The command reports MCP config, instructions, hooks, adapters, runtimes, and
+discoverable QE skills separately, and exits unsuccessfully when a component is
+missing or invalid.
 
 > **Codex-specific**: Uses TOML config format and `AGENTS.md` for behavioral instructions.
 

@@ -195,7 +195,7 @@ aqe init --with-copilot         # GitHub Copilot MCP config and instructions
 aqe init --with-cline           # Cline MCP config and custom QE mode
 aqe init --with-roocode         # Roo Code MCP config and custom QE mode
 aqe init --with-kilocode        # Kilo Code MCP config and custom QE mode
-aqe init --with-codex           # OpenAI Codex CLI MCP config and AGENTS.md
+aqe init --with-codex           # Codex MCP, AGENTS.md, hooks, runtimes, and QE skills
 aqe init --with-kiro            # AWS Kiro IDE integration (agents, skills, hooks, steering)
 aqe init --with-opencode        # OpenCode agent/skill provisioning
 aqe init --with-continuedev     # Continue.dev MCP config and rules

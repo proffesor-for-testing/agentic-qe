@@ -1,0 +1,9 @@
+# Agentic QE MCP Server
+[mcp_servers.agentic-qe]
+type = "stdio"
+command = "npx"
+args = ["-y", "agentic-qe@latest", "mcp"]
+
+[mcp_servers.agentic-qe.env]
+AQE_MEMORY_PATH = ".agentic-qe/memory.db"
+AQE_V3_MODE = "true"

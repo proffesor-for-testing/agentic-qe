@@ -17,6 +17,7 @@ import {
   type PlatformId,
   type PlatformDefinition,
 } from '../../init/platform-config-generator.js';
+import { selectCodexSkills } from '../../init/codex-skill-manifest.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
@@ -68,13 +69,109 @@ function parseConfigFile(filePath: string, format: string): { valid: boolean; er
   }
 }
 
-function checkAqeEntry(filePath: string, platform: PlatformDefinition): boolean {
+function checkAqeEntry(filePath: string, _platform: PlatformDefinition): boolean {
   try {
     const content = readFileSync(filePath, 'utf-8');
     return content.includes('agentic-qe');
   } catch {
     return false;
   }
+}
+
+export interface PlatformVerificationCheck {
+  label: string;
+  passed: boolean;
+  detail: string;
+}
+
+export interface PlatformVerificationResult {
+  platform: PlatformId;
+  passed: boolean;
+  checks: PlatformVerificationCheck[];
+}
+
+export interface PlatformVerificationOptions {
+  expectMcp?: boolean;
+  expectRuflo?: boolean;
+}
+
+/** Inspect the complete installed surface for a platform without changing it. */
+export function verifyPlatformConfiguration(
+  projectRoot: string,
+  platformId: PlatformId,
+  options: PlatformVerificationOptions = {},
+): PlatformVerificationResult {
+  const platform = PLATFORM_REGISTRY[platformId];
+  const checks: PlatformVerificationCheck[] = [];
+  const add = (label: string, passed: boolean, detail: string): void => {
+    checks.push({ label, passed, detail });
+  };
+
+  const expectMcp = options.expectMcp !== false;
+  const configPath = path.join(projectRoot, platform.configPath);
+  const configExists = existsSync(configPath);
+  if (expectMcp) {
+    add('Config file', configExists, configExists ? platform.configPath : `missing: ${platform.configPath}`);
+  } else {
+    add('MCP configuration', true, configExists ? `${platform.configPath} preserved` : 'intentionally disabled');
+  }
+  if (configExists && expectMcp) {
+    const parsed = parseConfigFile(configPath, platform.configFormat);
+    add('Config syntax', parsed.valid, parsed.valid
+      ? `valid ${platform.configFormat.toUpperCase()}`
+      : parsed.error || 'invalid configuration');
+    add('AQE MCP entry', checkAqeEntry(configPath, platform), 'agentic-qe server entry');
+  }
+
+  const rulesPath = path.join(projectRoot, platform.rulesPath);
+  const rulesExists = existsSync(rulesPath);
+  add('Behavioral rules', rulesExists, rulesExists ? platform.rulesPath : `missing: ${platform.rulesPath}`);
+  if (platformId === 'codex' && rulesExists) {
+    const rules = readFileSync(rulesPath, 'utf-8');
+    add('AQE instructions', rules.includes('Quality Engineering Standards (Agentic QE)'),
+      'AGENTS.md contains generated AQE guidance');
+  }
+
+  if (platformId === 'codex') {
+    const hooksPath = path.join(projectRoot, '.codex', 'hooks.json');
+    let hookCommands: string[] = [];
+    let hooksValid = false;
+    if (existsSync(hooksPath)) {
+      try {
+        const parsed = JSON.parse(readFileSync(hooksPath, 'utf-8')) as { hooks?: unknown };
+        hooksValid = Boolean(parsed.hooks && typeof parsed.hooks === 'object');
+        hookCommands = JSON.stringify(parsed).match(/\.codex\/hooks\/[a-z0-9-]+\.cjs/gi) || [];
+      } catch {
+        hooksValid = false;
+      }
+    }
+    add('Lifecycle hooks', hooksValid, hooksValid ? '.codex/hooks.json is valid' : 'missing or invalid .codex/hooks.json');
+
+    const referencedAdapters = [...new Set(hookCommands.map((command) => command.split('/').pop()!))];
+    const adaptersPresent = referencedAdapters.length > 0
+      && referencedAdapters.every((file) => existsSync(path.join(projectRoot, '.codex', 'hooks', file)));
+    add('Hook adapters', adaptersPresent,
+      referencedAdapters.length > 0 ? `${referencedAdapters.length} referenced adapter(s)` : 'no Codex hook adapters referenced');
+
+    const runtimes = [
+      'aqe-runtime.cjs',
+      ...(referencedAdapters.includes('ruflo-codex-hook.cjs') ? ['ruflo-runtime.cjs'] : []),
+    ];
+    const missingRuntimes = runtimes.filter((file) => !existsSync(path.join(projectRoot, '.codex', 'hooks', file)));
+    add('Hook runtimes', missingRuntimes.length === 0,
+      missingRuntimes.length === 0 ? `${runtimes.length} runtime(s) present` : `missing: ${missingRuntimes.join(', ')}`);
+
+    const skillsPath = path.join(projectRoot, '.agents', 'skills');
+    const requiredSkills = selectCodexSkills({ includeRuflo: options.expectRuflo === true });
+    const missingSkills = requiredSkills
+      .filter((skill) => !existsSync(path.join(skillsPath, skill.name, 'SKILL.md')))
+      .map((skill) => skill.name);
+    add('QE skills', missingSkills.length === 0, missingSkills.length === 0
+      ? `${requiredSkills.length} required AQE skill(s) present`
+      : `missing: ${missingSkills.join(', ')}`);
+  }
+
+  return { platform: platformId, passed: checks.every((check) => check.passed), checks };
 }
 
 // ============================================================================
@@ -136,7 +233,8 @@ export function createPlatformCommand(): Command {
     .command('setup <name>')
     .description('Set up a specific platform configuration')
     .option('--overwrite', 'Overwrite existing configuration files')
-    .action(async (name: string, options: { overwrite?: boolean }) => {
+    .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks (Codex only)')
+    .action(async (name: string, options: { overwrite?: boolean; withRuflo?: boolean }) => {
       const projectRoot = process.cwd();
 
       if (!isValidPlatformId(name)) {
@@ -192,12 +290,16 @@ export function createPlatformCommand(): Command {
         const installer = factory({
           projectRoot,
           overwrite: options.overwrite,
+          ...(name === 'codex' ? { includeRuflo: options.withRuflo } : {}),
         });
 
         const result = await installer.install() as {
           success: boolean;
           mcpConfigured?: boolean;
           rulesInstalled?: boolean;
+          agentsMdInstalled?: boolean;
+          hooksConfigured?: boolean;
+          skillsInstalled?: number;
           errors?: string[];
         };
 
@@ -206,8 +308,15 @@ export function createPlatformCommand(): Command {
           if (result.mcpConfigured) {
             console.log(chalk.gray(`    MCP config: ${platform.configPath}`));
           }
-          if (result.rulesInstalled) {
+          if (result.rulesInstalled || result.agentsMdInstalled) {
             console.log(chalk.gray(`    Rules: ${platform.rulesPath}`));
+          }
+          if (name === 'codex') {
+            if (result.hooksConfigured) console.log(chalk.gray('    Hooks: .codex/hooks.json'));
+            console.log(chalk.gray(`    QE skills: ${result.skillsInstalled ?? 0} installed`));
+            console.log(options.withRuflo
+              ? chalk.green('    Ruflo integration: enabled')
+              : chalk.gray('    Ruflo integration: not installed (opt in with --with-ruflo)'));
           }
         } else {
           console.log(chalk.red(`  ${platform.name} setup failed`));
@@ -228,7 +337,9 @@ export function createPlatformCommand(): Command {
   platformCmd
     .command('verify <name>')
     .description('Verify a platform configuration is correct')
-    .action(async (name: string) => {
+    .option('--no-mcp', 'Verify a deliberately MCP-free platform installation')
+    .option('--with-ruflo', 'Require optional Ruflo guidance and lifecycle hooks (Codex only)')
+    .action(async (name: string, options: { mcp?: boolean; withRuflo?: boolean }) => {
       const projectRoot = process.cwd();
 
       if (!isValidPlatformId(name)) {
@@ -245,51 +356,22 @@ export function createPlatformCommand(): Command {
       console.log(chalk.gray('  ─────────────────────────────────'));
       console.log('');
 
-      let allPassed = true;
-
-      // Check 1: Config file exists
-      const configPath = path.join(projectRoot, platform.configPath);
-      if (existsSync(configPath)) {
-        console.log(chalk.green(`  [pass] Config file exists: ${platform.configPath}`));
-      } else {
-        console.log(chalk.red(`  [fail] Config file missing: ${platform.configPath}`));
-        allPassed = false;
-      }
-
-      // Check 2: Config file is valid
-      if (existsSync(configPath)) {
-        const parseResult = parseConfigFile(configPath, platform.configFormat);
-        if (parseResult.valid) {
-          console.log(chalk.green(`  [pass] Config file is valid ${platform.configFormat.toUpperCase()}`));
-        } else {
-          console.log(chalk.red(`  [fail] Config file is invalid: ${parseResult.error}`));
-          allPassed = false;
-        }
-
-        // Check 3: Config contains agentic-qe entry
-        if (checkAqeEntry(configPath, platform)) {
-          console.log(chalk.green('  [pass] Config contains agentic-qe entry'));
-        } else {
-          console.log(chalk.red('  [fail] Config does not contain agentic-qe entry'));
-          allPassed = false;
-        }
-      }
-
-      // Check 4: Rules file exists
-      const rulesPath = path.join(projectRoot, platform.rulesPath);
-      if (existsSync(rulesPath)) {
-        console.log(chalk.green(`  [pass] Rules file exists: ${platform.rulesPath}`));
-      } else {
-        console.log(chalk.red(`  [fail] Rules file missing: ${platform.rulesPath}`));
-        allPassed = false;
+      const verification = verifyPlatformConfiguration(projectRoot, name, {
+        expectMcp: options.mcp !== false,
+        expectRuflo: options.withRuflo,
+      });
+      for (const check of verification.checks) {
+        const message = `  [${check.passed ? 'pass' : 'fail'}] ${check.label}: ${check.detail}`;
+        console.log(check.passed ? chalk.green(message) : chalk.red(message));
       }
 
       console.log('');
-      if (allPassed) {
+      if (verification.passed) {
         console.log(chalk.green(`  ${platform.name} configuration is valid`));
       } else {
         console.log(chalk.yellow(`  ${platform.name} configuration has issues`));
         console.log(chalk.gray(`  Run "aqe platform setup ${name}" to fix`));
+        process.exitCode = 1;
       }
       console.log('');
     });

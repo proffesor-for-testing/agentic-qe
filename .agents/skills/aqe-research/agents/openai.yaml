@@ -1,0 +1,4 @@
+interface:
+  display_name: "AQE Research"
+  short_description: "Evidence-first research for AQE technical work"
+  default_prompt: "Use $aqe-research to investigate this technical question and synthesize evidence-backed recommendations."
