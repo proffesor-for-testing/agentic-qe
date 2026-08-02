@@ -115,7 +115,7 @@ export function createTestCommand(
           console.log(chalk.blue(`\n Executing tests in ${target || 'current directory'}...\n`));
 
           const testExecAPI = await context.kernel!.getDomainAPIAsync!<{
-            runTests(request: { testFiles: string[]; parallel?: boolean; retryCount?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+            runTests(request: { testFiles: string[]; framework?: string; parallel?: boolean; retryCount?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           }>('test-execution');
 
           if (!testExecAPI) {
@@ -138,6 +138,7 @@ export function createTestCommand(
 
           const result = await testExecAPI.runTests({
             testFiles,
+            framework: options.framework,
             parallel: true,
             retryCount: 2,
           });

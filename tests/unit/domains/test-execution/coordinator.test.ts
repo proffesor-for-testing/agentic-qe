@@ -221,6 +221,20 @@ describe('TestExecutionCoordinator', () => {
     });
 
     describe('runTests() - Simple API', () => {
+      it('should honor an explicitly requested framework', async () => {
+        const execute = vi.spyOn(coordinator, 'execute');
+
+        await coordinator.runTests({
+          testFiles: ['example.test.cjs'],
+          framework: 'node',
+          parallel: false,
+        });
+
+        expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+          framework: 'node',
+        }));
+      });
+
       it('should auto-detect framework from file patterns', async () => {
         const result = await coordinator.runTests({
           testFiles: ['example.test.ts'],

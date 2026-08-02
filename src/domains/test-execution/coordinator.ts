@@ -321,7 +321,7 @@ export class TestExecutionCoordinator
       });
     }
 
-    const framework = this.detectFramework(testsToRun);
+    const framework = request.framework ?? this.detectFramework(testsToRun);
     const workers = request.workers ?? Math.min(4, Math.max(1, testsToRun.length));
     const timeout = request.timeout ?? 60000;
 
