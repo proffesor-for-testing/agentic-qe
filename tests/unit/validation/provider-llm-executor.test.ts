@@ -66,9 +66,10 @@ describe('resolveEvalExecutor (never silently fabricates)', () => {
     }
   });
 
-  it('should_selectCognitum_when_onlyCognitumKeyPresent', async () => {
+  it('should_selectCognitum_whenExplicitlySelectedWithCognitumKey', async () => {
     const resolution = await resolveEvalExecutor({
       COGNITUM_API_KEY: 'cog_test',
+      AQE_LLM_PROVIDER: 'cognitum',
     } as NodeJS.ProcessEnv);
 
     expect(resolution.executor).toBeDefined();

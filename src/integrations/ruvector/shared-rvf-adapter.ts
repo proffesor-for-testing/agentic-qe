@@ -166,11 +166,11 @@ function openOrCreateRvf(
   // prior process is dead and the lock is stale". We unlink the .lock and
   // retry open exactly once.
   //
-  // Issue #563: the lock record turns out to carry its owner's pid (u32 LE at
-  // offset 4, after the `FLVR` magic), so "is it stale?" is now a check rather
-  // than an assumption. This previously unlinked the lock unconditionally,
-  // which breaks a genuinely-live peer — the one case the old comment admitted
-  // it could not distinguish.
+  // Issue #563: the lock record carries its owner's pid (u32 LE at offset 4,
+  // after the `FLVR` magic), so "is it stale?" is a check rather than an
+  // assumption. This includes a lock owned by the current PID: another
+  // in-process adapter may still hold the store, so PID equality is not proof
+  // that the lock can be removed safely.
   if (!opened && isLockHeld(openErr)) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports

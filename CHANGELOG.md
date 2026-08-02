@@ -5,6 +5,78 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.3] - 2026-07-29
+
+Two independent quality-of-evidence fixes: learning capture could stop silently
+for days on a filesystem where WAL is disabled, and QE-Court shipped a default
+review panel that violated its own anti-collusion rule.
+
+### Fixed
+
+- **Learning capture no longer stops silently when `AQE_DISABLE_WAL` is set.**
+  With that flag on, AQE tried to switch the database journal mode on *every*
+  writable connection. That switch needs exclusive access, so any other process
+  holding the database open — a stray MCP server, for example — made the attempt
+  fail and take the whole persistence layer down with it. Hooks kept reporting
+  success while nothing was being recorded, which hid the outage for days.
+
+  AQE now only changes the journal mode when it is actually wrong (so normal
+  operation never needs the exclusive lock), refuses to write in a mode you have
+  declared unsafe rather than risking corruption, and — when something really is
+  holding the database — tells you the exact command that finds it instead of
+  guessing which process to blame.
+
+- **QE-Court's shipped default panel violated `writerIsNeverJuror`** ([#576]).
+  The bundled `config.json` seated the defense and the jury on two tiers of the
+  same vendor, which is exactly what the court's core anti-collusion rule
+  forbids — so a brand-new project got an invalid panel with no user action.
+  Worse, the rule could never have caught it: nothing turned the configured
+  routing into a panel, so validation never ran outside its own unit test, and
+  the config's `options` block was not wired to anything.
+
+  The default panel is now genuinely cross-vendor (and keeps the deeper-review
+  round on a different vendor from the jury, so escalation stays independent),
+  validation is a required step before a court convenes, the `options` block
+  actually takes effect, and the shipped config files are checked in CI so this
+  cannot regress unnoticed. Reported by @pacphi.
+
+### Changed
+
+- The bundled statusline refreshes every 60 seconds instead of every 5. It
+  reopened the learning database on every tick, adding constant pressure to the
+  same lock the fix above depends on.
+
+[#576]: https://github.com/proffesor-for-testing/agentic-qe/issues/576
+
+## [3.13.2] - 2026-07-24
+
+Stops short-lived learning hooks from repeatedly producing
+`brain.rvf.corrupt-*` and `patterns.rvf.corrupt-*` files. A busy project could
+accumulate thousands of these derived-cache artifacts while vector search
+repeatedly fell back to SQLite.
+
+### Fixed
+
+- **Hook processes now close every RVF store before exiting** ([#574]).
+  Every `aqe hooks` invocation opened the shared pattern index and brain
+  dual-writer, but the CLI had no teardown step. The native stores therefore
+  exited without a clean close; the next hook found an unusable 162-byte store,
+  quarantined it, rebuilt it, and repeated the cycle. Hook commands now dispose
+  the reasoning bank and reset both RVF singletons after every action.
+- **A duplicate opener can no longer break its own process's live RVF lock**
+  ([#574]). Recovery protected locks owned by other live processes but treated
+  a lock containing the current PID as stale. Another initialization path in
+  that process could then remove the lock and replace a store still in use.
+  Every live owner is now protected; duplicate paths degrade safely to SQLite
+  instead of moving a live store.
+
+### Changed
+
+- **RVF hook cleanup is idempotent and fail-open.** Partial initialization,
+  optional native bindings, or an individual close failure cannot block the
+  host editor or command. True stale locks remain recoverable after their owner
+  exits.
+
 ## [3.13.1] - 2026-07-23
 
 Fixes four reported issues, three of which come down to the same thing: a tool

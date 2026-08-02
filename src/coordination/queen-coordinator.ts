@@ -393,7 +393,10 @@ export class QueenCoordinator implements IQueenCoordinator {
     const governanceContext: TaskGovernanceContext = {
       taskId: task.id,
       taskType: task.type,
-      agentId: task.requester || 'unknown',
+      // Requester-less tasks must not share one global governance identity.
+      // Otherwise unrelated tasks accumulate under "unknown" and eventually
+      // trip the ContinueGate step limit for every subsequent submission.
+      agentId: task.requester || `queen-task:${task.id}`,
       domain: task.targetDomains[0] || 'test-generation',
       priority: task.priority,
       payload: task.payload,
@@ -681,12 +684,10 @@ export class QueenCoordinator implements IQueenCoordinator {
 
   getMetrics(): QueenMetrics {
     const domainUtilization = new Map<DomainName, number>();
-    let totalLoad = 0;
 
     for (const domain of ALL_DOMAINS) {
       const load = this.getDomainLoad(domain);
       domainUtilization.set(domain, load);
-      totalLoad += load;
     }
 
     const agents = this.agentCoordinator.listAgents();

@@ -41,6 +41,8 @@ describe('SecurityAuditorService', () => {
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new SecurityAuditorService(mockMemory);
+    // Unit tests must not depend on registry latency or network availability.
+    vi.spyOn(service as any, 'getLatestVersion').mockResolvedValue('9.9.9');
   });
 
   afterEach(() => {

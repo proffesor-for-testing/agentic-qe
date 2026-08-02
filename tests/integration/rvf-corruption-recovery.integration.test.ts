@@ -115,10 +115,9 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
     // Act: run a second export in a child and SIGKILL it while it runs. The
     // child prints READY once the export is underway; we kill on that signal
     // so the kill lands inside the export rather than before it.
-    // The child is CommonJS (.cts) on purpose: the native binding is loaded
-    // with require(), which resolves under tsx's CJS mode but silently reports
-    // "not available" from an ESM (.mjs/.ts) entry — which would make this
-    // test pass without ever running an export.
+    // Run a CommonJS TypeScript entry through tsx's CJS preload. Invoking the
+    // tsx binary re-execs through its ESM compatibility loader on Node 22,
+    // which cannot synchronously link built-ins imported by the exporter.
     const script = join(dir, 'export-child.cts');
     const exporterPath = join(process.cwd(), 'src/integrations/ruvector/brain-rvf-exporter.ts');
     const adapterPath = join(process.cwd(), 'src/integrations/ruvector/rvf-native-adapter.ts');
@@ -132,23 +131,24 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
       // Load the native binding before signalling: it is lazy, and the kill
       // would otherwise land during the load, before the export writes at all.
       isRvfNativeAvailable();
-      // writeSync, not process.stdout.write: stdout to a pipe is async, so a
-      // buffered write would only reach the parent after the *synchronous*
-      // export had already finished — and the kill would arrive too late.
-      require('fs').writeSync(1, 'READY\\n');
-      exportBrainToRvf(db, { outputPath: ${JSON.stringify(rvfPath)} }, 'memory.db');
-      process.stdout.write('DONE\\n');
+      // Start the synchronous export only after READY has flushed, otherwise
+      // a buffered signal can reach the parent after the export finishes.
+      process.stdout.write('READY\\n', () => {
+        exportBrainToRvf(db, { outputPath: ${JSON.stringify(rvfPath)} }, 'memory.db');
+        process.stdout.write('DONE\\n');
+      });
       `,
       'utf-8',
     );
 
-    // `tsx` re-execs node, so the process doing the export is a *grandchild*:
-    // killing the pid we spawned leaves the real writer running, and the test
-    // then races its own subject. detached:true puts the whole thing in its own
-    // process group so a negative-pid kill reaps the writer too.
-    const tsxBin = join(process.cwd(), 'node_modules', '.bin', 'tsx');
+    // Keep the child in its own process group so the negative-pid SIGKILL
+    // reliably reaps it and any loader descendants.
     const { out, err } = await new Promise<{ out: string; err: string }>((resolve) => {
-      const child = spawn(tsxBin, [script], { cwd: process.cwd(), detached: true });
+      const child = spawn(
+        process.execPath,
+        ['--require', 'tsx/cjs', script],
+        { cwd: process.cwd(), detached: true },
+      );
       let out = '';
       let err = '';
       child.stdout.on('data', (chunk) => {
@@ -168,7 +168,7 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
 
     // Guard: the child must actually have reached the export. Without this a
     // child that dies on startup would sail through every assertion below.
-    expect(out).toContain('READY');
+    expect(out, `export child failed before READY:\n${err}`).toContain('READY');
     expect(err).not.toContain('rvf-node is not available');
 
     // Assert: whatever the child managed to do, the store on disk is still a
@@ -364,13 +364,26 @@ describe('Unusable-store quarantine (#563)', () => {
     expect(quarantineUnusableStore(join(dir, 'absent.rvf'), 'test')).toBeNull();
   });
 
-  it('treats the current process as not-a-peer so a self-owned lock is recoverable', () => {
+  it('treats a current-process lock as live so duplicate openers cannot break it', () => {
     const dir = workDir();
     const rvfPath = join(dir, 'brain.rvf');
-    // Our own pid is alive by definition, but a lock we ourselves left behind
-    // must not block our own recovery.
+    // A second RVF initialization path can run in this same process while the
+    // first adapter still owns the store. PID equality is not evidence that
+    // the lock is stale; breaking it can quarantine a store we still have open.
     writeFileSync(`${rvfPath}.lock`, lockRecord(process.pid));
 
-    expect(isLockHeldByLiveProcess(rvfPath)).toBe(false);
+    expect(isLockHeldByLiveProcess(rvfPath)).toBe(true);
+  });
+
+  it('refuses to quarantine a store held by the current process', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    writeFileSync(rvfPath, Buffer.concat([Buffer.from('SFVR'), Buffer.alloc(158)]));
+    writeFileSync(`${rvfPath}.lock`, lockRecord(process.pid));
+
+    expect(quarantineUnusableStore(rvfPath, 'duplicate same-process opener')).toBeNull();
+    expect(existsSync(rvfPath)).toBe(true);
+    expect(existsSync(`${rvfPath}.lock`)).toBe(true);
+    expect(existsSync(`${rvfPath}.corrupt-${process.pid}`)).toBe(false);
   });
 });

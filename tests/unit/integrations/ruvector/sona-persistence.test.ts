@@ -819,7 +819,10 @@ describe('PersistentSONAEngine', () => {
     // Fresh short-lived processes could never accumulate past the threshold:
     // cold-start deadlock, sona_fisher_matrices stuck at 0 rows forever.
     it('accumulates the request counter across process restarts instead of resetting to 0 (A10)', async () => {
-      const domain = 'test-generation' as DomainName;
+      // The unified test database can be shared with concurrently executing
+      // files, so use a test-specific persistence namespace. All three engine
+      // instances below still reopen the same namespace to verify restarts.
+      const domain = `test-generation-a10-${process.pid}-${Date.now()}` as DomainName;
       const config = createTestConfig({ domain });
 
       const engine1 = await createPersistentSONAEngine(config);

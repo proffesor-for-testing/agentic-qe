@@ -53,6 +53,47 @@ export const state: HooksSystemState = {
 };
 
 /**
+ * Release every process-local resource opened by a short-lived hook command.
+ *
+ * Hook invocations run in separate CLI processes. Relying on process exit
+ * leaves native RVF stores without a clean close, so the next hook sees an
+ * unusable 162-byte store and quarantines it. Cleanup is deliberately
+ * idempotent because a partially initialized fallback may reach this path.
+ */
+export async function disposeHooksSystem(): Promise<void> {
+  const reasoningBank = state.reasoningBank;
+
+  try {
+    if (reasoningBank) await reasoningBank.dispose();
+  } catch {
+    // Hook cleanup is best-effort and must never block the host.
+  }
+
+  try {
+    const { resetSharedRvfDualWriter } =
+      await import('../../../integrations/ruvector/shared-rvf-dual-writer.js');
+    resetSharedRvfDualWriter();
+  } catch {
+    // Native RVF is optional.
+  }
+
+  try {
+    const { resetSharedRvfAdapter } =
+      await import('../../../integrations/ruvector/shared-rvf-adapter.js');
+    resetSharedRvfAdapter();
+  } catch {
+    // Native RVF is optional.
+  }
+
+  state.reasoningBank = null;
+  state.hookRegistry = null;
+  state.coherenceService = null;
+  state.sessionId = null;
+  state.initialized = false;
+  state.initializationPromise = null;
+}
+
+/**
  * Get or create the hooks system with proper initialization
  */
 export async function getHooksSystem(): Promise<{
