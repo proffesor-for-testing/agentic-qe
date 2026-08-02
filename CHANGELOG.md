@@ -5,6 +5,47 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.4] - 2026-08-02
+
+Codex users now receive a complete, upgradeable Agentic QE workflow instead of
+an MCP entry and partial instructions that could drift from the installed
+hooks and skills.
+
+### Added
+
+- **A curated Codex-native QE workflow fleet** ([#587]). New research,
+  dependency-aware planning, and lightweight Ruflo orchestration skills join
+  the existing quality-planning, testing, and review workflows. Ruflo remains
+  optional development-time guidance and is not a runtime dependency.
+- **End-to-end Codex installation verification.** `aqe platform verify codex`
+  now checks MCP configuration, AQE instructions, lifecycle hooks, adapters,
+  runtimes, and every required skill, with a failing exit code when the install
+  is incomplete.
+- **A package-boundary release gate.** `npm run verify:codex-package` verifies
+  the actual npm tarball contains all curated skills and hooks, excludes the
+  vendored Ruflo tree and dependencies, and confirms every MCP tool named in
+  generated Codex guidance is registered.
+
+### Fixed
+
+- **`--no-mcp` now applies to Codex installs.** Previously the Claude phase
+  honored the flag but the Codex asset phase still wrote `.codex/config.toml`.
+- **Codex upgrades now refresh AQE-owned configuration safely.** Existing MCP
+  blocks can switch memory backends, generated `AGENTS.md` guidance updates
+  inside explicit ownership markers, and user TOML, instructions, and hook
+  groups remain intact.
+- **Partial Codex installs are diagnosable.** MCP, rules, hooks, and skills now
+  report independent outcomes, so a malformed hooks file no longer hides the
+  components that succeeded or prevents later skill installation.
+
+### Changed
+
+- Removed the unused duplicate init command implementation. The active CLI
+  continues through the modular init handler, eliminating a second stale help
+  and option surface.
+
+[#587]: https://github.com/proffesor-for-testing/agentic-qe/issues/587
+
 ## [3.13.3] - 2026-07-29
 
 Two independent quality-of-evidence fixes: learning capture could stop silently
