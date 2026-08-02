@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   TestExecutionCoordinator,
+  calculateRetryStrategyConfidence,
   createTestExecutionCoordinator,
   type TestExecutionCoordinatorConfig,
 } from '../../../../src/domains/test-execution/coordinator';
@@ -34,6 +35,11 @@ import type { ExecuteTestsRequest, ParallelExecutionRequest } from '../../../../
 import { TestExecutionEvents } from '../../../../src/shared/events';
 
 describe('TestExecutionCoordinator', () => {
+  it('caps retry-strategy confidence at 1 for large failed-test batches', () => {
+    expect(calculateRetryStrategyConfidence(5)).toBe(0.75);
+    expect(calculateRetryStrategyConfidence(75)).toBe(1);
+  });
+
   let ctx: CoordinatorTestContext;
   let coordinator: TestExecutionCoordinator;
 

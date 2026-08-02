@@ -7,7 +7,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
-import { walkSourceFiles } from '../utils/file-discovery.js';
+import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 
 export function createTestCommand(
@@ -127,7 +127,8 @@ export function createTestCommand(
           const targetPath = path.resolve(target || '.');
 
           // Fix #280: Use shared file discovery supporting all languages
-          const testFiles = walkSourceFiles(targetPath, { testsOnly: true });
+          const discoveredTestFiles = walkSourceFiles(targetPath, { testsOnly: true });
+          const testFiles = filterTestFilesForFramework(discoveredTestFiles, options.framework);
 
           if (testFiles.length === 0) {
             console.log(chalk.yellow('No test files found'));

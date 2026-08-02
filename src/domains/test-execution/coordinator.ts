@@ -85,6 +85,10 @@ import {
 // Coordinator Configuration
 // ============================================================================
 
+export function calculateRetryStrategyConfidence(testCount: number): number {
+  return Math.min(1, 0.7 + (testCount / 100));
+}
+
 /**
  * Configuration for the test execution coordinator
  */
@@ -767,7 +771,7 @@ export class TestExecutionCoordinator
           maxRetries: request.maxRetries,
           backoffType: request.backoff ?? 'exponential',
         },
-        0.7 + (testsToRetry.length / 100) // Higher confidence for larger batches
+        calculateRetryStrategyConfidence(testsToRetry.length)
       );
 
       if (!isStrategyVerified) {
