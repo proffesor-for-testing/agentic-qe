@@ -1,5 +1,9 @@
 # Test Execution Domain
 
+**Status**: Accepted — implementation alignment in progress
+**Date**: 2026-01-18
+**Updated**: 2026-07-28
+
 ## Bounded Context Overview
 
 **Domain**: Test Execution
@@ -16,6 +20,7 @@ The Test Execution domain handles the actual running of tests, including paralle
 | **Flaky Test** | Test with inconsistent pass/fail results |
 | **Sharding** | Strategy for distributing tests across workers |
 | **Retry** | Re-execution of failed tests with backoff |
+| **Retry Confidence** | Saturating confidence value in the closed interval `[0, 1]` |
 | **Prioritization** | RL-based ordering of test execution |
 | **E2E Step** | Individual action in an end-to-end test |
 | **User Flow** | Recorded sequence of user interactions |
@@ -248,6 +253,19 @@ const RETRY_CONSTANTS = {
 };
 ```
 
+### Retry invariants
+
+- Vitest and Jest own their internal parallelism, so AQE sends each discovered suite as one runner
+  batch instead of starting one process per file.
+- Batch timeouts scale with the number of discovered files; retry filters use a test name only when
+  the runner reported an actual test name rather than a file-level failure.
+- Test execution does not force coverage flags; coverage collection is a separate measured command
+  so project coverage thresholds cannot turn passing tests into execution failures.
+- Retry confidence is always finite and within `[0, 1]`, regardless of failed-test batch size.
+- The consensus boundary remains strict; producers normalize their evidence instead of weakening
+  validation.
+- Large failure batches return execution results and retry diagnostics rather than crashing the CLI.
+
 ## E2E Step Types
 
 The domain supports rich E2E step definitions:
@@ -266,3 +284,4 @@ The domain supports rich E2E step definitions:
 
 - **ADR-051**: LLM-powered flaky test analysis
 - **ADR-047**: MinCut topology for distributed execution
+- **ADR-103**: Structured, validated confidence handoffs

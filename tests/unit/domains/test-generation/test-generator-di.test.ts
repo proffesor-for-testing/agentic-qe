@@ -4,6 +4,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   TestGeneratorService,
   createTestGeneratorService,
@@ -260,6 +263,72 @@ describe('TestGeneratorService - Dependency Injection', () => {
 
       expect(result.success).toBe(true);
       expect(alternativeTDDGenerator.generateTDDTests).toHaveBeenCalled();
+    });
+  });
+
+  describe('LLM output validation', () => {
+    it('rejects syntax-invalid JavaScript enhancement and keeps the valid template', async () => {
+      const fixtureDir = mkdtempSync(join(tmpdir(), 'aqe-policy-default-'));
+      const sourceFile = join(fixtureDir, 'policy.default.mjs');
+      writeFileSync(sourceFile, 'export const policy = { defaultDeny: true };');
+
+      const template = `
+        import { describe, it, expect } from 'vitest';
+        import { policy } from './policy.default.mjs';
+        describe('policy defaults', () => {
+          it('denies by default', () => {
+            expect(policy.defaultDeny).toBe(true);
+          });
+        });
+      `;
+      vi.mocked(mockGeneratorFactory.create).mockReturnValue({
+        framework: 'vitest',
+        generateTests: vi.fn().mockReturnValue(template),
+        generateFunctionTests: vi.fn(),
+        generateClassTests: vi.fn(),
+        generateStubTests: vi.fn(),
+        generateCoverageTests: vi.fn(),
+      });
+
+      const llmRouter = {
+        chat: vi.fn().mockResolvedValue({
+          content: `
+            import { describe, it, expect } from 'vitest';
+            import { policy } from './policy.default.mjs';
+            describe('policy defaults', () => {
+              it('denies by default', () => {
+                expect(policy.defaultDeny).toBe(true);
+          `,
+        }),
+      };
+      const service = createTestGeneratorServiceWithDependencies(
+        {
+          memory: mockMemory,
+          generatorFactory: mockGeneratorFactory,
+          llmRouter: llmRouter as never,
+        },
+        {
+          enableLLMEnhancement: true,
+          enableEdgeCaseInjection: false,
+        },
+      );
+
+      try {
+        const result = await service.generateTests({
+          sourceFiles: [sourceFile],
+          testType: 'unit',
+          framework: 'vitest',
+          language: 'javascript',
+        });
+
+        expect(result.success).toBe(true);
+        if (!result.success) return;
+        expect(result.value.tests[0].llmEnhanced).toBe(false);
+        expect(result.value.tests[0].testCode).toBe(template);
+        expect(result.value.tests[0].qualityGateResult?.passed).toBe(true);
+      } finally {
+        rmSync(fixtureDir, { recursive: true, force: true });
+      }
     });
   });
 });

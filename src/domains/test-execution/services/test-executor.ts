@@ -191,9 +191,11 @@ export class TestExecutorService implements ITestExecutionService {
       }
 
       const { workers, sharding = 'file', isolation = 'process' } = request;
+      const runnerOwnsParallelism = ['vitest', 'jest'].includes(request.framework.toLowerCase());
+      const processWorkers = runnerOwnsParallelism ? 1 : workers;
 
       // Shard tests across workers
-      const shards = this.shardTests(request.testFiles, workers, sharding);
+      const shards = this.shardTests(request.testFiles, processWorkers, sharding);
 
       // Execute shards in parallel
       const shardResults = await Promise.all(
@@ -232,7 +234,7 @@ export class TestExecutorService implements ITestExecutionService {
         endTime,
         duration,
         testsPerSecond: aggregated.total / (duration / 1000),
-        workers,
+        workers: processWorkers,
         memoryUsage: process.memoryUsage?.().heapUsed ?? 0,
       };
       this.runStats.set(runId, stats);
@@ -455,27 +457,35 @@ Provide:
     framework: string,
     timeout: number
   ): Promise<TestExecutionResult> {
+    return this.executeTestFiles([file], framework, timeout);
+  }
+
+  private async executeTestFiles(
+    files: string[],
+    framework: string,
+    timeout: number
+  ): Promise<TestExecutionResult> {
     // In simulation mode (for unit testing), use random behavior
     if (this.config.simulateForTesting) {
-      return this.simulateTestExecution(file);
+      return this.aggregateResults(files.map(file => this.simulateTestExecution(file)));
     }
 
     // Production mode: spawn actual test runner process
-    const result = await this.spawnTestRunner(file, framework, timeout);
+    const result = await this.spawnTestRunner(files, framework, timeout);
     if (result.success === false) {
       // Return as a failed test rather than throwing — allows other files to still run
       return {
-        total: 1,
+        total: files.length,
         passed: 0,
-        failed: 1,
+        failed: files.length,
         skipped: 0,
-        failedTests: [{
+        failedTests: files.map(file => ({
           testId: file,
           testName: file,
           file,
           error: result.error.message,
           duration: 0,
-        }],
+        })),
         coverage: this.aggregateCoverage([]),
       };
     }
@@ -486,17 +496,19 @@ Provide:
    * Spawn actual test runner process (vitest, jest, mocha)
    */
   private async spawnTestRunner(
-    file: string,
+    files: string[],
     framework: string,
     timeout: number
   ): Promise<Result<TestExecutionResult, Error>> {
     // Verify test file exists
-    if (!existsSync(file)) {
-      return err(new Error(`Test file not found: ${file}`));
+    const missingFile = files.find(file => !existsSync(file));
+    if (missingFile) {
+      return err(new Error(`Test file not found: ${missingFile}`));
     }
 
     // Build command based on framework
-    const { command, args } = this.buildTestCommand(file, framework);
+    const { command, args } = this.buildTestCommand(files, framework);
+    const fileLabel = files.join(', ');
 
     return new Promise((resolve) => {
       let stdout = '';
@@ -519,7 +531,7 @@ Provide:
       const timeoutId = setTimeout(() => {
         killed = true;
         proc.kill('SIGTERM');
-        resolve(err(new Error(`Test execution timed out after ${timeout}ms for file: ${file}`)));
+        resolve(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)));
       }, timeout);
 
       proc.stdout?.on('data', (data: Buffer) => {
@@ -538,7 +550,7 @@ Provide:
         }
 
         // Parse results based on framework
-        const parseResult = this.parseTestOutput(stdout, stderr, file, framework, code);
+        const parseResult = this.parseTestOutput(stdout, stderr, fileLabel, framework, code);
 
         // If no coverage in stdout JSON, try reading from disk
         // (vitest/jest write coverage to coverage/coverage-summary.json)
@@ -565,33 +577,34 @@ Provide:
   /**
    * Build test command based on framework
    */
-  private buildTestCommand(file: string, framework: string): { command: string; args: string[] } {
+  private buildTestCommand(
+    fileOrFiles: string | string[],
+    framework: string
+  ): { command: string; args: string[] } {
+    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     switch (framework.toLowerCase()) {
       case 'vitest':
         return {
           command: 'npx',
-          args: ['vitest', 'run', file, '--reporter=json', '--no-color',
-            '--coverage', '--coverage.reporter=json'],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color'],
         };
       case 'jest':
         return {
           command: 'npx',
-          args: ['jest', file, '--json', '--no-colors', '--testLocationInResults',
-            '--coverage', '--coverageReporters=json'],
+          args: ['jest', ...files, '--json', '--no-colors', '--testLocationInResults'],
         };
       case 'mocha':
         // Note: mocha has no built-in coverage — requires external nyc/c8 wrapper.
         // Coverage data will be unavailable for mocha-based test runs.
         return {
           command: 'npx',
-          args: ['mocha', file, '--reporter=json'],
+          args: ['mocha', ...files, '--reporter=json'],
         };
       default:
         // Default to vitest
         return {
           command: 'npx',
-          args: ['vitest', 'run', file, '--reporter=json', '--no-color',
-            '--coverage', '--coverage.reporter=json'],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color'],
         };
     }
   }
@@ -981,13 +994,7 @@ Provide:
     _isolation: 'process' | 'worker' | 'none',
     request: ParallelExecutionRequest
   ): Promise<TestExecutionResult> {
-    const results = await Promise.all(
-      files.map(file =>
-        this.executeTestFile(file, request.framework, request.timeout ?? 30000)
-      )
-    );
-
-    return this.aggregateResults(results);
+    return this.executeTestFiles(files, request.framework, request.timeout ?? 30000);
   }
 
   private aggregateResults(results: TestExecutionResult[]): TestExecutionResult {

@@ -239,6 +239,29 @@ describe('TestExecutionCoordinator', () => {
         expect(result.success).toBe(true);
       });
 
+      it('should scale the default batch timeout with discovered files', async () => {
+        const files = Array.from({ length: 31 }, (_, index) => `test-${index}.test.ts`);
+        const executeParallel = vi.spyOn(coordinator, 'executeParallel').mockResolvedValue({
+          success: true,
+          value: {
+            runId: 'scaled-timeout',
+            status: 'passed',
+            total: 31,
+            passed: 31,
+            failed: 0,
+            skipped: 0,
+            duration: 1,
+            failedTests: [],
+          },
+        });
+
+        await coordinator.runTests({ testFiles: files });
+
+        expect(executeParallel).toHaveBeenCalledWith(
+          expect.objectContaining({ timeout: 62000 }),
+        );
+      });
+
       it('should use sequential execution when parallel is false', async () => {
         const result = await coordinator.runTests({
           testFiles: ['test1.test.ts', 'test2.test.ts'],
@@ -348,6 +371,60 @@ describe('TestExecutionCoordinator', () => {
       if (!result.success) {
         expect(result.error.message).toContain('not found');
       }
+    });
+
+    it('should keep consensus confidence valid when retrying more than 30 failed tests', async () => {
+      const failedTests = Array.from({ length: 31 }, (_, index) => ({
+        testId: `test-${index}`,
+        testName: `failed test ${index}`,
+        file: 'large-suite.test.ts',
+        error: 'failed',
+        duration: 1,
+      }));
+
+      coordinator = new TestExecutionCoordinator(ctx.eventBus, ctx.memory, {
+        ...defaultConfig,
+        enableConsensus: true,
+      });
+      await coordinator.initialize();
+
+      vi.spyOn(coordinator['executor'], 'getResults').mockResolvedValue({
+        success: true,
+        value: {
+          runId: 'large-run',
+          status: 'failed',
+          total: failedTests.length,
+          passed: 0,
+          failed: failedTests.length,
+          skipped: 0,
+          duration: 1,
+          failedTests,
+        },
+      });
+      const requiresConsensus = vi
+        .spyOn(coordinator['consensusMixin'], 'requiresConsensus')
+        .mockReturnValue(false);
+      vi.spyOn(coordinator['retryHandler'], 'executeWithRetry').mockResolvedValue({
+        success: true,
+        value: {
+          originalFailed: failedTests.length,
+          retried: failedTests.length,
+          nowPassing: failedTests.length,
+          stillFailing: 0,
+          flakyDetected: [],
+        },
+      });
+
+      const result = await coordinator.retry({
+        runId: 'large-run',
+        failedTests: failedTests.map(test => test.testId),
+        maxRetries: 2,
+      });
+
+      expect(result.success).toBe(true);
+      expect(requiresConsensus).toHaveBeenCalledWith(
+        expect.objectContaining({ confidence: 1 })
+      );
     });
   });
 

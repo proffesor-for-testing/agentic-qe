@@ -3,8 +3,9 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-077 |
-| **Status** | Accepted & Implemented |
+| **Status** | Accepted — partially implemented; dynamic-language validation repair in progress |
 | **Date** | 2026-03-04 |
+| **Updated** | 2026-07-28 |
 | **Author** | AQE Architecture Team |
 | **Review Cadence** | 6 months |
 
@@ -107,6 +108,7 @@ Use language-specific linters (ESLint, Clippy, golangci-lint) instead of full co
 | Status | Date | Notes |
 |--------|------|-------|
 | Proposed | 2026-03-04 | Initial creation as part of multi-language test generation initiative |
+| Accepted, partially implemented | 2026-07-28 | Reconciled contradictory header/history. Compiled-language checking exists, but the repair loop and JavaScript/TypeScript syntax-and-execution validation were not implemented. Dynamic generated tests now fail closed unless syntax and execution are proven. |
 
 ---
 

@@ -1,5 +1,9 @@
 # Test Generation Domain
 
+**Status**: Accepted — implementation alignment in progress
+**Date**: 2026-01-18
+**Updated**: 2026-07-28
+
 ## Bounded Context Overview
 
 **Domain**: Test Generation
@@ -20,6 +24,7 @@ The Test Generation domain is responsible for automatically generating high-qual
 | **Pattern** | Learned testing approach extracted from existing tests |
 | **Code Analysis** | AST-based extraction of functions and classes |
 | **Test Generator** | Strategy implementation for framework-specific test output |
+| **Mechanical Evidence** | Syntax and real-run evidence required before generated code is accepted |
 
 ## Domain Model
 
@@ -51,8 +56,19 @@ interface IGeneratedTest {
   type: TestType;               // unit | integration | e2e
   assertions: number;           // Number of assertions
   llmEnhanced?: boolean;        // Whether LLM improved the test
+  qualityGateResult?: TestQualityGateResult; // Present when the configured gate evaluated output
 }
 ```
+
+### Aggregate invariants
+
+- JavaScript/TypeScript generated code must parse before it can pass.
+- A generated test with zero assertions cannot pass.
+- Syntax-invalid or assertion-free output cannot pass the configured quality gate.
+- The CLI must not persist output whose configured quality gate failed.
+- Real execution remains the downstream Test Execution responsibility; until staged execution is
+  wired into live generation, the generator must not claim execution evidence.
+- Estimated coverage never substitutes for measured syntax, execution, or mutation evidence.
 
 ### Value Objects
 
@@ -201,3 +217,6 @@ const TEST_GENERATION_DEFAULTS = {
 
 - **ADR-051**: LLM-powered test enhancement
 - **ADR-001**: Integration with agentic-flow patterns
+- **ADR-074**: Adversarial generated-test quality gates
+- **ADR-113**: Evals are execution and mutation oracles
+- **ADR-119**: Mechanical evidence precedes quality verdicts
