@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   evaluateMeasuredQualityEvidence,
+  getMeasuredQualityExitCode,
   loadQualityEvidence,
 } from '../../../src/cli/commands/quality.js';
 
@@ -35,5 +36,15 @@ describe('quality command evidence loading', () => {
         expect.objectContaining({ name: 'technicalDebt' }),
       ]),
     );
+  });
+
+  it('preserves pass, fail, and near-threshold warning exit codes', () => {
+    const failed = evaluateMeasuredQualityEvidence({ coverage: 79.9, testsPassing: 100 });
+    const warning = evaluateMeasuredQualityEvidence({ coverage: 82, testsPassing: 100 });
+    const passed = evaluateMeasuredQualityEvidence({ coverage: 90, testsPassing: 100 });
+
+    expect(getMeasuredQualityExitCode(failed)).toBe(1);
+    expect(getMeasuredQualityExitCode(warning)).toBe(2);
+    expect(getMeasuredQualityExitCode(passed)).toBe(0);
   });
 });

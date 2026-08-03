@@ -85,17 +85,22 @@ export function getGeneratedTestSyntaxIssues(
 ): TestQualityIssue[] {
   if (!isJavaScriptFamily(sourceFilePath)) return [];
 
-  const sourceFile = parseGeneratedTest(testCode, sourceFilePath);
-  const diagnostics = (
-    sourceFile as ts.SourceFile & { parseDiagnostics?: readonly ts.Diagnostic[] }
-  ).parseDiagnostics ?? [];
+  const diagnostics = ts.transpileModule(testCode, {
+    fileName: sourceFilePath,
+    reportDiagnostics: true,
+    compilerOptions: {
+      jsx: ts.JsxEmit.Preserve,
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.Latest,
+    },
+  }).diagnostics ?? [];
 
   return diagnostics.map((diagnostic) => {
-    const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start ?? 0);
+    const position = diagnostic.file?.getLineAndCharacterOfPosition(diagnostic.start ?? 0);
     return {
       type: 'syntax-error' as const,
       severity: 'error' as const,
-      line: position.line + 1,
+      line: position ? position.line + 1 : undefined,
       description: `Generated test has invalid syntax: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`,
       suggestion: 'Repair the generated test syntax before accepting or executing it.',
     };

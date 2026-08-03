@@ -63,6 +63,22 @@ export function evaluateMeasuredQualityEvidence(measured: {
   };
 }
 
+/**
+ * Published quality command exit contract:
+ * 0 = passed with more than five percentage points of headroom
+ * 1 = one or more measured checks failed
+ * 2 = passed, but at least one measured check has less than five points of headroom
+ */
+export function getMeasuredQualityExitCode(result: QualityGateResult): 0 | 1 | 2 {
+  if (!result.passed) return 1;
+  return result.checks.some(check => (
+    typeof check.value === 'number'
+    && typeof check.threshold === 'number'
+    && check.value >= check.threshold
+    && check.value < check.threshold + 5
+  )) ? 2 : 0;
+}
+
 export function createQualityCommand(
   context: CLIContext,
   cleanupAndExit: (code: number) => Promise<never>,
@@ -111,7 +127,7 @@ export function createQualityCommand(
             console.log('');
           }
 
-          await cleanupAndExit(gateResult.passed ? 0 : 1);
+          await cleanupAndExit(getMeasuredQualityExitCode(gateResult));
         }
 
       } catch (error) {

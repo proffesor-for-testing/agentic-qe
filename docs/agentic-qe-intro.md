@@ -234,7 +234,7 @@ aqe security --compliance gdpr,hipaa,soc2  # Compliance checks
 aqe security --url-validate https://example.com  # URL + PII exposure validation
 
 # Quality gates
-aqe quality --gate               # Evaluate quality gate (pass/fail with exit codes)
+aqe quality --gate               # Measured coverage/tests: exit 0 pass, 1 fail, 2 near threshold
 
 # Code intelligence
 aqe code index src/                  # Index codebase into knowledge graph
@@ -494,3 +494,12 @@ aqe security --sast -t src/
 aqe quality --gate
 aqe fleet init --wizard
 ```
+
+`aqe quality --gate` currently evaluates only measured line coverage and test
+pass-rate evidence stored by the coverage and test commands. It deliberately
+does not invent values for security vulnerabilities, critical bugs, code
+smells, technical debt, or duplication; restoring those measured checks is
+tracked in [#596](https://github.com/proffesor-for-testing/agentic-qe/issues/596).
+The command exits `0` when all measured checks pass with more than five
+percentage points of headroom, `1` when a check fails, and `2` when the gate
+passes but a check has less than five percentage points of headroom.
