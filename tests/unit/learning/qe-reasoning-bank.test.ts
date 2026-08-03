@@ -58,11 +58,15 @@ afterAll(() => {
 const canTest = checkRuvectorPackagesAvailable();
 
 describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
+  const originalMemoryBackend = process.env.AQE_MEMORY_BACKEND;
   let memory: MemoryBackend;
   let reasoningBank: QEReasoningBank;
 
   beforeEach(async () => {
-    // Reset shared singletons to prevent cross-test contamination
+    // QEReasoningBank owns a SQLitePatternStore in addition to the injected
+    // MemoryBackend. Keep each test's unified store ephemeral so foundational
+    // and transferred patterns cannot accumulate across cases (#588).
+    process.env.AQE_MEMORY_BACKEND = 'memory';
     resetUnifiedPersistence();
     queenGovernanceAdapter.reset();
     resetSharedMinCutState();
@@ -78,6 +82,11 @@ describe.runIf(canTest.gnn)('QE ReasoningBank', () => {
 
     // Clean up singletons after test
     resetUnifiedPersistence();
+    if (originalMemoryBackend === undefined) {
+      delete process.env.AQE_MEMORY_BACKEND;
+    } else {
+      process.env.AQE_MEMORY_BACKEND = originalMemoryBackend;
+    }
   });
 
   describe('Initialization', () => {

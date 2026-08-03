@@ -5,6 +5,47 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.6] - 2026-08-03
+
+Learning records and semantic search data now persist and resolve reliably,
+while operators have a safe way to repair older patterns that are missing
+embeddings.
+
+### Added
+
+- **Pattern embedding repair** ([#584]). `aqe learning backfill-embeddings`
+  reports or repairs learned patterns that are missing semantic vectors, with
+  dry-run, JSON, and configurable batch-size support.
+
+### Fixed
+
+- **Namespaced semantic search returns the right memories** ([#601]). Logical
+  namespace filtering now happens while ANN candidates are gathered, so a
+  relevant scoped result is not hidden by higher-ranked vectors from unrelated
+  namespaces.
+- **Hook embeddings persist before exit** ([#581]). Short-lived hook processes
+  now wait for captured-experience vectors to be stored instead of abandoning
+  in-flight writes.
+- **Embedding setup guidance names the correct environment variable** ([#582]),
+  so users configuring an external provider are directed to
+  `AQE_EMBEDDER_ENDPOINT`.
+- **Experience replay initializes once under concurrency** ([#583]). Concurrent
+  callers now share initialization work, while a failed attempt remains
+  retryable.
+- **Reasoning-bank unit tests remain isolated** ([#588]). Each case now uses an
+  ephemeral unified store, preventing transferred patterns from accumulating
+  until setup hooks time out.
+- **Embedding repair protects semantic consistency** ([#584]). Backfill now
+  fails clearly when no semantic provider is available instead of mixing hash
+  proxies into the semantic index.
+
+[#581]: https://github.com/proffesor-for-testing/agentic-qe/issues/581
+[#582]: https://github.com/proffesor-for-testing/agentic-qe/issues/582
+[#583]: https://github.com/proffesor-for-testing/agentic-qe/issues/583
+[#584]: https://github.com/proffesor-for-testing/agentic-qe/issues/584
+[#588]: https://github.com/proffesor-for-testing/agentic-qe/issues/588
+[#601]: https://github.com/proffesor-for-testing/agentic-qe/issues/601
+
 ## [3.13.5] - 2026-08-03
 
 Quality decisions and generated tests now carry evidence that reflects what AQE
