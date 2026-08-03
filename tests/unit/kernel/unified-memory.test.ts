@@ -394,6 +394,16 @@ describe('UnifiedMemoryManager', () => {
     });
 
     describe('vectorSearch', () => {
+      it('scopes candidates by logical key prefix before applying the limit', async () => {
+        await manager.vectorStore('other:closer', [1, 0, 0], 'qe-kernel');
+        await manager.vectorStore('target:only', [0.9, 0.1, 0], 'qe-kernel');
+
+        const results = await manager.vectorSearch([1, 0, 0], 1, undefined, 'target:');
+
+        expect(results).toHaveLength(1);
+        expect(results[0].id).toBe('target:only');
+      });
+
       beforeEach(async () => {
         // Store orthogonal vectors
         await manager.vectorStore('v1', [1, 0, 0], 'default', { axis: 'x' });

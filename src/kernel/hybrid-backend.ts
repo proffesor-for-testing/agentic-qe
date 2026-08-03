@@ -237,10 +237,14 @@ export class HybridMemoryBackend implements MemoryBackend {
    * Vector similarity search
    * Now uses unified memory's persistent vector storage
    */
-  async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
+  async vectorSearch(
+    embedding: number[],
+    k: number,
+    keyPrefix?: string
+  ): Promise<VectorSearchResult[]> {
     this.ensureInitialized();
 
-    const results = await this.unifiedMemory!.vectorSearch(embedding, k);
+    const results = await this.unifiedMemory!.vectorSearch(embedding, k, undefined, keyPrefix);
 
     // Convert to VectorSearchResult format
     return results.map(r => ({
