@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.13.6] - 2026-08-03
 
-Learning records and semantic search data now finish persisting reliably, while
-operators have a safe way to repair older patterns that are missing embeddings.
+Learning records and semantic search data now persist and resolve reliably,
+while operators have a safe way to repair older patterns that are missing
+embeddings.
 
 ### Added
 
@@ -18,6 +19,10 @@ operators have a safe way to repair older patterns that are missing embeddings.
 
 ### Fixed
 
+- **Namespaced semantic search returns the right memories** ([#601]). Logical
+  namespace filtering now happens while ANN candidates are gathered, so a
+  relevant scoped result is not hidden by higher-ranked vectors from unrelated
+  namespaces.
 - **Hook embeddings persist before exit** ([#581]). Short-lived hook processes
   now wait for captured-experience vectors to be stored instead of abandoning
   in-flight writes.
@@ -39,6 +44,7 @@ operators have a safe way to repair older patterns that are missing embeddings.
 [#583]: https://github.com/proffesor-for-testing/agentic-qe/issues/583
 [#584]: https://github.com/proffesor-for-testing/agentic-qe/issues/584
 [#588]: https://github.com/proffesor-for-testing/agentic-qe/issues/588
+[#601]: https://github.com/proffesor-for-testing/agentic-qe/issues/601
 
 ## [3.13.5] - 2026-08-03
 
