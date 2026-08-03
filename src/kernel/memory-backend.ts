@@ -109,10 +109,15 @@ export class InMemoryBackend implements MemoryBackend {
     return results;
   }
 
-  async vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]> {
+  async vectorSearch(
+    embedding: number[],
+    k: number,
+    keyPrefix?: string
+  ): Promise<VectorSearchResult[]> {
     const results: VectorSearchResult[] = [];
 
     for (const [key, entry] of this.vectors.entries()) {
+      if (keyPrefix && !key.startsWith(keyPrefix)) continue;
       const score = cosineSimilarity(embedding, entry.embedding);
       results.push({ key, score, metadata: entry.metadata });
     }

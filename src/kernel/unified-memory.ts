@@ -852,7 +852,7 @@ export class UnifiedMemoryManager {
   }
 
   async vectorSearch(
-    query: number[], k: number = 10, namespace?: string
+    query: number[], k: number = 10, namespace?: string, keyPrefix?: string
   ): Promise<Array<{ id: string; score: number; metadata?: unknown }>> {
     this.ensureInitialized();
 
@@ -860,7 +860,21 @@ export class UnifiedMemoryManager {
       await this.loadVectorIndex();
     }
 
-    const results = this.vectorIndex.search(query, k * 2);
+    // Logical namespaces are encoded in vector ids (`namespace:key`), while
+    // the vectors table namespace identifies the physical backend. Widen the
+    // ANN query until enough logical matches are found so global top-K results
+    // cannot hide a valid namespaced hit.
+    const indexSize = this.vectorIndex.size();
+    let candidateCount = Math.min(indexSize, Math.max(k * 2, 1));
+    let results = this.vectorIndex.search(query, candidateCount);
+    while (
+      keyPrefix &&
+      results.filter(result => result.id.startsWith(keyPrefix)).length < k &&
+      candidateCount < indexSize
+    ) {
+      candidateCount = Math.min(indexSize, candidateCount * 2);
+      results = this.vectorIndex.search(query, candidateCount);
+    }
     if (results.length === 0) return [];
 
     const ids = results.map(r => r.id);
@@ -875,7 +889,7 @@ export class UnifiedMemoryManager {
       const filteredResults: Array<{ id: string; score: number; metadata?: unknown }> = [];
       for (const result of results) {
         const row = metadataMap.get(result.id);
-        if (row && row.namespace === namespace) {
+        if (row && row.namespace === namespace && (!keyPrefix || result.id.startsWith(keyPrefix))) {
           filteredResults.push({
             id: result.id, score: result.score,
             metadata: row.metadata ? safeJsonParse(row.metadata) : undefined,
@@ -886,7 +900,11 @@ export class UnifiedMemoryManager {
       return filteredResults;
     }
 
-    return results.slice(0, k).map(result => {
+    const scopedResults = keyPrefix
+      ? results.filter(result => result.id.startsWith(keyPrefix)).slice(0, k)
+      : results.slice(0, k);
+
+    return scopedResults.map(result => {
       const row = metadataMap.get(result.id);
       return {
         id: result.id, score: result.score,
