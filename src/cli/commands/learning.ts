@@ -28,6 +28,7 @@ import {
   type GrowthRate,
 } from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';
+import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 
 // Extracted helpers
 import {
@@ -92,11 +93,78 @@ Examples:
   registerExportFullCommand(learning);
   registerImportMergeCommand(learning);
   registerDreamCommand(learning);
+  registerBackfillEmbeddingsCommand(learning);
   registerRepairCommand(learning);
   registerHealthCommand(learning);
   registerLoopHealthCommand(learning);
 
   return learning;
+}
+
+// ============================================================================
+// Subcommand: backfill-embeddings
+// ============================================================================
+
+function registerBackfillEmbeddingsCommand(learning: Command): void {
+  learning
+    .command('backfill-embeddings')
+    .description('Generate embeddings for learned patterns that are missing vectors')
+    .option('-b, --batch-size <n>', 'Patterns per embedding batch', '32')
+    .option('--dry-run', 'Report missing embeddings without writing')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      const batchSize = Number(options.batchSize);
+      if (!Number.isInteger(batchSize) || batchSize <= 0) {
+        throw new Error('batch size must be a positive integer');
+      }
+
+      const store = createSQLitePatternStore();
+      try {
+        await store.initialize();
+        const before = store.getGhostPatternCount();
+
+        if (options.dryRun) {
+          if (options.json) {
+            printJson({ dryRun: true, batchSize, ...before });
+          } else {
+            console.log(chalk.bold('\nPattern Embedding Backfill (dry run)\n'));
+            console.log(`  Patterns: ${before.total}`);
+            console.log(`  Missing embeddings: ${before.withoutEmbeddings}`);
+            if (before.sampleGhostIds.length > 0) {
+              console.log(`  Sample IDs: ${before.sampleGhostIds.join(', ')}`);
+            }
+            console.log('');
+          }
+          return;
+        }
+
+        const result = await store.backfillEmbeddings(batchSize);
+        const after = store.getGhostPatternCount();
+        const output = {
+          ...result,
+          batchSize,
+          missingBefore: before.withoutEmbeddings,
+          missingAfter: after.withoutEmbeddings,
+        };
+
+        if (options.json) {
+          printJson(output);
+        } else {
+          printSuccess('Pattern embedding backfill complete.');
+          console.log(`  Processed: ${result.processed}`);
+          console.log(`  Skipped: ${result.skipped}`);
+          console.log(`  Errors: ${result.errors}`);
+          console.log(`  Remaining missing: ${after.withoutEmbeddings}`);
+          console.log(`  Method: ${result.method}`);
+          console.log('');
+        }
+      } catch (error) {
+        printError(`backfill-embeddings failed: ${error instanceof Error ? error.message : 'unknown'}`);
+        throw error;
+      } finally {
+        store.close();
+      }
+    });
 }
 
 // ============================================================================

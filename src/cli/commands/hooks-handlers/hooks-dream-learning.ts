@@ -26,6 +26,32 @@ export interface DreamHookState {
   totalDreamsThisSession: number;
 }
 
+type EmbeddingWritableDatabase = {
+  prepare(sql: string): { run(...params: unknown[]): unknown };
+};
+
+/** Persist the vector before a short-lived hook process is allowed to exit. */
+async function persistCapturedExperienceEmbedding(
+  db: EmbeddingWritableDatabase,
+  id: string,
+  text: string,
+): Promise<void> {
+  try {
+    const { computeRealEmbedding } = await import('../../../learning/real-embeddings.js');
+    const embedding = await computeRealEmbedding(text.slice(0, 512));
+    db.prepare(
+      'UPDATE captured_experiences SET embedding = ?, embedding_dimension = ? WHERE id = ?'
+    ).run(Buffer.from(new Float32Array(embedding).buffer), embedding.length, id);
+  } catch (error) {
+    // Capture remains fail-soft, but the failure is observable for diagnostics.
+    console.error(
+      chalk.dim(
+        `[hooks] embedding persistence: ${error instanceof Error ? error.message : 'unknown'}`
+      )
+    );
+  }
+}
+
 /**
  * Check if a dream cycle should be triggered and run it if so.
  * Called from post-task hook after recording each experience.
@@ -262,19 +288,8 @@ export async function persistCommandExperience(opts: {
       opts.source
     );
 
-    // Fire-and-forget embedding write so HNSW C is searchable from the next
-    // boot's loadEmbeddingIndex() without waiting for the patch-350 backfill.
-    // Without this, hook-side writes accumulate as "ghosts" until the next
-    // restart catches them.
-    void (async () => {
-      try {
-        const { computeRealEmbedding } = await import('../../../learning/real-embeddings.js');
-        const text = `${opts.domain}: ${opts.task}`.slice(0, 512);
-        const embedding = await computeRealEmbedding(text);
-        db.prepare(`UPDATE captured_experiences SET embedding = ?, embedding_dimension = ? WHERE id = ?`)
-          .run(Buffer.from(new Float32Array(embedding).buffer), embedding.length, id);
-      } catch { /* fail-soft */ }
-    })();
+    // Hook processes are short-lived, so this must settle before returning.
+    await persistCapturedExperienceEmbedding(db, id, `${opts.domain}: ${opts.task}`);
   } catch (error) {
     // Best-effort — don't fail the hook
     console.error(chalk.dim(`[hooks] persistCommandExperience: ${error instanceof Error ? error.message : 'unknown'}`));
@@ -695,18 +710,12 @@ export async function persistTaskOutcome(opts: {
     }
   }
 
-  // Fire-and-forget embedding write for the captured_experiences row inserted
-  // inside the transaction above. Same rationale as the persistCommandExperience
-  // site — without this, post-task writes are ghosts until next-boot backfill.
-  void (async () => {
-    try {
-      const { computeRealEmbedding } = await import('../../../learning/real-embeddings.js');
-      const text = `${opts.domain ?? 'general'}: ${taskField}`.slice(0, 512);
-      const embedding = await computeRealEmbedding(text);
-      db.prepare(`UPDATE captured_experiences SET embedding = ?, embedding_dimension = ? WHERE id = ?`)
-        .run(Buffer.from(new Float32Array(embedding).buffer), embedding.length, experienceId);
-    } catch { /* fail-soft */ }
-  })();
+  // Hook processes are short-lived, so this must settle before returning.
+  await persistCapturedExperienceEmbedding(
+    db,
+    experienceId,
+    `${opts.domain ?? 'general'}: ${taskField}`,
+  );
 
   return {
     experienceId,

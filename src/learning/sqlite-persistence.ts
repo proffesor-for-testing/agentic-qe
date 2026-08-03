@@ -1183,8 +1183,9 @@ export class SQLitePatternStore {
 
   /**
    * Backfill embeddings for patterns that don't have them.
-   * Uses real all-MiniLM-L6-v2 transformer embeddings via @xenova/transformers.
-   * Falls back to hash-based embeddings if ONNX is unavailable.
+   * Uses real all-MiniLM-L6-v2 transformer embeddings via @huggingface/transformers
+   * or the configured external endpoint. Refuses hash proxies because mixing
+   * embedding spaces makes semantic retrieval results invalid.
    * Skips bench/test patterns (id LIKE 'bench-%').
    *
    * @param batchSize - Patterns per inference batch (default: 32, matches model batch size)
@@ -1235,7 +1236,7 @@ export class SQLitePatternStore {
     let processed = 0;
     let skipped = 0;
     let errors = 0;
-    let method: 'transformer' | 'hash-fallback' = 'transformer';
+    const method: 'transformer' | 'hash-fallback' = 'transformer';
 
     // Process in batches: compute embeddings async, then insert in sync transaction
     for (let i = 0; i < patternsWithout.length; i += batchSize) {
@@ -1279,11 +1280,11 @@ export class SQLitePatternStore {
               `aborting to protect HNSW index. Original error: ${toErrorMessage(e)}`
           );
         }
-        // In-process transformer path: hash fallback is acceptable because the
-        // entire index in this mode is hash-based anyway.
-        console.warn(`[SQLitePatternStore] Transformer unavailable, falling back to hash embeddings: ${toErrorMessage(e)}`);
-        method = 'hash-fallback';
-        embeddings = textsWithIds.map(t => hashEmbedding(t.text, dimension));
+        throw new Error(
+          `[SQLitePatternStore] semantic embedding unavailable; refusing to write hash proxies. ` +
+            `Install @huggingface/transformers or configure AQE_EMBEDDER_ENDPOINT. ` +
+            `Original error: ${toErrorMessage(e)}`
+        );
       }
 
       // Insert computed embeddings in a sync transaction

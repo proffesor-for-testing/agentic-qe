@@ -227,7 +227,7 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
         throw new Error(
           'In-process embeddings require the optional package "@huggingface/transformers", ' +
           'which is not installed. Either run `npm install @huggingface/transformers`, or ' +
-          'configure an embedding endpoint (EmbeddingConfig.endpoint / AQE_EMBEDDING_ENDPOINT) ' +
+          'configure an embedding endpoint (EmbeddingConfig.endpoint / AQE_EMBEDDER_ENDPOINT) ' +
           'so no local model is loaded.'
         );
       }

@@ -206,6 +206,7 @@ export class ExperienceReplay {
   private db: DatabaseType | null = null;
   private prepared: Map<string, Statement> = new Map();
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   // Real HNSW index for O(log n) similarity search (150x-12,500x faster than linear scan)
   private hnswIndex: HNSWEmbeddingIndex;
@@ -249,7 +250,19 @@ export class ExperienceReplay {
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+    if (this.initializationPromise) return this.initializationPromise;
 
+    this.initializationPromise = this.initializeOnce();
+    try {
+      await this.initializationPromise;
+    } catch (error) {
+      // Allow a later caller to retry after a failed initialization.
+      this.initializationPromise = null;
+      throw error;
+    }
+  }
+
+  private async initializeOnce(): Promise<void> {
     this.unifiedMemory = getUnifiedMemory();
     await this.unifiedMemory.initialize();
     this.db = this.unifiedMemory.getDatabase();
