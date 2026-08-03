@@ -41,14 +41,20 @@ function fakeEmbedding(text: string, dim = 384): number[] {
   return v;
 }
 
-async function startServer(): Promise<{ url: string; close: () => Promise<void>; calls: number }> {
-  const handle = { url: '', calls: 0, close: async () => {} };
+async function startServer(): Promise<{
+  url: string;
+  close: () => Promise<void>;
+  calls: number;
+  inputs: string[][];
+}> {
+  const handle = { url: '', calls: 0, inputs: [] as string[][], close: async () => {} };
   const server = http.createServer((req, res) => {
     handle.calls++;
     let raw = '';
     req.on('data', (c) => (raw += c));
     req.on('end', () => {
       const { input } = JSON.parse(raw) as { input: string[] };
+      handle.inputs.push(input);
       const data = input.map((t, i) => ({
         index: i,
         embedding: fakeEmbedding(t),
@@ -105,6 +111,28 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
       // Re-normalization preserves direction
       expect(dot).toBeGreaterThan(0.999);
     }
+  });
+
+  it('returns zero vectors for non-semantic items in a mixed batch', async () => {
+    const nonSemantic = '{"metrics":{"tasksReceived":1}}';
+
+    const vecs = await computeBatchEmbeddings(['semantic text', nonSemantic], {
+      endpoint: server.url,
+      enableCache: false,
+    });
+
+    expect(vecs[1].every((value) => value === 0)).toBe(true);
+    expect(server.inputs.at(-1)).toEqual(['semantic text']);
+  });
+
+  it('does not initialize the embedder for an entirely non-semantic batch', async () => {
+    const vecs = await computeBatchEmbeddings(
+      ['{"metrics":{"tasksReceived":1}}', '1234567890-1234567890-1234567890'],
+      { endpoint: server.url, enableCache: false }
+    );
+
+    expect(vecs).toHaveLength(2);
+    expect(server.calls).toBe(0);
   });
 
   it('returns unit-length vectors', async () => {
