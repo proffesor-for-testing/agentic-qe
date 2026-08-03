@@ -7,6 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InitOrchestrator, type InitOrchestratorOptions } from '../../../src/init/init-wizard';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Command } from 'commander';
+import { InitHandler } from '../../../src/cli/handlers/init-handler';
+import type { CLIContext } from '../../../src/cli/handlers/interfaces';
 
 // Mock fs module
 vi.mock('fs', async () => {
@@ -89,6 +92,21 @@ describe('Init Command', () => {
   });
 
   describe('Init Options Validation', () => {
+    it('should parse --no-statusline as an explicit opt-out', async () => {
+      const program = new Command();
+      const handler = new InitHandler(async () => undefined as never);
+      const context = {} as CLIContext;
+      const execute = vi.spyOn(handler, 'execute').mockResolvedValue(undefined);
+      handler.register(program, context);
+
+      await program.parseAsync(['node', 'aqe', 'init', '--no-statusline']);
+
+      expect(execute).toHaveBeenCalledWith(
+        expect.objectContaining({ statusline: false }),
+        context
+      );
+    });
+
     it('should accept valid domain list', () => {
       const domains = 'test-generation,coverage-analysis,quality-assessment';
       const domainList = domains.split(',');

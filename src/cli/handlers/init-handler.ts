@@ -46,6 +46,7 @@ export class InitHandler implements ICommandHandler {
       .option('-m, --max-agents <number>', 'Maximum concurrent agents', '15')
       .option('--memory <backend>', 'Memory backend (sqlite|agentdb|hybrid|memory). "memory" = database-free, in-memory only.', 'hybrid')
       .option('--no-database', 'Database-free install: alias for `--memory memory`. Skips the SQLite database phase and runs any MCP server in-memory — nothing is written to .agentic-qe/.')
+      .option('--no-statusline', 'Do not install AQE\'s Claude Code status line; remove an existing AQE-owned status line while preserving custom ones')
       .option('--lazy', 'Enable lazy loading of domains')
       .option('--wizard', 'Run interactive setup wizard')
       .option('--auto', 'Auto-configure based on project analysis')
@@ -146,8 +147,9 @@ export class InitHandler implements ICommandHandler {
       // silently falls through to runStandardInit and installs the full Claude
       // surface it was meant to suppress.
       const noClaudeRequested = options.claude === false;
+      const noStatusLineRequested = options.statusline === false;
 
-      if (options.modular || platformRequested || databaseFree || noClaudeRequested) {
+      if (options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
         await this.runModularInit(options, context);
         return;
@@ -215,6 +217,7 @@ export class InitHandler implements ICommandHandler {
       noMcp: options.noMcp && !options.withMcp,
       noGovernance: options.noGovernance,
       noClaude,
+      noStatusLine: options.statusline === false,
       memoryBackend: memoryOnly ? 'memory' : undefined,
     });
 
@@ -650,6 +653,8 @@ interface InitOptions {
   noGovernance?: boolean;
   /** commander negatable flag: `--no-claude` sets this to false (#532). */
   claude?: boolean;
+  /** commander negatable flag: `--no-statusline` sets this to false (#591). */
+  statusline?: boolean;
   modular?: boolean;
 }
 

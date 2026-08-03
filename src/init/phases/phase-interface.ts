@@ -152,6 +152,8 @@ export interface InitOptions {
    * unchanged. Pairs naturally with `--no-database`.
    */
   noClaude?: boolean;
+  /** Skip AQE's Claude Code status line and remove a previously AQE-owned one. */
+  noStatusLine?: boolean;
   /** @deprecated Use default behavior instead — MCP is now enabled by default */
   withMcp?: boolean;
   /**

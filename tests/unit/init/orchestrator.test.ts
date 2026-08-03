@@ -98,6 +98,16 @@ describe('ModularInitOrchestrator', () => {
       expect(ctx.options.minimal).toBe(true);
     });
 
+    it('should propagate the status line opt-out to init phases', () => {
+      const orchestrator = new ModularInitOrchestrator({
+        projectRoot: '/tmp/test',
+        noStatusLine: true,
+        customPhases: [],
+      });
+
+      expect(orchestrator.getContext().options.noStatusLine).toBe(true);
+    });
+
     it('should initialize context with empty results map', () => {
       const orchestrator = new ModularInitOrchestrator({
         projectRoot: '/tmp/test',

@@ -201,6 +201,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function applyV3Sections(
   settings: Record<string, unknown>,
   sections: Record<string, unknown>,
+  options: { statusLine?: boolean } = {},
 ): Record<string, unknown> {
   for (const [key, value] of Object.entries(sections)) {
     if (key === '_aqePermissions') {
@@ -209,6 +210,14 @@ export function applyV3Sections(
       const merged = [...new Set([...existingAllow, ...(value as string[])])];
       settings.permissions = { ...existingPerms, allow: merged };
     } else if (key === 'statusLine') {
+      if (options.statusLine === false) {
+        // Opting out removes only AQE-owned configuration. A status line from
+        // the user or another tool remains outside AQE's ownership boundary.
+        if (isAqeStatusLine(settings.statusLine)) {
+          delete settings.statusLine;
+        }
+        continue;
+      }
       // Preserve a user's (or another tool's) custom status line.
       if (settings.statusLine === undefined || isAqeStatusLine(settings.statusLine)) {
         settings.statusLine = value;
@@ -241,8 +250,6 @@ export function generateV3SettingsSections(config: AQEInitConfig, projectRoot?: 
     statusLine: {
       type: 'command',
       command: 'sh -c \'node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/statusline-v3.cjs" 2>/dev/null || echo "▊ Agentic QE v3"\'',
-      refreshMs: 5000,
-      enabled: true,
     },
     // permissions are union-merged in 07-hooks.ts — not set here to avoid overwriting user entries (#362)
     _aqePermissions: [
