@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.13.5](v3.13.5.md) | 2026-08-03 | Measured quality gates and trustworthy cross-framework test execution. |
 | [v3.13.4](v3.13.4.md) | 2026-08-02 | Reliable Codex fleet setup, upgrades, hooks, and verification. |
 | [v3.13.3](v3.13.3.md) | 2026-07-29 | Learning capture no longer stops silently under `AQE_DISABLE_WAL` (it now refuses to write in an unsafe journal mode and names what is holding the DB), and QE-Court's shipped panel no longer violates its own `writerIsNeverJuror` rule (#576). |
 | [v3.13.2](v3.13.2.md) | 2026-07-24 | Stops hook-driven `brain.rvf`/`patterns.rvf` corruption loops by closing native stores after every hook and protecting same-process live locks (#574). |

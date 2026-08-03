@@ -50,6 +50,21 @@ export {
   type DeploymentAccuracy,
 } from './services/deployment-advisor';
 
+export {
+  DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS,
+  DEFAULT_QUALITY_THRESHOLDS,
+  QUALITY_EVIDENCE_NAMESPACE,
+  QUALITY_METRICS,
+  evaluateQualityEvidence,
+  loadQualityEvidence,
+  writeQualityEvidence,
+  type EvaluatedQualityCheck,
+  type QualityEvidenceRecord,
+  type QualityEvidenceValues,
+  type QualityMetricName,
+  type QualityThreshold,
+} from './quality-evidence.js';
+
 // ============================================================================
 // Coherence-Gated Quality Gates (ADR-030)
 // ============================================================================

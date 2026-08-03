@@ -350,6 +350,23 @@ export async function computeBatchEmbeddings(
   const uncachedIndices: number[] = [];
   const results: (number[] | null)[] = new Array(texts.length).fill(null);
 
+  // Match computeRealEmbedding(): non-semantic inputs are represented by a
+  // zero vector and must never reach the model or its cache (#585).
+  const semanticIndices: number[] = [];
+  for (let i = 0; i < texts.length; i++) {
+    if (isNonSemanticText(texts[i])) {
+      results[i] = new Array(getEmbeddingDimension()).fill(0);
+    } else {
+      semanticIndices.push(i);
+    }
+  }
+
+  // Preserve the single-item API's no-initialization behavior when every
+  // input is non-semantic.
+  if (semanticIndices.length === 0) {
+    return results as number[][];
+  }
+
   // Init BEFORE cache lookup so the cache key namespace is stable.
   if (!embeddingModel) {
     await initializeModel(config);
@@ -359,7 +376,7 @@ export async function computeBatchEmbeddings(
   }
 
   if (fullConfig.enableCache) {
-    for (let i = 0; i < texts.length; i++) {
+    for (const i of semanticIndices) {
       const cached = embeddingCache.get(cacheKey(texts[i]));
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
         results[i] = cached.embedding;
@@ -369,8 +386,8 @@ export async function computeBatchEmbeddings(
       }
     }
   } else {
-    uncachedTexts.push(...texts);
-    for (let i = 0; i < texts.length; i++) {
+    for (const i of semanticIndices) {
+      uncachedTexts.push(texts[i]);
       uncachedIndices.push(i);
     }
   }

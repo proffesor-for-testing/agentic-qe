@@ -24,6 +24,20 @@ describe('TestExecutorService runner command', () => {
     expect(command.args).not.toContain('--coverage');
   });
 
+  it('passes a Node worker shard to one native test-runner process', () => {
+    const executor = new TestExecutorService({ memory: {} as never });
+    const command = (
+      executor as unknown as {
+        buildTestCommand(files: string[], framework: string): { command: string; args: string[] };
+      }
+    ).buildTestCommand(['one.test.cjs', 'two.test.cjs'], 'node');
+
+    expect(command).toEqual({
+      command: process.execPath,
+      args: ['--test', 'one.test.cjs', 'two.test.cjs'],
+    });
+  });
+
   it('runs each worker shard as one bounded runner batch', async () => {
     const executor = new TestExecutorService({ memory: {} as never });
     const internals = executor as unknown as {

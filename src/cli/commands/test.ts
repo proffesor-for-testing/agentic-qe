@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
+import { writeQualityEvidence } from '../../domains/quality-assessment/quality-evidence.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -170,6 +171,12 @@ export function createTestCommand(
               duration: run.duration,
               measuredAt: new Date().toISOString(),
             }, { namespace: 'test-execution', persist: true });
+            await writeQualityEvidence(context.kernel!.memory, {
+              testsPassing: total > 0 ? (run.passed / total) * 100 : 0,
+            }, {
+              measuredAt: new Date().toISOString(),
+              source: 'aqe test execute',
+            });
 
             if (format === 'json') {
               writeOutput(toJSON(run), options.output);

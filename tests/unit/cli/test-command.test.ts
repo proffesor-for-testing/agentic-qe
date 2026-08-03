@@ -15,6 +15,7 @@ describe('test command', () => {
     const context = {
       kernel: {
         getDomainAPIAsync: vi.fn().mockResolvedValue({ runTests }),
+        memory: { set: vi.fn().mockResolvedValue(undefined) },
       },
     } as unknown as CLIContext;
     const command = createTestCommand(
@@ -34,5 +35,10 @@ describe('test command', () => {
     expect(runTests).toHaveBeenCalledWith(expect.objectContaining({
       framework: 'node',
     }));
+    expect(context.kernel.memory.set).toHaveBeenCalledWith(
+      'test-run:latest',
+      expect.objectContaining({ passed: 1, failed: 0, skipped: 0 }),
+      { namespace: 'test-execution', persist: true },
+    );
   });
 });

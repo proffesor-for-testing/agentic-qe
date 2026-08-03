@@ -119,7 +119,9 @@ export class HooksPhase extends BasePhase<HooksResult> {
     //  - statusLine / includeCoAuthoredBy preserved when user-set (#362 follow-up)
     //  - AQE-owned sections deep-merged so user additions survive
     const v3Sections = generateV3SettingsSections(config, projectRoot);
-    applyV3Sections(settings, v3Sections);
+    applyV3Sections(settings, v3Sections, {
+      statusLine: !context.options.noStatusLine,
+    });
 
     // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
     let existingMcp = (settings.enabledMcpjsonServers as string[]) || [];

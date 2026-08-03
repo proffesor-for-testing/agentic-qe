@@ -13,7 +13,7 @@
  * in production, written by sentence-transformers/all-MiniLM-L6-v2-style
  * models) and verifies:
  *
- *   1. Self-query returns id=self with score 1.0 (exact-match recall)
+ *   1. Self-query returns an exact vector match with score 1.0
  *   2. Top-10 recall vs brute-force ground truth = 100%
  *   3. Repeated for several random query vectors to rule out one-off luck
  *   4. Vectors persisted in memory.db deserialize correctly into the backend
@@ -183,7 +183,7 @@ describe('NativeHnswBackend — real qe-kernel fixture (#399)', () => {
   );
 
   it.runIf(fixture !== null && fixture.length >= 100)(
-    'should hit recall@10 >= 0.9 and top-1 == self on real qe-kernel embeddings',
+    'should hit recall@10 >= 0.9 with an exact top match on real qe-kernel embeddings',
     () => {
       const pool = fixture!;
       const backend = new NativeHnswBackend({
@@ -209,13 +209,12 @@ describe('NativeHnswBackend — real qe-kernel fixture (#399)', () => {
       //     them based on entry-point luck. 90-100% recall@10 is the
       //     standard approximate-HNSW guarantee.
       //
-      // The TOP-1 self-match assertion is the strict bug-detector — it's
-      // mathematically impossible to fail unless HNSW is fundamentally
-      // broken (which is exactly what @ruvector/router 0.1.28 was: it
-      // returned random non-neighbors with recall@10 = 0% to 10%). Anything
-      // above 0.5 recall@10 here would already be a clear pass. We hold
-      // the bar at 0.9 to catch tuning regressions while accepting the
-      // legitimate plateau-region behavior of real embeddings.
+      // The TOP-1 exact-vector assertion is the strict bug-detector. Several
+      // real fixture rows can contain byte-identical embeddings, so requiring
+      // the queried row's numeric id would make the result depend on arbitrary
+      // tie-breaking. @ruvector/router 0.1.28 returned random non-neighbors
+      // with recall@10 = 0% to 10%; requiring an exact top result still catches
+      // that failure while accepting indistinguishable duplicate vectors.
       const RECALL_FLOOR = 0.9;
 
       for (const queryIdx of [
@@ -234,7 +233,8 @@ describe('NativeHnswBackend — real qe-kernel fixture (#399)', () => {
         const recallAt10 =
           [...groundTruthIds].filter((id) => hitIds.has(id)).length / groundTruthIds.size;
 
-        expect(results[0].id).toBe(queryIdx); // self MUST be top-1 (exact-match guarantee)
+        expect(pool[results[0].id].vector).toEqual(queryVector);
+        expect(results[0].score).toBeGreaterThanOrEqual(0.999);
         expect(recallAt10).toBeGreaterThanOrEqual(RECALL_FLOOR);
       }
 

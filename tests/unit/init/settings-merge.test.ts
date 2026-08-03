@@ -410,7 +410,9 @@ describe('Settings Merge Utilities', () => {
       const sections = generateV3SettingsSections(config);
 
       expect(sections.statusLine).toBeDefined();
-      expect((sections.statusLine as any).enabled).toBe(true);
+      expect(sections.statusLine).toEqual(expect.objectContaining({ type: 'command' }));
+      expect(sections.statusLine).not.toHaveProperty('enabled');
+      expect(sections.statusLine).not.toHaveProperty('refreshMs');
 
       expect(sections._aqePermissions).toBeDefined();
       expect(sections._aqePermissions).toContain('mcp__agentic-qe__*');
@@ -463,7 +465,35 @@ describe('Settings Merge Utilities', () => {
         statusLine: { type: 'command', command: 'node old/statusline-v3.cjs', enabled: false },
       };
       applyV3Sections(stale, generateV3SettingsSections(config));
-      expect((stale.statusLine as any).enabled).toBe(true); // refreshed
+      expect((stale.statusLine as any).command).toContain('statusline-v3.cjs');
+      expect(stale.statusLine).not.toHaveProperty('enabled');
+    });
+
+    it('should omit a statusLine when explicitly disabled', () => {
+      const settings: Record<string, unknown> = {};
+
+      applyV3Sections(settings, generateV3SettingsSections(config), { statusLine: false });
+
+      expect(settings.statusLine).toBeUndefined();
+    });
+
+    it('should remove an AQE-owned statusLine when explicitly disabled', () => {
+      const settings: Record<string, unknown> = {
+        statusLine: { type: 'command', command: 'node .claude/helpers/statusline-v3.cjs' },
+      };
+
+      applyV3Sections(settings, generateV3SettingsSections(config), { statusLine: false });
+
+      expect(settings.statusLine).toBeUndefined();
+    });
+
+    it('should preserve a custom statusLine when AQE statusLine is disabled', () => {
+      const custom = { type: 'command', command: 'my-prompt --powerline' };
+      const settings: Record<string, unknown> = { statusLine: custom };
+
+      applyV3Sections(settings, generateV3SettingsSections(config), { statusLine: false });
+
+      expect(settings.statusLine).toEqual(custom);
     });
 
     it('should respect an explicit includeCoAuthoredBy=false', () => {

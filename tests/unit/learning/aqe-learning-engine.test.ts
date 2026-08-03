@@ -15,6 +15,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vites
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
 import { _resetWitnessChainForTests } from '../../../src/audit/witness-chain';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
 
 // Ensure these tests exercise the in-memory PatternStore, not the RVF variant
 beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
@@ -45,11 +46,17 @@ import { createMockMemoryBackend, createMockEventBus } from './_aqe-engine-test-
 // ============================================================================
 
 describe('AQELearningEngine', () => {
+  const originalMemoryBackend = process.env.AQE_MEMORY_BACKEND;
   let memory: MemoryBackend;
   let eventBus: EventBus;
   let engine: AQELearningEngine;
 
   beforeEach(async () => {
+    // QEReasoningBank owns a SQLitePatternStore in addition to the injected
+    // MemoryBackend. Keep this unit suite database-free and reset that shared
+    // singleton so patterns cannot accumulate across test cases (#588).
+    process.env.AQE_MEMORY_BACKEND = 'memory';
+    resetUnifiedPersistence();
     memory = createMockMemoryBackend();
     eventBus = createMockEventBus();
     engine = createAQELearningEngine(
@@ -63,6 +70,12 @@ describe('AQELearningEngine', () => {
   afterEach(async () => {
     vi.clearAllMocks();
     await engine.dispose();
+    resetUnifiedPersistence();
+    if (originalMemoryBackend === undefined) {
+      delete process.env.AQE_MEMORY_BACKEND;
+    } else {
+      process.env.AQE_MEMORY_BACKEND = originalMemoryBackend;
+    }
   });
 
   describe('Initialization', () => {

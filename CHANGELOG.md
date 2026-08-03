@@ -5,6 +5,54 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.5] - 2026-08-03
+
+Quality decisions and generated tests now carry evidence that reflects what AQE
+actually measured or executed, while initialization and embedding workflows are
+more reliable across supported environments.
+
+### Added
+
+- **Measured quality-gate evidence** ([#596]). CLI and MCP quality evaluation
+  now share canonical thresholds and require fresh, attributed measurements for
+  coverage, passing tests, critical bugs, code smells, security findings,
+  technical debt, and duplication. Missing, malformed, or stale evidence fails
+  closed instead of silently receiving a fabricated passing value.
+- **Optional status-line installation** ([#591]). `aqe init --no-statusline`
+  skips AQE's status line, removes an existing AQE-owned status line during an
+  upgrade, and preserves a project-authored status line.
+
+### Fixed
+
+- **Generated tests are trustworthy and executable** ([#577]). Test generation
+  preserves framework imports, validates evidence before reporting success, and
+  no longer treats structurally incomplete output as a passing quality result.
+- **Node's built-in test runner is honored end to end** ([#592]). Test discovery
+  filters Node test files correctly, execution uses the selected framework, and
+  retry confidence remains bounded.
+- **Batch embedding semantics are consistent** ([#585]). Mixed batches send only
+  semantic content to the embedding provider, nonsemantic entries receive zero
+  vectors in their original positions, and all-nonsemantic batches avoid
+  provider initialization entirely.
+- **HNSW initialization works in native ESM** ([#586]). Runtime dependency
+  loading no longer assumes a CommonJS global `require`.
+- **Learning-engine tests use isolated persistence** ([#588]), preventing shared
+  worker databases from accumulating duplicate genesis data and causing long
+  test runs.
+
+### Changed
+
+- Refreshed bundled Claude helpers and development-only Ruflo dependencies,
+  including upstream security and compatibility fixes.
+
+[#577]: https://github.com/proffesor-for-testing/agentic-qe/issues/577
+[#585]: https://github.com/proffesor-for-testing/agentic-qe/issues/585
+[#586]: https://github.com/proffesor-for-testing/agentic-qe/issues/586
+[#588]: https://github.com/proffesor-for-testing/agentic-qe/issues/588
+[#591]: https://github.com/proffesor-for-testing/agentic-qe/issues/591
+[#592]: https://github.com/proffesor-for-testing/agentic-qe/issues/592
+[#596]: https://github.com/proffesor-for-testing/agentic-qe/issues/596
+
 ## [3.13.4] - 2026-08-02
 
 Codex users now receive a complete, upgradeable Agentic QE workflow instead of

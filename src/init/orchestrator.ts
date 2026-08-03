@@ -72,6 +72,7 @@ export class ModularInitOrchestrator {
         noGovernance: options.noGovernance,
         noMcp: options.noMcp,
         noClaude: options.noClaude,
+        noStatusLine: options.noStatusLine,
         memoryBackend: options.memoryBackend,
       },
       config: {},

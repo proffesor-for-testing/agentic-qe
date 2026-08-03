@@ -9,6 +9,12 @@
 import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { getMemoryBackend } from '../base.js';
+import {
+  DEFAULT_QUALITY_THRESHOLDS,
+  loadQualityEvidence,
+  writeQualityEvidence,
+} from '../../../domains/quality-assessment/quality-evidence.js';
 
 // ============================================================================
 // Types
@@ -20,6 +26,7 @@ export interface QualityEvaluateParams {
   thresholds?: GateThresholds;
   includeAdvice?: boolean;
   riskTolerance?: 'low' | 'medium' | 'high';
+  evidence?: { measuredAt: string; source: string };
   [key: string]: unknown;
 }
 
@@ -41,6 +48,7 @@ export interface GateThresholds {
   codeSmells?: { max: number };
   securityVulnerabilities?: { max: number };
   technicalDebt?: { max: number };
+  duplications?: { max: number };
 }
 
 export interface QualityEvaluateResult {
@@ -97,7 +105,7 @@ export class QualityEvaluateTool extends MCPToolBase<QualityEvaluateParams, Qual
     context: MCPToolContext
   ): Promise<ToolResult<QualityEvaluateResult>> {
     const {
-      metrics = getDefaultMetrics(),
+      metrics: suppliedMetrics,
       gateName = 'default',
       thresholds = getDefaultThresholds(),
       includeAdvice = true,
@@ -105,6 +113,36 @@ export class QualityEvaluateTool extends MCPToolBase<QualityEvaluateParams, Qual
     } = params;
 
     try {
+      const memory = await getMemoryBackend(context);
+      if (suppliedMetrics && !params.evidence) {
+        return {
+          success: false,
+          error: 'Timestamped evidence provenance is required when supplying quality metrics.',
+        };
+      }
+      if (suppliedMetrics && params.evidence) {
+        await writeQualityEvidence(memory, suppliedMetrics, params.evidence);
+      }
+      const metrics = suppliedMetrics ?? await loadQualityEvidence(memory);
+      const configuredMetrics = [
+        ['coverage', thresholds.coverage],
+        ['testsPassing', thresholds.testsPassing],
+        ['criticalBugs', thresholds.criticalBugs],
+        ['codeSmells', thresholds.codeSmells],
+        ['securityVulnerabilities', thresholds.securityVulnerabilities],
+        ['technicalDebt', thresholds.technicalDebt],
+        ['duplications', thresholds.duplications],
+      ] as const;
+      const missingMetrics = configuredMetrics
+        .filter(([name, threshold]) => threshold !== undefined && metrics[name] === undefined)
+        .map(([name]) => name);
+      if (missingMetrics.length > 0) {
+        return {
+          success: false,
+          error: `Measured quality evidence missing configured metrics: ${missingMetrics.join(', ')}.`,
+        };
+      }
+
       this.emitStream(context, {
         status: 'evaluating',
         message: `Evaluating quality gate: ${gateName}`,
@@ -187,12 +225,38 @@ export class QualityEvaluateTool extends MCPToolBase<QualityEvaluateParams, Qual
         });
       }
 
+      if (thresholds.technicalDebt && metrics.technicalDebt !== undefined) {
+        checks.push({
+          name: 'Technical Debt',
+          passed: metrics.technicalDebt <= thresholds.technicalDebt.max,
+          value: metrics.technicalDebt,
+          threshold: thresholds.technicalDebt.max,
+          severity: 'medium',
+          message: metrics.technicalDebt <= thresholds.technicalDebt.max
+            ? `${metrics.technicalDebt}h technical debt within threshold`
+            : `${metrics.technicalDebt}h technical debt exceeds threshold of ${thresholds.technicalDebt.max}h`,
+        });
+      }
+
+      if (thresholds.duplications && metrics.duplications !== undefined) {
+        checks.push({
+          name: 'Duplications',
+          passed: metrics.duplications <= thresholds.duplications.max,
+          value: metrics.duplications,
+          threshold: thresholds.duplications.max,
+          severity: 'low',
+          message: metrics.duplications <= thresholds.duplications.max
+            ? `${metrics.duplications}% duplication within threshold`
+            : `${metrics.duplications}% duplication exceeds threshold of ${thresholds.duplications.max}%`,
+        });
+      }
+
       // Calculate overall score and grade
       const passedChecks = checks.filter(c => c.passed).length;
       const totalChecks = checks.length;
       const score = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 100;
       const grade = calculateGrade(score, checks);
-      const passed = checks.every(c => c.passed || c.severity !== 'critical');
+      const passed = checks.every(c => c.passed);
 
       // Generate deployment advice
       const deploymentAdvice: DeploymentAdvice | undefined = includeAdvice
@@ -269,6 +333,14 @@ const QUALITY_EVALUATE_SCHEMA: MCPToolSchema = {
       enum: ['low', 'medium', 'high'],
       default: 'medium',
     },
+    evidence: {
+      type: 'object',
+      description: 'Provenance required to persist supplied metrics as canonical measured evidence',
+      properties: {
+        measuredAt: { type: 'string', description: 'ISO-8601 measurement timestamp' },
+        source: { type: 'string', description: 'Scanner or analyzer that produced the metrics' },
+      },
+    },
   },
 };
 
@@ -276,27 +348,15 @@ const QUALITY_EVALUATE_SCHEMA: MCPToolSchema = {
 // Helper Functions
 // ============================================================================
 
-function getDefaultMetrics(): QualityMetrics {
-  return {
-    coverage: 80,
-    testsPassing: 95,
-    criticalBugs: 0,
-    codeSmells: 15,
-    securityVulnerabilities: 0,
-    technicalDebt: 4,
-    duplications: 3,
-    complexity: 8,
-  };
-}
-
 function getDefaultThresholds(): GateThresholds {
   return {
-    coverage: { min: 80 },
-    testsPassing: { min: 95 },
-    criticalBugs: { max: 0 },
-    securityVulnerabilities: { max: 0 },
-    codeSmells: { max: 50 },
-    technicalDebt: { max: 8 },
+    coverage: { min: DEFAULT_QUALITY_THRESHOLDS.coverage.value },
+    testsPassing: { min: DEFAULT_QUALITY_THRESHOLDS.testsPassing.value },
+    criticalBugs: { max: DEFAULT_QUALITY_THRESHOLDS.criticalBugs.value },
+    securityVulnerabilities: { max: DEFAULT_QUALITY_THRESHOLDS.securityVulnerabilities.value },
+    codeSmells: { max: DEFAULT_QUALITY_THRESHOLDS.codeSmells.value },
+    technicalDebt: { max: DEFAULT_QUALITY_THRESHOLDS.technicalDebt.value },
+    duplications: { max: DEFAULT_QUALITY_THRESHOLDS.duplications.value },
   };
 }
 
