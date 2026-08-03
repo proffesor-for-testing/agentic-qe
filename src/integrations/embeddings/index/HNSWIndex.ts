@@ -10,12 +10,16 @@
  * @module integrations/embeddings/index/HNSWIndex
  */
 
+import { createRequire } from 'node:module';
+
 import type {
   IEmbedding,
   IHNSWConfig,
   EmbeddingNamespace,
   ISearchOptions,
 } from '../base/types.js';
+
+const require = createRequire(import.meta.url);
 
 // hnswlib-node is an OPTIONAL dependency (issue #439, ADR-090 amendment).
 // Top-level static import would crash module load on platforms where the
