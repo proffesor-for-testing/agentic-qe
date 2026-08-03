@@ -279,6 +279,16 @@ describe('CoverageGapsTool', () => {
 
 describe('QualityEvaluateTool', () => {
   let tool: QualityEvaluateTool;
+  const measuredMetrics = {
+    coverage: 90,
+    testsPassing: 100,
+    criticalBugs: 0,
+    codeSmells: 10,
+    securityVulnerabilities: 0,
+    technicalDebt: 2,
+    duplications: 3,
+  };
+  const evidence = { measuredAt: new Date().toISOString(), source: 'unit-test analyzer' };
 
   beforeEach(() => {
     tool = new QualityEvaluateTool();
@@ -295,17 +305,40 @@ describe('QualityEvaluateTool', () => {
   it('should evaluate quality gates', async () => {
     const result = await tool.invoke({
       gateName: 'default',
+      metrics: measuredMetrics,
+      evidence,
     });
 
     expect(result.success).toBe(true);
     expect(result.data?.passed).toBeDefined();
-    expect(result.data?.checks).toBeDefined();
+    expect(result.data?.checks).toHaveLength(7);
+    expect(result.data?.checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Code Smells', threshold: 20 }),
+      expect.objectContaining({ name: 'Technical Debt', threshold: 5 }),
+      expect.objectContaining({ name: 'Duplications', threshold: 5 }),
+    ]));
+  });
+
+  it('should fail closed when no metrics or stored evidence are available', async () => {
+    const result = await tool.invoke({ gateName: 'default' });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/no measured quality evidence/i);
+  });
+
+  it('should reject supplied metrics without timestamped provenance', async () => {
+    const result = await tool.invoke({ metrics: measuredMetrics });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/timestamped evidence provenance is required/i);
   });
 
   it('should include deployment advice', async () => {
     const result = await tool.invoke({
       gateName: 'production',
-      includeDeploymentAdvice: true,
+      metrics: measuredMetrics,
+      evidence,
+      includeAdvice: true,
     });
 
     expect(result.success).toBe(true);

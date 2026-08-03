@@ -22,6 +22,7 @@ import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constant
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
+import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 
 // ============================================================================
 // Configuration
@@ -1296,6 +1297,14 @@ Provide:
           statement: result.coverage.statement ?? 0,
           files: result.fileCoverages?.length ?? 0,
         }, { persist: true });
+        if (Number.isFinite(result.coverage.line)) {
+          await writeQualityEvidence(this.memory, {
+            coverage: result.coverage.line,
+          }, {
+            measuredAt: new Date().toISOString(),
+            source: 'test-execution coverage',
+          });
+        }
 
         // Store per-file coverage via memory.set() (not storeVector) so that
         // quality-analyzer's getStoredCoverage() can read it with memory.get()

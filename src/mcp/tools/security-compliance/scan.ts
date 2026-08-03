@@ -9,7 +9,7 @@
  */
 
 import * as fs from 'fs';
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getMemoryBackend } from '../base';
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
@@ -17,6 +17,7 @@ import {
   ALL_SECURITY_PATTERNS,
   SECRET_PATTERNS,
 } from '../../../domains/security-compliance/services/scanners/security-patterns.js';
+import { writeQualityEvidence } from '../../../domains/quality-assessment/quality-evidence.js';
 
 // ============================================================================
 // Types
@@ -230,6 +231,13 @@ export class SecurityScanTool extends MCPToolBase<SecurityScanParams, SecuritySc
         ? Math.min(...vulnerabilities.map(v => severityOrder.indexOf(v.severity)))
         : severityOrder.length;
       const passed = worstSeverity > failThreshold;
+
+      await writeQualityEvidence(await getMemoryBackend(context), {
+        securityVulnerabilities: vulnerabilities.length,
+      }, {
+        measuredAt: new Date().toISOString(),
+        source: 'qe/security/scan',
+      });
 
       this.emitStream(context, {
         status: 'complete',

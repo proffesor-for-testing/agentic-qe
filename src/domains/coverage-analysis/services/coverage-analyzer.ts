@@ -23,6 +23,7 @@ import {
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 
 // ============================================================================
 // Service Interface
@@ -613,6 +614,10 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
       // Store latest snapshot
       await this.memory.set('coverage:latest', summary, { persist: true });
+      await writeQualityEvidence(this.memory, { coverage: summary.line }, {
+        measuredAt: new Date().toISOString(),
+        source: 'coverage-analysis',
+      });
 
       // Store historical snapshot
       const timestamp = Date.now();
