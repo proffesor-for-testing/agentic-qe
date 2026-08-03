@@ -298,8 +298,8 @@ export interface MemoryBackend extends Initializable, Disposable {
   /** Search by pattern (`options.namespace` mirrors `get`). */
   search(pattern: string, limit?: number, options?: RetrieveOptions): Promise<string[]>;
 
-  /** Vector similarity search (HNSW) */
-  vectorSearch(embedding: number[], k: number): Promise<VectorSearchResult[]>;
+  /** Vector similarity search (HNSW), optionally scoped by logical key prefix. */
+  vectorSearch(embedding: number[], k: number, keyPrefix?: string): Promise<VectorSearchResult[]>;
 
   /** Store vector embedding */
   storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void>;

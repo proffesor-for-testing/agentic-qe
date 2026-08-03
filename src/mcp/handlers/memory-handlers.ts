@@ -245,12 +245,12 @@ export async function handleMemoryQuery(
       try {
         // Generate real 384-dim transformer embedding for accurate cosine similarity search
         const embedding = await computeRealEmbedding(params.pattern);
-        const vectorResults = await kernel!.memory.vectorSearch(embedding, limit + offset);
-
-        // Filter by namespace if specified
-        const filtered = namespace !== 'default'
-          ? vectorResults.filter(r => r.key.startsWith(`${namespace}:`))
-          : vectorResults;
+        const keyPrefix = namespace !== 'default' ? `${namespace}:` : undefined;
+        const filtered = await kernel!.memory.vectorSearch(
+          embedding,
+          limit + offset,
+          keyPrefix
+        );
 
         const paginatedResults = filtered.slice(offset, offset + limit);
 
