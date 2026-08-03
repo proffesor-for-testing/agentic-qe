@@ -152,6 +152,8 @@ export type TestExecutionAPI = ITestExecutionAPI;
 export interface ISimpleTestRequest {
   /** Test files to execute */
   testFiles: string[];
+  /** Explicit test framework; auto-detected when omitted */
+  framework?: string;
   /** Run tests in parallel (default: true) */
   parallel?: boolean;
   /** Number of retry attempts for failed tests (default: 0) */

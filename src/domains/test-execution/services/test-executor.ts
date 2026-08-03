@@ -554,7 +554,7 @@ Provide:
 
         // If no coverage in stdout JSON, try reading from disk
         // (vitest/jest write coverage to coverage/coverage-summary.json)
-        if (parseResult.success && !parseResult.value.coverage) {
+        if (parseResult.success && !parseResult.value.coverage && ['vitest', 'jest'].includes(framework.toLowerCase())) {
           const diskCoverage = this.readCoverageFromDisk();
           if (diskCoverage) {
             parseResult.value.coverage = diskCoverage.summary;
@@ -600,6 +600,12 @@ Provide:
           command: 'npx',
           args: ['mocha', ...files, '--reporter=json'],
         };
+      case 'node':
+      case 'node-test':
+        return {
+          command: process.execPath,
+          args: ['--test', ...files],
+        };
       default:
         // Default to vitest
         return {
@@ -627,6 +633,9 @@ Provide:
           return this.parseJestOutput(stdout, stderr, file, exitCode);
         case 'mocha':
           return this.parseMochaOutput(stdout, stderr, file, exitCode);
+        case 'node':
+        case 'node-test':
+          return this.parseNodeTestOutput(stdout, stderr, file, exitCode);
         default:
           return this.parseVitestOutput(stdout, stderr, file, exitCode);
       }
@@ -636,6 +645,57 @@ Provide:
         `stdout: ${stdout.slice(0, 500)}\nstderr: ${stderr.slice(0, 500)}`
       ));
     }
+  }
+
+  /**
+   * Parse the TAP or spec summary emitted by Node's built-in test runner.
+   */
+  private parseNodeTestOutput(
+    stdout: string,
+    stderr: string,
+    file: string,
+    exitCode: number | null
+  ): Result<TestExecutionResult, Error> {
+    const output = `${stdout}\n${stderr}`;
+    const summary = new Map<string, number>();
+    for (const match of output.matchAll(/^(?:#|ℹ) (tests|pass|fail|cancelled|skipped|todo) (\d+)\s*$/gm)) {
+      summary.set(match[1], Number(match[2]));
+    }
+
+    const total = summary.get('tests') ?? 0;
+    if (total === 0) {
+      return err(new Error(`node:test reported zero tests for ${file}`));
+    }
+
+    const passed = summary.get('pass') ?? 0;
+    const failed = summary.get('fail') ?? 0;
+    const skipped = (summary.get('skipped') ?? 0) +
+      (summary.get('cancelled') ?? 0) +
+      (summary.get('todo') ?? 0);
+    if (exitCode !== 0 && failed === 0) {
+      return err(new Error(`node:test exited with code ${exitCode ?? 'unknown'} for ${file}`));
+    }
+
+    const failedNames = [
+      ...Array.from(output.matchAll(/^not ok \d+ - (.+)$/gm), match => match[1].trim()),
+      ...Array.from(output.matchAll(/^✖ (.+?)(?: \(|$)/gm), match => match[1].trim()),
+    ];
+    const failedTests: FailedTest[] = Array.from({ length: failed }, (_, index) => ({
+      testId: uuidv4(),
+      testName: failedNames[index] ?? `node:test failure ${index + 1}`,
+      file,
+      error: stderr.trim() || failedNames[index] || 'Test failed',
+      duration: 0,
+    }));
+
+    return ok({
+      total,
+      passed,
+      failed,
+      skipped,
+      failedTests,
+      coverage: undefined,
+    });
   }
 
   /**

@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { walkSourceFiles } from '../../../../src/cli/utils/file-discovery';
+import { filterTestFilesForFramework, walkSourceFiles } from '../../../../src/cli/utils/file-discovery';
 
 describe('walkSourceFiles (Fix #280)', () => {
   let tempDir: string;
@@ -138,6 +138,16 @@ describe('walkSourceFiles (Fix #280)', () => {
     expect(files.every(f =>
       f.includes('.test.') || f.includes('.spec.') || f.includes('test_')
     )).toBe(true);
+  });
+
+  it('excludes Playwright specs from an explicit node:test run', () => {
+    const nodeTest = join(tempDir, 'unit.test.cjs');
+    const browserTest = join(tempDir, 'browser.spec.cjs');
+    writeFileSync(nodeTest, "const test = require('node:test');");
+    writeFileSync(browserTest, "const { test } = require('@playwright/test');");
+
+    expect(filterTestFilesForFramework([nodeTest, browserTest], 'node')).toEqual([nodeTest]);
+    expect(filterTestFilesForFramework([nodeTest, browserTest], 'playwright')).toEqual([nodeTest, browserTest]);
   });
 
   it('should respect maxDepth option', () => {

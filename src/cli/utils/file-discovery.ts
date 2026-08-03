@@ -7,7 +7,7 @@
  * Fixes #280: CLI commands previously only found .ts files.
  */
 
-import { existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
 
 // ============================================================================
@@ -130,4 +130,15 @@ export function walkSourceFiles(targetPath: string, options: WalkOptions = {}): 
 
   walk(targetPath, 0);
   return result;
+}
+
+export function filterTestFilesForFramework(testFiles: string[], framework: string): string[] {
+  if (framework !== 'node' && framework !== 'node-test') return testFiles;
+  return testFiles.filter(file => {
+    try {
+      return !/@playwright\/test|require\(\s*['"]playwright['"]\s*\)/.test(readFileSync(file, 'utf8'));
+    } catch {
+      return true;
+    }
+  });
 }

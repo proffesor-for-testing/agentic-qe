@@ -85,6 +85,10 @@ import {
 // Coordinator Configuration
 // ============================================================================
 
+export function calculateRetryStrategyConfidence(testCount: number): number {
+  return Math.min(1, 0.7 + (testCount / 100));
+}
+
 /**
  * Configuration for the test execution coordinator
  */
@@ -321,7 +325,7 @@ export class TestExecutionCoordinator
       });
     }
 
-    const framework = this.detectFramework(testsToRun);
+    const framework = request.framework ?? this.detectFramework(testsToRun);
     const workers = request.workers ?? Math.min(4, Math.max(1, testsToRun.length));
     // Batched runners own internal parallelism, so the timeout applies to the
     // whole discovered suite rather than one file.
@@ -769,7 +773,7 @@ export class TestExecutionCoordinator
           maxRetries: request.maxRetries,
           backoffType: request.backoff ?? 'exponential',
         },
-        Math.min(1, 0.7 + (testsToRetry.length / 100)) // Higher confidence for larger batches
+        calculateRetryStrategyConfidence(testsToRetry.length)
       );
 
       if (!isStrategyVerified) {
