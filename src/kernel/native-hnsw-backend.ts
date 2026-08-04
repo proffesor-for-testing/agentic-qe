@@ -382,12 +382,20 @@ export class NativeHnswBackend implements IHnswIndexProvider {
     const normalizedQuery = this.normalizeVector(query);
     const actualK = Math.min(k, this.liveIds.size);
 
-    // Overshoot k by 2x (capped at index size) so that defensive dedup
-    // below can drop any duplicate-label entries hnswlib may return after
-    // long add/remove churn and still leave us with at least k unique
-    // results when possible.
-    const overshoot = Math.min(actualK * 2, this.liveIds.size);
-    const native = this.nativeIndex.searchKnn(toNumberArray(normalizedQuery), overshoot);
+    // Keep the HNSW traversal breadth independent of the requested result
+    // count throughout the index's qualified range. hnswlib effectively uses
+    // max(k, efSearch) as its candidate breadth, so forwarding small K values
+    // directly can make top-20 and top-100 explore different graphs. Query a
+    // stable efSearch-sized pool with 2x defensive dedup headroom, then
+    // truncate. Requests above efSearch remain approximate and use 2x their K.
+    const searchBreadth = Math.min(
+      this.liveIds.size,
+      Math.max(actualK, this.config.efSearch) * 2,
+    );
+    const native = this.nativeIndex.searchKnn(
+      toNumberArray(normalizedQuery),
+      searchBreadth,
+    );
 
     // Convert hnswlib-node distances to similarity scores.
     //   cosine space: distance = 1 - cos_sim, so similarity = 1 - distance

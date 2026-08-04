@@ -5,6 +5,38 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.7] - 2026-08-04
+
+Memory operations now disclose partial semantic-index failures, and ANN search
+returns stable, qualified top-K results. The release also includes the latest
+merged dependency security remediations.
+
+### Fixed
+
+- **Memory stores disclose semantic-index failures** ([#603]). KV persistence
+  can still succeed when the optional embedding capability is unavailable, but
+  structured MCP/JSON output now reports `VECTOR_INDEX_UNAVAILABLE` and the
+  human CLI prints a warning instead of implying that vector indexing worked.
+- **ANN top-K results remain stable across requested limits** ([#604]). Native
+  HNSW queries use request-independent traversal breadth within their qualified
+  range, retain deduplication headroom, and iteratively qualify logical and
+  physical namespace filters. Semantic results now report backend, index type,
+  approximation status, estimated recall, and qualified K limits.
+- **Critical dependency alerts remediated** ([#607]). Root and shipped
+  development-tool lockfiles now resolve patched `fast-xml-parser`, `hono`,
+  `minimatch`, and `serialize-javascript` versions without changing public AQE
+  APIs.
+
+### Changed
+
+- Refreshed Ruflo development-tool dependency locks from [#605]. Ruflo remains
+  development-time tooling and is not added to AQE runtime dependencies.
+
+[#603]: https://github.com/proffesor-for-testing/agentic-qe/issues/603
+[#604]: https://github.com/proffesor-for-testing/agentic-qe/issues/604
+[#605]: https://github.com/proffesor-for-testing/agentic-qe/pull/605
+[#607]: https://github.com/proffesor-for-testing/agentic-qe/pull/607
+
 ## [3.13.6] - 2026-08-03
 
 Learning records and semantic search data now persist and resolve reliably,

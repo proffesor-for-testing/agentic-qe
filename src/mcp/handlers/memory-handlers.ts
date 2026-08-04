@@ -29,6 +29,7 @@ import {
 
 // Real transformer embeddings for semantic search (384-dim, matches ExperienceReplay)
 import { computeRealEmbedding } from '../../learning/real-embeddings.js';
+import type { VectorSearchProvenance } from '../../kernel/interfaces.js';
 
 // ============================================================================
 // Memory Store Handler
@@ -98,6 +99,7 @@ export async function handleMemoryStore(
 
     // Store vector embedding for semantic search (HNSW)
     // Generate real 384-dim transformer embedding so memory_query semantic:true returns meaningful scores
+    let vectorIndex: MemoryStoreResult['vectorIndex'];
     try {
       const textForEmbedding = `${params.key} ${JSON.stringify(params.value)}`;
       const embedding = await computeRealEmbedding(textForEmbedding);
@@ -106,9 +108,19 @@ export async function handleMemoryStore(
         namespace,
         storedAt: Date.now(),
       });
-    } catch (vecErr) {
+      vectorIndex = { status: 'indexed' };
+    } catch {
       // Non-critical — KV store succeeded, vector indexing is best-effort
-      console.warn(`[MemoryHandler] Vector indexing failed for ${params.key}: ${toErrorMessage(vecErr)}`);
+      console.warn(
+        '[MemoryHandler] VECTOR_INDEX_UNAVAILABLE: Semantic vector indexing is unavailable for this entry.'
+      );
+      vectorIndex = {
+        status: 'failed',
+        error: {
+          code: 'VECTOR_INDEX_UNAVAILABLE',
+          message: 'Semantic vector indexing is unavailable for this entry.',
+        },
+      };
     }
 
     // ADR-058: Register pattern after successful write for future contradiction detection
@@ -128,6 +140,7 @@ export async function handleMemoryStore(
         namespace,
         timestamp: new Date().toISOString(),
         persisted: true,
+        vectorIndex,
       },
     };
   } catch (error) {
@@ -209,6 +222,7 @@ interface MemoryQueryResult {
   total: number;
   hasMore: boolean;
   searchType: 'pattern' | 'semantic';
+  searchProvenance?: VectorSearchProvenance;
 }
 
 /**
@@ -270,6 +284,7 @@ export async function handleMemoryQuery(
             total: filtered.length,
             hasMore: offset + limit < filtered.length,
             searchType: 'semantic',
+            searchProvenance: kernel!.memory.getVectorSearchProvenance?.(),
           },
         };
       } catch (vectorError) {

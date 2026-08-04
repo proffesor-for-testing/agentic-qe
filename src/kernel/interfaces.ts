@@ -301,6 +301,9 @@ export interface MemoryBackend extends Initializable, Disposable {
   /** Vector similarity search (HNSW), optionally scoped by logical key prefix. */
   vectorSearch(embedding: number[], k: number, keyPrefix?: string): Promise<VectorSearchResult[]>;
 
+  /** Describe the index and guarantees used by vectorSearch. */
+  getVectorSearchProvenance?(): VectorSearchProvenance;
+
   /** Store vector embedding */
   storeVector(key: string, embedding: number[], metadata?: unknown): Promise<void>;
 
@@ -317,6 +320,15 @@ export interface MemoryBackend extends Initializable, Disposable {
    * @returns True if the code intelligence knowledge graph has been indexed
    */
   hasCodeIntelligenceIndex(): Promise<boolean>;
+}
+
+export interface VectorSearchProvenance {
+  backend: 'in-memory' | 'native-hnsw' | 'progressive-hnsw';
+  indexType: 'flat' | 'hnsw';
+  approximate: boolean;
+  estimatedRecall: number;
+  /** Largest K covered by request-independent HNSW traversal breadth. */
+  qualifiedMaxK?: number;
 }
 
 export interface StoreOptions {

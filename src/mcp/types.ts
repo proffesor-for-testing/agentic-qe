@@ -643,6 +643,16 @@ export interface MemoryStoreResult {
   namespace: string;
   timestamp: string;
   persisted: boolean;
+  /** Outcome of best-effort semantic vector indexing for this entry. */
+  vectorIndex?:
+    | { status: 'indexed' }
+    | {
+      status: 'failed';
+      error: {
+        code: 'VECTOR_INDEX_UNAVAILABLE';
+        message: string;
+      };
+    };
 }
 
 /**

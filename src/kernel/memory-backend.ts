@@ -3,7 +3,13 @@
  * Hybrid memory implementation (in-memory + optional persistence)
  */
 
-import { MemoryBackend, StoreOptions, RetrieveOptions, VectorSearchResult } from './interfaces';
+import {
+  MemoryBackend,
+  StoreOptions,
+  RetrieveOptions,
+  VectorSearchResult,
+  VectorSearchProvenance,
+} from './interfaces';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 import { MEMORY_CONSTANTS } from './constants.js';
 
@@ -126,6 +132,15 @@ export class InMemoryBackend implements MemoryBackend {
     return results
       .sort((a, b) => b.score - a.score)
       .slice(0, k);
+  }
+
+  getVectorSearchProvenance(): VectorSearchProvenance {
+    return {
+      backend: 'in-memory',
+      indexType: 'flat',
+      approximate: false,
+      estimatedRecall: 1,
+    };
   }
 
   async storeVector(

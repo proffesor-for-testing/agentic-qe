@@ -15,6 +15,7 @@ import {
 import {
   handleFleetInit,
   disposeFleet,
+  getFleetState,
 } from '../../../../src/mcp/handlers/core-handlers';
 import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import type {
@@ -67,6 +68,35 @@ describe('Memory Handlers', { timeout: 30000 }, () => {
       expect(result.data!.key).toBe('test-key');
       expect(result.data!.namespace).toBe('default');
       expect(result.data!.timestamp).toBeDefined();
+      expect(result.data!.vectorIndex).toEqual({ status: 'indexed' });
+    });
+
+    it('should disclose a stable vector indexing failure without exposing internals', async () => {
+      const { kernel } = getFleetState();
+      vi.spyOn(kernel!.memory, 'storeVector').mockRejectedValueOnce(
+        new Error('secret provider path /private/model-cache')
+      );
+      const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+      const result = await handleMemoryStore({
+        key: 'vector-failure',
+        value: 'still stored in KV memory',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.stored).toBe(true);
+      expect(result.data!.vectorIndex).toEqual({
+        status: 'failed',
+        error: {
+          code: 'VECTOR_INDEX_UNAVAILABLE',
+          message: 'Semantic vector indexing is unavailable for this entry.',
+        },
+      });
+      expect(JSON.stringify(result)).not.toContain('/private/model-cache');
+      expect(warning).toHaveBeenCalledWith(
+        '[MemoryHandler] VECTOR_INDEX_UNAVAILABLE: Semantic vector indexing is unavailable for this entry.'
+      );
+      expect(JSON.stringify(warning.mock.calls)).not.toContain('/private/model-cache');
     });
 
     it('should store complex object value', async () => {
@@ -298,6 +328,19 @@ describe('Memory Handlers', { timeout: 30000 }, () => {
       expect(result.data!.entries.length).toBeGreaterThanOrEqual(2);
       result.data!.entries.forEach(entry => {
         expect(entry.key).toMatch(/^test-/);
+      });
+    });
+
+    it('should report semantic search provenance', async () => {
+      const result = await handleMemoryQuery({ pattern: 'test value', semantic: true });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.searchType).toBe('semantic');
+      expect(result.data!.searchProvenance).toEqual({
+        backend: 'in-memory',
+        indexType: 'flat',
+        approximate: false,
+        estimatedRecall: 1,
       });
     });
 
