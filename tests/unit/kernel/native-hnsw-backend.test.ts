@@ -432,6 +432,67 @@ describe('NativeHnswBackend', () => {
       expect(dissimilarResult).toBeDefined();
       expect(similarResult!.score).toBeGreaterThan(dissimilarResult!.score);
     });
+
+    it('should keep top-K results nested when K is within efSearch', () => {
+      const dimensions = 32;
+      const backend = new NativeHnswBackend({
+        dimensions,
+        M: 8,
+        efConstruction: 50,
+        efSearch: 100,
+        metric: 'cosine',
+        maxElements: 5000,
+      });
+
+      try {
+        // This seeded fixture previously diverged at rank 17 because the
+        // native search breadth changed with requested K.
+        let state = 123456789;
+        const nextValue = (): number => {
+          state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+          return (state / 4294967296) * 2 - 1;
+        };
+        const vectors: Float32Array[] = [];
+        for (let id = 0; id < 5000; id++) {
+          const vector = new Float32Array(dimensions);
+          for (let index = 0; index < dimensions; index++) {
+            vector[index] = nextValue();
+          }
+          vectors.push(vector);
+          backend.add(id, vector);
+        }
+
+        const top20 = backend.search(vectors[0], 20);
+        const top100 = backend.search(vectors[0], 100);
+
+        expect(top20.map(result => result.id)).toEqual(
+          top100.slice(0, 20).map(result => result.id),
+        );
+
+        const query = vectors[0];
+        const exactTop20 = vectors
+          .map((vector, id) => {
+            let dot = 0;
+            let queryNorm = 0;
+            let vectorNorm = 0;
+            for (let index = 0; index < dimensions; index++) {
+              dot += query[index] * vector[index];
+              queryNorm += query[index] * query[index];
+              vectorNorm += vector[index] * vector[index];
+            }
+            return { id, score: dot / Math.sqrt(queryNorm * vectorNorm) };
+          })
+          .sort((left, right) => right.score - left.score)
+          .slice(0, 20)
+          .map(result => result.id);
+        const returnedIds = new Set(top20.map(result => result.id));
+        const recallAt20 = exactTop20.filter(id => returnedIds.has(id)).length / 20;
+
+        expect(recallAt20).toBeGreaterThanOrEqual(0.95);
+      } finally {
+        backend.dispose();
+      }
+    });
   });
 
   // ===========================================================================

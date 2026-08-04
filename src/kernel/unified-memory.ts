@@ -29,7 +29,8 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { MEMORY_CONSTANTS } from './constants.js';
+import { HNSW_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
+import type { VectorSearchProvenance } from './interfaces.js';
 import { LoggerFactory } from '../logging/index.js';
 import { HashChainGate } from '../integrations/ruvector/proof-gate.js';
 
@@ -856,6 +857,8 @@ export class UnifiedMemoryManager {
   ): Promise<Array<{ id: string; score: number; metadata?: unknown }>> {
     this.ensureInitialized();
 
+    if (!Number.isInteger(k) || k <= 0) return [];
+
     if (!this.vectorsLoaded) {
       await this.loadVectorIndex();
     }
@@ -865,11 +868,28 @@ export class UnifiedMemoryManager {
     // ANN query until enough logical matches are found so global top-K results
     // cannot hide a valid namespaced hit.
     const indexSize = this.vectorIndex.size();
-    let candidateCount = Math.min(indexSize, Math.max(k * 2, 1));
+    // Unscoped searches need exactly K ranked candidates. Let the backend use
+    // its request-independent efSearch breadth so changing K within that
+    // qualified range cannot change the traversal. Logical namespace filters
+    // still require oversampling and iterative expansion because matching
+    // keys may be hidden behind global neighbors from other namespaces.
+    const isScoped = Boolean(namespace || keyPrefix);
+    let candidateCount = Math.min(indexSize, Math.max(isScoped ? k * 2 : k, 1));
+    const namespaceRows = namespace
+      ? this.db!.prepare(
+        'SELECT id, namespace, metadata FROM vectors WHERE namespace = ?'
+      ).all(namespace) as Array<{ id: string; namespace: string; metadata: string | null }>
+      : undefined;
+    const namespaceMap = namespaceRows
+      ? new Map(namespaceRows.map(row => [row.id, row]))
+      : undefined;
     let results = this.vectorIndex.search(query, candidateCount);
     while (
-      keyPrefix &&
-      results.filter(result => result.id.startsWith(keyPrefix)).length < k &&
+      isScoped &&
+      results.filter(result =>
+        (!keyPrefix || result.id.startsWith(keyPrefix)) &&
+        (!namespaceMap || namespaceMap.has(result.id))
+      ).length < k &&
       candidateCount < indexSize
     ) {
       candidateCount = Math.min(indexSize, candidateCount * 2);
@@ -877,13 +897,14 @@ export class UnifiedMemoryManager {
     }
     if (results.length === 0) return [];
 
-    const ids = results.map(r => r.id);
-    const placeholders = ids.map(() => '?').join(',');
-    const rows = this.db!.prepare(
-      `SELECT id, namespace, metadata FROM vectors WHERE id IN (${placeholders})`
-    ).all(...ids) as Array<{ id: string; namespace: string; metadata: string | null }>;
-
-    const metadataMap = new Map(rows.map(row => [row.id, row]));
+    const metadataMap = namespaceMap ?? (() => {
+      const ids = results.map(r => r.id);
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = this.db!.prepare(
+        `SELECT id, namespace, metadata FROM vectors WHERE id IN (${placeholders})`
+      ).all(...ids) as Array<{ id: string; namespace: string; metadata: string | null }>;
+      return new Map(rows.map(row => [row.id, row]));
+    })();
 
     if (namespace) {
       const filteredResults: Array<{ id: string; score: number; metadata?: unknown }> = [];
@@ -911,6 +932,25 @@ export class UnifiedMemoryManager {
         metadata: row?.metadata ? safeJsonParse(row.metadata) : undefined,
       };
     });
+  }
+
+  getVectorSearchProvenance(): VectorSearchProvenance {
+    const provider = this.vectorIndex.getProvider();
+    if (!provider.isNativeBackend()) {
+      return {
+        backend: 'progressive-hnsw',
+        indexType: 'flat',
+        approximate: false,
+        estimatedRecall: 1,
+      };
+    }
+    return {
+      backend: 'native-hnsw',
+      indexType: 'hnsw',
+      approximate: true,
+      estimatedRecall: this.vectorIndex.recall(),
+      qualifiedMaxK: HNSW_CONSTANTS.EF_SEARCH,
+    };
   }
 
   async vectorCount(namespace?: string): Promise<number> {

@@ -10,7 +10,13 @@
  * backward compatibility with existing MemoryBackend interface.
  */
 
-import { MemoryBackend, StoreOptions, RetrieveOptions, VectorSearchResult } from './interfaces';
+import {
+  MemoryBackend,
+  StoreOptions,
+  RetrieveOptions,
+  VectorSearchResult,
+  VectorSearchProvenance,
+} from './interfaces';
 import {
   UnifiedMemoryManager,
   getUnifiedMemory,
@@ -252,6 +258,11 @@ export class HybridMemoryBackend implements MemoryBackend {
       score: r.score,
       metadata: r.metadata,
     }));
+  }
+
+  getVectorSearchProvenance(): VectorSearchProvenance {
+    this.ensureInitialized();
+    return this.unifiedMemory!.getVectorSearchProvenance();
   }
 
   /**

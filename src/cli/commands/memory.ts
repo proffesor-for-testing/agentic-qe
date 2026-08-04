@@ -75,6 +75,9 @@ Examples:
           console.log(JSON.stringify(result, null, 2));
         } else if (result.success) {
           console.log(chalk.green(`  ✓ Stored "${options.key}" in namespace "${options.namespace}"`));
+          if (result.data?.vectorIndex?.status === 'failed') {
+            console.warn(chalk.yellow(`  ⚠ ${result.data.vectorIndex.error.message}`));
+          }
         } else {
           console.error(chalk.red(`  ✗ ${result.error}`));
           await cleanupAndExit(1);

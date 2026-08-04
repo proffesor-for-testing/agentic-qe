@@ -394,6 +394,41 @@ describe('UnifiedMemoryManager', () => {
     });
 
     describe('vectorSearch', () => {
+      it('reports HNSW approximation limits', () => {
+        expect(manager.getVectorSearchProvenance()).toMatchObject({
+          indexType: 'hnsw',
+          approximate: true,
+          qualifiedMaxK: 100,
+        });
+        expect(manager.getVectorSearchProvenance().estimatedRecall).toBeGreaterThanOrEqual(0.95);
+      });
+
+      it('reports the progressive fallback as an exact flat index', () => {
+        const vectorIndex = (manager as unknown as {
+          vectorIndex: { getProvider: () => { isNativeBackend: () => boolean } };
+        }).vectorIndex;
+        vi.spyOn(vectorIndex.getProvider(), 'isNativeBackend').mockReturnValue(false);
+
+        expect(manager.getVectorSearchProvenance()).toEqual({
+          backend: 'progressive-hnsw',
+          indexType: 'flat',
+          approximate: false,
+          estimatedRecall: 1,
+        });
+      });
+
+      it('requests exactly K candidates for an unscoped search', async () => {
+        await manager.vectorStore('v1', [1, 0, 0], 'default');
+        const vectorIndex = (manager as unknown as {
+          vectorIndex: { search: (query: number[], k: number) => Array<{ id: string; score: number }> };
+        }).vectorIndex;
+        const search = vi.spyOn(vectorIndex, 'search');
+
+        await manager.vectorSearch([1, 0, 0], 1);
+
+        expect(search).toHaveBeenCalledWith([1, 0, 0], 1);
+      });
+
       it('scopes candidates by logical key prefix before applying the limit', async () => {
         await manager.vectorStore('other:closer', [1, 0, 0], 'qe-kernel');
         await manager.vectorStore('target:only', [0.9, 0.1, 0], 'qe-kernel');
@@ -403,6 +438,24 @@ describe('UnifiedMemoryManager', () => {
         expect(results).toHaveLength(1);
         expect(results[0].id).toBe('target:only');
       });
+
+      it('does not let a closer vector from another physical namespace hide a match', async () => {
+        await manager.vectorStore('other:closer', [1, 0, 0], 'other');
+        await manager.vectorStore('target:only', [0.9, 0.1, 0], 'target');
+
+        const results = await manager.vectorSearch([1, 0, 0], 1, 'target');
+
+        expect(results).toHaveLength(1);
+        expect(results[0].id).toBe('target:only');
+      });
+
+      it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+        'returns no results for invalid K=%s',
+        async (k) => {
+          await manager.vectorStore('v1', [1, 0, 0], 'default');
+          expect(await manager.vectorSearch([1, 0, 0], k)).toEqual([]);
+        },
+      );
 
       beforeEach(async () => {
         // Store orthogonal vectors
