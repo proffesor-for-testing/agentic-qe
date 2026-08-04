@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.13.8](v3.13.8.md) | 2026-08-04 | Stable coverage gates and isolated learning-engine tests. |
 | [v3.13.7](v3.13.7.md) | 2026-08-04 | Explicit semantic-index status, stable ANN top-K results, and critical dependency fixes. |
 | [v3.13.6](v3.13.6.md) | 2026-08-03 | Reliable namespaced search, learning persistence, and embedding repair. |
 | [v3.13.5](v3.13.5.md) | 2026-08-03 | Measured quality gates and trustworthy cross-framework test execution. |

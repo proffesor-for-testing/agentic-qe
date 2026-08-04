@@ -296,6 +296,11 @@ jobs:
             fi
           fi
 
+      - name: Run instrumentation-sensitive performance baselines
+        run: |
+          npx vitest run tests/performance/milestone1-baselines.test.ts
+          npx vitest run tests/unit/integrations/ruvector/hopfield-memory.test.ts --testNamePattern='single recall'
+
   # ─── Coverage analysis (PRs only, after journey shards) ───
 
   coverage:
@@ -311,10 +316,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Run tests with coverage (excluding browser E2E)
-        run: bash scripts/ci-vitest-run.sh --coverage --reporter=verbose
+        # Performance baselines remain authoritative in Performance Gates.
+        # V8 instrumentation adds nondeterministic wall-clock overhead, so the
+        # coverage job exercises correctness paths but excludes pure benchmarks.
+        run: bash scripts/ci-vitest-run.sh --coverage --reporter=verbose --exclude='tests/performance/**'
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
+          AQE_COVERAGE: 'true'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

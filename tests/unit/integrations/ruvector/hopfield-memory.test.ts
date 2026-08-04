@@ -434,7 +434,10 @@ describe('HopfieldMemory', () => {
   // Benchmark (ADR-087 requirement)
   // --------------------------------------------------------------------------
 
-  describe('benchmark', () => {
+  // Coverage instrumentation distorts this wall-clock threshold. Correctness
+  // cases above still run under coverage; the dedicated Performance Gates job
+  // runs this benchmark without instrumentation.
+  describe.skipIf(process.env.AQE_COVERAGE === 'true')('benchmark', () => {
     it('single recall < 1ms for 1K stored patterns', () => {
       const memory = createHopfieldMemory({ dimension: DIM });
       const rng = seededRandom(42);
