@@ -121,7 +121,9 @@
     "@grpc/grpc-js": ">=1.14.4",
     "form-data": ">=4.0.6",
     "http-proxy-middleware": ">=3.0.7",
-    "@ruvector/ruvllm": ">=2.6.0"
+    "@ruvector/ruvllm": ">=2.6.0",
+    "adm-zip": ">=0.6.0",
+    "sharp": ">=0.35.3"
   },
   "devDependencies": {
     "@openai/codex": "^0.98.0",
@@ -134,8 +136,13 @@
   },
   "pnpm": {
     "overrides": {
+      "@opentelemetry/core": ">=2.8.0",
+      "@opentelemetry/propagator-jaeger": ">=2.9.0",
+      "adm-zip": ">=0.6.0",
       "better-sqlite3": "12.9.0",
-      "protobufjs": "^7.5.5"
+      "protobufjs": "^7.5.5",
+      "sharp": ">=0.35.3",
+      "uuid": ">=11.1.1"
     }
   },
   "engines": {

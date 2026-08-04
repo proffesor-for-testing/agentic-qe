@@ -5,6 +5,30 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.9] - 2026-08-04
+
+Development-time Ruflo dependency snapshots now resolve patched releases for
+nearly all remaining Dependabot findings without changing AQE's runtime
+dependency surface.
+
+### Security
+
+- Refreshed six npm and pnpm locks covering the Ruflo root, v3 monorepo, goal
+  UI, graph-intelligence plugin, and ruvocal snapshot.
+- Added targeted transitive floors for `adm-zip`, `sharp`, OpenTelemetry,
+  `uuid`, `thrift`, `cookie`, and `picomatch`, among other patched packages.
+- Removed an unused `semantic-release` dependency from the v3 snapshot,
+  eliminating its vulnerable bundled npm toolchain.
+- Kept the goal UI on React Router 6.30.4: moving to 7.18 would replace two
+  medium advisories with a newer high-severity RSC-mode CSRF advisory.
+
+### Changed
+
+- Added the current pnpm workspace override location for the Ruflo root while
+  retaining compatibility metadata for older pnpm clients.
+- Ruflo remains development-time tooling and is not added to AQE runtime
+  dependencies. No API, database, or configuration migration is required.
+
 ## [3.13.8] - 2026-08-04
 
 CI performance checks are now measured without coverage instrumentation, and
