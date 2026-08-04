@@ -5,6 +5,37 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.8] - 2026-08-04
+
+CI performance checks are now measured without coverage instrumentation, and
+the remaining stateful learning-engine suite uses bounded, isolated storage.
+Development-time Ruflo dependency locks also include the latest security
+remediations.
+
+### Fixed
+
+- **Coverage no longer makes performance timing flaky** ([#608]). Pure
+  performance baselines run in the dedicated Performance Gates job, while
+  coverage continues to exercise Hopfield correctness without enforcing a
+  wall-clock threshold distorted by V8 instrumentation.
+- **Learning-engine pattern tests no longer accumulate database state**
+  ([#610]). Every case uses a fresh ephemeral unified store, asserts a stable
+  initial pattern count, closes the database, and removes only its temporary
+  directory after execution.
+
+### Changed
+
+- The dedicated Performance Gates job now runs the Milestone 1 baselines and
+  the Hopfield single-recall benchmark in addition to the aggregate gate.
+- Refreshed Ruflo development-tool dependency locks from [#612], including
+  patched versions of `hono`, `undici`, `sharp`, `qs`, `postcss`, and related
+  transitive packages. Ruflo remains development-time tooling and is not added
+  to AQE runtime dependencies.
+
+[#608]: https://github.com/proffesor-for-testing/agentic-qe/issues/608
+[#610]: https://github.com/proffesor-for-testing/agentic-qe/issues/610
+[#612]: https://github.com/proffesor-for-testing/agentic-qe/pull/612
+
 ## [3.13.7] - 2026-08-04
 
 Memory operations now disclose partial semantic-index failures, and ANN search

@@ -11,7 +11,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence.js';
 import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
 import { _resetWitnessChainForTests } from '../../../src/audit/witness-chain';
 import {
@@ -39,21 +43,43 @@ describe('AQELearningEngine — pattern + tracking + experience capture', () => 
   let memory: MemoryBackend;
   let eventBus: EventBus;
   let engine: AQELearningEngine;
+  let testProjectRoot: string;
+  const originalProjectRoot = process.env.AQE_PROJECT_ROOT;
+  const initialPatternCounts: number[] = [];
 
   beforeEach(async () => {
+    // SQLitePatternStore uses the shared UnifiedMemory singleton even when the
+    // engine receives an in-memory MemoryBackend. Give every case a fresh DB so
+    // foundational/cross-domain seeding cannot compound across the suite.
+    resetUnifiedPersistence();
+    testProjectRoot = mkdtempSync(join(tmpdir(), 'aqe-learning-patterns-'));
+    process.env.AQE_PROJECT_ROOT = testProjectRoot;
     memory = createMockMemoryBackend();
     eventBus = createMockEventBus();
     engine = createAQELearningEngine(
       memory,
-      { projectRoot: '/test/project', enableClaudeFlow: false },
+      { projectRoot: testProjectRoot, enableClaudeFlow: false },
       eventBus
     );
     await engine.initialize();
+    initialPatternCounts.push((await engine.getStats()).totalPatterns);
   });
 
   afterEach(async () => {
     vi.clearAllMocks();
-    await engine.dispose();
+    try {
+      await engine.dispose();
+    } finally {
+      resetUnifiedPersistence();
+      if (originalProjectRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+      else process.env.AQE_PROJECT_ROOT = originalProjectRoot;
+      rmSync(testProjectRoot, { recursive: true, force: true });
+    }
+  });
+
+  afterAll(() => {
+    expect(new Set(initialPatternCounts).size).toBe(1);
+    expect(initialPatternCounts.every((count) => count < 100)).toBe(true);
   });
 
   describe('Pattern Learning', () => {
