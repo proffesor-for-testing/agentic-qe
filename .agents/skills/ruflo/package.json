@@ -134,7 +134,8 @@
   },
   "pnpm": {
     "overrides": {
-      "better-sqlite3": "12.9.0"
+      "better-sqlite3": "12.9.0",
+      "protobufjs": "^7.5.5"
     }
   },
   "engines": {

@@ -116,6 +116,7 @@
 		"zod": "^3.22.3"
 	},
 	"overrides": {
-		"@reflink/reflink": "file:stub/@reflink/reflink"
+		"@reflink/reflink": "file:stub/@reflink/reflink",
+		"form-data": ">=4.0.4"
 	}
 }

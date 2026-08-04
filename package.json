@@ -237,7 +237,9 @@
     "ws": "^8.21.0",
     "@opentelemetry/sdk-node": ">=0.217.0",
     "@opentelemetry/auto-instrumentations-node": ">=0.75.0",
-    "@opentelemetry/exporter-prometheus": ">=0.217.0"
+    "@opentelemetry/exporter-prometheus": ">=0.217.0",
+    "@hono/node-server": ">=2.0.5",
+    "sharp": ">=0.35.0"
   },
   "devDependencies": {
     "@claude-flow/guidance": "3.0.0-alpha.1",
