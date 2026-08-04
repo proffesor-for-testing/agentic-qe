@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.13.9](v3.13.9.md) | 2026-08-04 | Broad Ruflo development-lock security remediation. |
 | [v3.13.8](v3.13.8.md) | 2026-08-04 | Stable coverage gates and isolated learning-engine tests. |
 | [v3.13.7](v3.13.7.md) | 2026-08-04 | Explicit semantic-index status, stable ANN top-K results, and critical dependency fixes. |
 | [v3.13.6](v3.13.6.md) | 2026-08-03 | Reliable namespaced search, learning persistence, and embedding repair. |

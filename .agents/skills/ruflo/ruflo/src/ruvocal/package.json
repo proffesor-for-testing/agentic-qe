@@ -117,6 +117,8 @@
 	},
 	"overrides": {
 		"@reflink/reflink": "file:stub/@reflink/reflink",
+		"cookie": ">=0.7.0",
+		"thrift": ">=0.24.0",
 		"form-data": ">=4.0.4"
 	}
 }

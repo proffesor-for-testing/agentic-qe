@@ -51,11 +51,9 @@
     "pnpm": ">=8.0.0"
   },
   "packageManager": "pnpm@8.15.0",
-  "dependencies": {
-    "semantic-release": "25.0.2"
-  },
   "overrides": {
     "handlebars": ">=4.7.9",
+    "picomatch": ">=4.0.5",
     "protobufjs": ">=8.6.0"
   },
   "pnpm": {
@@ -69,6 +67,7 @@
       "vitest": ">=4.1.0",
       "@vitest/coverage-v8": ">=4.1.0",
       "handlebars": ">=4.7.9",
+      "picomatch": ">=4.0.5",
       "protobufjs": ">=8.6.0",
       "@ruvector/ruvllm": ">=2.6.0",
       "js-yaml": ">=4.3.0",
