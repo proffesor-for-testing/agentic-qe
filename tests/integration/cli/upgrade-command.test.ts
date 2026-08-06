@@ -69,6 +69,7 @@ describe('aqe upgrade — integration', () => {
         requiredOk: expect.any(Boolean),
         optionalMissingCount: expect.any(Number),
         optionalLoadedCount: expect.any(Number),
+        optionalUnavailableCount: expect.any(Number),
       },
     });
 
@@ -76,7 +77,7 @@ describe('aqe upgrade — integration', () => {
     expect(parsed.natives.length).toBeGreaterThan(0);
     for (const n of parsed.natives) {
       expect(n.packageName).toEqual(expect.any(String));
-      expect(['loaded', 'missing', 'required-missing']).toContain(n.status);
+      expect(['loaded', 'missing', 'unavailable', 'required-missing']).toContain(n.status);
     }
 
     // Flags we expose in the report
@@ -122,6 +123,23 @@ describe('aqe upgrade — integration', () => {
       expect(normal.status).toBe(0);
       expect(strict.status).toBe(0);
     }
+  }, 30_000);
+
+  it('reports the unpublished solver without an install action', () => {
+    const res = runCli(['upgrade', '--json']);
+    const parsed = JSON.parse(res.stdout);
+
+    const solver = parsed.natives.find(
+      (native: { packageName: string }) => native.packageName === '@ruvector/solver',
+    );
+    const recommendation = parsed.recommendations.find(
+      (item: { message: string }) => item.message.includes('@ruvector/solver'),
+    );
+
+    expect({ solverStatus: solver.status, installAction: recommendation.action }).toEqual({
+      solverStatus: 'unavailable',
+      installAction: undefined,
+    });
   }, 30_000);
 
   it('reports any RUVECTOR_* env overrides in the JSON output', () => {

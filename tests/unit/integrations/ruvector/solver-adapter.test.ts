@@ -6,7 +6,7 @@
  * and ranking behaviour.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   PageRankSolver,
   createPageRankSolver,
@@ -356,9 +356,68 @@ describe('PageRankSolver (R8)', () => {
   // --------------------------------------------------------------------------
 
   describe('isNativeAvailable', () => {
-    it('should return false when @ruvector/solver-node is not installed', () => {
+    it('should return false when @ruvector/solver is not installed', () => {
       // In the test environment, the native module is not present
       expect(solver.isNativeAvailable()).toBe(false);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Async backend selection
+  // --------------------------------------------------------------------------
+
+  describe('computeImportanceAsync', () => {
+    it('should_useWorkerBackend_when_graphCrossesThreshold', async () => {
+      const workerRunner = vi.fn().mockResolvedValue(new Float64Array([0.4, 0.6]));
+      const asyncSolver = new PageRankSolver(undefined, {
+        nativeModule: null,
+        workerThreshold: 0,
+        workerTimeoutMs: 1_234,
+        workerRunner,
+      });
+      const graph: PatternGraph = { nodes: ['a', 'b'], edges: [[0, 1, 1]] };
+
+      const scores = await asyncSolver.computeImportanceAsync(graph);
+
+      expect({ calls: workerRunner.mock.calls.length, scores: Array.from(scores.values()) })
+        .toEqual({ calls: 1, scores: [0.4, 0.6] });
+      expect(workerRunner).toHaveBeenCalledWith(graph, expect.any(Object), 1_234);
+    });
+
+    it('should_fallBackToTypeScript_when_workerBackendRejects', async () => {
+      const asyncSolver = new PageRankSolver(undefined, {
+        nativeModule: null,
+        workerThreshold: 0,
+        workerRunner: vi.fn().mockRejectedValue(new Error('worker failed')),
+      });
+      const graph = buildCycleGraph(5);
+
+      const scores = await asyncSolver.computeImportanceAsync(graph);
+
+      expect(Array.from(scores.values())).toEqual(Array.from(solver.computeImportance(graph).values()));
+    });
+
+    it('should_useNativeBackendBeforeWorker_when_nativeModuleLoads', async () => {
+      const workerRunner = vi.fn();
+      const pagerank = vi.fn().mockResolvedValue({
+        scores: [0.5, 0.5],
+        converged: true,
+        iterations: 1,
+        residual: 0,
+      });
+      const asyncSolver = new PageRankSolver(undefined, {
+        nativeModule: { NapiSolver: class { pagerank = pagerank; } },
+        workerThreshold: 0,
+        workerRunner,
+      });
+
+      const scores = await asyncSolver.computeImportanceAsync({
+        nodes: ['a', 'b'],
+        edges: [[0, 1, 1], [1, 0, 1]],
+      });
+
+      expect({ nativeCalls: pagerank.mock.calls.length, workerCalls: workerRunner.mock.calls.length, scores: Array.from(scores.values()) })
+        .toEqual({ nativeCalls: 1, workerCalls: 0, scores: [0.5, 0.5] });
     });
   });
 

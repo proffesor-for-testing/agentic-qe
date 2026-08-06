@@ -4,8 +4,8 @@
  * Provides graph-based importance scoring for QE patterns using PageRank.
  *
  * Two execution paths:
- * - **Native** (@ruvector/solver-node): O(log n) sublinear via Neumann series.
- *   Requires the optional NAPI dependency to be installed.
+ * - **Async**: optional @ruvector/solver NAPI backend, then worker-thread
+ *   TypeScript fallback for large graphs.
  * - **TypeScript fallback**: Standard power iteration, O(n * m * iterations).
  *   Always available, correct results, linear-time.
  *
@@ -21,9 +21,18 @@
  * @module integrations/ruvector/solver-adapter
  */
 
-// ============================================================================
-// Interfaces
-// ============================================================================
+import {
+  computeTypeScriptPageRank,
+  loadNativeSolverModule,
+  runNativePageRank,
+  runPageRankWorker,
+  type AsyncPageRankRunner,
+  type NativeSolverModule,
+  type PatternGraph,
+  type SolverConfig,
+} from './page-rank-backends.js';
+
+export type { PatternGraph, SolverConfig } from './page-rank-backends.js';
 
 /**
  * A directed graph of pattern relationships for importance scoring.
@@ -31,13 +40,6 @@
  * Nodes represent pattern IDs; edges encode directed relationships
  * (e.g., "pattern A depends on pattern B") with numeric weights.
  */
-export interface PatternGraph {
-  /** Node IDs (pattern IDs) */
-  nodes: string[];
-  /** Directed edges: [fromIndex, toIndex, weight] */
-  edges: Array<[number, number, number]>;
-}
-
 /** Result of importance scoring for a single pattern */
 export interface ImportanceScore {
   patternId: string;
@@ -45,14 +47,15 @@ export interface ImportanceScore {
   rank: number;
 }
 
-/** Configuration for the solver */
-export interface SolverConfig {
-  /** Damping factor for PageRank (default: 0.85) */
-  dampingFactor: number;
-  /** Convergence tolerance (default: 1e-6) */
-  tolerance: number;
-  /** Maximum iterations for power iteration fallback (default: 100) */
-  maxIterations: number;
+export interface PageRankRuntimeOptions {
+  /** Minimum nodes + edges before using a worker (default: 50,000). */
+  workerThreshold: number;
+  /** Worker timeout before synchronous fallback (default: 30 seconds). */
+  workerTimeoutMs: number;
+  /** Dependency-injection seam for tests and alternative worker runners. */
+  workerRunner: AsyncPageRankRunner;
+  /** Override native discovery; null explicitly disables the native backend. */
+  nativeModule?: NativeSolverModule | null;
 }
 
 // ============================================================================
@@ -65,33 +68,11 @@ const DEFAULT_SOLVER_CONFIG: SolverConfig = {
   maxIterations: 100,
 };
 
-// ============================================================================
-// Native Module Detection
-// ============================================================================
-
-/**
- * Cached reference to the @ruvector/solver-node native module.
- * `null` means we haven't attempted to load yet; `false` means load failed.
- */
-let _nativeModule: any | null | false = null;
-
-/**
- * Attempt to load the optional @ruvector/solver-node native bindings.
- * The result is cached so the cost is paid at most once per process.
- */
-function tryLoadNativeSync(): boolean {
-  if (_nativeModule === false) return false;
-  if (_nativeModule != null) return true;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    _nativeModule = require('@ruvector/solver-node');
-    return true;
-  } catch {
-    _nativeModule = false;
-    return false;
-  }
-}
+const DEFAULT_RUNTIME_OPTIONS: Omit<PageRankRuntimeOptions, 'nativeModule'> = {
+  workerThreshold: 50_000,
+  workerTimeoutMs: 30_000,
+  workerRunner: runPageRankWorker,
+};
 
 // ============================================================================
 // Input Validation
@@ -126,112 +107,29 @@ function validateGraph(graph: PatternGraph): number {
 }
 
 // ============================================================================
-// TypeScript Power-Iteration PageRank
-// ============================================================================
-
-/**
- * Compute PageRank scores using the standard power-iteration method.
- *
- * Algorithm (per Wikipedia / original Brin-Page paper):
- *   1. scores[i] = 1 / N  for all i
- *   2. For each iteration:
- *        new[i] = (1 - d) / N
- *                 + d * SUM_{j -> i} ( scores[j] * edgeWeight(j,i) / weightedOutDegree[j] )
- *   3. Converge when max |new[i] - old[i]| < tolerance
- *
- * Self-loops are included in outDegree computation but their contribution
- * flows back to the same node (standard PageRank semantics).
- *
- * Dangling nodes (zero out-degree) distribute their score uniformly to all
- * nodes, matching the standard random-surfer model.
- */
-function powerIterationPageRank(
-  graph: PatternGraph,
-  config: SolverConfig,
-): Float64Array {
-  const n = graph.nodes.length;
-  const { dampingFactor: d, tolerance, maxIterations } = config;
-
-  // Pre-compute weighted out-degree for each node
-  const weightedOutDegree = new Float64Array(n);
-  for (const [from, , weight] of graph.edges) {
-    weightedOutDegree[from] += weight;
-  }
-
-  // Build adjacency list for incoming edges: inEdges[toIndex] = [[fromIndex, weight], ...]
-  const inEdges: Array<Array<[number, number]>> = new Array(n);
-  for (let i = 0; i < n; i++) {
-    inEdges[i] = [];
-  }
-  for (const [from, to, weight] of graph.edges) {
-    inEdges[to].push([from, weight]);
-  }
-
-  // Identify dangling nodes (no outgoing edges)
-  const danglingNodes: number[] = [];
-  for (let i = 0; i < n; i++) {
-    if (weightedOutDegree[i] === 0) {
-      danglingNodes.push(i);
-    }
-  }
-
-  // Initialize scores uniformly
-  let scores = new Float64Array(n);
-  const uniformShare = 1 / n;
-  scores.fill(uniformShare);
-
-  const base = (1 - d) / n;
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    // Dangling node contribution: their total score is redistributed uniformly
-    let danglingSum = 0;
-    for (const di of danglingNodes) {
-      danglingSum += scores[di];
-    }
-    const danglingContrib = d * danglingSum / n;
-
-    const next = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      let incoming = 0;
-      for (const [from, weight] of inEdges[i]) {
-        incoming += (scores[from] * weight) / weightedOutDegree[from];
-      }
-      next[i] = base + d * incoming + danglingContrib;
-    }
-
-    // Check convergence (L-infinity norm)
-    let maxDelta = 0;
-    for (let i = 0; i < n; i++) {
-      const delta = Math.abs(next[i] - scores[i]);
-      if (delta > maxDelta) maxDelta = delta;
-    }
-
-    scores = next;
-
-    if (maxDelta < tolerance) {
-      break;
-    }
-  }
-
-  return scores;
-}
-
-// ============================================================================
 // PageRankSolver Class
 // ============================================================================
 
 /**
  * Computes importance scores for pattern graphs using PageRank.
  *
- * Prefers the native @ruvector/solver-node NAPI bindings when available
- * (O(log n) via Neumann series). Falls back to a TypeScript power-iteration
- * implementation (O(n * m * iterations)) when the native module is absent.
+ * The synchronous API uses the deterministic TypeScript implementation.
+ * The async API prefers @ruvector/solver and offloads large fallback graphs.
  */
 export class PageRankSolver {
   private readonly config: SolverConfig;
+  private readonly runtime: PageRankRuntimeOptions;
+  private readonly nativeModule: NativeSolverModule | null;
 
-  constructor(config?: Partial<SolverConfig>) {
+  constructor(
+    config?: Partial<SolverConfig>,
+    runtime?: Partial<PageRankRuntimeOptions>,
+  ) {
     this.config = { ...DEFAULT_SOLVER_CONFIG, ...config };
+    this.runtime = { ...DEFAULT_RUNTIME_OPTIONS, ...runtime };
+    this.nativeModule = runtime && 'nativeModule' in runtime
+      ? runtime.nativeModule ?? null
+      : loadNativeSolverModule();
 
     // Validate config ranges
     if (this.config.dampingFactor <= 0 || this.config.dampingFactor >= 1) {
@@ -244,15 +142,19 @@ export class PageRankSolver {
       throw new RangeError('maxIterations must be >= 1');
     }
 
-    // Eagerly attempt native load so isNativeAvailable() is stable
-    tryLoadNativeSync();
+    if (this.runtime.workerThreshold < 0) {
+      throw new RangeError('workerThreshold must be >= 0');
+    }
+    if (this.runtime.workerTimeoutMs < 1) {
+      throw new RangeError('workerTimeoutMs must be >= 1');
+    }
   }
 
   /**
-   * Check whether the native @ruvector/solver-node module is available.
+   * Check whether the native @ruvector/solver module is available.
    */
   isNativeAvailable(): boolean {
-    return tryLoadNativeSync();
+    return this.nativeModule !== null;
   }
 
   /**
@@ -276,20 +178,39 @@ export class PageRankSolver {
       return result;
     }
 
+    const scores = computeTypeScriptPageRank(graph, this.config);
+    this.copyScoresToResult(graph, scores, result);
+
+    return result;
+  }
+
+  /**
+   * Compute PageRank without blocking the event loop for large graphs.
+   * Native and worker failures fall back to the verified synchronous backend.
+   */
+  async computeImportanceAsync(graph: PatternGraph): Promise<Map<string, number>> {
+    const n = validateGraph(graph);
+    if (n < 2) return this.computeImportance(graph);
+
     let scores: Float64Array;
-
-    if (this.isNativeAvailable() && _nativeModule?.pagerank) {
-      // Delegate to native solver
-      scores = this.computeNative(graph);
-    } else {
-      // TypeScript power iteration fallback
-      scores = powerIterationPageRank(graph, this.config);
+    try {
+      if (this.nativeModule) {
+        scores = await runNativePageRank(this.nativeModule, graph, this.config);
+      } else if (graph.nodes.length + graph.edges.length >= this.runtime.workerThreshold) {
+        scores = await this.runtime.workerRunner(
+          graph,
+          this.config,
+          this.runtime.workerTimeoutMs,
+        );
+      } else {
+        scores = computeTypeScriptPageRank(graph, this.config);
+      }
+    } catch {
+      scores = computeTypeScriptPageRank(graph, this.config);
     }
 
-    for (let i = 0; i < n; i++) {
-      result.set(graph.nodes[i], scores[i]);
-    }
-
+    const result = new Map<string, number>();
+    this.copyScoresToResult(graph, scores, result);
     return result;
   }
 
@@ -321,49 +242,13 @@ export class PageRankSolver {
     return ranked;
   }
 
-  // --------------------------------------------------------------------------
-  // Private: native solver delegation
-  // --------------------------------------------------------------------------
-
-  /**
-   * Delegate PageRank computation to the native @ruvector/solver-node module.
-   *
-   * The native API is expected to accept the graph in a compatible format
-   * and return a Float64Array of scores indexed by node position.
-   */
-  private computeNative(graph: PatternGraph): Float64Array {
-    const n = graph.nodes.length;
-
-    // Build edge arrays in the format expected by native solver
-    const fromIndices = new Int32Array(graph.edges.length);
-    const toIndices = new Int32Array(graph.edges.length);
-    const weights = new Float64Array(graph.edges.length);
-
-    for (let i = 0; i < graph.edges.length; i++) {
-      fromIndices[i] = graph.edges[i][0];
-      toIndices[i] = graph.edges[i][1];
-      weights[i] = graph.edges[i][2];
-    }
-
-    try {
-      const result = _nativeModule.pagerank({
-        nodeCount: n,
-        fromIndices,
-        toIndices,
-        weights,
-        dampingFactor: this.config.dampingFactor,
-        tolerance: this.config.tolerance,
-        maxIterations: this.config.maxIterations,
-      });
-
-      // Expect Float64Array or plain number[]
-      if (result instanceof Float64Array) {
-        return result;
-      }
-      return Float64Array.from(result as number[]);
-    } catch {
-      // If native call fails, fall back gracefully to TS implementation
-      return powerIterationPageRank(graph, this.config);
+  private copyScoresToResult(
+    graph: PatternGraph,
+    scores: Float64Array,
+    result: Map<string, number>,
+  ): void {
+    for (let i = 0; i < graph.nodes.length; i++) {
+      result.set(graph.nodes[i], scores[i]);
     }
   }
 }
@@ -380,6 +265,7 @@ export class PageRankSolver {
  */
 export function createPageRankSolver(
   config?: Partial<SolverConfig>,
+  runtime?: Partial<PageRankRuntimeOptions>,
 ): PageRankSolver {
-  return new PageRankSolver(config);
+  return new PageRankSolver(config, runtime);
 }

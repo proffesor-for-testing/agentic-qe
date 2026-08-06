@@ -195,6 +195,23 @@ workers:
       expect(result.learning.enabled).toBe(false);
     });
 
+    it('should_preserveLearningThresholds_when_initRunsAgain', () => {
+      const newConfig = createBaseConfig();
+      newConfig.learning.qualityThreshold = 0.7;
+      newConfig.learning.promotionThreshold = 3;
+      const existing = {
+        learning: {
+          qualityThreshold: 0.5,
+          promotionThreshold: 2,
+        },
+      };
+
+      const result = phase.mergeConfigs(newConfig, existing);
+
+      expect(result.learning.qualityThreshold).toBe(0.5);
+      expect(result.learning.promotionThreshold).toBe(2);
+    });
+
     it('should preserve hooks preferences', () => {
       const newConfig = createBaseConfig();
       const existing = {

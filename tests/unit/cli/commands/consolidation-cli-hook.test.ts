@@ -65,7 +65,15 @@ const createSchema = (db: Database.Database): void => {
       success_rate REAL DEFAULT 0.0, quality_score REAL DEFAULT 0.0,
       tier TEXT DEFAULT 'short-term',
       template_json TEXT, context_json TEXT,
-      created_at TEXT, updated_at TEXT
+      created_at TEXT, updated_at TEXT, last_used_at TEXT
+    );
+    CREATE TABLE qe_pattern_usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pattern_id TEXT NOT NULL,
+      success INTEGER NOT NULL,
+      metrics_json TEXT,
+      feedback TEXT,
+      used_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
   `);
 };
@@ -170,5 +178,39 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
       db.prepare(`SELECT COUNT(*) AS n FROM captured_experiences WHERE application_count = 0`).get() as { n: number }
     ).n;
     expect(remaining).toBe(0);
+  });
+
+  it('audits aggregate reinforcement and promotes an eligible monthly pattern (#618)', async () => {
+    const dateBucket = new Date().toISOString().slice(0, 7);
+    db.prepare(`
+      INSERT INTO qe_patterns (
+        id, pattern_type, qe_domain, domain, name, description, confidence,
+        usage_count, successful_uses, success_rate, quality_score, tier
+      ) VALUES (?, 'workflow', 'test-generation', 'test-generation', ?, '', 0.59, 1, 1, 1, 0.5, 'short-term')
+    `).run('existing-monthly', `qe-test-architect-test-generation-${dateBucket}`);
+    seed(db, [
+      { agent: 'qe-test-architect', domain: 'test-generation', quality: 0.8, success: 1, source: 'mcp-task' },
+      { agent: 'qe-test-architect', domain: 'test-generation', quality: 0.8, success: 1, source: 'mcp-task' },
+      { agent: 'qe-test-architect', domain: 'test-generation', quality: 0.8, success: 1, source: 'mcp-task' },
+    ]);
+
+    const created = await consolidateExperiencesToPatterns();
+
+    expect(created).toBe(0);
+    const pattern = db.prepare(`
+      SELECT usage_count, successful_uses, success_rate, confidence, tier
+      FROM qe_patterns WHERE id = 'existing-monthly'
+    `).get() as Record<string, number | string>;
+    expect(pattern).toMatchObject({
+      usage_count: 4,
+      successful_uses: 4,
+      success_rate: 1,
+      confidence: 0.6,
+      tier: 'long-term',
+    });
+    const auditCount = (db.prepare(
+      `SELECT COUNT(*) AS count FROM qe_pattern_usage WHERE pattern_id = 'existing-monthly'`,
+    ).get() as { count: number }).count;
+    expect(auditCount).toBe(3);
   });
 });

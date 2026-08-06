@@ -458,6 +458,21 @@ export class QEReasoningBank implements IQEReasoningBank {
   }
 
   /**
+   * Explicitly promote a stored pattern to long-term memory.
+   * Eligibility is decided by the caller; persistence, audit, and events use
+   * the same path as automatic promotion.
+   */
+  async promotePattern(patternId: string): Promise<Result<void>> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    if (!await this.getPattern(patternId)) {
+      return err(new Error(`Pattern not found: ${patternId}`));
+    }
+    return promotePatternFn(patternId, this.getPromotionDeps());
+  }
+
+  /**
    * Get promotion dependencies for the extracted promotion module
    */
   private getPromotionDeps(): PromotionDeps {
@@ -876,4 +891,3 @@ export {
 } from './qe-guidance.js';
 
 export type { QEGuidance } from './qe-guidance.js';
-

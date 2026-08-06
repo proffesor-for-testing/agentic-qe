@@ -58,24 +58,44 @@ const HAPPY_FLAGS: UpgradeReport['flags'] = {
 // ----------------------------------------------------------------------------
 
 describe('detectNatives', () => {
-  it('marks packages that load as "loaded"', () => {
+  it('marks published packages that load as "loaded"', () => {
     const results = detectNatives(NATIVE_CATALOG, probeWith(ALL_PACKAGES));
-    expect(results.every((r) => r.status === 'loaded')).toBe(true);
+    expect(
+      results
+        .filter((result) => result.availability !== 'unpublished')
+        .every((result) => result.status === 'loaded'),
+    ).toBe(true);
   });
 
   it('marks required packages as "required-missing" when absent', () => {
     const results = detectNatives(NATIVE_CATALOG, probeWith([]));
     for (const r of results) {
       if (r.required) expect(r.status).toBe('required-missing');
+      else if (r.availability === 'unpublished') expect(r.status).toBe('unavailable');
       else expect(r.status).toBe('missing');
     }
   });
 
   it('captures the load error message verbatim', () => {
     const results = detectNatives(NATIVE_CATALOG, probeWith([]));
-    for (const r of results) {
+    for (const r of results.filter((result) => result.status !== 'unavailable')) {
       expect(r.loadError).toMatch(/Cannot find module/);
     }
+  });
+
+  it('should_reportLoaded_when_unpublishedOptionalIsInstalledLocally', () => {
+    const unpublished: NativeCheck = {
+      packageName: '@example/unpublished',
+      role: 'Example accelerator',
+      fallback: 'TypeScript fallback',
+      affectsFlags: [],
+      required: false,
+      availability: 'unpublished',
+    };
+
+    const [result] = detectNatives([unpublished], () => ({ ok: true }));
+
+    expect(result.status).toBe('loaded');
   });
 });
 
@@ -110,10 +130,10 @@ describe('readEnvOverrides', () => {
 // ----------------------------------------------------------------------------
 
 describe('buildRecommendations', () => {
-  it('emits a positive info line when nothing is missing', () => {
+  it('does not report an install warning when every published optional loads', () => {
     const natives = detectNatives(NATIVE_CATALOG, probeWith(ALL_PACKAGES));
     const recs = buildRecommendations({ natives, flags: HAPPY_FLAGS, envOverrides: [] });
-    expect(recs.some((r) => r.severity === 'info' && /no action/i.test(r.message))).toBe(true);
+    expect(recs.every((r) => r.action === undefined)).toBe(true);
     expect(recs.every((r) => r.severity !== 'error')).toBe(true);
   });
 
@@ -137,7 +157,9 @@ describe('buildRecommendations', () => {
     const natives = detectNatives(NATIVE_CATALOG, probeWith(REQUIRED_PACKAGES));
     const recs = buildRecommendations({ natives, flags: HAPPY_FLAGS, envOverrides: [] });
 
-    const optionalCatalog = NATIVE_CATALOG.filter((c: NativeCheck) => !c.required);
+    const optionalCatalog = NATIVE_CATALOG.filter(
+      (c: NativeCheck) => !c.required && c.availability !== 'unpublished',
+    );
     for (const opt of optionalCatalog) {
       const match = recs.find(
         (r) => r.severity === 'warn' && r.message.includes(opt.packageName),
@@ -145,6 +167,17 @@ describe('buildRecommendations', () => {
       expect(match, `missing warning for ${opt.packageName}`).toBeDefined();
       expect(match?.action).toBe(`npm install ${opt.packageName}`);
     }
+  });
+
+  it('should_notRecommendInstall_when_optionalIsKnownUnpublished', () => {
+    const natives = detectNatives(NATIVE_CATALOG, probeWith(REQUIRED_PACKAGES));
+
+    const recs = buildRecommendations({ natives, flags: HAPPY_FLAGS, envOverrides: [] });
+
+    const solverRec = recs.find((r) => r.message.includes('@ruvector/solver'));
+    expect(solverRec?.severity).toBe('info');
+    expect(solverRec?.action).toBeUndefined();
+    expect(solverRec?.message).toMatch(/unavailable on npm/i);
   });
 
   it('warns when RUVECTOR_* forces a flag on but the native is missing', () => {
@@ -192,10 +225,13 @@ describe('buildReport', () => {
       env: {},
       flags: HAPPY_FLAGS,
     });
-    const optionalCount = NATIVE_CATALOG.filter((c) => !c.required).length;
+    const optionalCount = NATIVE_CATALOG.filter(
+      (c) => !c.required && c.availability !== 'unpublished',
+    ).length;
     expect(report.summary.requiredOk).toBe(true);
     expect(report.summary.optionalLoadedCount).toBe(0);
     expect(report.summary.optionalMissingCount).toBe(optionalCount);
+    expect(report.summary.optionalUnavailableCount).toBe(1);
   });
 
   it('reports requiredOk=false when a required dep fails to load', () => {
@@ -237,6 +273,17 @@ describe('exitCodeFor', () => {
     probe: probeWith(REQUIRED_PACKAGES),
     env: {},
     flags: HAPPY_FLAGS,
+  });
+
+  it('should_notFailStrictMode_when_onlyOptionalIsKnownUnpublished', () => {
+    const report = buildReport({
+      aqeVersion: 'x',
+      probe: probeWith(ALL_PACKAGES),
+      env: {},
+      flags: HAPPY_FLAGS,
+    });
+
+    expect(exitCodeFor(report, true)).toBe(0);
   });
 
   const reportRequiredMissing = (): UpgradeReport => buildReport({

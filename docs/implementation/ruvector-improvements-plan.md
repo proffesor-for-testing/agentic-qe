@@ -33,9 +33,9 @@
 
 ### Why
 
-AQE's 150K+ pattern memory, 9 RL algorithms, and SONA three-loop engine are production-ready but operate without: compositional pattern fingerprinting (HDC), statistical drift detection (CUSUM), event-sourced pattern history (delta), zero-label graph learning (GraphMAE), associative memory (Hopfield), or sublinear solvers for 500K+ scale. Adding these capabilities addresses three gaps:
+AQE's 150K+ pattern memory, 9 RL algorithms, and SONA three-loop engine are production-ready but operate without: compositional pattern fingerprinting (HDC), statistical drift detection (CUSUM), event-sourced pattern history (delta), zero-label graph learning (GraphMAE), associative memory (Hopfield), or off-main-thread graph scoring for larger scales. Adding these capabilities addresses three gaps:
 
-1. **Speed at scale**: O(1) HDC fingerprints and O(log n) solvers prevent degradation as pattern count grows beyond 150K toward 500K+.
+1. **Speed at scale**: O(1) HDC fingerprints and sparse weighted PageRank with worker offload prevent main-thread degradation as pattern graphs grow.
 2. **Self-correction**: CUSUM drift detection and delta event sourcing give the system the ability to detect when its own models are drifting and roll back to known-good states.
 3. **Learning depth**: GraphMAE, Hopfield, and e-prop add unsupervised/associative/online learning modes that complement the existing supervised RL suite.
 
@@ -48,7 +48,7 @@ AQE's 150K+ pattern memory, 9 RL algorithms, and SONA three-loop engine are prod
 | Pattern history/rollback | None | Delta event sourcing | Delta + CRDT consensus |
 | Graph learning | Supervised GNN only | + GraphMAE zero-label | + cold-tier, + Granger |
 | Associative recall | HNSW approximate | + Hopfield exact recall | + Hopfield |
-| Scale ceiling | ~150K patterns | ~150K patterns | 500K+ via O(log n) solver |
+| Scale ceiling | ~150K patterns | ~150K patterns | Graph-size dependent; sparse fallback measured through 100K nodes and worker parity verified |
 | EWC++ Fisher computation | Persistence wired, three-loop never invoked | Three-loop invoked by domain coordinators | Active + monitored |
 | Online learning algorithms | 9 RL (all backprop) | 9 RL | 9 RL + e-prop (no backprop) |
 
@@ -70,7 +70,7 @@ src/integrations/ruvector/          <-- 43 files, primary integration layer
   |-- [NEW R1]  hdc-fingerprint.ts    -- HDC binary hypervector fingerprints
   |-- [NEW R3]  delta-tracker.ts      -- Delta event sourcing for patterns
   |-- [NEW R5]  hopfield-memory.ts    -- Modern Hopfield associative memory
-  |-- [NEW R8]  solver-adapter.ts     -- Sublinear PageRank solver
+  |-- [NEW R8]  solver-adapter.ts     -- Weighted PageRank backends
   |-- [NEW R9]  spectral-sparsifier.ts -- Graph sparsification adapter
   |-- [NEW R11] eprop-learner.ts      -- E-prop online learning
   |-- [NEW R12] temporal-causality.ts -- Granger causality for test history
@@ -94,7 +94,7 @@ src/integrations/rl-suite/           <-- RL algorithm suite
 | R5: Hopfield | ruvector-nervous-system::hopfield | WASM | Yes, or inline WASM |
 | R6: Cold-Tier GNN | ruvector-gnn::cold_tier | Existing @ruvector/gnn | No |
 | R7: Meta-Learning | ruvector-domain-expansion::meta_learning | TypeScript | No |
-| R8: Solver | ruvector-solver-node | NAPI | Yes |
+| R8: Solver | `@ruvector/solver` (`ruvector-solver`) | NAPI | Not currently published |
 | R9: Sparsifier | ruvector-sparsifier | WASM or TypeScript | TBD |
 | R10: Reservoir Replay | neural-trader-replay | TypeScript | No |
 | R11: E-prop | ruvector-nervous-system::plasticity::eprop | WASM | Yes, or inline WASM |
@@ -440,7 +440,7 @@ This is a mechanical extraction with no logic changes. Two consumers import from
 
 ## Milestone 3: Scale and Optimization (R7, R8, R9, R10)
 
-**Goal**: Meta-learning enhancements, sublinear solvers, graph sparsification, and reservoir replay. These are the items that unlock 500K+ pattern scale.
+**Goal**: Meta-learning enhancements, scalable graph scoring, graph sparsification, and reservoir replay. These items improve the path toward larger pattern stores; they do not by themselves establish 500K+ capacity.
 
 **Timeline**: 3-4 weeks (after Milestone 2)
 
@@ -486,10 +486,10 @@ This is a mechanical extraction with no logic changes. Two consumers import from
 | **Complexity** | L |
 | **New Files** | `src/integrations/ruvector/solver-adapter.ts`, `tests/unit/integrations/ruvector/solver-adapter.test.ts` |
 | **Modified Files** | `src/learning/pattern-promotion.ts`, `feature-flags.ts`, `index.ts` |
-| **Dependencies (npm)** | `@ruvector/solver-node` (NAPI bindings from `ruvector-solver-node`) |
+| **Dependencies (npm)** | Optional `@ruvector/solver` when published; no required runtime dependency |
 | **Depends On** | R1 (HDC) for fingerprint-accelerated node identification |
 
-**Description**: O(log n) PageRank solver for graph-based pattern importance scoring. Currently `pattern-promotion.ts` (`qe-patterns.ts:322`) uses a simple O(1) weighted formula (`confidence * 0.3 + usageScore * 0.2 + successRate * 0.5`) with no inter-pattern relationship awareness. **No pattern citation graph exists today.** This improvement has two parts: (1) build a pattern citation/dependency graph, and (2) run sublinear PageRank over it. The `ruvector-solver-node` crate provides NAPI bindings for sublinear PageRank.
+**Description**: Sparse weighted PageRank for graph-based pattern importance scoring. The original design assumed an O(log n) native API, but current RuVector source exposes asynchronous weighted power iteration. AQE therefore keeps its verified TypeScript algorithm, offloads large graphs to a worker, and supports the optional `@ruvector/solver` contract when published.
 
 **Implementation**:
 1. Design and build pattern citation graph in `pattern-promotion.ts`:
@@ -498,7 +498,7 @@ This is a mechanical extraction with no logic changes. Two consumers import from
    - Store graph edges in SQLite (`pattern_citations` table)
    - Bootstrap from existing usage data and co-occurrence analysis
 2. Create `solver-adapter.ts`:
-   - `SublinearSolver` class wrapping `@ruvector/solver-node`
+   - `PageRankSolver` with synchronous, worker-thread, and optional `@ruvector/solver` backends
    - `computeImportance(graph: PatternGraph): Map<string, number>`
    - `rankPatterns(patterns: QEPattern[]): RankedPattern[]`
    - TypeScript fallback using power iteration (O(n) per iteration)
@@ -511,7 +511,7 @@ This is a mechanical extraction with no logic changes. Two consumers import from
 - [ ] Benchmark: O(log n) confirmed via timing at 1K, 10K, 100K, 500K scales
 - [ ] Benchmark: 500K patterns scored in < 100ms (native), < 5s (TypeScript fallback)
 - [ ] Feature flag defaults to `false`
-- [ ] Optional dependency: works without `@ruvector/solver-node` installed
+- [x] Optional dependency: works without `@ruvector/solver` installed
 - [ ] Graceful fallback: when graph is empty/sparse, fall back to existing weighted formula
 
 **Verification**:
@@ -716,7 +716,7 @@ This is a mechanical extraction with no logic changes. Two consumers import from
 |------|--------|-------------|------------|
 | WASM packages not published to npm | Blocks R1, R3, R5, R11 | Medium | All WASM items have TypeScript fallback implementations specified. Build WASM from source as fallback. |
 | `@ruvector/gnn` 0.1.19 does not expose graphmae/cold_tier | Blocks native path for R4, R6 | Medium | TypeScript implementations specified for both. Request NAPI exposure in next GNN release. |
-| `@ruvector/solver-node` NAPI bindings not published | Blocks native path for R8 | Medium | TypeScript power iteration fallback. O(n) is acceptable up to 100K. |
+| `@ruvector/solver` NAPI bindings not published | Blocks native path for R8 | Medium | TypeScript power iteration plus worker offload; no install action advertised. |
 | Coherence gate file (930 lines) already exceeds 500-line limit | Code quality | **Certain** | **Mandatory prerequisite**: extract into 4 modules before R2 work begins. Not conditional. |
 | EWC++ `backgroundConsolidate()` causes training instability when first invoked | Learning regression | Medium | Lambda is already tuned (1000.0). Add kill switch via feature flag. Monitor EWC loss and auto-disable if loss exceeds 10x initial. 48-hour monitoring window. |
 | No pattern citation graph exists for R8 | Solver has nothing to traverse | **Certain** | Design graph schema and bootstrap from usage data as prerequisite. Document in R8 implementation. |
@@ -865,7 +865,7 @@ Every improvement with performance claims gets a benchmark in `tests/performance
   - [x] Feature flag `useMetaLearningEnhancements` gates both config and system flag
   - [x] Unit tests: 46 tests (meta-learning.test.ts)
 
-- [x] **R8: PageRank Solver** (renamed from Sublinear Solver — TS fallback is O(n*m), native is O(log n))
+- [x] **R8: PageRank Solver** (sparse weighted power iteration; async native or worker execution available)
   - [x] Pattern citation graph schema: `PatternCitationGraph` class with `PATTERN_CITATIONS_SCHEMA`
   - [x] Co-occurrence recording: `recordCoOccurrence()`, `recordDerivation()`, `buildGraph()`
   - [x] Graph populated during `promotePattern()` — records co-occurrence with same-domain long-term patterns
@@ -874,7 +874,7 @@ Every improvement with performance claims gets a benchmark in `tests/performance
   - [x] Integrated into `pattern-promotion.ts` via `computeBlendedImportance()`
   - [x] Feature flag `useSublinearSolver` added
   - [x] Unit tests: 34 tests (solver-adapter.test.ts) + 7 integration tests (milestone3-integration.test.ts)
-  - [ ] Benchmark: O(log n) confirmed (requires native @ruvector/solver-node — TS fallback is O(n*m))
+  - [x] Benchmark: sparse TypeScript scaling measured through 100K nodes; no O(log n) claim
   - [ ] Spearman rho > 0.5 correlation with quality scores (needs real pattern data)
 
 - [x] **R9: Spectral Graph Sparsification** (degree-based leverage heuristic, not true effective resistance)
@@ -1024,7 +1024,7 @@ All schema additions are **additive** — no existing tables are modified or dro
 
 ### New Requirements
 
-1. **Optional native dependencies**: `@ruvector/solver-node`, `@ruvector/hdc-wasm`, `@ruvector/hopfield-wasm`, `@ruvector/eprop-wasm` must be declared as `optionalDependencies` in `package.json`. Dynamic imports with `try/catch` ensure CI without Rust toolchains still passes.
+1. **Optional native dependencies**: `@ruvector/solver` remains dynamically detected until it is published; other available optional bindings follow package-specific installation policy. CI must pass without Rust toolchains.
 
 2. **Platform matrix**: NAPI binaries need x64 and ARM64 builds. Add to GitHub Actions:
    ```yaml

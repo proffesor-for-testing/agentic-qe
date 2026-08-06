@@ -359,8 +359,8 @@ export interface RuVectorFeatureFlags {
 
   /**
    * Enable Sublinear Solver (R8, ADR-087)
-   * O(log n) PageRank for graph-based pattern importance scoring.
-   * TypeScript power-iteration fallback; native @ruvector/solver-node optional.
+   * Sparse weighted PageRank for graph-based pattern importance scoring.
+   * TypeScript power-iteration fallback; native @ruvector/solver optional.
    * Consumer: pattern-promotion.ts (future integration)
    * Activation: enable after bootstrapping a pattern citation graph
    * @default false

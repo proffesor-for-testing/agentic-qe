@@ -20,7 +20,9 @@ import { getRuVectorFeatureFlags } from '../../integrations/ruvector/feature-fla
 // Public types
 // ============================================================================
 
-export type LoadStatus = 'loaded' | 'missing' | 'required-missing';
+export type LoadStatus = 'loaded' | 'missing' | 'unavailable' | 'required-missing';
+
+export type PackageAvailability = 'published' | 'unpublished';
 
 export interface NativeCheck {
   /** npm package name as it appears in package.json */
@@ -33,6 +35,8 @@ export interface NativeCheck {
   readonly affectsFlags: readonly string[];
   /** Whether missing is fatal or just degrades performance */
   readonly required: boolean;
+  /** Whether users can currently install the package from npm. */
+  readonly availability?: PackageAvailability;
 }
 
 export interface NativeResult extends NativeCheck {
@@ -75,6 +79,7 @@ export interface UpgradeReport {
     readonly requiredOk: boolean;
     readonly optionalMissingCount: number;
     readonly optionalLoadedCount: number;
+    readonly optionalUnavailableCount: number;
   };
 }
 
@@ -116,11 +121,12 @@ export const NATIVE_CATALOG: readonly NativeCheck[] = [
     required: false,
   },
   {
-    packageName: '@ruvector/solver-node',
-    role: 'Sublinear PageRank on the pattern citation graph',
-    fallback: 'TypeScript power iteration — O(n·m) (practical cap ≈ 50K nodes)',
+    packageName: '@ruvector/solver',
+    role: 'Async native weighted PageRank on the pattern citation graph',
+    fallback: 'TypeScript power iteration — O(iterations × (nodes + edges)); no hard size limit',
     affectsFlags: ['useSublinearSolver'],
     required: false,
+    availability: 'unpublished',
   },
   {
     packageName: '@ruvector/attention',
@@ -165,6 +171,9 @@ export function detectNatives(
     const result = probe(check.packageName);
     if (result.ok) {
       return { ...check, status: 'loaded' };
+    }
+    if (check.availability === 'unpublished') {
+      return { ...check, status: 'unavailable', loadError: result.error.message };
     }
     const missingModule = isModuleNotFound(result.error);
     const status: LoadStatus = check.required
@@ -243,11 +252,25 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
     }
   }
 
+  // Known unpublished packages are informational: keep the fallback visible,
+  // but never offer an install command that is guaranteed to fail.
+  for (const n of input.natives) {
+    if (n.status === 'unavailable') {
+      recs.push({
+        severity: 'info',
+        message:
+          `Optional native unavailable on npm: ${n.packageName} — ` +
+          `using ${n.fallback}. No install action is currently available.`,
+      });
+    }
+  }
+
   // Env override conflicts: user forced a flag ON but the native isn't loadable.
   const flagByName: Record<string, boolean | undefined> = { ...input.flags };
   for (const override of input.envOverrides) {
     const natives = input.natives.filter((n) => n.affectsFlags.includes(override.flagName));
     const anyLoaded = natives.some((n) => n.status === 'loaded');
+    const installableMissing = natives.find((n) => n.status === 'missing');
     const wantsOn = override.value === 'true' || override.value === '1';
 
     if (wantsOn && natives.length > 0 && !anyLoaded) {
@@ -257,7 +280,9 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
         message:
           `${override.envVar}=${override.value} requests flag ${override.flagName}=true, ` +
           `but required native(s) not loaded: ${missing}. The flag will silently fall back.`,
-        action: natives[0] ? `npm install ${natives[0].packageName}` : undefined,
+        action: installableMissing
+          ? `npm install ${installableMissing.packageName}`
+          : undefined,
       });
     }
   }
@@ -268,7 +293,14 @@ export function buildRecommendations(input: RecommendationInput): Recommendation
   const optionalMissing = input.natives.filter(
     (n) => !n.required && n.status === 'missing',
   );
-  if (optionalMissing.length === 0 && input.natives.every((n) => n.status !== 'required-missing')) {
+  const optionalUnavailable = input.natives.filter(
+    (n) => !n.required && n.status === 'unavailable',
+  );
+  if (
+    optionalMissing.length === 0 &&
+    optionalUnavailable.length === 0 &&
+    input.natives.every((n) => n.status !== 'required-missing')
+  ) {
     recs.push({
       severity: 'info',
       message: 'All recommended native bindings are loaded — no action required.',
@@ -300,6 +332,9 @@ export function buildReport(input: BuildReportInput): UpgradeReport {
 
   const optionalLoadedCount = natives.filter((n) => !n.required && n.status === 'loaded').length;
   const optionalMissingCount = natives.filter((n) => !n.required && n.status === 'missing').length;
+  const optionalUnavailableCount = natives.filter(
+    (n) => !n.required && n.status === 'unavailable',
+  ).length;
   const requiredOk = natives.filter((n) => n.required).every((n) => n.status === 'loaded');
 
   return {
@@ -317,6 +352,7 @@ export function buildReport(input: BuildReportInput): UpgradeReport {
       requiredOk,
       optionalMissingCount,
       optionalLoadedCount,
+      optionalUnavailableCount,
     },
   };
 }
@@ -392,7 +428,12 @@ export function renderReportHuman(report: UpgradeReport): string {
   push(
     `  Summary:   required ${okBadge}    ` +
       `optional loaded ${chalk.cyan(report.summary.optionalLoadedCount)} / ` +
-      `${chalk.cyan(report.summary.optionalLoadedCount + report.summary.optionalMissingCount)}`,
+      `${chalk.cyan(
+        report.summary.optionalLoadedCount +
+        report.summary.optionalMissingCount +
+        report.summary.optionalUnavailableCount,
+      )} ` +
+      `(${chalk.cyan(report.summary.optionalUnavailableCount)} unavailable)`,
   );
   push('');
 
@@ -405,6 +446,8 @@ function statusBadge(status: LoadStatus): string {
       return chalk.green('✓');
     case 'missing':
       return chalk.yellow('…');
+    case 'unavailable':
+      return chalk.gray('–');
     case 'required-missing':
       return chalk.red('✗');
   }
