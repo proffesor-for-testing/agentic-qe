@@ -5,6 +5,47 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.10] - 2026-08-06
+
+Pattern consolidation and export now operate on complete, accurate learning
+data; repeated initialization preserves operator thresholds; and large
+PageRank workloads gain a resilient asynchronous execution path.
+
+### Added
+
+- Added worker-thread weighted PageRank with deterministic TypeScript fallback
+  and an optional native RuVector solver contract for future availability.
+- Added explicit pattern promotion through the same persistence, audit, and
+  event flow used by automatic learning.
+
+### Fixed
+
+- Fixed learning consolidation to enumerate the complete stored pattern view,
+  perform reported promotions, preserve dry-run behavior, and disclose
+  per-pattern write failures ([#618]).
+- Fixed monthly aggregate reinforcement to write the per-use audit trail and
+  run the idempotent three-dimensional promotion gate ([#618]). The CLI now
+  reports and enforces the minimum confidence criterion as well.
+- Fixed learning exports to preserve real success counts, rates, quality
+  scores, and memory tiers ([#618]).
+- Fixed repeated initialization so configured learning quality and promotion
+  thresholds are not overwritten ([#619]).
+- Fixed the upgrade advisory for the unpublished `@ruvector/solver` package;
+  its absence is no longer presented as an installable or strict-mode failure
+  ([#617]).
+- Corrected RuVector solver documentation to describe the weighted iterative
+  implementation accurately.
+
+### Changed
+
+- Updated the development-only Ruflo goal UI lock to React Router 7 via [#616].
+  Ruflo remains outside AQE's published runtime dependency surface.
+
+[#616]: https://github.com/proffesor-for-testing/agentic-qe/pull/616
+[#617]: https://github.com/proffesor-for-testing/agentic-qe/issues/617
+[#618]: https://github.com/proffesor-for-testing/agentic-qe/issues/618
+[#619]: https://github.com/proffesor-for-testing/agentic-qe/issues/619
+
 ## [3.13.9] - 2026-08-04
 
 Development-time Ruflo dependency snapshots now resolve patched releases for

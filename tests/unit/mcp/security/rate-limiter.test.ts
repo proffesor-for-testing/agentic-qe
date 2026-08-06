@@ -16,6 +16,7 @@ describe('RateLimiter', () => {
   let limiter: RateLimiter;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     limiter = createRateLimiter({
       tokensPerSecond: 10,
       maxBurst: 20,
@@ -25,6 +26,7 @@ describe('RateLimiter', () => {
 
   afterEach(() => {
     limiter.dispose();
+    vi.useRealTimers();
   });
 
   describe('basic rate limiting', () => {
@@ -101,8 +103,6 @@ describe('RateLimiter', () => {
 
   describe('token refill', () => {
     it('should refill tokens over time', async () => {
-      vi.useFakeTimers();
-
       // Use some tokens
       for (let i = 0; i < 10; i++) {
         limiter.check('client1');
@@ -117,12 +117,9 @@ describe('RateLimiter', () => {
       const afterRefill = limiter.check('client1');
       expect(afterRefill.remaining).toBeGreaterThan(9);
 
-      vi.useRealTimers();
     });
 
     it('should not exceed max burst', async () => {
-      vi.useFakeTimers();
-
       // Wait a long time - should still cap at maxBurst
       vi.advanceTimersByTime(10000);
 
@@ -130,7 +127,6 @@ describe('RateLimiter', () => {
       expect(result.remaining).toBe(19); // maxBurst - 1
       expect(result.remaining).toBeLessThanOrEqual(20);
 
-      vi.useRealTimers();
     });
   });
 
@@ -151,8 +147,6 @@ describe('RateLimiter', () => {
 
   describe('async wait', () => {
     it('should wait for tokens to become available', async () => {
-      vi.useFakeTimers();
-
       // Exhaust tokens
       for (let i = 0; i < 20; i++) {
         limiter.check('client1');
@@ -166,7 +160,6 @@ describe('RateLimiter', () => {
       const result = await waitPromise;
       expect(result.allowed).toBe(true);
 
-      vi.useRealTimers();
     });
   });
 
