@@ -260,6 +260,7 @@ function registerConsolidateCommand(learning: Command): void {
         const reasoningBank = await initializeLearningSystem();
         const threshold = Number(options.threshold);
         const successRateMin = Number(options.successRate);
+        const confidenceMin = 0.6;
         if (!Number.isInteger(threshold) || threshold < 1) {
           throw new Error('threshold must be a positive integer');
         }
@@ -276,7 +277,12 @@ function registerConsolidateCommand(learning: Command): void {
         if (!searchResult.success) throw new Error(searchResult.error.message);
         for (const match of searchResult.value) {
           const pattern = match.pattern;
-          if (pattern.tier === 'short-term' && pattern.successfulUses >= threshold && pattern.successRate >= successRateMin) {
+          if (
+            pattern.tier === 'short-term' &&
+            pattern.successfulUses >= threshold &&
+            pattern.successRate >= successRateMin &&
+            pattern.confidence >= confidenceMin
+          ) {
             eligiblePatterns.push({
               id: pattern.id, name: pattern.name, domain: pattern.qeDomain,
               successfulUses: pattern.successfulUses, successRate: pattern.successRate, currentTier: pattern.tier,
@@ -302,6 +308,7 @@ function registerConsolidateCommand(learning: Command): void {
             failedCount: failures.length,
             threshold,
             successRateMin,
+            confidenceMin,
             patterns: eligiblePatterns,
             failures,
           });
@@ -309,6 +316,7 @@ function registerConsolidateCommand(learning: Command): void {
           console.log(chalk.bold('\n🔄 Pattern Consolidation\n'));
           console.log(`  Promotion threshold: ${threshold} successful uses`);
           console.log(`  Minimum success rate: ${(successRateMin * 100).toFixed(0)}%`);
+          console.log(`  Minimum confidence: ${(confidenceMin * 100).toFixed(0)}%`);
           console.log(`  Eligible patterns: ${eligiblePatterns.length}\n`);
 
           if (eligiblePatterns.length === 0) {

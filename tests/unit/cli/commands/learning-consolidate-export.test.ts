@@ -78,6 +78,27 @@ describe('learning consolidate and export regression (#618)', () => {
     }));
   });
 
+  it('should_notPromotePattern_when_confidenceIsBelowDocumentedGate', async () => {
+    const bank = {
+      searchPatterns: vi.fn().mockResolvedValue({
+        success: true,
+        value: [{ pattern: { ...promotablePattern, confidence: 0.59 } }],
+      }),
+      promotePattern: vi.fn(),
+    };
+    mocks.initializeLearningSystem.mockResolvedValue(bank);
+
+    await createLearningCommand().exitOverride().parseAsync([
+      'node', 'learning', 'consolidate', '--json',
+    ]);
+
+    expect(bank.promotePattern).not.toHaveBeenCalled();
+    expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({
+      eligibleCount: 0,
+      confidenceMin: 0.6,
+    }));
+  });
+
   it('should_reportPromotionFailures_when_storeRejectsPromotion', async () => {
     const bank = {
       searchPatterns: vi.fn().mockResolvedValue({

@@ -30,6 +30,11 @@ export interface PatternUsageRecord {
   feedback?: string;
 }
 
+export interface PatternUsageBatchRecord extends Omit<PatternUsageRecord, 'success'> {
+  usageCount: number;
+  successfulUses: number;
+}
+
 export interface PatternUsageResult {
   /**
    * Whether the helper found and updated the pattern row.
@@ -113,6 +118,76 @@ export function recordPatternUsage(
     );
   });
   txn();
+
+  return {
+    updated: true,
+    usageCount: newUsageCount,
+    successfulUses: newSuccessfulUses,
+    successRate: newSuccessRate,
+    qualityScore: newQualityScore,
+  };
+}
+
+/**
+ * Record an aggregate of observed uses without bypassing the usage audit.
+ * One audit row is written per observed use, while the pattern counters are
+ * updated once in the same transaction.
+ */
+export function recordPatternUsageBatch(
+  db: DatabaseType,
+  record: PatternUsageBatchRecord,
+): PatternUsageResult {
+  if (
+    !Number.isInteger(record.usageCount) || record.usageCount < 1 ||
+    !Number.isInteger(record.successfulUses) || record.successfulUses < 0 ||
+    record.successfulUses > record.usageCount
+  ) {
+    throw new Error('Invalid aggregate pattern usage counts');
+  }
+
+  const pattern = db
+    .prepare('SELECT confidence, usage_count, successful_uses FROM qe_patterns WHERE id = ?')
+    .get(record.patternId) as
+    | { confidence: number; usage_count: number; successful_uses: number }
+    | undefined;
+  if (!pattern) return { updated: false };
+
+  const newUsageCount = pattern.usage_count + record.usageCount;
+  const newSuccessfulUses = pattern.successful_uses + record.successfulUses;
+  const newSuccessRate = newSuccessfulUses / newUsageCount;
+  const usageScore = Math.min(1, newUsageCount / 100);
+  const newQualityScore =
+    pattern.confidence * 0.3 + usageScore * 0.2 + newSuccessRate * 0.5;
+  const insertUsage = db.prepare(`
+    INSERT INTO qe_pattern_usage (pattern_id, success, metrics_json, feedback)
+    VALUES (?, ?, ?, ?)
+  `);
+  const updatePattern = db.prepare(`
+    UPDATE qe_patterns SET
+      usage_count = ?, successful_uses = ?, success_rate = ?, quality_score = ?,
+      last_used_at = datetime('now'), updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  const metricsJson = record.metrics ? JSON.stringify(record.metrics) : null;
+  const feedback = record.feedback ?? null;
+
+  db.transaction(() => {
+    for (let index = 0; index < record.usageCount; index++) {
+      insertUsage.run(
+        record.patternId,
+        index < record.successfulUses ? 1 : 0,
+        metricsJson,
+        feedback,
+      );
+    }
+    updatePattern.run(
+      newUsageCount,
+      newSuccessfulUses,
+      newSuccessRate,
+      newQualityScore,
+      record.patternId,
+    );
+  })();
 
   return {
     updated: true,

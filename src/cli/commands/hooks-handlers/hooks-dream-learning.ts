@@ -8,7 +8,10 @@
 import { randomUUID } from 'crypto';
 import chalk from 'chalk';
 import type { MemoryBackend } from '../../../kernel/interfaces.js';
-import { recordPatternUsage } from '../../../learning/pattern-usage-recorder.js';
+import {
+  recordPatternUsage,
+  recordPatternUsageBatch,
+} from '../../../learning/pattern-usage-recorder.js';
 
 // ============================================================================
 // Dream Scheduler State (persisted in kv_store between hook invocations)
@@ -936,16 +939,26 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
       `).get(agg.domain, patternName) as { id: string } | undefined;
 
       if (existing) {
-        // Reinforce existing monthly pattern
+        // Issue #618: the aggregate writer must use the same audited write
+        // path as individual usage. The former inline UPDATE skipped every
+        // qe_pattern_usage row and never evaluated promotion.
+        recordPatternUsageBatch(db, {
+          patternId: existing.id,
+          usageCount: agg.cnt,
+          successfulUses: agg.successes,
+          metrics: { source: 'session-consolidation', domain: agg.domain, agent: agg.agent },
+        });
         db.prepare(`
           UPDATE qe_patterns
-          SET usage_count = usage_count + ?,
-              successful_uses = successful_uses + ?,
-              confidence = MIN(0.99, confidence + 0.01),
-              quality_score = MIN(0.99, quality_score + 0.005),
-              updated_at = datetime('now')
+          SET confidence = MIN(0.99, confidence + 0.01), updated_at = datetime('now')
           WHERE id = ?
-        `).run(agg.cnt, agg.successes, existing.id);
+        `).run(existing.id);
+        db.prepare(`
+          UPDATE qe_patterns
+          SET tier = 'long-term', updated_at = datetime('now')
+          WHERE id = ? AND tier = 'short-term'
+            AND successful_uses >= 3 AND success_rate >= 0.7 AND confidence >= 0.6
+        `).run(existing.id);
       } else {
         const patternId = uuidv4();
         const confidence = Math.min(0.95, agg.avg_quality * 0.8 + agg.success_rate * 0.2);
