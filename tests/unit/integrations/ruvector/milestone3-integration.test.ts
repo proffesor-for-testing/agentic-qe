@@ -23,6 +23,7 @@ import type { DomainPerformanceSnapshot } from '../../../../src/integrations/ruv
 import {
   PatternCitationGraph,
   computeBlendedImportance,
+  computeBlendedImportanceAsync,
   PATTERN_CITATIONS_SCHEMA,
 } from '../../../../src/learning/pattern-promotion';
 import type { PatternGraph } from '../../../../src/integrations/ruvector/solver-adapter';
@@ -178,6 +179,23 @@ describe('R8: PatternCitationGraph pipeline', () => {
     const scores = computeBlendedImportance(patterns, graph);
     const p1Quality = 0.8 * 0.3 + Math.min(50/100, 1) * 0.2 + 0.9 * 0.5;
     expect(scores.get('p1')).toBeCloseTo(p1Quality, 5);
+  });
+
+  it('should_matchSynchronousBlend_when_asyncPathScoresSmallGraph', async () => {
+    setRuVectorFeatureFlags({ useSublinearSolver: true });
+    const patterns = [
+      { id: 'p1', confidence: 0.8, usageCount: 50, successRate: 0.9 },
+      { id: 'p2', confidence: 0.6, usageCount: 20, successRate: 0.7 },
+      { id: 'p3', confidence: 0.5, usageCount: 10, successRate: 0.6 },
+    ];
+    const graph: PatternGraph = {
+      nodes: ['p1', 'p2', 'p3'],
+      edges: [[0, 1, 1], [1, 2, 2], [2, 0, 1]],
+    };
+
+    const asyncScores = await computeBlendedImportanceAsync(patterns, graph);
+
+    expect(Array.from(asyncScores)).toEqual(Array.from(computeBlendedImportance(patterns, graph)));
   });
 
   it('should bootstrap citation graph from existing pattern data', () => {

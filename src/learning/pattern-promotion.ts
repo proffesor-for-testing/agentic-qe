@@ -538,6 +538,45 @@ export function computeBlendedImportance(
   const solver = new PageRankSolver();
   const pageRankScores = solver.computeImportance(citationGraph);
 
+  return blendImportanceScores(patterns, citationGraph, qualityScores, pageRankScores, alpha);
+}
+
+/**
+ * Async counterpart that offloads large graphs and can use the optional
+ * RuVector NAPI backend without changing existing synchronous callers.
+ */
+export async function computeBlendedImportanceAsync(
+  patterns: Array<{ id: string; confidence: number; usageCount: number; successRate: number }>,
+  citationGraph: PatternGraph,
+  alpha = 0.3,
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!getRuVectorFeatureFlags().useSublinearSolver) {
+    for (const pattern of patterns) result.set(pattern.id, calculateQualityScore(pattern));
+    return result;
+  }
+
+  const qualityScores = new Map<string, number>();
+  for (const pattern of patterns) {
+    qualityScores.set(pattern.id, calculateQualityScore(pattern));
+  }
+  if (citationGraph.nodes.length < 3 || citationGraph.edges.length < 2) {
+    return qualityScores;
+  }
+
+  const pageRankScores = await new PageRankSolver().computeImportanceAsync(citationGraph);
+  return blendImportanceScores(patterns, citationGraph, qualityScores, pageRankScores, alpha);
+}
+
+function blendImportanceScores(
+  patterns: Array<{ id: string; confidence: number; usageCount: number; successRate: number }>,
+  citationGraph: PatternGraph,
+  qualityScores: Map<string, number>,
+  pageRankScores: Map<string, number>,
+  alpha: number,
+): Map<string, number> {
+  const result = new Map<string, number>();
+
   for (const p of patterns) {
     const quality = qualityScores.get(p.id) ?? 0;
     const pageRank = pageRankScores.get(p.id) ?? 0;

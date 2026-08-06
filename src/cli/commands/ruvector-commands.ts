@@ -97,7 +97,7 @@ const FLAG_DESCRIPTIONS: Record<keyof RuVectorFeatureFlags, string> = {
   useColdTierGNN: 'Cold-tier GNN training (R6, ADR-087)',
   // Phase 5 Milestone 3 (ADR-087)
   useMetaLearningEnhancements: 'Meta-learning enhancements (R7, ADR-087)',
-  useSublinearSolver: 'Sublinear PageRank solver (R8, ADR-087)',
+  useSublinearSolver: 'Weighted PageRank solver (R8, ADR-087)',
   useSpectralSparsification: 'Spectral graph sparsification (R9, ADR-087)',
   useReservoirReplay: 'Reservoir replay with coherence gating (R10, ADR-087)',
   // Phase 5 Milestone 4 (ADR-087)

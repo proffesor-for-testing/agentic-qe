@@ -16,13 +16,13 @@
 
 **In the context of** AQE v3's completed Phase 1-4 RuVector integration (ADRs 081-085) where 30 adapters, 8 `@ruvector/*` packages, and 98/124 success criteria are operational, providing native HNSW (150x speedup), neural routing, coherence gating, temporal compression, and cross-domain transfer learning,
 
-**facing** a research audit of RuVector's full 113-crate workspace that revealed 14 capabilities directly relevant to AQE's memory/learning/self-improving systems that were not included in the original integration plan — including hyperdimensional computing, statistical drift detection, event-sourced pattern history, self-supervised graph learning, associative memory networks, sublinear solvers, and online biologically-plausible learning — all of which address specific scaling, self-correction, and learning depth gaps as AQE targets 500K+ patterns,
+**facing** a research audit of RuVector's workspace that revealed capabilities directly relevant to AQE's memory/learning/self-improving systems that were not included in the original integration plan — including hyperdimensional computing, statistical drift detection, event-sourced pattern history, self-supervised graph learning, associative memory networks, sparse graph solvers, and online biologically-plausible learning — all of which address specific scaling, self-correction, and learning depth gaps as AQE targets larger pattern stores,
 
 **we decided for** a phased integration of 14 new RuVector capabilities across 5 milestones, plus completing the EWC++ Fisher regularization (persistence wired, production invocation missing), organized by impact and dependency order: Pattern Intelligence (R1-R3, EWC++), Graph Learning (R4-R6), Scale & Optimization (R7-R10), Advanced Learning (R11-R12), and Backlog (R13-R14),
 
 **and neglected** (a) implementing all 14 capabilities simultaneously (rejected: exceeds coordination capacity of 8-agent swarms, risk of destabilizing the 15,493-test baseline), (b) re-implementing the Rust algorithms in pure TypeScript (rejected: defeats the purpose of native performance; many of these algorithms' value is in sub-millisecond execution), (c) waiting for all capabilities to be published as npm packages (rejected: TypeScript fallbacks ensure progress; WASM binaries can be vendored),
 
-**to achieve** O(1) compositional pattern fingerprinting via HDC, statistical drift detection via CUSUM, pattern version history via delta event sourcing, zero-label graph embeddings via GraphMAE, exact associative recall via Modern Hopfield, O(log n) pattern importance via sublinear solvers, multi-objective optimization via Pareto fronts, and online learning via e-prop — all behind feature flags with TypeScript fallbacks,
+**to achieve** O(1) compositional pattern fingerprinting via HDC, statistical drift detection via CUSUM, pattern version history via delta event sourcing, zero-label graph embeddings via GraphMAE, exact associative recall via Modern Hopfield, weighted pattern importance via PageRank, multi-objective optimization via Pareto fronts, and online learning via e-prop — all behind feature flags with TypeScript fallbacks,
 
 **accepting that** unpublished `@ruvector/*` packages require TypeScript fallbacks until NAPI/WASM binaries are available, the meta-learning enhancements (R7) revisit decisions in ADR-084 by adding 4 new strategies, the Granger causality module (R12) revisits ADR-035's rejection of Granger in favor of STDP (now justified by Rust implementation addressing the latency concern), and some capabilities (R13 cognitive routing, R14 hyperbolic HNSW) are speculative with unclear production value.
 
@@ -132,11 +132,11 @@ A comprehensive audit of RuVector's 113-crate repository (9,480 files) revealed 
 - **Existing ADR impact**: Extends ADR-084 (Cross-Domain Transfer Learning) with 4 new strategies
 
 **R8: Sublinear Solver**
-- **Source**: `ruvector-solver` + `ruvector-solver-node`
-- **What**: O(log n) PageRank, sparse linear systems, spectral methods via Neumann series and conjugate gradient
+- **Source**: `ruvector-solver`; its `@ruvector/solver` NAPI package is present in source but not currently published
+- **What**: Weighted PageRank plus sparse linear-system and spectral methods; current Node PageRank uses power iteration
 - **Why**: Pattern importance scoring currently uses a simple O(1) weighted formula per pattern with no inter-pattern relationship awareness. At 500K+ patterns, graph-based importance (PageRank over a pattern citation/dependency graph) would capture structural importance but requires sublinear algorithms to be feasible. NAPI bindings already exist.
 - **Integration**: New `src/integrations/ruvector/solver-adapter.ts`; also requires building a pattern citation graph in `pattern-promotion.ts` (greenfield — no graph exists today)
-- **Binding**: NAPI (`@ruvector/solver-node`) with TypeScript power-iteration fallback
+- **Binding**: optional async NAPI (`@ruvector/solver`, currently unpublished) with synchronous and worker-thread TypeScript power-iteration fallbacks
 - **Existing ADR impact**: Extends ADR-003 (Sublinear Algorithms) and ADR-047 (MinCut)
 
 **R9: Spectral Graph Sparsification**
@@ -291,7 +291,7 @@ Every WASM/NAPI integration has a TypeScript fallback so that:
 ### CI/CD Pipeline Changes
 
 - **WASM/NAPI binaries**: CI must handle optional native dependencies. Use `optionalDependencies` in `package.json` and `try/catch` dynamic imports so CI without Rust toolchains still passes.
-- **ARM64 matrix**: Native NAPI binaries (`@ruvector/solver-node`, `@ruvector/gnn`) require x64 and ARM64 builds. Add platform matrix to GitHub Actions workflow.
+- **ARM64 matrix**: Native NAPI binaries (`@ruvector/solver`, `@ruvector/gnn`) require x64 and ARM64 builds. Add platform matrix to GitHub Actions workflow.
 - **Benchmark regression**: Add `tests/performance/` benchmarks to CI with threshold-based regression detection (alert if >20% regression from baseline).
 - **106 new tests**: Ensure CI timeout accommodates additional test run time (~30-60s estimated).
 

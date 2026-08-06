@@ -747,6 +747,7 @@ export {
   type PatternGraph,
   type ImportanceScore,
   type SolverConfig,
+  type PageRankRuntimeOptions,
 } from './solver-adapter';
 
 // R9: Spectral Graph Sparsification
