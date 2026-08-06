@@ -148,6 +148,42 @@ describe('QEReasoningBank promotePattern (ADR-064 Phase 3)', () => {
 
   // ---------- Successful promotion ----------
 
+  it('should_promotePattern_when_explicitPromotionIsRequested', async () => {
+    mockStore.get.mockResolvedValue(makePromotablePattern('manual-promotion'));
+
+    const result = await bank.promotePattern('manual-promotion');
+
+    expect(result.success).toBe(true);
+    expect(mockStore.promote).toHaveBeenCalledWith('manual-promotion');
+  });
+
+  it('should_returnFailure_when_explicitPromotionPatternIsMissing', async () => {
+    mockStore.get.mockResolvedValue(null);
+
+    const result = await bank.promotePattern('missing-pattern');
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.objectContaining({ message: 'Pattern not found: missing-pattern' }),
+    });
+    expect(mockStore.promote).not.toHaveBeenCalled();
+  });
+
+  it('should_returnFailure_when_explicitPromotionWriteFails', async () => {
+    mockStore.get.mockResolvedValue(makePromotablePattern('failed-promotion'));
+    mockStore.promote.mockResolvedValue({
+      success: false,
+      error: new Error('write failed'),
+    });
+
+    const result = await bank.promotePattern('failed-promotion');
+
+    expect(result).toEqual({
+      success: false,
+      error: expect.objectContaining({ message: 'write failed' }),
+    });
+  });
+
   it('should call patternStore.promote() when pattern meets criteria', async () => {
     const pattern = makePromotablePattern('pattern-promote-1');
     mockStore.get.mockResolvedValue(pattern);

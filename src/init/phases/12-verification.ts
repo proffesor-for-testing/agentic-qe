@@ -141,7 +141,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
 
         db.close();
         return true;
-      } catch (err) {
+      } catch {
         db.close();
         return false;
       }
@@ -336,6 +336,12 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
     if (existing.learning?.enabled !== undefined) {
       newConfig.learning.enabled = existing.learning.enabled;
     }
+    if (existing.learning?.qualityThreshold !== undefined) {
+      newConfig.learning.qualityThreshold = existing.learning.qualityThreshold;
+    }
+    if (existing.learning?.promotionThreshold !== undefined) {
+      newConfig.learning.promotionThreshold = existing.learning.promotionThreshold;
+    }
 
     // Preserve user's hook preferences
     if (existing.hooks?.claudeCode !== undefined) {
@@ -381,7 +387,7 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
       '# take effect immediately. The following settings are merged on reinstall:',
       '#   - domains.enabled (custom domains like visual-accessibility)',
       '#   - domains.disabled',
-      '#   - learning.enabled',
+      '#   - learning.enabled, qualityThreshold, and promotionThreshold',
       '#   - hooks.* preferences',
       '#   - workers.enabled',
       '#   - agents.maxConcurrent and defaultTimeout',

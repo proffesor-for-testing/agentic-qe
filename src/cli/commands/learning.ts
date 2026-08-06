@@ -258,29 +258,53 @@ function registerConsolidateCommand(learning: Command): void {
     .action(async (options) => {
       try {
         const reasoningBank = await initializeLearningSystem();
-        const threshold = parseInt(options.threshold, 10);
-        const successRateMin = parseFloat(options.successRate);
+        const threshold = Number(options.threshold);
+        const successRateMin = Number(options.successRate);
+        if (!Number.isInteger(threshold) || threshold < 1) {
+          throw new Error('threshold must be a positive integer');
+        }
+        if (!Number.isFinite(successRateMin) || successRateMin < 0 || successRateMin > 1) {
+          throw new Error('success rate must be between 0 and 1');
+        }
 
         const eligiblePatterns: Array<{
           id: string; name: string; domain: string;
           successfulUses: number; successRate: number; currentTier: string;
         }> = [];
 
-        const searchResult = await reasoningBank.searchPatterns('*', { limit: 1000 });
-        if (searchResult.success) {
-          for (const match of searchResult.value) {
-            const pattern = match.pattern;
-            if (pattern.tier === 'short-term' && pattern.successfulUses >= threshold && pattern.successRate >= successRateMin) {
-              eligiblePatterns.push({
-                id: pattern.id, name: pattern.name, domain: pattern.qeDomain,
-                successfulUses: pattern.successfulUses, successRate: pattern.successRate, currentTier: pattern.tier,
-              });
-            }
+        const searchResult = await reasoningBank.searchPatterns('', { limit: 1000 });
+        if (!searchResult.success) throw new Error(searchResult.error.message);
+        for (const match of searchResult.value) {
+          const pattern = match.pattern;
+          if (pattern.tier === 'short-term' && pattern.successfulUses >= threshold && pattern.successRate >= successRateMin) {
+            eligiblePatterns.push({
+              id: pattern.id, name: pattern.name, domain: pattern.qeDomain,
+              successfulUses: pattern.successfulUses, successRate: pattern.successRate, currentTier: pattern.tier,
+            });
+          }
+        }
+
+        let promotedCount = 0;
+        const failures: Array<{ id: string; error: string }> = [];
+        if (!options.dryRun) {
+          for (const pattern of eligiblePatterns) {
+            const result = await reasoningBank.promotePattern(pattern.id);
+            if (result.success) promotedCount++;
+            else failures.push({ id: pattern.id, error: result.error.message });
           }
         }
 
         if (options.json) {
-          printJson({ dryRun: options.dryRun || false, eligibleCount: eligiblePatterns.length, threshold, successRateMin, patterns: eligiblePatterns });
+          printJson({
+            dryRun: options.dryRun || false,
+            eligibleCount: eligiblePatterns.length,
+            promotedCount,
+            failedCount: failures.length,
+            threshold,
+            successRateMin,
+            patterns: eligiblePatterns,
+            failures,
+          });
         } else {
           console.log(chalk.bold('\n🔄 Pattern Consolidation\n'));
           console.log(`  Promotion threshold: ${threshold} successful uses`);
@@ -296,7 +320,13 @@ function registerConsolidateCommand(learning: Command): void {
               console.log(chalk.dim(`      Domain: ${p.domain}, Uses: ${p.successfulUses}, Rate: ${(p.successRate * 100).toFixed(0)}%`));
             }
             if (!options.dryRun) {
-              console.log(chalk.yellow('\n  Promotion would happen here (not yet implemented)'));
+              console.log(chalk.green(`\n  Promoted: ${promotedCount}`));
+              if (failures.length > 0) {
+                console.log(chalk.red(`  Failed: ${failures.length}`));
+                for (const failure of failures) {
+                  console.log(chalk.dim(`    ${failure.id}: ${failure.error}`));
+                }
+              }
             } else {
               console.log(chalk.yellow('\n  Dry run - no changes made'));
             }
@@ -326,7 +356,7 @@ function registerExportCommand(learning: Command): void {
     .action(async (options) => {
       try {
         const reasoningBank = await initializeLearningSystem();
-        const searchResult = await reasoningBank.searchPatterns('*', { limit: 10000, domain: options.domain as QEDomain });
+        const searchResult = await reasoningBank.searchPatterns('', { limit: 10000, domain: options.domain as QEDomain });
         if (!searchResult.success) throw new Error(searchResult.error.message);
 
         const patterns = searchResult.value.map(m => m.pattern).filter(p => !options.longTermOnly || p.tier === 'long-term');
@@ -866,7 +896,7 @@ function registerExportFullCommand(learning: Command): void {
 
         const reasoningBank = await initializeLearningSystem();
         const schemaVersion = await getSchemaVersion(dbPath);
-        const searchResult = await reasoningBank.searchPatterns('*', { limit: 10000 });
+        const searchResult = await reasoningBank.searchPatterns('', { limit: 10000 });
         if (!searchResult.success) throw new Error(searchResult.error.message);
 
         const patterns = searchResult.value.map(m => ({
@@ -958,7 +988,7 @@ function registerImportMergeCommand(learning: Command): void {
         if (!importData.patterns || !Array.isArray(importData.patterns)) throw new Error('Invalid import file format: missing patterns array');
 
         const reasoningBank = await initializeLearningSystem();
-        const existingResult = await reasoningBank.searchPatterns('*', { limit: 10000 });
+        const existingResult = await reasoningBank.searchPatterns('', { limit: 10000 });
         const existingNames = new Set<string>();
         if (existingResult.success) for (const m of existingResult.value) existingNames.add(m.pattern.name);
 

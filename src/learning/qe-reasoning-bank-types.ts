@@ -201,6 +201,9 @@ export interface IQEReasoningBank {
   /** Record pattern usage outcome */
   recordOutcome(outcome: LearningOutcome): Promise<Result<void>>;
 
+  /** Explicitly promote a stored pattern to long-term memory. */
+  promotePattern(patternId: string): Promise<Result<void>>;
+
   /** Route a task to optimal agent */
   routeTask(request: QERoutingRequest): Promise<Result<QERoutingResult>>;
 

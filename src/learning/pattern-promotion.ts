@@ -127,7 +127,7 @@ export async function checkPatternPromotionWithCoherence(
 export async function promotePattern(
   patternId: string,
   deps: PromotionDeps,
-): Promise<void> {
+): Promise<Result<void>> {
   const result = await deps.patternStore.promote(patternId);
   if (result.success) {
     try {
@@ -199,8 +199,10 @@ export async function promotePattern(
         payload: { patternId, newTier: 'long-term' },
       });
     }
+    return result;
   } else {
     logger.error('Failed to promote pattern', result.error, { patternId });
+    return result;
   }
 }
 
