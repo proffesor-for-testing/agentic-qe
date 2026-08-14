@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.13.11](v3.13.11.md) | 2026-08-14 | Reliable diagnostics, native ESM exports, and learned pattern visibility. |
 | [v3.13.10](v3.13.10.md) | 2026-08-06 | Reliable learning consolidation, exports, and PageRank fallback. |
 | [v3.13.9](v3.13.9.md) | 2026-08-04 | Broad Ruflo development-lock security remediation. |
 | [v3.13.8](v3.13.8.md) | 2026-08-04 | Stable coverage gates and isolated learning-engine tests. |

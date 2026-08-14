@@ -7,14 +7,15 @@ import { pathToFileURL } from 'node:url';
 describe('packed package native ESM contracts', () => {
   const packageRoot = process.cwd();
   const tempRoot = path.join(packageRoot, 'node_modules', '.cache', `aqe-pack-esm-${process.pid}`);
-  const unpackedRoot = path.join(tempRoot, 'package');
+  const installedRoot = path.join(tempRoot, 'node_modules', 'agentic-qe');
   let packageJson: {
     exports: Record<string, { import?: string }>;
   };
 
   beforeAll(() => {
-    // Arrange a real packed artifact under this checkout so its dependencies
-    // resolve from the existing node_modules tree without network access.
+    // Install the real packed artifact in isolation. Keeping the unpacked
+    // package beneath this checkout can accidentally resolve undeclared
+    // dependencies from the repository's node_modules tree.
     fs.rmSync(tempRoot, { recursive: true, force: true });
     fs.mkdirSync(tempRoot, { recursive: true });
     const packOutput = execFileSync(
@@ -23,9 +24,13 @@ describe('packed package native ESM contracts', () => {
       { cwd: packageRoot, encoding: 'utf8' },
     );
     const [{ filename }] = JSON.parse(packOutput) as Array<{ filename: string }>;
-    execFileSync('tar', ['-xzf', path.join(tempRoot, filename), '-C', tempRoot]);
-    packageJson = JSON.parse(fs.readFileSync(path.join(unpackedRoot, 'package.json'), 'utf8'));
-  }, 30_000);
+    execFileSync(
+      'npm',
+      ['install', '--ignore-scripts', '--omit=dev', '--prefix', tempRoot, path.join(tempRoot, filename)],
+      { cwd: tempRoot, encoding: 'utf8' },
+    );
+    packageJson = JSON.parse(fs.readFileSync(path.join(installedRoot, 'package.json'), 'utf8'));
+  }, 60_000);
 
   afterAll(() => {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -54,7 +59,7 @@ describe('packed package native ESM contracts', () => {
     label: string,
     executableEntry = false,
   ): void {
-    const url = pathToFileURL(path.resolve(unpackedRoot, relativeTarget)).href;
+    const url = pathToFileURL(path.resolve(installedRoot, relativeTarget)).href;
     const result = spawnSync(
       process.execPath,
       [
@@ -63,7 +68,7 @@ describe('packed package native ESM contracts', () => {
         `await import(${JSON.stringify(url)});`,
         ...(executableEntry ? ['--', '--version'] : []),
       ],
-      { cwd: unpackedRoot, encoding: 'utf8', timeout: 30_000 },
+      { cwd: installedRoot, encoding: 'utf8', timeout: 30_000 },
     );
     expect(result.status, `${label}: ${result.stderr || result.stdout}`).toBe(0);
   }
