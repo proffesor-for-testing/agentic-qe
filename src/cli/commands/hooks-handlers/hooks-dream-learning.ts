@@ -970,8 +970,8 @@ export async function consolidateExperiencesToPatterns(): Promise<number> {
           INSERT INTO qe_patterns (
             id, pattern_type, qe_domain, domain, name, description,
             confidence, usage_count, success_rate, quality_score, tier,
-            template_json, context_json, created_at, successful_uses
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+            template_json, context_json, created_at, last_used_at, successful_uses
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?)
         `).run(
           patternId,
           'workflow',

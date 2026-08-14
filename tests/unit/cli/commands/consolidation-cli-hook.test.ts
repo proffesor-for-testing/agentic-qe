@@ -127,12 +127,13 @@ describe('consolidation does not exclude cli-hook agent (#464)', () => {
     expect(created).toBe(1);
 
     const patterns = db
-      .prepare(`SELECT name, success_rate, confidence, tier, usage_count FROM qe_patterns`)
-      .all() as Array<{ name: string; success_rate: number; confidence: number; tier: string; usage_count: number }>;
+      .prepare(`SELECT name, success_rate, confidence, tier, usage_count, last_used_at FROM qe_patterns`)
+      .all() as Array<{ name: string; success_rate: number; confidence: number; tier: string; usage_count: number; last_used_at: string | null }>;
     expect(patterns).toHaveLength(1);
     expect(patterns[0].name).toMatch(/^cli-hook-code-intelligence-\d{4}-\d{2}$/);
     expect(patterns[0].success_rate).toBeCloseTo(1.0, 5);
     expect(patterns[0].usage_count).toBe(4);
+    expect(patterns[0].last_used_at).not.toBeNull();
     expect(patterns[0].tier).toBe('short-term');
   });
 
