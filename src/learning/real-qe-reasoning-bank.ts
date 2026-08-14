@@ -19,6 +19,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { LoggerFactory } from '../logging/index.js';
 import type { Logger } from '../logging/index.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
+import { maybeEnhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
 
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
@@ -144,6 +145,8 @@ export interface RealQERoutingRequest {
   domain?: QEDomain;
   capabilities?: string[];
   context?: Partial<QEPatternContext>;
+  /** Append relevant learned patterns to guidance (opt-in for compatibility). */
+  includePatternGuidance?: boolean;
 }
 
 export interface RealQERoutingResult {
@@ -732,7 +735,7 @@ export class RealQEReasoningBank {
       // CircularBuffer handles bounded size automatically - O(1) operation
       this.routingLatencies.push(latencyMs);
 
-      return ok({
+      const result: RealQERoutingResult = {
         recommendedAgent: recommended.agent,
         confidence: recommended.score,
         alternatives: alternatives.map(a => ({ agent: a.agent, score: a.score })),
@@ -741,7 +744,13 @@ export class RealQEReasoningBank {
         guidance,
         reasoning: recommended.reasoning.join('; '),
         latencyMs,
-      });
+      };
+
+      return ok(maybeEnhanceRoutingWithPatterns(
+        request.includePatternGuidance,
+        result,
+        searchResult.success ? searchResult.value : [],
+      ));
     } catch (error) {
       return err(toError(error));
     }

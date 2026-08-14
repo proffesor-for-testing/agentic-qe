@@ -95,6 +95,9 @@ export interface QERoutingRequest {
 
   /** Context for matching */
   context?: Partial<QEPatternContext>;
+
+  /** Append relevant learned patterns to guidance (opt-in for compatibility). */
+  includePatternGuidance?: boolean;
 }
 
 /**
