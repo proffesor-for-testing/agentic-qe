@@ -64,7 +64,10 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, QualityVerdi
 
       const router = await getLLMRouter(context);
       const judge = router
-        ? createRouterFrontierJudge(router, params.model ? { model: params.model } : {})
+        ? createRouterFrontierJudge(router, {
+            ...(params.model ? { model: params.model } : {}),
+            logger: (message) => this.logger.warn(message, { requestId: context.requestId }),
+          })
         : createUnavailableJudge('no LLM provider configured — set a frontier provider API key');
       if (!router) {
         this.markAsDemoData(context, 'no LLM router — frontier judge unavailable, verdict will be inconclusive');

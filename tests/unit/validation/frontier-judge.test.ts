@@ -54,10 +54,12 @@ describe('createFrontierJudge.grade', () => {
 
   it('should_markRanFalse_when_providerThrows', async () => {
     // Arrange
+    const logger = vi.fn();
     const judge = createFrontierJudge({
       complete: async () => {
         throw new Error('usage limit reached');
       },
+      logger,
     });
 
     // Act
@@ -67,24 +69,15 @@ describe('createFrontierJudge.grade', () => {
     expect(opinion.ran).toBe(false);
     expect(opinion.coverage).toBe(0);
     expect(opinion.unmet).toEqual([]);
+    expect(logger).toHaveBeenCalledWith(expect.stringContaining('usage limit reached'));
   });
 
   it('should_markRanFalse_when_responseUnparseable', async () => {
     // Arrange
-    const judge = createFrontierJudge({ complete: respond('the model rambled without JSON') });
-
-    // Act
-    const opinion = await judge.grade('artifact', CHECKLIST);
-
-    // Assert
-    expect(opinion.ran).toBe(false);
-  });
-
-  it('should_markRanFalse_when_gradeTimesOut', async () => {
-    // Arrange: a provider that never settles, with a tiny timeout
+    const logger = vi.fn();
     const judge = createFrontierJudge({
-      complete: () => new Promise<string>(() => {}),
-      timeoutMs: 20,
+      complete: respond('the model rambled without JSON'),
+      logger,
     });
 
     // Act
@@ -92,6 +85,24 @@ describe('createFrontierJudge.grade', () => {
 
     // Assert
     expect(opinion.ran).toBe(false);
+    expect(logger).toHaveBeenCalledWith(expect.stringContaining('could not parse response'));
+  });
+
+  it('should_markRanFalse_when_gradeTimesOut', async () => {
+    // Arrange: a provider that never settles, with a tiny timeout
+    const logger = vi.fn();
+    const judge = createFrontierJudge({
+      complete: () => new Promise<string>(() => {}),
+      timeoutMs: 20,
+      logger,
+    });
+
+    // Act
+    const opinion = await judge.grade('artifact', CHECKLIST);
+
+    // Assert
+    expect(opinion.ran).toBe(false);
+    expect(logger).toHaveBeenCalledWith(expect.stringContaining('timed out after 20ms'));
   });
 
   it('should_ignoreOutOfRangeIndices_when_modelReturnsGarbledNumbers', async () => {
