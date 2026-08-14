@@ -484,6 +484,9 @@ export interface ILearningOptimizationCoordinator {
    */
   getLearningDashboard(): Promise<Result<LearningDashboard>>;
 
+  /** Return read-only statistics from the persisted SONA pattern store. */
+  getSONAPersistedStats(): Promise<import('../../integrations/ruvector/sona-persistence.js').PersistedSONAStats>;
+
   /**
    * Export learned models
    */

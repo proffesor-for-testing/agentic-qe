@@ -98,6 +98,19 @@ export const SONA_FISHER_SCHEMA = `
   );
 `;
 
+/** Read-only aggregate over the persisted SONA pattern store. */
+export interface PersistedSONAStats {
+  totalPatterns: number;
+  uniqueTypes: number;
+  uniqueDomains: number;
+  avgConfidence: number;
+  avgUsage: number;
+  totalSuccesses: number;
+  totalFailures: number;
+  byType: Record<string, number>;
+  byDomain: Record<string, number>;
+}
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -955,17 +968,7 @@ export class PersistentSONAEngine {
   /**
    * Get persisted statistics from SQLite
    */
-  async getPersistedStats(): Promise<{
-    totalPatterns: number;
-    uniqueTypes: number;
-    uniqueDomains: number;
-    avgConfidence: number;
-    avgUsage: number;
-    totalSuccesses: number;
-    totalFailures: number;
-    byType: Record<string, number>;
-    byDomain: Record<string, number>;
-  }> {
+  async getPersistedStats(): Promise<PersistedSONAStats> {
     this.ensureInitialized();
 
     const statsStmt = this.prepared.get('getStats');

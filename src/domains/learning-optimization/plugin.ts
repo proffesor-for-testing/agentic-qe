@@ -48,6 +48,7 @@ import {
   ProductionIntelService,
   ProductionIntelConfig,
 } from './services/index.js';
+import type { PersistedSONAStats } from '../../integrations/ruvector/sona-persistence.js';
 
 /**
  * Plugin configuration options
@@ -67,6 +68,8 @@ export interface LearningOptimizationAPI {
   // Availability check
   /** Check if SONA pattern engine is available (may be false if init failed) */
   isSONAAvailable(): boolean;
+  /** Read-only persisted SONA statistics; null when SONA initialization failed. */
+  getSONAPersistedStats(): Promise<PersistedSONAStats | null>;
 
   // Coordinator methods
   runLearningCycle(domain: DomainName): Promise<Result<LearningCycleReport>>;
@@ -184,6 +187,10 @@ export class LearningOptimizationPlugin extends BaseDomainPlugin {
     const api: LearningOptimizationExtendedAPI = {
       // Availability check
       isSONAAvailable: () => this.coordinator?.isSONAAvailable() ?? false,
+      getSONAPersistedStats: async () => {
+        if (!this.coordinator?.isSONAAvailable()) return null;
+        return this.coordinator.getSONAPersistedStats();
+      },
 
       // Coordinator methods
       runLearningCycle: this.runLearningCycle.bind(this),
