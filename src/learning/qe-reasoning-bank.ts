@@ -75,6 +75,7 @@ import {
 import { resolveTopologyCriticalFromSharedMincut } from './routing-topology-gate.js';
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { resizeEmbedding, hashEmbedding } from './embedding-utils.js';
+import { maybeEnhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
 import {
   checkPatternPromotionWithCoherence,
   promotePattern as promotePatternFn,
@@ -612,7 +613,11 @@ export class QEReasoningBank implements IQEReasoningBank {
         qWeight: avgQWeight,
       };
 
-      return ok(result);
+      return ok(maybeEnhanceRoutingWithPatterns(
+        request.includePatternGuidance,
+        result,
+        patternResults.success ? patternResults.value : [],
+      ));
     } catch (error) {
       return err(toError(error));
     }

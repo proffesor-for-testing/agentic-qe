@@ -26,6 +26,8 @@ import {
   OptimizationObjective as DomainObjective,
   Constraint,
 } from '../../../domains/learning-optimization/interfaces.js';
+import type { LearningOptimizationAPI } from '../../../domains/learning-optimization/plugin.js';
+import type { PersistedSONAStats } from '../../../integrations/ruvector/sona-persistence.js';
 
 // ============================================================================
 // Types
@@ -107,6 +109,8 @@ export interface PatternResult {
   topPatterns: LearnedPattern[];
   avgConfidence: number;
   avgSuccessRate: number;
+  /** Read-only persisted SONA visibility when an initialized fleet is available. */
+  sona?: SONASnapshot;
 }
 
 export interface DashboardResult {
@@ -117,6 +121,13 @@ export interface DashboardResult {
   topPerformingDomains: DomainName[];
   learningTrend: TrendPoint[];
   recentMilestones: Milestone[];
+  /** Read-only persisted SONA visibility when an initialized fleet is available. */
+  sona?: SONASnapshot;
+}
+
+export interface SONASnapshot {
+  available: boolean;
+  stats: PersistedSONAStats | null;
 }
 
 export interface TrendPoint {
@@ -522,6 +533,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     context: MCPToolContext
   ): Promise<PatternResult> {
     const { learningCoordinator } = await this.getServices(context);
+    const sona = await this.getSONASnapshot(context);
 
     this.emitStream(context, {
       status: 'analyzing',
@@ -540,6 +552,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
         topPatterns: [],
         avgConfidence: 0,
         avgSuccessRate: 0,
+        sona,
       };
     }
 
@@ -563,11 +576,13 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       topPatterns,
       avgConfidence: stats.avgConfidence,
       avgSuccessRate: stats.avgSuccessRate,
+      sona,
     };
   }
 
   private async executeDashboard(context: MCPToolContext): Promise<DashboardResult> {
     const { learningCoordinator, transferSpecialist } = await this.getServices(context);
+    const sona = await this.getSONASnapshot(context);
 
     this.emitStream(context, {
       status: 'aggregating',
@@ -665,7 +680,24 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       topPerformingDomains: topPerformingDomains.length > 0 ? topPerformingDomains : ['test-generation'],
       learningTrend,
       recentMilestones,
+      sona,
     };
+  }
+
+  /** Read SONA through the initialized domain API; never construct a second engine here. */
+  private async getSONASnapshot(context: MCPToolContext): Promise<SONASnapshot> {
+    const api = context.kernel?.getDomainAPI<LearningOptimizationAPI>('learning-optimization');
+    if (!api?.isSONAAvailable()) return { available: false, stats: null };
+
+    try {
+      return { available: true, stats: await api.getSONAPersistedStats() };
+    } catch (error) {
+      this.logger.warn('Failed to read persisted SONA statistics', {
+        requestId: context.requestId,
+        error: toErrorMessage(error),
+      });
+      return { available: false, stats: null };
+    }
   }
 }
 

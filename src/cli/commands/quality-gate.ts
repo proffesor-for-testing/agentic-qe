@@ -136,7 +136,11 @@ export async function buildJudge(model?: string): Promise<Judge> {
   if (!built) {
     return createUnavailableJudge('no LLM provider configured — set a frontier provider API key');
   }
-  return createRouterFrontierJudge(built.router, model ? { model } : {});
+  return createRouterFrontierJudge(built.router, {
+    ...(model ? { model } : {}),
+    // Diagnostics belong on stderr so --format json remains machine-parseable.
+    logger: (message) => console.error(message),
+  });
 }
 
 function printVerdict(

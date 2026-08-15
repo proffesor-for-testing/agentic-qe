@@ -92,6 +92,7 @@ export function registerRoutingHooks(hooks: Command): void {
           task,
           domain: options.domain as QEDomain,
           capabilities: options.capabilities,
+          includePatternGuidance: true,
         };
 
         const result = await reasoningBank.routeTask(request);
@@ -109,6 +110,12 @@ export function registerRoutingHooks(hooks: Command): void {
             alternatives: routing.alternatives,
             domains: routing.domains,
             patternCount: routing.patterns.length,
+            patterns: routing.patterns.map((pattern) => ({
+              id: pattern.id,
+              name: pattern.name,
+              description: pattern.description,
+              confidence: pattern.confidence,
+            })),
             guidance: routing.guidance,
             reasoning: routing.reasoning,
             // ADR-095 telemetry passed through to operators / scripts

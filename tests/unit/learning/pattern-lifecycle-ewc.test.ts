@@ -108,6 +108,15 @@ describe('PatternLifecycleManager — EWC++ forgetting protection (#510 item 6)'
   });
 
   describe('importance-weighted confidence decay', () => {
+    it('uses created_at as the recency fallback when last_used_at is null', () => {
+      seed({ id: 'legacy-null', confidence: 0.8, successRate: 1, usageCount: 20, daysSinceUse: 0 });
+      db.prepare(`UPDATE qe_patterns SET last_used_at = NULL WHERE id = 'legacy-null'`).run();
+
+      mgr.applyConfidenceDecay(10);
+
+      expect(confidenceOf('legacy-null')).toBe(0.8);
+    });
+
     // Patterns must be older than the decay window (strict `<` cutoff), so use
     // daysSinceUse=15 with a 10-day decay run.
     it('decays a low-importance pattern EXACTLY as the old uniform formula (no regression)', () => {

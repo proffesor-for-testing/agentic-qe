@@ -738,9 +738,22 @@ export class PatternEvolution {
         usage_count = ?,
         successful_uses = ?,
         success_rate = ?,
+        last_used_at = CASE
+          WHEN last_used_at IS NULL THEN ?
+          WHEN ? IS NULL THEN last_used_at
+          ELSE MAX(datetime(last_used_at), datetime(?))
+        END,
         updated_at = datetime('now')
       WHERE id = ?
-    `).run(totalUsage, totalSuccess, newSuccessRate, retained.id);
+    `).run(
+      totalUsage,
+      totalSuccess,
+      newSuccessRate,
+      archived.last_used_at,
+      archived.last_used_at,
+      archived.last_used_at,
+      retained.id,
+    );
 
     // Record merge relationship
     const relStmt = this.prepared.get('insertRelationship');

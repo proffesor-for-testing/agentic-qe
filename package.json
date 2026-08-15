@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.13.10",
+  "version": "3.13.11",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -59,7 +59,8 @@
   "scripts": {
     "preinstall": "node scripts/preinstall.cjs || true",
     "postinstall": "node scripts/postinstall.cjs",
-    "build": "tsc && npm run build:cli && npm run build:mcp",
+    "build": "tsc && npm run build:esm && npm run build:cli && npm run build:mcp",
+    "build:esm": "node scripts/fix-esm-specifiers.mjs",
     "build:cli": "node scripts/build-cli.mjs",
     "build:mcp": "node scripts/build-mcp.mjs",
     "prepublishOnly": "node scripts/sync-agents.cjs && node scripts/prepare-assets.cjs",
@@ -183,6 +184,7 @@
     "pg": "^8.17.2",
     "prime-radiant-advanced-wasm": "^0.1.3",
     "secure-json-parse": "^4.1.0",
+    "typescript": "^5.9.3",
     "uuid": "^14.0.0",
     "vibium": "^0.1.2",
     "web-tree-sitter": "~0.26.8",
@@ -261,7 +263,6 @@
     "glob": "^13.0.0",
     "msw": "^2.12.7",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },
   "engines": {

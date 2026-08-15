@@ -55,6 +55,7 @@ import {
   type QEPattern,
   type QEDomain,
 } from './qe-reasoning-bank.js';
+import { enhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
 import { PROMOTION_THRESHOLD } from './qe-patterns.js';
 import type {
   PatternSearchOptions,
@@ -505,7 +506,7 @@ export class AQELearningEngine {
 
     // Enhance routing result with pattern context (Phase 5.2)
     if (localResult.success && patternSearchResult.success) {
-      const enhancedResult = this.enhanceRoutingWithPatterns(
+      const enhancedResult = enhanceRoutingWithPatterns(
         localResult.value,
         patternSearchResult.value
       );
@@ -609,53 +610,6 @@ export class AQELearningEngine {
    * @param patterns - Found patterns
    * @returns Enhanced routing result
    */
-  private enhanceRoutingWithPatterns(
-    routingResult: QERoutingResult,
-    patterns: PatternSearchResult[]
-  ): QERoutingResult {
-    // Filter to high-quality patterns only
-    const relevantPatterns = patterns.filter(
-      p => p.similarity >= 0.5 && p.pattern.qualityScore >= 0.3
-    );
-
-    if (relevantPatterns.length === 0) {
-      return routingResult;
-    }
-
-    // Generate pattern hints for agent prompts
-    const patternHints = relevantPatterns.map(result => {
-      const pattern = result.pattern;
-      return `[Pattern: ${pattern.name}] ${pattern.description} (confidence: ${(pattern.confidence * 100).toFixed(0)}%, similarity: ${(result.similarity * 100).toFixed(0)}%)`;
-    });
-
-    // Add pattern-based guidance to existing guidance
-    const enhancedGuidance = [
-      ...routingResult.guidance,
-      '--- Relevant Patterns ---',
-      ...patternHints,
-    ];
-
-    // Include pattern objects in result for downstream use
-    const enhancedPatterns = [
-      ...routingResult.patterns,
-      ...relevantPatterns.map(r => r.pattern),
-    ];
-
-    // Build enhanced reasoning
-    const patternReasoning = relevantPatterns.length > 0
-      ? `; Found ${relevantPatterns.length} relevant pattern(s) with avg similarity ${(relevantPatterns.reduce((sum, p) => sum + p.similarity, 0) / relevantPatterns.length * 100).toFixed(0)}%`
-      : '';
-
-    return {
-      ...routingResult,
-      patterns: enhancedPatterns,
-      guidance: enhancedGuidance,
-      reasoning: routingResult.reasoning + patternReasoning,
-      // Boost confidence slightly when relevant patterns are found
-      confidence: Math.min(1, routingResult.confidence + relevantPatterns.length * 0.02),
-    };
-  }
-
   // ==========================================================================
   // Model Routing (CF Enhanced)
   // ==========================================================================

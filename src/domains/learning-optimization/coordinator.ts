@@ -55,6 +55,7 @@ import {
 import {
   PersistentSONAEngine,
   createPersistentSONAEngine,
+  type PersistedSONAStats,
 } from '../../integrations/ruvector/sona-persistence.js';
 import {
   type QESONAPattern,
@@ -800,6 +801,13 @@ export class LearningOptimizationCoordinator
     this.ensureInitialized();
     this.ensureSONAAvailable();
     return this.sona!.getStats();
+  }
+
+  /** Return persisted SONA aggregates without mutating or reconstructing the store. */
+  async getSONAPersistedStats(): Promise<PersistedSONAStats> {
+    this.ensureInitialized();
+    this.ensureSONAAvailable();
+    return this.sona!.getPersistedStats();
   }
 
   /**

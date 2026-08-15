@@ -5,6 +5,44 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.11] - 2026-08-14
+
+Diagnostics, native ESM imports, and learned pattern visibility now behave
+consistently across CLI, MCP, hooks, and background learning workflows.
+
+### Added
+
+- Added read-only SONA pattern counts and statistics to MCP pattern responses
+  and the dashboard without opening a second learning database connection
+  ([#624]).
+- Added backward-compatible pattern details to JSON hook responses and opt-in
+  learned guidance for reasoning-bank requests ([#625]).
+
+### Fixed
+
+- Routed quality-judge provider errors, timeouts, and unparseable-response
+  diagnostics to stderr in the CLI and the MCP logger, preserving valid JSON
+  on stdout ([#621]).
+- Normalized extensionless relative specifiers throughout the emitted public
+  ESM dependency graph and added native imports for every package export,
+  including the RuVector barrel and coordinator GNN. The package now declares
+  its runtime TypeScript parser dependency explicitly ([#624]).
+- Filtered learned hook guidance through the existing relevance floor while
+  preserving static guidance and no-match behavior ([#625]).
+- Stamped consolidated patterns with `last_used_at`, applied legacy-safe
+  confidence decay, and preserved the newest timestamp across evolution merges
+  ([#626]).
+
+### Changed
+
+- Consolidated pattern rows with recorded usage now consistently carry a
+  non-null recency timestamp. No database migration is required.
+
+[#621]: https://github.com/proffesor-for-testing/agentic-qe/issues/621
+[#624]: https://github.com/proffesor-for-testing/agentic-qe/issues/624
+[#625]: https://github.com/proffesor-for-testing/agentic-qe/issues/625
+[#626]: https://github.com/proffesor-for-testing/agentic-qe/issues/626
+
 ## [3.13.10] - 2026-08-06
 
 Pattern consolidation and export now operate on complete, accurate learning

@@ -307,7 +307,9 @@ jobs:
     name: Coverage Analysis
     runs-on: ubuntu-latest
     needs: [journey-governance, journey-ruvector-coordination, journey-root, journey-remaining]
-    timeout-minutes: 10
+    # Full serial V8 instrumentation exceeds ten minutes as the suite grows.
+    # Keep a finite bound while allowing the report and threshold steps to run.
+    timeout-minutes: 30
     if: success() && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -319,11 +321,16 @@ jobs:
         # Performance baselines remain authoritative in Performance Gates.
         # V8 instrumentation adds nondeterministic wall-clock overhead, so the
         # coverage job exercises correctness paths but excludes pure benchmarks.
-        run: bash scripts/ci-vitest-run.sh --coverage --reporter=verbose --exclude='tests/performance/**'
+        run: >-
+          bash scripts/ci-vitest-run.sh --coverage --reporter=verbose
+          --exclude='tests/performance/**'
+          --exclude='tests/unit/learning/mmr-scaling.test.ts'
+          --exclude='tests/unit/learning/dream/spreading-activation-bounds.test.ts'
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
           CI: 'true'
           AQE_COVERAGE: 'true'
+          CI_VITEST_TIMEOUT: '1500'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

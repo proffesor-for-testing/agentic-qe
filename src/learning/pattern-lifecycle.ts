@@ -868,7 +868,7 @@ Pattern extracted from ${exp.count} successful experiences.`;
                   ELSE 0.0 END)))),
           updated_at = datetime('now')
       WHERE deprecated_at IS NULL
-        AND (last_used_at IS NULL OR datetime(last_used_at) < datetime(?, 'unixepoch'))
+        AND datetime(COALESCE(last_used_at, created_at)) < datetime(?, 'unixepoch')
     `).run(
       this.config.minActiveConfidence,
       baseDecayAmount,

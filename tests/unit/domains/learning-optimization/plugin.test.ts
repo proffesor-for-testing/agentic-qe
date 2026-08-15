@@ -32,6 +32,17 @@ vi.mock('../../../../src/integrations/ruvector/sona-persistence', () => ({
     createPattern: vi.fn(),
     adaptPattern: vi.fn().mockResolvedValue({ patterns: [], adapted: false }),
     getStats: vi.fn().mockReturnValue({ totalPatterns: 0, typeBreakdown: {}, domainBreakdown: {} }),
+    getPersistedStats: vi.fn().mockResolvedValue({
+      totalPatterns: 3,
+      uniqueTypes: 2,
+      uniqueDomains: 2,
+      avgConfidence: 0.8,
+      avgUsage: 4,
+      totalSuccesses: 7,
+      totalFailures: 1,
+      byType: { successful: 2, optimization: 1 },
+      byDomain: { 'test-generation': 2, 'quality-assessment': 1 },
+    }),
     getAllPatterns: vi.fn().mockReturnValue([]),
     getPatternsByType: vi.fn().mockReturnValue([]),
     getPatternsByDomain: vi.fn().mockReturnValue([]),
@@ -176,6 +187,19 @@ describe('LearningOptimizationPlugin', () => {
       expect(api).toHaveProperty('getLearningDashboard');
       expect(api).toHaveProperty('exportModels');
       expect(api).toHaveProperty('importModels');
+    });
+
+    it('should_returnPersistedSONAStats_when_engineIsAvailable', async () => {
+      // Arrange
+      const api = plugin.getAPI<{
+        getSONAPersistedStats: () => Promise<{ totalPatterns: number } | null>;
+      }>();
+
+      // Act
+      const stats = await api.getSONAPersistedStats();
+
+      // Assert
+      expect(stats?.totalPatterns).toBe(3);
     });
 
     it('should return API with pattern learning methods', () => {
