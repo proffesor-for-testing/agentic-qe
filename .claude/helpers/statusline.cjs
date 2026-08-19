@@ -1,12 +1,61 @@
 #!/usr/bin/env node
 /* ruflo-seg:BEGIN */
+function rufloStatuslineDebug(stage, error){
+  if (!process || !process.env || process.env.AK_STATUSLINE_DEBUG !== "1") return;
+  if (error && error.code === "ENOENT") return; // optional source genuinely absent
+  try {
+    var fs = require("fs"), path = require("path"), os = require("os");
+    var root = process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state");
+    var file = process.env.AK_STATUSLINE_DEBUG_FILE || path.join(root, "agentic-kit", "statusline-debug.log");
+    var safeStage = String(stage || "unknown").replace(/[^a-z0-9._-]/gi, "_").slice(0, 64);
+    var safeName = String(error && error.name || "Error").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "Error";
+    var safeCode = String(error && (error.code || error.errcode) || "unknown").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) || "unknown";
+    var line = new Date().toISOString() + " stage=" + safeStage + " name=" + safeName + " code=" + safeCode + "\n";
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    var size = 0; try { size = fs.statSync(file).size; } catch(_missing){}
+    if (size >= 65536) fs.writeFileSync(file, line, { mode: 0o600 });
+    else fs.appendFileSync(file, line, { mode: 0o600 });
+    try { fs.chmodSync(file, 0o600); } catch(_mode){}
+  } catch(_debugFailure) { /* diagnostics must never break the renderer */ }
+}
 function rufloActivationSegments(cwd){
   try {
     var fs = require("fs"), path = require("path"), cp = require("child_process");
     var RED = "\x1b[1;31m";   // alarm-only segments (aidefence OFF) — matches ruflo's own brightRed
     var DIM = "[2m", G = "[1;32m", Y = "[1;33m", C = "[1;36m", R = "[0m";
-    // execFileSync (no shell) — db path / sql are passed as argv, never interpolated into a command line.
-    function q(db, sql){ try { return cp.execFileSync("sqlite3", [db, sql], {stdio:["ignore","pipe","ignore"], timeout:1500}).toString().trim(); } catch(e){ return ""; } }
+    // ── quota tee (ADR-0010): Claude Code pushes plan utilization into every
+    // statusline invocation (rate_limits: five_hour/seven_day used_percentage +
+    // reset epochs — code.claude.com/docs/en/statusline.md). This is the ONLY
+    // supported channel for those numbers on a Pro/Max plan, and it is push-
+    // only, so the kit persists the latest payload for the dashboard's Limits
+    // view to read (quota.mjs). Throttled to one write/min (the statusline
+    // refreshes every ~5s); atomic tmp+rename at 0600 — account utilization is
+    // the user's own business. Failure is silent by design: a broken tee must
+    // never cost a statusline render.
+    try {
+      if (typeof getStdinData === "function") {
+        var _qsd = getStdinData();
+        if (_qsd && _qsd.rate_limits && typeof _qsd.rate_limits === "object") {
+          var _qdir = path.join(process.env.XDG_CONFIG_HOME || path.join(require("os").homedir(), ".config"), "agentic-kit");
+          var _qf = path.join(_qdir, "claude-rate-limits.json");
+          var _qold = 0;
+          try { _qold = fs.statSync(_qf).mtimeMs; } catch(e){ rufloStatuslineDebug("quota-cache-stat", e); }
+          if (Date.now() - _qold > 60000) {
+            fs.mkdirSync(_qdir, { recursive: true });
+            var _qtmp = _qf + "." + process.pid + ".tmp";
+            fs.writeFileSync(_qtmp, JSON.stringify({
+              teedAt: Date.now(),
+              session_id: _qsd.session_id || null,
+              model: (_qsd.model && _qsd.model.id) || null,
+              rate_limits: _qsd.rate_limits,
+              context_window: _qsd.context_window || null,
+              cost: _qsd.cost || null
+            }), { mode: 0o600 });
+            fs.renameSync(_qtmp, _qf);
+          }
+        }
+      }
+    } catch(e){ rufloStatuslineDebug("quota-tee", e); }
     function bar(n, max){ n = Math.max(0, Math.min(max, n)); return "[" + "●".repeat(n) + "○".repeat(max - n) + "]"; }
     // ── self-learning (SONA): own line with a volume bar (patterns/traj/HNSW) plus a
     // LIVE micro-LoRA adaptation field (Δ‖W‖, appended further below). The Δ‖W‖ tracker
@@ -26,7 +75,7 @@ function rufloActivationSegments(cwd){
           learn = C + "🧠 SONA" + R + "  " + DIM + bar(dots, 5) + R + "  " + parts.join(DIM + " · " + R);
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("sona-stats", e); }
     // ── micro-LoRA LIVE adaptation: Δ‖W‖<cum> +<session> <trend> n<count> ──
     // Shows the model ACTUALLY ADAPTING FROM YOUR WORK, live. ruflo's own micro-LoRA is
     // per-process scratch ("resets per process", intelligence.js) — every hook reinits it
@@ -48,7 +97,7 @@ function rufloActivationSegments(cwd){
       var nd = path.join(cwd, ".claude-flow", "neural");
       var pPath = path.join(nd, "patterns.json"), sPath = path.join(nd, "lora-live.json");
       if (fs.existsSync(pPath)) {
-        var st = null; try { st = JSON.parse(fs.readFileSync(sPath, "utf8")); } catch(e){}
+        var st = null; try { st = JSON.parse(fs.readFileSync(sPath, "utf8")); } catch(e){ rufloStatuslineDebug("lora-state-read", e); }
         var nowS = Math.floor(Date.now() / 1000);
         var pMtimeMs = fs.statSync(pPath).mtimeMs;   // ms precision: same-second writes still detected
         var TTL = Number(process.env.RUFLO_LORA_TTL_S || 60);
@@ -57,7 +106,7 @@ function rufloActivationSegments(cwd){
         // getStdinData() is the host statusline's cached single-read of that JSON; guard the
         // call so the segment still works on a template that lacks it, or run standalone.
         var sid = "";
-        try { if (typeof getStdinData === "function") { var _sd = getStdinData(); sid = (_sd && (_sd.session_id || _sd.sessionId)) || ""; } } catch(e){}
+        try { if (typeof getStdinData === "function") { var _sd = getStdinData(); sid = (_sd && (_sd.session_id || _sd.sessionId)) || ""; } } catch(e){ rufloStatuslineDebug("lora-session-input", e); }
         // Refresh when: no state yet, the session changed (reset the +session baseline even
         // with no new patterns), or patterns changed and the TTL has elapsed.
         var sidChanged = !!(sid && st && (st.sessionId || "") !== sid);
@@ -69,7 +118,7 @@ function rufloActivationSegments(cwd){
             var sj = path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "ruflo",
                                "node_modules", "@ruvector", "ruvllm", "dist", "cjs", "sona.js");
             if (fs.existsSync(sj)) SC = require(sj).SonaCoordinator;
-          } catch(e){}
+          } catch(e){ rufloStatuslineDebug("lora-module-load", e); }
           if (SC) {
             var pats = JSON.parse(fs.readFileSync(pPath, "utf8"));
             // Seed Math.random so the first-ever loraA init is deterministic; restore after ctor.
@@ -79,7 +128,7 @@ function rufloActivationSegments(cwd){
             Math.random = orig;
             var applied = new Set((st && st.appliedIds) || []);
             var n = (st && st.n) || 0;
-            if (st && st.loraA) { try { coord.microLora.setWeights({ loraA: st.loraA, loraB: st.loraB, scaling: st.scaling }); } catch(e){} }
+            if (st && st.loraA) { try { coord.microLora.setWeights({ loraA: st.loraA, loraB: st.loraB, scaling: st.scaling }); } catch(e){ rufloStatuslineDebug("lora-weight-restore", e); } }
             var prevSid = st ? (st.sessionId || "") : "";
             var newSession;
             if (sid) {
@@ -102,7 +151,7 @@ function rufloActivationSegments(cwd){
             var rec = { loraA: w.loraA, loraB: w.loraB, scaling: w.scaling, appliedIds: Array.from(applied),
                         n: n, deltaNorm: nm, sessionBase: sessionBase, sessionTs: sessionTs, sessionId: sid,
                         pms: pMtimeMs, ts: nowS };
-            try { var tmp = sPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(rec)); fs.renameSync(tmp, sPath); } catch(e){}
+            try { var tmp = sPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(rec)); fs.renameSync(tmp, sPath); } catch(e){ rufloStatuslineDebug("lora-state-write", e); }
             st = rec;
           }
         }
@@ -118,7 +167,7 @@ function rufloActivationSegments(cwd){
           else { learn = C + "🧠 Δ LoRA" + R + "  " + dseg; }
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("lora-segment", e); }
     // ── route Q-learner (📈 RL): live agent-routing metrics, fs-only, honesty-gated ──
     // F3 (ruvnet/ruflo#2239) is fixed in ruflo 3.10.11 (FNV-1a lossless fold) — the
     // state encoder no longer collapses keyword-distinct tasks, so |Q| is a
@@ -158,7 +207,7 @@ function rufloActivationSegments(cwd){
           }
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("route-learning", e); }
     // ── proof verdict (self-improvement eval): ALARM-ONLY, fs-only ──
     // Sources the most recent ruflo-improvement-eval run (.claude-flow/improvement.json):
     // a pre-registered causal test (one-sided permutation p + Cohen's d + above-chance)
@@ -187,7 +236,7 @@ function rufloActivationSegments(cwd){
           proof = Y + "◷ proof FAIL" + R + (pp.length ? "  " + DIM + pp.join(" · ") + R : "");
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("proof-verdict", e); }
     // ── AI defense (AIMDS) — ALARM-ONLY: renders only when it is MISSING ────────
     // Was a permanent green "🛡 aidefence on". Two reasons it inverted:
     //   1. Issue #8's rule, already law for the proof segment below: the expected state
@@ -223,7 +272,7 @@ function rufloActivationSegments(cwd){
       if (rufloAidefenceState(rufloFindRufloRoot()) === "off") {
         sec = RED + "⚠ aidefence OFF" + R + DIM + " — no prompt-injection defense · ak sync restores it" + R;
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("aidefence-state", e); }
     // ── daemon visibility (⚙): GLOBAL count of running ruflo daemons, so no daemon
     // is ever invisible (token-burn incident lesson). Machine-global, not per-project,
     // so it is cached in tmpdir and shared across every project's statusline — one
@@ -239,13 +288,13 @@ function rufloActivationSegments(cwd){
         var dCache = path.join(os.tmpdir(), "ruflo-daemon-count.json");
         var dTtl = Number(process.env.RUFLO_DAEMON_STATUSLINE_TTL_MS || 30000);
         var dCount = null;
-        try { var dc = JSON.parse(fs.readFileSync(dCache, "utf8")); if (dc && typeof dc.n === "number" && dTtl > 0 && (Date.now() - dc.ts) < dTtl) dCount = dc.n; } catch(e){}
+        try { var dc = JSON.parse(fs.readFileSync(dCache, "utf8")); if (dc && typeof dc.n === "number" && dTtl > 0 && (Date.now() - dc.ts) < dTtl) dCount = dc.n; } catch(e){ rufloStatuslineDebug("daemon-cache-read", e); }
         if (dCount === null) {
           try {
             var pg = cp.execFileSync("pgrep", ["-f", "cli.js daemon start"], {stdio:["ignore","pipe","ignore"], timeout:1500}).toString().trim();
             dCount = pg ? pg.split("\n").filter(Boolean).length : 0;
           } catch(e){ dCount = 0; }   // pgrep exits 1 (=> throws) when nothing matches
-          try { fs.writeFileSync(dCache, JSON.stringify({ts: Date.now(), n: dCount})); } catch(e){}
+          try { fs.writeFileSync(dCache, JSON.stringify({ts: Date.now(), n: dCount})); } catch(e){ rufloStatuslineDebug("daemon-cache-write", e); }
         }
         if (dCount > 0) {
           var dCol = dCount >= 4 ? Y : DIM;
@@ -253,7 +302,7 @@ function rufloActivationSegments(cwd){
                  + (dCount >= 4 ? DIM + " — ruflo-daemon-gc to inspect" + R : "");
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("daemon-segment", e); }
     // ── RuvNet Brain (🧿): offline rUv-stack knowledge base — honesty-gated, fs-only ──
     // The brain is NOT an npm package — `npx github:stuinfla/ruvnet-brain` drops a
     // ~2GB offline knowledge base at ~/.cache/ruvnet-brain/kb (honors RUVNET_BRAIN_KB)
@@ -290,12 +339,12 @@ function rufloActivationSegments(cwd){
             var srcJ = JSON.parse(fs.readFileSync(path.join(kbDir, "SOURCE.json"), "utf8"));
             var rawTag = String(srcJ.releaseTag || "");
             if (/^[A-Za-z0-9._-]{1,32}$/.test(rawTag)) relTag = rawTag;
-          } catch(e){}
+          } catch(e){ rufloStatuslineDebug("brain-source-stamp", e); }
           if (!relTag) try {
             var kitCfg = path.join(os2.homedir(), ".config", "agentic-kit", "kit.json");
             var kj = JSON.parse(fs.readFileSync(kitCfg, "utf8"));
             if (kj && kj.versionCheck && kj.versionCheck.ruvnetBrain) relTag = kj.versionCheck.ruvnetBrain.installedRelease;
-          } catch(e){}
+          } catch(e){ rufloStatuslineDebug("brain-kit-stamp", e); }
           if (relTag) {
             bver = " V" + String(relTag).replace(/^v/, "");
           } else {
@@ -304,7 +353,7 @@ function rufloActivationSegments(cwd){
             var bv = JSON.parse(fs.readFileSync(bpkg, "utf8")).version;
             if (bv) bver = " V" + String(bv).replace(/^v/, "");
           }
-        } catch(e){}
+        } catch(e){ rufloStatuslineDebug("brain-version", e); }
         // KB size — TTL-cached shallow sum of top-level files, keyed on kbDir so an
         // env-overridden path (or a moved KB) never serves a stale foreign size.
         var bBytes = null;
@@ -314,16 +363,16 @@ function rufloActivationSegments(cwd){
           try {
             var bc = JSON.parse(fs.readFileSync(bCache, "utf8"));
             if (bc && bc.dir === kbDir && typeof bc.bytes === "number" && bTtl > 0 && (Date.now() - bc.ts) < bTtl) bBytes = bc.bytes;
-          } catch(e){}
+          } catch(e){ rufloStatuslineDebug("brain-size-cache-read", e); }
           if (bBytes === null) {
             var sum = 0;
             fs.readdirSync(kbDir).forEach(function(f){
-              try { var s = fs.statSync(path.join(kbDir, f)); if (s.isFile()) sum += s.size; } catch(e){}
+              try { var s = fs.statSync(path.join(kbDir, f)); if (s.isFile()) sum += s.size; } catch(e){ rufloStatuslineDebug("brain-size-entry", e); }
             });
             bBytes = sum;
-            try { fs.writeFileSync(bCache, JSON.stringify({ts: Date.now(), dir: kbDir, bytes: sum})); } catch(e){}
+            try { fs.writeFileSync(bCache, JSON.stringify({ts: Date.now(), dir: kbDir, bytes: sum})); } catch(e){ rufloStatuslineDebug("brain-size-cache-write", e); }
           }
-        } catch(e){}
+        } catch(e){ rufloStatuslineDebug("brain-size", e); }
         var bp = [];
         if (bBytes && bBytes > 0) {
           var bkb = Math.round(bBytes / 1024);
@@ -331,7 +380,7 @@ function rufloActivationSegments(cwd){
         }
         brain = C + "🧿 RuvNet Brain" + bver + R + "  " + (bp.length ? bp.join(DIM + " · " + R) : G + "✓" + R);
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("brain-segment", e); }
     // ── agentic-qe — TTL-cached; one sqlite3 spawn only on a cache miss (issue #3) ──
     var qe = "";
     try {
@@ -344,7 +393,7 @@ function rufloActivationSegments(cwd){
         try {
           var cc = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
           if (cc && typeof cc.line === "string" && ttl > 0 && (Date.now() - cc.ts) < ttl) cachedLine = cc.line;
-        } catch(e){}
+        } catch(e){ rufloStatuslineDebug("qe-cache-read", e); }
         if (cachedLine !== null) {
           qe = cachedLine;                   // hit: zero sqlite3 spawns
         } else {
@@ -359,7 +408,7 @@ function rufloActivationSegments(cwd){
             + "SELECT 'traj',COUNT(*) FROM qe_trajectories;\n";
           var raw = "";
           try { raw = cp.execFileSync("sqlite3", [db], {input: sql, stdio:["pipe","pipe","ignore"], timeout:1500}).toString(); }
-          catch(e){ raw = (e && e.stdout) ? e.stdout.toString() : ""; }
+          catch(e){ rufloStatuslineDebug("qe-sqlite-query", e); raw = (e && e.stdout) ? e.stdout.toString() : ""; }
           var pat = 0, qtj = 0, qv = 0;
           raw.split("\n").forEach(function(ln){
             var i = ln.indexOf("|"); if (i < 0) return;
@@ -370,7 +419,7 @@ function rufloActivationSegments(cwd){
           if (pat > 0) qp.push("🎓 " + pat + " patterns");
           if (qtj > 0) qp.push("🧭 " + qtj + " traj");
           if (qv > 0) qp.push("🧬 " + qv + " vec" + G + "⚡" + R);
-          try { var kb = Math.round(fs.statSync(db).size / 1024); qp.push("💾 " + (kb >= 1024 ? (kb/1024).toFixed(1) + "MB" : kb + "KB")); } catch(e){}
+          try { var kb = Math.round(fs.statSync(db).size / 1024); qp.push("💾 " + (kb >= 1024 ? (kb/1024).toFixed(1) + "MB" : kb + "KB")); } catch(e){ rufloStatuslineDebug("qe-db-stat", e); }
           // Installed agentic-qe version — shown next to the label, mirroring "RuFlo V<x>"
           // in ruflo's native header. Prefer the global install (matches the aidefence
           // probe above); fall back to a project-local node_modules copy.
@@ -380,12 +429,12 @@ function rufloActivationSegments(cwd){
             if (!fs.existsSync(qpkg)) qpkg = path.join(cwd, "node_modules", "agentic-qe", "package.json");
             var qv2 = JSON.parse(fs.readFileSync(qpkg, "utf8")).version;
             if (qv2) qver = " V" + qv2;
-          } catch(e){}
+          } catch(e){ rufloStatuslineDebug("qe-version", e); }
           qe = Y + "🎓 Agentic QE" + qver + R + "  " + (qp.length ? qp.join(DIM + " · " + R) : "on");
-          try { fs.mkdirSync(cacheDir, {recursive:true}); fs.writeFileSync(cacheFile, JSON.stringify({ts: Date.now(), line: qe})); } catch(e){}
+          try { fs.mkdirSync(cacheDir, {recursive:true}); fs.writeFileSync(cacheFile, JSON.stringify({ts: Date.now(), line: qe})); } catch(e){ rufloStatuslineDebug("qe-cache-write", e); }
         }
       }
-    } catch(e){}
+    } catch(e){ rufloStatuslineDebug("qe-segment", e); }
     // ── assemble: one ruflo feature per line (SONA, 📈 RL, ◷ proof FAIL alarm,
     // ⚠ aidefence OFF alarm), then a divider, then the agentic-qe line. The two alarms
     // are silent in the healthy case, so a well-configured machine shows only the live
@@ -405,7 +454,7 @@ function rufloActivationSegments(cwd){
     if (qe) out.push(qe);
     if (!out.length) return "";
     return "\n" + out.join("\n");
-  } catch(e){ return ""; }
+  } catch(e){ rufloStatuslineDebug("renderer", e); return ""; }
 }
 // ── AI-defense probe (companion to the alarm-only segment above) ─────────────
 // Locates the global ruflo install WITHOUT spawning npm (this runs on every render).
@@ -429,7 +478,7 @@ function rufloFindRufloRoot(){
       if (fs.existsSync(path.join(cands[ci], "package.json"))) return cands[ci];
     }
     return "";
-  } catch(e){ return ""; }
+  } catch(e){ rufloStatuslineDebug("ruflo-root-probe", e); return ""; }
 }
 // ── real CLI bins (companion to the ruflo-bin wrapper) ──────────────────────
 // Upstream's resolveCliBinCandidates looks for `ruflo/bin/cli.js`, but the ruflo
@@ -452,8 +501,8 @@ function rufloRealCliBins(cwd){
       out.push(path.join(roots[i], "bin", "ruflo.js"));
       out.push(path.join(roots[i], "node_modules", "@claude-flow", "cli", "bin", "cli.js"));
     }
-    return out.filter(function(p){ try { return fs.existsSync(p); } catch(e){ return false; } });
-  } catch(e){ return []; }
+    return out.filter(function(p){ try { return fs.existsSync(p); } catch(e){ rufloStatuslineDebug("ruflo-bin-entry", e); return false; } });
+  } catch(e){ rufloStatuslineDebug("ruflo-bin-probe", e); return []; }
 }
 // Three states, not two — the distinction IS the fail-safe. "off" is asserted only on
 // positive evidence: a real ruflo install that does not contain aidefence. Anything we
@@ -467,7 +516,7 @@ function rufloAidefenceState(rufloRoot){
     if (!rufloRoot || !fs.existsSync(path.join(rufloRoot, "package.json"))) return "unknown";
     var ad = path.join(rufloRoot, "node_modules", "@claude-flow", "aidefence", "package.json");
     return fs.existsSync(ad) ? "on" : "off";
-  } catch(e){ return "unknown"; }
+  } catch(e){ rufloStatuslineDebug("aidefence-probe", e); return "unknown"; }
 }
 // ── security overlay: replaces ruflo's FABRICATED CVE counter with the real scan ──
 // Upstream (@claude-flow/cli dist/src/funnel/local-signals.js, getSecurityStatus) does:
@@ -504,11 +553,11 @@ function rufloLocalSecurity(cwd, upstream){
           // Prefer the scan's own timestamp; fall back to mtime so a hand-written or
           // older-format scan file still orders correctly instead of sorting to epoch 0.
           var t = Date.parse(j && j.timestamp);
-          if (!t) { try { t = fs.statSync(path.join(dir, f)).mtimeMs; } catch(e){ t = 0; } }
+          if (!t) { try { t = fs.statSync(path.join(dir, f)).mtimeMs; } catch(e){ rufloStatuslineDebug("security-scan-stat", e); t = 0; } }
           if (!newest || t > newest.t) newest = { t: t, j: j };
-        } catch(e){}   // unreadable/!JSON scan file: ignore, never let it break the render
+        } catch(e){ rufloStatuslineDebug("security-scan-file", e); }   // unreadable/!JSON scan file: ignore, never let it break the render
       });
-    } catch(e){}       // no directory => never scanned
+    } catch(e){ rufloStatuslineDebug("security-scan-directory", e); } // no directory => never scanned
     if (!newest) return { status: "PENDING", cvesFixed: 0, totalCves: 0 };
     var s = newest.j.summary || {};
     var n = typeof s.total === "number" ? s.total
@@ -519,7 +568,7 @@ function rufloLocalSecurity(cwd, upstream){
       return { status: "STALE", cvesFixed: 0, totalCves: 0 };
     }
     return { status: "CLEAN", cvesFixed: 0, totalCves: 0 };
-  } catch(e){ return upstream; }
+  } catch(e){ rufloStatuslineDebug("security-overlay", e); return upstream; }
 }
 // ── insight-row companion to rufloLocalSecurity ──────────────────────────────
 // The fabricated count reaches the render through a SECOND, independent path: the
@@ -545,7 +594,7 @@ function rufloHonestInsight(promo, sec){
       return { text: "⚠ " + n + " security issue" + (n === 1 ? "" : "s") + " found — see .claude/security-scans", kind: "insight" };
     }
     return null;   // CLEAN: say nothing. The slot falls blank rather than nagging about a lie.
-  } catch(e){ return promo; }
+  } catch(e){ rufloStatuslineDebug("security-insight", e); return promo; }
 }
 /* ruflo-seg:END */
 /* ruflo-bin:BEGIN */
@@ -1402,7 +1451,7 @@ function getPkgVersion() {
   // version (see generateStatuslineScript()'s doc comment) — correct even
   // when this renders via a pure npx invocation with no local install for
   // the candidate scan below to find.
-  let ver = "3.38.8";
+  let ver = "3.38.12";
   try {
     const home = os.homedir();
     const pkgPaths = [
