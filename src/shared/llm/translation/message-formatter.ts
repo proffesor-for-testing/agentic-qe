@@ -10,8 +10,10 @@
 
 import type {
   SystemPromptStrategy,
+  BuiltinExtendedProviderType,
   ExtendedProviderType,
 } from '../router/types';
+import { isBuiltinExtendedProviderType } from '../router/types';
 import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfaces';
 
 // ============================================================================
@@ -21,7 +23,7 @@ import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfa
 /**
  * Provider-specific system prompt strategies
  */
-const SYSTEM_PROMPT_STRATEGIES: Record<ExtendedProviderType, SystemPromptStrategy> = {
+const SYSTEM_PROMPT_STRATEGIES: Record<BuiltinExtendedProviderType, SystemPromptStrategy> = {
   claude: 'native',           // Anthropic supports separate system param
   'claude-code': 'native',    // ADR-123: passed via --append-system-prompt
   codex: 'native',            // ADR-124 M3.5: provider flattens system into the prompt
@@ -48,7 +50,12 @@ export function handleSystemPrompt(
   systemPrompt: string,
   targetProvider: ExtendedProviderType
 ): { strategy: SystemPromptStrategy; content: string } {
-  const strategy = SYSTEM_PROMPT_STRATEGIES[targetProvider] || 'first-message';
+  // ADR-127: an externally registered provider has no entry here. Falling back
+  // to 'first-message' is the safe default — it inlines the system prompt into
+  // the conversation, which every chat-shaped provider understands.
+  const strategy = isBuiltinExtendedProviderType(targetProvider)
+    ? SYSTEM_PROMPT_STRATEGIES[targetProvider]
+    : 'first-message';
 
   // Clean up the system prompt
   const cleanedPrompt = systemPrompt.trim();

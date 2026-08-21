@@ -21,7 +21,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { findProjectRoot } from '../../../kernel/unified-memory.js';
-import type { RouterConfig, ExtendedProviderType, AgentProviderOverride } from './types.js';
+import type {
+  RouterConfig,
+  BuiltinExtendedProviderType,
+  ExtendedProviderType,
+  AgentProviderOverride,
+} from './types.js';
+import { isBuiltinExtendedProviderType } from './types.js';
+import {
+  isRegisteredProvider,
+  registeredProviderTypes,
+} from '../provider-registry.js';
+import {
+  registerExternalProviders,
+  sanitizeExternalProviders,
+} from './external-provider-config.js';
 import { DEFAULT_ROUTER_CONFIG, ALL_PROVIDER_TYPES } from './types.js';
 import { createLogger } from '../../../logging/logger-factory.js';
 
@@ -40,9 +54,9 @@ export const ROUTER_CONFIG_FILENAME = 'llm-config.json';
  * Empty array means "local provider, no key required". The set of
  * runtime-constructible providers is narrower than ExtendedProviderType
  * (e.g. onnx is in the type system but ProviderManager doesn't yet
- * have a case for it) — see RUNTIME_CONSTRUCTIBLE_PROVIDERS below.
+ * have a case for it) — see isRuntimeConstructible() below.
  */
-const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
+const PROVIDER_ENV_KEYS: Record<BuiltinExtendedProviderType, readonly string[]> = {
   claude: ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
   // ADR-123: claude-code authenticates via the user's Claude Code OAuth login
   // (subscription), NOT an env key. Empty array = "no key required"; actual
@@ -64,14 +78,16 @@ const PROVIDER_ENV_KEYS: Record<ExtendedProviderType, readonly string[]> = {
 };
 
 /**
- * Providers that ProviderManager.createProvider() can actually
- * instantiate today. Anything not in this set is dropped from the
+ * Built-in providers that ProviderManager.createProvider() can actually
+ * instantiate today. Anything not constructible is dropped from the
  * "available" set even if its env keys are present, so we don't emit
  * a "Failed to create X provider" warning at every kernel boot.
  *
  * Keep this in sync with src/shared/llm/provider-manager.ts:createProvider().
+ * ADR-127: externally registered providers are constructible too — call
+ * `isRuntimeConstructible()` rather than reading this set directly.
  */
-const RUNTIME_CONSTRUCTIBLE_PROVIDERS: ReadonlySet<ExtendedProviderType> = new Set([
+const BUILTIN_CONSTRUCTIBLE_PROVIDERS: ReadonlySet<ExtendedProviderType> = new Set([
   'claude',
   'claude-code',
   'codex',
@@ -83,6 +99,36 @@ const RUNTIME_CONSTRUCTIBLE_PROVIDERS: ReadonlySet<ExtendedProviderType> = new S
   'bedrock',
   'cognitum',
 ]);
+
+/**
+ * Can `ProviderManager.createProvider()` build this type? True for the
+ * built-in constructible set, and for any provider registered per ADR-127.
+ */
+export function isRuntimeConstructible(provider: ExtendedProviderType): boolean {
+  return BUILTIN_CONSTRUCTIBLE_PROVIDERS.has(provider) || isRegisteredProvider(provider);
+}
+
+/**
+ * Every provider type the router may legitimately be pointed at: the ones AQE
+ * ships plus the ones a downstream integrator registered (ADR-127).
+ *
+ * `ALL_PROVIDER_TYPES` deliberately stays frozen as "what AQE ships" — it is
+ * exported public API that consumers read — so validation paths call this
+ * instead of widening that constant at runtime.
+ */
+export function allSelectableProviderTypes(): readonly ExtendedProviderType[] {
+  return [...ALL_PROVIDER_TYPES, ...registeredProviderTypes()];
+}
+
+/**
+ * Env keys that indicate a provider is configured. Returns `[]` for a provider
+ * AQE does not ship — an externally registered provider (ADR-127) brings its
+ * own availability check (a binary on PATH, typically) rather than an env key,
+ * so "no keys" is the correct answer, not a crash.
+ */
+function envKeysFor(provider: ExtendedProviderType): readonly string[] {
+  return isBuiltinExtendedProviderType(provider) ? PROVIDER_ENV_KEYS[provider] : [];
+}
 
 /**
  * Return the resolved config-file path for a project.
@@ -101,13 +147,15 @@ export function detectAvailableProvidersFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): Set<ExtendedProviderType> {
   const available = new Set<ExtendedProviderType>();
-  for (const provider of ALL_PROVIDER_TYPES) {
-    if (!RUNTIME_CONSTRUCTIBLE_PROVIDERS.has(provider)) {
+  // ADR-127: iterate registered providers alongside built-ins so an external
+  // host is detectable/enable-able without the user hand-editing `providers`.
+  for (const provider of allSelectableProviderTypes()) {
+    if (!isRuntimeConstructible(provider)) {
       // ProviderManager has no case for this provider yet (e.g. onnx).
       // Pretending it's available leads to "Failed to create" noise.
       continue;
     }
-    const keys = PROVIDER_ENV_KEYS[provider];
+    const keys = envKeysFor(provider);
     if (keys.length === 0) {
       // local providers — always available if their binary is, but at
       // config-merge time we treat them as "potentially available"
@@ -232,6 +280,19 @@ export function mergeRouterConfig(
     }
   }
 
+  // ADR-127: `externalProviders` gets the same keyed-object merge semantics —
+  // declaring one host must not wipe the others.
+  if (base.externalProviders || override.externalProviders) {
+    merged.externalProviders = { ...(base.externalProviders ?? {}) };
+    for (const [type, cfg] of Object.entries(override.externalProviders ?? {})) {
+      if (!cfg) continue;
+      merged.externalProviders[type] = {
+        ...(base.externalProviders?.[type] ?? {}),
+        ...cfg,
+      };
+    }
+  }
+
   // Issue #568: `agentOverrides` gets keyed-object merge semantics (like
   // `providers`), NOT the shallow-replace treatment `fallbackChain` gets.
   // Overriding one agent type must not wipe the rest.
@@ -284,14 +345,16 @@ export function sanitizeAgentOverrides(
 
     if (entry.provider !== undefined) {
       const provider = entry.provider as ExtendedProviderType;
-      if (!ALL_PROVIDER_TYPES.includes(provider)) {
+      // ADR-127: registered external providers are valid override targets too.
+      const selectable = allSelectableProviderTypes();
+      if (!selectable.includes(provider)) {
         warnings.push(
           `agentOverrides["${agentType}"].provider "${String(entry.provider)}" is not a known ` +
-          `provider (${ALL_PROVIDER_TYPES.join(', ')}); ignoring this entry.`
+          `provider (${selectable.join(', ')}); ignoring this entry.`
         );
         continue;
       }
-      if (!RUNTIME_CONSTRUCTIBLE_PROVIDERS.has(provider)) {
+      if (!isRuntimeConstructible(provider)) {
         warnings.push(
           `agentOverrides["${agentType}"].provider "${provider}" cannot be instantiated at ` +
           `runtime yet; ignoring this entry.`
@@ -369,7 +432,7 @@ export function applyEnvProviderDetection(
     providers: { ...(config.providers ?? {}) },
   };
   for (const provider of available) {
-    const keys = PROVIDER_ENV_KEYS[provider];
+    const keys = envKeysFor(provider);
     if (keys.length === 0) continue; // local provider, leave default
     if (explicitlyDisabled.has(provider)) continue; // ADR-123: honor explicit off
     const current = merged.providers![provider] ?? { enabled: false };
@@ -411,13 +474,18 @@ export function resolveProviderOverrideFromEnv(
   const raw = (env.AQE_LLM_PROVIDER ?? '').trim().toLowerCase();
   if (!raw) return undefined;
   const normalized = raw === 'anthropic' ? 'claude' : raw;
-  if ((ALL_PROVIDER_TYPES as readonly string[]).includes(normalized)) {
+  // ADR-127: a registered external provider is selectable here on exactly the
+  // same terms as a built-in — that is the whole point of issue #628.
+  const selectable = allSelectableProviderTypes();
+  if ((selectable as readonly string[]).includes(normalized)) {
     return normalized as ExtendedProviderType;
   }
+  // The warning enumerates built-ins AND registered types, so a typo is never
+  // mistaken for "some provider got registered and I can't see it".
   // eslint-disable-next-line no-console
   console.warn(
     `[router-config] Ignoring AQE_LLM_PROVIDER="${raw}": not a known provider. ` +
-    `Valid values: ${ALL_PROVIDER_TYPES.join(', ')}.`
+    `Valid values: ${selectable.join(', ')}.`
   );
   return undefined;
 }
@@ -437,6 +505,24 @@ export function loadRouterConfig(
   const env = options.env ?? process.env;
   const onDisk = loadRouterConfigFile(options.projectRoot);
 
+  // ADR-127 (issue #628): register declared external providers FIRST. Every
+  // gate below — env detection, AQE_LLM_PROVIDER resolution, agentOverrides
+  // validation — asks the registry whether a type is selectable, so the
+  // declarations must be live before any of them run.
+  const { declarations, warnings: externalWarnings } = sanitizeExternalProviders(
+    (onDisk as { externalProviders?: unknown }).externalProviders
+  );
+  for (const warning of externalWarnings) {
+    logger.warn(`[llm-config] ${warning}`);
+  }
+  onDisk.externalProviders = declarations;
+  const registration = registerExternalProviders(declarations, {
+    sourceDetail: getRouterConfigPath(options.projectRoot),
+  });
+  for (const warning of registration.warnings) {
+    logger.warn(`[llm-config] ${warning}`);
+  }
+
   // Issue #568: validate the hand-editable per-agent map before it reaches the
   // router. Bad entries are dropped with a warning, never fatal.
   if (onDisk.agentOverrides !== undefined) {
@@ -451,6 +537,21 @@ export function loadRouterConfig(
   // ADR-123: an explicit `enabled: false` on disk is never resurrected by env.
   const explicitlyDisabled = collectExplicitlyDisabled(onDisk);
   let withEnv = applyEnvProviderDetection(merged, env, explicitlyDisabled);
+
+  // ADR-127: declaring an external host is enabling it. Without this the host
+  // would be selectable in principle but dropped by pickEnabledProviders,
+  // which is the "configured it and nothing happened" failure ADR-125 called
+  // out. An explicit `enabled: false` under `providers` still wins.
+  for (const type of registration.registered) {
+    if (explicitlyDisabled.has(type)) continue;
+    withEnv = {
+      ...withEnv,
+      providers: {
+        ...withEnv.providers,
+        [type]: { ...(withEnv.providers?.[type] ?? {}), enabled: true },
+      },
+    };
+  }
 
   // ADR-123: AQE_LLM_PROVIDER pins the default provider and enables it.
   const providerOverride = resolveProviderOverrideFromEnv(env);
@@ -480,8 +581,11 @@ export function shouldEnableRouter(
   options: { projectRoot?: string; env?: NodeJS.ProcessEnv } = {}
 ): boolean {
   const env = options.env ?? process.env;
+  // ADR-127: a project whose only provider is an externally registered host
+  // still needs a router.
+  if (registeredProviderTypes().length > 0) return true;
   for (const provider of ALL_PROVIDER_TYPES) {
-    const keys = PROVIDER_ENV_KEYS[provider];
+    const keys = envKeysFor(provider);
     if (keys.length === 0) continue;
     if (keys.some((k) => (env[k] ?? '').trim().length > 0)) {
       return true;

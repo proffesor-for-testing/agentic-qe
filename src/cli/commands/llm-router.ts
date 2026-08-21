@@ -17,11 +17,19 @@ import chalk from 'chalk';
 import {
   ALL_PROVIDER_TYPES,
   DEFAULT_MODEL_MAPPINGS,
+  isBuiltinExtendedProviderType,
+  type BuiltinExtendedProviderType,
   type ExtendedProviderType,
   type RoutingMode,
   type RouterConfig,
   type ModelMapping,
 } from '../../shared/llm/router/types.js';
+import {
+  getRegisteredProvider,
+  isRegisteredProvider,
+  registeredProviderTypes,
+} from '../../shared/llm/provider-registry.js';
+import { resolvesOnPath } from '../../shared/llm/providers/external-cli.js';
 
 // ============================================================================
 // Types
@@ -89,6 +97,7 @@ interface AdviseOptions {
 import {
   loadRouterConfig as loadPersistedRouterConfig,
   saveRouterConfigFile,
+  allSelectableProviderTypes,
 } from '../../shared/llm/router/config-store.js';
 
 let currentConfig: RouterConfig | null = null;
@@ -253,13 +262,21 @@ Examples:
 
 async function executeProviders(options: ProvidersOptions): Promise<void> {
   const cfg = getCurrentConfig();
-  const providers = ALL_PROVIDER_TYPES.map(type => {
+  // ADR-127: registered external providers appear here too — a user must be
+  // able to see that a declared host exists without reading llm-config.json.
+  const allTypes: ExtendedProviderType[] = [
+    ...ALL_PROVIDER_TYPES,
+    ...registeredProviderTypes(),
+  ];
+  const providers = allTypes.map(type => {
     const config = cfg.providers?.[type];
     return {
       provider: type,
       enabled: config?.enabled ?? (type === 'claude' || type === 'openai' || type === 'ollama'),
       defaultModel: config?.defaultModel ?? getDefaultModelForProvider(type),
       status: getProviderStatus(type),
+      // ADR-127: never let an external host be mistaken for one AQE ships.
+      external: isRegisteredProvider(type),
     };
   });
 
@@ -285,10 +302,16 @@ async function executeProviders(options: ProvidersOptions): Promise<void> {
     const enabledColor = p.enabled ? chalk.green : chalk.gray;
 
     console.log(
-      padRight(p.provider, 15) +
+      padRight(p.external ? `${p.provider} *` : p.provider, 15) +
       statusColor(padRight(p.status, 12)) +
       enabledColor(padRight(p.enabled ? 'Yes' : 'No', 10)) +
       chalk.gray(padRight(p.defaultModel || '-', 30))
+    );
+  }
+
+  if (providers.some((p) => p.external)) {
+    console.log(
+      chalk.gray('\n  * external provider declared by this project, not shipped with AQE')
     );
   }
 
@@ -543,7 +566,7 @@ function formatCost(cost?: number): string {
 }
 
 function getDefaultModelForProvider(provider: ExtendedProviderType): string {
-  const defaults: Record<ExtendedProviderType, string> = {
+  const defaults: Record<BuiltinExtendedProviderType, string> = {
     claude: 'claude-sonnet-4-6',
     'claude-code': 'sonnet',
     codex: 'gpt-5-codex',
@@ -556,12 +579,30 @@ function getDefaultModelForProvider(provider: ExtendedProviderType): string {
     cognitum: 'cognitum-auto',
     onnx: 'phi-4',
   };
-  return defaults[provider] || '';
+  if (isBuiltinExtendedProviderType(provider)) {
+    return defaults[provider];
+  }
+  // ADR-127: an external provider declares its own models; AQE has nothing to
+  // guess, so report what was declared rather than a blank.
+  const registration = getRegisteredProvider(provider);
+  const declared = registration?.config as
+    | { defaultModel?: string; models?: string[] }
+    | undefined;
+  return declared?.defaultModel ?? declared?.models?.[0] ?? registration?.models?.[0] ?? '';
 }
 
 function getProviderStatus(provider: ExtendedProviderType): string {
   // In a real implementation, this would check API keys and connectivity
   const hasApiKey = (envVar: string) => !!process.env[envVar];
+
+  // ADR-127: an external host has no env key — its availability is whether the
+  // declared binary resolves. Reported honestly rather than as "not configured".
+  const registration = getRegisteredProvider(provider);
+  if (registration) {
+    const command = (registration.config as { command?: string[] } | undefined)?.command;
+    const binary = command?.[0];
+    return binary && resolvesOnPath(binary) ? 'available' : 'configured';
+  }
 
   switch (provider) {
     case 'claude':
@@ -669,7 +710,8 @@ function updateConfig(key: string, value: string): void {
       }
       break;
     case 'defaultProvider':
-      if (ALL_PROVIDER_TYPES.includes(value as ExtendedProviderType)) {
+      // ADR-127: registered external providers are valid targets here too.
+      if (allSelectableProviderTypes().includes(value as ExtendedProviderType)) {
         cfg.defaultProvider = value as ExtendedProviderType;
       } else {
         throw new Error(`Invalid provider: ${value}`);

@@ -2,7 +2,8 @@
 
 > Implements [ADR-043](../implementation/adrs/ADR-043-vendor-independent-llm.md),
 > [ADR-123](../implementation/adrs/ADR-123-billing-aware-llm-execution.md), and
-> [ADR-125](../implementation/adrs/ADR-125-on-disk-agent-routing-overrides.md).
+> [ADR-125](../implementation/adrs/ADR-125-on-disk-agent-routing-overrides.md), and
+> [ADR-127](../implementation/adrs/ADR-127-external-provider-registration.md).
 > Everything here lives in one file: `.agentic-qe/llm-config.json`.
 
 AQE routes each LLM request to a provider. There are two levels of control:
@@ -138,9 +139,114 @@ warning on stderr when:
 Everything runs on a free local model except the three security agents, which run
 on a subscription-billed frontier model.
 
+## External providers
+
+> [ADR-127](../implementation/adrs/ADR-127-external-provider-registration.md)
+> (issue [#628](https://github.com/proffesor-for-testing/agentic-qe/issues/628))
+
+The providers above are the ones AQE ships. If you run a host AQE does not know
+about, you can give it a provider identity of its own — so `AQE_LLM_PROVIDER`
+resolves to *your* host, and `aqe health` names it honestly, instead of you
+having to pretend your host is `openai`.
+
+Declare it as data. AQE never imports code on the strength of a config file:
+
+```jsonc
+{
+  "externalProviders": {
+    "my-host": {
+      "kind": "cli",
+      "command": ["my-host", "exec"],
+      "billingMode": "subscription",
+      "models": ["default", "fast"],
+      "defaultModel": "default",
+      "modelFlag": "--model",
+      "stripEnv": ["OPENAI_API_KEY"],
+      "displayName": "My Host (subscription)"
+    }
+  }
+}
+```
+
+`my-host` is now a first-class provider identity: usable as `defaultProvider`,
+in `fallbackChain`, in `agentOverrides`, and via `AQE_LLM_PROVIDER=my-host`.
+Declaring it also enables it.
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `kind` | yes | — | `"cli"` (only kind today) |
+| `command` | yes | — | argv, not shell-interpreted |
+| `billingMode` | no | `metered-api` | `subscription` · `metered-api` · `metered-capped` · `local` |
+| `models` | no | `["default"]` | informational; shown by `aqe llm providers` |
+| `defaultModel` | no | `models[0]` | used when the caller names no model |
+| `modelFlag` | no | — | e.g. `--model`; omitted means the model is never passed |
+| `timeoutMs` | no | `180000` | hard per-invocation timeout |
+| `maxConcurrency` | no | `2` | caps concurrent subprocesses |
+| `stripEnv` | no | `[]` | env vars removed from the child process |
+| `displayName` | no | the type | shown in CLI output |
+
+### The host contract
+
+AQE writes the prompt to your host's **stdin** and reads the completion from its
+**stdout**. Message roles are flattened (system content becomes a preamble),
+because a CLI has no role protocol. A non-zero exit with empty stdout is an
+error; stderr that looks like a rate limit is classified retryable.
+
+Two things AQE will not do:
+
+- **It will not run your host to check whether it exists.** `isAvailable()`
+  resolves `command[0]` on `PATH`. Invoking an arbitrary host could burn a real
+  request against your plan just to answer "are you installed?" — so a
+  declaration for a host that is not installed here is valid but unavailable,
+  and your config file stays portable.
+- **It will not embed.** A CLI contract cannot promise an embeddings endpoint,
+  so `embed()` raises `EMBEDDING_UNSUPPORTED` and the router falls back to a
+  provider that has one. You never get a fabricated vector.
+
+### Billing is recorded, not believed
+
+`billingMode` is your assertion, and AQE says so out loud. `aqe health` prints:
+
+```
+Provider: my-host  ● external — subscription (declared by .agentic-qe/llm-config.json, not verified by AQE)
+```
+
+Omitting `billingMode` resolves to `metered-api` — the conservative direction:
+AQE assumes your host costs money and asks for a budget cap, rather than
+assuming it is free and skipping enforcement. Cost on responses is always marked
+`local-estimate`, never `provider-receipt`, because AQE did not observe your
+billing event.
+
+### Validation
+
+Declarations are validated exactly like built-in providers, and bad entries are
+dropped **individually** with a warning — one malformed declaration never fails
+router construction for the project. A declaration is rejected if it collides
+with a built-in provider name, has an empty `command`, names an unknown
+`billingMode`, or carries an `apiKey` (keys belong in the environment).
+
+### In-process registration
+
+If you embed AQE as a library rather than spawning it, you can register a
+provider directly:
+
+```typescript
+import { registerProvider } from 'agentic-qe/shared/llm';
+
+registerProvider('my-host', () => new MyHostProvider(), {
+  billingMode: 'subscription',
+  displayName: 'My Host (subscription)',
+});
+```
+
+Use the declarative form if anything spawns `aqe` or the MCP server as a
+subprocess — those are separate bundles, and an in-process call cannot reach
+them. A config declaration reaches both.
+
 ## For downstream tool authors
 
-`agentOverrides` is a stable, additive contract. Writing it is safe:
+`agentOverrides` and `externalProviders` are stable, additive contracts.
+Writing them is safe:
 
 - merge semantics are **keyed-object** (like `providers`), so writing one agent
   key does not clobber the others — you can add an entry without reading and
@@ -148,3 +254,10 @@ on a subscription-billed frontier model.
 - the key is optional; a config without it behaves exactly as before;
 - the entry shape is a subset of the in-process `ModelPreference` type, so it
   will not drift away from the internal model.
+
+For `externalProviders` specifically: registrations sourced from config are
+reconciled on every load, so removing an entry removes the provider, and a
+provider you registered in-process is never reaped by a config reload. AQE will
+not invent a provider identity on your behalf — if you do not declare a host, it
+does not exist, which is deliberate: a fabricated identity would assert a vendor
+attribution nobody verified.

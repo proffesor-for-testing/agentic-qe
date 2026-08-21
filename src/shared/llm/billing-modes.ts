@@ -7,10 +7,27 @@
  * provider, and so a provider that doesn't set `billingMode` still resolves.
  */
 
-import type { BillingMode, LLMProvider, LLMProviderType } from './interfaces';
+import type {
+  BillingMode,
+  BuiltinProviderType,
+  LLMProvider,
+  LLMProviderType,
+} from './interfaces';
+import { isBuiltinProviderType } from './interfaces';
+import { registeredBillingDeclaration } from './provider-registry.js';
 
-/** Default billing mode per provider type. */
-const BILLING_MODE_BY_TYPE: Record<LLMProviderType, BillingMode> = {
+/**
+ * Default billing mode per built-in provider type.
+ *
+ * ADR-127: keyed on `BuiltinProviderType`, not `LLMProviderType`, for two
+ * reasons: adding a built-in provider must still fail the build until this map
+ * is updated, and a lookup by an open `LLMProviderType` must type as
+ * `BillingMode | undefined` so the `?? 'metered-api'` fallback below is
+ * actually forced rather than merely present. An external provider registered
+ * per ADR-127 has no entry here and therefore falls through to `metered-api` —
+ * the conservative, cap-requiring assumption.
+ */
+const BILLING_MODE_BY_TYPE: Record<BuiltinProviderType, BillingMode> = {
   claude: 'metered-api',
   'claude-code': 'subscription',
   codex: 'subscription',
@@ -24,19 +41,32 @@ const BILLING_MODE_BY_TYPE: Record<LLMProviderType, BillingMode> = {
 };
 
 /**
+ * Look up the built-in default for a provider type, or `undefined` when the
+ * type is not one AQE ships (ADR-127: an externally registered provider).
+ */
+function builtinBillingMode(type: LLMProviderType): BillingMode | undefined {
+  return isBuiltinProviderType(type) ? BILLING_MODE_BY_TYPE[type] : undefined;
+}
+
+/**
  * Resolve a provider's billing mode: the instance's own `billingMode` wins,
  * else the per-type default, else `metered-api` (the safe, cap-requiring
  * assumption for an unknown provider).
+ *
+ * ADR-127: an external provider is expected to declare `billingMode` on the
+ * instance, which is why the instance's own value is consulted first. When it
+ * declares nothing it lands on `metered-api` and therefore requires a budget,
+ * rather than being silently treated as free.
  */
 export function resolveBillingMode(
   provider: Pick<LLMProvider, 'type' | 'billingMode'>
 ): BillingMode {
-  return provider.billingMode ?? BILLING_MODE_BY_TYPE[provider.type] ?? 'metered-api';
+  return provider.billingMode ?? builtinBillingMode(provider.type) ?? 'metered-api';
 }
 
 /** Resolve a billing mode from a bare provider type. */
 export function billingModeForType(type: LLMProviderType): BillingMode {
-  return BILLING_MODE_BY_TYPE[type] ?? 'metered-api';
+  return builtinBillingMode(type) ?? 'metered-api';
 }
 
 /**
@@ -62,6 +92,23 @@ export function billingNotice(
         `hard spend cap; it will pause at the cap rather than overspend.`
       );
     case 'subscription': {
+      // ADR-127: only a built-in may be named as drawing on a specific
+      // vendor's plan. An external provider that declares `subscription` is
+      // asserting something AQE cannot verify, and naming Claude Code or
+      // ChatGPT here would attribute the spend to a vendor that is not
+      // serving the work — the exact misrepresentation issue #628 refused to
+      // perform. Say what was declared, and say who declared it.
+      const declaration = registeredBillingDeclaration(provider);
+      if (declaration) {
+        const by = declaration.detail
+          ? `declared by ${declaration.detail}`
+          : `declared by ${declaration.source === 'config' ? 'config' : 'the registering caller'}`;
+        return (
+          `ℹ️  LLM provider "${provider}" is an external provider that reports ` +
+          `subscription billing (${by}) — AQE does not verify this. It draws on ` +
+          `that host's own plan, not on your Claude Code or ChatGPT subscription.`
+        );
+      }
       const sub = provider === 'codex' ? 'ChatGPT' : 'Claude Code';
       return (
         `ℹ️  LLM provider "${provider}" runs on your ${sub} subscription ` +

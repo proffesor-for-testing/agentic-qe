@@ -49,6 +49,7 @@ import { GeminiProvider } from './providers/gemini';
 import { AzureOpenAIProvider } from './providers/azure-openai';
 import { BedrockProvider } from './providers/bedrock';
 import { toError } from '../error-utils.js';
+import { createRegisteredProvider } from './provider-registry.js';
 
 /**
  * Default provider manager configuration
@@ -590,7 +591,13 @@ export class ProviderManager {
       case 'bedrock':
         return new BedrockProvider(this.config.providers.bedrock);
       default:
-        throw new Error(`Unknown provider type: ${type}`);
+        // ADR-127: not a built-in. Fall through to the external provider
+        // registry, which throws PROVIDER_UNAVAILABLE when nothing is
+        // registered under this type — preserving the previous behavior for a
+        // genuinely unknown type while letting a downstream integrator supply
+        // one. Built-in cases are matched first, so a registration can never
+        // shadow a provider AQE ships.
+        return createRegisteredProvider(type);
     }
   }
 

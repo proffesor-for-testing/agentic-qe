@@ -72,6 +72,11 @@ export {
   type EmbedOptions,
   type CompleteOptions,
 
+  // Provider identity (ADR-127)
+  type BuiltinProviderType,
+  BUILTIN_PROVIDER_TYPES,
+  isBuiltinProviderType,
+
   // Provider interface
   type LLMProvider,
   type HealthCheckResult,
@@ -143,6 +148,42 @@ export {
   getGlobalCostTracker,
   resetGlobalCostTracker,
 } from './cost-tracker';
+
+// External provider registration (ADR-127 / issue #628)
+export {
+  registerProvider,
+  tryRegisterProvider,
+  unregisterProvider,
+  resetProviderRegistry,
+  isRegisteredProvider,
+  getRegisteredProvider,
+  listRegisteredProviders,
+  registeredProviderTypes,
+  createRegisteredProvider,
+  registeredBillingDeclaration,
+  validateProviderType,
+  validateProviderInstance,
+  type ProviderFactory,
+  type ProviderRegistrationOptions,
+  type ProviderRegistrationSource,
+  type RegisteredProvider,
+} from './provider-registry';
+
+export {
+  ExternalCliProvider,
+  validateExternalCliConfig,
+  resolvesOnPath,
+  DEFAULT_EXTERNAL_CLI_TIMEOUT_MS,
+  DEFAULT_EXTERNAL_CLI_CONCURRENCY,
+  EXTERNAL_CLI_DEFAULT_MODEL,
+  type ExternalCliProviderConfig,
+} from './providers/external-cli';
+
+export {
+  registerExternalProviders,
+  sanitizeExternalProviders,
+  type ExternalProviderRegistrationResult,
+} from './router/external-provider-config';
 
 // Provider manager
 export {

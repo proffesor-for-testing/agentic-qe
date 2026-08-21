@@ -19,7 +19,10 @@
  * @see ADR-043 - Vendor-Independent LLM Support (this extension)
  */
 
+import type { ExternalCliProviderConfig } from '../providers/external-cli';
 import {
+  BuiltinProviderType,
+  isBuiltinProviderType,
   LLMProviderType,
   LLMProvider,
   Message,
@@ -34,16 +37,40 @@ import {
 // ============================================================================
 
 /**
- * Extended provider types including new ADR-043 providers
- * Extends LLMProviderType from ADR-011: 'claude' | 'openai' | 'ollama'
+ * The closed set of extended provider types AQE ships. Exhaustive — this is
+ * what a `Record` of per-provider constants must be keyed on, so that adding a
+ * built-in provider still fails the build until every map is updated.
+ *
+ * ADR-127: `BuiltinProviderType` covers the ten runtime-constructible
+ * providers; `onnx` exists in the type system (routing/translation know about
+ * it) but `ProviderManager` has no case for it yet.
+ */
+export type BuiltinExtendedProviderType =
+  | BuiltinProviderType       // the ten providers ProviderManager can construct
+  | 'onnx';                   // Local ONNX runtime (privacy/zero-cost)
+
+/**
+ * Extended provider types including new ADR-043 providers.
+ *
+ * ADR-127: open, because `LLMProviderType` is open — a registered external
+ * provider is a valid routing target everywhere an extended type is accepted.
+ * Use `BuiltinExtendedProviderType` when you need exhaustiveness.
  */
 export type ExtendedProviderType =
-  | LLMProviderType           // ADR-011: 'claude' | 'openai' | 'ollama'
-  | 'openrouter'              // 100+ models via unified API
-  | 'gemini'                  // Google Gemini Pro/Ultra/Flash
-  | 'azure-openai'            // Enterprise Azure deployment
-  | 'bedrock'                 // AWS managed Claude/other models
+  | LLMProviderType           // ADR-011 + ADR-127 (open: built-ins | registered)
   | 'onnx';                   // Local ONNX runtime (privacy/zero-cost)
+
+/**
+ * Type guard for the closed extended set. Use before indexing any
+ * `Record<BuiltinExtendedProviderType, _>` with an open provider type, so the
+ * external-provider case is handled explicitly rather than yielding
+ * `undefined` at a site the compiler believed was total (ADR-127).
+ */
+export function isBuiltinExtendedProviderType(
+  type: string
+): type is BuiltinExtendedProviderType {
+  return type === 'onnx' || isBuiltinProviderType(type);
+}
 
 /**
  * All supported provider types as a const array for iteration
@@ -806,6 +833,32 @@ export interface RouterConfig {
    * Unset fields keep their category default. Never put API keys here.
    */
   agentOverrides?: Record<string, AgentProviderOverride>;
+
+  /**
+   * ADR-127 (issue #628): external provider declarations. Each key becomes a
+   * selectable provider identity — `AQE_LLM_PROVIDER=<key>`,
+   * `defaultProvider`, `fallbackChain`, and `agentOverrides` all accept it —
+   * backed by a generic subprocess provider built from the declaration.
+   *
+   * Declared by data, never by a module path: AQE does not import third-party
+   * code on the strength of a config file. See ADR-127 for why.
+   *
+   * @example
+   * ```jsonc
+   * {
+   *   "externalProviders": {
+   *     "my-host": {
+   *       "kind": "cli",
+   *       "command": ["my-host", "exec"],
+   *       "billingMode": "subscription",
+   *       "models": ["default"]
+   *     }
+   *   }
+   * }
+   * ```
+   * Declaring a host also enables it. Never put API keys here.
+   */
+  externalProviders?: Record<string, ExternalCliProviderConfig>;
 }
 
 /**
