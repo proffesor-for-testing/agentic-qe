@@ -14,9 +14,58 @@
 // ============================================================================
 
 /**
- * Supported LLM provider types
+ * Provider types AQE ships built in. Exhaustive — safe to key a `Record` on.
+ *
+ * ADR-127: this is the closed half of the provider identity space. Anything
+ * that must be exhaustively handled (billing defaults, env-key maps, prompt
+ * translation strategies) keys on THIS type, not on `LLMProviderType`.
  */
-export type LLMProviderType = 'claude' | 'claude-code' | 'codex' | 'openai' | 'ollama' | 'openrouter' | 'bedrock' | 'azure-openai' | 'gemini' | 'cognitum';
+export type BuiltinProviderType =
+  | 'claude'
+  | 'claude-code'
+  | 'codex'
+  | 'openai'
+  | 'ollama'
+  | 'openrouter'
+  | 'bedrock'
+  | 'azure-openai'
+  | 'gemini'
+  | 'cognitum';
+
+/**
+ * Supported LLM provider types.
+ *
+ * ADR-127: open. A downstream integrator may register an additional provider
+ * identity (via `registerProvider()` or an `externalProviders` entry in
+ * `.agentic-qe/llm-config.json`) so `AQE_LLM_PROVIDER=<their-host>` resolves to
+ * a provider they supply, instead of forking this union or misrepresenting
+ * their host as an unrelated vendor (issue #628).
+ *
+ * The `(string & {})` arm keeps editor autocomplete on the built-ins while
+ * admitting registered identities. Because this type is no longer exhaustive,
+ * a `Record` keyed on it can no longer be checked by the compiler — use
+ * `BuiltinProviderType` for those and read through a fallback.
+ */
+export type LLMProviderType = BuiltinProviderType | (string & {});
+
+/** The built-in provider types, as a runtime array. ADR-127. */
+export const BUILTIN_PROVIDER_TYPES: readonly BuiltinProviderType[] = [
+  'claude',
+  'claude-code',
+  'codex',
+  'openai',
+  'ollama',
+  'openrouter',
+  'bedrock',
+  'azure-openai',
+  'gemini',
+  'cognitum',
+] as const;
+
+/** Type guard: is this one of the provider types AQE ships? */
+export function isBuiltinProviderType(type: string): type is BuiltinProviderType {
+  return (BUILTIN_PROVIDER_TYPES as readonly string[]).includes(type);
+}
 
 /**
  * Message role in a conversation
@@ -743,6 +792,14 @@ export type LLMErrorCode =
   | 'TIMEOUT'
   | 'NETWORK_ERROR'
   | 'COST_LIMIT_EXCEEDED'
+  /** ADR-127: a provider registration or its produced instance was malformed. */
+  | 'INVALID_REGISTRATION'
+  /**
+   * ADR-127: this provider has no embeddings endpoint. Distinct from a
+   * failure — the caller should fall back to another provider rather than
+   * retry, and must never receive a fabricated vector.
+   */
+  | 'EMBEDDING_UNSUPPORTED'
   | 'UNKNOWN';
 
 /**

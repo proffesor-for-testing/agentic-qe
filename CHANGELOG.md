@@ -5,6 +5,46 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.12] - 2026-08-21
+
+Downstream tools can now give a host they supervise its own AQE provider
+identity, instead of forking the provider enum or misreporting the vendor that
+served the work.
+
+### Added
+
+- Added external provider registration, so a project can declare a host it runs
+  and select it with `AQE_LLM_PROVIDER=<host>`. Declare it as data in
+  `.agentic-qe/llm-config.json` under `externalProviders` — the declaration is
+  picked up identically by the CLI and the MCP server — or call
+  `registerProvider()` when embedding AQE as a library. Declared hosts are
+  first-class everywhere a provider is accepted: `defaultProvider`,
+  `fallbackChain`, and `agentOverrides` ([#628]).
+- Added `agentic-qe/shared/llm` as a package export. The module's own usage
+  example had documented this import path while it was never actually
+  exported, so library consumers had to reach it through `agentic-qe/shared`
+  ([#628]).
+
+### Fixed
+
+- Corrected billing attribution for subscription-billed providers. Any provider
+  reporting subscription billing was described as running on the user's *Claude
+  Code* subscription, which was accurate only while the two built-in
+  subscription providers were the only ones possible. External hosts are now
+  reported as `external — <mode> (declared by <source>, not verified by AQE)`
+  in `aqe health` and in the startup notice ([#628]).
+
+### Changed
+
+- The provider type is now open to registered identities while the shipped set
+  stays closed, so per-provider lookup tables still fail the build when a
+  built-in provider is added without updating them. `ALL_PROVIDER_TYPES`
+  continues to mean "the providers AQE ships" and is unchanged ([#628]).
+- `aqe llm providers` now lists declared external providers, marked with `*` and
+  a footnote so they are never mistaken for providers AQE ships ([#628]).
+
+[#628]: https://github.com/proffesor-for-testing/agentic-qe/issues/628
+
 ## [3.13.11] - 2026-08-14
 
 Diagnostics, native ESM imports, and learned pattern visibility now behave

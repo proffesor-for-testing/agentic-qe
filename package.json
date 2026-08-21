@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.13.11",
+  "version": "3.13.12",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,6 +21,10 @@
     "./shared": {
       "import": "./dist/shared/index.js",
       "types": "./dist/shared/index.d.ts"
+    },
+    "./shared/llm": {
+      "import": "./dist/shared/llm/index.js",
+      "types": "./dist/shared/llm/index.d.ts"
     },
     "./cli": {
       "import": "./dist/cli/index.js"

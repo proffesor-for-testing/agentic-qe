@@ -19,6 +19,7 @@ import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { loadRouterConfig } from '../../shared/llm/router/config-store.js';
 import { billingModeForType } from '../../shared/llm/billing-modes.js';
+import { registeredBillingDeclaration } from '../../shared/llm/provider-registry.js';
 import type { LLMProviderType } from '../../shared/llm/interfaces.js';
 
 // ============================================================================
@@ -51,7 +52,10 @@ export function printLlmBilling(): void {
   try {
     const config = loadRouterConfig();
     const primary = config.defaultProvider as LLMProviderType;
-    const mode = billingModeForType(primary);
+    // ADR-127: an external provider's mode is what it DECLARED. Fall back to
+    // the built-in table only for providers AQE actually ships.
+    const declaration = registeredBillingDeclaration(primary);
+    const mode = declaration?.mode ?? billingModeForType(primary);
     const modeLabel: Record<string, string> = {
       'metered-api': `${chalk.red('●')} pay-per-token API key (no cap)`,
       'metered-capped': `${chalk.yellow('●')} pay-per-token with server-side cap`,
@@ -59,7 +63,21 @@ export function printLlmBilling(): void {
       local: `${chalk.green('●')} local (no cost)`,
     };
     console.log(chalk.blue('\n  LLM Billing:'));
-    console.log(`  Provider: ${chalk.cyan(primary)}  ${modeLabel[mode] ?? mode}`);
+
+    if (declaration) {
+      // Never claim a third-party host draws on the user's Claude or ChatGPT
+      // plan, and never present an unverified claim as a fact. Say what was
+      // declared and who declared it (issue #628).
+      const by = declaration.source === 'config'
+        ? declaration.detail ?? '.agentic-qe/llm-config.json'
+        : 'registerProvider()';
+      console.log(
+        `  Provider: ${chalk.cyan(primary)}  ${chalk.magenta('●')} external — ` +
+        `${mode} ${chalk.gray(`(declared by ${by}, not verified by AQE)`)}`
+      );
+    } else {
+      console.log(`  Provider: ${chalk.cyan(primary)}  ${modeLabel[mode] ?? mode}`);
+    }
 
     const cap = Number.parseFloat(process.env.AQE_MAX_BUDGET_USD ?? '');
     if (Number.isFinite(cap) && cap > 0) {
