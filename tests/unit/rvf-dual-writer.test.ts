@@ -14,11 +14,23 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import {
   RvfDualWriter,
-  createDualWriter,
+  createDualWriter as createDualWriterImpl,
   type DualWriteConfig,
   type RvfStore,
   type RvfStatus,
 } from '../../src/integrations/ruvector/rvf-dual-writer.js';
+
+const TEST_SPACE_ID = 'rvf-dual-writer-test-space';
+
+function createDualWriter(
+  db: Database.Database,
+  config: DualWriteConfig,
+): RvfDualWriter {
+  return createDualWriterImpl(db, {
+    ...config,
+    embeddingSpaceId: TEST_SPACE_ID,
+  });
+}
 
 // ============================================================================
 // Helpers
