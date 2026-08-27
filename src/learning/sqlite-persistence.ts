@@ -25,7 +25,11 @@ import {
   isUsingEndpoint,
   getActiveEmbeddingSpaceIdentity,
 } from './real-embeddings.js';
-import { inspectEmbeddingSpaceRows, type EmbeddingSpaceDiagnostics } from './embedding-space.js';
+import {
+  EMBEDDING_SPACE_CANARY,
+  inspectEmbeddingSpaceRows,
+  type EmbeddingSpaceDiagnostics,
+} from './embedding-space.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 
 /**
@@ -1235,14 +1239,23 @@ export class SQLitePatternStore {
 
     const dimension = getEmbeddingDimension(); // 384
 
-    // Find patterns without embeddings (skip bench patterns)
+    // Initialize the executable identity before choosing repair candidates.
+    // The canary is cached by the embedding layer and is never persisted.
+    await computeBatchEmbeddings([EMBEDDING_SPACE_CANARY]);
+    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!activeSpaceId) {
+      throw new Error('VECTOR_SPACE_UNVERIFIED: backfill embedder has no runtime provenance');
+    }
+
+    // Repair absent, legacy/unverified, and mismatched embeddings.
     const patternsWithout = this.db.prepare(`
       SELECT p.id, p.name, p.description, p.pattern_type, p.qe_domain
       FROM qe_patterns p
-      WHERE p.id NOT IN (SELECT pattern_id FROM qe_pattern_embeddings)
+      LEFT JOIN qe_pattern_embeddings e ON e.pattern_id = p.id
+      WHERE (e.pattern_id IS NULL OR e.space_id IS NULL OR e.space_id <> ?)
         AND p.id NOT LIKE 'bench-%'
       ORDER BY p.quality_score DESC
-    `).all() as Array<{
+    `).all(activeSpaceId) as Array<{
       id: string;
       name: string;
       description: string;
@@ -1322,10 +1335,6 @@ export class SQLitePatternStore {
 
       // Insert computed embeddings in a sync transaction
       const embeddingTag = method === 'transformer' ? 'transformer-backfill' : 'hash-backfill';
-      const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
-      if (!spaceId) {
-        throw new Error('VECTOR_SPACE_UNVERIFIED: backfill embedder has no runtime provenance');
-      }
       const insertBatch = this.db!.transaction(() => {
         for (let j = 0; j < textsWithIds.length; j++) {
           try {
@@ -1335,7 +1344,7 @@ export class SQLitePatternStore {
               continue;
             }
             const buffer = Buffer.from(new Float32Array(embedding).buffer);
-            insertEmbedding.run(textsWithIds[j].id, buffer, dimension, embeddingTag, spaceId);
+            insertEmbedding.run(textsWithIds[j].id, buffer, dimension, embeddingTag, activeSpaceId);
             processed++;
           } catch (e) {
             errors++;

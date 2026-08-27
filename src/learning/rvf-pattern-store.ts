@@ -39,6 +39,7 @@ import type {
 } from './pattern-store.js';
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
 
 // ============================================================================
 // RVF Pattern Store Configuration
@@ -121,6 +122,12 @@ export class RvfPatternStore implements IPatternStore {
         this.rvfPath,
         this.config.embeddingDimension,
       );
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId ?? null;
+      verifyOrCreateEmbeddingSpaceManifest(
+        this.rvfPath,
+        activeSpaceId,
+        this.adapter.status()?.totalVectors ?? 0,
+      );
       this.initialized = true;
       console.log(
         `[RvfPatternStore] Initialized: ${this.rvfPath} (dim=${this.config.embeddingDimension})`,
@@ -130,6 +137,7 @@ export class RvfPatternStore implements IPatternStore {
       // so they need to know RVF is not working. Log a clear error, set
       // adapter to null, and mark nativeAvailable=false in stats.
       this.rvfInitError = toErrorMessage(error);
+      try { this.adapter?.close(); } catch { /* best effort */ }
       console.error(
         `[RvfPatternStore] ERROR: RVF native init failed — vector search is DISABLED. ` +
         `Cause: ${this.rvfInitError}. ` +

@@ -138,17 +138,17 @@ describe('RvfPatternStore', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-rvf-pattern-store-'));
     adapter = createMockAdapter();
     store = new RvfPatternStore(
       () => adapter,
-      { rvfPath: '/tmp/test.rvf', base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      { rvfPath: path.join(tmpDir, 'test.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     // Attach an isolated, non-unified SQLite store per test — without this,
     // RvfPatternStore.initialize() auto-attaches the ADR-046 unified
     // singleton (memory.db, shared for the whole worker process), so
     // totalPatterns/byDomain leak across tests/files now that getStats()
     // reads them from SQLite. Same pattern as sqlite-aggregate-stats.test.ts.
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-rvf-pattern-store-'));
     const sqliteStore = createSQLitePatternStore({
       useUnified: false,
       dbPath: path.join(tmpDir, 'patterns.db'),
@@ -170,7 +170,11 @@ describe('RvfPatternStore', () => {
 
     it('should skip re-initialization', async () => {
       const factoryFn = vi.fn(() => adapter);
-      const s = new RvfPatternStore(factoryFn, { rvfPath: '/tmp/test.rvf', base: undefined as any });
+      const s = new RvfPatternStore(factoryFn, {
+        rvfPath: path.join(tmpDir, 'second.rvf'),
+        base: undefined as any,
+        embeddingSpaceId: TEST_SPACE_ID,
+      });
       await s.initialize();
       await s.initialize(); // second call
       expect(factoryFn).toHaveBeenCalledTimes(1);

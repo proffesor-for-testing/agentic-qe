@@ -5,7 +5,7 @@
  * a diversity-heavy policy select different examples from the same corpus.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { createSemanticRetriever } from '../../../src/learning/qe-flywheel/coupled-anchor.js';
 import { DEFAULT_POLICY } from '../../../src/learning/qe-flywheel/policy.js';
@@ -48,19 +48,19 @@ describe('createSemanticRetriever', () => {
   const embed = async () => [1, 0, 0, 0]; // fixed query vector
 
   it('should_rank_the_most_similar_pattern_first', async () => {
-    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 1 });
+    const r = createSemanticRetriever({ db, embed, writeEmbed: embed, embeddingSpace: SPACE, topK: 1 });
     const top = await r('q', DEFAULT_POLICY);
     expect(top[0].id).toBe('A');
   });
 
   it('should_select_the_redundant_neighbor_when_mmrLambda_favors_relevance', async () => {
-    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 2 });
+    const r = createSemanticRetriever({ db, embed, writeEmbed: embed, embeddingSpace: SPACE, topK: 2 });
     const top = await r('q', { ...DEFAULT_POLICY, mmrLambda: 1.0 }); // pure relevance
     expect(top.map((e) => e.id)).toEqual(['A', 'B']);
   });
 
   it('should_select_the_diverse_pattern_when_mmrLambda_favors_diversity', async () => {
-    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 2 });
+    const r = createSemanticRetriever({ db, embed, writeEmbed: embed, embeddingSpace: SPACE, topK: 2 });
     const top = await r('q', { ...DEFAULT_POLICY, mmrLambda: 0.0 }); // pure diversity
     // A is still picked first (highest relevance); the second slot flips to the
     // pattern most DIVERSE from A — C, not the A-redundant B.
@@ -70,7 +70,7 @@ describe('createSemanticRetriever', () => {
   it('should_return_empty_for_an_empty_corpus', async () => {
     const empty = new Database(':memory:');
     empty.exec(SCHEMA);
-    const r = createSemanticRetriever({ db: empty, embed, embeddingSpace: SPACE, topK: 3 });
+    const r = createSemanticRetriever({ db: empty, embed, writeEmbed: embed, embeddingSpace: SPACE, topK: 3 });
     expect(await r('q', DEFAULT_POLICY)).toEqual([]);
     empty.close();
   });
@@ -93,7 +93,23 @@ describe('createSemanticRetriever', () => {
   it('classifies legacy vectors as unverified and uses only an explicit fallback', async () => {
     db.prepare('UPDATE qe_pattern_embeddings SET space_id = NULL WHERE pattern_id = ?').run('A');
     const fallback = () => [{ id: 'lexical', name: 'fallback', body: 'non-semantic' }];
-    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, fallback });
+    const r = createSemanticRetriever({ db, embed, writeEmbed: embed, embeddingSpace: SPACE, fallback });
     await expect(r('q', DEFAULT_POLICY)).resolves.toEqual(fallback());
+  });
+
+  it('retries a transient write/read canary failure', async () => {
+    const writeEmbed = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary storage embedder outage'))
+      .mockResolvedValue([1, 0, 0, 0]);
+    const r = createSemanticRetriever({ db, embed, writeEmbed, embeddingSpace: SPACE });
+
+    await expect(r('q', DEFAULT_POLICY)).rejects.toThrow('temporary storage embedder outage');
+    await expect(r('q', DEFAULT_POLICY)).resolves.toHaveLength(3);
+    expect(writeEmbed).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a tautological canary when the storage-side path is absent', async () => {
+    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE });
+    await expect(r('q', DEFAULT_POLICY)).rejects.toMatchObject({ code: 'VECTOR_SPACE_UNVERIFIED' });
   });
 });

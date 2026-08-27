@@ -157,7 +157,7 @@ export class RvfMigrationAdapter {
       ? (this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>).some((row) => row.name === 'space_id')
       : false;
     const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
-    if (hasSpaceContract && !spaceId) return result;
+    if (!hasSpaceContract || !spaceId) return result;
 
     const shouldWriteSqlite = this.config.stage < 4;
     const shouldWriteRvf = this.config.stage >= 2;
@@ -287,7 +287,10 @@ export class RvfMigrationAdapter {
     const useRvf = this.config.stage >= 3;
     if (this.db) {
       const hasSpaceContract = (this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>).some((row) => row.name === 'space_id');
-      if (hasSpaceContract) {
+      if (!hasSpaceContract) {
+        return { data: null, source: useRvf ? 'rvf' : 'sqlite', latencyMs: 0, stage: this.config.stage };
+      }
+      {
         const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
         const incompatible = spaceId
           ? (this.db.prepare('SELECT COUNT(*) AS count FROM qe_pattern_embeddings WHERE space_id IS NULL OR space_id <> ?').get(spaceId) as { count: number }).count

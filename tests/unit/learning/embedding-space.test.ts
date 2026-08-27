@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   EmbeddingSpaceError,
   deriveEmbeddingSpaceIdentity,
+  embeddingSpaceManifestPath,
   fingerprintEmbeddingRuntime,
   inspectEmbeddingSpaceRows,
+  verifyOrCreateEmbeddingSpaceManifest,
   verifyEmbeddingRoundTrip,
 } from '../../../src/learning/embedding-space.js';
 
@@ -57,5 +62,32 @@ describe('embedding-space contract', () => {
       status: 'vector_space_mismatch',
       mismatchedVectors: 1,
     });
+  });
+
+  it('persists and verifies an ANN embedding-space binding', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aqe-space-manifest-'));
+    const indexPath = join(dir, 'patterns.rvf');
+    try {
+      verifyOrCreateEmbeddingSpaceManifest(indexPath, 'space-a', 0);
+      expect(JSON.parse(readFileSync(embeddingSpaceManifestPath(indexPath), 'utf8'))).toEqual({
+        version: 1,
+        spaceId: 'space-a',
+      });
+      expect(() => verifyOrCreateEmbeddingSpaceManifest(indexPath, 'space-a', 5)).not.toThrow();
+      expect(() => verifyOrCreateEmbeddingSpaceManifest(indexPath, 'space-b', 5)).toThrow('VECTOR_SPACE_MISMATCH');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to adopt a populated legacy ANN index', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aqe-space-manifest-'));
+    const indexPath = join(dir, 'patterns.rvf');
+    try {
+      writeFileSync(indexPath, 'legacy-index');
+      expect(() => verifyOrCreateEmbeddingSpaceManifest(indexPath, 'space-a', 1)).toThrow('VECTOR_SPACE_UNVERIFIED');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

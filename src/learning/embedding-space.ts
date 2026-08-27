@@ -7,6 +7,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { cosineSimilarity } from '../shared/utils/vector-math.js';
 
 export const EMBEDDING_SPACE_CANARY = 'aqe embedding-space compatibility canary v1';
@@ -33,6 +34,11 @@ export interface EmbeddingSpaceDiagnostics {
   verifiedVectors: number;
   mismatchedVectors: number;
   unverifiedVectors: number;
+}
+
+interface EmbeddingSpaceManifest {
+  version: 1;
+  spaceId: string;
 }
 
 export class EmbeddingSpaceError extends Error {
@@ -132,4 +138,65 @@ export function inspectEmbeddingSpaceRows(
     mismatchedVectors,
     unverifiedVectors,
   };
+}
+
+/** Sidecar path used to bind a persistent ANN index to one embedding space. */
+export function embeddingSpaceManifestPath(indexPath: string): string {
+  return `${indexPath}.space.json`;
+}
+
+/**
+ * Bind an empty persistent index to the active space, or verify an existing
+ * binding. A populated index without a manifest is legacy/unverified and must
+ * be rebuilt rather than silently adopted by the current runtime.
+ */
+export function verifyOrCreateEmbeddingSpaceManifest(
+  indexPath: string,
+  activeSpaceId: string | null,
+  vectorCount: number,
+): void {
+  if (!activeSpaceId) {
+    throw new EmbeddingSpaceError(
+      'VECTOR_SPACE_UNVERIFIED',
+      `cannot open ANN index ${indexPath} without runtime provenance`,
+    );
+  }
+
+  const manifestPath = embeddingSpaceManifestPath(indexPath);
+  if (existsSync(manifestPath)) {
+    let manifest: EmbeddingSpaceManifest;
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as EmbeddingSpaceManifest;
+    } catch {
+      throw new EmbeddingSpaceError(
+        'VECTOR_SPACE_UNVERIFIED',
+        `ANN index manifest ${manifestPath} is unreadable`,
+      );
+    }
+    if (manifest.version !== 1 || !manifest.spaceId) {
+      throw new EmbeddingSpaceError(
+        'VECTOR_SPACE_UNVERIFIED',
+        `ANN index manifest ${manifestPath} has no verified space`,
+      );
+    }
+    if (manifest.spaceId !== activeSpaceId) {
+      throw new EmbeddingSpaceError(
+        'VECTOR_SPACE_MISMATCH',
+        `ANN index space ${manifest.spaceId} != active space ${activeSpaceId}`,
+      );
+    }
+    return;
+  }
+
+  if (vectorCount > 0) {
+    throw new EmbeddingSpaceError(
+      'VECTOR_SPACE_UNVERIFIED',
+      `populated ANN index ${indexPath} has no embedding-space manifest; rebuild required`,
+    );
+  }
+
+  const manifest: EmbeddingSpaceManifest = { version: 1, spaceId: activeSpaceId };
+  const temporaryPath = `${manifestPath}.${process.pid}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(manifest)}\n`, { encoding: 'utf8', mode: 0o600 });
+  renameSync(temporaryPath, manifestPath);
 }

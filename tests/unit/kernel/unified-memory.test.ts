@@ -15,6 +15,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import Database from 'better-sqlite3';
 import {
   UnifiedMemoryManager,
   getUnifiedMemory,
@@ -173,6 +174,38 @@ describe('UnifiedMemoryManager', () => {
       expect(tableNames).toContain('kv_store');
       expect(tableNames).toContain('vectors');
       expect(tableNames).toContain('schema_version');
+    });
+
+    it('upgrades an existing v11 embedding table without trusting legacy vectors', async () => {
+      const dbPath = getTestDbPath('-v11');
+      const legacy = new Database(dbPath);
+      legacy.exec(`
+        CREATE TABLE schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL, migrated_at TEXT);
+        INSERT INTO schema_version (id, version) VALUES (1, 11);
+        CREATE TABLE qe_patterns (id TEXT PRIMARY KEY);
+        CREATE TABLE qe_pattern_embeddings (
+          pattern_id TEXT PRIMARY KEY,
+          embedding BLOB NOT NULL,
+          dimension INTEGER NOT NULL,
+          model TEXT,
+          created_at TEXT
+        );
+        INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension)
+        VALUES ('legacy', X'00000000', 1);
+      `);
+      legacy.close();
+
+      const manager = getUnifiedMemory({ dbPath });
+      await manager.initialize();
+      const db = manager.getDatabase();
+      const columns = db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+      const row = db.prepare('SELECT space_id AS spaceId FROM qe_pattern_embeddings WHERE pattern_id = ?')
+        .get('legacy') as { spaceId: string | null };
+      const version = db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number };
+
+      expect(columns.map((column) => column.name)).toContain('space_id');
+      expect(row.spaceId).toBeNull();
+      expect(version.version).toBe(12);
     });
   });
 

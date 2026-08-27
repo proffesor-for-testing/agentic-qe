@@ -184,7 +184,6 @@ export interface SemanticRetrieverOptions {
  */
 export function createSemanticRetriever(opts: SemanticRetrieverOptions): RetrieveFn {
   const embed = opts.embed ?? ((t: string) => computeRealEmbedding(t));
-  const writeEmbed = opts.writeEmbed ?? embed;
   const topK = opts.topK ?? 3;
   const hasSpaceId = (opts.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>)
     .some((column) => column.name === 'space_id');
@@ -208,8 +207,21 @@ export function createSemanticRetriever(opts: SemanticRetrieverOptions): Retriev
   return async (query: string, policy: RetrievalPolicy): Promise<RetrievedExample[]> => {
     if (docs.length === 0) return [];
     try {
-      compatibilityCheck ??= verifyEmbeddingRoundTrip(writeEmbed, embed);
-      await compatibilityCheck;
+      if (!opts.writeEmbed) {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_UNVERIFIED',
+          'an independent storage-side embedder is required for the write/read canary',
+        );
+      }
+      if (!compatibilityCheck) {
+        compatibilityCheck = verifyEmbeddingRoundTrip(opts.writeEmbed, embed);
+      }
+      try {
+        await compatibilityCheck;
+      } catch (error) {
+        compatibilityCheck = null;
+        throw error;
+      }
       const activeIdentity = opts.embeddingSpace ?? getActiveEmbeddingSpaceIdentity();
       const writeIdentity = opts.writeEmbeddingSpace ?? activeIdentity;
       if (!activeIdentity || !writeIdentity) {

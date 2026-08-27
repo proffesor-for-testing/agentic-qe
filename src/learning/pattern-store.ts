@@ -7,6 +7,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { existsSync } from 'node:fs';
+import { join as joinPath } from 'node:path';
 import type { MemoryBackend } from '../kernel/interfaces.js';
 // Issue #516: lightweight, sqlite-free project-root resolver (static import so it
 // resolves under the test runner; avoids pulling unified-memory's sqlite graph).
@@ -1939,8 +1941,6 @@ export function createPatternStore(
       // Only use RVF if the data directory exists (created by kernel init).
       // Issue #516: anchor to the project root so a subfolder cwd reads/writes
       // the project's own .agentic-qe/ rather than a cwd-relative stray store.
-      const { existsSync } = require('fs');
-      const { join: joinPath } = require('path');
       const projectRoot = process.env.AQE_PROJECT_ROOT ?? findProjectRoot();
       const rvfDir = joinPath(projectRoot, '.agentic-qe');
       const rvfPath = joinPath(rvfDir, 'patterns.rvf');
@@ -1962,7 +1962,12 @@ export function createPatternStore(
             useSharedAdapter = true;
             const store = new RvfPatternStore(
               () => shared,
-              { rvfPath, base: mergedConfig, skipCloseOnDispose: true },
+              {
+                rvfPath,
+                base: mergedConfig,
+                skipCloseOnDispose: true,
+                embeddingSpaceId: mergedConfig.embeddingSpaceId,
+              },
             );
             console.log('[PatternStore] Using RVF-backed store (ADR-066)');
             return store;
@@ -2013,7 +2018,11 @@ export function createPatternStore(
                 throw createErr;
               }
             },
-            { rvfPath, base: mergedConfig },
+            {
+              rvfPath,
+              base: mergedConfig,
+              embeddingSpaceId: mergedConfig.embeddingSpaceId,
+            },
           );
           console.log('[PatternStore] Using RVF-backed store (ADR-066)');
           return store;

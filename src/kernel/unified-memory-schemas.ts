@@ -15,7 +15,7 @@ export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA };
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 11; // v11: adds goap_execution_steps — canonical GOAP execution history (A14)
+export const SCHEMA_VERSION = 12; // v12: embedding-space provenance for semantic vectors (#633)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (

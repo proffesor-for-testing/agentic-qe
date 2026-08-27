@@ -16,6 +16,7 @@ import type {
   RvfStatus as NativeRvfStatus,
 } from './rvf-native-adapter.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
+import { verifyOrCreateEmbeddingSpaceManifest } from '../../learning/embedding-space.js';
 
 // ============================================================================
 // Types
@@ -59,6 +60,8 @@ export interface DualWriteConfig {
   mode: 'dual-write' | 'rvf-primary' | 'sqlite-only';
   /** Whether to verify witness chain on startup */
   verifyOnStartup?: boolean;
+  /** Runtime provenance for an injected embedding pipeline. */
+  embeddingSpaceId?: string;
 }
 
 export interface DualWriteResult {
@@ -157,6 +160,14 @@ export class RvfDualWriter {
       ...config,
       dimensions: config.dimensions ?? 384,
     };
+    if (tableExists(this.db, 'qe_pattern_embeddings') && !columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) {
+      this.db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
+    }
+  }
+
+  private activeSpaceId(): string | undefined {
+    return getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
   }
 
   /**
@@ -204,6 +215,11 @@ export class RvfDualWriter {
       }
 
       this.rvfStore = wrapNativeAdapter(nativeAdapter, this.config.dimensions);
+      verifyOrCreateEmbeddingSpaceManifest(
+        this.config.rvfPath,
+        this.activeSpaceId() ?? null,
+        this.rvfStore.status().totalVectors,
+      );
       this.rvfAvailable = true;
     } catch (err) {
       // Native adapter unavailable, or recovery itself failed. Degrade to
@@ -239,7 +255,7 @@ export class RvfDualWriter {
       rvfSuccess: false,
     };
     const hasSpaceContract = columnExists(this.db, 'qe_pattern_embeddings', 'space_id');
-    if (hasSpaceContract && !getActiveEmbeddingSpaceIdentity()?.spaceId) {
+    if (!hasSpaceContract || !this.activeSpaceId()) {
       return { ...result, divergence: 'VECTOR_SPACE_UNVERIFIED' };
     }
 
@@ -462,8 +478,8 @@ export class RvfDualWriter {
   }
 
   private hasCompatibleEmbeddingSpace(): boolean {
-    if (!columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) return true;
-    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) return false;
+    const activeSpaceId = this.activeSpaceId();
     if (!activeSpaceId) return false;
     const row = this.db.prepare(`
       SELECT COUNT(*) AS incompatible
@@ -483,7 +499,7 @@ export class RvfDualWriter {
 
     // Upsert into qe_pattern_embeddings
     if (tableExists(this.db, 'qe_pattern_embeddings')) {
-      const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+      const spaceId = this.activeSpaceId();
       if (columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) {
         if (!spaceId) throw new Error('VECTOR_SPACE_UNVERIFIED: dual writer has no runtime provenance');
         this.db.prepare(`
@@ -497,14 +513,7 @@ export class RvfDualWriter {
         `).run(patternId, blob, dimension, spaceId);
         return;
       }
-      this.db.prepare(`
-        INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
-        VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
-        ON CONFLICT(pattern_id) DO UPDATE SET
-          embedding = excluded.embedding,
-          dimension = excluded.dimension,
-          created_at = datetime('now')
-      `).run(patternId, blob, dimension);
+      throw new Error('VECTOR_SPACE_UNVERIFIED: canonical space_id column is unavailable');
     }
   }
 
@@ -533,14 +542,12 @@ export class RvfDualWriter {
   private searchSqlite(query: number[] | Float32Array, k: number): Array<{ id: string; score: number }> {
     if (!tableExists(this.db, 'qe_pattern_embeddings')) return [];
 
-    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    const activeSpaceId = this.activeSpaceId();
     const hasSpaceContract = columnExists(this.db, 'qe_pattern_embeddings', 'space_id');
-    if (hasSpaceContract && !activeSpaceId) return [];
+    if (!hasSpaceContract || !activeSpaceId) return [];
     const rows = this.db.prepare(
-      hasSpaceContract
-        ? 'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings WHERE space_id = ?'
-        : 'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings'
-    ).all(...(hasSpaceContract ? [activeSpaceId] : [])) as Array<{ pattern_id: string; embedding: Buffer; dimension: number }>;
+      'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings WHERE space_id = ?'
+    ).all(activeSpaceId) as Array<{ pattern_id: string; embedding: Buffer; dimension: number }>;
 
     const queryArr = query instanceof Float32Array ? Array.from(query) : query;
     const queryMag = Math.sqrt(queryArr.reduce((s, v) => s + v * v, 0));

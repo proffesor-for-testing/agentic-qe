@@ -29,6 +29,8 @@ import {
   createQEReasoningBank,
 } from '../../../src/learning/qe-reasoning-bank.js';
 
+const TEST_SPACE_ID = 'rvf-production-test-space';
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -72,6 +74,7 @@ function createTestDb(): Database.Database {
       embedding BLOB NOT NULL,
       dimension INTEGER NOT NULL,
       model TEXT DEFAULT 'all-MiniLM-L6-v2',
+      space_id TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id)
     );
@@ -161,6 +164,7 @@ describe('RVF Production Wiring', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath: '/tmp/test.rvf',
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
 
@@ -183,6 +187,7 @@ describe('RVF Production Wiring', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath: '/tmp/test.rvf',
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
 
@@ -208,6 +213,7 @@ describe('RVF Production Wiring', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath: '/tmp/test.rvf',
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
 
@@ -237,6 +243,7 @@ describe('RVF Production Wiring', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath: '/tmp/test.rvf',
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
 
@@ -287,6 +294,7 @@ describe('RVF Production Wiring', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath: '/tmp/test.rvf',
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
 
@@ -325,6 +333,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
     for (const p of tmpFiles) {
       try { if (existsSync(p)) unlinkSync(p); } catch { /* best effort */ }
       try { if (existsSync(p + '.idmap.json')) unlinkSync(p + '.idmap.json'); } catch { /* best effort */ }
+      try { if (existsSync(p + '.space.json')) unlinkSync(p + '.space.json'); } catch { /* best effort */ }
     }
   });
 
@@ -335,6 +344,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 8,
       });
 
@@ -356,6 +366,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 8,
       });
       await writer.initialize();
@@ -394,6 +405,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'rvf-primary',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 4,
       });
       await writer.initialize();
@@ -417,6 +429,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 4,
       });
       await writer.initialize();
@@ -441,6 +454,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 4,
       });
       await writer.initialize();
@@ -494,12 +508,15 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
       await withTimeout(writer.initialize(), 10000, 'writer.initialize');
 
       // Create ReasoningBank and wire dual-writer
-      const bank = createQEReasoningBank(memStub);
+      const bank = createQEReasoningBank(memStub, undefined, {
+        patternStore: { embeddingSpaceId: TEST_SPACE_ID },
+      });
       await withTimeout(bank.initialize(), 15000, 'bank.initialize');
       bank.setRvfDualWriter(writer);
 
@@ -512,7 +529,7 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
         context: { tags: ['test'] },
       }), 10000, 'bank.storePattern');
 
-      expect(result.success).toBe(true);
+      expect(result.success, result.success ? '' : result.error.message).toBe(true);
 
       // Check that the RVF store received the embedding.
       const status = writer.status();
@@ -532,11 +549,14 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
       const writer = new RvfDualWriter(db, {
         rvfPath,
         mode: 'dual-write',
+        embeddingSpaceId: TEST_SPACE_ID,
         dimensions: 384,
       });
       await withTimeout(writer.initialize(), 10000, 'writer.initialize');
 
-      const bank = createQEReasoningBank(memStub);
+      const bank = createQEReasoningBank(memStub, undefined, {
+        patternStore: { embeddingSpaceId: TEST_SPACE_ID },
+      });
       await withTimeout(bank.initialize(), 15000, 'bank.initialize');
       bank.setRvfDualWriter(writer);
 

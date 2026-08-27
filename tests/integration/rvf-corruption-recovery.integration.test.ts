@@ -236,7 +236,7 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
     openRvfStore(rvfPath).close();
     // ...and no tmp debris is left behind.
     const tmpBase = `${rvfPath}.tmp.${process.pid}`;
-    for (const suffix of ['', '.idmap.json', '.manifest.json', '.lock']) {
+    for (const suffix of ['', '.idmap.json', '.manifest.json', '.space.json', '.lock']) {
       expect(existsSync(`${tmpBase}${suffix}`)).toBe(false);
     }
 
@@ -280,7 +280,12 @@ describeNative('Dual-writer recovery from an unusable store (#563)', () => {
 
     // Act: this is what every `aqe status` / session start does.
     const { RvfDualWriter } = await import('../../src/integrations/ruvector/rvf-dual-writer.js');
-    const writer = new RvfDualWriter(db, { rvfPath, mode: 'dual-write', dimensions: 384 });
+    const writer = new RvfDualWriter(db, {
+      rvfPath,
+      mode: 'dual-write',
+      dimensions: 384,
+      embeddingSpaceId: 'corruption-recovery-test-space',
+    });
     await writer.initialize();
 
     // Assert: RVF is live. Before the fix both opens threw FsyncFailed and the
@@ -313,6 +318,7 @@ describe('Unusable-store quarantine (#563)', () => {
     const rvfPath = join(dir, 'brain.rvf');
     writeFileSync(rvfPath, Buffer.concat([Buffer.from('SFVR'), Buffer.alloc(158)]));
     writeFileSync(`${rvfPath}.idmap.json`, '{"nextLabel":1,"entries":[]}');
+    writeFileSync(`${rvfPath}.space.json`, '{"spaceId":"test-space"}');
     // A stale lock: well-formed, but its owning process is long gone.
     writeFileSync(`${rvfPath}.lock`, lockRecord(0x7ffffffe));
 
@@ -325,6 +331,7 @@ describe('Unusable-store quarantine (#563)', () => {
     // ...and the bytes are preserved for diagnosis rather than deleted.
     expect(existsSync(quarantined as string)).toBe(true);
     expect(existsSync(`${quarantined}.idmap.json`)).toBe(true);
+    expect(existsSync(`${quarantined}.space.json`)).toBe(true);
   });
 
   it('refuses to quarantine a store whose lock is held by a live process', () => {
