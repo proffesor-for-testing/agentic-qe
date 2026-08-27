@@ -65,6 +65,7 @@ import {
   type HyperbolicPatternResult,
 } from './hyperbolic-pattern-index.js';
 import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
+import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -160,6 +161,9 @@ export interface PatternStoreConfig {
 
   /** Dimension of embedding vectors */
   embeddingDimension: number;
+
+  /** Runtime-provided provenance override (primarily for injected embedders/tests). */
+  embeddingSpaceId?: string;
 
   /** HNSW configuration */
   hnsw: {
@@ -301,6 +305,9 @@ export interface PatternSearchOptions {
   /** Include vector similarity search */
   useVectorSearch?: boolean;
 
+  /** Provenance of a pre-computed query vector. Required for semantic ranking. */
+  embeddingSpaceId?: string;
+
   /**
    * Composable metadata filter expression (Task 1.2: ruvector-filter).
    * Applied post-search to refine results by domain, severity,
@@ -431,6 +438,7 @@ export class PatternStore implements IPatternStore {
   // HNSW index for vector search (lazy loaded - ADR-048)
   // Using dynamic import type since HNSWIndex is lazily loaded
   private hnswIndex: import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null = null;
+  private hnswSpaceId: string | null = null;
   private hnswAvailable = false;
   private hnswInitPromise: Promise<void> | null = null;
 
@@ -539,6 +547,11 @@ export class PatternStore implements IPatternStore {
   private async ensureHNSW(): Promise<import('../domains/coverage-analysis/services/hnsw-index.js').IHNSWIndex | null> {
     // Already initialized
     if (this.hnswIndex !== null) {
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId ?? null;
+      if (this.hnswSpaceId !== activeSpaceId) {
+        console.warn('[PatternStore] VECTOR_SPACE_MISMATCH: active embedder changed; semantic index disabled');
+        return null;
+      }
       return this.hnswIndex;
     }
 
@@ -571,6 +584,10 @@ export class PatternStore implements IPatternStore {
    */
   private async initializeHNSWInternal(): Promise<void> {
     try {
+      this.hnswSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId ?? null;
+      if (!this.hnswSpaceId) {
+        throw new Error('VECTOR_SPACE_UNVERIFIED: cannot initialize HNSW without runtime provenance');
+      }
       // ADR-071: Use unified HNSW via bridge when flag is enabled
       const unifiedFlags = getRuVectorFeatureFlags();
       if (unifiedFlags.useUnifiedHnsw) {
@@ -653,9 +670,10 @@ export class PatternStore implements IPatternStore {
       const maxBootstrap = this.config.hnsw.maxElements;
       let loaded = 0;
       let skipped = 0;
-      for (const { patternId, embedding } of embeddings) {
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+      for (const { patternId, embedding, spaceId } of embeddings) {
         if (loaded >= maxBootstrap) break;
-        if (!embedding || embedding.length !== this.config.embeddingDimension) {
+        if (!activeSpaceId || spaceId !== activeSpaceId || !embedding || embedding.length !== this.config.embeddingDimension) {
           skipped++;
           continue;
         }
@@ -801,6 +819,10 @@ export class PatternStore implements IPatternStore {
         )
       );
     }
+    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+    if (pattern.embedding && !activeSpaceId) {
+      return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
+    }
 
     // Check domain limit
     const domainCount = this.domainIndex.get(pattern.qeDomain)?.size || 0;
@@ -818,7 +840,7 @@ export class PatternStore implements IPatternStore {
     // Persist to SQLite (pattern + embedding atomically)
     if (this.sqliteStore) {
       try {
-        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding);
+        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding, activeSpaceId);
         // #447: ON CONFLICT(name, qe_domain, pattern_type) may preserve an
         // existing row's id instead of the one we generated — realign the
         // in-memory indices (and pattern.id itself) or every later
@@ -1091,6 +1113,12 @@ export class PatternStore implements IPatternStore {
 
       // Vector search if query is embedding and HNSW available (lazy-load)
       if (Array.isArray(query) && options.useVectorSearch !== false) {
+        const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+        if (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId) {
+          throw new Error(
+            'VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId',
+          );
+        }
         const hnsw = await this.ensureHNSW();
         if (hnsw) {
           const hnswResults = await hnsw.search(query, limit * 2);
@@ -1999,4 +2027,3 @@ export function createPatternStore(
 
   return new PatternStore(memory, config);
 }
-

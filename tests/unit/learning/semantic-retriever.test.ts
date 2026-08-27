@@ -9,11 +9,17 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { createSemanticRetriever } from '../../../src/learning/qe-flywheel/coupled-anchor.js';
 import { DEFAULT_POLICY } from '../../../src/learning/qe-flywheel/policy.js';
+import { deriveEmbeddingSpaceIdentity } from '../../../src/learning/embedding-space.js';
 
 const SCHEMA = `
   CREATE TABLE qe_patterns (id TEXT PRIMARY KEY, name TEXT, description TEXT, deprecated_at TEXT DEFAULT NULL);
-  CREATE TABLE qe_pattern_embeddings (pattern_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, dimension INTEGER NOT NULL);
+  CREATE TABLE qe_pattern_embeddings (pattern_id TEXT PRIMARY KEY, embedding BLOB NOT NULL, dimension INTEGER NOT NULL, space_id TEXT);
 `;
+
+const SPACE = deriveEmbeddingSpaceIdentity({
+  provider: 'test', model: 'same-model', dimensions: 4, normalized: true,
+  runtimeFingerprint: 'runtime-a',
+});
 
 function blob(v: number[]): Buffer {
   return Buffer.from(new Float32Array(v).buffer);
@@ -34,27 +40,27 @@ describe('createSemanticRetriever', () => {
       ['C', [0, 1, 0, 0]],
     ];
     const ins = db.prepare('INSERT INTO qe_patterns (id, name, description) VALUES (?, ?, ?)');
-    const insE = db.prepare('INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension) VALUES (?, ?, 4)');
-    for (const [id, vec] of rows) { ins.run(id, `name-${id}`, `body-${id}`); insE.run(id, blob(vec)); }
+    const insE = db.prepare('INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, space_id) VALUES (?, ?, 4, ?)');
+    for (const [id, vec] of rows) { ins.run(id, `name-${id}`, `body-${id}`); insE.run(id, blob(vec), SPACE.spaceId); }
   });
   afterEach(() => db.close());
 
   const embed = async () => [1, 0, 0, 0]; // fixed query vector
 
   it('should_rank_the_most_similar_pattern_first', async () => {
-    const r = createSemanticRetriever({ db, embed, topK: 1 });
+    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 1 });
     const top = await r('q', DEFAULT_POLICY);
     expect(top[0].id).toBe('A');
   });
 
   it('should_select_the_redundant_neighbor_when_mmrLambda_favors_relevance', async () => {
-    const r = createSemanticRetriever({ db, embed, topK: 2 });
+    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 2 });
     const top = await r('q', { ...DEFAULT_POLICY, mmrLambda: 1.0 }); // pure relevance
     expect(top.map((e) => e.id)).toEqual(['A', 'B']);
   });
 
   it('should_select_the_diverse_pattern_when_mmrLambda_favors_diversity', async () => {
-    const r = createSemanticRetriever({ db, embed, topK: 2 });
+    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, topK: 2 });
     const top = await r('q', { ...DEFAULT_POLICY, mmrLambda: 0.0 }); // pure diversity
     // A is still picked first (highest relevance); the second slot flips to the
     // pattern most DIVERSE from A — C, not the A-redundant B.
@@ -64,8 +70,30 @@ describe('createSemanticRetriever', () => {
   it('should_return_empty_for_an_empty_corpus', async () => {
     const empty = new Database(':memory:');
     empty.exec(SCHEMA);
-    const r = createSemanticRetriever({ db: empty, embed, topK: 3 });
+    const r = createSemanticRetriever({ db: empty, embed, embeddingSpace: SPACE, topK: 3 });
     expect(await r('q', DEFAULT_POLICY)).toEqual([]);
     empty.close();
+  });
+
+  it('rejects two 4-dimensional embedders that advertise the same model', async () => {
+    const querySpace = deriveEmbeddingSpaceIdentity({
+      provider: 'test', model: 'same-model', dimensions: 4, normalized: true,
+      runtimeFingerprint: 'runtime-b',
+    });
+    const r = createSemanticRetriever({
+      db,
+      embed: async () => [0, 1, 0, 0],
+      writeEmbed: async () => [1, 0, 0, 0],
+      embeddingSpace: querySpace,
+      writeEmbeddingSpace: SPACE,
+    });
+    await expect(r('q', DEFAULT_POLICY)).rejects.toMatchObject({ code: 'VECTOR_SPACE_MISMATCH' });
+  });
+
+  it('classifies legacy vectors as unverified and uses only an explicit fallback', async () => {
+    db.prepare('UPDATE qe_pattern_embeddings SET space_id = NULL WHERE pattern_id = ?').run('A');
+    const fallback = () => [{ id: 'lexical', name: 'fallback', body: 'non-semantic' }];
+    const r = createSemanticRetriever({ db, embed, embeddingSpace: SPACE, fallback });
+    await expect(r('q', DEFAULT_POLICY)).resolves.toEqual(fallback());
   });
 });

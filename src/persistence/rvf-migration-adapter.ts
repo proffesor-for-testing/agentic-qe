@@ -16,6 +16,7 @@
  */
 
 import type { RvfStore, RvfStatus } from '../integrations/ruvector/rvf-dual-writer.js';
+import { getActiveEmbeddingSpaceIdentity } from '../learning/real-embeddings.js';
 
 // ============================================================================
 // Types
@@ -40,6 +41,8 @@ export interface MigrationAdapterConfig {
   dimensions: number;
   /** Enable fallback on RVF read failure in stage 3+ */
   enableFallback: boolean;
+  /** Runtime provenance for injected embedding pipelines. */
+  embeddingSpaceId?: string;
 }
 
 export interface WriteResult {
@@ -150,6 +153,11 @@ export class RvfMigrationAdapter {
       stage: this.config.stage,
       fallbackUsed: false,
     };
+    const hasSpaceContract = this.db
+      ? (this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>).some((row) => row.name === 'space_id')
+      : false;
+    const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+    if (hasSpaceContract && !spaceId) return result;
 
     const shouldWriteSqlite = this.config.stage < 4;
     const shouldWriteRvf = this.config.stage >= 2;
@@ -161,12 +169,22 @@ export class RvfMigrationAdapter {
         const blob = Buffer.from(
           vector instanceof Float32Array ? vector.buffer : new Float32Array(vector).buffer,
         );
-        this.db.prepare(`
-          INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
-          VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
-          ON CONFLICT(pattern_id) DO UPDATE SET
-            embedding = excluded.embedding, dimension = excluded.dimension, created_at = datetime('now')
-        `).run(id, blob, vector.length);
+        if (hasSpaceContract) {
+          this.db.prepare(`
+            INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id, created_at)
+            VALUES (?, ?, ?, 'all-MiniLM-L6-v2', ?, datetime('now'))
+            ON CONFLICT(pattern_id) DO UPDATE SET
+              embedding = excluded.embedding, dimension = excluded.dimension,
+              space_id = excluded.space_id, created_at = datetime('now')
+          `).run(id, blob, vector.length, spaceId);
+        } else {
+          this.db.prepare(`
+            INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
+            VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
+            ON CONFLICT(pattern_id) DO UPDATE SET
+              embedding = excluded.embedding, dimension = excluded.dimension, created_at = datetime('now')
+          `).run(id, blob, vector.length);
+        }
         result.sqliteSuccess = true;
         this.sqliteWriteLatencies.push(performance.now() - start);
       } catch (err) {
@@ -196,12 +214,22 @@ export class RvfMigrationAdapter {
         const blob = Buffer.from(
           vector instanceof Float32Array ? vector.buffer : new Float32Array(vector).buffer,
         );
-        this.db.prepare(`
-          INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
-          VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
-          ON CONFLICT(pattern_id) DO UPDATE SET
-            embedding = excluded.embedding, dimension = excluded.dimension, created_at = datetime('now')
-        `).run(id, blob, vector.length);
+        if (hasSpaceContract) {
+          this.db.prepare(`
+            INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id, created_at)
+            VALUES (?, ?, ?, 'all-MiniLM-L6-v2', ?, datetime('now'))
+            ON CONFLICT(pattern_id) DO UPDATE SET
+              embedding = excluded.embedding, dimension = excluded.dimension,
+              space_id = excluded.space_id, created_at = datetime('now')
+          `).run(id, blob, vector.length, spaceId);
+        } else {
+          this.db.prepare(`
+            INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
+            VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
+            ON CONFLICT(pattern_id) DO UPDATE SET
+              embedding = excluded.embedding, dimension = excluded.dimension, created_at = datetime('now')
+          `).run(id, blob, vector.length);
+        }
         result.sqliteSuccess = true;
         result.fallbackUsed = true;
         this.fallbacksUsed++;
@@ -257,6 +285,18 @@ export class RvfMigrationAdapter {
   search(query: Float32Array | number[], k: number): ReadResult<Array<{ id: string; score: number }>> {
     this.totalReads++;
     const useRvf = this.config.stage >= 3;
+    if (this.db) {
+      const hasSpaceContract = (this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>).some((row) => row.name === 'space_id');
+      if (hasSpaceContract) {
+        const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+        const incompatible = spaceId
+          ? (this.db.prepare('SELECT COUNT(*) AS count FROM qe_pattern_embeddings WHERE space_id IS NULL OR space_id <> ?').get(spaceId) as { count: number }).count
+          : 1;
+        if (incompatible > 0) {
+          return { data: null, source: useRvf ? 'rvf' : 'sqlite', latencyMs: 0, stage: this.config.stage };
+        }
+      }
+    }
 
     if (useRvf && this.rvfStore) {
       const start = performance.now();

@@ -23,6 +23,7 @@ import type Database from 'better-sqlite3';
 import {
   computeRealEmbedding,
   DEFAULT_EMBEDDING_CONFIG,
+  getActiveEmbeddingSpaceIdentity,
   type EmbeddingConfig,
 } from './real-embeddings.js';
 
@@ -55,11 +56,13 @@ export async function ensurePatternEmbedding(
 
     const buffer = Buffer.from(new Float32Array(embedding).buffer);
     const fullConfig = { ...DEFAULT_EMBEDDING_CONFIG, ...config };
+    const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!spaceId) throw new Error('VECTOR_SPACE_UNVERIFIED: embedder has no runtime provenance');
 
     db.prepare(
-      `INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
-       VALUES (?, ?, ?, ?)`,
-    ).run(patternId, buffer, embedding.length, fullConfig.modelName);
+      `INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(patternId, buffer, embedding.length, fullConfig.modelName, spaceId);
   } catch (error) {
     // Non-fatal: pattern row already persisted; embedding can be backfilled later.
     console.debug(

@@ -22,7 +22,13 @@
  */
 
 import type { Database as DatabaseType } from 'better-sqlite3';
-import { computeRealEmbedding } from '../real-embeddings.js';
+import { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } from '../real-embeddings.js';
+import {
+  EmbeddingSpaceError,
+  inspectEmbeddingSpaceRows,
+  verifyEmbeddingRoundTrip,
+  type EmbeddingSpaceIdentity,
+} from '../embedding-space.js';
 import { evaluateOracle } from '../../validation/oracle-eval.js';
 import { loadAnchorSet, anchorMean as meanOf, type AnchorItem } from '../../validation/anchor-set.js';
 import type { RetrievalPolicy } from './policy.js';
@@ -154,6 +160,13 @@ export interface SemanticRetrieverOptions {
   db: DatabaseType;
   /** Embed a query into the pattern-embedding space. Default: all-MiniLM-L6-v2. */
   embed?: (text: string) => Promise<number[]>;
+  /** Storage-side embedding path used by the executable round-trip canary. */
+  writeEmbed?: (text: string) => Promise<number[]>;
+  /** Runtime identities for injected embedders. Defaults to the active AQE embedder. */
+  embeddingSpace?: EmbeddingSpaceIdentity;
+  writeEmbeddingSpace?: EmbeddingSpaceIdentity;
+  /** Explicit non-semantic fallback used when provenance cannot be verified. */
+  fallback?: RetrieveFn;
   topK?: number;
 }
 
@@ -171,25 +184,73 @@ export interface SemanticRetrieverOptions {
  */
 export function createSemanticRetriever(opts: SemanticRetrieverOptions): RetrieveFn {
   const embed = opts.embed ?? ((t: string) => computeRealEmbedding(t));
+  const writeEmbed = opts.writeEmbed ?? embed;
   const topK = opts.topK ?? 3;
+  const hasSpaceId = (opts.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>)
+    .some((column) => column.name === 'space_id');
   const rows = opts.db.prepare(
     `SELECT p.id AS id, p.name AS name, COALESCE(p.description,'') AS body,
-            e.embedding AS embedding, e.dimension AS dimension
+            e.embedding AS embedding, e.dimension AS dimension, ${hasSpaceId ? 'e.space_id' : 'NULL'} AS space_id
        FROM qe_patterns p JOIN qe_pattern_embeddings e ON e.pattern_id = p.id
       WHERE p.deprecated_at IS NULL`,
-  ).all() as { id: string; name: string; body: string; embedding: Buffer; dimension: number }[];
+  ).all() as { id: string; name: string; body: string; embedding: Buffer; dimension: number; space_id: string | null }[];
 
   const toks = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
   const docs = rows.map((r) => ({
-    id: r.id, name: r.name, body: r.body,
+    id: r.id, name: r.name, body: r.body, spaceId: r.space_id,
     vec: new Float32Array(r.embedding.buffer, r.embedding.byteOffset, r.dimension),
     nameToks: toks(r.name), bodyToks: toks(r.body),
   }));
 
   const queryCache = new Map<string, Float32Array>();
+  let compatibilityCheck: Promise<number> | null = null;
 
   return async (query: string, policy: RetrievalPolicy): Promise<RetrievedExample[]> => {
     if (docs.length === 0) return [];
+    try {
+      compatibilityCheck ??= verifyEmbeddingRoundTrip(writeEmbed, embed);
+      await compatibilityCheck;
+      const activeIdentity = opts.embeddingSpace ?? getActiveEmbeddingSpaceIdentity();
+      const writeIdentity = opts.writeEmbeddingSpace ?? activeIdentity;
+      if (!activeIdentity || !writeIdentity) {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_UNVERIFIED',
+          'runtime embedding-space identity is unavailable',
+        );
+      }
+      if (writeIdentity.spaceId !== activeIdentity.spaceId) {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_MISMATCH',
+          `write space ${writeIdentity.spaceId} != query space ${activeIdentity.spaceId}`,
+        );
+      }
+      const invalidDimensions = docs.filter((doc) => doc.vec.length !== activeIdentity.dimensions);
+      if (invalidDimensions.length > 0) {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_MISMATCH',
+          `${invalidDimensions.length} stored vectors have dimensions incompatible with ${activeIdentity.dimensions}`,
+        );
+      }
+      const diagnostics = inspectEmbeddingSpaceRows(
+        docs.map((doc) => ({ spaceId: doc.spaceId })),
+        activeIdentity.spaceId,
+      );
+      if (diagnostics.unverifiedVectors > 0) {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_UNVERIFIED',
+          `${diagnostics.unverifiedVectors} stored vectors have no provenance`,
+        );
+      }
+      if (diagnostics.status === 'vector_space_mismatch') {
+        throw new EmbeddingSpaceError(
+          'VECTOR_SPACE_MISMATCH',
+          `stored spaces [${diagnostics.storedSpaceIds.join(', ')}] do not match ${activeIdentity.spaceId}`,
+        );
+      }
+    } catch (error) {
+      if (opts.fallback) return opts.fallback(query, policy);
+      throw error;
+    }
     let qv = queryCache.get(query);
     if (!qv) { qv = new Float32Array(await embed(query)); queryCache.set(query, qv); }
     const q = toks(query);

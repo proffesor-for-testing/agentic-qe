@@ -38,6 +38,7 @@ import type {
   PatternSearchResult,
 } from './pattern-store.js';
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
+import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 
 // ============================================================================
 // RVF Pattern Store Configuration
@@ -50,6 +51,8 @@ export interface RvfPatternStoreConfig {
   base: PatternStoreConfig;
   /** When true, dispose() will not close the adapter (shared singleton) */
   skipCloseOnDispose?: boolean;
+  /** Runtime provenance for an injected embedder. */
+  embeddingSpaceId?: string;
 }
 
 // ============================================================================
@@ -66,6 +69,7 @@ export class RvfPatternStore implements IPatternStore {
   private readonly config: PatternStoreConfig;
   private readonly rvfPath: string;
   private readonly skipCloseOnDispose: boolean;
+  private readonly embeddingSpaceId?: string;
   private adapter: RvfNativeAdapter | null = null;
   private sqliteStore: import('./sqlite-persistence.js').SQLitePatternStore | null = null;
   private initialized = false;
@@ -80,6 +84,7 @@ export class RvfPatternStore implements IPatternStore {
     this.config = config?.base ?? DEFAULT_PATTERN_STORE_CONFIG;
     this.rvfPath = config?.rvfPath ?? '.agentic-qe/patterns.rvf';
     this.skipCloseOnDispose = config?.skipCloseOnDispose ?? false;
+    this.embeddingSpaceId = config?.embeddingSpaceId;
   }
 
   /**
@@ -233,6 +238,11 @@ export class RvfPatternStore implements IPatternStore {
       );
     }
 
+    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId;
+    if (pattern.embedding && !activeSpaceId) {
+      return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
+    }
+
     // Persist metadata to SQLite. #447: capture the returned id — ON CONFLICT
     // on (name, qe_domain, pattern_type) preserves the existing row's id, so
     // we must align pattern.id with what's actually stored before ingesting
@@ -240,7 +250,7 @@ export class RvfPatternStore implements IPatternStore {
     // with "Pattern not found" and qe_pattern_usage stays empty).
     if (this.sqliteStore) {
       try {
-        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding);
+        const actualId = this.sqliteStore.storePattern(pattern, pattern.embedding, activeSpaceId);
         if (actualId && actualId !== pattern.id) {
           // QEPattern.id is `readonly` for callers, but inside the store
           // we own the lifecycle and must align it with the persisted row
@@ -330,6 +340,13 @@ export class RvfPatternStore implements IPatternStore {
     const startTime = performance.now();
     const limit = options.limit ?? 10;
     const results: PatternSearchResult[] = [];
+
+    if (Array.isArray(query)) {
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId;
+      if (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId) {
+        return err(new Error('VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId'));
+      }
+    }
 
     // Vector search via RVF native HNSW
     if (Array.isArray(query) && this.adapter) {

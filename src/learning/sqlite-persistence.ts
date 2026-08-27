@@ -23,7 +23,9 @@ import {
   computeBatchEmbeddings,
   getEmbeddingDimension,
   isUsingEndpoint,
+  getActiveEmbeddingSpaceIdentity,
 } from './real-embeddings.js';
+import { inspectEmbeddingSpaceRows, type EmbeddingSpaceDiagnostics } from './embedding-space.js';
 import { recordPatternUsage } from './pattern-usage-recorder.js';
 
 /**
@@ -105,6 +107,7 @@ interface EmbeddingRow {
   pattern_id: string;
   embedding: Buffer;
   dimension: number;
+  space_id: string | null;
 }
 
 /**
@@ -214,6 +217,9 @@ export class SQLitePatternStore {
       // Run deduplication migration (one-time, idempotent)
       this.deduplicatePatterns();
 
+      // Legacy rows remain NULL/unverified; only new writes receive provenance.
+      this.ensureEmbeddingSpaceSchema();
+
       // Prepare statements
       this.prepareStatements();
 
@@ -257,6 +263,7 @@ export class SQLitePatternStore {
         embedding BLOB NOT NULL,
         dimension INTEGER NOT NULL,
         model TEXT DEFAULT 'all-MiniLM-L6-v2',
+        space_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
       );
@@ -413,6 +420,15 @@ export class SQLitePatternStore {
   /**
    * Prepare commonly used statements
    */
+  private ensureEmbeddingSpaceSchema(): void {
+    if (!this.db) throw new Error('Database not initialized');
+    const columns = this.db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'space_id')) {
+      this.db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
+  }
+
   private prepareStatements(): void {
     if (!this.db) throw new Error('Database not initialized');
 
@@ -439,8 +455,8 @@ export class SQLitePatternStore {
     `));
 
     this.prepared.set('insertEmbedding', this.db.prepare(`
-      INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
-      VALUES (?, ?, ?, ?)
+      INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id)
+      VALUES (?, ?, ?, ?, ?)
     `));
 
     this.prepared.set('getPattern', this.db.prepare(`
@@ -448,7 +464,7 @@ export class SQLitePatternStore {
     `));
 
     this.prepared.set('getPatternWithEmbedding', this.db.prepare(`
-      SELECT p.*, e.embedding, e.dimension
+      SELECT p.*, e.embedding, e.dimension, e.space_id
       FROM qe_patterns p
       LEFT JOIN qe_pattern_embeddings e ON p.id = e.pattern_id
       WHERE p.id = ?
@@ -484,14 +500,14 @@ export class SQLitePatternStore {
     `));
 
     this.prepared.set('getAllEmbeddings', this.db.prepare(`
-      SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings
+      SELECT pattern_id, embedding, dimension, space_id FROM qe_pattern_embeddings
     `));
 
     // Recent-first variant used by the RVF backfill path. Order by
     // qe_patterns.last_used_at (then created_at) so the bounded backfill keeps
     // the most actively-used patterns when the cap is hit.
     this.prepared.set('getRecentEmbeddings', this.db.prepare(`
-      SELECT e.pattern_id, e.embedding, e.dimension
+      SELECT e.pattern_id, e.embedding, e.dimension, e.space_id
         FROM qe_pattern_embeddings e
         LEFT JOIN qe_patterns p ON p.id = e.pattern_id
        ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC
@@ -510,7 +526,7 @@ export class SQLitePatternStore {
   /**
    * Store a pattern
    */
-  storePattern(pattern: QEPattern, embedding?: number[]): string {
+  storePattern(pattern: QEPattern, embedding?: number[], embeddingSpaceId?: string): string {
     if (!this.db) throw new Error('Database not initialized');
 
     const id = pattern.id || uuidv4();
@@ -549,9 +565,13 @@ export class SQLitePatternStore {
       actualId = actualRow ? actualRow.id : id;
 
       if (embedding) {
+        const spaceId = embeddingSpaceId ?? getActiveEmbeddingSpaceIdentity()?.spaceId;
+        if (!spaceId) {
+          throw new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist an embedding without runtime provenance');
+        }
         // Store embedding as BLOB (Float32Array)
         const buffer = Buffer.from(new Float32Array(embedding).buffer);
-        insertEmbedding.run(actualId, buffer, embedding.length, 'all-MiniLM-L6-v2');
+        insertEmbedding.run(actualId, buffer, embedding.length, 'all-MiniLM-L6-v2', spaceId);
       }
     });
 
@@ -678,7 +698,7 @@ export class SQLitePatternStore {
   /**
    * Get all embeddings for HNSW indexing
    */
-  getAllEmbeddings(): Array<{ patternId: string; embedding: number[] }> {
+  getAllEmbeddings(): Array<{ patternId: string; embedding: number[]; spaceId: string | null }> {
     if (!this.db) throw new Error('Database not initialized');
 
     const stmt = this.prepared.get('getAllEmbeddings');
@@ -688,6 +708,7 @@ export class SQLitePatternStore {
     return rows.map(row => ({
       patternId: row.pattern_id,
       embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
+      spaceId: row.space_id,
     }));
   }
 
@@ -698,7 +719,7 @@ export class SQLitePatternStore {
    * not trigger an unbounded re-ingest of every historical embedding (which
    * is what reproduces the "regrew to 59 GB" pathology after `: > patterns.rvf`).
    */
-  getRecentEmbeddings(limit: number): Array<{ patternId: string; embedding: number[] }> {
+  getRecentEmbeddings(limit: number): Array<{ patternId: string; embedding: number[]; spaceId: string | null }> {
     if (!this.db) throw new Error('Database not initialized');
     const cap = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1000;
 
@@ -709,7 +730,14 @@ export class SQLitePatternStore {
     return rows.map(row => ({
       patternId: row.pattern_id,
       embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
+      spaceId: row.space_id,
     }));
+  }
+
+  getEmbeddingSpaceDiagnostics(activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? null): EmbeddingSpaceDiagnostics {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db.prepare('SELECT space_id AS spaceId FROM qe_pattern_embeddings').all() as Array<{ spaceId: string | null }>;
+    return inspectEmbeddingSpaceRows(rows, activeSpaceId);
   }
 
   /**
@@ -997,7 +1025,7 @@ export class SQLitePatternStore {
   /**
    * Store embedding for an existing pattern
    */
-  storePatternEmbedding(patternId: string, embedding: number[]): void {
+  storePatternEmbedding(patternId: string, embedding: number[], embeddingSpaceId?: string): void {
     if (!this.db) throw new Error('Database not initialized');
 
     const insertEmbedding = this.prepared.get('insertEmbedding');
@@ -1008,11 +1036,16 @@ export class SQLitePatternStore {
     // Convert embedding to Buffer for storage
     const buffer = Buffer.from(new Float32Array(embedding).buffer);
 
+    const spaceId = embeddingSpaceId ?? getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!spaceId) {
+      throw new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist an embedding without runtime provenance');
+    }
     insertEmbedding.run(
       patternId,
       buffer,
       embedding.length,
-      'all-MiniLM-L6-v2'
+      'all-MiniLM-L6-v2',
+      spaceId,
     );
   }
 
@@ -1289,6 +1322,10 @@ export class SQLitePatternStore {
 
       // Insert computed embeddings in a sync transaction
       const embeddingTag = method === 'transformer' ? 'transformer-backfill' : 'hash-backfill';
+      const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+      if (!spaceId) {
+        throw new Error('VECTOR_SPACE_UNVERIFIED: backfill embedder has no runtime provenance');
+      }
       const insertBatch = this.db!.transaction(() => {
         for (let j = 0; j < textsWithIds.length; j++) {
           try {
@@ -1298,7 +1335,7 @@ export class SQLitePatternStore {
               continue;
             }
             const buffer = Buffer.from(new Float32Array(embedding).buffer);
-            insertEmbedding.run(textsWithIds[j].id, buffer, dimension, embeddingTag);
+            insertEmbedding.run(textsWithIds[j].id, buffer, dimension, embeddingTag, spaceId);
             processed++;
           } catch (e) {
             errors++;

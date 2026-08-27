@@ -19,6 +19,12 @@ import {
   resetEmbedderIdentityStore,
   saveEmbedderIdentity,
 } from './embedder-identity-store.js';
+import {
+  EMBEDDING_SPACE_CANARY,
+  deriveEmbeddingSpaceIdentity,
+  fingerprintEmbeddingRuntime,
+  type EmbeddingSpaceIdentity,
+} from './embedding-space.js';
 
 /**
  * Type for the @xenova/transformers pipeline function
@@ -59,6 +65,7 @@ let failureReason = '';
  */
 let endpointClient: EmbedderEndpointClient | null = null;
 let endpointIdentity: EndpointIdentity | null = null;
+let activeEmbeddingSpaceIdentity: EmbeddingSpaceIdentity | null = null;
 
 /**
  * Embedding model configuration
@@ -182,6 +189,16 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
         });
         // Probe + identity fingerprint. Fails loud on dim mismatch.
         endpointIdentity = await endpointClient.probe();
+        activeEmbeddingSpaceIdentity = deriveEmbeddingSpaceIdentity({
+          provider: 'openai-compatible-endpoint',
+          model: fullConfig.modelName,
+          dimensions: endpointIdentity.dim,
+          pooling: 'mean',
+          normalized: true,
+          preprocessingVersion: 'aqe-text-v1',
+          implementation: endpointIdentity.endpoint,
+          runtimeFingerprint: endpointIdentity.fingerprint,
+        });
         console.log(
           `[RealEmbeddings] Endpoint identity: dim=${endpointIdentity.dim} fingerprint=${endpointIdentity.fingerprint}`
         );
@@ -239,6 +256,24 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
       // Create feature extraction pipeline
       embeddingModel = await pipeline('feature-extraction', fullConfig.modelName, {
         quantized: fullConfig.quantized,
+      });
+
+      const initializedModel = embeddingModel;
+      if (!initializedModel) throw new Error('Transformer pipeline returned no embedding model');
+      const canary = await initializedModel(EMBEDDING_SPACE_CANARY, {
+        pooling: 'mean',
+        normalize: true,
+      });
+      const canaryVector = Array.from(canary.data as Float32Array);
+      activeEmbeddingSpaceIdentity = deriveEmbeddingSpaceIdentity({
+        provider: 'huggingface-transformers',
+        model: fullConfig.modelName,
+        dimensions: canaryVector.length,
+        pooling: 'mean',
+        normalized: true,
+        preprocessingVersion: 'aqe-text-v1',
+        implementation: `transformers:${fullConfig.quantized ? 'quantized' : 'full'}`,
+        runtimeFingerprint: fingerprintEmbeddingRuntime(canaryVector),
       });
 
       const loadTime = performance.now() - startTime;
@@ -483,6 +518,7 @@ export function resetInitialization(): void {
   }
   endpointClient = null;
   endpointIdentity = null;
+  activeEmbeddingSpaceIdentity = null;
   // Drop the identity-store's cached DB connection so tests that flip cwd or
   // AQE_MEMORY_PATH between runs don't write into a stale handle.
   resetEmbedderIdentityStore();
@@ -501,4 +537,9 @@ export function isUsingEndpoint(): boolean {
  */
 export function getEndpointIdentity(): EndpointIdentity | null {
   return endpointIdentity;
+}
+
+/** Runtime-backed identity of the initialized embedding space. */
+export function getActiveEmbeddingSpaceIdentity(): EmbeddingSpaceIdentity | null {
+  return activeEmbeddingSpaceIdentity;
 }

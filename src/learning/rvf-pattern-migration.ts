@@ -17,6 +17,7 @@ import type {
   RvfNativeAdapter,
 } from '../integrations/ruvector/rvf-native-adapter.js';
 import type { SQLitePatternStore } from './sqlite-persistence.js';
+import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 
 // ============================================================================
 // Types
@@ -42,6 +43,8 @@ export interface MigrationOptions {
   dimension?: number;
   /** Log progress every N patterns (default: 1000) */
   progressInterval?: number;
+  /** Runtime embedding space that the destination RVF index is bound to. */
+  embeddingSpaceId?: string;
 }
 
 // ============================================================================
@@ -79,7 +82,7 @@ export function migratePatterns(
   };
 
   // Read all embeddings from SQLite
-  let allEmbeddings: Array<{ patternId: string; embedding: number[] }>;
+  let allEmbeddings: Array<{ patternId: string; embedding: number[]; spaceId: string | null }>;
   try {
     allEmbeddings = sqliteStore.getAllEmbeddings();
   } catch (error) {
@@ -94,12 +97,13 @@ export function migratePatterns(
 
   // Process in batches
   let batch: Array<{ id: string; vector: Float32Array }> = [];
+  const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? options.embeddingSpaceId;
 
   for (let i = 0; i < allEmbeddings.length; i++) {
-    const { patternId, embedding } = allEmbeddings[i];
+    const { patternId, embedding, spaceId } = allEmbeddings[i];
 
-    // Skip if dimension doesn't match
-    if (embedding.length !== dimension) {
+    // Never mix unknown or incompatible spaces in an ANN file.
+    if (!activeSpaceId || spaceId !== activeSpaceId || embedding.length !== dimension) {
       result.totalSkipped++;
       continue;
     }
