@@ -226,9 +226,11 @@ async function initializeModel(config: Partial<EmbeddingConfig> = {}): Promise<v
       } catch {
         throw new Error(
           'In-process embeddings require the optional package "@huggingface/transformers", ' +
-          'which is not installed. Either run `npm install @huggingface/transformers`, or ' +
-          'configure an embedding endpoint (EmbeddingConfig.endpoint / AQE_EMBEDDER_ENDPOINT) ' +
-          'so no local model is loaded.'
+          'which is not installed. Configure an embedding endpoint ' +
+          '(EmbeddingConfig.endpoint / AQE_EMBEDDER_ENDPOINT) so no local model is loaded. ' +
+          'Installing @huggingface/transformers@4.2.0 is an explicit security opt-in: ' +
+          'its compatible dependency chain currently has unresolved HIGH advisories ' +
+          'GHSA-xcpc-8h2w-3j85 and GHSA-f88m-g3jw-g9cj.'
         );
       }
       pipeline = transformers.pipeline;
