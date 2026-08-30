@@ -718,8 +718,8 @@ describe('Brain Shared Module', () => {
   // --------------------------------------------------------------------------
 
   describe('TABLE_CONFIGS', () => {
-    it('should contain 25 table entries', () => {
-      expect(TABLE_CONFIGS).toHaveLength(25);
+    it('should contain all 31 portable table entries', () => {
+      expect(TABLE_CONFIGS).toHaveLength(31);
     });
 
     it('should list all table names uniquely', () => {
