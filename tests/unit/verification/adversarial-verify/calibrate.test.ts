@@ -52,6 +52,51 @@ describe('calibrate — k-of-n aggregation reduces refuter noise', () => {
     expect(report.correctKill).toBe(10);
   });
 
+  it('does not let aggregate accuracy mask a failed critical evidence slice', async () => {
+    const corpus: LabeledFinding[] = Array.from({ length: 20 }, (_, i) => ({
+      isReal: true,
+      failureType: i < 2 ? 'evidence-corruption' : 'general',
+      expectedSeverity: i < 2 ? 'high' : 'medium',
+      source: 'controlled-intervention',
+      finding: {
+        id: `slice-${i}`,
+        title: i < 2 ? `MISS evidence ${i}` : `KEEP general ${i}`,
+        severity: i < 2 ? 'high' : 'medium',
+        confidence: 0.9,
+        evidence: [`fixture:${i}`],
+      },
+    }));
+    const judge: Judge = async prompt => ({
+      refuted: /MISS evidence/.test(prompt),
+      reasoning: 'deterministic controlled intervention',
+    });
+
+    const report = await calibrate(corpus, { judge, refuters: 1 }, {
+      minSupport: 2,
+      minRecall: 0.5,
+      maxFalseKillRate: 0.2,
+    });
+
+    expect(report.correctConfirm).toBe(18);
+    expect(report.slices.find(s => s.key === 'failureType:evidence-corruption')).toMatchObject({
+      support: 2,
+      recall: 0,
+      falseKillRate: 1,
+      disposition: 'human-review',
+    });
+    expect(report.slices.find(s => s.key === 'severity:high')?.intervals.recall.level).toBe(0.95);
+    expect(report.qualification.status).toBe('unqualified');
+    expect(report.qualification.reasons).toContain('Critical slice severity:high is human-review');
+  });
+
+  it('abstains when a slice lacks minimum support', async () => {
+    const report = await calibrate(labeled.slice(0, 4), {
+      judge: noisyJudge(1, 1), refuters: 1,
+    }, { minSupport: 5 });
+    expect(report.slices.find(s => s.key === 'overall')?.disposition).toBe('abstain');
+    expect(report.qualification.status).toBe('restricted');
+  });
+
   it('should make majority-of-3 no worse — and typically better — than a single refuter', async () => {
     const ACC = 0.75; // each refuter is 75% accurate
     const single = await calibrate(labeled, { judge: noisyJudge(ACC, 42), refuters: 1 });
