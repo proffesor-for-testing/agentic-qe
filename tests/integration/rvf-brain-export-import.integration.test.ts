@@ -119,6 +119,29 @@ function createSeededDb(): Database.Database {
     'route', 'tier-2', 0.8, 1, 0.85, 0.9,
   );
 
+  // Seed qualified learning evidence and both manifest/segment lineage levels.
+  db.prepare(`INSERT INTO learning_evidence_manifests
+    (id, manifest_hash, task_family, outcome, source_kind)
+    VALUES (?, ?, ?, ?, ?)`).run('manifest-1', 'a'.repeat(64), 'test-generation', 'verified-success', 'executed');
+  db.prepare(`INSERT INTO learning_evidence_segments
+    (id, manifest_id, segment_order, kind, contribution, admit_for_learning)
+    VALUES (?, ?, ?, ?, ?, ?)`).run('segment-1', 'manifest-1', 0, 'act', 'causal', 1);
+  db.prepare(`INSERT INTO learning_evidence_segments
+    (id, manifest_id, segment_order, kind, contribution, admit_for_learning)
+    VALUES (?, ?, ?, ?, ?, ?)`).run('segment-2', 'manifest-1', 1, 'verify', 'supporting', 1);
+  db.prepare(`INSERT INTO learning_segment_edges
+    (manifest_id, parent_segment_id, child_segment_id, edge_kind)
+    VALUES (?, ?, ?, ?)`).run('manifest-1', 'segment-1', 'segment-2', 'depends-on');
+  db.prepare(`INSERT INTO learning_evidence_admissions
+    (id, manifest_id, decision_seq, disposition, assessor_kind, evidence_class)
+    VALUES (?, ?, ?, ?, ?, ?)`).run('admission-1', 'manifest-1', 1, 'admitted', 'executed', 'EXECUTED');
+  db.prepare(`INSERT INTO pattern_manifest_lineage
+    (pattern_id, manifest_id, use_kind)
+    VALUES (?, ?, ?)`).run('pat-1', 'manifest-1', 'promotion-support');
+  db.prepare(`INSERT INTO pattern_segment_lineage
+    (pattern_id, manifest_id, segment_id, use_kind)
+    VALUES (?, ?, ?, ?)`).run('pat-1', 'manifest-1', 'segment-1', 'promotion-support');
+
   return db;
 }
 
@@ -232,6 +255,17 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
     expect(countTable(targetDb, 'captured_experiences')).toBe(1);
     expect(countTable(targetDb, 'goap_actions')).toBe(1);
     expect(countTable(targetDb, 'sona_patterns')).toBe(1);
+    expect(countTable(targetDb, 'learning_evidence_manifests')).toBe(1);
+    expect(countTable(targetDb, 'learning_evidence_segments')).toBe(2);
+    expect(countTable(targetDb, 'learning_segment_edges')).toBe(1);
+    expect(countTable(targetDb, 'learning_evidence_admissions')).toBe(1);
+    expect(countTable(targetDb, 'pattern_manifest_lineage')).toBe(1);
+    expect(countTable(targetDb, 'pattern_segment_lineage')).toBe(1);
+
+    const segment = targetDb.prepare(
+      'SELECT * FROM learning_evidence_segments WHERE manifest_id = ? AND id = ?'
+    ).get('manifest-1', 'segment-1') as Record<string, unknown>;
+    expect(segment.contribution).toBe('causal');
 
     // Verify data integrity: check a pattern row
     const pat = targetDb.prepare('SELECT * FROM qe_patterns WHERE id = ?').get('pat-1') as Record<string, unknown>;

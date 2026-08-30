@@ -391,7 +391,7 @@ export class CognitiveContainer {
           for (const row of processedRows) {
             let result: MergeResult;
             if (config.dedupColumns && config.dedupColumns.length > 0) {
-              result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns);
+              result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns, config.preserveId);
             } else {
               const idCol = PK_COLUMNS[config.tableName] || 'id';
               const tsCol = TIMESTAMP_COLUMNS[config.tableName];

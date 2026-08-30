@@ -155,3 +155,19 @@ relying on the transitive install get a precise error telling them what to insta
 `npm install @huggingface/transformers` themselves, accepting the advisory
 knowingly. Everyone using an embedding endpoint (the default) no longer carries a
 HIGH CVE they never asked for.
+
+## Amendment (2026-08-30) — endpoint-first disclosure (issue #615)
+
+An exact packed-consumer test installed `agentic-qe@3.13.12` and then the
+documented compatible local provider, `@huggingface/transformers@4.2.0`. A
+production-only `npm audit` reported four HIGH findings across the provider and
+its `onnxruntime-node`, `adm-zip`, and `sharp` dependency paths. Installing safe
+top-level `adm-zip` and `sharp` versions did not remove the incompatible nested
+copies. The unresolved advisories are GHSA-xcpc-8h2w-3j85 and
+GHSA-f88m-g3jw-g9cj.
+
+Therefore all missing-provider guidance recommends `AQE_EMBEDDER_ENDPOINT`
+first. The local provider remains available only as an explicit security opt-in,
+and its error and MCP degradation messages disclose both advisories. We do not
+claim the vulnerable code paths are unexploitable without direct evidence, and
+we do not represent root overrides as consumer protection.

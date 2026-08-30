@@ -161,7 +161,7 @@ is Phase 2). To run a court now:
    the panel before seating it** — this step is not optional:
 
    ```ts
-   import { validateCourtConfig } from 'src/skills/qe-court/referee';
+   import { validateCourtConfig } from 'agentic-qe/skills/qe-court/referee';
    const violations = validateCourtConfig(config);   // [] == valid
    if (violations.length) throw new Error(`Cannot convene: ${violations.join(', ')}`);
    ```
@@ -188,9 +188,9 @@ Durable, attestable evidence — the "jury waiting for everything you ship."
 
 ## Trust tier
 
-**Tier 3 (verified).** The court's falsifiable invariants are enforced in code
-(`src/skills/qe-court/referee.ts`) and covered by an oracle suite
-(`tests/unit/skills/qe-court/referee.test.ts`) that the acceptance eval
+**Tier 3 (verified).** The court's falsifiable invariants are enforced by the
+published `agentic-qe/skills/qe-court/referee` entrypoint and covered by a
+consumer-runnable `aqe-court-referee self-test <oracle>` suite that the acceptance eval
 (`evals/qe-court.yaml`, command-eval mode) runs through the `aqe eval` CLI —
 15/15 green as of 2026-07-29. That suite now validates the **shipped `config.json`
 itself**, so a routing edit that seats a colluding panel fails in CI rather than in

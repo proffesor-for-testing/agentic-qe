@@ -141,9 +141,11 @@ export class EmbeddingGenerator {
       } catch (err) {
         throw new Error(
           'Local (in-process) embeddings require the optional dependency ' +
-          '"@huggingface/transformers", which is not installed. Either run ' +
-          '`npm install @huggingface/transformers`, or configure an embedding ' +
+          '"@huggingface/transformers", which is not installed. Configure an embedding ' +
           'endpoint (e.g. Cognitum /v1/embeddings) so the local backend is not needed. ' +
+          'Installing @huggingface/transformers@4.2.0 is an explicit security opt-in: ' +
+          'its compatible dependency chain currently has unresolved HIGH advisories ' +
+          'GHSA-xcpc-8h2w-3j85 and GHSA-f88m-g3jw-g9cj. ' +
           `Underlying import error: ${err instanceof Error ? err.message : String(err)}`
         );
       }

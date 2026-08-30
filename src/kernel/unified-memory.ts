@@ -64,6 +64,7 @@ import {
   PATTERN_NULLS_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
+import { applyMigration as applyLearningEvidenceMigration } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // CRDT imports for distributed state synchronization
 import {
@@ -573,7 +574,8 @@ export class UnifiedMemoryManager {
         }
         if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
-        if (currentVersion < 12) this.migrateToV12EmbeddingSpace();
+        if (currentVersion < 12) applyLearningEvidenceMigration(this.db!);
+        if (currentVersion < 13) this.migrateToV13EmbeddingSpace();
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
@@ -936,7 +938,7 @@ export class UnifiedMemoryManager {
   }
 
   /** Additive provenance migration. Existing vectors remain explicitly unverified. */
-  private migrateToV12EmbeddingSpace(): void {
+  private migrateToV13EmbeddingSpace(): void {
     const db = this.db!;
     const table = db.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_pattern_embeddings'",

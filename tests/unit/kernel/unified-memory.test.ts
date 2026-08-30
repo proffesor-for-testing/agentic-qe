@@ -174,14 +174,17 @@ describe('UnifiedMemoryManager', () => {
       expect(tableNames).toContain('kv_store');
       expect(tableNames).toContain('vectors');
       expect(tableNames).toContain('schema_version');
+      expect(tableNames).toContain('learning_evidence_manifests');
+      expect(tableNames).toContain('learning_evidence_admissions');
+      expect((db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number }).version).toBe(13);
     });
 
-    it('upgrades an existing v11 embedding table without trusting legacy vectors', async () => {
-      const dbPath = getTestDbPath('-v11');
+    it('upgrades an existing v12 embedding table without trusting legacy vectors', async () => {
+      const dbPath = getTestDbPath('-v12');
       const legacy = new Database(dbPath);
       legacy.exec(`
         CREATE TABLE schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL, migrated_at TEXT);
-        INSERT INTO schema_version (id, version) VALUES (1, 11);
+        INSERT INTO schema_version (id, version) VALUES (1, 12);
         CREATE TABLE qe_patterns (id TEXT PRIMARY KEY);
         CREATE TABLE qe_pattern_embeddings (
           pattern_id TEXT PRIMARY KEY,
@@ -205,7 +208,7 @@ describe('UnifiedMemoryManager', () => {
 
       expect(columns.map((column) => column.name)).toContain('space_id');
       expect(row.spaceId).toBeNull();
-      expect(version.version).toBe(12);
+      expect(version.version).toBe(13);
     });
   });
 

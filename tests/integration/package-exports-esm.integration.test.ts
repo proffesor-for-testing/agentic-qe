@@ -10,6 +10,7 @@ describe('packed package native ESM contracts', () => {
   const installedRoot = path.join(tempRoot, 'node_modules', 'agentic-qe');
   let packageJson: {
     exports: Record<string, { import?: string }>;
+    bin?: Record<string, string>;
   };
 
   beforeAll(() => {
@@ -52,6 +53,17 @@ describe('packed package native ESM contracts', () => {
       './dist/domains/code-intelligence/coordinator-gnn.js',
       'code-intelligence coordinator GNN',
     );
+  });
+
+  it('runs the installed QE Court executable from the packed artifact', () => {
+    const binTarget = packageJson.bin?.['aqe-court-referee'];
+    expect(binTarget).toBeDefined();
+    const result = spawnSync(
+      process.execPath,
+      [path.resolve(installedRoot, binTarget!), 'self-test', 'writer-not-juror'],
+      { cwd: tempRoot, encoding: 'utf8', timeout: 30_000 },
+    );
+    expect(result.status, result.stderr || result.stdout).toBe(0);
   });
 
   function expectNativeImport(

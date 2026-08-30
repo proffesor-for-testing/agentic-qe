@@ -26,6 +26,7 @@ import type {
   RouterConfig,
   ExtendedProviderType,
 } from './router/types.js';
+import { ALL_PROVIDER_TYPES } from './router/types.js';
 import type { ProviderManagerConfig, LLMProviderType } from './interfaces.js';
 import {
   loadRouterConfig,
@@ -98,6 +99,8 @@ export interface LLMRouterServiceOptions {
    * When supplied, config loading and provider construction is skipped.
    */
   providerManager?: ProviderManager;
+  /** Ignore project-controlled network endpoints before attaching ambient credentials. */
+  allowProjectProviderEndpoints?: boolean;
 }
 
 /**
@@ -190,7 +193,7 @@ export async function createLLMRouterService(
   const providerManagerConfig: Partial<ProviderManagerConfig> = {
     primary: primary as LLMProviderType,
     fallbacks: fallbacks as LLMProviderType[],
-    providers: extractProviderConfigs(config, enabled),
+    providers: extractProviderConfigs(config, enabled, options.allowProjectProviderEndpoints ?? true),
     loadBalancing: 'round-robin',
     global: { enableCostTracking: true, enableMetrics: true },
   };
@@ -239,6 +242,14 @@ export function pickEnabledProviders(
   for (const p of FALLBACK_PRIORITY) {
     consider(p);
   }
+  // Finally, every AQE-shipped provider. The fixed priority list is an ordering
+  // policy, not an allowlist: treating it as one made enabled subscription
+  // hosts (`codex`, `claude-code`) unreachable unless repeated in fallbackChain.
+  // Do not implicitly activate project-declared external commands here: a
+  // checkout must not gain code execution merely through `enabled: true`.
+  for (const p of ALL_PROVIDER_TYPES) {
+    consider(p);
+  }
 
   return result;
 }
@@ -279,15 +290,23 @@ export function pickPrimaryAndFallbacks(
  * Extract only the provider configs for the enabled set, so
  * ProviderManager doesn't try to construct providers we don't need.
  */
-function extractProviderConfigs(
+export function extractProviderConfigs(
   config: RouterConfig,
-  enabled: ExtendedProviderType[]
+  enabled: ExtendedProviderType[],
+  allowProjectProviderEndpoints = true
 ): ProviderManagerConfig['providers'] {
   const out: ProviderManagerConfig['providers'] = {};
   for (const p of enabled) {
     const cfg = config.providers?.[p];
     if (cfg) {
-      (out as Record<string, unknown>)[p] = cfg;
+      // The kernel reads project-local config. Never let a checkout replace a
+      // trusted subscription CLI with an arbitrary executable. Callers that
+      // intentionally need a custom binary can still construct ProviderManager
+      // directly with an explicit config.
+      const sanitized = { ...cfg } as typeof cfg & { binaryPath?: string; baseUrl?: string };
+      if (p === 'codex' || p === 'claude-code') delete sanitized.binaryPath;
+      if (!allowProjectProviderEndpoints) delete sanitized.baseUrl;
+      (out as Record<string, unknown>)[p] = sanitized;
     }
   }
   return out;

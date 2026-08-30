@@ -7,7 +7,7 @@
  * This module owns:
  *   - Row type interfaces (PatternRow, QValueRow, DreamInsightRow, WitnessRow)
  *   - Merge result type and merge strategy type
- *   - TABLE_CONFIGS: data-driven list of all 25 exportable tables
+ *   - TABLE_CONFIGS: data-driven list of all 31 exportable tables
  *   - All 4 legacy merge functions + generic mergeGenericRow / mergeAppendOnlyRow
  *   - All SQL insert/update helpers
  *   - Utility functions (sha256, tableExists, queryAll, domainFilter, countRows)
@@ -108,6 +108,8 @@ export interface TableExportConfig {
   readonly blobColumns?: readonly string[];
   /** For tables with AUTOINCREMENT PK, specify dedup columns. */
   readonly dedupColumns?: readonly string[];
+  /** Preserve an `id` column when a deduplicated table does not use AUTOINCREMENT. */
+  readonly preserveId?: boolean;
 }
 
 // --- Merge column maps (shared by both JSONL and RVF importers) ---
@@ -135,7 +137,7 @@ export const TIMESTAMP_COLUMNS: Record<string, string> = {
   concept_edges: 'updated_at',
 };
 
-// --- TABLE_CONFIGS: All 25 exportable tables in FK-aware import order ---
+// --- TABLE_CONFIGS: All 31 exportable tables in FK-aware import order ---
 
 export const TABLE_CONFIGS: readonly TableExportConfig[] = [
   { tableName: 'qe_patterns', fileName: 'patterns.jsonl', domainColumn: 'qe_domain' },
@@ -163,6 +165,12 @@ export const TABLE_CONFIGS: readonly TableExportConfig[] = [
   { tableName: 'experience_applications', fileName: 'experience-applications.jsonl' },
   { tableName: 'execution_results', fileName: 'execution-results.jsonl' },
   { tableName: 'executed_steps', fileName: 'executed-steps.jsonl' },
+  { tableName: 'learning_evidence_manifests', fileName: 'learning-evidence-manifests.jsonl', domainColumn: 'task_family' },
+  { tableName: 'learning_evidence_segments', fileName: 'learning-evidence-segments.jsonl', dedupColumns: ['manifest_id', 'id'], preserveId: true },
+  { tableName: 'learning_segment_edges', fileName: 'learning-segment-edges.jsonl', dedupColumns: ['manifest_id', 'parent_segment_id', 'child_segment_id', 'edge_kind'], preserveId: true },
+  { tableName: 'learning_evidence_admissions', fileName: 'learning-evidence-admissions.jsonl' },
+  { tableName: 'pattern_manifest_lineage', fileName: 'pattern-manifest-lineage.jsonl', dedupColumns: ['pattern_id', 'manifest_id', 'use_kind'], preserveId: true },
+  { tableName: 'pattern_segment_lineage', fileName: 'pattern-segment-lineage.jsonl', dedupColumns: ['pattern_id', 'manifest_id', 'segment_id', 'use_kind'], preserveId: true },
 ];
 
 // --- Derived BLOB column map (from TABLE_CONFIGS) ---
@@ -396,7 +404,7 @@ export function mergeGenericRow(
  */
 export function mergeAppendOnlyRow(
   db: Database.Database, tableName: string,
-  row: Record<string, unknown>, dedupColumns: readonly string[]
+  row: Record<string, unknown>, dedupColumns: readonly string[], preserveId = false
 ): MergeResult {
   const validated = validateTableName(tableName);
   if (!tableExists(db, validated)) {
@@ -413,7 +421,7 @@ export function mergeAppendOnlyRow(
   }
   // Strip AUTOINCREMENT id column before insert
   const insertRow = { ...row };
-  delete insertRow.id;
+  if (!preserveId) delete insertRow.id;
   dynamicInsert(db, validated, insertRow);
   return { imported: 1, skipped: 0, conflicts: 0 };
 }

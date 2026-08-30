@@ -1,7 +1,7 @@
 /**
  * Brain Table DDL Definitions
  *
- * Contains CREATE TABLE statements for all 25 brain-exportable tables.
+ * Contains CREATE TABLE statements for all 31 brain-exportable tables.
  * Separated from brain-shared.ts to keep each file under 500 lines.
  *
  * Tables are listed in FK-aware import order:
@@ -10,6 +10,7 @@
  */
 
 import Database from 'better-sqlite3';
+import { LEARNING_EVIDENCE_SCHEMA } from '../../migrations/20260830_add_learning_evidence_tables.js';
 
 /**
  * All DDL statements for brain-exportable tables, in FK-aware creation order.
@@ -208,10 +209,11 @@ const BRAIN_TABLE_DDL: readonly string[] = [
     error_message TEXT,
     FOREIGN KEY (execution_id) REFERENCES execution_results(id)
   )`,
+  LEARNING_EVIDENCE_SCHEMA,
 ];
 
 /**
- * Ensure all 25 brain-exportable tables exist in the target database.
+ * Ensure all 31 brain-exportable tables exist in the target database.
  * Creates tables in FK-aware order so parent tables come before children.
  */
 export function ensureAllBrainTables(db: Database.Database): void {
@@ -236,4 +238,7 @@ export const ALL_BRAIN_TABLE_NAMES: readonly string[] = [
   'qe_pattern_usage', 'pattern_evolution_events', 'pattern_relationships',
   'pattern_versions', 'vectors', 'experience_applications',
   'execution_results', 'executed_steps',
+  'learning_evidence_manifests', 'learning_evidence_segments',
+  'learning_segment_edges', 'learning_evidence_admissions',
+  'pattern_manifest_lineage', 'pattern_segment_lineage',
 ];

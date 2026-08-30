@@ -111,14 +111,19 @@ export async function handleMemoryStore(
       vectorIndex = { status: 'indexed' };
     } catch {
       // Non-critical — KV store succeeded, vector indexing is best-effort
+      const vectorUnavailableMessage =
+        'Semantic vector indexing is unavailable for this entry. Configure AQE_EMBEDDER_ENDPOINT ' +
+        'for the recommended remote backend. The compatible local @huggingface/transformers@4.2.0 ' +
+        'dependency chain currently has unresolved HIGH advisories ' +
+        'GHSA-xcpc-8h2w-3j85 and GHSA-f88m-g3jw-g9cj.';
       console.warn(
-        '[MemoryHandler] VECTOR_INDEX_UNAVAILABLE: Semantic vector indexing is unavailable for this entry.'
+        `[MemoryHandler] VECTOR_INDEX_UNAVAILABLE: ${vectorUnavailableMessage}`
       );
       vectorIndex = {
         status: 'failed',
         error: {
           code: 'VECTOR_INDEX_UNAVAILABLE',
-          message: 'Semantic vector indexing is unavailable for this entry.',
+          message: vectorUnavailableMessage,
         },
       };
     }

@@ -893,35 +893,40 @@ async function executeAdvise(options: AdviseOptions): Promise<void> {
     }
 
     // Lazy-load to keep CLI cold-start fast when advise is not used
-    const { createProviderManager } = await import('../../shared/llm/provider-manager.js');
-    const { createHybridRouter } = await import('../../shared/llm/router/hybrid-router.js');
-    const { MultiModelExecutor, DEFAULT_ADVISOR_PROVIDER, DEFAULT_ADVISOR_MODEL } =
+    const { createLLMRouterService } = await import('../../shared/llm/llm-router-service.js');
+    const { MultiModelExecutor, DEFAULT_ADVISOR_MODEL } =
       await import('../../routing/advisor/multi-model-executor.js');
 
-    const provider = (options.provider ?? DEFAULT_ADVISOR_PROVIDER) as ExtendedProviderType;
-    const model = options.model ?? DEFAULT_ADVISOR_MODEL;
+    const requestedProvider = options.provider as ExtendedProviderType | undefined;
 
-    // Phase 0: bootstrap a minimal ProviderManager + HybridRouter for the advisor call.
-    // Phase 1+ reuses a shared router from the AQE kernel.
-    const providerManager = createProviderManager({
-      primary: provider === 'openrouter' ? 'openrouter' : (provider as any),
-      providers: {
-        openrouter: {
-          apiKey: process.env.OPENROUTER_API_KEY,
-          model,
-        },
+    // Use the same config-aware construction path as the kernel. In particular,
+    // loadRouterConfig() registers ADR-127 external providers before the
+    // ProviderManager is built. The old minimal bootstrap bypassed that step,
+    // so `llm providers` recognized a declared host while `llm advise` rejected
+    // the same identity as unknown (#628).
+    const built = await createLLMRouterService({
+      projectRoot: configProjectRoot(),
+      // Advisor transcripts may be paired with ambient API credentials. A
+      // repository-controlled baseUrl must never become their destination.
+      allowProjectProviderEndpoints: false,
+      override: {
+        mode: 'manual',
+        ...(requestedProvider ? { defaultProvider: requestedProvider } : {}),
+        ...(options.model ? { defaultModel: options.model } : {}),
       },
     });
+    if (!built) {
+      throw new Error(`No enabled LLM provider is available for advisor${requestedProvider ? ` provider "${requestedProvider}"` : ''}.`);
+    }
 
-    const router = createHybridRouter(providerManager, {
-      mode: 'manual',
-      defaultProvider: provider as any,
-      defaultModel: model,
-    });
+    // With no CLI/MCP override, honor the project's resolved default. Falling
+    // back to OpenRouter here made declared external defaults unreachable when
+    // an OpenRouter key happened to coexist in the environment.
+    const provider = requestedProvider ?? built.resolvedConfig.defaultProvider;
+    const model = options.model ?? built.resolvedConfig.providers?.[provider]?.defaultModel ??
+      built.resolvedConfig.defaultModel ?? DEFAULT_ADVISOR_MODEL;
 
-    await router.initialize();
-
-    const executor = new MultiModelExecutor(router);
+    const executor = new MultiModelExecutor(built.router);
 
     const redactMode = (options.redact ?? 'strict') as 'strict' | 'balanced' | 'off';
     const result = await executor.consult(transcript, {

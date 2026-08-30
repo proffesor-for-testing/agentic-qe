@@ -15,6 +15,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 import {
   resetProviderRegistry,
@@ -28,6 +30,7 @@ import { ProviderManager } from '../../../src/shared/llm/provider-manager';
 import { HybridRouter } from '../../../src/shared/llm/router/hybrid-router';
 
 const HOST = 'my-host';
+const require = createRequire(import.meta.url);
 
 let projectRoot: string;
 let hostScript: string;
@@ -362,6 +365,47 @@ describe('ADR-127 declarative external providers (integration)', () => {
   });
 
   describe('end-to-end: declaration on disk to a routed answer', () => {
+    it('routes llm advise through a config-declared external provider (#628)', () => {
+      writeConfig(projectRoot, {
+        defaultProvider: HOST,
+        providers: { [HOST]: { enabled: true } },
+        externalProviders: {
+          [HOST]: {
+            kind: 'cli',
+            command: [hostScript],
+            billingMode: 'local',
+            models: ['proof-model'],
+            defaultModel: 'proof-model',
+          },
+        },
+      });
+      const transcriptPath = path.join(projectRoot, 'transcript.json');
+      fs.writeFileSync(transcriptPath, JSON.stringify({
+        taskDescription: 'External provider advisor regression',
+        messages: [{ role: 'user', content: 'Return the external provider marker.' }],
+      }));
+
+      const cliEntry = path.resolve(process.cwd(), 'src/cli/index.ts');
+      const stdout = execFileSync(process.execPath, [
+        '--import', require.resolve('tsx'), cliEntry,
+        'llm', 'advise',
+        '--transcript', transcriptPath,
+        '--agent', 'issue-628-regression',
+        '--trigger-reason', 'external-provider-regression',
+        '--json',
+      ], {
+        cwd: projectRoot,
+        // A coexisting OpenRouter credential must not override the declared
+        // external default when MCP/CLI omits --provider.
+        env: { ...isolatedEnv(), OPENROUTER_API_KEY: 'coexisting-key', AQE_CONFIG_ROOT: projectRoot },
+        encoding: 'utf8',
+      });
+
+      const result = JSON.parse(stdout);
+      expect(result.provider).toBe(HOST);
+      expect(JSON.parse(result.advice).marker).toBe('served-by-my-host');
+    });
+
     it('routes a chat request through the declared host', async () => {
       writeConfig(projectRoot, {
         externalProviders: {
