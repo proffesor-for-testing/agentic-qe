@@ -30,6 +30,14 @@ export { Tier1Microcompact, type Tier1Result } from './tier1-microcompact';
 export { Tier2SessionSummary, type ConversationMessage, type Tier2Result, type SessionSummaryOptions } from './tier2-session-summary';
 export { Tier3LLMCompact, type Tier3Result, type LLMCompactCaller, type Tier3Options } from './tier3-llm-compact';
 export { Tier4Reactive, type Tier4Result, type Tier4Options } from './tier4-reactive';
+export {
+  hashContextContent,
+  leastTrustedAuthority,
+  type ContextSourceKind,
+  type InstructionAuthority,
+  type InstructionProvenance,
+  type ProvenancedContent,
+} from './instruction-provenance';
 
 // ============================================================================
 // Types
@@ -190,6 +198,8 @@ export class CompactionPipeline {
             content: t3.summary,
             timestamp: Date.now(),
             estimatedTokens: t3.summaryTokens,
+            id: t3.summaryItem?.id,
+            provenance: t3.summaryItem,
           }];
           this.budget.releaseTokens(t3.tokensSaved);
         }
