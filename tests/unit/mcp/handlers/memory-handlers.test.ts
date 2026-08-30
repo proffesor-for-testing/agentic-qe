@@ -89,13 +89,14 @@ describe('Memory Handlers', { timeout: 30000 }, () => {
         status: 'failed',
         error: {
           code: 'VECTOR_INDEX_UNAVAILABLE',
-          message: 'Semantic vector indexing is unavailable for this entry.',
+          message: expect.stringContaining('AQE_EMBEDDER_ENDPOINT'),
         },
       });
+      expect(result.data!.vectorIndex?.error?.message).toContain('unresolved HIGH advisories');
+      expect(result.data!.vectorIndex?.error?.message).toContain('GHSA-xcpc-8h2w-3j85');
+      expect(result.data!.vectorIndex?.error?.message).toContain('GHSA-f88m-g3jw-g9cj');
       expect(JSON.stringify(result)).not.toContain('/private/model-cache');
-      expect(warning).toHaveBeenCalledWith(
-        '[MemoryHandler] VECTOR_INDEX_UNAVAILABLE: Semantic vector indexing is unavailable for this entry.'
-      );
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('AQE_EMBEDDER_ENDPOINT'));
       expect(JSON.stringify(warning.mock.calls)).not.toContain('/private/model-cache');
     });
 

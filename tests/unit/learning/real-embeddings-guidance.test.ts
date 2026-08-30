@@ -10,14 +10,16 @@ describe('real embeddings configuration guidance', () => {
     delete process.env.AQE_EMBEDDER_ENDPOINT;
   });
 
-  it('should name the environment variable read by the endpoint configuration', async () => {
+  it('should recommend the endpoint and disclose local provider advisories', async () => {
     const { computeRealEmbedding, resetInitialization } = await import(
       '../../../src/learning/real-embeddings.js'
     );
     resetInitialization();
 
-    await expect(
-      computeRealEmbedding('semantic test input', { enableCache: false })
-    ).rejects.toThrow('AQE_EMBEDDER_ENDPOINT');
+    const result = computeRealEmbedding('semantic test input', { enableCache: false });
+    await expect(result).rejects.toThrow('AQE_EMBEDDER_ENDPOINT');
+    await expect(result).rejects.toThrow('unresolved HIGH advisories');
+    await expect(result).rejects.toThrow('GHSA-xcpc-8h2w-3j85');
+    await expect(result).rejects.toThrow('GHSA-f88m-g3jw-g9cj');
   });
 });
