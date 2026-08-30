@@ -88,6 +88,12 @@ export {
   createLearningEvidenceManifest,
 } from './learning-evidence-admission.js';
 
+export { persistLearningEvidence } from './evidence-admission-store.js';
+export type {
+  PersistLearningEvidenceOptions,
+  PersistedLearningEvidence,
+} from './evidence-admission-store.js';
+
 export type {
   LearningAdmissionResult,
   LearningContribution,

@@ -1,7 +1,7 @@
 /**
  * QE Brain Export/Import System
  *
- * Exports learning state (25 tables) into a portable directory format
+ * Exports learning state (31 tables) into a portable directory format
  * that can be imported by another AQE instance.
  *
  * Export format (.aqe-brain directory):
@@ -130,9 +130,21 @@ function exportTableRows(
     return { count: 0, rows: [] };
   }
 
-  const [where, params] = config.domainColumn
+  let [where, params] = config.domainColumn
     ? domainFilterForColumn(options.domains, config.domainColumn)
     : [undefined, [] as string[]];
+
+  if (options.domains && options.domains.length > 0 && !config.domainColumn) {
+    const placeholders = options.domains.map(() => '?').join(',');
+    const manifestFilter = `manifest_id IN (SELECT id FROM learning_evidence_manifests WHERE task_family IN (${placeholders}))`;
+    if (['learning_evidence_segments', 'learning_segment_edges', 'learning_evidence_admissions'].includes(config.tableName)) {
+      where = manifestFilter;
+      params = [...options.domains];
+    } else if (['pattern_manifest_lineage', 'pattern_segment_lineage'].includes(config.tableName)) {
+      where = `${manifestFilter} AND pattern_id IN (SELECT id FROM qe_patterns WHERE qe_domain IN (${placeholders}))`;
+      params = [...options.domains, ...options.domains];
+    }
+  }
 
   const rowCount = countRows(db, config.tableName, where, params);
 
@@ -353,7 +365,7 @@ export function importBrain(
 
         if (config.dedupColumns && config.dedupColumns.length > 0) {
           // Append-only tables (witness_chain, qe_pattern_usage)
-          result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns);
+          result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns, config.preserveId);
         } else {
           // Tables with TEXT PK
           const idCol = PK_COLUMNS[config.tableName] || 'id';

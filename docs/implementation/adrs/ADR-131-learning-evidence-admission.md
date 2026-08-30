@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-131 |
-| **Status** | Proposed — admission contract implemented; store integration pending |
+| **Status** | Proposed — admission contract and additive v12 store implemented; promotion gate pending |
 | **Date** | 2026-08-30 |
 | **Author** | AQE Core |
 | **Review Cadence** | 3 months |
@@ -24,13 +24,14 @@ Replay of an identical manifest does not increase independent support.
 
 ## Staging and data safety
 
-This slice deliberately does not migrate or rewrite a learning database. It
-establishes the pure admission contract and deterministic tests first. Store
-integration must preserve rejected/null evidence and many-to-many lineage in an
-additive schema migration tested against a copy, with explicit approval before
-any production database operation.
+Schema v12 adds append-only manifests, segments, derivation edges, admissions,
+and strict pattern-to-manifest/segment lineage. Existing patterns are backfilled
+only as `legacy-unknown`; their mutable `sourceTrajectoryId` is not promoted into
+certified lineage. The migration is additive, idempotent, and tested against a
+disposable copy with source hash/row-count preservation and SQLite integrity
+checks. No production database operation is part of this change.
 
-Until that integration lands, existing auto-promotion remains legacy behavior;
-this ADR is Proposed and issue #638 must stay open. The next gate is to require
-admitted manifests at `recordUsage()` and cleanup promotion sites, with a
-well-defined legacy/unknown migration and witness events.
+Existing auto-promotion remains legacy behavior, so this ADR is Proposed and
+issue #638 must stay open. The next gate is to require admitted manifests at
+`recordUsage()` and cleanup promotion sites and emit promotion/rollback witness
+events.

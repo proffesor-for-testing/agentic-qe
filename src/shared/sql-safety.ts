@@ -46,6 +46,10 @@ export const ALLOWED_TABLE_NAMES = new Set([
   // Learning/metrics tables
   'learning_daily_snapshots', 'metrics_outcomes',
   'experience_consolidation_log', 'qe_pattern_reuse',
+  // Qualified learning-evidence and lineage tables
+  'learning_evidence_manifests', 'learning_evidence_segments',
+  'learning_segment_edges', 'learning_evidence_admissions',
+  'pattern_manifest_lineage', 'pattern_segment_lineage',
   // Co-execution tables
   'qe_agent_co_execution',
 ]);
