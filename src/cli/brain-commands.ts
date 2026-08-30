@@ -57,7 +57,7 @@ export type BrainImportResultUnified = BrainImportResult | RvfBrainImportResult;
  */
 export async function exportBrain(
   dbPath: string,
-  options: BrainExportOptions & { format?: string }
+  options: BrainExportOptions & { format?: string; allowOverwriteRicher?: boolean }
 ): Promise<BrainManifest> {
   const format = resolveFormat(options.format);
 
@@ -67,6 +67,7 @@ export async function exportBrain(
       return exportBrainToRvf(db, {
         outputPath: options.outputPath,
         domains: options.domains,
+        allowOverwriteRicher: options.allowOverwriteRicher,
       }, dbPath);
     } finally {
       db.close();

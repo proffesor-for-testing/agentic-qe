@@ -455,9 +455,6 @@ function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\\n'); }
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   try {
-    if (fs.existsSync(RVF_PATH)) fs.unlinkSync(RVF_PATH);
-    const idmap = RVF_PATH + '.idmap.json';
-    if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
     const result = execFileSync(
       'npx', ['agentic-qe', 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8' }
