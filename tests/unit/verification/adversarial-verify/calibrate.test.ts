@@ -92,9 +92,100 @@ describe('calibrate — k-of-n aggregation reduces refuter noise', () => {
   it('abstains when a slice lacks minimum support', async () => {
     const report = await calibrate(labeled.slice(0, 4), {
       judge: noisyJudge(1, 1), refuters: 1,
-    }, { minSupport: 5 });
+    }, { minSupport: 5, criticalSeverities: [] });
     expect(report.slices.find(s => s.key === 'overall')?.disposition).toBe('abstain');
     expect(report.qualification.status).toBe('restricted');
+  });
+
+  it('does not qualify when mandatory critical severity strata are absent', async () => {
+    const report = await calibrate(labeled, {
+      judge: noisyJudge(1, 1), refuters: 1,
+    }, { minSupport: 2 });
+
+    expect(report.slices.find(s => s.key === 'severity:critical')).toMatchObject({
+      support: 0,
+      disposition: 'abstain',
+    });
+    expect(report.slices.find(s => s.key === 'severity:high')).toMatchObject({
+      support: 0,
+      disposition: 'abstain',
+    });
+    expect(report.qualification.status).toBe('unqualified');
+    expect(report.qualification.reasons).toEqual(expect.arrayContaining([
+      'Critical slice severity:critical is abstain',
+      'Critical slice severity:high is abstain',
+    ]));
+  });
+
+  it('requires confidence-bounded precision and false-keep policy', async () => {
+    const corpus: LabeledFinding[] = Array.from({ length: 40 }, (_, i) => ({
+      isReal: i < 20,
+      expectedSeverity: 'medium',
+      finding: {
+        id: `precision-${i}`,
+        title: i < 20 ? `KEEP real ${i}` : `KEEP false ${i}`,
+        file: `src/precision-${i}.ts`,
+        severity: 'medium', confidence: 0.9, evidence: [`fixture:${i}`],
+      },
+    }));
+    const judge: Judge = async () => ({ refuted: false, reasoning: 'uphold all' });
+
+    const precisionReport = await calibrate(corpus, { judge, refuters: 1 }, {
+      minSupport: 10,
+      minRecall: 0.5,
+      minPrecision: 0.8,
+      maxFalseKillRate: 1,
+      maxFalseKeepRate: 1,
+      criticalSeverities: [],
+    });
+    const falseKeepReport = await calibrate(corpus, { judge, refuters: 1 }, {
+      minSupport: 10,
+      minRecall: 0.5,
+      minPrecision: 0,
+      maxFalseKillRate: 1,
+      maxFalseKeepRate: 0.2,
+      criticalSeverities: [],
+    });
+
+    expect(precisionReport.slices.find(s => s.key === 'overall')).toMatchObject({
+      precision: 0.5,
+      falseKeepRate: 1,
+      disposition: 'human-review',
+    });
+    expect(falseKeepReport.slices.find(s => s.key === 'overall')?.disposition).toBe('human-review');
+    expect(precisionReport.qualification.status).toBe('restricted');
+    expect(falseKeepReport.qualification.status).toBe('restricted');
+  });
+
+  it('uses the false-kill Wilson upper bound instead of a passing point estimate', async () => {
+    const corpus: LabeledFinding[] = Array.from({ length: 20 }, (_, i) => ({
+      isReal: true,
+      expectedSeverity: 'medium',
+      finding: {
+        id: `false-kill-bound-${i}`,
+        title: i === 0 ? 'KILL one real finding' : `KEEP real finding ${i}`,
+        file: `src/false-kill-${i}.ts`,
+        severity: 'medium', confidence: 0.9, evidence: [`fixture:${i}`],
+      },
+    }));
+    const judge: Judge = async prompt => ({
+      refuted: /KILL one real finding/.test(prompt),
+      reasoning: 'one deterministic false kill',
+    });
+
+    const report = await calibrate(corpus, { judge, refuters: 1 }, {
+      minSupport: 10,
+      minRecall: 0.5,
+      minPrecision: 0.5,
+      maxFalseKillRate: 0.1,
+      maxFalseKeepRate: 1,
+      criticalSeverities: [],
+    });
+    const overall = report.slices.find(s => s.key === 'overall');
+
+    expect(overall?.falseKillRate).toBe(0.05);
+    expect(overall?.intervals.falseKillRate.high).toBeGreaterThan(0.1);
+    expect(overall?.disposition).toBe('human-review');
   });
 
   it('should make majority-of-3 no worse — and typically better — than a single refuter', async () => {

@@ -16,13 +16,16 @@ An aggregate judge score cannot authorize automation. AQE calibration reports
 fault-type, domain, and severity slices with support, precision, recall,
 false-kill, false-keep, uncertainty, and 95% Wilson intervals. A configurable
 minimum support produces `abstain`; weak confidence-bounded recall or excessive
-false-kill produces `human-review`; only supported slices meeting policy may
-`automate`.
+false-kill, false-keep, or weak precision produces `human-review`; only
+supported slices meeting policy may `automate`. Recall and precision must clear
+their Wilson lower bounds, while false-kill and false-keep must clear their
+Wilson upper bounds, so a favorable point estimate cannot hide uncertainty.
 
-A failed critical/high severity slice makes the judge unqualified even when the
-global result is strong. Non-critical unsupported or weak slices restrict the
-judge to the explicitly automated slices. Deterministic and executed oracles
-remain higher provenance than a judge verdict.
+Critical and high severity strata are mandatory. A missing, unsupported, or
+failed critical/high slice makes the judge unqualified even when the global
+result is strong. Non-critical unsupported or weak slices restrict the judge to
+the explicitly automated slices. Deterministic and executed oracles remain
+higher provenance than a judge verdict.
 
 The existing `calibrate(labeled, options)` call remains compatible. Metadata and
 qualification policy are additive, and callers may opt into stricter thresholds

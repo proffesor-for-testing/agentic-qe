@@ -43,7 +43,9 @@ export interface QualificationSlice {
 export interface QualificationOptions {
   minSupport?: number;
   minRecall?: number;
+  minPrecision?: number;
   maxFalseKillRate?: number;
+  maxFalseKeepRate?: number;
   criticalSeverities?: FindingSeverity[];
 }
 
@@ -75,7 +77,9 @@ export interface CalibrationReport {
 const DEFAULT_QUALIFICATION: Required<QualificationOptions> = {
   minSupport: 10,
   minRecall: 0.8,
+  minPrecision: 0.8,
   maxFalseKillRate: 0.1,
+  maxFalseKeepRate: 0.1,
   criticalSeverities: ['critical', 'high'],
 };
 
@@ -107,20 +111,26 @@ function buildSlice(
   const recall = real.length ? upheldReal / real.length : 0;
   const falseKillRate = real.length ? falseKill / real.length : 0;
   const falseKeepRate = falseEntries.length ? falseKeep / falseEntries.length : 0;
+  const intervals = {
+    precision: wilson(upheldReal, upheld),
+    recall: wilson(upheldReal, real.length),
+    falseKillRate: wilson(falseKill, real.length),
+    falseKeepRate: wilson(falseKeep, falseEntries.length),
+  };
   let disposition: QualificationDisposition = 'automate';
   if (entries.length < policy.minSupport || real.length === 0) disposition = 'abstain';
-  else if (wilson(upheldReal, real.length).low < policy.minRecall || falseKillRate > policy.maxFalseKillRate) {
+  else if (
+    intervals.recall.low < policy.minRecall
+    || intervals.precision.low < policy.minPrecision
+    || intervals.falseKillRate.high > policy.maxFalseKillRate
+    || intervals.falseKeepRate.high > policy.maxFalseKeepRate
+  ) {
     disposition = 'human-review';
   }
   return {
     key, support: entries.length, precision, recall, falseKillRate, falseKeepRate,
     uncertainRate: entries.length ? uncertain / entries.length : 0,
-    intervals: {
-      precision: wilson(upheldReal, upheld),
-      recall: wilson(upheldReal, real.length),
-      falseKillRate: wilson(falseKill, real.length),
-      falseKeepRate: wilson(falseKeep, falseEntries.length),
-    },
+    intervals,
     disposition,
   };
 }
@@ -132,17 +142,22 @@ export function qualifyJudge(
   const automatedSlices = slices.filter(s => s.disposition === 'automate').map(s => s.key);
   const humanReviewSlices = slices.filter(s => s.disposition === 'human-review').map(s => s.key);
   const abstainSlices = slices.filter(s => s.disposition === 'abstain').map(s => s.key);
+  const presentKeys = new Set(slices.map(s => s.key));
+  const missingCriticalKeys = criticalSliceKeys.filter(key => !presentKeys.has(key));
   const criticalFailures = slices.filter(
     s => criticalSliceKeys.includes(s.key) && s.disposition !== 'automate',
   );
-  const status = criticalFailures.length > 0
+  const status = criticalFailures.length > 0 || missingCriticalKeys.length > 0
     ? 'unqualified'
     : humanReviewSlices.length > 0 || abstainSlices.length > 0
       ? 'restricted'
       : 'qualified';
   return {
     status, automatedSlices, humanReviewSlices, abstainSlices,
-    reasons: criticalFailures.map(s => `Critical slice ${s.key} is ${s.disposition}`),
+    reasons: [
+      ...criticalFailures.map(s => `Critical slice ${s.key} is ${s.disposition}`),
+      ...missingCriticalKeys.map(key => `Critical slice ${key} is missing`),
+    ],
   };
 }
 
@@ -192,8 +207,11 @@ export async function calibrate(
     const severity = entry.label.expectedSeverity ?? entry.label.finding.severity;
     add(`severity:${severity}`, entry);
   });
-  r.slices = [...groups.entries()].map(([key, group]) => buildSlice(key, group, policy));
   const criticalKeys = policy.criticalSeverities.map(severity => `severity:${severity}`);
+  for (const key of criticalKeys) {
+    if (!groups.has(key)) groups.set(key, []);
+  }
+  r.slices = [...groups.entries()].map(([key, group]) => buildSlice(key, group, policy));
   r.qualification = qualifyJudge(r.slices, criticalKeys);
   return r;
 }
