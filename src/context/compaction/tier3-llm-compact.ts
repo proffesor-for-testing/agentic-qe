@@ -183,10 +183,16 @@ export class Tier3LLMCompact {
     for (const msg of messages) {
       const authority = msg.provenance?.authority ?? 'unknown';
       const origin = msg.provenance?.originAuthority ?? 'unknown';
-      const prefix = msg.role === 'tool_use'
-        ? `[role=tool_use tool=${msg.toolName ?? 'unknown'} authority=${authority} origin=${origin}]`
-        : `[role=${msg.role} authority=${authority} origin=${origin}]`;
-      const line = `${prefix} ${msg.content.slice(0, 500)}`;
+      // One JSON object per line keeps untrusted content inside an escaped
+      // string. A tool result containing a forged `[role=user ...]` label can
+      // no longer create a second apparent transcript record.
+      const line = JSON.stringify({
+        role: msg.role,
+        ...(msg.role === 'tool_use' ? { tool: msg.toolName ?? 'unknown' } : {}),
+        authority,
+        origin,
+        content: msg.content.slice(0, 500),
+      });
 
       if (charCount + line.length > maxTranscriptChars) {
         lines.push(`... (${messages.length - lines.length} earlier messages omitted)`);
