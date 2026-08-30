@@ -89,6 +89,8 @@ const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
   const distDir = path.resolve(process.argv[2] ?? 'dist');
   const result = normalizeEmittedESM(distDir);
+  const courtRefereeCli = path.join(distDir, 'skills', 'qe-court', 'cli.js');
+  if (fs.existsSync(courtRefereeCli)) fs.chmodSync(courtRefereeCli, 0o755);
   console.log(
     `Normalized ESM specifiers: ${result.rewrittenSpecifiers} in `
       + `${result.rewrittenFiles}/${result.scannedFiles} emitted files`,

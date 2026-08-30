@@ -52,13 +52,18 @@
     "./verification/adversarial-verify": {
       "import": "./dist/verification/adversarial-verify/index.js",
       "types": "./dist/verification/adversarial-verify/index.d.ts"
+    },
+    "./skills/qe-court/referee": {
+      "import": "./dist/skills/qe-court/referee.js",
+      "types": "./dist/skills/qe-court/referee.d.ts"
     }
   },
   "bin": {
     "agentic-qe": "./dist/cli/bundle.js",
     "aqe": "./dist/cli/bundle.js",
     "aqe-v3": "./dist/cli/bundle.js",
-    "aqe-mcp": "./dist/mcp/bundle.js"
+    "aqe-mcp": "./dist/mcp/bundle.js",
+    "aqe-court-referee": "./dist/skills/qe-court/cli.js"
   },
   "scripts": {
     "preinstall": "node scripts/preinstall.cjs || true",
