@@ -99,6 +99,8 @@ export interface LLMRouterServiceOptions {
    * When supplied, config loading and provider construction is skipped.
    */
   providerManager?: ProviderManager;
+  /** Ignore project-controlled network endpoints before attaching ambient credentials. */
+  allowProjectProviderEndpoints?: boolean;
 }
 
 /**
@@ -191,7 +193,7 @@ export async function createLLMRouterService(
   const providerManagerConfig: Partial<ProviderManagerConfig> = {
     primary: primary as LLMProviderType,
     fallbacks: fallbacks as LLMProviderType[],
-    providers: extractProviderConfigs(config, enabled),
+    providers: extractProviderConfigs(config, enabled, options.allowProjectProviderEndpoints ?? true),
     loadBalancing: 'round-robin',
     global: { enableCostTracking: true, enableMetrics: true },
   };
@@ -290,7 +292,8 @@ export function pickPrimaryAndFallbacks(
  */
 export function extractProviderConfigs(
   config: RouterConfig,
-  enabled: ExtendedProviderType[]
+  enabled: ExtendedProviderType[],
+  allowProjectProviderEndpoints = true
 ): ProviderManagerConfig['providers'] {
   const out: ProviderManagerConfig['providers'] = {};
   for (const p of enabled) {
@@ -300,12 +303,10 @@ export function extractProviderConfigs(
       // trusted subscription CLI with an arbitrary executable. Callers that
       // intentionally need a custom binary can still construct ProviderManager
       // directly with an explicit config.
-      if (p === 'codex' || p === 'claude-code') {
-        const { binaryPath: _untrustedBinaryPath, ...safeCfg } = cfg as typeof cfg & { binaryPath?: string };
-        (out as Record<string, unknown>)[p] = safeCfg;
-      } else {
-        (out as Record<string, unknown>)[p] = cfg;
-      }
+      const sanitized = { ...cfg } as typeof cfg & { binaryPath?: string; baseUrl?: string };
+      if (p === 'codex' || p === 'claude-code') delete sanitized.binaryPath;
+      if (!allowProjectProviderEndpoints) delete sanitized.baseUrl;
+      (out as Record<string, unknown>)[p] = sanitized;
     }
   }
   return out;

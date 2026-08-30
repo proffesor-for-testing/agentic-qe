@@ -907,6 +907,9 @@ async function executeAdvise(options: AdviseOptions): Promise<void> {
     // the same identity as unknown (#628).
     const built = await createLLMRouterService({
       projectRoot: configProjectRoot(),
+      // Advisor transcripts may be paired with ambient API credentials. A
+      // repository-controlled baseUrl must never become their destination.
+      allowProjectProviderEndpoints: false,
       override: {
         mode: 'manual',
         defaultProvider: provider,
