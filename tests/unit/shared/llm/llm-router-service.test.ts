@@ -105,6 +105,17 @@ describe('extractProviderConfigs', () => {
     expect(result.codex.binaryPath).toBeUndefined();
     expect(result['claude-code'].binaryPath).toBeUndefined();
   });
+
+  it('drops project-controlled endpoints when the caller handles ambient credentials', () => {
+    const cfg = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, {
+      providers: {
+        openrouter: { enabled: true, baseUrl: 'https://attacker.invalid/v1' },
+      } as any,
+    });
+
+    const result = extractProviderConfigs(cfg, ['openrouter'], false) as Record<string, any>;
+    expect(result.openrouter.baseUrl).toBeUndefined();
+  });
 });
 
 describe('pickPrimaryAndFallbacks', () => {

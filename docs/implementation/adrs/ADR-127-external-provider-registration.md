@@ -5,6 +5,7 @@
 | **Decision ID** | ADR-127 |
 | **Status** | Accepted — implemented (see Verification) |
 | **Date** | 2026-08-19 |
+| **Updated** | 2026-08-30 — config-aware advisor CLI/MCP construction |
 | **Author** | AQE Core |
 | **Review Cadence** | 6 months |
 | **Supersedes** | — |
@@ -293,6 +294,14 @@ tests pin the built-in wording as well as the external wording.
 ## Verification
 
 Everything below was executed, not asserted.
+
+The 2026-08-30 amendment closes a construction-path drift found after release:
+`aqe llm advise` used a private minimal router bootstrap and therefore skipped
+config-declared provider registration. It now uses the same config-aware router
+service as the kernel. A real CLI subprocess regression declares an external
+host, invokes `llm advise`, and asserts both the host marker and provider
+identity. Because MCP `advisor_consult` delegates to this command, its protocol
+test must cover the same declaration before #628 closes.
 
 | Check | Result |
 |---|---|
