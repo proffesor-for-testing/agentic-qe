@@ -95,6 +95,30 @@ afterEach(() => {
 });
 
 describeNative('RVF export atomicity under interruption (#563)', () => {
+  it('refuses to replace a richer recovery mirror unless explicitly forced (#629)', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    const richDb = seedDb(join(dir, 'rich.db'), 25);
+    exportBrainToRvf(richDb, { outputPath: rvfPath }, 'rich.db');
+    richDb.close();
+    const richBytes = readFileSync(rvfPath);
+    const richManifest = readFileSync(`${rvfPath}.manifest.json`, 'utf-8');
+
+    const freshDb = seedDb(join(dir, 'fresh.db'), 5);
+    expect(() => exportBrainToRvf(freshDb, { outputPath: rvfPath }, 'fresh.db'))
+      .toThrow(/RVF_MIRROR_RICHER.*25 patterns with 5/);
+    expect(readFileSync(rvfPath).equals(richBytes)).toBe(true);
+    expect(readFileSync(`${rvfPath}.manifest.json`, 'utf-8')).toBe(richManifest);
+
+    const forced = exportBrainToRvf(
+      freshDb,
+      { outputPath: rvfPath, allowOverwriteRicher: true },
+      'fresh.db',
+    );
+    expect(forced.stats.patternCount).toBe(5);
+    freshDb.close();
+  }, 30_000);
+
   it('leaves the previous good store intact when the export is SIGKILLed mid-write', async () => {
     const dir = workDir();
     const dbPath = join(dir, 'memory.db');
@@ -196,7 +220,10 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
     // sweep it, or a project whose hook is killed daily leaks disk forever.
     const debris = () => readdirSync(dir).filter((f) => f.includes('.rvf.tmp.'));
     const db2 = seedDb(join(dir, 'sweep.db'), 5);
-    exportBrainToRvf(db2, { outputPath: rvfPath }, 'memory.db');
+    // This test intentionally replaces a 4,000-pattern mirror with five rows
+    // only to prove stale-tmp cleanup. A real checkpoint must not do that;
+    // acknowledge the destructive setup explicitly so #629 remains enforced.
+    exportBrainToRvf(db2, { outputPath: rvfPath, allowOverwriteRicher: true }, 'memory.db');
     db2.close();
     expect(debris()).toEqual([]);
   }, 120_000);

@@ -54,6 +54,7 @@ export class BrainHandler implements ICommandHandler {
       .requiredOption('-o, --output <path>', 'Output directory path')
       .option('--format <format>', 'Export format: rvf (default) or jsonl', 'rvf')
       .option('--db <path>', 'Source database path')
+      .option('--force-overwrite-richer', 'Allow replacing an existing RVF with fewer patterns', false)
       .action(async (options: ExportOptions) => {
         await this.executeExport(options);
       });
@@ -122,6 +123,7 @@ export class BrainHandler implements ICommandHandler {
       const manifest: BrainManifest = await exportBrain(dbPath, {
         outputPath: path.resolve(options.output),
         format: options.format,
+        allowOverwriteRicher: options.forceOverwriteRicher,
       });
 
       console.log(chalk.green('  Export complete.'));
@@ -415,6 +417,7 @@ interface ExportOptions {
   output: string;
   format: string;
   db: string;
+  forceOverwriteRicher: boolean;
 }
 
 interface ImportOptions {

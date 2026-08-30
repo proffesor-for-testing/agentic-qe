@@ -76,6 +76,8 @@ export interface RvfBrainExportOptions {
   readonly sign?: boolean;
   /** Key identifier to record in manifest when signing */
   readonly signerKeyId?: string;
+  /** Explicit operator acknowledgement that a richer existing mirror may be replaced. */
+  readonly allowOverwriteRicher?: boolean;
 }
 
 export interface RvfBrainImportOptions {
@@ -356,6 +358,30 @@ export function exportBrainToRvf(
     // sidecar, so renaming any earlier would publish an incomplete store.
     rvf.close();
     closed = true;
+
+    // Issue #629: a stage-2 mirror must not be destroyed when SQLite has just
+    // been recreated from seed data. Compare the fully materialized candidate
+    // with the still-published store immediately before promotion, closing the
+    // TOCTOU window as far as this synchronous exporter can. A valid existing
+    // mirror with more patterns wins unless an operator explicitly overrides.
+    if (existsSync(outPath) && !options.allowOverwriteRicher) {
+      try {
+        const existing = brainInfoFromRvf(outPath);
+        if (existing.stats.patternCount > manifest.stats.patternCount) {
+          throw new Error(
+            `RVF_MIRROR_RICHER: refusing to replace ${existing.stats.patternCount} ` +
+            `patterns with ${manifest.stats.patternCount}. Restore/import the mirror first, ` +
+            `or repeat with --force-overwrite-richer after preserving a backup.`
+          );
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('RVF_MIRROR_RICHER:')) {
+          throw error;
+        }
+        // An unreadable store is not a usable recovery source. Preserve the
+        // existing #563 behavior that repairs it with a complete candidate.
+      }
+    }
 
     // Promote tmp → final. The store itself goes last: until it lands, the
     // previous store (if any) is still the one on disk, and a crash mid-promote
