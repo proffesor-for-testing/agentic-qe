@@ -14,6 +14,12 @@
  */
 
 import { estimateTokensPadded } from '../../mcp/middleware/microcompact';
+import {
+  hashContextContent,
+  leastTrustedAuthority,
+  type InstructionProvenance,
+  type ProvenancedContent,
+} from './instruction-provenance';
 
 // ============================================================================
 // Types
@@ -27,6 +33,10 @@ export interface ConversationMessage {
   estimatedTokens?: number;
   /** If this is a tool_use, the ID linking it to its tool_result pair */
   toolUseId?: string;
+  /** Stable item identity used by derived summaries. */
+  id?: string;
+  /** Missing legacy provenance is treated as unknown and non-authorizing. */
+  provenance?: InstructionProvenance;
 }
 
 export interface SessionSummaryOptions {
@@ -40,6 +50,8 @@ export interface Tier2Result {
   tier: 2;
   /** The condensed summary text */
   summary: string;
+  /** Non-authorizing envelope for the derived summary. */
+  summaryItem?: ProvenancedContent;
   /** Tokens in the summary */
   summaryTokens: number;
   /** Messages preserved verbatim (recent tail) */
@@ -114,6 +126,7 @@ export class Tier2SessionSummary {
 
     // Build summary from the older messages
     const summary = this.buildSummary(toSummarize);
+    const summaryItem = summary ? this.deriveSummaryItem(summary, toSummarize) : undefined;
     const summaryTokens = Math.min(estimateTokensPadded(summary), this.maxSummaryTokens);
 
     const tokensSaved = originalTokens - preservedTokens - summaryTokens;
@@ -121,12 +134,38 @@ export class Tier2SessionSummary {
     return {
       tier: 2,
       summary,
+      summaryItem,
       summaryTokens,
       preservedMessages: toPreserve,
       preservedTokens,
       originalMessageCount: messages.length,
       removedMessageCount: toSummarize.length,
       tokensSaved: Math.max(0, tokensSaved),
+    };
+  }
+
+  private deriveSummaryItem(
+    summary: string,
+    parents: ConversationMessage[],
+  ): ProvenancedContent {
+    const parentIds = parents.map(message =>
+      message.id ?? `sha256:${hashContextContent(message.content)}`
+    );
+    const originAuthority = leastTrustedAuthority(
+      parents.map(message => message.provenance?.originAuthority ?? 'unknown'),
+    );
+    const contentHash = hashContextContent(summary);
+    return {
+      id: `tier2:${contentHash}`,
+      content: summary,
+      authority: 'assistant-derived',
+      originAuthority,
+      sourceKind: 'agent',
+      sourceRef: 'context-compaction:tier2',
+      parentIds,
+      contentHash,
+      createdAt: new Date().toISOString(),
+      mayInduceAction: true,
     };
   }
 
