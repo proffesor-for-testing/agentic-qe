@@ -73,12 +73,26 @@ export function createLearningEvidenceManifest(input: ManifestInput): LearningEv
   return freezeManifest({ ...input, trajectoryHash });
 }
 
+function expectedTrajectoryHash(manifest: LearningEvidenceManifest): string {
+  const { trajectoryHash: _claimedHash, ...input } = manifest;
+  return createHash('sha256').update(canonicalize(input)).digest('hex');
+}
+
 export function admitLearningEvidence(manifest: LearningEvidenceManifest): LearningAdmissionResult {
   const reasons: string[] = [];
+  if (manifest.trajectoryHash !== expectedTrajectoryHash(manifest)) reasons.push('integrity:trajectory-hash-mismatch');
   if (manifest.outcome !== 'verified-success') reasons.push(`outcome:${manifest.outcome}`);
   if (manifest.sourceKind === 'inferred') reasons.push('source:inferred');
   if (manifest.oracleRefs.length === 0) reasons.push('oracle:missing');
   if (!manifest.processSignals.verificationAfterActing) reasons.push('verification:missing-after-action');
+  if (!manifest.processSignals.observedBeforeActing) reasons.push('process:acted-before-observation');
+  if (manifest.processSignals.toolSuccessRate < 0 || manifest.processSignals.toolSuccessRate > 1) {
+    reasons.push('process:invalid-tool-success-rate');
+  } else if (manifest.processSignals.toolSuccessRate < 1) {
+    reasons.push('process:tool-failure');
+  }
+  if (manifest.processSignals.repeatedNoProgressActions > 0) reasons.push('process:repeated-no-progress');
+  if (manifest.processSignals.scopeDrift) reasons.push('process:scope-drift');
   if (manifest.processSignals.weakenedOracle) reasons.push('oracle:weakened');
   if (manifest.processSignals.leakageOrShortcut) reasons.push('process:leakage-or-shortcut');
   if (manifest.processSignals.unsafeSideEffect) reasons.push('process:unsafe-side-effect');
@@ -91,10 +105,14 @@ export function admitLearningEvidence(manifest: LearningEvidenceManifest): Learn
     .filter(segment => !admittedSegmentIds.includes(segment.id))
     .map(segment => segment.id);
   if (admittedSegmentIds.length === 0) reasons.push('segments:no-admitted-contribution');
+  if (manifest.segments.some(segment => admittedSegmentIds.includes(segment.id) && segment.evidenceRefs.length === 0)) {
+    reasons.push('segments:admitted-without-evidence');
+  }
 
   const hardReject = reasons.some(reason =>
     reason === 'oracle:weakened' || reason === 'process:leakage-or-shortcut' ||
-    reason === 'process:unsafe-side-effect' || reason.startsWith('outcome:'),
+    reason === 'process:unsafe-side-effect' || reason === 'integrity:trajectory-hash-mismatch' ||
+    reason === 'process:invalid-tool-success-rate' || reason.startsWith('outcome:'),
   );
   const disposition = hardReject ? 'reject' : reasons.length > 0 ? 'human-review' : 'admit';
   return Object.freeze({
@@ -112,12 +130,8 @@ export function countIndependentAdmissions(
   const identities = new Set<string>();
   for (const manifest of manifests) {
     if (!admitLearningEvidence(manifest).autoPromotable) continue;
-    identities.add(canonicalize({
-      taskFamily: manifest.taskFamily,
-      revision: manifest.revision ?? 'unknown',
-      environment: manifest.environment ?? 'unknown',
-      trajectoryHash: manifest.trajectoryHash,
-    }));
+    const { trajectoryId: _runIdentity, trajectoryHash: _runHash, ...evidence } = manifest;
+    identities.add(canonicalize(evidence));
   }
   return identities.size;
 }

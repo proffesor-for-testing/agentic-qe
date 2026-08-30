@@ -69,10 +69,30 @@ describe('learning evidence admission', () => {
 
   it('does not count replayed copies as independent evidence', () => {
     const original = createLearningEvidenceManifest(validInput('run-1'));
-    const replay = createLearningEvidenceManifest(validInput('run-1'));
+    const replay = createLearningEvidenceManifest(validInput('run-2'));
     const distinct = createLearningEvidenceManifest({
-      ...validInput('run-2'), revision: 'def456',
+      ...validInput('run-3'), revision: 'def456',
     });
     expect(countIndependentAdmissions([original, replay, distinct])).toBe(2);
+  });
+
+  it('rejects a manifest modified after hashing', () => {
+    const manifest = createLearningEvidenceManifest(validInput());
+    const forged = { ...manifest, outcome: 'verified-failure' as const };
+    expect(admitLearningEvidence(forged)).toMatchObject({
+      disposition: 'reject', autoPromotable: false,
+    });
+    expect(admitLearningEvidence(forged).reasons).toContain('integrity:trajectory-hash-mismatch');
+  });
+
+  it('requires evidence references and clean process signals for automatic admission', () => {
+    const input = validInput();
+    input.processSignals.scopeDrift = true;
+    input.segments[0].evidenceRefs = [];
+    const result = admitLearningEvidence(createLearningEvidenceManifest(input));
+    expect(result.disposition).toBe('human-review');
+    expect(result.reasons).toEqual(expect.arrayContaining([
+      'process:scope-drift', 'segments:admitted-without-evidence',
+    ]));
   });
 });
