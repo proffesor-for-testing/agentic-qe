@@ -167,7 +167,10 @@ export class RvfDualWriter {
   }
 
   private activeSpaceId(): string | undefined {
-    return getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+    // An injected writer belongs to the embedder that constructed it.  A
+    // process-global identity may describe a different pipeline initialized by
+    // another subsystem, so it is only a fallback for legacy callers.
+    return this.config.embeddingSpaceId ?? getActiveEmbeddingSpaceIdentity()?.spaceId;
   }
 
   /**

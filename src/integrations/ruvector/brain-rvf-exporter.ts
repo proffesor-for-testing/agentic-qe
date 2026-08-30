@@ -226,66 +226,31 @@ export function exportBrainToRvf(
     const embeddingEntries: RvfIngestEntry[] = [];
 
     if (tableExists(db, 'qe_pattern_embeddings')) {
+      const hasSpaceId = (db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>)
+        .some((column) => column.name === 'space_id');
       const rows = db.prepare(
-        'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings'
-      ).all() as Array<{ pattern_id: string; embedding: Buffer; dimension: number }>;
+        `SELECT pattern_id, embedding, dimension, ${hasSpaceId ? 'space_id' : 'NULL'} AS space_id
+           FROM qe_pattern_embeddings`
+      ).all() as Array<{ pattern_id: string; embedding: Buffer; dimension: number; space_id: string | null }>;
       for (const row of rows) {
-        if (row.embedding && row.dimension === dimension) {
+        // Legacy vectors without executable provenance remain in the embedded
+        // SQLite kernel for re-embedding, but must never enter the portable ANN
+        // index where their space would be indistinguishable from query vectors.
+        if (row.embedding && row.dimension === dimension && row.space_id) {
           embeddingEntries.push({
             id: `pe:${row.pattern_id}`,
             vector: new Float32Array(row.embedding.buffer, row.embedding.byteOffset, dimension),
-            metadata: { tableName: 'qe_pattern_embeddings' },
+            metadata: { tableName: 'qe_pattern_embeddings', spaceId: row.space_id },
           });
         }
       }
     }
 
-    if (tableExists(db, 'captured_experiences')) {
-      const rows = db.prepare(
-        'SELECT id, embedding, embedding_dimension, domain, quality FROM captured_experiences WHERE embedding IS NOT NULL'
-      ).all() as Array<{
-        id: string; embedding: Buffer; embedding_dimension: number;
-        domain?: string; quality?: number;
-      }>;
-      for (const row of rows) {
-        if (row.embedding_dimension === dimension) {
-          embeddingEntries.push({
-            id: `exp:${row.id}`,
-            vector: new Float32Array(row.embedding.buffer, row.embedding.byteOffset, dimension),
-            metadata: {
-              tableName: 'captured_experiences',
-              domain: row.domain,
-              confidence: row.quality,
-            },
-          });
-        }
-      }
-    }
-
-    if (tableExists(db, 'sona_patterns')) {
-      const rows = db.prepare(
-        'SELECT id, state_embedding, domain, confidence FROM sona_patterns WHERE state_embedding IS NOT NULL'
-      ).all() as Array<{
-        id: string; state_embedding: Buffer;
-        domain?: string; confidence?: number;
-      }>;
-      for (const row of rows) {
-        const dim = row.state_embedding.byteLength / 4;
-        if (dim === dimension) {
-          embeddingEntries.push({
-            id: `sona:${row.id}`,
-            vector: new Float32Array(
-              row.state_embedding.buffer, row.state_embedding.byteOffset, dimension
-            ),
-            metadata: {
-              tableName: 'sona_patterns',
-              domain: row.domain,
-              confidence: row.confidence,
-            },
-          });
-        }
-      }
-    }
+    // captured_experiences and sona_patterns are still included in the kernel
+    // below, but their schemas do not yet carry embedding-space provenance.
+    // Mixing them into this ANN index would violate #633 even when dimensions
+    // and model labels happen to match, so they are intentionally excluded
+    // until their own write paths persist a space_id.
 
     if (embeddingEntries.length > 0) {
       const result = rvf.ingest(embeddingEntries);

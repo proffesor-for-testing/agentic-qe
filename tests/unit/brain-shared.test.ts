@@ -47,6 +47,7 @@ import {
   type WitnessRow,
   type MergeStrategy,
 } from '../../src/integrations/ruvector/brain-shared.js';
+import { ensureAllBrainTables } from '../../src/integrations/ruvector/brain-table-ddl.js';
 
 // ============================================================================
 // Helpers
@@ -609,6 +610,23 @@ describe('Brain Shared Module', () => {
     it('should cover 6 tables', () => {
       expect(Object.keys(TABLE_BLOB_COLUMNS)).toHaveLength(6);
     });
+  });
+
+  it('creates and upgrades pattern embedding provenance for brain imports', () => {
+    const importDb = new Database(':memory:');
+    importDb.exec(`CREATE TABLE qe_pattern_embeddings (
+      pattern_id TEXT PRIMARY KEY,
+      embedding BLOB NOT NULL,
+      dimension INTEGER NOT NULL
+    )`);
+
+    ensureAllBrainTables(importDb);
+
+    const columns = importDb.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+    expect(columns.map((column) => column.name)).toContain('space_id');
+    const indexes = importDb.prepare("PRAGMA index_list('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+    expect(indexes.map((index) => index.name)).toContain('idx_qe_pattern_embeddings_space');
+    importDb.close();
   });
 
   describe('serializeRowBlobs', () => {
