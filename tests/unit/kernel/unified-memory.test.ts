@@ -173,6 +173,9 @@ describe('UnifiedMemoryManager', () => {
       expect(tableNames).toContain('kv_store');
       expect(tableNames).toContain('vectors');
       expect(tableNames).toContain('schema_version');
+      expect(tableNames).toContain('learning_evidence_manifests');
+      expect(tableNames).toContain('learning_evidence_admissions');
+      expect((db.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number }).version).toBe(12);
     });
   });
 

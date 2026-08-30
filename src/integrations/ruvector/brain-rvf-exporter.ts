@@ -209,6 +209,30 @@ export function exportBrainToRvf(
 
       let rows = queryAll(db, config.tableName, where, params);
 
+      if (options.domains && options.domains.length > 0) {
+        const manifestIds = new Set(
+          (allTableData.learning_evidence_manifests ?? []).map(
+            row => (row as { id: string }).id
+          )
+        );
+        const patternIds = new Set(
+          (allTableData.qe_patterns ?? []).map(row => (row as { id: string }).id)
+        );
+        if (['learning_evidence_segments', 'learning_segment_edges', 'learning_evidence_admissions'].includes(config.tableName)) {
+          rows = rows.filter(row => manifestIds.has((row as { manifest_id: string }).manifest_id));
+        } else if (config.tableName === 'pattern_manifest_lineage') {
+          rows = rows.filter(row => {
+            const lineage = row as { manifest_id: string; pattern_id: string };
+            return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
+          });
+        } else if (config.tableName === 'pattern_segment_lineage') {
+          rows = rows.filter(row => {
+            const lineage = row as { manifest_id: string; pattern_id: string };
+            return manifestIds.has(lineage.manifest_id) && patternIds.has(lineage.pattern_id);
+          });
+        }
+      }
+
       if (config.tableName === 'qe_patterns') {
         for (const p of rows as Array<{ qe_domain?: string }>) {
           if (p.qe_domain) domainSet.add(p.qe_domain);
@@ -597,7 +621,7 @@ export function importBrainFromRvf(
         for (const row of rows) {
           let result: MergeResult;
           if (config.dedupColumns && config.dedupColumns.length > 0) {
-            result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns);
+            result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns, config.preserveId);
           } else {
             const idCol = PK_COLUMNS[config.tableName] || 'id';
             const tsCol = TIMESTAMP_COLUMNS[config.tableName];

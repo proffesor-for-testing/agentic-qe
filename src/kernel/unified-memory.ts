@@ -64,6 +64,7 @@ import {
   PATTERN_NULLS_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
+import { applyMigration as applyLearningEvidenceMigration } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // CRDT imports for distributed state synchronization
 import {
@@ -573,6 +574,7 @@ export class UnifiedMemoryManager {
         }
         if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
+        if (currentVersion < 12) applyLearningEvidenceMigration(this.db!);
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)

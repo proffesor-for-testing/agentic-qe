@@ -82,6 +82,25 @@ export {
   matchPatternContext,
 } from './qe-patterns.js';
 
+export {
+  admitLearningEvidence,
+  countIndependentAdmissions,
+  createLearningEvidenceManifest,
+} from './learning-evidence-admission.js';
+
+export { persistLearningEvidence } from './evidence-admission-store.js';
+export type {
+  PersistLearningEvidenceOptions,
+  PersistedLearningEvidence,
+} from './evidence-admission-store.js';
+
+export type {
+  LearningAdmissionResult,
+  LearningContribution,
+  LearningEvidenceManifest,
+  LearningSegment,
+} from './learning-evidence-admission.js';
+
 export type {
   QEDomain,
   QEPatternType,

@@ -7,15 +7,16 @@
 
 import { HYPERGRAPH_SCHEMA } from '../migrations/20260120_add_hypergraph_tables.js';
 import { PATTERN_NULLS_SCHEMA } from '../migrations/20260611_add_pattern_nulls_table.js';
+import { LEARNING_EVIDENCE_SCHEMA } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // Re-export for convenience
-export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA };
+export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA, LEARNING_EVIDENCE_SCHEMA };
 
 // ============================================================================
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 11; // v11: adds goap_execution_steps — canonical GOAP execution history (A14)
+export const SCHEMA_VERSION = 12; // v12: immutable learning-evidence admission and lineage (ADR-131)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -692,4 +693,11 @@ export const STATS_TABLES = [
   'sona_patterns',
   // v9: Witness Chain (ADR-070)
   'witness_chain',
+  // v12: qualified learning evidence (ADR-131)
+  'learning_evidence_manifests',
+  'learning_evidence_segments',
+  'learning_segment_edges',
+  'learning_evidence_admissions',
+  'pattern_manifest_lineage',
+  'pattern_segment_lineage',
 ];

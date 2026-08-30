@@ -4,7 +4,7 @@
  * Offline, read-only filtered search over a JSONL brain export directory.
  * Useful for exploring what a snapshot contains without importing it.
  *
- * Defaults to searching qe_patterns but can target any of the 25 exported
+ * Defaults to searching qe_patterns but can target any of the 31 exported
  * tables via the `table` option. Supports filters by domain, pattern_type,
  * date range, and a substring query that matches `name` + `description`.
  *
