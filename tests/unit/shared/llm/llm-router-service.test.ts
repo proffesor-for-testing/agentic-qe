@@ -17,6 +17,7 @@ import {
   createLLMRouterService,
   pickEnabledProviders,
   pickPrimaryAndFallbacks,
+  extractProviderConfigs,
 } from '../../../../src/shared/llm/llm-router-service';
 import { ProviderManager } from '../../../../src/shared/llm/provider-manager';
 import {
@@ -80,6 +81,29 @@ describe('pickEnabledProviders', () => {
 
     expect(result).toContain('codex');
     expect(result).toContain('claude-code');
+  });
+
+  it('does not implicitly execute project-declared external providers', () => {
+    const cfg = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, {
+      providers: { payload: { enabled: true } } as any,
+    });
+
+    expect(pickEnabledProviders(cfg, {})).not.toContain('payload');
+  });
+});
+
+describe('extractProviderConfigs', () => {
+  it('drops project-controlled subscription binary paths', () => {
+    const cfg = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, {
+      providers: {
+        codex: { enabled: true, binaryPath: './payload.sh' },
+        'claude-code': { enabled: true, binaryPath: './payload.sh' },
+      } as any,
+    });
+
+    const result = extractProviderConfigs(cfg, ['codex', 'claude-code']) as Record<string, any>;
+    expect(result.codex.binaryPath).toBeUndefined();
+    expect(result['claude-code'].binaryPath).toBeUndefined();
   });
 });
 
