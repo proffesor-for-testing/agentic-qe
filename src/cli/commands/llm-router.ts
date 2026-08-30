@@ -893,35 +893,31 @@ async function executeAdvise(options: AdviseOptions): Promise<void> {
     }
 
     // Lazy-load to keep CLI cold-start fast when advise is not used
-    const { createProviderManager } = await import('../../shared/llm/provider-manager.js');
-    const { createHybridRouter } = await import('../../shared/llm/router/hybrid-router.js');
+    const { createLLMRouterService } = await import('../../shared/llm/llm-router-service.js');
     const { MultiModelExecutor, DEFAULT_ADVISOR_PROVIDER, DEFAULT_ADVISOR_MODEL } =
       await import('../../routing/advisor/multi-model-executor.js');
 
     const provider = (options.provider ?? DEFAULT_ADVISOR_PROVIDER) as ExtendedProviderType;
     const model = options.model ?? DEFAULT_ADVISOR_MODEL;
 
-    // Phase 0: bootstrap a minimal ProviderManager + HybridRouter for the advisor call.
-    // Phase 1+ reuses a shared router from the AQE kernel.
-    const providerManager = createProviderManager({
-      primary: provider === 'openrouter' ? 'openrouter' : (provider as any),
-      providers: {
-        openrouter: {
-          apiKey: process.env.OPENROUTER_API_KEY,
-          model,
-        },
+    // Use the same config-aware construction path as the kernel. In particular,
+    // loadRouterConfig() registers ADR-127 external providers before the
+    // ProviderManager is built. The old minimal bootstrap bypassed that step,
+    // so `llm providers` recognized a declared host while `llm advise` rejected
+    // the same identity as unknown (#628).
+    const built = await createLLMRouterService({
+      projectRoot: configProjectRoot(),
+      override: {
+        mode: 'manual',
+        defaultProvider: provider,
+        defaultModel: model,
       },
     });
+    if (!built) {
+      throw new Error(`No enabled LLM provider is available for advisor provider "${provider}".`);
+    }
 
-    const router = createHybridRouter(providerManager, {
-      mode: 'manual',
-      defaultProvider: provider as any,
-      defaultModel: model,
-    });
-
-    await router.initialize();
-
-    const executor = new MultiModelExecutor(router);
+    const executor = new MultiModelExecutor(built.router);
 
     const redactMode = (options.redact ?? 'strict') as 'strict' | 'balanced' | 'off';
     const result = await executor.consult(transcript, {
