@@ -48,6 +48,8 @@ export interface RvfBrainManifest {
     readonly dreamInsightCount: number;
     readonly witnessChainLength: number;
     readonly totalRecords?: number;
+    /** Per-table row counts used by the recovery-mirror richness guard. */
+    readonly tableCounts?: Readonly<Record<string, number>>;
   };
   readonly domains: readonly string[];
   readonly checksum: string;
@@ -333,6 +335,9 @@ export function exportBrainToRvf(
         dreamInsightCount: (allTableData['dream_insights'] || []).length,
         witnessChainLength: (allTableData['witness_chain'] || []).length,
         totalRecords,
+        tableCounts: Object.fromEntries(
+          TABLE_CONFIGS.map(({ tableName }) => [tableName, allTableData[tableName]?.length ?? 0]),
+        ),
       },
       domains: brainData.domains,
       checksum,
@@ -360,26 +365,58 @@ export function exportBrainToRvf(
     closed = true;
 
     // Issue #629: a stage-2 mirror must not be destroyed when SQLite has just
-    // been recreated from seed data. Compare the fully materialized candidate
-    // with the still-published store immediately before promotion, closing the
-    // TOCTOU window as far as this synchronous exporter can. A valid existing
-    // mirror with more patterns wins unless an operator explicitly overrides.
+    // been recreated from seed data. Compare every mirrored table in the fully
+    // materialized candidate with the still-published store immediately before
+    // promotion. Inspection is fail-closed when the RVF itself remains readable
+    // but its kernel cannot yield a complete table inventory. A genuinely
+    // unreadable/corrupt RVF remains replaceable to preserve #563 recovery.
     if (existsSync(outPath) && !options.allowOverwriteRicher) {
+      let existing: RvfBrainManifest | undefined;
       try {
-        const existing = brainInfoFromRvf(outPath);
-        if (existing.stats.patternCount > manifest.stats.patternCount) {
+        existing = brainInfoFromRvf(outPath);
+      } catch (error) {
+        if (hasReadableBrainKernel(outPath) || !isKnownUnusableRvfError(error)) {
+          const detail = error instanceof Error ? error.message : String(error);
           throw new Error(
-            `RVF_MIRROR_RICHER: refusing to replace ${existing.stats.patternCount} ` +
-            `patterns with ${manifest.stats.patternCount}. Restore/import the mirror first, ` +
-            `or repeat with --force-overwrite-richer after preserving a backup.`
+            `RVF_MIRROR_INSPECTION_AMBIGUOUS: the existing mirror is readable but its ` +
+            `richness could not be established (${detail}). Preserve/import it before retrying, ` +
+            `or repeat with --force-overwrite-richer after preserving a backup.`,
           );
         }
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith('RVF_MIRROR_RICHER:')) {
-          throw error;
+      }
+
+      if (existing) {
+        const existingCounts = existing.stats.tableCounts;
+        const candidateCounts = manifest.stats.tableCounts!;
+        const missing = TABLE_CONFIGS
+          .map(({ tableName }) => tableName)
+          .filter((tableName) => !existingCounts || !Number.isSafeInteger(existingCounts[tableName]));
+        if (missing.length > 0) {
+          throw new Error(
+            `RVF_MIRROR_INSPECTION_AMBIGUOUS: existing mirror lacks trustworthy counts for ` +
+            `${missing.join(', ')}. Preserve/import it before retrying, or repeat with ` +
+            `--force-overwrite-richer after preserving a backup.`,
+          );
         }
-        // An unreadable store is not a usable recovery source. Preserve the
-        // existing #563 behavior that repairs it with a complete candidate.
+
+        const richer = TABLE_CONFIGS
+          .map(({ tableName }) => ({
+            tableName,
+            existing: existingCounts![tableName],
+            candidate: candidateCounts[tableName],
+          }))
+          .filter(({ existing: existingCount, candidate }) => existingCount > candidate);
+        if (richer.length > 0) {
+          const differences = richer
+            .map(({ tableName, existing: existingCount, candidate }) =>
+              `${tableName} ${existingCount} -> ${candidate}`)
+            .join(', ');
+          throw new Error(
+            `RVF_MIRROR_RICHER: refusing to replace richer mirrored tables: ${differences}. ` +
+            `Restore/import the mirror first, or repeat with --force-overwrite-richer after ` +
+            `preserving a backup.`,
+          );
+        }
       }
     }
 
@@ -419,6 +456,33 @@ interface BrainKernelData {
   qValues?: unknown[];
   dreamInsights?: unknown[];
   witnessChain?: unknown[];
+}
+
+/**
+ * Distinguish a corrupt/unopenable store (#563, replaceable) from a readable
+ * store whose richness inspection failed (ambiguous, therefore protected).
+ */
+function hasReadableBrainKernel(rvfPath: string): boolean {
+  let rvf: ReturnType<typeof openRvfStoreReadonly> | undefined;
+  try {
+    rvf = openRvfStoreReadonly(resolve(rvfPath));
+    const kernel = rvf.extractKernel();
+    return Boolean(kernel?.image);
+  } catch {
+    return false;
+  } finally {
+    try { rvf?.close(); } catch { /* best-effort probe cleanup */ }
+  }
+}
+
+/**
+ * Only known structural corruption is replaceable without an operator
+ * override. Permission, locking, I/O, and programmer errors are ambiguous and
+ * must fail closed instead of being mistaken for disposable corruption.
+ */
+function isKnownUnusableRvfError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ManifestNotFound|InvalidMagic|ChecksumMismatch|CorruptStore/i.test(message);
 }
 
 /** Legacy field-to-table mapping for older RVF exports. */
@@ -600,6 +664,13 @@ export function brainInfoFromRvf(rvfPath: string): RvfBrainManifest {
     const qValueCount = t ? (t['rl_q_values']?.length ?? 0) : (brainData.qValues?.length ?? 0);
     const dreamInsightCount = t ? (t['dream_insights']?.length ?? 0) : (brainData.dreamInsights?.length ?? 0);
     const witnessChainLength = t ? (t['witness_chain']?.length ?? 0) : (brainData.witnessChain?.length ?? 0);
+    const tableCounts = t && typeof t === 'object' && !Array.isArray(t)
+      ? Object.fromEntries(
+          Object.entries(t)
+            .filter((entry): entry is [string, Record<string, unknown>[]] => Array.isArray(entry[1]))
+            .map(([tableName, rows]) => [tableName, rows.length]),
+        )
+      : undefined;
 
     return {
       version: '3.0',
@@ -612,6 +683,7 @@ export function brainInfoFromRvf(rvfPath: string): RvfBrainManifest {
         qValueCount,
         dreamInsightCount,
         witnessChainLength,
+        ...(tableCounts ? { tableCounts } : {}),
       },
       domains: brainData.domains ?? [],
       checksum: sha256(brainJson),

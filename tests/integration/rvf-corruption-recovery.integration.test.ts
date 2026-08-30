@@ -27,7 +27,7 @@ import { spawn } from 'child_process';
 import { existsSync, readFileSync, writeFileSync, statSync, rmSync, mkdtempSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 
-import { isRvfNativeAvailable, openRvfStore } from '../../src/integrations/ruvector/rvf-native-adapter.js';
+import { createRvfStore, isRvfNativeAvailable, openRvfStore } from '../../src/integrations/ruvector/rvf-native-adapter.js';
 import { exportBrainToRvf } from '../../src/integrations/ruvector/brain-rvf-exporter.js';
 import {
   quarantineUnusableStore,
@@ -88,6 +88,15 @@ function seedDb(path: string, patternCount = 25): Database.Database {
   return db;
 }
 
+function seedCapturedExperiences(db: Database.Database, count: number): void {
+  const insert = db.prepare(`
+    INSERT INTO captured_experiences
+      (id, task, agent, domain, success, quality, duration_ms)
+    VALUES (?, ?, 'qe-test-architect', 'test-generation', 1, 0.9, 1)
+  `);
+  for (let i = 0; i < count; i++) insert.run(`exp-${i}`, `experience ${i}`);
+}
+
 afterEach(() => {
   for (const d of dirs.splice(0)) {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best-effort */ }
@@ -102,12 +111,14 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
     exportBrainToRvf(richDb, { outputPath: rvfPath }, 'rich.db');
     richDb.close();
     const richBytes = readFileSync(rvfPath);
+    const richIdMap = readFileSync(`${rvfPath}.idmap.json`, 'utf-8');
     const richManifest = readFileSync(`${rvfPath}.manifest.json`, 'utf-8');
 
     const freshDb = seedDb(join(dir, 'fresh.db'), 5);
     expect(() => exportBrainToRvf(freshDb, { outputPath: rvfPath }, 'fresh.db'))
-      .toThrow(/RVF_MIRROR_RICHER.*25 patterns with 5/);
+      .toThrow(/RVF_MIRROR_RICHER.*qe_patterns 25 -> 5/);
     expect(readFileSync(rvfPath).equals(richBytes)).toBe(true);
+    expect(readFileSync(`${rvfPath}.idmap.json`, 'utf-8')).toBe(richIdMap);
     expect(readFileSync(`${rvfPath}.manifest.json`, 'utf-8')).toBe(richManifest);
 
     const forced = exportBrainToRvf(
@@ -117,6 +128,53 @@ describeNative('RVF export atomicity under interruption (#563)', () => {
     );
     expect(forced.stats.patternCount).toBe(5);
     freshDb.close();
+  }, 30_000);
+
+  it('refuses equal-pattern replacement when another mirrored table is richer (#629)', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    const richDb = seedDb(join(dir, 'rich-other-table.db'), 5);
+    seedCapturedExperiences(richDb, 7);
+    exportBrainToRvf(richDb, { outputPath: rvfPath }, 'rich-other-table.db');
+    richDb.close();
+    const richBytes = readFileSync(rvfPath);
+    const richIdMap = readFileSync(`${rvfPath}.idmap.json`, 'utf-8');
+    const richManifest = readFileSync(`${rvfPath}.manifest.json`, 'utf-8');
+
+    const poorerDb = seedDb(join(dir, 'poorer-other-table.db'), 5);
+    expect(() => exportBrainToRvf(poorerDb, { outputPath: rvfPath }, 'poorer-other-table.db'))
+      .toThrow(/RVF_MIRROR_RICHER.*captured_experiences.*7.*0/);
+    expect(readFileSync(rvfPath).equals(richBytes)).toBe(true);
+    expect(readFileSync(`${rvfPath}.idmap.json`, 'utf-8')).toBe(richIdMap);
+    expect(readFileSync(`${rvfPath}.manifest.json`, 'utf-8')).toBe(richManifest);
+    poorerDb.close();
+  }, 30_000);
+
+  it('fails closed when a readable mirror cannot be inspected unambiguously (#629)', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    const ambiguous = createRvfStore(rvfPath, 384);
+    ambiguous.embedKernel(Buffer.from('{"version":"3.0","format":"rvf","tables":null}'));
+    ambiguous.close();
+    const originalBytes = readFileSync(rvfPath);
+
+    const candidateDb = seedDb(join(dir, 'candidate.db'), 5);
+    expect(() => exportBrainToRvf(candidateDb, { outputPath: rvfPath }, 'candidate.db'))
+      .toThrow(/RVF_MIRROR_INSPECTION_AMBIGUOUS/);
+    expect(readFileSync(rvfPath).equals(originalBytes)).toBe(true);
+    candidateDb.close();
+  }, 30_000);
+
+  it('still replaces a mirror with known structural corruption (#563)', () => {
+    const dir = workDir();
+    const rvfPath = join(dir, 'brain.rvf');
+    writeFileSync(rvfPath, Buffer.concat([Buffer.from('SFVR'), Buffer.alloc(158)]));
+
+    const candidateDb = seedDb(join(dir, 'recovery-candidate.db'), 5);
+    const manifest = exportBrainToRvf(candidateDb, { outputPath: rvfPath }, 'recovery-candidate.db');
+    expect(manifest.stats.patternCount).toBe(5);
+    expect(() => openRvfStore(rvfPath).close()).not.toThrow();
+    candidateDb.close();
   }, 30_000);
 
   it('leaves the previous good store intact when the export is SIGKILLed mid-write', async () => {
