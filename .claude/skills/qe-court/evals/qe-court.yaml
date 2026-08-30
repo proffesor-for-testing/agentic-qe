@@ -3,8 +3,8 @@ version: 0.3.0
 status: active
 description: >
   Acceptance eval for the QE-Court adversarial review protocol (ADR-124).
-  Command-eval suite: each case runs a real oracle from the referee suite
-  (tests/unit/skills/qe-court/referee.test.ts) through the `aqe eval` CLI and
+  Command-eval suite: each case runs a real oracle through the published
+  `aqe-court-referee` executable and
   asserts it passes. Each oracle passes on correct referee logic and FAILS on a
   seeded regression, so a green run is genuine tier-3 evidence — not a self-report.
   The seeded-mutant is mirrored in fixtures/seeded-mutant-delivery/ (canSpend
@@ -16,7 +16,7 @@ test_cases:
     category: overturn
     priority: critical
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "overturn_catches_mutant"
+      command: aqe-court-referee self-test overturn-catches-mutant
     expected:
       exit_code: 0
 
@@ -25,7 +25,7 @@ test_cases:
     category: overturn
     priority: critical
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "overturn_disabled"
+      command: aqe-court-referee self-test overturn-disabled
     expected:
       exit_code: 0
 
@@ -34,7 +34,7 @@ test_cases:
     category: anti-collusion
     priority: critical
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "writer_not_juror_enforced"
+      command: aqe-court-referee self-test writer-not-juror
     expected:
       exit_code: 0
 
@@ -43,7 +43,7 @@ test_cases:
     category: anti-collusion
     priority: high
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "vendor_diversity_enforced"
+      command: aqe-court-referee self-test vendor-diversity
     expected:
       exit_code: 0
 
@@ -52,7 +52,7 @@ test_cases:
     category: doe-gate
     priority: high
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "no_score_without_doe_gate"
+      command: aqe-court-referee self-test doe-score-gate
     expected:
       exit_code: 0
 
@@ -61,7 +61,7 @@ test_cases:
     category: verdict
     priority: high
     input:
-      command: npx vitest run tests/unit/skills/qe-court/referee.test.ts -t "verdict_classes"
+      command: aqe-court-referee self-test verdict-classes
     expected:
       exit_code: 0
 

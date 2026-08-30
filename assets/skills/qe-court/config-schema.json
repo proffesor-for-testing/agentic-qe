@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-qe.dev/schemas/qe-court-config.json",
+  "title": "QE-Court configuration",
+  "type": "object",
+  "required": ["prosecutors", "overturnDepth", "routing", "options"],
+  "properties": {
+    "prosecutors": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "overturnDepth": { "type": "integer", "minimum": 0 },
+    "emitScore": { "type": "boolean" },
+    "routing": {
+      "type": "object",
+      "required": ["jury"],
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "properties": { "provider": { "type": "string", "minLength": 1 }, "model": { "type": "string" } },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "options": {
+      "type": "object",
+      "required": ["writerIsNeverJuror", "minDistinctVendors"],
+      "properties": {
+        "blindFiling": { "type": "boolean" },
+        "writerIsNeverJuror": { "const": true },
+        "minDistinctVendors": { "type": "integer", "minimum": 2 },
+        "requireDoeGatedScore": { "type": "boolean" },
+        "signCourtRecord": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
