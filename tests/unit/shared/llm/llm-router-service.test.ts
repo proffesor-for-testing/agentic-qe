@@ -67,6 +67,20 @@ describe('pickEnabledProviders', () => {
     });
     expect(pickEnabledProviders(cfg, { GOOGLE_API_KEY: 'x' })).not.toContain('gemini');
   });
+
+  it('includes explicitly enabled subscription hosts without fallback entries (#631)', () => {
+    const cfg = mergeRouterConfig(DEFAULT_ROUTER_CONFIG, {
+      providers: {
+        codex: { enabled: true },
+        'claude-code': { enabled: true },
+      } as any,
+    });
+
+    const result = pickEnabledProviders(cfg, {});
+
+    expect(result).toContain('codex');
+    expect(result).toContain('claude-code');
+  });
 });
 
 describe('pickPrimaryAndFallbacks', () => {

@@ -239,6 +239,13 @@ export function pickEnabledProviders(
   for (const p of FALLBACK_PRIORITY) {
     consider(p);
   }
+  // Finally, every explicitly configured provider. The fixed priority list is
+  // an ordering policy, not an allowlist: treating it as one made enabled
+  // subscription hosts (`codex`, `claude-code`) and registered external hosts
+  // unreachable unless repeated in fallbackChain (#631).
+  for (const p of Object.keys(config.providers ?? {}) as ExtendedProviderType[]) {
+    consider(p);
+  }
 
   return result;
 }
