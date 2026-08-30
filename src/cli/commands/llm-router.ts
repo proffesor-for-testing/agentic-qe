@@ -894,11 +894,10 @@ async function executeAdvise(options: AdviseOptions): Promise<void> {
 
     // Lazy-load to keep CLI cold-start fast when advise is not used
     const { createLLMRouterService } = await import('../../shared/llm/llm-router-service.js');
-    const { MultiModelExecutor, DEFAULT_ADVISOR_PROVIDER, DEFAULT_ADVISOR_MODEL } =
+    const { MultiModelExecutor, DEFAULT_ADVISOR_MODEL } =
       await import('../../routing/advisor/multi-model-executor.js');
 
-    const provider = (options.provider ?? DEFAULT_ADVISOR_PROVIDER) as ExtendedProviderType;
-    const model = options.model ?? DEFAULT_ADVISOR_MODEL;
+    const requestedProvider = options.provider as ExtendedProviderType | undefined;
 
     // Use the same config-aware construction path as the kernel. In particular,
     // loadRouterConfig() registers ADR-127 external providers before the
@@ -912,13 +911,20 @@ async function executeAdvise(options: AdviseOptions): Promise<void> {
       allowProjectProviderEndpoints: false,
       override: {
         mode: 'manual',
-        defaultProvider: provider,
-        defaultModel: model,
+        ...(requestedProvider ? { defaultProvider: requestedProvider } : {}),
+        ...(options.model ? { defaultModel: options.model } : {}),
       },
     });
     if (!built) {
-      throw new Error(`No enabled LLM provider is available for advisor provider "${provider}".`);
+      throw new Error(`No enabled LLM provider is available for advisor${requestedProvider ? ` provider "${requestedProvider}"` : ''}.`);
     }
+
+    // With no CLI/MCP override, honor the project's resolved default. Falling
+    // back to OpenRouter here made declared external defaults unreachable when
+    // an OpenRouter key happened to coexist in the environment.
+    const provider = requestedProvider ?? built.resolvedConfig.defaultProvider;
+    const model = options.model ?? built.resolvedConfig.providers?.[provider]?.defaultModel ??
+      built.resolvedConfig.defaultModel ?? DEFAULT_ADVISOR_MODEL;
 
     const executor = new MultiModelExecutor(built.router);
 

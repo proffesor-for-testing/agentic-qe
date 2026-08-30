@@ -390,14 +390,14 @@ describe('ADR-127 declarative external providers (integration)', () => {
         '--import', require.resolve('tsx'), cliEntry,
         'llm', 'advise',
         '--transcript', transcriptPath,
-        '--provider', HOST,
-        '--model', 'proof-model',
         '--agent', 'issue-628-regression',
         '--trigger-reason', 'external-provider-regression',
         '--json',
       ], {
         cwd: projectRoot,
-        env: { ...isolatedEnv(), AQE_CONFIG_ROOT: projectRoot },
+        // A coexisting OpenRouter credential must not override the declared
+        // external default when MCP/CLI omits --provider.
+        env: { ...isolatedEnv(), OPENROUTER_API_KEY: 'coexisting-key', AQE_CONFIG_ROOT: projectRoot },
         encoding: 'utf8',
       });
 
