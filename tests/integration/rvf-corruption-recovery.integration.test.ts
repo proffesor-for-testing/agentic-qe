@@ -64,7 +64,8 @@ function seedDb(path: string, patternCount = 25): Database.Database {
   const db = new Database(path);
   ensureAllBrainTables(db);
   const insertEmbedding = db.prepare(
-    `INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension) VALUES (?, ?, ?)`,
+    `INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, space_id)
+     VALUES (?, ?, ?, ?)`,
   );
   const insert = db.prepare(
     `INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name, description, confidence)
@@ -83,7 +84,7 @@ function seedDb(path: string, patternCount = 25): Database.Database {
     // Deterministic 384-dim float32 vector — content is irrelevant, presence
     // is what drives ingest → idmap.
     const vec = Float32Array.from({ length: 384 }, (_, j) => ((i + j) % 17) / 17);
-    insertEmbedding.run(`pat-${i}`, Buffer.from(vec.buffer), 384);
+    insertEmbedding.run(`pat-${i}`, Buffer.from(vec.buffer), 384, 'rvf-corruption-fixture-space');
   }
   return db;
 }
