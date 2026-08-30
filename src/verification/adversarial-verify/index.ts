@@ -23,5 +23,15 @@ export type {
 export { adversarialVerify, partitionVerdicts } from './verify.js';
 export { synthesizeVerdict, majorityKill, isFindingVerdict } from './synthesize.js';
 export { refuterPrompt, DEFAULT_LENSES } from './prompts.js';
-export { calibrate, type LabeledFinding, type CalibrationReport } from './calibrate.js';
+export {
+  calibrate,
+  qualifyJudge,
+  type CalibrationReport,
+  type ConfidenceInterval,
+  type JudgeQualification,
+  type LabeledFinding,
+  type QualificationDisposition,
+  type QualificationOptions,
+  type QualificationSlice,
+} from './calibrate.js';
 export { verifyGate, type VerifyGateOptions, type VerifyGateResult } from './gate.js';
