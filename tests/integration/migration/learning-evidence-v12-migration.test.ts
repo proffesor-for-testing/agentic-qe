@@ -10,7 +10,7 @@ function sha256(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex');
 }
 
-describe('v11 to v12 learning evidence migration on a disposable copy', () => {
+describe('v11 to current learning evidence migration on a disposable copy', () => {
   const dirs: string[] = [];
   afterEach(() => {
     resetUnifiedMemory();
@@ -21,15 +21,27 @@ describe('v11 to v12 learning evidence migration on a disposable copy', () => {
     const dir = mkdtempSync(join(tmpdir(), 'aqe-learning-evidence-v12-'));
     dirs.push(dir);
     const source = join(dir, 'source-v11.db');
-    const target = join(dir, 'target-v12.db');
+    const target = join(dir, 'target-current.db');
     const fixture = new Database(source);
     fixture.exec(`
       CREATE TABLE schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL, migrated_at TEXT);
       INSERT INTO schema_version VALUES (1, 11, datetime('now'));
-      CREATE TABLE qe_patterns (id TEXT PRIMARY KEY, qe_domain TEXT, domain TEXT);
-      INSERT INTO qe_patterns VALUES ('p1','test-generation','learning-optimization'), ('p2','security-compliance','learning-optimization');
-      CREATE TABLE qe_trajectories (id TEXT PRIMARY KEY, task TEXT NOT NULL);
-      INSERT INTO qe_trajectories VALUES ('t1','fixture task');
+      CREATE TABLE qe_patterns (
+        id TEXT PRIMARY KEY, pattern_type TEXT NOT NULL, qe_domain TEXT NOT NULL,
+        domain TEXT NOT NULL, name TEXT NOT NULL, description TEXT,
+        confidence REAL DEFAULT 0.5, usage_count INTEGER DEFAULT 0,
+        success_rate REAL DEFAULT 0, quality_score REAL DEFAULT 0,
+        tier TEXT DEFAULT 'short-term', created_at TEXT, updated_at TEXT
+      );
+      INSERT INTO qe_patterns (id, pattern_type, qe_domain, domain, name) VALUES
+        ('p1','fixture','test-generation','learning-optimization','fixture one'),
+        ('p2','fixture','security-compliance','learning-optimization','fixture two');
+      CREATE TABLE qe_trajectories (
+        id TEXT PRIMARY KEY, task TEXT NOT NULL, agent TEXT, domain TEXT,
+        started_at TEXT, ended_at TEXT, success INTEGER,
+        steps_json TEXT, metadata_json TEXT
+      );
+      INSERT INTO qe_trajectories (id, task, domain) VALUES ('t1','fixture task','test-generation');
     `);
     fixture.close();
     const sourceBefore = sha256(source);
@@ -40,7 +52,7 @@ describe('v11 to v12 learning evidence migration on a disposable copy', () => {
     const db = manager.getDatabase();
     expect(db.pragma('integrity_check', { simple: true })).toBe('ok');
     expect(db.pragma('foreign_key_check')).toEqual([]);
-    expect((db.prepare('SELECT version FROM schema_version WHERE id=1').get() as { version: number }).version).toBe(12);
+    expect((db.prepare('SELECT version FROM schema_version WHERE id=1').get() as { version: number }).version).toBe(13);
     expect((db.prepare('SELECT COUNT(*) count FROM qe_patterns').get() as { count: number }).count).toBe(2);
     expect((db.prepare('SELECT COUNT(*) count FROM qe_trajectories').get() as { count: number }).count).toBe(1);
     expect((db.prepare("SELECT COUNT(*) count FROM learning_evidence_admissions WHERE disposition='legacy-unknown'").get() as { count: number }).count).toBe(2);
@@ -59,4 +71,3 @@ describe('v11 to v12 learning evidence migration on a disposable copy', () => {
     expect((reopened.getDatabase().prepare('SELECT COUNT(*) count FROM learning_evidence_manifests').get() as { count: number }).count).toBe(2);
   });
 });
-

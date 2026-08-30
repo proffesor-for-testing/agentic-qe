@@ -19,6 +19,8 @@ import {
   resetRuVectorFeatureFlags,
 } from '../../../src/integrations/ruvector/feature-flags.js';
 
+const TEST_SPACE_ID = 'test-runtime-embedding-space';
+
 // ============================================================================
 // Mock RVF Adapter
 // ============================================================================
@@ -136,17 +138,17 @@ describe('RvfPatternStore', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-rvf-pattern-store-'));
     adapter = createMockAdapter();
     store = new RvfPatternStore(
       () => adapter,
-      { rvfPath: '/tmp/test.rvf', base: undefined as any },
+      { rvfPath: path.join(tmpDir, 'test.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     // Attach an isolated, non-unified SQLite store per test — without this,
     // RvfPatternStore.initialize() auto-attaches the ADR-046 unified
     // singleton (memory.db, shared for the whole worker process), so
     // totalPatterns/byDomain leak across tests/files now that getStats()
     // reads them from SQLite. Same pattern as sqlite-aggregate-stats.test.ts.
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-rvf-pattern-store-'));
     const sqliteStore = createSQLitePatternStore({
       useUnified: false,
       dbPath: path.join(tmpDir, 'patterns.db'),
@@ -168,7 +170,11 @@ describe('RvfPatternStore', () => {
 
     it('should skip re-initialization', async () => {
       const factoryFn = vi.fn(() => adapter);
-      const s = new RvfPatternStore(factoryFn, { rvfPath: '/tmp/test.rvf', base: undefined as any });
+      const s = new RvfPatternStore(factoryFn, {
+        rvfPath: path.join(tmpDir, 'second.rvf'),
+        base: undefined as any,
+        embeddingSpaceId: TEST_SPACE_ID,
+      });
       await s.initialize();
       await s.initialize(); // second call
       expect(factoryFn).toHaveBeenCalledTimes(1);
@@ -212,7 +218,7 @@ describe('RvfPatternStore', () => {
       await store.store(pattern);
 
       // Search with its own embedding
-      const result = await store.search(pattern.embedding!, { limit: 5 });
+      const result = await store.search(pattern.embedding!, { limit: 5, embeddingSpaceId: TEST_SPACE_ID });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -240,6 +246,7 @@ describe('RvfPatternStore', () => {
       const result = await store.search(p1.embedding!, {
         domain: 'test-generation',
         limit: 10,
+        embeddingSpaceId: TEST_SPACE_ID,
       });
 
       expect(result.success).toBe(true);
@@ -384,16 +391,16 @@ describe('migratePatterns', () => {
     const adapter = createMockAdapter();
     const mockSqlite = {
       getAllEmbeddings: vi.fn(() => [
-        { patternId: 'p1', embedding: Array.from({ length: 384 }, () => 0.5) },
-        { patternId: 'p2', embedding: Array.from({ length: 384 }, () => 0.3) },
-        { patternId: 'p3', embedding: Array.from({ length: 384 }, () => 0.7) },
+        { patternId: 'p1', embedding: Array.from({ length: 384 }, () => 0.5), spaceId: TEST_SPACE_ID },
+        { patternId: 'p2', embedding: Array.from({ length: 384 }, () => 0.3), spaceId: TEST_SPACE_ID },
+        { patternId: 'p3', embedding: Array.from({ length: 384 }, () => 0.7), spaceId: TEST_SPACE_ID },
       ]),
     };
 
     const result = migratePatterns(
       mockSqlite as any,
       adapter,
-      { batchSize: 2, dimension: 384 },
+      { batchSize: 2, dimension: 384, embeddingSpaceId: TEST_SPACE_ID },
     );
 
     expect(result.totalMigrated).toBe(3);
@@ -408,15 +415,15 @@ describe('migratePatterns', () => {
     const adapter = createMockAdapter();
     const mockSqlite = {
       getAllEmbeddings: vi.fn(() => [
-        { patternId: 'p1', embedding: Array.from({ length: 384 }, () => 0.5) },
-        { patternId: 'p2', embedding: Array.from({ length: 128 }, () => 0.3) }, // wrong dim
+        { patternId: 'p1', embedding: Array.from({ length: 384 }, () => 0.5), spaceId: TEST_SPACE_ID },
+        { patternId: 'p2', embedding: Array.from({ length: 128 }, () => 0.3), spaceId: TEST_SPACE_ID }, // wrong dim
       ]),
     };
 
     const result = migratePatterns(
       mockSqlite as any,
       adapter,
-      { dimension: 384 },
+      { dimension: 384, embeddingSpaceId: TEST_SPACE_ID },
     );
 
     expect(result.totalMigrated).toBe(1);

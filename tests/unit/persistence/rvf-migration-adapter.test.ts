@@ -17,6 +17,11 @@ import type { RvfStore } from '../../../src/integrations/ruvector/rvf-dual-write
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 
+const TEST_SPACE_ID = 'rvf-migration-test-space';
+vi.mock('../../../src/learning/real-embeddings.js', () => ({
+  getActiveEmbeddingSpaceIdentity: () => ({ spaceId: TEST_SPACE_ID }),
+}));
+
 // ============================================================================
 // Test Helpers
 // ============================================================================
@@ -29,6 +34,7 @@ function createTestDb(): DatabaseType {
       embedding BLOB NOT NULL,
       dimension INTEGER NOT NULL,
       model TEXT DEFAULT 'all-MiniLM-L6-v2',
+      space_id TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
@@ -37,12 +43,12 @@ function createTestDb(): DatabaseType {
 
 function seedEmbeddings(db: DatabaseType, count: number, dim = 384): void {
   const insert = db.prepare(
-    'INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension) VALUES (?, ?, ?)',
+    'INSERT OR REPLACE INTO qe_pattern_embeddings (pattern_id, embedding, dimension, space_id) VALUES (?, ?, ?, ?)',
   );
   for (let i = 0; i < count; i++) {
     const vec = new Float32Array(dim);
     for (let j = 0; j < dim; j++) vec[j] = Math.sin(i * 0.1 + j * 0.01);
-    insert.run(`pattern-${i}`, Buffer.from(vec.buffer), dim);
+    insert.run(`pattern-${i}`, Buffer.from(vec.buffer), dim, TEST_SPACE_ID);
   }
 }
 

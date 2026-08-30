@@ -64,12 +64,19 @@ describe('SQLitePatternStore.getRecentEmbeddings()', () => {
 
     for (let i = 0; i < 25; i++) {
       const p = makePattern(`p-${i}`, i);
-      store.storePattern(p, p.embedding);
+      store.storePattern(p, p.embedding, 'test-space');
     }
 
     const recent = store.getRecentEmbeddings(10);
     expect(recent).toHaveLength(10);
     expect(recent.every((r) => Array.isArray(r.embedding) && r.embedding.length === 8)).toBe(true);
+    expect(recent.every((r) => r.spaceId === 'test-space')).toBe(true);
+    expect(store.getEmbeddingSpaceDiagnostics('test-space')).toMatchObject({
+      status: 'healthy',
+      verifiedVectors: 25,
+      unverifiedVectors: 0,
+      mismatchedVectors: 0,
+    });
   });
 
   it('orders by most-recently-used first', async () => {
@@ -77,9 +84,9 @@ describe('SQLitePatternStore.getRecentEmbeddings()', () => {
     await store.initialize();
 
     // Insert in arbitrary order
-    store.storePattern(makePattern('p-2', 2), makePattern('p-2', 2).embedding);
-    store.storePattern(makePattern('p-0', 0), makePattern('p-0', 0).embedding);
-    store.storePattern(makePattern('p-1', 1), makePattern('p-1', 1).embedding);
+    store.storePattern(makePattern('p-2', 2), makePattern('p-2', 2).embedding, 'test-space');
+    store.storePattern(makePattern('p-0', 0), makePattern('p-0', 0).embedding, 'test-space');
+    store.storePattern(makePattern('p-1', 1), makePattern('p-1', 1).embedding, 'test-space');
 
     // storePattern() does not populate last_used_at (that column tracks usage,
     // not creation). Set it explicitly here so the ORDER BY has deterministic
@@ -101,7 +108,7 @@ describe('SQLitePatternStore.getRecentEmbeddings()', () => {
 
     for (let i = 0; i < 5; i++) {
       const p = makePattern(`p-${i}`, i);
-      store.storePattern(p, p.embedding);
+      store.storePattern(p, p.embedding, 'test-space');
     }
 
     // Negative / NaN should fall back to the 1000 default — i.e. return all 5.
@@ -114,5 +121,21 @@ describe('SQLitePatternStore.getRecentEmbeddings()', () => {
     await store.initialize();
 
     expect(store.getRecentEmbeddings(10)).toEqual([]);
+  });
+
+  it('reports legacy rows without space_id as unverified', async () => {
+    const store = createSQLitePatternStore({ dbPath, useUnified: false });
+    await store.initialize();
+    const pattern = makePattern('legacy', 0);
+    store.storePattern(pattern, pattern.embedding, 'test-space');
+
+    const raw = new Database(dbPath);
+    raw.prepare('UPDATE qe_pattern_embeddings SET space_id = NULL WHERE pattern_id = ?').run('legacy');
+    raw.close();
+
+    expect(store.getEmbeddingSpaceDiagnostics('test-space')).toMatchObject({
+      status: 'unverified',
+      unverifiedVectors: 1,
+    });
   });
 });

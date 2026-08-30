@@ -61,7 +61,7 @@ describeNative('createPatternStore RVF recovery (#563)', () => {
     const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
     const memory = { store: async () => {}, retrieve: async () => null } as never;
 
-    const store = createPatternStore(memory);
+    const store = createPatternStore(memory, { embeddingSpaceId: 'rvf-recovery-test-space' });
     // The ladder is lazy — it only runs on initialize(), which is where the
     // open/create/reopen against the unusable file actually happens.
     await store.initialize();

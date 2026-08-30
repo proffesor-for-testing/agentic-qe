@@ -51,6 +51,7 @@ import {
 } from './sqlite-persistence.js';
 import { getWitnessChain } from '../audit/witness-chain.js';
 import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
+import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 
 // Import extracted modules
 import { DEFAULT_QE_REASONING_BANK_CONFIG } from './qe-reasoning-bank-types.js';
@@ -399,6 +400,9 @@ export class QEReasoningBank implements IQEReasoningBank {
     return this.patternStore.search(searchQuery, {
       ...options,
       useVectorSearch,
+      embeddingSpaceId: typeof query === 'string'
+        ? getActiveEmbeddingSpaceIdentity()?.spaceId
+        : options?.embeddingSpaceId,
     });
   }
 

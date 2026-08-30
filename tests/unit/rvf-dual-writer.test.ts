@@ -12,13 +12,30 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Database from 'better-sqlite3';
+
+vi.mock('../../src/learning/real-embeddings.js', () => ({
+  getActiveEmbeddingSpaceIdentity: () => ({ spaceId: 'unrelated-global-space' }),
+}));
+
 import {
   RvfDualWriter,
-  createDualWriter,
+  createDualWriter as createDualWriterImpl,
   type DualWriteConfig,
   type RvfStore,
   type RvfStatus,
 } from '../../src/integrations/ruvector/rvf-dual-writer.js';
+
+const TEST_SPACE_ID = 'rvf-dual-writer-test-space';
+
+function createDualWriter(
+  db: Database.Database,
+  config: DualWriteConfig,
+): RvfDualWriter {
+  return createDualWriterImpl(db, {
+    ...config,
+    embeddingSpaceId: TEST_SPACE_ID,
+  });
+}
 
 // ============================================================================
 // Helpers
@@ -106,6 +123,24 @@ function insertTestPattern(db: Database.Database, id: string): void {
     VALUES (?, 'test-template', 'test-generation', 'test-generation', ?, 'Test pattern')
   `).run(id, `Pattern ${id}`);
 }
+
+it('keeps an injected writer bound to its owning embedding space', () => {
+  const db = createTestDb();
+  insertTestPattern(db, 'owned-space');
+  const writer = createDualWriter(db, {
+    rvfPath: '/tmp/not-opened.rvf',
+    mode: 'sqlite-only',
+  });
+
+  const result = writer.writePattern('owned-space', [1, 0, 0]);
+
+  expect(result.sqliteSuccess).toBe(true);
+  const row = db.prepare(
+    'SELECT space_id AS spaceId FROM qe_pattern_embeddings WHERE pattern_id = ?',
+  ).get('owned-space') as { spaceId: string };
+  expect(row.spaceId).toBe(TEST_SPACE_ID);
+  db.close();
+});
 
 function makeEmbedding(dim = 384): number[] {
   const emb = new Array(dim).fill(0);

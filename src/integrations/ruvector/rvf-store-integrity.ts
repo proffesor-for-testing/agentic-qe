@@ -34,7 +34,7 @@ const LOCK_MAGIC = 'FLVR';
 const LOCK_PID_OFFSET = 4;
 
 /** Sidecars that belong to a store and must be quarantined alongside it. */
-const STORE_SIDECAR_SUFFIXES = ['', '.idmap.json', '.manifest.json'] as const;
+const STORE_SIDECAR_SUFFIXES = ['', '.idmap.json', '.manifest.json', '.space.json'] as const;
 
 /** Read the first `n` bytes of a file, or null if unreadable/shorter. */
 function readHead(path: string, n: number): Buffer | null {

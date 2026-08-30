@@ -21,6 +21,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { RvfPatternStore } from '../../../src/learning/rvf-pattern-store.js';
 import type { RvfNativeAdapter, RvfStatus } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
 
+const TEST_SPACE_ID = 'rvf-orphan-purge-test-space';
+
 function makeFakeAdapter(totalVectors: number): {
   adapter: RvfNativeAdapter;
   deleteSpy: ReturnType<typeof vi.fn>;
@@ -80,6 +82,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     rvfPath = path.join(tmpDir, 'patterns.rvf');
     // A bare placeholder so any future fs check on the file passes.
     fs.writeFileSync(rvfPath, '');
+    fs.writeFileSync(`${rvfPath}.space.json`, JSON.stringify({ version: 1, spaceId: TEST_SPACE_ID }));
   });
 
   afterEach(() => {
@@ -105,7 +108,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     writeIdmap(['keep-1', 'orphan-a', 'keep-2', 'orphan-b', 'keep-3']);
 
     const { adapter, deleteSpy } = makeFakeAdapter(5);
-    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    const store = new RvfPatternStore(() => adapter, { rvfPath, embeddingSpaceId: TEST_SPACE_ID });
     // Inject a fake sqlite store so the init-time auto-attach is skipped.
     store.setSqliteStore(
       makeFakeSqliteStore(3, ['keep-1', 'keep-2', 'keep-3']) as unknown as Parameters<
@@ -124,7 +127,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     writeIdmap(['p1', 'p2', 'p3']);
     const { adapter, deleteSpy } = makeFakeAdapter(3);
 
-    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    const store = new RvfPatternStore(() => adapter, { rvfPath, embeddingSpaceId: TEST_SPACE_ID });
     store.setSqliteStore(
       makeFakeSqliteStore(3, ['p1', 'p2', 'p3']) as unknown as Parameters<
         typeof store.setSqliteStore
@@ -139,7 +142,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     writeIdmap(['p1']);
     const { adapter, deleteSpy } = makeFakeAdapter(1);
 
-    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    const store = new RvfPatternStore(() => adapter, { rvfPath, embeddingSpaceId: TEST_SPACE_ID });
     store.setSqliteStore(
       makeFakeSqliteStore(5, ['p1', 'p2', 'p3', 'p4', 'p5']) as unknown as Parameters<
         typeof store.setSqliteStore
@@ -155,7 +158,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     // Purge cannot compute orphans without idmap — skip silently.
     const { adapter, deleteSpy } = makeFakeAdapter(5);
 
-    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    const store = new RvfPatternStore(() => adapter, { rvfPath, embeddingSpaceId: TEST_SPACE_ID });
     store.setSqliteStore(
       makeFakeSqliteStore(3, ['p1', 'p2', 'p3']) as unknown as Parameters<
         typeof store.setSqliteStore
@@ -170,7 +173,7 @@ describe('RvfPatternStore purges orphan vectors on init (#462)', () => {
     fs.writeFileSync(`${rvfPath}.idmap.json`, '{not-valid-json');
     const { adapter, deleteSpy } = makeFakeAdapter(5);
 
-    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    const store = new RvfPatternStore(() => adapter, { rvfPath, embeddingSpaceId: TEST_SPACE_ID });
     store.setSqliteStore(
       makeFakeSqliteStore(3, ['p1', 'p2', 'p3']) as unknown as Parameters<
         typeof store.setSqliteStore

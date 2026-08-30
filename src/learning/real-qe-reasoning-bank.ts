@@ -20,6 +20,7 @@ import { LoggerFactory } from '../logging/index.js';
 import type { Logger } from '../logging/index.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
 import { maybeEnhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
+import { EMBEDDING_SPACE_CANARY } from './embedding-space.js';
 
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
 import {
@@ -27,6 +28,7 @@ import {
   isTransformerAvailable,
   getEmbeddingDimension,
   clearEmbeddingCache,
+  getActiveEmbeddingSpaceIdentity,
   type EmbeddingConfig,
 } from './real-embeddings.js';
 import {
@@ -329,6 +331,9 @@ export class RealQEReasoningBank {
     await this.sqliteStore.initialize();
     logger.info('SQLite persistence initialized');
 
+    // Establish executable provenance before any persisted vectors enter ANN.
+    await computeRealEmbedding(EMBEDDING_SPACE_CANARY, this.qeConfig.embeddings);
+
     // Initialize HNSW index
     await this.initializeHNSW();
     logger.info('HNSW index initialized');
@@ -406,9 +411,10 @@ export class RealQEReasoningBank {
     let loaded = 0;
     let skipped = 0;
 
-    for (const { patternId, embedding } of embeddings) {
+    const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    for (const { patternId, embedding, spaceId } of embeddings) {
       // Skip invalid or corrupted embeddings
-      if (!embedding || !Array.isArray(embedding) || embedding.length !== expectedDim) {
+      if (!activeSpaceId || spaceId !== activeSpaceId || !embedding || !Array.isArray(embedding) || embedding.length !== expectedDim) {
         skipped++;
         continue;
       }

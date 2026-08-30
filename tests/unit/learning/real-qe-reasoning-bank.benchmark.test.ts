@@ -356,7 +356,7 @@ describe('SQLite Persistence Benchmarks', () => {
     // Store pattern with 384-dimension embedding (matching HNSW index expectations)
     // Use a simple normalized vector for testing
     const testEmbedding = new Array(384).fill(0).map((_, i) => Math.sin(i * 0.01));
-    const id = store.storePattern(pattern, testEmbedding);
+    const id = store.storePattern(pattern, testEmbedding, 'benchmark-runtime-embedding-space');
 
     // Retrieve pattern
     const retrieved = store.getPattern(id);

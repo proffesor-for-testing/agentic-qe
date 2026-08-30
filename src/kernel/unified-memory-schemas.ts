@@ -16,7 +16,7 @@ export { HYPERGRAPH_SCHEMA, PATTERN_NULLS_SCHEMA, LEARNING_EVIDENCE_SCHEMA };
 // Schema Version for Migrations
 // ============================================================================
 
-export const SCHEMA_VERSION = 12; // v12: immutable learning-evidence admission and lineage (ADR-131)
+export const SCHEMA_VERSION = 13; // v12: learning evidence; v13: embedding-space provenance (#633)
 
 export const SCHEMA_VERSION_TABLE = `
   CREATE TABLE IF NOT EXISTS schema_version (
@@ -302,6 +302,7 @@ export const QE_PATTERNS_SCHEMA = `
     embedding BLOB NOT NULL,
     dimension INTEGER NOT NULL,
     model TEXT DEFAULT 'all-MiniLM-L6-v2',
+    space_id TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
   );
@@ -408,6 +409,7 @@ export const QE_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_type ON qe_patterns(pattern_type);
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_tier ON qe_patterns(tier);
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_quality ON qe_patterns(quality_score DESC);
+  CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id);
   CREATE INDEX IF NOT EXISTS idx_qe_usage_pattern ON qe_pattern_usage(pattern_id);
   CREATE INDEX IF NOT EXISTS idx_qe_trajectories_domain ON qe_trajectories(domain);
   CREATE INDEX IF NOT EXISTS idx_embeddings_namespace ON embeddings(namespace);

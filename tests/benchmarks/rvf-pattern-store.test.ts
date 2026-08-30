@@ -30,9 +30,10 @@ import type { QEPattern } from '../../src/learning/qe-patterns.js';
 const BENCH_DIR = join(tmpdir(), `aqe-rvf-bench-${process.pid}-${Date.now()}`);
 const RVF_PATH = join(BENCH_DIR, 'bench-patterns.rvf');
 const DIM = 384;
+const TEST_SPACE_ID = 'benchmark-runtime-embedding-space';
 
 function cleanupBenchFiles(): void {
-  for (const ext of ['', '.idmap.json']) {
+  for (const ext of ['', '.idmap.json', '.space.json']) {
     const p = `${RVF_PATH}${ext}`;
     if (existsSync(p)) unlinkSync(p);
   }
@@ -89,7 +90,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
     const start = performance.now();
     const store = new RvfPatternStore(
       (path, dim) => createRvfStore(path, dim),
-      { rvfPath: RVF_PATH, base: undefined as any },
+      { rvfPath: RVF_PATH, base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     await store.initialize();
     const coldStartMs = performance.now() - start;
@@ -106,7 +107,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
 
     const store = new RvfPatternStore(
       (path, dim) => createRvfStore(path, dim),
-      { rvfPath: RVF_PATH, base: undefined as any },
+      { rvfPath: RVF_PATH, base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     await store.initialize();
 
@@ -142,7 +143,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
 
     const store = new RvfPatternStore(
       (path, dim) => createRvfStore(path, dim),
-      { rvfPath: join(BENCH_DIR, 'search-bench.rvf'), base: undefined as any },
+      { rvfPath: join(BENCH_DIR, 'search-bench.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     await store.initialize();
 
@@ -165,7 +166,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
     for (let i = 0; i < 100; i++) {
       const query = randomEmbedding();
       const start = performance.now();
-      const result = await store.search(query, { limit: 10 });
+      const result = await store.search(query, { limit: 10, embeddingSpaceId: TEST_SPACE_ID });
       latencies.push(performance.now() - start);
 
       if (i === 0 && result.success) {
@@ -187,7 +188,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
 
     await store.dispose();
     // Cleanup
-    for (const ext of ['', '.idmap.json']) {
+    for (const ext of ['', '.idmap.json', '.space.json']) {
       const p = join(BENCH_DIR, `search-bench.rvf${ext}`);
       if (existsSync(p)) unlinkSync(p);
     }
@@ -199,7 +200,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
 
     const store = new RvfPatternStore(
       (path, dim) => createRvfStore(path, dim),
-      { rvfPath: RVF_PATH, base: undefined as any },
+      { rvfPath: RVF_PATH, base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
     );
     await store.initialize();
 
@@ -212,7 +213,7 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
     };
 
     // Search with the same embedding — should find it
-    const result = await store.search(pattern.embedding!, { limit: 5 });
+    const result = await store.search(pattern.embedding!, { limit: 5, embeddingSpaceId: TEST_SPACE_ID });
 
     expect(result.success).toBe(true);
     if (result.success) {

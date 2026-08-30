@@ -575,6 +575,7 @@ export class UnifiedMemoryManager {
         if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();
         if (currentVersion < 12) applyLearningEvidenceMigration(this.db!);
+        if (currentVersion < 13) this.migrateToV13EmbeddingSpace();
 
         this.db!.prepare(`
           INSERT OR REPLACE INTO schema_version (id, version, migrated_at)
@@ -934,6 +935,23 @@ export class UnifiedMemoryManager {
         metadata: row?.metadata ? safeJsonParse(row.metadata) : undefined,
       };
     });
+  }
+
+  /** Additive provenance migration. Existing vectors remain explicitly unverified. */
+  private migrateToV13EmbeddingSpace(): void {
+    const db = this.db!;
+    const table = db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_pattern_embeddings'",
+    ).get();
+    if (!table) {
+      db.exec(QE_PATTERNS_SCHEMA);
+      return;
+    }
+    const columns = db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'space_id')) {
+      db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
   }
 
   getVectorSearchProvenance(): VectorSearchProvenance {

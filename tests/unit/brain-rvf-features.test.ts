@@ -378,9 +378,9 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
       const embedding = Buffer.alloc(384 * 4);
       new Float32Array(embedding.buffer).fill(0.1);
       db.prepare(`
-        INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
-        VALUES (?, ?, ?, ?)
-      `).run('p1', embedding, 384, 'test-model');
+        INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).run('p1', embedding, 384, 'test-model', 'space-a');
 
       mocks.ingest.mockReturnValue({ accepted: 1, rejected: 0 });
 
@@ -390,10 +390,10 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
       const entries = mocks.ingest.mock.calls[0][0];
       expect(entries).toHaveLength(1);
       expect(entries[0].id).toBe('pe:p1');
-      expect(entries[0].metadata).toEqual({ tableName: 'qe_pattern_embeddings' });
+      expect(entries[0].metadata).toEqual({ tableName: 'qe_pattern_embeddings', spaceId: 'space-a' });
     });
 
-    it('should include domain and confidence metadata for captured experiences', () => {
+    it('should exclude captured-experience vectors without provenance from ANN export', () => {
       seedMinimalData(db);
       const embedding = Buffer.alloc(384 * 4);
       new Float32Array(embedding.buffer).fill(0.2);
@@ -406,18 +406,10 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
 
       exportBrainToRvf(db, { outputPath: '/tmp/test-export.rvf' });
 
-      expect(mocks.ingest).toHaveBeenCalledOnce();
-      const entries = mocks.ingest.mock.calls[0][0];
-      const expEntry = entries.find((e: { id: string }) => e.id === 'exp:exp1');
-      expect(expEntry).toBeDefined();
-      expect(expEntry.metadata).toEqual({
-        tableName: 'captured_experiences',
-        domain: 'test-gen',
-        confidence: 0.85,
-      });
+      expect(mocks.ingest).not.toHaveBeenCalled();
     });
 
-    it('should include domain and confidence metadata for sona patterns', () => {
+    it('should exclude SONA vectors without provenance from ANN export', () => {
       seedMinimalData(db);
       const stateEmb = Buffer.alloc(384 * 4);
       new Float32Array(stateEmb.buffer).fill(0.3);
@@ -430,15 +422,7 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
 
       exportBrainToRvf(db, { outputPath: '/tmp/test-export.rvf' });
 
-      expect(mocks.ingest).toHaveBeenCalledOnce();
-      const entries = mocks.ingest.mock.calls[0][0];
-      const sonaEntry = entries.find((e: { id: string }) => e.id === 'sona:sona1');
-      expect(sonaEntry).toBeDefined();
-      expect(sonaEntry.metadata).toEqual({
-        tableName: 'sona_patterns',
-        domain: 'test-gen',
-        confidence: 0.77,
-      });
+      expect(mocks.ingest).not.toHaveBeenCalled();
     });
   });
 

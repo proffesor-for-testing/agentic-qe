@@ -464,9 +464,9 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
     const emb = new Float32Array(dim);
     for (let i = 0; i < dim; i++) emb[i] = i * 0.1;
 
-    sourceDb.prepare(`INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model)
-      VALUES (?, ?, ?, ?)`).run(
-      'pat-1', Buffer.from(emb.buffer), dim, 'test-model',
+    sourceDb.prepare(`INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id)
+      VALUES (?, ?, ?, ?, ?)`).run(
+      'pat-1', Buffer.from(emb.buffer), dim, 'test-model', 'integration-space',
     );
 
     const rvfPath = tmpRvfPath('hnsw-vectors');

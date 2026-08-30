@@ -29,6 +29,8 @@ import {
 } from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';
 import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
+import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
+import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
 
 // Extracted helpers
 import {
@@ -94,11 +96,62 @@ Examples:
   registerImportMergeCommand(learning);
   registerDreamCommand(learning);
   registerBackfillEmbeddingsCommand(learning);
+  registerEmbeddingHealthCommand(learning);
   registerRepairCommand(learning);
   registerHealthCommand(learning);
   registerLoopHealthCommand(learning);
 
   return learning;
+}
+
+// ============================================================================
+// Subcommand: embedding-health (#633)
+// ============================================================================
+
+function registerEmbeddingHealthCommand(learning: Command): void {
+  learning
+    .command('embedding-health')
+    .description('Display active and stored embedding-space provenance')
+    .option('--json', 'Output as JSON')
+    .action(async (options) => {
+      const dbPath = path.join(findProjectRoot(), '.agentic-qe', 'memory.db');
+      if (!existsSync(dbPath)) {
+        throw new Error('Database not found. Run "aqe init --auto" first.');
+      }
+      const db = openDatabase(dbPath, { readonly: true });
+      try {
+        const table = db.prepare(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_pattern_embeddings'",
+        ).get();
+        const hasSpaceId = table
+          ? (db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>)
+              .some((column) => column.name === 'space_id')
+          : false;
+        const rows = table
+          ? db.prepare(
+              `SELECT ${hasSpaceId ? 'space_id' : 'NULL'} AS spaceId FROM qe_pattern_embeddings`,
+            ).all() as Array<{ spaceId: string | null }>
+          : [];
+        const diagnostics = inspectEmbeddingSpaceRows(
+          rows,
+          getActiveEmbeddingSpaceIdentity()?.spaceId ?? null,
+        );
+
+        if (options.json) {
+          printJson(diagnostics);
+          return;
+        }
+        console.log(chalk.bold('\nEmbedding Space Health\n'));
+        console.log(`  Status: ${diagnostics.status}`);
+        console.log(`  Active space: ${diagnostics.activeSpaceId ?? '(runtime not initialized)'}`);
+        console.log(`  Stored spaces: ${diagnostics.storedSpaceIds.join(', ') || '(none)'}`);
+        console.log(`  Verified vectors: ${diagnostics.verifiedVectors}`);
+        console.log(`  Mismatched vectors: ${diagnostics.mismatchedVectors}`);
+        console.log(`  Unverified vectors: ${diagnostics.unverifiedVectors}\n`);
+      } finally {
+        db.close();
+      }
+    });
 }
 
 // ============================================================================

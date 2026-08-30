@@ -60,6 +60,7 @@ const BRAIN_TABLE_DDL: readonly string[] = [
   `CREATE TABLE IF NOT EXISTS qe_pattern_embeddings (
     pattern_id TEXT PRIMARY KEY, embedding BLOB NOT NULL,
     dimension INTEGER NOT NULL, model TEXT DEFAULT 'all-MiniLM-L6-v2',
+    space_id TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (pattern_id) REFERENCES qe_patterns(id) ON DELETE CASCADE
   )`,
@@ -219,6 +220,12 @@ export function ensureAllBrainTables(db: Database.Database): void {
   for (const ddl of BRAIN_TABLE_DDL) {
     db.exec(ddl);
   }
+  const embeddingColumns = db.prepare("PRAGMA table_info('qe_pattern_embeddings')")
+    .all() as Array<{ name: string }>;
+  if (!embeddingColumns.some((column) => column.name === 'space_id')) {
+    db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
 }
 
 /** List of all table names in creation/import order. */

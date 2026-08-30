@@ -15,6 +15,8 @@ import type {
   RvfNativeAdapter,
   RvfStatus as NativeRvfStatus,
 } from './rvf-native-adapter.js';
+import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
+import { verifyOrCreateEmbeddingSpaceManifest } from '../../learning/embedding-space.js';
 
 // ============================================================================
 // Types
@@ -58,6 +60,8 @@ export interface DualWriteConfig {
   mode: 'dual-write' | 'rvf-primary' | 'sqlite-only';
   /** Whether to verify witness chain on startup */
   verifyOnStartup?: boolean;
+  /** Runtime provenance for an injected embedding pipeline. */
+  embeddingSpaceId?: string;
 }
 
 export interface DualWriteResult {
@@ -135,6 +139,11 @@ function tableExists(db: SqliteDb, name: string): boolean {
   return (row?.cnt ?? 0) > 0;
 }
 
+function columnExists(db: SqliteDb, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === column);
+}
+
 // ============================================================================
 // RvfDualWriter
 // ============================================================================
@@ -151,6 +160,17 @@ export class RvfDualWriter {
       ...config,
       dimensions: config.dimensions ?? 384,
     };
+    if (tableExists(this.db, 'qe_pattern_embeddings') && !columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) {
+      this.db.exec('ALTER TABLE qe_pattern_embeddings ADD COLUMN space_id TEXT');
+      this.db.exec('CREATE INDEX IF NOT EXISTS idx_qe_pattern_embeddings_space ON qe_pattern_embeddings(space_id)');
+    }
+  }
+
+  private activeSpaceId(): string | undefined {
+    // An injected writer belongs to the embedder that constructed it.  A
+    // process-global identity may describe a different pipeline initialized by
+    // another subsystem, so it is only a fallback for legacy callers.
+    return this.config.embeddingSpaceId ?? getActiveEmbeddingSpaceIdentity()?.spaceId;
   }
 
   /**
@@ -198,6 +218,11 @@ export class RvfDualWriter {
       }
 
       this.rvfStore = wrapNativeAdapter(nativeAdapter, this.config.dimensions);
+      verifyOrCreateEmbeddingSpaceManifest(
+        this.config.rvfPath,
+        this.activeSpaceId() ?? null,
+        this.rvfStore.status().totalVectors,
+      );
       this.rvfAvailable = true;
     } catch (err) {
       // Native adapter unavailable, or recovery itself failed. Degrade to
@@ -232,6 +257,10 @@ export class RvfDualWriter {
       sqliteSuccess: false,
       rvfSuccess: false,
     };
+    const hasSpaceContract = columnExists(this.db, 'qe_pattern_embeddings', 'space_id');
+    if (!hasSpaceContract || !this.activeSpaceId()) {
+      return { ...result, divergence: 'VECTOR_SPACE_UNVERIFIED' };
+    }
 
     // 1. Always write to SQLite qe_pattern_embeddings
     try {
@@ -302,6 +331,7 @@ export class RvfDualWriter {
    * falls back to SQLite on error. Otherwise uses SQLite.
    */
   search(query: number[] | Float32Array, k: number): Array<{ id: string; score: number }> {
+    if (!this.hasCompatibleEmbeddingSpace()) return [];
     if (this.config.mode === 'rvf-primary' && this.rvfAvailable && this.rvfStore) {
       try {
         return this.rvfStore.search(query, k);
@@ -450,6 +480,18 @@ export class RvfDualWriter {
     );
   }
 
+  private hasCompatibleEmbeddingSpace(): boolean {
+    if (!columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) return false;
+    const activeSpaceId = this.activeSpaceId();
+    if (!activeSpaceId) return false;
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS incompatible
+        FROM qe_pattern_embeddings
+       WHERE space_id IS NULL OR space_id <> ?
+    `).get(activeSpaceId) as { incompatible: number } | undefined;
+    return (row?.incompatible ?? 0) === 0;
+  }
+
   private writeSqliteEmbedding(patternId: string, embedding: number[] | Float32Array): void {
     const blob = Buffer.from(
       embedding instanceof Float32Array
@@ -460,14 +502,21 @@ export class RvfDualWriter {
 
     // Upsert into qe_pattern_embeddings
     if (tableExists(this.db, 'qe_pattern_embeddings')) {
-      this.db.prepare(`
-        INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, created_at)
-        VALUES (?, ?, ?, 'all-MiniLM-L6-v2', datetime('now'))
-        ON CONFLICT(pattern_id) DO UPDATE SET
-          embedding = excluded.embedding,
-          dimension = excluded.dimension,
-          created_at = datetime('now')
-      `).run(patternId, blob, dimension);
+      const spaceId = this.activeSpaceId();
+      if (columnExists(this.db, 'qe_pattern_embeddings', 'space_id')) {
+        if (!spaceId) throw new Error('VECTOR_SPACE_UNVERIFIED: dual writer has no runtime provenance');
+        this.db.prepare(`
+          INSERT INTO qe_pattern_embeddings (pattern_id, embedding, dimension, model, space_id, created_at)
+          VALUES (?, ?, ?, 'all-MiniLM-L6-v2', ?, datetime('now'))
+          ON CONFLICT(pattern_id) DO UPDATE SET
+            embedding = excluded.embedding,
+            dimension = excluded.dimension,
+            space_id = excluded.space_id,
+            created_at = datetime('now')
+        `).run(patternId, blob, dimension, spaceId);
+        return;
+      }
+      throw new Error('VECTOR_SPACE_UNVERIFIED: canonical space_id column is unavailable');
     }
   }
 
@@ -496,9 +545,12 @@ export class RvfDualWriter {
   private searchSqlite(query: number[] | Float32Array, k: number): Array<{ id: string; score: number }> {
     if (!tableExists(this.db, 'qe_pattern_embeddings')) return [];
 
+    const activeSpaceId = this.activeSpaceId();
+    const hasSpaceContract = columnExists(this.db, 'qe_pattern_embeddings', 'space_id');
+    if (!hasSpaceContract || !activeSpaceId) return [];
     const rows = this.db.prepare(
-      'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings'
-    ).all() as Array<{ pattern_id: string; embedding: Buffer; dimension: number }>;
+      'SELECT pattern_id, embedding, dimension FROM qe_pattern_embeddings WHERE space_id = ?'
+    ).all(activeSpaceId) as Array<{ pattern_id: string; embedding: Buffer; dimension: number }>;
 
     const queryArr = query instanceof Float32Array ? Array.from(query) : query;
     const queryMag = Math.sqrt(queryArr.reduce((s, v) => s + v * v, 0));
