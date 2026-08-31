@@ -5,6 +5,59 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.0] - 2026-08-30
+
+This release makes learned evidence, semantic vectors, recovery mirrors, and
+adversarial verdicts carry explicit provenance and fail closed when that
+provenance cannot be established.
+
+### Added
+
+- Added immutable learning-evidence manifests, segment graphs, admission
+  decisions, and pattern lineage in additive unified-memory schema v12, with
+  disposable-copy migration coverage and portable JSONL/RVF backup support
+  ([#638]).
+- Added embedding-space identity and compatibility checks for learned patterns,
+  persisted `space_id` provenance in additive schema v13, and a read-only
+  `aqe learning embedding-health` diagnostic ([#633]).
+- Added the published `agentic-qe/skills/qe-court/referee` export and
+  `aqe-court-referee` executable, including consumer self-tests ([#632]).
+- Added context-compaction authority lineage, fault-stratified judge
+  qualification, and architecture decisions ADR-129 through ADR-131
+  ([#635], [#636], [#638]).
+
+### Fixed
+
+- Made RVF recovery-mirror replacement compare every portable table and fail
+  closed on ambiguous inspection while retaining explicit corruption recovery
+  and force-overwrite controls ([#629]).
+- Made configured subscription and external providers reachable by the advisor
+  without allowing repository configuration to redirect ambient credentials or
+  replace trusted CLI executables ([#628], [#631]).
+- Preserved authority labels through compaction using JSON-framed transcript
+  records so tool content cannot forge a user-authorized record ([#636]).
+- Required mandatory severity strata, precision, false-keep limits, and
+  directional Wilson confidence bounds before judge automation ([#635]).
+- Added the missing user-facing security disclosure for embedding-backed
+  analysis ([#615]).
+
+### Changed
+
+- Brain exports now cover 31 portable tables and exclude unverified vectors
+  from the portable ANN while retaining their SQLite rows for later repair.
+- The package adds public QE Court API and executable surfaces; this is an
+  additive minor release.
+
+[#615]: https://github.com/proffesor-for-testing/agentic-qe/issues/615
+[#628]: https://github.com/proffesor-for-testing/agentic-qe/issues/628
+[#629]: https://github.com/proffesor-for-testing/agentic-qe/issues/629
+[#631]: https://github.com/proffesor-for-testing/agentic-qe/issues/631
+[#632]: https://github.com/proffesor-for-testing/agentic-qe/issues/632
+[#633]: https://github.com/proffesor-for-testing/agentic-qe/issues/633
+[#635]: https://github.com/proffesor-for-testing/agentic-qe/issues/635
+[#636]: https://github.com/proffesor-for-testing/agentic-qe/issues/636
+[#638]: https://github.com/proffesor-for-testing/agentic-qe/issues/638
+
 ## [3.13.12] - 2026-08-21
 
 Downstream tools can now give a host they supervise its own AQE provider
