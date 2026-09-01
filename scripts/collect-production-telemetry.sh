@@ -15,7 +15,9 @@
 #   GITHUB_REPOSITORY        Owner/repo (default: auto-detect from git remote)
 #   GH_TOKEN / GITHUB_TOKEN  GitHub authentication (gh CLI must be authenticated)
 #
-# Designed to run in GitHub Actions or locally with gh CLI.
+# Maintainer-invoked diagnostic only. This script deliberately has no GitHub
+# Actions trigger: its GitHub-derived values are delivery-process proxies, not
+# production observability. See docs/telemetry/README.md before using it.
 # Individual API failures produce null fields, not script crash.
 
 # Note: no set -e — individual commands use || fallbacks for error tolerance
