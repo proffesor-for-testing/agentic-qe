@@ -74,6 +74,31 @@ const POISONED_HTML = `<!doctype html>
 </body>
 </html>`;
 
+const CONTENT_HTML = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>QE Browser Content Fixture</title></head>
+<body>
+  <main>
+    <h1>QE Browser Content Fixture</h1>
+    <p>This deterministic page exercises browser assertions and visual comparisons.</p>
+  </main>
+</body>
+</html>`;
+
+const FORM_HTML = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>QE Browser Form Fixture</title></head>
+<body>
+  <main>
+    <h1>Contact form</h1>
+    <form method="post" action="/fixtures/form.html">
+      <label>Email <input id="email" name="email" type="email" autocomplete="email"></label>
+      <button type="submit">Submit</button>
+    </form>
+  </main>
+</body>
+</html>`;
+
 function notFound(res, message) {
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end(`404 Not Found: ${message}\n`);
@@ -92,6 +117,18 @@ function serve(req, res) {
   if (pathname === '/fixtures/injection-poisoned.html') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(POISONED_HTML);
+    return;
+  }
+
+  if (pathname === '/fixtures/content.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(CONTENT_HTML);
+    return;
+  }
+
+  if (pathname === '/fixtures/form.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(FORM_HTML);
     return;
   }
 

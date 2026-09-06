@@ -45,11 +45,10 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
-// Vibium screenshot quirks (verified against v26.3.18 on 2026-04-09):
-//   1. `vibium screenshot -o <path>` IGNORES the directory in <path>.
-//      Only the basename is used, and the file is saved to
-//      `~/Pictures/Vibium/<basename>`. We work around this by reading from
-//      Vibium's actual output dir and copying to the requested location.
+// Vibium screenshot output changed across the supported 26.x releases.
+// Older releases ignore the directory passed to `-o` and save under
+// `~/Pictures/Vibium`; newer releases may honor the requested path. Accept
+// both behaviors so AQE init's compatible-version range stays usable.
 //   2. `--selector` flag does NOT exist on `vibium screenshot`. Selector-
 //      scoped baselines are not supported in v26.3.x. We surface a clear
 //      error if a caller passes one. Future Vibium versions may add it.
@@ -69,21 +68,31 @@ function captureScreenshot(selector, outputPath) {
     );
   }
   const basename = path.basename(outputPath);
-  const args = ['screenshot', '-o', basename, '--full-page'];
+  const candidates = [
+    outputPath,
+    path.resolve(process.cwd(), basename),
+    path.join(vibiumPicturesDir(), basename),
+  ];
+  for (const candidate of candidates) {
+    fs.rmSync(candidate, { force: true });
+  }
+  const args = ['screenshot', '-o', outputPath, '--full-page'];
   const res = vibium(args);
   if (res.status !== 0) {
     throw new Error(`vibium screenshot failed: ${res.stderr.trim() || res.stdout.trim()}`);
   }
-  // Vibium wrote the file to ~/Pictures/Vibium/<basename>, not outputPath.
-  // Copy it to where the caller asked. Use copy-then-unlink so we leave
-  // Vibium's own dir clean for the next run.
-  const vibiumPath = path.join(vibiumPicturesDir(), basename);
-  if (!fs.existsSync(vibiumPath)) {
-    throw new Error(`screenshot output not created at ${vibiumPath} (vibium said: ${res.stdout.trim()})`);
+  const screenshotPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!screenshotPath) {
+    throw new Error(
+      `screenshot output not created at any supported path (${candidates.join(', ')}; ` +
+      `vibium said: ${res.stdout.trim()})`
+    );
   }
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.copyFileSync(vibiumPath, outputPath);
-  fs.unlinkSync(vibiumPath);
+  if (screenshotPath !== outputPath) {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.copyFileSync(screenshotPath, outputPath);
+    fs.unlinkSync(screenshotPath);
+  }
   return outputPath;
 }
 

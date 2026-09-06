@@ -106,6 +106,20 @@ describe('qe-browser fixtures/serve-skills', () => {
     }, 10000);
   });
 
+  describe('browser eval pages', () => {
+    it('serves deterministic content and form pages without an external service', async () => {
+      const { port } = await startServer({ QE_BROWSER_FIXTURE_PORT: '18806' });
+      const content = await fetch('127.0.0.1', port, '/fixtures/content.html');
+      const form = await fetch('127.0.0.1', port, '/fixtures/form.html');
+
+      expect(content.status).toBe(200);
+      expect(content.body).toContain('<h1>QE Browser Content Fixture</h1>');
+      expect(form.status).toBe(200);
+      expect(form.body).toContain('input id="email"');
+      expect(form.body).toContain('button type="submit"');
+    }, 10000);
+  });
+
   // M3 regression: the previous startsWith() check could false-pass on
   // sibling directories with shared prefix. path.relative() is the
   // canonical traversal guard.
