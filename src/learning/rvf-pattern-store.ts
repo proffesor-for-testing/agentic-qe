@@ -109,6 +109,8 @@ export class RvfPatternStore implements IPatternStore {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    this.rvfInitError = null;
+
     // Database-free mode (#534): never create an on-disk patterns.rvf (+ .idmap/.lock).
     // Run adapter-less — the store degrades to metadata-only (the same graceful
     // path used when the RVF native binding is unavailable), writing nothing.
@@ -269,6 +271,14 @@ export class RvfPatternStore implements IPatternStore {
       } catch (error) {
         return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
+    }
+
+    if (pattern.embedding && !this.adapter && this.rvfInitError) {
+      return err(new PatternMutationError(
+        pattern.id,
+        'COMMITTED_PENDING_INDEX',
+        new Error(`RVF unavailable after authoritative pattern commit: ${this.rvfInitError}`),
+      ));
     }
 
     // Ingest vector into RVF

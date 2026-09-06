@@ -202,6 +202,55 @@ describe('PatternStore', () => {
       expect(await store.get(pattern.id)).toEqual(pattern);
     });
 
+    it('should report COMMITTED_PENDING_INDEX when HNSW is unavailable after SQLite commit', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
+        .mockResolvedValueOnce(null);
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when the HNSW embedding space mismatches', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'active-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = { insert: vi.fn() };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'stale-space';
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
+    it('should allow an in-memory-only write when HNSW is unavailable', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
+        .mockResolvedValueOnce(null);
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(true);
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
     it('should store a valid pattern', async () => {
       const pattern = createTestPattern();
 

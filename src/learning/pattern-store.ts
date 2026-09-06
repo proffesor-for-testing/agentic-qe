@@ -865,6 +865,13 @@ export class PatternStore implements IPatternStore {
     // Add to HNSW if embedding is available (lazy-load HNSW only when needed)
     if (pattern.embedding) {
       const hnsw = await this.ensureHNSW();
+      if (!hnsw && this.sqliteStore) {
+        return err(new PatternMutationError(
+          pattern.id,
+          'COMMITTED_PENDING_INDEX',
+          new Error('HNSW unavailable after authoritative pattern commit'),
+        ));
+      }
       if (hnsw) {
         try {
           // Cast pattern metadata to CoverageVectorMetadata for HNSW storage

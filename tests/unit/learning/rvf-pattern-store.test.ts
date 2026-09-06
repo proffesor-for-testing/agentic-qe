@@ -213,6 +213,53 @@ describe('RvfPatternStore', () => {
       expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
     });
 
+    it('should report COMMITTED_PENDING_INDEX when RVF initialization failed before SQLite commit', async () => {
+      await store.dispose();
+      const initFailure = new RvfPatternStore(
+        () => { throw new Error('native RVF unavailable'); },
+        { rvfPath: path.join(tmpDir, 'failed-init.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      const sqliteStore = createSQLitePatternStore({
+        useUnified: false,
+        dbPath: path.join(tmpDir, 'failed-init-patterns.db'),
+      });
+      await sqliteStore.initialize();
+      initFailure.setSqliteStore(sqliteStore);
+      store = initFailure;
+      const pattern = makePattern();
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
+    });
+
+    it('should allow an intentional memory-only write without an RVF adapter', async () => {
+      await store.dispose();
+      const createAdapter = vi.fn(() => adapter);
+      const memoryOnly = new RvfPatternStore(
+        createAdapter,
+        { rvfPath: path.join(tmpDir, 'memory-only.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      store = memoryOnly;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'memory';
+
+      try {
+        const result = await store.store(makePattern());
+
+        expect(result.success).toBe(true);
+        expect(createAdapter).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
     it('should report COMMITTED_PENDING_INDEX when RVF rejects the vector without throwing', async () => {
       const pattern = makePattern();
       vi.mocked(adapter.ingest).mockReturnValueOnce({ accepted: 0, rejected: 1 });
