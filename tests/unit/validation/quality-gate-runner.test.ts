@@ -7,7 +7,7 @@
  * the real committed `verification/anchors/qe-anchor-v1.json`.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import {
   runQualityGate,
@@ -15,6 +15,10 @@ import {
   listChecklistIds,
 } from '../../../src/validation/quality-gate-runner.js';
 import type { Judge, JudgeOpinion } from '../../../src/validation/quality-verdict.js';
+import {
+  computeVerificationArtifactDigest,
+  createVerificationReachManifest,
+} from '../../../src/validation/verification-reach.js';
 
 const ANCHOR = path.resolve(__dirname, '../../../verification/anchors/qe-anchor-v1.json');
 
@@ -28,6 +32,39 @@ function fakeJudge(opinions: JudgeOpinion[], ready = true): Judge {
 }
 
 const passingOracle = { passed: true, baselinePassed: true };
+const passingVerificationManifest = () => createVerificationReachManifest({
+  id: 'test-reach-v1',
+  systemUnderTest: 'test-artifact',
+  artifact: {
+    revision: 'test-revision',
+    digest: computeVerificationArtifactDigest('test source'),
+    environment: 'vitest',
+  },
+  generatedAt: '2026-09-06T09:00:00.000Z',
+  risks: [{
+    riskId: 'test-does-not-execute',
+    failureMode: 'test does not execute against the target',
+    severity: 'critical',
+    requiredOracle: 'mutation-oracle',
+    requiredObservations: ['runtime'],
+    dispositionWhenUncovered: 'fail',
+    checks: [{
+      checkId: 'adr-113-oracle',
+      channel: 'runtime',
+      reach: 'direct',
+      evidenceClass: 'EXECUTED',
+      executionStatus: 'passed',
+      target: {
+        revision: 'test-revision',
+        digest: computeVerificationArtifactDigest('test source'),
+        environment: 'vitest',
+      },
+      oracleRef: 'mutation-oracle',
+      observedAt: '2026-09-06T10:00:00.000Z',
+      limitations: [],
+    }],
+  }],
+});
 
 describe('runQualityGate', () => {
   it('should_returnPass_when_oraclePassesAndJudgeFullCoverage', async () => {
@@ -41,12 +78,50 @@ describe('runQualityGate', () => {
       checklistId: 'A1-inRange',
       judge,
       anchorPath: ANCHOR,
+      verificationManifest: passingVerificationManifest(),
     });
 
     // Assert
     expect(result.verdict).toBe('pass');
+    expect(result.qualityVerdict).toBe('pass');
+    expect(result.coverageVerdict).toBe('pass');
     expect(result.mechanical).toBe('pass');
     expect(result.specCoverage).toBe(1.0);
+  });
+
+  it('should_returnLegacyUnknownCoverage_when_manifestIsMissing', async () => {
+    const judge = fakeJudge([{ ran: true, coverage: 1.0, unmet: [] }]);
+
+    const result = await runQualityGate({
+      oracleResult: passingOracle,
+      artifact: 'test source',
+      checklistId: 'A1-inRange',
+      judge,
+      anchorPath: ANCHOR,
+    });
+
+    expect(result.qualityVerdict).toBe('pass');
+    expect(result.coverageVerdict).toBe('inconclusive');
+    expect(result.verdict).toBe('inconclusive');
+    expect(result.verification).toMatchObject({ kind: 'legacy-unknown' });
+  });
+
+  it('should_rejectReachManifest_when_artifactBytesDoNotMatch', async () => {
+    const judge: Judge = {
+      preflight: vi.fn(() => true),
+      grade: vi.fn(() => ({ ran: true, coverage: 1.0, unmet: [] })),
+    };
+
+    await expect(runQualityGate({
+      oracleResult: passingOracle,
+      artifact: 'different artifact bytes',
+      checklistId: 'A1-inRange',
+      judge,
+      anchorPath: ANCHOR,
+      verificationManifest: passingVerificationManifest(),
+    })).rejects.toThrow(/artifact digest does not match/);
+    expect(judge.preflight).not.toHaveBeenCalled();
+    expect(judge.grade).not.toHaveBeenCalled();
   });
 
   it('should_returnFail_when_oracleDidNotRun', async () => {

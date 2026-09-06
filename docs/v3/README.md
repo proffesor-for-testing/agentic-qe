@@ -18,6 +18,7 @@ Welcome to Agentic QE v3 - a complete architectural reimagining with Domain-Driv
 ### Getting Started
 - [Quick Start Guide](guides/getting-started.md)
 - [Quick Reference](guides/quick-reference.md)
+- [Verification Reach Manifests](guides/verification-reach.md)
 - [Migration from v2](migration/v2-to-v3-migration.md)
 
 ### Architecture

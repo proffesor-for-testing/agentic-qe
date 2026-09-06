@@ -313,6 +313,13 @@ export {
   createVersionComparator,
 } from './validation';
 
+export {
+  computeVerificationArtifactDigest,
+  computeVerificationReachManifestHash,
+  createVerificationReachManifest,
+  evaluateVerificationReach,
+} from './validation/verification-reach';
+
 export type {
   // Configuration types
   SwarmValidationConfig,
@@ -340,6 +347,25 @@ export type {
   ComparisonStats,
   TestCaseComparison,
 } from './validation';
+
+export type {
+  FailureModeRequirement,
+  FailureModeReachResult,
+  FailureModeSeverity,
+  UncoveredDisposition,
+  VerificationChannel,
+  VerificationCost,
+  VerificationCoverageVerdict,
+  VerificationEvidenceClass,
+  VerificationExecutionStatus,
+  VerificationReach,
+  VerificationReachEvaluationOptions,
+  VerificationReachLevel,
+  VerificationReachManifest,
+  VerificationReachManifestInput,
+  VerificationReachResult,
+  VerificationTarget,
+} from './validation/verification-reach';
 
 // Version info - read from package.json
 export const VERSION: string = pkg.version;
