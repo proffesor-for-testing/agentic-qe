@@ -836,6 +836,12 @@ export class PatternStore implements IPatternStore {
 
     // R3b: Capture pre-existing pattern for VectorDeltaTracker before overwrite
     const existingPattern = this.patternCache.get(pattern.id) ?? null;
+    let authoritativeCommitted = false;
+
+    const rollbackUncommittedCache = (): void => {
+      this.unindexPattern(pattern);
+      if (existingPattern) this.indexPattern(existingPattern);
+    };
 
     // Index in memory cache
     this.indexPattern(pattern);
@@ -855,9 +861,9 @@ export class PatternStore implements IPatternStore {
           (pattern as { id: string }).id = actualId;
           this.indexPattern(pattern);
         }
+        authoritativeCommitted = true;
       } catch (error) {
-        this.unindexPattern(pattern);
-        if (existingPattern) this.indexPattern(existingPattern);
+        rollbackUncommittedCache();
         return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
     }
@@ -865,11 +871,19 @@ export class PatternStore implements IPatternStore {
     // Add to HNSW if embedding is available (lazy-load HNSW only when needed)
     if (pattern.embedding) {
       const hnsw = await this.ensureHNSW();
-      if (!hnsw && this.sqliteStore) {
+      if (!hnsw && authoritativeCommitted) {
         return err(new PatternMutationError(
           pattern.id,
           'COMMITTED_PENDING_INDEX',
           new Error('HNSW unavailable after authoritative pattern commit'),
+        ));
+      }
+      if (!hnsw && process.env.AQE_MEMORY_BACKEND !== 'memory') {
+        rollbackUncommittedCache();
+        return err(new PatternMutationError(
+          pattern.id,
+          'FAILED',
+          new Error('HNSW unavailable before an authoritative pattern commit'),
         ));
       }
       if (hnsw) {
@@ -889,7 +903,12 @@ export class PatternStore implements IPatternStore {
             totalLines: 0,
           } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
         } catch (error) {
-          return err(new PatternMutationError(pattern.id, 'COMMITTED_PENDING_INDEX', error));
+          if (!authoritativeCommitted) rollbackUncommittedCache();
+          return err(new PatternMutationError(
+            pattern.id,
+            authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+            error,
+          ));
         }
       }
     }

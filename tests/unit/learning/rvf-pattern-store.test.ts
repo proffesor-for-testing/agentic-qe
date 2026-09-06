@@ -260,6 +260,36 @@ describe('RvfPatternStore', () => {
       }
     });
 
+    it('should report FAILED when RVF initialization fails without a SQLite commit', async () => {
+      await store.dispose();
+      const initFailure = new RvfPatternStore(
+        () => { throw new Error('native RVF unavailable'); },
+        { rvfPath: path.join(tmpDir, 'failed-init-no-sqlite.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      await initFailure.initialize();
+      (initFailure as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      store = initFailure;
+
+      const result = await store.store(makePattern());
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+    });
+
+    it('should report FAILED when RVF ingest fails without a SQLite commit', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      vi.mocked(adapter.ingest).mockImplementationOnce(() => { throw new Error('rvf unavailable'); });
+
+      const result = await store.store(makePattern());
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+    });
+
     it('should report COMMITTED_PENDING_INDEX when RVF rejects the vector without throwing', async () => {
       const pattern = makePattern();
       vi.mocked(adapter.ingest).mockReturnValueOnce({ accepted: 0, rejected: 1 });

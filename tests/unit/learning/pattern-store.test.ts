@@ -244,11 +244,50 @@ describe('PatternStore', () => {
       (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
       vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
         .mockResolvedValueOnce(null);
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'memory';
+
+      try {
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(true);
+        expect(await store.get(pattern.id)).toEqual(pattern);
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should roll back the cache and report FAILED when HNSW is unavailable without SQLite', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
+        .mockResolvedValueOnce(null);
 
       const result = await store.store(pattern);
 
-      expect(result.success).toBe(true);
-      expect(await store.get(pattern.id)).toEqual(pattern);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(await store.get(pattern.id)).toBeNull();
+    });
+
+    it('should roll back the cache and report FAILED when HNSW insert fails without SQLite', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = {
+        insert: vi.fn(async () => { throw new Error('index unavailable'); }),
+      };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(await store.get(pattern.id)).toBeNull();
     });
 
     it('should store a valid pattern', async () => {

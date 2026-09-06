@@ -253,6 +253,7 @@ export class RvfPatternStore implements IPatternStore {
     if (pattern.embedding && !activeSpaceId) {
       return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
     }
+    let authoritativeCommitted = false;
 
     // Persist metadata to SQLite. #447: capture the returned id — ON CONFLICT
     // on (name, qe_domain, pattern_type) preserves the existing row's id, so
@@ -268,6 +269,7 @@ export class RvfPatternStore implements IPatternStore {
           // before HNSW ingest (otherwise the index keys diverge from SQLite).
           (pattern as { id: string }).id = actualId;
         }
+        authoritativeCommitted = true;
       } catch (error) {
         return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
@@ -276,8 +278,8 @@ export class RvfPatternStore implements IPatternStore {
     if (pattern.embedding && !this.adapter && this.rvfInitError) {
       return err(new PatternMutationError(
         pattern.id,
-        'COMMITTED_PENDING_INDEX',
-        new Error(`RVF unavailable after authoritative pattern commit: ${this.rvfInitError}`),
+        authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+        new Error(`RVF unavailable ${authoritativeCommitted ? 'after' : 'before'} authoritative pattern commit: ${this.rvfInitError}`),
       ));
     }
 
@@ -292,7 +294,11 @@ export class RvfPatternStore implements IPatternStore {
           throw new Error(`RVF rejected pattern vector (accepted=${ingest.accepted}, rejected=${ingest.rejected})`);
         }
       } catch (error) {
-        return err(new PatternMutationError(pattern.id, 'COMMITTED_PENDING_INDEX', error));
+        return err(new PatternMutationError(
+          pattern.id,
+          authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+          error,
+        ));
       }
     }
 
