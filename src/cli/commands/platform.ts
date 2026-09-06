@@ -8,7 +8,7 @@
  *   verify - Verify a platform's configuration
  */
 
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -93,6 +93,15 @@ export interface PlatformVerificationResult {
 export interface PlatformVerificationOptions {
   expectMcp?: boolean;
   expectRuflo?: boolean;
+  guidancePolicy?: 'full' | 'compact' | 'none';
+}
+
+function detectCodexGuidance(content: string): 'full' | 'compact' | 'none' | 'malformed' {
+  const start = '<!-- BEGIN AGENTIC-QE CODEX -->';
+  const end = '<!-- END AGENTIC-QE CODEX -->';
+  const blocks = content.match(/<!-- BEGIN AGENTIC-QE CODEX -->[\s\S]*?<!-- END AGENTIC-QE CODEX -->/g) || [];
+  if (blocks.length === 0) return content.includes(start) || content.includes(end) ? 'malformed' : 'none';
+  return blocks[0]!.includes('Discover AQE tools and skills from their live schemas') ? 'compact' : 'full';
 }
 
 /** Inspect the complete installed surface for a platform without changing it. */
@@ -125,11 +134,14 @@ export function verifyPlatformConfiguration(
 
   const rulesPath = path.join(projectRoot, platform.rulesPath);
   const rulesExists = existsSync(rulesPath);
-  add('Behavioral rules', rulesExists, rulesExists ? platform.rulesPath : `missing: ${platform.rulesPath}`);
-  if (platformId === 'codex' && rulesExists) {
-    const rules = readFileSync(rulesPath, 'utf-8');
-    add('AQE instructions', rules.includes('Quality Engineering Standards (Agentic QE)'),
-      'AGENTS.md contains generated AQE guidance');
+  if (platformId === 'codex') {
+    const expected = options.guidancePolicy ?? 'full';
+    const actual = rulesExists ? detectCodexGuidance(readFileSync(rulesPath, 'utf-8')) : 'none';
+    add('Behavioral rules', expected === 'none' || rulesExists,
+      expected === 'none' ? 'intentionally disabled' : (rulesExists ? platform.rulesPath : `missing: ${platform.rulesPath}`));
+    add('Codex guidance', actual === expected, `selected=${expected}, detected=${actual}`);
+  } else {
+    add('Behavioral rules', rulesExists, rulesExists ? platform.rulesPath : `missing: ${platform.rulesPath}`);
   }
 
   if (platformId === 'codex') {
@@ -234,7 +246,10 @@ export function createPlatformCommand(): Command {
     .description('Set up a specific platform configuration')
     .option('--overwrite', 'Overwrite existing configuration files')
     .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks (Codex only)')
-    .action(async (name: string, options: { overwrite?: boolean; withRuflo?: boolean }) => {
+    .addOption(new Option('--codex-guidance <mode>', 'Codex AGENTS.md guidance policy')
+      .choices(['full', 'compact', 'none'])
+      .default('full'))
+    .action(async (name: string, options: { overwrite?: boolean; withRuflo?: boolean; codexGuidance?: 'full' | 'compact' | 'none' }) => {
       const projectRoot = process.cwd();
 
       if (!isValidPlatformId(name)) {
@@ -264,7 +279,7 @@ export function createPlatformCommand(): Command {
           `create${capitalize(name)}Installer`,
         ];
 
-        let factory: ((opts: { projectRoot: string; overwrite?: boolean }) => { install: () => Promise<unknown> }) | undefined;
+        let factory: ((opts: { projectRoot: string; overwrite?: boolean; guidancePolicy?: 'full' | 'compact' | 'none' }) => { install: () => Promise<unknown> }) | undefined;
         for (const fn of possibleNames) {
           if (typeof installerModule[fn] === 'function') {
             factory = installerModule[fn];
@@ -290,7 +305,10 @@ export function createPlatformCommand(): Command {
         const installer = factory({
           projectRoot,
           overwrite: options.overwrite,
-          ...(name === 'codex' ? { includeRuflo: options.withRuflo } : {}),
+          ...(name === 'codex' ? {
+            includeRuflo: options.withRuflo,
+            guidancePolicy: options.codexGuidance,
+          } : {}),
         });
 
         const result = await installer.install() as {
@@ -339,7 +357,10 @@ export function createPlatformCommand(): Command {
     .description('Verify a platform configuration is correct')
     .option('--no-mcp', 'Verify a deliberately MCP-free platform installation')
     .option('--with-ruflo', 'Require optional Ruflo guidance and lifecycle hooks (Codex only)')
-    .action(async (name: string, options: { mcp?: boolean; withRuflo?: boolean }) => {
+    .addOption(new Option('--codex-guidance <mode>', 'Expected Codex AGENTS.md guidance policy')
+      .choices(['full', 'compact', 'none'])
+      .default('full'))
+    .action(async (name: string, options: { mcp?: boolean; withRuflo?: boolean; codexGuidance?: 'full' | 'compact' | 'none' }) => {
       const projectRoot = process.cwd();
 
       if (!isValidPlatformId(name)) {
@@ -359,6 +380,7 @@ export function createPlatformCommand(): Command {
       const verification = verifyPlatformConfiguration(projectRoot, name, {
         expectMcp: options.mcp !== false,
         expectRuflo: options.withRuflo,
+        guidancePolicy: options.codexGuidance,
       });
       for (const check of verification.checks) {
         const message = `  [${check.passed ? 'pass' : 'fail'}] ${check.label}: ${check.detail}`;

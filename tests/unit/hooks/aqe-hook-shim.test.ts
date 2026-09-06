@@ -29,9 +29,7 @@ function runShim(
   try {
     const stdout = execFileSync('node', [SHIM, ...args], {
       cwd: REPO_ROOT,
-      // AQE_HOOK_NPX=0 disables the npx fallback so the no-local-bundle cases
-      // no-op deterministically instead of reaching the network.
-      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, AQE_HOOK_NPX: '0', ...extraEnv },
+      env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir, AQE_HOOK_BIN: '/definitely/missing/aqe', ...extraEnv },
       encoding: 'utf-8',
       timeout: 60_000,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -47,10 +45,27 @@ describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
     expect(existsSync(SHIM)).toBe(true);
   });
 
-  it('exits 0 and emits nothing when no project-local AQE exists (never blocks a turn)', () => {
+  it('exits 0 and emits nothing when no AQE executable exists (never blocks a turn)', () => {
     const r = runShim(['route', '--task', 'x', '--json'], '/nonexistent-project-root');
     expect(r.code).toBe(0);
     expect(r.stdout.trim()).toBe('');
+  });
+
+  it('should_useResolvedManagedBundle_withoutInvokingPackageManager_when_projectBundleIsAbsent', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'aqe-shim-bin-'));
+    try {
+      const fakeAqe = join(tmp, 'managed-aqe-bundle.cjs');
+      writeFileSync(fakeAqe, `console.log(JSON.stringify({ argv: process.argv.slice(2) }));`);
+
+      const r = runShim(['session-end', '--json'], tmp, {
+        AQE_HOOK_BUNDLE: fakeAqe,
+      });
+
+      expect(r.code).toBe(0);
+      expect(JSON.parse(r.stdout)).toEqual({ argv: ['hooks', 'session-end', '--json'] });
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it('exits 0 on an unknown subcommand and never leaks stderr to the caller', () => {
@@ -199,7 +214,7 @@ describe('aqe-hook.cjs resilient shim (#510 item 5)', () => {
       );
       const stdout = execFileSync('node', [SHIM, 'route', '--json'], {
         cwd: REPO_ROOT,
-        env: { ...process.env, CLAUDE_PROJECT_DIR: tmp, AQE_HOOK_NPX: '0' },
+        env: { ...process.env, CLAUDE_PROJECT_DIR: tmp, AQE_HOOK_BIN: '/definitely/missing/aqe' },
         input: JSON.stringify({ prompt: 'find flaky tests in the coverage module' }),
         encoding: 'utf-8',
         timeout: 60_000,

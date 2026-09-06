@@ -14,6 +14,8 @@ import { createAgentsInstaller } from '../agents-installer.js';
 import { createN8nInstaller } from '../n8n-installer.js';
 import {
   installBrowserEngine,
+  detectBrowserEngine,
+  diagnosePlatform,
   DEFAULT_VIBIUM_SPEC,
   type BrowserEngineInstallResult,
 } from '../browser-engine-installer.js';
@@ -32,6 +34,7 @@ export interface AssetsResult {
   kiroHooks: number;
   platformsConfigured: string[];
   browserEngine?: BrowserEngineInstallResult;
+  codexGuidance?: { policy: 'full' | 'compact' | 'none'; ownedBytes: number };
 }
 
 /**
@@ -64,6 +67,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let kiroAgents = 0;
     let kiroSkills = 0;
     let kiroHooks = 0;
+    let codexGuidance: AssetsResult['codexGuidance'];
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -128,15 +132,14 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       try {
         // Pre-flight check: if vibium is already on PATH, skip the loud
         // banner so we don't scare users on the common path.
-        const alreadyHere = installBrowserEngine({
-          skip: false,
-          // Use a tiny timeout for the pre-flight detect-only call. The
-          // installer will short-circuit on already-installed without
-          // ever invoking npm.
-          timeoutMs: 5_000,
-        });
-        if (alreadyHere.status === 'already-installed') {
-          browserEngine = alreadyHere;
+        const detected = detectBrowserEngine();
+        if (detected.status === 'ready') {
+          browserEngine = {
+            status: 'already-installed',
+            version: detected.version,
+            packageSpec: DEFAULT_VIBIUM_SPEC,
+            platformHint: diagnosePlatform(),
+          };
           context.services.log(
             `  Browser engine: vibium ${browserEngine.version} (already installed)`
           );
@@ -341,9 +344,11 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
         overwrite: shouldOverwrite,
         installMcp: !options.noMcp,
         includeRuflo: options.withRuflo,
+        guidancePolicy: options.codexGuidance,
         memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
       });
       const res = await installer.install();
+      codexGuidance = { policy: res.guidancePolicy, ownedBytes: res.ownedGuidanceBytes };
       if (res.mcpConfigured) platformsConfigured.push('codex');
       if (res.errors.length > 0) context.services.warn(`Codex warnings: ${res.errors.join(', ')}`);
       if (res.mcpConfigured) context.services.log(`  Codex MCP: ${res.configPath}`);
@@ -391,6 +396,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       kiroHooks,
       platformsConfigured,
       browserEngine,
+      codexGuidance,
     };
   }
 

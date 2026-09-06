@@ -64,6 +64,7 @@ export class ModularInitOrchestrator {
         withRooCode: options.withRooCode || allPlatforms,
         withCodex: options.withCodex || allPlatforms,
         withRuflo: options.withRuflo,
+        codexGuidance: options.codexGuidance,
         withWindsurf: options.withWindsurf || allPlatforms,
         withContinueDev: options.withContinueDev || allPlatforms,
         withAllPlatforms: options.withAllPlatforms,
@@ -191,6 +192,10 @@ export class ModularInitOrchestrator {
         mcpConfigured: (mcpResult?.data as Record<string, unknown> | undefined)?.configured as boolean ?? false,
         claudeMdGenerated: (claudeMdResult?.data as Record<string, unknown> | undefined)?.generated as boolean ?? false,
         workersStarted: (workersResult?.data as Record<string, unknown> | undefined)?.workersConfigured as number ?? 0,
+        codexGuidance: (assetsResult?.data as { codexGuidance?: {
+          policy: 'full' | 'compact' | 'none';
+          ownedBytes: number;
+        } } | undefined)?.codexGuidance,
       },
       totalDurationMs: Date.now() - startTime,
       timestamp: new Date(),
