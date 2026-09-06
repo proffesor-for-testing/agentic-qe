@@ -41,6 +41,9 @@ and learned-pattern storage.
   fixtures and accepted current Vibium screenshot output paths ([#561], [#667]).
 - Refreshed embedded graph, Ruvocal, and Goal UI dependency locks with clean
   Node 22+ installs and current vulnerability fixes ([#669]).
+- Kept Rust coverage analysis on the Rust instrumentation path so an available
+  JavaScript test runner cannot replace the documented static-estimation
+  fallback with an empty coverage report ([#569]).
 
 ### Changed
 
@@ -52,6 +55,7 @@ and learned-pattern storage.
   [#666]).
 
 [#561]: https://github.com/proffesor-for-testing/agentic-qe/issues/561
+[#569]: https://github.com/proffesor-for-testing/agentic-qe/issues/569
 [#649]: https://github.com/proffesor-for-testing/agentic-qe/issues/649
 [#651]: https://github.com/proffesor-for-testing/agentic-qe/issues/651
 [#653]: https://github.com/proffesor-for-testing/agentic-qe/issues/653
