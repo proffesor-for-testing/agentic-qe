@@ -40,6 +40,7 @@ import type {
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
+import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
 // RVF Pattern Store Configuration
@@ -266,10 +267,7 @@ export class RvfPatternStore implements IPatternStore {
           (pattern as { id: string }).id = actualId;
         }
       } catch (error) {
-        console.warn(
-          `[RvfPatternStore] SQLite persist failed for ${pattern.id}:`,
-          toErrorMessage(error),
-        );
+        return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
     }
 
@@ -279,12 +277,12 @@ export class RvfPatternStore implements IPatternStore {
         const vec = pattern.embedding instanceof Float32Array
           ? pattern.embedding
           : new Float32Array(pattern.embedding);
-        this.adapter.ingest([{ id: pattern.id, vector: vec }]);
+        const ingest = this.adapter.ingest([{ id: pattern.id, vector: vec }]);
+        if (ingest.accepted !== 1 || ingest.rejected !== 0) {
+          throw new Error(`RVF rejected pattern vector (accepted=${ingest.accepted}, rejected=${ingest.rejected})`);
+        }
       } catch (error) {
-        console.warn(
-          `[RvfPatternStore] RVF ingest failed for ${pattern.id}:`,
-          toErrorMessage(error),
-        );
+        return err(new PatternMutationError(pattern.id, 'COMMITTED_PENDING_INDEX', error));
       }
     }
 

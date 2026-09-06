@@ -16,6 +16,7 @@ import {
 import type { QEPattern, QEPatternType, QEDomain } from '../../../src/learning/qe-patterns.js';
 import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+import { PatternMutationError } from '../../../src/learning/pattern-mutation-error.js';
 
 // Ensure these tests exercise the in-memory PatternStore, not the RVF variant
 beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
@@ -165,6 +166,42 @@ describe('PatternStore', () => {
   });
 
   describe('Pattern Storage', () => {
+    it('should roll back the cache and report FAILED when SQLite persistence fails', async () => {
+      const pattern = createTestPattern({ embedding: undefined });
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => { throw new Error('disk full'); }),
+      };
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(await store.get(pattern.id)).toBeNull();
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when HNSW indexing fails after SQLite commit', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = {
+        insert: vi.fn(async () => { throw new Error('index unavailable'); }),
+      };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
     it('should store a valid pattern', async () => {
       const pattern = createTestPattern();
 

@@ -68,6 +68,7 @@ import {
 } from './hyperbolic-pattern-index.js';
 import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -855,7 +856,9 @@ export class PatternStore implements IPatternStore {
           this.indexPattern(pattern);
         }
       } catch (error) {
-        console.warn(`[PatternStore] SQLite persist failed for ${pattern.id}:`, toErrorMessage(error));
+        this.unindexPattern(pattern);
+        if (existingPattern) this.indexPattern(existingPattern);
+        return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
     }
 
@@ -879,7 +882,7 @@ export class PatternStore implements IPatternStore {
             totalLines: 0,
           } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
         } catch (error) {
-          console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
+          return err(new PatternMutationError(pattern.id, 'COMMITTED_PENDING_INDEX', error));
         }
       }
     }

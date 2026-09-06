@@ -160,6 +160,9 @@ export {
   DEFAULT_PATTERN_STORE_CONFIG,
 } from './pattern-store.js';
 
+export { PatternMutationError } from './pattern-mutation-error.js';
+export type { PatternMutationDisposition } from './pattern-mutation-error.js';
+
 export type {
   IPatternStore,
   PatternStoreConfig,
