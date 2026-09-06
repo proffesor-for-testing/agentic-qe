@@ -147,6 +147,7 @@ export class SpeculativeExecutor {
 
         const verifiedPrediction: SpeculativeResult = {
           ...prediction,
+          evidenceClass: 'EXECUTED',
           verified: true,
           actual: actualOutcome,
           correct: prediction.predicted === actualOutcome,
@@ -160,6 +161,7 @@ export class SpeculativeExecutor {
         // Verification failed - keep original prediction unverified
         verified.push({
           ...prediction,
+          evidenceClass: 'INCONCLUSIVE',
           verified: false,
           reasoning: `${prediction.reasoning} (verification failed: ${error instanceof Error ? error.message : 'unknown error'})`,
         });
@@ -216,6 +218,7 @@ export class SpeculativeExecutor {
     }
 
     return {
+      evidenceClass: 'PREDICTED',
       predicted: predictedOutcome,
       confidence: Math.round(adjustedConfidence * 1000) / 1000,
       verified: false,

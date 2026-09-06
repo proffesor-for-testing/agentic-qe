@@ -15,8 +15,11 @@ import {
   SpeculativeResult,
   QualitySignal,
   EarlyExitMetrics,
+  ShadowCalibrationContext,
+  ShadowCalibrationResult,
   DEFAULT_EXIT_CONFIG,
 } from './types';
+import { createHash } from 'node:crypto';
 import { calculateQualitySignal } from './quality-signal';
 import { CoherenceEarlyExit } from './early-exit-decision';
 import { SpeculativeExecutor } from './speculative-executor';
@@ -40,8 +43,17 @@ export interface EarlyExitEvents {
   onLayerComplete?: (layer: TestLayer, result: LayerResult, signal: QualitySignal) => void;
   onDecision?: (decision: EarlyExitDecision, layer: number) => void;
   onEarlyExit?: (exitLayer: number, decision: EarlyExitDecision) => void;
+  onCandidateExit?: (exitLayer: number, decision: EarlyExitDecision) => void;
   onSpeculationComplete?: (speculations: SpeculativeResult[]) => void;
   onComplete?: (result: TestPyramidResult) => void;
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value as Record<string, unknown>)) deepFreeze(child);
+  }
+  return value;
 }
 
 // ============================================================================
@@ -123,12 +135,20 @@ export class EarlyExitController {
    */
   async runWithEarlyExit(
     layers: TestLayer[],
-    executor: LayerExecutor
+    executor: LayerExecutor,
+    calibrationContext?: ShadowCalibrationContext,
   ): Promise<TestPyramidResult> {
     const startTime = Date.now();
     const results: LayerResult[] = [];
     let exitDecision: EarlyExitDecision | null = null;
     let previousSignal: QualitySignal | undefined;
+    let shadowCandidate: {
+      layer: number;
+      decision: EarlyExitDecision;
+      speculations: SpeculativeResult[];
+      estimatedSavings: number;
+      signal: QualitySignal;
+    } | null = null;
 
     // Execute layers until early exit or completion
     for (let i = 0; i < layers.length; i++) {
@@ -156,6 +176,10 @@ export class EarlyExitController {
       // Emit layer complete event
       this.events.onLayerComplete?.(layer, layerResult, signal);
 
+      // The first candidate is the pre-registered counterfactual. The full run
+      // remains authoritative and later signals cannot rewrite that decision.
+      if (shadowCandidate) continue;
+
       // Check for early exit
       exitDecision = this.earlyExit.shouldExit(signal, i);
 
@@ -167,9 +191,6 @@ export class EarlyExitController {
       }
 
       if (exitDecision.canExit) {
-        // Emit early exit event
-        this.events.onEarlyExit?.(i, exitDecision);
-
         // Generate speculative predictions for remaining layers
         const skippedLayers = layers.slice(i + 1);
         let speculations: SpeculativeResult[] = [];
@@ -178,8 +199,9 @@ export class EarlyExitController {
           const batch = await this.speculator.speculate(exitDecision, skippedLayers);
           speculations = batch.predictions;
 
-          // Optionally verify some speculations
-          if (this.config.verificationLayers > 0) {
+          // Enforced mode may sample verification layers. Shadow mode executes
+          // every remaining layer exactly once below.
+          if (this.config.mode === 'enforced' && this.config.verificationLayers > 0) {
             speculations = await this.speculator.verify(
               speculations,
               skippedLayers,
@@ -191,8 +213,20 @@ export class EarlyExitController {
           this.events.onSpeculationComplete?.(speculations);
         }
 
-        const totalDuration = Date.now() - startTime;
         const computeSavings = this.estimateComputeSavings(i, layers);
+        if (this.config.mode !== 'enforced') {
+          shadowCandidate = {
+            layer: i, decision: exitDecision, speculations,
+            estimatedSavings: computeSavings, signal,
+          };
+          this.events.onCandidateExit?.(i, exitDecision);
+          continue;
+        }
+
+        // Emit an actual early exit only in explicitly enforced mode.
+        this.events.onEarlyExit?.(i, exitDecision);
+
+        const totalDuration = Date.now() - startTime;
 
         const result = this.createPyramidResult(
           results,
@@ -220,17 +254,19 @@ export class EarlyExitController {
     const totalDuration = Date.now() - startTime;
     const finalSignal = previousSignal || this.createDefaultSignal();
 
-    const result = this.createPyramidResult(
-      results,
-      false,
-      layers.length - 1,
-      exitDecision || this.createDefaultDecision(layers.length - 1),
-      [],
-      0,
-      totalDuration,
-      0,
-      finalSignal
-    );
+    const result = shadowCandidate
+      ? this.createShadowResult(results, shadowCandidate, totalDuration, finalSignal, calibrationContext)
+      : this.createPyramidResult(
+        results,
+        false,
+        layers.length - 1,
+        exitDecision || this.createDefaultDecision(layers.length - 1),
+        [],
+        0,
+        totalDuration,
+        0,
+        finalSignal
+      );
 
     // Update metrics
     this.updateMetrics(result);
@@ -238,6 +274,76 @@ export class EarlyExitController {
     // Emit complete event
     this.events.onComplete?.(result);
 
+    return result;
+  }
+
+  private createShadowResult(
+    layers: LayerResult[],
+    candidate: {
+      layer: number;
+      decision: EarlyExitDecision;
+      speculations: SpeculativeResult[];
+      estimatedSavings: number;
+      signal: QualitySignal;
+    },
+    totalDuration: number,
+    finalSignal: QualitySignal,
+    context?: ShadowCalibrationContext,
+  ): TestPyramidResult {
+    const contextBound = context !== undefined && Object.values(context).every(
+      value => typeof value === 'string' && value.trim().length > 0,
+    );
+    const prefixFailed = layers.slice(0, candidate.layer + 1).some(layer => layer.failedTests > 0);
+    const speculativeOutcomes = candidate.speculations.map(result => result.predicted);
+    const predictedVerdict = prefixFailed || speculativeOutcomes.includes('fail')
+      ? 'fail'
+      : speculativeOutcomes.includes('flaky') ? 'inconclusive' : 'pass';
+    const fullRunVerdict = layers.some(layer => layer.failedTests > 0) ? 'fail' : 'pass';
+    const firstMissed = layers.slice(candidate.layer + 1).find(layer => layer.failedTests > 0);
+    const result = this.createPyramidResult(
+      layers, false, candidate.layer, candidate.decision, candidate.speculations,
+      0, totalDuration, 0, finalSignal,
+    );
+    const receiptPayload: Omit<ShadowCalibrationResult, 'receiptId'> = {
+      evidenceClass: contextBound ? 'EXECUTED' : 'INCONCLUSIVE',
+      candidateExitLayer: candidate.layer,
+      candidateSignal: {
+        lambda: candidate.signal.lambda,
+        lambdaPrev: candidate.signal.lambdaPrev,
+        boundaryConcentration: candidate.signal.boundaryConcentration,
+        flags: candidate.signal.flags,
+        timestamp: candidate.signal.timestamp.toISOString(),
+      },
+      thresholds: {
+        minLambdaForExit: this.config.minLambdaForExit,
+        minLambdaStability: this.config.minLambdaStability,
+        maxBoundaryConcentration: this.config.maxBoundaryConcentration,
+        minConfidence: this.config.minConfidence,
+      },
+      predictedLayers: candidate.speculations.map(prediction => ({
+        layerIndex: prediction.layerIndex,
+        layerType: prediction.layerType,
+        outcome: prediction.predicted,
+        confidence: prediction.confidence,
+        evidenceClass: 'PREDICTED' as const,
+      })),
+      predictedVerdict,
+      fullRunVerdict,
+      falsePass: predictedVerdict === 'pass' && fullRunVerdict === 'fail',
+      falseFail: predictedVerdict === 'fail' && fullRunVerdict === 'pass',
+      ...(firstMissed ? { firstMissedFailure: {
+        layerIndex: firstMissed.layerIndex,
+        layerType: firstMissed.layerType,
+        failedTests: firstMissed.failedTests,
+      } } : {}),
+      estimatedSavings: candidate.estimatedSavings,
+      actualSavings: 0,
+      ...(contextBound ? { context: { ...context } } : {}),
+    };
+    result.shadowCalibration = deepFreeze({
+      ...receiptPayload,
+      receiptId: createHash('sha256').update(JSON.stringify(receiptPayload)).digest('hex'),
+    });
     return result;
   }
 
@@ -378,6 +484,7 @@ export class EarlyExitController {
       speculationAccuracy: 0,
       falsePositiveRate: 0,
       falseNegativeRate: 0,
+      shadowCandidateCount: 0,
     };
   }
 
@@ -414,6 +521,17 @@ export class EarlyExitController {
     // Update speculation accuracy
     const speculatorStats = this.speculator.getAccuracyStats();
     this.executionMetrics.speculationAccuracy = speculatorStats.accuracy;
+
+    if (result.shadowCalibration) {
+      const previousCount = this.executionMetrics.shadowCandidateCount;
+      const falsePasses = this.executionMetrics.falsePositiveRate * previousCount
+        + Number(result.shadowCalibration.falsePass);
+      const falseFails = this.executionMetrics.falseNegativeRate * previousCount
+        + Number(result.shadowCalibration.falseFail);
+      this.executionMetrics.shadowCandidateCount++;
+      this.executionMetrics.falsePositiveRate = falsePasses / this.executionMetrics.shadowCandidateCount;
+      this.executionMetrics.falseNegativeRate = falseFails / this.executionMetrics.shadowCandidateCount;
+    }
   }
 
   /**

@@ -21,12 +21,14 @@ import {
   runQualityGate,
   listChecklistIds,
   type QualityGateRequest,
+  type QualityGateVerificationCoverage,
 } from '../../validation/quality-gate-runner.js';
 import {
   createRouterFrontierJudge,
   createUnavailableJudge,
 } from '../../validation/frontier-judge.js';
 import type { Judge } from '../../validation/quality-verdict.js';
+import type { VerificationReachManifest } from '../../validation/verification-reach.js';
 
 export function createQualityGateCommand(
   _context: CLIContext,
@@ -34,7 +36,7 @@ export function createQualityGateCommand(
   _ensureInitialized: () => Promise<boolean>,
 ): Command {
   return new Command('quality-gate')
-    .description('Two-gate, three-valued quality verdict against a pinned ADR-117 checklist (ADR-119)')
+    .description('Fail-closed quality and verification-reach verdict against a pinned checklist')
     .option('-c, --checklist <id>', 'Pinned anchor checklist id (e.g. A1-inRange)')
     .option('-a, --artifact-file <path>', 'File containing the artifact under judgement')
     .option('--artifact <text>', 'Inline artifact text (alternative to --artifact-file)')
@@ -42,6 +44,7 @@ export function createQualityGateCommand(
     .option('--baseline-passed', 'Tests executed against the reference implementation')
     .option('--oracle-file <path>', 'JSON file with { passed, baselinePassed } from the ADR-113 oracle')
     .option('--anchor <path>', 'Override the frozen anchor path (ADR-117)')
+    .option('--verification-manifest <path>', 'Revision-bound failure-mode reach manifest (#651)')
     .option('--model <id>', 'Frontier judge model id (ADR-111: always frontier-tier)')
     .option('--list', 'List the available pinned checklist ids and exit')
     .option('-F, --format <format>', 'Output format (text|json)', 'text')
@@ -82,13 +85,23 @@ export function createQualityGateCommand(
           checklistId: options.checklist,
           judge,
           anchorPath: options.anchor,
+          verificationManifest: resolveVerificationManifest(options.verificationManifest),
         };
         const result = await runQualityGate(request);
 
         if (format === 'json') {
           writeOutput(toJSON(result), options.output);
         } else {
-          printVerdict(result.verdict, result.mechanical, result.specCoverage, result.unmet, result.reason);
+          printVerdict(
+            result.verdict,
+            result.qualityVerdict,
+            result.coverageVerdict,
+            result.mechanical,
+            result.specCoverage,
+            result.unmet,
+            result.reason,
+            result.verification,
+          );
         }
 
         // Exit codes: 0 pass, 1 fail, 3 inconclusive (distinct so CI can branch).
@@ -99,6 +112,11 @@ export function createQualityGateCommand(
         await cleanupAndExit(1);
       }
     });
+}
+
+function resolveVerificationManifest(path?: string): VerificationReachManifest | undefined {
+  if (!path) return undefined;
+  return JSON.parse(fs.readFileSync(path, 'utf8')) as VerificationReachManifest;
 }
 
 function resolveArtifact(options: { artifactFile?: string; artifact?: string }): string | null {
@@ -145,20 +163,37 @@ export async function buildJudge(model?: string): Promise<Judge> {
 
 function printVerdict(
   verdict: string,
+  qualityVerdict: string,
+  coverageVerdict: string,
   mechanical: string,
   specCoverage: number | null,
   unmet: string[],
   reason: string,
+  verification: QualityGateVerificationCoverage,
 ): void {
   const icon = verdict === 'pass' ? chalk.green('✓ PASS')
     : verdict === 'fail' ? chalk.red('✗ FAIL')
     : chalk.yellow('? INCONCLUSIVE');
   console.log(`\n  Quality Gate: ${icon}`);
+  console.log(`  Quality verdict: ${qualityVerdict}`);
+  console.log(`  Coverage verdict: ${coverageVerdict}`);
   console.log(`  Mechanical gate: ${mechanical === 'pass' ? chalk.green('pass') : chalk.red('fail')}`);
   if (specCoverage != null) console.log(`  Spec coverage:   ${chalk.cyan((specCoverage * 100).toFixed(0) + '%')}`);
   if (unmet.length > 0) {
     console.log(chalk.cyan('  Unmet requirements:'));
     for (const u of unmet) console.log(chalk.gray(`    - ${u}`));
+  }
+  if (verification.kind === 'legacy-unknown') {
+    console.log(chalk.yellow(`  Verification reach: ${verification.reason}`));
+  } else {
+    console.log(chalk.cyan('  Verification reach:'));
+    for (const risk of verification.risks) {
+      const direct = risk.directCheckIds.join(', ') || 'none';
+      const partial = risk.partialCheckIds.join(', ') || 'none';
+      const uncovered = risk.uncoveredObservations.join(', ') || 'none';
+      console.log(`    ${risk.riskId}: ${risk.verdict}`);
+      console.log(chalk.gray(`      direct=${direct}; partial=${partial}; uncovered=${uncovered}`));
+    }
   }
   console.log(chalk.gray(`  ${reason}\n`));
 }

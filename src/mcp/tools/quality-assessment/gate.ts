@@ -1,8 +1,8 @@
 /**
  * Agentic QE v3 - Quality Gate MCP Tool (ADR-119)
  *
- * qe/quality/gate - two-gate, three-valued quality verdict against a pinned
- * ADR-117 checklist. Calls the SAME `runQualityGate` orchestrator as the
+ * qe/quality/gate - fail-closed quality and verification-reach verdict against
+ * a pinned ADR-117 checklist. Calls the SAME `runQualityGate` orchestrator as the
  * `aqe quality-gate` CLI subcommand so CLI and MCP stay in exact parity.
  *
  * The frontier judge is built from the forwarded HybridRouter
@@ -14,12 +14,15 @@ import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema } from '../ba
 import { ToolResult } from '../../types';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 import { getLLMRouter } from '../base.js';
-import { runQualityGate } from '../../../validation/quality-gate-runner.js';
+import {
+  runQualityGate,
+  type ReachAwareQualityGateResult,
+} from '../../../validation/quality-gate-runner.js';
 import {
   createRouterFrontierJudge,
   createUnavailableJudge,
 } from '../../../validation/frontier-judge.js';
-import type { QualityVerdictResult } from '../../../validation/quality-verdict.js';
+import type { VerificationReachManifest } from '../../../validation/verification-reach.js';
 
 export interface QualityGateParams {
   /** Pinned anchor checklist id (e.g. "A1-inRange"). */
@@ -33,17 +36,19 @@ export interface QualityGateParams {
   oracle?: { passed: boolean; baselinePassed: boolean } | null;
   /** Override the frozen anchor path (ADR-117). */
   anchorPath?: string;
+  /** Revision-bound evidence proving which failure modes the checks can observe. */
+  verificationManifest?: VerificationReachManifest;
   /** Frontier judge model id (ADR-111: always frontier-tier). */
   model?: string;
   [key: string]: unknown;
 }
 
-export class QualityGateTool extends MCPToolBase<QualityGateParams, QualityVerdictResult> {
+export class QualityGateTool extends MCPToolBase<QualityGateParams, ReachAwareQualityGateResult> {
   readonly config: MCPToolConfig = {
     name: 'qe/quality/gate',
     description:
       'Two-gate, three-valued quality verdict (ADR-119): mechanical oracle gate plus a frontier '
-      + 'judge grading the artifact against a pinned ADR-117 checklist. Returns pass|fail|inconclusive.',
+      + 'judge grading plus failure-mode verification reach. Returns pass|fail|inconclusive.',
     domain: 'quality-assessment',
     schema: QUALITY_GATE_SCHEMA,
     streaming: false,
@@ -53,7 +58,7 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, QualityVerdi
   async execute(
     params: QualityGateParams,
     context: MCPToolContext,
-  ): Promise<ToolResult<QualityVerdictResult>> {
+  ): Promise<ToolResult<ReachAwareQualityGateResult>> {
     try {
       if (!params.checklistId) {
         return { success: false, error: 'checklistId is required' };
@@ -79,6 +84,7 @@ export class QualityGateTool extends MCPToolBase<QualityGateParams, QualityVerdi
         checklistId: params.checklistId,
         judge,
         anchorPath: params.anchorPath,
+        verificationManifest: params.verificationManifest,
       });
 
       return { success: true, data: result };
@@ -110,6 +116,10 @@ const QUALITY_GATE_SCHEMA: MCPToolSchema = {
     anchorPath: {
       type: 'string',
       description: 'Override the frozen anchor path (ADR-117)',
+    },
+    verificationManifest: {
+      type: 'object',
+      description: 'Hashed, revision-bound failure-mode verification reach manifest (#651)',
     },
     model: {
       type: 'string',

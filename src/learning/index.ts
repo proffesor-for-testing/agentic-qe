@@ -101,6 +101,8 @@ export type {
   LearningSegment,
 } from './learning-evidence-admission.js';
 
+export * from './structural-retrieval/index.js';
+
 export type {
   QEDomain,
   QEPatternType,

@@ -53,6 +53,8 @@ export type {
   // Result types
   TestPyramidResult,
   EarlyExitMetrics,
+  ShadowCalibrationContext,
+  ShadowCalibrationResult,
 } from './types';
 
 export {
