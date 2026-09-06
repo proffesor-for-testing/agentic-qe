@@ -20,8 +20,11 @@ import { WasmLoader } from '../../src/integrations/coherence/wasm-loader.js';
 import { InMemoryBackend } from '../../src/kernel/memory-backend.js';
 import { InMemoryEventBus } from '../../src/kernel/event-bus.js';
 import type { CreateQEPatternOptions } from '../../src/learning/qe-patterns.js';
+import type { QEPattern } from '../../src/learning/qe-patterns.js';
 import type { EventBus } from '../../src/kernel/interfaces.js';
 import type { CoherenceNode, CoherenceResult } from '../../src/integrations/coherence/types.js';
+import type { Result } from '../../src/shared/types/index.js';
+import { PatternMutationError } from '../../src/learning/pattern-mutation-error.js';
 
 // ============================================================================
 // Test Helpers
@@ -44,6 +47,20 @@ function createTestPattern(overrides: Partial<CreateQEPatternOptions> = {}): Cre
     context: { tags: ['test'], testType: 'unit' },
     ...overrides,
   };
+}
+
+async function expectCommittedPattern(
+  bank: QEReasoningBank,
+  result: Result<QEPattern>,
+): Promise<QEPattern> {
+  if (result.success) return result.value;
+
+  expect(result.error).toBeInstanceOf(PatternMutationError);
+  const mutationError = result.error as PatternMutationError;
+  expect(mutationError.disposition).toBe('COMMITTED_PENDING_INDEX');
+  const committed = await bank.getPattern(mutationError.patternId);
+  expect(committed).not.toBeNull();
+  return committed!;
 }
 
 /**
@@ -137,7 +154,7 @@ describe('Learning Module Coherence Integration', () => {
         description: 'Arrange-Act-Assert unit testing pattern',
         context: { tags: ['unit-test', 'aaa'], testType: 'unit' },
       }));
-      expect(pattern1.success).toBe(true);
+      await expectCommittedPattern(bank, pattern1);
 
       // Pattern 2: Integration testing pattern (coherent with unit tests)
       const pattern2 = await bank.storePattern(createTestPattern({
@@ -145,7 +162,7 @@ describe('Learning Module Coherence Integration', () => {
         description: 'End-to-end integration testing pattern',
         context: { tags: ['integration-test', 'e2e'], testType: 'integration' },
       }));
-      expect(pattern2.success).toBe(true);
+      await expectCommittedPattern(bank, pattern2);
 
       // Pattern 3: Contradictory pattern (suggests skipping tests)
       const pattern3 = await bank.storePattern(createTestPattern({
@@ -153,7 +170,7 @@ describe('Learning Module Coherence Integration', () => {
         description: 'Pattern that suggests skipping test execution',
         context: { tags: ['skip', 'no-test'], testType: 'unit' },
       }));
-      expect(pattern3.success).toBe(true);
+      await expectCommittedPattern(bank, pattern3);
 
       // Search for test patterns
       const searchResult = await bank.searchPatterns('unit testing best practices', {
@@ -412,49 +429,47 @@ describe('Learning Module Coherence Integration', () => {
       await bank.initialize();
 
       // Store a long-term pattern (existing knowledge)
-      const existingPattern = await bank.storePattern(createTestPattern({
+      const existingResult = await bank.storePattern(createTestPattern({
         name: 'Established Best Practice',
         description: 'Use dependency injection for testability',
         context: { tags: ['di', 'best-practice'] },
       }));
-      expect(existingPattern.success).toBe(true);
-      if (!existingPattern.success) return;
+      const existingPattern = await expectCommittedPattern(bank, existingResult);
 
       // Manually promote to long-term to simulate existing knowledge
       await bank.recordOutcome({
-        patternId: existingPattern.value.id,
+        patternId: existingPattern.id,
         success: true,
       });
       await bank.recordOutcome({
-        patternId: existingPattern.value.id,
+        patternId: existingPattern.id,
         success: true,
       });
       await bank.recordOutcome({
-        patternId: existingPattern.value.id,
+        patternId: existingPattern.id,
         success: true,
       });
 
       // Create conflicting short-term pattern with good metrics
-      const conflictingPattern = await bank.storePattern(createTestPattern({
+      const conflictingResult = await bank.storePattern(createTestPattern({
         name: 'Avoid Dependency Injection',
         description: 'Hardcode dependencies for simplicity',
         context: { tags: ['simple', 'no-di'] },
       }));
-      expect(conflictingPattern.success).toBe(true);
-      if (!conflictingPattern.success) return;
+      const conflictingPattern = await expectCommittedPattern(bank, conflictingResult);
 
       // Give it good metrics
       await bank.recordOutcome({
-        patternId: conflictingPattern.value.id,
+        patternId: conflictingPattern.id,
         success: true,
       });
       await bank.recordOutcome({
-        patternId: conflictingPattern.value.id,
+        patternId: conflictingPattern.id,
         success: true,
       });
 
       // Check coherence between patterns before promotion
-      const patterns = [existingPattern.value, conflictingPattern.value];
+      const patterns = [existingPattern, conflictingPattern];
       const nodes = patterns.map(p => ({
         id: p.id,
         embedding: p.embedding,
@@ -487,7 +502,7 @@ describe('Learning Module Coherence Integration', () => {
       const pattern = await bank.storePattern(createTestPattern({
         name: 'Contradictory Pattern',
       }));
-      expect(pattern.success).toBe(true);
+      await expectCommittedPattern(bank, pattern);
 
       // The event would be emitted during promotion attempt
       // Event structure: { event: 'promotion_blocked', reason: 'coherence_violation', patternId: ... }
@@ -500,25 +515,24 @@ describe('Learning Module Coherence Integration', () => {
       await bank.initialize();
 
       // Create non-conflicting pattern with good metrics
-      const coherentPattern = await bank.storePattern(createTestPattern({
+      const coherentResult = await bank.storePattern(createTestPattern({
         name: 'Well-Tested Component Pattern',
         description: 'Pattern for testing components thoroughly',
         context: { tags: ['testing', 'coverage'] },
       }));
-      expect(coherentPattern.success).toBe(true);
-      if (!coherentPattern.success) return;
+      const coherentPattern = await expectCommittedPattern(bank, coherentResult);
 
       // Record successful uses to qualify for promotion (need 4 to get 3 successfulUses)
       for (let i = 0; i < 4; i++) {
         await bank.recordOutcome({
-          patternId: coherentPattern.value.id,
+          patternId: coherentPattern.id,
           success: true,
           metrics: { testsPassed: 10, coverageImprovement: 0.15 },
         });
       }
 
       // Get updated pattern
-      const updatedPattern = await bank.getPattern(coherentPattern.value.id);
+      const updatedPattern = await bank.getPattern(coherentPattern.id);
       expect(updatedPattern).toBeDefined();
       if (!updatedPattern) return;
 
@@ -547,14 +561,13 @@ describe('Learning Module Coherence Integration', () => {
       await bank.initialize();
 
       // Create pattern
-      const pattern = await bank.storePattern(createTestPattern());
-      expect(pattern.success).toBe(true);
-      if (!pattern.success) return;
+      const patternResult = await bank.storePattern(createTestPattern());
+      const pattern = await expectCommittedPattern(bank, patternResult);
 
       // Record outcomes to qualify for promotion (need 4 to get 3 successfulUses)
       for (let i = 0; i < 4; i++) {
         await bank.recordOutcome({
-          patternId: pattern.value.id,
+          patternId: pattern.id,
           success: true,
         });
       }
@@ -563,7 +576,7 @@ describe('Learning Module Coherence Integration', () => {
       // based only on basic criteria (success rate, usage count)
       // This is graceful degradation behavior
 
-      const updatedPattern = await bank.getPattern(pattern.value.id);
+      const updatedPattern = await bank.getPattern(pattern.id);
       expect(updatedPattern).toBeDefined();
       if (!updatedPattern) return;
 

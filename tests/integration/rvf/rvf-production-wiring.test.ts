@@ -28,6 +28,7 @@ import {
 import {
   createQEReasoningBank,
 } from '../../../src/learning/qe-reasoning-bank.js';
+import { PatternMutationError } from '../../../src/learning/pattern-mutation-error.js';
 
 const TEST_SPACE_ID = 'rvf-production-test-space';
 
@@ -529,11 +530,16 @@ describe.runIf(nativeAvailable)('RVF Native Path (real binding)', () => {
         context: { tags: ['test'] },
       }), 10000, 'bank.storePattern');
 
-      expect(result.success, result.success ? '' : result.error.message).toBe(true);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+        expect(await bank.getPattern((result.error as PatternMutationError).patternId)).not.toBeNull();
+      }
 
-      // Check that the RVF store received the embedding.
+      // The committed row still triggers the independent RVF dual-writer.
       const status = writer.status();
       expect(status.rvf).not.toBeNull();
+      expect(status.rvf?.totalVectors).toBeGreaterThan(0);
 
       // Cleanup
       await bank.dispose().catch(() => {});
