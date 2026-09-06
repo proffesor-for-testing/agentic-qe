@@ -878,7 +878,7 @@ export class PatternStore implements IPatternStore {
           new Error('HNSW unavailable after authoritative pattern commit'),
         ));
       }
-      if (!hnsw && process.env.AQE_MEMORY_BACKEND !== 'memory') {
+      if (!hnsw && (process.env.AQE_MEMORY_BACKEND ?? 'memory') !== 'memory') {
         rollbackUncommittedCache();
         return err(new PatternMutationError(
           pattern.id,

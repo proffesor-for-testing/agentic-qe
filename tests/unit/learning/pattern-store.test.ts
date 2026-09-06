@@ -239,13 +239,13 @@ describe('PatternStore', () => {
       expect(await store.get(pattern.id)).toEqual(pattern);
     });
 
-    it('should allow an in-memory-only write when HNSW is unavailable', async () => {
+    it('should allow the default in-memory write when HNSW is unavailable and the backend is unset', async () => {
       const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
       (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
       vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
         .mockResolvedValueOnce(null);
       const previousBackend = process.env.AQE_MEMORY_BACKEND;
-      process.env.AQE_MEMORY_BACKEND = 'memory';
+      delete process.env.AQE_MEMORY_BACKEND;
 
       try {
         const result = await store.store(pattern);
@@ -263,14 +263,21 @@ describe('PatternStore', () => {
       (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
       vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
         .mockResolvedValueOnce(null);
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
 
-      const result = await store.store(pattern);
+      try {
+        const result = await store.store(pattern);
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
       }
-      expect(await store.get(pattern.id)).toBeNull();
     });
 
     it('should roll back the cache and report FAILED when HNSW insert fails without SQLite', async () => {
@@ -280,14 +287,21 @@ describe('PatternStore', () => {
         insert: vi.fn(async () => { throw new Error('index unavailable'); }),
       };
       (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
 
-      const result = await store.store(pattern);
+      try {
+        const result = await store.store(pattern);
 
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
       }
-      expect(await store.get(pattern.id)).toBeNull();
     });
 
     it('should store a valid pattern', async () => {
