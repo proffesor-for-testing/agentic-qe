@@ -50,7 +50,7 @@ jobs:
     if: github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write PR body to temp file
         # Note: we pass the PR body through an env var rather than
@@ -77,7 +77,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Run parser against every fixture, assert expected outcome
         run: |

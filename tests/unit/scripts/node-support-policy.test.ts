@@ -53,6 +53,25 @@ describe('Node support policy', () => {
     expect(workflow).toContain('npm run test:unit:fast');
   });
 
+  it('uses Node 24-based majors for official JavaScript actions', () => {
+    const workflows = readdirSync(resolve(root, '.github/workflows'))
+      .filter((file) => /\.ya?ml$/.test(file))
+      .map((file) => read(`.github/workflows/${file}`))
+      .join('\n');
+    const supportedMajors = {
+      cache: 6,
+      checkout: 7,
+      'download-artifact': 8,
+      'github-script': 9,
+      'setup-node': 7,
+      'upload-artifact': 7,
+    };
+
+    for (const [action, major] of Object.entries(supportedMajors)) {
+      expect(workflows).not.toMatch(new RegExp(`actions/${action}@v(?!${major}\\b)\\d+`));
+    }
+  });
+
   it('pins the default developer runtime to Node 24', () => {
     expect(read('.nvmrc').trim()).toBe('24');
   });

@@ -35,7 +35,7 @@ on:
   workflow_dispatch: {}
 
 # Least-privilege: this workflow only reads the repo and uploads an artifact.
-# No writes to code, issues, PRs, or releases. actions/upload-artifact@v4
+# No writes to code, issues, PRs, or releases. actions/upload-artifact@v7
 # does not require the `actions` write permission — it uses the ephemeral
 # job token for the artifact API.
 permissions:
@@ -52,10 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -83,10 +83,10 @@ jobs:
     timeout-minutes: 15
     needs: unit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -141,10 +141,10 @@ jobs:
     timeout-minutes: 20
     needs: unit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload eval result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qe-browser-eval-result
           path: /tmp/qe-browser-eval.json
