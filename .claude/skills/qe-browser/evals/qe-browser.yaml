@@ -52,26 +52,18 @@ setup:
   optional_tools:
     - pixelmatch
     - pngjs
-  # NOTE: this yaml deliberately uses ONLY pinned public fixtures
-  # (httpbin.org/*) so it can be run end-to-end by CommandEvalRunner without
-  # any prerequisite services. Tests that need a local poisoned-HTML fixture
-  # (the check-injection severity path) live in scripts/smoke-test.sh, which
-  # starts fixtures/serve-skills.js out of band.
+  # The CI workflow starts fixtures/serve-skills.js on loopback before this
+  # suite runs. Keeping browser targets local removes rate limits and makes
+  # every page stable across repeated visual comparisons.
 
 fixtures:
-  public_pinned:
-    # Pinned public endpoints — chosen because they're stable, well-known, and
-    # serve predictable forms / HTML. Per feedback_no_unverified_failure_modes,
-    # these are the canonical "does the tool actually work" fixtures.
-    httpbin_form:
-      url: "https://httpbin.org/forms/post"
-      description: "Classic simple form — custname, custtel, custemail, size, toppings"
-    httpbin_html:
-      url: "https://httpbin.org/html"
-      description: "Static HTML page with known headings"
-    httpbin_status_404:
-      url: "https://httpbin.org/status/404"
-      description: "Known 404 for testing no_failed_requests"
+  local:
+    form:
+      url: "http://127.0.0.1:8088/fixtures/form.html"
+      description: "Deterministic form with an email input and submit button"
+    content:
+      url: "http://127.0.0.1:8088/fixtures/content.html"
+      description: "Deterministic static page with a known heading"
 
 test_cases:
   # -------- assert.js --------
@@ -81,10 +73,10 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/forms/post"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/form.html"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
-          '[{"kind": "url_contains", "text": "httpbin.org/forms"}]'
+          '[{"kind": "url_contains", "text": "/fixtures/form.html"}]'
     expected:
       exit_code: 0
       json_fields:
@@ -98,7 +90,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
           '[{"kind": "selector_visible", "selector": "h1"}]'
@@ -113,7 +105,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
       command: |
         node .claude/skills/qe-browser/scripts/assert.js --checks \
           '[{"kind": "url_contains", "text": "this-does-not-exist"}]'
@@ -132,10 +124,10 @@ test_cases:
       command: |
         node .claude/skills/qe-browser/scripts/batch.js --steps \
           '[
-            {"action": "go", "url": "https://httpbin.org/html"},
+            {"action": "go", "url": "http://127.0.0.1:8088/fixtures/content.html"},
             {"action": "wait_load"},
             {"action": "assert", "checks": [
-              {"kind": "url_contains", "text": "/html"},
+              {"kind": "url_contains", "text": "/fixtures/content.html"},
               {"kind": "selector_visible", "selector": "h1"}
             ]}
           ]' --summary-only
@@ -154,9 +146,11 @@ test_cases:
       command: |
         node .claude/skills/qe-browser/scripts/batch.js --steps \
           '[
-            {"action": "go", "url": "https://httpbin.org/html"},
-            {"action": "click", "selector": "#does-not-exist"},
-            {"action": "go", "url": "https://httpbin.org/forms/post"}
+            {"action": "go", "url": "http://127.0.0.1:8088/fixtures/content.html"},
+            {"action": "assert", "checks": [
+              {"kind": "url_contains", "text": "/does-not-exist"}
+            ]},
+            {"action": "go", "url": "http://127.0.0.1:8088/fixtures/form.html"}
           ]'
     expected:
       exit_code: 1
@@ -177,7 +171,7 @@ test_cases:
         # different dimensions (768×654 vs 765×672 observed), making the
         # pixel-diff in tc007 spuriously fail. Mirrors scripts/smoke-test.sh.
         - "vibium --headless viewport 1280 720"
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
         - "rm -rf .aqe/visual-baselines/eval_httpbin_html*"
       command: |
         node .claude/skills/qe-browser/scripts/visual-diff.js \
@@ -195,7 +189,7 @@ test_cases:
     input:
       setup:
         - "vibium --headless viewport 1280 720"
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
       command: |
         node .claude/skills/qe-browser/scripts/visual-diff.js \
           --name eval_httpbin_html --threshold 0.02
@@ -212,7 +206,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
       command: |
         node .claude/skills/qe-browser/scripts/check-injection.js --include-hidden
     expected:
@@ -221,15 +215,11 @@ test_cases:
         ".status": "success"
         ".output.checkInjection.severity": "none"
 
-  # GAP: the "poisoned-page detected with severity>=high" contract needs a
-  # local fixture (fixtures/injection-poisoned.html) served by
-  # fixtures/serve-skills.js. That's out of scope for this yaml — we keep
-  # CommandEvalRunner dependency-free so it can run anywhere httpbin.org
-  # is reachable. Coverage of the high-severity path is currently
+  # The "poisoned-page detected with severity>=high" contract is currently
+  # asserted outside this command suite. Coverage of the high-severity path is
   # only asserted by unit tests on check-injection.js (see
   # tests/unit/scripts/qe-browser-check-injection.test.ts). Follow-up:
-  # either teach CommandEvalRunner to spawn the fixture server, or add a
-  # tc009 to scripts/smoke-test.sh that starts/stops it out of band.
+  # add tc009 against fixtures/injection-poisoned.html.
 
   # -------- intent-score.js --------
   - id: tc010_intent_submit_form_on_httpbin
@@ -238,7 +228,7 @@ test_cases:
     priority: critical
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/forms/post"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/form.html"
       command: |
         node .claude/skills/qe-browser/scripts/intent-score.js \
           --intent submit_form
@@ -255,7 +245,7 @@ test_cases:
     priority: medium
     input:
       setup:
-        - "vibium --headless go https://httpbin.org/html"
+        - "vibium --headless go http://127.0.0.1:8088/fixtures/content.html"
       command: |
         node .claude/skills/qe-browser/scripts/intent-score.js --intent fill_email
     expected:
@@ -270,5 +260,4 @@ validation:
   notes: |
     Evaluation assumes:
       - `vibium` v26.3.x+ is on PATH (from `aqe init` or `npm install -g vibium`)
-      - Network access to httpbin.org (public, stable)
-      - Local fixtures server running on :8088 (started in setup.local_docs_server)
+      - Local fixtures server running on 127.0.0.1:8088

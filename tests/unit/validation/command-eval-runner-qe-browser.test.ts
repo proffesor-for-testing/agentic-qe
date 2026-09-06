@@ -84,7 +84,7 @@ describe('CommandEvalRunner — qe-browser integration', () => {
       }
 
       if (cmd.includes('scripts/batch.js')) {
-        const stopOnFail = cmd.includes('#does-not-exist');
+        const stopOnFail = cmd.includes('/does-not-exist');
         if (stopOnFail) {
           return {
             status: 1,

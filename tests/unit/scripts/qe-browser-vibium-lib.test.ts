@@ -228,6 +228,10 @@ describe('qe-browser lib/vibium', () => {
         expect(captured(lib.envelope({ operation: 'x', summary: 'ok', status: 'success' }))).toBe(0);
       });
 
+      it('returns 0 for a completed operation with status: partial', () => {
+        expect(captured(lib.envelope({ operation: 'x', summary: 'empty', status: 'partial' }))).toBe(0);
+      });
+
       it('returns 1 for status: failed', () => {
         expect(captured(lib.envelope({ operation: 'x', summary: 'no', status: 'failed' }))).toBe(1);
       });

@@ -292,7 +292,7 @@ function readInlineOrFile(value) {
 // "we couldn't run the test because the browser engine isn't installed."
 function emit(env) {
   process.stdout.write(`${JSON.stringify(env, null, 2)}\n`);
-  if (env.status === 'success') return 0;
+  if (env.status === 'success' || env.status === 'partial') return 0;
   if (env.status === 'skipped') return 2;
   return 1;
 }
