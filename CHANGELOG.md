@@ -5,6 +5,75 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.1] - 2026-09-06
+
+This release moves AQE to maintained Node.js runtimes and strengthens the
+evidence boundaries around runtime diagnosis, verification, session recovery,
+and learned-pattern storage.
+
+### Added
+
+- Added a reproducible runtime-fault diagnosis benchmark covering clean/fault
+  pairs, classification, localization, abstention, and uncertainty reporting
+  ([#649], [#662]).
+- Added revision-bound verification-reach manifests so quality gates expose
+  direct, partial, uncovered, stale, and legacy-unknown evidence instead of
+  passing without observable failure-mode coverage ([#651], [#664]).
+- Added a 100-query structural-transfer retrieval corpus with deterministic
+  ranking metrics and immutable receipts ([#653], [#665]).
+- Added sanitized judge-measurement receipts with schema-enforced trust,
+  identity, retry, decoding, and timestamp boundaries ([#658], [#670]).
+
+### Fixed
+
+- Hardened legacy session recovery against root escape, symlink and inode
+  substitution, malformed lineage, invalid UTF-8, oversized records, torn
+  tails, and unbounded caller overrides; legacy resume remains explicit and
+  unverified ([#659], [#671]).
+- Made SQLite pattern-write failures and incomplete HNSW/RVF indexing return
+  typed `FAILED` or `COMMITTED_PENDING_INDEX` evidence while preserving
+  committed witness and dual-write side effects ([#660], [#672]).
+- Removed package-manager calls from generated Claude lifecycle hooks, added
+  bounded Codex guidance modes, and separated Vibium detection from readiness
+  installation in response to reports from @pacphi ([#654], [#655], [#656],
+  [#661]).
+- Replaced rate-limited qe-browser public fixtures with deterministic loopback
+  fixtures and accepted current Vibium screenshot output paths ([#561], [#667]).
+- Refreshed embedded graph, Ruvocal, and Goal UI dependency locks with clean
+  Node 22+ installs and current vulnerability fixes ([#669]).
+
+### Changed
+
+- Raised the published runtime floor to Node.js 22.13.0, recommends Node.js 24
+  for development and containers, and moved CI workflows off Node 18/20
+  runtimes ([#663]).
+- Early-exit presets now collect shadow-calibration evidence by default while
+  still executing every layer; enforced skipping remains explicit ([#657],
+  [#666]).
+
+[#561]: https://github.com/proffesor-for-testing/agentic-qe/issues/561
+[#649]: https://github.com/proffesor-for-testing/agentic-qe/issues/649
+[#651]: https://github.com/proffesor-for-testing/agentic-qe/issues/651
+[#653]: https://github.com/proffesor-for-testing/agentic-qe/issues/653
+[#654]: https://github.com/proffesor-for-testing/agentic-qe/issues/654
+[#655]: https://github.com/proffesor-for-testing/agentic-qe/issues/655
+[#656]: https://github.com/proffesor-for-testing/agentic-qe/issues/656
+[#657]: https://github.com/proffesor-for-testing/agentic-qe/issues/657
+[#658]: https://github.com/proffesor-for-testing/agentic-qe/issues/658
+[#659]: https://github.com/proffesor-for-testing/agentic-qe/issues/659
+[#660]: https://github.com/proffesor-for-testing/agentic-qe/issues/660
+[#661]: https://github.com/proffesor-for-testing/agentic-qe/pull/661
+[#662]: https://github.com/proffesor-for-testing/agentic-qe/pull/662
+[#663]: https://github.com/proffesor-for-testing/agentic-qe/pull/663
+[#664]: https://github.com/proffesor-for-testing/agentic-qe/pull/664
+[#665]: https://github.com/proffesor-for-testing/agentic-qe/pull/665
+[#666]: https://github.com/proffesor-for-testing/agentic-qe/pull/666
+[#667]: https://github.com/proffesor-for-testing/agentic-qe/pull/667
+[#669]: https://github.com/proffesor-for-testing/agentic-qe/pull/669
+[#670]: https://github.com/proffesor-for-testing/agentic-qe/pull/670
+[#671]: https://github.com/proffesor-for-testing/agentic-qe/pull/671
+[#672]: https://github.com/proffesor-for-testing/agentic-qe/pull/672
+
 ## [3.14.0] - 2026-08-30
 
 This release makes learned evidence, semantic vectors, recovery mirrors, and
