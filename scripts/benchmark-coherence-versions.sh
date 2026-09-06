@@ -10,7 +10,7 @@
 #   ./scripts/benchmark-coherence-versions.sh --quick      # Quick test without git switching
 #
 # Requirements:
-#   - Node.js 18+
+#   - Node.js 22.13+
 #   - npm
 #   - Git (for version switching)
 #

@@ -38,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -47,7 +47,7 @@ jobs:
         run: bash scripts/ci-vitest-run.sh tests/unit/mcp/handlers/ --fileParallelism=false --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-unit-handlers-results
@@ -59,8 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -68,7 +68,7 @@ jobs:
         run: timeout 480 npx vitest run tests/unit/mcp/security/ --fileParallelism=false --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-unit-security-results
@@ -80,8 +80,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -95,7 +95,7 @@ jobs:
           --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-unit-tools-transport-results
@@ -107,8 +107,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -124,7 +124,7 @@ jobs:
           --reporter=verbose
         env:
           NODE_OPTIONS: '--max-old-space-size=1024'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-unit-root-results
@@ -137,8 +137,8 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       # C3: integration tests under tests/integration/mcp drive the BUILT
@@ -174,7 +174,7 @@ jobs:
           fail-on-error: false
           fail-on-empty: false
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-integration-test-results
@@ -189,8 +189,8 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -199,7 +199,7 @@ jobs:
         run: timeout 480 npm run mcp:validate
         continue-on-error: true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-validation-report
@@ -210,7 +210,7 @@ jobs:
         run: timeout 480 npm run mcp:report
         if: always()
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: mcp-report
@@ -225,10 +225,10 @@ jobs:
 
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Create summary comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         if: github.event_name == 'pull_request'
         with:
           script: |

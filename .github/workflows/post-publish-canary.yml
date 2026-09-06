@@ -43,10 +43,10 @@ jobs:
 
     steps:
       - name: Checkout code (for the corpus scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24.13.0'
           cache: 'npm'
@@ -125,14 +125,14 @@ jobs:
 
       - name: Upload audit artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: canary-audit-${{ steps.version.outputs.version }}
           path: audit-logs/
           retention-days: 30
 
       - name: Cache corpus tarballs
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tests/fixtures/init-corpus/.cache
           key: init-corpus-${{ hashFiles('tests/fixtures/init-corpus/MANIFEST.json') }}
@@ -148,7 +148,7 @@ jobs:
 
       - name: Upload canary logs (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: canary-logs-${{ steps.version.outputs.version }}
           path: tests/fixtures/init-corpus/run-logs/

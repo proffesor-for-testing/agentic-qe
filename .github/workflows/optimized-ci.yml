@@ -26,6 +26,19 @@ permissions:
 # Only the "remaining" shard needs explicit excludes.
 
 jobs:
+  # Prove the published minimum independently from the Node 24 primary lanes.
+  node-22-compatibility:
+    name: Node 22 compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '22.13.0', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:unit:fast
+
   # ─── Security audit (fail fast on high/critical CVEs) ───
   # Cheap (~30s), independent of the test shards. Runs in parallel with them
   # so a known CVE blocks the build without waiting for journey tests. Scoped
@@ -36,8 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci --ignore-scripts
       - name: Block on high+critical CVEs in production deps
@@ -57,8 +70,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npx tsx scripts/witness-chain-audit-gate.ts
@@ -71,8 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -86,8 +99,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -101,8 +114,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -123,8 +136,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -162,8 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -182,8 +195,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -200,8 +213,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -245,8 +258,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -265,8 +278,8 @@ jobs:
     if: success()
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -276,7 +289,7 @@ jobs:
           timeout 480 npm run performance:gate > perf-report.md 2>&1 || PERF_EXIT=$?
           echo "PERF_EXIT_CODE=${PERF_EXIT:-0}" >> $GITHUB_OUTPUT
           cat perf-report.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: performance-report
@@ -312,8 +325,8 @@ jobs:
     timeout-minutes: 30
     if: success() && github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0', cache: 'npm' }
       - run: npm ci
       - run: npm run build
@@ -331,7 +344,7 @@ jobs:
           CI: 'true'
           AQE_COVERAGE: 'true'
           CI_VITEST_TIMEOUT: '1500'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -358,8 +371,8 @@ jobs:
     if: always()
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: '24.13.0' }
       - name: Generate Dashboard
         run: node scripts/test-dashboard.cjs
@@ -393,14 +406,14 @@ jobs:
           echo "- Lines reduced: $lines_reduced (-$((lines_reduced * 100 / baseline_lines))%)" >> ci-metrics.md
 
           cat ci-metrics.md
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ci-metrics
           path: ci-metrics.md
           retention-days: 30
       - name: Comment on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');

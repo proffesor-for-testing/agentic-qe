@@ -4,7 +4,7 @@ This guide walks you through setting up and using Agentic QE v3's DDD-based qual
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22.13+ (Node.js 24 recommended)
 - TypeScript 5.0+
 - Claude Code CLI
 - (Optional) PostgreSQL for RuVector code intelligence

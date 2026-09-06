@@ -258,7 +258,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cli-progress": "^3.11.6",
-    "@types/node": "^25.8.0",
+    "@types/node": "^22.0.0",
     "@types/pg": "^8.16.0",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
@@ -275,8 +275,8 @@
     "vitest": "^4.0.16"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=22.13.0",
+    "npm": ">=10.0.0"
   },
   "repository": {
     "type": "git",
