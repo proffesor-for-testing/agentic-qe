@@ -5,15 +5,25 @@
  * claim + evidence + a distinct lens), then deterministically synthesize the
  * finding-verdict@1. The LLM is injected (`Judge`) — no host dependency.
  */
-import type { AdversarialVerifyOptions, Finding, FindingVerdict, RefuterVote } from './types.js';
+import type {
+  AdversarialVerifyOptions,
+  Finding,
+  FindingVerdict,
+  RefuterVote,
+} from './types.js';
 import { DEFAULT_LENSES, refuterPrompt } from './prompts.js';
 import { majorityKill, synthesizeVerdict } from './synthesize.js';
+import { sanitizeJudgeMeasurementReceipt } from './measurement-receipt.js';
 
 /** Call one refuter; a thrown/`null` result is a failed vote (excluded). */
 async function castVote(judge: AdversarialVerifyOptions['judge'], finding: Finding, lens: string): Promise<RefuterVote | null> {
   try {
     const v = await judge(refuterPrompt(finding, lens));
-    return v && typeof v.refuted === 'boolean' ? { refuted: v.refuted, reasoning: String(v.reasoning ?? '') } : null;
+    return v && typeof v.refuted === 'boolean' ? {
+      refuted: v.refuted,
+      reasoning: String(v.reasoning ?? ''),
+      ...(v.measurementReceipt ? { measurementReceipt: sanitizeJudgeMeasurementReceipt(v.measurementReceipt) } : {}),
+    } : null;
   } catch {
     return null;
   }

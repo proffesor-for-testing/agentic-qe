@@ -9,6 +9,10 @@
 
 export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type FindingOutcome = 'upheld' | 'refuted' | 'uncertain';
+export type EndpointClass = 'shared' | 'dedicated' | 'local' | 'UNKNOWN';
+export type SnapshotIdentityLevel = 'L0_UNKNOWN' | 'L1_NAMED' | 'L2_CONTENT_BOUND';
+export type ReceiptSemantics = 'verified' | 'provider-asserted' | 'UNKNOWN';
+export type CacheStatus = 'hit' | 'miss' | 'bypass' | 'UNKNOWN';
 
 /** A claim to be adversarially verified (input). */
 export interface Finding {
@@ -26,6 +30,36 @@ export interface Finding {
 export interface RefuterVote {
   refuted: boolean;
   reasoning: string;
+  /** Optional sanitized identity/configuration evidence supplied by a real adapter. */
+  measurementReceipt?: JudgeMeasurementReceipt;
+}
+
+/** Hash-bound, content-free evidence for one judge request and parsed vote. */
+export interface JudgeMeasurementReceipt {
+  contract: 'judge-measurement@1';
+  provider: string;
+  requestedModel: string;
+  resolvedModel: string;
+  endpointClass: EndpointClass;
+  snapshotIdentity: SnapshotIdentityLevel;
+  semantics: ReceiptSemantics;
+  fingerprint: string;
+  requestHash: string;
+  promptHash: string;
+  configHash: string;
+  parserSchemaHash: string;
+  outputHash: string;
+  parsedVoteHash: string;
+  temperature: number | null;
+  topP: number | null;
+  seed: number | null;
+  deterministic: boolean | null;
+  cacheStatus: CacheStatus;
+  retryCount: number;
+  timestamp: string;
+  windowId: string;
+  latencyMs: number | null;
+  requestId: string;
 }
 
 /**
@@ -47,6 +81,8 @@ export interface FindingVerdict {
   verdict: FindingOutcome;
   /** One entry per refuter that voted to refute (empty when none). */
   refutations: string[];
+  /** Sanitized receipts for cast votes whose adapters supplied measurement evidence. */
+  measurementReceipts?: JudgeMeasurementReceipt[];
 }
 
 export interface AdversarialVerifyOptions {

@@ -265,6 +265,8 @@
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
     "@vitest/coverage-v8": "^4.0.16",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "dotenv": "^17.2.3",
     "esbuild": "^0.28.0",
     "eslint": "^8.55.0",

@@ -5,16 +5,48 @@
  * errors; the quality-gate builder always emits a valid envelope.
  */
 
+import { readFileSync } from 'node:fs';
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
 import { describe, it, expect } from 'vitest';
 import {
   validateRiskDecision,
   validateFindingVerdict,
   validateCoverageGap,
   buildRiskDecisionFromQualityGate,
+  FINDING_VERDICT_SCHEMA,
   type RiskDecision,
   type FindingVerdict,
   type CoverageGap,
 } from '../../../src/contracts/verdicts';
+
+const digest = `sha256:${'a'.repeat(64)}`;
+const goldenMeasurementReceipt = {
+  contract: 'judge-measurement@1' as const,
+  provider: 'provider-a',
+  requestedModel: 'judge',
+  resolvedModel: 'judge-2026-09',
+  endpointClass: 'shared' as const,
+  snapshotIdentity: 'L2_CONTENT_BOUND' as const,
+  semantics: 'verified' as const,
+  fingerprint: 'fp-1',
+  requestHash: digest,
+  promptHash: digest,
+  configHash: digest,
+  parserSchemaHash: digest,
+  outputHash: digest,
+  parsedVoteHash: digest,
+  temperature: 0,
+  topP: 1,
+  seed: 7,
+  deterministic: true,
+  cacheStatus: 'miss' as const,
+  retryCount: 0,
+  timestamp: '2026-09-06T00:00:00.000Z',
+  windowId: '2026-09-06',
+  latencyMs: 42,
+  requestId: 'request-1',
+};
 
 const goldenRiskDecision: RiskDecision = {
   contract: 'risk-decision@1',
@@ -105,6 +137,149 @@ describe('validateFindingVerdict', () => {
 
   it('should reject an unknown verdict value', () => {
     expect(validateFindingVerdict({ ...goldenFindingVerdict, verdict: 'plausible' }).valid).toBe(false);
+  });
+
+  it('should validate a well-formed measurement receipt', () => {
+    const verdict = { ...goldenFindingVerdict, measurementReceipts: [goldenMeasurementReceipt] };
+
+    expect(validateFindingVerdict(verdict)).toEqual({ valid: true, errors: [] });
+  });
+
+  it('should reject a malformed measurement receipt', () => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, latencyMs: -1 }],
+    };
+
+    const result = validateFindingVerdict(verdict);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join()).toContain('measurementReceipts[0].latencyMs');
+  });
+
+  it.each([
+    ['temperature', -1],
+    ['topP', 1.01],
+    ['seed', 1.5],
+    ['seed', Number.MAX_SAFE_INTEGER + 1],
+    ['retryCount', Number.MAX_SAFE_INTEGER + 1],
+  ])('should reject an invalid receipt %s value', (field, invalidValue) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, [field]: invalidValue }],
+    };
+
+    const result = validateFindingVerdict(verdict);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join()).toContain(`measurementReceipts[0].${field}`);
+  });
+
+  it.each([
+    ['known credential prefix', { requestId: 'sk-live-example' }],
+    ['short-segment JWT', { fingerprint: 'eyJhbGciOiJIUzI1NiJ9.e30.sig' }],
+    ['minimal-header JWT', { requestId: 'e30.e30.sig' }],
+    ['generic alphabetic token', { requestId: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN' }],
+    ['generic base64 token', { requestId: 'Abcdefghijklmnop/qrstuvwxyz123456789' }],
+  ])('should reject a receipt containing a %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
+    ['wrapped API key', { requestId: 'req:sk' }],
+    ['wrapped GitHub token', { fingerprint: 'fp:ghp' }],
+    ['wrapped JWT', { windowId: 'window:eyJhbGciOiJIUzI1NiJ9.e30.sig' }],
+    ['wrapped opaque token', { requestId: `req:${'A'.repeat(48)}` }],
+  ])('should reject a receipt containing a %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
+    '2026-02-30T00:00:00Z',
+    '2025-02-29T00:00:00Z',
+    '2026-13-01T00:00:00Z',
+    '2026-01-01T24:00:00Z',
+  ])('should reject impossible receipt timestamp %s', (timestamp) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, timestamp }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
+    ['L2 without binding evidence', { fingerprint: 'UNKNOWN', requestHash: 'UNKNOWN' }],
+    ['verified semantics below L2', { snapshotIdentity: 'L1_NAMED' }],
+    ['provider assertion without a fingerprint', {
+      snapshotIdentity: 'L1_NAMED', semantics: 'provider-asserted', fingerprint: 'UNKNOWN',
+    }],
+  ])('should reject impossible receipt trust: %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it('should expose measurement receipts in the source-of-truth JSON schema', () => {
+    expect(FINDING_VERDICT_SCHEMA.properties).toHaveProperty('measurementReceipts');
+    const receipt = FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.properties;
+    expect(receipt.temperature).toMatchObject({ minimum: 0 });
+    expect(receipt.topP).toMatchObject({ minimum: 0, maximum: 1 });
+    expect(receipt.seed).toMatchObject({
+      type: ['integer', 'null'],
+      minimum: Number.MIN_SAFE_INTEGER,
+      maximum: Number.MAX_SAFE_INTEGER,
+    });
+    expect(receipt.retryCount).toMatchObject({
+      type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER,
+    });
+    expect(FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.allOf).toHaveLength(4);
+  });
+
+  it('should keep generated schema and Ajv enforcement aligned with the runtime boundary', () => {
+    const generatedSchema = JSON.parse(readFileSync(
+      new URL('../../../schemas/finding-verdict.schema.json', import.meta.url),
+      'utf8',
+    ));
+    expect(generatedSchema).toEqual(FINDING_VERDICT_SCHEMA);
+
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    addFormats(ajv);
+    const validateSchema = ajv.compile(generatedSchema);
+    const invalidOverrides = [
+      { requestId: 'req:sk' },
+      { fingerprint: 'fp:ghp' },
+      { windowId: 'window:eyJhbGciOiJIUzI1NiJ9.e30.sig' },
+      { requestId: `req:${'A'.repeat(48)}` },
+      { timestamp: '2026-02-30T00:00:00Z' },
+      { timestamp: '2025-02-29T00:00:00Z' },
+      { timestamp: '2026-13-01T00:00:00Z' },
+      { timestamp: '2026-01-01T24:00:00Z' },
+    ];
+
+    for (const override of invalidOverrides) {
+      expect(validateSchema({
+        ...goldenFindingVerdict,
+        measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+      })).toBe(false);
+    }
+    expect(validateSchema({
+      ...goldenFindingVerdict,
+      measurementReceipts: [goldenMeasurementReceipt],
+    })).toBe(true);
   });
 });
 

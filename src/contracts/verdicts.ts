@@ -12,6 +12,18 @@
  * additive-only within a major version: consumers must tolerate unknown
  * fields, so schemas keep `additionalProperties: true`.
  */
+import type { JudgeMeasurementReceipt } from '../verification/adversarial-verify/types.js';
+import {
+  isSanitizedReceiptIdentifier,
+  isSanitizedReceiptTimestamp,
+  RECEIPT_IDENTIFIER_PATTERN,
+  RECEIPT_JWT_PATTERN,
+  RECEIPT_KNOWN_TIMESTAMP_PATTERN,
+  RECEIPT_OPAQUE_CORRELATION_PATTERN,
+  RECEIPT_OPAQUE_DESCRIPTOR_PATTERN,
+  RECEIPT_SENSITIVE_IDENTIFIER_PATTERN,
+  type ReceiptIdentifierField,
+} from '../verification/adversarial-verify/measurement-receipt.js';
 
 export const VERDICT_CONTRACT_VERSION = '1.0' as const;
 
@@ -46,6 +58,8 @@ export interface FindingVerdict {
   verdict: FindingOutcome;
   /** One entry per refuter that voted to refute (empty when none) */
   refutations: string[];
+  /** Sanitized receipts for cast votes whose adapters supplied measurement evidence. */
+  measurementReceipts?: JudgeMeasurementReceipt[];
 }
 
 export interface CoverageGap {
@@ -80,6 +94,87 @@ function inUnitRange(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
 }
 
+const RECEIPT_KEYS = new Set([
+  'contract', 'provider', 'requestedModel', 'resolvedModel', 'endpointClass', 'snapshotIdentity',
+  'semantics', 'fingerprint', 'requestHash', 'promptHash', 'configHash', 'parserSchemaHash',
+  'outputHash', 'parsedVoteHash', 'temperature', 'topP', 'seed', 'deterministic', 'cacheStatus',
+  'retryCount', 'timestamp', 'windowId', 'latencyMs', 'requestId',
+]);
+const RECEIPT_HASH = /^(?:UNKNOWN|sha256:[a-f\d]{64})$/;
+
+function validateMeasurementReceipt(value: unknown, path: string): string[] {
+  if (!isRecord(value)) return [`${path} must be an object`];
+  const errors: string[] = [];
+  for (const key of Object.keys(value)) {
+    if (!RECEIPT_KEYS.has(key)) errors.push(`${path}.${key} is not allowed`);
+  }
+  if (value.contract !== 'judge-measurement@1') errors.push(`${path}.contract must be "judge-measurement@1"`);
+  for (const key of ['provider', 'requestedModel', 'resolvedModel', 'fingerprint', 'windowId', 'requestId'] as const) {
+    if (!isSanitizedReceiptIdentifier(value[key], key)) {
+      errors.push(`${path}.${key} must be a sanitized identifier`);
+    }
+  }
+  for (const key of ['requestHash', 'promptHash', 'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash'] as const) {
+    if (typeof value[key] !== 'string' || !RECEIPT_HASH.test(value[key] as string)) {
+      errors.push(`${path}.${key} must be UNKNOWN or a SHA-256 digest`);
+    }
+  }
+  if (!['shared', 'dedicated', 'local', 'UNKNOWN'].includes(value.endpointClass as string)) {
+    errors.push(`${path}.endpointClass is invalid`);
+  }
+  if (!['L0_UNKNOWN', 'L1_NAMED', 'L2_CONTENT_BOUND'].includes(value.snapshotIdentity as string)) {
+    errors.push(`${path}.snapshotIdentity is invalid`);
+  }
+  if (!['verified', 'provider-asserted', 'UNKNOWN'].includes(value.semantics as string)) {
+    errors.push(`${path}.semantics is invalid`);
+  }
+  if (!['hit', 'miss', 'bypass', 'UNKNOWN'].includes(value.cacheStatus as string)) {
+    errors.push(`${path}.cacheStatus is invalid`);
+  }
+  if (value.temperature !== null && (typeof value.temperature !== 'number'
+    || !Number.isFinite(value.temperature) || value.temperature < 0)) {
+    errors.push(`${path}.temperature must be a non-negative finite number or null`);
+  }
+  if (value.topP !== null && (typeof value.topP !== 'number'
+    || !Number.isFinite(value.topP) || value.topP < 0 || value.topP > 1)) {
+    errors.push(`${path}.topP must be a finite number in [0,1] or null`);
+  }
+  if (value.seed !== null && (typeof value.seed !== 'number' || !Number.isSafeInteger(value.seed))) {
+    errors.push(`${path}.seed must be a safe integer or null`);
+  }
+  if (value.deterministic !== null && typeof value.deterministic !== 'boolean') {
+    errors.push(`${path}.deterministic must be a boolean or null`);
+  }
+  if (!Number.isSafeInteger(value.retryCount) || (value.retryCount as number) < 0) {
+    errors.push(`${path}.retryCount must be a non-negative safe integer`);
+  }
+  if (!isSanitizedReceiptTimestamp(value.timestamp)) {
+    errors.push(`${path}.timestamp must be UNKNOWN or an ISO-8601 UTC timestamp`);
+  }
+  if (value.latencyMs !== null && (typeof value.latencyMs !== 'number'
+    || !Number.isFinite(value.latencyMs) || value.latencyMs < 0)) {
+    errors.push(`${path}.latencyMs must be a non-negative finite number or null`);
+  }
+  const contentBound = value.fingerprint !== 'UNKNOWN'
+    && ['requestHash', 'promptHash', 'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash']
+      .every((field) => value[field] !== 'UNKNOWN');
+  if (value.snapshotIdentity === 'L2_CONTENT_BOUND' && !contentBound) {
+    errors.push(`${path}.snapshotIdentity L2_CONTENT_BOUND requires non-UNKNOWN fingerprint and hashes`);
+  }
+  if (value.snapshotIdentity === 'L1_NAMED' && value.resolvedModel === 'UNKNOWN') {
+    errors.push(`${path}.snapshotIdentity L1_NAMED requires a resolved model`);
+  }
+  if (value.semantics === 'verified'
+    && (value.snapshotIdentity !== 'L2_CONTENT_BOUND' || !contentBound)) {
+    errors.push(`${path}.semantics verified requires L2 content-bound identity`);
+  }
+  if (value.semantics !== 'UNKNOWN'
+    && (value.snapshotIdentity === 'L0_UNKNOWN' || value.fingerprint === 'UNKNOWN')) {
+    errors.push(`${path}.semantics requires identified snapshot and fingerprint`);
+  }
+  return errors;
+}
+
 export function validateRiskDecision(value: unknown): ValidationResult {
   const errors: string[] = [];
   if (!isRecord(value)) return { valid: false, errors: ['not an object'] };
@@ -111,6 +206,15 @@ export function validateFindingVerdict(value: unknown): ValidationResult {
     errors.push('verdict must be upheld|refuted|uncertain');
   }
   if (!isStringArray(value.refutations)) errors.push('refutations must be string[]');
+  if (value.measurementReceipts !== undefined) {
+    if (!Array.isArray(value.measurementReceipts)) {
+      errors.push('measurementReceipts must be an array when present');
+    } else {
+      value.measurementReceipts.forEach((receipt, index) => {
+        errors.push(...validateMeasurementReceipt(receipt, `measurementReceipts[${index}]`));
+      });
+    }
+  }
   return { valid: errors.length === 0, errors };
 }
 
@@ -174,6 +278,22 @@ export function buildRiskDecisionFromQualityGate(input: {
 
 const unit = { type: 'number', minimum: 0, maximum: 1 } as const;
 const stringArray = { type: 'array', items: { type: 'string' } } as const;
+function receiptIdentifier(field: ReceiptIdentifierField) {
+  const opaquePattern = field === 'provider' || field === 'requestedModel' || field === 'resolvedModel'
+    ? RECEIPT_OPAQUE_DESCRIPTOR_PATTERN
+    : RECEIPT_OPAQUE_CORRELATION_PATTERN;
+  return {
+    type: 'string',
+    pattern: RECEIPT_IDENTIFIER_PATTERN,
+    allOf: [
+      { not: { pattern: RECEIPT_SENSITIVE_IDENTIFIER_PATTERN } },
+      { not: { pattern: RECEIPT_JWT_PATTERN } },
+      { not: { pattern: opaquePattern } },
+    ],
+  } as const;
+}
+const receiptHash = { type: 'string', pattern: '^(?:UNKNOWN|sha256:[a-f0-9]{64})$' } as const;
+const knownReceiptHash = { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' } as const;
 
 export const RISK_DECISION_SCHEMA = {
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -208,6 +328,99 @@ export const FINDING_VERDICT_SCHEMA = {
     evidence: stringArray,
     verdict: { enum: ['upheld', 'refuted', 'uncertain'] },
     refutations: stringArray,
+    measurementReceipts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'contract', 'provider', 'requestedModel', 'resolvedModel', 'endpointClass',
+          'snapshotIdentity', 'semantics', 'fingerprint', 'requestHash', 'promptHash',
+          'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash', 'temperature',
+          'topP', 'seed', 'deterministic', 'cacheStatus', 'retryCount', 'timestamp',
+          'windowId', 'latencyMs', 'requestId',
+        ],
+        additionalProperties: false,
+        properties: {
+          contract: { const: 'judge-measurement@1' },
+          provider: receiptIdentifier('provider'),
+          requestedModel: receiptIdentifier('requestedModel'),
+          resolvedModel: receiptIdentifier('resolvedModel'),
+          endpointClass: { enum: ['shared', 'dedicated', 'local', 'UNKNOWN'] },
+          snapshotIdentity: { enum: ['L0_UNKNOWN', 'L1_NAMED', 'L2_CONTENT_BOUND'] },
+          semantics: { enum: ['verified', 'provider-asserted', 'UNKNOWN'] },
+          fingerprint: receiptIdentifier('fingerprint'),
+          requestHash: receiptHash,
+          promptHash: receiptHash,
+          configHash: receiptHash,
+          parserSchemaHash: receiptHash,
+          outputHash: receiptHash,
+          parsedVoteHash: receiptHash,
+          temperature: { type: ['number', 'null'], minimum: 0 },
+          topP: { type: ['number', 'null'], minimum: 0, maximum: 1 },
+          seed: {
+            type: ['integer', 'null'],
+            minimum: Number.MIN_SAFE_INTEGER,
+            maximum: Number.MAX_SAFE_INTEGER,
+          },
+          deterministic: { type: ['boolean', 'null'] },
+          cacheStatus: { enum: ['hit', 'miss', 'bypass', 'UNKNOWN'] },
+          retryCount: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+          timestamp: {
+            anyOf: [
+              { const: 'UNKNOWN' },
+              { type: 'string', pattern: RECEIPT_KNOWN_TIMESTAMP_PATTERN, format: 'date-time' },
+            ],
+          },
+          windowId: receiptIdentifier('windowId'),
+          latencyMs: { type: ['number', 'null'], minimum: 0 },
+          requestId: receiptIdentifier('requestId'),
+        },
+        allOf: [
+          {
+            if: { properties: { snapshotIdentity: { const: 'L2_CONTENT_BOUND' } } },
+            then: {
+              properties: {
+                fingerprint: { not: { const: 'UNKNOWN' } },
+                requestHash: knownReceiptHash,
+                promptHash: knownReceiptHash,
+                configHash: knownReceiptHash,
+                parserSchemaHash: knownReceiptHash,
+                outputHash: knownReceiptHash,
+                parsedVoteHash: knownReceiptHash,
+              },
+            },
+          },
+          {
+            if: { properties: { snapshotIdentity: { const: 'L1_NAMED' } } },
+            then: { properties: { resolvedModel: { not: { const: 'UNKNOWN' } } } },
+          },
+          {
+            if: { properties: { semantics: { const: 'verified' } } },
+            then: {
+              properties: {
+                snapshotIdentity: { const: 'L2_CONTENT_BOUND' },
+                fingerprint: { not: { const: 'UNKNOWN' } },
+                requestHash: knownReceiptHash,
+                promptHash: knownReceiptHash,
+                configHash: knownReceiptHash,
+                parserSchemaHash: knownReceiptHash,
+                outputHash: knownReceiptHash,
+                parsedVoteHash: knownReceiptHash,
+              },
+            },
+          },
+          {
+            if: { properties: { semantics: { enum: ['verified', 'provider-asserted'] } } },
+            then: {
+              properties: {
+                snapshotIdentity: { not: { const: 'L0_UNKNOWN' } },
+                fingerprint: { not: { const: 'UNKNOWN' } },
+              },
+            },
+          },
+        ],
+      },
+    },
   },
 } as const;
 
