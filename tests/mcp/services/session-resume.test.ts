@@ -5,13 +5,28 @@
  * - bounded full-file validation with a capped recent-entry projection
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import { resumeSession as inspectSession } from '../../../src/mcp/services/session-resume';
 import type { SessionEntry } from '../../../src/mcp/services/session-store';
+
+const fsOpenControl = vi.hoisted(() => ({ beforeOpen: undefined as (() => void) | undefined }));
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    openSync: (...args: unknown[]) => {
+      const beforeOpen = fsOpenControl.beforeOpen;
+      fsOpenControl.beforeOpen = undefined;
+      beforeOpen?.();
+      return Reflect.apply(actual.openSync, actual, args);
+    },
+  };
+});
 
 // ============================================================================
 // Helpers
@@ -77,6 +92,7 @@ describe('resumeSession', () => {
   });
 
   afterEach(() => {
+    fsOpenControl.beforeOpen = undefined;
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -227,6 +243,32 @@ describe('resumeSession', () => {
       }
     });
 
+    it('should reject an intermediate-directory substitution at open time', () => {
+      const trustedParent = path.join(tmpDir, 'slot');
+      const displacedParent = path.join(tmpDir, 'slot-original');
+      const outsideParent = fs.mkdtempSync(path.join(os.tmpdir(), 'session-resume-outside-'));
+      const fileName = 'substituted.jsonl';
+      fs.mkdirSync(trustedParent);
+      writeJsonlFile(path.join(trustedParent, fileName), buildLinkedEntries(1));
+      writeJsonlFile(path.join(outsideParent, fileName), buildLinkedEntries(1));
+
+      fsOpenControl.beforeOpen = () => {
+        fs.renameSync(trustedParent, displacedParent);
+        fs.symlinkSync(outsideParent, trustedParent, 'dir');
+      };
+
+      try {
+        const result = inspectSession(path.join(trustedParent, fileName), {
+          sessionRoot: tmpDir,
+          allowLegacyUnverified: true,
+        });
+
+        expect(result.disposition).toBe('UNTRUSTED');
+      } finally {
+        fs.rmSync(outsideParent, { recursive: true, force: true });
+      }
+    });
+
     it('should reject a broken parent lineage instead of reconstructing a suffix', () => {
       const filePath = path.join(tmpDir, 'broken-chain.jsonl');
       const entries = buildLinkedEntries(3);
@@ -250,6 +292,42 @@ describe('resumeSession', () => {
 
       expect(result.canResume).toBe(false);
       expect(result.disposition).toBe('RESOURCE_LIMIT');
+    });
+
+    it.each([
+      ['infinite file size', { maxFileBytes: Number.POSITIVE_INFINITY }],
+      ['NaN record size', { maxRecordBytes: Number.NaN }],
+      ['zero record count', { maxRecords: 0 }],
+      ['file size above the hard ceiling', { maxFileBytes: 16 * 1024 * 1024 + 1 }],
+    ])('should reject the %s limit override', (_label, limits) => {
+      const filePath = path.join(tmpDir, 'invalid-limit.jsonl');
+      writeJsonlFile(filePath, buildLinkedEntries(1));
+
+      const result = inspectSession(filePath, {
+        sessionRoot: tmpDir,
+        allowLegacyUnverified: true,
+        ...limits,
+      });
+
+      expect(result.disposition).toBe('RESOURCE_LIMIT');
+    });
+
+    it.each([
+      ['malformed UUID', { uuid: 'not-a-uuid' }],
+      ['malformed parent UUID', { parentUuid: 'not-a-uuid' }],
+      ['negative timestamp', { timestamp: -1 }],
+      ['empty tool name', { toolName: '' }],
+      ['array params', { params: [] }],
+      ['negative token estimate', { tokenEstimate: -1 }],
+      ['unknown schema field', { schemaVersion: 99 }],
+    ])('should reject an entry with %s', (_label, mutation) => {
+      const filePath = path.join(tmpDir, 'malformed-entry.jsonl');
+      const entry = { ...buildLinkedEntries(1)[0], ...mutation };
+      fs.writeFileSync(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+
+      const result = resumeSession(filePath);
+
+      expect(result.disposition).toBe('INVALID');
     });
 
     it('should reject invalid UTF-8 before JSON parsing', () => {

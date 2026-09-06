@@ -31,6 +31,10 @@ const DEFAULT_MAX_RECORDS = 100_000;
 const RECENT_ENTRY_LIMIT = 256;
 const ENTRY_TYPES = new Set(['tool_call', 'tool_result', 'state_change', 'error']);
 const ENTRY_STATES = new Set(['idle', 'running', 'requires_action']);
+const ENTRY_KEYS = new Set([
+  'uuid', 'parentUuid', 'timestamp', 'type', 'toolName', 'params', 'result', 'state', 'tokenEstimate',
+]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function emptyResult(filePath: string, disposition: SessionRecoveryDisposition, diagnostics: string[] = []): SessionResumeResult {
   return {
@@ -50,11 +54,57 @@ function isWithin(root: string, candidate: string): boolean {
 function isValidEntry(value: unknown): value is SessionEntry {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const entry = value as Record<string, unknown>;
-  return typeof entry.uuid === 'string' && entry.uuid.length > 0
-    && (entry.parentUuid === null || typeof entry.parentUuid === 'string')
-    && typeof entry.timestamp === 'number' && Number.isFinite(entry.timestamp)
+  if (Object.keys(entry).some(key => !ENTRY_KEYS.has(key))) return false;
+  const params = entry.params;
+  return typeof entry.uuid === 'string' && UUID_PATTERN.test(entry.uuid)
+    && (entry.parentUuid === null
+      || (typeof entry.parentUuid === 'string' && UUID_PATTERN.test(entry.parentUuid)))
+    && typeof entry.timestamp === 'number' && Number.isSafeInteger(entry.timestamp) && entry.timestamp >= 0
     && typeof entry.type === 'string' && ENTRY_TYPES.has(entry.type)
-    && typeof entry.state === 'string' && ENTRY_STATES.has(entry.state);
+    && typeof entry.state === 'string' && ENTRY_STATES.has(entry.state)
+    && (entry.toolName === undefined || (typeof entry.toolName === 'string' && entry.toolName.length > 0))
+    && (params === undefined || (
+      typeof params === 'object' && params !== null && !Array.isArray(params)
+    ))
+    && (entry.tokenEstimate === undefined || (
+      typeof entry.tokenEstimate === 'number'
+      && Number.isSafeInteger(entry.tokenEstimate)
+      && entry.tokenEstimate >= 0
+    ));
+}
+
+function resolveLimit(value: number | undefined, defaultValue: number): number | undefined {
+  const limit = value ?? defaultValue;
+  return Number.isSafeInteger(limit) && limit > 0 && limit <= defaultValue ? limit : undefined;
+}
+
+function sameFile(left: fs.Stats, right: fs.Stats): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function validateOpenedPath(
+  fd: number,
+  candidate: string,
+  root: string,
+  openedStat: fs.Stats,
+): string | undefined {
+  try {
+    const canonicalTarget = fs.realpathSync(candidate);
+    const currentStat = fs.lstatSync(candidate);
+    if (!isWithin(root, canonicalTarget) || currentStat.isSymbolicLink() || !sameFile(openedStat, currentStat)) {
+      return 'session path changed or escaped the configured root';
+    }
+
+    // Linux exposes the descriptor target directly. This closes intermediate
+    // component substitution without relying only on the current pathname.
+    if (process.platform === 'linux') {
+      const descriptorTarget = fs.realpathSync(`/proc/self/fd/${fd}`);
+      if (!isWithin(root, descriptorTarget)) return 'opened session descriptor escapes the configured root';
+    }
+  } catch {
+    return 'opened session path cannot be verified';
+  }
+  return undefined;
 }
 
 function readExactly(fd: number, fileSize: number): Buffer {
@@ -73,9 +123,15 @@ function readExactly(fd: number, fileSize: number): Buffer {
  * resume requires an explicit opt-in because this format has no commit marker.
  */
 export function resumeSession(filePath: string, options: SessionResumeOptions): SessionResumeResult {
-  const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
-  const maxRecordBytes = options.maxRecordBytes ?? DEFAULT_MAX_RECORD_BYTES;
-  const maxRecords = options.maxRecords ?? DEFAULT_MAX_RECORDS;
+  if (!options || typeof options.sessionRoot !== 'string' || options.sessionRoot.trim().length === 0) {
+    return emptyResult(filePath, 'UNTRUSTED', ['a non-empty session root is required']);
+  }
+  const maxFileBytes = resolveLimit(options.maxFileBytes, DEFAULT_MAX_FILE_BYTES);
+  const maxRecordBytes = resolveLimit(options.maxRecordBytes, DEFAULT_MAX_RECORD_BYTES);
+  const maxRecords = resolveLimit(options.maxRecords, DEFAULT_MAX_RECORDS);
+  if (maxFileBytes === undefined || maxRecordBytes === undefined || maxRecords === undefined) {
+    return emptyResult(filePath, 'RESOURCE_LIMIT', ['recovery limits must be finite positive integers within hard ceilings']);
+  }
   const candidate = path.resolve(filePath);
 
   let root: string;
@@ -83,6 +139,7 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
   try {
     root = fs.realpathSync(options.sessionRoot);
     parent = fs.realpathSync(path.dirname(candidate));
+    if (!fs.statSync(root).isDirectory()) throw new Error('session root is not a directory');
   } catch {
     return emptyResult(filePath, 'UNTRUSTED', ['session root or parent cannot be resolved']);
   }
@@ -112,8 +169,16 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
     if (stat.size > maxFileBytes) {
       return emptyResult(filePath, 'RESOURCE_LIMIT', [`file exceeds ${maxFileBytes} bytes`]);
     }
+    const pathError = validateOpenedPath(fd, candidate, root, stat);
+    if (pathError) return emptyResult(filePath, 'UNTRUSTED', [pathError]);
 
     const bytes = readExactly(fd, stat.size);
+    const finalStat = fs.fstatSync(fd);
+    const finalPathError = validateOpenedPath(fd, candidate, root, finalStat);
+    if (finalPathError || !sameFile(stat, finalStat) || stat.size !== finalStat.size
+      || stat.mtimeMs !== finalStat.mtimeMs || stat.ctimeMs !== finalStat.ctimeMs) {
+      return emptyResult(filePath, 'UNTRUSTED', [finalPathError ?? 'session changed while it was being inspected']);
+    }
     const hasTornTail = bytes[bytes.length - 1] !== 0x0a;
     let text: string;
     try {
