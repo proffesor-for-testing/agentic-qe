@@ -187,7 +187,13 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
       return emptyResult(filePath, 'INVALID', ['transcript is not valid UTF-8']);
     }
     const lines = text.split('\n');
-    if (hasTornTail) lines.pop();
+    if (hasTornTail) {
+      const tornTail = lines[lines.length - 1] ?? '';
+      if (Buffer.byteLength(tornTail, 'utf8') > maxRecordBytes) {
+        return emptyResult(filePath, 'RESOURCE_LIMIT', [`record exceeds ${maxRecordBytes} bytes`]);
+      }
+      lines.pop();
+    }
     const entries: SessionEntry[] = [];
     const seen = new Set<string>();
     let previous: SessionEntry | undefined;

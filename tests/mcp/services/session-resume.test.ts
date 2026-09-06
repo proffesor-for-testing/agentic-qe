@@ -294,6 +294,38 @@ describe('resumeSession', () => {
       expect(result.disposition).toBe('RESOURCE_LIMIT');
     });
 
+    it('should discard a torn tail exactly at the record-size limit', () => {
+      const filePath = path.join(tmpDir, 'bounded-torn-tail.jsonl');
+      const entryLine = JSON.stringify(buildLinkedEntries(1)[0]);
+      const maxRecordBytes = Buffer.byteLength(entryLine, 'utf8');
+      fs.writeFileSync(filePath, `${entryLine}\n${'x'.repeat(maxRecordBytes)}`, 'utf8');
+
+      const result = inspectSession(filePath, {
+        sessionRoot: tmpDir,
+        allowLegacyUnverified: true,
+        maxRecordBytes,
+      });
+
+      expect(result.disposition).toBe('LEGACY_UNVERIFIED');
+      expect(result.diagnostics).toContain('discarded an incomplete final record');
+    });
+
+    it('should reject a torn tail one byte above the record-size limit', () => {
+      const filePath = path.join(tmpDir, 'oversized-torn-tail.jsonl');
+      const entryLine = JSON.stringify(buildLinkedEntries(1)[0]);
+      const maxRecordBytes = Buffer.byteLength(entryLine, 'utf8');
+      fs.writeFileSync(filePath, `${entryLine}\n${'x'.repeat(maxRecordBytes + 1)}`, 'utf8');
+
+      const result = inspectSession(filePath, {
+        sessionRoot: tmpDir,
+        allowLegacyUnverified: true,
+        maxRecordBytes,
+      });
+
+      expect(result.disposition).toBe('RESOURCE_LIMIT');
+      expect(result.diagnostics).toContain(`record exceeds ${maxRecordBytes} bytes`);
+    });
+
     it.each([
       ['infinite file size', { maxFileBytes: Number.POSITIVE_INFINITY }],
       ['NaN record size', { maxRecordBytes: Number.NaN }],
