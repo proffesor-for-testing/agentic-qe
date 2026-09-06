@@ -7,6 +7,7 @@
  */
 import type { Finding, FindingVerdict, RefuterVote } from './types.js';
 import { validateFindingVerdict } from '../../contracts/verdicts.js';
+import { sanitizeJudgeMeasurementReceipt } from './measurement-receipt.js';
 
 /** Default kill threshold: simple majority of cast votes (2-of-3, 1-of-1, 2-of-2). */
 export const majorityKill = (castVotes: number): number => Math.ceil(castVotes / 2);
@@ -21,7 +22,9 @@ export function synthesizeVerdict(
   killThreshold: (castVotes: number) => number = majorityKill,
 ): FindingVerdict {
   const refutations = votes.filter((v) => v.refuted).map((v) => v.reasoning);
-  const measurementReceipts = votes.flatMap((v) => v.measurementReceipt ? [v.measurementReceipt] : []);
+  const measurementReceipts = votes.flatMap((v) => v.measurementReceipt
+    ? [sanitizeJudgeMeasurementReceipt(v.measurementReceipt)]
+    : []);
   const killed = votes.length > 0 && refutations.length >= killThreshold(votes.length);
   return {
     contract: 'finding-verdict@1',

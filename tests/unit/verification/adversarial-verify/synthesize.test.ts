@@ -62,6 +62,31 @@ describe('synthesizeVerdict', () => {
     expect(isFindingVerdict({ ...verdict, measurementReceipts: [{ contract: 'judge-measurement@1' }] })).toBe(false);
   });
 
+  it('should sanitize hostile receipts passed directly to the exported synthesis path', () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const hostileReceipt = {
+      contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+      resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
+      semantics: 'provider-asserted', fingerprint: 'fp-1', requestHash: digest,
+      promptHash: digest, configHash: digest, parserSchemaHash: digest,
+      outputHash: digest, parsedVoteHash: digest, temperature: -1, topP: 4,
+      seed: 1.5, deterministic: false, cacheStatus: 'miss', retryCount: 0,
+      timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
+      requestId: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl',
+      secret: 'must-not-escape',
+    };
+
+    const verdict = synthesizeVerdict(finding, [{
+      refuted: false, reasoning: 'verified', measurementReceipt: hostileReceipt,
+    } as RefuterVote]);
+
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      requestId: 'UNKNOWN', temperature: null, topP: null, seed: null,
+    });
+    expect(verdict.measurementReceipts?.[0]).not.toHaveProperty('secret');
+    expect(isFindingVerdict(verdict)).toBe(true);
+  });
+
   it('should omit file when the finding has none', () => {
     const { file, ...noFile } = finding;
     const v = synthesizeVerdict(noFile, [uphold()]);

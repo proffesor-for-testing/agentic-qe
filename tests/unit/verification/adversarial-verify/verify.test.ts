@@ -87,6 +87,30 @@ describe('adversarialVerify — verdicts', () => {
     });
   });
 
+  it('should redact JWT and generic opaque token identifiers', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
+        semantics: 'provider-asserted', fingerprint: 'Ab3'.repeat(12), requestHash: digest,
+        promptHash: digest, configHash: digest, parserSchemaHash: digest,
+        outputHash: digest, parsedVoteHash: digest, temperature: 0, topP: 1,
+        seed: 7, deterministic: false, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
+        requestId: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl',
+      },
+    });
+
+    const [verdict] = await adversarialVerify([mk('opaque-secrets')], { judge, refuters: 1 });
+
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      fingerprint: 'UNKNOWN', requestId: 'UNKNOWN', semantics: 'UNKNOWN',
+    });
+  });
+
   it('should replace negative latency with null so emitted receipts remain schema-valid', async () => {
     const digest = `sha256:${'a'.repeat(64)}`;
     const judge: Judge = async () => ({
@@ -97,7 +121,7 @@ describe('adversarialVerify — verdicts', () => {
         resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L2_CONTENT_BOUND',
         semantics: 'verified', fingerprint: 'fp-1', requestHash: digest, promptHash: digest,
         configHash: digest, parserSchemaHash: digest, outputHash: digest, parsedVoteHash: digest,
-        temperature: 0, topP: 1, seed: 7, deterministic: true, cacheStatus: 'miss', retryCount: 0,
+        temperature: -1, topP: 2, seed: 1.5, deterministic: true, cacheStatus: 'miss', retryCount: 0,
         timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: -1,
         requestId: 'request-1',
       },
@@ -105,7 +129,9 @@ describe('adversarialVerify — verdicts', () => {
 
     const [verdict] = await adversarialVerify([mk('negative-latency')], { judge, refuters: 1 });
 
-    expect(verdict.measurementReceipts?.[0]?.latencyMs).toBeNull();
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      temperature: null, topP: null, seed: null, latencyMs: null,
+    });
   });
 
   it('should preserve deterministic stubs that do not emit measurement receipts', async () => {

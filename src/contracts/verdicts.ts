@@ -122,10 +122,16 @@ function validateMeasurementReceipt(value: unknown, path: string): string[] {
   if (!['hit', 'miss', 'bypass', 'UNKNOWN'].includes(value.cacheStatus as string)) {
     errors.push(`${path}.cacheStatus is invalid`);
   }
-  for (const key of ['temperature', 'topP', 'seed'] as const) {
-    if (value[key] !== null && (typeof value[key] !== 'number' || !Number.isFinite(value[key]))) {
-      errors.push(`${path}.${key} must be a finite number or null`);
-    }
+  if (value.temperature !== null && (typeof value.temperature !== 'number'
+    || !Number.isFinite(value.temperature) || value.temperature < 0)) {
+    errors.push(`${path}.temperature must be a non-negative finite number or null`);
+  }
+  if (value.topP !== null && (typeof value.topP !== 'number'
+    || !Number.isFinite(value.topP) || value.topP < 0 || value.topP > 1)) {
+    errors.push(`${path}.topP must be a finite number in [0,1] or null`);
+  }
+  if (value.seed !== null && (typeof value.seed !== 'number' || !Number.isSafeInteger(value.seed))) {
+    errors.push(`${path}.seed must be a safe integer or null`);
   }
   if (value.deterministic !== null && typeof value.deterministic !== 'boolean') {
     errors.push(`${path}.deterministic must be a boolean or null`);
@@ -311,9 +317,13 @@ export const FINDING_VERDICT_SCHEMA = {
           parserSchemaHash: receiptHash,
           outputHash: receiptHash,
           parsedVoteHash: receiptHash,
-          temperature: { type: ['number', 'null'] },
-          topP: { type: ['number', 'null'] },
-          seed: { type: ['number', 'null'] },
+          temperature: { type: ['number', 'null'], minimum: 0 },
+          topP: { type: ['number', 'null'], minimum: 0, maximum: 1 },
+          seed: {
+            type: ['integer', 'null'],
+            minimum: Number.MIN_SAFE_INTEGER,
+            maximum: Number.MAX_SAFE_INTEGER,
+          },
           deterministic: { type: ['boolean', 'null'] },
           cacheStatus: { enum: ['hit', 'miss', 'bypass', 'UNKNOWN'] },
           retryCount: { type: 'integer', minimum: 0 },

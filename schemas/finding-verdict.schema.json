@@ -163,19 +163,24 @@
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0
           },
           "topP": {
             "type": [
               "number",
               "null"
-            ]
+            ],
+            "minimum": 0,
+            "maximum": 1
           },
           "seed": {
             "type": [
-              "number",
+              "integer",
               "null"
-            ]
+            ],
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           },
           "deterministic": {
             "type": [

@@ -154,8 +154,33 @@ describe('validateFindingVerdict', () => {
     expect(result.errors.join()).toContain('measurementReceipts[0].latencyMs');
   });
 
+  it.each([
+    ['temperature', -1],
+    ['topP', 1.01],
+    ['seed', 1.5],
+    ['seed', Number.MAX_SAFE_INTEGER + 1],
+  ])('should reject an invalid receipt %s value', (field, invalidValue) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, [field]: invalidValue }],
+    };
+
+    const result = validateFindingVerdict(verdict);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join()).toContain(`measurementReceipts[0].${field}`);
+  });
+
   it('should expose measurement receipts in the source-of-truth JSON schema', () => {
     expect(FINDING_VERDICT_SCHEMA.properties).toHaveProperty('measurementReceipts');
+    const receipt = FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.properties;
+    expect(receipt.temperature).toMatchObject({ minimum: 0 });
+    expect(receipt.topP).toMatchObject({ minimum: 0, maximum: 1 });
+    expect(receipt.seed).toMatchObject({
+      type: ['integer', 'null'],
+      minimum: Number.MIN_SAFE_INTEGER,
+      maximum: Number.MAX_SAFE_INTEGER,
+    });
   });
 });
 
