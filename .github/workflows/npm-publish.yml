@@ -77,11 +77,31 @@ jobs:
           test -s dist/mcp/bundle.js && echo "dist/mcp/bundle.js: OK"
         timeout-minutes: 2
 
+      - name: Verify publish assets are synchronized
+        run: |
+          npm run prepublishOnly
+          git diff --exit-code
+
+      - name: Seal npm package
+        run: |
+          mkdir -p release-artifact
+          npm pack --ignore-scripts --pack-destination release-artifact
+          TARBALL=$(find release-artifact -maxdepth 1 -name '*.tgz' -print -quit)
+          test -n "${TARBALL}"
+          sha256sum "${TARBALL}" | tee release-artifact/SHA256SUMS
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
+          retention-days: 1
+
+      - name: Upload sealed npm package
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-package
+          path: release-artifact/
           retention-days: 1
 
   # ============================================================================
@@ -130,25 +150,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download build artifacts
+      - name: Download sealed npm package
         uses: actions/download-artifact@v8
         with:
-          name: dist
-          path: dist/
+          name: npm-package
+          path: release-artifact/
 
-      - name: Pack agentic-qe tarball
+      - name: Locate sealed agentic-qe tarball
         id: pack
         run: |
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          npm pack --pack-destination /tmp
-          TARBALL=/tmp/agentic-qe-${PACKAGE_VERSION}.tgz
+          TARBALL=$(find release-artifact -maxdepth 1 -name '*.tgz' -print -quit)
           if [ ! -f "${TARBALL}" ]; then
-            echo "Error: expected tarball ${TARBALL} not produced by npm pack" >&2
-            ls -la /tmp/*.tgz 2>/dev/null || true
+            echo "Error: sealed npm tarball was not downloaded" >&2
             exit 1
           fi
+          sha256sum --check release-artifact/SHA256SUMS
+          TARBALL=$(realpath "${TARBALL}")
           echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
-          echo "Packed: ${TARBALL} ($(du -h ${TARBALL} | cut -f1))"
+          echo "Using sealed artifact: ${TARBALL} ($(du -h ${TARBALL} | cut -f1))"
 
       - name: Cache corpus tarballs
         uses: actions/cache@v6
@@ -319,15 +338,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Download sealed npm package
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-package
+          path: release-artifact/
 
-      - name: Pack tarball
+      - name: Locate sealed tarball
         id: pack
         run: |
-          TARBALL=$(npm pack --json | jq -r '.[0].filename')
+          TARBALL=$(find release-artifact -maxdepth 1 -name '*.tgz' -print -quit)
+          test -f "${TARBALL}"
+          sha256sum --check release-artifact/SHA256SUMS
+          TARBALL=$(realpath "${TARBALL}")
           echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
-          echo "Packed: ${TARBALL}"
+          echo "Using sealed artifact: ${TARBALL}"
 
       - name: Audit against clean consumer install
         run: |
@@ -371,14 +396,23 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download build artifacts
+      - name: Download sealed npm package
         uses: actions/download-artifact@v8
         with:
-          name: dist
-          path: dist/
+          name: npm-package
+          path: release-artifact/
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify sealed npm package
+        id: pack
+        run: |
+          TARBALL=$(find release-artifact -maxdepth 1 -name '*.tgz' -print -quit)
+          test -f "${TARBALL}"
+          sha256sum --check release-artifact/SHA256SUMS
+          TARBALL=$(realpath "${TARBALL}")
+          echo "tarball=${TARBALL}" >> "$GITHUB_OUTPUT"
 
       - name: Verify package version matches tag
         if: github.event_name == 'release'
@@ -396,13 +430,13 @@ jobs:
 
       - name: Publish to npm (dry run)
         if: github.event.inputs.dry_run == 'true'
-        run: npm publish --access public --dry-run
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --access public --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
         if: github.event.inputs.dry_run != 'true'
-        run: npm publish --access public --provenance
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

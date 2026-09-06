@@ -48,6 +48,32 @@ describe('packed package native ESM contracts', () => {
     expectNativeImport('./dist/integrations/ruvector/index.js', 'RuVector barrel');
   });
 
+  it('exposes pattern mutation outcomes from the package root', () => {
+    const packageEntry = packageJson.exports['.']?.import;
+    expect(packageEntry).toBeDefined();
+    const url = pathToFileURL(path.resolve(installedRoot, packageEntry!)).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `const m = await import(${JSON.stringify(url)}); if (typeof m.PatternMutationError !== 'function') process.exit(1);`,
+      ],
+      { cwd: installedRoot, encoding: 'utf8', timeout: 30_000 },
+    );
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+  });
+
+  it('includes the published verdict schemas', () => {
+    for (const schema of [
+      'coverage-gap.schema.json',
+      'finding-verdict.schema.json',
+      'risk-decision.schema.json',
+    ]) {
+      expect(fs.existsSync(path.join(installedRoot, 'schemas', schema)), schema).toBe(true);
+    }
+  });
+
   it('should_importCoordinatorGNN_when_loadedByNativeNodeESM', () => {
     expectNativeImport(
       './dist/domains/code-intelligence/coordinator-gnn.js',

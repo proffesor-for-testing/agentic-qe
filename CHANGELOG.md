@@ -44,6 +44,10 @@ and learned-pattern storage.
 - Kept Rust coverage analysis on the Rust instrumentation path so an available
   JavaScript test runner cannot replace the documented static-estimation
   fallback with an empty coverage report ([#569]).
+- Published the verdict JSON schemas and exposed pattern mutation outcomes at
+  the package root so downstream consumers can validate and classify writes.
+- Sealed one npm tarball after asset synchronization and reused those exact
+  bytes for initialization, consumer-audit, and publication gates.
 
 ### Changed
 
