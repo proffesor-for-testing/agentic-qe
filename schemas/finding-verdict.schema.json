@@ -99,15 +99,66 @@
           },
           "provider": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^[A-Za-z0-9]{32,}$"
+                }
+              }
+            ]
           },
           "requestedModel": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^[A-Za-z0-9]{32,}$"
+                }
+              }
+            ]
           },
           "resolvedModel": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^[A-Za-z0-9]{32,}$"
+                }
+              }
+            ]
           },
           "endpointClass": {
             "enum": [
@@ -133,7 +184,24 @@
           },
           "fingerprint": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                }
+              }
+            ]
           },
           "requestHash": {
             "type": "string",
@@ -198,7 +266,8 @@
           },
           "retryCount": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "timestamp": {
             "type": "string",
@@ -206,7 +275,24 @@
           },
           "windowId": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                }
+              }
+            ]
           },
           "latencyMs": {
             "type": [
@@ -217,9 +303,159 @@
           },
           "requestId": {
             "type": "string",
-            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$",
+            "allOf": [
+              {
+                "not": {
+                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                }
+              },
+              {
+                "not": {
+                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                }
+              }
+            ]
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "snapshotIdentity": {
+                  "const": "L2_CONTENT_BOUND"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "fingerprint": {
+                  "not": {
+                    "const": "UNKNOWN"
+                  }
+                },
+                "requestHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "promptHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "configHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "parserSchemaHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "outputHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "parsedVoteHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "snapshotIdentity": {
+                  "const": "L1_NAMED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "resolvedModel": {
+                  "not": {
+                    "const": "UNKNOWN"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "semantics": {
+                  "const": "verified"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "snapshotIdentity": {
+                  "const": "L2_CONTENT_BOUND"
+                },
+                "fingerprint": {
+                  "not": {
+                    "const": "UNKNOWN"
+                  }
+                },
+                "requestHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "promptHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "configHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "parserSchemaHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "outputHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                },
+                "parsedVoteHash": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "semantics": {
+                  "enum": [
+                    "verified",
+                    "provider-asserted"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "snapshotIdentity": {
+                  "not": {
+                    "const": "L0_UNKNOWN"
+                  }
+                },
+                "fingerprint": {
+                  "not": {
+                    "const": "UNKNOWN"
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     }
   }

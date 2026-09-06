@@ -72,7 +72,7 @@ describe('synthesizeVerdict', () => {
       outputHash: digest, parsedVoteHash: digest, temperature: -1, topP: 4,
       seed: 1.5, deterministic: false, cacheStatus: 'miss', retryCount: 0,
       timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
-      requestId: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl',
+      requestId: 'eyJhbGciOiJIUzI1NiJ9.e30.sig',
       secret: 'must-not-escape',
     };
 

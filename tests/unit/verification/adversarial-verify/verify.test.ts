@@ -87,27 +87,57 @@ describe('adversarialVerify — verdicts', () => {
     });
   });
 
-  it('should redact JWT and generic opaque token identifiers', async () => {
+  it('should redact short-segment JWT and broad opaque token identifiers', async () => {
     const digest = `sha256:${'a'.repeat(64)}`;
     const judge: Judge = async () => ({
       refuted: false,
       reasoning: 'verified',
       measurementReceipt: {
-        contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
-        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
-        semantics: 'provider-asserted', fingerprint: 'Ab3'.repeat(12), requestHash: digest,
+        contract: 'judge-measurement@1', provider: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN',
+        requestedModel: 'judge', resolvedModel: 'judge-2026-09', endpointClass: 'shared',
+        snapshotIdentity: 'L2_CONTENT_BOUND', semantics: 'verified',
+        fingerprint: 'eyJhbGciOiJIUzI1NiJ9.e30.sig', requestHash: digest,
         promptHash: digest, configHash: digest, parserSchemaHash: digest,
         outputHash: digest, parsedVoteHash: digest, temperature: 0, topP: 1,
-        seed: 7, deterministic: false, cacheStatus: 'miss', retryCount: 0,
+        seed: 7, deterministic: false, cacheStatus: 'miss',
+        retryCount: Number.MAX_SAFE_INTEGER + 1,
         timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
-        requestId: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl',
+        requestId: 'Abcdefghijklmnop/qrstuvwxyz123456789',
       },
     });
 
     const [verdict] = await adversarialVerify([mk('opaque-secrets')], { judge, refuters: 1 });
 
     expect(verdict.measurementReceipts?.[0]).toMatchObject({
-      fingerprint: 'UNKNOWN', requestId: 'UNKNOWN', semantics: 'UNKNOWN',
+      provider: 'UNKNOWN', fingerprint: 'UNKNOWN', requestId: 'UNKNOWN', retryCount: 0,
+      snapshotIdentity: 'L0_UNKNOWN', semantics: 'UNKNOWN',
+    });
+  });
+
+  it('should preserve structured model, UUID, and short public identifiers', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'provider-a',
+        requestedModel: 'openrouter/anthropic/claude-3.7-sonnet:beta',
+        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
+        semantics: 'provider-asserted', fingerprint: 'fp-1', requestHash: digest,
+        promptHash: digest, configHash: digest, parserSchemaHash: digest,
+        outputHash: digest, parsedVoteHash: digest, temperature: 0, topP: 1,
+        seed: 7, deterministic: false, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
+        requestId: '550e8400-e29b-41d4-a716-446655440000',
+      },
+    });
+
+    const [verdict] = await adversarialVerify([mk('valid-identifiers')], { judge, refuters: 1 });
+
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      provider: 'provider-a', requestedModel: 'openrouter/anthropic/claude-3.7-sonnet:beta',
+      fingerprint: 'fp-1', requestId: '550e8400-e29b-41d4-a716-446655440000',
+      snapshotIdentity: 'L1_NAMED', semantics: 'provider-asserted',
     });
   });
 

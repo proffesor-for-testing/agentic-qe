@@ -13,6 +13,15 @@
  * fields, so schemas keep `additionalProperties: true`.
  */
 import type { JudgeMeasurementReceipt } from '../verification/adversarial-verify/types.js';
+import {
+  isSanitizedReceiptIdentifier,
+  RECEIPT_IDENTIFIER_PATTERN,
+  RECEIPT_JWT_PATTERN,
+  RECEIPT_OPAQUE_CORRELATION_PATTERN,
+  RECEIPT_OPAQUE_DESCRIPTOR_PATTERN,
+  RECEIPT_SENSITIVE_IDENTIFIER_PATTERN,
+  type ReceiptIdentifierField,
+} from '../verification/adversarial-verify/measurement-receipt.js';
 
 export const VERDICT_CONTRACT_VERSION = '1.0' as const;
 
@@ -89,7 +98,6 @@ const RECEIPT_KEYS = new Set([
   'outputHash', 'parsedVoteHash', 'temperature', 'topP', 'seed', 'deterministic', 'cacheStatus',
   'retryCount', 'timestamp', 'windowId', 'latencyMs', 'requestId',
 ]);
-const RECEIPT_IDENTIFIER = /^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$/;
 const RECEIPT_HASH = /^(?:UNKNOWN|sha256:[a-f\d]{64})$/;
 const RECEIPT_TIMESTAMP = /^(?:UNKNOWN|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z)$/;
 
@@ -101,7 +109,7 @@ function validateMeasurementReceipt(value: unknown, path: string): string[] {
   }
   if (value.contract !== 'judge-measurement@1') errors.push(`${path}.contract must be "judge-measurement@1"`);
   for (const key of ['provider', 'requestedModel', 'resolvedModel', 'fingerprint', 'windowId', 'requestId'] as const) {
-    if (typeof value[key] !== 'string' || !RECEIPT_IDENTIFIER.test(value[key] as string)) {
+    if (!isSanitizedReceiptIdentifier(value[key], key)) {
       errors.push(`${path}.${key} must be a sanitized identifier`);
     }
   }
@@ -136,8 +144,8 @@ function validateMeasurementReceipt(value: unknown, path: string): string[] {
   if (value.deterministic !== null && typeof value.deterministic !== 'boolean') {
     errors.push(`${path}.deterministic must be a boolean or null`);
   }
-  if (!Number.isInteger(value.retryCount) || (value.retryCount as number) < 0) {
-    errors.push(`${path}.retryCount must be a non-negative integer`);
+  if (!Number.isSafeInteger(value.retryCount) || (value.retryCount as number) < 0) {
+    errors.push(`${path}.retryCount must be a non-negative safe integer`);
   }
   if (typeof value.timestamp !== 'string' || !RECEIPT_TIMESTAMP.test(value.timestamp)) {
     errors.push(`${path}.timestamp must be UNKNOWN or an ISO-8601 UTC timestamp`);
@@ -145,6 +153,23 @@ function validateMeasurementReceipt(value: unknown, path: string): string[] {
   if (value.latencyMs !== null && (typeof value.latencyMs !== 'number'
     || !Number.isFinite(value.latencyMs) || value.latencyMs < 0)) {
     errors.push(`${path}.latencyMs must be a non-negative finite number or null`);
+  }
+  const contentBound = value.fingerprint !== 'UNKNOWN'
+    && ['requestHash', 'promptHash', 'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash']
+      .every((field) => value[field] !== 'UNKNOWN');
+  if (value.snapshotIdentity === 'L2_CONTENT_BOUND' && !contentBound) {
+    errors.push(`${path}.snapshotIdentity L2_CONTENT_BOUND requires non-UNKNOWN fingerprint and hashes`);
+  }
+  if (value.snapshotIdentity === 'L1_NAMED' && value.resolvedModel === 'UNKNOWN') {
+    errors.push(`${path}.snapshotIdentity L1_NAMED requires a resolved model`);
+  }
+  if (value.semantics === 'verified'
+    && (value.snapshotIdentity !== 'L2_CONTENT_BOUND' || !contentBound)) {
+    errors.push(`${path}.semantics verified requires L2 content-bound identity`);
+  }
+  if (value.semantics !== 'UNKNOWN'
+    && (value.snapshotIdentity === 'L0_UNKNOWN' || value.fingerprint === 'UNKNOWN')) {
+    errors.push(`${path}.semantics requires identified snapshot and fingerprint`);
   }
   return errors;
 }
@@ -252,10 +277,22 @@ export function buildRiskDecisionFromQualityGate(input: {
 
 const unit = { type: 'number', minimum: 0, maximum: 1 } as const;
 const stringArray = { type: 'array', items: { type: 'string' } } as const;
-const receiptIdentifier = {
-  type: 'string', pattern: '^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$',
-} as const;
+function receiptIdentifier(field: ReceiptIdentifierField) {
+  const opaquePattern = field === 'provider' || field === 'requestedModel' || field === 'resolvedModel'
+    ? RECEIPT_OPAQUE_DESCRIPTOR_PATTERN
+    : RECEIPT_OPAQUE_CORRELATION_PATTERN;
+  return {
+    type: 'string',
+    pattern: RECEIPT_IDENTIFIER_PATTERN,
+    allOf: [
+      { not: { pattern: RECEIPT_SENSITIVE_IDENTIFIER_PATTERN } },
+      { not: { pattern: RECEIPT_JWT_PATTERN } },
+      { not: { pattern: opaquePattern } },
+    ],
+  } as const;
+}
 const receiptHash = { type: 'string', pattern: '^(?:UNKNOWN|sha256:[a-f0-9]{64})$' } as const;
+const knownReceiptHash = { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' } as const;
 
 export const RISK_DECISION_SCHEMA = {
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -304,13 +341,13 @@ export const FINDING_VERDICT_SCHEMA = {
         additionalProperties: false,
         properties: {
           contract: { const: 'judge-measurement@1' },
-          provider: receiptIdentifier,
-          requestedModel: receiptIdentifier,
-          resolvedModel: receiptIdentifier,
+          provider: receiptIdentifier('provider'),
+          requestedModel: receiptIdentifier('requestedModel'),
+          resolvedModel: receiptIdentifier('resolvedModel'),
           endpointClass: { enum: ['shared', 'dedicated', 'local', 'UNKNOWN'] },
           snapshotIdentity: { enum: ['L0_UNKNOWN', 'L1_NAMED', 'L2_CONTENT_BOUND'] },
           semantics: { enum: ['verified', 'provider-asserted', 'UNKNOWN'] },
-          fingerprint: receiptIdentifier,
+          fingerprint: receiptIdentifier('fingerprint'),
           requestHash: receiptHash,
           promptHash: receiptHash,
           configHash: receiptHash,
@@ -326,15 +363,59 @@ export const FINDING_VERDICT_SCHEMA = {
           },
           deterministic: { type: ['boolean', 'null'] },
           cacheStatus: { enum: ['hit', 'miss', 'bypass', 'UNKNOWN'] },
-          retryCount: { type: 'integer', minimum: 0 },
+          retryCount: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
           timestamp: {
             type: 'string',
             pattern: '^(?:UNKNOWN|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z)$',
           },
-          windowId: receiptIdentifier,
+          windowId: receiptIdentifier('windowId'),
           latencyMs: { type: ['number', 'null'], minimum: 0 },
-          requestId: receiptIdentifier,
+          requestId: receiptIdentifier('requestId'),
         },
+        allOf: [
+          {
+            if: { properties: { snapshotIdentity: { const: 'L2_CONTENT_BOUND' } } },
+            then: {
+              properties: {
+                fingerprint: { not: { const: 'UNKNOWN' } },
+                requestHash: knownReceiptHash,
+                promptHash: knownReceiptHash,
+                configHash: knownReceiptHash,
+                parserSchemaHash: knownReceiptHash,
+                outputHash: knownReceiptHash,
+                parsedVoteHash: knownReceiptHash,
+              },
+            },
+          },
+          {
+            if: { properties: { snapshotIdentity: { const: 'L1_NAMED' } } },
+            then: { properties: { resolvedModel: { not: { const: 'UNKNOWN' } } } },
+          },
+          {
+            if: { properties: { semantics: { const: 'verified' } } },
+            then: {
+              properties: {
+                snapshotIdentity: { const: 'L2_CONTENT_BOUND' },
+                fingerprint: { not: { const: 'UNKNOWN' } },
+                requestHash: knownReceiptHash,
+                promptHash: knownReceiptHash,
+                configHash: knownReceiptHash,
+                parserSchemaHash: knownReceiptHash,
+                outputHash: knownReceiptHash,
+                parsedVoteHash: knownReceiptHash,
+              },
+            },
+          },
+          {
+            if: { properties: { semantics: { enum: ['verified', 'provider-asserted'] } } },
+            then: {
+              properties: {
+                snapshotIdentity: { not: { const: 'L0_UNKNOWN' } },
+                fingerprint: { not: { const: 'UNKNOWN' } },
+              },
+            },
+          },
+        ],
       },
     },
   },

@@ -159,6 +159,7 @@ describe('validateFindingVerdict', () => {
     ['topP', 1.01],
     ['seed', 1.5],
     ['seed', Number.MAX_SAFE_INTEGER + 1],
+    ['retryCount', Number.MAX_SAFE_INTEGER + 1],
   ])('should reject an invalid receipt %s value', (field, invalidValue) => {
     const verdict = {
       ...goldenFindingVerdict,
@@ -171,6 +172,36 @@ describe('validateFindingVerdict', () => {
     expect(result.errors.join()).toContain(`measurementReceipts[0].${field}`);
   });
 
+  it.each([
+    ['known credential prefix', { requestId: 'sk-live-example' }],
+    ['short-segment JWT', { fingerprint: 'eyJhbGciOiJIUzI1NiJ9.e30.sig' }],
+    ['minimal-header JWT', { requestId: 'e30.e30.sig' }],
+    ['generic alphabetic token', { requestId: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN' }],
+    ['generic base64 token', { requestId: 'Abcdefghijklmnop/qrstuvwxyz123456789' }],
+  ])('should reject a receipt containing a %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
+    ['L2 without binding evidence', { fingerprint: 'UNKNOWN', requestHash: 'UNKNOWN' }],
+    ['verified semantics below L2', { snapshotIdentity: 'L1_NAMED' }],
+    ['provider assertion without a fingerprint', {
+      snapshotIdentity: 'L1_NAMED', semantics: 'provider-asserted', fingerprint: 'UNKNOWN',
+    }],
+  ])('should reject impossible receipt trust: %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
   it('should expose measurement receipts in the source-of-truth JSON schema', () => {
     expect(FINDING_VERDICT_SCHEMA.properties).toHaveProperty('measurementReceipts');
     const receipt = FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.properties;
@@ -181,6 +212,10 @@ describe('validateFindingVerdict', () => {
       minimum: Number.MIN_SAFE_INTEGER,
       maximum: Number.MAX_SAFE_INTEGER,
     });
+    expect(receipt.retryCount).toMatchObject({
+      type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER,
+    });
+    expect(FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.allOf).toHaveLength(4);
   });
 });
 
