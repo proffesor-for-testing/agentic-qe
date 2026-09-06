@@ -162,6 +162,9 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
   try {
     fd = fs.openSync(candidate, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
     const stat = fs.fstatSync(fd);
+    if (!sameFile(linkStat, stat)) {
+      return emptyResult(filePath, 'UNTRUSTED', ['session path changed before secure open']);
+    }
     if (!stat.isFile() || stat.nlink !== 1) {
       return emptyResult(filePath, 'UNTRUSTED', ['opened session is not an exclusive regular file']);
     }
@@ -180,20 +183,23 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
       return emptyResult(filePath, 'UNTRUSTED', [finalPathError ?? 'session changed while it was being inspected']);
     }
     const hasTornTail = bytes[bytes.length - 1] !== 0x0a;
+    let committedBytes = bytes;
+    if (hasTornTail) {
+      const finalLineBreak = bytes.lastIndexOf(0x0a);
+      const tornTailStart = finalLineBreak + 1;
+      const tornTailBytes = bytes.length - tornTailStart;
+      if (tornTailBytes > maxRecordBytes) {
+        return emptyResult(filePath, 'RESOURCE_LIMIT', [`record exceeds ${maxRecordBytes} bytes`]);
+      }
+      committedBytes = bytes.subarray(0, tornTailStart);
+    }
     let text: string;
     try {
-      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      text = new TextDecoder('utf-8', { fatal: true }).decode(committedBytes);
     } catch {
       return emptyResult(filePath, 'INVALID', ['transcript is not valid UTF-8']);
     }
     const lines = text.split('\n');
-    if (hasTornTail) {
-      const tornTail = lines[lines.length - 1] ?? '';
-      if (Buffer.byteLength(tornTail, 'utf8') > maxRecordBytes) {
-        return emptyResult(filePath, 'RESOURCE_LIMIT', [`record exceeds ${maxRecordBytes} bytes`]);
-      }
-      lines.pop();
-    }
     const entries: SessionEntry[] = [];
     const seen = new Set<string>();
     let previous: SessionEntry | undefined;

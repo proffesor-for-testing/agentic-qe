@@ -269,6 +269,28 @@ describe('resumeSession', () => {
       }
     });
 
+    it('should reject a final-file substitution between lstat and open', () => {
+      const filePath = path.join(tmpDir, 'session.jsonl');
+      const displacedPath = path.join(tmpDir, 'session-original.jsonl');
+      const replacementPath = path.join(tmpDir, 'session-replacement.jsonl');
+      writeJsonlFile(filePath, buildLinkedEntries(1));
+      writeJsonlFile(replacementPath, buildLinkedEntries(1));
+
+      fsOpenControl.beforeOpen = () => {
+        fs.renameSync(filePath, displacedPath);
+        fs.renameSync(replacementPath, filePath);
+      };
+
+      const result = inspectSession(filePath, {
+        sessionRoot: tmpDir,
+        allowLegacyUnverified: true,
+      });
+
+      expect(result.canResume).toBe(false);
+      expect(result.disposition).toBe('UNTRUSTED');
+      expect(result.diagnostics).toContain('session path changed before secure open');
+    });
+
     it('should reject a broken parent lineage instead of reconstructing a suffix', () => {
       const filePath = path.join(tmpDir, 'broken-chain.jsonl');
       const entries = buildLinkedEntries(3);
@@ -324,6 +346,22 @@ describe('resumeSession', () => {
 
       expect(result.disposition).toBe('RESOURCE_LIMIT');
       expect(result.diagnostics).toContain(`record exceeds ${maxRecordBytes} bytes`);
+    });
+
+    it('should discard a torn tail ending midway through a UTF-8 sequence', () => {
+      const filePath = path.join(tmpDir, 'partial-utf8-tail.jsonl');
+      const entryLine = Buffer.from(`${JSON.stringify(buildLinkedEntries(1)[0])}\n`, 'utf8');
+      fs.writeFileSync(filePath, Buffer.concat([entryLine, Buffer.from([0xe2, 0x82])]));
+
+      const result = inspectSession(filePath, {
+        sessionRoot: tmpDir,
+        allowLegacyUnverified: true,
+      });
+
+      expect(result.canResume).toBe(true);
+      expect(result.disposition).toBe('LEGACY_UNVERIFIED');
+      expect(result.metadata.entryCount).toBe(1);
+      expect(result.diagnostics).toContain('discarded an incomplete final record');
     });
 
     it.each([
