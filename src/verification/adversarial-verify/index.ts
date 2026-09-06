@@ -17,6 +17,11 @@ export type {
   FindingSeverity,
   FindingOutcome,
   RefuterVote,
+  JudgeMeasurementReceipt,
+  EndpointClass,
+  SnapshotIdentityLevel,
+  ReceiptSemantics,
+  CacheStatus,
   Judge,
   AdversarialVerifyOptions,
 } from './types.js';

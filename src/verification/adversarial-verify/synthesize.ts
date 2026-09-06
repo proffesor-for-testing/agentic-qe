@@ -20,6 +20,7 @@ export function synthesizeVerdict(
   killThreshold: (castVotes: number) => number = majorityKill,
 ): FindingVerdict {
   const refutations = votes.filter((v) => v.refuted).map((v) => v.reasoning);
+  const measurementReceipts = votes.flatMap((v) => v.measurementReceipt ? [v.measurementReceipt] : []);
   const killed = votes.length > 0 && refutations.length >= killThreshold(votes.length);
   return {
     contract: 'finding-verdict@1',
@@ -31,6 +32,7 @@ export function synthesizeVerdict(
     evidence: finding.evidence,
     verdict: votes.length === 0 ? 'uncertain' : killed ? 'refuted' : 'upheld',
     refutations,
+    ...(measurementReceipts.length > 0 ? { measurementReceipts } : {}),
   };
 }
 

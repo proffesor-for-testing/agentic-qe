@@ -61,6 +61,47 @@
       "items": {
         "type": "string"
       }
+    },
+    "measurementReceipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "contract", "provider", "requestedModel", "resolvedModel",
+          "endpointClass", "snapshotIdentity", "semantics", "fingerprint",
+          "requestHash", "promptHash", "configHash", "parserSchemaHash",
+          "outputHash", "parsedVoteHash", "temperature", "topP", "seed",
+          "deterministic", "cacheStatus", "retryCount", "timestamp",
+          "windowId", "latencyMs", "requestId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "contract": { "const": "judge-measurement@1" },
+          "provider": { "type": "string", "minLength": 1 },
+          "requestedModel": { "type": "string", "minLength": 1 },
+          "resolvedModel": { "type": "string", "minLength": 1 },
+          "endpointClass": { "enum": ["shared", "dedicated", "local", "UNKNOWN"] },
+          "snapshotIdentity": { "enum": ["L0_UNKNOWN", "L1_NAMED", "L2_CONTENT_BOUND"] },
+          "semantics": { "enum": ["verified", "provider-asserted", "UNKNOWN"] },
+          "fingerprint": { "type": "string", "minLength": 1 },
+          "requestHash": { "type": "string", "minLength": 1 },
+          "promptHash": { "type": "string", "minLength": 1 },
+          "configHash": { "type": "string", "minLength": 1 },
+          "parserSchemaHash": { "type": "string", "minLength": 1 },
+          "outputHash": { "type": "string", "minLength": 1 },
+          "parsedVoteHash": { "type": "string", "minLength": 1 },
+          "temperature": { "type": ["number", "null"] },
+          "topP": { "type": ["number", "null"] },
+          "seed": { "type": ["number", "null"] },
+          "deterministic": { "type": ["boolean", "null"] },
+          "cacheStatus": { "enum": ["hit", "miss", "bypass", "UNKNOWN"] },
+          "retryCount": { "type": "integer", "minimum": 0 },
+          "timestamp": { "type": "string", "minLength": 1 },
+          "windowId": { "type": "string", "minLength": 1 },
+          "latencyMs": { "type": ["number", "null"], "minimum": 0 },
+          "requestId": { "type": "string", "minLength": 1 }
+        }
+      }
     }
   }
 }

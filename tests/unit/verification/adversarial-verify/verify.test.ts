@@ -12,6 +12,63 @@ const mk = (id: string, over: Partial<Finding> = {}): Finding => ({
 });
 
 describe('adversarialVerify — verdicts', () => {
+  it('should emit only the sanitized measurement receipt fields supplied by an adapter', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
+        semantics: 'provider-asserted', fingerprint: 'fp-1', requestHash: digest,
+        promptHash: digest, configHash: digest, parserSchemaHash: digest,
+        outputHash: digest, parsedVoteHash: digest, temperature: 0, topP: 1,
+        seed: 7, deterministic: false, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
+        requestId: 'request-1',
+        secret: 'must-not-escape',
+      } as never,
+    });
+
+    const [verdict] = await adversarialVerify([mk('receipt')], { judge, refuters: 1 });
+
+    expect(verdict.measurementReceipts).toHaveLength(1);
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      contract: 'judge-measurement@1', provider: 'provider-a', resolvedModel: 'judge-2026-09',
+      snapshotIdentity: 'L1_NAMED', requestHash: digest, parsedVoteHash: digest,
+    });
+    expect(verdict.measurementReceipts?.[0]).not.toHaveProperty('secret');
+  });
+
+  it('should preserve UNKNOWN instead of accepting malformed identity and hash claims', async () => {
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: '', requestedModel: '', resolvedModel: '',
+        endpointClass: 'shared', snapshotIdentity: 'L2_CONTENT_BOUND', semantics: 'verified',
+        fingerprint: '', requestHash: 'not-a-hash', promptHash: '', configHash: '',
+        parserSchemaHash: '', outputHash: '', parsedVoteHash: '', temperature: Number.NaN,
+        topP: null, seed: null, deterministic: null, cacheStatus: 'miss', retryCount: -1,
+        timestamp: '', windowId: '', latencyMs: Number.POSITIVE_INFINITY, requestId: '',
+      },
+    });
+
+    const [verdict] = await adversarialVerify([mk('unknown')], { judge, refuters: 1 });
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      provider: 'UNKNOWN', requestedModel: 'UNKNOWN', resolvedModel: 'UNKNOWN',
+      fingerprint: 'UNKNOWN', requestHash: 'UNKNOWN', promptHash: 'UNKNOWN', retryCount: 0,
+      timestamp: 'UNKNOWN', windowId: 'UNKNOWN', latencyMs: null, requestId: 'UNKNOWN',
+    });
+  });
+
+  it('should preserve deterministic stubs that do not emit measurement receipts', async () => {
+    const judge: Judge = async () => ({ refuted: false, reasoning: 'stable stub' });
+    const [verdict] = await adversarialVerify([mk('stub')], { judge, refuters: 1 });
+    expect(verdict.verdict).toBe('upheld');
+    expect(verdict).not.toHaveProperty('measurementReceipts');
+  });
+
   it('should kill a finding when the majority of refuters refute', async () => {
     let n = 0;
     const judge: Judge = async () => ({ refuted: ++n <= 2, reasoning: 'r' }); // 2 refute, 1 uphold
