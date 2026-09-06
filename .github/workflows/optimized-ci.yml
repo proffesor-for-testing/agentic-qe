@@ -26,6 +26,19 @@ permissions:
 # Only the "remaining" shard needs explicit excludes.
 
 jobs:
+  # Prove the published minimum independently from the Node 24 primary lanes.
+  node-22-compatibility:
+    name: Node 22 compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22.13.0', cache: 'npm' }
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:unit:fast
+
   # ─── Security audit (fail fast on high/critical CVEs) ───
   # Cheap (~30s), independent of the test shards. Runs in parallel with them
   # so a known CVE blocks the build without waiting for journey tests. Scoped
