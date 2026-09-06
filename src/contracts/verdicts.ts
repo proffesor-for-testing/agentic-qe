@@ -12,6 +12,7 @@
  * additive-only within a major version: consumers must tolerate unknown
  * fields, so schemas keep `additionalProperties: true`.
  */
+import type { JudgeMeasurementReceipt } from '../verification/adversarial-verify/types.js';
 
 export const VERDICT_CONTRACT_VERSION = '1.0' as const;
 
@@ -46,6 +47,8 @@ export interface FindingVerdict {
   verdict: FindingOutcome;
   /** One entry per refuter that voted to refute (empty when none) */
   refutations: string[];
+  /** Sanitized receipts for cast votes whose adapters supplied measurement evidence. */
+  measurementReceipts?: JudgeMeasurementReceipt[];
 }
 
 export interface CoverageGap {
@@ -80,6 +83,66 @@ function inUnitRange(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
 }
 
+const RECEIPT_KEYS = new Set([
+  'contract', 'provider', 'requestedModel', 'resolvedModel', 'endpointClass', 'snapshotIdentity',
+  'semantics', 'fingerprint', 'requestHash', 'promptHash', 'configHash', 'parserSchemaHash',
+  'outputHash', 'parsedVoteHash', 'temperature', 'topP', 'seed', 'deterministic', 'cacheStatus',
+  'retryCount', 'timestamp', 'windowId', 'latencyMs', 'requestId',
+]);
+const RECEIPT_IDENTIFIER = /^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$/;
+const RECEIPT_HASH = /^(?:UNKNOWN|sha256:[a-f\d]{64})$/;
+const RECEIPT_TIMESTAMP = /^(?:UNKNOWN|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z)$/;
+
+function validateMeasurementReceipt(value: unknown, path: string): string[] {
+  if (!isRecord(value)) return [`${path} must be an object`];
+  const errors: string[] = [];
+  for (const key of Object.keys(value)) {
+    if (!RECEIPT_KEYS.has(key)) errors.push(`${path}.${key} is not allowed`);
+  }
+  if (value.contract !== 'judge-measurement@1') errors.push(`${path}.contract must be "judge-measurement@1"`);
+  for (const key of ['provider', 'requestedModel', 'resolvedModel', 'fingerprint', 'windowId', 'requestId'] as const) {
+    if (typeof value[key] !== 'string' || !RECEIPT_IDENTIFIER.test(value[key] as string)) {
+      errors.push(`${path}.${key} must be a sanitized identifier`);
+    }
+  }
+  for (const key of ['requestHash', 'promptHash', 'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash'] as const) {
+    if (typeof value[key] !== 'string' || !RECEIPT_HASH.test(value[key] as string)) {
+      errors.push(`${path}.${key} must be UNKNOWN or a SHA-256 digest`);
+    }
+  }
+  if (!['shared', 'dedicated', 'local', 'UNKNOWN'].includes(value.endpointClass as string)) {
+    errors.push(`${path}.endpointClass is invalid`);
+  }
+  if (!['L0_UNKNOWN', 'L1_NAMED', 'L2_CONTENT_BOUND'].includes(value.snapshotIdentity as string)) {
+    errors.push(`${path}.snapshotIdentity is invalid`);
+  }
+  if (!['verified', 'provider-asserted', 'UNKNOWN'].includes(value.semantics as string)) {
+    errors.push(`${path}.semantics is invalid`);
+  }
+  if (!['hit', 'miss', 'bypass', 'UNKNOWN'].includes(value.cacheStatus as string)) {
+    errors.push(`${path}.cacheStatus is invalid`);
+  }
+  for (const key of ['temperature', 'topP', 'seed'] as const) {
+    if (value[key] !== null && (typeof value[key] !== 'number' || !Number.isFinite(value[key]))) {
+      errors.push(`${path}.${key} must be a finite number or null`);
+    }
+  }
+  if (value.deterministic !== null && typeof value.deterministic !== 'boolean') {
+    errors.push(`${path}.deterministic must be a boolean or null`);
+  }
+  if (!Number.isInteger(value.retryCount) || (value.retryCount as number) < 0) {
+    errors.push(`${path}.retryCount must be a non-negative integer`);
+  }
+  if (typeof value.timestamp !== 'string' || !RECEIPT_TIMESTAMP.test(value.timestamp)) {
+    errors.push(`${path}.timestamp must be UNKNOWN or an ISO-8601 UTC timestamp`);
+  }
+  if (value.latencyMs !== null && (typeof value.latencyMs !== 'number'
+    || !Number.isFinite(value.latencyMs) || value.latencyMs < 0)) {
+    errors.push(`${path}.latencyMs must be a non-negative finite number or null`);
+  }
+  return errors;
+}
+
 export function validateRiskDecision(value: unknown): ValidationResult {
   const errors: string[] = [];
   if (!isRecord(value)) return { valid: false, errors: ['not an object'] };
@@ -111,6 +174,15 @@ export function validateFindingVerdict(value: unknown): ValidationResult {
     errors.push('verdict must be upheld|refuted|uncertain');
   }
   if (!isStringArray(value.refutations)) errors.push('refutations must be string[]');
+  if (value.measurementReceipts !== undefined) {
+    if (!Array.isArray(value.measurementReceipts)) {
+      errors.push('measurementReceipts must be an array when present');
+    } else {
+      value.measurementReceipts.forEach((receipt, index) => {
+        errors.push(...validateMeasurementReceipt(receipt, `measurementReceipts[${index}]`));
+      });
+    }
+  }
   return { valid: errors.length === 0, errors };
 }
 
@@ -174,6 +246,10 @@ export function buildRiskDecisionFromQualityGate(input: {
 
 const unit = { type: 'number', minimum: 0, maximum: 1 } as const;
 const stringArray = { type: 'array', items: { type: 'string' } } as const;
+const receiptIdentifier = {
+  type: 'string', pattern: '^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$',
+} as const;
+const receiptHash = { type: 'string', pattern: '^(?:UNKNOWN|sha256:[a-f0-9]{64})$' } as const;
 
 export const RISK_DECISION_SCHEMA = {
   $schema: 'http://json-schema.org/draft-07/schema#',
@@ -208,6 +284,49 @@ export const FINDING_VERDICT_SCHEMA = {
     evidence: stringArray,
     verdict: { enum: ['upheld', 'refuted', 'uncertain'] },
     refutations: stringArray,
+    measurementReceipts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'contract', 'provider', 'requestedModel', 'resolvedModel', 'endpointClass',
+          'snapshotIdentity', 'semantics', 'fingerprint', 'requestHash', 'promptHash',
+          'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash', 'temperature',
+          'topP', 'seed', 'deterministic', 'cacheStatus', 'retryCount', 'timestamp',
+          'windowId', 'latencyMs', 'requestId',
+        ],
+        additionalProperties: false,
+        properties: {
+          contract: { const: 'judge-measurement@1' },
+          provider: receiptIdentifier,
+          requestedModel: receiptIdentifier,
+          resolvedModel: receiptIdentifier,
+          endpointClass: { enum: ['shared', 'dedicated', 'local', 'UNKNOWN'] },
+          snapshotIdentity: { enum: ['L0_UNKNOWN', 'L1_NAMED', 'L2_CONTENT_BOUND'] },
+          semantics: { enum: ['verified', 'provider-asserted', 'UNKNOWN'] },
+          fingerprint: receiptIdentifier,
+          requestHash: receiptHash,
+          promptHash: receiptHash,
+          configHash: receiptHash,
+          parserSchemaHash: receiptHash,
+          outputHash: receiptHash,
+          parsedVoteHash: receiptHash,
+          temperature: { type: ['number', 'null'] },
+          topP: { type: ['number', 'null'] },
+          seed: { type: ['number', 'null'] },
+          deterministic: { type: ['boolean', 'null'] },
+          cacheStatus: { enum: ['hit', 'miss', 'bypass', 'UNKNOWN'] },
+          retryCount: { type: 'integer', minimum: 0 },
+          timestamp: {
+            type: 'string',
+            pattern: '^(?:UNKNOWN|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z)$',
+          },
+          windowId: receiptIdentifier,
+          latencyMs: { type: ['number', 'null'], minimum: 0 },
+          requestId: receiptIdentifier,
+        },
+      },
+    },
   },
 } as const;
 

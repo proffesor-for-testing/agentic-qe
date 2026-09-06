@@ -67,39 +67,153 @@
       "items": {
         "type": "object",
         "required": [
-          "contract", "provider", "requestedModel", "resolvedModel",
-          "endpointClass", "snapshotIdentity", "semantics", "fingerprint",
-          "requestHash", "promptHash", "configHash", "parserSchemaHash",
-          "outputHash", "parsedVoteHash", "temperature", "topP", "seed",
-          "deterministic", "cacheStatus", "retryCount", "timestamp",
-          "windowId", "latencyMs", "requestId"
+          "contract",
+          "provider",
+          "requestedModel",
+          "resolvedModel",
+          "endpointClass",
+          "snapshotIdentity",
+          "semantics",
+          "fingerprint",
+          "requestHash",
+          "promptHash",
+          "configHash",
+          "parserSchemaHash",
+          "outputHash",
+          "parsedVoteHash",
+          "temperature",
+          "topP",
+          "seed",
+          "deterministic",
+          "cacheStatus",
+          "retryCount",
+          "timestamp",
+          "windowId",
+          "latencyMs",
+          "requestId"
         ],
         "additionalProperties": false,
         "properties": {
-          "contract": { "const": "judge-measurement@1" },
-          "provider": { "type": "string", "minLength": 1 },
-          "requestedModel": { "type": "string", "minLength": 1 },
-          "resolvedModel": { "type": "string", "minLength": 1 },
-          "endpointClass": { "enum": ["shared", "dedicated", "local", "UNKNOWN"] },
-          "snapshotIdentity": { "enum": ["L0_UNKNOWN", "L1_NAMED", "L2_CONTENT_BOUND"] },
-          "semantics": { "enum": ["verified", "provider-asserted", "UNKNOWN"] },
-          "fingerprint": { "type": "string", "minLength": 1 },
-          "requestHash": { "type": "string", "minLength": 1 },
-          "promptHash": { "type": "string", "minLength": 1 },
-          "configHash": { "type": "string", "minLength": 1 },
-          "parserSchemaHash": { "type": "string", "minLength": 1 },
-          "outputHash": { "type": "string", "minLength": 1 },
-          "parsedVoteHash": { "type": "string", "minLength": 1 },
-          "temperature": { "type": ["number", "null"] },
-          "topP": { "type": ["number", "null"] },
-          "seed": { "type": ["number", "null"] },
-          "deterministic": { "type": ["boolean", "null"] },
-          "cacheStatus": { "enum": ["hit", "miss", "bypass", "UNKNOWN"] },
-          "retryCount": { "type": "integer", "minimum": 0 },
-          "timestamp": { "type": "string", "minLength": 1 },
-          "windowId": { "type": "string", "minLength": 1 },
-          "latencyMs": { "type": ["number", "null"], "minimum": 0 },
-          "requestId": { "type": "string", "minLength": 1 }
+          "contract": {
+            "const": "judge-measurement@1"
+          },
+          "provider": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          },
+          "requestedModel": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          },
+          "resolvedModel": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          },
+          "endpointClass": {
+            "enum": [
+              "shared",
+              "dedicated",
+              "local",
+              "UNKNOWN"
+            ]
+          },
+          "snapshotIdentity": {
+            "enum": [
+              "L0_UNKNOWN",
+              "L1_NAMED",
+              "L2_CONTENT_BOUND"
+            ]
+          },
+          "semantics": {
+            "enum": [
+              "verified",
+              "provider-asserted",
+              "UNKNOWN"
+            ]
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          },
+          "requestHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "promptHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "configHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "parserSchemaHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "outputHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "parsedVoteHash": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|sha256:[a-f0-9]{64})$"
+          },
+          "temperature": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "topP": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "deterministic": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cacheStatus": {
+            "enum": [
+              "hit",
+              "miss",
+              "bypass",
+              "UNKNOWN"
+            ]
+          },
+          "retryCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z)$"
+          },
+          "windowId": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          },
+          "latencyMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "requestId": {
+            "type": "string",
+            "pattern": "^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$"
+          }
         }
       }
     }

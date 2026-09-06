@@ -59,7 +59,53 @@ describe('adversarialVerify — verdicts', () => {
       provider: 'UNKNOWN', requestedModel: 'UNKNOWN', resolvedModel: 'UNKNOWN',
       fingerprint: 'UNKNOWN', requestHash: 'UNKNOWN', promptHash: 'UNKNOWN', retryCount: 0,
       timestamp: 'UNKNOWN', windowId: 'UNKNOWN', latencyMs: null, requestId: 'UNKNOWN',
+      snapshotIdentity: 'L0_UNKNOWN', semantics: 'UNKNOWN',
     });
+  });
+
+  it('should reject prompt-like and credential-like values from public receipt identifiers', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'PRIVATE SYSTEM PROMPT: keep this hidden',
+        requestedModel: 'sk-live-example', resolvedModel: 'judge-2026-09', endpointClass: 'shared',
+        snapshotIdentity: 'L1_NAMED', semantics: 'provider-asserted', fingerprint: 'fp-1',
+        requestHash: digest, promptHash: digest, configHash: digest, parserSchemaHash: digest,
+        outputHash: digest, parsedVoteHash: digest, temperature: 0, topP: 1, seed: 7,
+        deterministic: false, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: 42,
+        requestId: 'PRIVATE CHAIN OF THOUGHT',
+      },
+    });
+
+    const [verdict] = await adversarialVerify([mk('sensitive')], { judge, refuters: 1 });
+
+    expect(verdict.measurementReceipts?.[0]).toMatchObject({
+      provider: 'UNKNOWN', requestedModel: 'UNKNOWN', requestId: 'UNKNOWN',
+    });
+  });
+
+  it('should replace negative latency with null so emitted receipts remain schema-valid', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const judge: Judge = async () => ({
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L2_CONTENT_BOUND',
+        semantics: 'verified', fingerprint: 'fp-1', requestHash: digest, promptHash: digest,
+        configHash: digest, parserSchemaHash: digest, outputHash: digest, parsedVoteHash: digest,
+        temperature: 0, topP: 1, seed: 7, deterministic: true, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-09-06T00:00:00.000Z', windowId: '2026-09-06', latencyMs: -1,
+        requestId: 'request-1',
+      },
+    });
+
+    const [verdict] = await adversarialVerify([mk('negative-latency')], { judge, refuters: 1 });
+
+    expect(verdict.measurementReceipts?.[0]?.latencyMs).toBeNull();
   });
 
   it('should preserve deterministic stubs that do not emit measurement receipts', async () => {

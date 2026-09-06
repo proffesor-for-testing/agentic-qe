@@ -11,10 +11,39 @@ import {
   validateFindingVerdict,
   validateCoverageGap,
   buildRiskDecisionFromQualityGate,
+  FINDING_VERDICT_SCHEMA,
   type RiskDecision,
   type FindingVerdict,
   type CoverageGap,
 } from '../../../src/contracts/verdicts';
+
+const digest = `sha256:${'a'.repeat(64)}`;
+const goldenMeasurementReceipt = {
+  contract: 'judge-measurement@1' as const,
+  provider: 'provider-a',
+  requestedModel: 'judge',
+  resolvedModel: 'judge-2026-09',
+  endpointClass: 'shared' as const,
+  snapshotIdentity: 'L2_CONTENT_BOUND' as const,
+  semantics: 'verified' as const,
+  fingerprint: 'fp-1',
+  requestHash: digest,
+  promptHash: digest,
+  configHash: digest,
+  parserSchemaHash: digest,
+  outputHash: digest,
+  parsedVoteHash: digest,
+  temperature: 0,
+  topP: 1,
+  seed: 7,
+  deterministic: true,
+  cacheStatus: 'miss' as const,
+  retryCount: 0,
+  timestamp: '2026-09-06T00:00:00.000Z',
+  windowId: '2026-09-06',
+  latencyMs: 42,
+  requestId: 'request-1',
+};
 
 const goldenRiskDecision: RiskDecision = {
   contract: 'risk-decision@1',
@@ -105,6 +134,28 @@ describe('validateFindingVerdict', () => {
 
   it('should reject an unknown verdict value', () => {
     expect(validateFindingVerdict({ ...goldenFindingVerdict, verdict: 'plausible' }).valid).toBe(false);
+  });
+
+  it('should validate a well-formed measurement receipt', () => {
+    const verdict = { ...goldenFindingVerdict, measurementReceipts: [goldenMeasurementReceipt] };
+
+    expect(validateFindingVerdict(verdict)).toEqual({ valid: true, errors: [] });
+  });
+
+  it('should reject a malformed measurement receipt', () => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, latencyMs: -1 }],
+    };
+
+    const result = validateFindingVerdict(verdict);
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.join()).toContain('measurementReceipts[0].latencyMs');
+  });
+
+  it('should expose measurement receipts in the source-of-truth JSON schema', () => {
+    expect(FINDING_VERDICT_SCHEMA.properties).toHaveProperty('measurementReceipts');
   });
 });
 

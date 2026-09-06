@@ -56,6 +56,12 @@ describe('synthesizeVerdict', () => {
     expect(v).toMatchObject({ contract: 'finding-verdict@1', id: 'complexity:god-fn', title: 'god function', file: 'src/x.ts', severity: 'high', confidence: 0.8 });
   });
 
+  it('should reject a verdict containing a malformed measurement receipt at the runtime boundary', () => {
+    const verdict = synthesizeVerdict(finding, [uphold()]);
+
+    expect(isFindingVerdict({ ...verdict, measurementReceipts: [{ contract: 'judge-measurement@1' }] })).toBe(false);
+  });
+
   it('should omit file when the finding has none', () => {
     const { file, ...noFile } = finding;
     const v = synthesizeVerdict(noFile, [uphold()]);
