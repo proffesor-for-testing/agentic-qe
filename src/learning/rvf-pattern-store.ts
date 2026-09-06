@@ -40,6 +40,7 @@ import type {
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
+import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
 // RVF Pattern Store Configuration
@@ -108,9 +109,12 @@ export class RvfPatternStore implements IPatternStore {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    this.rvfInitError = null;
+
     // Database-free mode (#534): never create an on-disk patterns.rvf (+ .idmap/.lock).
-    // Run adapter-less — the store degrades to metadata-only (the same graceful
-    // path used when the RVF native binding is unavailable), writing nothing.
+    // Run adapter-less and write nothing. The factory normally selects the
+    // in-memory PatternStore in this mode; a directly constructed RVF store
+    // remains fail-closed unless an authoritative SQLite delegate is attached.
     if (process.env.AQE_MEMORY_BACKEND === 'memory') {
       this.adapter = null;
       this.initialized = true;
@@ -246,10 +250,23 @@ export class RvfPatternStore implements IPatternStore {
       );
     }
 
+    // RVF is a derived persistent index. A write is observable only through its
+    // authoritative SQLite metadata row, regardless of the process-wide memory
+    // setting. The factory routes memory mode to PatternStore, so a directly
+    // constructed RVF store without SQLite must fail before vector ingestion.
+    if (!this.sqliteStore) {
+      return err(new PatternMutationError(
+        pattern.id,
+        'FAILED',
+        new Error('authoritative SQLite pattern store is unavailable'),
+      ));
+    }
+
     const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId;
     if (pattern.embedding && !activeSpaceId) {
       return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
     }
+    let authoritativeCommitted = false;
 
     // Persist metadata to SQLite. #447: capture the returned id — ON CONFLICT
     // on (name, qe_domain, pattern_type) preserves the existing row's id, so
@@ -265,12 +282,18 @@ export class RvfPatternStore implements IPatternStore {
           // before HNSW ingest (otherwise the index keys diverge from SQLite).
           (pattern as { id: string }).id = actualId;
         }
+        authoritativeCommitted = true;
       } catch (error) {
-        console.warn(
-          `[RvfPatternStore] SQLite persist failed for ${pattern.id}:`,
-          toErrorMessage(error),
-        );
+        return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
+    }
+
+    if (pattern.embedding && !this.adapter && this.rvfInitError) {
+      return err(new PatternMutationError(
+        pattern.id,
+        authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+        new Error(`RVF unavailable ${authoritativeCommitted ? 'after' : 'before'} authoritative pattern commit: ${this.rvfInitError}`),
+      ));
     }
 
     // Ingest vector into RVF
@@ -279,12 +302,16 @@ export class RvfPatternStore implements IPatternStore {
         const vec = pattern.embedding instanceof Float32Array
           ? pattern.embedding
           : new Float32Array(pattern.embedding);
-        this.adapter.ingest([{ id: pattern.id, vector: vec }]);
+        const ingest = this.adapter.ingest([{ id: pattern.id, vector: vec }]);
+        if (ingest.accepted !== 1 || ingest.rejected !== 0) {
+          throw new Error(`RVF rejected pattern vector (accepted=${ingest.accepted}, rejected=${ingest.rejected})`);
+        }
       } catch (error) {
-        console.warn(
-          `[RvfPatternStore] RVF ingest failed for ${pattern.id}:`,
-          toErrorMessage(error),
-        );
+        return err(new PatternMutationError(
+          pattern.id,
+          authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+          error,
+        ));
       }
     }
 

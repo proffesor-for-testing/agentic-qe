@@ -52,6 +52,7 @@ import {
 import { getWitnessChain } from '../audit/witness-chain.js';
 import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { PatternMutationError } from './pattern-mutation-error.js';
 
 // Import extracted modules
 import { DEFAULT_QE_REASONING_BANK_CONFIG } from './qe-reasoning-bank-types.js';
@@ -350,16 +351,36 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     const result = await this.patternStore.create(options);
 
+    // A pending-index error still proves the authoritative SQLite mutation
+    // committed. Resolve that committed row for witness and replication side
+    // effects, while returning the original typed partial disposition.
+    let committedPattern: QEPattern | null = result.success ? result.value : null;
+    if (
+      !result.success &&
+      result.error instanceof PatternMutationError &&
+      result.error.disposition === 'COMMITTED_PENDING_INDEX'
+    ) {
+      try {
+        committedPattern = await this.patternStore.get(result.error.patternId);
+      } catch (error) {
+        logger.warn('Committed pattern lookup failed', {
+          patternId: result.error.patternId,
+          error: toErrorMessage(error),
+        });
+      }
+    }
+
     // ADR-070: Record pattern creation in witness chain
-    if (result.success) {
-      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: result.value.id, domain: result.value.qeDomain, confidence: result.value.confidence, name: result.value.name }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_CREATE failed', { error: toErrorMessage(e) }); });
+    if (committedPattern) {
+      const sideEffectPattern = committedPattern;
+      getWitnessChain().then(wc => wc.append('PATTERN_CREATE', { patternId: sideEffectPattern.id, domain: sideEffectPattern.qeDomain, confidence: sideEffectPattern.confidence, name: sideEffectPattern.name }, 'reasoning-bank')).catch((e) => { logger.warn('Witness chain PATTERN_CREATE failed', { error: toErrorMessage(e) }); });
 
       // Phase 3: Best-effort RVF dual-write for vector replication
-      if (this.rvfDualWriter && result.value.embedding && result.value.embedding.length > 0) {
+      if (this.rvfDualWriter && sideEffectPattern.embedding && sideEffectPattern.embedding.length > 0) {
         try {
-          this.rvfDualWriter.writePattern(result.value.id, result.value.embedding);
+          this.rvfDualWriter.writePattern(sideEffectPattern.id, sideEffectPattern.embedding);
         } catch (rvfErr) {
-          logger.warn('RVF dual-write failed (non-fatal)', { patternId: result.value.id, error: toErrorMessage(rvfErr) });
+          logger.warn('RVF dual-write failed (non-fatal)', { patternId: sideEffectPattern.id, error: toErrorMessage(rvfErr) });
         }
       }
     }

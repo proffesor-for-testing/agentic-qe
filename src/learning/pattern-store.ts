@@ -68,6 +68,7 @@ import {
 } from './hyperbolic-pattern-index.js';
 import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
 // R1: HDC Fingerprint Singleton (lazy-initialized)
@@ -821,6 +822,14 @@ export class PatternStore implements IPatternStore {
         )
       );
     }
+    const persistentBackend = (process.env.AQE_MEMORY_BACKEND ?? 'memory') !== 'memory';
+    if (persistentBackend && !this.sqliteStore) {
+      return err(new PatternMutationError(
+        pattern.id,
+        'FAILED',
+        new Error('authoritative SQLite pattern store is unavailable'),
+      ));
+    }
     const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
     if (pattern.embedding && !activeSpaceId) {
       return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
@@ -835,6 +844,12 @@ export class PatternStore implements IPatternStore {
 
     // R3b: Capture pre-existing pattern for VectorDeltaTracker before overwrite
     const existingPattern = this.patternCache.get(pattern.id) ?? null;
+    let authoritativeCommitted = false;
+
+    const rollbackUncommittedCache = (): void => {
+      this.unindexPattern(pattern);
+      if (existingPattern) this.indexPattern(existingPattern);
+    };
 
     // Index in memory cache
     this.indexPattern(pattern);
@@ -854,14 +869,31 @@ export class PatternStore implements IPatternStore {
           (pattern as { id: string }).id = actualId;
           this.indexPattern(pattern);
         }
+        authoritativeCommitted = true;
       } catch (error) {
-        console.warn(`[PatternStore] SQLite persist failed for ${pattern.id}:`, toErrorMessage(error));
+        rollbackUncommittedCache();
+        return err(new PatternMutationError(pattern.id, 'FAILED', error));
       }
     }
 
     // Add to HNSW if embedding is available (lazy-load HNSW only when needed)
     if (pattern.embedding) {
       const hnsw = await this.ensureHNSW();
+      if (!hnsw && authoritativeCommitted) {
+        return err(new PatternMutationError(
+          pattern.id,
+          'COMMITTED_PENDING_INDEX',
+          new Error('HNSW unavailable after authoritative pattern commit'),
+        ));
+      }
+      if (!hnsw && persistentBackend) {
+        rollbackUncommittedCache();
+        return err(new PatternMutationError(
+          pattern.id,
+          'FAILED',
+          new Error('HNSW unavailable before an authoritative pattern commit'),
+        ));
+      }
       if (hnsw) {
         try {
           // Cast pattern metadata to CoverageVectorMetadata for HNSW storage
@@ -879,7 +911,12 @@ export class PatternStore implements IPatternStore {
             totalLines: 0,
           } as import('../domains/coverage-analysis/services/hnsw-index.js').CoverageVectorMetadata);
         } catch (error) {
-          console.warn(`[PatternStore] Failed to index embedding for ${pattern.id}:`, error);
+          if (!authoritativeCommitted) rollbackUncommittedCache();
+          return err(new PatternMutationError(
+            pattern.id,
+            authoritativeCommitted ? 'COMMITTED_PENDING_INDEX' : 'FAILED',
+            error,
+          ));
         }
       }
     }

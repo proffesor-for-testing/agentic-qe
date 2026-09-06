@@ -16,6 +16,7 @@ import {
 import type { QEPattern, QEPatternType, QEDomain } from '../../../src/learning/qe-patterns.js';
 import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
+import { PatternMutationError } from '../../../src/learning/pattern-mutation-error.js';
 
 // Ensure these tests exercise the in-memory PatternStore, not the RVF variant
 beforeEach(() => { setRuVectorFeatureFlags({ useRVFPatternStore: false }); });
@@ -165,6 +166,147 @@ describe('PatternStore', () => {
   });
 
   describe('Pattern Storage', () => {
+    it('should roll back the cache and report FAILED when SQLite persistence fails', async () => {
+      const pattern = createTestPattern({ embedding: undefined });
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => { throw new Error('disk full'); }),
+      };
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(await store.get(pattern.id)).toBeNull();
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when HNSW indexing fails after SQLite commit', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = {
+        insert: vi.fn(async () => { throw new Error('index unavailable'); }),
+      };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when HNSW is unavailable after SQLite commit', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
+        .mockResolvedValueOnce(null);
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when the HNSW embedding space mismatches', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'active-space';
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => pattern.id),
+      };
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = { insert: vi.fn() };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'stale-space';
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toEqual(pattern);
+    });
+
+    it('should allow the default in-memory write when HNSW is unavailable and the backend is unset', async () => {
+      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
+        .mockResolvedValueOnce(null);
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      delete process.env.AQE_MEMORY_BACKEND;
+
+      try {
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(true);
+        expect(await store.get(pattern.id)).toEqual(pattern);
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should preserve the prior cache and skip a healthy HNSW when persistent SQLite is absent', async () => {
+      const existingPattern = createTestPattern({ embedding: undefined, name: 'Existing Pattern' });
+      expect((await store.store(existingPattern)).success).toBe(true);
+      const replacement = createTestPattern({
+        ...existingPattern,
+        name: 'Replacement Pattern',
+        embedding: [0.1, 0.2, 0.3],
+      });
+      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
+      const insert = vi.fn(async () => undefined);
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = { insert };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(replacement);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(await store.get(existingPattern.id)).toEqual(existingPattern);
+        expect(insert).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report FAILED for an embedding-less persistent write without SQLite', async () => {
+      const pattern = createTestPattern({ embedding: undefined });
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
     it('should store a valid pattern', async () => {
       const pattern = createTestPattern();
 

@@ -18,6 +18,7 @@ import {
   setRuVectorFeatureFlags,
   resetRuVectorFeatureFlags,
 } from '../../../src/integrations/ruvector/feature-flags.js';
+import { PatternMutationError } from '../../../src/learning/pattern-mutation-error.js';
 
 const TEST_SPACE_ID = 'test-runtime-embedding-space';
 
@@ -183,6 +184,192 @@ describe('RvfPatternStore', () => {
   });
 
   describe('Store', () => {
+    it('should report FAILED and skip RVF ingest when SQLite persistence fails', async () => {
+      const pattern = makePattern();
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = {
+        storePattern: vi.fn(() => { throw new Error('sqlite unavailable'); }),
+      };
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(adapter.ingest).not.toHaveBeenCalled();
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when RVF ingest fails after SQLite commit', async () => {
+      const pattern = makePattern();
+      vi.mocked(adapter.ingest).mockImplementationOnce(() => { throw new Error('rvf unavailable'); });
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when RVF initialization failed before SQLite commit', async () => {
+      await store.dispose();
+      const initFailure = new RvfPatternStore(
+        () => { throw new Error('native RVF unavailable'); },
+        { rvfPath: path.join(tmpDir, 'failed-init.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      const sqliteStore = createSQLitePatternStore({
+        useUnified: false,
+        dbPath: path.join(tmpDir, 'failed-init-patterns.db'),
+      });
+      await sqliteStore.initialize();
+      initFailure.setSqliteStore(sqliteStore);
+      store = initFailure;
+      const pattern = makePattern();
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBeInstanceOf(PatternMutationError);
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
+    });
+
+    it('should reject an explicit memory-mode RVF write without retrievable metadata', async () => {
+      await store.dispose();
+      const createAdapter = vi.fn(() => adapter);
+      const memoryOnly = new RvfPatternStore(
+        createAdapter,
+        { rvfPath: path.join(tmpDir, 'memory-only.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      store = memoryOnly;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'memory';
+
+      try {
+        const pattern = makePattern();
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBeInstanceOf(PatternMutationError);
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(createAdapter).not.toHaveBeenCalled();
+        expect(adapter.ingest).not.toHaveBeenCalled();
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report FAILED when RVF initialization fails without a SQLite commit', async () => {
+      await store.dispose();
+      const initFailure = new RvfPatternStore(
+        () => { throw new Error('native RVF unavailable'); },
+        { rvfPath: path.join(tmpDir, 'failed-init-no-sqlite.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
+      );
+      await initFailure.initialize();
+      (initFailure as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      store = initFailure;
+
+      const result = await store.store(makePattern());
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+    });
+
+    it('should fail before RVF ingest without a SQLite commit', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+
+      const result = await store.store(makePattern());
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(adapter.ingest).not.toHaveBeenCalled();
+    });
+
+    it('should reject an unset-backend RVF write without SQLite authority', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      delete process.env.AQE_MEMORY_BACKEND;
+
+      try {
+        const pattern = makePattern();
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBeInstanceOf(PatternMutationError);
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report FAILED and skip a healthy RVF adapter when persistent SQLite is absent', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(makePattern());
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report FAILED for an embedding-less persistent write without SQLite', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(makePattern({ embedding: undefined }));
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report COMMITTED_PENDING_INDEX when RVF rejects the vector without throwing', async () => {
+      const pattern = makePattern();
+      vi.mocked(adapter.ingest).mockReturnValueOnce({ accepted: 0, rejected: 1 });
+
+      const result = await store.store(pattern);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect((result.error as PatternMutationError).disposition).toBe('COMMITTED_PENDING_INDEX');
+      }
+      expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
+    });
+
     it('should store a pattern and ingest its vector', async () => {
       const pattern = makePattern();
       const result = await store.store(pattern);
@@ -328,6 +515,31 @@ describe('createPatternStore factory routing', () => {
     // Should be the original PatternStore (not RvfPatternStore)
     expect(store.constructor.name).toBe('PatternStore');
     await store.dispose();
+  });
+
+  it('should return PatternStore in explicit memory mode even when RVF is enabled', async () => {
+    setRuVectorFeatureFlags({ useRVFPatternStore: true });
+    const previousBackend = process.env.AQE_MEMORY_BACKEND;
+    process.env.AQE_MEMORY_BACKEND = 'memory';
+
+    try {
+      const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
+      const mockMemory = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn(),
+        list: vi.fn(() => []),
+        clear: vi.fn(),
+      };
+
+      const store = createPatternStore(mockMemory as any);
+
+      expect(store.constructor.name).toBe('PatternStore');
+      await store.dispose();
+    } finally {
+      if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+      else process.env.AQE_MEMORY_BACKEND = previousBackend;
+    }
   });
 
   it('should return RvfPatternStore when useRVFPatternStore is true and native is available', async () => {
