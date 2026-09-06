@@ -15,8 +15,10 @@
 import type { JudgeMeasurementReceipt } from '../verification/adversarial-verify/types.js';
 import {
   isSanitizedReceiptIdentifier,
+  isSanitizedReceiptTimestamp,
   RECEIPT_IDENTIFIER_PATTERN,
   RECEIPT_JWT_PATTERN,
+  RECEIPT_KNOWN_TIMESTAMP_PATTERN,
   RECEIPT_OPAQUE_CORRELATION_PATTERN,
   RECEIPT_OPAQUE_DESCRIPTOR_PATTERN,
   RECEIPT_SENSITIVE_IDENTIFIER_PATTERN,
@@ -99,7 +101,6 @@ const RECEIPT_KEYS = new Set([
   'retryCount', 'timestamp', 'windowId', 'latencyMs', 'requestId',
 ]);
 const RECEIPT_HASH = /^(?:UNKNOWN|sha256:[a-f\d]{64})$/;
-const RECEIPT_TIMESTAMP = /^(?:UNKNOWN|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z)$/;
 
 function validateMeasurementReceipt(value: unknown, path: string): string[] {
   if (!isRecord(value)) return [`${path} must be an object`];
@@ -147,7 +148,7 @@ function validateMeasurementReceipt(value: unknown, path: string): string[] {
   if (!Number.isSafeInteger(value.retryCount) || (value.retryCount as number) < 0) {
     errors.push(`${path}.retryCount must be a non-negative safe integer`);
   }
-  if (typeof value.timestamp !== 'string' || !RECEIPT_TIMESTAMP.test(value.timestamp)) {
+  if (!isSanitizedReceiptTimestamp(value.timestamp)) {
     errors.push(`${path}.timestamp must be UNKNOWN or an ISO-8601 UTC timestamp`);
   }
   if (value.latencyMs !== null && (typeof value.latencyMs !== 'number'
@@ -365,8 +366,10 @@ export const FINDING_VERDICT_SCHEMA = {
           cacheStatus: { enum: ['hit', 'miss', 'bypass', 'UNKNOWN'] },
           retryCount: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
           timestamp: {
-            type: 'string',
-            pattern: '^(?:UNKNOWN|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z)$',
+            anyOf: [
+              { const: 'UNKNOWN' },
+              { type: 'string', pattern: RECEIPT_KNOWN_TIMESTAMP_PATTERN, format: 'date-time' },
+            ],
           },
           windowId: receiptIdentifier('windowId'),
           latencyMs: { type: ['number', 'null'], minimum: 0 },

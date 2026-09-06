@@ -87,6 +87,51 @@ describe('synthesizeVerdict', () => {
     expect(isFindingVerdict(verdict)).toBe(true);
   });
 
+  it.each([
+    ['requestId', 'req:sk'],
+    ['fingerprint', 'fp:ghp'],
+    ['windowId', 'window:eyJhbGciOiJIUzI1NiJ9.e30.sig'],
+    ['requestId', `req:${'A'.repeat(48)}`],
+  ] as const)('should redact a wrapped secret in %s on direct synthesis', (field, value) => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const receipt = {
+      contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+      resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L2_CONTENT_BOUND',
+      semantics: 'verified', fingerprint: 'fp-1', requestHash: digest, promptHash: digest,
+      configHash: digest, parserSchemaHash: digest, outputHash: digest, parsedVoteHash: digest,
+      temperature: 0, topP: 1, seed: 7, deterministic: true, cacheStatus: 'miss', retryCount: 0,
+      timestamp: '2026-09-06T00:00:00.000Z', windowId: 'window-1', latencyMs: 42,
+      requestId: 'request-1', [field]: value,
+    };
+
+    const verdict = synthesizeVerdict(finding, [{
+      refuted: false, reasoning: 'verified', measurementReceipt: receipt,
+    } as RefuterVote]);
+
+    expect(verdict.measurementReceipts?.[0]?.[field]).toBe('UNKNOWN');
+    expect(isFindingVerdict(verdict)).toBe(true);
+  });
+
+  it('should replace an impossible receipt timestamp during direct synthesis', () => {
+    const verdict = synthesizeVerdict(finding, [{
+      refuted: false,
+      reasoning: 'verified',
+      measurementReceipt: {
+        contract: 'judge-measurement@1', provider: 'provider-a', requestedModel: 'judge',
+        resolvedModel: 'judge-2026-09', endpointClass: 'shared', snapshotIdentity: 'L1_NAMED',
+        semantics: 'provider-asserted', fingerprint: 'fp-1', requestHash: 'UNKNOWN',
+        promptHash: 'UNKNOWN', configHash: 'UNKNOWN', parserSchemaHash: 'UNKNOWN',
+        outputHash: 'UNKNOWN', parsedVoteHash: 'UNKNOWN', temperature: 0, topP: 1,
+        seed: 7, deterministic: true, cacheStatus: 'miss', retryCount: 0,
+        timestamp: '2026-02-30T00:00:00Z', windowId: 'window-1', latencyMs: 42,
+        requestId: 'request-1',
+      },
+    }]);
+
+    expect(verdict.measurementReceipts?.[0]?.timestamp).toBe('UNKNOWN');
+    expect(isFindingVerdict(verdict)).toBe(true);
+  });
+
   it('should omit file when the finding has none', () => {
     const { file, ...noFile } = finding;
     const v = synthesizeVerdict(noFile, [uphold()]);

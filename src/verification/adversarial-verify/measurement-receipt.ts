@@ -20,18 +20,22 @@ export type ReceiptIdentifierField =
 
 export const RECEIPT_IDENTIFIER_PATTERN = '^(?:UNKNOWN|[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255})$';
 export const RECEIPT_SENSITIVE_IDENTIFIER_PATTERN =
-  '^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))';
+  '(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)';
 export const RECEIPT_JWT_PATTERN =
-  '^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$';
-export const RECEIPT_OPAQUE_DESCRIPTOR_PATTERN = '^[A-Za-z0-9]{32,}$';
+  '(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])';
+export const RECEIPT_OPAQUE_DESCRIPTOR_PATTERN =
+  '(?:^|[._:/@+\\-])[A-Za-z0-9]{32,}(?:$|[._:/@+\\-])';
 export const RECEIPT_OPAQUE_CORRELATION_PATTERN =
-  '^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$';
+  '(?:(?:^|[.:@\\-])[A-Za-z0-9+/]{32,}={0,2}(?:$|[.:@\\-])|(?:^|[.:/@+\\-])[A-Za-z0-9_-]{48,}(?:$|[.:/@+\\-]))';
+export const RECEIPT_KNOWN_TIMESTAMP_PATTERN =
+  '^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?Z$';
 
 const SAFE_IDENTIFIER = new RegExp(RECEIPT_IDENTIFIER_PATTERN);
 const SENSITIVE_IDENTIFIER = new RegExp(RECEIPT_SENSITIVE_IDENTIFIER_PATTERN);
 const JWT = new RegExp(RECEIPT_JWT_PATTERN);
 const OPAQUE_DESCRIPTOR = new RegExp(RECEIPT_OPAQUE_DESCRIPTOR_PATTERN);
 const OPAQUE_CORRELATION = new RegExp(RECEIPT_OPAQUE_CORRELATION_PATTERN);
+const KNOWN_TIMESTAMP = new RegExp(RECEIPT_KNOWN_TIMESTAMP_PATTERN);
 const RECEIPT_HASH_FIELDS = [
   'requestHash', 'promptHash', 'configHash', 'parserSchemaHash', 'outputHash', 'parsedVoteHash',
 ] as const;
@@ -64,12 +68,21 @@ function identifier(candidate: unknown, field: ReceiptIdentifierField): string {
     : 'UNKNOWN';
 }
 
+export function isSanitizedReceiptTimestamp(candidate: unknown): candidate is string {
+  if (candidate === 'UNKNOWN') return true;
+  if (typeof candidate !== 'string' || !KNOWN_TIMESTAMP.test(candidate)) return false;
+  const [date] = candidate.split('T');
+  const [yearText, monthText, dayText] = date.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1];
+}
+
 function timestamp(candidate: unknown): string {
-  return typeof candidate === 'string'
-    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(candidate)
-    && Number.isFinite(Date.parse(candidate))
-    ? candidate
-    : 'UNKNOWN';
+  return isSanitizedReceiptTimestamp(candidate) ? candidate : 'UNKNOWN';
 }
 
 function hash(candidate: unknown): string {

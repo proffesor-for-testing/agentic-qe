@@ -5,6 +5,9 @@
  * errors; the quality-gate builder always emits a valid envelope.
  */
 
+import { readFileSync } from 'node:fs';
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
 import { describe, it, expect } from 'vitest';
 import {
   validateRiskDecision,
@@ -188,6 +191,34 @@ describe('validateFindingVerdict', () => {
   });
 
   it.each([
+    ['wrapped API key', { requestId: 'req:sk' }],
+    ['wrapped GitHub token', { fingerprint: 'fp:ghp' }],
+    ['wrapped JWT', { windowId: 'window:eyJhbGciOiJIUzI1NiJ9.e30.sig' }],
+    ['wrapped opaque token', { requestId: `req:${'A'.repeat(48)}` }],
+  ])('should reject a receipt containing a %s', (_label, override) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
+    '2026-02-30T00:00:00Z',
+    '2025-02-29T00:00:00Z',
+    '2026-13-01T00:00:00Z',
+    '2026-01-01T24:00:00Z',
+  ])('should reject impossible receipt timestamp %s', (timestamp) => {
+    const verdict = {
+      ...goldenFindingVerdict,
+      measurementReceipts: [{ ...goldenMeasurementReceipt, timestamp }],
+    };
+
+    expect(validateFindingVerdict(verdict).valid).toBe(false);
+  });
+
+  it.each([
     ['L2 without binding evidence', { fingerprint: 'UNKNOWN', requestHash: 'UNKNOWN' }],
     ['verified semantics below L2', { snapshotIdentity: 'L1_NAMED' }],
     ['provider assertion without a fingerprint', {
@@ -216,6 +247,39 @@ describe('validateFindingVerdict', () => {
       type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER,
     });
     expect(FINDING_VERDICT_SCHEMA.properties.measurementReceipts.items.allOf).toHaveLength(4);
+  });
+
+  it('should keep generated schema and Ajv enforcement aligned with the runtime boundary', () => {
+    const generatedSchema = JSON.parse(readFileSync(
+      new URL('../../../schemas/finding-verdict.schema.json', import.meta.url),
+      'utf8',
+    ));
+    expect(generatedSchema).toEqual(FINDING_VERDICT_SCHEMA);
+
+    const ajv = new Ajv({ allErrors: true, strict: false });
+    addFormats(ajv);
+    const validateSchema = ajv.compile(generatedSchema);
+    const invalidOverrides = [
+      { requestId: 'req:sk' },
+      { fingerprint: 'fp:ghp' },
+      { windowId: 'window:eyJhbGciOiJIUzI1NiJ9.e30.sig' },
+      { requestId: `req:${'A'.repeat(48)}` },
+      { timestamp: '2026-02-30T00:00:00Z' },
+      { timestamp: '2025-02-29T00:00:00Z' },
+      { timestamp: '2026-13-01T00:00:00Z' },
+      { timestamp: '2026-01-01T24:00:00Z' },
+    ];
+
+    for (const override of invalidOverrides) {
+      expect(validateSchema({
+        ...goldenFindingVerdict,
+        measurementReceipts: [{ ...goldenMeasurementReceipt, ...override }],
+      })).toBe(false);
+    }
+    expect(validateSchema({
+      ...goldenFindingVerdict,
+      measurementReceipts: [goldenMeasurementReceipt],
+    })).toBe(true);
   });
 });
 

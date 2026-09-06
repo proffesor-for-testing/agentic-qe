@@ -103,17 +103,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^[A-Za-z0-9]{32,}$"
+                  "pattern": "(?:^|[._:/@+\\-])[A-Za-z0-9]{32,}(?:$|[._:/@+\\-])"
                 }
               }
             ]
@@ -124,17 +124,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^[A-Za-z0-9]{32,}$"
+                  "pattern": "(?:^|[._:/@+\\-])[A-Za-z0-9]{32,}(?:$|[._:/@+\\-])"
                 }
               }
             ]
@@ -145,17 +145,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^[A-Za-z0-9]{32,}$"
+                  "pattern": "(?:^|[._:/@+\\-])[A-Za-z0-9]{32,}(?:$|[._:/@+\\-])"
                 }
               }
             ]
@@ -188,17 +188,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                  "pattern": "(?:(?:^|[.:@\\-])[A-Za-z0-9+/]{32,}={0,2}(?:$|[.:@\\-])|(?:^|[.:/@+\\-])[A-Za-z0-9_-]{48,}(?:$|[.:/@+\\-]))"
                 }
               }
             ]
@@ -270,8 +270,16 @@
             "maximum": 9007199254740991
           },
           "timestamp": {
-            "type": "string",
-            "pattern": "^(?:UNKNOWN|\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z)$"
+            "anyOf": [
+              {
+                "const": "UNKNOWN"
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,9})?Z$",
+                "format": "date-time"
+              }
+            ]
           },
           "windowId": {
             "type": "string",
@@ -279,17 +287,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                  "pattern": "(?:(?:^|[.:@\\-])[A-Za-z0-9+/]{32,}={0,2}(?:$|[.:@\\-])|(?:^|[.:/@+\\-])[A-Za-z0-9_-]{48,}(?:$|[.:/@+\\-]))"
                 }
               }
             ]
@@ -307,17 +315,17 @@
             "allOf": [
               {
                 "not": {
-                  "pattern": "^(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])[-_]|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA]))"
+                  "pattern": "(?:^|[._:/@+\\-])(?:(?:[sS][kK]|[rR][kK]|[gG][hH][pPoOuUsSrR]|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]|[xX][oO][xX][bBaApPrRsS]|[nN][pP][mM]|[gG][lL][pP][aA][tT]|[pP][aA][tT])(?:[-_][A-Za-z0-9_-]*|(?=$|[.:/@+\\-]))|(?:[aA][kK][iI][aA]|[aA][sS][iI][aA]|[aA][iI][zZ][aA])[A-Za-z0-9]*)"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+                  "pattern": "(?:^|[^A-Za-z0-9_-])(?:eyJ[A-Za-z0-9_-]*|e30|ew[A-Za-z0-9_-]*)\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?:$|[^A-Za-z0-9_-])"
                 }
               },
               {
                 "not": {
-                  "pattern": "^(?:[A-Za-z0-9+/]{32,}={0,2}|[A-Za-z0-9_-]{48,})$"
+                  "pattern": "(?:(?:^|[.:@\\-])[A-Za-z0-9+/]{32,}={0,2}(?:$|[.:@\\-])|(?:^|[.:/@+\\-])[A-Za-z0-9_-]{48,}(?:$|[.:/@+\\-]))"
                 }
               }
             ]
