@@ -191,6 +191,9 @@ export interface EarlyExitDecision {
  * Configuration for early exit behavior
  */
 export interface EarlyExitConfig {
+  /** Shadow executes all layers; enforced permits a qualified early stop. */
+  mode?: 'shadow' | 'enforced';
+
   /** Target exit layer (0-indexed) - exit after this layer if conditions met */
   exitLayer: number;
 
@@ -223,6 +226,7 @@ export interface EarlyExitConfig {
  * Default configuration for balanced early exit
  */
 export const DEFAULT_EXIT_CONFIG: EarlyExitConfig = {
+  mode: 'shadow',
   exitLayer: 1, // Exit after integration tests
   minLambdaForExit: 80,
   minLambdaStability: 0.85,
@@ -238,6 +242,7 @@ export const DEFAULT_EXIT_CONFIG: EarlyExitConfig = {
  * Aggressive configuration for fast feedback
  */
 export const AGGRESSIVE_EXIT_CONFIG: EarlyExitConfig = {
+  mode: 'shadow',
   exitLayer: 0, // Exit after unit tests
   minLambdaForExit: 60,
   minLambdaStability: 0.75,
@@ -253,6 +258,7 @@ export const AGGRESSIVE_EXIT_CONFIG: EarlyExitConfig = {
  * Conservative configuration for high-risk changes
  */
 export const CONSERVATIVE_EXIT_CONFIG: EarlyExitConfig = {
+  mode: 'shadow',
   exitLayer: 2, // Exit after E2E tests
   minLambdaForExit: 95,
   minLambdaStability: 0.92,
@@ -277,6 +283,9 @@ export type PredictedOutcome = 'pass' | 'fail' | 'flaky';
  * Result of speculative prediction
  */
 export interface SpeculativeResult {
+  /** Predictions and executions are never interchangeable evidence. */
+  evidenceClass: 'PREDICTED' | 'EXECUTED' | 'INCONCLUSIVE';
+
   /** Predicted outcome */
   predicted: PredictedOutcome;
 
@@ -362,6 +371,50 @@ export interface TestPyramidResult {
 
   /** Early exit decision details */
   decision: EarlyExitDecision;
+
+  /** Full-run counterfactual evidence when the controller is calibrating. */
+  shadowCalibration?: ShadowCalibrationResult;
+}
+
+export interface ShadowCalibrationContext {
+  revision: string;
+  environment: string;
+  featureSchemaVersion: string;
+  heuristicVersion: string;
+}
+
+export interface ShadowCalibrationResult {
+  receiptId: string;
+  evidenceClass: 'EXECUTED' | 'INCONCLUSIVE';
+  candidateExitLayer: number;
+  candidateSignal: {
+    lambda: number;
+    lambdaPrev: number;
+    boundaryConcentration: number;
+    flags: number;
+    timestamp: string;
+  };
+  thresholds: {
+    minLambdaForExit: number;
+    minLambdaStability: number;
+    maxBoundaryConcentration: number;
+    minConfidence: number;
+  };
+  predictedLayers: Array<{
+    layerIndex: number;
+    layerType: TestLayerType;
+    outcome: PredictedOutcome;
+    confidence: number;
+    evidenceClass: 'PREDICTED';
+  }>;
+  predictedVerdict: 'pass' | 'fail' | 'inconclusive';
+  fullRunVerdict: 'pass' | 'fail';
+  falsePass: boolean;
+  falseFail: boolean;
+  firstMissedFailure?: { layerIndex: number; layerType: TestLayerType; failedTests: number };
+  estimatedSavings: number;
+  actualSavings: 0;
+  context?: ShadowCalibrationContext;
 }
 
 // ============================================================================
@@ -404,4 +457,7 @@ export interface EarlyExitMetrics {
 
   /** False negative rate (didn't exit when should have) */
   falseNegativeRate: number;
+
+  /** Candidate exits observed while full execution remained authoritative. */
+  shadowCandidateCount: number;
 }
