@@ -26,7 +26,7 @@ describe('verifyPlatformConfiguration', () => {
 
   function arrangeCompleteCodexInstall(projectRoot: string): void {
     write(projectRoot, '.codex/config.toml', '[mcp_servers.agentic-qe]\ncommand = "npx"\n');
-    write(projectRoot, 'AGENTS.md', '# Quality Engineering Standards (Agentic QE)\n');
+    write(projectRoot, 'AGENTS.md', '<!-- BEGIN AGENTIC-QE CODEX -->\n# Quality Engineering Standards (Agentic QE)\n<!-- END AGENTIC-QE CODEX -->\n');
     write(projectRoot, '.codex/hooks.json', JSON.stringify({
       hooks: {
         SessionStart: [{ hooks: [{ command: 'node .codex/hooks/aqe-codex-hook.cjs' }] }],
@@ -51,7 +51,7 @@ describe('verifyPlatformConfiguration', () => {
       'Config syntax',
       'AQE MCP entry',
       'Behavioral rules',
-      'AQE instructions',
+      'Codex guidance',
       'Lifecycle hooks',
       'Hook adapters',
       'Hook runtimes',
@@ -89,6 +89,36 @@ describe('verifyPlatformConfiguration', () => {
     expect(result.passed).toBe(true);
     expect(result.checks).toContainEqual({
       label: 'MCP configuration',
+      passed: true,
+      detail: 'intentionally disabled',
+    });
+  });
+
+  it('should_pass_when_compactCodexGuidanceIsSelected', () => {
+    const projectRoot = root();
+    arrangeCompleteCodexInstall(projectRoot);
+    write(projectRoot, 'AGENTS.md', '<!-- BEGIN AGENTIC-QE CODEX -->\n# Agentic QE\nDiscover AQE tools and skills from their live schemas.\n<!-- END AGENTIC-QE CODEX -->\n');
+
+    const result = verifyPlatformConfiguration(projectRoot, 'codex', { guidancePolicy: 'compact' });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks).toContainEqual({
+      label: 'Codex guidance',
+      passed: true,
+      detail: 'selected=compact, detected=compact',
+    });
+  });
+
+  it('should_pass_when_CodexGuidanceIsIntentionallyDisabled', () => {
+    const projectRoot = root();
+    arrangeCompleteCodexInstall(projectRoot);
+    rmSync(join(projectRoot, 'AGENTS.md'));
+
+    const result = verifyPlatformConfiguration(projectRoot, 'codex', { guidancePolicy: 'none' });
+
+    expect(result.passed).toBe(true);
+    expect(result.checks).toContainEqual({
+      label: 'Behavioral rules',
       passed: true,
       detail: 'intentionally disabled',
     });

@@ -14,9 +14,9 @@
  * polluting the transcript, and a crash/slow init can surface a hook error.
  *
  * Contract:
- *   * resolve a PROJECT-LOCAL AQE bundle and run it via THIS node (no shell, no
- *     .bin/.cmd wrapper) — or fall back to `npx agentic-qe` for npx-only installs
- *     (disable that fallback with AQE_HOOK_NPX=0);
+ *   * resolve a PROJECT-LOCAL AQE bundle and run it via THIS node (no shell),
+ *     or invoke an already-installed `aqe` binary without package-manager or
+ *     network resolution;
  *   * if nothing resolves, no-op (a hook must never block a turn);
  *   * keep stderr OUT of the transcript, but tee fatal native-init markers
  *     (e.g. better-sqlite3 `invalid ELF header`) to a throttled, durable
@@ -49,14 +49,14 @@ const args = process.argv.slice(2); // hook subcommand + its args
 //   2. local source build           (this repo: ./dist)
 //   -> run either directly via process.execPath (this node): no shell, no
 //      node_modules/.bin/aqe(.cmd) wrapper, fully cross-platform.
-//   3. npx fallback                  (npx-only installs with no project-local
-//      bundle) — `npx -y --prefer-offline agentic-qe hooks ...`. Disable with
-//      AQE_HOOK_NPX=0 (used by tests and by anyone who never wants a network
-//      reach). When disabled and no local bundle exists, we no-op.
+//   3. installed `aqe` binary        (global/managed installs without a local
+//      bundle). AQE_HOOK_BIN is a test/managed-install seam; no package manager
+//      is ever invoked from a lifecycle hook.
 const candidates = [
+  process.env.AQE_HOOK_BUNDLE,
   path.join(PROJECT, 'node_modules', 'agentic-qe', 'dist', 'cli', 'bundle.js'),
   path.join(PROJECT, 'dist', 'cli', 'bundle.js'),
-];
+].filter(Boolean);
 
 let cmd;
 let cmdArgs;
@@ -67,11 +67,9 @@ for (const p of candidates) {
 if (bundle) {
   cmd = process.execPath;
   cmdArgs = [bundle, 'hooks', ...args];
-} else if (process.env.AQE_HOOK_NPX !== '0') {
-  cmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  cmdArgs = ['-y', '--prefer-offline', 'agentic-qe', 'hooks', ...args];
 } else {
-  process.exit(0); // no project-local AQE and npx disabled -> no-op, never block
+  cmd = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
+  cmdArgs = ['hooks', ...args];
 }
 
 // Fatal init markers that mean the hook ran but its persistence layer is dead
@@ -94,7 +92,9 @@ const FATAL_MARKERS = [
 // harness timeout vs. this shim's own admitted ~30-60s cold start left
 // routing_outcomes writes silently dropped for a month — nothing recorded
 // the mismatch because nothing was watching for it.)
-const SPAWN_TIMEOUT_MS = Number(process.env.AQE_HOOK_TIMEOUT_MS) || 18000;
+const FAST_HOOKS = new Set(['guard', 'pre-command']);
+const SPAWN_TIMEOUT_MS = Number(process.env.AQE_HOOK_TIMEOUT_MS)
+  || (FAST_HOOKS.has(args[0]) ? 2500 : 4500);
 
 function recordHookHealth(line) {
   try {

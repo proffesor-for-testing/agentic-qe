@@ -136,6 +136,8 @@ export interface InitOptions {
   withCodex?: boolean;
   /** Include optional Ruflo guidance and Codex lifecycle integration */
   withRuflo?: boolean;
+  /** Codex AGENTS.md guidance policy. */
+  codexGuidance?: 'full' | 'compact' | 'none';
   /** Install Windsurf MCP config and rules */
   withWindsurf?: boolean;
   /** Install Continue.dev MCP config and rules */

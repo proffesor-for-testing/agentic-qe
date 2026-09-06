@@ -353,7 +353,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
   /**
    * Install the resilient hook shim (aqe-hook.cjs) into .claude/hooks/.
    * The generated settings.json hooks run `node .../aqe-hook.cjs <cmd>` — the
-   * shim resolves a project-local AQE bundle (or falls back to npx), strips
+   * shim resolves a project-local AQE bundle (or an installed aqe binary), strips
    * init noise from stdout, swallows stderr, and always exits 0.
    */
   private installHookShim(projectRoot: string, context: InitContext): void {
@@ -386,7 +386,7 @@ export class HooksPhase extends BasePhase<HooksResult> {
 
     // Should not happen for a real install (the file ships in the package).
     context.services.log(
-      '  ⚠ aqe-hook.cjs source not found — hooks will fall back to `npx agentic-qe`',
+      '  ⚠ aqe-hook.cjs source not found — lifecycle hooks cannot run until AQE is reinstalled',
     );
   }
 
@@ -449,6 +449,7 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
+const AQE_BIN = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
 
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\\n'); }
 
@@ -456,7 +457,7 @@ function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   try {
     const result = execFileSync(
-      'npx', ['agentic-qe', 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      AQE_BIN, ['brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8' }
     );
     const m = result.match(/Patterns:\\s+(\\d+)/);
@@ -491,8 +492,8 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
   /**
    * Generate hooks configuration
    *
-   * Uses `npx agentic-qe` for portability - works without global installation.
-   * All hooks use --json output for structured data and fail silently with continueOnError.
+   * Timeout values use Claude Code's native seconds unit. The shim itself uses
+   * a smaller millisecond budget so it can record failures before the host stops it.
    */
   private generateHooksConfig(_config: AQEInitConfig, _projectRoot: string): Record<string, unknown[]> {
     // Shell injection safety: env vars like $TOOL_INPUT_file_path are set by
@@ -511,7 +512,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" guard --file "$TOOL_INPUT_file_path" --json',
-              timeout: 3000,
+              timeout: 3,
               continueOnError: true,
             },
           ],
@@ -523,7 +524,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-edit --file "$TOOL_INPUT_file_path" --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -535,7 +536,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-command --command "$TOOL_INPUT_command" --json',
-              timeout: 3000,
+              timeout: 3,
               continueOnError: true,
             },
           ],
@@ -547,7 +548,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" pre-task --description "$TOOL_INPUT_prompt" --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -561,7 +562,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-edit --file "$TOOL_INPUT_file_path" --success --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -572,7 +573,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-command --command "$TOOL_INPUT_command" --success true --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -583,7 +584,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-task --task-id "$TOOL_RESULT_agent_id" --agent "$TOOL_INPUT_subagent_type" --success true --description "$TOOL_INPUT_prompt" --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -599,7 +600,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
               // var, so we let the CLI read stdin directly.
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" route --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -612,7 +613,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" session-start --session-id "$SESSION_ID" --json',
-              timeout: 10000,
+              timeout: 10,
               continueOnError: true,
             },
           ],
@@ -622,7 +623,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs" verify --json\'',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -635,7 +636,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" session-end --save-state --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -649,7 +650,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
               // rows forever in direct-work sessions (no Task/Agent spawned).
               type: 'command',
               command: 'node "${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/aqe-hook.cjs" post-route --success true --json',
-              timeout: 5000,
+              timeout: 5,
               continueOnError: true,
             },
           ],
@@ -659,7 +660,7 @@ if (process.argv.includes('--json')) process.stdout.write(JSON.stringify(result)
             {
               type: 'command',
               command: 'sh -c \'exec node "${CLAUDE_PROJECT_DIR:-.}/.claude/helpers/brain-checkpoint.cjs" export --json\'',
-              timeout: 60000,
+              timeout: 60,
               continueOnError: true,
             },
           ],

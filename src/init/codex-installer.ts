@@ -35,12 +35,21 @@ export interface CodexInstallerOptions {
   installMcp?: boolean;
   /** Install optional Ruflo guidance, adapter, runtime, and lifecycle groups. */
   includeRuflo?: boolean;
+  /** Eager AGENTS.md guidance policy. Defaults to full. */
+  guidancePolicy?: CodexGuidancePolicy;
   /**
    * Memory backend for this install. 'memory' => database-free: the MCP config
    * is written to run in-memory (AQE_MEMORY_BACKEND=memory, no AQE_MEMORY_PATH). (#533)
    */
   memoryBackend?: 'memory' | 'sqlite' | 'agentdb' | 'hybrid';
 }
+
+export type CodexGuidancePolicy = 'full' | 'compact' | 'none';
+export const CODEX_COMPACT_GUIDANCE_MAX_BYTES = 512;
+
+const COMPACT_CODEX_GUIDANCE = `# Agentic QE
+
+Preserve project data, especially .agentic-qe/memory.db. Read affected code and tests before editing, validate inputs at system boundaries, and run focused checks before broader gates. Discover AQE tools and skills from their live schemas.`;
 
 export interface CodexInstallResult {
   success: boolean;
@@ -53,6 +62,8 @@ export interface CodexInstallResult {
   agentsMdPath: string;
   hooksPath: string;
   skillsPath: string;
+  guidancePolicy: CodexGuidancePolicy;
+  ownedGuidanceBytes: number;
   /** Per-component outcomes. Legacy booleans above remain supported. */
   components: {
     mcp: CodexComponentOutcome;
@@ -99,6 +110,8 @@ export class CodexInstaller {
       agentsMdPath: '',
       hooksPath: join(this.projectRoot, '.codex', 'hooks.json'),
       skillsPath: join(this.projectRoot, '.agents', 'skills'),
+      guidancePolicy: this.options.guidancePolicy ?? 'full',
+      ownedGuidanceBytes: 0,
       components: {
         mcp: { status: 'skipped' },
         rules: { status: 'skipped' },
@@ -137,23 +150,49 @@ export class CodexInstaller {
     }
 
     try {
-      // Generate AGENTS.md behavioral rules
+      const policy = this.options.guidancePolicy ?? 'full';
       const rules = this.generator.generateBehavioralRules('codex');
       const agentsMdPath = join(this.projectRoot, rules.path);
       result.agentsMdPath = agentsMdPath;
 
       const rulesExist = existsSync(agentsMdPath);
-      if (!rulesExist || this.overwrite) {
-        if (rulesExist && this.overwrite) {
-          const merged = this.mergeExistingAgentsMd(agentsMdPath, rules.content);
-          writeFileSync(agentsMdPath, merged);
+      if (policy === 'none') {
+        if (!rulesExist) {
+          result.components.rules.status = 'skipped';
         } else {
-          writeFileSync(agentsMdPath, this.markAgentsSection(rules.content));
+          const existing = readFileSync(agentsMdPath, 'utf-8');
+          const updated = this.removeOwnedAgentsSections(existing);
+          if (updated !== existing) {
+            writeFileSync(agentsMdPath, updated);
+            result.components.rules.status = 'updated';
+          } else {
+            result.components.rules.status = 'preserved';
+          }
         }
+      } else if (!rulesExist) {
+        const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+        const marked = this.markAgentsSection(content);
+        writeFileSync(agentsMdPath, marked);
         result.agentsMdInstalled = true;
-        result.components.rules.status = rulesExist ? 'updated' : 'installed';
+        result.ownedGuidanceBytes = Buffer.byteLength(marked);
+        result.components.rules.status = 'installed';
+      } else if (this.overwrite || policy === 'compact') {
+        const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+        const existing = readFileSync(agentsMdPath, 'utf-8');
+        const merged = this.mergeExistingAgentsMdContent(existing, content);
+        if (merged !== existing) {
+          writeFileSync(agentsMdPath, merged);
+          result.agentsMdInstalled = true;
+          result.components.rules.status = 'updated';
+        } else {
+          result.components.rules.status = 'preserved';
+        }
+        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
       } else {
         result.components.rules.status = 'preserved';
+        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(
+          readFileSync(agentsMdPath, 'utf-8'),
+        );
       }
     } catch (error) {
       this.recordComponentFailure(result, 'rules', error);
@@ -232,13 +271,22 @@ export class CodexInstaller {
       description?: string;
       hooks?: Record<string, unknown[]>;
     };
-    const isRufloGroup = (value: unknown): boolean =>
-      JSON.stringify(value).includes('ruflo-codex-hook.cjs');
+    const withoutRufloHooks = (groups: unknown[]): unknown[] => groups.flatMap((group) => {
+      if (!group || typeof group !== 'object') return [group];
+      const candidate = group as { hooks?: unknown[] };
+      if (!Array.isArray(candidate.hooks)) {
+        return JSON.stringify(group).includes('ruflo-codex-hook.cjs') ? [] : [group];
+      }
+      const hooks = candidate.hooks.filter(
+        (hook) => !JSON.stringify(hook).includes('ruflo-codex-hook.cjs'),
+      );
+      return hooks.length > 0 ? [{ ...candidate, hooks }] : [];
+    });
     const generated = {
       ...generatedSource,
       hooks: Object.fromEntries(Object.entries(generatedSource.hooks || {}).map(([event, groups]) => [
         event,
-        this.options.includeRuflo ? groups : groups.filter((group) => !isRufloGroup(group)),
+        this.options.includeRuflo ? groups : withoutRufloHooks(groups),
       ])),
     };
     const targetConfig = join(targetCodexDir, 'hooks.json');
@@ -370,25 +418,48 @@ export class CodexInstaller {
    * Merge AQE section into existing AGENTS.md.
    * Replaces a previously marked AQE section or appends a new marked section.
    */
-  private mergeExistingAgentsMd(agentsMdPath: string, newContent: string): string {
-    const existing = readFileSync(agentsMdPath, 'utf-8');
-
-      const marked = this.markAgentsSection(newContent);
-      const start = CodexInstaller.AGENTS_START;
-      const end = CodexInstaller.AGENTS_END;
-      const startIndex = existing.indexOf(start);
-      if (startIndex >= 0) {
-        const endIndex = existing.indexOf(end, startIndex);
-        if (endIndex >= 0) {
-          return existing.slice(0, startIndex) + marked
-            + existing.slice(endIndex + end.length);
-        }
-      }
-    return existing.trimEnd() + '\n\n---\n\n' + marked;
+  private mergeExistingAgentsMdContent(existing: string, newContent: string): string {
+    this.assertOwnedAgentsSectionsWellFormed(existing);
+    const eol = existing.includes('\r\n') ? '\r\n' : '\n';
+    const marked = this.markAgentsSection(newContent, eol);
+    let replaced = false;
+    const merged = existing.replace(this.ownedAgentsPattern(), () => {
+      if (replaced) return '';
+      replaced = true;
+      return marked;
+    });
+    if (replaced) return merged;
+    if (existing.length === 0) return marked;
+    return existing.trimEnd() + `${eol}${eol}---${eol}${eol}` + marked;
   }
 
-  private markAgentsSection(content: string): string {
-    return `${CodexInstaller.AGENTS_START}\n${content.trim()}\n${CodexInstaller.AGENTS_END}\n`;
+  private removeOwnedAgentsSections(existing: string): string {
+    this.assertOwnedAgentsSectionsWellFormed(existing);
+    return existing.replace(this.ownedAgentsPattern(), '');
+  }
+
+  private measureOwnedAgentsSection(content: string): number {
+    this.assertOwnedAgentsSectionsWellFormed(content);
+    const match = content.match(this.ownedAgentsPattern());
+    return match ? Buffer.byteLength(match[0]) : 0;
+  }
+
+  private assertOwnedAgentsSectionsWellFormed(content: string): void {
+    const starts = content.match(/<!-- BEGIN AGENTIC-QE CODEX -->/g)?.length ?? 0;
+    const ends = content.match(/<!-- END AGENTIC-QE CODEX -->/g)?.length ?? 0;
+    const complete = content.match(this.ownedAgentsPattern())?.length ?? 0;
+    if (starts !== ends || complete !== starts) {
+      throw new Error('Malformed Agentic QE Codex sentinel in AGENTS.md; file was preserved');
+    }
+  }
+
+  private ownedAgentsPattern(): RegExp {
+    return /<!-- BEGIN AGENTIC-QE CODEX -->[\s\S]*?<!-- END AGENTIC-QE CODEX -->(?:\r?\n)?/g;
+  }
+
+  private markAgentsSection(content: string, eol = '\n'): string {
+    const normalized = content.trim().replace(/\r?\n/g, eol);
+    return `${CodexInstaller.AGENTS_START}${eol}${normalized}${eol}${CodexInstaller.AGENTS_END}${eol}`;
   }
 }
 
