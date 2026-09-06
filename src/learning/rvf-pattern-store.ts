@@ -112,8 +112,9 @@ export class RvfPatternStore implements IPatternStore {
     this.rvfInitError = null;
 
     // Database-free mode (#534): never create an on-disk patterns.rvf (+ .idmap/.lock).
-    // Run adapter-less — the store degrades to metadata-only (the same graceful
-    // path used when the RVF native binding is unavailable), writing nothing.
+    // Run adapter-less and write nothing. The factory normally selects the
+    // in-memory PatternStore in this mode; a directly constructed RVF store
+    // remains fail-closed unless an authoritative SQLite delegate is attached.
     if (process.env.AQE_MEMORY_BACKEND === 'memory') {
       this.adapter = null;
       this.initialized = true;
@@ -249,8 +250,11 @@ export class RvfPatternStore implements IPatternStore {
       );
     }
 
-    const persistentBackend = (process.env.AQE_MEMORY_BACKEND ?? 'memory') !== 'memory';
-    if (persistentBackend && !this.sqliteStore) {
+    // RVF is a derived persistent index. A write is observable only through its
+    // authoritative SQLite metadata row, regardless of the process-wide memory
+    // setting. The factory routes memory mode to PatternStore, so a directly
+    // constructed RVF store without SQLite must fail before vector ingestion.
+    if (!this.sqliteStore) {
       return err(new PatternMutationError(
         pattern.id,
         'FAILED',

@@ -238,7 +238,7 @@ describe('RvfPatternStore', () => {
       expect(await store.get(pattern.id)).toMatchObject({ id: pattern.id });
     });
 
-    it('should allow an intentional memory-only write without an RVF adapter', async () => {
+    it('should reject an explicit memory-mode RVF write without retrievable metadata', async () => {
       await store.dispose();
       const createAdapter = vi.fn(() => adapter);
       const memoryOnly = new RvfPatternStore(
@@ -250,10 +250,17 @@ describe('RvfPatternStore', () => {
       process.env.AQE_MEMORY_BACKEND = 'memory';
 
       try {
-        const result = await store.store(makePattern());
+        const pattern = makePattern();
+        const result = await store.store(pattern);
 
-        expect(result.success).toBe(true);
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBeInstanceOf(PatternMutationError);
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
         expect(createAdapter).not.toHaveBeenCalled();
+        expect(adapter.ingest).not.toHaveBeenCalled();
+        expect(await store.get(pattern.id)).toBeNull();
       } finally {
         if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
         else process.env.AQE_MEMORY_BACKEND = previousBackend;
@@ -278,15 +285,37 @@ describe('RvfPatternStore', () => {
       }
     });
 
-    it('should report FAILED when RVF ingest fails without a SQLite commit', async () => {
+    it('should fail before RVF ingest without a SQLite commit', async () => {
       (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
-      vi.mocked(adapter.ingest).mockImplementationOnce(() => { throw new Error('rvf unavailable'); });
 
       const result = await store.store(makePattern());
 
       expect(result.success).toBe(false);
       if (!result.success) {
         expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+      }
+      expect(adapter.ingest).not.toHaveBeenCalled();
+    });
+
+    it('should reject an unset-backend RVF write without SQLite authority', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      delete process.env.AQE_MEMORY_BACKEND;
+
+      try {
+        const pattern = makePattern();
+        const result = await store.store(pattern);
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBeInstanceOf(PatternMutationError);
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+        expect(await store.get(pattern.id)).toBeNull();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
       }
     });
 
@@ -486,6 +515,31 @@ describe('createPatternStore factory routing', () => {
     // Should be the original PatternStore (not RvfPatternStore)
     expect(store.constructor.name).toBe('PatternStore');
     await store.dispose();
+  });
+
+  it('should return PatternStore in explicit memory mode even when RVF is enabled', async () => {
+    setRuVectorFeatureFlags({ useRVFPatternStore: true });
+    const previousBackend = process.env.AQE_MEMORY_BACKEND;
+    process.env.AQE_MEMORY_BACKEND = 'memory';
+
+    try {
+      const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
+      const mockMemory = {
+        get: vi.fn(),
+        set: vi.fn(),
+        delete: vi.fn(),
+        list: vi.fn(() => []),
+        clear: vi.fn(),
+      };
+
+      const store = createPatternStore(mockMemory as any);
+
+      expect(store.constructor.name).toBe('PatternStore');
+      await store.dispose();
+    } finally {
+      if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+      else process.env.AQE_MEMORY_BACKEND = previousBackend;
+    }
   });
 
   it('should return RvfPatternStore when useRVFPatternStore is true and native is available', async () => {
