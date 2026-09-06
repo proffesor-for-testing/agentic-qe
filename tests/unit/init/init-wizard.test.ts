@@ -624,6 +624,7 @@ describe('InitOrchestrator', () => {
       expect(settingsContent.hooks.PostToolUse).toBeDefined();
       expect(settingsContent.hooks.SessionStart).toBeDefined();
       expect(settingsContent.hooks.Stop).toBeDefined(); // Claude Code uses 'Stop' for session end
+      expect(settingsContent.hooks.Stop.map((group: any) => group.hooks[0].timeout)).toEqual([5, 5]);
       expect(settingsContent.aqe).toBeDefined();
       expect(settingsContent.aqe.hooksConfigured).toBe(true);
     });

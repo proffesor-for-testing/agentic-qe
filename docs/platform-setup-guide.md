@@ -252,6 +252,20 @@ npx agentic-qe init --auto --with-codex
 npx agentic-qe platform setup codex
 ```
 
+Codex guidance is independent from MCP, hooks, and skills. Choose the eager
+`AGENTS.md` payload with `--codex-guidance full|compact|none` on either command.
+`full` is the default. `compact` keeps only the safety and verification
+contract and is capped at 512 UTF-8 bytes including AQE's ownership sentinels
+(a conservative ceiling of 171 planning tokens at three bytes per token).
+`none` removes only well-formed AQE-owned sentinel blocks. It leaves all other
+`AGENTS.md` bytes untouched and still provisions MCP, hooks, and skills.
+
+```bash
+npx agentic-qe init --auto --with-codex --codex-guidance compact
+npx agentic-qe platform setup codex --codex-guidance none
+npx agentic-qe platform verify codex --codex-guidance none
+```
+
 Ruflo integration is deliberately opt-in. Add it only when you want its
 development-time coordination guidance and lifecycle hooks:
 

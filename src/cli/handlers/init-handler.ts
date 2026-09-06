@@ -4,7 +4,7 @@
  * Handles the 'aqe init' command for system initialization.
  */
 
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import chalk from 'chalk';
 import { createRequire } from 'node:module';
 import { ICommandHandler, CLIContext } from './interfaces.js';
@@ -64,6 +64,9 @@ export class InitHandler implements ICommandHandler {
       .option('--with-kilocode', 'Include Kilo Code MCP config and custom QE mode')
       .option('--with-roocode', 'Include Roo Code MCP config and custom QE mode')
       .option('--with-codex', 'Include OpenAI Codex CLI MCP, AGENTS.md, hooks, and QE skills')
+      .addOption(new Option('--codex-guidance <mode>', 'Codex AGENTS.md guidance policy')
+        .choices(['full', 'compact', 'none'])
+        .default('full'))
       .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks to the Codex setup')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
@@ -212,6 +215,7 @@ export class InitHandler implements ICommandHandler {
       withRooCode: options.withRoocode,
       withCodex: options.withCodex,
       withRuflo: options.withRuflo,
+      codexGuidance: options.codexGuidance,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
       noMcp: options.noMcp && !options.withMcp,
@@ -535,6 +539,7 @@ Options:
   --with-n8n                 Install n8n workflow testing agents and skills
   --with-opencode            Include OpenCode agent/skill provisioning
   --with-codex               Include OpenAI Codex hooks, instructions, skills, and MCP
+  --codex-guidance <mode>    Codex AGENTS.md guidance: full, compact, or none
   --with-ruflo               Opt into Ruflo guidance and lifecycle hooks for Codex
   --auto-migrate             Automatically migrate from v2 if detected
   --with-claude-flow         Force Claude Flow integration setup
@@ -614,6 +619,10 @@ export interface InitJsonOutput {
       agents: number;
       skills: number;
     };
+    codexGuidance?: {
+      policy: 'full' | 'compact' | 'none';
+      ownedBytes: number;
+    };
   };
   totalDurationMs: number;
   timestamp: string;
@@ -643,6 +652,7 @@ interface InitOptions {
   withRoocode?: boolean;
   withCodex?: boolean;
   withRuflo?: boolean;
+  codexGuidance?: 'full' | 'compact' | 'none';
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;

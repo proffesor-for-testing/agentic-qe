@@ -219,6 +219,32 @@ describe('CodexInstaller', () => {
       );
     });
 
+    it('keeps AQE hooks when a generated group also contains Ruflo hooks', async () => {
+      mockExistsSync.mockImplementation((value: unknown) => {
+        const file = String(value);
+        if (file.startsWith(projectRoot)) return false;
+        return file.endsWith('/.codex/hooks.json') || file.endsWith('/.codex/hooks');
+      });
+      mockReaddirSync.mockReturnValue([]);
+      mockReadFileSync.mockImplementation((value: unknown) => String(value).endsWith('.codex/hooks.json')
+        ? JSON.stringify({ hooks: { SessionStart: [{ matcher: 'startup', hooks: [
+          { command: 'node .codex/hooks/aqe-codex-hook.cjs session-start' },
+          { command: 'node .codex/hooks/ruflo-codex-hook.cjs session-restore' },
+        ] }] } })
+        : '');
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      await createCodexInstaller({ projectRoot, installMcp: false }).install();
+
+      const hooksWrite = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[0]) === join(projectRoot, '.codex', 'hooks.json'),
+      );
+      const generated = JSON.parse(hooksWrite![1] as string);
+      expect(generated.hooks.SessionStart).toEqual([{ matcher: 'startup', hooks: [
+        { command: 'node .codex/hooks/aqe-codex-hook.cjs session-start' },
+      ] }]);
+    });
+
     it('does not write MCP config when installMcp is false', async () => {
       const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
       const result = await createCodexInstaller({ projectRoot, installMcp: false }).install();

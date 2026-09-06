@@ -92,6 +92,21 @@ describe('Init Command', () => {
   });
 
   describe('Init Options Validation', () => {
+    it('should_parseCompactCodexGuidance_when_requested', async () => {
+      const program = new Command();
+      const handler = new InitHandler(async () => undefined as never);
+      const context = {} as CLIContext;
+      const execute = vi.spyOn(handler, 'execute').mockResolvedValue(undefined);
+      handler.register(program, context);
+
+      await program.parseAsync(['node', 'aqe', 'init', '--with-codex', '--codex-guidance', 'compact']);
+
+      expect(execute).toHaveBeenCalledWith(
+        expect.objectContaining({ withCodex: true, codexGuidance: 'compact' }),
+        context,
+      );
+    });
+
     it('should parse --no-statusline as an explicit opt-out', async () => {
       const program = new Command();
       const handler = new InitHandler(async () => undefined as never);

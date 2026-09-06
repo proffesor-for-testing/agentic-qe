@@ -81,6 +81,14 @@ export interface BrowserEngineInstallResult {
   platformHint?: PlatformHint;
 }
 
+export type BrowserEngineDetectionStatus = 'ready' | 'cli-missing' | 'payload-missing';
+
+export interface BrowserEngineDetectionResult {
+  status: BrowserEngineDetectionStatus;
+  version?: string;
+  message?: string;
+}
+
 export interface PlatformHint {
   /**
    * Short machine-readable tag for the condition being reported. Consumers
@@ -202,6 +210,31 @@ export function detectVibium(spawner: Spawner = defaultSpawner, timeoutMs = 5_00
 }
 
 /**
+ * Detect Vibium readiness without changing the host. A usable browser engine
+ * requires both the CLI and Vibium's same-revision Chrome/chromedriver payload.
+ */
+export function detectBrowserEngine(
+  spawner: Spawner = defaultSpawner,
+  timeoutMs = 5_000
+): BrowserEngineDetectionResult {
+  const version = detectVibium(spawner, timeoutMs);
+  if (!version) return { status: 'cli-missing' };
+
+  const payload = tryRun(spawner, 'vibium', ['is-installed'], timeoutMs);
+  if (payload.status === 0) return { status: 'ready', version };
+
+  return {
+    status: 'payload-missing',
+    version,
+    message:
+      payload.stderr?.trim() ||
+      payload.stdout?.trim() ||
+      toErrorMessage(payload.error) ||
+      'Vibium Chrome/chromedriver payload is missing or incomplete',
+  };
+}
+
+/**
  * Install Vibium via `npm install -g`. Returns a structured result the
  * assets phase can log/summarize — never throws for expected failures.
  */
@@ -217,11 +250,11 @@ export function installBrowserEngine(
   const platformProbe = options.platformProbe || defaultPlatformProbe;
   const platformHint = diagnosePlatform(platformProbe);
 
-  const alreadyInstalled = detectVibium(spawner);
-  if (alreadyInstalled) {
+  const existing = detectBrowserEngine(spawner);
+  if (existing.status === 'ready') {
     return {
       status: 'already-installed',
-      version: alreadyInstalled,
+      version: existing.version,
       packageSpec,
       platformHint,
     };
@@ -252,6 +285,18 @@ export function installBrowserEngine(
     };
   }
 
-  const version = detectVibium(spawner) || 'unknown';
-  return { status: 'installed', version, packageSpec, platformHint };
+  const verified = detectBrowserEngine(spawner);
+  if (verified.status !== 'ready') {
+    const reason = verified.message ? `: ${verified.message}` : '';
+    return {
+      status: 'install-failed',
+      packageSpec,
+      platformHint,
+      message:
+        `npm completed, but Vibium readiness verification failed (${verified.status})${reason}. ` +
+        `Run \`npm install -g ${packageSpec}\`, then verify with \`vibium is-installed\`.`,
+    };
+  }
+
+  return { status: 'installed', version: verified.version, packageSpec, platformHint };
 }

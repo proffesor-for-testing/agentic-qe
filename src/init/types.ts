@@ -267,6 +267,10 @@ export interface InitResult {
       agents: number;
       skills: number;
     };
+    codexGuidance?: {
+      policy: 'full' | 'compact' | 'none';
+      ownedBytes: number;
+    };
   };
 
   totalDurationMs: number;

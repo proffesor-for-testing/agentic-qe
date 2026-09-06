@@ -17,6 +17,7 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
+const AQE_BIN = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
 
 // Mount-local kill switch. `brain export` (below) spawns a native RVF writer
 // that, on a macOS Docker virtiofs bind mount, deadlocks in a futex and IGNORES
@@ -37,7 +38,7 @@ function exportBrain() {
     const idmap = RVF_PATH + '.idmap.json';
     if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
     const result = execFileSync(
-      'npx', ['agentic-qe', 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      AQE_BIN, ['brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8' }
     );
     const m = result.match(/Patterns:\s+(\d+)/);
