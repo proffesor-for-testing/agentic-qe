@@ -7,8 +7,8 @@
 #
 # Jobs:
 #   unit   : vitest suite covering the 5 primitives + CommandEvalRunner
-#   smoke  : real Vibium install + 5-primitive smoke-test.sh against live
-#            public fixtures (httpbin.org)
+#   smoke  : real Vibium install + 5-primitive smoke-test.sh against local
+#            deterministic fixtures
 #   eval   : build the AQE CLI and run `aqe eval run --skill qe-browser`
 #            to exercise the CommandEvalRunner dispatch path end-to-end
 #            against real Vibium (closes devil's-advocate gap G2)
@@ -78,7 +78,7 @@ jobs:
             tests/unit/scripts/qe-browser-vibium-lib.test.ts
 
   smoke:
-    name: Smoke test (real Vibium + httpbin)
+    name: Smoke test (real Vibium + local fixtures)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: unit
@@ -126,8 +126,6 @@ jobs:
       - name: Run qe-browser smoke test
         run: bash .claude/skills/qe-browser/scripts/smoke-test.sh
         env:
-          # Smoke test uses public httpbin endpoints; set CI so the script
-          # can short-circuit interactive retries if Vibium misbehaves.
           CI: 'true'
 
   eval:
@@ -178,6 +176,13 @@ jobs:
           WRAPPER
           chmod +x "$CHROME"
           head -3 "$CHROME"
+
+      - name: Start deterministic browser fixtures
+        run: |
+          node .claude/skills/qe-browser/fixtures/serve-skills.js > /tmp/qe-browser-fixtures.log 2>&1 &
+          echo $! > /tmp/qe-browser-fixtures.pid
+          curl --retry 5 --retry-connrefused --retry-delay 1 --fail \
+            http://127.0.0.1:8088/fixtures/content.html > /dev/null
 
       - name: Run aqe eval against qe-browser
         # The --model flag is required by the CLI but ignored by
