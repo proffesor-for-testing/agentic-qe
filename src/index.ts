@@ -79,6 +79,12 @@ export {
   mapQEDomainToAQE,
   QE_DOMAIN_LIST,
   QE_DOMAINS,
+  createStructuralRetrievalCorpus,
+  verifyStructuralRetrievalCorpus,
+  evaluateStructuralRetrieval,
+  diagnoseRetrieval,
+  createRetrievalReceipt,
+  STRUCTURAL_RETRIEVAL_TRANSFORMATIONS,
 } from './learning';
 export type {
   QEPattern,
@@ -92,6 +98,19 @@ export type {
   PatternSearchResult,
   QERoutingRequest,
   QERoutingResult,
+  StructuralTransformation,
+  CorpusSplit,
+  StructuralPattern,
+  StructuralRetrievalQuery,
+  StructuralRetrievalCorpus,
+  RankedCandidate,
+  RetrievalDiagnostic,
+  QueryRetrievalResult,
+  MetricEstimate,
+  RetrievalMetricSet,
+  StructuralRetrievalReport,
+  RetrievalReceipt,
+  CreateRetrievalReceiptInput,
 } from './learning';
 
 // Feedback Module - Quality Feedback Loop (ADR-023)
