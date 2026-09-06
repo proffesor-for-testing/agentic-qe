@@ -290,6 +290,44 @@ describe('RvfPatternStore', () => {
       }
     });
 
+    it('should report FAILED and skip a healthy RVF adapter when persistent SQLite is absent', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(makePattern());
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
+    it('should report FAILED for an embedding-less persistent write without SQLite', async () => {
+      (store as unknown as { sqliteStore: unknown }).sqliteStore = null;
+      const previousBackend = process.env.AQE_MEMORY_BACKEND;
+      process.env.AQE_MEMORY_BACKEND = 'sqlite';
+
+      try {
+        const result = await store.store(makePattern({ embedding: undefined }));
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect((result.error as PatternMutationError).disposition).toBe('FAILED');
+        }
+        expect(adapter.ingest).not.toHaveBeenCalled();
+      } finally {
+        if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
+        else process.env.AQE_MEMORY_BACKEND = previousBackend;
+      }
+    });
+
     it('should report COMMITTED_PENDING_INDEX when RVF rejects the vector without throwing', async () => {
       const pattern = makePattern();
       vi.mocked(adapter.ingest).mockReturnValueOnce({ accepted: 0, rejected: 1 });

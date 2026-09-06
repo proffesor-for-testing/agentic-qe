@@ -258,35 +258,38 @@ describe('PatternStore', () => {
       }
     });
 
-    it('should roll back the cache and report FAILED when HNSW is unavailable without SQLite', async () => {
-      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
+    it('should preserve the prior cache and skip a healthy HNSW when persistent SQLite is absent', async () => {
+      const existingPattern = createTestPattern({ embedding: undefined, name: 'Existing Pattern' });
+      expect((await store.store(existingPattern)).success).toBe(true);
+      const replacement = createTestPattern({
+        ...existingPattern,
+        name: 'Replacement Pattern',
+        embedding: [0.1, 0.2, 0.3],
+      });
       (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
-      vi.spyOn(store as unknown as { ensureHNSW: () => Promise<null> }, 'ensureHNSW')
-        .mockResolvedValueOnce(null);
+      const insert = vi.fn(async () => undefined);
+      (store as unknown as { hnswIndex: unknown }).hnswIndex = { insert };
+      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
       const previousBackend = process.env.AQE_MEMORY_BACKEND;
       process.env.AQE_MEMORY_BACKEND = 'sqlite';
 
       try {
-        const result = await store.store(pattern);
+        const result = await store.store(replacement);
 
         expect(result.success).toBe(false);
         if (!result.success) {
           expect((result.error as PatternMutationError).disposition).toBe('FAILED');
         }
-        expect(await store.get(pattern.id)).toBeNull();
+        expect(await store.get(existingPattern.id)).toEqual(existingPattern);
+        expect(insert).not.toHaveBeenCalled();
       } finally {
         if (previousBackend === undefined) delete process.env.AQE_MEMORY_BACKEND;
         else process.env.AQE_MEMORY_BACKEND = previousBackend;
       }
     });
 
-    it('should roll back the cache and report FAILED when HNSW insert fails without SQLite', async () => {
-      const pattern = createTestPattern({ embedding: [0.1, 0.2, 0.3] });
-      (store as unknown as { config: { embeddingSpaceId?: string } }).config.embeddingSpaceId = 'test-space';
-      (store as unknown as { hnswIndex: unknown }).hnswIndex = {
-        insert: vi.fn(async () => { throw new Error('index unavailable'); }),
-      };
-      (store as unknown as { hnswSpaceId: string }).hnswSpaceId = 'test-space';
+    it('should report FAILED for an embedding-less persistent write without SQLite', async () => {
+      const pattern = createTestPattern({ embedding: undefined });
       const previousBackend = process.env.AQE_MEMORY_BACKEND;
       process.env.AQE_MEMORY_BACKEND = 'sqlite';
 

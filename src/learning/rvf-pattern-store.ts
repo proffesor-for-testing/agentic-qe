@@ -249,6 +249,15 @@ export class RvfPatternStore implements IPatternStore {
       );
     }
 
+    const persistentBackend = (process.env.AQE_MEMORY_BACKEND ?? 'memory') !== 'memory';
+    if (persistentBackend && !this.sqliteStore) {
+      return err(new PatternMutationError(
+        pattern.id,
+        'FAILED',
+        new Error('authoritative SQLite pattern store is unavailable'),
+      ));
+    }
+
     const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId;
     if (pattern.embedding && !activeSpaceId) {
       return err(new Error('VECTOR_SPACE_UNVERIFIED: refusing to persist or index an embedding without runtime provenance'));
