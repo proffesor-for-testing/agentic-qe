@@ -141,3 +141,5 @@ export type {
   LoadTestCompletedEvent,
   ResilienceIssueDetectedEvent,
 } from './interfaces';
+
+export * from './diagnosis/index.js';

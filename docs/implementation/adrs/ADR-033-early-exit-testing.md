@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | **Decision ID** | ADR-033 |
-| **Status** | Accepted |
+| **Status** | Amended — shadow calibration required |
 | **Date** | 2026-01-10 |
 | **Author** | Architecture Team |
 | **Review Cadence** | 6 months |
@@ -90,6 +90,7 @@ Train a classifier to predict when to exit based on historical test data.
 | Review Board | Date | Outcome | Next Review |
 |--------------|------|---------|-------------|
 | Architecture Team | 2026-01-10 | Accepted | 2026-07-10 |
+| Architecture review | 2026-09-06 | Defaulted candidate exits to full-run shadow calibration; enforced stopping requires explicit configuration pending qualification in #657 | 2027-03-06 |
 
 ---
 
@@ -99,3 +100,4 @@ Train a classifier to predict when to exit based on historical test data.
 |--------|------|-------|
 | Proposed | 2026-01-10 | Initial creation from RuVector analysis |
 | Accepted | 2026-01-10 | Approved by Architecture Team |
+| Amended | 2026-09-06 | Full-run results remain authoritative while revision-bound calibration evidence is collected |

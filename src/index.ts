@@ -79,6 +79,12 @@ export {
   mapQEDomainToAQE,
   QE_DOMAIN_LIST,
   QE_DOMAINS,
+  createStructuralRetrievalCorpus,
+  verifyStructuralRetrievalCorpus,
+  evaluateStructuralRetrieval,
+  diagnoseRetrieval,
+  createRetrievalReceipt,
+  STRUCTURAL_RETRIEVAL_TRANSFORMATIONS,
 } from './learning';
 export type {
   QEPattern,
@@ -92,6 +98,19 @@ export type {
   PatternSearchResult,
   QERoutingRequest,
   QERoutingResult,
+  StructuralTransformation,
+  CorpusSplit,
+  StructuralPattern,
+  StructuralRetrievalQuery,
+  StructuralRetrievalCorpus,
+  RankedCandidate,
+  RetrievalDiagnostic,
+  QueryRetrievalResult,
+  MetricEstimate,
+  RetrievalMetricSet,
+  StructuralRetrievalReport,
+  RetrievalReceipt,
+  CreateRetrievalReceiptInput,
 } from './learning';
 
 // Feedback Module - Quality Feedback Loop (ADR-023)
@@ -313,6 +332,13 @@ export {
   createVersionComparator,
 } from './validation';
 
+export {
+  computeVerificationArtifactDigest,
+  computeVerificationReachManifestHash,
+  createVerificationReachManifest,
+  evaluateVerificationReach,
+} from './validation/verification-reach';
+
 export type {
   // Configuration types
   SwarmValidationConfig,
@@ -340,6 +366,25 @@ export type {
   ComparisonStats,
   TestCaseComparison,
 } from './validation';
+
+export type {
+  FailureModeRequirement,
+  FailureModeReachResult,
+  FailureModeSeverity,
+  UncoveredDisposition,
+  VerificationChannel,
+  VerificationCost,
+  VerificationCoverageVerdict,
+  VerificationEvidenceClass,
+  VerificationExecutionStatus,
+  VerificationReach,
+  VerificationReachEvaluationOptions,
+  VerificationReachLevel,
+  VerificationReachManifest,
+  VerificationReachManifestInput,
+  VerificationReachResult,
+  VerificationTarget,
+} from './validation/verification-reach';
 
 // Version info - read from package.json
 export const VERSION: string = pkg.version;
