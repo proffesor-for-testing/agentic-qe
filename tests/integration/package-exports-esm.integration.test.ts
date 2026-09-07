@@ -9,6 +9,7 @@ describe('packed package native ESM contracts', () => {
   const tempRoot = path.join(packageRoot, 'node_modules', '.cache', `aqe-pack-esm-${process.pid}`);
   const installedRoot = path.join(tempRoot, 'node_modules', 'agentic-qe');
   let packageJson: {
+    version: string;
     exports: Record<string, { import?: string }>;
     bin?: Record<string, string>;
   };
@@ -46,6 +47,19 @@ describe('packed package native ESM contracts', () => {
 
   it('should_importRuVectorBarrel_when_loadedByNativeNodeESM', () => {
     expectNativeImport('./dist/integrations/ruvector/index.js', 'RuVector barrel');
+  });
+
+  it('reports the package version from the public CLI export', () => {
+    const cliEntry = packageJson.exports['./cli']?.import;
+    expect(cliEntry).toBeDefined();
+    const url = pathToFileURL(path.resolve(installedRoot, cliEntry!)).href;
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '--eval', `await import(${JSON.stringify(url)});`, '--', '--version'],
+      { cwd: installedRoot, encoding: 'utf8', timeout: 30_000 },
+    );
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(result.stdout.trim()).toBe(packageJson.version);
   });
 
   it('exposes pattern mutation outcomes from the package root', () => {

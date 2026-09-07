@@ -4,7 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| [v3.14.1](v3.14.1.md) | 2026-09-06 | Node 22+ support and stronger verification, recovery, and learning evidence. |
+| [v3.14.1](v3.14.1.md) | 2026-09-07 | Node 22+ support and stronger verification, recovery, and learning evidence. |
 | [v3.14.0](v3.14.0.md) | 2026-08-30 | Qualified learning evidence, embedding provenance, fail-closed RVF recovery, and packaged QE Court. |
 | [v3.13.12](v3.13.12.md) | 2026-08-21 | External LLM provider registration for downstream hosts. |
 | [v3.13.11](v3.13.11.md) | 2026-08-14 | Reliable diagnostics, native ESM exports, and learned pattern visibility. |

@@ -4,12 +4,6 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Perform a dry run (no actual publish)'
-        required: false
-        default: 'false'
-        type: boolean
 
 # Required for npm trusted publishers (OIDC)
 permissions:
@@ -360,7 +354,7 @@ jobs:
           pushd "${CONSUMER_DIR}" >/dev/null
           echo '{"name":"audit-consumer","version":"0.0.0","private":true}' > package.json
           # Install our tarball as a real consumer would.
-          npm install --no-audit --no-fund "${GITHUB_WORKSPACE}/${{ steps.pack.outputs.tarball }}"
+          npm install --no-audit --no-fund "${{ steps.pack.outputs.tarball }}"
           # Now the moment of truth: audit from the consumer's POV, where
           # our root-only overrides do NOT apply.
           npm audit --audit-level=high
@@ -428,14 +422,23 @@ jobs:
           fi
           echo "Version verification passed: $PACKAGE_VERSION"
 
+          git fetch origin main --no-tags --depth=1
+          TAG_SHA=$(git rev-parse HEAD)
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
+            echo "Error: release tag SHA ($TAG_SHA) is not current merged main ($MAIN_SHA)"
+            exit 1
+          fi
+          echo "Release lineage verification passed: $TAG_SHA"
+
       - name: Publish to npm (dry run)
-        if: github.event.inputs.dry_run == 'true'
+        if: github.event_name == 'workflow_dispatch'
         run: npm publish "${{ steps.pack.outputs.tarball }}" --access public --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
-        if: github.event.inputs.dry_run != 'true'
+        if: github.event_name == 'release'
         run: npm publish "${{ steps.pack.outputs.tarball }}" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -451,7 +454,7 @@ jobs:
           echo "- **Version**: $PACKAGE_VERSION" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry**: https://www.npmjs.com/package/$PACKAGE_NAME" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "> **Note**: This was a dry run. No package was actually published." >> $GITHUB_STEP_SUMMARY
           else
             echo "Install with: \`npm install $PACKAGE_NAME@$PACKAGE_VERSION\`" >> $GITHUB_STEP_SUMMARY

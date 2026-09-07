@@ -30,6 +30,26 @@ describe('Node support policy', () => {
     expect(lock.packages?.['']?.engines?.node).toBe('>=22.13.0');
   });
 
+  it('uses the same floor for the Claude Code plugin', () => {
+    const manifest = JSON.parse(read('.claude-plugin/plugin.json')) as {
+      engines?: { node?: string };
+    };
+
+    expect(manifest.engines?.node).toBe('>=22.13.0');
+  });
+
+  it('enforces the exact floor in the shipped environment validator', () => {
+    const validator = read('.claude/helpers/validate-v3-config.sh');
+
+    expect(validator).toContain('[ "$node_major" -gt 22 ]');
+    expect(validator).toContain('[ "$node_major" -eq 22 ] && [ "$node_minor" -ge 13 ]');
+    expect(validator).toContain('Required: ≥22.13.0');
+  });
+
+  it('documents the exact floor in the shipped lifecycle hook', () => {
+    expect(read('.claude/hooks/aqe-hook.cjs')).toContain('CLI is Node >= 22.13');
+  });
+
   it('uses Node 24 for the production container', () => {
     expect(read('Dockerfile').match(/^FROM node:([^\s]+)/gm)).toEqual([
       'FROM node:24-alpine',
