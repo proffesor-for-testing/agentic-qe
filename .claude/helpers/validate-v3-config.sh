@@ -144,12 +144,13 @@ if command -v node >/dev/null 2>&1; then
   node_version=$(node --version)
   log_success "Node.js installed: $node_version"
 
-  # Check if Node.js version is 20+
+  # Check if Node.js version is 22.13+
   node_major=$(echo "$node_version" | cut -d'.' -f1 | sed 's/v//')
-  if [ "$node_major" -ge 20 ]; then
-    log_success "Node.js version meets requirements (≥20.0.0)"
+  node_minor=$(echo "$node_version" | cut -d'.' -f2)
+  if [ "$node_major" -gt 22 ] || { [ "$node_major" -eq 22 ] && [ "$node_minor" -ge 13 ]; }; then
+    log_success "Node.js version meets requirements (≥22.13.0)"
   else
-    log_error "Node.js version too old. Required: ≥20.0.0, Found: $node_version"
+    log_error "Node.js version too old. Required: ≥22.13.0, Found: $node_version"
   fi
 else
   log_error "Node.js not installed"

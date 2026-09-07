@@ -85,6 +85,7 @@ export {
   diagnoseRetrieval,
   createRetrievalReceipt,
   STRUCTURAL_RETRIEVAL_TRANSFORMATIONS,
+  PatternMutationError,
 } from './learning';
 export type {
   QEPattern,
@@ -111,6 +112,7 @@ export type {
   StructuralRetrievalReport,
   RetrievalReceipt,
   CreateRetrievalReceiptInput,
+  PatternMutationDisposition,
 } from './learning';
 
 // Feedback Module - Quality Feedback Loop (ADR-023)

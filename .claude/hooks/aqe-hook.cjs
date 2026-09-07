@@ -3,7 +3,7 @@
  * Resilient AQE hook shim (#510 item 5 — ports ruflo's hook-shim contract).
  *
  * Written in Node (CommonJS) so ONE file is cross-platform — Node is already a
- * hard dependency of AQE (the CLI is Node >= 20), so this runs identically on
+ * hard dependency of AQE (the CLI is Node >= 22.13), so this runs identically on
  * Windows / macOS / Linux with no POSIX `.sh` + `.cjs` twin. (It replaced an
  * earlier `aqe-hook.sh`, which forced a Windows twin and a `node_modules/.bin`
  * shell-wrapper spawn — see PR #512 discussion.)

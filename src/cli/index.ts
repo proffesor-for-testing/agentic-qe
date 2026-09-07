@@ -12,6 +12,7 @@
  */
 
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { QEKernel } from '../kernel/interfaces.js';
@@ -257,7 +258,9 @@ async function cleanupAndExit(code: number = 0): Promise<never> {
 
 const program = new Command();
 
-const VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '0.0.0-dev';
+const require = createRequire(import.meta.url);
+const packageVersion = (require('../../package.json') as { version: string }).version;
+const VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : packageVersion;
 
 program
   .name('aqe')

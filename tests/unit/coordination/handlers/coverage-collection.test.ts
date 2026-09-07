@@ -388,6 +388,29 @@ describe('#569 — analyze-coverage handler output', () => {
     expect(String(data.warning)).toMatch(/cargo-llvm-cov/);
   }, 120000);
 
+  it('does not run a JavaScript coverage tool for a Rust crate', async () => {
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-569-js-bin-'));
+    const marker = path.join(binDir, 'npx-was-invoked');
+    const originalPath = process.env.PATH;
+
+    try {
+      fs.writeFileSync(
+        path.join(binDir, 'npx'),
+        `#!/bin/sh\necho invoked >> ${JSON.stringify(marker)}\nexit 1\n`
+      );
+      fs.chmodSync(path.join(binDir, 'npx'), 0o755);
+      process.env.PATH = `${binDir}:${originalPath}`;
+
+      const data = await analyze();
+
+      expect(data.coverageMethod).toBe('static-estimation');
+      expect(fs.existsSync(marker), 'npx was invoked for a Rust target').toBe(false);
+    } finally {
+      process.env.PATH = originalPath;
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  }, 120000);
+
   it('marks every emitted gap as estimated with low confidence', async () => {
     const data = await analyze();
     const gaps = data.gaps as Array<Record<string, unknown>>;

@@ -140,9 +140,17 @@ async function collectCoverage(
   }
 
   // #569 work item 1: delegate to real instrumentation where available.
-  if (isRustProject(targetPath)) {
+  const rustProject = isRustProject(targetPath);
+  if (rustProject) {
     const rust = await collectRustCoverage(targetPath);
     if (rust) return { collected: rust, ranTests: true };
+
+    // This target is a Rust crate. Do not continue into the JS/TS runner:
+    // `npx vitest --coverage` can still be available through the parent
+    // process PATH and will write an empty report even though the crate has no
+    // JavaScript tests. Treating that artifact as coverage hides the intended
+    // Rust static-estimation fallback and mislabels the result.
+    return { collected: buildEstimatedCoverage(targetPath), ranTests: false };
   }
 
   const ranTests = await tryRunJsCoverage(targetPath);
