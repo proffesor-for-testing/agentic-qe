@@ -18,442 +18,539 @@ function rufloStatuslineDebug(stage, error){
     try { fs.chmodSync(file, 0o600); } catch(_mode){}
   } catch(_debugFailure) { /* diagnostics must never break the renderer */ }
 }
+// ── shared gauge helper (used by the SONA segment) ────────────────────────────
+function rufloBar(n, max){ n = Math.max(0, Math.min(max, n)); return "[" + "●".repeat(n) + "○".repeat(max - n) + "]"; }
+// ── quota tee (ADR-0010): Claude Code pushes plan utilization into every
+// statusline invocation (rate_limits: five_hour/seven_day used_percentage +
+// reset epochs — code.claude.com/docs/en/statusline.md). This is the ONLY
+// supported channel for those numbers on a Pro/Max plan, and it is push-
+// only, so the kit persists the latest payload for the dashboard's Limits
+// view to read (quota.mjs). Throttled to one write/min (the statusline
+// refreshes every ~5s); atomic tmp+rename at 0600 — account utilization is
+// the user's own business. Failure is silent by design: a broken tee must
+// never cost a statusline render. Side effect only — never contributes
+// rendered text to the footer, so it is not part of the segment-provider
+// array assembled in rufloActivationSegments below.
+function rufloQuotaTeeSegment(ctx){
+  try {
+    if (typeof ctx.getStdinData === "function") {
+      var _qsd = ctx.getStdinData();
+      if (_qsd && _qsd.rate_limits && typeof _qsd.rate_limits === "object") {
+        var _qdir = ctx.path.join(process.env.XDG_CONFIG_HOME || ctx.path.join(ctx.os.homedir(), ".config"), "agentic-kit");
+        var _qf = ctx.path.join(_qdir, "claude-rate-limits.json");
+        var _qold = 0;
+        try { _qold = ctx.fs.statSync(_qf).mtimeMs; } catch(e){ rufloStatuslineDebug("quota-cache-stat", e); }
+        if (Date.now() - _qold > 60000) {
+          ctx.fs.mkdirSync(_qdir, { recursive: true });
+          var _qtmp = _qf + "." + process.pid + ".tmp";
+          ctx.fs.writeFileSync(_qtmp, JSON.stringify({
+            teedAt: Date.now(),
+            session_id: _qsd.session_id || null,
+            model: (_qsd.model && _qsd.model.id) || null,
+            rate_limits: _qsd.rate_limits,
+            context_window: _qsd.context_window || null,
+            cost: _qsd.cost || null
+          }), { mode: 0o600 });
+          ctx.fs.renameSync(_qtmp, _qf);
+        }
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("quota-tee", e); }
+}
+// ── self-learning (SONA): own line with a volume bar (patterns/traj) plus a
+// LIVE micro-LoRA adaptation field (Δ‖W‖, appended by rufloLoraSegment below —
+// the one deliberate coupling between segments: LoRA has no line of its own).
+function rufloSonaSegment(ctx){
+  var learn = "";
+  try {
+    var sp = ctx.path.join(ctx.cwd, ".claude-flow", "neural", "stats.json");
+    if (ctx.fs.existsSync(sp)) {
+      var s = JSON.parse(ctx.fs.readFileSync(sp, "utf8"));
+      var pn = s.patternsLearned || 0, tj = s.trajectoriesRecorded || 0, parts = [];
+      if (pn > 0 || tj > 0) {
+        if (pn > 0) parts.push(pn + " patterns");
+        if (tj > 0) parts.push(tj + " traj");
+        var dots = Math.max(0, Math.min(5, Math.round(pn / 10)));   // volume gauge: ~10 patterns per dot
+        learn = ctx.colors.C + "🧠 SONA" + ctx.colors.R + "  " + ctx.colors.DIM + rufloBar(dots, 5) + ctx.colors.R + "  " + parts.join(ctx.colors.DIM + " · " + ctx.colors.R);
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("sona-stats", e); }
+  return learn;
+}
+// ── micro-LoRA LIVE adaptation: Δ‖W‖<cum> +<session> <trend> n<count> ──
+// Shows the model ACTUALLY ADAPTING FROM YOUR WORK, live. ruflo's own micro-LoRA is
+// per-process scratch ("resets per process", intelligence.js) — every hook reinits it
+// (random A, B=0), applies that call's signals, then DISCARDS the weights; only
+// patterns.json / stats.json persist. So the kit persists what ruflo throws away: a
+// single cumulative micro-LoRA in lora-live.json, advanced HERE (inline, mtime+TTL
+// gated) by feeding each NEW distilled pattern ruflo has learned from your work
+// (.claude-flow/neural/patterns.json) through the genuine @ruvector/ruvllm 2.5.6
+// gradient path (real since F4 fixed), weighted by ruflo's OWN per-pattern confidence
+// (no fabricated reward). The init RNG is seeded and weights are restored each tick, so
+// the result is DETERMINISTIC (no 41%-CV random-init noise) and cumulative.
+//   Δ‖W‖ = ‖scaling·(A·B)‖_F  (federated-LoRA's standard adaptation-magnitude monitor)
+//   +<session> = growth since this session began (the live "from your work" signal)
+//   n = distinct patterns fed (REINFORCE updates).  Gate: cum norm > 0.
+// Honest scope: a kit-persisted MIRROR of ruflo's discarded adapter, fed ruflo's real
+// confidence-weighted patterns. NOT shown: amplification factor (no frozen base W) and
+// a live reward curve (neural-train's WASM path records trajectories, not signals → 0).
+// Decomposed below into single-purpose helpers (each kept well under the complexity
+// budget); rufloLoraSegment is the entry point, called with the SONA line so it can
+// append onto it.
+function rufloLoraSessionId(ctx){
+  // Session boundary: prefer Claude Code's real session_id (piped on stdin) so the
+  // +<session> delta resets exactly when YOU start a new session — not on a clock.
+  var sid = "";
+  try {
+    if (typeof ctx.getStdinData === "function") {
+      var _sd = ctx.getStdinData();
+      sid = (_sd && (_sd.session_id || _sd.sessionId)) || "";
+    }
+  } catch(e){ rufloStatuslineDebug("lora-session-input", e); }
+  return sid;
+}
+// Refresh when: no state yet, the session changed (reset the +session baseline even
+// with no new patterns), or patterns changed and the TTL has elapsed.
+function rufloLoraStale(st, sid, pMtimeMs, nowS, ttl){
+  var sidChanged = !!(sid && st && (st.sessionId || "") !== sid);
+  return !st || sidChanged || (pMtimeMs > (st.pms || 0) && (nowS - (st.ts || 0)) >= ttl);
+}
+// Resolve the installed ruvllm SonaCoordinator (same global layout as the version probe).
+function rufloLoraResolveCoordinatorCtor(ctx){
+  var SC = null;
+  try {
+    var sj = ctx.path.join(ctx.path.dirname(process.execPath), "..", "lib", "node_modules", "ruflo",
+                       "node_modules", "@ruvector", "ruvllm", "dist", "cjs", "sona.js");
+    if (ctx.fs.existsSync(sj)) SC = require(sj).SonaCoordinator;
+  } catch(e){ rufloStatuslineDebug("lora-module-load", e); }
+  return SC;
+}
+function rufloLoraSessionBoundary(st, sid, nowS){
+  var prevSid = st ? (st.sessionId || "") : "";
+  var newSession, outSid = sid;
+  if (sid) {
+    newSession = !st || prevSid !== sid;          // real per-session boundary
+  } else {
+    newSession = !st || (nowS - (st.ts || 0) > 1800);  // no id (manual run): idle fallback
+    outSid = prevSid;                                  // preserve the session we're in
+  }
+  var sessionBase = newSession ? (st ? (st.deltaNorm || 0) : 0) : (st.sessionBase || 0);
+  var sessionTs = newSession ? nowS : (st.sessionTs || nowS);
+  return { sid: outSid, sessionBase: sessionBase, sessionTs: sessionTs };
+}
+function rufloLoraApplyPatterns(coord, pats, applied, n){
+  var list = Array.isArray(pats) ? pats : [];
+  for (var i = 0; i < list.length; i++) {
+    var p = list[i], id = String(p.id || i);
+    if (applied.has(id)) continue;
+    var conf = (typeof p.confidence === "number") ? p.confidence : Number(p.confidence);
+    coord.recordSignal({ requestId: id, type: p.type || "pattern",
+                         quality: (conf >= 0 && conf <= 1) ? conf : 0.7, correction: String(p.content || id) });
+    applied.add(id); n++;
+  }
+  return n;
+}
+function rufloLoraRecompute(ctx, st, sid, nowS, pPath, sPath, pMtimeMs){
+  var fs = ctx.fs;
+  var SC = rufloLoraResolveCoordinatorCtor(ctx);
+  if (!SC) return st;
+  var pats = JSON.parse(fs.readFileSync(pPath, "utf8"));
+  // Seed Math.random so the first-ever loraA init is deterministic; restore after ctor.
+  var seed = 0x9e3779b9, orig = Math.random;
+  Math.random = function(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  var coord = new SC({ backgroundLoopEnabled: false });
+  Math.random = orig;
+  var applied = new Set((st && st.appliedIds) || []);
+  var n = (st && st.n) || 0;
+  if (st && st.loraA) { try { coord.microLora.setWeights({ loraA: st.loraA, loraB: st.loraB, scaling: st.scaling }); } catch(e){ rufloStatuslineDebug("lora-weight-restore", e); } }
+  var boundary = rufloLoraSessionBoundary(st, sid, nowS);
+  n = rufloLoraApplyPatterns(coord, pats, applied, n);
+  var w = coord.microLora.getWeights(), nm = coord.stats().microLora.deltaNorm;
+  var rec = { loraA: w.loraA, loraB: w.loraB, scaling: w.scaling, appliedIds: Array.from(applied),
+              n: n, deltaNorm: nm, sessionBase: boundary.sessionBase, sessionTs: boundary.sessionTs, sessionId: boundary.sid,
+              pms: pMtimeMs, ts: nowS };
+  try { var tmp = sPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(rec)); fs.renameSync(tmp, sPath); } catch(e){ rufloStatuslineDebug("lora-state-write", e); }
+  return rec;
+}
+function rufloLoraFormat(st, learn, colors){
+  if (!(st && typeof st.deltaNorm === "number" && st.deltaNorm > 0)) return learn;
+  var DIM = colors.DIM, G = colors.G, Y = colors.Y, C = colors.C, R = colors.R;
+  var sess = st.deltaNorm - (st.sessionBase || 0);
+  var trend;
+  if (Math.abs(sess) / st.deltaNorm < 0.005) trend = DIM + "→" + R;
+  else trend = sess > 0 ? (G + "▲" + R) : (Y + "▼" + R);
+  var sessStr = (Math.abs(sess) / st.deltaNorm >= 0.005)
+    ? (" " + (sess > 0 ? G : Y) + (sess > 0 ? "+" : "") + sess.toFixed(4) + R) : "";
+  var dseg = C + "Δ‖W‖" + st.deltaNorm.toFixed(4) + R + sessStr + trend + DIM + " n" + st.n + R;
+  return learn ? (learn + DIM + " · " + R + dseg) : (C + "🧠 Δ LoRA" + R + "  " + dseg);
+}
+function rufloLoraSegment(ctx, learn){
+  try {
+    var fs = ctx.fs, path = ctx.path;
+    var nd = path.join(ctx.cwd, ".claude-flow", "neural");
+    var pPath = path.join(nd, "patterns.json"), sPath = path.join(nd, "lora-live.json");
+    if (!fs.existsSync(pPath)) return learn;
+    var st = null;
+    try { st = JSON.parse(fs.readFileSync(sPath, "utf8")); } catch(e){ rufloStatuslineDebug("lora-state-read", e); }
+    var nowS = Math.floor(Date.now() / 1000);
+    var pMtimeMs = fs.statSync(pPath).mtimeMs;   // ms precision: same-second writes still detected
+    var TTL = Number(process.env.RUFLO_LORA_TTL_S || 60);
+    var sid = rufloLoraSessionId(ctx);
+    if (rufloLoraStale(st, sid, pMtimeMs, nowS, TTL)) {
+      st = rufloLoraRecompute(ctx, st, sid, nowS, pPath, sPath, pMtimeMs);
+    }
+    return rufloLoraFormat(st, learn, ctx.colors);
+  } catch(e){ rufloStatuslineDebug("lora-segment", e); return learn; }
+}
+// ── route Q-learner (📈 RL): live agent-routing metrics, fs-only, honesty-gated ──
+// F3 (ruvnet/ruflo#2239) is fixed in ruflo 3.10.11 (FNV-1a lossless fold) — the
+// state encoder no longer collapses keyword-distinct tasks, so |Q| is a
+// real task-diversity count. Source the persisted Q-model directly; never the broken
+// `route stats` CLI. Gate hard: render ONLY when the learner has actually run
+// (updateCount>0), else emit nothing — no zero-state noise.
+function rufloRouteSegment(ctx){
+  var fs = ctx.fs, path = ctx.path, DIM = ctx.colors.DIM, C = ctx.colors.C, R = ctx.colors.R;
+  var route = "";
+  try {
+    var qp = path.join(ctx.cwd, ".swarm", "q-learning-model.json");
+    if (fs.existsSync(qp)) {
+      var qm = JSON.parse(fs.readFileSync(qp, "utf8"));
+      var st = qm.stats || {};
+      var upd = st.updateCount || 0;
+      if (upd > 0) {
+        var eps = typeof st.epsilon === "number" ? st.epsilon : null;
+        var td = typeof st.avgTDError === "number" ? st.avgTDError : null;
+        var qn = qm.qTable && typeof qm.qTable === "object" ? Object.keys(qm.qTable).length : 0;
+        var rp = [];
+        if (eps !== null) rp.push("ε" + eps.toFixed(2) + DIM + "↓" + R);
+        if (td !== null) rp.push("δ̄" + td.toFixed(3) + DIM + "↓" + R);
+        if (qn > 0) rp.push("|Q|" + qn);
+        rp.push("upd" + upd);
+        route = C + "📈 RL" + R + "  " + rp.join(DIM + " · " + R);
+      }
+    } else {
+      // Fallback: ruflo's metrics surface (no broken route-stats CLI). Only when it
+      // reflects real routing decisions.
+      var lp = path.join(ctx.cwd, ".claude-flow", "metrics", "learning.json");
+      if (fs.existsSync(lp)) {
+        var lj = JSON.parse(fs.readFileSync(lp, "utf8"));
+        var rt = lj.routing || {};
+        if ((rt.decisions || 0) > 0) {
+          var rp2 = [];
+          if (typeof rt.accuracy === "number") rp2.push("acc" + Math.round(rt.accuracy * 100) + "%");
+          rp2.push("dec" + rt.decisions);
+          route = C + "📈 RL" + R + "  " + rp2.join(DIM + " · " + R);
+        }
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("route-learning", e); }
+  return route;
+}
+// ── proof verdict (self-improvement eval): ALARM-ONLY, fs-only ──
+// Sources the most recent ruflo-improvement-eval run (.claude-flow/improvement.json):
+// a pre-registered causal test (one-sided permutation p + Cohen's d + above-chance)
+// that the route Q-learner self-improves vs a no-learning ablation. It is a SYNTHETIC
+// proof-of-mechanism (its own reward env), NOT a live measure of real routing — that
+// is what the 📈 RL line above is. So PASS is the expected state and is rendered
+// SILENTLY; only a FAIL (a real regression worth a look) surfaces, as ◷ proof FAIL.
+// The run age (im.ts) is appended so a stale FAIL reads honestly. Never a fabricated
+// source. Fields per #8: Δpp · CI · p · d · age. (#8 — alarm-only per user decision.)
+function rufloProofSegment(ctx){
+  var fs = ctx.fs, path = ctx.path, DIM = ctx.colors.DIM, Y = ctx.colors.Y, R = ctx.colors.R;
+  var proof = "";
+  try {
+    var ip = path.join(ctx.cwd, ".claude-flow", "improvement.json");
+    if (fs.existsSync(ip)) {
+      var im = JSON.parse(fs.readFileSync(ip, "utf8"));
+      if (im && im.verdict === "FAIL") {
+        var pp = [];
+        if (typeof im.deltaPP === "number") pp.push("Δ" + (im.deltaPP >= 0 ? "+" : "") + im.deltaPP + "pp");
+        if (typeof im.ci95 === "number") pp.push("CI±" + im.ci95);
+        if (typeof im.pValue === "number") pp.push("p" + (im.pValue < 0.001 ? "<.001" : "=" + im.pValue.toFixed(3)));
+        if (typeof im.cohensD === "number") pp.push("d" + (im.cohensD >= 999 ? "∞" : im.cohensD));
+        if (typeof im.ts === "number") {
+          var ageSec = Math.floor(Date.now() / 1000) - im.ts;
+          if (ageSec >= 86400) pp.push(Math.floor(ageSec / 86400) + "d ago");
+          else if (ageSec >= 3600) pp.push(Math.floor(ageSec / 3600) + "h ago");
+        }
+        proof = Y + "◷ proof FAIL" + R + (pp.length ? "  " + DIM + pp.join(" · ") + R : "");
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("proof-verdict", e); }
+  return proof;
+}
+// ── AI defense (AIMDS) — ALARM-ONLY: renders only when it is MISSING ────────
+// Was a permanent green "🛡 aidefence on". Two reasons it inverted:
+//   1. Issue #8's rule, already law for the proof segment above: the expected state
+//      is rendered SILENTLY, only a regression surfaces, no static green badge. A
+//      constant "on" carries no information after the first glance — unlike SONA/QE,
+//      whose counts move — so it was the one pure binary badge in this footer.
+//   2. Glyph collision: ruflo's line 2 uses 🛡 for the SCAN state, a different
+//      concern entirely (`security scan` audits your SOURCE; this is `security
+//      defend` / AIMDS screening PROMPTS for injection, jailbreak and PII). Two
+//      shields meaning different things read as one duplicated thing. The alarm
+//      carries no 🛡 at all, so it can never be confused with the scan shield.
+//
+// Still load-bearing, not decoration: @claude-flow/aidefence is NOT a declared
+// dependency of ruflo or @claude-flow/cli (verified still true on 3.32.0) while
+// `security defend` imports it (ruvnet/ruflo#2670). It is present ONLY because the
+// kit's healAidefence npm-installs it into rufloRoot(). A plain `npm i -g ruflo`
+// can therefore silently remove your injection defense — and under the old polarity
+// that catastrophe was signalled by a line quietly VANISHING, which is ambiguous
+// (off? probe threw? forgot to look?). Now the dangerous state is the loud one.
+//
+// FAIL-SAFE POLARITY (the reason for the two-step probe): alarm only on POSITIVE
+// evidence of absence — we located a ruflo install AND aidefence is not inside it.
+// If ruflo itself cannot be found (custom npm prefix, or the statusline running
+// under a different node than the one that installed it), we cannot know, so we say
+// NOTHING. Inverting a signal also inverts its failure mode: a probe miss used to
+// fail silent, and would now fail LOUD and WRONG. Claiming "your defense is off"
+// when it is on is the same crime as the fabricated CVE counter overlaid below.
+// Probe + verdict live in rufloAidefenceState/rufloFindRufloRoot (further below) so
+// the three-state logic is unit-testable against fixture trees — it cannot be
+// exercised from here, where it depends on the real process.execPath. Both names are
+// referenced (not captured) so tests can reassign rufloFindRufloRoot for coverage.
+function rufloAidefenceSegment(ctx){
+  var sec = "";
+  try {
+    if (rufloAidefenceState(rufloFindRufloRoot()) === "off") {
+      sec = ctx.colors.RED + "⚠ aidefence OFF" + ctx.colors.R + ctx.colors.DIM + " — no prompt-injection defense · ak sync restores it" + ctx.colors.R;
+    }
+  } catch(e){ rufloStatuslineDebug("aidefence-state", e); }
+  return sec;
+}
+// ── daemon visibility (⚙): GLOBAL count of running ruflo daemons, so no daemon
+// is ever invisible (token-burn incident lesson). Machine-global, not per-project,
+// so it is cached in tmpdir and shared across every project's statusline — one
+// pgrep per TTL window, not per render. Daemons are default-on (local-only
+// workers, budget-governed AI workers) since the 3.28 baseline, so one per active
+// project is the EXPECTED steady state: dim up to 3, YELLOW at >=4 (more daemons
+// than you're plausibly working projects — ruflo-daemon-gc to inspect; upstream
+// TTL + kit auto-reap will also converge it). Opt out: RUFLO_DAEMON_STATUSLINE=0.
+function rufloDaemonSegment(ctx){
+  var fs = ctx.fs, path = ctx.path, cp = ctx.cp, os = ctx.os;
+  var Y = ctx.colors.Y, DIM = ctx.colors.DIM, R = ctx.colors.R;
+  var daemon = "";
+  try {
+    if (process.env.RUFLO_DAEMON_STATUSLINE !== "0") {
+      var dCache = path.join(os.tmpdir(), "ruflo-daemon-count.json");
+      var dTtl = Number(process.env.RUFLO_DAEMON_STATUSLINE_TTL_MS || 30000);
+      var dCount = null;
+      try { var dc = JSON.parse(fs.readFileSync(dCache, "utf8")); if (dc && typeof dc.n === "number" && dTtl > 0 && (Date.now() - dc.ts) < dTtl) dCount = dc.n; } catch(e){ rufloStatuslineDebug("daemon-cache-read", e); }
+      if (dCount === null) {
+        try {
+          var pg = cp.execFileSync("pgrep", ["-f", "cli.js daemon start"], {stdio:["ignore","pipe","ignore"], timeout:1500}).toString().trim();
+          dCount = pg ? pg.split("\n").filter(Boolean).length : 0;
+        } catch(e){ dCount = 0; }   // pgrep exits 1 (=> throws) when nothing matches
+        try { fs.writeFileSync(dCache, JSON.stringify({ts: Date.now(), n: dCount})); } catch(e){ rufloStatuslineDebug("daemon-cache-write", e); }
+      }
+      if (dCount > 0) {
+        var dCol = dCount >= 4 ? Y : DIM;
+        daemon = dCol + "⚙ " + dCount + " ruflo daemon" + (dCount === 1 ? "" : "s") + R
+               + (dCount >= 4 ? DIM + " — ruflo-daemon-gc to inspect" + R : "");
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("daemon-segment", e); }
+  return daemon;
+}
+// ── RuvNet Brain (🧿): offline rUv-stack knowledge base — honesty-gated, fs-only ──
+// The brain is NOT an npm package — `npx github:stuinfla/ruvnet-brain` drops a
+// ~2GB offline knowledge base at ~/.cache/ruvnet-brain/kb (honors RUVNET_BRAIN_KB)
+// and wires a user-scope Claude Code plugin. Presence probe MIRRORS
+// src/lib/ruvnet-brain.mjs exactly: existence of the KB's forge-mcp-all.mjs
+// entrypoint. Render NOTHING when absent — never a fabricated row. The KB is a flat
+// dir of data files, so the true size is a shallow sum of its top-level files
+// (the __MACOSX zip-artifact dir is a directory, so isFile() correctly excludes it);
+// that sum is TTL-cached machine-globally in tmpdir (like the ⚙ daemon / 🎓 QE
+// chips) so ~600 stat() calls run at most once per window, not per render. The 💾
+// chip reuses the QE size formatting. The plugin semver (marketplace manifest,
+// best-effort) rides next to the label like "RuFlo V<x>" / "Agentic QE V<x>".
+//
+// Version — best-effort, empty on any failure (never blocks the row). RELEASE-tag
+// namespace (what `ak status` shows, e.g. 3.3.1), never the plugin.json SEMVER
+// (e.g. 0.5.0-dev) — different namespaces for the same install; showing the semver
+// here confused users (it disagreed with `ak status`). Three-namespace gotcha; see
+// MAINTAINER.md. Resolution order MIRRORS drift() in src/lib/ruvnet-brain.mjs so
+// this row and `ak status` can never disagree:
+//   1) the bundle's own on-disk stamp (SOURCE.json.releaseTag) — ground truth,
+//      current even when the KB changed outside ak (e.g. a manual forge-update.mjs
+//      run);
+//   2) ak's kit.json record of the release it last installed;
+//   3) plugin semver — last resort for manual/pre-stamping installs.
+function rufloBrainVersion(ctx, kbDir){
+  var fs = ctx.fs, path = ctx.path, os2 = ctx.os;
+  var bver = "";
+  try {
+    var relTag = null;
+    try {
+      var srcJ = JSON.parse(fs.readFileSync(path.join(kbDir, "SOURCE.json"), "utf8"));
+      var rawTag = String(srcJ.releaseTag || "");
+      if (/^[A-Za-z0-9._-]{1,32}$/.test(rawTag)) relTag = rawTag;
+    } catch(e){ rufloStatuslineDebug("brain-source-stamp", e); }
+    if (!relTag) {
+      try {
+        var kitCfg = path.join(os2.homedir(), ".config", "agentic-kit", "kit.json");
+        var kj = JSON.parse(fs.readFileSync(kitCfg, "utf8"));
+        if (kj && kj.versionCheck && kj.versionCheck.ruvnetBrain) relTag = kj.versionCheck.ruvnetBrain.installedRelease;
+      } catch(e){ rufloStatuslineDebug("brain-kit-stamp", e); }
+    }
+    if (relTag) {
+      bver = " V" + String(relTag).replace(/^v/, "");
+    } else {
+      var bpkg = path.join(os2.homedir(), ".claude", "plugins", "marketplaces",
+                           "ruvnet-brain", "plugin", ".claude-plugin", "plugin.json");
+      var bv = JSON.parse(fs.readFileSync(bpkg, "utf8")).version;
+      if (bv) bver = " V" + String(bv).replace(/^v/, "");
+    }
+  } catch(e){ rufloStatuslineDebug("brain-version", e); }
+  return bver;
+}
+// KB size — TTL-cached shallow sum of top-level files, keyed on kbDir so an
+// env-overridden path (or a moved KB) never serves a stale foreign size.
+function rufloBrainSize(ctx, kbDir){
+  var fs = ctx.fs, path = ctx.path, os2 = ctx.os;
+  var bBytes = null;
+  try {
+    var bCache = path.join(os2.tmpdir(), "ruvnet-brain-kb-size.json");
+    var bTtl = Number(process.env.RUVNET_BRAIN_KB_TTL_MS || 300000);
+    try {
+      var bc = JSON.parse(fs.readFileSync(bCache, "utf8"));
+      if (bc && bc.dir === kbDir && typeof bc.bytes === "number" && bTtl > 0 && (Date.now() - bc.ts) < bTtl) bBytes = bc.bytes;
+    } catch(e){ rufloStatuslineDebug("brain-size-cache-read", e); }
+    if (bBytes === null) {
+      var sum = 0;
+      fs.readdirSync(kbDir).forEach(function(f){
+        try { var s = fs.statSync(path.join(kbDir, f)); if (s.isFile()) sum += s.size; } catch(e){ rufloStatuslineDebug("brain-size-entry", e); }
+      });
+      bBytes = sum;
+      try { fs.writeFileSync(bCache, JSON.stringify({ts: Date.now(), dir: kbDir, bytes: sum})); } catch(e){ rufloStatuslineDebug("brain-size-cache-write", e); }
+    }
+  } catch(e){ rufloStatuslineDebug("brain-size", e); }
+  return bBytes;
+}
+function rufloBrainSegment(ctx){
+  var fs = ctx.fs, path = ctx.path, os2 = ctx.os, colors = ctx.colors;
+  var brain = "";
+  try {
+    var kbDir = process.env.RUVNET_BRAIN_KB || path.join(os2.homedir(), ".cache", "ruvnet-brain", "kb");
+    if (fs.existsSync(path.join(kbDir, "forge-mcp-all.mjs"))) {
+      var bver = rufloBrainVersion(ctx, kbDir);
+      var bBytes = rufloBrainSize(ctx, kbDir);
+      var bp = [];
+      if (bBytes && bBytes > 0) {
+        var bkb = Math.round(bBytes / 1024);
+        bp.push("💾 " + (bkb >= 1024 ? (bkb/1024).toFixed(1) + "MB" : bkb + "KB"));
+      }
+      brain = colors.C + "🧿 RuvNet Brain" + bver + colors.R + "  " + (bp.length ? bp.join(colors.DIM + " · " + colors.R) : colors.G + "✓" + colors.R);
+    }
+  } catch(e){ rufloStatuslineDebug("brain-segment", e); }
+  return brain;
+}
+// ── agentic-qe — TTL-cached; one sqlite3 spawn only on a cache miss (issue #3) ──
+// SQL on stdin + ".bail off" so a missing vector table (name varies by aqe version)
+// doesn't abort the batch. sqlite3 still exits non-zero on the error, so
+// execFileSync throws — recover e.stdout.
+function rufloQeQuery(ctx, db){
+  var sql = ".bail off\n"
+    + "SELECT 'pat',COUNT(*) FROM qe_patterns;\n"
+    + "SELECT 'vec',COUNT(*) FROM qe_pattern_embeddings;\n"
+    + "SELECT 'vec',COUNT(*) FROM vectors;\n"
+    + "SELECT 'vec',COUNT(*) FROM embeddings;\n"
+    + "SELECT 'traj',COUNT(*) FROM qe_trajectories;\n";
+  var raw = "";
+  try { raw = ctx.cp.execFileSync("sqlite3", [db], {input: sql, stdio:["pipe","pipe","ignore"], timeout:1500}).toString(); }
+  catch(e){ rufloStatuslineDebug("qe-sqlite-query", e); raw = (e && e.stdout) ? e.stdout.toString() : ""; }
+  var pat = 0, qtj = 0, qv = 0;
+  raw.split("\n").forEach(function(ln){
+    var i = ln.indexOf("|"); if (i < 0) return;
+    var k = ln.slice(0, i), v = Number(ln.slice(i + 1)) || 0;
+    if (k === "pat") pat = v; else if (k === "traj") qtj = v; else if (k === "vec" && qv === 0) qv = v;
+  });
+  return { pat: pat, qtj: qtj, qv: qv };
+}
+// Installed agentic-qe version — shown next to the label, mirroring "RuFlo V<x>"
+// in ruflo's native header. Prefer the global install (matches the aidefence
+// probe above); fall back to a project-local node_modules copy.
+function rufloQeVersion(ctx){
+  var fs = ctx.fs, path = ctx.path;
+  var qver = "";
+  try {
+    var qpkg = path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "agentic-qe", "package.json");
+    if (!fs.existsSync(qpkg)) qpkg = path.join(ctx.cwd, "node_modules", "agentic-qe", "package.json");
+    var qv2 = JSON.parse(fs.readFileSync(qpkg, "utf8")).version;
+    if (qv2) qver = " V" + qv2;
+  } catch(e){ rufloStatuslineDebug("qe-version", e); }
+  return qver;
+}
+function rufloQeFormat(ctx, db, counts){
+  var fs = ctx.fs, colors = ctx.colors;
+  var qp = [];
+  if (counts.pat > 0) qp.push("🎓 " + counts.pat + " patterns");
+  if (counts.qtj > 0) qp.push("🧭 " + counts.qtj + " traj");
+  if (counts.qv > 0) qp.push("🧬 " + counts.qv + " vec" + colors.G + "⚡" + colors.R);
+  try { var kb = Math.round(fs.statSync(db).size / 1024); qp.push("💾 " + (kb >= 1024 ? (kb/1024).toFixed(1) + "MB" : kb + "KB")); } catch(e){ rufloStatuslineDebug("qe-db-stat", e); }
+  var qver = rufloQeVersion(ctx);
+  return colors.Y + "🎓 Agentic QE" + qver + colors.R + "  " + (qp.length ? qp.join(colors.DIM + " · " + colors.R) : "on");
+}
+function rufloQeSegment(ctx){
+  var fs = ctx.fs, path = ctx.path;
+  var qe = "";
+  try {
+    var db = path.join(ctx.cwd, ".agentic-qe", "memory.db");
+    if (fs.existsSync(db)) {
+      var cacheDir = path.join(ctx.cwd, ".claude-flow", "cache");
+      var cacheFile = path.join(cacheDir, "qe-statusline.json");
+      var ttl = Number(process.env.RUFLO_QE_STATUSLINE_TTL_MS || 60000);
+      var cachedLine = null;
+      try {
+        var cc = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+        if (cc && typeof cc.line === "string" && ttl > 0 && (Date.now() - cc.ts) < ttl) cachedLine = cc.line;
+      } catch(e){ rufloStatuslineDebug("qe-cache-read", e); }
+      if (cachedLine !== null) {
+        qe = cachedLine;                   // hit: zero sqlite3 spawns
+      } else {
+        var counts = rufloQeQuery(ctx, db);   // miss: ONE sqlite3 call
+        qe = rufloQeFormat(ctx, db, counts);
+        try { fs.mkdirSync(cacheDir, {recursive:true}); fs.writeFileSync(cacheFile, JSON.stringify({ts: Date.now(), line: qe})); } catch(e){ rufloStatuslineDebug("qe-cache-write", e); }
+      }
+    }
+  } catch(e){ rufloStatuslineDebug("qe-segment", e); }
+  return qe;
+}
+// ── assemble: one ruflo feature per line (SONA[+LoRA], 📈 RL, ◷ proof FAIL alarm,
+// ⚠ aidefence OFF alarm, ⚙ daemon, 🧿 brain), then a divider, then the agentic-qe
+// line. The two alarms are silent in the healthy case, so a well-configured machine
+// shows only the live metrics. Each segment renders on its OWN line so the live
+// route metrics and the security state are individually scannable and don't wrap.
+// No rule above the SONA line — these are ruflo features and sit flush under
+// ruflo's native lines. The divider matches ruflo's native header width
+// ('─'.repeat(53) in statusline.cjs) so the two rules line up.
 function rufloActivationSegments(cwd){
   try {
-    var fs = require("fs"), path = require("path"), cp = require("child_process");
-    var RED = "\x1b[1;31m";   // alarm-only segments (aidefence OFF) — matches ruflo's own brightRed
-    var DIM = "[2m", G = "[1;32m", Y = "[1;33m", C = "[1;36m", R = "[0m";
-    // ── quota tee (ADR-0010): Claude Code pushes plan utilization into every
-    // statusline invocation (rate_limits: five_hour/seven_day used_percentage +
-    // reset epochs — code.claude.com/docs/en/statusline.md). This is the ONLY
-    // supported channel for those numbers on a Pro/Max plan, and it is push-
-    // only, so the kit persists the latest payload for the dashboard's Limits
-    // view to read (quota.mjs). Throttled to one write/min (the statusline
-    // refreshes every ~5s); atomic tmp+rename at 0600 — account utilization is
-    // the user's own business. Failure is silent by design: a broken tee must
-    // never cost a statusline render.
-    try {
-      if (typeof getStdinData === "function") {
-        var _qsd = getStdinData();
-        if (_qsd && _qsd.rate_limits && typeof _qsd.rate_limits === "object") {
-          var _qdir = path.join(process.env.XDG_CONFIG_HOME || path.join(require("os").homedir(), ".config"), "agentic-kit");
-          var _qf = path.join(_qdir, "claude-rate-limits.json");
-          var _qold = 0;
-          try { _qold = fs.statSync(_qf).mtimeMs; } catch(e){ rufloStatuslineDebug("quota-cache-stat", e); }
-          if (Date.now() - _qold > 60000) {
-            fs.mkdirSync(_qdir, { recursive: true });
-            var _qtmp = _qf + "." + process.pid + ".tmp";
-            fs.writeFileSync(_qtmp, JSON.stringify({
-              teedAt: Date.now(),
-              session_id: _qsd.session_id || null,
-              model: (_qsd.model && _qsd.model.id) || null,
-              rate_limits: _qsd.rate_limits,
-              context_window: _qsd.context_window || null,
-              cost: _qsd.cost || null
-            }), { mode: 0o600 });
-            fs.renameSync(_qtmp, _qf);
-          }
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("quota-tee", e); }
-    function bar(n, max){ n = Math.max(0, Math.min(max, n)); return "[" + "●".repeat(n) + "○".repeat(max - n) + "]"; }
-    // ── self-learning (SONA): own line with a volume bar (patterns/traj/HNSW) plus a
-    // LIVE micro-LoRA adaptation field (Δ‖W‖, appended further below). The Δ‖W‖ tracker
-    // is maintained inline in this same function — see the "micro-LoRA LIVE adaptation"
-    // block after the route-Q segment.
-    var learn = "";
-    try {
-      var sp = path.join(cwd, ".claude-flow", "neural", "stats.json");
-      if (fs.existsSync(sp)) {
-        var s = JSON.parse(fs.readFileSync(sp, "utf8"));
-        var pn = s.patternsLearned || 0, tj = s.trajectoriesRecorded || 0, parts = [];
-        if (pn > 0 || tj > 0) {
-          if (pn > 0) parts.push(pn + " patterns");
-          if (tj > 0) parts.push(tj + " traj");
-          if (fs.existsSync(path.join(cwd, ".swarm", "hnsw.index"))) parts.push(G + "⚡ HNSW" + R);
-          var dots = Math.max(0, Math.min(5, Math.round(pn / 10)));   // volume gauge: ~10 patterns per dot
-          learn = C + "🧠 SONA" + R + "  " + DIM + bar(dots, 5) + R + "  " + parts.join(DIM + " · " + R);
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("sona-stats", e); }
-    // ── micro-LoRA LIVE adaptation: Δ‖W‖<cum> +<session> <trend> n<count> ──
-    // Shows the model ACTUALLY ADAPTING FROM YOUR WORK, live. ruflo's own micro-LoRA is
-    // per-process scratch ("resets per process", intelligence.js) — every hook reinits it
-    // (random A, B=0), applies that call's signals, then DISCARDS the weights; only
-    // patterns.json / stats.json persist. So the kit persists what ruflo throws away: a
-    // single cumulative micro-LoRA in lora-live.json, advanced HERE (inline, mtime+TTL
-    // gated) by feeding each NEW distilled pattern ruflo has learned from your work
-    // (.claude-flow/neural/patterns.json) through the genuine @ruvector/ruvllm 2.5.6
-    // gradient path (real since F4 fixed), weighted by ruflo's OWN per-pattern confidence
-    // (no fabricated reward). The init RNG is seeded and weights are restored each tick, so
-    // the result is DETERMINISTIC (no 41%-CV random-init noise) and cumulative.
-    //   Δ‖W‖ = ‖scaling·(A·B)‖_F  (federated-LoRA's standard adaptation-magnitude monitor)
-    //   +<session> = growth since this session began (the live "from your work" signal)
-    //   n = distinct patterns fed (REINFORCE updates).  Gate: cum norm > 0.
-    // Honest scope: a kit-persisted MIRROR of ruflo's discarded adapter, fed ruflo's real
-    // confidence-weighted patterns. NOT shown: amplification factor (no frozen base W) and
-    // a live reward curve (neural-train's WASM path records trajectories, not signals → 0).
-    try {
-      var nd = path.join(cwd, ".claude-flow", "neural");
-      var pPath = path.join(nd, "patterns.json"), sPath = path.join(nd, "lora-live.json");
-      if (fs.existsSync(pPath)) {
-        var st = null; try { st = JSON.parse(fs.readFileSync(sPath, "utf8")); } catch(e){ rufloStatuslineDebug("lora-state-read", e); }
-        var nowS = Math.floor(Date.now() / 1000);
-        var pMtimeMs = fs.statSync(pPath).mtimeMs;   // ms precision: same-second writes still detected
-        var TTL = Number(process.env.RUFLO_LORA_TTL_S || 60);
-        // Session boundary: prefer Claude Code's real session_id (piped on stdin) so the
-        // +<session> delta resets exactly when YOU start a new session — not on a clock.
-        // getStdinData() is the host statusline's cached single-read of that JSON; guard the
-        // call so the segment still works on a template that lacks it, or run standalone.
-        var sid = "";
-        try { if (typeof getStdinData === "function") { var _sd = getStdinData(); sid = (_sd && (_sd.session_id || _sd.sessionId)) || ""; } } catch(e){ rufloStatuslineDebug("lora-session-input", e); }
-        // Refresh when: no state yet, the session changed (reset the +session baseline even
-        // with no new patterns), or patterns changed and the TTL has elapsed.
-        var sidChanged = !!(sid && st && (st.sessionId || "") !== sid);
-        var stale = !st || sidChanged || (pMtimeMs > (st.pms || 0) && (nowS - (st.ts || 0)) >= TTL);
-        if (stale) {
-          // Resolve the installed ruvllm SonaCoordinator (same global layout as the version probe).
-          var SC = null;
-          try {
-            var sj = path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "ruflo",
-                               "node_modules", "@ruvector", "ruvllm", "dist", "cjs", "sona.js");
-            if (fs.existsSync(sj)) SC = require(sj).SonaCoordinator;
-          } catch(e){ rufloStatuslineDebug("lora-module-load", e); }
-          if (SC) {
-            var pats = JSON.parse(fs.readFileSync(pPath, "utf8"));
-            // Seed Math.random so the first-ever loraA init is deterministic; restore after ctor.
-            var seed = 0x9e3779b9, orig = Math.random;
-            Math.random = function(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-            var coord = new SC({ backgroundLoopEnabled: false });
-            Math.random = orig;
-            var applied = new Set((st && st.appliedIds) || []);
-            var n = (st && st.n) || 0;
-            if (st && st.loraA) { try { coord.microLora.setWeights({ loraA: st.loraA, loraB: st.loraB, scaling: st.scaling }); } catch(e){ rufloStatuslineDebug("lora-weight-restore", e); } }
-            var prevSid = st ? (st.sessionId || "") : "";
-            var newSession;
-            if (sid) {
-              newSession = !st || prevSid !== sid;          // real per-session boundary
-            } else {
-              newSession = !st || (nowS - (st.ts || 0) > 1800);  // no id (manual run): idle fallback
-              sid = prevSid;                                // preserve the session we're in
-            }
-            var sessionBase = newSession ? (st ? (st.deltaNorm || 0) : 0) : (st.sessionBase || 0);
-            var sessionTs = newSession ? nowS : (st.sessionTs || nowS);
-            for (var i = 0; i < (Array.isArray(pats) ? pats.length : 0); i++) {
-              var p = pats[i], id = String(p.id || i);
-              if (applied.has(id)) continue;
-              var conf = (typeof p.confidence === "number") ? p.confidence : Number(p.confidence);
-              coord.recordSignal({ requestId: id, type: p.type || "pattern",
-                                   quality: (conf >= 0 && conf <= 1) ? conf : 0.7, correction: String(p.content || id) });
-              applied.add(id); n++;
-            }
-            var w = coord.microLora.getWeights(), nm = coord.stats().microLora.deltaNorm;
-            var rec = { loraA: w.loraA, loraB: w.loraB, scaling: w.scaling, appliedIds: Array.from(applied),
-                        n: n, deltaNorm: nm, sessionBase: sessionBase, sessionTs: sessionTs, sessionId: sid,
-                        pms: pMtimeMs, ts: nowS };
-            try { var tmp = sPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(rec)); fs.renameSync(tmp, sPath); } catch(e){ rufloStatuslineDebug("lora-state-write", e); }
-            st = rec;
-          }
-        }
-        if (st && typeof st.deltaNorm === "number" && st.deltaNorm > 0) {
-          var sess = st.deltaNorm - (st.sessionBase || 0);
-          var trend = "";
-          if (Math.abs(sess) / st.deltaNorm < 0.005) trend = DIM + "→" + R;
-          else trend = sess > 0 ? (G + "▲" + R) : (Y + "▼" + R);
-          var sessStr = (Math.abs(sess) / st.deltaNorm >= 0.005)
-            ? (" " + (sess > 0 ? G : Y) + (sess > 0 ? "+" : "") + sess.toFixed(4) + R) : "";
-          var dseg = C + "Δ‖W‖" + st.deltaNorm.toFixed(4) + R + sessStr + trend + DIM + " n" + st.n + R;
-          if (learn) { learn += DIM + " · " + R + dseg; }
-          else { learn = C + "🧠 Δ LoRA" + R + "  " + dseg; }
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("lora-segment", e); }
-    // ── route Q-learner (📈 RL): live agent-routing metrics, fs-only, honesty-gated ──
-    // F3 (ruvnet/ruflo#2239) is fixed in ruflo 3.10.11 (FNV-1a lossless fold) — the
-    // state encoder no longer collapses keyword-distinct tasks, so |Q| is a
-    // real task-diversity count. Source the persisted Q-model directly; never the broken
-    // `route stats` CLI. Gate hard: render ONLY when the learner has actually run
-    // (updateCount>0), else emit nothing — no zero-state noise.
-    var route = "";
-    try {
-      var qp = path.join(cwd, ".swarm", "q-learning-model.json");
-      if (fs.existsSync(qp)) {
-        var qm = JSON.parse(fs.readFileSync(qp, "utf8"));
-        var st = qm.stats || {};
-        var upd = st.updateCount || 0;
-        if (upd > 0) {
-          var eps = typeof st.epsilon === "number" ? st.epsilon : null;
-          var td = typeof st.avgTDError === "number" ? st.avgTDError : null;
-          var qn = qm.qTable && typeof qm.qTable === "object" ? Object.keys(qm.qTable).length : 0;
-          var rp = [];
-          if (eps !== null) rp.push("ε" + eps.toFixed(2) + DIM + "↓" + R);
-          if (td !== null) rp.push("δ̄" + td.toFixed(3) + DIM + "↓" + R);
-          if (qn > 0) rp.push("|Q|" + qn);
-          rp.push("upd" + upd);
-          route = C + "📈 RL" + R + "  " + rp.join(DIM + " · " + R);
-        }
-      } else {
-        // Fallback: ruflo's metrics surface (no broken route-stats CLI). Only when it
-        // reflects real routing decisions.
-        var lp = path.join(cwd, ".claude-flow", "metrics", "learning.json");
-        if (fs.existsSync(lp)) {
-          var lj = JSON.parse(fs.readFileSync(lp, "utf8"));
-          var rt = lj.routing || {};
-          if ((rt.decisions || 0) > 0) {
-            var rp2 = [];
-            if (typeof rt.accuracy === "number") rp2.push("acc" + Math.round(rt.accuracy * 100) + "%");
-            rp2.push("dec" + rt.decisions);
-            route = C + "📈 RL" + R + "  " + rp2.join(DIM + " · " + R);
-          }
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("route-learning", e); }
-    // ── proof verdict (self-improvement eval): ALARM-ONLY, fs-only ──
-    // Sources the most recent ruflo-improvement-eval run (.claude-flow/improvement.json):
-    // a pre-registered causal test (one-sided permutation p + Cohen's d + above-chance)
-    // that the route Q-learner self-improves vs a no-learning ablation. It is a SYNTHETIC
-    // proof-of-mechanism (its own reward env), NOT a live measure of real routing — that
-    // is what the 📈 RL line above is. So PASS is the expected state and is rendered
-    // SILENTLY; only a FAIL (a real regression worth a look) surfaces, as ◷ proof FAIL.
-    // The run age (im.ts) is appended so a stale FAIL reads honestly. Never a fabricated
-    // source. Fields per #8: Δpp · CI · p · d · age. (#8 — alarm-only per user decision.)
-    var proof = "";
-    try {
-      var ip = path.join(cwd, ".claude-flow", "improvement.json");
-      if (fs.existsSync(ip)) {
-        var im = JSON.parse(fs.readFileSync(ip, "utf8"));
-        if (im && im.verdict === "FAIL") {
-          var pp = [];
-          if (typeof im.deltaPP === "number") pp.push("Δ" + (im.deltaPP >= 0 ? "+" : "") + im.deltaPP + "pp");
-          if (typeof im.ci95 === "number") pp.push("CI±" + im.ci95);
-          if (typeof im.pValue === "number") pp.push("p" + (im.pValue < 0.001 ? "<.001" : "=" + im.pValue.toFixed(3)));
-          if (typeof im.cohensD === "number") pp.push("d" + (im.cohensD >= 999 ? "∞" : im.cohensD));
-          if (typeof im.ts === "number") {
-            var ageSec = Math.floor(Date.now() / 1000) - im.ts;
-            if (ageSec >= 86400) pp.push(Math.floor(ageSec / 86400) + "d ago");
-            else if (ageSec >= 3600) pp.push(Math.floor(ageSec / 3600) + "h ago");
-          }
-          proof = Y + "◷ proof FAIL" + R + (pp.length ? "  " + DIM + pp.join(" · ") + R : "");
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("proof-verdict", e); }
-    // ── AI defense (AIMDS) — ALARM-ONLY: renders only when it is MISSING ────────
-    // Was a permanent green "🛡 aidefence on". Two reasons it inverted:
-    //   1. Issue #8's rule, already law for the proof segment below: the expected state
-    //      is rendered SILENTLY, only a regression surfaces, no static green badge. A
-    //      constant "on" carries no information after the first glance — unlike SONA/QE,
-    //      whose counts move — so it was the one pure binary badge in this footer.
-    //   2. Glyph collision: ruflo's line 2 uses 🛡 for the SCAN state, a different
-    //      concern entirely (`security scan` audits your SOURCE; this is `security
-    //      defend` / AIMDS screening PROMPTS for injection, jailbreak and PII). Two
-    //      shields meaning different things read as one duplicated thing. The alarm
-    //      carries no 🛡 at all, so it can never be confused with the scan shield.
-    //
-    // Still load-bearing, not decoration: @claude-flow/aidefence is NOT a declared
-    // dependency of ruflo or @claude-flow/cli (verified still true on 3.32.0) while
-    // `security defend` imports it (ruvnet/ruflo#2670). It is present ONLY because the
-    // kit's healAidefence npm-installs it into rufloRoot(). A plain `npm i -g ruflo`
-    // can therefore silently remove your injection defense — and under the old polarity
-    // that catastrophe was signalled by a line quietly VANISHING, which is ambiguous
-    // (off? probe threw? forgot to look?). Now the dangerous state is the loud one.
-    //
-    // FAIL-SAFE POLARITY (the reason for the two-step probe): alarm only on POSITIVE
-    // evidence of absence — we located a ruflo install AND aidefence is not inside it.
-    // If ruflo itself cannot be found (custom npm prefix, or the statusline running
-    // under a different node than the one that installed it), we cannot know, so we say
-    // NOTHING. Inverting a signal also inverts its failure mode: a probe miss used to
-    // fail silent, and would now fail LOUD and WRONG. Claiming "your defense is off"
-    // when it is on is the same crime as the fabricated CVE counter overlaid above.
-    // Probe + verdict live in rufloAidefenceState/rufloFindRufloRoot (below) so the
-    // three-state logic is unit-testable against fixture trees — it cannot be exercised
-    // from here, where it depends on the real process.execPath.
-    var sec = "";
-    try {
-      if (rufloAidefenceState(rufloFindRufloRoot()) === "off") {
-        sec = RED + "⚠ aidefence OFF" + R + DIM + " — no prompt-injection defense · ak sync restores it" + R;
-      }
-    } catch(e){ rufloStatuslineDebug("aidefence-state", e); }
-    // ── daemon visibility (⚙): GLOBAL count of running ruflo daemons, so no daemon
-    // is ever invisible (token-burn incident lesson). Machine-global, not per-project,
-    // so it is cached in tmpdir and shared across every project's statusline — one
-    // pgrep per TTL window, not per render. Daemons are default-on (local-only
-    // workers, budget-governed AI workers) since the 3.28 baseline, so one per active
-    // project is the EXPECTED steady state: dim up to 3, YELLOW at >=4 (more daemons
-    // than you're plausibly working projects — ruflo-daemon-gc to inspect; upstream
-    // TTL + kit auto-reap will also converge it). Opt out: RUFLO_DAEMON_STATUSLINE=0.
-    var daemon = "";
-    try {
-      if (process.env.RUFLO_DAEMON_STATUSLINE !== "0") {
-        var os = require("os");
-        var dCache = path.join(os.tmpdir(), "ruflo-daemon-count.json");
-        var dTtl = Number(process.env.RUFLO_DAEMON_STATUSLINE_TTL_MS || 30000);
-        var dCount = null;
-        try { var dc = JSON.parse(fs.readFileSync(dCache, "utf8")); if (dc && typeof dc.n === "number" && dTtl > 0 && (Date.now() - dc.ts) < dTtl) dCount = dc.n; } catch(e){ rufloStatuslineDebug("daemon-cache-read", e); }
-        if (dCount === null) {
-          try {
-            var pg = cp.execFileSync("pgrep", ["-f", "cli.js daemon start"], {stdio:["ignore","pipe","ignore"], timeout:1500}).toString().trim();
-            dCount = pg ? pg.split("\n").filter(Boolean).length : 0;
-          } catch(e){ dCount = 0; }   // pgrep exits 1 (=> throws) when nothing matches
-          try { fs.writeFileSync(dCache, JSON.stringify({ts: Date.now(), n: dCount})); } catch(e){ rufloStatuslineDebug("daemon-cache-write", e); }
-        }
-        if (dCount > 0) {
-          var dCol = dCount >= 4 ? Y : DIM;
-          daemon = dCol + "⚙ " + dCount + " ruflo daemon" + (dCount === 1 ? "" : "s") + R
-                 + (dCount >= 4 ? DIM + " — ruflo-daemon-gc to inspect" + R : "");
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("daemon-segment", e); }
-    // ── RuvNet Brain (🧿): offline rUv-stack knowledge base — honesty-gated, fs-only ──
-    // The brain is NOT an npm package — `npx github:stuinfla/ruvnet-brain` drops a
-    // ~2GB offline knowledge base at ~/.cache/ruvnet-brain/kb (honors RUVNET_BRAIN_KB)
-    // and wires a user-scope Claude Code plugin. Presence probe MIRRORS
-    // src/lib/ruvnet-brain.mjs exactly: existence of the KB's forge-mcp-all.mjs
-    // entrypoint. Render NOTHING when absent — never a fabricated row. The KB is a flat
-    // dir of data files, so the true size is a shallow sum of its top-level files
-    // (the __MACOSX zip-artifact dir is a directory, so isFile() correctly excludes it);
-    // that sum is TTL-cached machine-globally in tmpdir (like the ⚙ daemon / 🎓 QE
-    // chips) so ~600 stat() calls run at most once per window, not per render. The 💾
-    // chip reuses the QE size formatting. The plugin semver (marketplace manifest,
-    // best-effort) rides next to the label like "RuFlo V<x>" / "Agentic QE V<x>".
-    var brain = "";
-    try {
-      var os2 = require("os");
-      var kbDir = process.env.RUVNET_BRAIN_KB || path.join(os2.homedir(), ".cache", "ruvnet-brain", "kb");
-      if (fs.existsSync(path.join(kbDir, "forge-mcp-all.mjs"))) {
-        // Version — best-effort, empty on any failure (never blocks the row).
-        // RELEASE-tag namespace (what `ak status` shows, e.g. 3.3.1), never the
-        // plugin.json SEMVER (e.g. 0.5.0-dev) — different namespaces for the same
-        // install; showing the semver here confused users (it disagreed with
-        // `ak status`). Three-namespace gotcha; see MAINTAINER.md. Resolution
-        // order MIRRORS drift() in src/lib/ruvnet-brain.mjs so this row and
-        // `ak status` can never disagree:
-        //   1) the bundle's own on-disk stamp (SOURCE.json.releaseTag) — ground
-        //      truth, current even when the KB changed outside ak (e.g. a manual
-        //      forge-update.mjs run);
-        //   2) ak's kit.json record of the release it last installed;
-        //   3) plugin semver — last resort for manual/pre-stamping installs.
-        var bver = "";
-        try {
-          var relTag = null;
-          try {
-            var srcJ = JSON.parse(fs.readFileSync(path.join(kbDir, "SOURCE.json"), "utf8"));
-            var rawTag = String(srcJ.releaseTag || "");
-            if (/^[A-Za-z0-9._-]{1,32}$/.test(rawTag)) relTag = rawTag;
-          } catch(e){ rufloStatuslineDebug("brain-source-stamp", e); }
-          if (!relTag) try {
-            var kitCfg = path.join(os2.homedir(), ".config", "agentic-kit", "kit.json");
-            var kj = JSON.parse(fs.readFileSync(kitCfg, "utf8"));
-            if (kj && kj.versionCheck && kj.versionCheck.ruvnetBrain) relTag = kj.versionCheck.ruvnetBrain.installedRelease;
-          } catch(e){ rufloStatuslineDebug("brain-kit-stamp", e); }
-          if (relTag) {
-            bver = " V" + String(relTag).replace(/^v/, "");
-          } else {
-            var bpkg = path.join(os2.homedir(), ".claude", "plugins", "marketplaces",
-                                 "ruvnet-brain", "plugin", ".claude-plugin", "plugin.json");
-            var bv = JSON.parse(fs.readFileSync(bpkg, "utf8")).version;
-            if (bv) bver = " V" + String(bv).replace(/^v/, "");
-          }
-        } catch(e){ rufloStatuslineDebug("brain-version", e); }
-        // KB size — TTL-cached shallow sum of top-level files, keyed on kbDir so an
-        // env-overridden path (or a moved KB) never serves a stale foreign size.
-        var bBytes = null;
-        try {
-          var bCache = path.join(os2.tmpdir(), "ruvnet-brain-kb-size.json");
-          var bTtl = Number(process.env.RUVNET_BRAIN_KB_TTL_MS || 300000);
-          try {
-            var bc = JSON.parse(fs.readFileSync(bCache, "utf8"));
-            if (bc && bc.dir === kbDir && typeof bc.bytes === "number" && bTtl > 0 && (Date.now() - bc.ts) < bTtl) bBytes = bc.bytes;
-          } catch(e){ rufloStatuslineDebug("brain-size-cache-read", e); }
-          if (bBytes === null) {
-            var sum = 0;
-            fs.readdirSync(kbDir).forEach(function(f){
-              try { var s = fs.statSync(path.join(kbDir, f)); if (s.isFile()) sum += s.size; } catch(e){ rufloStatuslineDebug("brain-size-entry", e); }
-            });
-            bBytes = sum;
-            try { fs.writeFileSync(bCache, JSON.stringify({ts: Date.now(), dir: kbDir, bytes: sum})); } catch(e){ rufloStatuslineDebug("brain-size-cache-write", e); }
-          }
-        } catch(e){ rufloStatuslineDebug("brain-size", e); }
-        var bp = [];
-        if (bBytes && bBytes > 0) {
-          var bkb = Math.round(bBytes / 1024);
-          bp.push("💾 " + (bkb >= 1024 ? (bkb/1024).toFixed(1) + "MB" : bkb + "KB"));
-        }
-        brain = C + "🧿 RuvNet Brain" + bver + R + "  " + (bp.length ? bp.join(DIM + " · " + R) : G + "✓" + R);
-      }
-    } catch(e){ rufloStatuslineDebug("brain-segment", e); }
-    // ── agentic-qe — TTL-cached; one sqlite3 spawn only on a cache miss (issue #3) ──
-    var qe = "";
-    try {
-      var db = path.join(cwd, ".agentic-qe", "memory.db");
-      if (fs.existsSync(db)) {
-        var cacheDir = path.join(cwd, ".claude-flow", "cache");
-        var cacheFile = path.join(cacheDir, "qe-statusline.json");
-        var ttl = Number(process.env.RUFLO_QE_STATUSLINE_TTL_MS || 60000);
-        var cachedLine = null;
-        try {
-          var cc = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
-          if (cc && typeof cc.line === "string" && ttl > 0 && (Date.now() - cc.ts) < ttl) cachedLine = cc.line;
-        } catch(e){ rufloStatuslineDebug("qe-cache-read", e); }
-        if (cachedLine !== null) {
-          qe = cachedLine;                   // hit: zero sqlite3 spawns
-        } else {
-          // miss: ONE sqlite3 call. SQL on stdin + ".bail off" so a missing vector
-          // table (name varies by aqe version) doesn't abort the batch. sqlite3 still
-          // exits non-zero on the error, so execFileSync throws — recover e.stdout.
-          var sql = ".bail off\n"
-            + "SELECT 'pat',COUNT(*) FROM qe_patterns;\n"
-            + "SELECT 'vec',COUNT(*) FROM qe_pattern_embeddings;\n"
-            + "SELECT 'vec',COUNT(*) FROM vectors;\n"
-            + "SELECT 'vec',COUNT(*) FROM embeddings;\n"
-            + "SELECT 'traj',COUNT(*) FROM qe_trajectories;\n";
-          var raw = "";
-          try { raw = cp.execFileSync("sqlite3", [db], {input: sql, stdio:["pipe","pipe","ignore"], timeout:1500}).toString(); }
-          catch(e){ rufloStatuslineDebug("qe-sqlite-query", e); raw = (e && e.stdout) ? e.stdout.toString() : ""; }
-          var pat = 0, qtj = 0, qv = 0;
-          raw.split("\n").forEach(function(ln){
-            var i = ln.indexOf("|"); if (i < 0) return;
-            var k = ln.slice(0, i), v = Number(ln.slice(i + 1)) || 0;
-            if (k === "pat") pat = v; else if (k === "traj") qtj = v; else if (k === "vec" && qv === 0) qv = v;
-          });
-          var qp = [];
-          if (pat > 0) qp.push("🎓 " + pat + " patterns");
-          if (qtj > 0) qp.push("🧭 " + qtj + " traj");
-          if (qv > 0) qp.push("🧬 " + qv + " vec" + G + "⚡" + R);
-          try { var kb = Math.round(fs.statSync(db).size / 1024); qp.push("💾 " + (kb >= 1024 ? (kb/1024).toFixed(1) + "MB" : kb + "KB")); } catch(e){ rufloStatuslineDebug("qe-db-stat", e); }
-          // Installed agentic-qe version — shown next to the label, mirroring "RuFlo V<x>"
-          // in ruflo's native header. Prefer the global install (matches the aidefence
-          // probe above); fall back to a project-local node_modules copy.
-          var qver = "";
-          try {
-            var qpkg = path.join(path.dirname(process.execPath), "..", "lib", "node_modules", "agentic-qe", "package.json");
-            if (!fs.existsSync(qpkg)) qpkg = path.join(cwd, "node_modules", "agentic-qe", "package.json");
-            var qv2 = JSON.parse(fs.readFileSync(qpkg, "utf8")).version;
-            if (qv2) qver = " V" + qv2;
-          } catch(e){ rufloStatuslineDebug("qe-version", e); }
-          qe = Y + "🎓 Agentic QE" + qver + R + "  " + (qp.length ? qp.join(DIM + " · " + R) : "on");
-          try { fs.mkdirSync(cacheDir, {recursive:true}); fs.writeFileSync(cacheFile, JSON.stringify({ts: Date.now(), line: qe})); } catch(e){ rufloStatuslineDebug("qe-cache-write", e); }
-        }
-      }
-    } catch(e){ rufloStatuslineDebug("qe-segment", e); }
-    // ── assemble: one ruflo feature per line (SONA, 📈 RL, ◷ proof FAIL alarm,
-    // ⚠ aidefence OFF alarm), then a divider, then the agentic-qe line. The two alarms
-    // are silent in the healthy case, so a well-configured machine shows only the live
-    // metrics. Each segment renders on its
-    // OWN line so the live route metrics and the security state are individually scannable
-    // and don't wrap. No rule above the SONA line — these are ruflo features and sit flush
-    // under ruflo's native lines. The divider matches ruflo's native header width
-    // ('─'.repeat(53) in statusline.cjs) so the two rules line up.
+    var ctx = {
+      fs: require("fs"), path: require("path"), cp: require("child_process"), os: require("os"),
+      cwd: cwd,
+      colors: { RED: "\x1b[1;31m", DIM: "\x1b[2m", G: "\x1b[1;32m", Y: "\x1b[1;33m", C: "\x1b[1;36m", R: "\x1b[0m" },
+      getStdinData: (typeof getStdinData === "function") ? getStdinData : undefined
+    };
+    rufloQuotaTeeSegment(ctx);   // side effect only: never contributes rendered text
+    var providers = [
+      function(c){ return rufloLoraSegment(c, rufloSonaSegment(c)); },   // LoRA appends onto SONA's line
+      rufloRouteSegment,
+      rufloProofSegment,
+      rufloAidefenceSegment,
+      rufloDaemonSegment,
+      rufloBrainSegment
+    ];
     var out = [];
-    if (learn) out.push(learn);
-    if (route) out.push(route);
-    if (proof) out.push(proof);
-    if (sec) out.push(sec);
-    if (daemon) out.push(daemon);
-    if (brain) out.push(brain);
-    if (out.length && qe) out.push(DIM + "─".repeat(53) + R);
+    for (var i = 0; i < providers.length; i++) {
+      var seg = providers[i](ctx);
+      if (seg) out.push(seg);
+    }
+    var qe = rufloQeSegment(ctx);
+    if (out.length && qe) out.push(ctx.colors.DIM + "─".repeat(53) + ctx.colors.R);
     if (qe) out.push(qe);
-    if (!out.length) return "";
-    return "\n" + out.join("\n");
+    return out.length ? "\n" + out.join("\n") : "";
   } catch(e){ rufloStatuslineDebug("renderer", e); return ""; }
 }
 // ── AI-defense probe (companion to the alarm-only segment above) ─────────────
@@ -1171,6 +1268,68 @@ function getLocalSecurity(cliSecurity) {
   return base;
 }
 
+// Cached pattern count. The store is routinely >10MB (14.5MB / 1277 patterns on
+// the machine this was diagnosed on, costing 53ms to read+parse), and the
+// statusline re-renders on every prompt, so the parse is keyed on the file's
+// mtime+size and reused until the store actually changes.
+const PATTERN_COUNT_CACHE = path.join(os.tmpdir(), 'ruflo-statusline-patterns-' + require('crypto').createHash('md5').update(CWD).digest('hex').slice(0, 8) + '.json');
+
+function countPatternsCached(file) {
+  let stat;
+  try { stat = fs.statSync(file); } catch { return 0; }
+  const key = stat.mtimeMs + ':' + stat.size;
+
+  try {
+    const memo = JSON.parse(fs.readFileSync(PATTERN_COUNT_CACHE, 'utf-8'));
+    if (memo && memo[file] && memo[file].key === key) return memo[file].count;
+  } catch { /* no memo yet, or unreadable — fall through and recount */ }
+
+  let count = 0;
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (Array.isArray(raw)) count = raw.length;
+    else if (raw && Array.isArray(raw.patterns)) count = raw.patterns.length;
+    else if (raw && typeof raw === 'object') count = Object.keys(raw).length;
+  } catch { return 0; }
+
+  try {
+    let memo = {};
+    try { memo = JSON.parse(fs.readFileSync(PATTERN_COUNT_CACHE, 'utf-8')) || {}; } catch { /* start fresh */ }
+    memo[file] = { key, count };
+    fs.writeFileSync(PATTERN_COUNT_CACHE, JSON.stringify(memo));
+  } catch { /* cache is an optimisation, never a requirement */ }
+
+  return count;
+}
+
+// `system` is nominally CLI-populated, but the pattern store is on disk, so a
+// dead CLI must not render as "no learning". Without this, every candidate in
+// resolveCliBinCandidates() failing (a source-only marketplace checkout, or an
+// npx fetch that dies in a workspace root) silently degraded the brain to a
+// hardcoded 0% while the overlaid segments beside it kept showing live data —
+// indistinguishable from a genuine zero. Same reasoning as getLocalAgentDB(),
+// which had to start reading locally after the statusline reported "Vectors 0"
+// on a database holding thousands.
+function getLocalIntelligence(current) {
+  const base = (current && typeof current === 'object') ? current : {};
+  if (typeof base.intelligencePct === 'number' && base.intelligencePct > 0) return base;
+
+  for (const file of [
+    path.join(CWD, '.claude-flow', 'neural', 'patterns.json'),
+    path.join(os.homedir(), '.claude-flow', 'neural', 'patterns.json'),
+  ]) {
+    const n = countPatternsCached(file);
+    if (n > 0) {
+      base.intelligencePct = Math.min(100, Math.floor(n / 10));
+      return base;
+    }
+  }
+
+  // No CLI value and no local store: unknown, which is not the same as zero.
+  base.intelligencePct = null;
+  return base;
+}
+
 // Overlay every locally-derived block onto the CLI data (mutates in place).
 function applyLocalOverlays(data) {
   data.adrs = getLocalADRCount();
@@ -1181,6 +1340,7 @@ function applyLocalOverlays(data) {
   // Security overlay: recompute freshness from disk on every render so cached
   // CLI JSON can never freeze the pill at PENDING. See getLocalSecurity() above.
   data.security = getLocalSecurity(data.security);
+  data.system = getLocalIntelligence(data.system);
   return data;
 }
 
@@ -1194,7 +1354,7 @@ function buildLocalFallback() {
     v3Progress: { domainsCompleted: 0, totalDomains: 5, dddProgress: 0, patternsLearned: 0, sessionsCompleted: 0 },
     security: { status: 'NONE', findings: 0, cvesFixed: 0, totalCves: 0 },
     swarm: { activeAgents: 0, maxAgents: CONFIG.maxAgents, coordinationActive: false },
-    system: { memoryMB: memMB, contextPct: 0, intelligencePct: 0, subAgents: 0 },
+    system: { memoryMB: memMB, contextPct: 0, intelligencePct: null, subAgents: 0 },
     lastUpdated: new Date().toISOString(),
   });
 }
@@ -1451,7 +1611,7 @@ function getPkgVersion() {
   // version (see generateStatuslineScript()'s doc comment) — correct even
   // when this renders via a pure npx invocation with no local install for
   // the candidate scan below to find.
-  let ver = "3.38.12";
+  let ver = "3.41.2";
   try {
     const home = os.homedir();
     const pkgPaths = [
@@ -1556,7 +1716,11 @@ function generateStatusline() {
   const activeAgents = swarm.activeAgents || 0;
   const maxAgents = swarm.maxAgents || CONFIG.maxAgents;
   const coordinationActive = swarm.coordinationActive || false;
-  const intelligencePct = system.intelligencePct || 0;
+  // null/undefined means "no source answered", which must not collapse to 0 --
+  // that is exactly the ambiguity this segment used to present.
+  const intelligencePct = (typeof system.intelligencePct === 'number')
+    ? system.intelligencePct
+    : null;
   const memoryMB = system.memoryMB || 0;
   const subAgents = system.subAgents || 0;
   const findings = Math.max(0, security.findings || 0);
@@ -1612,14 +1776,14 @@ function generateStatusline() {
   // do next; diagnostic detail moves to `ruflo status --verbose`.
   const agentsColor = activeAgents > 0 ? c.brightGreen : c.dim;
   const hooksColor = hooksEnabled > 0 ? c.brightGreen : c.dim;
-  const intellColor = intelligencePct >= 80 ? c.brightGreen : intelligencePct >= 40 ? c.brightYellow : c.dim;
+  const intellColor = intelligencePct === null ? c.dim : intelligencePct >= 80 ? c.brightGreen : intelligencePct >= 40 ? c.brightYellow : c.dim;
   const swarmInd = coordinationActive ? c.brightGreen + '◉' + c.reset + ' ' : c.dim + '○' + c.reset + ' ';
   const healthAllGreen = (secStatus === 'CLEAN' || secStatus === 'NONE') && findings === 0;
   const opsParts = [];
   opsParts.push(c.cyan + 'Swarm ' + swarmInd + agentsColor + activeAgents + c.reset + '/' + c.brightWhite + maxAgents + c.reset);
   if (subAgents > 0) opsParts.push(c.brightPurple + '👥 ' + subAgents + c.reset);
   opsParts.push(c.cyan + 'Hooks ' + hooksColor + hooksEnabled + c.reset + '/' + c.brightWhite + hooksTotal + c.reset);
-  opsParts.push(intellColor + '🧠 ' + intelligencePct + '%' + c.reset);
+  opsParts.push(intellColor + '🧠 ' + (intelligencePct === null ? '—' : intelligencePct + '%') + c.reset);
   opsParts.push(c.brightCyan + '💾 ' + memoryMB + 'MB' + c.reset);
   // Health: one glyph when green, terse copy when there's something to act on.
   if (healthAllGreen) {
