@@ -23,6 +23,21 @@ export interface ToolParameter {
 }
 
 /**
+ * Optional safety metadata advertised by an MCP tool.
+ *
+ * These hints help clients make better presentation and confirmation
+ * decisions. They are advisory only: authorization, sandboxing, and policy
+ * checks remain authoritative for every invocation.
+ */
+export interface ToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
+/**
  * MCP tool definition
  */
 export interface ToolDefinition {
@@ -33,6 +48,7 @@ export interface ToolDefinition {
   domain?: DomainName;
   lazyLoad?: boolean;
   isConcurrencySafe?: boolean;
+  annotations?: ToolAnnotations;
 }
 
 /**

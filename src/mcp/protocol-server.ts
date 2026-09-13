@@ -16,6 +16,7 @@ import {
 } from './transport';
 import { ToolRegistry, createToolRegistry } from './tool-registry';
 import { ToolDefinition } from './types';
+import { resolveToolAnnotations } from './tool-annotations';
 import { MiddlewareChain, type ToolCallContext, type ToolMiddleware } from './middleware/middleware-chain';
 import { createMicrocompactMiddleware } from './middleware/microcompact';
 import { SessionStore } from './services/session-store';
@@ -554,10 +555,11 @@ export class MCPProtocolServer {
     return {};
   }
 
-  private handleToolsList(): { tools: Array<{ name: string; description: string; inputSchema: unknown }> } {
+  private handleToolsList(): { tools: Array<{ name: string; description: string; annotations: ToolDefinition['annotations']; inputSchema: unknown }> } {
     const tools = Array.from(this.tools.values()).map((entry) => ({
       name: entry.definition.name,
       description: entry.definition.description,
+      annotations: entry.definition.annotations,
       inputSchema: this.buildInputSchema(entry.definition),
     }));
 
@@ -1715,8 +1717,15 @@ export class MCPProtocolServer {
   }
 
   private registerTool(entry: ToolEntry): void {
-    this.tools.set(entry.definition.name, entry);
-    this.registry.register(entry.definition, entry.handler as Parameters<typeof this.registry.register>[1]);
+    const normalizedEntry: ToolEntry = {
+      ...entry,
+      definition: {
+        ...entry.definition,
+        annotations: resolveToolAnnotations(entry.definition.name, entry.definition.annotations),
+      },
+    };
+    this.tools.set(normalizedEntry.definition.name, normalizedEntry);
+    this.registry.register(normalizedEntry.definition, normalizedEntry.handler as Parameters<typeof this.registry.register>[1]);
   }
 
   private buildInputSchema(definition: ToolDefinition): {

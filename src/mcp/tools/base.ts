@@ -7,7 +7,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName } from '../../shared/types';
-import { ToolResult, ToolResultMetadata } from '../types';
+import { ToolAnnotations, ToolResult, ToolResultMetadata } from '../types';
+import { resolveToolAnnotations } from '../tool-annotations';
 import { MemoryBackend } from '../../kernel/interfaces';
 import { HybridMemoryBackend } from '../../kernel/hybrid-backend';
 import { InMemoryBackend } from '../../kernel/memory-backend.js';
@@ -304,6 +305,7 @@ export interface MCPToolConfig {
   schema: MCPToolSchema;
   streaming?: boolean;
   timeout?: number;
+  annotations?: ToolAnnotations;
 }
 
 /**
@@ -670,6 +672,14 @@ export abstract class MCPToolBase<
    */
   get description(): string {
     return this.config.description;
+  }
+
+  /**
+   * Return the complete, conservative safety metadata for this tool.
+   * Missing hints must never be interpreted as permission to skip policy.
+   */
+  get annotations(): ToolAnnotations {
+    return resolveToolAnnotations(this.name, this.config.annotations);
   }
 
   /**

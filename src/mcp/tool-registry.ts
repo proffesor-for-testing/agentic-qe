@@ -15,6 +15,7 @@ import {
   ToolResultMetadata,
   ToolParameter,
 } from './types';
+import { resolveToolAnnotations } from './tool-annotations';
 import { sanitizeInput } from './security/cve-prevention';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { BatchToolExecutor, type BatchToolCall } from './middleware/batch-executor';
@@ -292,37 +293,41 @@ export class ToolRegistry {
    * Register a tool
    */
   register(definition: ToolDefinition, handler: ToolHandler): void {
-    const existing = this.tools.get(definition.name);
+    const normalizedDefinition: ToolDefinition = {
+      ...definition,
+      annotations: resolveToolAnnotations(definition.name, definition.annotations),
+    };
+    const existing = this.tools.get(normalizedDefinition.name);
     if (existing) {
       // Update existing tool
-      existing.definition = definition;
+      existing.definition = normalizedDefinition;
       existing.handler = handler;
       return;
     }
 
     // Register new tool
     const tool: RegisteredTool = {
-      definition,
+      definition: normalizedDefinition,
       handler,
-      loaded: !definition.lazyLoad,
+      loaded: !normalizedDefinition.lazyLoad,
       loadCount: 0,
     };
 
-    this.tools.set(definition.name, tool);
+    this.tools.set(normalizedDefinition.name, tool);
     this.stats.totalTools++;
 
     // Track by category
-    this.categoryTools.get(definition.category)?.add(definition.name);
-    this.stats.byCategory[definition.category]++;
+    this.categoryTools.get(normalizedDefinition.category)?.add(normalizedDefinition.name);
+    this.stats.byCategory[normalizedDefinition.category]++;
 
     // Track by domain if specified
-    if (definition.domain) {
-      this.domainTools.get(definition.domain)?.add(definition.name);
-      this.stats.byDomain[definition.domain] =
-        (this.stats.byDomain[definition.domain] || 0) + 1;
+    if (normalizedDefinition.domain) {
+      this.domainTools.get(normalizedDefinition.domain)?.add(normalizedDefinition.name);
+      this.stats.byDomain[normalizedDefinition.domain] =
+        (this.stats.byDomain[normalizedDefinition.domain] || 0) + 1;
     }
 
-    if (!definition.lazyLoad) {
+    if (!normalizedDefinition.lazyLoad) {
       this.stats.loadedTools++;
     }
   }

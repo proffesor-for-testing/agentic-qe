@@ -97,6 +97,7 @@ export function registerMissingQETools(
         name: tool.name,
         description: tool.description,
         category: 'domain',
+        annotations: tool.annotations,
         parameters: schemaToParameters(tool),
       },
       handler: async (params) => {
