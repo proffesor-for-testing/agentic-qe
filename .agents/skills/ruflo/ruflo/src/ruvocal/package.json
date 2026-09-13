@@ -2,7 +2,7 @@
 	"name": "chat-ui",
 	"version": "0.20.0",
 	"private": true,
-	"packageManager": "npm@9.5.0",
+	"packageManager": "npm@10.9.9",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
@@ -19,7 +19,7 @@
 		"prepare": "husky"
 	},
 	"devDependencies": {
-		"@faker-js/faker": "^8.4.1",
+		"@faker-js/faker": "^10.5.0",
 		"@iconify-json/carbon": "^1.1.16",
 		"@iconify-json/eos-icons": "^1.1.6",
 		"@iconify-json/lucide": "^1.2.77",
@@ -85,7 +85,7 @@
 		"file-type": "^21.0.0",
 		"handlebars": "^4.7.9",
 		"highlight.js": "^11.7.0",
-		"hono": "^4.12.34",
+		"hono": "^4.13.5",
 		"htmlparser2": "^10.0.0",
 		"ip-address": "^10.4.0",
 		"jsdom": "^22.0.0",
@@ -106,7 +106,7 @@
 		"qs": "^6.15.3",
 		"satori": "^0.10.11",
 		"satori-html": "^0.3.2",
-		"sharp": "^0.35.3",
+		"sharp": "^0.35.4",
 		"tailwind-scrollbar": "^3.0.0",
 		"tailwindcss": "^3.4.0",
 		"three": "^0.183.2",
