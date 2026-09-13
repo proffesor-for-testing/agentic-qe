@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.14.1",
+  "version": "3.14.2",
   "description": "Agentic Quality Engineering — AI-powered QE platform with 60 specialized agents, 75+ skills, sublinear coverage analysis, ReasoningBank pattern learning, and deep MCP integration for Claude Code and 11 coding agent platforms",
   "author": {
     "name": "Agentic QE Team",
@@ -54,7 +54,7 @@
     "agentic-qe": {
       "command": "npx",
       "args": ["-y", "agentic-qe@latest", "mcp"],
-      "description": "Agentic QE MCP server — 86 tools for test generation, coverage analysis, quality assessment, chaos testing, security scanning, and fleet coordination",
+      "description": "Agentic QE MCP server — 88 tools for test generation, coverage analysis, quality assessment, chaos testing, security scanning, and fleet coordination",
       "optional": false
     }
   }
