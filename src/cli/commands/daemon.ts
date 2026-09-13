@@ -15,6 +15,7 @@ import { QualityDaemon, type QualityDaemonConfig } from '../../workers/quality-d
 import { PersistentWorkerMemory } from '../../workers/quality-daemon/persistent-memory';
 import { isPrivateIp } from '../../hooks/security/ssrf-guard';
 import type { WorkerMemory } from '../../workers/interfaces';
+import { activateForegroundCommand } from '../foreground-command';
 
 // In-process daemon instance (non-detached mode)
 let activeDaemon: QualityDaemon | undefined;
@@ -101,12 +102,14 @@ Examples:
           clearInterval(keepAlive);
         }
       }, 5000);
+      const releaseForeground = activateForegroundCommand();
 
       // Graceful shutdown
       const shutdown = async () => {
         console.log(chalk.yellow('\nStopping QE Quality Daemon...'));
         await activeDaemon?.stop();
         clearInterval(keepAlive);
+        releaseForeground();
         console.log(chalk.green('Daemon stopped'));
         process.exit(0);
       };
