@@ -264,10 +264,23 @@ async function main() {
       `tool "${tool && tool.name}" inputSchema must be an object`,
       tool && tool.inputSchema,
     );
+    assert(
+      tool.annotations && typeof tool.annotations === 'object' && !Array.isArray(tool.annotations),
+      `tool "${tool && tool.name}" annotations must be an object`,
+      tool && tool.annotations,
+    );
+    assert(
+      tool.annotations.readOnlyHint === false &&
+        tool.annotations.destructiveHint === true &&
+        tool.annotations.idempotentHint === false &&
+        tool.annotations.openWorldHint === true,
+      `tool "${tool && tool.name}" must retain the reviewed conservative annotation disposition`,
+      tool && tool.annotations,
+    );
   }
 
   const toolCount = listResult.tools.length;
-  console.error(`[smoke]    OK tools/list: ${toolCount} tools, each with name + object inputSchema`);
+  console.error(`[smoke]    OK tools/list: ${toolCount} tools with schemas + conservative safety annotations`);
 
   // -- Summary -----------------------------------------------------------------
   console.error('\n========================================');

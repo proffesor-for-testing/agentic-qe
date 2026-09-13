@@ -5,6 +5,15 @@
 
 // Types
 export * from './types';
+export {
+  CONSERVATIVE_TOOL_ANNOTATIONS,
+  BUILT_IN_TOOL_NAMES,
+  BUILT_IN_TOOL_SAFETY_INVENTORY,
+  getBuiltInToolAnnotations,
+  getBuiltInToolSafetyInventory,
+  resolveToolAnnotations,
+  type ResolvedToolAnnotations,
+} from './tool-annotations';
 
 // Tool Registry (O(1) hash-indexed lookup via Map)
 export { ToolRegistry, createToolRegistry } from './tool-registry';

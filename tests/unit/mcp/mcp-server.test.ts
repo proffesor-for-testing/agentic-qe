@@ -9,6 +9,10 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry, createToolRegistry } from '../../../src/mcp/tool-registry';
+import {
+  CONSERVATIVE_TOOL_ANNOTATIONS,
+  getBuiltInToolSafetyInventory,
+} from '../../../src/mcp/tool-annotations';
 
 describe('Tool Registry', () => {
   let registry: ToolRegistry;
@@ -18,6 +22,19 @@ describe('Tool Registry', () => {
   });
 
   describe('registration', () => {
+    it('should provide a complete conservative inventory for advertised built-ins', () => {
+      const inventory = getBuiltInToolSafetyInventory();
+      const names = Object.keys(inventory);
+
+      expect(names).toHaveLength(88);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names).toEqual([...names].sort());
+      for (const disposition of Object.values(inventory)) {
+        expect(disposition.reason.length).toBeGreaterThan(0);
+        expect(disposition.annotations).toEqual(CONSERVATIVE_TOOL_ANNOTATIONS);
+      }
+    });
+
     it('should register a tool', () => {
       registry.register(
         {
@@ -57,6 +74,52 @@ describe('Tool Registry', () => {
 
       const definitions = registry.getDefinitions();
       expect(definitions.length).toBe(2);
+    });
+
+    it('should preserve reviewed built-in annotations and fail unknown tools conservatively', () => {
+      registry.register(
+        {
+          name: 'fleet_status',
+          description: 'Annotated tool',
+          category: 'core',
+          parameters: [],
+          annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          },
+        },
+        async () => ({ success: true })
+      );
+      registry.register(
+        {
+          name: 'unclassified_tool',
+          description: 'Unclassified tool',
+          category: 'core',
+          parameters: [],
+          annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false,
+          },
+        },
+        async () => ({ success: true })
+      );
+
+      expect(registry.get('fleet_status')?.definition.annotations).toEqual({
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      });
+      expect(registry.get('unclassified_tool')?.definition.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      });
     });
 
     it('should get tools by category', () => {

@@ -7,6 +7,7 @@
 
 import { MCPToolBase } from './base';
 import { ToolRegistry } from '../tool-registry';
+import type { ToolAnnotations } from '../types';
 
 // Import all tools
 import { TestGenerateTool } from './test-generation/generate';
@@ -277,12 +278,14 @@ export function getToolsByDomain(domain: string): MCPToolBase[] {
 export function getToolDefinition(tool: MCPToolBase): {
   name: string;
   description: string;
+  annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
 } {
   const schema = tool.getSchema();
   return {
     name: tool.name,
     description: tool.description,
+    annotations: tool.annotations,
     inputSchema: {
       ...schema,
       type: schema.type || 'object',
@@ -296,6 +299,7 @@ export function getToolDefinition(tool: MCPToolBase): {
 export function getAllToolDefinitions(): Array<{
   name: string;
   description: string;
+  annotations: ToolAnnotations;
   inputSchema: Record<string, unknown>;
 }> {
   return QE_TOOLS.map(getToolDefinition);

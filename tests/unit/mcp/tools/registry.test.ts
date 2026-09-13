@@ -204,6 +204,17 @@ describe('QE Tool Registry', () => {
 
       expect(def.inputSchema.required).toBeDefined();
     });
+
+    it('should expose the conservative safety disposition', () => {
+      const def = getToolDefinition(getQETool('qe/analysis/token_usage')!);
+
+      expect(def.annotations).toEqual({
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true,
+      });
+    });
   });
 
   describe('getAllToolDefinitions', () => {
@@ -230,6 +241,17 @@ describe('QE Tool Registry', () => {
       const uniqueNames = new Set(names);
       // 33 original + 4 new (schedule, load-test, visual-security, browser-workflow) + 1 (qe/code/c4, ADR-112) + 1 (qe/quality/gate, ADR-119) = 39 tools
       expect(uniqueNames.size).toBe(39);
+    });
+
+    it('should annotate every built-in definition', () => {
+      for (const def of getAllToolDefinitions()) {
+        expect(def.annotations).toEqual(expect.objectContaining({
+          readOnlyHint: expect.any(Boolean),
+          destructiveHint: expect.any(Boolean),
+          idempotentHint: expect.any(Boolean),
+          openWorldHint: expect.any(Boolean),
+        }));
+      }
     });
   });
 

@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { MCPProtocolServer, createMCPProtocolServer } from '../../../src/mcp/protocol-server';
+import { getBuiltInToolSafetyInventory } from '../../../src/mcp/tool-annotations';
 
 describe('AQE MCP Server - OpenCode Compatibility', () => {
   let server: MCPProtocolServer;
@@ -29,16 +30,26 @@ describe('AQE MCP Server - OpenCode Compatibility', () => {
 
   it('should list all registered tools via tool registry', async () => {
     const tools = server.getToolDefinitions();
+    const inventoryNames = Object.keys(getBuiltInToolSafetyInventory()).sort();
+    const registeredNames = tools.map((tool) => tool.name).sort();
 
     // The AQE MCP server registers tools across multiple categories.
     // Total varies as features are added. Verify a reasonable minimum.
     expect(tools.length).toBeGreaterThanOrEqual(30);
+    expect(registeredNames).toEqual(inventoryNames);
 
     // Every tool must have a name
     for (const tool of tools) {
       expect(tool.name).toBeDefined();
       expect(typeof tool.name).toBe('string');
       expect(tool.name.length).toBeGreaterThan(0);
+      expect(tool.annotations).toEqual(expect.objectContaining({
+        readOnlyHint: expect.any(Boolean),
+        destructiveHint: expect.any(Boolean),
+        idempotentHint: expect.any(Boolean),
+        openWorldHint: expect.any(Boolean),
+      }));
+      expect(getBuiltInToolSafetyInventory()[tool.name]).toBeDefined();
     }
   });
 
@@ -67,6 +78,20 @@ describe('AQE MCP Server - OpenCode Compatibility', () => {
         expect(typeof param.description).toBe('string');
       }
     }
+  });
+
+  it('should preserve annotations on the protocol tools/list representation', () => {
+    const response = (server as unknown as {
+      handleToolsList: () => { tools: Array<{ name: string; annotations?: Record<string, boolean> }> };
+    }).handleToolsList();
+    const status = response.tools.find((tool) => tool.name === 'fleet_status');
+
+    expect(status?.annotations).toEqual({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    });
   });
 
   // -------------------------------------------------------------------------
