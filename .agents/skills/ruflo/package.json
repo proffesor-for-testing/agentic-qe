@@ -99,7 +99,7 @@
     "make-fetch-happen": ">=15.0.0",
     "express-rate-limit": ">=8.4.1",
     "express": ">=4.22.2",
-    "qs": ">=6.15.2",
+    "qs": ">=6.16.0",
     "protobufjs": ">=8.2.0",
     "uuid": ">=14.0.0",
     "@opentelemetry/core": ">=2.8.0",
