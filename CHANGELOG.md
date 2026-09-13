@@ -5,6 +5,43 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.2] - 2026-09-13
+
+This patch keeps the quality daemon alive in foreground mode, publishes the
+first conservative MCP tool-safety annotation increment, and refreshes
+dependency trees with patched Hono and Sharp releases.
+
+### Added
+
+- Added typed MCP safety annotations across the registry, bridge, protocol
+  registry, and live `tools/list` responses. The deterministic 88-tool
+  inventory starts every built-in with a conservative disposition; unknown and
+  plugin-supplied tools cannot self-assert optimistic hints. Evidence-backed
+  read-only or idempotent classifications remain deferred ([#681], [#684]).
+
+### Fixed
+
+- Kept `aqe daemon start` running after successful startup instead of exiting
+  immediately, while preserving cleanup for non-foreground commands and
+  graceful `SIGTERM` shutdown ([#678], [#683]).
+- Raised managed Hono dependency floors to 4.13.5 and resolved Hono 4.13.7,
+  closing the dot-notation body-parsing denial-of-service exposure. Raised
+  managed Sharp floors and resolved Sharp 0.35.4 to include the patched libheif
+  dependency set ([#685]).
+
+### Changed
+
+- Refreshed dependency snapshots across the root project and development-time
+  Ruflo, RuVocal, and Goal UI trees, including `fast-uri`, `qs`, Faker,
+  `postcss-selector-parser`, and `@humanfs/node` ([#675]).
+
+[#675]: https://github.com/proffesor-for-testing/agentic-qe/pull/675
+[#678]: https://github.com/proffesor-for-testing/agentic-qe/issues/678
+[#681]: https://github.com/proffesor-for-testing/agentic-qe/issues/681
+[#683]: https://github.com/proffesor-for-testing/agentic-qe/pull/683
+[#684]: https://github.com/proffesor-for-testing/agentic-qe/pull/684
+[#685]: https://github.com/proffesor-for-testing/agentic-qe/pull/685
+
 ## [3.14.1] - 2026-09-07
 
 This release moves AQE to maintained Node.js runtimes and strengthens the
