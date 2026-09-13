@@ -48,7 +48,7 @@
 		"eslint-plugin-svelte": "^2.45.1",
 		"husky": "^9.0.11",
 		"isomorphic-dompurify": "2.13.0",
-		"js-yaml": "^5.2.3",
+		"js-yaml": "^5.4.2",
 		"lint-staged": "^15.2.7",
 		"minimist": "^1.2.8",
 		"mongodb-memory-server": "^10.1.2",
@@ -65,7 +65,7 @@
 		"unplugin-icons": "^0.16.1",
 		"vite": "^8.2.0",
 		"vite-node": "^6.0.0",
-		"vitest": "^4.1.10",
+		"vitest": "^4.1.11",
 		"vitest-browser-svelte": "^3.0.0",
 		"yazl": "^3.3.1"
 	},
