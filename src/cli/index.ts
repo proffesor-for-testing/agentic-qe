@@ -272,6 +272,7 @@ program
 // ============================================================================
 
 import { registerLazyCommand, registerLazyHandler } from './lazy-registry.js';
+import { isForegroundCommandActive } from './foreground-command.js';
 
 registerLazyHandler(program, 'init', 'Initialize the AQE v3 system',
   () => import('./handlers/init-handler.js').then(m => m.createInitHandler(cleanupAndExit)),
@@ -503,6 +504,9 @@ async function main(): Promise<void> {
   });
 
   await program.parseAsync();
+
+  // Foreground commands own their process lifetime after command dispatch.
+  if (isForegroundCommandActive()) return;
 
   // If the command didn't explicitly exit, clean up and exit now.
   // This prevents process hangs from active handles (domain init, embeddings, etc.)
