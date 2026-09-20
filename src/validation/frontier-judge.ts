@@ -213,22 +213,24 @@ export function buildGradePrompt(artifact: string, checklist: RequirementCheckli
 /**
  * Parse the model response into a set of 0-based unmet requirement indices.
  * Returns `null` when the response cannot be parsed into the strict contract
- * (so the caller treats it as a non-real opinion). Out-of-range and duplicate
- * numbers are ignored — a garbled index list never inflates the unmet count.
+ * (so the caller treats it as a non-real opinion). Invalid and duplicate entries
+ * are ignored when valid indices remain. A nonempty list with no valid indices
+ * is unparseable, not evidence that every requirement is met.
  */
 export function parseUnmetIndices(raw: string, total: number): Set<number> | null {
   const obj = extractJsonObject(raw);
   if (obj == null || !Array.isArray((obj as { unmet?: unknown }).unmet)) {
     return null;
   }
+  const unmet = (obj as { unmet: unknown[] }).unmet;
   const out = new Set<number>();
-  for (const v of (obj as { unmet: unknown[] }).unmet) {
+  for (const v of unmet) {
     const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.trim()) : NaN;
     if (!Number.isInteger(n)) continue;
     const idx = n - 1; // 1-based prompt -> 0-based index
     if (idx >= 0 && idx < total) out.add(idx);
   }
-  return out;
+  return unmet.length > 0 && out.size === 0 ? null : out;
 }
 
 /** Extract the first balanced top-level JSON object from arbitrary model text. */

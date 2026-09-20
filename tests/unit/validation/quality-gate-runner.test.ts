@@ -3,8 +3,9 @@
  *
  * Verifies the ONE CLI/MCP-parity code path: it loads a real pinned checklist
  * from the frozen ADR-117 anchor, runs the two-gate verdict, and threads the
- * three-valued outcome through. The judge is faked (no network); the anchor is
- * the real committed `verification/anchors/qe-anchor-v1.json`.
+ * three-valued outcome through. Judges or their provider responses are faked
+ * (no network); the anchor is the real committed
+ * `verification/anchors/qe-anchor-v1.json`.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -15,6 +16,7 @@ import {
   listChecklistIds,
 } from '../../../src/validation/quality-gate-runner.js';
 import type { Judge, JudgeOpinion } from '../../../src/validation/quality-verdict.js';
+import { createFrontierJudge } from '../../../src/validation/frontier-judge.js';
 import {
   computeVerificationArtifactDigest,
   createVerificationReachManifest,
@@ -67,6 +69,72 @@ const passingVerificationManifest = () => createVerificationReachManifest({
 });
 
 describe('runQualityGate', () => {
+  it.each([
+    {
+      name: 'both responses contain only unrecognized indices',
+      responses: ['{"unmet":[99]}', '{"unmet":["R1"]}'],
+      verdict: 'inconclusive', specCoverage: null, attempts: 2,
+    },
+    {
+      name: 'an invalid response precedes one real short opinion',
+      responses: ['{"unmet":[99]}', '{"unmet":[1]}'],
+      verdict: 'inconclusive', specCoverage: 0.75, attempts: 2,
+    },
+    {
+      name: 'an invalid response follows one real short opinion',
+      responses: ['{"unmet":[1]}', '{"unmet":[99]}'],
+      verdict: 'inconclusive', specCoverage: 0.75, attempts: 2,
+    },
+    {
+      name: 'a valid full-coverage response follows an invalid response',
+      responses: ['{"unmet":[99]}', '{"unmet":[]}'],
+      verdict: 'pass', specCoverage: 1, attempts: 2,
+    },
+    {
+      name: 'the judge explicitly reports no unmet requirements',
+      responses: ['{"unmet":[]}'],
+      verdict: 'pass', specCoverage: 1, attempts: 1,
+    },
+    {
+      name: 'both responses identify an unmet requirement',
+      responses: ['{"unmet":[1]}', '{"unmet":[1]}'],
+      verdict: 'fail', specCoverage: 0.75, attempts: 2,
+    },
+    {
+      name: 'valid quoted indices are mixed with duplicates and invalid indices',
+      responses: ['{"unmet":["1",99,"1"]}', '{"unmet":["1",99,"1"]}'],
+      verdict: 'fail', specCoverage: 0.75, attempts: 2,
+    },
+  ])('should_preserveRealJudgeVerdict_when_$name', async ({
+    responses, verdict, specCoverage, attempts,
+  }) => {
+    let nextResponse = 0;
+    const complete = vi.fn(async () => responses[nextResponse++]);
+    const judge = createFrontierJudge({ complete, ping: async () => true });
+
+    const result = await runQualityGate({
+      oracleResult: passingOracle,
+      artifact: 'test source',
+      checklistId: 'A1-inRange',
+      judge,
+      anchorPath: ANCHOR,
+      verificationManifest: passingVerificationManifest(),
+    });
+
+    expect(result).toMatchObject({
+      verdict,
+      qualityVerdict: verdict,
+      coverageVerdict: 'pass',
+      mechanical: 'pass',
+      specCoverage,
+      attempts,
+    });
+    expect(result.unmet).toEqual(specCoverage === 0.75
+      ? [loadChecklist('A1-inRange', ANCHOR).requirements[0]]
+      : []);
+    expect(complete).toHaveBeenCalledTimes(attempts);
+  });
+
   it('should_returnPass_when_oraclePassesAndJudgeFullCoverage', async () => {
     // Arrange
     const judge = fakeJudge([{ ran: true, coverage: 1.0, unmet: [] }]);
