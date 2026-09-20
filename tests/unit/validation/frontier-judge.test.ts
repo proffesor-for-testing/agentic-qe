@@ -88,6 +88,30 @@ describe('createFrontierJudge.grade', () => {
     expect(logger).toHaveBeenCalledWith(expect.stringContaining('could not parse response'));
   });
 
+  it.each([
+    ['out-of-range numbers', [99]],
+    ['non-positive numbers', [0, -1]],
+    ['fractional numbers', [1.5]],
+    ['out-of-range numeric strings', ['99']],
+    ['requirement labels', ['R1']],
+    ['blank strings', ['', ' ']],
+    ['null', [null]],
+    ['booleans', [true, false]],
+    ['objects', [{ id: 1 }]],
+    ['nested arrays', [[1]]],
+  ])('should_markRanFalse_when_unmetContainsOnly_%s', async (_name, unmet) => {
+    const logger = vi.fn();
+    const judge = createFrontierJudge({
+      complete: respond(JSON.stringify({ unmet })),
+      logger,
+    });
+
+    const opinion = await judge.grade('artifact', CHECKLIST);
+
+    expect(opinion).toEqual({ ran: false, coverage: 0, unmet: [] });
+    expect(logger).toHaveBeenCalledWith(expect.stringContaining('could not parse response'));
+  });
+
   it('should_markRanFalse_when_gradeTimesOut', async () => {
     // Arrange: a provider that never settles, with a tiny timeout
     const logger = vi.fn();
@@ -196,6 +220,12 @@ describe('parseUnmetIndices', () => {
     const idx = parseUnmetIndices('{"unmet": ["1", "3"]}', 4);
 
     // Assert
+    expect([...idx!].sort()).toEqual([0, 2]);
+  });
+
+  it('should_countValidIndicesOnce_when_mixedWithDuplicatesAndInvalidEntries', () => {
+    const idx = parseUnmetIndices('{"unmet": [1, "1", 99, "R2", null, 3]}', 4);
+
     expect([...idx!].sort()).toEqual([0, 2]);
   });
 });
