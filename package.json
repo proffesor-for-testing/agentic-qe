@@ -229,7 +229,7 @@
     "rvlite": "^0.2.4"
   },
   "resolutions": {
-    "adm-zip": ">=0.6.0",
+    "adm-zip": ">=0.6.1",
     "graceful-fs": "^4.2.11",
     "stack-utils": "^2.0.6",
     "tar": ">=7.5.7",
@@ -238,7 +238,7 @@
     "ws": "^8.21.0"
   },
   "overrides": {
-    "adm-zip": ">=0.6.0",
+    "adm-zip": ">=0.6.1",
     "@ruvector/gnn-linux-x64-musl": "npm:@ruvector/gnn-linux-x64-gnu@0.1.25",
     "@ruvector/gnn-linux-arm64-musl": "npm:@ruvector/gnn-linux-arm64-gnu@0.1.25",
     "tar": ">=7.5.7",
@@ -275,7 +275,7 @@
     "glob": "^13.0.0",
     "msw": "^2.12.7",
     "tsx": "^4.21.0",
-    "vitest": "^4.0.16"
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=22.13.0",
