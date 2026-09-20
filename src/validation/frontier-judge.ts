@@ -115,8 +115,10 @@ export function createFrontierJudge(opts: FrontierJudgeOptions): Judge {
 /**
  * Build a `complete()` seam backed by the shared HybridRouter, pinned to a
  * frontier model. This is where the ADR-111 "never economize the oracle" rule is
- * enforced: `model` defaults to a frontier Opus and `preferredProvider` lets the
- * caller route to a frontier provider explicitly.
+ * enforced: `model` defaults to a frontier Opus and strict per-request routing
+ * prevents shared routing rules or fallback from substituting another model.
+ * `preferredProvider` selects a provider explicitly; otherwise the configured
+ * default is used. An unavailable or mismatched judge stays inconclusive.
  */
 export function routerComplete(
   router: HybridRouter,
@@ -133,6 +135,7 @@ export function routerComplete(
     const res = await router.chat({
       messages: [{ role: 'user', content: prompt }],
       model,
+      strictModel: true,
       preferredProvider: opts.preferredProvider,
       temperature: opts.temperature ?? 0,
       maxTokens: opts.maxTokens ?? 1024,

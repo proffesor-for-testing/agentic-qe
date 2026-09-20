@@ -925,10 +925,18 @@ export interface ChatParams {
   /** Task complexity hint */
   complexity?: TaskComplexity;
 
-  /** Specific model to use (for manual mode) - canonical or provider-specific ID */
+  /** Specific model to use (for manual mode or strictModel) - canonical or provider-specific ID */
   model?: string;
 
-  /** Preferred provider (for manual mode) - supports extended providers */
+  /**
+   * Require the explicit model on preferredProvider (or the configured default).
+   * Bypasses routing rules and decision caching, disallows provider/model
+   * fallback, and rejects responses from a different provider or model.
+   * Equivalent canonical and provider-specific model IDs are accepted.
+   */
+  strictModel?: boolean;
+
+  /** Preferred provider (for manual mode or strictModel) - supports extended providers */
   preferredProvider?: ExtendedProviderType;
 
   /** Required capabilities (legacy) */

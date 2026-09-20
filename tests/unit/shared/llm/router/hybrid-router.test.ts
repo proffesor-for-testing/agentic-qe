@@ -289,6 +289,146 @@ describe('HybridRouter', () => {
   });
 
   // ==========================================================================
+  // Strict Model Requests
+  // ==========================================================================
+
+  describe('Strict Model Requests', () => {
+    const messages: Message[] = [{ role: 'user', content: 'Grade this artifact' }];
+    const strictRequest: ChatParams = {
+      messages,
+      model: 'claude-opus-4-7',
+      strictModel: true,
+    };
+
+    beforeEach(() => {
+      // Echo the actual dispatched model so tests assert execution, not just
+      // selection metadata. Individual tests override this for mismatch cases.
+      const response = createMockProvider('claude', { model: 'claude-opus-4-7' });
+      vi.mocked(claudeProvider.generate).mockImplementation(async (input, options) => ({
+        ...await response.generate(input, options),
+        model: options?.model ?? 'claude-sonnet-4-6',
+      }));
+    });
+
+    it.each<RoutingMode>(['manual', 'rule-based', 'cost-optimized', 'performance-optimized'])(
+      'dispatches the pinned model without changing shared %s mode',
+      async (mode) => {
+        router.setMode(mode);
+        const result = await router.chat(strictRequest);
+        expect(result.model).toBe('claude-opus-4-7');
+        expect(claudeProvider.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-opus-4-7' }));
+        expect(ollamaProvider.generate).not.toHaveBeenCalled();
+        expect(router.getMode()).toBe(mode);
+      },
+    );
+
+    it('bypasses incompatible cached decisions without replacing ordinary cached decisions', async () => {
+      const ordinary = await router.selectProvider({ messages });
+      expect(ordinary.providerType).toBe('ollama');
+      const result = await router.chat(strictRequest);
+      expect(result.model).toBe('claude-opus-4-7');
+      expect(await router.selectProvider({ messages })).toBe(ordinary);
+    });
+
+    it('honors consecutive strict requests for different models', async () => {
+      await router.chat(strictRequest);
+      const result = await router.chat({ ...strictRequest, model: 'claude-sonnet-4-6' });
+      expect(result.model).toBe('claude-sonnet-4-6');
+      expect(claudeProvider.generate).toHaveBeenLastCalledWith(messages, expect.objectContaining({ model: 'claude-sonnet-4-6' }));
+    });
+
+    it('honors the configured default provider', async () => {
+      router.updateConfig({ defaultProvider: 'openai' });
+      const result = await router.chat({ ...strictRequest, model: 'gpt-4o' });
+      expect(result.provider).toBe('openai');
+      expect(openaiProvider.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'gpt-4o' }));
+      expect(claudeProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('honors an explicit preferred provider over the configured default', async () => {
+      router.updateConfig({ defaultProvider: 'openai' });
+      const result = await router.chat({ ...strictRequest, preferredProvider: 'claude' });
+      expect(result.provider).toBe('claude');
+      expect(openaiProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the pinned provider is missing', async () => {
+      await expect(router.chat({ ...strictRequest, preferredProvider: 'gemini' })).rejects.toThrow(/provider/i);
+      expect(claudeProvider.generate).not.toHaveBeenCalled();
+      expect(openaiProvider.generate).not.toHaveBeenCalled();
+      expect(ollamaProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, '', '   '])('requires a nonempty explicit model (%s)', async (model) => {
+      await expect(router.chat({ ...strictRequest, model })).rejects.toThrow(/model/i);
+      expect(claudeProvider.generate).not.toHaveBeenCalled();
+      expect(ollamaProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('never falls back to the default provider or configured chain after a pinned call fails', async () => {
+      router.updateConfig({ defaultProvider: 'openai' });
+      vi.mocked(claudeProvider.generate).mockRejectedValue(createLLMError('Frontier unavailable', 'PROVIDER_UNAVAILABLE', { retryable: false }));
+      await expect(router.chat({ ...strictRequest, preferredProvider: 'claude' })).rejects.toThrow(/Frontier unavailable/);
+      expect(claudeProvider.generate).toHaveBeenCalledTimes(1);
+      expect(openaiProvider.generate).not.toHaveBeenCalled();
+      expect(ollamaProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('rejects a different returned model after recording its actual spend', async () => {
+      claudeProvider.generate = createMockProvider('claude', { model: 'claude-sonnet-4-6' }).generate;
+      await expect(router.chat(strictRequest)).rejects.toThrow(/model/i);
+      expect(providerManager.recordResponseSpend).toHaveBeenCalledTimes(1);
+      expect(openaiProvider.generate).not.toHaveBeenCalled();
+      expect(ollamaProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('rejects a response attributed to a different provider', async () => {
+      claudeProvider.generate = createMockProvider('openai', { model: 'claude-opus-4-7' }).generate;
+      await expect(router.chat(strictRequest)).rejects.toThrow(/provider/i);
+      expect(providerManager.recordResponseSpend).toHaveBeenCalledTimes(1);
+    });
+
+    it('accepts equivalent canonical and provider-specific model IDs', async () => {
+      const result = await router.chat({ ...strictRequest, model: 'anthropic/claude-opus-4.7' });
+      expect(result.model).toBe('claude-opus-4-7');
+      expect(claudeProvider.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-opus-4-7' }));
+    });
+
+    it.each(['openai', 'private-frontier'])('accepts known aliases independently of the %s transport mapping', async (providerType) => {
+      const gateway = createMockProvider(providerType, { model: 'anthropic/claude-opus-4.7' });
+      const manager = createMockProviderManager(new Map([[providerType, gateway]]));
+      const gatewayRouter = new HybridRouter(manager, { defaultProvider: providerType });
+      const result = await gatewayRouter.chat(strictRequest);
+      expect(result.model).toBe('anthropic/claude-opus-4.7');
+      expect(gateway.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-opus-4-7' }));
+    });
+
+    it('accepts an exact custom model ID without requiring registry membership', async () => {
+      const result = await router.chat({ ...strictRequest, model: 'custom-frontier-v1' });
+      expect(result.model).toBe('custom-frontier-v1');
+    });
+
+    it('rejects different unknown model IDs instead of treating registry misses as equivalent', async () => {
+      claudeProvider.generate = createMockProvider('claude', { model: 'custom-frontier-v2' }).generate;
+      await expect(router.chat({ ...strictRequest, model: 'custom-frontier-v1' })).rejects.toThrow(/model mismatch/);
+      expect(ollamaProvider.generate).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when the cyber pin prohibits the requested model', async () => {
+      const prior = process.env.AQE_CYBER_VERIFIED;
+      delete process.env.AQE_CYBER_VERIFIED;
+      try {
+        await expect(router.chat({ ...strictRequest, agentType: 'qe-security-auditor' })).rejects.toThrow(/cyber/i);
+        expect(claudeProvider.generate).not.toHaveBeenCalled();
+        expect(ollamaProvider.generate).not.toHaveBeenCalled();
+      } finally {
+        if (prior === undefined) delete process.env.AQE_CYBER_VERIFIED;
+        else process.env.AQE_CYBER_VERIFIED = prior;
+      }
+    });
+  });
+
+  // ==========================================================================
   // Rule-Based Mode Tests
   // ==========================================================================
 
