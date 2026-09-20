@@ -213,9 +213,12 @@ export class HybridRouter {
     await this.ensureInitialized();
 
     const startTime = Date.now();
+    // Strict requests carry their own execution identity. They must neither
+    // consume an ordinary cached decision nor replace one used by other callers.
+    const cacheDecision = this.config.cacheDecisions && !params.strictModel;
 
     // Check cache first
-    if (this.config.cacheDecisions) {
+    if (cacheDecision) {
       const cacheKey = this.generateCacheKey(params);
       const cached = this.decisionCache.get(cacheKey);
       if (cached) {
@@ -229,28 +232,32 @@ export class HybridRouter {
 
     let decision: RoutingDecision;
 
-    switch (this.config.mode) {
-      case 'manual':
-        decision = await this.selectManual(params);
-        break;
-      case 'rule-based':
-        decision = await this.selectRuleBased(params);
-        break;
-      case 'cost-optimized':
-        decision = await this.selectCostOptimized(params);
-        break;
-      case 'performance-optimized':
-        decision = await this.selectPerformanceOptimized(params);
-        break;
-      default:
-        decision = await this.selectRuleBased(params);
+    if (params.strictModel) {
+      decision = this.selectStrict(params);
+    } else {
+      switch (this.config.mode) {
+        case 'manual':
+          decision = await this.selectManual(params);
+          break;
+        case 'rule-based':
+          decision = await this.selectRuleBased(params);
+          break;
+        case 'cost-optimized':
+          decision = await this.selectCostOptimized(params);
+          break;
+        case 'performance-optimized':
+          decision = await this.selectPerformanceOptimized(params);
+          break;
+        default:
+          decision = await this.selectRuleBased(params);
+      }
     }
 
     // Update decision time
     decision.metadata.decisionTimeMs = Date.now() - startTime;
 
     // Cache the decision
-    if (this.config.cacheDecisions) {
+    if (cacheDecision) {
       const cacheKey = this.generateCacheKey(params);
       this.decisionCache.set(cacheKey, decision);
     }
@@ -278,6 +285,13 @@ export class HybridRouter {
     // applies the same pin independently for advisor escalations.
     const agentName = params.agentType ?? '';
     if (shouldCyberPin(agentName) && (isOpus47(decision.model) || isOpus47(decision.providerModelId))) {
+      if (params.strictModel) {
+        throw createLLMError(
+          `Strict model request for ${decision.model} conflicts with the cyber verification pin for ${agentName}`,
+          'MODEL_NOT_FOUND',
+          { provider: decision.providerType as LLMProviderType, model: decision.model, retryable: false },
+        );
+      }
       const originalModel = decision.model;
       const originalProviderModelId = decision.providerModelId;
       decision.model = applyCyberPin(agentName, decision.model, CYBER_PIN_CHAT_FALLBACK);
@@ -427,6 +441,23 @@ export class HybridRouter {
   // ============================================================================
   // Provider Selection Methods
   // ============================================================================
+
+  /** Select an explicitly pinned model without rules, shared cache, or fallback. */
+  private selectStrict(params: ChatParams): RoutingDecision {
+    if (!params.model?.trim()) {
+      throw createLLMError('strictModel requires an explicit nonempty model', 'MODEL_NOT_FOUND', { retryable: false });
+    }
+    const providerType = (params.preferredProvider ?? this.config.defaultProvider) as LLMProviderType;
+    const provider = this.providerManager.getProvider(providerType);
+    if (!provider) {
+      throw createLLMError(
+        `Strict model provider ${providerType} is unavailable`,
+        'PROVIDER_UNAVAILABLE',
+        { provider: providerType, model: params.model, retryable: false },
+      );
+    }
+    return this.createDecision(provider, providerType, params.model, 'manual');
+  }
 
   /**
    * Manual selection - use preferredProvider or default
@@ -619,7 +650,7 @@ export class HybridRouter {
     // surfaced by the rule-based E2E test in
     // tests/e2e/llm-router-real-providers.test.ts.
     const defaultProviderType = this.config.defaultProvider as LLMProviderType;
-    if (defaultProviderType && defaultProviderType !== decision.providerType) {
+    if (!params.strictModel && defaultProviderType && defaultProviderType !== decision.providerType) {
       executionOrder.push({
         provider: defaultProviderType,
         model: this.config.defaultModel,
@@ -632,12 +663,14 @@ export class HybridRouter {
     // openrouter/gemini/azure-openai/bedrock from ADR-043) and
     // ProviderManager.createProvider() builds all of them. The narrower
     // list silently excluded users' actual fallback providers.
-    for (const entry of fallbackChain.entries) {
-      if (!entry.enabled) continue;
-      if (entry.provider === decision.providerType) continue;
+    if (!params.strictModel) {
+      for (const entry of fallbackChain.entries) {
+        if (!entry.enabled) continue;
+        if (entry.provider === decision.providerType) continue;
 
-      for (const model of entry.models) {
-        executionOrder.push({ provider: entry.provider as LLMProviderType, model });
+        for (const model of entry.models) {
+          executionOrder.push({ provider: entry.provider as LLMProviderType, model });
+        }
       }
     }
 
@@ -695,6 +728,26 @@ export class HybridRouter {
         // ADR-123: persist the charge to the cross-process ledger so budgets
         // hold across a fleet of processes. ADR-124 M2.3: attribute to the agent.
         this.providerManager.recordResponseSpend(response, params.agentType);
+
+        // A provider can return an unexpected model even when its request was
+        // pinned. Account for the completed call, but do not accept that answer
+        // as evidence from the requested model (e.g. a frontier quality judge).
+        if (params.strictModel) {
+          if (response.provider !== providerType) {
+            throw createLLMError(
+              `Strict model provider mismatch: expected ${providerType}, received ${response.provider}`,
+              'PROVIDER_UNAVAILABLE',
+              { provider: providerType, model, retryable: false },
+            );
+          }
+          if (!this.isSameModel(decision.model, response.model)) {
+            throw createLLMError(
+              `Strict model mismatch: expected ${decision.model}, received ${response.model}`,
+              'MODEL_NOT_FOUND',
+              { provider: providerType, model, retryable: false },
+            );
+          }
+        }
 
         const callLatency = Date.now() - callStartTime;
 
@@ -792,7 +845,7 @@ export class HybridRouter {
         // delay (because no need to wait) but DOES continue to the next
         // entry in executionOrder. Only retryable errors get the delay.
         const nonRetryable = isLLMError(error) && !error.retryable;
-        if (!nonRetryable && attempts < fallbackBehavior.maxAttempts) {
+        if (!params.strictModel && !nonRetryable && attempts < fallbackBehavior.maxAttempts) {
           await this.delay(fallbackBehavior.delayMs);
         }
       }
@@ -808,6 +861,17 @@ export class HybridRouter {
   // ============================================================================
   // Helper Methods
   // ============================================================================
+
+  /** Compare identity independently of the API transport hosting the model. */
+  private isSameModel(expected: string, actual: string): boolean {
+    if (expected === actual) return true;
+    try {
+      return normalizeModelId(expected) === normalizeModelId(actual);
+    } catch {
+      // Unregistered model IDs are only equivalent when they match exactly.
+      return false;
+    }
+  }
 
   /**
    * Create a routing decision with proper model ID normalization (ADR-043)

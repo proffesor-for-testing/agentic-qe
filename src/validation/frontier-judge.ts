@@ -115,8 +115,10 @@ export function createFrontierJudge(opts: FrontierJudgeOptions): Judge {
 /**
  * Build a `complete()` seam backed by the shared HybridRouter, pinned to a
  * frontier model. This is where the ADR-111 "never economize the oracle" rule is
- * enforced: `model` defaults to a frontier Opus and `preferredProvider` lets the
- * caller route to a frontier provider explicitly.
+ * enforced: `model` defaults to a frontier Opus and strict per-request routing
+ * prevents shared routing rules or fallback from substituting another model.
+ * `preferredProvider` selects a provider explicitly; otherwise the configured
+ * default is used. An unavailable or mismatched judge stays inconclusive.
  */
 export function routerComplete(
   router: HybridRouter,
@@ -133,6 +135,7 @@ export function routerComplete(
     const res = await router.chat({
       messages: [{ role: 'user', content: prompt }],
       model,
+      strictModel: true,
       preferredProvider: opts.preferredProvider,
       temperature: opts.temperature ?? 0,
       maxTokens: opts.maxTokens ?? 1024,
@@ -213,22 +216,24 @@ export function buildGradePrompt(artifact: string, checklist: RequirementCheckli
 /**
  * Parse the model response into a set of 0-based unmet requirement indices.
  * Returns `null` when the response cannot be parsed into the strict contract
- * (so the caller treats it as a non-real opinion). Out-of-range and duplicate
- * numbers are ignored — a garbled index list never inflates the unmet count.
+ * (so the caller treats it as a non-real opinion). Invalid and duplicate entries
+ * are ignored when valid indices remain. A nonempty list with no valid indices
+ * is unparseable, not evidence that every requirement is met.
  */
 export function parseUnmetIndices(raw: string, total: number): Set<number> | null {
   const obj = extractJsonObject(raw);
   if (obj == null || !Array.isArray((obj as { unmet?: unknown }).unmet)) {
     return null;
   }
+  const unmet = (obj as { unmet: unknown[] }).unmet;
   const out = new Set<number>();
-  for (const v of (obj as { unmet: unknown[] }).unmet) {
+  for (const v of unmet) {
     const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.trim()) : NaN;
     if (!Number.isInteger(n)) continue;
     const idx = n - 1; // 1-based prompt -> 0-based index
     if (idx >= 0 && idx < total) out.add(idx);
   }
-  return out;
+  return unmet.length > 0 && out.size === 0 ? null : out;
 }
 
 /** Extract the first balanced top-level JSON object from arbitrary model text. */
