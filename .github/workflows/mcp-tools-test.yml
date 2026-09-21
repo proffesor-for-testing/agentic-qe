@@ -147,21 +147,11 @@ jobs:
       - run: npm run build
 
       - name: Run MCP integration tests
-        run: |
-          timeout 480 npm run test:mcp:integration; EXIT=$?
-          if [ $EXIT -eq 124 ] && [ -f junit.xml ]; then
-            FAILURES=$(grep -c '<failure' junit.xml 2>/dev/null || echo "0")
-            if [ "$FAILURES" = "0" ]; then
-              echo "::warning::Vitest hung after tests passed (exit 124). Treating as success."
-              exit 0
-            fi
-          fi
-          exit $EXIT
+        run: bash scripts/ci-vitest-run.sh tests/integration/mcp/
         env:
-          NODE_OPTIONS: '--max-old-space-size=1024'
-        # C3: was `continue-on-error: true`, which let real failures pass as
-        # green. Removed so this job is an actual gate. The exit-124 hang
-        # tolerance above still absorbs the known vitest-hang flake.
+          NODE_OPTIONS: '--max-old-space-size=1024 --expose-gc'
+          CI_VITEST_TIMEOUT: '480'
+        # Preserve runner errors and timeouts even when a partial report exists.
 
       - name: Generate test report
         uses: dorny/test-reporter@v1
