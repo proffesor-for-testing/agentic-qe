@@ -29,6 +29,9 @@ import {
   ChaosTestParams,
 } from '../types';
 import { MetricsCollector } from '../metrics';
+import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
+import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+
 import {
   DEFAULT_FRAMEWORKS,
   FRAMEWORK_TO_LANGUAGE,
@@ -40,9 +43,6 @@ import {
   validateRiskDecision,
   type RiskDecision,
 } from '../../contracts/verdicts.js';
-
-import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
-import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
