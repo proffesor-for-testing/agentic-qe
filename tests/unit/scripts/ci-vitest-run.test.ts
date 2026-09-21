@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const wrapper = resolve(import.meta.dirname, '../../../scripts/ci-vitest-run.sh');
 // The wrapper is used by Ubuntu CI. Stock macOS and Windows do not ship all
 // of its shell tools; qualify those local runs without letting Linux CI skip.
-const timeoutVersion = spawnSync('timeout', ['--version'], { encoding: 'utf8' });
+const timeoutVersion = spawnSync('timeout', ['--version'], { encoding: 'utf8', timeout: 2000 });
 const shellToolsAvailable = existsSync('/bin/bash') && timeoutVersion.status === 0
   && timeoutVersion.stdout.includes('GNU coreutils');
 if (process.platform === 'linux' && !shellToolsAvailable) {
