@@ -83,19 +83,25 @@ describe('PrimeAgentInstaller', () => {
       expect(result.mcpInstructed).toBe(true);
       expect(result.mcpAdded).toBe(false);
       expect(result.mcpCommand).toContain('prime-agent mcp add aqe');
+      expect(result.mcpCommand).toContain('--cwd /test/project');
       expect(result.mcpCommand).toContain('npx -y agentic-qe@latest mcp');
-      expect(result.mcpCommand).toContain('AQE_V3_MODE=true');
+      // Prime Agent rejects static env values (--env takes references only),
+      // so the command must not carry AQE_* values; the AQE MCP defaults
+      // (database-free memory backend) apply.
+      expect(result.mcpCommand).not.toContain('--env');
+      expect(result.mcpCommand).not.toContain('AQE_');
     });
 
-    it('uses database-free env when memoryBackend is memory', async () => {
+    it('emits the same database-free command regardless of memoryBackend', async () => {
       const { createPrimeAgentInstaller } = await import(
         '../../../src/init/primeagent-installer.js'
       );
       const installer = createPrimeAgentInstaller({ projectRoot, memoryBackend: 'memory' });
       const result = await installer.install();
 
-      expect(result.mcpCommand).toContain('AQE_MEMORY_BACKEND=memory');
-      expect(result.mcpCommand).not.toContain('AQE_MEMORY_PATH');
+      expect(result.mcpCommand).toContain('npx -y agentic-qe@latest mcp');
+      expect(result.mcpCommand).not.toContain('--env');
+      expect(result.mcpCommand).not.toContain('AQE_');
     });
 
     it('skips MCP entirely in none mode', async () => {

@@ -46,9 +46,13 @@ config file) that:
    `agents-md-section.ts` so both installers merge the same file without
    duplicating logic or fighting over it).
 4. Treats MCP as **instruct-by-default**: reports the exact
-   `prime-agent mcp add aqe -- npx -y agentic-qe@latest mcp` command; the
-   opt-in `--prime-agent-auto-mcp` flag executes it when the binary is on
-   PATH and falls back to instructing when it is not.
+   `prime-agent mcp add aqe --cwd <projectRoot> -- npx -y agentic-qe@latest mcp`
+   command; the opt-in `--prime-agent-auto-mcp` flag executes it when the
+   binary is on PATH and falls back to instructing when it is not. No
+   `--env` values are emitted: Prime Agent's `mcp add` accepts
+   environment-variable references only (never static values), and the AQE
+   MCP server's defaults are correct without them (database-free memory
+   backend, `.agentic-qe` storage scoped by `--cwd`).
 
 **because** Prime Agent's MCP restriction is a deliberate security property of
 that harness, not a gap to route around — the correct AQE behavior is to do
@@ -76,7 +80,9 @@ the installer always prints the exact command.
 
 - The MCP step cannot be verified end-to-end by repo-scoped tests (the
   registration lives in user settings); the auto mode is covered by a
-  command-runner seam instead.
+  command-runner seam instead. The command shape was validated by hand
+  against a live `prime-agent mcp add` + MCP initialize handshake
+  (`agentic-qe-v3` server, protocol 2025-11-25).
 - Two more platforms sharing `AGENTS.md` increases the value of keeping the
   sentinel merge logic shared — divergence would corrupt user files.
 

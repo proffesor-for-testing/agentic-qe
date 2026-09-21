@@ -421,8 +421,16 @@ server cannot be auto-wired from the repo. The installer prints the exact
 registration command; run it once per machine:
 
 ```bash
-prime-agent mcp add aqe --env AQE_MEMORY_PATH=.agentic-qe/memory.db --env AQE_V3_MODE=true -- npx -y agentic-qe@latest mcp
+prime-agent mcp add aqe --cwd <project root> -- npx -y agentic-qe@latest mcp
 ```
+
+`--cwd` scopes the AQE server's default `.agentic-qe` storage to this project.
+Prime Agent's `mcp add` only accepts environment-variable references (never
+static values), so no `--env` is needed: the AQE MCP server defaults to a
+database-free in-memory backend. For persistent SQLite, export
+`AQE_MEMORY_PATH`/`AQE_MEMORY_BACKEND` in your shell and pass them as
+references, e.g. `--env AQE_MEMORY_PATH`. One registration per project: a
+second project reuses the name with `--force` or uses its own server name.
 
 With `--prime-agent-auto-mcp`, the installer executes the command itself when
 the `prime-agent` binary is on PATH, and falls back to printing it otherwise.

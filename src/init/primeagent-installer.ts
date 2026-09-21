@@ -61,7 +61,12 @@ export interface PrimeAgentInstallerOptions {
   installMcp?: PrimeAgentMcpMode;
   /** Install optional Ruflo guidance (SKILL.md only, no runtime). */
   includeRuflo?: boolean;
-  /** Memory backend for the MCP env: 'memory' => database-free AQE MCP. */
+  /**
+   * Kept for parity with sibling installers. The registration command no
+   * longer carries env values (Prime Agent rejects static values); the AQE
+   * MCP server defaults to a database-free backend, so this option does not
+   * change the emitted command.
+   */
   memoryBackend?: 'memory';
   /** Test seam: binary name/path to use instead of the PATH lookup. */
   primeAgentBinary?: string;
@@ -118,9 +123,10 @@ subagent roles under \`.prime/agent/skills/aqe-fleet/\`.
 
 The AQE MCP server is registered at the user level, not in the repo (Prime
 Agent ignores project MCP settings for execution). If it is not yet connected,
-run the command reported by \`aqe init\` once:
+run the command reported by \`aqe init\` once (one registration per project; a
+second project reuses the name with \`--force\` or its own server name):
 
-    prime-agent mcp add aqe -- npx -y agentic-qe@latest mcp
+    prime-agent mcp add aqe --cwd <this project root> -- npx -y agentic-qe@latest mcp
 
 Always call \`fleet_init\` before using other AQE tools to initialize the fleet.
 
@@ -212,22 +218,25 @@ export class PrimeAgentInstaller {
   // MCP
   // ------------------------------------------------------------------
 
-  /** Build the exact user-level MCP registration command + env. */
-  private buildMcpInvocation(): { argv: string[]; env: Record<string, string> } {
-    const env: Record<string, string> = { AQE_V3_MODE: 'true' };
-    if (this.options.memoryBackend === 'memory') {
-      env.AQE_MEMORY_BACKEND = 'memory';
-    } else {
-      env.AQE_MEMORY_PATH = '.agentic-qe/memory.db';
-    }
-    const envArgs = Object.entries(env).map(([key, value]) => `--env ${key}=${value}`);
+  /**
+   * Build the exact user-level MCP registration command.
+   *
+   * `--cwd <projectRoot>` makes the AQE server resolve its default
+   * `.agentic-qe` storage relative to this project. No `--env` is used:
+   * Prime Agent only accepts environment-variable *references* (never
+   * static values), and the AQE MCP server's defaults are correct without
+   * them — the default memory backend is database-free, and users who want
+   * persistent SQLite can export `AQE_MEMORY_PATH`/`AQE_MEMORY_BACKEND` and
+   * pass them as references on the same command.
+   */
+  private buildMcpInvocation(): { argv: string[] } {
     const argv = [
       'mcp', 'add', PrimeAgentInstaller.MCP_SERVER_NAME,
-      ...envArgs,
+      '--cwd', this.projectRoot,
       '--',
       'npx', '-y', 'agentic-qe@latest', 'mcp',
     ];
-    return { argv, env };
+    return { argv };
   }
 
   private installMcpConnection(result: PrimeAgentInstallResult): void {
