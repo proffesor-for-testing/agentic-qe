@@ -7,8 +7,11 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
-import { walkSourceFiles } from '../utils/file-discovery.js';
-import { type OutputFormat, type SecurityScanResult, type SecurityVulnerability, writeOutput, toJSON, toSARIF, securityToMarkdown } from '../utils/ci-output.js';
+import { discoverSecurityFiles } from '../../domains/security-compliance/scan-discovery.js';
+import { FilePath } from '../../shared/value-objects/index.js';
+import type { SecurityComplianceAPI } from '../../domains/security-compliance/plugin.js';
+import type { ComplianceReport, Vulnerability } from '../../domains/security-compliance/interfaces.js';
+import { type OutputFormat, type SecurityScanResult, type SecurityVulnerability, type SecurityCheckResult, writeOutput, toJSON, toSARIF, securityToMarkdown } from '../utils/ci-output.js';
 
 export function createSecurityCommand(
   context: CLIContext,
@@ -96,137 +99,172 @@ export function createSecurityCommand(
         return; // Don't fall through to SAST/DAST path
       }
 
+      const format = options.format as OutputFormat;
+      const runSAST = options.sast || (!options.dast && !options.compliance);
+      const frameworks: string[] = options.compliance
+        ? options.compliance.split(',').map((value: string) => value.trim()).filter(Boolean)
+        : [];
+      const scanResult: SecurityScanResult = {
+        vulnerabilities: [], target: options.target,
+        scanType: [runSAST && 'SAST', options.dast && 'DAST', frameworks.length > 0 && 'Compliance'].filter(Boolean).join('+'),
+        checks: [], status: 'not-run',
+      };
+      const checks = scanResult.checks!;
+
       try {
-        const format = options.format as OutputFormat;
-
-        if (format === 'text') {
-          console.log(chalk.blue(`\n Running security scan on ${options.target}...\n`));
-        }
-
-        const securityAPI = await context.kernel!.getDomainAPIAsync!<{
-          runSASTScan(files: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-          runDASTScan(urls: string[]): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-          runComplianceCheck(standardId: string): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-        }>('security-compliance');
-
+        const securityAPI = await context.kernel!.getDomainAPIAsync!<SecurityComplianceAPI>('security-compliance');
         if (!securityAPI) {
-          console.log(chalk.red('Security domain not available'));
-          return;
-        }
-
-        const path = await import('path');
-        const targetPath = path.resolve(options.target);
-
-        // Fix #280: Use shared file discovery supporting all languages
-        const files = walkSourceFiles(targetPath, { includeTests: true });
-
-        if (files.length === 0) {
-          console.log(chalk.yellow('No files found to scan'));
-          return;
-        }
-
-        if (format === 'text') {
-          console.log(chalk.gray(`  Scanning ${files.length} files...\n`));
-        }
-        const scanResult: SecurityScanResult = {
-          vulnerabilities: [],
-          target: options.target,
-          scanType: [options.sast && 'SAST', options.dast && 'DAST', options.compliance && 'Compliance'].filter(Boolean).join('+') || 'SAST',
-        };
-
-        // Run SAST if requested
-        if (options.sast) {
-          if (format === 'text') console.log(chalk.blue(' SAST Scan:'));
-          const sastResult = await securityAPI.runSASTScan(files);
-          if (sastResult.success && sastResult.value) {
-            const result = sastResult.value as { vulnerabilities?: Array<{ severity: string; type: string; file: string; line: number; message: string }> };
-            const vulns = result.vulnerabilities || [];
-            scanResult.vulnerabilities = vulns as SecurityVulnerability[];
-            if (format === 'text') {
-              if (vulns.length === 0) {
-                console.log(chalk.green('  * No vulnerabilities found'));
-              } else {
-                console.log(chalk.yellow(`  ! Found ${vulns.length} potential issues:`));
-                for (const v of vulns.slice(0, 10)) {
-                  const color = v.severity === 'high' ? chalk.red : v.severity === 'medium' ? chalk.yellow : chalk.gray;
-                  console.log(color(`    [${v.severity}] ${v.type}: ${v.file}:${v.line}`));
-                  console.log(chalk.gray(`           ${v.message}`));
-                }
-                if (vulns.length > 10) {
-                  console.log(chalk.gray(`    ... and ${vulns.length - 10} more`));
-                }
-              }
-            }
-          } else if (format === 'text') {
-            console.log(chalk.red(`  x SAST failed: ${sastResult.error?.message || 'Unknown error'}`));
-          }
-          if (format === 'text') console.log('');
-        }
-
-        // Run compliance check if requested
-        if (options.compliance) {
-          const frameworks = options.compliance.split(',');
-          if (format === 'text') console.log(chalk.blue(` Compliance Check (${frameworks.join(', ')}):`));
-          // Run compliance check for each framework
-          const compResults = await Promise.all(
-            frameworks.map((f: string) => securityAPI.runComplianceCheck(f.trim()))
-          );
-          const compResult = compResults[0]; // Primary result for display
-          if (compResult.success && compResult.value) {
-            const result = compResult.value as { compliant: boolean; issues?: Array<{ framework: string; issue: string }> };
-            scanResult.compliance = result;
-            if (format === 'text') {
-              if (result.compliant) {
-                console.log(chalk.green('  * Compliant with all frameworks'));
-              } else {
-                console.log(chalk.yellow('  ! Compliance issues found:'));
-                for (const issue of (result.issues || []).slice(0, 5)) {
-                  console.log(chalk.yellow(`    [${issue.framework}] ${issue.issue}`));
-                }
-              }
-            }
-          } else if (format === 'text') {
-            console.log(chalk.red(`  x Compliance check failed: ${compResult.error?.message || 'Unknown error'}`));
-          }
-          if (format === 'text') console.log('');
-        }
-
-        // DAST note
-        if (options.dast && format === 'text') {
-          console.log(chalk.gray('Note: DAST requires running application URLs. Use --target with URLs for DAST scanning.'));
-        }
-
-        // Format-aware output
-        if (format === 'json') {
-          writeOutput(toJSON(scanResult), options.output);
-        } else if (format === 'sarif') {
-          writeOutput(toSARIF(scanResult), options.output);
-        } else if (format === 'markdown') {
-          writeOutput(securityToMarkdown(scanResult), options.output);
+          checks.push({ name: scanResult.scanType, status: 'failed', reason: 'Security domain not available' });
         } else {
-          console.log(chalk.green(' Security scan complete\n'));
+          if (runSAST) {
+            const { files, discovery } = await discoverSecurityFiles(options.target);
+            scanResult.discovery = discovery;
+            if (files.length === 0) {
+              checks.push({ name: 'SAST', status: 'not-run', reason: 'No analyzable input was discovered; no SAST scan ran.' });
+            } else {
+              try {
+                const sastResult = await securityAPI.runSASTScan(files.map(file => FilePath.create(file)));
+                if (sastResult.success && sastResult.value) {
+                  const result = sastResult.value;
+                  scanResult.vulnerabilities = result.vulnerabilities.map(formatVulnerability);
+                  scanResult.coverage = result.evidence ? result.coverage : undefined;
+                  scanResult.evidence = result.evidence;
+                  checks.push({
+                    name: 'SAST', status: result.evidence?.completeness ?? 'unverified',
+                    ...(!result.evidence ? { reason: 'The scanner returned no execution receipts.' } : {}),
+                  });
+                } else {
+                  checks.push({ name: 'SAST', status: 'failed', reason: !sastResult.success ? securityFailureReason('SAST scan', sastResult.error) : 'SAST scan returned no result' });
+                }
+              } catch (error) {
+                checks.push({ name: 'SAST', status: 'failed', reason: securityFailureReason('SAST scan', error) });
+              }
+            }
+            if (discovery.status !== 'complete') {
+              checks.push({ name: 'Source discovery', status: discovery.status, reason: 'Requested source discovery did not complete; inspect discovery issues.' });
+            }
+          }
+
+          if (frameworks.length > 0) {
+            const issues: Array<{ framework: string; issue: string }> = [];
+            let compliant = true;
+            for (const framework of frameworks) {
+              try {
+                const outcome = await securityAPI.runComplianceCheck(framework);
+                if (!outcome.success || !outcome.value) {
+                  compliant = false;
+                  checks.push({ name: `Compliance:${framework}`, status: 'failed', reason: !outcome.success ? securityFailureReason('Compliance check', outcome.error) : 'Compliance check returned no result' });
+                  continue;
+                }
+                const report = outcome.value;
+                const legacy = report as ComplianceReport & { compliant?: boolean; issues?: Array<{ framework: string; issue: string }> };
+                const violations = report.violations ?? [];
+                const skipped = report.skippedRules ?? [];
+                const passed = report.passedRules ?? [];
+                const measured = Array.isArray(report.violations) && Array.isArray(report.passedRules) && Array.isArray(report.skippedRules);
+                const status = !measured ? 'unverified' : skipped.length > 0 ? 'partial' : passed.length + violations.length > 0 ? 'complete' : 'none';
+                checks.push({ name: `Compliance:${framework}`, status, ...(skipped.length ? { reason: `${skipped.length} compliance rules were skipped.` } : {}) });
+                issues.push(...violations.map(violation => ({ framework, issue: violation.details })));
+                if (legacy.issues) issues.push(...legacy.issues);
+                if (status !== 'complete' || violations.length > 0 || legacy.compliant === false) compliant = false;
+              } catch (error) {
+                compliant = false;
+                checks.push({ name: `Compliance:${framework}`, status: 'failed', reason: securityFailureReason('Compliance check', error) });
+              }
+            }
+            scanResult.compliance = { compliant, issues };
+          }
         }
-
-        // Exit codes: 1 = critical/high vulns, 2 = medium-only vulns, 0 = low/none
-        const hasHighSeverity = scanResult.vulnerabilities.some(v =>
-          v.severity === 'high' || v.severity === 'critical'
-        );
-        const hasMediumSeverity = scanResult.vulnerabilities.some(v =>
-          v.severity === 'medium'
-        );
-        if (hasHighSeverity) {
-          await cleanupAndExit(1);
-        } else if (hasMediumSeverity) {
-          await cleanupAndExit(2);
+        if (options.dast) {
+          checks.push({ name: 'DAST', status: 'not-run', reason: 'This CLI command does not execute DAST. A running application URL and DAST execution path are required.' });
         }
-
-        await cleanupAndExit(0);
-
-      } catch (err) {
-        console.error(chalk.red('\nFailed:'), err);
-        await cleanupAndExit(1);
+      } catch (error) {
+        checks.push({ name: scanResult.scanType, status: 'failed', reason: securityFailureReason('Security scan', error) });
       }
+
+      scanResult.status = summarizeChecks(checks);
+      try {
+        if (format === 'json') writeOutput(toJSON(scanResult), options.output);
+        else if (format === 'sarif') writeOutput(toSARIF(scanResult), options.output);
+        else if (format === 'markdown') writeOutput(securityToMarkdown(scanResult), options.output);
+        else printSecurityResult(scanResult);
+      } catch (error) {
+        console.error(chalk.red('Failed to write security report:'), error);
+        return cleanupAndExit(1);
+      }
+
+      // Incomplete execution never has a clean exit, even if it found no vulnerabilities.
+      if (scanResult.status !== 'complete' || scanResult.compliance?.compliant === false) return cleanupAndExit(1);
+      if (scanResult.vulnerabilities.some(v => v.severity === 'high' || v.severity === 'critical')) return cleanupAndExit(1);
+      if (scanResult.vulnerabilities.some(v => v.severity === 'medium')) return cleanupAndExit(2);
+      return cleanupAndExit(0);
     });
 
   return securityCmd;
+}
+
+/** Provider exceptions can contain credentials or source; expose only an operation and errno. */
+function securityFailureReason(operation: string, error: unknown): string {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+  return typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code)
+    ? `${operation} failed (${code}).`
+    : `${operation} failed.`;
+}
+
+function summarizeChecks(checks: SecurityCheckResult[]): SecurityScanResult['status'] {
+  if (checks.length === 0) return 'not-run';
+  if (checks.every(check => check.status === 'complete')) return 'complete';
+  if (checks.some(check => check.status === 'partial' || check.status === 'complete')) return 'partial';
+  if (checks.some(check => check.status === 'failed')) return 'failed';
+  if (checks.some(check => check.status === 'unverified')) return 'unverified';
+  if (checks.some(check => check.status === 'none')) return 'none';
+  return 'not-run';
+}
+
+function formatVulnerability(value: Vulnerability | SecurityVulnerability): SecurityVulnerability {
+  if ('location' in value) {
+    return {
+      severity: value.severity, type: value.title || value.category,
+      file: value.location.file, line: value.location.line ?? 1,
+      message: value.description,
+    };
+  }
+  return value;
+}
+
+function printSecurityResult(result: SecurityScanResult): void {
+  console.log(chalk.blue(`\n Security scan on ${result.target}\n`));
+  for (const check of result.checks ?? []) {
+    const color = check.status === 'complete' ? chalk.green : chalk.yellow;
+    console.log(color(`  ${check.name}: ${check.status}${check.reason ? ` — ${check.reason}` : ''}`));
+  }
+  if (result.coverage) {
+    console.log(`  Analyzed ${result.coverage.filesScanned} files, ${result.coverage.linesScanned} lines; ${result.coverage.rulesApplied} rules applied${result.coverage.rulesAppliedScope ? ` (${result.coverage.rulesAppliedScope})` : ''}.`);
+  }
+  if (result.vulnerabilities.length === 0) {
+    console.log(result.status === 'complete'
+      ? '  No vulnerabilities found in completed checks.'
+      : '  No vulnerabilities reported; requested analysis is incomplete or unverified.');
+  } else {
+    console.log(chalk.yellow(`  Found ${result.vulnerabilities.length} potential issues:`));
+    for (const vulnerability of result.vulnerabilities.slice(0, 10)) {
+      console.log(`    [${vulnerability.severity}] ${vulnerability.type}: ${vulnerability.file}:${vulnerability.line}`);
+      console.log(`           ${vulnerability.message}`);
+    }
+    if (result.vulnerabilities.length > 10) console.log(`    ... and ${result.vulnerabilities.length - 10} more`);
+  }
+  if (result.compliance) {
+    console.log(`  Compliance: ${result.compliance.compliant ? 'compliant in completed checks' : 'failed or incomplete'}`);
+    for (const issue of result.compliance.issues ?? []) console.log(`    [${issue.framework}] ${issue.issue}`);
+  }
+  const limitations = [
+    ...(result.evidence?.limitations ?? []),
+    ...(result.evidence?.engines.flatMap(engine => engine.status === 'completed' ? [] : [`${engine.id}: ${engine.status}`, ...engine.errors]) ?? []),
+    ...(result.evidence?.files.filter(file => file.status !== 'analyzed' && file.status !== 'excluded').map(file => `${file.path}: ${file.status}${file.reason ? ` (${file.reason})` : ''}`) ?? []),
+    ...(result.discovery?.issues.map(issue => `${issue.path}: ${issue.reason}`) ?? []),
+  ];
+  for (const limitation of limitations.slice(0, 10)) console.log(chalk.yellow(`  ${limitation}`));
+  if (limitations.length > 10) console.log(`  ... ${limitations.length - 10} additional limitations; use JSON, Markdown, or SARIF for full receipts.`);
+  if (result.evidence) console.log('  Scope: completed checks of the declared required engines; this is not full SAST assurance.');
+  console.log(`\n Security analysis: ${result.status}\n`);
 }

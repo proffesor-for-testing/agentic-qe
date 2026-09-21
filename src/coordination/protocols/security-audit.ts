@@ -133,6 +133,8 @@ export interface SecurityAuditResult {
   readonly overallRiskScore: RiskScore;
   readonly recommendations: string[];
   readonly deploymentDecision: DeploymentDecision;
+  /** Requested checks without complete execution evidence; findings remain usable. */
+  readonly incompleteChecks?: readonly string[];
 }
 
 /**
@@ -306,18 +308,26 @@ export class SecurityAuditProtocol {
         triagedFindings: this.createEmptyTriagedFindings(),
         overallRiskScore: RiskScore.create(0),
         recommendations: [],
-        deploymentDecision: { allowed: true, reason: '', blockingIssues: [], warnings: [] },
+        incompleteChecks: [],
+        deploymentDecision: { allowed: false, reason: 'Audit not completed', blockingIssues: [], warnings: [] },
       };
 
       // Adjust scope based on trigger
       const auditOptions = this.getAuditOptionsForTrigger(trigger);
 
       // Phase 1: Vulnerability Scan (SAST)
-      this.updatePhase('vulnerability-scan');
-      const sastResult = await this.scanVulnerabilities(auditOptions);
-      if (sastResult.success) {
-        this.currentAudit = { ...this.currentAudit, sastResult: sastResult.value };
-        await this.publishVulnerabilities(sastResult.value.vulnerabilities);
+      if (auditOptions.includeSAST) {
+        this.updatePhase('vulnerability-scan');
+        const sastResult = await this.scanVulnerabilities(auditOptions);
+        if (sastResult.success) {
+          this.currentAudit = { ...this.currentAudit, sastResult: sastResult.value };
+          await this.publishVulnerabilities(sastResult.value.vulnerabilities);
+          if (sastResult.value.evidence?.completeness !== 'complete') {
+            this.recordIncompleteCheck('SAST coverage is incomplete or unverified');
+          }
+        } else {
+          this.recordIncompleteCheck('SAST scan did not complete');
+        }
       }
 
       // Phase 2: Dependency Scan
@@ -326,36 +336,50 @@ export class SecurityAuditProtocol {
       if (depResult.success) {
         this.currentAudit = { ...this.currentAudit, dependencyResult: depResult.value };
         await this.publishDependencyVulnerabilities(depResult.value.vulnerabilities);
+      } else {
+        this.recordIncompleteCheck('Dependency scan did not complete');
       }
 
       // Phase 3: Secret Scan (if enabled)
-      if (this.config.enableSecretScan) {
+      if (auditOptions.includeSecrets) {
         this.updatePhase('secret-scan');
         const secretResult = await this.auditSecrets();
         if (secretResult.success) {
           this.currentAudit = { ...this.currentAudit, secretResult: secretResult.value };
           await this.publishSecretExposures(secretResult.value.secretsFound);
+        } else {
+          this.recordIncompleteCheck('Secret scan is unavailable');
         }
       }
 
       // Phase 4: DAST Scan (if enabled and URL provided)
-      if (this.config.enableDAST && this.config.targetUrl) {
+      if (auditOptions.includeDAST && this.config.targetUrl) {
         const dastResult = await this.runDASTScan(this.config.targetUrl);
         if (dastResult.success) {
           this.currentAudit = { ...this.currentAudit, dastResult: dastResult.value };
+          this.recordIncompleteCheck('DAST coverage is unverified: the scanner returned no execution receipt');
           await this.publishVulnerabilities(dastResult.value.vulnerabilities);
+        } else {
+          this.recordIncompleteCheck('DAST scan did not complete');
         }
+      } else if (auditOptions.includeDAST) {
+        this.recordIncompleteCheck('DAST requested without a target URL');
       }
 
       // Phase 5: Compliance Validation
-      this.updatePhase('compliance-validation');
-      const complianceResult = await this.validateCompliance();
-      if (complianceResult.success) {
-        this.currentAudit = {
-          ...this.currentAudit,
-          complianceReports: complianceResult.value,
-        };
-        await this.publishComplianceResults(complianceResult.value);
+      if (this.config.complianceStandards.length > 0) {
+        this.updatePhase('compliance-validation');
+        const complianceResult = await this.validateCompliance();
+        if (complianceResult.success) {
+          this.currentAudit = {
+            ...this.currentAudit,
+            complianceReports: complianceResult.value,
+          };
+          await this.publishComplianceResults(complianceResult.value);
+          this.recordIncompleteCheck('Protocol compliance checks have no verified execution receipt');
+        } else {
+          this.recordIncompleteCheck('Compliance validation did not complete');
+        }
       }
 
       // Phase 6: Triage Findings
@@ -527,28 +551,9 @@ export class SecurityAuditProtocol {
    * Audit for exposed secrets/credentials
    */
   async auditSecrets(): Promise<Result<SecretScanResult>> {
-    try {
-      const agentId = await this.spawnAgent('secret-scanner', ['secret-scan', 'credential-audit']);
-      if (!agentId.success) {
-        return err(agentId.error);
-      }
-
-      const secretsFound: DetectedSecret[] = [];
-
-      // In production, this would scan actual files with patterns like:
-      // - API keys: /(?:api[_-]?key|apikey)/gi
-      // - Passwords: /(?:password|passwd|pwd)/gi
-      // - Tokens: /(?:secret|token|bearer)/gi
-      // - Private keys: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/gi
-      // For now, report no secrets found (clean scan)
-
-      return ok({
-        secretsFound,
-        filesScanned: this.config.scanPaths.length * 10, // Estimate
-      });
-    } catch (error) {
-      return err(toError(error));
-    }
+    // Agent allocation is not scan execution. Until this protocol has a real
+    // secret-scanner adapter, retain an explicit unavailable result.
+    return err(new Error('Secret scanning is unavailable in SecurityAuditProtocol: no scanner is implemented.'));
   }
 
   /**
@@ -632,7 +637,7 @@ export class SecurityAuditProtocol {
       return {
         riskScore: RiskScore.create(0),
         recommendations: [],
-        deploymentDecision: { allowed: true, reason: 'No audit data', blockingIssues: [], warnings: [] },
+        deploymentDecision: { allowed: false, reason: 'No audit data', blockingIssues: ['No audit evidence'], warnings: [] },
       };
     }
 
@@ -972,6 +977,15 @@ export class SecurityAuditProtocol {
     }
   }
 
+  private recordIncompleteCheck(reason: string): void {
+    if (this.currentAudit) {
+      this.currentAudit = {
+        ...this.currentAudit,
+        incompleteChecks: [...(this.currentAudit.incompleteChecks ?? []), reason],
+      };
+    }
+  }
+
   private createEmptyTriagedFindings(): TriagedFindings {
     return {
       critical: [],
@@ -1047,6 +1061,10 @@ export class SecurityAuditProtocol {
 
     if (!this.currentAudit) return recommendations;
 
+    for (const check of this.currentAudit.incompleteChecks ?? []) {
+      recommendations.push(`Complete the required security check before approving deployment: ${check}`);
+    }
+
     const { triagedFindings, complianceReports } = this.currentAudit;
 
     // Critical findings
@@ -1095,11 +1113,11 @@ export class SecurityAuditProtocol {
   }
 
   private determineDeploymentDecision(_riskScore: RiskScore): DeploymentDecision {
-    const blockingIssues: string[] = [];
+    const blockingIssues: string[] = [...(this.currentAudit?.incompleteChecks ?? [])];
     const warnings: string[] = [];
 
     if (!this.currentAudit) {
-      return { allowed: true, reason: 'No audit data', blockingIssues, warnings };
+      return { allowed: false, reason: 'No audit data', blockingIssues: ['No audit evidence'], warnings };
     }
 
     const { triagedFindings, complianceReports } = this.currentAudit;

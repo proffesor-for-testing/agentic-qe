@@ -268,6 +268,8 @@ export interface SecurityScanParams {
   dast?: boolean;
   compliance?: string[];
   target?: string;
+  /** URL for explicitly requested dynamic scanning. */
+  targetUrl?: string;
 }
 
 /**

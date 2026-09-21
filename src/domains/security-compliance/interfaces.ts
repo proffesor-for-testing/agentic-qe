@@ -1,3 +1,4 @@
+import type { SecurityScanEvidence } from './scan-evidence.js';
 /**
  * Agentic QE v3 - Security & Compliance Domain Interfaces
  *
@@ -179,6 +180,8 @@ export interface SASTResult {
   readonly vulnerabilities: Vulnerability[];
   readonly summary: ScanSummary;
   readonly coverage: SecurityCoverage;
+  /** Absent on legacy adapters; absence does not prove completed analysis. */
+  readonly evidence?: SecurityScanEvidence;
 }
 
 export interface RuleSet {
@@ -196,6 +199,8 @@ export interface FalsePositiveCheck {
 }
 
 export interface SecurityCoverage {
+  /** Counter scope; external engine rule coverage is described in evidence. */
+  readonly rulesAppliedScope?: 'built-in-patterns';
   readonly filesScanned: number;
   readonly linesScanned: number;
   readonly rulesApplied: number;

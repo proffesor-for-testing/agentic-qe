@@ -89,7 +89,9 @@ describe('toSARIF', () => {
 
     // Invocations
     expect(run.invocations).toBeInstanceOf(Array);
-    expect(run.invocations[0].executionSuccessful).toBe(true);
+    // Finding-only legacy results do not attest that the scan completed.
+    expect(run.invocations[0].executionSuccessful).toBe(false);
+    expect(run.properties.securityScan.status).toBe('unverified');
   });
 
   it('should map severity levels correctly', () => {
