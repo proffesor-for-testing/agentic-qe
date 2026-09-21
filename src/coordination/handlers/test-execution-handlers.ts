@@ -190,6 +190,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
     }
   });
 
+  // execute-tests accepts a nonempty list of concrete paths; callers expand globs.
   // Register test execution handler - runs real tests via child process
   ctx.registerHandler('execute-tests', async (task) => {
     const payload = task.payload as {
@@ -208,7 +209,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // Validate test file paths before invoking a runner.
       const safePathPattern = /^[a-zA-Z0-9_./@-]+$/;
       if (testFiles.some(file => !safePathPattern.test(file))) {
-        return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected.'));
+        return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
       }
 
       const { spawnSync } = await import('child_process');

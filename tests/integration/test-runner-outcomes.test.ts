@@ -1,6 +1,6 @@
 /** Real runner receipts must retain suite and process failures on both execution paths. */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -31,6 +31,7 @@ describe('Real test runner outcome integrity', () => {
       'unhandled.test.js': "import {it} from 'vitest'; it('healthy',async()=>{Promise.reject(new Error('background rejection fixture')); await new Promise(r=>setTimeout(r,20));});",
       'todo.test.js': "import {it} from 'vitest'; it.todo('future work');",
       'empty.test.js': 'export const noTests = true;',
+      'must-not-run.test.js': "import {writeFileSync} from 'node:fs'; import {it} from 'vitest'; writeFileSync('unexpected-execution.txt', 'ran'); it('must not run for a rejected request',()=>{});",
       'skipped.test.js': "import {it} from 'vitest'; it.skip('intentionally skipped',()=>{});",
     };
     for (const [name, content] of Object.entries(sources)) writeFileSync(join(fixture, name), content);
@@ -60,11 +61,14 @@ describe('Real test runner outcome integrity', () => {
   it.each([
     { files: [], diagnostic: 'No test files specified' },
     { files: ['invalid path.test.js'], diagnostic: 'invalid characters' },
+    { files: ['*.test.js'], diagnostic: 'expand glob patterns before calling' },
+    { files: ['must-not-run.test.js', '*.test.js'], diagnostic: 'expand glob patterns before calling' },
   ])('rejects a task that cannot execute its requested files: $files', async ({ files, diagnostic }) => {
     const result = await executeTask({ payload: { testFiles: files } } as QueenTask);
     expect(result.success).toBe(false);
     if (result.success) throw new Error('No execution produced a successful task receipt');
     expect(result.error.message).toContain(diagnostic);
+    expect(existsSync(join(fixture, 'unexpected-execution.txt'))).toBe(false);
   });
 
   it.each([

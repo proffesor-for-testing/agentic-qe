@@ -810,7 +810,7 @@ mcp__agentic-qe__test_generate_enhanced({
 
 // Execute tests in parallel
 mcp__agentic-qe__test_execute_parallel({
-  testFiles: ["v3/tests/integration/vibium-*.test.ts"],
+  testFiles: ["v3/tests/integration/vibium-client.test.ts"], // Concrete paths; expand globs first
   parallel: true
 });
 ```

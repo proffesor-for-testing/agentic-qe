@@ -272,7 +272,7 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
   describe('handleTestExecute', () => {
     it('should execute tests with default parameters', async () => {
       const result = await handleTestExecute({
-        testFiles: ['tests/unit/**/*.test.ts'],
+        testFiles: ['tests/unit/auth.test.ts'],
       });
 
       expect(result.success).toBe(true);
@@ -294,7 +294,7 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
     it('should respect parallel parameter', async () => {
       const result = await handleTestExecute({
-        testFiles: ['tests/**/*.test.ts'],
+        testFiles: ['tests/auth.test.ts', 'tests/session.test.ts'],
         parallel: true,
         parallelism: 4,
       });

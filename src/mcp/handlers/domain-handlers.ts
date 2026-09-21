@@ -104,12 +104,13 @@ export const handleTestGenerate = createDomainHandler<TestGenerateParams, TestGe
 );
 
 /**
- * Handle test execution tasks
+ * Handle test execution tasks using a nonempty list of concrete file paths.
+ * Expand glob patterns before calling; the task handler rejects them.
  *
  * @example
  * ```typescript
  * const result = await handleTestExecute({
- *   testFiles: ['tests/unit/*.test.ts'],
+ *   testFiles: ['tests/unit/auth.test.ts', 'tests/unit/session.test.ts'],
  *   parallel: true,
  *   parallelism: 4,
  * });
