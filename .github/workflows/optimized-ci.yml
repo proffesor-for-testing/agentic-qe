@@ -314,6 +314,9 @@ jobs:
           npx vitest run tests/performance/milestone1-baselines.test.ts
           npx vitest run tests/unit/integrations/ruvector/hopfield-memory.test.ts --testNamePattern='single recall'
 
+      - name: Run native RVF performance baselines
+        run: npx vitest run tests/performance/rvf-pattern-store.test.ts
+
   # ─── Coverage analysis (PRs only, after journey shards) ───
 
   coverage:
