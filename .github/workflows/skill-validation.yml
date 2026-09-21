@@ -451,6 +451,8 @@ jobs:
           cat report.md
 
       - name: Comment on PR
+        # Fork tokens cannot write PR comments; keep the Tier 3 gate running.
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |
