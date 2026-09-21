@@ -136,14 +136,15 @@ export const handleCoverageAnalyze = createDomainHandler<CoverageAnalyzeParams, 
 );
 
 /**
- * Handle quality assessment tasks
+ * Handle quality assessment tasks. With runGate:true, require fresh canonical
+ * evidence and return individual measured checks, without a static aggregate
+ * score. Missing, stale, or malformed evidence returns an error. threshold and
+ * metrics customize analysis-only requests; gate thresholds match the CLI.
  *
  * @example
  * ```typescript
  * const result = await handleQualityAssess({
  *   runGate: true,
- *   threshold: 80,
- *   metrics: ['coverage', 'complexity'],
  * });
  * ```
  */
