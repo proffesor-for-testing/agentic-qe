@@ -392,6 +392,46 @@ The installer also creates `.continue/rules/aqe-qe-standards.yaml` with QE rules
 
 ---
 
+## Prime Agent
+
+### Automated Setup
+
+```bash
+npx agentic-qe init --auto --with-prime-agent
+```
+
+### What the installer writes
+
+- `.prime/agent/skills/` — the curated AQE skills (Agent Skills standard `SKILL.md`
+  packages, same set Codex installs): aqe-plan-quality, aqe-plan-work,
+  aqe-research, aqe-review-quality, aqe-test-change
+- `.prime/agent/skills/aqe-fleet/` — a generated subagent skill that seeds the
+  curated QE agent roles (test architect, coverage specialist, flaky hunter,
+  quality gate, security scanner, defect predictor, root-cause analyst,
+  impact analyst) as spawnable subagent prompts. Prime Agent has no
+  file-based agents, so roles are carried as skill content.
+- `AGENTS.md` — an AQE-owned guidance section (sentinel-marked, merged with
+  any existing content, shared file with Codex installs)
+
+### MCP — one manual step
+
+Prime Agent deliberately ignores project-level MCP configuration for
+execution (a repository must not start local processes), so the AQE MCP
+server cannot be auto-wired from the repo. The installer prints the exact
+registration command; run it once per machine:
+
+```bash
+prime-agent mcp add aqe --env AQE_MEMORY_PATH=.agentic-qe/memory.db --env AQE_V3_MODE=true -- npx -y agentic-qe@latest mcp
+```
+
+With `--prime-agent-auto-mcp`, the installer executes the command itself when
+the `prime-agent` binary is on PATH, and falls back to printing it otherwise.
+
+> **Prime Agent-specific**: no project MCP config file is generated; skills
+> and AGENTS.md guidance are the repo-scoped surface.
+
+---
+
 ## Multi-Platform Setup
 
 To configure all platforms at once:

@@ -1,7 +1,8 @@
 /**
  * Integration Tests: Platform Installers
  *
- * Tests all 8 platform installers against real temporary directories.
+ * Tests all 8 registry platform installers plus the standalone Prime Agent
+ * installer against real temporary directories.
  * No mocking -- uses real filesystem operations to verify config generation,
  * file creation, merge behavior, and format correctness.
  *
@@ -415,6 +416,73 @@ models:
         expect(readFileAt(def.configPath)).toBe('ORIGINAL_CONFIG');
         expect(readFileAt(def.rulesPath)).toBe('ORIGINAL_RULES');
       });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Prime Agent (standalone installer, not in the registry)
+  // -------------------------------------------------------------------------
+  describe('Prime Agent (standalone)', () => {
+    it('installs skills, aqe-fleet subagents, AGENTS.md, and the MCP instruction', async () => {
+      const { createPrimeAgentInstaller } = await import('../../src/init/primeagent-installer.js');
+      const installer = createPrimeAgentInstaller({ projectRoot: tempDir });
+      const result = await installer.install();
+
+      expect(result.success).toBe(true);
+      expect(result.errors).toEqual([]);
+      expect(result.mcpInstructed).toBe(true);
+      expect(result.mcpCommand).toContain('prime-agent mcp add aqe');
+
+      // Curated skills land under the dedicated Prime Agent tree
+      expect(fileExists(path.join('.prime', 'agent', 'skills', 'aqe-plan-quality', 'SKILL.md'))).toBe(true);
+      expect(fileExists(path.join('.prime', 'agent', 'skills', 'aqe-research', 'SKILL.md'))).toBe(true);
+
+      // aqe-fleet subagent skill with role files
+      expect(fileExists(path.join('.prime', 'agent', 'skills', 'aqe-fleet', 'SKILL.md'))).toBe(true);
+      expect(result.subagentsSeeded).toBe(8);
+
+      // AGENTS.md carries the owned sentinel section
+      const agentsMd = readFileAt('AGENTS.md');
+      expect(agentsMd).toContain('<!-- BEGIN AGENTIC-QE PRIME-AGENT -->');
+    });
+
+    it('coexists with a Codex install in the same AGENTS.md', async () => {
+      const { createCodexInstaller } = await import('../../src/init/codex-installer.js');
+      const { createPrimeAgentInstaller } = await import('../../src/init/primeagent-installer.js');
+
+      const codex = await createCodexInstaller({
+        projectRoot: tempDir,
+        installMcp: false,
+      }).install();
+      expect(codex.success).toBe(true);
+
+      const primeAgent = await createPrimeAgentInstaller({
+        projectRoot: tempDir,
+        installMcp: 'none',
+      }).install();
+      expect(primeAgent.success).toBe(true);
+
+      const agentsMd = readFileAt('AGENTS.md');
+      // Both owned sections present, exactly once each, in one file.
+      expect(agentsMd.match(/BEGIN AGENTIC-QE CODEX/g)?.length).toBe(1);
+      expect(agentsMd.match(/BEGIN AGENTIC-QE PRIME-AGENT/g)?.length).toBe(1);
+    });
+
+    it('replaces only its own owned section on reinstall', async () => {
+      const { createPrimeAgentInstaller } = await import('../../src/init/primeagent-installer.js');
+      await createPrimeAgentInstaller({ projectRoot: tempDir, installMcp: 'none' }).install();
+      fs.appendFileSync(path.join(tempDir, 'AGENTS.md'), 'User note that must survive.\n');
+
+      const result = await createPrimeAgentInstaller({
+        projectRoot: tempDir,
+        installMcp: 'none',
+        overwrite: true,
+      }).install();
+
+      expect(result.success).toBe(true);
+      const agentsMd = readFileAt('AGENTS.md');
+      expect(agentsMd.match(/BEGIN AGENTIC-QE PRIME-AGENT/g)?.length).toBe(1);
+      expect(agentsMd).toContain('User note that must survive.');
     });
   });
 });

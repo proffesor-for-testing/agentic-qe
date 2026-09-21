@@ -70,6 +70,8 @@ export class InitHandler implements ICommandHandler {
       .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks to the Codex setup')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
+      .option('--with-prime-agent', 'Include Prime Agent skills, aqe-fleet subagents, and AGENTS.md guidance')
+      .option('--prime-agent-auto-mcp', 'Execute `prime-agent mcp add` when the binary is on PATH (default: instruct-only)')
       .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
       .option('--with-mcp', 'Enable MCP server config (default — kept for backward compatibility)')
       .option('--with-all-platforms', 'Include all coding agent platform configurations')
@@ -110,6 +112,7 @@ export class InitHandler implements ICommandHandler {
         options.withCodex = true;
         options.withWindsurf = true;
         options.withContinuedev = true;
+        options.withPrimeAgent = true;
       }
 
       // --upgrade implies --auto (must use modular orchestrator to overwrite files)
@@ -142,7 +145,8 @@ export class InitHandler implements ICommandHandler {
         options.withOpencode || options.withN8n || options.withKiro ||
         options.withCopilot || options.withCursor || options.withCline ||
         options.withKilocode || options.withRoocode || options.withCodex ||
-        options.withWindsurf || options.withContinuedev || options.withAllPlatforms
+        options.withWindsurf || options.withContinuedev || options.withPrimeAgent ||
+        options.withAllPlatforms
       );
       const databaseFree = options.database === false || options.memory === 'memory';
       // #532: `--no-claude` (commander negatable → options.claude === false) is
@@ -190,7 +194,8 @@ export class InitHandler implements ICommandHandler {
         options.withOpencode || options.withN8n || options.withKiro ||
         options.withCopilot || options.withCursor || options.withCline ||
         options.withKilocode || options.withRoocode || options.withCodex ||
-        options.withWindsurf || options.withContinuedev || options.withAllPlatforms,
+        options.withWindsurf || options.withContinuedev || options.withPrimeAgent ||
+        options.withAllPlatforms,
       );
       if (!anyPlatform && !isJsonMode) {
         console.log(chalk.yellow('  --no-claude set without any --with-<platform>: this install will write almost nothing.\n'));
@@ -218,6 +223,8 @@ export class InitHandler implements ICommandHandler {
       codexGuidance: options.codexGuidance,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
+      withPrimeAgent: options.withPrimeAgent,
+      primeAgentAutoMcp: options.primeAgentAutoMcp,
       noMcp: options.noMcp && !options.withMcp,
       noGovernance: options.noGovernance,
       noClaude,
@@ -653,7 +660,11 @@ interface InitOptions {
   withCodex?: boolean;
   withRuflo?: boolean;
   codexGuidance?: 'full' | 'compact' | 'none';
-  withWindsurf?: boolean;
+    withWindsurf?: boolean;
+  /** Include Prime Agent skills, aqe-fleet subagents, and AGENTS.md guidance */
+  withPrimeAgent?: boolean;
+  /** Execute `prime-agent mcp add` when the binary is on PATH (default: instruct-only) */
+  primeAgentAutoMcp?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
   noMcp?: boolean;

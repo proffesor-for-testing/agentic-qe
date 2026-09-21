@@ -175,6 +175,25 @@ export { CodexInstaller, createCodexInstaller } from './codex-installer.js';
 
 export type { WindsurfInstallerOptions, WindsurfInstallResult } from './windsurf-installer.js';
 export { WindsurfInstaller, createWindsurfInstaller } from './windsurf-installer.js';
+export type {
+  PrimeAgentInstallerOptions,
+  PrimeAgentInstallResult,
+  PrimeAgentComponentOutcome,
+  PrimeAgentMcpMode,
+} from './primeagent-installer.js';
+export { PrimeAgentInstaller, createPrimeAgentInstaller } from './primeagent-installer.js';
+export {
+  markOwnedSection,
+  mergeOwnedSection,
+  removeOwnedSections,
+  measureOwnedSection,
+  assertOwnedSectionsWellFormed,
+} from './agents-md-section.js';
+export {
+  PRIME_AGENT_SKILL_MANIFEST,
+  PRIME_AGENT_SUBAGENT_ROLES,
+  selectPrimeAgentSkills,
+} from './primeagent-skill-manifest.js';
 
 export type { ContinueDevInstallerOptions, ContinueDevInstallResult } from './continuedev-installer.js';
 export { ContinueDevInstaller, createContinueDevInstaller } from './continuedev-installer.js';
