@@ -456,7 +456,9 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('test execution', () => {
-    it('should execute test execution task', async () => {
+    it('should report rejected test paths as execution failures', async () => {
+      // The handler rejects unexpanded globs before invoking a runner.
+      // A rejected request must not become a successful zero-test task.
       const task = createTestTask('execute-tests', {
         testFiles: ['tests/unit/*.test.ts'],
         parallel: true,
@@ -465,16 +467,17 @@ describe('DomainTaskExecutor', () => {
 
       const result = await executor.execute(task);
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.domain).toBe('test-execution');
+      expect(result.error).toContain('test file paths contain invalid characters');
+      expect(result.data).toBeUndefined();
 
-      const data = result.data as {
-        total: number;
-        passed: number;
-        failed: number;
-      };
-      expect(data.total).toBeGreaterThanOrEqual(0);
-      expect(data.passed).toBeDefined();
+      const events = (kernel.eventBus as MockEventBus).publishedEvents;
+      expect(events.find(event => event.type === 'TaskFailed')?.payload).toMatchObject({
+        taskId: task.id,
+        error: result.error,
+      });
+      expect(events.some(event => event.type === 'TaskCompleted')).toBe(false);
     });
   });
 

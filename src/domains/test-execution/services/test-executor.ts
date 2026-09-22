@@ -23,6 +23,7 @@ import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 
 // ============================================================================
 // Configuration
@@ -474,6 +475,8 @@ Provide:
     // Production mode: spawn actual test runner process
     const result = await this.spawnTestRunner(files, framework, timeout);
     if (result.success === false) {
+      // Runner/suite errors have no trustworthy assertion receipt to aggregate.
+      if (result.error instanceof TestRunnerExecutionError) throw result.error;
       // Return as a failed test rather than throwing — allows other files to still run
       return {
         total: files.length,
@@ -735,11 +738,15 @@ Provide:
                 stack: assertion.failureMessages?.join('\n') || '',
                 duration: assertion.duration || 0,
               });
-            } else if (assertion.status === 'skipped' || assertion.status === 'pending') {
+            } else if (assertion.status === 'skipped' || assertion.status === 'pending' || assertion.status === 'todo') {
               skipped++;
             }
           }
         }
+
+        const executionError = getTestRunnerExecutionError('vitest', file, exitCode,
+          { passed, failed, skipped }, stderr + '\n' + stdout, json);
+        if (executionError) return err(executionError);
 
         const covData = this.extractCoverageFromJson(json);
         return ok({
@@ -793,11 +800,15 @@ Provide:
               stack: assertion.failureMessages?.join('\n') || '',
               duration: assertion.duration || 0,
             });
-          } else if (assertion.status === 'skipped' || assertion.status === 'pending') {
+          } else if (assertion.status === 'skipped' || assertion.status === 'pending' || assertion.status === 'todo') {
             skipped++;
           }
         }
       }
+
+      const executionError = getTestRunnerExecutionError('jest', file, exitCode,
+        { passed, failed, skipped }, stderr + '\n' + stdout, json);
+      if (executionError) return err(executionError);
 
       const covData = this.extractCoverageFromJson(json);
       return ok({
@@ -842,6 +853,10 @@ Provide:
         });
       }
 
+      const executionError = getTestRunnerExecutionError('mocha', file, exitCode,
+        { passed, failed, skipped }, stderr + '\n' + stdout);
+      if (executionError) return err(executionError);
+
       return ok({
         total: passed + failed + skipped,
         passed,
@@ -877,6 +892,10 @@ Provide:
       const failed = parseInt(vitestMatch[2], 10) || 0;
       const skipped = parseInt(vitestMatch[3], 10) || 0;
 
+      const executionError = getTestRunnerExecutionError('Test runner', file, exitCode,
+        { passed, failed, skipped }, combinedOutput);
+      if (executionError) return err(executionError);
+
       return ok({
         total: passed + failed + skipped,
         passed,
@@ -893,6 +912,10 @@ Provide:
       const failed = parseInt(jestMatch[1], 10) || 0;
       const skipped = parseInt(jestMatch[2], 10) || 0;
       const passed = parseInt(jestMatch[3], 10) || 0;
+
+      const executionError = getTestRunnerExecutionError('Test runner', file, exitCode,
+        { passed, failed, skipped }, combinedOutput);
+      if (executionError) return err(executionError);
 
       return ok({
         total: passed + failed + skipped,

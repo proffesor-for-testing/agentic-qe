@@ -1043,7 +1043,7 @@ export class MCPProtocolServer {
         description: 'Execute test files in parallel with automatic retry on flaky failures. Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })',
         category: 'domain',
         parameters: [
-          { name: 'testFiles', type: 'array', description: 'Test files to execute' },
+          { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.' },
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
         ],
       },

@@ -204,6 +204,7 @@ export function createTestCommand(
             }
           } else {
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            await cleanupAndExit(1);
           }
         } else if (action === 'schedule') {
           const format = options.format as OutputFormat;

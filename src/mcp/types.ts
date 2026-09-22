@@ -230,6 +230,9 @@ export interface TestGenerateParams {
  * Test execution parameters
  */
 export interface TestExecuteParams {
+  /** Concrete test file paths for test_execute_parallel; provide a nonempty list.
+   * Expand glob patterns before calling. The task handler does not expand them.
+   */
   testFiles?: string[];
   testSuites?: string[];
   parallel?: boolean;

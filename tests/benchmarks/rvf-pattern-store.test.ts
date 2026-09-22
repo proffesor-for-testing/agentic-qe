@@ -1,11 +1,8 @@
 /**
- * Benchmark: RvfPatternStore with REAL @ruvector/rvf-node native backend
+ * Native correctness: RvfPatternStore with REAL @ruvector/rvf-node backend.
  *
- * Measures actual user-facing performance with disk-backed HNSW:
- * 1. Cold-start time (open .rvf file + index ready)
- * 2. Ingest throughput (patterns/second to native HNSW)
- * 3. Search latency p50/p95 (native SIMD-accelerated queries)
- * 4. Correctness (self-search returns stored pattern)
+ * These checks stay in the coverage suite. Wall-clock limits are enforced in
+ * tests/performance/rvf-pattern-store.test.ts without V8 instrumentation.
  *
  * Run: npx vitest run tests/benchmarks/rvf-pattern-store.test.ts
  */
@@ -69,10 +66,10 @@ function makePattern(idx: number): QEPattern {
 }
 
 // ============================================================================
-// Real Native Benchmarks
+// Real Native Correctness
 // ============================================================================
 
-describe('RvfPatternStore — Real Native Benchmarks', () => {
+describe('RvfPatternStore — Real Native Correctness', () => {
   const nativeAvailable = isRvfNativeAvailable();
 
   afterAll(() => {
@@ -81,117 +78,6 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
 
   it('should have @ruvector/rvf-node native binary available', () => {
     expect(nativeAvailable).toBe(true);
-  });
-
-  it.runIf(nativeAvailable)('cold-start: open/create .rvf file', async () => {
-    cleanupBenchFiles();
-    if (!existsSync(BENCH_DIR)) mkdirSync(BENCH_DIR, { recursive: true });
-
-    const start = performance.now();
-    const store = new RvfPatternStore(
-      (path, dim) => createRvfStore(path, dim),
-      { rvfPath: RVF_PATH, base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
-    );
-    await store.initialize();
-    const coldStartMs = performance.now() - start;
-    await store.dispose();
-
-    console.log(`[REAL BENCH] Cold-start (create new .rvf): ${coldStartMs.toFixed(2)}ms`);
-    // Creating a new .rvf file should be fast (no index to rebuild)
-    expect(coldStartMs).toBeLessThan(500);
-  });
-
-  it.runIf(nativeAvailable)('ingest 1000 patterns into native HNSW', async () => {
-    cleanupBenchFiles();
-    if (!existsSync(BENCH_DIR)) mkdirSync(BENCH_DIR, { recursive: true });
-
-    const store = new RvfPatternStore(
-      (path, dim) => createRvfStore(path, dim),
-      { rvfPath: RVF_PATH, base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
-    );
-    await store.initialize();
-
-    const PATTERN_COUNT = 1000;
-    const patterns = Array.from({ length: PATTERN_COUNT }, (_, i) => makePattern(i));
-
-    const start = performance.now();
-    for (const p of patterns) {
-      await store.store(p);
-    }
-    const ingestMs = performance.now() - start;
-    const throughput = PATTERN_COUNT / (ingestMs / 1000);
-
-    console.log(
-      `[REAL BENCH] Ingest ${PATTERN_COUNT} patterns: ${ingestMs.toFixed(2)}ms ` +
-      `(${throughput.toFixed(0)} patterns/sec)`,
-    );
-
-    const stats = await store.getStats();
-    console.log(`[REAL BENCH] RVF status: ${stats.hnswStats.vectorCount} vectors, ${stats.hnswStats.indexSizeBytes} bytes`);
-
-    // totalPatterns is the shared SQLite source-of-truth count. This
-    // benchmark measures the isolated native RVF index created above.
-    expect(stats.hnswStats.vectorCount).toBe(PATTERN_COUNT);
-    expect(ingestMs).toBeLessThan(10000); // generous limit for CI
-
-    await store.dispose();
-  });
-
-  it.runIf(nativeAvailable)('ingest + search latency with 1000 patterns in same session', async () => {
-    cleanupBenchFiles();
-    if (!existsSync(BENCH_DIR)) mkdirSync(BENCH_DIR, { recursive: true });
-
-    const store = new RvfPatternStore(
-      (path, dim) => createRvfStore(path, dim),
-      { rvfPath: join(BENCH_DIR, 'search-bench.rvf'), base: undefined as any, embeddingSpaceId: TEST_SPACE_ID },
-    );
-    await store.initialize();
-
-    // Ingest 1000 patterns
-    const PATTERN_COUNT = 1000;
-    const patternMap = new Map<string, QEPattern>();
-    for (let i = 0; i < PATTERN_COUNT; i++) {
-      const p = makePattern(i);
-      patternMap.set(p.id, p);
-      await store.store(p);
-    }
-
-    // Attach mock sqlite for metadata resolution
-    (store as any).sqliteStore = {
-      getPattern: (id: string) => patternMap.get(id) ?? null,
-    };
-
-    // Run 100 search queries and measure latency
-    const latencies: number[] = [];
-    for (let i = 0; i < 100; i++) {
-      const query = randomEmbedding();
-      const start = performance.now();
-      const result = await store.search(query, { limit: 10, embeddingSpaceId: TEST_SPACE_ID });
-      latencies.push(performance.now() - start);
-
-      if (i === 0 && result.success) {
-        console.log(`[REAL BENCH] First search returned ${result.value.length} results`);
-      }
-    }
-
-    latencies.sort((a, b) => a - b);
-    const p50 = latencies[Math.floor(latencies.length * 0.5)];
-    const p95 = latencies[Math.floor(latencies.length * 0.95)];
-    const avg = latencies.reduce((s, l) => s + l, 0) / latencies.length;
-
-    console.log(
-      `[REAL BENCH] Search (${PATTERN_COUNT} patterns): avg=${avg.toFixed(2)}ms ` +
-      `p50=${p50.toFixed(2)}ms p95=${p95.toFixed(2)}ms`,
-    );
-
-    expect(p95).toBeLessThan(50);
-
-    await store.dispose();
-    // Cleanup
-    for (const ext of ['', '.idmap.json', '.space.json']) {
-      const p = join(BENCH_DIR, `search-bench.rvf${ext}`);
-      if (existsSync(p)) unlinkSync(p);
-    }
   });
 
   it.runIf(nativeAvailable)('correctness: self-search finds stored pattern', async () => {

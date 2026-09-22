@@ -109,12 +109,18 @@ mcp__agentic-qe__test_generate_enhanced({
   testType: "unit"  // unit, integration, e2e
 })
 
-// Parallel test execution
+// Parallel test execution (concrete paths; expand globs before calling)
 mcp__agentic-qe__test_execute_parallel({
-  testFiles: ["tests/**/*.test.ts"],
+  testFiles: ["tests/auth.test.ts", "tests/session.test.ts"],
   parallel: true
 })
 ```
+
+`test_execute_parallel` and its `execute-tests` task require a nonempty list of
+concrete test file paths, relative to the project working directory or absolute.
+Expand glob patterns before submitting the request. Empty or rejected file lists
+return an execution error; the handler does not execute a partial subset.
+The CLI `aqe test execute <target>` still discovers test files from its target.
 
 ### Coverage & Quality
 

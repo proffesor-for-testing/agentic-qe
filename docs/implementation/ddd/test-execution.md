@@ -233,6 +233,11 @@ The domain isolates test framework specifics through the `ExecutionStrategy` pat
 | `detect-flaky` | `detectFlaky()` | Flaky test detection |
 | `retry-failed` | `retry()` | Retry failed tests |
 
+The registered MCP `test_execute_parallel` / coordinator `execute-tests` path
+requires a nonempty `testFiles` list of concrete paths. Callers must expand globs
+before submission. Empty or rejected paths fail the task before invoking a runner;
+they do not produce a successful zero-test result or run only the accepted subset.
+
 ## Configuration Constants
 
 ```typescript
