@@ -304,20 +304,6 @@ export class EnhancedReasoningBankAdapter {
             ...guidance.suggestedActions.map(a => `Action: ${a}`),
             ...result.guidance,
           ];
-          this.stats.tokensSavedEstimate += guidance.estimatedTokenSavings;
-          this.stats.experiencesApplied++;
-
-          // Record application of each source experience for reuse tracking
-          for (const src of guidance.sourceExperiences) {
-            this.experienceReplay.recordApplication(
-              src.id,
-              request.task,
-              true, // success=true at routing time; updated later via recordOutcome
-              Math.round(guidance.estimatedTokenSavings),
-            ).catch(err => {
-              console.warn(`[EnhancedAdapter] Failed to record experience application: ${err}`);
-            });
-          }
         }
       }
 
@@ -458,23 +444,8 @@ export class EnhancedReasoningBankAdapter {
       return null;
     }
 
-    const guidance = await this.experienceReplay.getGuidance(task, domain);
-    if (guidance) {
-      this.stats.experiencesApplied++;
-
-      // Record application for reuse tracking (experience_applications table)
-      for (const src of guidance.sourceExperiences) {
-        this.experienceReplay.recordApplication(
-          src.id,
-          task,
-          true,
-          Math.round(guidance.estimatedTokenSavings),
-        ).catch(err => {
-          console.warn(`[EnhancedAdapter] Failed to record experience application: ${err}`);
-        });
-      }
-    }
-    return guidance;
+    // Retrieving guidance does not establish that it was applied successfully.
+    return this.experienceReplay.getGuidance(task, domain);
   }
 
   /**
@@ -496,6 +467,7 @@ export class EnhancedReasoningBankAdapter {
     if (!this.experienceReplay) return;
 
     await this.experienceReplay.recordApplication(experienceId, task, success, tokensSaved);
+    this.stats.experiencesApplied++;
     this.stats.tokensSavedEstimate += tokensSaved;
   }
 
