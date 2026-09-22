@@ -1,6 +1,6 @@
 /** Real runner receipts must retain suite and process failures on both execution paths. */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -94,11 +94,14 @@ describe('Real test runner outcome integrity', () => {
     { name: 'unhandled rejection with passing assertions', files: ['unhandled.test.js'], diagnostic: /exit code 1/ },
     { name: 'no tests', files: ['empty.test.js'], diagnostic: /No test|zero tests/i },
   ])('rejects $name on the service and MCP task paths', async ({ files, diagnostic, name }) => {
-    const raw = spawnSync('npx', ['vitest', 'run', ...files, '--reporter=json', '--no-color'], {
+    // Control: the raw runner really reports this failure class. Vitest 5 only
+    // writes the JSON report to --outputFile (stdout carries a one-line notice).
+    const rawReport = join(fixture, `raw-${name.replace(/\W+/g, '-')}.json`);
+    const raw = spawnSync('npx', ['vitest', 'run', ...files, '--reporter=json', '--no-color', `--outputFile=${rawReport}`], {
       cwd: fixture, env: { ...process.env, CI: 'true', FORCE_COLOR: '0' }, encoding: 'utf8', timeout: 15000,
     });
     expect(raw.status).toBe(1);
-    const receipt = JSON.parse(raw.stdout.slice(raw.stdout.indexOf('{')));
+    const receipt = JSON.parse(readFileSync(rawReport, 'utf8'));
     if (!name.startsWith('unhandled')) expect(receipt.success).toBe(false);
     expect(receipt.numFailedTests).toBe(0);
     if (name.startsWith('unhandled')) expect(receipt.numFailedTestSuites).toBe(0);
