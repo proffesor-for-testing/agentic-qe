@@ -7,21 +7,29 @@ describe('TestExecutorService runner command', () => {
     const executor = new TestExecutorService({ memory: {} as never });
     const command = (
       executor as unknown as {
-        buildTestCommand(file: string, framework: string): { command: string; args: string[] };
+        buildTestCommand(file: string, framework: string): {
+          command: string;
+          args: string[];
+          report?: { path: string; cleanup(): void };
+        };
       }
     ).buildTestCommand('tests/unit/example.test.ts', 'vitest');
 
-    expect(command).toEqual({
-      command: 'npx',
-      args: [
+    try {
+      expect(command.command).toBe('npx');
+      expect(command.args).toEqual([
         'vitest',
         'run',
         'tests/unit/example.test.ts',
         '--reporter=json',
         '--no-color',
-      ],
-    });
-    expect(command.args).not.toContain('--coverage');
+        // Vitest 5 writes the JSON report to a file, not stdout (#700).
+        `--outputFile=${command.report?.path}`,
+      ]);
+      expect(command.args).not.toContain('--coverage');
+    } finally {
+      command.report?.cleanup();
+    }
   });
 
   it('passes a Node worker shard to one native test-runner process', () => {
@@ -109,7 +117,7 @@ describe('RetryHandlerService runner command', () => {
           runner: 'vitest',
           file: string,
           testName?: string,
-        ): { command: string; args: string[] };
+        ): { command: string; args: string[]; report?: { path: string; cleanup(): void } };
       }
     ).buildTestCommand(
       'vitest',
@@ -117,11 +125,17 @@ describe('RetryHandlerService runner command', () => {
       'tests/unit/example.test.ts',
     );
 
-    expect(command.args).toEqual([
-      'vitest',
-      'run',
-      '--reporter=json',
-      'tests/unit/example.test.ts',
-    ]);
+    try {
+      expect(command.args).toEqual([
+        'vitest',
+        'run',
+        '--reporter=json',
+        'tests/unit/example.test.ts',
+        `--outputFile=${command.report?.path}`,
+      ]);
+      expect(command.args).not.toContain('-t');
+    } finally {
+      command.report?.cleanup();
+    }
   });
 });

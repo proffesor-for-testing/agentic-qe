@@ -5,6 +5,7 @@
 
 import { LoggerFactory } from '../../../logging/index.js';
 import { spawn } from 'node:child_process';
+import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
@@ -456,10 +457,10 @@ export class RetryHandlerService implements IRetryHandler {
     }
 
     // Build command based on runner
-    const { command, args } = this.buildTestCommand(runner, testFile, testName);
+    const { command, args, report } = this.buildTestCommand(runner, testFile, testName);
 
     // Execute the test
-    return this.spawnTestProcess(command, args, cwd);
+    return this.spawnTestProcess(command, args, cwd, report);
   }
 
   /**
@@ -531,17 +532,20 @@ export class RetryHandlerService implements IRetryHandler {
     runner: TestRunner,
     testFile: string,
     testName?: string
-  ): { command: string; args: string[] } {
+  ): { command: string; args: string[]; report?: VitestJsonReport } {
     const npx = this.config.npxPath;
 
     switch (runner) {
       case 'vitest':
         // vitest run --reporter=json testFile -t "testName"
-        { const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
+        // --outputFile: Vitest 5 no longer prints the JSON report to stdout.
+        { const report = createVitestJsonReport();
+        const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
         if (testName && testName !== testFile) {
           vitestArgs.push('-t', testName);
         }
-        return { command: npx, args: vitestArgs }; }
+        vitestArgs.push(...report.args);
+        return { command: npx, args: vitestArgs, report }; }
 
       case 'jest':
         // jest --json testFile -t "testName"
@@ -570,13 +574,18 @@ export class RetryHandlerService implements IRetryHandler {
   private spawnTestProcess(
     command: string,
     args: string[],
-    cwd: string
+    cwd: string,
+    report?: VitestJsonReport
   ): Promise<{ passed: boolean; error?: string }> {
     return new Promise((resolve, reject) => {
       const timeout = this.config.testTimeout;
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      const settle = <T,>(fn: (value: T) => void, value: T): void => {
+        report?.cleanup();
+        fn(value);
+      };
 
       // Note: shell: false (default) to prevent command injection (CWE-78)
       // Arguments are passed as array to avoid shell interpretation
@@ -604,19 +613,21 @@ export class RetryHandlerService implements IRetryHandler {
         clearTimeout(timeoutHandle);
 
         if (timedOut) {
-          reject(new Error(
+          settle(reject, new Error(
             `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
           ));
           return;
         }
 
-        // Parse result based on exit code and output
-        const result = this.parseTestResult(code, stdout, stderr);
-        resolve(result);
+        // Parse result based on exit code and output (Vitest writes the JSON
+        // report to the --outputFile; read it back rather than trusting stdout).
+        const result = this.parseTestResult(code, report ? report.read(stdout) : stdout, stderr);
+        settle(resolve, result);
       });
 
       proc.on('error', (err: Error) => {
         clearTimeout(timeoutHandle);
+        report?.cleanup();
         reject(new Error(
           `Failed to spawn test process: ${err.message}. ` +
           `Command: ${command} ${args.join(' ')}. ` +

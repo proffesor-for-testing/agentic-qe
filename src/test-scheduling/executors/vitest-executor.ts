@@ -14,6 +14,7 @@ import type {
 } from '../interfaces';
 import type { FlakyTestTracker } from '../flaky-tracking/flaky-tracker';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 
 // ============================================================================
 // Types
@@ -176,23 +177,33 @@ export class VitestPhaseExecutor implements PhaseExecutor {
   }
 
   private async runVitest(args: string[], timeoutMs: number): Promise<VitestJsonResult> {
-    const { stdout, exitCode } = await this.runCommand(
-      this.config.vitestPath || 'npx',
-      args,
-      timeoutMs
-    );
-
-    // Parse JSON output from Vitest
+    // Vitest 5 writes --reporter=json output to a file instead of stdout; an
+    // explicit --outputFile gives Vitest 4 and 5 the same contract.
+    const report = createVitestJsonReport();
+    let document: string;
+    let exitCode: number;
     try {
-      // Vitest outputs JSON to stdout when using --reporter=json
-      const jsonStart = stdout.indexOf('{');
-      const jsonEnd = stdout.lastIndexOf('}');
+      const run = await this.runCommand(
+        this.config.vitestPath || 'npx',
+        [...args, ...report.args],
+        timeoutMs
+      );
+      exitCode = run.exitCode;
+      document = report.read(run.stdout);
+    } finally {
+      report.cleanup();
+    }
+
+    // Parse JSON report from Vitest
+    try {
+      const jsonStart = document.indexOf('{');
+      const jsonEnd = document.lastIndexOf('}');
 
       if (jsonStart === -1 || jsonEnd === -1) {
         throw new Error('No JSON output from Vitest');
       }
 
-      const jsonStr = stdout.slice(jsonStart, jsonEnd + 1);
+      const jsonStr = document.slice(jsonStart, jsonEnd + 1);
       return safeJsonParse(jsonStr);
     } catch (parseError) {
       // If JSON parsing fails, create a basic result from exit code
