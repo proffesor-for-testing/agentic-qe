@@ -15,7 +15,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
-import { existsSync, writeFileSync, readFileSync, mkdirSync, copyFileSync, renameSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } from 'node:fs';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { stat, unlink } from 'node:fs/promises';
 import type { QEDomain, QEPatternType, QEPatternTemplate, QEPatternContext } from '../../learning/qe-patterns.js';
@@ -28,6 +28,7 @@ import {
   type GrowthRate,
 } from '../../learning/regret-tracker.js';
 import { openDatabase } from '../../shared/safe-db.js';
+import { backupLearningDatabase, restoreLearningDatabase } from './learning-snapshot.js';
 import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
 import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
@@ -749,7 +750,7 @@ function registerBackupCommand(learning: Command): void {
   learning
     .command('backup')
     .description('Backup learning database to a file')
-    .option('-o, --output <path>', 'Output file path')
+    .option('-o, --output <path>', 'Dedicated backup artifact path; never another live database')
     .option('--compress', 'Compress backup with gzip')
     .option('--verify', 'Verify backup integrity after creation')
     .option('--json', 'Output as JSON')
@@ -762,33 +763,12 @@ function registerBackupCommand(learning: Command): void {
         const defaultOutput = path.join(process.cwd(), 'backups', `learning-${timestamp}.db`);
         const outputPath = options.output ? path.resolve(options.output) : defaultOutput;
 
-        const backupDir = path.dirname(outputPath);
-        if (!existsSync(backupDir)) mkdirSync(backupDir, { recursive: true });
-
-        const sourceStats = await stat(dbPath);
-        const sourceSizeKB = (sourceStats.size / 1024).toFixed(2);
-
-        copyFileSync(dbPath, outputPath);
-        const walPath = `${dbPath}-wal`;
-        if (existsSync(walPath)) copyFileSync(walPath, `${outputPath}-wal`);
-
-        let finalPath = outputPath;
-        if (options.compress) {
-          finalPath = await compressFile(outputPath);
-          await unlink(outputPath);
-          if (existsSync(`${outputPath}-wal`)) await unlink(`${outputPath}-wal`);
-        }
-
-        const finalStats = await stat(finalPath);
-        const finalSizeKB = (finalStats.size / 1024).toFixed(2);
-
-        let verificationResult: { valid: boolean; message: string } | undefined;
-        if (options.verify && !options.compress) verificationResult = await verifyDatabaseIntegrity(outputPath);
-
-        const schemaVersion = await getSchemaVersion(dbPath);
+        const snapshot = await backupLearningDatabase(dbPath, outputPath, options);
+        const { backupPath: finalPath, sourceSizeKB, backupSizeKB: finalSizeKB, schemaVersion } = snapshot;
+        const verificationResult = options.verify ? snapshot.verification : undefined;
 
         if (options.json) {
-          printJson({ success: true, sourcePath: dbPath, backupPath: finalPath, sourceSizeKB: parseFloat(sourceSizeKB), backupSizeKB: parseFloat(finalSizeKB), compressed: options.compress || false, schemaVersion, verification: verificationResult, timestamp: new Date().toISOString() });
+          printJson({ success: true, sourcePath: dbPath, backupPath: finalPath, sourceSizeKB, backupSizeKB: finalSizeKB, compressed: options.compress || false, schemaVersion, verification: verificationResult, timestamp: new Date().toISOString() });
         } else {
           console.log(chalk.bold('\n💾 Learning Database Backup\n'));
           console.log(`  Source: ${dbPath}`);
@@ -797,7 +777,7 @@ function registerBackupCommand(learning: Command): void {
           console.log(`  Backup size: ${finalSizeKB} KB`);
           console.log(`  Schema version: ${schemaVersion}`);
           if (options.compress) {
-            const compressionRatio = ((1 - finalStats.size / sourceStats.size) * 100).toFixed(1);
+            const compressionRatio = ((1 - finalSizeKB / sourceSizeKB) * 100).toFixed(1);
             console.log(`  Compression: ${compressionRatio}% reduction`);
           }
           if (verificationResult) {
@@ -820,9 +800,9 @@ function registerBackupCommand(learning: Command): void {
 function registerRestoreCommand(learning: Command): void {
   learning
     .command('restore')
-    .description('Restore learning database from backup')
+    .description('Restore a verified learning database backup (stop project writers first)')
     .requiredOption('-i, --input <path>', 'Backup file path to restore from')
-    .option('--verify', 'Verify backup integrity before restore')
+    .option('--verify', 'Verify backup integrity before restore (always enforced)')
     .option('--force', 'Overwrite existing database without confirmation')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
@@ -831,49 +811,18 @@ function registerRestoreCommand(learning: Command): void {
         const dbPath = getDbPath();
         if (!existsSync(inputPath)) throw new Error(`Backup file not found: ${inputPath}`);
 
-        const isCompressed = inputPath.endsWith('.gz');
-        let restorePath = inputPath;
-
-        if (isCompressed) {
-          const tempPath = inputPath.replace('.gz', '.tmp');
-          await decompressFile(inputPath, tempPath);
-          restorePath = tempPath;
-        }
-
-        if (options.verify) {
-          const verificationResult = await verifyDatabaseIntegrity(restorePath);
-          if (!verificationResult.valid) {
-            if (isCompressed && existsSync(restorePath)) await unlink(restorePath);
-            throw new Error(`Backup verification failed: ${verificationResult.message}`);
-          }
-        }
-
-        if (existsSync(dbPath) && !options.force) {
-          if (isCompressed && existsSync(restorePath)) await unlink(restorePath);
-          throw new Error(`Database already exists at: ${dbPath}. Use --force to overwrite`);
-        }
-
-        const targetDir = path.dirname(dbPath);
-        if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true });
-
-        if (existsSync(dbPath)) await unlink(dbPath);
-        if (existsSync(`${dbPath}-wal`)) await unlink(`${dbPath}-wal`);
-        if (existsSync(`${dbPath}-shm`)) await unlink(`${dbPath}-shm`);
-
-        copyFileSync(restorePath, dbPath);
-        if (isCompressed && existsSync(restorePath)) await unlink(restorePath);
-
-        const restoredStats = await stat(dbPath);
-        const schemaVersion = await getSchemaVersion(dbPath);
+        const restored = await restoreLearningDatabase(inputPath, dbPath, { force: options.force });
+        const { sizeKB, schemaVersion, wasCompressed: isCompressed, safetyBackupPath } = restored;
 
         if (options.json) {
-          printJson({ success: true, backupPath: inputPath, restoredPath: dbPath, sizeKB: parseFloat((restoredStats.size / 1024).toFixed(2)), schemaVersion, wasCompressed: isCompressed, timestamp: new Date().toISOString() });
+          printJson({ success: true, backupPath: inputPath, restoredPath: dbPath, sizeKB, schemaVersion, wasCompressed: isCompressed, safetyBackupPath, timestamp: new Date().toISOString() });
         } else {
           console.log(chalk.bold('\n🔄 Learning Database Restore\n'));
           console.log(`  Backup: ${inputPath}`);
           console.log(`  Restored to: ${dbPath}`);
-          console.log(`  Size: ${(restoredStats.size / 1024).toFixed(2)} KB`);
+          console.log(`  Size: ${sizeKB.toFixed(2)} KB`);
           console.log(`  Schema version: ${schemaVersion}`);
+          if (safetyBackupPath) console.log(`  Previous database: ${safetyBackupPath}`);
           printSuccess('Database restored successfully\n');
         }
         return;
