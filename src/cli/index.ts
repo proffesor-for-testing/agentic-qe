@@ -496,12 +496,19 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const { bootstrapTokenTracking } = await import('../init/token-bootstrap.js');
-  await bootstrapTokenTracking({
-    enableOptimization: true,
-    enablePersistence: true,
-    verbose: process.env.AQE_VERBOSE === 'true',
-  });
+  // File recovery must validate its input before anything opens, migrates, or
+  // auto-restores the project's database. Commander accepts `--` separators.
+  const commandArgs = process.argv.slice(2).filter(arg => arg !== '--');
+  const learningSnapshot = commandArgs[0] === 'learning'
+    && (commandArgs[1] === 'backup' || commandArgs[1] === 'restore');
+  if (!learningSnapshot) {
+    const { bootstrapTokenTracking } = await import('../init/token-bootstrap.js');
+    await bootstrapTokenTracking({
+      enableOptimization: true,
+      enablePersistence: true,
+      verbose: process.env.AQE_VERBOSE === 'true',
+    });
+  }
 
   await program.parseAsync();
 
