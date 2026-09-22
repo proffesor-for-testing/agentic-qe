@@ -476,8 +476,11 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
     return new Promise((resolve, reject) => {
       const baseArgs = [...this.config.testRunnerArgs, file];
-      // Vitest 5 writes --reporter=json output to a file, not stdout.
-      const report = needsVitestJsonReportFile(baseArgs) ? createVitestJsonReport() : undefined;
+      // Vitest 5 writes --reporter=json output to a file, not stdout. Detect
+      // Vitest from the runner command too (testRunner: 'vitest', args: ['run', ...]).
+      const report = needsVitestJsonReportFile([this.config.testRunner, ...baseArgs])
+        ? createVitestJsonReport()
+        : undefined;
       const args = report ? [...baseArgs, ...report.args] : baseArgs;
       const cwd = this.config.cwd ?? process.cwd();
 

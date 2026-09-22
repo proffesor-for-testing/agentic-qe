@@ -60,6 +60,11 @@ describe('vitest JSON report resolution (Vitest 4 and 5 parity)', () => {
   it('detects vitest json invocations that still need an output file', () => {
     expect(needsVitestJsonReportFile(['vitest', 'run', '--reporter=json', 'a.test.ts'])).toBe(true);
     expect(needsVitestJsonReportFile(['vitest', 'run', '--reporter', 'json'])).toBe(true);
+    // Runner configured separately from its arguments (flaky detector config shape).
+    expect(needsVitestJsonReportFile(['vitest', 'run', '--reporter=json', 'a.test.ts'].slice(0))).toBe(true);
+    expect(needsVitestJsonReportFile(['/repo/node_modules/.bin/vitest', 'run', '--reporter=json'])).toBe(true);
+    expect(needsVitestJsonReportFile(['vitest.cmd', 'run', '--reporter=json'])).toBe(true);
+    expect(needsVitestJsonReportFile(['npx', 'run', '--reporter=json'])).toBe(false);
     expect(needsVitestJsonReportFile(['vitest', 'run', '--reporter=json', '--outputFile=/tmp/x.json'])).toBe(false);
     expect(needsVitestJsonReportFile(['vitest', 'run', '--reporter=verbose'])).toBe(false);
     expect(needsVitestJsonReportFile(['jest', '--json'])).toBe(false);

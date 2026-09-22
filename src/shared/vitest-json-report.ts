@@ -72,11 +72,13 @@ export function createVitestJsonReport(): VitestJsonReport {
 }
 
 /**
- * True when an argument vector is a `vitest ... --reporter=json` invocation
- * that has not already been given an output file.
+ * True when a command vector (runner command plus arguments) is a
+ * `vitest ... --reporter=json` invocation that has not already been given an
+ * output file. Pass the runner command as the first element when the caller
+ * configures it separately (for example `testRunner: 'vitest'`).
  */
 export function needsVitestJsonReportFile(args: readonly string[]): boolean {
-  const isVitest = args.some(arg => arg === 'vitest' || arg.endsWith('/vitest') || arg.endsWith('\\vitest'));
+  const isVitest = args.some(arg => /(^|[\\/])vitest(\.cmd|\.js|\.mjs)?$/i.test(arg));
   const jsonReporter = args.some((arg, i) =>
     arg === '--reporter=json' || (arg === '--reporter' && args[i + 1] === 'json'));
   const hasOutputFile = args.some(arg => arg.startsWith('--outputFile'));
