@@ -87,7 +87,10 @@ export interface CIRunResult {
   completedAt: Date;
   duration: number;
   phases: CIPhaseResult[];
+  /** True only when at least one gate ran and every gate passed. */
   qualityGatePassed: boolean;
+  qualityGateStatus: 'passed' | 'failed' | 'not-run';
+  qualityGateEnforced: boolean;
   overallStatus: 'passed' | 'failed' | 'warning';
   exitCode: number;
 }
