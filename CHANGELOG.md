@@ -5,6 +5,78 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.3] - 2026-09-22
+
+This patch makes test, security, coherence, and quality-gate results honest
+about failure: broken test runs, incomplete security scans, and unmeasured
+quality gates no longer report as passing. It adds Vitest 5 support to every
+test-runner integration and stops the CI pipeline itself from masking failures.
+
+### Added
+
+- Supported Vitest 5 in every test-runner integration (`aqe test execute`, the
+  `test_execute_parallel` MCP tool, retry, flaky detection, and scheduled
+  runs). Vitest 5 writes its JSON report to a file instead of stdout; runners
+  now request an explicit `--outputFile` and read it back, which behaves
+  identically on Vitest 4 ([#700]).
+- Attached per-file and per-engine execution receipts to security scans. An
+  unreadable file, an unsupported language, or a missing or failed Semgrep is
+  now reported as `partial` or `unavailable` in the CLI, the
+  `security_scan_comprehensive` MCP tool, and saved JSON, SARIF, and Markdown
+  reports, instead of being mistaken for a clean result ([#705], refs [#694]).
+
+### Fixed
+
+- Reported broken test runs as execution errors rather than passes. A suite
+  that fails to import, a crashing teardown hook, an unhandled rejection, or an
+  empty suite now yields CLI exit 1 and an MCP `success: false`. Ordinary
+  assertion failures, skips, and todos keep their existing behavior, and glob
+  test paths are rejected explicitly instead of counted as a zero-test success
+  ([#699]).
+- Made the registered `quality_assess({ runGate: true })` MCP tool run the same
+  fail-closed, timestamped evidence evaluator as `aqe quality --gate`, so a
+  static score can no longer approve a build with failing tests or coverage
+  and the session cache cannot replay a stale approval ([#702]).
+- Made the coherence adapter actually reach the native sheaf engine for
+  connected graphs by serializing the restriction maps and dimensions it
+  requires, reading obstruction records by their real field names, and
+  rebuilding position-based edge indices after node removal; graphs beyond the
+  native cell budget fall back explicitly ([#703]).
+- Stopped counting a guidance lookup as a successful experience reuse.
+  Application counts and token-savings statistics are recorded only when a
+  caller reports an outcome, so learning confidence is no longer inflated by
+  evidence that never happened ([#698]).
+- Kept a judge response whose "unmet" list references no recognized checklist
+  item inconclusive instead of treating it as full coverage ([#696]), and made
+  the frontier-judge adapter use the requested model or return inconclusive
+  rather than silently routing to a cheaper one ([#697]).
+- Fixed CI so the coherence job really executes its tests (an invalid Vitest
+  flag hidden by `continue-on-error` had prevented every run), runner exit
+  codes and timeouts propagate instead of being masked as success, and the
+  coverage threshold step reads a summary that actually exists ([#704]). Fork
+  pull requests no longer fail on the report-comment step ([#701]).
+
+### Changed
+
+- Upgraded the development toolchain to Vitest 5.0.1 with a matching
+  `@vitest/coverage-v8`, raised the `adm-zip` floor to 0.6.1, updated
+  `js-yaml` to 4.3.2, and refreshed `@vitest/mocker` in the embedded Ruflo
+  trees ([#687], [#700], [#708]).
+
+[#687]: https://github.com/proffesor-for-testing/agentic-qe/pull/687
+[#694]: https://github.com/proffesor-for-testing/agentic-qe/issues/694
+[#696]: https://github.com/proffesor-for-testing/agentic-qe/pull/696
+[#697]: https://github.com/proffesor-for-testing/agentic-qe/pull/697
+[#698]: https://github.com/proffesor-for-testing/agentic-qe/pull/698
+[#699]: https://github.com/proffesor-for-testing/agentic-qe/pull/699
+[#700]: https://github.com/proffesor-for-testing/agentic-qe/pull/700
+[#701]: https://github.com/proffesor-for-testing/agentic-qe/pull/701
+[#702]: https://github.com/proffesor-for-testing/agentic-qe/pull/702
+[#703]: https://github.com/proffesor-for-testing/agentic-qe/pull/703
+[#704]: https://github.com/proffesor-for-testing/agentic-qe/pull/704
+[#705]: https://github.com/proffesor-for-testing/agentic-qe/pull/705
+[#708]: https://github.com/proffesor-for-testing/agentic-qe/pull/708
+
 ## [3.14.2] - 2026-09-13
 
 This patch keeps the quality daemon alive in foreground mode, publishes the
