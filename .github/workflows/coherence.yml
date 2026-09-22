@@ -12,12 +12,15 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'package.json'
       - '.github/workflows/coherence.yml'
   pull_request:
     branches: [main]
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/coherence.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -90,7 +93,6 @@ jobs:
 
       - name: Run coherence tests
         run: npm run test:safe -- tests/integrations/coherence/ tests/learning/coherence-integration.test.ts --reporter=verbose
-        continue-on-error: true
 
   coherence-status:
     name: Coherence Status

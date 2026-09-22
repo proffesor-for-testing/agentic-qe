@@ -83,7 +83,7 @@
     "test:unit:mcp": "vitest run tests/unit/mcp --exclude='**/mcp/handlers/domain-handlers.test.ts' --fileParallelism=false",
     "test:ci": "vitest run --exclude='**/browser/**' --exclude='**/*.e2e.test.ts' --exclude='**/vibium/**' --exclude='**/integration/browser/**' --exclude='**/browser-swarm-coordinator.test.ts' --exclude='**/mcp/handlers/domain-handlers.test.ts' --exclude='**/fixtures/init-corpus/**'",
     "test:e2e": "vitest run tests/integration/browser --testTimeout=120000",
-    "test:safe": "NODE_OPTIONS='--max-old-space-size=768 --expose-gc' vitest run --maxForks=1",
+    "test:safe": "NODE_OPTIONS='--max-old-space-size=768 --expose-gc' vitest run --maxWorkers=1",
     "test:dev": "npm run test:unit:fast",
     "test:all": "npm test -- --run",
     "test:mcp": "npm run test:unit:mcp",
