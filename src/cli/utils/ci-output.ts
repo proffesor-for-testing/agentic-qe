@@ -9,6 +9,9 @@ import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
+import type { discoverSecurityFiles } from '../../domains/security-compliance/scan-discovery.js';
 
 /** Read version from package.json at build time — no hardcoded strings. */
 function getPackageVersion(): string {
@@ -55,6 +58,25 @@ export interface SecurityScanResult {
   compliance?: { compliant: boolean; issues?: Array<{ framework: string; issue: string }> };
   target: string;
   scanType: string;
+  /** Execution completeness is independent of finding severity. */
+  status?: SecurityExecutionStatus;
+  checks?: SecurityCheckResult[];
+  coverage?: SecurityCoverage;
+  evidence?: SecurityScanEvidence;
+  discovery?: Awaited<ReturnType<typeof discoverSecurityFiles>>['discovery'];
+}
+
+export type SecurityExecutionStatus = 'complete' | 'partial' | 'none' | 'failed' | 'not-run' | 'unverified';
+
+export interface SecurityCheckResult {
+  name: string;
+  status: SecurityExecutionStatus;
+  reason?: string;
+}
+
+/** Legacy finding-only reports carry no evidence that the requested work ran. */
+export function securityExecutionStatus(result: SecurityScanResult): SecurityExecutionStatus {
+  return result.status ?? result.evidence?.completeness ?? 'unverified';
 }
 
 export interface TestResult {
@@ -159,6 +181,7 @@ export function toJSON(data: unknown): string {
 const SARIF_SCHEMA = 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json';
 
 export function toSARIF(result: SecurityScanResult): string {
+  const status = securityExecutionStatus(result);
   const severityToLevel = (severity: string): string => {
     switch (severity.toLowerCase()) {
       case 'critical':
@@ -218,9 +241,20 @@ export function toSARIF(result: SecurityScanResult): string {
         },
       },
       results,
+      properties: {
+        securityScan: {
+          status, target: result.target, scanType: result.scanType, coverage: result.evidence ? result.coverage : undefined,
+          evidence: result.evidence, discovery: result.discovery, checks: result.checks,
+        },
+      },
       invocations: [{
-        executionSuccessful: true,
-        commandLine: `aqe security --sast --format sarif -t ${result.target}`,
+        executionSuccessful: status === 'complete',
+        ...(status === 'complete' ? {} : {
+          toolExecutionNotifications: [{
+            level: 'warning',
+            message: { text: `Security analysis ${status}; findings do not establish complete coverage.` },
+          }],
+        }),
       }],
     }],
   };
@@ -347,7 +381,24 @@ export function securityToMarkdown(result: SecurityScanResult): string {
   let md = `# Security Scan Report\n\n`;
   md += `**Target:** ${result.target}\n`;
   md += `**Scan Type:** ${result.scanType}\n`;
+  md += `**Execution:** ${securityExecutionStatus(result)}\n`;
   md += `**Vulnerabilities Found:** ${result.vulnerabilities.length}\n\n`;
+
+  if (result.checks?.length) {
+    md += `## Check execution\n\n`;
+    for (const check of result.checks) {
+      md += `- **${check.name}:** ${check.status}${check.reason ? ` — ${check.reason}` : ''}\n`;
+    }
+    md += '\n';
+  }
+  if (result.coverage && result.evidence) {
+    md += `**Analyzed files:** ${result.coverage.filesScanned}\n`;
+    md += `**Analyzed lines:** ${result.coverage.linesScanned}\n`;
+    md += `**Rules applied:** ${result.coverage.rulesApplied}${result.coverage.rulesAppliedScope ? ` (${result.coverage.rulesAppliedScope})` : ''}\n\n`;
+  }
+  if (result.evidence || result.discovery) {
+    md += `## Execution receipts\n\n\`\`\`json\n${toJSON({ evidence: result.evidence, discovery: result.discovery })}\n\`\`\`\n\n`;
+  }
 
   if (result.vulnerabilities.length > 0) {
     md += `## Vulnerabilities\n\n`;

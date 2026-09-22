@@ -3,10 +3,13 @@
  * Performs static code analysis to detect security vulnerabilities
  */
 
+import { createHash } from 'node:crypto';
+import * as path from 'node:path';
+import { FilePath } from '@shared/value-objects/index.js';
+import type { SecurityEngineEvidence, SecurityFileEvidence, SecurityScanEvidence } from '../../scan-evidence.js';
 import { LoggerFactory } from '../../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '@shared/types/index.js';
-import type { FilePath } from '@shared/value-objects/index.js';
 import type {
   SecurityPattern,
   SecurityScannerConfig,
@@ -90,7 +93,6 @@ export class SASTScanner {
         return err(new Error('No files provided for scanning'));
       }
 
-      this.activeScans.set(scanId, 'running');
       const startTime = Date.now();
 
       // Get applicable rule sets
@@ -102,34 +104,68 @@ export class SASTScanner {
         return err(new Error(`No valid rule sets found: ${ruleSetIds.join(', ')}`));
       }
 
-      // Run pattern-based scanning and semgrep in parallel
-      const [patternResult, semgrepVulns] = await Promise.all([
-        this.runPatternScanning(files, ruleSets),
-        this.runSemgrepScanning(files, ruleSetIds),
+      const unknownRuleSets = ruleSetIds.filter(id => !BUILT_IN_RULE_SETS.some(ruleSet => ruleSet.id === id));
+      if (unknownRuleSets.length > 0) {
+        return err(new Error('Unknown rule sets requested; no scan executed.'));
+      }
+      this.activeScans.set(scanId, 'running');
+
+      // Deduplicate lexical absolute paths; do not follow symlinks to invent identity.
+      const requestedPaths = [...new Set(files.map(file => path.resolve(file.value)))];
+      const uniqueFiles = requestedPaths.map(value => FilePath.create(value));
+
+      // Run independent engines while retaining each engine's execution outcome.
+      const [patternResult, semgrepResult] = await Promise.all([
+        this.runPatternScanning(uniqueFiles, ruleSets),
+        this.runSemgrepScanning(uniqueFiles, ruleSetIds),
       ]);
 
       // Merge pattern-based and semgrep findings, deduplicating by file+line
       const vulnerabilities = this.mergeVulnerabilities(
         patternResult.vulnerabilities,
-        semgrepVulns
+        semgrepResult.vulnerabilities
       );
-      const linesScanned = patternResult.linesScanned;
+      const analyzedFiles = patternResult.files.filter(file => file.status === 'analyzed');
+      const linesScanned = analyzedFiles.reduce((total, file) => total + file.analyzedLines, 0);
 
       const scanDurationMs = Date.now() - startTime;
 
       // Calculate summary
       const summary = this.calculateSummary(
         vulnerabilities,
-        files.length,
+        analyzedFiles.length,
         scanDurationMs
       );
 
-      // Calculate coverage — include semgrep rules when they ran
-      const patternRules = ruleSets.reduce((acc, rs) => acc + rs.ruleCount, 0);
+      const patterns = this.getApplicablePatterns(ruleSets);
+      const ruleIds = analyzedFiles.length > 0 ? [...new Set(patterns.map(pattern => pattern.id))] : [];
       const coverage: SecurityCoverage = {
-        filesScanned: files.length,
+        filesScanned: analyzedFiles.length,
         linesScanned,
-        rulesApplied: patternRules + (semgrepVulns.length > 0 ? semgrepVulns.length : 0),
+        rulesApplied: ruleIds.length,
+        rulesAppliedScope: 'built-in-patterns',
+      };
+      const patternEngine: SecurityEngineEvidence = {
+        id: 'patterns', requested: true, required: true, scope: 'requested-files',
+        status: analyzedFiles.length === uniqueFiles.length ? 'completed' : analyzedFiles.length > 0 ? 'partial' : 'failed',
+        analyzedFiles: analyzedFiles.length,
+        ruleIds,
+        rulesetDigest: createHash('sha256').update(JSON.stringify(patterns.map(pattern => ({
+          id: pattern.id, category: pattern.category, expression: pattern.pattern.source, flags: pattern.pattern.flags,
+        })))).digest('hex'),
+        ruleCoverage: 'known',
+        errors: patternResult.files.filter(file => file.status === 'unreadable').map(file => file.reason || 'File unreadable'),
+        limitations: ['Built-in pattern matching covers supported JavaScript and TypeScript inputs only.'],
+      };
+      const evidence: SecurityScanEvidence = {
+        schemaVersion: 1,
+        completeness: analyzedFiles.length === uniqueFiles.length ? 'complete' : analyzedFiles.length > 0 ? 'partial' : 'none',
+        requestedFiles: uniqueFiles.length,
+        requestedPaths,
+        duplicateInputs: files.length - uniqueFiles.length,
+        files: patternResult.files,
+        engines: [patternEngine, semgrepResult.evidence],
+        limitations: [...patternEngine.limitations, ...semgrepResult.evidence.limitations],
       };
 
       // Store scan results in memory
@@ -142,6 +178,7 @@ export class SASTScanner {
         vulnerabilities,
         summary,
         coverage,
+        evidence,
       });
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
@@ -155,48 +192,54 @@ export class SASTScanner {
   private async runPatternScanning(
     files: FilePath[],
     ruleSets: RuleSet[]
-  ): Promise<{ vulnerabilities: Vulnerability[]; linesScanned: number }> {
+  ): Promise<{ vulnerabilities: Vulnerability[]; files: SecurityFileEvidence[] }> {
     const vulnerabilities: Vulnerability[] = [];
-    let linesScanned = 0;
-
+    const receipts: SecurityFileEvidence[] = [];
     for (const file of files) {
-      const fileVulns = await this.analyzeFile(file, ruleSets);
-      vulnerabilities.push(...fileVulns.vulnerabilities);
-      linesScanned += fileVulns.linesScanned;
+      const result = await this.analyzeFile(file, ruleSets);
+      vulnerabilities.push(...result.vulnerabilities);
+      receipts.push(result.evidence);
     }
-
-    return { vulnerabilities, linesScanned };
+    return { vulnerabilities, files: receipts };
   }
 
   /**
    * Run semgrep scanning when enabled and available.
-   * Returns converted vulnerabilities or empty array on failure/unavailability.
+   * Optional engine failure preserves completed pattern analysis and its findings.
    */
   private async runSemgrepScanning(
     files: FilePath[],
     ruleSetIds: string[]
-  ): Promise<Vulnerability[]> {
+  ): Promise<{ vulnerabilities: Vulnerability[]; evidence: SecurityEngineEvidence }> {
+    const targetDir = this.resolveTargetDirectory(files);
+    const base: SecurityEngineEvidence = {
+      id: 'semgrep', requested: !!this.config.enableSemgrep, required: false,
+      status: 'disabled', scope: 'parent-directory', target: targetDir,
+      ruleCoverage: 'unknown', errors: [], limitations: [],
+    };
     if (!this.config.enableSemgrep) {
-      return [];
+      return { vulnerabilities: [], evidence: base };
     }
-
+    const limitations = [
+      'Optional Semgrep scans a parent directory; requested-file membership and executed-rule coverage are unverified.',
+    ];
     try {
-      const available = await isSemgrepAvailable();
-      if (!available) {
-        return [];
+      if (!await isSemgrepAvailable()) {
+        return { vulnerabilities: [], evidence: { ...base, status: 'unavailable', limitations,
+          errors: ['Semgrep is unavailable.'] } };
       }
-
-      // Determine target directory from files (use common parent)
-      const targetDir = this.resolveTargetDirectory(files);
-
       const semgrepResult = await runSemgrepWithRules(targetDir, ruleSetIds);
-      if (!semgrepResult.success || semgrepResult.findings.length === 0) {
-        return [];
-      }
-
+      const evidence: SecurityEngineEvidence = {
+        ...base,
+        status: semgrepResult.status || 'unverified',
+        version: semgrepResult.version,
+        errors: semgrepResult.errors.length > 0 ? [`Semgrep reported ${semgrepResult.errors.length} execution error(s).`] : [],
+        limitations: [...limitations, ...(semgrepResult.diagnostics ?? []),
+          ...(!semgrepResult.status ? ['Legacy Semgrep adapter returned no execution disposition.'] : [])],
+      };
       // Convert semgrep findings to our Vulnerability format
       const converted = convertSemgrepFindings(semgrepResult.findings);
-      return converted.map(f => ({
+      const vulnerabilities = converted.map(f => ({
         id: uuidv4(),
         cveId: undefined,
         title: f.title,
@@ -216,9 +259,10 @@ export class SASTScanner {
         },
         references: f.references,
       }));
+      return { vulnerabilities, evidence };
     } catch {
-      // Semgrep failure is non-fatal — pattern scanning still covers us
-      return [];
+      return { vulnerabilities: [], evidence: { ...base, status: 'failed', limitations,
+        errors: ['Semgrep execution failed.'] } };
     }
   }
 
@@ -226,26 +270,17 @@ export class SASTScanner {
    * Resolve the common parent directory from a set of file paths
    */
   private resolveTargetDirectory(files: FilePath[]): string {
-    if (files.length === 0) return '.';
-    if (files.length === 1) return files[0].directory || '.';
-
-    // Find common prefix of all directories
-    const dirs = files.map(f => f.directory || '.');
-    const first = dirs[0];
-    let commonLen = first.length;
-
-    for (let i = 1; i < dirs.length; i++) {
-      const dir = dirs[i];
-      const maxLen = Math.min(commonLen, dir.length);
-      let j = 0;
-      while (j < maxLen && first[j] === dir[j]) j++;
-      commonLen = j;
+    if (files.length === 0) return process.cwd();
+    let common = path.dirname(path.resolve(files[0].value));
+    for (const file of files.slice(1)) {
+      const directory = path.dirname(path.resolve(file.value));
+      while (directory !== common && !directory.startsWith(common.endsWith(path.sep) ? common : common + path.sep)) {
+        const parent = path.dirname(common);
+        if (parent === common) break;
+        common = parent;
+      }
     }
-
-    const common = first.substring(0, commonLen);
-    // Trim to last path separator
-    const lastSep = common.lastIndexOf('/');
-    return lastSep > 0 ? common.substring(0, lastSep) : common || '.';
+    return common;
   }
 
   /**
@@ -349,41 +384,38 @@ export class SASTScanner {
   /**
    * Analyze a file for security vulnerabilities using pattern-based detection
    */
+  private getApplicablePatterns(ruleSets: RuleSet[]): SecurityPattern[] {
+    const categories = new Set(ruleSets.flatMap(ruleSet => ruleSet.categories));
+    return ALL_SECURITY_PATTERNS.filter(pattern => categories.has(pattern.category));
+  }
+
   private async analyzeFile(
     file: FilePath,
     ruleSets: RuleSet[]
-  ): Promise<{ vulnerabilities: Vulnerability[]; linesScanned: number }> {
+  ): Promise<{ vulnerabilities: Vulnerability[]; evidence: SecurityFileEvidence }> {
     const vulnerabilities: Vulnerability[] = [];
     const filePath = file.value;
-    const extension = file.extension;
-
-    // Read file content
+    const receipt = { path: filePath, engineId: 'patterns', readLines: 0, analyzedLines: 0 };
     let content: string;
-    let lines: string[];
+    let sourceDigest: string;
     try {
       const fs = await import('fs/promises');
-      content = await fs.readFile(filePath, 'utf-8');
-      lines = content.split('\n');
-    } catch {
-      // File not accessible - return empty results
-      return { vulnerabilities: [], linesScanned: 0 };
+      const bytes = await fs.readFile(filePath);
+      sourceDigest = createHash('sha256').update(bytes).digest('hex');
+      content = bytes.toString('utf8');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return { vulnerabilities: [], evidence: { ...receipt, status: 'unreadable',
+        reason: typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code) ? code : 'File unreadable' } };
     }
-
-    const linesScanned = lines.length;
-
-    // Only scan supported file types
+    const lines = content.split('\n');
+    const readReceipt = { ...receipt, sourceDigest, readLines: lines.length };
     const supportedExtensions = ['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'];
-    if (!supportedExtensions.includes(extension)) {
-      return { vulnerabilities: [], linesScanned };
+    if (!supportedExtensions.includes(file.extension)) {
+      return { vulnerabilities: [], evidence: { ...readReceipt, status: 'unsupported',
+        reason: 'Unsupported language for built-in SAST patterns' } };
     }
-
-    // Get applicable categories from rule sets
-    const applicableCategories = new Set(ruleSets.flatMap((rs) => rs.categories));
-
-    // Filter patterns to only those matching applicable categories
-    const applicablePatterns = ALL_SECURITY_PATTERNS.filter((pattern) =>
-      applicableCategories.has(pattern.category)
-    );
+    const applicablePatterns = this.getApplicablePatterns(ruleSets);
 
     // Scan content for each pattern
     for (const securityPattern of applicablePatterns) {
@@ -405,7 +437,7 @@ export class SASTScanner {
       }
     }
 
-    return { vulnerabilities, linesScanned };
+    return { vulnerabilities, evidence: { ...readReceipt, status: 'analyzed', analyzedLines: lines.length } };
   }
 
   /**

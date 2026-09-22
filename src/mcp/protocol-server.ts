@@ -1086,12 +1086,13 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'security_scan_comprehensive',
-        description: 'Run SAST and/or DAST security scans with vulnerability classification. Example: security_scan_comprehensive({ target: "src/", sast: true })',
+        description: 'Run security scans with execution evidence and explicit coverage limitations. Complete means the declared required scope ran, not that all vulnerabilities are absent. Example: security_scan_comprehensive({ target: "src/", sast: true })',
         category: 'domain',
         parameters: [
           { name: 'sast', type: 'boolean', description: 'Run SAST scan', default: true },
           { name: 'dast', type: 'boolean', description: 'Run DAST scan', default: false },
-          { name: 'target', type: 'string', description: 'Target to scan' },
+          { name: 'target', type: 'string', description: 'Source file or directory for SAST' },
+          { name: 'targetUrl', type: 'string', description: 'URL for a requested DAST scan' },
         ],
       },
       handler: (params) => handleSecurityScan(params as unknown as Parameters<typeof handleSecurityScan>[0]),

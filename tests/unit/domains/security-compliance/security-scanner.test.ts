@@ -3,6 +3,9 @@
  * Tests for SAST/DAST scanning and vulnerability detection
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { SecurityScannerService } from '../../../../src/domains/security-compliance/services/security-scanner';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
@@ -37,22 +40,26 @@ const createMockFilePath = (path: string): FilePath => ({
 describe('SecurityScannerService', () => {
   let service: SecurityScannerService;
   let mockMemory: MemoryBackend;
+  let fixture: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    fixture = await mkdtemp(join(tmpdir(), 'aqe-scanner-service-'));
+    await Promise.all(['app.ts', 'utils.ts'].map(name => writeFile(join(fixture, name), 'const safe = true;\n')));
     mockMemory = createMockMemoryBackend();
-    service = new SecurityScannerService(mockMemory);
+    service = new SecurityScannerService(mockMemory, { enableSemgrep: false, enableLLMAnalysis: false });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
+    await rm(fixture, { recursive: true, force: true });
   });
 
   describe('SAST Scanning', () => {
     describe('scanFiles', () => {
       it('should scan files and return SAST results', async () => {
         const files = [
-          createMockFilePath('/src/app.ts'),
-          createMockFilePath('/src/utils.ts'),
+          createMockFilePath(join(fixture, 'app.ts')),
+          createMockFilePath(join(fixture, 'utils.ts')),
         ];
 
         const result = await service.scanFiles(files);
@@ -76,7 +83,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should use default rule sets when scanning', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         const result = await service.scanFiles(files);
 
@@ -87,7 +94,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should store scan results in memory', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         await service.scanFiles(files);
 
@@ -99,7 +106,7 @@ describe('SecurityScannerService', () => {
 
     describe('scanWithRules', () => {
       it('should scan with specific rule sets', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         const result = await service.scanWithRules(files, ['owasp-top-10']);
 
@@ -110,7 +117,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should return error for invalid rule sets', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         const result = await service.scanWithRules(files, ['invalid-ruleset']);
 
@@ -121,14 +128,19 @@ describe('SecurityScannerService', () => {
       });
 
       it('should combine multiple rule sets', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         const result = await service.scanWithRules(files, ['owasp-top-10', 'cwe-sans-25']);
 
         expect(result.success).toBe(true);
         if (result.success) {
-          // Combined rules from both sets
-          expect(result.value.coverage.rulesApplied).toBeGreaterThan(40);
+          // Overlapping rule sets execute each actual pattern once.
+          const singleSet = await service.scanWithRules(files, ['owasp-top-10']);
+          expect(singleSet.success).toBe(true);
+          if (!singleSet.success) throw singleSet.error;
+          expect(result.value.coverage.rulesApplied).toBe(singleSet.value.coverage.rulesApplied);
+          expect(result.value.coverage.rulesApplied).toBeGreaterThan(0);
+          expect(result.value.evidence?.engines[0].ruleIds).toEqual(expect.arrayContaining(['sqli-string-concat', 'xss-innerhtml']));
         }
       });
     });
@@ -344,7 +356,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should return correct status for active scan', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
         const scanResult = await service.scanFiles(files);
 
         if (scanResult.success) {
@@ -358,7 +370,7 @@ describe('SecurityScannerService', () => {
   describe('Full Scan', () => {
     describe('runFullScan', () => {
       it('should run SAST scan only when no URL provided', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
 
         const result = await service.runFullScan(files);
 
@@ -371,7 +383,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should run both SAST and DAST when URL provided', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
         const targetUrl = 'https://example.com';
 
         const result = await service.runFullScan(files, targetUrl);
@@ -384,7 +396,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should combine summaries from SAST and DAST', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
         const targetUrl = 'https://example.com';
 
         const result = await service.runFullScan(files, targetUrl);
@@ -401,7 +413,7 @@ describe('SecurityScannerService', () => {
       });
 
       it('should not fail full scan if DAST fails', async () => {
-        const files = [createMockFilePath('/src/app.ts')];
+        const files = [createMockFilePath(join(fixture, 'app.ts'))];
         // Full scan should complete even if DAST portion has issues
 
         const result = await service.runFullScan(files, 'https://example.com');

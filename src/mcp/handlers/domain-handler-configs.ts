@@ -29,6 +29,9 @@ import {
   ChaosTestParams,
 } from '../types';
 import { MetricsCollector } from '../metrics';
+import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
+import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+
 import {
   DEFAULT_FRAMEWORKS,
   FRAMEWORK_TO_LANGUAGE,
@@ -115,9 +118,21 @@ export interface SecurityScanResult {
   medium: number;
   low: number;
   topVulnerabilities: unknown[];
+  findings?: unknown[];
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  informational?: number;
+  evidence?: SecurityScanEvidence;
+  limitations?: readonly string[];
+  coverage?: SecurityCoverage;
+  filesScanned?: number;
+  jstsFilesScanned?: number;
+  otherFilesScanned?: number;
+  deepAnalysisPerformed?: boolean;
+  analysisDepth?: string;
+  scanTypes?: { sast: boolean; dast: boolean };
+  note?: string;
 }
 
 export interface ContractValidateResult {
@@ -679,26 +694,51 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     return `Security scan (${scanTypes.join(', ')}) for ${params.target || 'project'}`;
   },
 
-  mapToPayload: (params, routingResult) => ({
-    sast: params.sast !== false,
-    dast: params.dast || false,
-    compliance: params.compliance || [],
-    target: params.target || '.',
-    routingTier: routingResult?.decision.tier,
-    useAgentBooster: routingResult?.useAgentBooster,
-    compiledContext: routingResult?.compiledContext,
-  }),
+  mapToPayload: (params, routingResult) => {
+    for (const name of ['sast', 'dast'] as const) {
+      if (params[name] !== undefined && typeof params[name] !== 'boolean') {
+        throw new Error(`${name} must be a boolean`);
+      }
+    }
+    return {
+      sast: params.sast !== false,
+      dast: params.dast || false,
+      compliance: params.compliance || [],
+      target: params.target || '.',
+      targetUrl: params.targetUrl,
+      routingTier: routingResult?.decision.tier,
+      useAgentBooster: routingResult?.useAgentBooster,
+      compiledContext: routingResult?.compiledContext,
+    };
+  },
 
   mapToResult: (taskId, data, duration, savedFiles) => ({
     taskId,
-    status: 'completed',
+    // Legacy task results without receipts cannot establish scan completeness.
+    status: (data.evidence as SecurityScanEvidence | undefined)?.completeness === 'complete' ? 'completed'
+      : (data.evidence as SecurityScanEvidence | undefined)?.completeness === 'partial' ? 'partial'
+      : data.evidence ? 'unavailable' : 'unverified',
     vulnerabilities: (data.vulnerabilities as number) || 0,
     critical: (data.critical as number) || 0,
     high: (data.high as number) || 0,
     medium: (data.medium as number) || 0,
     low: (data.low as number) || 0,
+    informational: (data.informational as number) || 0,
     topVulnerabilities: (data.topVulnerabilities as unknown[]) || [],
+    findings: data.findings as unknown[] | undefined,
     recommendations: (data.recommendations as string[]) || [],
+    evidence: data.evidence as SecurityScanEvidence | undefined,
+    limitations: (data.limitations as string[]) || ['Execution receipts unavailable; scan completeness is unverified.'],
+    ...(data.evidence ? {
+      filesScanned: data.filesScanned as number | undefined,
+      jstsFilesScanned: data.jstsFilesScanned as number | undefined,
+      otherFilesScanned: data.otherFilesScanned as number | undefined,
+      coverage: data.coverage as SecurityCoverage | undefined,
+    } : {}),
+    deepAnalysisPerformed: Boolean(data.evidence && data.deepAnalysisPerformed === true),
+    analysisDepth: data.analysisDepth as string | undefined,
+    scanTypes: data.scanTypes as { sast: boolean; dast: boolean } | undefined,
+    note: data.note as string | undefined,
     duration,
     savedFiles,
   }),
