@@ -252,6 +252,11 @@ export class DomainTaskExecutor implements TaskHandlerContext {
   // TaskHandlerContext implementation (used by handler modules)
   // ============================================================================
 
+  /** Share the initialized kernel store with handlers that consume measured evidence. */
+  get memory(): MemoryBackend {
+    return this.kernel.memory;
+  }
+
   /** Expose config to handler modules */
   get config(): { defaultLanguage: string; defaultFramework: string } {
     return this._config;

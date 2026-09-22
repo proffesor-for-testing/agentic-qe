@@ -9,6 +9,10 @@ import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
+import {
+  evaluateQualityEvidence,
+  loadQualityEvidence,
+} from '../../domains/quality-assessment/quality-evidence.js';
 
 export function registerQualityHandlers(ctx: TaskHandlerContext): void {
   // Register quality assessment handler - REAL IMPLEMENTATION
@@ -22,6 +26,16 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
     };
 
     try {
+      // An explicit gate evaluates the same measured, timestamped evidence as
+      // `aqe quality --gate`. Static source scores cannot substitute for it.
+      if (payload.runGate === true) {
+        const measured = await loadQualityEvidence(ctx.memory);
+        return ok({
+          ...evaluateQualityEvidence(measured),
+          metrics: measured,
+        });
+      }
+
       const analyzer = ctx.getQualityAnalyzer();
       const threshold = payload.threshold || 80;
 

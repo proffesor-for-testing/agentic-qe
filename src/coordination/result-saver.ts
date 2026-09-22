@@ -364,7 +364,7 @@ export class ResultSaver {
   ): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
     const data = result as {
-      qualityScore: number;
+      qualityScore?: number;
       passed: boolean;
       metrics: Record<string, number>;
       recommendations: string[];
@@ -667,7 +667,7 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   }
 
   private generateQualityReport(data: {
-    qualityScore: number;
+    qualityScore?: number;
     passed: boolean;
     metrics: Record<string, number>;
     recommendations: string[];
@@ -679,7 +679,7 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 ## Quality Score
 
-**${data.qualityScore.toFixed(1)}** / 100
+${typeof data.qualityScore === 'number' ? `**${data.qualityScore.toFixed(1)}** / 100` : 'N/A — measured gate uses individual checks.'}
 
 ## Metrics
 

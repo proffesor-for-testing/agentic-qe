@@ -6,6 +6,11 @@ permissions:
   pull-requests: write
   checks: write
 
+env:
+  # Hosted Ubuntu jobs use the bundled CPU runtime, not optional CUDA/TensorRT
+  # providers downloaded from NuGet by onnxruntime-node's install script.
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 on:
   push:
     branches: [main, testing-with-qe]

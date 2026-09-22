@@ -6,6 +6,7 @@
  */
 
 import type { Result } from '../../shared/types';
+import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type { QueenTask, TaskType } from '../queen-coordinator';
 
 import type { CoverageAnalyzerService } from '../../domains/coverage-analysis';
@@ -24,6 +25,9 @@ export type InstanceTaskHandler = (task: QueenTask) => Promise<Result<unknown, E
 export interface TaskHandlerContext {
   /** Register a handler for a given task type */
   registerHandler(type: TaskType, handler: InstanceTaskHandler): void;
+
+  /** Initialized kernel memory, including canonical measured quality evidence. */
+  readonly memory: MemoryBackend;
 
   /** Lazy service getters */
   getCoverageAnalyzer(): CoverageAnalyzerService;

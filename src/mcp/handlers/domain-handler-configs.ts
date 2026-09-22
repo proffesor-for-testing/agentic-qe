@@ -41,6 +41,8 @@ import {
   type RiskDecision,
 } from '../../contracts/verdicts.js';
 
+import type { EvaluatedQualityCheck } from '../../domains/quality-assessment/quality-evidence.js';
+
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
 /**
@@ -91,7 +93,10 @@ export interface TestExecuteResult {
 export interface QualityAssessResult {
   taskId: string;
   status: string;
-  qualityScore: number;
+  /** Static analysis score; omitted for measured gates, which have no aggregate score. */
+  qualityScore?: number;
+  /** Canonical measured checks, present when runGate is true. */
+  checks?: EvaluatedQualityCheck[];
   passed: boolean;
   metrics: Record<string, number>;
   recommendations: string[];
@@ -619,14 +624,19 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
   buildTaskDescription: (params) =>
     `Assess quality with ${params.runGate ? 'quality gate' : 'metrics analysis'}`,
 
-  mapToPayload: (params, routingResult) => ({
-    runGate: params.runGate || false,
-    threshold: params.threshold || 80,
-    metrics: params.metrics || ['coverage', 'complexity', 'maintainability'],
-    routingTier: routingResult?.decision.tier,
-    useAgentBooster: routingResult?.useAgentBooster,
-    compiledContext: routingResult?.compiledContext,
-  }),
+  mapToPayload: (params, routingResult) => {
+    if (params.runGate !== undefined && typeof params.runGate !== 'boolean') {
+      throw new Error('runGate must be a boolean.');
+    }
+    return {
+      runGate: params.runGate ?? false,
+      threshold: params.threshold || 80,
+      metrics: params.metrics || ['coverage', 'complexity', 'maintainability'],
+      routingTier: routingResult?.decision.tier,
+      useAgentBooster: routingResult?.useAgentBooster,
+      compiledContext: routingResult?.compiledContext,
+    };
+  },
 
   mapToResult: (taskId, data, duration, savedFiles) => {
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
@@ -640,7 +650,8 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     return {
       taskId,
       status: 'completed',
-      qualityScore: (data.qualityScore as number) || 0,
+      ...(typeof data.qualityScore === 'number' ? { qualityScore: data.qualityScore } : {}),
+      ...(Array.isArray(data.checks) ? { checks: data.checks as EvaluatedQualityCheck[] } : {}),
       passed: (data.passed as boolean) || false,
       metrics: (data.metrics as Record<string, number>) || {},
       recommendations: (data.recommendations as string[]) || [],
