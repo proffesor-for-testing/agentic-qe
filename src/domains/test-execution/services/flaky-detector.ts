@@ -18,6 +18,7 @@ import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
@@ -474,7 +475,13 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
-      const args = [...this.config.testRunnerArgs, file];
+      const baseArgs = [...this.config.testRunnerArgs, file];
+      // Vitest 5 writes --reporter=json output to a file, not stdout. Detect
+      // Vitest from the runner command too (testRunner: 'vitest', args: ['run', ...]).
+      const report = needsVitestJsonReportFile([this.config.testRunner, ...baseArgs])
+        ? createVitestJsonReport()
+        : undefined;
+      const args = report ? [...baseArgs, ...report.args] : baseArgs;
       const cwd = this.config.cwd ?? process.cwd();
 
       const child = spawn(this.config.testRunner, args, {
@@ -497,6 +504,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       // Set timeout
       const timeout = setTimeout(() => {
         child.kill('SIGTERM');
+        report?.cleanup();
         reject(
           new Error(
             `Test execution timed out after ${this.config.runTimeout}ms for ${file}`
@@ -506,6 +514,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
       child.on('error', (error) => {
         clearTimeout(timeout);
+        report?.cleanup();
         reject(
           new Error(
             `Failed to execute test runner: ${error.message}. ` +
@@ -517,11 +526,13 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       child.on('close', (code) => {
         clearTimeout(timeout);
         const duration = Date.now() - startTime;
+        const reportText = report ? report.read(stdout) : stdout;
+        report?.cleanup();
 
         try {
-          // Parse the test results from stdout
+          // Parse the test results from the JSON report (or stdout for other runners)
           const parsedResults = this.parseTestOutput(
-            stdout,
+            reportText,
             stderr,
             code ?? 0,
             file,

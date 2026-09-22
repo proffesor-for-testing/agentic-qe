@@ -24,6 +24,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
+import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 
 // ============================================================================
 // Configuration
@@ -511,13 +512,17 @@ Provide:
     }
 
     // Build command based on framework
-    const { command, args } = this.buildTestCommand(files, framework);
+    const { command, args, report } = this.buildTestCommand(files, framework);
     const fileLabel = files.join(', ');
 
     return new Promise((resolve) => {
       let stdout = '';
       let stderr = '';
       let killed = false;
+      const finish = (result: Result<TestExecutionResult, Error>): void => {
+        report?.cleanup();
+        resolve(result);
+      };
 
       // Spawn the test runner process
       // Note: shell: false (default) to prevent command injection (CWE-78)
@@ -535,7 +540,7 @@ Provide:
       const timeoutId = setTimeout(() => {
         killed = true;
         proc.kill('SIGTERM');
-        resolve(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)));
+        finish(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)));
       }, timeout);
 
       proc.stdout?.on('data', (data: Buffer) => {
@@ -553,8 +558,10 @@ Provide:
           return; // Already handled by timeout
         }
 
-        // Parse results based on framework
-        const parseResult = this.parseTestOutput(stdout, stderr, fileLabel, framework, code);
+        // Parse results based on framework. Vitest 5 writes the JSON report to
+        // a file instead of stdout, so read it back through the report handle.
+        const reportText = report ? report.read(stdout) : stdout;
+        const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);
 
         // If no coverage in stdout JSON, try reading from disk
         // (vitest/jest write coverage to coverage/coverage-summary.json)
@@ -568,12 +575,12 @@ Provide:
           }
         }
 
-        resolve(parseResult);
+        finish(parseResult);
       });
 
       proc.on('error', (error: Error) => {
         clearTimeout(timeoutId);
-        resolve(err(new Error(`Failed to spawn test runner: ${error.message}. Is '${command}' installed?`)));
+        finish(err(new Error(`Failed to spawn test runner: ${error.message}. Is '${command}' installed?`)));
       });
     });
   }
@@ -584,14 +591,19 @@ Provide:
   private buildTestCommand(
     fileOrFiles: string | string[],
     framework: string
-  ): { command: string; args: string[] } {
+  ): { command: string; args: string[]; report?: VitestJsonReport } {
     const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
     switch (framework.toLowerCase()) {
-      case 'vitest':
+      case 'vitest': {
+        // --outputFile makes Vitest 4 and 5 both write the JSON report to a
+        // file we own; Vitest 5 no longer prints it to stdout.
+        const report = createVitestJsonReport();
         return {
           command: 'npx',
-          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color'],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args],
+          report,
         };
+      }
       case 'jest':
         return {
           command: 'npx',
@@ -610,12 +622,15 @@ Provide:
           command: process.execPath,
           args: ['--test', ...files],
         };
-      default:
+      default: {
         // Default to vitest
+        const report = createVitestJsonReport();
         return {
           command: 'npx',
-          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color'],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args],
+          report,
         };
+      }
     }
   }
 

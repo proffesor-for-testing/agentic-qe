@@ -11,6 +11,7 @@ import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
+import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -215,13 +216,23 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       const { spawnSync } = await import('child_process');
       const options = { cwd: process.cwd(), timeout: 120000, encoding: 'utf-8' as const };
       let runner = 'vitest';
-      let execution = spawnSync('npx', ['vitest', 'run', ...testFiles, '--reporter=json'], options);
+      // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
+      // --outputFile gives Vitest 4 and 5 the same contract.
+      const report = createVitestJsonReport();
+      let execution;
+      let output: string;
+      try {
+        execution = spawnSync('npx', ['vitest', 'run', ...testFiles, '--reporter=json', ...report.args], options);
+        output = report.read(execution.stdout || '');
+      } finally {
+        report.cleanup();
+      }
       // Preserve the existing Jest fallback when Vitest cannot produce a report.
-      if (!(execution.stdout || '').includes('{') && execution.status !== 0) {
+      if (!output.includes('{') && execution.status !== 0) {
         runner = 'jest';
         execution = spawnSync('npx', ['jest', ...testFiles, '--json'], options);
+        output = execution.stdout || '';
       }
-      const output = execution.stdout || '';
       const diagnostics = [execution.error?.message, execution.stderr, output].filter(Boolean).join('\n');
       if (execution.error) {
         return err(new TestRunnerExecutionError(`${runner} could not complete: ${diagnostics.slice(0, 4000)}`));
