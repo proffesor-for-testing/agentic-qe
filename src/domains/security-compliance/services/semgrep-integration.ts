@@ -13,7 +13,6 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
-import { toErrorMessage } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 
 const execFileAsync = promisify(execFile);
@@ -22,6 +21,11 @@ const execFileAsync = promisify(execFile);
 // Types
 // ============================================================================
 
+// Semgrep's match_severity schema retains legacy/deprecated values as well as
+// CRITICAL/HIGH/MEDIUM/LOW introduced in 1.72.0.
+const SEMGREP_SEVERITIES = ['ERROR', 'WARNING', 'INFO', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'EXPERIMENT', 'INVENTORY'] as const;
+export type SemgrepSeverity = typeof SEMGREP_SEVERITIES[number];
+
 export interface SemgrepFinding {
   check_id: string;
   path: string;
@@ -29,7 +33,7 @@ export interface SemgrepFinding {
   end: { line: number; col: number };
   extra: {
     message: string;
-    severity: 'ERROR' | 'WARNING' | 'INFO';
+    severity: SemgrepSeverity;
     lines: string;
     metadata?: {
       cwe?: string[];
@@ -45,8 +49,12 @@ export interface SemgrepFinding {
 
 export interface SemgrepResult {
   success: boolean;
+  /** Optional only for compatibility with legacy adapters. */
+  status?: 'completed' | 'partial' | 'failed' | 'unavailable';
   findings: SemgrepFinding[];
   errors: string[];
+  /** Sanitized non-fatal diagnostics, separate from analysis failures. */
+  diagnostics?: string[];
   version?: string;
 }
 
@@ -163,8 +171,9 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
   if (!available) {
     return {
       success: false,
+      status: 'unavailable',
       findings: [],
-      errors: ['Semgrep is not installed. Install with: pip install semgrep'],
+      errors: ['Semgrep is unavailable.'],
     };
   }
 
@@ -196,28 +205,26 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
 
     const result = parseSemgrepOutput(stdout);
     if (stderr && fullConfig.verbose) {
-      result.errors.push(stderr);
+      result.diagnostics = ['Semgrep emitted diagnostic output.'];
     }
 
     result.version = await getSemgrepVersion() || undefined;
     return result;
   } catch (error: unknown) {
-    // Semgrep exits with non-zero if findings exist
-    const execError = error as { stdout?: string; message?: string };
-    if (execError.stdout) {
-      try {
-        const result = parseSemgrepOutput(execError.stdout);
-        result.version = await getSemgrepVersion() || undefined;
+    const execError = error as { stdout?: string; code?: unknown; killed?: boolean; signal?: unknown };
+    if (typeof execError.stdout === 'string' && execError.stdout.length > 0) {
+      const result = parseSemgrepOutput(execError.stdout);
+      // Exit 1 can represent findings with --error. Other process failures cannot
+      // be converted into success just because stdout contains valid JSON.
+      if (execError.code === 1 && !execError.killed && !execError.signal && result.success && result.findings.length > 0) {
         return result;
-      } catch {
-        // Parse failed, return error
       }
+      return { ...result, success: false, status: 'failed',
+        errors: [...result.errors, 'Semgrep process did not complete successfully.'] };
     }
-
     return {
-      success: false,
-      findings: [],
-      errors: [execError.message ?? String(error)],
+      success: false, status: 'failed', findings: [],
+      errors: ['Semgrep execution failed.'],
     };
   }
 }
@@ -228,13 +235,45 @@ export async function runSemgrep(config: Partial<SemgrepConfig>): Promise<Semgre
 function parseSemgrepOutput(stdout: string): SemgrepResult {
   try {
     const parsed = safeJsonParse(stdout) as SemgrepRawOutput;
-
-    // Handle different output formats
-    const results = parsed.results || parsed.findings || [];
-    const errors = parsed.errors?.map(e => e.message || String(e)) || [];
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Expected a JSON object');
+    }
+    const rawResults = parsed.results ?? parsed.findings;
+    if (!Array.isArray(rawResults) || (parsed.errors !== undefined && !Array.isArray(parsed.errors))) {
+      throw new Error('Missing or invalid result collection');
+    }
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      !!value && typeof value === 'object' && !Array.isArray(value);
+    const optionalText = (value: unknown): boolean => value === undefined || typeof value === 'string';
+    const validSeverity = (value: unknown): boolean => value === undefined
+      || (typeof value === 'string' && (SEMGREP_SEVERITIES as readonly string[]).includes(value));
+    const validPosition = (value: unknown): boolean => value === undefined || (isRecord(value)
+      && ['line', 'col'].every(key => value[key] === undefined
+        || (typeof value[key] === 'number' && Number.isSafeInteger(value[key]) && (value[key] as number) > 0)));
+    const validMetadata = (value: unknown): boolean => value === undefined || (isRecord(value)
+      && ['cwe', 'owasp', 'references'].every(key => value[key] === undefined
+        || (Array.isArray(value[key]) && (value[key] as unknown[]).every(item => typeof item === 'string')))
+      && ['category', 'description', 'fix', 'confidence'].every(key => optionalText(value[key])));
+    const validFinding = (value: SemgrepRawFinding): boolean => {
+      if (!isRecord(value)) return false;
+      const id = value.check_id ?? value.rule_id;
+      if (typeof value.path !== 'string' || value.path.length === 0 || typeof id !== 'string' || id.length === 0
+          || !validPosition(value.start) || !validPosition(value.end)
+          || !optionalText(value.message) || !validSeverity(value.severity) || !validMetadata(value.metadata)) return false;
+      const extra: unknown = value.extra;
+      return extra === undefined || (isRecord(extra)
+        && ['message', 'lines', 'fix'].every(key => optionalText(extra[key]))
+        && validSeverity(extra.severity) && validMetadata(extra.metadata));
+    };
+    const results = rawResults.filter(validFinding);
+    const malformed = rawResults.length - results.length;
+    const errors: string[] = [];
+    if (parsed.errors?.length) errors.push(`Semgrep reported ${parsed.errors.length} analysis error(s).`);
+    if (malformed) errors.push(`Semgrep returned ${malformed} malformed finding(s).`);
 
     return {
-      success: true,
+      success: errors.length === 0,
+      status: errors.length === 0 ? 'completed' : 'partial',
       findings: results.map(r => ({
         check_id: r.check_id || r.rule_id || 'unknown',
         path: r.path,
@@ -242,7 +281,7 @@ function parseSemgrepOutput(stdout: string): SemgrepResult {
         end: { line: r.end?.line || r.start?.line || 1, col: r.end?.col || 1 },
         extra: {
           message: r.extra?.message || r.message || 'Security issue detected',
-          severity: (r.extra?.severity || r.severity || 'WARNING') as 'ERROR' | 'WARNING' | 'INFO',
+          severity: (r.extra?.severity || r.severity || 'WARNING') as SemgrepSeverity,
           lines: r.extra?.lines || '',
           metadata: {
             cwe: r.extra?.metadata?.cwe || r.metadata?.cwe,
@@ -257,11 +296,12 @@ function parseSemgrepOutput(stdout: string): SemgrepResult {
       })),
       errors,
     };
-  } catch (error) {
+  } catch {
     return {
       success: false,
+      status: 'failed',
       findings: [],
-      errors: [`Failed to parse semgrep output: ${toErrorMessage(error)}`],
+      errors: ['Invalid Semgrep output.'],
     };
   }
 }
@@ -306,12 +346,19 @@ export async function runSemgrepWithRules(
  * Map semgrep severity to standard severity
  */
 export function mapSemgrepSeverity(
-  severity: 'ERROR' | 'WARNING' | 'INFO'
+  severity: SemgrepSeverity
 ): 'critical' | 'high' | 'medium' | 'low' {
   const mapping: Record<string, 'critical' | 'high' | 'medium' | 'low'> = {
     ERROR: 'high',
     WARNING: 'medium',
     INFO: 'low',
+    CRITICAL: 'critical',
+    HIGH: 'high',
+    MEDIUM: 'medium',
+    LOW: 'low',
+    // Retain the existing non-risky INFO mapping for deprecated categories.
+    EXPERIMENT: 'low',
+    INVENTORY: 'low',
   };
   return mapping[severity] || 'medium';
 }

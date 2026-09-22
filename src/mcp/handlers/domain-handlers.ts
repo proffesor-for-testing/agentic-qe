@@ -104,12 +104,13 @@ export const handleTestGenerate = createDomainHandler<TestGenerateParams, TestGe
 );
 
 /**
- * Handle test execution tasks
+ * Handle test execution tasks using a nonempty list of concrete file paths.
+ * Expand glob patterns before calling; the task handler rejects them.
  *
  * @example
  * ```typescript
  * const result = await handleTestExecute({
- *   testFiles: ['tests/unit/*.test.ts'],
+ *   testFiles: ['tests/unit/auth.test.ts', 'tests/unit/session.test.ts'],
  *   parallel: true,
  *   parallelism: 4,
  * });
@@ -136,14 +137,15 @@ export const handleCoverageAnalyze = createDomainHandler<CoverageAnalyzeParams, 
 );
 
 /**
- * Handle quality assessment tasks
+ * Handle quality assessment tasks. With runGate:true, require fresh canonical
+ * evidence and return individual measured checks, without a static aggregate
+ * score. Missing, stale, or malformed evidence returns an error. threshold and
+ * metrics customize analysis-only requests; gate thresholds match the CLI.
  *
  * @example
  * ```typescript
  * const result = await handleQualityAssess({
  *   runGate: true,
- *   threshold: 80,
- *   metrics: ['coverage', 'complexity'],
  * });
  * ```
  */

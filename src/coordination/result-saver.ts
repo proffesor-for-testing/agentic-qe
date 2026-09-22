@@ -8,10 +8,43 @@ import * as path from 'path';
 import { createHash } from 'crypto';
 import { TaskType } from './queen-coordinator';
 import { safeJsonParse } from '../shared/safe-json.js';
+import type { SecurityScanEvidence } from '../domains/security-compliance/scan-evidence.js';
+import type { SecurityCoverage } from '../domains/security-compliance/interfaces.js';
 
 // ============================================================================
 // Types
 // ============================================================================
+
+interface SecurityReportFinding {
+  type?: string;
+  title?: string;
+  severity: string;
+  file?: string;
+  line?: number;
+  location?: { file: string; line?: number };
+  description?: string;
+}
+
+interface SecurityReportData {
+  vulnerabilities: number;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  topVulnerabilities: Array<{ type: string; severity: string; file: string; line: number }>;
+  findings?: readonly SecurityReportFinding[];
+  recommendations: string[];
+  evidence?: SecurityScanEvidence;
+  coverage?: SecurityCoverage;
+  limitations?: readonly string[];
+  analysisDepth?: string;
+}
+
+function securityReportExecution(data: SecurityReportData): string {
+  return data.evidence?.completeness === 'complete' ? 'completed'
+    : data.evidence?.completeness === 'partial' ? 'partial'
+    : data.evidence ? 'unavailable' : 'unverified';
+}
 
 export interface SaveOptions {
   /** Target language for test generation */
@@ -323,15 +356,7 @@ export class ResultSaver {
     options: SaveOptions
   ): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
-    const data = result as {
-      vulnerabilities: number;
-      critical: number;
-      high: number;
-      medium: number;
-      low: number;
-      topVulnerabilities: Array<{ type: string; severity: string; file: string; line: number }>;
-      recommendations: string[];
-    };
+    const data = result as SecurityReportData;
 
     const securityDir = path.join(this.resultsDir, 'security');
 
@@ -364,7 +389,7 @@ export class ResultSaver {
   ): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
     const data = result as {
-      qualityScore: number;
+      qualityScore?: number;
       passed: boolean;
       metrics: Record<string, number>;
       recommendations: string[];
@@ -513,10 +538,9 @@ end_of_record
 `;
   }
 
-  private generateSarif(data: {
-    vulnerabilities: number;
-    topVulnerabilities: Array<{ type: string; severity: string; file: string; line: number }>;
-  }): string {
+  private generateSarif(data: SecurityReportData): string {
+    const status = securityReportExecution(data);
+    const findings: readonly SecurityReportFinding[] = data.findings ?? data.topVulnerabilities;
     return JSON.stringify({
       $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
       version: '2.1.0',
@@ -528,14 +552,23 @@ end_of_record
             informationUri: 'https://github.com/ruvnet/agentic-qe',
           },
         },
-        results: data.topVulnerabilities.map((v, i) => ({
+        properties: { securityScan: { status, evidence: data.evidence, coverage: data.coverage,
+          limitations: data.limitations, analysisDepth: data.analysisDepth } },
+        invocations: [{
+          executionSuccessful: data.evidence?.completeness === 'complete',
+          ...(data.evidence?.completeness === 'complete' ? {} : {
+            toolExecutionNotifications: [{ level: 'warning',
+              message: { text: `Security analysis ${status}; findings do not establish complete coverage.` } }],
+          }),
+        }],
+        results: findings.map((v, i) => ({
           ruleId: `VULN-${String(i + 1).padStart(3, '0')}`,
           level: v.severity === 'critical' ? 'error' : v.severity === 'high' ? 'error' : 'warning',
-          message: { text: v.type },
+          message: { text: v.type ?? v.title ?? 'Security finding' },
           locations: [{
             physicalLocation: {
-              artifactLocation: { uri: v.file },
-              region: { startLine: v.line },
+              artifactLocation: { uri: v.file ?? v.location?.file ?? '' },
+              ...((v.line ?? v.location?.line ?? 0) > 0 ? { region: { startLine: v.line ?? v.location?.line } } : {}),
             },
           }],
         })),
@@ -628,19 +661,19 @@ ${data.gaps.length === 0 ? 'No significant gaps detected.' : data.gaps.map(g => 
 `;
   }
 
-  private generateSecurityReport(data: {
-    vulnerabilities: number;
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    topVulnerabilities: Array<{ type: string; severity: string; file: string; line: number }>;
-    recommendations: string[];
-  }): string {
+  private generateSecurityReport(data: SecurityReportData): string {
     return `# Security Scan Report
 
 **Generated:** ${new Date().toISOString()}
 **Scanner:** Agentic QE v3 Security
+**Execution:** ${securityReportExecution(data)}
+
+## Execution receipts
+
+\`\`\`json
+${JSON.stringify({ evidence: data.evidence, coverage: data.coverage, limitations: data.limitations,
+  analysisDepth: data.analysisDepth }, null, 2)}
+\`\`\`
 
 ## Summary
 
@@ -660,6 +693,12 @@ ${data.topVulnerabilities.map(v => `### ${v.type}
 - **Line:** ${v.line}
 `).join('\n')}
 
+## All findings
+
+\`\`\`json
+${JSON.stringify(data.findings ?? data.topVulnerabilities, null, 2)}
+\`\`\`
+
 ## Recommendations
 
 ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
@@ -667,7 +706,7 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   }
 
   private generateQualityReport(data: {
-    qualityScore: number;
+    qualityScore?: number;
     passed: boolean;
     metrics: Record<string, number>;
     recommendations: string[];
@@ -679,7 +718,7 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 ## Quality Score
 
-**${data.qualityScore.toFixed(1)}** / 100
+${typeof data.qualityScore === 'number' ? `**${data.qualityScore.toFixed(1)}** / 100` : 'N/A — measured gate uses individual checks.'}
 
 ## Metrics
 
@@ -744,6 +783,7 @@ ${data.recommendations.length === 0 ? 'No recommendations - all quality gates pa
     switch (taskType) {
       case 'scan-security':
         return {
+          status: securityReportExecution(data as unknown as SecurityReportData),
           vulnerabilities: data.vulnerabilities,
           critical: data.critical,
           high: data.high,

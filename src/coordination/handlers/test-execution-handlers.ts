@@ -10,6 +10,7 @@ import * as fs from 'fs/promises';
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
+import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -189,6 +190,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
     }
   });
 
+  // execute-tests accepts a nonempty list of concrete paths; callers expand globs.
   // Register test execution handler - runs real tests via child process
   ctx.registerHandler('execute-tests', async (task) => {
     const payload = task.payload as {
@@ -201,71 +203,52 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       const testFiles = payload.testFiles || [];
 
       if (testFiles.length === 0) {
-        return ok({
-          total: 0, passed: 0, failed: 0, skipped: 0,
-          duration: 0, coverage: 0, failedTests: [],
-          warning: 'No test files specified. Provide testFiles array with paths to test files.',
-        });
+        return err(new TestRunnerExecutionError('No test files specified. Provide testFiles array with paths to test files.'));
       }
 
-      // Attempt to run tests using common test runners
-      const cwd = process.cwd();
-      let output: string;
-
-      // Validate test file paths to prevent command injection
-      const safePathPattern = /^[a-zA-Z0-9_.\/\-@]+$/;
-      const safeFiles = testFiles.filter(f => safePathPattern.test(f));
-      if (safeFiles.length !== testFiles.length) {
-        return ok({
-          total: 0, passed: 0, failed: 0, skipped: 0,
-          duration: 0, coverage: 0, failedTests: [],
-          warning: 'Some test file paths contain invalid characters and were rejected.',
-        });
+      // Validate test file paths before invoking a runner.
+      const safePathPattern = /^[a-zA-Z0-9_./@-]+$/;
+      if (testFiles.some(file => !safePathPattern.test(file))) {
+        return err(new TestRunnerExecutionError('Some test file paths contain invalid characters and were rejected. Provide concrete paths; expand glob patterns before calling.'));
       }
 
-      try {
-        // Use spawnSync with argument arrays to prevent command injection
-        const { spawnSync } = await import('child_process');
-        const vitestResult = spawnSync('npx', ['vitest', 'run', ...safeFiles, '--reporter=json'], {
-          cwd, timeout: 120000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
-        });
-        output = vitestResult.stdout || '';
-
-        // If vitest failed (not just test failures), try jest
-        if (!output.includes('{') && vitestResult.status !== 0) {
-          const jestResult = spawnSync('npx', ['jest', ...safeFiles, '--json'], {
-            cwd, timeout: 120000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
-          });
-          output = jestResult.stdout || '';
-        }
-      } catch (execError) {
-        // Test runner may exit non-zero when tests fail — that's expected
-        output = (execError as { stdout?: string }).stdout || '';
+      const { spawnSync } = await import('child_process');
+      const options = { cwd: process.cwd(), timeout: 120000, encoding: 'utf-8' as const };
+      let runner = 'vitest';
+      let execution = spawnSync('npx', ['vitest', 'run', ...testFiles, '--reporter=json'], options);
+      // Preserve the existing Jest fallback when Vitest cannot produce a report.
+      if (!(execution.stdout || '').includes('{') && execution.status !== 0) {
+        runner = 'jest';
+        execution = spawnSync('npx', ['jest', ...testFiles, '--json'], options);
+      }
+      const output = execution.stdout || '';
+      const diagnostics = [execution.error?.message, execution.stderr, output].filter(Boolean).join('\n');
+      if (execution.error) {
+        return err(new TestRunnerExecutionError(`${runner} could not complete: ${diagnostics.slice(0, 4000)}`));
       }
 
-      // Try to parse JSON output from test runner
       try {
         const jsonStart = output.indexOf('{');
         if (jsonStart >= 0) {
           const json = JSON.parse(output.slice(jsonStart));
-          // vitest format
           if (json.testResults) {
             const total = json.numTotalTests || 0;
             const passed = json.numPassedTests || 0;
             const failed = json.numFailedTests || 0;
-            return ok({ total, passed, failed, skipped: total - passed - failed, duration: 0, coverage: 0, failedTests: [] });
+            const skipped = total - passed - failed;
+            const executionError = getTestRunnerExecutionError(runner, testFiles.join(', '),
+              execution.status, { passed, failed, skipped }, diagnostics, json);
+            if (executionError) return err(executionError);
+            return ok({ total, passed, failed, skipped, duration: 0, coverage: 0, failedTests: [] });
           }
         }
       } catch {
-        // JSON parsing failed — return raw info
+        // A malformed report cannot establish that the requested tests completed.
       }
 
-      return ok({
-        total: testFiles.length, passed: 0, failed: 0, skipped: 0,
-        duration: 0, coverage: 0, failedTests: [],
-        warning: 'Could not parse test runner output. Check that vitest or jest is installed.',
-        rawOutput: output.slice(0, 500),
-      });
+      return err(new TestRunnerExecutionError(
+        `Could not parse ${runner} results (exit code ${execution.status ?? 'unknown'}):\n${diagnostics.slice(0, 4000)}`
+      ));
     } catch (error) {
       return err(toError(error));
     }

@@ -33,6 +33,11 @@ import type { Severity } from '../../../shared/types';
 // WASM Engine Wrapper
 // ============================================================================
 
+// Dense restriction maps are copied into WASM. Bound each native call to
+// 32 MiB of matrix cells and 256 MiB of cumulative cells per operation.
+const MAX_NATIVE_BATCH_CELLS = 4 * 1024 * 1024;
+const MAX_NATIVE_TOTAL_CELLS = 32 * 1024 * 1024;
+
 /**
  * Creates an ICohomologyEngine wrapper around the raw WASM engine
  * Translates from snake_case adapter interface to camelCase WASM API
@@ -71,19 +76,84 @@ function createCohomologyEngineWrapper(rawEngine: IRawCohomologyEngine): ICohomo
   // WASM sheaf cohomology expects:
   // { nodes: [{id: number, label: string, section: number[], weight: number}], edges: [...] }
   // "section" is the sheaf theory term for local data at each stalk
-  const buildGraph = (): unknown => ({
-    nodes: Array.from(nodes.entries()).map(([id, data]) => ({
-      id: getOrCreateIndex(id), // Convert string ID to numeric index
-      label: id, // Original string ID as label
-      section: Array.from(data.embedding), // Sheaf section = the embedding data
-      weight: 1.0, // Node weight (importance) - default to 1.0
-    })),
-    edges: edges.map(e => ({
-      source: getOrCreateIndex(e.source), // Convert to numeric
-      target: getOrCreateIndex(e.target), // Convert to numeric
-      weight: e.weight,
-    })),
-  });
+  function* buildGraphs(): Generator<unknown> {
+    // Native edge endpoints address the current nodes array by position, not
+    // node.id. Rebuild indices after removals or edges added before nodes.
+    stringToIndex.clear();
+    indexToString.clear();
+    nextIndex = 0;
+    const dimension = nodes.values().next().value?.embedding.length;
+    const graphNodes = Array.from(nodes.entries()).map(([id, data]) => {
+      if (data.embedding.length !== dimension) {
+        throw new RangeError('Cohomology graphs require matching embedding dimensions');
+      }
+      return {
+        id: getOrCreateIndex(id),
+        label: id,
+        section: Array.from(data.embedding),
+        weight: 1.0,
+      };
+    });
+
+    // Validate the complete operation before allocating any dense matrices or
+    // calling WASM. A rejected graph must never yield partial energy/results.
+    let totalCells = 0;
+    const preparedEdges = edges.map(edge => {
+      const source = nodes.get(edge.source);
+      const target = nodes.get(edge.target);
+      if (!source || !target) {
+        throw new Error(`Cohomology edge references an unknown node: ${edge.source} -> ${edge.target}`);
+      }
+      const dimension = source.embedding.length;
+      const cells = dimension * dimension;
+      if (cells > MAX_NATIVE_BATCH_CELLS) {
+        throw new RangeError(`Cohomology restriction map exceeds ${MAX_NATIVE_BATCH_CELLS} cells`);
+      }
+      totalCells += cells;
+      if (totalCells > MAX_NATIVE_TOTAL_CELLS) {
+        throw new RangeError(`Cohomology graph exceeds ${MAX_NATIVE_TOTAL_CELLS} restriction-map cells`);
+      }
+      return { ...edge, dimension, cells };
+    });
+
+    type NativeEdge = {
+      source: number; target: number; weight: number;
+      restriction_map: number[]; source_dim: number; target_dim: number;
+    };
+    let batch: NativeEdge[] = [];
+    let batchCells = 0;
+    const restrictionMaps = new Map<number, number[]>();
+    for (const edge of preparedEdges) {
+      if (batchCells + edge.cells > MAX_NATIVE_BATCH_CELLS) {
+        yield { nodes: graphNodes, edges: batch };
+        batch = [];
+        batchCells = 0;
+        restrictionMaps.clear();
+      }
+      let restrictionMap = restrictionMaps.get(edge.dimension);
+      if (!restrictionMap) {
+        // Sections share embedding coordinates; use a row-major identity map.
+        // Sharing the read-only JS matrix avoids per-edge JS allocations.
+        restrictionMap = Array(edge.cells).fill(0) as number[];
+        for (let i = 0; i < edge.dimension; i++) {
+          restrictionMap[i * edge.dimension + i] = 1;
+        }
+        restrictionMaps.set(edge.dimension, restrictionMap);
+      }
+      batch.push({
+        source: stringToIndex.get(edge.source)!,
+        target: stringToIndex.get(edge.target)!,
+        weight: edge.weight,
+        restriction_map: restrictionMap,
+        source_dim: edge.dimension,
+        target_dim: edge.dimension,
+      });
+      batchCells += edge.cells;
+    }
+    if (batch.length > 0 || preparedEdges.length === 0) {
+      yield { nodes: graphNodes, edges: batch };
+    }
+  }
 
   return {
     add_node(id: string, embedding: Float64Array): void {
@@ -100,8 +170,7 @@ function createCohomologyEngineWrapper(rawEngine: IRawCohomologyEngine): ICohomo
 
     remove_node(id: string): void {
       nodes.delete(id);
-      // Note: We don't remove from index mappings to maintain consistency
-      // (indices are reused to avoid graph corruption)
+      // Native indices are rebuilt from current node order on serialization.
       // Remove associated edges
       for (let i = edges.length - 1; i >= 0; i--) {
         if (edges[i].source === id || edges[i].target === id) {
@@ -116,28 +185,35 @@ function createCohomologyEngineWrapper(rawEngine: IRawCohomologyEngine): ICohomo
     },
 
     sheaf_laplacian_energy(): number {
-      const graph = buildGraph();
-      return rawEngine.consistencyEnergy(graph);
+      // Native consistency energy is the sum of independent edge energies.
+      let energy = 0;
+      for (const graph of buildGraphs()) {
+        energy += rawEngine.consistencyEnergy(graph);
+      }
+      return energy;
     },
 
     detect_contradictions(threshold: number): ContradictionRaw[] {
-      const graph = buildGraph();
-      const obstructions = rawEngine.detectObstructions(graph) as Array<{
-        node1: number; // WASM returns numeric IDs
-        node2: number;
-        energy: number;
-      }> | null;
-
-      if (!obstructions) return [];
-
-      return obstructions
-        .filter(o => o.energy > threshold)
-        .map(o => ({
-          node1: getStringId(o.node1), // Convert back to string ID
-          node2: getStringId(o.node2), // Convert back to string ID
-          severity: o.energy,
-          distance: o.energy,
-        }));
+      const contradictions: ContradictionRaw[] = [];
+      for (const graph of buildGraphs()) {
+        const obstructions = rawEngine.detectObstructions(graph) as Array<{
+          source_node: number;
+          target_node: number;
+          magnitude: number;
+        }> | null;
+        for (const obstruction of obstructions ?? []) {
+          if (obstruction.magnitude > threshold) {
+            contradictions.push({
+              node1: getStringId(obstruction.source_node),
+              node2: getStringId(obstruction.target_node),
+              severity: obstruction.magnitude,
+              distance: obstruction.magnitude,
+            });
+          }
+        }
+      }
+      // Preserve the native global descending-magnitude order across batches.
+      return contradictions.sort((a, b) => b.distance - a.distance);
     },
 
     clear(): void {
@@ -397,7 +473,7 @@ export class CohomologyAdapter implements ICohomologyAdapter {
       nodeIds: [raw.node1, raw.node2],
       severity: this.severityFromDistance(raw.severity),
       description: this.generateContradictionDescription(raw),
-      confidence: 1 - raw.distance, // Higher distance = lower confidence it's a true contradiction
+      confidence: Math.max(0, 1 - raw.distance), // Native magnitudes can exceed one
       resolution: this.suggestResolution(raw),
     };
   }

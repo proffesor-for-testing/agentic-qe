@@ -447,9 +447,9 @@ mcp__agentic-qe__test_generate_enhanced({
   detectAntiPatterns: true
 })
 
-// Parallel test execution with retry
+// Parallel test execution with retry (concrete paths; expand globs before calling)
 mcp__agentic-qe__test_execute_parallel({
-  testFiles: ["tests/**/*.test.ts"],
+  testFiles: ["tests/auth.test.ts", "tests/session.test.ts"],
   parallelism: 4,
   retryFailures: true,
   maxRetries: 3,

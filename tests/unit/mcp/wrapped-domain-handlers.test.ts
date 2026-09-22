@@ -163,7 +163,7 @@ describe('WrappedDomainHandlers', () => {
       });
 
       const result = await handleTestExecute({
-        testFiles: ['tests/unit/**/*.test.ts'],
+        testFiles: ['tests/unit/auth.test.ts'],
         parallel: true,
       });
 

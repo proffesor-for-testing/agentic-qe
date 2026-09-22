@@ -17,6 +17,7 @@ import {
 import { QueenTask, TaskType } from '../../../src/coordination/queen-coordinator';
 import { QEKernel, EventBus, MemoryBackend, AgentCoordinator, Subscription, VectorSearchResult, StoreOptions, AgentSpawnConfig, AgentFilter, AgentInfo } from '../../../src/kernel/interfaces';
 import { DomainEvent, DomainName, Result, ok, err, AgentStatus } from '../../../src/shared/types';
+import { writeQualityEvidence } from '../../../src/domains/quality-assessment/quality-evidence.js';
 
 // CQ-005: Side-effect imports to trigger DomainServiceRegistry.register() calls.
 // Before CQ-005, task-executor.ts had runtime imports from domains/ which
@@ -429,11 +430,11 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('quality assessment execution', () => {
-    it('should execute quality assessment task', async () => {
+    it('should execute analysis-only quality assessment task', async () => {
       const task = createTestTask('assess-quality', {
         // Use TEST_RESULTS_DIR (empty/small) to avoid slow file system walking
         target: TEST_RESULTS_DIR,
-        runGate: true,
+        runGate: false,
         threshold: 80,
         metrics: ['coverage', 'complexity', 'maintainability'],
       });
@@ -456,7 +457,9 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('test execution', () => {
-    it('should execute test execution task', async () => {
+    it('should report rejected test paths as execution failures', async () => {
+      // The handler rejects unexpanded globs before invoking a runner.
+      // A rejected request must not become a successful zero-test task.
       const task = createTestTask('execute-tests', {
         testFiles: ['tests/unit/*.test.ts'],
         parallel: true,
@@ -465,16 +468,17 @@ describe('DomainTaskExecutor', () => {
 
       const result = await executor.execute(task);
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.domain).toBe('test-execution');
+      expect(result.error).toContain('test file paths contain invalid characters');
+      expect(result.data).toBeUndefined();
 
-      const data = result.data as {
-        total: number;
-        passed: number;
-        failed: number;
-      };
-      expect(data.total).toBeGreaterThanOrEqual(0);
-      expect(data.passed).toBeDefined();
+      const events = (kernel.eventBus as MockEventBus).publishedEvents;
+      expect(events.find(event => event.type === 'TaskFailed')?.payload).toMatchObject({
+        taskId: task.id,
+        error: result.error,
+      });
+      expect(events.some(event => event.type === 'TaskCompleted')).toBe(false);
     });
   });
 
@@ -818,7 +822,12 @@ describe('TaskExecutor integration', () => {
     const secResult = await executor.execute(secTask);
     expect(secResult.success).toBe(true);
 
-    // 4. Quality assessment - use TEST_DIR (empty/small) to avoid slow file walking
+    // 4. An explicit gate consumes measured evidence, independently of source
+    // analysis. These are controlled fixture records, not analyzer measurements.
+    await writeQualityEvidence(kernel.memory, {
+      coverage: 90, testsPassing: 100, criticalBugs: 0, codeSmells: 10,
+      securityVulnerabilities: 0, technicalDebt: 2, duplications: 3,
+    }, { measuredAt: new Date().toISOString(), source: 'workflow-test-fixture' });
     const qualTask = createTestTask('assess-quality', {
       target: TEST_DIR,
       runGate: true,
@@ -826,6 +835,9 @@ describe('TaskExecutor integration', () => {
     });
     const qualResult = await executor.execute(qualTask);
     expect(qualResult.success).toBe(true);
+    expect(qualResult.data).toMatchObject({ passed: true, checks: expect.arrayContaining([
+      expect.objectContaining({ name: 'testsPassing', value: 100, passed: true }),
+    ]) });
 
     // Verify all results were saved
     const indexPath = path.join(TEST_DIR, 'results', 'index.json');

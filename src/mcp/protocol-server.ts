@@ -631,7 +631,10 @@ export class MCPProtocolServer {
       // the same output, so we can short-circuit repeated calls with an O(1)
       // fingerprint lookup. Tools without isConcurrencySafe (writes, scans,
       // executions) always re-run.
-      const cacheable = tool.definition.isConcurrencySafe === true;
+      // Explicit quality gates depend on current measured evidence and its age,
+      // not just arguments. A cached approval can outlive or contradict evidence.
+      const measuredQualityGate = name === 'quality_assess' && processedCtx.params?.runGate === true;
+      const cacheable = tool.definition.isConcurrencySafe === true && !measuredQualityGate;
       let cacheFingerprint: string | null = null;
       if (cacheable && process.env.AQE_SESSION_CACHE !== 'off') {
         try {
@@ -1043,7 +1046,7 @@ export class MCPProtocolServer {
         description: 'Execute test files in parallel with automatic retry on flaky failures. Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })',
         category: 'domain',
         parameters: [
-          { name: 'testFiles', type: 'array', description: 'Test files to execute' },
+          { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.' },
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
         ],
       },
@@ -1073,7 +1076,7 @@ export class MCPProtocolServer {
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'runGate', type: 'boolean', description: 'Run quality gate evaluation', default: false },
+          { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score.', default: false },
         ],
       },
       handler: (params) => handleQualityAssess(params as unknown as Parameters<typeof handleQualityAssess>[0]),
@@ -1083,12 +1086,13 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'security_scan_comprehensive',
-        description: 'Run SAST and/or DAST security scans with vulnerability classification. Example: security_scan_comprehensive({ target: "src/", sast: true })',
+        description: 'Run security scans with execution evidence and explicit coverage limitations. Complete means the declared required scope ran, not that all vulnerabilities are absent. Example: security_scan_comprehensive({ target: "src/", sast: true })',
         category: 'domain',
         parameters: [
           { name: 'sast', type: 'boolean', description: 'Run SAST scan', default: true },
           { name: 'dast', type: 'boolean', description: 'Run DAST scan', default: false },
-          { name: 'target', type: 'string', description: 'Target to scan' },
+          { name: 'target', type: 'string', description: 'Source file or directory for SAST' },
+          { name: 'targetUrl', type: 'string', description: 'URL for a requested DAST scan' },
         ],
       },
       handler: (params) => handleSecurityScan(params as unknown as Parameters<typeof handleSecurityScan>[0]),

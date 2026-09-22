@@ -314,6 +314,9 @@ jobs:
           npx vitest run tests/performance/milestone1-baselines.test.ts
           npx vitest run tests/unit/integrations/ruvector/hopfield-memory.test.ts --testNamePattern='single recall'
 
+      - name: Run native RVF performance baselines
+        run: npx vitest run tests/performance/rvf-pattern-store.test.ts
+
   # ─── Coverage analysis (PRs only, after journey shards) ───
 
   coverage:
@@ -412,7 +415,8 @@ jobs:
           path: ci-metrics.md
           retention-days: 30
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        # Fork tokens cannot write PR comments; keep reports and test gates running.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/github-script@v9
         with:
           script: |

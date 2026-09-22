@@ -204,7 +204,7 @@ describe('Queen-Domain Coordinator Integration', () => {
       const result = await queen.submitTask({
         type: 'execute-tests',
         payload: {
-          testFiles: ['test/unit/*.test.ts'],
+          testFiles: ['test/unit/auth.test.ts'],
           parallel: true,
         },
         priority: 'p1',
@@ -222,7 +222,7 @@ describe('Queen-Domain Coordinator Integration', () => {
       expect(testPlugin.executedTasks).toHaveLength(1);
       expect(testPlugin.executedTasks[0].taskType).toBe('execute-tests');
       expect(testPlugin.executedTasks[0].taskId).toBe(taskId);
-      expect(testPlugin.executedTasks[0].payload.testFiles).toEqual(['test/unit/*.test.ts']);
+      expect(testPlugin.executedTasks[0].payload.testFiles).toEqual(['test/unit/auth.test.ts']);
 
       // Verify result was recorded
       const taskResult = testPlugin.taskResults.get(taskId);

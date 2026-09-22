@@ -90,12 +90,12 @@ describe('CoherenceService WASM Integration', () => {
         {
           id: 'pattern-1',
           content: 'TDD requires writing tests before code',
-          embedding: Array(128).fill(0).map(() => Math.random() - 0.5),
+          embedding: Array(128).fill(0.5),
         },
         {
           id: 'pattern-2',
           content: 'TDD improves code quality through early testing',
-          embedding: Array(128).fill(0).map(() => Math.random() - 0.5),
+          embedding: Array(128).fill(0.51),
         },
       ];
 
@@ -115,6 +115,8 @@ describe('CoherenceService WASM Integration', () => {
       expect(result).toBeDefined();
       expect(result.energy).toBeGreaterThanOrEqual(0);
       expect(result.energy).toBeLessThanOrEqual(1);
+      // Connected sections exercise the native restriction-map contract.
+      expect(result.energy).toBeCloseTo(128 * 0.01 ** 2);
       expect(typeof result.isCoherent).toBe('boolean');
       expect(['reflex', 'heavy', 'human']).toContain(result.lane);
       expect(result.durationMs).toBeGreaterThanOrEqual(0);
@@ -128,12 +130,12 @@ describe('CoherenceService WASM Integration', () => {
         {
           id: 'pattern-a',
           content: 'Always write tests before implementation',
-          embedding: Array(128).fill(0).map((_, i) => i % 2 === 0 ? 0.5 : -0.5),
+          embedding: [1, 0],
         },
         {
           id: 'pattern-b',
           content: 'Never write tests before implementation', // Contradiction!
-          embedding: Array(128).fill(0).map((_, i) => i % 2 === 0 ? -0.5 : 0.5),
+          embedding: [1, 0.5],
         },
       ];
 
@@ -142,19 +144,28 @@ describe('CoherenceService WASM Integration', () => {
       // Should detect the contradiction or at least show higher energy
       expect(result).toBeDefined();
       expect(result.usedFallback).toBe(false);
-      // Contradictions should cause either:
-      // - Higher energy (less coherent)
-      // - Detected contradictions array
-      // Note: The exact behavior depends on WASM implementation
+      expect(result.energy).toBeCloseTo(0.25);
+      expect(result.contradictions).toEqual([
+        expect.objectContaining({ nodeIds: ['pattern-a', 'pattern-b'] }),
+      ]);
     });
   });
 
   describe('Performance', () => {
     it('should complete coherence check in reasonable time', async () => {
+      // Mulberry32 seed 67 reproduces a connected graph that previously
+      // triggered the missing-restriction-map fallback with random inputs.
+      let seed = 67;
+      const random = () => {
+        let value = seed += 0x6D2B79F5;
+        value = Math.imul(value ^ value >>> 15, value | 1);
+        value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+        return ((value ^ value >>> 14) >>> 0) / 4294967296;
+      };
       const nodes = Array.from({ length: 10 }, (_, i) => ({
         id: `perf-pattern-${i}`,
         content: `Performance test pattern ${i}`,
-        embedding: Array(128).fill(0).map(() => Math.random() - 0.5),
+        embedding: Array(128).fill(0).map(() => random() - 0.5),
       }));
 
       const startTime = performance.now();
