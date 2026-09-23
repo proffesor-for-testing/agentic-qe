@@ -20,6 +20,8 @@ import { findProjectRoot } from '../../kernel/project-root.js';
 import {
   quarantineUnusableStore,
   isLockHeldByLiveProcess,
+  isRvfLockHeldError,
+  removeStaleRvfLock,
   readLockOwnerPid,
 } from './rvf-store-integrity.js';
 
@@ -150,11 +152,6 @@ function openOrCreateRvf(
       return { adapter: null, err };
     }
   };
-  const isLockHeld = (err: unknown): boolean => {
-    const m = err instanceof Error ? err.message : String(err);
-    return m.includes('LockHeld') || m.includes('0x0300');
-  };
-
   // Pass 1: try to open whatever's there.
   let { adapter: opened, err: openErr } = tryOpen();
 
@@ -171,7 +168,7 @@ function openOrCreateRvf(
   // assumption. This includes a lock owned by the current PID: another
   // in-process adapter may still hold the store, so PID equality is not proof
   // that the lock can be removed safely.
-  if (!opened && isLockHeld(openErr)) {
+  if (!opened && isRvfLockHeldError(openErr)) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
@@ -181,8 +178,7 @@ function openOrCreateRvf(
           `[RVF] ${rvfPath} is locked by a live process (pid ${readLockOwnerPid(rvfPath)}) — ` +
             'not breaking the lock; degrading to SQLite for this run.',
         );
-      } else if (fs.existsSync(lockPath)) {
-        fs.unlinkSync(lockPath);
+      } else if (removeStaleRvfLock(rvfPath)) {
         console.warn(
           `[RVF] Removed stale lock file at ${lockPath} (prior process exited without closing). ` +
             'Retrying open. If you see this repeatedly under live concurrency, file an issue.',
@@ -221,23 +217,17 @@ function openOrCreateRvf(
   } catch (createErr) {
     // Pass 3: create failed (likely FsyncFailed because a peer process won
     // the race). Try open one more time.
+    let reopened: RvfNativeAdapter;
     try {
-      const reopened = openFn(rvfPath);
-      if (reopened.dimension() !== dimensions) {
-        try { reopened.close(); } catch { /* best-effort */ }
-        throw new Error(
-          `RVF dimension mismatch after race (file=${reopened.dimension()}, requested=${dimensions})`,
-        );
-      }
-      return reopened;
-    } catch {
-      // Pass 4 (#563): open failed, create failed, re-open failed. The file is
-      // provably unusable — the signature of an export killed mid-write, which
-      // used to disable the RVF backend permanently. Quarantine it (unless a
-      // live process holds its lock) and rebuild the derived cache.
+      reopened = openFn(rvfPath);
+    } catch (reopenErr) {
+      // A failed create only proves that a path exists. The final open error
+      // must be structural before we move any store aside.
+      if (isRvfLockHeldError(reopenErr)) throw reopenErr;
       const quarantined = quarantineUnusableStore(
         rvfPath,
         createErr instanceof Error ? createErr.message : String(createErr),
+        reopenErr,
       );
       if (quarantined) {
         return createFn(rvfPath, dimensions);
@@ -245,6 +235,14 @@ function openOrCreateRvf(
       // Fall through with the more informative original error.
       throw createErr instanceof Error ? createErr : new Error(String(createErr));
     }
+    const actualDim = reopened.dimension();
+    if (actualDim !== dimensions) {
+      try { reopened.close(); } catch { /* best-effort */ }
+      throw new Error(
+        `RVF dimension mismatch after race (file=${actualDim}, requested=${dimensions})`,
+      );
+    }
+    return reopened;
   }
 }
 

@@ -194,26 +194,43 @@ export class RvfDualWriter {
         return;
       }
 
-      // Try open first, create if it fails
-      let nativeAdapter: RvfNativeAdapter;
-      try {
-        nativeAdapter = adapter.openRvfStore(this.config.rvfPath);
-      } catch {
+      const { isRvfLockHeldError, removeStaleRvfLock, quarantineUnusableStore } =
+        await import('./rvf-store-integrity.js');
+      const tryOpen = (): { store: RvfNativeAdapter | null; error: unknown } => {
+        try {
+          return { store: adapter.openRvfStore(this.config.rvfPath), error: null };
+        } catch (error) {
+          return { store: null, error };
+        }
+      };
+
+      let { store: nativeAdapter, error: openError } = tryOpen();
+      if (!nativeAdapter && isRvfLockHeldError(openError)) {
+        // A dead CLI process can leave a valid RVF behind a native lock. Only
+        // reclaim a lock with a readable dead owner, then retry the open.
+        if (!removeStaleRvfLock(this.config.rvfPath)) throw openError;
+        ({ store: nativeAdapter, error: openError } = tryOpen());
+        if (!nativeAdapter && isRvfLockHeldError(openError)) throw openError;
+      }
+
+      if (!nativeAdapter) {
         try {
           nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
         } catch (createErr) {
-          // Issue #563: open failed *and* create failed, so the file on disk is
-          // provably unusable — the signature of an export killed mid-write
-          // (open → ManifestNotFound, create → FsyncFailed because the path
-          // exists). Previously this fell to the catch below and disabled RVF
-          // silently for the whole run. Quarantine and rebuild instead.
-          const { quarantineUnusableStore } = await import('./rvf-store-integrity.js');
-          const quarantined = quarantineUnusableStore(
-            this.config.rvfPath,
-            createErr instanceof Error ? createErr.message : String(createErr),
-          );
-          if (!quarantined) throw createErr; // live peer, or nothing to move
-          nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
+          // A peer may have created the file since the first open. Re-open
+          // before considering recovery, and use that error (not FsyncFailed)
+          // to distinguish a busy healthy store from structural corruption.
+          ({ store: nativeAdapter, error: openError } = tryOpen());
+          if (!nativeAdapter) {
+            if (isRvfLockHeldError(openError)) throw openError;
+            const quarantined = quarantineUnusableStore(
+              this.config.rvfPath,
+              createErr instanceof Error ? createErr.message : String(createErr),
+              openError,
+            );
+            if (!quarantined) throw createErr;
+            nativeAdapter = adapter.createRvfStore(this.config.rvfPath, this.config.dimensions);
+          }
         }
       }
 
@@ -227,6 +244,8 @@ export class RvfDualWriter {
     } catch (err) {
       // Native adapter unavailable, or recovery itself failed. Degrade to
       // sqlite-only — but say so, instead of vanishing silently (#563).
+      try { this.rvfStore?.close(); } catch { /* best-effort cleanup */ }
+      this.rvfStore = null;
       this.rvfAvailable = false;
       console.warn(
         `[RVF] Dual-writer disabled for ${this.config.rvfPath}; falling back to SQLite: ` +

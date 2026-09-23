@@ -25,7 +25,11 @@ import {
 // esbuild bundle but throws under the test runner, which silently changed which
 // code path tests exercised. Neither module loads the native binding at import
 // time, so this costs nothing at startup.
-import { quarantineUnusableStore } from '../integrations/ruvector/rvf-store-integrity.js';
+import {
+  isRvfLockHeldError,
+  quarantineUnusableStore,
+  removeStaleRvfLock,
+} from '../integrations/ruvector/rvf-store-integrity.js';
 import { getSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { toErrorMessage, toError } from '../shared/error-utils.js';
 import {
@@ -2026,15 +2030,22 @@ export function createPatternStore(
               // esbuild bundle but throws "Cannot find module" under the test
               // runner, so this ladder — including its corruption recovery —
               // was unreachable from any test.
+              let openError: unknown;
               const tryOpen = () => {
-                try { return _openRvfStore(path); } catch { return null; }
+                try { return _openRvfStore(path); } catch (err) { openError = err; return null; }
               };
               let adapter = tryOpen();
+              if (!adapter && isRvfLockHeldError(openError)) {
+                if (!removeStaleRvfLock(path)) throw openError;
+                adapter = tryOpen();
+                if (!adapter && isRvfLockHeldError(openError)) throw openError;
+              }
               if (adapter) {
-                if (adapter.dimension() !== dim) {
+                const actualDim = adapter.dimension();
+                if (actualDim !== dim) {
                   try { adapter.close(); } catch { /* best-effort */ }
                   throw new Error(
-                    `RVF dimension mismatch (file=${adapter.dimension()}, requested=${dim})`,
+                    `RVF dimension mismatch (file=${actualDim}, requested=${dim})`,
                   );
                 }
                 return adapter;
@@ -2043,13 +2054,18 @@ export function createPatternStore(
                 return _createRvfStore(path, dim);
               } catch (createErr) {
                 adapter = tryOpen();
-                if (adapter && adapter.dimension() === dim) return adapter;
-                // Issue #563: open failed, create failed, re-open failed — the
-                // store is provably unusable (an export killed mid-write leaves
-                // exactly this). Without recovery, RvfPatternStore.initialize()
-                // logs "vector search is DISABLED" and stays that way for the
-                // life of the process.
-                if (quarantineUnusableStore(path, createErr instanceof Error ? createErr.message : String(createErr))) {
+                if (adapter) {
+                  if (adapter.dimension() !== dim) {
+                    const actualDim = adapter.dimension();
+                    try { adapter.close(); } catch { /* best-effort */ }
+                    throw new Error(`RVF dimension mismatch (file=${actualDim}, requested=${dim})`);
+                  }
+                  return adapter;
+                }
+                if (isRvfLockHeldError(openError)) throw openError;
+                // Only a structural open failure can justify quarantining a
+                // store that create() also refused to replace (#563, #574).
+                if (quarantineUnusableStore(path, createErr instanceof Error ? createErr.message : String(createErr), openError)) {
                   return _createRvfStore(path, dim);
                 }
                 throw createErr;

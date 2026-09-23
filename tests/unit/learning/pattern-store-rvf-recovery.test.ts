@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { join } from 'path';
 
-import { isRvfNativeAvailable } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
+import { createRvfStore, isRvfNativeAvailable } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
 
 // Force the fallback ladder: the factory prefers the shared adapter singleton
 // and only reaches its own ladder when that yields nothing. This mock is
@@ -54,6 +54,31 @@ function projectWithUnusableStore(): { root: string; rvfPath: string } {
 }
 
 describeNative('createPatternStore RVF recovery (#563)', () => {
+  it('reopens a valid patterns.rvf after a dead owner instead of quarantining it (#574)', async () => {
+    const { root, rvfPath } = projectWithUnusableStore();
+    rmSync(rvfPath);
+    const nativeStore = createRvfStore(rvfPath, 384);
+    const staleLock = Buffer.from(readFileSync(`${rvfPath}.lock`));
+    nativeStore.close();
+    const originalBytes = readFileSync(rvfPath);
+    staleLock.writeUInt32LE(0x7fffffff, 4);
+    writeFileSync(`${rvfPath}.lock`, staleLock);
+    process.env.AQE_PROJECT_ROOT = root;
+
+    const { createPatternStore } = await import('../../../src/learning/pattern-store.js');
+    const memory = { store: async () => {}, retrieve: async () => null } as never;
+    const store = createPatternStore(memory, { embeddingSpaceId: 'rvf-recovery-test-space' });
+    try {
+      await store.initialize();
+      const stats = (await store.getStats()) as unknown as { hnswStats: { nativeAvailable: boolean } };
+      expect(stats.hnswStats.nativeAvailable).toBe(true);
+      expect(readFileSync(rvfPath).equals(originalBytes)).toBe(true);
+      expect(readdirSync(join(root, '.agentic-qe')).filter(name => name.includes('.corrupt-'))).toEqual([]);
+    } finally {
+      await store.dispose();
+    }
+  });
+
   it('quarantines an unusable patterns.rvf and rebuilds instead of degrading', async () => {
     const { root, rvfPath } = projectWithUnusableStore();
     process.env.AQE_PROJECT_ROOT = root;
