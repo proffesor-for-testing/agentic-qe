@@ -56,6 +56,14 @@ interface MutableProtocolExecution {
   triggeredBy?: DomainEvent;
 }
 
+/** The caller stopped waiting, but the domain operation may still take effect. */
+class ActionTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Action timed out after ${timeoutMs}ms; outcome is unknown`);
+    this.name = 'ActionTimeoutError';
+  }
+}
+
 // ============================================================================
 // Protocol Events
 // ============================================================================
@@ -64,10 +72,12 @@ const ProtocolEvents = {
   ProtocolStarted: 'coordination.ProtocolStarted',
   ProtocolCompleted: 'coordination.ProtocolCompleted',
   ProtocolFailed: 'coordination.ProtocolFailed',
+  ProtocolOutcomeUnknown: 'coordination.ProtocolOutcomeUnknown',
   ProtocolCancelled: 'coordination.ProtocolCancelled',
   ActionStarted: 'coordination.ActionStarted',
   ActionCompleted: 'coordination.ActionCompleted',
   ActionFailed: 'coordination.ActionFailed',
+  ActionOutcomeUnknown: 'coordination.ActionOutcomeUnknown',
 } as const;
 
 // ============================================================================
@@ -381,22 +391,27 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
       await this.executeActions(context);
 
       // Check for failures
-      const hasFailures = Array.from(context.actionResults.values()).some(
-        (r) => r.status === 'failed'
-      );
+      const results = Array.from(context.actionResults.values());
+      const unknownActions = results.filter((r) => r.status === 'unknown').map((r) => r.actionId);
+      const failedActions = results.filter((r) => r.status === 'failed').map((r) => r.actionId);
 
       if (context.cancelled) {
         execution.status = 'cancelled';
-      } else if (hasFailures) {
+      } else if (unknownActions.length > 0) {
+        execution.status = 'unknown';
+        await this.publishEvent(
+          ProtocolEvents.ProtocolOutcomeUnknown,
+          { executionId, protocolId: protocol.id, unknownActions, failedActions },
+          correlationId
+        );
+      } else if (failedActions.length > 0) {
         execution.status = 'failed';
         await this.publishEvent(
           ProtocolEvents.ProtocolFailed,
           {
             executionId,
             protocolId: protocol.id,
-            failedActions: Array.from(context.actionResults.values())
-              .filter((r) => r.status === 'failed')
-              .map((r) => r.actionId),
+            failedActions,
           },
           correlationId
         );
@@ -462,6 +477,21 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
       );
 
       if (readyActions.length === 0 && pending.size > 0) {
+        // A failed/unknown prerequisite cannot authorize a dependent action.
+        // Mark the dependent skipped instead of misreporting a deadlock.
+        let skipped = false;
+        for (const action of protocol.actions) {
+          if (!pending.has(action.id)) continue;
+          if (action.dependsOn?.some((dep) => {
+            const status = actionResults.get(dep)?.status;
+            return status !== undefined && status !== 'completed';
+          })) {
+            actionResults.set(action.id, { actionId: action.id, status: 'skipped' });
+            pending.delete(action.id);
+            skipped = true;
+          }
+        }
+        if (skipped) continue;
         // Deadlock - some actions can't be executed
         throw new Error(
           `Deadlock detected: actions ${Array.from(pending).join(', ')} cannot proceed`
@@ -588,6 +618,31 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
       } catch (error) {
         lastError = toError(error);
 
+        if (error instanceof ActionTimeoutError) {
+          // Promise.race cannot cancel the losing provider call. It may have
+          // committed an effect already, so replay would be unsafe.
+          const completedAt = new Date();
+          await this.publishEvent(
+            ProtocolEvents.ActionOutcomeUnknown,
+            {
+              executionId: context.execution.executionId,
+              actionId: action.id,
+              error: error.message,
+              attempts,
+            },
+            context.execution.correlationId
+          );
+          return {
+            actionId: action.id,
+            status: 'unknown',
+            startedAt,
+            completedAt,
+            duration: completedAt.getTime() - startedAt.getTime(),
+            error: error.message,
+            retryAttempts: attempts > 1 ? attempts - 1 : undefined,
+          };
+        }
+
         // Retry if configured and not last attempt
         if (attempts < maxAttempts && action.retry) {
           const backoff = action.retry.backoffMs *
@@ -642,12 +697,17 @@ export class DefaultProtocolExecutor implements ProtocolExecutor {
     promise: Promise<T>,
     timeoutMs: number
   ): Promise<T> {
-    return Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error('Action timeout')), timeoutMs)
-      ),
-    ]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new ActionTimeoutError(timeoutMs)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /**

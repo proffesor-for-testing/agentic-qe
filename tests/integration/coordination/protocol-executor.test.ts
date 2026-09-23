@@ -351,6 +351,100 @@ describe('DefaultProtocolExecutor Integration', () => {
   });
 
   describe('error handling', () => {
+    it('does not retry a timed-out action whose first attempt may still commit', async () => {
+      const effects: string[] = [];
+      let finishFirst!: () => void;
+      const apply = vi.fn()
+        .mockImplementationOnce(() => {
+          effects.push('applied');
+          return new Promise<void>((resolve) => { finishFirst = resolve; });
+        })
+        .mockImplementationOnce(async () => { effects.push('applied again'); });
+      const actionEvents: string[] = [];
+      eventBus.subscribe('coordination.ActionCompleted', () => { actionEvents.push('completed'); });
+      eventBus.subscribe('coordination.ActionOutcomeUnknown', () => { actionEvents.push('unknown'); });
+      eventBus.subscribe('coordination.ProtocolCompleted', () => { actionEvents.push('protocol completed'); });
+      eventBus.subscribe('coordination.ProtocolOutcomeUnknown', () => { actionEvents.push('protocol unknown'); });
+      const timedExecutor = new DefaultProtocolExecutor(eventBus, memory, <T>() => ({ apply }) as T);
+      timedExecutor.registerProtocol({
+        id: 'ambiguous-timeout', name: 'Ambiguous timeout',
+        schedule: { type: 'immediate' }, participants: ['test-generation'],
+        actions: [{ id: 'apply', name: 'Apply external effect', targetDomain: 'test-generation',
+          method: 'apply', timeout: 20, retry: { maxAttempts: 2, backoffMs: 1 } }],
+        priority: 'high', enabled: true,
+      });
+
+      const result = await timedExecutor.execute('ambiguous-timeout');
+      finishFirst(); // The timed-out provider call can finish after the protocol returns.
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.status).toBe('unknown');
+        expect(result.value.results.get('apply')).toMatchObject({
+          status: 'unknown', retryAttempts: undefined,
+        });
+        const stored = await memory.get<{ status: string; results: Record<string, { status: string }> }>(
+          `protocol-execution:${result.value.executionId}`
+        );
+        expect(stored?.status).toBe('unknown');
+        expect(stored?.results.apply.status).toBe('unknown');
+      }
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(effects).toEqual(['applied']);
+      expect(actionEvents).toEqual(['unknown', 'protocol unknown']);
+    });
+
+    it('skips dependents of an unknown action without turning it into a deadlock', async () => {
+      const dependent = vi.fn().mockResolvedValue('should not run');
+      const blockedExecutor = new DefaultProtocolExecutor(
+        eventBus, memory,
+        <T>() => ({ hang: () => new Promise(() => {}), dependent }) as T
+      );
+      blockedExecutor.registerProtocol({
+        id: 'blocked-dependent', name: 'Blocked dependent',
+        schedule: { type: 'immediate' }, participants: ['test-generation'],
+        actions: [
+          { id: 'hang', name: 'May commit', targetDomain: 'test-generation', method: 'hang', timeout: 10 },
+          { id: 'dependent', name: 'Dependent', targetDomain: 'test-generation',
+            method: 'dependent', dependsOn: ['hang'] },
+        ],
+        priority: 'high', enabled: true,
+      });
+
+      const result = await blockedExecutor.execute('blocked-dependent');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.status).toBe('unknown');
+        expect(result.value.results.get('hang')?.status).toBe('unknown');
+        expect(result.value.results.get('dependent')?.status).toBe('skipped');
+      }
+      expect(dependent).not.toHaveBeenCalled();
+    });
+
+    it('still retries an explicit pre-effect rejection when configured', async () => {
+      const attempt = vi.fn()
+        .mockRejectedValueOnce(new Error('Rejected before effect'))
+        .mockResolvedValueOnce('accepted');
+      const retryExecutor = new DefaultProtocolExecutor(eventBus, memory, <T>() => ({ attempt }) as T);
+      retryExecutor.registerProtocol({
+        id: 'rejected-attempt', name: 'Rejected attempt',
+        schedule: { type: 'immediate' }, participants: ['test-generation'],
+        actions: [{ id: 'attempt', name: 'Attempt', targetDomain: 'test-generation',
+          method: 'attempt', retry: { maxAttempts: 2, backoffMs: 1 } }],
+        priority: 'high', enabled: true,
+      });
+
+      const result = await retryExecutor.execute('rejected-attempt');
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.status).toBe('completed');
+        expect(result.value.results.get('attempt')?.retryAttempts).toBe(1);
+      }
+      expect(attempt).toHaveBeenCalledTimes(2);
+    });
+
     it('should handle missing protocol gracefully', async () => {
       const result = await executor.execute('non-existent-protocol');
 
