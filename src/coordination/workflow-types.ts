@@ -86,7 +86,9 @@ export interface WorkflowStepDefinition {
   continueOnFailure?: boolean;
   /** Approval gate configuration */
   approval?: boolean | {
-    /** Auto-approve after this many ms (0 = never auto-approve) */
+    /** Expire an unanswered approval after this many ms (0 = wait indefinitely; default 5 min) */
+    expiresAfter?: number;
+    /** @deprecated Legacy alias for expiresAfter; never grants approval on timeout */
     autoApproveAfter?: number;
     /** Approval prompt message */
     message?: string;
@@ -249,6 +251,8 @@ export interface StepEventPayload {
 
 export interface StepAwaitingApprovalPayload extends StepEventPayload {
   message?: string;
+  expiresAfter?: number;
+  /** @deprecated No longer emitted; read expiresAfter instead */
   autoApproveAfter?: number;
 }
 
