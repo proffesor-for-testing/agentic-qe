@@ -192,6 +192,6 @@ describe('RvfPatternStore — Real Native Benchmarks', () => {
       const p = join(BENCH_DIR, `search-bench.rvf${ext}`);
       if (existsSync(p)) unlinkSync(p);
     }
-  });
+  }, 30_000); // Setup ingests 1000 patterns; the separate ingest test enforces its 10s bound.
 
 });
