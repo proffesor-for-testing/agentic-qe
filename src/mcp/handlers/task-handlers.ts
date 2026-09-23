@@ -128,6 +128,7 @@ export async function handleTaskList(
       taskId: execution.taskId,
       type: execution.task.type,
       status: execution.status,
+      cancellationResultPending: execution.cancellationResultPending,
       priority: execution.task.priority,
       assignedDomain: execution.assignedDomain,
       assignedAgents: execution.assignedAgents,
@@ -183,6 +184,7 @@ export async function handleTaskStatus(
       taskId: execution.taskId,
       type: execution.task.type,
       status: execution.status,
+      cancellationResultPending: execution.cancellationResultPending,
       priority: execution.task.priority,
       assignedDomain: execution.assignedDomain,
       assignedAgents: execution.assignedAgents,
@@ -214,7 +216,7 @@ export async function handleTaskStatus(
 
 export async function handleTaskCancel(
   params: TaskCancelParams
-): Promise<ToolResult<{ taskId: string; cancelled: boolean }>> {
+): Promise<ToolResult<{ taskId: string; cancelled: boolean; cancellationResultPending: boolean }>> {
   if (!isFleetInitialized()) {
     return {
       success: false,
@@ -239,6 +241,7 @@ export async function handleTaskCancel(
       data: {
         taskId: params.taskId,
         cancelled: true,
+        cancellationResultPending: queen!.getTaskStatus(params.taskId)?.cancellationResultPending ?? false,
       },
     };
   } catch (error) {
@@ -1126,6 +1129,7 @@ export async function handleTaskStatusWithLearning(
       taskId: execution.taskId,
       type: execution.task.type,
       status: execution.status,
+      cancellationResultPending: execution.cancellationResultPending,
       priority: execution.task.priority,
       assignedDomain: execution.assignedDomain,
       assignedAgents: execution.assignedAgents,
@@ -1234,14 +1238,14 @@ export function subscribeTrajectoryEvents(router: import('../../coordination/cro
 
   const completedId = router.subscribeToEventType('TaskCompleted', async (event) => {
     const { taskId } = event.payload as { taskId: string };
-    if (taskId) {
+    if (taskId && getFleetState().queen?.getTaskStatus(taskId)?.status !== 'cancelled') {
       await endTaskTrajectory(taskId, true).catch(() => {});
     }
   });
 
   const failedId = router.subscribeToEventType('TaskFailed', async (event) => {
     const { taskId, error: errorMsg } = event.payload as { taskId: string; error?: string };
-    if (taskId) {
+    if (taskId && getFleetState().queen?.getTaskStatus(taskId)?.status !== 'cancelled') {
       await endTaskTrajectory(taskId, false, errorMsg).catch(() => {});
     }
   });

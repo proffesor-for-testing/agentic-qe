@@ -72,6 +72,8 @@ export interface TaskExecution {
   readonly assignedAgents: string[];
   readonly startedAt?: Date;
   readonly completedAt?: Date;
+  /** True until an already-running task result arrives after cancellation. */
+  readonly cancellationResultPending?: boolean;
   readonly result?: unknown;
   readonly error?: string;
   readonly retryCount: number;

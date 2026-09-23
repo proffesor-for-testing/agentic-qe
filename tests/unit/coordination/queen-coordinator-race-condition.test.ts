@@ -792,16 +792,30 @@ describe('QueenCoordinator Race Condition Fix (CC-002)', () => {
       if (runningTask) {
         const cancelResult = await queen.cancelTask(runningTask.taskId);
         expect(cancelResult.success).toBe(true);
+        expect(queen.getTaskStatus(runningTask.taskId)?.cancellationResultPending).toBe(true);
       }
 
-      // After cancellation: check counts
+      // The old work still occupies a capacity slot until its result arrives.
       tasks = queen.listTasks();
       const cancelled = tasks.filter(t => t.status === 'cancelled').length;
       const stillRunning = tasks.filter(t => t.status === 'running' || t.status === 'assigned').length;
 
       expect(cancelled).toBe(1);
-      // Running count should not exceed limit after cancellation
-      expect(stillRunning).toBeLessThanOrEqual(maxConcurrentTasks);
+      expect(stillRunning).toBe(1);
+      expect(tasks.filter(t => t.status === 'queued')).toHaveLength(1);
+
+      await router.simulateDomainEvent({
+        id: 'cancelled_result',
+        type: 'TaskCompleted',
+        timestamp: new Date(),
+        source: runningTask!.assignedDomain!,
+        payload: { taskId: runningTask!.taskId, result: { success: true } },
+      });
+
+      expect(queen.getTaskStatus(runningTask!.taskId)?.status).toBe('cancelled');
+      expect(queen.getTaskStatus(runningTask!.taskId)?.cancellationResultPending).toBe(false);
+      expect(queen.listTasks().filter(t => t.status === 'running')).toHaveLength(2);
+      expect(queen.listTasks().filter(t => t.status === 'queued')).toHaveLength(0);
     });
   });
 

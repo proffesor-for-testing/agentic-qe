@@ -361,7 +361,7 @@ export class MCPProtocolServer {
         try {
           const result = await this.handleRequest(request);
           resolve(result);
-        } catch (err) {
+        } catch {
           console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
         }
       }
@@ -864,7 +864,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'task_cancel',
-        description: 'Cancel a running or pending task by ID. Example: task_cancel({ taskId: "abc-123" })',
+        description: 'Request task cancellation by ID. A running handler may continue; check cancellationResultPending in task_status.',
         category: 'task',
         parameters: [
           { name: 'taskId', type: 'string', description: 'Task ID to cancel', required: true },

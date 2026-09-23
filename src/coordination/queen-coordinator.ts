@@ -452,15 +452,20 @@ export class QueenCoordinator implements IQueenCoordinator {
   async cancelTask(taskId: string): Promise<Result<void, Error>> {
     const execution = this.tasks.get(taskId);
     if (!execution) return err(new Error(`Task not found: ${taskId}`));
+    // Repeated cancellation is one decision, not another event or capacity release.
+    if (execution.status === 'cancelled') return ok(undefined);
     if (execution.status === 'completed' || execution.status === 'failed') {
       return err(new Error(`Task already finished: ${taskId}`));
     }
 
-    if (execution.status === 'running' || execution.status === 'assigned') {
-      this.runningTaskCounter = Math.max(0, this.runningTaskCounter - 1);
-    }
-
-    this.tasks.set(taskId, { ...execution, status: 'cancelled', completedAt: new Date() });
+    const cancellationResultPending =
+      execution.status === 'running' || execution.status === 'assigned';
+    // Keep the capacity slot until the outstanding result arrives. Stopping an
+    // agent does not necessarily stop a domain plugin or its child process.
+    this.tasks.set(taskId, {
+      ...execution, status: 'cancelled', completedAt: new Date(),
+      cancellationResultPending,
+    });
     removeFromQueues(this.taskQueue, this.domainQueues, execution.task);
 
     for (const agentId of execution.assignedAgents) {
