@@ -58,12 +58,15 @@ describe('MCP session-cache invalidation', () => {
     expect((await call('agent_list')).data).toEqual([]);
     expect((await call('agent_list')).data).toEqual([]); // prove the cache was populated
     expect(list).toHaveBeenCalledTimes(1);
-    expect((await call('fleet_status')).data).toEqual({ version: 0 });
     await call('agent_spawn');
-    await call('fleet_init');
     expect((await call('agent_list')).data).toEqual(['worker-1']);
-    expect((await call('fleet_status')).data).toEqual({ version: 1 });
     expect(list).toHaveBeenCalledTimes(2);
+
+    expect((await call('fleet_status')).data).toEqual({ version: 0 });
+    expect((await call('fleet_status')).data).toEqual({ version: 0 }); // cached before init
+    expect(status).toHaveBeenCalledTimes(1);
+    await call('fleet_init');
+    expect((await call('fleet_status')).data).toEqual({ version: 1 });
     expect(status).toHaveBeenCalledTimes(2);
   });
 
