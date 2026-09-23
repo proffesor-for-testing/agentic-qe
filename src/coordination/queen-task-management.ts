@@ -40,6 +40,7 @@ import type {
   TaskFilter,
 } from './queen-types.js';
 import { TASK_DOMAIN_MAP } from './queen-types.js';
+import { settleCancelledTask } from './cancelled-task-settlement.js';
 
 // ============================================================================
 // Task comparator for priority queue binary insertion
@@ -345,6 +346,14 @@ export async function assignTaskToDomain(
     spawnCapabilities,
   );
 
+  // A queued task can be cancelled while routing or agent spawn is awaiting.
+  // Do not recreate it as running or dispatch its plugin afterward.
+  if (ctx.tasks.get(task.id)?.status === 'cancelled') {
+    if (spawnResult.success) await ctx.agentCoordinator.stop(spawnResult.value);
+    ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+    return ok(task.id);
+  }
+
   const agentIds: string[] = [];
   if (spawnResult.success) {
     agentIds.push(spawnResult.value);
@@ -394,6 +403,14 @@ export async function assignTaskToDomain(
       );
 
       if (!execResult.success) {
+        const cancelled = settleCancelledTask(ctx.tasks, task.id);
+        if (cancelled.ignored) {
+          if (cancelled.settledNow) {
+            ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+            await processQueue(ctx);
+          }
+          return ok(task.id);
+        }
         ctx.tasks.set(task.id, {
           ...execution,
           status: 'failed',
@@ -447,6 +464,15 @@ async function handleTaskCompletionCallback(
   const execution = ctx.tasks.get(result.taskId);
   if (!execution) {
     console.warn(`[Queen] Received completion for unknown task: ${result.taskId}`);
+    return;
+  }
+
+  const cancelled = settleCancelledTask(ctx.tasks, result.taskId);
+  if (cancelled.ignored) {
+    if (cancelled.settledNow) {
+      ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+      await processQueue(ctx);
+    }
     return;
   }
 
