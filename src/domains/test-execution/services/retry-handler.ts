@@ -517,7 +517,7 @@ export class RetryHandlerService implements IRetryHandler {
         if ('jest' in devDeps) return 'jest';
         if ('mocha' in devDeps) return 'mocha';
       }
-    } catch (error) {
+    } catch {
       // Non-critical: package.json read errors during test runner detection
       logger.debug('package.json read failed:');
     }
@@ -621,8 +621,15 @@ export class RetryHandlerService implements IRetryHandler {
 
         // Parse result based on exit code and output (Vitest writes the JSON
         // report to the --outputFile; read it back rather than trusting stdout).
-        const result = this.parseTestResult(code, report ? report.read(stdout) : stdout, stderr);
-        settle(resolve, result);
+        try {
+          const reportText = report ? report.read(stdout) : stdout;
+          if (reportText === undefined) {
+            throw new Error('The current Vitest JSON report is missing for the retry run.');
+          }
+          settle(resolve, this.parseTestResult(code, reportText, stderr));
+        } catch (error) {
+          settle(reject, toError(error));
+        }
       });
 
       proc.on('error', (err: Error) => {
@@ -645,18 +652,14 @@ export class RetryHandlerService implements IRetryHandler {
     stdout: string,
     stderr: string
   ): { passed: boolean; error?: string } {
-    // Exit code 0 typically means all tests passed
-    if (exitCode === 0) {
-      return { passed: true };
-    }
-
-    // Try to parse JSON output for more detailed error info
+    // A passing process and a passing report must agree when JSON is available.
     try {
       // Vitest JSON output
       const vitestMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
       if (vitestMatch) {
         const result = safeJsonParse(vitestMatch[0]);
-        if (result.success === true || result.numFailedTests === 0) {
+        if (exitCode === 0 && result.success !== false
+          && result.numFailedTests === 0 && result.numFailedTestSuites === 0) {
           return { passed: true };
         }
         const failedTest = result.testResults?.[0]?.assertionResults?.find(
@@ -664,7 +667,7 @@ export class RetryHandlerService implements IRetryHandler {
         );
         return {
           passed: false,
-          error: failedTest?.failureMessages?.join('\n') ?? `Test failed with exit code ${exitCode}`,
+          error: failedTest?.failureMessages?.join('\n') || stderr || `Test failed with exit code ${exitCode}`,
         };
       }
 
@@ -672,7 +675,8 @@ export class RetryHandlerService implements IRetryHandler {
       const jestMatch = stdout.match(/\{[\s\S]*"numFailedTests"[\s\S]*\}/);
       if (jestMatch) {
         const result = safeJsonParse(jestMatch[0]);
-        if (result.success === true || result.numFailedTests === 0) {
+        if (exitCode === 0 && result.success !== false
+          && result.numFailedTests === 0 && result.numFailedTestSuites === 0) {
           return { passed: true };
         }
         const failedTest = result.testResults?.[0]?.assertionResults?.find(
@@ -680,7 +684,7 @@ export class RetryHandlerService implements IRetryHandler {
         );
         return {
           passed: false,
-          error: failedTest?.failureMessages?.join('\n') ?? `Test failed with exit code ${exitCode}`,
+          error: failedTest?.failureMessages?.join('\n') || stderr || `Test failed with exit code ${exitCode}`,
         };
       }
 
@@ -688,18 +692,20 @@ export class RetryHandlerService implements IRetryHandler {
       const mochaMatch = stdout.match(/\{[\s\S]*"stats"[\s\S]*"failures"[\s\S]*\}/);
       if (mochaMatch) {
         const result = safeJsonParse(mochaMatch[0]);
-        if (result.stats?.failures === 0) {
+        if (exitCode === 0 && result.stats?.failures === 0) {
           return { passed: true };
         }
         const failure = result.failures?.[0];
         return {
           passed: false,
-          error: failure?.err?.message ?? `Test failed with exit code ${exitCode}`,
+          error: failure?.err?.message || stderr || `Test failed with exit code ${exitCode}`,
         };
       }
     } catch {
       // JSON parsing failed, fall back to simple exit code check
     }
+
+    if (exitCode === 0) return { passed: true };
 
     // Non-zero exit code means failure
     const errorOutput = stderr || stdout || `Test failed with exit code ${exitCode}`;

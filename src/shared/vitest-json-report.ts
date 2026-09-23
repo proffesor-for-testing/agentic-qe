@@ -12,7 +12,7 @@
  * instead of parsing stdout directly.
  */
 
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -22,29 +22,35 @@ export interface VitestJsonReport {
   /** CLI arguments to append to `vitest run --reporter=json`. */
   readonly args: readonly string[];
   /**
-   * Return the text that carries the JSON document: the report file when the
-   * runner wrote one, otherwise the captured stdout (older runners, or a run
-   * that died before reporting).
+   * Read this invocation's report. Missing reports return undefined so callers
+   * can distinguish them from a completed run; malformed reports throw.
+   * Stdout is diagnostic text, never a substitute for the requested report.
    */
-  read(stdout: string): string;
+  read(stdout: string): string | undefined;
   /** Remove the temporary report directory. Safe to call more than once. */
   cleanup(): void;
 }
 
 /**
- * Resolve the JSON document text for a finished Vitest run.
- * Exported separately so the precedence rule is unit-testable without spawning.
+ * Read the report owned by a finished Vitest run. The stdout parameter stays
+ * for existing callers but is never treated as result evidence.
  */
-export function resolveVitestJsonOutput(stdout: string, reportPath: string | undefined): string {
-  if (reportPath && existsSync(reportPath)) {
-    try {
-      const content = readFileSync(reportPath, 'utf-8');
-      if (content.trim().length > 0) return content;
-    } catch {
-      // Unreadable report: fall back to stdout below.
-    }
+export function resolveVitestJsonOutput(_stdout: string, reportPath: string | undefined): string | undefined {
+  if (!reportPath) return undefined;
+  let content: string;
+  try {
+    content = readFileSync(reportPath, 'utf-8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw new Error('Could not read the current Vitest JSON report.');
   }
-  return stdout;
+  try {
+    const parsed = JSON.parse(content);
+    if (!parsed || !Array.isArray(parsed.testResults)) throw new Error('Invalid report');
+  } catch {
+    throw new Error('The current Vitest JSON report is malformed.');
+  }
+  return content;
 }
 
 /**
