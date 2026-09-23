@@ -10,7 +10,7 @@
 
 [Release Notes](docs/releases/README.md) | [Changelog](CHANGELOG.md) | [Issues](https://github.com/proffesor-for-testing/agentic-qe/issues) | [Discussions](https://github.com/proffesor-for-testing/agentic-qe/discussions)
 
-**AI-powered quality engineering agents that generate tests, find coverage gaps, detect flaky tests, and learn your codebase patterns — across 11 coding agent platforms.**
+**AI-powered quality engineering agents that generate tests, find coverage gaps, detect flaky tests, and learn your codebase patterns — across 12 coding agent platforms.**
 
 </div>
 
@@ -24,7 +24,7 @@
 - **Learns your codebase patterns over time** — remembered patterns are reused across sessions and projects, improving with every interaction
 - **Coordinates 60 specialized QE agents** — from test generation to security scanning to chaos engineering, orchestrated by a central coordinator
 - **Reduces AI costs with intelligent routing** — automatically routes tasks to the right model tier (fast/cheap for simple tasks, powerful for complex ones)
-- **Works with your existing tools** — integrates with 11 coding agent platforms and your existing CI/CD pipeline
+- **Works with your existing tools** — integrates with 12 coding agent platforms and your existing CI/CD pipeline
 
 ---
 
@@ -149,7 +149,7 @@ Or invoke an agent through the Task tool:
 | Setup | One slash command | Full project setup |
 | Scope | 11 agents, 9 skills | 60 agents, 86 skills |
 | Persistent learning DB | No (uses MCP server's) | Yes (`.agentic-qe/memory.db`) |
-| Cross-platform support | Claude Code only | 11 platforms (Cursor, Copilot, Cline, etc.) |
+| Cross-platform support | Claude Code only | 12 platforms (Cursor, Copilot, Cline, etc.) |
 | Use when | Quick start, single Claude Code project | Production team setup, multi-platform, full fleet |
 
 You can run both — the plugin's MCP server uses the same `agentic-qe` package, so installing both gives you the full fleet via `aqe init` and the slash-command shortcuts via the plugin.
@@ -158,7 +158,7 @@ You can run both — the plugin's MCP server uses the same `agentic-qe` package,
 
 ## Platform Support
 
-AQE works with **11 coding agent platforms** through a single MCP server:
+AQE works with **12 coding agent platforms** through a single MCP server:
 
 | Platform | Setup |
 |----------|-------|
@@ -173,6 +173,7 @@ AQE works with **11 coding agent platforms** through a single MCP server:
 | **OpenAI Codex CLI** | `aqe init --auto --with-codex` |
 | **Windsurf** | `aqe init --auto --with-windsurf` |
 | **Continue.dev** | `aqe init --auto --with-continuedev` |
+| **Prime Agent** | `aqe init --auto --with-prime-agent` |
 
 ```bash
 # Set up all platforms at once
