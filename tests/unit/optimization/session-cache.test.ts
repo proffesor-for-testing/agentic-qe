@@ -240,6 +240,20 @@ describe('SessionOperationCache', () => {
   // ==========================================================================
 
   describe('clear', () => {
+    it('invalidates all domains and advances the revision even without a retained entry', () => {
+      cache.set('agent-list', 'agent', 'list', { agents: [] }, 100);
+      cache.set('fleet-status', 'fleet', 'status', { version: 0 }, 100);
+      const before = cache.getGeneration();
+
+      expect(cache.invalidateAll()).toBe(2);
+      expect(cache.get('agent-list')).toBeNull();
+      expect(cache.get('fleet-status')).toBeNull();
+      expect(cache.getGeneration()).toBe(before + 1);
+
+      cache.invalidateAll();
+      expect(cache.getGeneration()).toBe(before + 2);
+    });
+
     it('should clear all entries and reset counters', () => {
       cache.set('fp1', 'd', 'a', {}, 100);
       cache.get('fp1');
