@@ -204,10 +204,10 @@ function countVitestTests(
   config: MetricCollectorConfig
 ): TestMetrics {
   try {
-    // Use vitest list for safe enumeration (NO execution)
-    // --reporter=json gives structured output we can parse
+    // Use vitest list for safe enumeration (NO execution). --json emits one
+    // entry per discovered test in Vitest 4 and 5; --reporter=json does not.
     const output = execSync(
-      'npx vitest list --reporter=json',
+      'npx vitest list --json',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -216,23 +216,17 @@ function countVitestTests(
       }
     );
 
-    // Parse JSON output from vitest list
     try {
       const data = safeJsonParse(output);
 
-      // vitest list --reporter=json returns array of test files with tests
-      if (Array.isArray(data)) {
-        let total = 0;
-        for (const file of data) {
-          // Each file entry has a `tests` array
-          if (file.tests && Array.isArray(file.tests)) {
-            total += countTestsRecursive(file.tests);
-          }
-        }
-        return classifyTests(total, 'vitest', projectPath);
+      // Vitest list --json returns a flat array of { name, file, location? }.
+      if (Array.isArray(data) && data.every(test =>
+        test && typeof test.name === 'string' && typeof test.file === 'string'
+      )) {
+        return classifyTests(data.length, 'vitest', projectPath);
       }
 
-      // Alternative format: object with numTotalTests
+      // Preserve compatibility with older structured runner output.
       if (data && typeof data.numTotalTests === 'number') {
         return classifyTests(data.numTotalTests, 'vitest', projectPath);
       }
@@ -255,34 +249,10 @@ function countVitestTests(
 
     // If vitest list produced no usable output, fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
-  } catch (error) {
+  } catch {
     // vitest list failed (not installed, timeout, etc.) - fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
   }
-}
-
-/**
- * Recursively count tests in vitest's nested test structure
- */
-function countTestsRecursive(tests: unknown[]): number {
-  let count = 0;
-  for (const test of tests) {
-    if (typeof test === 'object' && test !== null) {
-      const t = test as Record<string, unknown>;
-      // Count this test if it has a name (actual test, not describe block)
-      if (t.type === 'test' || t.mode === 'run' || t.mode === 'skip') {
-        count++;
-      }
-      // Recurse into children (nested describes)
-      if (Array.isArray(t.tests)) {
-        count += countTestsRecursive(t.tests);
-      }
-      if (Array.isArray(t.children)) {
-        count += countTestsRecursive(t.children);
-      }
-    }
-  }
-  return count;
 }
 
 /**
@@ -323,7 +293,7 @@ function countJestTests(
 
     // If jest --listTests produced no files, fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
-  } catch (error) {
+  } catch {
     // jest --listTests failed - fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
   }
