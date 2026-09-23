@@ -5,7 +5,7 @@
  * No simulation. No fake data. Real test execution.
  */
 
-import { spawn, type ChildProcess } from 'child_process';
+import { execFile, spawn, type ChildProcess } from 'child_process';
 import type {
   TestPhase,
   PhaseResult,
@@ -45,6 +45,13 @@ export interface VitestConfig {
    * is detected historically by tracking pass/fail patterns over time.
    */
   flakyTracker?: FlakyTestTracker;
+
+  /** Grace period before forcefully stopping a test process tree. */
+  terminationGraceMs?: number;
+}
+
+interface ActiveCommand {
+  terminate(reason: Error): Promise<void>;
 }
 
 interface VitestJsonResult {
@@ -82,8 +89,7 @@ interface VitestAssertion {
 // ============================================================================
 
 export class VitestPhaseExecutor implements PhaseExecutor {
-  private currentProcess: ChildProcess | null = null;
-  private isAborted = false;
+  private currentCommand: ActiveCommand | null = null;
 
   constructor(private readonly config: VitestConfig = {}) {}
 
@@ -92,7 +98,6 @@ export class VitestPhaseExecutor implements PhaseExecutor {
   // --------------------------------------------------------------------------
 
   async execute(phase: TestPhase, testFiles?: string[]): Promise<PhaseResult> {
-    this.isAborted = false;
     const startTime = Date.now();
 
     try {
@@ -122,11 +127,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
   }
 
   async abort(): Promise<void> {
-    this.isAborted = true;
-    if (this.currentProcess) {
-      this.currentProcess.kill('SIGTERM');
-      this.currentProcess = null;
-    }
+    await this.currentCommand?.terminate(new Error('Test execution aborted'));
   }
 
   // --------------------------------------------------------------------------
@@ -205,7 +206,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
 
       const jsonStr = document.slice(jsonStart, jsonEnd + 1);
       return safeJsonParse(jsonStr);
-    } catch (parseError) {
+    } catch {
       // If JSON parsing fails, create a basic result from exit code
       return {
         numTotalTestSuites: 0,
@@ -227,51 +228,126 @@ export class VitestPhaseExecutor implements PhaseExecutor {
     args: string[],
     timeoutMs: number
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    return new Promise((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
+    if (this.currentCommand) {
+      return Promise.reject(new Error('Test executor already has an active process'));
+    }
 
-      // Security: shell: false prevents command injection through arguments
-      // Cross-platform: Use .cmd extension on Windows for npm scripts
-      const executable = process.platform === 'win32' && command === 'npx'
-        ? 'npx.cmd'
-        : command;
+    // shell: false prevents argument injection. A fresh POSIX process group
+    // lets cancellation reach npx, Vitest, and the workers it started.
+    const executable = process.platform === 'win32' && command === 'npx' ? 'npx.cmd' : command;
+    const child = spawn(executable, args, {
+      cwd: this.config.cwd || process.cwd(),
+      env: { ...process.env, ...this.config.env },
+      shell: false,
+      detached: process.platform !== 'win32',
+    });
+    let stdout = '';
+    let stderr = '';
+    let exitCode = 1;
+    let terminalError: Error | undefined;
+    let terminationError: unknown;
+    let termination: Promise<void> | undefined;
+    let rejectTermination!: (error: unknown) => void;
+    const terminationFailed = new Promise<never>((_, reject) => { rejectTermination = reject; });
+    child.stdout?.on('data', data => { stdout += data.toString(); });
+    child.stderr?.on('data', data => { stderr += data.toString(); });
 
-      this.currentProcess = spawn(executable, args, {
-        cwd: this.config.cwd || process.cwd(),
-        env: { ...process.env, ...this.config.env },
-        shell: false,
-      });
+    const closed = new Promise<void>((resolve, reject) => {
+      child.once('close', code => { exitCode = code ?? 1; resolve(); });
+      child.once('error', reject);
+    });
+    const active: ActiveCommand = {
+      terminate: (reason) => {
+        terminalError ??= reason;
+        termination ??= this.terminateProcessTree(child, closed).catch(error => {
+          terminationError = error;
+          rejectTermination(error);
+          throw error;
+        });
+        return termination;
+      },
+    };
+    this.currentCommand = active;
+    const timeout = setTimeout(() => {
+      void active.terminate(new Error(`Test execution timed out after ${timeoutMs}ms`)).catch(() => {});
+    }, timeoutMs);
 
-      const timeout = setTimeout(() => {
-        this.currentProcess?.kill('SIGTERM');
-        reject(new Error(`Test execution timed out after ${timeoutMs}ms`));
-      }, timeoutMs);
-
-      this.currentProcess.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      this.currentProcess.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      this.currentProcess.on('close', (code) => {
+    return (async () => {
+      try {
+        // A failed kill must settle the phase even if the child never closes.
+        await Promise.race([closed, terminationFailed]);
+        if (termination) await termination;
+        if (terminalError) throw terminalError;
+        return { stdout, stderr, exitCode };
+      } finally {
         clearTimeout(timeout);
-        this.currentProcess = null;
+        // A failed kill leaves an unknown survivor. Keep this executor closed
+        // to new work rather than replacing the only handle to that tree.
+        if (this.currentCommand === active && !terminationError) this.currentCommand = null;
+      }
+    })();
+  }
 
-        if (this.isAborted) {
-          reject(new Error('Test execution aborted'));
-        } else {
-          resolve({ stdout, stderr, exitCode: code ?? 1 });
-        }
-      });
+  private async terminateProcessTree(child: ChildProcess, closed: Promise<void>): Promise<void> {
+    const pid = child.pid;
+    if (!pid) {
+      await closed;
+      return;
+    }
 
-      this.currentProcess.on('error', (error) => {
-        clearTimeout(timeout);
-        this.currentProcess = null;
-        reject(error);
+    if (process.platform === 'win32') {
+      // taskkill /T follows the descendant tree; killing only npx.cmd leaves
+      // its Vitest child running. There is no POSIX-style process group here.
+      await new Promise<void>((resolve, reject) => {
+        execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { timeout: 2000 }, error => {
+          if (error) reject(error);
+          else resolve();
+        });
       });
+      await this.waitForClose(closed, 2000);
+      return;
+    }
+
+    this.signalGroup(pid, 'SIGTERM');
+    const requestedGrace = this.config.terminationGraceMs;
+    const graceMs = requestedGrace !== undefined && Number.isFinite(requestedGrace)
+      ? Math.max(0, Math.min(requestedGrace, 30_000))
+      : 1000;
+    if (!await this.waitForGroupExit(pid, graceMs)) {
+      this.signalGroup(pid, 'SIGKILL');
+      if (!await this.waitForGroupExit(pid, 2000)) {
+        throw new Error(`Test process group ${pid} survived SIGKILL`);
+      }
+    }
+    await this.waitForClose(closed, 2000);
+  }
+
+  private signalGroup(pid: number, signal: NodeJS.Signals): void {
+    try {
+      if (!process.kill(-pid, signal)) throw new Error(`Failed to send ${signal} to test process group ${pid}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+    }
+  }
+
+  private async waitForGroupExit(pid: number, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      try {
+        process.kill(-pid, 0);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true;
+        throw error;
+      }
+      if (Date.now() >= deadline) return false;
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }
+
+  private async waitForClose(closed: Promise<void>, timeoutMs: number): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Test process did not close after termination')), timeoutMs);
+      closed.then(() => { clearTimeout(timer); resolve(); }, error => { clearTimeout(timer); reject(error); });
     });
   }
 

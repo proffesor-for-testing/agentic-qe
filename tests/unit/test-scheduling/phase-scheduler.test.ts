@@ -439,9 +439,42 @@ describe('PhaseScheduler', () => {
 
       await scheduler.abort();
       resolveExecute?.(); // Complete any pending execution
+      await expect(runPromise).rejects.toThrow('Phase aborted');
 
       // After abort, state should be idle (reset by abort method)
       expect(scheduler.getStats().state).toBe('idle');
+    });
+
+    it('does not retry a failed phase after cancellation', async () => {
+      let finishFirst!: (result: PhaseResult) => void;
+      const execute = vi.fn(async (phase: TestPhase): Promise<PhaseResult> => {
+        if (execute.mock.calls.length === 1) {
+          return new Promise(resolve => { finishFirst = resolve; });
+        }
+        return {
+          phaseId: phase.id, phaseName: phase.name, success: false,
+          passRate: 0, flakyRatio: 0, coverage: 0, durationMs: 0,
+          totalTests: 0, passed: 0, failed: 0, skipped: 0,
+          testResults: [], flakyTests: [], error: 'aborted',
+        };
+      });
+      executor.execute = execute;
+      executor.abort = async () => {
+        finishFirst({
+          phaseId: TEST_PHASES[0].id, phaseName: TEST_PHASES[0].name, success: false,
+          passRate: 0, flakyRatio: 0, coverage: 0, durationMs: 0,
+          totalTests: 0, passed: 0, failed: 0, skipped: 0,
+          testResults: [], flakyTests: [], error: 'aborted',
+        });
+      };
+      const scheduler = createPhaseScheduler(executor, {
+        phases: [TEST_PHASES[0]], retryFailedPhases: true, maxRetries: 3,
+      });
+      const running = scheduler.run();
+      expect(execute).toHaveBeenCalledTimes(1);
+      await scheduler.abort();
+      await expect(running).rejects.toThrow('Phase aborted');
+      expect(execute).toHaveBeenCalledTimes(1);
     });
   });
 
