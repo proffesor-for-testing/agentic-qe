@@ -18,6 +18,7 @@ import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { getTestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
@@ -551,6 +552,32 @@ export class FlakyDetectorService implements IFlakyTestDetector {
             runIndex,
             duration
           );
+
+          if (report) {
+            const verdictReport = safeJsonParse(reportText) as {
+              success?: boolean;
+              numFailedTestSuites?: number;
+              numRuntimeErrorTestSuites?: number;
+              testResults?: Array<{
+                status?: string;
+                message?: string;
+                assertionResults?: Array<{ status?: string }>;
+              }>;
+            };
+            const assertions = verdictReport.testResults?.flatMap(
+              suite => suite.assertionResults ?? []
+            ) ?? [];
+            const executionError = getTestRunnerExecutionError(
+              'vitest', file, code,
+              {
+                passed: assertions.filter(test => test.status === 'passed').length,
+                failed: assertions.filter(test => test.status === 'failed').length,
+                skipped: assertions.filter(test => test.status === 'skipped' || test.status === 'pending').length,
+              },
+              stderr, verdictReport
+            );
+            if (executionError) throw executionError;
+          }
 
           // If parsing fails but we have an exit code, create a single result for the file
           if (parsedResults.size === 0) {
