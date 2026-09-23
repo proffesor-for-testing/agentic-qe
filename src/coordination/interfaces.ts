@@ -91,6 +91,7 @@ export type ActionExecutionStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  | 'unknown'
   | 'skipped'
   | 'cancelled';
 
@@ -131,6 +132,7 @@ export type ProtocolExecutionStatus =
   | 'running'
   | 'completed'
   | 'failed'
+  | 'unknown'
   | 'cancelled'
   | 'paused';
 
