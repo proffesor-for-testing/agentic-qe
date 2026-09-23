@@ -544,6 +544,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
           if (result.status === 'fulfilled') {
             const stepResult = result.value;
+            execution.stepResults.set(step.id, stepResult);
             if (stepResult.status === 'completed') {
               completedSteps.add(step.id); execution.completedSteps.push(step.id);
               receipt.steps[i].disposition = 'succeeded';
@@ -640,14 +641,14 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     try {
       if (step.skipCondition && this.evaluateCondition(step.skipCondition, context)) {
         result.status = 'skipped'; result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-        execution.stepResults.set(step.id, result);
+        if (!deferOutput) execution.stepResults.set(step.id, result);
         await this.publishStepSkipped(execution, step);
         return result;
       }
 
       if (step.condition && !this.evaluateCondition(step.condition, context)) {
         result.status = 'skipped'; result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-        execution.stepResults.set(step.id, result);
+        if (!deferOutput) execution.stepResults.set(step.id, result);
         await this.publishStepSkipped(execution, step);
         return result;
       }
@@ -678,7 +679,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
               result.output = output;
               result.completedAt = new Date();
               result.duration = result.completedAt.getTime() - startedAt.getTime();
-              execution.stepResults.set(step.id, result);
+              if (!deferOutput) execution.stepResults.set(step.id, result);
               await this.publishStepFailed(execution, step, result.error);
               return result;
             }
@@ -690,7 +691,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           catch (error) { throw new Error(`parallel_output_uncloneable: ${toErrorMessage(error)}`); }
           result.status = 'completed'; result.output = capturedOutput; result.completedAt = new Date();
           result.duration = result.completedAt.getTime() - startedAt.getTime();
-          execution.stepResults.set(step.id, result);
+          if (!deferOutput) execution.stepResults.set(step.id, result);
 
           await this.publishStepCompleted(execution, step, result);
           return result;
@@ -705,7 +706,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
       result.status = 'failed'; result.error = lastError?.message || 'Unknown error';
       result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-      execution.stepResults.set(step.id, result);
+      if (!deferOutput) execution.stepResults.set(step.id, result);
 
       if (step.rollback) await this.executeRollback(step.rollback, context);
 
@@ -714,7 +715,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     } catch (error) {
       result.status = 'failed'; result.error = toErrorMessage(error);
       result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-      execution.stepResults.set(step.id, result);
+      if (!deferOutput) execution.stepResults.set(step.id, result);
 
       await this.publishStepFailed(execution, step, result.error);
       return result;

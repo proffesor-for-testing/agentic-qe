@@ -92,19 +92,24 @@ describe('parallel workflow output composition (#720)', () => {
 
   it('composes disjoint outputs only after both actions finish', async () => {
     let releaseFirst!: () => void;
+    let secondFinished = false;
     const firstGate = new Promise<void>(resolve => { releaseFirst = resolve; });
     orchestrator.registerAction('test-generation', 'first', async () => {
       await firstGate;
       return ok({ value: 'first' });
     });
-    orchestrator.registerAction('test-generation', 'second', async () => ok({ value: 'second' }));
+    orchestrator.registerAction('test-generation', 'second', async () => {
+      secondFinished = true;
+      return ok({ value: 'second' });
+    });
     expect(orchestrator.registerWorkflow(workflow('left', 'right')).success).toBe(true);
 
     const started = await orchestrator.executeWorkflow('parallel-composition');
     expect(started.success).toBe(true);
     if (!started.success) throw started.error;
-    await vi.waitFor(() => expect(orchestrator.getWorkflowStatus(started.value)?.stepResults.get('second')?.status).toBe('completed'));
+    await vi.waitFor(() => expect(secondFinished).toBe(true));
     expect(orchestrator.getWorkflowStatus(started.value)?.context.results).toEqual({});
+    expect(orchestrator.getWorkflowStatus(started.value)?.stepResults.has('second')).toBe(false);
     releaseFirst();
     await vi.waitFor(() => expect(orchestrator.getWorkflowStatus(started.value)?.status).toBe('completed'));
     expect(orchestrator.getWorkflowStatus(started.value)?.context.results).toEqual({
