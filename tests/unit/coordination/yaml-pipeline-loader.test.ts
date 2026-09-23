@@ -203,6 +203,30 @@ describe('YamlPipelineLoader', () => {
   // --------------------------------------------------------------------------
 
   describe('parse — happy path', () => {
+    it('normalizes new and legacy approval expiry fields', () => {
+      for (const field of ['expiresAfter', 'autoApproveAfter']) {
+        const yaml = MINIMAL_YAML.replace('    action: generate',
+          `    action: generate\n    approval:\n      ${field}: 250`);
+        const result = loader.parse(yaml);
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.value.steps[0].approval).toEqual({ expiresAfter: 250 });
+      }
+    });
+
+    it('rejects conflicting or unbounded approval expiry fields', () => {
+      for (const config of [
+        'expiresAfter: 10\n      autoApproveAfter: 20',
+        'expiresAfter: .inf',
+        'expiresAfter: -1',
+        'autoApproveAfter: 1.5',
+        'expiresAfter: 2147483648',
+      ]) {
+        const yaml = MINIMAL_YAML.replace('    action: generate',
+          `    action: generate\n    approval:\n      ${config}`);
+        expect(loader.parse(yaml).success).toBe(false);
+      }
+    });
+
     it('should parse valid YAML into a WorkflowDefinition', () => {
       const result = loader.parse(VALID_YAML);
 

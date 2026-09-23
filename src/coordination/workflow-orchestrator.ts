@@ -235,13 +235,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     execution.completedAt = new Date();
     execution.duration = execution.completedAt.getTime() - execution.startedAt.getTime();
 
-    // Clean up any pending approval gates for this execution to prevent timer leaks
-    for (const [key, gate] of this.approvalGates.entries()) {
-      if (key.startsWith(`${executionId}:`)) {
-        gate.resolve({ approved: false, reason: 'Workflow cancelled' });
-        this.approvalGates.delete(key);
-      }
-    }
+    this.closeApprovalGates(executionId, 'Workflow cancelled');
 
     await this.publishEvent(WorkflowEvents.WorkflowCancelled, {
       executionId, workflowId: execution.workflowId, workflowName: execution.workflowName,
@@ -429,8 +423,9 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
   private async runWorkflow(workflow: WorkflowDefinition, execution: WorkflowExecutionStatus): Promise<void> {
     const timeout = workflow.timeout || this.config.defaultWorkflowTimeout;
+    let workflowTimer: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Workflow timeout after ${timeout}ms`)), timeout);
+      workflowTimer = setTimeout(() => reject(new Error(`Workflow timeout after ${timeout}ms`)), timeout);
     });
 
     try {
@@ -447,11 +442,14 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       if (execution.status === 'running') {
         execution.status = 'failed';
         execution.error = String(error);
+        this.closeApprovalGates(execution.executionId, 'Workflow failed');
         execution.completedAt = new Date();
         execution.duration = execution.completedAt.getTime() - execution.startedAt.getTime();
         const failedStep = execution.currentSteps[0] || 'unknown';
         await this.publishWorkflowFailed(execution, failedStep, String(error));
       }
+    } finally {
+      if (workflowTimer) clearTimeout(workflowTimer);
     }
 
     if (this.config.persistExecutions) await this.persistExecution(execution);
@@ -557,6 +555,23 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
       const input = this.buildStepInput(step, execution.context);
 
+      // Approval must precede the action and any output mapping. Otherwise a
+      // rejected or expired gate cannot prevent the side effect it protects.
+      if (step.approval) {
+        result.status = 'awaiting_approval';
+        execution.stepResults.set(step.id, result);
+        const approvalResult = await this.waitForApproval(step, execution);
+        if (!approvalResult.approved || execution.status !== 'running') {
+          result.status = 'failed';
+          result.error = approvalResult.reason || 'Step rejected at approval gate';
+          result.completedAt = new Date();
+          result.duration = result.completedAt.getTime() - startedAt.getTime();
+          await this.publishStepFailed(execution, step, result.error);
+          return result;
+        }
+        result.status = 'running';
+      }
+
       let lastError: Error | undefined;
       const maxAttempts = step.retry?.maxAttempts || 1;
       let backoffMs = step.retry?.backoffMs || 1000;
@@ -570,21 +585,6 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           const output = await this.executeStepAction(step, input, execution.context, stepTimeout);
 
           this.mapStepOutput(step, output, execution.context);
-
-          // Handle approval gate if configured
-          if (step.approval) {
-            const approvalResult = await this.waitForApproval(step, execution);
-            if (!approvalResult.approved) {
-              result.status = 'failed';
-              result.error = approvalResult.reason || 'Step rejected at approval gate';
-              result.output = output;
-              result.completedAt = new Date();
-              result.duration = result.completedAt.getTime() - startedAt.getTime();
-              execution.stepResults.set(step.id, result);
-              await this.publishStepFailed(execution, step, result.error);
-              return result;
-            }
-          }
 
           result.status = 'completed'; result.output = output; result.completedAt = new Date();
           result.duration = result.completedAt.getTime() - startedAt.getTime();
@@ -819,6 +819,17 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       if (!ALL_DOMAINS.includes(step.domain)) return err(new Error(`Invalid domain for step ${step.id}: ${step.domain}`));
       if (!step.action) return err(new Error(`Step ${step.id} must have an action`));
 
+      if (step.approval && typeof step.approval === 'object') {
+        const { expiresAfter, autoApproveAfter } = step.approval;
+        if (expiresAfter !== undefined && autoApproveAfter !== undefined) {
+          return err(new Error(`Step ${step.id} sets both approval expiry fields`));
+        }
+        const expiry = expiresAfter ?? autoApproveAfter;
+        if (expiry !== undefined && (!Number.isSafeInteger(expiry) || expiry < 0 || expiry > 2_147_483_647)) {
+          return err(new Error(`Step ${step.id} has an invalid approval expiry`));
+        }
+      }
+
       if (step.dependsOn) {
         for (const dep of step.dependsOn) {
           if (!definition.steps.some((s) => s.id === dep)) {
@@ -965,8 +976,16 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
   // Private Methods - Approval Gates
   // ============================================================================
 
+  private closeApprovalGates(executionId: string, reason: string): void {
+    for (const [key, gate] of this.approvalGates.entries()) {
+      if (key.startsWith(`${executionId}:`)) {
+        gate.resolve({ approved: false, reason });
+      }
+    }
+  }
+
   /**
-   * Wait for external approval (or auto-approve after timeout).
+   * Wait for external approval. An unanswered gate expires without approval.
    * Returns an object with approved status and optional rejection reason.
    */
   private async waitForApproval(
@@ -974,52 +993,52 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     execution: WorkflowExecutionStatus,
   ): Promise<{ approved: boolean; reason?: string }> {
     const approvalConfig = typeof step.approval === 'object' ? step.approval : {};
-    const autoApproveAfter = approvalConfig.autoApproveAfter ?? 300000; // 5 min default
+    const expiresAfter = approvalConfig.expiresAfter ?? approvalConfig.autoApproveAfter ?? 300000;
     const message = approvalConfig.message ?? `Awaiting approval for step: ${step.name}`;
 
-    // Update step result status
-    const stepResult = execution.stepResults.get(step.id);
-    if (stepResult) stepResult.status = 'awaiting_approval';
-
-    // Emit StepAwaitingApproval event
-    await this.publishEvent<StepAwaitingApprovalPayload>(
-      WorkflowEvents.StepAwaitingApproval,
-      {
-        executionId: execution.executionId,
-        workflowId: execution.workflowId,
-        stepId: step.id,
-        stepName: step.name,
-        domain: step.domain,
-        message,
-        autoApproveAfter: autoApproveAfter > 0 ? autoApproveAfter : undefined,
-      },
-      execution.context.metadata.correlationId,
-    );
+    if (!Number.isSafeInteger(expiresAfter) || expiresAfter < 0 || expiresAfter > 2_147_483_647) {
+      return { approved: false, reason: 'Invalid approval expiry' };
+    }
 
     const key = `${execution.executionId}:${step.id}`;
-
-    return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
-      // Store the gate so approveStep/rejectStep can resolve it
-      const gate: { resolve: (result: { approved: boolean; reason?: string }) => void } = { resolve };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const approval = new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+      // Register before publishing: a synchronous event consumer can approve.
+      const gate = { resolve: (result: { approved: boolean; reason?: string }) => {
+        if (this.approvalGates.get(key) !== gate) return;
+        this.approvalGates.delete(key);
+        if (timer) clearTimeout(timer);
+        resolve(result);
+      } };
       this.approvalGates.set(key, gate);
 
-      // Auto-approve timer (0 = never auto-approve)
-      if (autoApproveAfter > 0) {
-        const timer = setTimeout(() => {
-          if (this.approvalGates.has(key)) {
-            this.approvalGates.delete(key);
-            resolve({ approved: true }); // auto-approve on timeout
-          }
-        }, autoApproveAfter);
-
-        // Wrap resolve to also clear the timer
-        const originalResolve = gate.resolve;
-        gate.resolve = (result) => {
-          clearTimeout(timer);
-          originalResolve(result);
-        };
+      if (expiresAfter > 0) {
+        timer = setTimeout(() => {
+          gate.resolve({ approved: false, reason: 'Approval expired' });
+        }, expiresAfter);
       }
     });
+
+    try {
+      await this.publishEvent<StepAwaitingApprovalPayload>(
+        WorkflowEvents.StepAwaitingApproval,
+        {
+          executionId: execution.executionId,
+          workflowId: execution.workflowId,
+          stepId: step.id,
+          stepName: step.name,
+          domain: step.domain,
+          message,
+          expiresAfter: expiresAfter > 0 ? expiresAfter : undefined,
+        },
+        execution.context.metadata.correlationId,
+      );
+    } catch (error) {
+      this.approvalGates.get(key)?.resolve({ approved: false, reason: 'Approval event failed' });
+      throw error;
+    }
+
+    return approval;
   }
 
   // ============================================================================
