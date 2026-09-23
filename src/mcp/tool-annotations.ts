@@ -38,7 +38,7 @@ const HARD_CODED_TOOL_NAMES = [
   'memory_query', 'memory_retrieve', 'memory_share', 'memory_store',
   'memory_usage', 'migration_check', 'migration_promote', 'migration_status',
   'model_route', 'phase_end', 'phase_start', 'pipeline_list', 'pipeline_load',
-  'pipeline_run', 'pipeline_validate', 'quality_assess',
+  'pipeline_run', 'pipeline_status', 'pipeline_validate', 'quality_assess',
   'requirements_validate', 'routing_economics', 'routing_metrics',
   'security_scan_comprehensive', 'session_cache_stats', 'task_cancel',
   'task_list', 'task_orchestrate', 'task_status', 'task_submit',

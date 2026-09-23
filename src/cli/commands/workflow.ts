@@ -42,7 +42,6 @@ export function createWorkflowCommand(
     .action(async (file: string, options) => {
       if (!await ensureInitialized()) return;
 
-      const fs = await import('fs');
       const pathModule = await import('path');
       const filePath = pathModule.resolve(file);
 
@@ -159,6 +158,9 @@ export function createWorkflowCommand(
               console.log(chalk.yellow(`Workflow ${finalStatus.status}`));
             }
           }
+          console.log('');
+          await cleanupAndExit(finalStatus?.status === 'completed' ? 0 : 1);
+          return;
         } else {
           console.log(chalk.green('Workflow execution started'));
           console.log(chalk.gray(`   Use 'aqe workflow status ${executionId}' to check progress`));
@@ -495,6 +497,13 @@ export function createWorkflowCommand(
 
         if (status.error) {
           console.log(chalk.red(`\n  Error: ${status.error}`));
+        }
+
+        for (const receipt of status.parallelCompositionReceipts ?? []) {
+          console.log(`  Composition ${receipt.groupId}: ${receipt.disposition}`);
+          for (const conflict of receipt.conflicts) {
+            console.log(`    ${conflict.kind}: ${conflict.stepA}.${conflict.pathA} / ${conflict.stepB}.${conflict.pathB}`);
+          }
         }
 
         if (options.verbose && status.stepResults.size > 0) {

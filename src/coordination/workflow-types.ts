@@ -163,6 +163,31 @@ export interface WorkflowContext {
   };
 }
 
+/** Evidence for one parallel group, without retaining raw step output. */
+export interface ParallelCompositionReceipt {
+  version: 1;
+  workflowId: string;
+  workflowRevision: string;
+  executionId: string;
+  groupId: string;
+  steps: Array<{
+    stepId: string;
+    disposition: 'succeeded' | 'failed' | 'skipped' | 'cancelled' | 'not_started';
+    outputHash?: string;
+    writes: string[];
+  }>;
+  conflicts: Array<{
+    pathA: string;
+    stepA: string;
+    pathB: string;
+    stepB: string;
+    kind: 'exact' | 'ancestor-descendant';
+  }>;
+  strategy: 'disjoint' | 'rejected';
+  combinedStateHash?: string;
+  disposition: 'composed' | 'conflict' | 'partial' | 'invalid';
+}
+
 /**
  * Workflow execution status
  */
@@ -181,6 +206,7 @@ export interface WorkflowExecutionStatus {
   skippedSteps: string[];
   context: WorkflowContext;
   stepResults: Map<string, StepExecutionResult>;
+  parallelCompositionReceipts?: ParallelCompositionReceipt[];
   error?: string;
 }
 
