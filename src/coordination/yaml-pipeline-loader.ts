@@ -422,19 +422,23 @@ export class YamlPipelineLoader {
       return ok(raw);
     }
 
-    // Object form: approval: { autoApproveAfter, message }
+    // Object form: approval: { expiresAfter, message }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return err(new Error(`Step '${stepId}': 'approval' must be a boolean or object`));
     }
 
     const a = raw as Record<string, unknown>;
-    const result: { autoApproveAfter?: number; message?: string } = {};
+    const result: { expiresAfter?: number; message?: string } = {};
 
-    if (a.autoApproveAfter !== undefined) {
-      if (typeof a.autoApproveAfter !== 'number' || a.autoApproveAfter < 0) {
-        return err(new Error(`Step '${stepId}': approval.autoApproveAfter must be a non-negative number`));
+    if (a.expiresAfter !== undefined && a.autoApproveAfter !== undefined) {
+      return err(new Error(`Step '${stepId}': set only one approval expiry field`));
+    }
+    const expiry = a.expiresAfter ?? a.autoApproveAfter;
+    if (expiry !== undefined) {
+      if (typeof expiry !== 'number' || !Number.isSafeInteger(expiry) || expiry < 0 || expiry > 2_147_483_647) {
+        return err(new Error(`Step '${stepId}': approval expiry must be an integer from 0 to 2147483647 milliseconds`));
       }
-      result.autoApproveAfter = a.autoApproveAfter;
+      result.expiresAfter = expiry;
     }
 
     if (a.message !== undefined) {

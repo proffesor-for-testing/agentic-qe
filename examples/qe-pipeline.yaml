@@ -49,7 +49,7 @@ steps:
     action: gate-check
     dependsOn: [quality-gate]
     approval:
-      autoApproveAfter: 300000
+      expiresAfter: 300000
       message: "All quality checks passed. Approve deployment?"
     condition:
       path: "results.quality-gate.passed"
