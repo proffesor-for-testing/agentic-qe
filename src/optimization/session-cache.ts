@@ -99,6 +99,7 @@ export class SessionOperationCache {
   private config: SessionCacheConfig;
   private hits = 0;
   private misses = 0;
+  private generation = 0;
 
   constructor(config?: Partial<SessionCacheConfig>) {
     this.config = { ...DEFAULT_SESSION_CACHE_CONFIG, ...config };
@@ -240,6 +241,28 @@ export class SessionOperationCache {
     this.cache.clear();
     this.hits = 0;
     this.misses = 0;
+    this.generation++;
+  }
+
+  /** Revision used to keep in-flight reads from repopulating a stale cache. */
+  getGeneration(): number {
+    return this.generation;
+  }
+
+  /** Evict all cached reads, including persisted rows, after a stateful call. */
+  invalidateAll(): number {
+    const removed = this.cache.size;
+    this.cache.clear();
+    this.generation++;
+    if (this.config.persistToDb) {
+      try {
+        const db = tryGetDb();
+        db?.prepare("DELETE FROM kv_store WHERE namespace = 'session_cache'").run();
+      } catch {
+        // Cache invalidation must not prevent the tool response.
+      }
+    }
+    return removed;
   }
 
   /**
@@ -251,6 +274,7 @@ export class SessionOperationCache {
    * number of entries removed.
    */
   invalidateDomain(domain: string): number {
+    this.generation++;
     let removed = 0;
     for (const [key, entry] of this.cache) {
       if (entry.domain === domain) {
