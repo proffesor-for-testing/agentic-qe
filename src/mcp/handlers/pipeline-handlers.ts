@@ -4,6 +4,7 @@
  * Exposes YAML deterministic pipelines through MCP tools:
  * - pipeline_load: Load a pipeline from a YAML string
  * - pipeline_run: Execute a loaded pipeline
+ * - pipeline_status: Read execution and composition evidence
  * - pipeline_list: List all registered pipelines (built-in + YAML)
  * - pipeline_validate: Validate YAML without registering
  */
@@ -12,7 +13,9 @@ import { getFleetState, isFleetInitialized } from './core-handlers.js';
 import type { ToolResult } from '../types.js';
 import { YamlPipelineLoader } from '../../coordination/yaml-pipeline-loader.js';
 import { YamlPipelineRegistry } from '../../coordination/yaml-pipeline-registry.js';
-import type { WorkflowListItem } from '../../coordination/workflow-types.js';
+import type {
+  ParallelCompositionReceipt, WorkflowListItem, WorkflowStatus,
+} from '../../coordination/workflow-types.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
 // ============================================================================
@@ -42,6 +45,22 @@ export interface PipelineRunResult {
   executionId: string;
   pipelineId: string;
   status: string;
+}
+
+export interface PipelineStatusParams {
+  executionId: string;
+}
+
+export interface PipelineStatusResult {
+  executionId: string;
+  pipelineId: string;
+  status: WorkflowStatus;
+  progress: number;
+  error?: string;
+  completedSteps: string[];
+  failedSteps: string[];
+  skippedSteps: string[];
+  parallelCompositionReceipts: ParallelCompositionReceipt[];
 }
 
 export type PipelineListParams = Record<string, never>;
@@ -206,6 +225,34 @@ export async function handlePipelineRun(
       error: `Failed to run pipeline: ${toErrorMessage(error)}`,
     };
   }
+}
+
+/** Return composition evidence without exposing raw step outputs. */
+export async function handlePipelineStatus(
+  params: PipelineStatusParams,
+): Promise<ToolResult<PipelineStatusResult>> {
+  if (!isFleetInitialized()) return { success: false, error: 'Fleet not initialized. Call fleet_init first.' };
+  const { workflowOrchestrator } = getFleetState();
+  if (!workflowOrchestrator) return { success: false, error: 'Workflow orchestrator not available.' };
+  if (!params.executionId || typeof params.executionId !== 'string') {
+    return { success: false, error: "Parameter 'executionId' is required and must be a string." };
+  }
+  const status = workflowOrchestrator.getWorkflowStatus(params.executionId);
+  if (!status) return { success: false, error: `Pipeline execution not found: ${params.executionId}` };
+  return {
+    success: true,
+    data: {
+      executionId: status.executionId,
+      pipelineId: status.workflowId,
+      status: status.status,
+      progress: status.progress,
+      error: status.error,
+      completedSteps: status.completedSteps,
+      failedSteps: status.failedSteps,
+      skippedSteps: status.skippedSteps,
+      parallelCompositionReceipts: status.parallelCompositionReceipts ?? [],
+    },
+  };
 }
 
 /**
