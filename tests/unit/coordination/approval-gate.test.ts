@@ -312,6 +312,29 @@ describe('approval gate', () => {
     expect(action).toHaveBeenCalledOnce();
   });
 
+  it('fails closed when the approval request cannot be published', async () => {
+    const workflow = makeApprovalWorkflow({ expiresAfter: 0 });
+    workflow.steps[1].action = 'privileged-action';
+    const action = vi.fn(async () => ok({ changed: true }));
+    orchestrator.registerAction('quality-assessment', 'privileged-action', action);
+    orchestrator.registerWorkflow(workflow);
+
+    (eventBus.publish as ReturnType<typeof vi.fn>).mockImplementation(async (event: {
+      type: string
+    }) => {
+      if (event.type === 'workflow.StepAwaitingApproval') {
+        throw new Error('Approval event channel unavailable');
+      }
+    });
+
+    const executionId = (await orchestrator.executeWorkflow('approval-test', {})).value;
+    await vi.waitFor(() => {
+      expect(orchestrator.getWorkflowStatus(executionId)?.status).toBe('failed');
+    });
+    expect(orchestrator.approveStep(executionId, 'approval-step')).toBe(false);
+    expect(action).not.toHaveBeenCalled();
+  });
+
   it('does not dispatch an action when the workflow is cancelled at its gate', async () => {
     const workflow = makeApprovalWorkflow({ expiresAfter: 0 });
     workflow.steps[1].action = 'privileged-action';
