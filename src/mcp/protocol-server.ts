@@ -86,6 +86,7 @@ import {
   // Imp-9: YAML pipeline handlers
   handlePipelineLoad,
   handlePipelineRun,
+  handlePipelineStatus,
   handlePipelineList,
   handlePipelineValidate,
   // Cross-phase handlers
@@ -361,7 +362,7 @@ export class MCPProtocolServer {
         try {
           const result = await this.handleRequest(request);
           resolve(result);
-        } catch (err) {
+        } catch {
           console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
         }
       }
@@ -605,7 +606,10 @@ export class MCPProtocolServer {
 
     // ADR-062: Loop detection — check for repeated identical tool calls
     let loopSteeringPrefix = '';
-    if (process.env.AQE_LOOP_DETECTION_ENABLED !== 'false') {
+    // Polling a known execution is a normal status protocol, not a repeated
+    // action loop. The default three-strike detector would block the third
+    // pipeline_status call within 30 seconds while a workflow is running.
+    if (process.env.AQE_LOOP_DETECTION_ENABLED !== 'false' && name !== 'pipeline_status') {
       try {
         const loopResult = this.loopTracker.trackCall('mcp-client', name, args);
         if (loopResult.action === 'steer') {
@@ -1519,6 +1523,20 @@ export class MCPProtocolServer {
         parameters: [],
       },
       handler: (params) => handlePipelineList(params as Record<string, never>),
+    });
+
+    this.registerTool({
+      definition: {
+        name: 'pipeline_status',
+        description: 'Read pipeline execution status and parallel composition receipts without raw step outputs.',
+        category: 'coordination',
+        // Status changes while a run is active; the session cache must not
+        // replay an earlier "running" result for the same execution ID.
+        parameters: [
+          { name: 'executionId', type: 'string', description: 'Execution ID returned by pipeline_run', required: true },
+        ],
+      },
+      handler: (params) => handlePipelineStatus(params as { executionId: string }),
     });
 
     this.registerTool({

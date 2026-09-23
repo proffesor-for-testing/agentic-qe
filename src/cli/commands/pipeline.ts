@@ -191,6 +191,9 @@ export function createPipelineCommand(
           if (status.duration) console.log(`  Duration: ${chalk.cyan(`${status.duration}ms`)}`);
           if (status.error) console.log(`  Error:   ${chalk.red(status.error)}`);
         }
+        console.log('');
+        await cleanupAndExit(status?.status === 'completed' ? 0 : 1);
+        return;
       }
 
       console.log('');
@@ -277,6 +280,12 @@ export function createPipelineCommand(
       }
       if (status.error) {
         console.log(`  Error:      ${chalk.red(status.error)}`);
+      }
+      for (const receipt of status.parallelCompositionReceipts ?? []) {
+        console.log(`  Composition ${receipt.groupId}: ${receipt.disposition}`);
+        for (const conflict of receipt.conflicts) {
+          console.log(`    ${conflict.kind}: ${conflict.stepA}.${conflict.pathA} / ${conflict.stepB}.${conflict.pathB}`);
+        }
       }
 
       console.log('');
