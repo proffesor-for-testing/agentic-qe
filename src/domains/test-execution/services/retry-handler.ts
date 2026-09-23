@@ -517,7 +517,7 @@ export class RetryHandlerService implements IRetryHandler {
         if ('jest' in devDeps) return 'jest';
         if ('mocha' in devDeps) return 'mocha';
       }
-    } catch (error) {
+    } catch {
       // Non-critical: package.json read errors during test runner detection
       logger.debug('package.json read failed:');
     }
@@ -621,8 +621,15 @@ export class RetryHandlerService implements IRetryHandler {
 
         // Parse result based on exit code and output (Vitest writes the JSON
         // report to the --outputFile; read it back rather than trusting stdout).
-        const result = this.parseTestResult(code, report ? report.read(stdout) : stdout, stderr);
-        settle(resolve, result);
+        try {
+          const reportText = report ? report.read(stdout) : stdout;
+          if (reportText === undefined) {
+            throw new Error('The current Vitest JSON report is missing for the retry run.');
+          }
+          settle(resolve, this.parseTestResult(code, reportText, stderr));
+        } catch (error) {
+          settle(reject, toError(error));
+        }
       });
 
       proc.on('error', (err: Error) => {

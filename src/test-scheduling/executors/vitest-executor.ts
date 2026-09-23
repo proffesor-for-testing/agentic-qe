@@ -189,7 +189,11 @@ export class VitestPhaseExecutor implements PhaseExecutor {
         timeoutMs
       );
       exitCode = run.exitCode;
-      document = report.read(run.stdout);
+      const currentReport = report.read(run.stdout);
+      if (currentReport === undefined) {
+        throw new Error('The current Vitest JSON report is missing for this phase.');
+      }
+      document = currentReport;
     } finally {
       report.cleanup();
     }
@@ -205,7 +209,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
 
       const jsonStr = document.slice(jsonStart, jsonEnd + 1);
       return safeJsonParse(jsonStr);
-    } catch (parseError) {
+    } catch {
       // If JSON parsing fails, create a basic result from exit code
       return {
         numTotalTestSuites: 0,

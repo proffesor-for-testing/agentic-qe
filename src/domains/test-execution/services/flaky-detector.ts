@@ -526,8 +526,19 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       child.on('close', (code) => {
         clearTimeout(timeout);
         const duration = Date.now() - startTime;
-        const reportText = report ? report.read(stdout) : stdout;
+        let reportText: string | undefined;
+        try {
+          reportText = report ? report.read(stdout) : stdout;
+        } catch (error) {
+          report?.cleanup();
+          reject(toError(error));
+          return;
+        }
         report?.cleanup();
+        if (reportText === undefined) {
+          reject(new Error(`The current Vitest JSON report is missing for ${file}.`));
+          return;
+        }
 
         try {
           // Parse the test results from the JSON report (or stdout for other runners)
@@ -543,6 +554,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
           // If parsing fails but we have an exit code, create a single result for the file
           if (parsedResults.size === 0) {
+            if (report) throw new Error(`The current Vitest JSON report has no test results for ${file}.`);
             const testId = this.generateTestId(file, 'main');
             results.set(testId, [
               {
@@ -565,6 +577,10 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
           resolve(results);
         } catch (parseError) {
+          if (report) {
+            reject(toError(parseError));
+            return;
+          }
           // If we can't parse output but process completed, create result from exit code
           const testId = this.generateTestId(file, 'main');
           results.set(testId, [
@@ -610,7 +626,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
         const parsed = safeJsonParse(jsonOutput);
         return this.parseVitestJson(parsed, file, runId, runIndex);
       }
-    } catch (error) {
+    } catch {
       // Non-critical: not valid JSON, try other formats
       logger.debug('Vitest JSON parse failed:');
     }
@@ -624,7 +640,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
           return this.parseJestJson(parsed, file, runId, runIndex);
         }
       }
-    } catch (error) {
+    } catch {
       // Non-critical: not Jest format
       logger.debug('Jest JSON parse failed:');
     }

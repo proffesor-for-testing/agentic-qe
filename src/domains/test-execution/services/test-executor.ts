@@ -390,7 +390,7 @@ Provide:
         maxTokens: this.config.llmMaxTokens,
       });
       return response.content;
-    } catch (error) {
+    } catch {
       logger.warn('LLM analysis failed:');
       return null;
     }
@@ -519,28 +519,37 @@ Provide:
       let stdout = '';
       let stderr = '';
       let killed = false;
-      const finish = (result: Result<TestExecutionResult, Error>): void => {
-        report?.cleanup();
+      let settled = false;
+      const finish = (result: Result<TestExecutionResult, Error>, cleanup = true): void => {
+        if (settled) return;
+        settled = true;
+        if (cleanup) report?.cleanup();
         resolve(result);
       };
 
       // Spawn the test runner process
       // Note: shell: false (default) to prevent command injection (CWE-78)
       // Arguments are passed as array to avoid shell interpretation
-      const proc: ChildProcess = spawn(command, args, {
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          FORCE_COLOR: '0', // Disable color codes for easier parsing
-          CI: 'true', // Enable CI mode for consistent output
-        },
-      });
+      let proc: ChildProcess;
+      try {
+        proc = spawn(command, args, {
+          cwd: process.cwd(),
+          env: {
+            ...process.env,
+            FORCE_COLOR: '0', // Disable color codes for easier parsing
+            CI: 'true', // Enable CI mode for consistent output
+          },
+        });
+      } catch (error) {
+        finish(err(new Error(`Failed to spawn test runner: ${toErrorMessage(error)}. Is '${command}' installed?`)));
+        return;
+      }
 
       // Set timeout
       const timeoutId = setTimeout(() => {
         killed = true;
         proc.kill('SIGTERM');
-        finish(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)));
+        finish(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)), false);
       }, timeout);
 
       proc.stdout?.on('data', (data: Buffer) => {
@@ -555,12 +564,23 @@ Provide:
         clearTimeout(timeoutId);
 
         if (killed) {
-          return; // Already handled by timeout
+          report?.cleanup();
+          return; // Timeout result was already returned; child has now closed.
         }
 
         // Parse results based on framework. Vitest 5 writes the JSON report to
         // a file instead of stdout, so read it back through the report handle.
-        const reportText = report ? report.read(stdout) : stdout;
+        let reportText: string | undefined;
+        try {
+          reportText = report ? report.read(stdout) : stdout;
+        } catch (error) {
+          finish(err(toError(error)));
+          return;
+        }
+        if (reportText === undefined) {
+          finish(err(new Error(`The current Vitest JSON report is missing for ${fileLabel}.`)));
+          return;
+        }
         const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);
 
         // If no coverage in stdout JSON, try reading from disk
@@ -580,6 +600,7 @@ Provide:
 
       proc.on('error', (error: Error) => {
         clearTimeout(timeoutId);
+        if (killed) return;
         finish(err(new Error(`Failed to spawn test runner: ${error.message}. Is '${command}' installed?`)));
       });
     });

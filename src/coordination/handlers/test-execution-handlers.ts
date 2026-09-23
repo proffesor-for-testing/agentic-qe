@@ -223,17 +223,19 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       let output: string;
       try {
         execution = spawnSync('npx', ['vitest', 'run', ...testFiles, '--reporter=json', ...report.args], options);
-        output = report.read(execution.stdout || '');
+        output = execution.error || execution.signal
+          ? ''
+          : report.read(execution.stdout || '') ?? '';
       } finally {
         report.cleanup();
       }
       // Preserve the existing Jest fallback when Vitest cannot produce a report.
-      if (!output.includes('{') && execution.status !== 0) {
+      if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
         runner = 'jest';
         execution = spawnSync('npx', ['jest', ...testFiles, '--json'], options);
         output = execution.stdout || '';
       }
-      const diagnostics = [execution.error?.message, execution.stderr, output].filter(Boolean).join('\n');
+      const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
       if (execution.error) {
         return err(new TestRunnerExecutionError(`${runner} could not complete: ${diagnostics.slice(0, 4000)}`));
       }
