@@ -19,6 +19,12 @@ permissions:
   pull-requests: write
   checks: write
 
+# GitHub-hosted runners execute the CPU paths. onnxruntime-node bundles its
+# CPU runtime but downloads extra CUDA providers from NuGet by default on
+# linux/x64; that external postinstall fetch can fail and block unrelated PRs.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 # ─── Shared exclusions for journey test shards ───
 # The original test:journeys:ci command excludes these directories:
 #   browser, browser-integration, mcp, sync, learning, domains, llm, n8n, *.e2e.test.ts
