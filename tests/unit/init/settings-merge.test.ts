@@ -294,6 +294,16 @@ describe('Settings Merge Utilities', () => {
   });
 
   describe('generateAqeEnvVars', () => {
+    it('keeps database-free settings free of persistence paths', () => {
+      const config = { learning: { enabled: true } } as any;
+      const env = generateAqeEnvVars(config, { memoryBackend: 'memory' });
+      expect(env.AQE_MEMORY_BACKEND).toBe('memory');
+      expect(env.AQE_LEARNING_ENABLED).toBe('false');
+      expect(env.AQE_WORKERS_ENABLED).toBe('false');
+      expect(env).not.toHaveProperty('AQE_MEMORY_PATH');
+      expect(env).not.toHaveProperty('AQE_V3_REASONING_BANK');
+    });
+
     it('should generate full env vars from config', () => {
       const config = {
         learning: { enabled: true, hnswConfig: { M: 8 }, promotionThreshold: 3, qualityThreshold: 0.7 },
@@ -322,6 +332,19 @@ describe('Settings Merge Utilities', () => {
       expect(env.AQE_V3_DOMAINS).toBe('');
       expect(env.AQE_V3_SWARM_SIZE).toBe('15'); // default
     });
+  });
+
+  it('removes a prior reasoning-bank database path from database-free settings', () => {
+    const config = { learning: { enabled: true } } as any;
+    const sections = generateV3SettingsSections(config, '/project', { memoryBackend: 'memory' });
+    const settings: Record<string, unknown> = {
+      v3Learning: { enabled: true, reasoningBank: { dbPath: '/previous/memory.db', custom: 'preserve' } },
+    };
+    applyV3Sections(settings, sections, { memoryBackend: 'memory' });
+    const learning = settings.v3Learning as { enabled: boolean; reasoningBank: Record<string, unknown> };
+    expect(learning.enabled).toBe(false);
+    expect(learning.reasoningBank).not.toHaveProperty('dbPath');
+    expect(learning.reasoningBank.custom).toBe('preserve');
   });
 
   describe('backupSettingsFile', () => {
@@ -367,6 +390,22 @@ describe('Settings Merge Utilities', () => {
   });
 
   describe('mergeAqeEnv', () => {
+    it('removes stale database settings when switching to explicit memory mode', () => {
+      const existing = {
+        MY_SETTING: 'preserve', AQE_MEMORY_BACKEND: 'sqlite',
+        AQE_MEMORY_PATH: '/previous/memory.db', AQE_V3_REASONING_BANK: '/previous/memory.db',
+        AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true',
+      };
+      const generated = generateAqeEnvVars({ learning: { enabled: true } } as any, { memoryBackend: 'memory' });
+      const merged = mergeAqeEnv(existing, generated, { memoryBackend: 'memory' });
+      expect(merged.MY_SETTING).toBe('preserve');
+      expect(merged.AQE_MEMORY_BACKEND).toBe('memory');
+      expect(merged.AQE_LEARNING_ENABLED).toBe('false');
+      expect(merged.AQE_WORKERS_ENABLED).toBe('false');
+      expect(merged).not.toHaveProperty('AQE_MEMORY_PATH');
+      expect(merged).not.toHaveProperty('AQE_V3_REASONING_BANK');
+    });
+
     const aqeEnv = { AQE_V3_MODE: 'true', AQE_LEARNING_ENABLED: 'true', AQE_V3_SWARM_SIZE: '15' };
 
     it('should return all AQE vars on a fresh install (no existing env)', () => {
