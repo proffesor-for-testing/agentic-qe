@@ -124,21 +124,36 @@ export function mergeHooksSmart(
 export function mergeAqeEnv(
   existingEnv: Record<string, string> | undefined,
   aqeEnv: Record<string, string>,
+  options: { memoryBackend?: string } = {},
 ): Record<string, string> {
   // AQE defaults first, then existing values win on any key collision.
-  return { ...aqeEnv, ...(existingEnv || {}) };
+  const merged = { ...aqeEnv, ...(existingEnv || {}) };
+  if (options.memoryBackend === 'memory') {
+    // An explicit --no-database re-init must replace stale AQE persistence
+    // settings, even if the previous init wrote them into this env block.
+    delete merged.AQE_MEMORY_PATH;
+    delete merged.AQE_V3_REASONING_BANK;
+    merged.AQE_MEMORY_BACKEND = 'memory';
+    merged.AQE_LEARNING_ENABLED = 'false';
+    merged.AQE_WORKERS_ENABLED = 'false';
+  }
+  return merged;
 }
 
 /**
  * Generate the full set of AQE environment variables for settings.json.
  */
-export function generateAqeEnvVars(config: AQEInitConfig): Record<string, string> {
+export function generateAqeEnvVars(
+  config: AQEInitConfig,
+  options: { memoryBackend?: string } = {},
+): Record<string, string> {
   const domains = config.domains?.enabled || [];
+  const dbFree = options.memoryBackend === 'memory';
 
   return {
-    AQE_MEMORY_PATH: '.agentic-qe/memory.db',
+    ...(dbFree ? { AQE_MEMORY_BACKEND: 'memory', AQE_WORKERS_ENABLED: 'false' } : { AQE_MEMORY_PATH: '.agentic-qe/memory.db' }),
     AQE_MEMORY_ENABLED: 'true',
-    AQE_LEARNING_ENABLED: config.learning?.enabled ? 'true' : 'false',
+    AQE_LEARNING_ENABLED: dbFree ? 'false' : config.learning?.enabled ? 'true' : 'false',
     AQE_V3_MODE: 'true',
     AQE_V3_DDD_ENABLED: 'true',
     AQE_V3_DOMAINS: domains.join(','),
@@ -148,7 +163,7 @@ export function generateAqeEnvVars(config: AQEInitConfig): Record<string, string
     AQE_V3_HNSW_ENABLED: config.learning?.hnswConfig ? 'true' : 'false',
     AQE_V3_HOOKS_ENABLED: 'true',
     AQE_V3_AISP_ENABLED: 'true',
-    AQE_V3_REASONING_BANK: '.agentic-qe/memory.db',
+    ...(!dbFree ? { AQE_V3_REASONING_BANK: '.agentic-qe/memory.db' } : {}),
     AQE_V3_PATTERN_PROMOTION_THRESHOLD: String(config.learning?.promotionThreshold ?? 3),
     AQE_V3_SUCCESS_RATE_THRESHOLD: String(config.learning?.qualityThreshold ?? 0.7),
   };
@@ -201,7 +216,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function applyV3Sections(
   settings: Record<string, unknown>,
   sections: Record<string, unknown>,
-  options: { statusLine?: boolean } = {},
+  options: { statusLine?: boolean; memoryBackend?: string } = {},
 ): Record<string, unknown> {
   for (const [key, value] of Object.entries(sections)) {
     if (key === '_aqePermissions') {
@@ -232,6 +247,10 @@ export function applyV3Sections(
       settings[key] = deepMergeOwned(settings[key], value);
     }
   }
+  if (options.memoryBackend === 'memory') {
+    const learning = settings.v3Learning as { reasoningBank?: Record<string, unknown> } | undefined;
+    if (learning?.reasoningBank) delete learning.reasoningBank.dbPath;
+  }
   return settings;
 }
 
@@ -239,8 +258,13 @@ export function applyV3Sections(
  * Generate v3-specific settings sections for settings.json.
  * These sections enable the self-learning system, status line, and permissions.
  */
-export function generateV3SettingsSections(config: AQEInitConfig, projectRoot?: string): Record<string, unknown> {
+export function generateV3SettingsSections(
+  config: AQEInitConfig,
+  projectRoot?: string,
+  options: { memoryBackend?: string } = {},
+): Record<string, unknown> {
   const domains = config.domains?.enabled || [];
+  const dbFree = options.memoryBackend === 'memory';
   return {
     aqe: {
       version: config.version ?? '3.0.0',
@@ -270,9 +294,9 @@ export function generateV3SettingsSections(config: AQEInitConfig, projectRoot?: 
       },
     },
     v3Learning: {
-      enabled: config.learning?.enabled ?? true,
+      enabled: dbFree ? false : config.learning?.enabled ?? true,
       reasoningBank: {
-        dbPath: '.agentic-qe/memory.db',
+        ...(!dbFree ? { dbPath: '.agentic-qe/memory.db' } : {}),
         enableHNSW: !!config.learning?.hnswConfig,
       },
       patternPromotion: {

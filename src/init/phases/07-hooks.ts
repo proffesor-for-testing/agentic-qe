@@ -112,15 +112,17 @@ export class HooksPhase extends BasePhase<HooksResult> {
     // Add AQE environment variables without clobbering any value the user
     // already set — including AQE_-prefixed overrides (only missing keys added).
     const existingEnv = settings.env as Record<string, string> | undefined;
-    settings.env = mergeAqeEnv(existingEnv, generateAqeEnvVars(config));
+    const backendOptions = { memoryBackend: context.options.memoryBackend };
+    settings.env = mergeAqeEnv(existingEnv, generateAqeEnvVars(config, backendOptions), backendOptions);
 
     // Apply v3 settings sections non-destructively:
     //  - permissions union-merged (preserve user entries, #362)
     //  - statusLine / includeCoAuthoredBy preserved when user-set (#362 follow-up)
     //  - AQE-owned sections deep-merged so user additions survive
-    const v3Sections = generateV3SettingsSections(config, projectRoot);
+    const v3Sections = generateV3SettingsSections(config, projectRoot, backendOptions);
     applyV3Sections(settings, v3Sections, {
       statusLine: !context.options.noStatusLine,
+      ...backendOptions,
     });
 
     // Enable MCP servers (deduplicate, replace old 'aqe' with 'agentic-qe')
