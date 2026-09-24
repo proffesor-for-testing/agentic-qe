@@ -108,6 +108,7 @@ class TestMemoryBackend implements MemoryBackend {
  */
 class MockViewportCaptureService {
   private captureDelayMs = 200; // Simulate capture time
+  private captureAttempt = 0;
 
   async captureAtViewport(
     url: string,
@@ -120,8 +121,9 @@ class MockViewportCaptureService {
 
     const captureTimeMs = Date.now() - startTime;
 
-    // Simulate 95% success rate
-    const success = Math.random() > 0.05;
+    // One failure per 20 attempts (5%), at a fixed position. Every 15-capture
+    // test run exercises both outcomes, and a retry can deterministically pass.
+    const success = this.captureAttempt++ % 20 !== 7;
 
     if (!success) {
       return ok({
@@ -407,9 +409,9 @@ describe('Parallel Viewports - Performance Metrics', () => {
       ? result.value.successCount / result.value.totalCaptures
       : 0;
 
-    // With 95% success rate simulation, should be reasonably high
-    // Using 0.75 threshold to account for statistical variance
-    expect(successRate).toBeGreaterThan(0.75);
+    expect(result.value?.successCount).toBe(14);
+    expect(result.value?.failedCount).toBe(1);
+    expect(successRate).toBeCloseTo(14 / 15);
 
     // Store metrics
     await memory.set('metrics:success-rate', {
@@ -481,8 +483,8 @@ describe('Parallel Viewports - Error Handling', () => {
     const failedCount = result.value?.failedCount ?? 0;
 
     expect(successCount).toBeGreaterThan(0);
-    // Failures are expected with 5% failure rate
-    // With 15 captures, we might have 0-3 failures
+    expect(successCount).toBe(14);
+    expect(failedCount).toBe(1);
 
     // Failed captures should have error messages
     const failedCaptures = (result.value?.captures ?? []).filter(
@@ -505,20 +507,11 @@ describe('Parallel Viewports - Error Handling', () => {
       (c) => !c.success
     );
 
-    if (failedCaptures.length > 0) {
-      // Retry failed captures
-      const retryPromises = failedCaptures.map((failed) =>
-        captureService.captureAtViewport(failed.url, failed.viewport)
-      );
-
-      const retryResults = await Promise.all(retryPromises);
-
-      // Some retries should succeed
-      const retriedSuccesses = retryResults.filter((r) => r.success && r.value?.success);
-
-      // With random failures, retries should improve success rate
-      expect(retriedSuccesses.length).toBeGreaterThanOrEqual(0);
-    }
+    expect(failedCaptures).toHaveLength(1);
+    const retryResult = await captureService.captureAtViewport(
+      failedCaptures[0].url, failedCaptures[0].viewport
+    );
+    expect(retryResult.success && retryResult.value.success).toBe(true);
   });
 
   it('should aggregate errors for reporting', async () => {
@@ -552,7 +545,7 @@ describe('Parallel Viewports - Error Handling', () => {
     });
 
     const report = await memory.get<any>('error-report');
-    expect(report?.totalErrors).toBe(failedCaptures.length);
+    expect(report?.totalErrors).toBe(1);
   });
 });
 
