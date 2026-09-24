@@ -3,7 +3,7 @@
  * ADR-022: Adaptive QE Agent Routing
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { performance } from 'perf_hooks';
 import {
   QETaskRouter,
@@ -11,6 +11,25 @@ import {
 } from '../../../src/routing/qe-task-router.js';
 import type { QETask } from '../../../src/routing/types.js';
 import { resetInitialization } from '../../../src/learning/real-embeddings.js';
+
+// Routing unit tests need stable similarity signals, not a model download.
+// Keep live transformer behavior in the opt-in integration benchmarks (#526).
+vi.mock('../../../src/learning/real-embeddings.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/learning/real-embeddings.js')>();
+  return {
+    ...actual,
+    computeRealEmbedding: async (text: string): Promise<number[]> => {
+      const vector = new Array<number>(384).fill(0);
+      for (const token of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
+        let hash = 0;
+        for (const char of token) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+        vector[hash % vector.length] += 1;
+      }
+      const norm = Math.hypot(...vector);
+      return vector.map((value) => norm ? value / norm : 0);
+    },
+  };
+});
 
 describe('QE Task Router', () => {
   let router: QETaskRouter;
@@ -330,6 +349,8 @@ describe('QE Task Router', () => {
   });
 });
 
+// These timings measure router scoring and candidate selection with the
+// deterministic embedding fixture above; they do not benchmark model inference.
 describe('QE Task Router Benchmarks', () => {
   let router: QETaskRouter;
 
