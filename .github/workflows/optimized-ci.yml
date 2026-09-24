@@ -417,8 +417,12 @@ jobs:
       - name: Comment on PR
         # Fork tokens cannot write PR comments; keep reports and test gates running.
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        # The metrics artifact is already uploaded; a transient comment API
+        # failure must not turn a healthy test dashboard red.
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const fs = require('fs');
 

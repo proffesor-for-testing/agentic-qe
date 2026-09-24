@@ -30,10 +30,14 @@ import * as path from 'path';
 // Test database path — use os.tmpdir() to avoid polluting production .agentic-qe/memory.db
 const TEST_DB_PATH = path.join(os.tmpdir(), `aqe-benchmark-${process.pid}.db`);
 
+// A cold CI runner has no model cache. Keep PR gates offline; run these real
+// model benchmarks explicitly in an environment with a prepared model cache.
+const skipLiveModelBenchmarks = process.env.CI === 'true' && process.env.AQE_RUN_LIVE_EMBEDDING_BENCHMARKS !== '1';
+
 // NOTE: agentic-flow's SharedMemoryPool has a bug where it uses `new Database()`
 // without importing it. We polyfill globalThis.Database in real-qe-reasoning-bank.ts
 // as a workaround.
-describe('Real QE ReasoningBank Benchmarks', () => {
+describe.skipIf(skipLiveModelBenchmarks)('Real QE ReasoningBank Benchmarks', () => {
   let reasoningBank: RealQEReasoningBank;
 
   beforeAll(async () => {
@@ -227,7 +231,7 @@ describe('Real QE ReasoningBank Benchmarks', () => {
   });
 });
 
-describe('Real Embedding Benchmarks', () => {
+describe.skipIf(skipLiveModelBenchmarks)('Real Embedding Benchmarks', () => {
   beforeAll(async () => {
     resetInitialization();
   }, 60000);
