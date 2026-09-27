@@ -159,6 +159,50 @@ describe('parallel workflow output composition (#720)', () => {
     expect(status.parallelCompositionReceipts?.[0].disposition).toBe('partial');
   });
 
+  it.each(['skipped', 'continueOnFailure'])('preserves completed sibling outputs when an optional step is %s', async (mode) => {
+    const definition = workflow('left', 'right');
+    if (mode === 'skipped') {
+      definition.steps[1].skipCondition = { path: 'results.absent', operator: 'eq', value: undefined };
+    } else {
+      definition.steps[1].continueOnFailure = true;
+    }
+    definition.steps.push({
+      id: 'gate', name: 'Gate', domain: 'test-generation', action: 'gate',
+      dependsOn: ['first'], inputMapping: { implicit: 'results.first.value', mapped: 'results.left' },
+    });
+    orchestrator.registerAction('test-generation', 'first', async () => ok({ value: 91 }));
+    const optional = vi.fn(async () => { throw new Error('optional failed'); });
+    orchestrator.registerAction('test-generation', 'second', optional);
+    const gate = vi.fn(async (input) => ok(input));
+    orchestrator.registerAction('test-generation', 'gate', gate);
+    expect(orchestrator.registerWorkflow(definition).success).toBe(true);
+
+    const status = await completed(orchestrator);
+    expect(status.status).toBe('completed');
+    expect(gate.mock.calls[0][0]).toEqual({ implicit: 91, mapped: 91 });
+    expect(status.context.results).toMatchObject({ first: { value: 91 }, left: 91 });
+    expect(status.context.results).not.toHaveProperty('second');
+    expect(status.context.results).not.toHaveProperty('right');
+    expect(status.parallelCompositionReceipts?.[0]).toMatchObject({ disposition: 'composed', strategy: 'disjoint' });
+    if (mode === 'skipped') expect(optional).not.toHaveBeenCalled();
+  });
+
+  it('keeps a single root step on the sequential path for non-cloneable outputs', async () => {
+    const handler = () => 91;
+    const definition = workflow('left', 'right');
+    definition.steps = [definition.steps[0], {
+      id: 'gate', name: 'Gate', domain: 'test-generation', action: 'gate', dependsOn: ['first'],
+      inputMapping: { handler: 'results.first.value' },
+    }];
+    orchestrator.registerAction('test-generation', 'first', async () => ok({ value: handler }));
+    orchestrator.registerAction('test-generation', 'gate', async (input) => ok({ value: (input.handler as () => number)() }));
+    expect(orchestrator.registerWorkflow(definition).success).toBe(true);
+    const status = await completed(orchestrator);
+    expect(status.status).toBe('completed');
+    expect(status.context.results.gate).toEqual({ value: 91 });
+    expect(status.parallelCompositionReceipts).toEqual([]);
+  });
+
   it('isolates direct action mutations from sibling inputs and shared context', async () => {
     orchestrator.registerAction('test-generation', 'first', async (_input, context) => {
       context.results.rogue = 'unexpected';

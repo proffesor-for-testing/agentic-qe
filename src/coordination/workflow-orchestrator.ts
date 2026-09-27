@@ -215,7 +215,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     this.runWorkflow(workflow, execution).catch(async (error) => {
       execution.status = 'failed';
-      execution.error = String(error);
+      execution.error = toErrorMessage(error);
       execution.completedAt = new Date();
       execution.duration = execution.completedAt.getTime() - startedAt.getTime();
       await this.publishWorkflowFailed(execution, 'unknown', String(error));
@@ -276,7 +276,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     this.runWorkflow(workflow, execution).catch(async (error) => {
       execution.status = 'failed';
-      execution.error = String(error);
+      execution.error = toErrorMessage(error);
     });
 
     return ok(undefined);
@@ -451,12 +451,12 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     } catch (error) {
       if (execution.status === 'running') {
         execution.status = 'failed';
-        execution.error = String(error);
+        execution.error = toErrorMessage(error);
         execution.completedAt = new Date();
         execution.duration = execution.completedAt.getTime() - execution.startedAt.getTime();
         const failedStep = execution.currentSteps[0] || 'unknown';
         execution.currentSteps = [];
-        await this.publishWorkflowFailed(execution, failedStep, String(error));
+        await this.publishWorkflowFailed(execution, failedStep, toErrorMessage(error));
       }
     }
 
@@ -484,7 +484,10 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       const parallelSteps = readySteps.filter((s) => !s.dependsOn?.length);
       const sequentialSteps = readySteps.filter((s) => s.dependsOn?.length);
 
-      if (parallelSteps.length > 0) {
+      // A lone root has no concurrent siblings and needs no clone/barrier.
+      if (parallelSteps.length === 1) sequentialSteps.unshift(parallelSteps[0]);
+
+      if (parallelSteps.length > 1) {
         execution.currentSteps = parallelSteps.map((s) => s.id);
         const receipt: ParallelCompositionReceipt = {
           version: 1, workflowId: workflow.id,
@@ -536,7 +539,6 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
         ));
 
         let hardFailure: string | undefined;
-        let anyFailure = false;
 
         for (let i = 0; i < parallelSteps.length; i++) {
           const step = parallelSteps[i];
@@ -554,18 +556,15 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
             else if (stepResult.status === 'skipped') {
               skippedSteps.add(step.id); execution.skippedSteps.push(step.id);
               receipt.steps[i].disposition = 'skipped';
-              anyFailure = true;
             }
             else if (stepResult.status === 'failed') {
               failedSteps.add(step.id); execution.failedSteps.push(step.id);
               receipt.steps[i].disposition = 'failed';
-              anyFailure = true;
               if (!step.continueOnFailure) hardFailure ??= stepResult.error ?? 'Unknown error';
             }
           } else {
             failedSteps.add(step.id); execution.failedSteps.push(step.id);
             receipt.steps[i].disposition = 'failed';
-            anyFailure = true;
             if (!step.continueOnFailure) hardFailure ??= toErrorMessage(result.reason);
           }
 
@@ -573,19 +572,20 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           if (pendingIndex !== -1) pendingSteps.splice(pendingIndex, 1);
         }
 
-        if (execution.status !== 'running' || anyFailure) {
+        if (execution.status !== 'running' || hardFailure) {
           receipt.disposition = 'partial';
           if (hardFailure) throw new Error(hardFailure);
           if (execution.status !== 'running') return;
-          // A continue-on-failure group may proceed, but none of its partial
-          // output mappings enter shared context.
         } else {
           try {
             const stagedContext: WorkflowContext = {
               ...groupContext, results: structuredClone(groupContext.results),
             };
             for (let i = 0; i < parallelSteps.length; i++) {
-              this.mapStepOutput(parallelSteps[i], (results[i] as PromiseFulfilledResult<StepExecutionResult>).value.output, stagedContext);
+              const result = results[i];
+              if (result.status === 'fulfilled' && result.value.status === 'completed') {
+                this.mapStepOutput(parallelSteps[i], result.value.output, stagedContext);
+              }
             }
             const combinedStateHash = hashWorkflowValue(stagedContext.results);
             if (execution.status !== 'running') {
