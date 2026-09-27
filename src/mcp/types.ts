@@ -529,7 +529,9 @@ export interface TaskSubmitResult {
   taskId: string;
   type: TaskType;
   priority: Priority;
-  status: 'pending' | 'queued';
+  status: TaskStatusResult['status'];
+  /** Execution failure, if the task already reached a failed state. */
+  error?: string;
   assignedDomain?: DomainName;
 }
 
