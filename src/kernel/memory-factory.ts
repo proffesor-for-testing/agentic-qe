@@ -7,6 +7,8 @@
  */
 
 import { MemoryBackend } from './interfaces';
+import { existsSync, statSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { InMemoryBackend } from './memory-backend';
 import { HybridMemoryBackend, HybridBackendConfig, SQLiteConfig } from './hybrid-backend';
 import { MEMORY_CONSTANTS, DATABASE_POOL_CONSTANTS } from './constants.js';
@@ -167,22 +169,30 @@ export async function createDefaultMemoryBackend(
   autoInitialize: boolean = true
 ): Promise<MemoryBackendResult> {
   const backendType = (process.env.AQE_MEMORY_BACKEND as MemoryBackendType) ?? 'memory';
-  const storagePath = process.env.AQE_MEMORY_PATH ?? '.agentic-qe';
+  const storagePath = process.env.AQE_MEMORY_PATH;
+  // Settings installers supply a database filename. Preserve legacy directory
+  // overrides, but never append memory.db to an existing file or a DB filename.
+  const databasePath = !storagePath ? DEFAULT_MEMORY_DB_PATH
+    : storagePath === ':memory:' ? storagePath
+    : existsSync(storagePath)
+      ? (statSync(storagePath).isDirectory() ? join(storagePath, 'memory.db') : storagePath)
+      : /\.(db|sqlite|sqlite3)$/i.test(extname(storagePath))
+        ? storagePath : join(storagePath, 'memory.db');
 
   const config: MemoryBackendConfig = {
     type: backendType,
     sqlite: {
-      path: `${storagePath}/memory.db`,
+      path: databasePath,
       walMode: true,
     },
     agentdb: {
       // Now just uses unified memory.db
-      path: `${storagePath}/memory.db`,
+      path: databasePath,
     },
     hybrid: {
       enableFallback: true,
       sqlite: {
-        path: `${storagePath}/memory.db`,
+        path: databasePath,
       },
     },
   };

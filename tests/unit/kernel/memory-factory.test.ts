@@ -220,6 +220,19 @@ describe('Memory Factory', () => {
       expect(result.backend).toBeInstanceOf(HybridMemoryBackend);
     });
 
+    it.each(['sqlite', 'hybrid', 'agentdb'])('uses AQE_MEMORY_PATH as a database filename for %s', async backendType => {
+      process.env.AQE_MEMORY_BACKEND = backendType;
+      process.env.AQE_MEMORY_PATH = getTestDbPath('-configured');
+      const result = await createDefaultMemoryBackend();
+      try {
+        await result.backend.set('configured-path', 'persisted');
+        expect((result.backend as HybridMemoryBackend).getUnifiedMemory()?.getDbPath()).toBe(process.env.AQE_MEMORY_PATH);
+        expect(fs.statSync(process.env.AQE_MEMORY_PATH).isFile()).toBe(true);
+      } finally {
+        await result.backend.dispose();
+      }
+    });
+
     it('should skip initialization when requested', async () => {
       const result = await createDefaultMemoryBackend(false);
 
