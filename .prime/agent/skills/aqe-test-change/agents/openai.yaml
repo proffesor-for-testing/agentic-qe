@@ -1,0 +1,4 @@
+interface:
+  display_name: "AQE Test Change"
+  short_description: "Design and verify durable tests for code changes"
+  default_prompt: "Use $aqe-test-change to test and verify this code change."
