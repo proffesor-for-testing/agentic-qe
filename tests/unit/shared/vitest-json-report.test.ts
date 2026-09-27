@@ -22,20 +22,30 @@ describe('vitest JSON report resolution (Vitest 4 and 5 parity)', () => {
     }
   });
 
-  it('falls back to stdout when no report file exists', () => {
+  it('does not accept passing stdout when no report file exists', () => {
     const report = createVitestJsonReport();
     try {
-      expect(report.read(REPORT)).toBe(REPORT);
+      expect(report.read(REPORT)).toBeUndefined();
     } finally {
       report.cleanup();
     }
   });
 
-  it('falls back to stdout when the report file is empty', () => {
+  it('rejects an empty report even if stdout looks successful', () => {
     const report = createVitestJsonReport();
     try {
       writeFileSync(report.path, '   \n');
-      expect(report.read('stdout-doc')).toBe('stdout-doc');
+      expect(() => report.read(REPORT)).toThrow(/malformed/);
+    } finally {
+      report.cleanup();
+    }
+  });
+
+  it('rejects a report without testResults even if stdout looks successful', () => {
+    const report = createVitestJsonReport();
+    try {
+      writeFileSync(report.path, '{"success":true}');
+      expect(() => report.read(REPORT)).toThrow(/malformed/);
     } finally {
       report.cleanup();
     }
@@ -53,8 +63,8 @@ describe('vitest JSON report resolution (Vitest 4 and 5 parity)', () => {
     expect(() => a.cleanup()).not.toThrow();
   });
 
-  it('resolves undefined report paths to stdout', () => {
-    expect(resolveVitestJsonOutput('doc', undefined)).toBe('doc');
+  it('does not use stdout when no report path is requested', () => {
+    expect(resolveVitestJsonOutput(REPORT, undefined)).toBeUndefined();
   });
 
   it('detects vitest json invocations that still need an output file', () => {

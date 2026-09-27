@@ -14,6 +14,7 @@ import type {
 } from '../interfaces';
 import type { FlakyTestTracker } from '../flaky-tracking/flaky-tracker';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import { getTestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 
 // ============================================================================
@@ -182,6 +183,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
     const report = createVitestJsonReport();
     let document: string;
     let exitCode: number;
+    let stderr: string;
     try {
       const run = await this.runCommand(
         this.config.vitestPath || 'npx',
@@ -189,12 +191,18 @@ export class VitestPhaseExecutor implements PhaseExecutor {
         timeoutMs
       );
       exitCode = run.exitCode;
-      document = report.read(run.stdout);
+      stderr = run.stderr;
+      const currentReport = report.read(run.stdout);
+      if (currentReport === undefined) {
+        throw new Error('The current Vitest JSON report is missing for this phase.');
+      }
+      document = currentReport;
     } finally {
       report.cleanup();
     }
 
     // Parse JSON report from Vitest
+    let result: VitestJsonResult;
     try {
       const jsonStart = document.indexOf('{');
       const jsonEnd = document.lastIndexOf('}');
@@ -204,8 +212,8 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       }
 
       const jsonStr = document.slice(jsonStart, jsonEnd + 1);
-      return safeJsonParse(jsonStr);
-    } catch (parseError) {
+      result = safeJsonParse(jsonStr);
+    } catch {
       // If JSON parsing fails, create a basic result from exit code
       return {
         numTotalTestSuites: 0,
@@ -220,6 +228,18 @@ export class VitestPhaseExecutor implements PhaseExecutor {
         testResults: [],
       };
     }
+
+    const executionError = getTestRunnerExecutionError(
+      'vitest', 'phase', exitCode,
+      {
+        passed: result.numPassedTests,
+        failed: result.numFailedTests,
+        skipped: result.numPendingTests,
+      },
+      stderr, result
+    );
+    if (executionError) throw executionError;
+    return result;
   }
 
   private runCommand(

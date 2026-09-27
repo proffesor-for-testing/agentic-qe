@@ -18,6 +18,7 @@ import { MemoryBackend } from '../../../kernel/interfaces';
 import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { getTestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
@@ -526,8 +527,19 @@ export class FlakyDetectorService implements IFlakyTestDetector {
       child.on('close', (code) => {
         clearTimeout(timeout);
         const duration = Date.now() - startTime;
-        const reportText = report ? report.read(stdout) : stdout;
+        let reportText: string | undefined;
+        try {
+          reportText = report ? report.read(stdout) : stdout;
+        } catch (error) {
+          report?.cleanup();
+          reject(toError(error));
+          return;
+        }
         report?.cleanup();
+        if (reportText === undefined) {
+          reject(new Error(`The current Vitest JSON report is missing for ${file}.`));
+          return;
+        }
 
         try {
           // Parse the test results from the JSON report (or stdout for other runners)
@@ -541,8 +553,35 @@ export class FlakyDetectorService implements IFlakyTestDetector {
             duration
           );
 
+          if (report) {
+            const verdictReport = safeJsonParse(reportText) as {
+              success?: boolean;
+              numFailedTestSuites?: number;
+              numRuntimeErrorTestSuites?: number;
+              testResults?: Array<{
+                status?: string;
+                message?: string;
+                assertionResults?: Array<{ status?: string }>;
+              }>;
+            };
+            const assertions = verdictReport.testResults?.flatMap(
+              suite => suite.assertionResults ?? []
+            ) ?? [];
+            const executionError = getTestRunnerExecutionError(
+              'vitest', file, code,
+              {
+                passed: assertions.filter(test => test.status === 'passed').length,
+                failed: assertions.filter(test => test.status === 'failed').length,
+                skipped: assertions.filter(test => test.status === 'skipped' || test.status === 'pending').length,
+              },
+              stderr, verdictReport
+            );
+            if (executionError) throw executionError;
+          }
+
           // If parsing fails but we have an exit code, create a single result for the file
           if (parsedResults.size === 0) {
+            if (report) throw new Error(`The current Vitest JSON report has no test results for ${file}.`);
             const testId = this.generateTestId(file, 'main');
             results.set(testId, [
               {
@@ -565,6 +604,10 @@ export class FlakyDetectorService implements IFlakyTestDetector {
 
           resolve(results);
         } catch (parseError) {
+          if (report) {
+            reject(toError(parseError));
+            return;
+          }
           // If we can't parse output but process completed, create result from exit code
           const testId = this.generateTestId(file, 'main');
           results.set(testId, [
@@ -610,7 +653,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
         const parsed = safeJsonParse(jsonOutput);
         return this.parseVitestJson(parsed, file, runId, runIndex);
       }
-    } catch (error) {
+    } catch {
       // Non-critical: not valid JSON, try other formats
       logger.debug('Vitest JSON parse failed:');
     }
@@ -624,7 +667,7 @@ export class FlakyDetectorService implements IFlakyTestDetector {
           return this.parseJestJson(parsed, file, runId, runIndex);
         }
       }
-    } catch (error) {
+    } catch {
       // Non-critical: not Jest format
       logger.debug('Jest JSON parse failed:');
     }
