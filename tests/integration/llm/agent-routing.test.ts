@@ -382,7 +382,7 @@ describe('Agent Routing Integration Tests', () => {
     it('should prefer simple category model for low complexity', () => {
       const preference = DEFAULT_CATEGORY_MODELS.simple;
       expect(preference.provider).toBe('openai');
-      expect(preference.model).toContain('mini');
+      expect(preference.model).toBe('gpt-6-luna');
     });
   });
 

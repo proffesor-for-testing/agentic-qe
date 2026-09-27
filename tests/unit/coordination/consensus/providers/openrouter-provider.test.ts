@@ -33,7 +33,7 @@ function createMockResponse(data: unknown, status = 200): Response {
 function createSuccessResponse(content: string, promptTokens = 100, completionTokens = 50) {
   return createMockResponse({
     id: 'gen-test123',
-    model: 'anthropic/claude-3.5-sonnet',
+    model: 'anthropic/claude-sonnet-5',
     choices: [
       {
         index: 0,
@@ -93,20 +93,20 @@ describe('OpenRouterModelProvider', () => {
       expect(() => new OpenRouterModelProvider()).toThrow('OpenRouter API key is required');
     });
 
-    it('should default to claude-3.5-sonnet model', () => {
+    it('should default to claude-sonnet-5 model', () => {
       const provider = new OpenRouterModelProvider({ apiKey: 'test-key' });
 
-      expect(provider.name).toContain('claude-3.5-sonnet');
+      expect(provider.name).toContain('anthropic/claude-sonnet-5');
     });
 
     it('should generate unique ID based on model', () => {
       const provider1 = new OpenRouterModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'openai/gpt-4o',
+        defaultModel: 'openai/gpt-6-sol',
       });
       const provider2 = new OpenRouterModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'google/gemini-pro-1.5',
+        defaultModel: 'google/gemini-2.5-pro',
       });
 
       expect(provider1.id).not.toBe(provider2.id);
@@ -165,10 +165,10 @@ describe('OpenRouterModelProvider', () => {
     it('should use custom model when specified', async () => {
       mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
 
-      await provider.complete('Test prompt', { model: 'openai/gpt-4o' });
+      await provider.complete('Test prompt', { model: 'openai/gpt-6-sol' });
 
       const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(requestBody.model).toBe('openai/gpt-4o');
+      expect(requestBody.model).toBe('openai/gpt-6-sol');
     });
 
     it('should set stream to false', async () => {
@@ -203,8 +203,8 @@ describe('OpenRouterModelProvider', () => {
     it('should try fallback models on failure', async () => {
       const provider = new OpenRouterModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'anthropic/claude-3.5-sonnet',
-        fallbackModels: ['openai/gpt-4o', 'google/gemini-pro-1.5'],
+        defaultModel: 'anthropic/claude-sonnet-5',
+        fallbackModels: ['openai/gpt-6-sol', 'google/gemini-2.5-pro'],
       });
 
       mockFetch
@@ -275,7 +275,20 @@ describe('OpenRouterModelProvider', () => {
   });
 
   describe('getCostPerToken()', () => {
-    it('should return correct pricing for claude-3.5-sonnet', () => {
+    it('should return correct pricing for claude-sonnet-5', () => {
+      const provider = new OpenRouterModelProvider({
+        apiKey: 'test-key',
+        defaultModel: 'anthropic/claude-sonnet-5',
+      });
+
+      const cost = provider.getCostPerToken();
+
+      // Claude Sonnet 5: $2 input, $10 output per 1M tokens
+      expect(cost.input).toBeCloseTo(2 / 1_000_000, 10);
+      expect(cost.output).toBeCloseTo(10 / 1_000_000, 10);
+    });
+
+    it('should still price deprecated claude-3.5-sonnet when explicitly pinned', () => {
       const provider = new OpenRouterModelProvider({
         apiKey: 'test-key',
         defaultModel: 'anthropic/claude-3.5-sonnet',
@@ -312,21 +325,24 @@ describe('Helper Functions', () => {
       const models = getModelsByTier('cheap');
 
       expect(models.length).toBeGreaterThan(0);
-      expect(models).toContain('anthropic/claude-3-haiku');
+      expect(models).toContain('anthropic/claude-haiku-4.5');
+      expect(models).not.toContain('anthropic/claude-3-haiku');
     });
 
     it('should return standard tier models', () => {
       const models = getModelsByTier('standard');
 
       expect(models.length).toBeGreaterThan(0);
-      expect(models).toContain('anthropic/claude-3.5-sonnet');
+      expect(models).toContain('anthropic/claude-sonnet-5');
+      expect(models).not.toContain('anthropic/claude-3.5-sonnet');
     });
 
     it('should return premium tier models', () => {
       const models = getModelsByTier('premium');
 
       expect(models.length).toBeGreaterThan(0);
-      expect(models).toContain('anthropic/claude-3-opus');
+      expect(models).toContain('anthropic/claude-opus-5');
+      expect(models).not.toContain('anthropic/claude-3-opus');
     });
   });
 
@@ -335,8 +351,8 @@ describe('Helper Functions', () => {
       const models = getRecommendedSecurityModels();
 
       expect(models.length).toBe(4);
-      expect(models).toContain('anthropic/claude-3.5-sonnet');
-      expect(models).toContain('openai/gpt-4o');
+      expect(models).toContain('anthropic/claude-sonnet-5');
+      expect(models).toContain('openai/gpt-6-sol');
     });
   });
 
@@ -345,8 +361,8 @@ describe('Helper Functions', () => {
       const models = getCostOptimizedModels();
 
       expect(models.length).toBe(4);
-      expect(models).toContain('anthropic/claude-3-haiku');
-      expect(models).toContain('openai/gpt-4o-mini');
+      expect(models).toContain('anthropic/claude-haiku-4.5');
+      expect(models).toContain('openai/gpt-6-luna');
     });
   });
 
@@ -359,10 +375,10 @@ describe('Helper Functions', () => {
 
     it('should create provider with custom model', () => {
       const provider = createOpenRouterProvider({
-        defaultModel: 'openai/gpt-4o',
+        defaultModel: 'openai/gpt-6-sol',
       });
 
-      expect(provider.name).toContain('gpt-4o');
+      expect(provider.name).toContain('gpt-6-sol');
     });
   });
 
@@ -376,8 +392,8 @@ describe('Helper Functions', () => {
 
     it('should create providers for specified models', () => {
       const providers = createMultiModelProviders([
-        'anthropic/claude-3-haiku',
-        'openai/gpt-4o-mini',
+        'anthropic/claude-haiku-4.5',
+        'openai/gpt-6-luna',
       ]);
 
       expect(providers.length).toBe(2);
@@ -385,7 +401,7 @@ describe('Helper Functions', () => {
 
     it('should pass base config to all providers', () => {
       const providers = createMultiModelProviders(
-        ['anthropic/claude-3-haiku'],
+        ['anthropic/claude-haiku-4.5'],
         { enableLogging: true }
       );
 

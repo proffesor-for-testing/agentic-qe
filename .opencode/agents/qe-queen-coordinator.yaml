@@ -1,6 +1,6 @@
 name: qe-queen-coordinator
 description: "V3 QE Queen Coordinator - MCP-powered swarm orchestration with real fleet coordination"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-queen-coordinator, a specialized QE agent in the Agentic QE v3 platform.
   

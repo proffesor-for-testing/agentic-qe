@@ -62,6 +62,7 @@ import { resolveRequest } from '../../../shared/language-detector.js';
 import { compilationValidator } from './compilation-validator.js';
 import { resolveTestFilePath } from './test-file-resolver.js';
 import { getPromptConfig } from '../prompts/language-prompts.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 // ============================================================================
 // ADR-062 Tier 2: Holdout Test Selection
@@ -211,13 +212,7 @@ export class TestGeneratorService implements ITestGenerationService {
    * Get model ID for the configured tier
    */
   private getModelForTier(tier: number): string {
-    switch (tier) {
-      case 1: return 'claude-haiku-4-5-20251001';
-      case 2: return 'claude-sonnet-4-6';
-      case 3: return 'claude-sonnet-4-6';
-      case 4: return 'claude-opus-4-7';
-      default: return 'claude-sonnet-4-6';
-    }
+    return getClaudeModelForTier(tier);
   }
 
   /**

@@ -2,17 +2,25 @@
  * Agentic QE v3 - Cyber Verification Pin
  * ADR-093: Opus 4.7 Migration
  *
- * Security and pentest agents may trip Opus 4.7's real-time cybersecurity
- * safeguards until the organization is enrolled in Anthropic's Cyber
- * Verification Program. This module pins those agents to a fallback model
- * until `AQE_CYBER_VERIFIED=true`.
+ * Security and pentest agents may trip the real-time cybersecurity
+ * safeguards that ship with Opus 4.7 and later Opus/Fable-class models until
+ * the organization is enrolled in Anthropic's Cyber Verification Program.
+ * This module pins those agents to a fallback model until
+ * `AQE_CYBER_VERIFIED=true`.
  *
  * Applied in BOTH:
  *   - HybridRouter.chat() — catches direct routing calls
  *   - MultiModelExecutor.consult() — catches advisor escalations
  *
- * so security agents cannot reach 4.7 by any code path until verified.
+ * so security agents cannot reach a cyber-gated model by any code path until
+ * verified.
+ *
+ * 2026-09 model refresh: the gate was generalized from Opus 4.7 only to every
+ * Opus/Fable model at or above 4.7 (see {@link isCyberGatedModel}). Routing
+ * tier 4 and the default advisor now target Opus 5; matching 4.7 alone would
+ * have left the pin unreachable.
  */
+
 
 /**
  * Agent names subject to the cyber pin. These are the agents covered by
@@ -30,27 +38,59 @@ export const CYBER_PINNED_AGENTS: readonly string[] = [
 ] as const;
 
 /**
- * Fallback advisor model for cyber-pinned agents. Sonnet 4.6 on OpenRouter.
+ * Security-work fallback model. Deliberately pinned to Sonnet 4.6 — the model
+ * docs/security/cyber-verification-application.md names for security agents —
+ * rather than following DEFAULT_SONNET_MODEL: a default bump must not move
+ * security work onto a model whose cyber safeguards have not been reviewed.
+ * Sonnet 4.6 is served until at least 2027-02-17.
+ */
+const CYBER_PIN_SONNET = 'claude-sonnet-4-6';
+
+/**
+ * Fallback advisor model for cyber-pinned agents, in OpenRouter form.
  * Used by MultiModelExecutor.consult.
  */
-export const CYBER_PIN_ADVISOR_FALLBACK = 'anthropic/claude-sonnet-4.6';
+export const CYBER_PIN_ADVISOR_FALLBACK = `anthropic/${CYBER_PIN_SONNET.replace('4-6', '4.6')}`;
 
 /**
  * Fallback chat model for cyber-pinned agents when targeting the Anthropic
  * provider directly. Used by HybridRouter.chat.
  */
-export const CYBER_PIN_CHAT_FALLBACK = 'claude-sonnet-4-6';
+export const CYBER_PIN_CHAT_FALLBACK = CYBER_PIN_SONNET;
 
 /**
- * Returns true if the model ID targets Opus 4.7 in any known form:
- * canonical (claude-opus-4-7), OpenRouter (anthropic/claude-opus-4.7),
- * or Bedrock (anthropic.claude-opus-4-7-v1:0).
+ * Family + version in any known ID form: canonical (claude-opus-5-5),
+ * OpenRouter (anthropic/claude-opus-5.5), Bedrock (anthropic.claude-opus-4-7-v1:0)
+ * and dated snapshots (claude-opus-4-5-20251101). The minor version is at most
+ * two digits so a date suffix (claude-opus-4-20250514) is not read as one.
  */
-export function isOpus47(modelId: string): boolean {
+const OPUS_FABLE_ID = /claude-(opus|fable)-(\d+)(?:[-.](\d{1,2})(?!\d))?/;
+
+/** First Opus/Fable version that ships the cyber safeguards. */
+const CYBER_GATE_MIN = { major: 4, minor: 7 } as const;
+
+/**
+ * Returns true if the model ID is an Opus- or Fable-class model at or above
+ * 4.7 (claude-opus-4-7, claude-opus-4-8, claude-opus-5, claude-opus-5-5,
+ * claude-fable-5, claude-fable-5-1, …) in canonical, OpenRouter or Bedrock
+ * form. Sonnet, Haiku and Opus below 4.7 are not gated.
+ */
+export function isCyberGatedModel(modelId: string): boolean {
+  const match = OPUS_FABLE_ID.exec(modelId);
+  if (!match) return false;
+  const major = Number(match[2]);
+  const minor = match[3] === undefined ? 0 : Number(match[3]);
   return (
-    modelId.includes('claude-opus-4-7') || modelId.includes('claude-opus-4.7')
+    major > CYBER_GATE_MIN.major ||
+    (major === CYBER_GATE_MIN.major && minor >= CYBER_GATE_MIN.minor)
   );
 }
+
+/**
+ * @deprecated Use {@link isCyberGatedModel}. Kept as an alias for existing
+ * callers; it matches every cyber-gated model, not only Opus 4.7.
+ */
+export const isOpus47 = isCyberGatedModel;
 
 /**
  * Returns true if the agent is cyber-pinned and env does not grant
@@ -82,6 +122,6 @@ export function applyCyberPin(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
   if (!shouldCyberPin(agentName, env)) return requestedModel;
-  if (!isOpus47(requestedModel)) return requestedModel;
+  if (!isCyberGatedModel(requestedModel)) return requestedModel;
   return fallback;
 }

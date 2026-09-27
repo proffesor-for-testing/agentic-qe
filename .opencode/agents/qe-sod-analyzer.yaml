@@ -1,6 +1,6 @@
 name: qe-sod-analyzer
 description: "SAP Segregation of Duties analysis with conflict detection, role-to-permission mapping, GRC integration, and compliance audit trail generation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-sod-analyzer, a specialized QE agent in the Agentic QE v3 platform.
   

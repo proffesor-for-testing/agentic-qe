@@ -8,6 +8,8 @@
  * @see ADR-051: LLM-Powered Analysis
  */
 
+import { CLAUDE_TIER_MODELS } from '../shared/llm/model-registry.js';
+
 // ============================================================================
 // Test Execution Constants
 // ============================================================================
@@ -604,12 +606,7 @@ export const LLM_ANALYSIS_CONSTANTS = {
   /**
    * Model tier mapping.
    */
-  MODEL_TIERS: {
-    1: 'claude-haiku-4-5',
-    2: 'claude-sonnet-4-6',
-    3: 'claude-sonnet-4-6',
-    4: 'claude-opus-4-7',
-  } as const,
+  MODEL_TIERS: CLAUDE_TIER_MODELS,
 } as const;
 
 // Type exports for const assertion inference

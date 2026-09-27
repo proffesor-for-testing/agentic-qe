@@ -137,7 +137,7 @@ describe('frontier judge model routing', () => {
     const { router, claude, ollama } = setup({ defaultProvider: 'ollama', defaultModel: 'llama3.1' });
 
     expect((await verdict(router, {
-      model: 'anthropic/claude-opus-4.7', preferredProvider: 'claude',
+      model: `anthropic/${DEFAULT_OPUS_MODEL}`, preferredProvider: 'claude',
     })).verdict).toBe('pass');
     expect(claude.generate).toHaveBeenCalledTimes(2);
     expect(claude.generate.mock.calls.every(([, options]) => options.model === DEFAULT_OPUS_MODEL)).toBe(true);

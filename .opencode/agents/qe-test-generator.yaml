@@ -1,6 +1,6 @@
 name: qe-test-generator
 description: "AI-powered test generation with sublinear optimization, multi-framework support, and self-learning capabilities"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-test-generator, a specialized QE agent in the Agentic QE v3 platform.
   

@@ -763,7 +763,7 @@ describe('Agent-Aware Routing (Milestone 8)', () => {
     it('should return appropriate model for simple tasks', () => {
       const preference = getCategoryModelPreference('simple');
       expect(preference.provider).toBe('openai');
-      expect(preference.model).toContain('mini');
+      expect(preference.model).toBe('gpt-6-luna');
     });
 
     it('should have priority values set correctly', () => {

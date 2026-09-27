@@ -203,9 +203,14 @@ describe('BedrockProvider', () => {
   // =========================================================================
 
   describe('ARN model ID mapping', () => {
-    it('should map claude-3-5-sonnet to Bedrock format', () => {
-      const bedrockId = BEDROCK_MODEL_MAPPING['claude-3-5-sonnet-20241022'];
-      expect(bedrockId).toBe('anthropic.claude-3-5-sonnet-20241022-v2:0');
+    it('should not map retired Claude 3.x / Sonnet 4 models', () => {
+      expect(BEDROCK_MODEL_MAPPING['claude-3-5-sonnet-20241022']).toBeUndefined();
+      expect(BEDROCK_MODEL_MAPPING['claude-3-opus-20240229']).toBeUndefined();
+      expect(BEDROCK_MODEL_MAPPING['claude-sonnet-4-20250514']).toBeUndefined();
+    });
+
+    it('should map claude-sonnet-4-6 to Bedrock format', () => {
+      expect(BEDROCK_MODEL_MAPPING['claude-sonnet-4-6']).toBe('anthropic.claude-sonnet-4-6-v1:0');
     });
 
     it('should map claude-opus-4-7 to Bedrock format (ADR-093)', () => {
@@ -230,19 +235,18 @@ describe('BedrockProvider', () => {
       }
     });
 
-    it('should support legacy Claude 3 models', () => {
-      expect(BEDROCK_MODEL_MAPPING['claude-3-opus-20240229']).toBe('anthropic.claude-3-opus-20240229-v1:0');
-      expect(BEDROCK_MODEL_MAPPING['claude-3-sonnet-20240229']).toBe('anthropic.claude-3-sonnet-20240229-v1:0');
-      expect(BEDROCK_MODEL_MAPPING['claude-3-haiku-20240307']).toBe('anthropic.claude-3-haiku-20240307-v1:0');
+    it('should still map previous-generation models Anthropic serves', () => {
+      expect(BEDROCK_MODEL_MAPPING['claude-opus-4-5']).toBe('anthropic.claude-opus-4-5-v1:0');
+      expect(BEDROCK_MODEL_MAPPING['claude-sonnet-4-5']).toBe('anthropic.claude-sonnet-4-5-v2:0');
     });
 
     it('should list all supported models', () => {
       const supportedModels = provider.getSupportedModels();
 
-      expect(supportedModels).toContain('claude-3-5-sonnet-20241022');
+      expect(supportedModels).toContain('claude-sonnet-4-6');
       expect(supportedModels).toContain('claude-opus-4-7');
       expect(supportedModels).toContain('claude-haiku-4-5-20251001');
-      expect(supportedModels.length).toBeGreaterThanOrEqual(10);
+      expect(supportedModels.length).toBeGreaterThanOrEqual(6);
     });
   });
 
@@ -473,7 +477,7 @@ describe('BedrockProvider', () => {
           type: 'message',
           role: 'assistant',
           content: [{ type: 'text', text: 'Hi' }],
-          model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+          model: 'anthropic.claude-sonnet-4-6-v1:0',
           stop_reason: 'end_turn',
           usage: { input_tokens: 2, output_tokens: 1 },
         }),
@@ -483,7 +487,7 @@ describe('BedrockProvider', () => {
 
       expect(result.healthy).toBe(true);
       expect(result.latencyMs).toBeGreaterThanOrEqual(0);
-      expect(result.models).toContain('claude-3-5-sonnet-20241022');
+      expect(result.models).toContain('claude-sonnet-4-6');
       expect(result.details?.region).toBe('us-east-1');
     });
 
@@ -622,7 +626,7 @@ describe('BedrockProvider', () => {
 
   describe('default configuration', () => {
     it('should have correct default model', () => {
-      expect(DEFAULT_BEDROCK_CONFIG.model).toBe('anthropic.claude-3-5-sonnet-20241022-v2:0');
+      expect(DEFAULT_BEDROCK_CONFIG.model).toBe('anthropic.claude-sonnet-4-6-v1:0');
     });
 
     it('should have correct default region', () => {

@@ -29,6 +29,7 @@ import {
   GenerateOptions,
   createLLMError,
 } from '../../../../../src/shared/llm/interfaces';
+import { DEFAULT_OPUS_MODEL, DEFAULT_SONNET_MODEL } from '../../../../../src/shared/llm/model-registry';
 
 // ============================================================================
 // Mock Provider
@@ -448,8 +449,8 @@ describe('HybridRouter', () => {
 
       expect(decision.providerType).toBe('claude');
       // Canonical model ID stored in model, provider-specific in providerModelId
-      expect(decision.model).toBe('claude-opus-4-7');
-      expect(decision.providerModelId).toBe('claude-opus-4-7');
+      expect(decision.model).toBe(DEFAULT_OPUS_MODEL);
+      expect(decision.providerModelId).toBe(DEFAULT_OPUS_MODEL);
       expect(decision.reason).toBe('rule-match');
     });
 
@@ -464,8 +465,8 @@ describe('HybridRouter', () => {
 
       expect(decision.providerType).toBe('claude');
       // Canonical model ID stored in model, provider-specific in providerModelId
-      expect(decision.model).toBe('claude-sonnet-4-6');
-      expect(decision.providerModelId).toBe('claude-sonnet-4-6');
+      expect(decision.model).toBe(DEFAULT_SONNET_MODEL);
+      expect(decision.providerModelId).toBe(DEFAULT_SONNET_MODEL);
     });
 
     it('should route high complexity reasoning tasks to advanced models', async () => {

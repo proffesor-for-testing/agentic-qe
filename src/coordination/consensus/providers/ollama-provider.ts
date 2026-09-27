@@ -2,7 +2,7 @@
  * Agentic QE v3 - Ollama Model Provider
  * Local/on-prem model support for multi-model consensus verification
  *
- * Ollama provides access to local LLMs (Llama, Mistral, Codellama, etc.)
+ * Ollama provides access to local LLMs (Qwen3, gpt-oss, Llama 4, Gemma, etc.)
  * for privacy-sensitive verification or air-gapped environments.
  *
  * @see https://ollama.ai
@@ -24,51 +24,20 @@ import { resolveOllamaBaseUrl } from '../../../shared/llm/ollama-url.js';
 
 /**
  * Popular models available through Ollama
- * These are models that can be pulled and run locally
+ * These are models that can be pulled and run locally. Tag availability
+ * varies by Ollama library version — `ollama pull` to confirm.
  */
 export type OllamaModel =
-  // Llama models
-  | 'llama3.1'
-  | 'llama3.1:70b'
-  | 'llama3.1:8b'
-  | 'llama3.2'
-  | 'llama3.2:3b'
-  | 'llama3.2:1b'
-  // Codellama models (code-focused)
-  | 'codellama'
-  | 'codellama:34b'
-  | 'codellama:13b'
-  | 'codellama:7b'
-  // Mistral models
-  | 'mistral'
-  | 'mistral:7b'
-  | 'mistral-nemo'
-  // Mixtral models
-  | 'mixtral'
-  | 'mixtral:8x7b'
-  // Qwen models
-  | 'qwen2.5'
-  | 'qwen2.5:72b'
-  | 'qwen2.5:32b'
-  | 'qwen2.5:14b'
-  | 'qwen2.5:7b'
-  | 'qwen2.5-coder'
-  // DeepSeek models
-  | 'deepseek-coder-v2'
-  | 'deepseek-v2'
-  // Phi models
-  | 'phi3'
-  | 'phi3:14b'
-  | 'phi3:medium'
+  // Qwen3 models (ADR-111: qwen3-coder:30b is the local QE default; never qwen3:8b)
+  | 'qwen3-coder:30b'
+  | 'qwen3:30b-a3b'
+  // OpenAI open-weight models
+  | 'gpt-oss:20b'
+  | 'gpt-oss:120b'
+  // Llama 4 models
+  | 'llama4:scout'
   // Gemma models
-  | 'gemma2'
-  | 'gemma2:27b'
-  | 'gemma2:9b'
-  | 'gemma2:2b'
-  // StarCoder models
-  | 'starcoder2'
-  | 'starcoder2:15b'
-  | 'starcoder2:7b'
+  | 'gemma4'
   // Allow any model string for flexibility
   | string;
 
@@ -182,10 +151,10 @@ interface OllamaTagsResponse {
  */
 export function getRecommendedOllamaModels(): OllamaModel[] {
   return [
-    'llama3.1:70b',     // Best reasoning
-    'codellama:34b',    // Best for code analysis
-    'qwen2.5:72b',      // Strong multilingual
-    'mistral',          // Good balance
+    'qwen3-coder:30b',  // Best for code analysis (ADR-111 default)
+    'gpt-oss:120b',     // Best reasoning
+    'qwen3:30b-a3b',    // Strong general-purpose MoE
+    'llama4:scout',     // Different model family for consensus diversity
   ];
 }
 
@@ -194,10 +163,9 @@ export function getRecommendedOllamaModels(): OllamaModel[] {
  */
 export function getLightweightOllamaModels(): OllamaModel[] {
   return [
-    'llama3.2:3b',
-    'phi3',
-    'gemma2:2b',
-    'qwen2.5:7b',
+    'gpt-oss:20b',
+    'qwen3:30b-a3b',    // MoE: ~3B active params, fast despite its size
+    'gemma4',
   ];
 }
 
@@ -206,10 +174,9 @@ export function getLightweightOllamaModels(): OllamaModel[] {
  */
 export function getCodeOllamaModels(): OllamaModel[] {
   return [
-    'codellama:34b',
-    'qwen2.5-coder',
-    'deepseek-coder-v2',
-    'starcoder2:15b',
+    'qwen3-coder:30b',
+    'gpt-oss:120b',
+    'gpt-oss:20b',
   ];
 }
 
@@ -226,7 +193,7 @@ const DEFAULT_CONFIG: {
   enableLogging: boolean;
 } = {
   baseUrl: resolveOllamaBaseUrl(OLLAMA_CONSTANTS.DEFAULT_BASE_URL),
-  defaultModel: 'llama3.1' as OllamaModel,
+  defaultModel: 'qwen3-coder:30b' as OllamaModel,
   defaultTimeout: CONSENSUS_CONSTANTS.OLLAMA_TIMEOUT_MS, // 5 minutes (local models can be slow)
   maxRetries: 2,
   retryDelayMs: CONSENSUS_CONSTANTS.OLLAMA_RETRY_DELAY_MS,
@@ -243,7 +210,7 @@ const DEFAULT_CONFIG: {
  * ```typescript
  * const provider = new OllamaModelProvider({
  *   baseUrl: 'http://localhost:11434',
- *   defaultModel: 'codellama:34b',
+ *   defaultModel: 'qwen3-coder:30b',
  * });
  *
  * const result = await provider.complete('Analyze this code for vulnerabilities...');
@@ -515,18 +482,18 @@ Format your response with: verdict (confirmed/rejected/uncertain), confidence (0
  *
  * @example
  * ```typescript
- * // Default (localhost:11434, llama3.1)
+ * // Default (localhost:11434, qwen3-coder:30b)
  * const provider = createOllamaProvider();
  *
  * // Custom model
  * const provider = createOllamaProvider({
- *   defaultModel: 'codellama:34b',
+ *   defaultModel: 'gpt-oss:20b',
  * });
  *
  * // Remote Ollama server
  * const provider = createOllamaProvider({
  *   baseUrl: 'http://gpu-server:11434',
- *   defaultModel: 'llama3.1:70b',
+ *   defaultModel: 'gpt-oss:120b',
  * });
  * ```
  */

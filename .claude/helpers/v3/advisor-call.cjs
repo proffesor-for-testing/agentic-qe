@@ -61,7 +61,7 @@ const availableProviders = [];
 if (process.env.OPENROUTER_API_KEY) {
   availableProviders.push({
     name: 'openrouter',
-    model: 'anthropic/claude-opus-4',
+    model: 'anthropic/claude-opus-5.5',
     securityAllowed: false, // third-party proxy
   });
 }
@@ -69,7 +69,7 @@ if (process.env.OPENROUTER_API_KEY) {
 if (process.env.ANTHROPIC_API_KEY) {
   availableProviders.push({
     name: 'claude',
-    model: 'claude-opus-4-6',
+    model: 'claude-opus-5-5',
     securityAllowed: true,
   });
 }

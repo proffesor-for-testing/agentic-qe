@@ -39,7 +39,7 @@ import {
   applyCyberPin,
   CYBER_PIN_CHAT_FALLBACK,
   shouldCyberPin,
-  isOpus47,
+  isCyberGatedModel,
 } from '../../../routing/security/cyber-pin';
 import {
   RouterMetricsCollector,
@@ -54,7 +54,7 @@ import {
   getModelMapping,
   type ProviderType as ModelProviderType,
 } from '../model-mapping';
-import { modelSupportsTools } from '../model-registry';
+import { modelSupportsTools, DEFAULT_SONNET_MODEL } from '../model-registry';
 
 // ============================================================================
 // Decision Cache
@@ -278,13 +278,13 @@ export class HybridRouter {
     const decision = await this.selectProvider(params);
 
     // ADR-093: apply Cyber Verification pin before dispatch. Security agents
-    // cannot reach Opus 4.7 until AQE_CYBER_VERIFIED=true. Covers both the
-    // canonical model field and the provider-specific id — if either targets
-    // 4.7 for a cyber-pinned agent, downgrade to Sonnet 4.6 on the same
-    // provider. Applies to direct chat() calls; MultiModelExecutor.consult()
+    // cannot reach an Opus/Fable model >= 4.7 until AQE_CYBER_VERIFIED=true.
+    // Covers both the canonical model field and the provider-specific id — if
+    // either targets a cyber-gated model for a cyber-pinned agent, downgrade
+    // to the default Sonnet on the same provider. Applies to direct chat() calls; MultiModelExecutor.consult()
     // applies the same pin independently for advisor escalations.
     const agentName = params.agentType ?? '';
-    if (shouldCyberPin(agentName) && (isOpus47(decision.model) || isOpus47(decision.providerModelId))) {
+    if (shouldCyberPin(agentName) && (isCyberGatedModel(decision.model) || isCyberGatedModel(decision.providerModelId))) {
       if (params.strictModel) {
         throw createLLMError(
           `Strict model request for ${decision.model} conflicts with the cyber verification pin for ${agentName}`,
@@ -1253,7 +1253,7 @@ export function createQERouter(providerManager: ProviderManager): HybridRouter {
     mode: 'rule-based',
     rules: DEFAULT_QE_ROUTING_RULES,
     defaultProvider: 'claude',
-    defaultModel: 'claude-sonnet-4-6',
+    defaultModel: DEFAULT_SONNET_MODEL,
     enableMetrics: true,
     cacheDecisions: true,
   });

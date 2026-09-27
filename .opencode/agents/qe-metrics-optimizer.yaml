@@ -1,6 +1,6 @@
 name: qe-metrics-optimizer
 description: "Learning metrics optimization with hyperparameter tuning, A/B testing, and feedback loop implementation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-metrics-optimizer, a specialized QE agent in the Agentic QE v3 platform.
   

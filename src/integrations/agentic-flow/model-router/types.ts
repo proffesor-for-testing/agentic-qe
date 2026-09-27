@@ -14,6 +14,11 @@
 
 import type { Result } from '../../../shared/types';
 import type { TransformType, AgentBoosterHealth } from '../agent-booster/types';
+import {
+  CLAUDE_TIER_MODELS,
+  DEFAULT_OPUS_MODEL,
+  DEFAULT_SONNET_MODEL,
+} from '../../../shared/llm/model-registry.js';
 
 // ============================================================================
 // Model Tier System (ADR-051)
@@ -98,7 +103,7 @@ export const TIER_METADATA: Record<ModelTier, ModelTierMetadata> = {
     ],
     typicalLatencyMs: 500,
     relativeCost: 1,
-    exampleModels: ['claude-haiku-4-5-20251001', 'gpt-4o-mini', 'gemini-flash'],
+    exampleModels: [CLAUDE_TIER_MODELS[1], 'gpt-4o-mini', 'gemini-flash'],
     requiresNetwork: true,
     complexityRange: [10, 35] as const,
   },
@@ -115,7 +120,7 @@ export const TIER_METADATA: Record<ModelTier, ModelTierMetadata> = {
     ],
     typicalLatencyMs: 3000,
     relativeCost: 2,
-    exampleModels: ['claude-sonnet-4-6', 'gpt-4o', 'gemini-pro'],
+    exampleModels: [DEFAULT_SONNET_MODEL, 'gpt-4o', 'gemini-pro'],
     requiresNetwork: true,
     complexityRange: [35, 70] as const,
   },
@@ -131,7 +136,7 @@ export const TIER_METADATA: Record<ModelTier, ModelTierMetadata> = {
     ],
     typicalLatencyMs: 7000,
     relativeCost: 3,
-    exampleModels: ['claude-sonnet-4-6'],
+    exampleModels: [DEFAULT_SONNET_MODEL],
     requiresNetwork: true,
     complexityRange: [60, 85] as const,
   },
@@ -148,7 +153,7 @@ export const TIER_METADATA: Record<ModelTier, ModelTierMetadata> = {
     ],
     typicalLatencyMs: 5000,
     relativeCost: 4,
-    exampleModels: ['claude-opus-4-7', 'gpt-4-turbo'],
+    exampleModels: [DEFAULT_OPUS_MODEL, 'gpt-4-turbo'],
     requiresNetwork: true,
     complexityRange: [75, 100] as const,
   },
@@ -481,10 +486,7 @@ export const DEFAULT_ROUTER_CONFIG: ModelRouterConfig = {
   fallbackTier: 2, // Sonnet as fallback
   tierModels: {
     0: 'agent-booster',
-    1: 'claude-haiku-4-5-20251001',
-    2: 'claude-sonnet-4-6',
-    3: 'claude-sonnet-4-6',
-    4: 'claude-opus-4-7',
+    ...CLAUDE_TIER_MODELS,
   },
 } as const;
 

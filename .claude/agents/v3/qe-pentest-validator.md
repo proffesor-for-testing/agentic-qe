@@ -10,7 +10,7 @@ effort: max
 advisor:
   enabled: true
   provider: claude
-  model: claude-opus-4-7
+  model: claude-opus-5-5
   max_uses: 3
   redact: strict
 ---

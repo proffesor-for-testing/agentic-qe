@@ -31,6 +31,7 @@ import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
+import { applyAnthropicParams } from '../anthropic-params';
 
 // ============================================================================
 // Bedrock-Specific Types
@@ -58,7 +59,9 @@ export interface BedrockConfig extends LLMConfig {
  * Default Bedrock configuration
  */
 export const DEFAULT_BEDROCK_CONFIG: BedrockConfig = {
-  model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  // Sonnet 4.6 is the newest model verified on the InvokeModel path this
+  // provider uses; Claude 5 models are documented on Bedrock's Mantle endpoint.
+  model: 'anthropic.claude-sonnet-4-6-v1:0',
   region: 'us-east-1',
   maxTokens: 4096,
   temperature: 0.7,
@@ -113,24 +116,12 @@ export const BEDROCK_MODEL_MAPPING: Record<string, string> = {
   'claude-sonnet-4-6': 'anthropic.claude-sonnet-4-6-v1:0',
   'claude-haiku-4-5-20251001': 'anthropic.claude-haiku-4-5-v1:0',
   'claude-haiku-4-5': 'anthropic.claude-haiku-4-5-v1:0',
-  // Retiring 2026-06-15 — kept for existing traffic during transition
+  // Previous generation, still served by Anthropic
   'claude-opus-4-5-20251101': 'anthropic.claude-opus-4-5-v1:0',
   'claude-opus-4-5': 'anthropic.claude-opus-4-5-v1:0',
-  'claude-opus-4-20250514': 'anthropic.claude-opus-4-v1:0',
-  'claude-opus-4': 'anthropic.claude-opus-4-v1:0',
-  'claude-sonnet-4-20250514': 'anthropic.claude-sonnet-4-v1:0',
-  'claude-sonnet-4': 'anthropic.claude-sonnet-4-v1:0',
-  'claude-3-5-haiku-20241022': 'anthropic.claude-3-5-haiku-v1:0',
-  'claude-haiku-3-5': 'anthropic.claude-3-5-haiku-v1:0',
-  // Claude Sonnet 4.5
   'claude-sonnet-4-5-20250929': 'anthropic.claude-sonnet-4-5-v2:0',
   'claude-sonnet-4-5': 'anthropic.claude-sonnet-4-5-v2:0',
-  // Legacy Claude 3 models
-  'claude-3-opus-20240229': 'anthropic.claude-3-opus-20240229-v1:0',
-  'claude-3-sonnet-20240229': 'anthropic.claude-3-sonnet-20240229-v1:0',
-  'claude-3-haiku-20240307': 'anthropic.claude-3-haiku-20240307-v1:0',
-  // Claude 3.5 Sonnet
-  'claude-3-5-sonnet-20241022': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  // Claude 3.x, Sonnet 4 and Opus 4/4.1 are retired and intentionally absent.
 };
 
 /**
@@ -263,10 +254,11 @@ export class BedrockProvider implements LLMProvider {
       messages,
     };
 
-    // Temperature must be between 0 and 1 for Bedrock
-    if (temperature !== undefined) {
-      body.temperature = Math.min(Math.max(temperature, 0), 1);
-    }
+    // Temperature must be between 0 and 1 for Bedrock, and newer Claude
+    // models reject it entirely.
+    applyAnthropicParams(body, bedrockModelId, {
+      temperature: temperature !== undefined ? Math.min(Math.max(temperature, 0), 1) : undefined,
+    });
 
     if (options?.systemPrompt) {
       body.system = options.systemPrompt;

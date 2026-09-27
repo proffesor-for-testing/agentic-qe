@@ -49,6 +49,7 @@ import { GeminiProvider } from './providers/gemini';
 import { AzureOpenAIProvider } from './providers/azure-openai';
 import { BedrockProvider } from './providers/bedrock';
 import { toError } from '../error-utils.js';
+import { DEFAULT_SONNET_MODEL } from './model-registry';
 import { createRegisteredProvider } from './provider-registry.js';
 
 /**
@@ -879,7 +880,7 @@ export function createQEProviderManager(): ProviderManager {
     loadBalancing: 'least-cost',
     providers: {
       claude: {
-        model: 'claude-sonnet-4-6',
+        model: DEFAULT_SONNET_MODEL,
         maxTokens: 8192,
         temperature: 0.3, // Lower for QE tasks
       },

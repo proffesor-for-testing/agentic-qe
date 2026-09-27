@@ -286,7 +286,7 @@ export class OpenCodeInstaller {
           mode: 'subagent',
         };
         // NOTE: `model` is intentionally omitted so agents inherit the user's
-        // default OpenCode model. AQE ships model "claude-sonnet-4-6" which may
+        // default OpenCode model. AQE ships Claude model IDs (e.g. "claude-sonnet-5") which may
         // not resolve in OpenCode's provider registry; inheriting avoids
         // hard-failing the agent at invocation time.
         const permission = this.buildPermission(name, data.permissions, permissionsYaml);

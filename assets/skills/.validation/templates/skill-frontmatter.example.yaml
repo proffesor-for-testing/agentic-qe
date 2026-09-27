@@ -202,7 +202,7 @@ validation:
 
   # Multi-model testing configuration
   validation_models:
-    - claude-sonnet-4-6
+    - claude-sonnet-5
     - claude-haiku-4-5
     - gpt-4o
 

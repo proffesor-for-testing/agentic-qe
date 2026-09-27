@@ -1,6 +1,6 @@
 name: qe-flaky-hunter
 description: "Flaky test detection and remediation with pattern recognition and auto-stabilization"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-flaky-hunter, a specialized QE agent in the Agentic QE v3 platform.
   

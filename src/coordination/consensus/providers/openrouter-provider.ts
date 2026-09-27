@@ -26,33 +26,30 @@ import { toErrorMessage, toError } from '../../../shared/error-utils.js';
  */
 export type OpenRouterModel =
   // Anthropic Claude models
-  | 'anthropic/claude-3.5-sonnet'
-  | 'anthropic/claude-3-opus'
-  | 'anthropic/claude-3-sonnet'
-  | 'anthropic/claude-3-haiku'
+  | 'anthropic/claude-sonnet-5'
+  | 'anthropic/claude-opus-5'
+  | 'anthropic/claude-opus-5.5'
+  | 'anthropic/claude-haiku-4.5'
   // OpenAI GPT models
-  | 'openai/gpt-4-turbo'
-  | 'openai/gpt-4'
-  | 'openai/gpt-4o'
-  | 'openai/gpt-4o-mini'
+  | 'openai/gpt-6-sol'
+  | 'openai/gpt-6-luna'
+  | 'openai/gpt-6-astra'
+  | 'openai/gpt-oss-120b'
   // Google models
-  | 'google/gemini-pro-1.5'
-  | 'google/gemini-flash-1.5'
+  | 'google/gemini-3.8-flash'
+  | 'google/gemini-3.1-pro-preview'
+  | 'google/gemini-2.5-pro'
+  | 'google/gemini-2.5-flash'
   // Meta Llama models
-  | 'meta-llama/llama-3.1-405b-instruct'
-  | 'meta-llama/llama-3.1-70b-instruct'
-  | 'meta-llama/llama-3.1-8b-instruct'
+  | 'meta-llama/llama-4-maverick'
+  | 'meta-llama/llama-4-scout'
   // Mistral models
-  | 'mistralai/mistral-large'
-  | 'mistralai/mistral-medium'
-  | 'mistralai/mixtral-8x22b-instruct'
+  | 'mistralai/mistral-large-2512'
   // DeepSeek models
-  | 'deepseek/deepseek-chat'
-  | 'deepseek/deepseek-coder'
+  | 'deepseek/deepseek-v4-pro'
+  | 'deepseek/deepseek-v4.1-flash'
   // Qwen models
-  | 'qwen/qwen-2.5-72b-instruct'
-  // Cohere models
-  | 'cohere/command-r-plus'
+  | 'qwen/qwen3-coder'
   // Allow any model string for flexibility
   | string;
 
@@ -152,38 +149,66 @@ interface OpenRouterGenerationStats {
 // ============================================================================
 
 /**
- * Cost per 1M tokens for popular models (input/output)
- * Updated as of 2024 - check OpenRouter for current prices
+ * Cost per 1M tokens for current models (input/output)
+ * From the OpenRouter public catalog (2026-09-27) - check OpenRouter for current prices
  */
 const MODEL_COSTS: Record<string, { input: number; output: number; tier: ModelTier }> = {
   // Claude models
-  'anthropic/claude-3.5-sonnet': { input: 3, output: 15, tier: 'standard' },
-  'anthropic/claude-3-opus': { input: 15, output: 75, tier: 'premium' },
-  'anthropic/claude-3-sonnet': { input: 3, output: 15, tier: 'standard' },
-  'anthropic/claude-3-haiku': { input: 0.25, output: 1.25, tier: 'cheap' },
+  'anthropic/claude-sonnet-5': { input: 2, output: 10, tier: 'standard' },
+  'anthropic/claude-opus-5': { input: 5, output: 25, tier: 'premium' },
+  'anthropic/claude-opus-5.5': { input: 4, output: 20, tier: 'premium' },
+  'anthropic/claude-haiku-4.5': { input: 1, output: 5, tier: 'cheap' },
   // OpenAI models
-  'openai/gpt-4-turbo': { input: 10, output: 30, tier: 'standard' },
-  'openai/gpt-4': { input: 30, output: 60, tier: 'premium' },
-  'openai/gpt-4o': { input: 5, output: 15, tier: 'standard' },
-  'openai/gpt-4o-mini': { input: 0.15, output: 0.6, tier: 'cheap' },
+  'openai/gpt-6-astra': { input: 10, output: 50, tier: 'premium' },
+  'openai/gpt-6-sol': { input: 2, output: 10, tier: 'standard' },
+  'openai/gpt-6-luna': { input: 0.1, output: 0.5, tier: 'cheap' },
+  'openai/gpt-oss-120b': { input: 0.15, output: 0.6, tier: 'cheap' },
   // Google models
-  'google/gemini-pro-1.5': { input: 3.5, output: 10.5, tier: 'standard' },
-  'google/gemini-flash-1.5': { input: 0.075, output: 0.3, tier: 'cheap' },
+  'google/gemini-3.1-pro-preview': { input: 2, output: 12, tier: 'standard' },
+  'google/gemini-2.5-pro': { input: 1.25, output: 10, tier: 'standard' },
+  'google/gemini-3.8-flash': { input: 0.75, output: 3.75, tier: 'cheap' },
+  'google/gemini-2.5-flash': { input: 0.3, output: 2.5, tier: 'cheap' },
   // Llama models
-  'meta-llama/llama-3.1-405b-instruct': { input: 2.7, output: 2.7, tier: 'standard' },
-  'meta-llama/llama-3.1-70b-instruct': { input: 0.52, output: 0.75, tier: 'cheap' },
-  'meta-llama/llama-3.1-8b-instruct': { input: 0.055, output: 0.055, tier: 'free' },
+  'meta-llama/llama-4-maverick': { input: 0.1875, output: 0.6525, tier: 'cheap' },
+  'meta-llama/llama-4-scout': { input: 0.1, output: 0.3, tier: 'cheap' },
   // Mistral models
-  'mistralai/mistral-large': { input: 3, output: 9, tier: 'standard' },
-  'mistralai/mixtral-8x22b-instruct': { input: 0.65, output: 0.65, tier: 'cheap' },
+  'mistralai/mistral-large-2512': { input: 0.5, output: 1.5, tier: 'cheap' },
   // DeepSeek models
-  'deepseek/deepseek-chat': { input: 0.14, output: 0.28, tier: 'cheap' },
-  'deepseek/deepseek-coder': { input: 0.14, output: 0.28, tier: 'cheap' },
+  'deepseek/deepseek-v4-pro': { input: 0.348, output: 0.696, tier: 'cheap' },
+  'deepseek/deepseek-v4.1-flash': { input: 0.035, output: 0.29, tier: 'cheap' },
   // Qwen models
-  'qwen/qwen-2.5-72b-instruct': { input: 0.35, output: 0.4, tier: 'cheap' },
-  // Cohere models
-  'cohere/command-r-plus': { input: 2.5, output: 10, tier: 'standard' },
+  'qwen/qwen3-coder': { input: 0.3, output: 1, tier: 'cheap' },
 };
+
+/**
+ * Deprecated models no longer served by OpenRouter. Pricing only, so historical
+ * usage still costs correctly — excluded from supported models and tier lists.
+ */
+const DEPRECATED_MODEL_COSTS: Record<string, { input: number; output: number }> = {
+  'anthropic/claude-3.5-sonnet': { input: 3, output: 15 },
+  'anthropic/claude-3-opus': { input: 15, output: 75 },
+  'anthropic/claude-3-sonnet': { input: 3, output: 15 },
+  'anthropic/claude-3-haiku': { input: 0.25, output: 1.25 },
+  'openai/gpt-4-turbo': { input: 10, output: 30 },
+  'openai/gpt-4': { input: 30, output: 60 },
+  'openai/gpt-4o': { input: 5, output: 15 },
+  'openai/gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'google/gemini-pro-1.5': { input: 3.5, output: 10.5 },
+  'google/gemini-flash-1.5': { input: 0.075, output: 0.3 },
+  'meta-llama/llama-3.1-405b-instruct': { input: 2.7, output: 2.7 },
+  'meta-llama/llama-3.1-70b-instruct': { input: 0.52, output: 0.75 },
+  'meta-llama/llama-3.1-8b-instruct': { input: 0.055, output: 0.055 },
+  'mistralai/mistral-large': { input: 3, output: 9 },
+  'mistralai/mixtral-8x22b-instruct': { input: 0.65, output: 0.65 },
+  'deepseek/deepseek-chat': { input: 0.14, output: 0.28 },
+  'deepseek/deepseek-coder': { input: 0.14, output: 0.28 },
+  'qwen/qwen-2.5-72b-instruct': { input: 0.35, output: 0.4 },
+  'cohere/command-r-plus': { input: 2.5, output: 10 },
+};
+
+function lookupModelCost(model: string): { input: number; output: number } | undefined {
+  return MODEL_COSTS[model] ?? DEPRECATED_MODEL_COSTS[model];
+}
 
 /**
  * Get models by tier for cost optimization
@@ -200,10 +225,10 @@ export function getModelsByTier(tier: ModelTier): OpenRouterModel[] {
  */
 export function getRecommendedSecurityModels(): OpenRouterModel[] {
   return [
-    'anthropic/claude-3.5-sonnet',  // Best for security analysis
-    'openai/gpt-4o',                 // Strong reasoning
-    'google/gemini-pro-1.5',         // Good code understanding
-    'mistralai/mistral-large',       // Cost-effective alternative
+    'anthropic/claude-sonnet-5',     // Best for security analysis
+    'openai/gpt-6-sol',              // Strong reasoning
+    'google/gemini-2.5-pro',         // Good code understanding
+    'deepseek/deepseek-v4-pro',      // Cost-effective alternative
   ];
 }
 
@@ -212,10 +237,10 @@ export function getRecommendedSecurityModels(): OpenRouterModel[] {
  */
 export function getCostOptimizedModels(): OpenRouterModel[] {
   return [
-    'anthropic/claude-3-haiku',      // Fast and cheap Claude
-    'openai/gpt-4o-mini',            // Cheap GPT-4
-    'google/gemini-flash-1.5',       // Very cheap Gemini
-    'deepseek/deepseek-chat',        // Very cheap alternative
+    'anthropic/claude-haiku-4.5',    // Fast and cheap Claude
+    'openai/gpt-6-luna',             // Cheap GPT-6
+    'google/gemini-3.8-flash',       // Cheap Gemini
+    'qwen/qwen3-coder',              // Very cheap alternative
   ];
 }
 
@@ -224,7 +249,7 @@ export function getCostOptimizedModels(): OpenRouterModel[] {
 // ============================================================================
 
 const DEFAULT_CONFIG: Required<Omit<OpenRouterProviderConfig, 'apiKey' | 'appName' | 'siteUrl' | 'fallbackModels' | 'preferredTier'>> = {
-  defaultModel: 'anthropic/claude-3.5-sonnet',
+  defaultModel: 'anthropic/claude-sonnet-5',
   defaultTimeout: 120000, // 2 minutes
   maxRetries: 3,
   retryDelayMs: 1000,
@@ -241,7 +266,7 @@ const DEFAULT_CONFIG: Required<Omit<OpenRouterProviderConfig, 'apiKey' | 'appNam
  * ```typescript
  * const provider = new OpenRouterModelProvider({
  *   apiKey: process.env.OPENROUTER_API_KEY,
- *   defaultModel: 'anthropic/claude-3.5-sonnet',
+ *   defaultModel: 'anthropic/claude-sonnet-5',
  * });
  *
  * const result = await provider.complete('Analyze this code for vulnerabilities...');
@@ -286,7 +311,7 @@ export class OpenRouterModelProvider extends BaseModelProvider {
     this.name = `OpenRouter (${this.config.defaultModel ?? 'default'})`;
 
     // Set cost per token based on default model
-    const modelCosts = MODEL_COSTS[this.config.defaultModel];
+    const modelCosts = lookupModelCost(this.config.defaultModel);
     if (modelCosts) {
       this.costPerToken = {
         input: modelCosts.input / 1_000_000,
@@ -353,7 +378,7 @@ export class OpenRouterModelProvider extends BaseModelProvider {
 
           // Track cost
           if (response.usage) {
-            const costs = MODEL_COSTS[tryModel] || { input: 1, output: 2 };
+            const costs = lookupModelCost(tryModel) || { input: 1, output: 2 };
             const cost =
               (response.usage.prompt_tokens * costs.input +
                 response.usage.completion_tokens * costs.output) /
@@ -527,13 +552,13 @@ Format your response with: verdict (confirmed/rejected/uncertain), confidence (0
  *
  * // With specific model
  * const provider = createOpenRouterProvider({
- *   defaultModel: 'meta-llama/llama-3.1-70b-instruct',
+ *   defaultModel: 'meta-llama/llama-4-maverick',
  * });
  *
  * // With fallback models
  * const provider = createOpenRouterProvider({
- *   defaultModel: 'anthropic/claude-3.5-sonnet',
- *   fallbackModels: ['openai/gpt-4o', 'google/gemini-pro-1.5'],
+ *   defaultModel: 'anthropic/claude-sonnet-5',
+ *   fallbackModels: ['openai/gpt-6-sol', 'google/gemini-2.5-pro'],
  * });
  * ```
  */

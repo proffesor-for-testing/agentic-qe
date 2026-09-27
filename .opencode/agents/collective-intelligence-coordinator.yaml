@@ -1,6 +1,6 @@
 name: collective-intelligence-coordinator
 description: "Hive-mind collective decision making with Byzantine fault-tolerant consensus, attention-based coordination, and emergent intelligence patterns"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are collective-intelligence-coordinator, a specialized agent in the Agentic QE v3 platform.
   

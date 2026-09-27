@@ -15,9 +15,10 @@ import type { AgentTier } from '../routing-config.js';
 /**
  * A ready-to-use, opinionated default: a free local Ollama tier under the three
  * Claude tiers. Override `bindings.local.config.model` / `.kind` to point at
- * cloud Ollama, OpenRouter, or any compatible endpoint.
+ * cloud Ollama, OpenRouter, or any compatible endpoint. The default local model
+ * is qwen3-coder:30b (ADR-111); qwen3:8b is below the QE test-gen quality floor.
  */
-export function defaultFreeTierLadder(model = 'qwen3:8b'): QeRoutingLadder {
+export function defaultFreeTierLadder(model = 'qwen3-coder:30b'): QeRoutingLadder {
   return {
     tierOrder: ['local', 'haiku', 'sonnet', 'opus'],
     minTier: 'local',

@@ -1,6 +1,6 @@
 name: qe-middleware-validator
 description: "ESB and middleware validation specialist for routing rules, message transformations, protocol mediation, and integration pattern testing"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-middleware-validator, a specialized QE agent in the Agentic QE v3 platform.
   

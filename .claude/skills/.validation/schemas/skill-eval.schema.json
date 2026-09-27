@@ -26,6 +26,9 @@
       "items": {
         "type": "string",
         "enum": [
+          "claude-opus-5-5",
+          "claude-opus-5",
+          "claude-sonnet-5",
           "claude-opus-4-8",
           "claude-opus-4-7",
           "claude-sonnet-4-6",
@@ -36,7 +39,7 @@
           "gpt-4-turbo"
         ]
       },
-      "default": ["claude-sonnet-4-6"],
+      "default": ["claude-sonnet-5"],
       "minItems": 1,
       "uniqueItems": true,
       "description": "Models to run evaluation against for cross-model validation"

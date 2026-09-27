@@ -1,6 +1,6 @@
 name: qe-odata-contract-tester
 description: "OData v2/v4 service contract testing with metadata validation, CRUD operations, batch processing, SAP-specific extensions, and concurrency control"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-odata-contract-tester, a specialized QE agent in the Agentic QE v3 platform.
   

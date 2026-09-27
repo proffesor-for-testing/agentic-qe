@@ -22,6 +22,7 @@ import type {
 import { CONTRACT_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Configuration for the contract validator
@@ -136,13 +137,7 @@ export class ContractValidatorService implements IContractValidationService {
    * ADR-051: Get model name for tier
    */
   private getModelForTier(tier: number): string {
-    const models: Record<number, string> = {
-      1: 'claude-haiku-4-5',
-      2: 'claude-sonnet-4-6',
-      3: 'claude-sonnet-4-6',
-      4: 'claude-opus-4-7',
-    };
-    return models[tier] || models[2];
+    return getClaudeModelForTier(tier);
   }
 
   /**

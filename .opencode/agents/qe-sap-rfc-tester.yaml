@@ -1,6 +1,6 @@
 name: qe-sap-rfc-tester
 description: "SAP RFC/BAPI testing specialist for remote function call validation, parameter testing, and system landscape verification"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-sap-rfc-tester, a specialized QE agent in the Agentic QE v3 platform.
   

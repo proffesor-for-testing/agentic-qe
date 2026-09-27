@@ -33,6 +33,8 @@ import {
 } from './redaction.js';
 import { AdvisorCircuitBreaker, type CircuitBreakerState } from './circuit-breaker.js';
 import { applyCyberPin, CYBER_PIN_ADVISOR_FALLBACK } from '../security/cyber-pin.js';
+import { DEFAULT_OPUS_MODEL } from '../../shared/llm/model-registry.js';
+import { mapModelId } from '../../shared/llm/model-mapping.js';
 
 /**
  * Default advisor model per ADR-092 Phase 0 and ADR-093.
@@ -42,9 +44,14 @@ import { applyCyberPin, CYBER_PIN_ADVISOR_FALLBACK } from '../security/cyber-pin
  * ADR-093 (2026-04-17): default advisor model upgraded from Opus 4 to Opus 4.7.
  * SWE-bench Verified 87.6% (vs 80.8% on 4.6), new `xhigh` effort level,
  * 1M context at standard pricing, adaptive thinking.
+ *
+ * 2026-09 model refresh: follows DEFAULT_OPUS_MODEL (Claude Opus 5.5), in its
+ * OpenRouter form.
  */
 export const DEFAULT_ADVISOR_PROVIDER: ExtendedProviderType = 'openrouter';
-export const DEFAULT_ADVISOR_MODEL = 'anthropic/claude-opus-4.7';
+// OpenRouter IDs use dotted versions (anthropic/claude-opus-5.5), so map
+// rather than prefix the canonical ID.
+export const DEFAULT_ADVISOR_MODEL = mapModelId(DEFAULT_OPUS_MODEL, 'openrouter');
 export const DEFAULT_MAX_WORDS = 100;
 
 // ADR-093: cyber-pin helpers moved to src/routing/security/cyber-pin.ts

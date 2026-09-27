@@ -34,7 +34,7 @@ import { safeJsonParse } from '../../safe-json.js';
  * Gemini-specific configuration
  */
 export interface GeminiConfig extends LLMConfig {
-  /** Gemini model (e.g., 'gemini-pro', 'gemini-1.5-pro', 'gemini-1.5-flash') */
+  /** Gemini model (e.g., 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash') */
   model: string;
   /** Safety settings threshold */
   safetyThreshold?: 'BLOCK_NONE' | 'BLOCK_ONLY_HIGH' | 'BLOCK_MEDIUM_AND_ABOVE' | 'BLOCK_LOW_AND_ABOVE';
@@ -128,24 +128,28 @@ interface GeminiEmbeddingResponse {
 
 /**
  * Gemini model pricing (cost per 1M tokens in USD)
- * Prices as of early 2025
+ * 3.x prices from the OpenRouter catalog (2026-09-27); 3.x IDs other than
+ * gemini-3.5-flash are not yet verified against the Gemini ListModels API.
  */
 export const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
-  // Gemini Pro models
-  'gemini-pro': { input: 0.5, output: 1.5 },
-  'gemini-1.0-pro': { input: 0.5, output: 1.5 },
-  // Gemini 1.5 Pro models
-  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
-  'gemini-1.5-pro-latest': { input: 3.5, output: 10.5 },
-  // Gemini Flash models (economical)
-  'gemini-1.5-flash': { input: 0.075, output: 0.3 },
-  'gemini-1.5-flash-latest': { input: 0.075, output: 0.3 },
-  'gemini-2.0-flash-exp': { input: 0.075, output: 0.3 },
-  // Gemini 2.5 (current generation)
+  // Gemini 3.x (current generation)
+  'gemini-3.8-flash': { input: 0.75, output: 3.75 },
+  'gemini-3.5-flash': { input: 1.5, output: 9.0 },
+  'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
+  'gemini-3.1-pro-preview': { input: 2.0, output: 12.0 },
+  // Gemini 2.5
   'gemini-2.5-pro': { input: 1.25, output: 10.0 },
   'gemini-2.5-flash': { input: 0.3, output: 2.5 },
   'gemini-flash-latest': { input: 0.3, output: 2.5 },
-  // Gemini Ultra (flagship)
+  // Deprecated: retired by Google. Kept only so historical usage records
+  // still price correctly — never use as a default.
+  'gemini-pro': { input: 0.5, output: 1.5 },
+  'gemini-1.0-pro': { input: 0.5, output: 1.5 },
+  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
+  'gemini-1.5-pro-latest': { input: 3.5, output: 10.5 },
+  'gemini-1.5-flash': { input: 0.075, output: 0.3 },
+  'gemini-1.5-flash-latest': { input: 0.075, output: 0.3 },
+  'gemini-2.0-flash-exp': { input: 0.075, output: 0.3 },
   'gemini-ultra': { input: 7.0, output: 21.0 },
   'gemini-1.0-ultra': { input: 7.0, output: 21.0 },
   // Default fallback
@@ -617,16 +621,21 @@ export class GeminiProvider implements LLMProvider {
 
     // Current text-generation models (verified via Gemini ListModels API 2026-06-27).
     // Prefer the `-latest` aliases as defaults so they don't rot (gemini-1.5-pro was retired).
+    // gemini-3.8-flash, gemini-3.5-flash-lite and gemini-3.1-pro-preview come from the
+    // OpenRouter catalog (2026-09-27) and are not yet verified against ListModels.
     return [
       'gemini-flash-latest',
       'gemini-pro-latest',
       'gemini-flash-lite-latest',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-pro-preview',
       'gemini-2.5-pro',
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
       'gemini-2.0-flash',
       'gemini-2.0-flash-lite',
-      'gemini-3.5-flash',
     ];
   }
 

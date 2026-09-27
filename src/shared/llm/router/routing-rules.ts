@@ -32,6 +32,7 @@ import {
   DEFAULT_CATEGORY_MODELS,
   ModelPreference,
 } from './agent-router-config';
+import { DEFAULT_OPUS_MODEL, DEFAULT_SONNET_MODEL } from '../model-registry';
 
 // ============================================================================
 // Rule Engine
@@ -246,7 +247,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-opus-4-7',
+      model: DEFAULT_OPUS_MODEL,
       temperature: 0.1,
     },
     enabled: true,
@@ -264,7 +265,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.3,
     },
     enabled: true,
@@ -282,7 +283,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-opus-4-7',
+      model: DEFAULT_OPUS_MODEL,
       temperature: 0.2,
     },
     enabled: true,
@@ -299,7 +300,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.2,
     },
     enabled: true,
@@ -316,7 +317,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.1,
     },
     enabled: true,
@@ -333,7 +334,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.3,
     },
     enabled: true,
@@ -350,7 +351,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.3,
     },
     enabled: true,

@@ -71,8 +71,8 @@ have to restate a field you don't want to change.
 
 **Changing provider without naming a model uses that provider's default model**,
 not the previous provider's. Writing `{ "provider": "ollama" }` for an agent
-whose category default is `claude/claude-sonnet-4-6` resolves to
-`ollama/<its configured defaultModel>` — never `ollama/claude-sonnet-4-6`, which
+whose category default is `claude/claude-sonnet-5` resolves to
+`ollama/<its configured defaultModel>` — never `ollama/claude-sonnet-5`, which
 ollama could not serve. Set `providers.<name>.defaultModel` to control it, or
 name `model` explicitly.
 

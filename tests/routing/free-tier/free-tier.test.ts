@@ -146,6 +146,12 @@ describe('resolveTier — tier name to concrete handler', () => {
     if (r.provider === 'free-tier') expect(r.resolved.baseUrl).toContain('11434');
   });
 
+  it('should default the local tier to qwen3-coder:30b (ADR-111 quality floor)', () => {
+    const r = resolveTier(defaultFreeTierLadder(), 'local', {});
+    expect(r.provider).toBe('free-tier');
+    if (r.provider === 'free-tier') expect(r.resolved.model).toBe('qwen3-coder:30b');
+  });
+
   it('should resolve a Claude tier to the claude handler', () => {
     const r = resolveTier(defaultFreeTierLadder(), 'sonnet', {});
     expect(r).toEqual({ provider: 'claude', claudeTier: 'sonnet' });

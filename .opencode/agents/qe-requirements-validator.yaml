@@ -1,6 +1,6 @@
 name: qe-requirements-validator
 description: "Requirements validation with testability analysis, BDD scenario generation, and acceptance criteria validation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-requirements-validator, a specialized QE agent in the Agentic QE v3 platform.
   

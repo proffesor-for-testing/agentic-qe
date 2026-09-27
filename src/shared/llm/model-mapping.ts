@@ -146,6 +146,68 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
       bedrock: 'anthropic.claude-haiku-4-5-v1:0',
     },
   },
+  // Claude 5 generation (verified against GET /v1/models, 2026-09-27).
+  // Bedrock IDs use the Mantle `anthropic.<id>` form.
+  'claude-opus-4-8': {
+    canonical: 'Claude Opus 4.8',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-opus-4-8',
+      openrouter: 'anthropic/claude-opus-4.8',
+      bedrock: 'anthropic.claude-opus-4-8',
+    },
+  },
+  'claude-sonnet-5': {
+    canonical: 'Claude Sonnet 5',
+    family: 'claude',
+    tier: 'standard',
+    providers: {
+      anthropic: 'claude-sonnet-5',
+      openrouter: 'anthropic/claude-sonnet-5',
+      bedrock: 'anthropic.claude-sonnet-5',
+    },
+  },
+  'claude-opus-5': {
+    canonical: 'Claude Opus 5',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-opus-5',
+      openrouter: 'anthropic/claude-opus-5',
+      bedrock: 'anthropic.claude-opus-5',
+    },
+  },
+  'claude-opus-5-5': {
+    canonical: 'Claude Opus 5.5',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-opus-5-5',
+      openrouter: 'anthropic/claude-opus-5.5',
+      bedrock: 'anthropic.claude-opus-5-5',
+    },
+  },
+  'claude-fable-5': {
+    canonical: 'Claude Fable 5',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-fable-5',
+      openrouter: 'anthropic/claude-fable-5',
+      bedrock: 'anthropic.claude-fable-5',
+    },
+  },
+  'claude-fable-5-1': {
+    canonical: 'Claude Fable 5.1',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-fable-5-1',
+      openrouter: 'anthropic/claude-fable-5.1',
+      bedrock: 'anthropic.claude-fable-5-1',
+    },
+  },
 
   // ==========================================================================
   // OpenAI Models
@@ -200,6 +262,37 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
       openrouter: 'openai/o1',
     },
   },
+  // GPT-6 generation (verified against OpenAI GET /v1/models, 2026-09-27)
+  'gpt-6-astra': {
+    canonical: 'GPT-6 Astra',
+    family: 'gpt',
+    tier: 'flagship',
+    providers: {
+      openai: 'gpt-6-astra',
+      azure: 'gpt-6-astra',
+      openrouter: 'openai/gpt-6-astra',
+    },
+  },
+  'gpt-6-sol': {
+    canonical: 'GPT-6 Sol',
+    family: 'gpt',
+    tier: 'standard',
+    providers: {
+      openai: 'gpt-6-sol',
+      azure: 'gpt-6-sol',
+      openrouter: 'openai/gpt-6-sol',
+    },
+  },
+  'gpt-6-luna': {
+    canonical: 'GPT-6 Luna',
+    family: 'gpt',
+    tier: 'economy',
+    providers: {
+      openai: 'gpt-6-luna',
+      azure: 'gpt-6-luna',
+      openrouter: 'openai/gpt-6-luna',
+    },
+  },
   'o1-mini': {
     canonical: 'OpenAI o1 Mini',
     family: 'gpt',
@@ -239,6 +332,35 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
     providers: {
       gemini: 'gemini-1.5-flash',
       openrouter: 'google/gemini-flash-1.5',
+    },
+  },
+  // Gemini 3.x (OpenRouter catalog, 2026-09-27; Gemini API IDs assumed to
+  // match the OpenRouter slug suffix)
+  'gemini-3.8-flash': {
+    canonical: 'Gemini 3.8 Flash',
+    family: 'gemini',
+    tier: 'economy',
+    providers: {
+      gemini: 'gemini-3.8-flash',
+      openrouter: 'google/gemini-3.8-flash',
+    },
+  },
+  'gemini-3.5-flash': {
+    canonical: 'Gemini 3.5 Flash',
+    family: 'gemini',
+    tier: 'standard',
+    providers: {
+      gemini: 'gemini-3.5-flash',
+      openrouter: 'google/gemini-3.5-flash',
+    },
+  },
+  'gemini-3.1-pro-preview': {
+    canonical: 'Gemini 3.1 Pro (preview)',
+    family: 'gemini',
+    tier: 'premium',
+    providers: {
+      gemini: 'gemini-3.1-pro-preview',
+      openrouter: 'google/gemini-3.1-pro-preview',
     },
   },
   'gemini-ultra': {

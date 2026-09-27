@@ -227,7 +227,7 @@ For each command/tool:
 #### TC-018: `aqe eval`
 | # | Test | Command | Expected | Phase 0 |
 |---|------|---------|----------|---------|
-| 1 | Run eval | `aqe eval run -s test-generation -m claude-3.5-sonnet` | Eval results | PASS |
+| 1 | Run eval | `aqe eval run -s test-generation -m claude-sonnet-5` | Eval results | PASS |
 | 2 | Run all | `aqe eval run-all --skills-tier 3` | P0 skills evaluated | PASS |
 | 3 | Eval status | `aqe eval status -s test-generation` | Confidence/history | PASS |
 | 4 | Eval report | `aqe eval report -s test-generation -f json` | JSON report | PASS |
@@ -267,7 +267,7 @@ For each command/tool:
 | 2 | List models | `aqe llm models` | Available models | PASS |
 | 3 | Route task | `aqe llm route "generate unit tests" -c medium` | Recommended tier | PASS |
 | 4 | Health check | `aqe llm health` | Provider status | PASS |
-| 5 | Cost estimate | `aqe llm cost claude-3.5-sonnet -t 10000` | Cost in USD | PASS |
+| 5 | Cost estimate | `aqe llm cost claude-sonnet-5 -t 10000` | Cost in USD | PASS |
 | 6 | JSON output | `aqe llm providers --json` | Valid JSON | PASS |
 
 ### Token Usage Commands

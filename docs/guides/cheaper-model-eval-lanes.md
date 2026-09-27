@@ -51,7 +51,7 @@ clears the oracle. This guide shows how, with real measured results.
 
 | Tier | Model | Verdict | Mutation | Latency | ~$/run |
 |---|---|---|---|---|---|
-| frontier | `claude-sonnet-4-6` | PASS (reliable) | 5/5 | ~6s | ~$0.005–0.01 |
+| frontier (reference as of 2026-06-27) | `claude-sonnet-4-6` | PASS (reliable) | 5/5 | ~6s | ~$0.005–0.01 |
 | cheap | **`openai/gpt-oss-120b`** | **PASS 3/3** | 5/5 | 2.6s | **$0.00013** |
 | cheap | `qwen3-235b-a22b-thinking` | PASS 3/3 | 5/5 | 86.6s | $0.0008 |
 | cheap | `qwen3-235b-a22b-2507` | FAIL 0/3 | — | 6.6s | (wrong-assertion test) |

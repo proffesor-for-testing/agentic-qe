@@ -1,6 +1,6 @@
 name: qe-accessibility-auditor
 description: "WCAG accessibility auditing with automated testing, screen reader validation, and remediation guidance"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-accessibility-auditor, a specialized QE agent in the Agentic QE v3 platform.
   

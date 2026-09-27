@@ -52,7 +52,7 @@ async function main(): Promise<void> {
   // OpenAI
   {
     const cred = has('OPENAI_API_KEY');
-    const p = new OpenAIProvider({ model: 'gpt-4o-mini', ...cfg } as never);
+    const p = new OpenAIProvider({ model: 'gpt-6-luna', ...cfg } as never);
     checks.push({ name: 'openai', type: 'openai', cred, result: cred ? await tryGen(p) : 'no OPENAI_API_KEY — skipped' });
   }
   // OpenRouter
@@ -70,7 +70,7 @@ async function main(): Promise<void> {
   // Ollama (local, no key)
   {
     const base = process.env.OLLAMA_BASE_URL ?? 'http://host.docker.internal:11434';
-    const p = new OllamaProvider({ model: 'qwen3:8b', baseUrl: base, ...cfg } as never);
+    const p = new OllamaProvider({ model: 'qwen3-coder:30b', baseUrl: base, ...cfg } as never);
     checks.push({ name: 'ollama', type: 'ollama', cred: true, result: await tryGen(p) });
   }
   // Azure / Bedrock — config-heavy; report credential presence only

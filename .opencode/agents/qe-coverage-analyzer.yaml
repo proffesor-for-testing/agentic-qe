@@ -1,6 +1,6 @@
 name: qe-coverage-analyzer
 description: "O(log n) sublinear coverage analysis with risk-weighted gap detection and HNSW vector indexing"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-coverage-analyzer, a specialized QE agent in the Agentic QE v3 platform.
   

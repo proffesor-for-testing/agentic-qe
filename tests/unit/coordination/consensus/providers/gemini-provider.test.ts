@@ -101,16 +101,20 @@ describe('GeminiModelProvider', () => {
       expect(provider).toBeDefined();
     });
 
-    it('should default to gemini-1.5-pro-latest model', () => {
+    it('should default to gemini-2.5-pro model', async () => {
       const provider = new GeminiModelProvider({ apiKey: 'test-key' });
+      mockFetch.mockResolvedValueOnce(createSuccessResponse('ok'));
 
-      expect(provider).toBeDefined();
+      await provider.complete('Test prompt');
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain('/models/gemini-2.5-pro:generateContent');
     });
 
-    it('should support gemini-1.5-flash models', () => {
+    it('should support gemini-3.x flash models', () => {
       const provider = new GeminiModelProvider({
         apiKey: 'test-key',
-        defaultModel: 'gemini-1.5-flash-latest',
+        defaultModel: 'gemini-3.8-flash',
       });
 
       expect(provider).toBeDefined();
@@ -294,7 +298,9 @@ describe('GeminiModelProvider', () => {
 
       expect(result.healthy).toBe(true);
       expect(result.latencyMs).toBeDefined();
-      expect(result.availableModels).toContain('gemini-1.5-pro-latest');
+      expect(result.availableModels).toContain('gemini-2.5-pro');
+      expect(result.availableModels).toContain('gemini-3.8-flash');
+      expect(result.availableModels).not.toContain('gemini-1.5-pro-latest');
     });
 
     it('should return unhealthy when API fails', async () => {
@@ -310,7 +316,30 @@ describe('GeminiModelProvider', () => {
   });
 
   describe('getCostPerToken()', () => {
-    it('should return gemini-1.5-pro pricing by default', () => {
+    it('should return gemini-2.5-pro pricing by default', () => {
+      const provider = new GeminiModelProvider({ apiKey: 'test-key' });
+
+      const cost = provider.getCostPerToken();
+
+      // Gemini 2.5 Pro: $1.25 input, $10 output per 1M tokens
+      expect(cost.input).toBeCloseTo(1.25 / 1_000_000, 12);
+      expect(cost.output).toBeCloseTo(10 / 1_000_000, 12);
+    });
+
+    it('should return gemini-3.8-flash pricing', () => {
+      const provider = new GeminiModelProvider({
+        apiKey: 'test-key',
+        defaultModel: 'gemini-3.8-flash',
+      });
+
+      const cost = provider.getCostPerToken();
+
+      // Gemini 3.8 Flash: $0.75 input, $3.75 output per 1M tokens
+      expect(cost.input).toBeCloseTo(0.75 / 1_000_000, 12);
+      expect(cost.output).toBeCloseTo(3.75 / 1_000_000, 12);
+    });
+
+    it('should still price legacy gemini-1.5-pro when explicitly pinned', () => {
       const provider = new GeminiModelProvider({
         apiKey: 'test-key',
         defaultModel: 'gemini-1.5-pro-latest',
@@ -323,7 +352,7 @@ describe('GeminiModelProvider', () => {
       expect(cost.output).toBeCloseTo(10.5 / 1_000_000, 10);
     });
 
-    it('should return flash pricing for flash models', () => {
+    it('should still price legacy gemini-1.5-flash when explicitly pinned', () => {
       const provider = new GeminiModelProvider({
         apiKey: 'test-key',
         defaultModel: 'gemini-1.5-flash',
@@ -336,7 +365,7 @@ describe('GeminiModelProvider', () => {
       expect(cost.output).toBeCloseTo(1.05 / 1_000_000, 10);
     });
 
-    it('should return gemini-pro pricing for non-1.5 models', () => {
+    it('should still price legacy gemini-pro when explicitly pinned', () => {
       const provider = new GeminiModelProvider({
         apiKey: 'test-key',
         defaultModel: 'gemini-pro',

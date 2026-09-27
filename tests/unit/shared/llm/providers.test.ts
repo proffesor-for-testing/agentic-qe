@@ -339,13 +339,62 @@ describe('OpenAIProvider', () => {
     it('should use default config', () => {
       const config = provider.getConfig();
       expect(config.model).toBe(DEFAULT_OPENAI_CONFIG.model);
+      expect(DEFAULT_OPENAI_CONFIG.model).toBe('gpt-6-sol');
     });
 
     it('should return supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('gpt-4o');
-      expect(models).toContain('gpt-4o-mini');
-      expect(models).toContain('gpt-3.5-turbo');
+      expect(models).toContain('gpt-6-sol');
+      expect(models).toContain('gpt-6-luna');
+      expect(models).not.toContain('gpt-3.5-turbo');
+    });
+  });
+
+  describe('request parameters', () => {
+    const okResponse = () =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 'chatcmpl-test',
+            object: 'chat.completion',
+            model: 'gpt-6-sol',
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          }),
+      });
+
+    it('should send max_completion_tokens and no temperature for the gpt-6 default', async () => {
+      mockFetch.mockImplementationOnce(okResponse);
+
+      await provider.generate('Test', { maxTokens: 500, temperature: 0.3 });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      expect(body.model).toBe('gpt-6-sol');
+      expect(body.max_completion_tokens).toBe(500);
+      expect(body).not.toHaveProperty('max_tokens');
+      expect(body).not.toHaveProperty('temperature');
+    });
+
+    it('should keep the legacy max_tokens + temperature shape for gpt-4o', async () => {
+      mockFetch.mockImplementationOnce(okResponse);
+
+      await provider.generate('Test', { model: 'gpt-4o', maxTokens: 500, temperature: 0.3 });
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      expect(body.max_tokens).toBe(500);
+      expect(body.temperature).toBe(0.3);
+      expect(body).not.toHaveProperty('max_completion_tokens');
+    });
+
+    it('should use max_completion_tokens in the gpt-6 health-check probe', async () => {
+      mockFetch.mockImplementationOnce(okResponse);
+
+      await provider.healthCheck();
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+      expect(body.max_completion_tokens).toBe(1);
+      expect(body).not.toHaveProperty('max_tokens');
     });
   });
 
@@ -447,6 +496,7 @@ describe('OllamaProvider', () => {
     it('should use default config', () => {
       const config = provider.getConfig();
       expect(config.model).toBe(DEFAULT_OLLAMA_CONFIG.model);
+      expect(DEFAULT_OLLAMA_CONFIG.model).toBe('qwen3-coder:30b');
       expect(config.baseUrl).toBe('http://localhost:11434');
     });
 
@@ -458,9 +508,9 @@ describe('OllamaProvider', () => {
 
     it('should return supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('llama3');
-      expect(models).toContain('codellama');
-      expect(models).toContain('mistral');
+      expect(models).toContain('qwen3-coder:30b');
+      expect(models).toContain('gpt-oss:20b');
+      expect(models).not.toContain('qwen3:8b');
     });
   });
 
@@ -589,6 +639,42 @@ describe('OllamaProvider', () => {
       const response = await provider.complete('function add(');
 
       expect(response.completion).toBe('a, b) { return a + b; }');
+    });
+
+    it('should prefer the installed qwen3-coder tag and never pick qwen3:8b', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            models: [
+              { name: 'qwen3:8b', model: 'qwen3:8b' },
+              { name: 'qwen3-coder:30b', model: 'qwen3-coder:30b' },
+            ],
+          }),
+      });
+      await provider.healthCheck();
+
+      mockFetch.mockImplementationOnce((_url, options) => {
+        const body = JSON.parse(options.body as string);
+        expect(body.model).toBe('qwen3-coder:30b');
+
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              model: body.model,
+              created_at: '2026-09-27T12:00:00Z',
+              response: 'x',
+              done: true,
+              prompt_eval_count: 1,
+              eval_count: 1,
+            }),
+        });
+      });
+
+      const response = await provider.complete('function add(');
+
+      expect(response.model).toBe('qwen3-coder:30b');
     });
   });
 

@@ -9,7 +9,7 @@
  * is configured.
  *
  *   # Claude (frontier) lane — needs ANTHROPIC_API_KEY (e.g. node --env-file=.env):
- *   EVAL_PROVIDER=claude EVAL_MODEL=claude-sonnet-4-6 tsx scripts/validate-live-oracle.ts
+ *   EVAL_PROVIDER=claude EVAL_MODEL=claude-sonnet-5 tsx scripts/validate-live-oracle.ts
  *   # Local Ollama lane:
  *   EVAL_PROVIDER=ollama OLLAMA_MODEL='qwen3:30b-a3b' tsx scripts/validate-live-oracle.ts
  */
@@ -34,7 +34,7 @@ const PROVIDER = (process.env.EVAL_PROVIDER ?? 'ollama') as LLMProviderType;
 const BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://host.docker.internal:11434';
 const MODEL =
   process.env.EVAL_MODEL ??
-  (PROVIDER === 'claude' ? 'claude-sonnet-4-6' : process.env.OLLAMA_MODEL ?? 'qwen3:30b-a3b');
+  (PROVIDER === 'claude' ? 'claude-sonnet-5' : process.env.OLLAMA_MODEL ?? 'qwen3:30b-a3b');
 
 const REFERENCE_IMPL = `export function classify(score, bonus) {
   const total = score + bonus;

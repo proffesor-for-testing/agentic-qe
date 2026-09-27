@@ -496,7 +496,7 @@ async function main(): Promise<void> {
     const tools = mapToolsFromDomain(domain, agentName);
 
     // Model selection: default to sonnet
-    const model = 'claude-sonnet-4-6';
+    const model = 'claude-sonnet-5';
 
     const config: AgentConfig = {
       name: agentName,

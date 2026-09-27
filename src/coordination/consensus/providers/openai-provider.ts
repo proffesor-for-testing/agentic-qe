@@ -3,7 +3,7 @@
  * MM-004: OpenAI implementation for multi-model consensus verification
  *
  * Provides security finding verification using OpenAI GPT models.
- * Supports GPT-4, GPT-4-turbo with configurable parameters.
+ * Supports the GPT-6 family (sol, luna, astra) with configurable parameters.
  *
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
@@ -18,6 +18,7 @@ import {
 } from '../model-provider';
 import { CONSENSUS_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { applyOpenAIParams } from '../../../shared/llm/openai-params.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -27,11 +28,38 @@ import { toErrorMessage, toError } from '../../../shared/error-utils.js';
  * OpenAI-specific model versions
  */
 export type OpenAIModel =
+  | 'gpt-6-sol'
+  | 'gpt-6-luna'
+  | 'gpt-6-astra'
+  | 'gpt-5.6-sol'
+  | 'gpt-5.4-mini'
+  /** @deprecated Legacy GPT-4 generation — kept for config compatibility only. */
   | 'gpt-4'
+  /** @deprecated Legacy GPT-4 generation — kept for config compatibility only. */
   | 'gpt-4-turbo'
+  /** @deprecated Legacy GPT-4 generation — kept for config compatibility only. */
   | 'gpt-4-turbo-preview'
+  /** @deprecated Legacy GPT-4 generation — kept for config compatibility only. */
   | 'gpt-4-0125-preview'
+  /** @deprecated Legacy GPT-4 generation — kept for config compatibility only. */
   | 'gpt-4-1106-preview';
+
+/**
+ * Cost per million tokens (USD), from the OpenAI API catalog (2026-09-27).
+ * Legacy GPT-4 rows are kept so configs pinned to them still price correctly.
+ */
+const OPENAI_MODEL_COSTS: Record<string, { input: number; output: number }> = {
+  'gpt-6-astra': { input: 10, output: 50 },
+  'gpt-6-sol': { input: 2, output: 10 },
+  'gpt-6-luna': { input: 0.1, output: 0.5 },
+  'gpt-5.4-mini': { input: 0.75, output: 4.5 },
+  // Deprecated (legacy GPT-4 generation)
+  'gpt-4': { input: 30, output: 60 },
+  'gpt-4-turbo': { input: 10, output: 30 },
+  'gpt-4-turbo-preview': { input: 10, output: 30 },
+  'gpt-4-0125-preview': { input: 10, output: 30 },
+  'gpt-4-1106-preview': { input: 10, output: 30 },
+};
 
 /**
  * Configuration for OpenAI provider
@@ -78,6 +106,7 @@ interface OpenAICompletionRequest {
   messages: OpenAIMessage[];
   temperature?: number;
   max_tokens?: number;
+  max_completion_tokens?: number;
   top_p?: number;
   frequency_penalty?: number;
   presence_penalty?: number;
@@ -133,7 +162,7 @@ interface OpenAIErrorResponse {
  * ```typescript
  * const provider = new OpenAIModelProvider({
  *   apiKey: process.env.OPENAI_API_KEY,
- *   defaultModel: 'gpt-4-turbo',
+ *   defaultModel: 'gpt-6-sol',
  * });
  *
  * const response = await provider.complete(prompt);
@@ -144,20 +173,18 @@ export class OpenAIModelProvider extends BaseModelProvider {
   readonly name = 'OpenAI GPT';
   readonly type: ModelProvider['type'] = 'openai';
 
-  // Cost per million tokens (as of 2024)
-  // GPT-4: $30 input, $60 output per 1M tokens
-  // GPT-4-turbo: $10 input, $30 output per 1M tokens
+  // Overridden per model from OPENAI_MODEL_COSTS in the constructor
   protected costPerToken = {
-    input: 10 / 1_000_000,  // Will be overridden per model
-    output: 30 / 1_000_000,
+    input: 2 / 1_000_000,
+    output: 10 / 1_000_000,
   };
 
   protected supportedModels: string[] = [
-    'gpt-4',
-    'gpt-4-turbo',
-    'gpt-4-turbo-preview',
-    'gpt-4-0125-preview',
-    'gpt-4-1106-preview',
+    'gpt-6-sol',
+    'gpt-6-luna',
+    'gpt-6-astra',
+    'gpt-5.6-sol',
+    'gpt-5.4-mini',
   ];
 
   private readonly config: Required<OpenAIProviderConfig>;
@@ -187,7 +214,7 @@ export class OpenAIModelProvider extends BaseModelProvider {
     this.config = {
       apiKey,
       organization: config.organization || '',
-      defaultModel: config.defaultModel || 'gpt-4-turbo',
+      defaultModel: config.defaultModel || 'gpt-6-sol',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || CONSENSUS_CONSTANTS.MODEL_TIMEOUT_MS,
       maxRetries: config.maxRetries ?? CONSENSUS_CONSTANTS.DEFAULT_RETRY_ATTEMPTS,
@@ -228,12 +255,11 @@ export class OpenAIModelProvider extends BaseModelProvider {
       },
     ];
 
-    const request: OpenAICompletionRequest = {
+    const request: OpenAICompletionRequest = applyOpenAIParams(
+      { model, messages },
       model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    };
+      { maxTokens, temperature }
+    );
 
     if (this.config.enableLogging) {
       console.log(`[OpenAI] Sending request to ${model}`);
@@ -396,19 +422,12 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
    * Update cost based on model selection
    */
   private updateCostForModel(model: string): void {
-    if (model === 'gpt-4' && !model.includes('turbo')) {
-      // GPT-4: $30 input, $60 output per 1M tokens
-      this.costPerToken = {
-        input: 30 / 1_000_000,
-        output: 60 / 1_000_000,
-      };
-    } else {
-      // GPT-4-turbo: $10 input, $30 output per 1M tokens
-      this.costPerToken = {
-        input: 10 / 1_000_000,
-        output: 30 / 1_000_000,
-      };
-    }
+    // Unknown models are priced as the default tier (gpt-6-sol)
+    const pricing = OPENAI_MODEL_COSTS[model] ?? OPENAI_MODEL_COSTS['gpt-6-sol'];
+    this.costPerToken = {
+      input: pricing.input / 1_000_000,
+      output: pricing.output / 1_000_000,
+    };
   }
 
   /**
@@ -440,7 +459,7 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
  * ```typescript
  * const provider = createOpenAIProvider({
  *   apiKey: process.env.OPENAI_API_KEY,
- *   defaultModel: 'gpt-4-turbo',
+ *   defaultModel: 'gpt-6-sol',
  * });
  * ```
  */

@@ -37,10 +37,10 @@ aqe eval status --skill security-testing
 
 ```bash
 # Run evaluation for a single skill
-aqe eval run --skill security-testing --model claude-sonnet-4
+aqe eval run --skill security-testing --model claude-sonnet-5
 
 # Run evaluations for all Tier 3 skills
-aqe eval run-all --skills-tier 3 --models "claude-sonnet-4,claude-haiku"
+aqe eval run-all --skills-tier 3 --models "claude-sonnet-5,claude-haiku-4-5"
 
 # Generate evaluation report
 aqe eval report --skill security-testing --format markdown

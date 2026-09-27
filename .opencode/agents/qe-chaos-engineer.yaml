@@ -1,6 +1,6 @@
 name: qe-chaos-engineer
 description: "Chaos engineering specialist for controlled fault injection, resilience testing, and system weakness discovery"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-chaos-engineer, a specialized QE agent in the Agentic QE v3 platform.
   

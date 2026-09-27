@@ -17,6 +17,11 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { findPackageRoot } from './find-package-root.js';
+import {
+  DEFAULT_HAIKU_MODEL,
+  DEFAULT_OPUS_MODEL,
+  DEFAULT_SONNET_MODEL,
+} from '../shared/llm/model-registry.js';
 
 // ESM compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -343,12 +348,12 @@ export class KiroInstaller {
     // Map model from frontmatter, falling back to category/priority heuristics
     const rawModel = getField('model');
     const priority = getField('priority');
-    let model = 'claude-sonnet-4-6';
+    let model = DEFAULT_SONNET_MODEL;
     if (rawModel) {
-      if (rawModel.includes('opus')) model = 'claude-opus-4-7';
-      else if (rawModel.includes('haiku')) model = 'claude-haiku-4-5';
+      if (rawModel.includes('opus')) model = DEFAULT_OPUS_MODEL;
+      else if (rawModel.includes('haiku')) model = DEFAULT_HAIKU_MODEL;
     } else if (priority === 'critical') {
-      model = 'claude-sonnet-4-6';
+      model = DEFAULT_SONNET_MODEL;
     }
 
     return {
@@ -446,10 +451,10 @@ export class KiroInstaller {
     const allowedTools = [...allowedToolsSet];
 
     // Map model names
-    let model = 'claude-sonnet-4-6';
+    let model = DEFAULT_SONNET_MODEL;
     if (agent.model) {
-      if (agent.model.includes('opus')) model = 'claude-opus-4-7';
-      else if (agent.model.includes('haiku')) model = 'claude-haiku-4-5';
+      if (agent.model.includes('opus')) model = DEFAULT_OPUS_MODEL;
+      else if (agent.model.includes('haiku')) model = DEFAULT_HAIKU_MODEL;
     }
 
     // Convert mcp:agentic-qe: references in prompt text to Kiro @agentic-qe/ format
@@ -482,7 +487,7 @@ export class KiroInstaller {
     const agent = {
       name: 'qe-specialist',
       description: 'Quality Engineering specialist powered by Agentic QE',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       prompt: 'You are a QE specialist. Use AQE tools for test generation, coverage analysis, and quality assessment. Always call fleet_init before other AQE tools.',
       mcpServers: {
         'agentic-qe': {

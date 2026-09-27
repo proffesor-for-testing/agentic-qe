@@ -414,9 +414,12 @@ OpenRouter free models, or any OpenAI-compatible endpoint), with an automatic
 default — enable with `AQE_FREE_TIER=1`:
 
 ```bash
-ollama pull qwen3:8b
-export AQE_FREE_TIER=1            # opt in (default model: qwen3:8b)
+ollama pull qwen3-coder:30b
+export AQE_FREE_TIER=1            # opt in (default model: qwen3-coder:30b)
 ```
+
+`qwen3-coder:30b` needs ~18 GB of RAM. `qwen3:8b` fits smaller machines but
+measured below the QE test-generation quality floor (ADR-111).
 
 Most routine test generation is then handled locally at **$0**. See the
 [Free-Tier Local Models guide](docs/guides/free-tier-local-models.md) for

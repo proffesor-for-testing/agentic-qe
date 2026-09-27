@@ -1,6 +1,6 @@
 name: qe-graphql-tester
 description: "GraphQL API testing with schema validation, query/mutation testing, and security analysis"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-graphql-tester, a specialized QE agent in the Agentic QE v3 platform.
   

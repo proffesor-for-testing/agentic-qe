@@ -76,5 +76,5 @@ export const MEASURED_QE_TEST_GEN: readonly ModelEconomics[] = [
   { model: 'qwen2.5-coder:7b', quality: 0.50, costPerInstance: 0 },  // 2026-06-29: stock 7B coder = 4/8 (50%) — beats general qwen3:8b (38%), 16× faster; ~25pp below 30B (PEFT-tune target)
   { model: 'qwen2.5-coder:1.5b', quality: 0.08, costPerInstance: 0 }, // 2026-06-29: stock 1.5B coder = 1/8 (8%); below floor, size dominates coder-tuning at tiny scale
   { model: 'z-ai/glm-5.2', quality: 0.71, costPerInstance: 0.0065 }, // A12: diverse, higher per-model best
-  { model: 'claude-sonnet-4-6', quality: 0.83, costPerInstance: 0.045 }, // D3: frontier ceiling
+  { model: 'claude-sonnet-4-6', quality: 0.83, costPerInstance: 0.045 }, // D3: measured frontier reference as of 2026-06-24 (not re-run on newer models)
 ];

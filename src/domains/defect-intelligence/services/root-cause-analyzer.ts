@@ -19,6 +19,7 @@ import {
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Interface for the root cause analyzer service
@@ -262,13 +263,7 @@ export class RootCauseAnalyzerService implements IRootCauseAnalyzerService {
    * Get model ID for the configured tier
    */
   private getModelForTier(tier: number): string {
-    switch (tier) {
-      case 1: return 'claude-haiku-4-5-20251001';
-      case 2: return 'claude-sonnet-4-6';
-      case 3: return 'claude-sonnet-4-6';
-      case 4: return 'claude-opus-4-7';
-      default: return 'claude-sonnet-4-6';
-    }
+    return getClaudeModelForTier(tier);
   }
 
   /**

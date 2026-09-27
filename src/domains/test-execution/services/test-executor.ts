@@ -25,6 +25,7 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 // ============================================================================
 // Configuration
@@ -355,13 +356,7 @@ export class TestExecutorService implements ITestExecutionService {
    * ADR-051: Get model name for tier
    */
   private getModelForTier(tier: number): string {
-    const models: Record<number, string> = {
-      1: 'claude-haiku-4-5',
-      2: 'claude-sonnet-4-6',
-      3: 'claude-sonnet-4-6',
-      4: 'claude-opus-4-7',
-    };
-    return models[tier] || models[2];
+    return getClaudeModelForTier(tier);
   }
 
   /**

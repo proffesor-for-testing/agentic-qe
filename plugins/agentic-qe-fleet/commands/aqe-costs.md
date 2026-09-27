@@ -145,7 +145,7 @@ By Provider:
     Tokens: 891,234
     Cost: $4.5678
     Avg Cost/Request: $0.018644
-    Top Model: claude-sonnet-4-6
+    Top Model: claude-sonnet-5
 
   ☁️ openrouter:
     Requests: 111
@@ -206,9 +206,9 @@ By Provider:
       "totalTokens": 891234,
       "totalCost": 4.5678,
       "avgCostPerRequest": 0.018644,
-      "topModel": "claude-sonnet-4-6",
+      "topModel": "claude-sonnet-5",
       "modelCounts": {
-        "claude-sonnet-4-6": 187,
+        "claude-sonnet-5": 187,
         "claude-haiku-4-5-20251001": 58
       }
     },
@@ -245,7 +245,7 @@ Recent Requests (Last 20):
   Tokens: 1,234 input / 567 output = 1,801 total
   Cost: $0.0000
 
-[2025-12-15T23:57:23Z] anthropic/claude-sonnet-4-6
+[2025-12-15T23:57:23Z] anthropic/claude-sonnet-5
   Agent: qe-quality-gate
   Task: quality-check-456
   Tokens: 3,456 input / 1,789 output = 5,245 total
@@ -321,7 +321,7 @@ tracker.trackRequest({
 // Track cloud inference
 tracker.trackRequest({
   provider: 'anthropic',
-  model: 'claude-sonnet-4-6',
+  model: 'claude-sonnet-5',
   tokens: {
     inputTokens: 2000,
     outputTokens: 1000,
@@ -415,11 +415,11 @@ aqe costs --period 7d --detailed
 
 ### Cloud Inference
 
-**Anthropic Claude Sonnet 4.5** (January 2025):
-- Input: $3.00 per 1M tokens
-- Output: $15.00 per 1M tokens
-- Cache write: $3.75 per 1M tokens (25% premium)
-- Cache read: $0.30 per 1M tokens (90% discount)
+**Anthropic Claude Sonnet 5** (September 2026):
+- Input: $2.00 per 1M tokens
+- Output: $10.00 per 1M tokens
+- Cache write: $2.50 per 1M tokens (25% premium)
+- Cache read: $0.20 per 1M tokens (90% discount)
 
 **OpenRouter** (99% savings vs Claude):
 - Llama 3.1 8B: $0.03 input / $0.15 output per 1M tokens

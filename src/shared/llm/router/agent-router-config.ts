@@ -10,6 +10,7 @@
  */
 
 import { ExtendedProviderType, RoutingRule, TaskComplexity, AgentProviderOverride } from './types';
+import { DEFAULT_OPUS_MODEL, DEFAULT_SONNET_MODEL } from '../model-registry';
 
 // ============================================================================
 // Agent Category Types
@@ -132,7 +133,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Security agents need best reasoning capabilities
   security: {
     provider: 'claude',
-    model: 'claude-opus-4-7',
+    model: DEFAULT_OPUS_MODEL,
     temperature: 0.1,
     maxTokens: 16000,
     priority: 100,
@@ -141,7 +142,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Test generation needs good balance of quality and speed
   'test-generation': {
     provider: 'claude',
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_SONNET_MODEL,
     temperature: 0.3,
     maxTokens: 8000,
     priority: 90,
@@ -150,7 +151,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Code analysis requires good understanding
   'code-analysis': {
     provider: 'claude',
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_SONNET_MODEL,
     temperature: 0.2,
     maxTokens: 8000,
     priority: 85,
@@ -177,7 +178,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Learning/ML agents - balanced
   learning: {
     provider: 'claude',
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_SONNET_MODEL,
     temperature: 0.3,
     maxTokens: 8000,
     priority: 80,
@@ -195,7 +196,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // Simple tasks - cheapest models
   simple: {
     provider: 'openai',
-    model: 'gpt-4o-mini',
+    model: 'gpt-6-luna',
     temperature: 0.3,
     maxTokens: 2000,
     priority: 50,
@@ -204,7 +205,7 @@ export const DEFAULT_CATEGORY_MODELS: Record<AgentCategory, ModelPreference> = {
   // General purpose - balanced default
   general: {
     provider: 'claude',
-    model: 'claude-sonnet-4-6',
+    model: DEFAULT_SONNET_MODEL,
     temperature: 0.3,
     maxTokens: 4000,
     priority: 60,
@@ -502,7 +503,7 @@ let agentProviderOverrides: Record<string, AgentProviderOverride> = {};
  * Needed because the category defaults in `DEFAULT_CATEGORY_MODELS` pair a
  * provider with a provider-specific model id. If a user writes
  * `{ "provider": "ollama" }` and we inherited the category *model* too, the
- * agent would be routed to ollama asking for `claude-sonnet-4-6` — a model that
+ * agent would be routed to ollama asking for `claude-sonnet-5` — a model that
  * provider cannot serve. Changing provider without naming a model must fall
  * back to that provider's own default, not the previous provider's model.
  */
@@ -756,7 +757,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'claude',
-      model: 'claude-opus-4-7',
+      model: DEFAULT_OPUS_MODEL,
       temperature: 0.2,
       maxTokens: 16000,
       priority: 150,
@@ -771,7 +772,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'openai',
-      model: 'gpt-4o-mini',
+      model: 'gpt-6-luna',
       temperature: 0.3,
       maxTokens: 2000,
       priority: 40,
@@ -786,7 +787,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'ollama',
-      model: 'llama3.1:70b',
+      model: 'qwen3-coder:30b', // ADR-111 local QE default
       temperature: 0.2,
       maxTokens: 4000,
       priority: 200,
@@ -801,7 +802,7 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
     },
     modelPreference: {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       temperature: 0.3,
       maxTokens: 8000,
       priority: 95,
@@ -819,57 +820,57 @@ export const DEFAULT_ROUTING_OVERRIDES: AgentRoutingOverride[] = [
  */
 export const ALTERNATIVE_MODELS: Record<AgentCategory, ModelPreference[]> = {
   security: [
-    { provider: 'openai', model: 'gpt-4o', temperature: 0.1, priority: 90 },
-    { provider: 'claude', model: 'claude-sonnet-4-6', temperature: 0.1, priority: 80 },
+    { provider: 'openai', model: 'gpt-6-sol', temperature: 0.1, priority: 90 },
+    { provider: 'claude', model: DEFAULT_SONNET_MODEL, temperature: 0.1, priority: 80 },
     { provider: 'openrouter', model: 'anthropic/claude-opus-4.5', temperature: 0.1, priority: 70 },
   ],
 
   'test-generation': [
-    { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 80 },
+    { provider: 'openai', model: 'gpt-6-sol', temperature: 0.3, priority: 80 },
     { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 70 },
-    { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 60 },
+    { provider: 'gemini', model: 'gemini-2.5-pro', temperature: 0.3, priority: 60 },
   ],
 
   'code-analysis': [
-    { provider: 'openai', model: 'gpt-4o', temperature: 0.2, priority: 75 },
+    { provider: 'openai', model: 'gpt-6-sol', temperature: 0.2, priority: 75 },
     { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.2, priority: 65 },
-    { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.2, priority: 55 },
+    { provider: 'gemini', model: 'gemini-2.5-pro', temperature: 0.2, priority: 55 },
   ],
 
   performance: [
-    { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.2, priority: 60 },
-    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, priority: 50 },
-    { provider: 'ollama', model: 'llama3.1', temperature: 0.2, priority: 40 },
+    { provider: 'openai', model: 'gpt-6-luna', temperature: 0.2, priority: 60 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2, priority: 50 },
+    { provider: 'ollama', model: 'qwen3-coder:30b', temperature: 0.2, priority: 40 },
   ],
 
   documentation: [
-    { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.4, priority: 50 },
-    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.4, priority: 40 },
-    { provider: 'ollama', model: 'llama3.1', temperature: 0.4, priority: 30 },
+    { provider: 'openai', model: 'gpt-6-luna', temperature: 0.4, priority: 50 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.4, priority: 40 },
+    { provider: 'ollama', model: 'qwen3-coder:30b', temperature: 0.4, priority: 30 },
   ],
 
   learning: [
-    { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 70 },
+    { provider: 'openai', model: 'gpt-6-sol', temperature: 0.3, priority: 70 },
     { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 60 },
-    { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 50 },
+    { provider: 'gemini', model: 'gemini-2.5-pro', temperature: 0.3, priority: 50 },
   ],
 
   coordination: [
-    { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.2, priority: 65 },
-    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.2, priority: 55 },
-    { provider: 'ollama', model: 'llama3.1', temperature: 0.2, priority: 45 },
+    { provider: 'openai', model: 'gpt-6-luna', temperature: 0.2, priority: 65 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.2, priority: 55 },
+    { provider: 'ollama', model: 'qwen3-coder:30b', temperature: 0.2, priority: 45 },
   ],
 
   simple: [
-    { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.3, priority: 40 },
+    { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3, priority: 40 },
     { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 30 },
-    { provider: 'ollama', model: 'phi4', temperature: 0.3, priority: 20 },
+    { provider: 'ollama', model: 'qwen3-coder:30b', temperature: 0.3, priority: 20 },
   ],
 
   general: [
-    { provider: 'openai', model: 'gpt-4o', temperature: 0.3, priority: 50 },
+    { provider: 'openai', model: 'gpt-6-sol', temperature: 0.3, priority: 50 },
     { provider: 'claude', model: 'claude-haiku-4-5-20251001', temperature: 0.3, priority: 40 },
-    { provider: 'gemini', model: 'gemini-2.0-pro', temperature: 0.3, priority: 30 },
+    { provider: 'gemini', model: 'gemini-2.5-pro', temperature: 0.3, priority: 30 },
   ],
 };
 
