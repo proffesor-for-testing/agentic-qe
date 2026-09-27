@@ -86,6 +86,8 @@ import {
   // Imp-9: YAML pipeline handlers
   handlePipelineLoad,
   handlePipelineRun,
+  handlePipelineApprove,
+  handlePipelineReject,
   handlePipelineList,
   handlePipelineValidate,
   // Cross-phase handlers
@@ -1533,6 +1535,24 @@ export class MCPProtocolServer {
       },
       handler: (params) => handlePipelineRun(params as { pipelineId: string; input?: Record<string, unknown> }),
     });
+
+    for (const decision of ['approve', 'reject'] as const) {
+      this.registerTool({
+        definition: {
+          name: `pipeline_${decision}`,
+          description: `${decision === 'approve' ? 'Approve' : 'Reject'} a pending step in a pipeline started by this MCP server. Use the executionId from pipeline_run and stepId from the pipeline definition.`,
+          category: 'coordination',
+          parameters: [
+            { name: 'executionId', type: 'string', description: 'Running pipeline execution ID', required: true },
+            { name: 'stepId', type: 'string', description: 'Step awaiting approval', required: true },
+            ...(decision === 'reject' ? [{ name: 'reason', type: 'string' as const, description: 'Reason for rejecting the step' }] : []),
+          ],
+        },
+        handler: (params) => (decision === 'approve' ? handlePipelineApprove : handlePipelineReject)(
+          params as { executionId: string; stepId: string; reason?: string },
+        ),
+      });
+    }
 
     this.registerTool({
       definition: {

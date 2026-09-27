@@ -89,6 +89,10 @@ export {
 export {
   handlePipelineLoad,
   handlePipelineRun,
+  handlePipelineApprove,
+  handlePipelineReject,
+  type PipelineApprovalParams,
+  type PipelineApprovalResult,
   handlePipelineList,
   handlePipelineValidate,
   getPipelineRegistry,
