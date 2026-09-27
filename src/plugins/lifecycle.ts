@@ -224,7 +224,7 @@ export class PluginLifecycleManager {
    */
   resolveLoadOrder(): ResolutionResult {
     const all = this.cache.listCandidates();
-    return this.resolver.resolve(all.map(c => c.manifest));
+    return this.resolver.resolveAvailable(all.map(c => c.manifest));
   }
 
   /**

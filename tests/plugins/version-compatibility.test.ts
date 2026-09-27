@@ -33,6 +33,23 @@ describe('plugin version compatibility', () => {
     const result=new PluginResolver().resolve([manifest('child','1.0.0',{parent:'^2.0.0'}),manifest('parent','1.9.9')]);
     expect(result.ordered).toEqual([]);
   });
+  it.each(['v1.0.0', ' 1.0.0', '1.0.0 '])('rejects noncanonical cache version %s', version => {
+    expect(validateManifest(manifest('parent', version)).valid).toBe(false);
+  });
+
+  it.each(['minimum', 'missing', 'range', 'cycle'] as const)('loads independent cached plugins beside a %s failure', failure => {
+    const dir = fixture();
+    const cache = new PluginCache({cacheDir: join(dir, 'cache')});
+    const broken = failure === 'minimum' ? {...manifest('broken'), minAqeVersion: '999.0.0'}
+      : manifest('broken', '1.0.0', failure === 'missing' ? {absent: '*'} : failure === 'cycle' ? {broken: '*'} : {parent: '^2'});
+    for (const m of [broken, manifest('dependent', '1.0.0', {broken: '*'}), manifest('foo'), manifest('parent')]) {
+      cache.store(m, source(join(dir, m.name), m));
+    }
+    const result = new PluginLifecycleManager({cache}).resolveLoadOrder();
+    expect(result.ordered.map(p => p.manifest.name)).toEqual(['foo', 'parent']);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
   it('selects an older compatible cached candidate', () => {
     const result=new PluginResolver().resolve([manifest('child','1.0.0',{parent:'^1.0.0'}),manifest('parent','1.8.0'),manifest('parent','2.0.0')]);
     expect(result.ordered.map(x=>[x.manifest.name,x.manifest.version])).toEqual([['parent','1.8.0'],['child','1.0.0']]);
@@ -73,7 +90,7 @@ describe('plugin version compatibility', () => {
     cache.store(broken, source(join(dir, 'broken'), broken));
     const manager = new PluginLifecycleManager({ cache });
     expect((await manager.install(source(join(dir, 'independent'), manifest('independent')))).success).toBe(true);
-    expect(manager.resolveLoadOrder().ordered).toEqual([]);
+    expect(manager.resolveLoadOrder().ordered.map(p => p.manifest.name)).toEqual(['independent']);
   });
   it('backtracks from a cyclic candidate to an acyclic compatible version', () => {
     const result = new PluginResolver().resolve([
@@ -91,6 +108,9 @@ describe('plugin version compatibility', () => {
     const cache = new PluginCache({ cacheDir: join(dir, 'plugins') });
     const plugin = { ...manifest('external'), domains: ['external-test-domain'], minAqeVersion: incompatible ? '999.0.0' : '1.0.0' };
     cache.store(plugin, source(join(dir, 'source'), plugin));
+    const independent = {...manifest('independent'), domains: ['independent-domain']};
+    cache.store(independent, source(join(dir, 'independent'), independent));
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const registered = vi.spyOn(DefaultPluginLoader.prototype, 'registerFactory');
     const kernel = createKernel({ memoryBackend: 'memory', dataDir: dir, enabledDomains: [], lazyLoading: true,
       enableExperienceBridge: false, enableDreamScheduler: false });
@@ -98,7 +118,9 @@ describe('plugin version compatibility', () => {
       await kernel.initialize();
       const external = registered.mock.calls.filter(([name]) => name === 'external-test-domain');
       expect(external).toHaveLength(incompatible ? 0 : 1);
-    } finally { await kernel.dispose(); registered.mockRestore(); }
+      expect(registered.mock.calls.filter(([name]) => name === 'independent-domain')).toHaveLength(1);
+      if (incompatible) expect(warning).toHaveBeenCalledWith(expect.stringContaining('AQE_VERSION_INCOMPATIBLE'));
+    } finally { await kernel.dispose(); registered.mockRestore(); warning.mockRestore(); }
   });
 
 });

@@ -282,6 +282,9 @@ export class QEKernelImpl implements QEKernel {
       const pluginLifecycle = new PluginLifecycleManager({ cache: pluginCache });
 
       const resolution = pluginLifecycle.resolveLoadOrder();
+      for (const error of resolution.errors) {
+        console.warn(`[QEKernel] External plugin ${error.plugin}: ${error.code}: ${error.message}`);
+      }
       for (const resolved of resolution.ordered) {
         const manifest = resolved.manifest;
         const cachedPlugin = pluginCache.get(manifest.name, manifest.version);
@@ -313,8 +316,9 @@ export class QEKernelImpl implements QEKernel {
           );
         }
       }
-    } catch {
-      // External plugin loading is best-effort — don't block kernel startup
+    } catch (error) {
+      // External plugin loading is best-effort, but failures must be visible.
+      console.warn('[QEKernel] External plugin discovery failed:', error);
     }
 
     // Load plugins based on configuration

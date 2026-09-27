@@ -14,7 +14,9 @@ declare const __MCP_VERSION__: string;
 export const AQE_VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__
   : typeof __MCP_VERSION__ !== 'undefined' ? __MCP_VERSION__
     : (require('../../package.json') as { version: string }).version;
-export const validVersion = (value: string): boolean => semver.valid(value) !== null;
+// semver.valid drops build metadata; retain valid metadata but reject normalized
+// prefixes/whitespace so cache directory names remain canonical.
+export const validVersion = (value: string): boolean => semver.valid(value) === value.split('+')[0];
 export const validRange = (value: string): boolean => semver.validRange(value) !== null;
 export const satisfiesVersion = (version: string, range: string): boolean => semver.satisfies(version, range);
 export const compareVersions = (a: string, b: string): number => semver.compare(a, b);
@@ -23,7 +25,7 @@ export const newestVersionFirst = (a: string, b: string): number =>
   compareVersions(b, a) || a.localeCompare(b);
 export interface PluginVersionFailure {
   code: 'INVALID_PLUGIN_VERSION' | 'INVALID_DEPENDENCY_RANGE' | 'MISSING_DEPENDENCY'
-    | 'UNSATISFIED_DEPENDENCY_RANGE' | 'AQE_VERSION_INCOMPATIBLE' | 'RESOLUTION_LIMIT';
+    | 'DEPENDENCY_CYCLE' | 'UNSATISFIED_DEPENDENCY_RANGE' | 'AQE_VERSION_INCOMPATIBLE' | 'RESOLUTION_LIMIT';
   plugin: string;
   message: string;
 }

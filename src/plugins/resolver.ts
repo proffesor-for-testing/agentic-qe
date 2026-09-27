@@ -124,6 +124,32 @@ export class PluginResolver {
     return result(ordered);
   }
 
+  /** Startup is best-effort: retain admitted roots when another root fails. */
+  resolveAvailable(manifests: QEPluginManifest[]): ResolutionResult {
+    const accepted: string[] = [];
+    let result = this.resolve(manifests, []);
+    const errors: PluginVersionFailure[] = [];
+    const missing = new Map<string, string[]>();
+    for (const name of [...new Set(manifests.map(m => m.name))].sort()) {
+      try {
+        // Re-solve together so shared dependency versions remain compatible.
+        // A failed candidate cannot invalidate the last successful selection.
+        const candidate = this.resolve(manifests, [...accepted, name]);
+        if (candidate.errors.length) {
+          errors.push(...candidate.errors.map(error => ({...error, plugin: name})));
+          for (const [plugin, dependencies] of candidate.missing) missing.set(plugin, dependencies);
+          continue;
+        }
+        accepted.push(name);
+        result = candidate;
+      } catch (error) {
+        errors.push({code: 'DEPENDENCY_CYCLE', plugin: name,
+          message: error instanceof Error ? error.message : String(error)});
+      }
+    }
+    return {...result, errors, missing};
+  }
+
   /** Version-constrained dependencies require versions, not a legacy name-only Set. */
   canLoad(manifest: QEPluginManifest, loaded: ReadonlyMap<string, string> | Set<string>): { canLoad: boolean; missingDeps: string[] } {
     const missingDeps = Object.entries(manifest.dependencies ?? {}).filter(([name, range]) => {
