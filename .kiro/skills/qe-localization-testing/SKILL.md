@@ -7,6 +7,20 @@ tags: [localization, i18n, l10n, translation, rtl, unicode, locale]
 
 # Localization & Internationalization Testing
 
+## Browser engine
+
+Browser-driven locale checks (RTL layout diffs, language-switching flows, locale-specific screenshots) should go through the **qe-browser** fleet skill. Example:
+
+```bash
+vibium go "$BASE_URL?lang=ar"  # Arabic, RTL
+vibium wait load
+node .claude/skills/qe-browser/scripts/visual-diff.js --name homepage-ar-rtl
+vibium go "$BASE_URL?lang=ja"  # Japanese, CJK text expansion
+node .claude/skills/qe-browser/scripts/visual-diff.js --name homepage-ja
+```
+
+See `.claude/skills/qe-browser/SKILL.md` for the full reference.
+
 <default_to_action>
 When testing multi-language/region support:
 1. VERIFY translation coverage (all strings translated)
@@ -35,19 +49,6 @@ When testing multi-language/region support:
 - Adding language support
 - Before international releases
 - After UI changes
-
-### i18n vs l10n
-| Term | Full Name | Focus |
-|------|-----------|-------|
-| **i18n** | Internationalization | Building for localization |
-| **l10n** | Localization | Adapting for specific locale |
-
-### Common Locale Formats
-| Type | US (en-US) | UK (en-GB) | Japan (ja-JP) |
-|------|------------|------------|---------------|
-| **Date** | 10/24/2025 | 24/10/2025 | 2025/10/24 |
-| **Currency** | $1,234.56 | £1,234.56 | ¥1,235 |
-| **Number** | 1,234.56 | 1,234.56 | 1,234.56 |
 
 ---
 
@@ -205,9 +206,5 @@ const l10nFleet = await FleetManager.coordinate({
 ---
 
 ## Remember
-
-**Don't hardcode. Externalize all user-facing strings.** Every string visible to users must come from translation files, not code.
-
-**Test with native speakers, not just translation files.** Machine translations and translation files can have context issues that only native speakers catch.
 
 **With Agents:** Agents validate translation coverage, detect hardcoded strings, test locale-specific formatting, and verify RTL layouts automatically across all supported languages.

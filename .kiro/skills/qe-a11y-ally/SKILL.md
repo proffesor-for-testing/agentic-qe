@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-a11y-ally
-description: "Comprehensive WCAG accessibility auditing with multi-tool testing (axe-core + pa11y + Lighthouse), TRUE PARALLEL execution with Promise.allSettled, graceful degradation, retry with backoff, context-aware remediation, learning integration, and video accessibility. Uses 3-tier browser cascade: Vibium → agent-browser → Playwright+Stealth."
+description: "Use when running comprehensive WCAG accessibility audits with axe-core + pa11y + Lighthouse, generating context-aware remediation, or testing video accessibility. Supports 3-tier browser cascade with graceful degradation."
 tags: [accessibility, wcag, a11y, video, captions, audiodesc, vtt, eu-compliance, context-aware, remediation, axe-core, pa11y, lighthouse, parallel, resilient, graceful-degradation, retry]
 ---
 
@@ -56,32 +56,54 @@ Claude: [Runs scan] → [Analyzes violations] → [Downloads video] → [Extract
 
 ## STEP 1: BROWSER AUTOMATION - Content Fetching
 
-### 1.1: Try VIBIUM First (Primary)
-```javascript
-ToolSearch("select:mcp__vibium__browser_launch")
-ToolSearch("select:mcp__vibium__browser_navigate")
-mcp__vibium__browser_launch({ headless: true })
-mcp__vibium__browser_navigate({ url: "TARGET_URL" })
-```
+Uses the **qe-browser** fleet skill as the browser engine. qe-browser wraps Vibium (WebDriver BiDi, 10MB Go binary) and provides the QE primitives we rely on. See `.claude/skills/qe-browser/SKILL.md`.
 
-**If Vibium fails** → Go to STEP 1b
-
-### 1b: Try AGENT-BROWSER Fallback
-```javascript
-ToolSearch("select:mcp__claude-flow_alpha__browser_open")
-mcp__claude-flow_alpha__browser_open({ url: "TARGET_URL", waitUntil: "networkidle" })
-```
-
-**If agent-browser fails** → Go to STEP 1c
-
-### 1c: PLAYWRIGHT + STEALTH (Final Fallback)
+### 1.1: PRIMARY — qe-browser via Vibium CLI
 ```bash
-mkdir -p /tmp/a11y-work && cd /tmp/a11y-work
-npm init -y 2>/dev/null
-npm install playwright-extra puppeteer-extra-plugin-stealth @axe-core/playwright pa11y lighthouse chrome-launcher 2>/dev/null
+# Navigate
+vibium go "$TARGET_URL"
+vibium wait load
+
+# Capture accessibility tree without visual render
+vibium a11y-tree --json > /tmp/a11y-work/tree.json
+
+# Screenshot for Vision pipeline
+vibium screenshot -o /tmp/a11y-work/page.png --full-page
 ```
 
-Create and run scan script - see STEP 2 for full multi-tool scan code.
+If Vibium MCP tools are registered (`mcp__vibium__*`), prefer them; otherwise shell out to the `vibium` binary installed by `aqe init`.
+
+### 1.2: Run axe-core + WCAG assertions via qe-browser
+```bash
+# Inject axe-core via vibium eval and collect violations
+vibium eval --stdin <<'EOF'
+const s = document.createElement('script');
+s.src = 'https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js';
+document.head.appendChild(s);
+await new Promise(r => s.onload = r);
+const results = await axe.run();
+JSON.stringify({ violations: results.violations.length, issues: results.violations });
+EOF
+
+# Enforce: no critical a11y violations + no failed network requests
+node .claude/skills/qe-browser/scripts/assert.js --checks '[
+  {"kind": "no_console_errors"},
+  {"kind": "no_failed_requests"},
+  {"kind": "selector_visible", "selector": "main, [role=main]"}
+]'
+```
+
+### 1.3: FALLBACK — pa11y + Lighthouse (when axe alone is insufficient)
+```bash
+# Only use when you need the extra rulesets, not as the primary path
+pa11y "$TARGET_URL" --reporter json > /tmp/a11y-work/pa11y.json
+lighthouse "$TARGET_URL" --only-categories=accessibility --output=json --output-path=/tmp/a11y-work/lighthouse.json --chrome-flags="--headless"
+```
+
+**Why we dropped playwright-extra + puppeteer-extra-plugin-stealth from the primary path:**
+- 300MB+ of Node deps vs Vibium's 10MB binary
+- Redundant: Vibium uses WebDriver BiDi which is less fingerprintable than raw CDP
+- Simpler: one tool instead of a cascade
 
 ### 1d: PARALLEL MULTI-PAGE AUDIT (Optional)
 
@@ -1195,7 +1217,7 @@ const client = new Anthropic();
 
 const imageData = fs.readFileSync('/tmp/a11y-work/frames/frame_01.jpg').toString('base64');
 const response = await client.messages.create({
-  model: 'claude-sonnet-4-20250514',
+  model: 'claude-sonnet-4-6',
   max_tokens: 500,
   messages: [{
     role: 'user',
@@ -1648,3 +1670,12 @@ ROI = (Impact × Users%) / Effort_Hours
 11. **NEVER** skip video pipeline if videos detected
 12. **NEVER** complete without remediation.md
 13. **NEVER** fail audit just because 1-2 tools failed (use graceful degradation)
+
+## Gotchas
+
+- axe-core catches ~30% of WCAG issues — automated tools miss keyboard navigation, reading order, and cognitive issues
+- Agent runs Lighthouse only and reports "accessible" — Lighthouse alone is insufficient, always run axe-core + pa11y too
+- Screen reader testing requires actual screen reader interaction, not just ARIA attribute checks
+- Video accessibility (captions, audio descriptions) is frequently skipped — check every `<video>` element
+- Color contrast tools disagree on gradients and transparency — test with actual low-vision simulation
+- Playwright+Stealth may be blocked by some sites — fall back gracefully, don't skip the audit

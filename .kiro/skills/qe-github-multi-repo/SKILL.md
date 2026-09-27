@@ -1,8 +1,7 @@
 ---
 inclusion: auto
 name: qe-github-multi-repo
-description: "Multi-repository coordination, synchronization, and architecture management with AI swarm orchestration"
-tags: [multi-repo, synchronization, architecture, coordination, github]
+description: "|"
 ---
 
 # GitHub Multi-Repository Coordination Skill
@@ -332,8 +331,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: npm install && npm test`,
       message: "ci: Standardize integration workflow",

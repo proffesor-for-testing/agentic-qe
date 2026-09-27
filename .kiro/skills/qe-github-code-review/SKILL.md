@@ -2,7 +2,6 @@
 inclusion: auto
 name: qe-github-code-review
 description: "Comprehensive GitHub code review with AI-powered swarm coordination"
-tags: [code-review, github, swarm, pr-management, automation]
 ---
 
 # GitHub Code Review Skill
@@ -491,7 +490,7 @@ jobs:
   swarm-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -768,7 +767,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: npm install
       - run: npm test
       - run: npm run build

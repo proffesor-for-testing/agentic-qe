@@ -7,6 +7,12 @@ tags: [accessibility, wcag, a11y, screen-reader, ada, section-508, inclusive]
 
 # Accessibility Testing
 
+> **Consolidated**: For comprehensive WCAG auditing with multi-tool testing (axe-core + pa11y + Lighthouse), video accessibility, and remediation, prefer [`/a11y-ally`](../a11y-ally/). This skill provides a quick reference card for basic accessibility testing patterns.
+
+## Browser engine
+
+Browser-driven a11y checks should go through the **qe-browser** fleet skill. `vibium a11y-tree --json` returns the full accessibility tree without visual rendering — feed it into axe-core via `vibium eval --stdin` for ruleset enforcement. See `.claude/skills/qe-browser/SKILL.md`.
+
 <default_to_action>
 When testing accessibility or ensuring compliance:
 1. APPLY POUR principles: Perceivable, Operable, Understandable, Robust
@@ -93,6 +99,24 @@ test('focus indicator visible', async ({ page }) => {
 ---
 
 ## Automated Testing with axe-core
+
+### Preferred: via the `a11y-ally` AQE skill (qe-browser + Vibium)
+
+For new work, use the `a11y-ally` skill — it composes `qe-browser` (Vibium
+WebDriver BiDi) with `axe-core`, `pa11y`, and Lighthouse and produces a
+WCAG-tagged JSON report with remediation guidance. It avoids the 300MB
+Playwright install and is already wired into the AQE fleet.
+
+```bash
+# Runs axe-core + pa11y + Lighthouse via qe-browser (Vibium) engine
+aqe skill run a11y-ally -- --url https://example.com --wcag AA
+```
+
+### Fallback: Playwright + @axe-core/playwright
+
+Keep this path when you have an existing Playwright suite and don't want to
+introduce a second browser runner, or when you need Firefox/Safari coverage
+that Vibium's Chrome-only BiDi backend can't provide today.
 
 ```javascript
 import { test, expect } from '@playwright/test';

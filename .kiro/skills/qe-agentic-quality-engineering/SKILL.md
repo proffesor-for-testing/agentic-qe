@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-agentic-quality-engineering
-description: "AI agents as force multipliers for quality work. Core skill for all 19 QE agents using PACTS principles."
+description: "Use when orchestrating QE agents, understanding PACTS principles, configuring the AQE v3 fleet, or leveraging AI agents as force multipliers for quality work."
 tags: [pacts, agents, fleet, coordination, autonomous, structured, foundational]
 ---
 
@@ -118,22 +118,23 @@ aqe/coordination/*  - Cross-agent state
 
 **1. Store data to persistent memory:**
 ```bash
-# Store test plan decisions (persisted to .agentic-qe/memory.db)
+// Store test plan decisions (persisted to .agentic-qe/memory.db)
 aqe memory store \
   --key "aqe/test-plan/pr-123" \
   --namespace "aqe/test-plan" \
-  --value '{"prNumber":123,"riskLevel":"medium","requiredCoverage":85,"testTypes":["unit","integration"]}' \
-  --ttl 604800 \
+  --value '{...}' \
   --json
 ```
 
 **2. Retrieve prior learnings before task:**
 ```bash
-# Query patterns before starting test generation
-aqe memory search \
-  --pattern "aqe/learning/patterns/test-generation/*" \
-  --namespace "aqe/learning" \
-  --json
+// Query patterns before starting test generation
+const priorData = await aqe memory get --key "aqe/learning/patterns/test-generation/*" --namespace "aqe/learning" --json
+
+// Use patterns to guide current task
+if (priorData.success) {
+  console.log(`Loaded ${priorData.patterns.length} prior patterns`);
+}
 ```
 
 **3. Store coverage analysis results:**
@@ -141,8 +142,7 @@ aqe memory search \
 aqe memory store \
   --key "aqe/coverage/auth-module" \
   --namespace "aqe/coverage" \
-  --value '{"moduleId":"auth-module","currentCoverage":78,"gaps":["error-handling","edge-cases"],"priority":"high"}' \
-  --ttl 1209600 \
+  --value '{...}' \
   --json
 ```
 
@@ -151,25 +151,25 @@ aqe memory store \
 For coordinated multi-agent tasks, use the STATUS → PROGRESS → COMPLETE pattern:
 
 ```bash
-# PHASE 1: STATUS - Task starting
+// PHASE 1: STATUS - Task starting
 aqe memory store \
   --key "aqe/coordination/task-123/status" \
   --namespace "aqe/coordination" \
-  --value '{"status":"running","agent":"qe-test-generator"}' \
+  --value '{...}' \
   --json
 
-# PHASE 2: PROGRESS - Intermediate updates
+// PHASE 2: PROGRESS - Intermediate updates
 aqe memory store \
   --key "aqe/coordination/task-123/progress" \
   --namespace "aqe/coordination" \
-  --value '{"progress":50,"action":"generating-unit-tests","testsGenerated":25}' \
+  --value '{...}' \
   --json
 
-# PHASE 3: COMPLETE - Task finished
+// PHASE 3: COMPLETE - Task finished
 aqe memory store \
   --key "aqe/coordination/task-123/complete" \
   --namespace "aqe/coordination" \
-  --value '{"status":"complete","result":"success","testsGenerated":47,"coverageAchieved":92.3}' \
+  --value '{...}' \
   --json
 ```
 

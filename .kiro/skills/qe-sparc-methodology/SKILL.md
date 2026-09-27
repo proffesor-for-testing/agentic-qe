@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-sparc-methodology
-description: "SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) comprehensive development methodology with multi-agent orchestration"
+description: "|"
 ---
 
 # SPARC Methodology - Comprehensive Development Framework

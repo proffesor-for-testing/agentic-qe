@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-quality-assessment
-description: "Comprehensive quality gates, metrics analysis, and deployment readiness assessment for continuous quality assurance."
+description: "Evaluates code quality through complexity analysis, lint results, code smell detection, and test health metrics. Use when assessing deployment readiness, configuring quality gates, scoring a codebase for release, or generating quality reports with pass/fail verdicts."
 ---
 
 # QE Quality Assessment
@@ -90,6 +90,10 @@ await qualityAnalyzer.assessCode({
 await qualityGate.evaluate({
   gates: {
     coverage: { min: 80, blocking: true },
+    // Fault detection — coverage is necessary but NOT sufficient (ADR-113).
+    // A suite can hit 90% coverage and catch no bugs; mutation score does not lie.
+    mutationScore: { min: 0.6, blocking: false },   // warn-by-default; opt-in blocking
+    regenerability: { min: 0.5, blocking: false },  // Deletion Test: durable oracle backing per module
     complexity: { max: 15, blocking: false },
     vulnerabilities: { critical: 0, high: 0, blocking: true },
     duplications: { max: 3, blocking: false },
@@ -102,6 +106,27 @@ await qualityGate.evaluate({
   }
 });
 ```
+
+### 2a. Regenerability gate (ADR-113)
+
+Coverage measures lines executed; **mutation score** measures whether the tests would
+*notice a bug*, and **regenerability** answers the Deletion Test — "if this module were
+deleted and regenerated, would a wrong rebuild be caught?" Regenerability = mutation
+score discounted by the durability tier backing the module (durable > live > ephemeral
+> none); ephemeral-only tests score low because they don't survive a reimplementation.
+
+```typescript
+import { evaluateRegenerabilityGate } from '../../../src/feedback/regenerability-gate.js';
+
+const verdict = evaluateRegenerabilityGate(moduleProfiles, {
+  mutationScoreMin: 0.6,
+  regenerabilityMin: 0.5,
+  mode: 'warn',   // 'block' to fail CI; warn-by-default so adoption never breaks pipelines
+});
+// verdict.passed (thresholds met) · verdict.blocking (should fail CI) · verdict.failures[]
+```
+
+Surface it next to coverage in reports: `Coverage 88% ✅ / Mutation 41% ⚠️ / Regenerability: ephemeral-only ⚠️`.
 
 ### 3. Deployment Readiness
 
@@ -207,8 +232,35 @@ quality_check:
       - 1  # Warnings only
 ```
 
+## Run History
+
+After each quality assessment, append results to `run-history.json` in this skill directory:
+```bash
+node -e "
+const fs = require('fs');
+const h = JSON.parse(fs.readFileSync('.claude/skills/qe-quality-assessment/run-history.json'));
+h.runs.push({date: new Date().toISOString().split('T')[0], gate_result: 'PASS_OR_FAIL', failed_checks: []});
+fs.writeFileSync('.claude/skills/qe-quality-assessment/run-history.json', JSON.stringify(h, null, 2));
+"
+```
+Read `run-history.json` before each run — alert if quality gate failed 3 of last 5 runs.
+
+## Skill Composition
+
+- **Before assessment** → Run `/qe-coverage-analysis` and `/mutation-testing` first
+- **If issues found** → Use `/test-failure-investigator` to diagnose failures
+- **For PR review** → Combine with `/code-review-quality` for comprehensive review
+
+## Gotchas
+
+- NEVER trust agent-reported pass/fail status — 12 test failures were caught that agents claimed were passing (Nagual pattern, reward 0.92)
+- Completion theater: agent hardcoded version '3.0.0' instead of reading from package.json — verify actual values in output
+- Fix issues in priority waves (P0 → P1 → P2) with verification between each wave — don't fix everything in parallel
+- quality-assessment domain has 53.7% success rate — expect failures and have fallback
+- If HybridMemoryBackend initialization fails, run `aqe health` to diagnose, or `aqe init` to re-initialize
+
 ## Coordination
 
 **Primary Agents**: qe-quality-analyzer, qe-deployment-advisor, qe-metrics-collector
 **Coordinator**: qe-quality-coordinator
-**Related Skills**: qe-coverage-analysis, qe-security-compliance
+**Related Skills**: qe-coverage-analysis, security-testing

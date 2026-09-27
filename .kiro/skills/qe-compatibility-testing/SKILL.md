@@ -7,6 +7,29 @@ tags: [compatibility, cross-browser, responsive, browserstack, playwright, devic
 
 # Compatibility Testing
 
+## Browser engine
+
+Browser-driven checks (viewport emulation, responsive validation, cross-browser screenshots) should go through the **qe-browser** fleet skill (`.claude/skills/qe-browser/`). Vibium is installed by `aqe init`. Quick reference:
+
+```bash
+# Viewport emulation per breakpoint
+vibium viewport 375 667   # mobile
+vibium viewport 768 1024  # tablet
+vibium viewport 1920 1080 # desktop
+
+# Full device emulation (user-agent, DPR, touch)
+vibium emulate-device "iPhone 15"
+
+# Visual diff per viewport
+for vp in "375 667 mobile" "768 1024 tablet" "1920 1080 desktop"; do
+  read w h name <<< "$vp"
+  vibium viewport $w $h
+  node .claude/skills/qe-browser/scripts/visual-diff.js --name "homepage-$name"
+done
+```
+
+Cross-browser (Firefox/Safari) still requires Playwright or a cloud device farm today — Vibium's BiDi backend is Chrome-only at v26.3.x.
+
 <default_to_action>
 When validating cross-browser/platform compatibility:
 1. DEFINE browser matrix (cover 95%+ of users)
@@ -34,57 +57,6 @@ When validating cross-browser/platform compatibility:
 - After CSS/layout changes
 - Launching in new markets
 - Responsive design validation
-
-### Browser Matrix
-| Browser | Versions | Priority |
-|---------|----------|----------|
-| **Chrome** | Latest, N-1 | High |
-| **Firefox** | Latest, N-1 | High |
-| **Safari** | Latest, N-1 | High |
-| **Edge** | Latest | Medium |
-| **Mobile Safari** | iOS latest | High |
-| **Mobile Chrome** | Android latest | High |
-
-### Screen Breakpoints
-| Category | Width Range |
-|----------|-------------|
-| **Mobile** | 320px - 480px |
-| **Tablet** | 481px - 768px |
-| **Desktop** | 769px - 1920px+ |
-
----
-
-## Responsive Design Testing
-
-```javascript
-import { test, expect } from '@playwright/test';
-
-const devices = [
-  { name: 'iPhone 12', width: 390, height: 844 },
-  { name: 'iPad', width: 768, height: 1024 },
-  { name: 'Desktop', width: 1920, height: 1080 }
-];
-
-for (const device of devices) {
-  test(`layout on ${device.name}`, async ({ page }) => {
-    await page.setViewportSize({
-      width: device.width,
-      height: device.height
-    });
-
-    await page.goto('https://example.com');
-
-    const nav = await page.locator('nav');
-    if (device.width < 768) {
-      // Mobile: hamburger menu
-      expect(await nav.locator('.hamburger')).toBeVisible();
-    } else {
-      // Desktop: full menu
-      expect(await nav.locator('.menu-items')).toBeVisible();
-    }
-  });
-}
-```
 
 ---
 
@@ -190,8 +162,6 @@ const compatFleet = await FleetManager.coordinate({
 
 ## Remember
 
-**Test where users are, not where you develop.** Developers use latest Chrome on high-end machines. Users access from older browsers, low-end devices, and slow networks.
-
 **Cover 95%+ of your user base.** Use analytics to identify actual browser/device usage. Don't waste time on browsers nobody uses.
 
-**With Agents:** Agents orchestrate parallel cross-browser testing across cloud platforms, reducing 10 hours of manual testing to 15 minutes. `qe-visual-tester` catches visual inconsistencies across platforms automatically.
+**With Agents:** Agents orchestrate parallel cross-browser testing across cloud platforms. `qe-visual-tester` catches visual inconsistencies across platforms automatically.
