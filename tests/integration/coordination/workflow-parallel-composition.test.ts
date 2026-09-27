@@ -35,10 +35,12 @@ async function completed(orchestrator: WorkflowOrchestrator): Promise<WorkflowEx
 
 describe('parallel workflow output composition (#720)', () => {
   let orchestrator: WorkflowOrchestrator;
+  let eventBus: InMemoryEventBus;
 
   beforeEach(async () => {
+    eventBus = new InMemoryEventBus();
     orchestrator = new WorkflowOrchestrator(
-      new InMemoryEventBus(), memory, new DefaultAgentCoordinator(),
+      eventBus, memory, new DefaultAgentCoordinator(),
       { enableEventTriggers: false, persistExecutions: false },
     );
     await orchestrator.initialize();
@@ -157,6 +159,25 @@ describe('parallel workflow output composition (#720)', () => {
     expect(status.status).toBe('failed');
     expect(status.context.results).toEqual({});
     expect(status.parallelCompositionReceipts?.[0].disposition).toBe('partial');
+  });
+
+  it('keeps an empty-message hard failure from committing successful sibling output', async () => {
+    const publish = eventBus.publish.bind(eventBus);
+    vi.spyOn(eventBus, 'publish').mockImplementation(async event => {
+      if (event.type === 'workflow.StepStarted' && (event.payload as { stepId: string }).stepId === 'second') {
+        throw new Error('');
+      }
+      await publish(event);
+    });
+    orchestrator.registerAction('test-generation', 'first', async () => ok({ value: 91 }));
+    const second = vi.fn(async () => ok({ value: 'must not run' }));
+    orchestrator.registerAction('test-generation', 'second', second);
+    expect(orchestrator.registerWorkflow(workflow('left', 'right')).success).toBe(true);
+    const status = await completed(orchestrator);
+    expect(status.status).toBe('failed');
+    expect(status.context.results).toEqual({});
+    expect(status.parallelCompositionReceipts?.[0].disposition).toBe('partial');
+    expect(second).not.toHaveBeenCalled();
   });
 
   it.each(['skipped', 'continueOnFailure'])('preserves completed sibling outputs when an optional step is %s', async (mode) => {

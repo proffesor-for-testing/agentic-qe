@@ -572,9 +572,9 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
           if (pendingIndex !== -1) pendingSteps.splice(pendingIndex, 1);
         }
 
-        if (execution.status !== 'running' || hardFailure) {
+        if (execution.status !== 'running' || hardFailure !== undefined) {
           receipt.disposition = 'partial';
-          if (hardFailure) throw new Error(hardFailure);
+          if (hardFailure !== undefined) throw new Error(hardFailure);
           if (execution.status !== 'running') return;
         } else {
           try {
