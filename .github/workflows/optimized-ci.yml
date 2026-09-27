@@ -19,6 +19,12 @@ permissions:
   pull-requests: write
   checks: write
 
+# GitHub-hosted runners execute the CPU paths. onnxruntime-node bundles its
+# CPU runtime but downloads extra CUDA providers from NuGet by default on
+# linux/x64; that external postinstall fetch can fail and block unrelated PRs.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 # ─── Shared exclusions for journey test shards ───
 # The original test:journeys:ci command excludes these directories:
 #   browser, browser-integration, mcp, sync, learning, domains, llm, n8n, *.e2e.test.ts
@@ -417,8 +423,12 @@ jobs:
       - name: Comment on PR
         # Fork tokens cannot write PR comments; keep reports and test gates running.
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        # The metrics artifact is already uploaded; a transient comment API
+        # failure must not turn a healthy test dashboard red.
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
+          retries: 3
           script: |
             const fs = require('fs');
 
