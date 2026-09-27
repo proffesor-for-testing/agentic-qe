@@ -440,6 +440,28 @@ second project reuses the name with `--force` or uses its own server name.
 With `--prime-agent-auto-mcp`, the installer executes the command itself when
 the `prime-agent` binary is on PATH, and falls back to printing it otherwise.
 
+#### MCP troubleshooting (Prime Agent)
+
+**`fleet_init` fails with "Could not locate the bindings file"**: the
+`npx -y agentic-qe@latest` cache copy was created without native install
+scripts (an npm `allowScripts` policy or `--ignore-scripts` run), so the
+`better-sqlite3` native binding was never compiled. The server still starts
+and lists its tools; only calls that touch the memory manager fail. A server
+process that started before the fix keeps the failure cached — respawn the
+session after repairing.
+
+Fixes, in order of preference:
+
+1. Register the installed CLI (its bindings are built at install time)
+   instead of the npx copy:
+
+       prime-agent mcp add aqe --force --cwd <project root> -- aqe mcp
+
+2. Repair the npx cache that the error message points at: rebuild the
+   binding with install scripts enabled (`npm rebuild better-sqlite3` inside
+   that cache directory), or copy `better_sqlite3.node` from an installed
+   `agentic-qe` whose `better-sqlite3` version matches.
+
 > **Prime Agent-specific**: no project MCP config file is generated; skills
 > and AGENTS.md guidance are the repo-scoped surface.
 
@@ -498,3 +520,8 @@ Verify checks:
 ```bash
 npx agentic-qe@latest mcp
 ```
+
+**Server starts but `fleet_init` reports a missing `better-sqlite3` binding**: the
+npx cache copy was created without native install scripts. See
+[Prime Agent — MCP troubleshooting](#mcp-troubleshooting-prime-agent) for repairs (register the
+installed CLI, or rebuild the cache binding).
