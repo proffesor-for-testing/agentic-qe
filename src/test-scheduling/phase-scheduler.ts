@@ -69,6 +69,7 @@ export class PhaseScheduler {
   private startTime?: Date;
   private endTime?: Date;
   private abortController?: AbortController;
+  private abortRequested = false;
 
   constructor(
     private readonly executor: PhaseExecutor,
@@ -97,6 +98,7 @@ export class PhaseScheduler {
     this.results = [];
     this.startTime = new Date();
     this.abortController = new AbortController();
+    this.abortRequested = false;
 
     try {
       for (const phase of this.config.phases) {
@@ -111,6 +113,9 @@ export class PhaseScheduler {
         }
 
         const result = await this.executePhaseWithRetry(phase);
+        if (this.abortRequested) {
+          throw new Error('Phase aborted');
+        }
         this.results.push(result);
         this.currentPhaseIndex++;
 
@@ -122,13 +127,18 @@ export class PhaseScheduler {
         }
       }
 
+      if (this.abortRequested) {
+        throw new Error('Phase aborted');
+      }
       this.endTime = new Date();
       this.state = this.results.every((r) => r.success) ? 'completed' : 'failed';
       this.config.onAllComplete?.(this.results);
 
       return this.results;
     } catch (error) {
-      this.state = 'failed';
+      // abort() owns the final state after its executor has actually stopped.
+      // Until then, do not report a successful or quiesced scheduler run.
+      if (!this.abortRequested) this.state = 'failed';
       this.endTime = new Date();
       throw error;
     }
@@ -143,6 +153,7 @@ export class PhaseScheduler {
       throw new Error(`Phase not found: ${phaseId}`);
     }
 
+    this.abortRequested = false;
     return this.executePhaseWithRetry(phase);
   }
 
@@ -168,6 +179,7 @@ export class PhaseScheduler {
    * Abort execution immediately
    */
   async abort(): Promise<void> {
+    this.abortRequested = true;
     this.abortController?.abort();
     await this.executor.abort();
     this.state = 'idle';
@@ -213,13 +225,23 @@ export class PhaseScheduler {
     const maxAttempts = this.config.retryFailedPhases ? this.config.maxRetries : 1;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      if (this.abortRequested) {
+        throw new Error('Phase aborted');
+      }
       try {
         lastResult = await this.executor.execute(phase);
+
+        if (this.abortRequested) {
+          throw new Error('Phase aborted');
+        }
 
         if (lastResult.success || !this.config.retryFailedPhases) {
           return lastResult;
         }
       } catch (error) {
+        if (this.abortRequested) {
+          throw new Error('Phase aborted');
+        }
         this.config.onError?.(error as Error, phase);
 
         if (attempt === maxAttempts) {
