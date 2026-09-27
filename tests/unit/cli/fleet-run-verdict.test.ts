@@ -11,6 +11,7 @@ vi.mock('../../../src/cli/utils/progress.js', () => ({
 
 describe('fleet run execution verdicts', () => {
   const cleanup = vi.fn(async (_code: number) => undefined as never);
+  const ensure = vi.fn(async () => true);
   const submitTask = vi.fn();
   const getTaskStatus = vi.fn();
   let program: Command;
@@ -19,11 +20,12 @@ describe('fleet run execution verdicts', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    ensure.mockResolvedValue(true);
     submitTask.mockResolvedValue({ success: true, value: 'task-1' });
     getTaskStatus.mockReturnValue({ status: 'completed' });
     program = new Command().addCommand(createFleetCommand(
       { queen: { submitTask, getTaskStatus } } as unknown as CLIContext,
-      cleanup, async () => true, () => {},
+      cleanup, ensure, () => {},
     ));
   });
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
@@ -72,6 +74,13 @@ describe('fleet run execution verdicts', () => {
     const execution = program.parseAsync(['node', 'aqe', 'fleet', 'run', operation, '--parallel', count]);
     await vi.advanceTimersByTimeAsync(65000);
     await execution;
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(submitTask).not.toHaveBeenCalled();
+  });
+
+  it('returns failure when initialization is unavailable', async () => {
+    ensure.mockResolvedValue(false);
+    await run();
     expect(cleanup).toHaveBeenCalledWith(1);
     expect(submitTask).not.toHaveBeenCalled();
   });

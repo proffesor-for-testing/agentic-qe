@@ -285,7 +285,7 @@ export function createFleetCommand(
     .option('-t, --target <path>', 'Target path', '.')
     .option('--parallel <count>', 'Number of parallel agents', '4')
     .action(async (operation: string, options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureInitialized()) return cleanupAndExit(1);
 
       try {
         const parallelCount = Number(options.parallel);
