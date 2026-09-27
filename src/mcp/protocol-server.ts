@@ -158,6 +158,25 @@ interface ToolEntry {
   handler: (params: Record<string, unknown>) => Promise<unknown>;
 }
 
+interface ToolCallResponse {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}
+
+function toolExecutionError(): ToolCallResponse {
+  return {
+    content: [{
+      type: 'text',
+      text: JSON.stringify({
+        success: false,
+        code: 'tool_execution_error',
+        error: 'Tool execution failed',
+      }),
+    }],
+    isError: true,
+  };
+}
+
 // ============================================================================
 // MCP Protocol Server
 // ============================================================================
@@ -192,6 +211,14 @@ export class MCPProtocolServer {
     if (r.success === false) return false;
     if (typeof r.error === 'string' && r.error.length > 0) return false;
     return true;
+  }
+
+  /** A completed tool can legitimately report a negative domain verdict. */
+  private isFailedToolResult(result: unknown): boolean {
+    if (!result || typeof result !== 'object') return false;
+    const value = result as Record<string, unknown>;
+    if (value.isError === true || value.success === false) return true;
+    return value.success !== true && typeof value.error === 'string' && value.error.length > 0;
   }
 
   private readonly config: Required<MCPServerConfig>;
@@ -299,14 +326,9 @@ export class MCPProtocolServer {
         }
         // Last-resort safety net: catch anything else that escapes handleToolsCall
         // to prevent MCP connection from being killed (-32000)
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[MCP] Unhandled error in request handler: ${message}`);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({ success: false, error: `Internal error: ${message}` }),
-          }],
-        };
+        console.error('[MCP] Unhandled error in request handler:', err);
+        if (request.method === 'tools/call') return toolExecutionError();
+        throw new McpError(JSON_RPC_ERRORS.INTERNAL_ERROR, 'Internal server error');
       }
     });
 
@@ -569,7 +591,7 @@ export class MCPProtocolServer {
   private async handleToolsCall(params: {
     name: string;
     arguments?: Record<string, unknown>;
-  }): Promise<{ content: Array<{ type: string; text: string }>; isError?: boolean }> {
+  }): Promise<ToolCallResponse> {
     const { name, arguments: args = {} } = params;
 
     const tool = this.tools.get(name);
@@ -649,8 +671,10 @@ export class MCPProtocolServer {
           if (hit) {
             // Cache hit — return the stored result without running the handler.
             const cachedText = JSON.stringify(hit.result, null, 2);
+            if (typeof cachedText !== 'string') throw new Error('Missing cached tool result');
+            const cachedSuccess = !this.isFailedToolResult(hit.result);
             this.eventAdapter.adapt({
-              success: true,
+              success: cachedSuccess,
               data: hit.result,
               metadata: {
                 executionTime: performance.now() - startTime,
@@ -659,12 +683,13 @@ export class MCPProtocolServer {
                 toolName: name,
               },
             } as AQEToolResult);
-            success = true;
+            success = cachedSuccess;
             return {
               content: [{
                 type: 'text',
                 text: loopSteeringPrefix ? loopSteeringPrefix + cachedText : cachedText,
               }],
+              ...(cachedSuccess ? {} : { isError: true }),
             };
           }
         } catch {
@@ -674,10 +699,13 @@ export class MCPProtocolServer {
       }
 
       const result = await tool.handler(processedCtx.params);
-      success = true;
 
       // IMP-00: Execute post-tool-result middleware
       const processedResult = await this.middlewareChain.executePostHooks(processedCtx, result);
+      if (processedResult === null) throw new Error('Missing tool result');
+      const resultText = JSON.stringify(processedResult, null, 2);
+      if (typeof resultText !== 'string') throw new Error('Missing tool result');
+      const resultSucceeded = !this.isFailedToolResult(processedResult);
 
       // Issue #473: Store successful results for future cache hits.
       // Only cache successful results — error objects shouldn't be served back.
@@ -698,7 +726,7 @@ export class MCPProtocolServer {
 
       // Emit AG-UI result event for tool completion
       this.eventAdapter.adapt({
-        success: true,
+        success: resultSucceeded,
         data: processedResult,
         metadata: {
           executionTime: performance.now() - startTime,
@@ -706,7 +734,7 @@ export class MCPProtocolServer {
         },
       } as AQEToolResult);
 
-      const resultText = JSON.stringify(processedResult, null, 2);
+      success = resultSucceeded;
       return {
         content: [
           {
@@ -714,9 +742,13 @@ export class MCPProtocolServer {
             text: loopSteeringPrefix ? loopSteeringPrefix + resultText : resultText,
           },
         ],
+        ...(resultSucceeded ? {} : { isError: true }),
       };
     } catch (err) {
-      const error = err as Error;
+      // Preserve the diagnostic for operators without exposing it in the MCP
+      // response or AG-UI event. Stderr keeps stdio protocol output valid.
+      console.error(`[MCP] Tool ${name} failed:`, err);
+      const error = err instanceof Error ? err : new Error('Tool execution failed');
 
       // IMP-08: Detect context overflow (413) and trigger reactive compaction
       const errorMsg = error.message || '';
@@ -738,21 +770,14 @@ export class MCPProtocolServer {
       // Emit AG-UI result event for tool failure
       this.eventAdapter.adapt({
         success: false,
-        error: error.message,
+        error: 'Tool execution failed',
         metadata: {
           executionTime: performance.now() - startTime,
           requestId: stepId,
         },
       } as AQEToolResult);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ error: error.message || 'Tool execution failed' }),
-          },
-        ],
-      };
+      return toolExecutionError();
     } finally {
       // Tool names and success flags do not prove whether state changed.
       // Unknown cross-domain effects require a global flush, including after
