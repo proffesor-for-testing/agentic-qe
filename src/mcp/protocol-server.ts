@@ -361,7 +361,7 @@ export class MCPProtocolServer {
         try {
           const result = await this.handleRequest(request);
           resolve(result);
-        } catch (err) {
+        } catch {
           console.error(`[MCP] Failed to replay buffered request: ${request.method}`);
         }
       }
@@ -583,6 +583,7 @@ export class MCPProtocolServer {
     // ADR-039: Track tool invocation with performance monitoring
     const startTime = performance.now();
     let success = false;
+    let cacheable: boolean | undefined;
 
     // Emit AG-UI progress event for tool start
     const stepId = `${name}-${Date.now()}`;
@@ -634,13 +635,15 @@ export class MCPProtocolServer {
       // Explicit quality gates depend on current measured evidence and its age,
       // not just arguments. A cached approval can outlive or contradict evidence.
       const measuredQualityGate = name === 'quality_assess' && processedCtx.params?.runGate === true;
-      const cacheable = tool.definition.isConcurrencySafe === true && !measuredQualityGate;
+      cacheable = tool.definition.isConcurrencySafe === true && !measuredQualityGate;
       let cacheFingerprint: string | null = null;
+      let cacheGeneration: number | null = null;
       if (cacheable && process.env.AQE_SESSION_CACHE !== 'off') {
         try {
           const { getSessionCache } = await import('../optimization/session-cache.js');
           const cache = getSessionCache();
           const { domain, action } = parseToolDomainAction(name);
+          cacheGeneration = cache.getGeneration();
           cacheFingerprint = cache.computeFingerprint(domain, action, processedCtx.params || {});
           const hit = cache.get(cacheFingerprint);
           if (hit) {
@@ -676,33 +679,18 @@ export class MCPProtocolServer {
       // IMP-00: Execute post-tool-result middleware
       const processedResult = await this.middlewareChain.executePostHooks(processedCtx, result);
 
-      // Issue #535: a mutating tool must evict its domain's cached reads, or a
-      // follow-up read (e.g. memory_retrieve after memory_delete) serves a
-      // stale "found" result and the write looks like a no-op. Writes aren't
-      // cacheable themselves; gate on a mutation-verb suffix and invalidate the
-      // same domain the sibling reads were cached under. Best-effort.
-      if (!cacheable && process.env.AQE_SESSION_CACHE !== 'off' &&
-          /_(store|delete|set|share|update|remove|clear|promote|cleanup)$/.test(name) &&
-          this.isSuccessfulResult(processedResult)) {
-        try {
-          const { getSessionCache } = await import('../optimization/session-cache.js');
-          const { domain } = parseToolDomainAction(name);
-          getSessionCache().invalidateDomain(domain);
-        } catch {
-          // never block tool execution on cache invalidation
-        }
-      }
-
       // Issue #473: Store successful results for future cache hits.
       // Only cache successful results — error objects shouldn't be served back.
       if (cacheable && cacheFingerprint && this.isSuccessfulResult(processedResult)) {
         try {
           const { getSessionCache } = await import('../optimization/session-cache.js');
           const cache = getSessionCache();
-          const { domain, action } = parseToolDomainAction(name);
-          // Estimate tokens conservatively by length-of-JSON / 4 chars-per-token.
-          const tokenEstimate = Math.max(50, Math.floor(JSON.stringify(processedResult).length / 4));
-          cache.set(cacheFingerprint, domain, action, processedResult as Record<string, unknown>, tokenEstimate);
+          if (cache.getGeneration() === cacheGeneration) {
+            const { domain, action } = parseToolDomainAction(name);
+            // Estimate tokens conservatively by length-of-JSON / 4 chars-per-token.
+            const tokenEstimate = Math.max(50, Math.floor(JSON.stringify(processedResult).length / 4));
+            cache.set(cacheFingerprint, domain, action, processedResult as Record<string, unknown>, tokenEstimate);
+          }
         } catch {
           // never block on cache write
         }
@@ -766,6 +754,17 @@ export class MCPProtocolServer {
         ],
       };
     } finally {
+      // Tool names and success flags do not prove whether state changed.
+      // Unknown cross-domain effects require a global flush, including after
+      // a handler throws or reports failure following a partial effect.
+      if (cacheable === false && process.env.AQE_SESSION_CACHE !== 'off') {
+        try {
+          const { getSessionCache } = await import('../optimization/session-cache.js');
+          getSessionCache().invalidateAll();
+        } catch {
+          // Cache failure must not hide the tool response.
+        }
+      }
       // Record actual MCP tool execution latency
       const latency = performance.now() - startTime;
       this.monitor.recordLatency(name, latency, success);
