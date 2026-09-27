@@ -339,3 +339,52 @@ export async function handlePipelineValidate(
     };
   }
 }
+
+/** Resolve a pending gate on the same orchestrator used by pipeline_run. */
+export interface PipelineApprovalParams {
+  executionId: string;
+  stepId: string;
+  reason?: string;
+}
+
+export interface PipelineApprovalResult {
+  executionId: string;
+  stepId: string;
+  decision: 'approve' | 'reject';
+}
+
+export async function handlePipelineApprove(params: PipelineApprovalParams): Promise<ToolResult<PipelineApprovalResult>> {
+  return resolvePipelineApproval(params, 'approve');
+}
+
+export async function handlePipelineReject(params: PipelineApprovalParams): Promise<ToolResult<PipelineApprovalResult>> {
+  return resolvePipelineApproval(params, 'reject');
+}
+
+function resolvePipelineApproval(
+  params: PipelineApprovalParams, decision: 'approve' | 'reject',
+): ToolResult<PipelineApprovalResult> {
+  if (!isFleetInitialized()) {
+    return { success: false, error: 'Fleet not initialized. Call fleet_init first.' };
+  }
+  for (const key of ['executionId', 'stepId'] as const) {
+    if (typeof params[key] !== 'string' || !params[key].trim()) {
+      return { success: false, error: `Parameter '${key}' is required and must be a non-empty string.` };
+    }
+  }
+  if (params.reason !== undefined && typeof params.reason !== 'string') {
+    return { success: false, error: "Parameter 'reason' must be a string." };
+  }
+  const { workflowOrchestrator } = getFleetState();
+  if (!workflowOrchestrator) return { success: false, error: 'Workflow orchestrator not available.' };
+  const execution = workflowOrchestrator.getWorkflowStatus(params.executionId);
+  if (!execution) return { success: false, error: `Execution not found: ${params.executionId}` };
+  if (execution.status !== 'running') {
+    return { success: false, error: `Cannot ${decision} a step while the workflow is ${execution.status}.` };
+  }
+  const accepted = decision === 'approve'
+    ? workflowOrchestrator.approveStep(params.executionId, params.stepId)
+    : workflowOrchestrator.rejectStep(params.executionId, params.stepId, params.reason);
+  if (!accepted) return { success: false, error: 'No pending approval found for this execution and step.' };
+  return { success: true, data: { executionId: params.executionId, stepId: params.stepId, decision } };
+}

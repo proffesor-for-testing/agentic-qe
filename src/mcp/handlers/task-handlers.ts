@@ -79,6 +79,9 @@ export async function handleTaskSubmit(
 
     // Get task status for response
     const taskStatus = queen!.getTaskStatus(result.value);
+    if (!taskStatus) {
+      return { success: false, error: `Task ${result.value} was accepted but its execution status is unavailable.` };
+    }
 
     return {
       success: true,
@@ -86,8 +89,9 @@ export async function handleTaskSubmit(
         taskId: result.value,
         type: params.type,
         priority: params.priority || 'p1',
-        status: taskStatus?.status === 'running' ? 'pending' : 'queued',
-        assignedDomain: taskStatus?.assignedDomain,
+        status: taskStatus.status,
+        error: taskStatus.error,
+        assignedDomain: taskStatus.assignedDomain,
       },
     };
   } catch (error) {

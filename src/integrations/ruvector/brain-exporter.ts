@@ -36,6 +36,7 @@ import {
   serializeRowBlobs,
   deserializeRowBlobs,
   mergeGenericRow,
+  remapPatternReferences,
   mergeAppendOnlyRow,
   TABLE_CONFIGS,
   PK_COLUMNS,
@@ -351,6 +352,8 @@ export function importBrain(
 
   // Wrap entire import in a transaction for atomicity (Risk #3 from plan)
   const importAll = db.transaction(() => {
+    const patternIds = new Map<string, string>();
+    const patternWinners = new Map<string, string | null>();
     for (const config of configs) {
       const filePath = join(dir, config.fileName);
       let rows = readJsonl<Record<string, unknown>>(filePath, safeJsonParse);
@@ -360,7 +363,8 @@ export function importBrain(
         rows = rows.map(r => deserializeRowBlobs(r, config.blobColumns!));
       }
 
-      for (const row of rows) {
+      for (const originalRow of rows) {
+        const row = remapPatternReferences(originalRow, patternIds);
         let result: MergeResult;
 
         if (config.dedupColumns && config.dedupColumns.length > 0) {
@@ -371,7 +375,7 @@ export function importBrain(
           const idCol = PK_COLUMNS[config.tableName] || 'id';
           const tsCol = TIMESTAMP_COLUMNS[config.tableName];
           const confCol = CONFIDENCE_COLUMNS[config.tableName];
-          result = mergeGenericRow(db, config.tableName, row, idCol, options.mergeStrategy, tsCol, confCol);
+          result = mergeGenericRow(db, config.tableName, row, idCol, options.mergeStrategy, tsCol, confCol, patternIds, patternWinners, originalRow.pattern_id);
         }
 
         imported += result.imported;

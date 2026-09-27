@@ -26,8 +26,8 @@ describe('Tool Registry', () => {
       const inventory = getBuiltInToolSafetyInventory();
       const names = Object.keys(inventory);
 
-      expect(names).toHaveLength(89);
-      expect(names).toContain('pipeline_status');
+      expect(names).toHaveLength(91);
+      expect(names).toEqual(expect.arrayContaining(['pipeline_approve', 'pipeline_reject', 'pipeline_status']));
       expect(new Set(names).size).toBe(names.length);
       expect(names).toEqual([...names].sort());
       for (const disposition of Object.values(inventory)) {

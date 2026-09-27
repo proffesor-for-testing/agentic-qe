@@ -10,6 +10,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { findProjectRoot, clearProjectRootCache } from '../../../src/kernel/unified-memory';
 
 describe('findProjectRoot (Issue #516)', () => {
@@ -76,6 +78,39 @@ describe('findProjectRoot (Issue #516)', () => {
 
     // Assert
     expect(root).toBe(repo);
+  });
+
+  it('resolves independent SDK start directories without returning another project cache', () => {
+    const first = path.join(tmpRoot, 'first');
+    const second = path.join(tmpRoot, 'second');
+    mkdirs(path.join(first, '.agentic-qe'), path.join(second, '.agentic-qe'));
+    expect(findProjectRoot(first)).toBe(first);
+    expect(findProjectRoot(second)).toBe(second);
+  });
+
+  it('honors an environment override changed after a prior resolution', () => {
+    const project = path.join(tmpRoot, 'project');
+    mkdirs(path.join(project, '.agentic-qe'));
+    expect(findProjectRoot(project)).toBe(project);
+    process.env.AQE_PROJECT_ROOT = path.join(tmpRoot, 'override');
+    expect(findProjectRoot(project)).toBe(process.env.AQE_PROJECT_ROOT);
+  });
+
+  it('uses an explicit start directory as the no-marker fallback', () => {
+    const project = path.join(tmpRoot, 'plain');
+    mkdirs(project);
+    expect(findProjectRoot(project)).toBe(project);
+  });
+
+  it('terminates for relative start paths and returns an absolute root', () => {
+    const project = path.join(tmpRoot, 'relative');
+    mkdirs(path.join(project, '.agentic-qe'));
+    const moduleUrl = pathToFileURL(path.resolve('src/kernel/project-root.ts')).href;
+    const output = execFileSync(process.execPath, [
+      '--import', path.resolve('node_modules/tsx/dist/loader.mjs'), '--input-type=module', '-e',
+      `import { findProjectRoot } from ${JSON.stringify(moduleUrl)}; console.log(findProjectRoot('.'));`,
+    ], { cwd: project, env: { ...process.env, AQE_PROJECT_ROOT: '' }, timeout: 2000, encoding: 'utf8' });
+    expect(output.trim()).toBe(project);
   });
 
   it('should_preferNearestAgenticQe_over_ancestorGit', () => {

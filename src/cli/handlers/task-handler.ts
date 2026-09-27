@@ -89,7 +89,7 @@ export class TaskHandler implements ICommandHandler {
   }
 
   private async executeSubmit(type: string, options: SubmitOptions, context: CLIContext): Promise<void> {
-    if (!await this.ensureInitialized()) return;
+    if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
     try {
       const taskType = type as TaskType;
@@ -140,9 +140,9 @@ export class TaskHandler implements ICommandHandler {
               if (taskStatus.status === 'completed') {
                 waitSpinner.succeed('Task completed successfully');
                 completed = true;
-              } else if (taskStatus.status === 'failed') {
-                waitSpinner.fail(`Task failed: ${taskStatus.error || 'Unknown error'}`);
-                completed = true;
+              } else if (taskStatus.status === 'failed' || taskStatus.status === 'cancelled') {
+                waitSpinner.fail(`Task ${taskStatus.status}: ${taskStatus.error || 'No successful result'}`);
+                return this.cleanupAndExit(1);
               } else {
                 // Update spinner with progress info
                 waitSpinner.spinner.text = `Task ${taskStatus.status}... (${Math.round((Date.now() - startTime) / 1000)}s)`;
@@ -155,10 +155,12 @@ export class TaskHandler implements ICommandHandler {
 
           if (!completed) {
             waitSpinner.fail('Task timed out');
+            return this.cleanupAndExit(1);
           }
         }
       } else {
         console.log(chalk.red(`   Error: ${(result as { success: false; error: Error }).error.message}`));
+        return this.cleanupAndExit(1);
       }
 
       console.log('');
@@ -170,7 +172,7 @@ export class TaskHandler implements ICommandHandler {
   }
 
   private async executeList(options: ListOptions, context: CLIContext): Promise<void> {
-    if (!await this.ensureInitialized()) return;
+    if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
     try {
       const tasks = context.queen!.listTasks({
@@ -222,7 +224,7 @@ export class TaskHandler implements ICommandHandler {
   }
 
   private async executeCancel(taskId: string, context: CLIContext): Promise<void> {
-    if (!await this.ensureInitialized()) return;
+    if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
     try {
       const result = await context.queen!.cancelTask(taskId);
@@ -243,14 +245,14 @@ export class TaskHandler implements ICommandHandler {
   }
 
   private async executeTaskStatus(taskId: string, options: { format?: string; output?: string }, context: CLIContext): Promise<void> {
-    if (!await this.ensureInitialized()) return;
+    if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
     try {
       const task = context.queen!.getTaskStatus(taskId);
 
       if (!task) {
         console.log(chalk.red(`\n  Task not found: ${taskId}\n`));
-        return;
+        return this.cleanupAndExit(1);
       }
 
       const format = (options.format || 'text') as OutputFormat;

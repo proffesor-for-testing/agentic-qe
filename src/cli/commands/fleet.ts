@@ -5,8 +5,8 @@
  */
 
 import { Command } from 'commander';
-import { secureRandomFloat } from '../../shared/utils/crypto-random.js';
 import chalk from 'chalk';
+import { loadCLIDomainPlugins } from '../helpers/domain-plugins.js';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { DomainName, ALL_DOMAINS } from '../../shared/types/index.js';
 import { QEKernelImpl } from '../../kernel/kernel.js';
@@ -124,6 +124,7 @@ export function createFleetCommand(
           });
 
           await context.kernel.initialize();
+          const domainPlugins = await loadCLIDomainPlugins(context.kernel.plugins);
           console.log(chalk.green('  * Kernel initialized'));
 
           context.router = new CrossDomainEventRouter(context.kernel.eventBus);
@@ -156,7 +157,8 @@ export function createFleetCommand(
             context.kernel,
             context.router,
             protocolExecutor,
-            undefined
+            undefined,
+            domainPlugins
           );
           await context.queen.initialize();
           console.log(chalk.green('  * Queen coordinator initialized'));
@@ -283,10 +285,16 @@ export function createFleetCommand(
     .option('-t, --target <path>', 'Target path', '.')
     .option('--parallel <count>', 'Number of parallel agents', '4')
     .action(async (operation: string, options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureInitialized()) return cleanupAndExit(1);
 
       try {
-        const parallelCount = parseInt(options.parallel, 10);
+        const parallelCount = Number(options.parallel);
+        if (!Number.isSafeInteger(parallelCount) || parallelCount < 1) {
+          throw new Error('--parallel must be a positive integer');
+        }
+        if (!['test', 'analyze', 'scan'].includes(operation)) {
+          throw new Error(`Unsupported operation: ${operation}`);
+        }
 
         console.log(chalk.blue(`\n Fleet Operation: ${operation}\n`));
 
@@ -303,7 +311,7 @@ export function createFleetCommand(
           scan: 'security-compliance',
         };
 
-        const domain = domainMap[operation] || 'test-generation';
+        const domain = domainMap[operation];
 
         const agentOperations = Array.from({ length: parallelCount }, (_, i) => {
           const agentId = `${operation}-agent-${i + 1}`;
@@ -324,19 +332,11 @@ export function createFleetCommand(
         }
 
         const results = await Promise.all(
-          agentOperations.map(async (op, index) => {
-            await new Promise(resolve => setTimeout(resolve, index * 200));
+          agentOperations.map(async (op) => {
 
             progress.updateAgent(op.id, 0, { status: 'running' });
 
             try {
-              for (let p = 10; p <= 90; p += 20) {
-                await new Promise(resolve => setTimeout(resolve, secureRandomFloat(300, 500)));
-                progress.updateAgent(op.id, p, {
-                  eta: Math.round((100 - p) * 50),
-                });
-              }
-
               const taskResult = await context.queen!.submitTask({
                 type: operation === 'test' ? 'generate-tests' :
                       operation === 'analyze' ? 'analyze-coverage' :
@@ -347,9 +347,28 @@ export function createFleetCommand(
                 timeout: 60000,
               });
 
-              progress.completeAgent(op.id, taskResult.success);
-              return { id: op.id, success: taskResult.success };
-            } catch {
+              if (!taskResult.success) {
+                throw taskResult.error;
+              }
+
+              // Submission is only an acknowledgement. Keep the process alive
+              // until the domain reports a terminal result or the task expires.
+              const deadline = Date.now() + 60000;
+              while (Date.now() < deadline) {
+                const task = context.queen!.getTaskStatus(taskResult.value);
+                if (!task) throw new Error(`Task status unavailable: ${taskResult.value}`);
+                if (task.status === 'completed') {
+                  progress.completeAgent(op.id, true);
+                  return { id: op.id, success: true };
+                }
+                if (task.status === 'failed' || task.status === 'cancelled') {
+                  throw new Error(task.error || `Task ${task.status}`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 250));
+              }
+              throw new Error(`Task timed out: ${taskResult.value}`);
+            } catch (error) {
+              console.error(chalk.red(`   ${op.name}: ${error instanceof Error ? error.message : String(error)}`));
               progress.completeAgent(op.id, false);
               return { id: op.id, success: false };
             }
