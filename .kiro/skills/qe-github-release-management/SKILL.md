@@ -1,8 +1,7 @@
 ---
 inclusion: auto
 name: qe-github-release-management
-description: "Comprehensive GitHub release orchestration with AI swarm coordination for automated versioning, testing, deployment, and rollback management"
-tags: [release, deployment, versioning, automation, ci-cd, swarm, orchestration]
+description: "|"
 ---
 
 # GitHub Release Management Skill
@@ -686,12 +685,12 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'

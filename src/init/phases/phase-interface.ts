@@ -140,6 +140,10 @@ export interface InitOptions {
   codexGuidance?: 'full' | 'compact' | 'none';
   /** Install Windsurf MCP config and rules */
   withWindsurf?: boolean;
+  /** Install Prime Agent skills, aqe-fleet subagents, and AGENTS.md guidance */
+  withPrimeAgent?: boolean;
+  /** Prime Agent MCP wiring: execute `prime-agent mcp add` when the binary is on PATH (default: instruct-only) */
+  primeAgentAutoMcp?: boolean;
   /** Install Continue.dev MCP config and rules */
   withContinueDev?: boolean;
   /** Install all coding agent platform configurations */

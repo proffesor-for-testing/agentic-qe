@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-iterative-loop
-description: "Quality Engineering iteration loops for autonomous test improvement, coverage achievement, and quality gate compliance. Use when tests need to pass, coverage targets must be met, quality gates require compliance, or flaky tests need stabilization. Integrates with AQE v3 fleet agents for coordinated quality iteration."
+description: "Runs autonomous red-green-refactor loops to fix failing tests, reach coverage targets, and satisfy quality gates. Use when tests need to pass, coverage thresholds must be met, quality gates require compliance, or flaky tests need stabilization."
 ---
 
 # QE Iterative Loop

@@ -18,11 +18,23 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import {
+  assertOwnedSectionsWellFormed,
+  hasAnyOwnedSection,
+  markOwnedSection,
+  measureOwnedSection,
+  mergeOwnedSection,
+  ownedSectionStart,
+  removeOwnedSections,
+} from './agents-md-section.js';
 import { selectCodexSkills } from './codex-skill-manifest.js';
 import {
   createPlatformConfigGenerator,
   type PlatformConfigGenerator,
 } from './platform-config-generator.js';
+
+/** Sentinel id for the AQE-owned AGENTS.md guidance section. */
+const CODEX_SECTION_ID = 'CODEX';
 
 // ============================================================================
 // Types
@@ -88,8 +100,6 @@ export class CodexInstaller {
   private options: CodexInstallerOptions;
   private generator: PlatformConfigGenerator;
 
-  private static readonly AGENTS_START = '<!-- BEGIN AGENTIC-QE CODEX -->';
-  private static readonly AGENTS_END = '<!-- END AGENTIC-QE CODEX -->';
 
   constructor(options: CodexInstallerOptions) {
     this.projectRoot = options.projectRoot;
@@ -176,23 +186,32 @@ export class CodexInstaller {
         result.agentsMdInstalled = true;
         result.ownedGuidanceBytes = Buffer.byteLength(marked);
         result.components.rules.status = 'installed';
-      } else if (this.overwrite || policy === 'compact') {
-        const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+      } else {
         const existing = readFileSync(agentsMdPath, 'utf-8');
-        const merged = this.mergeExistingAgentsMdContent(existing, content);
-        if (merged !== existing) {
-          writeFileSync(agentsMdPath, merged);
-          result.agentsMdInstalled = true;
-          result.components.rules.status = 'updated';
+        // Merge the owned section into an AGENTS.md that another AQE
+        // installer already wrote or maintained (e.g. the Prime Agent
+        // installer, which runs first in the assets phase), even without
+        // --overwrite: the shared merge replaces only the sentinel-marked
+        // Codex section and never touches user content. A user-authored
+        // AGENTS.md without AQE sentinels is left untouched without
+        // --overwrite (preserving the documented skip behavior).
+        const hasCodexSection = existing.includes(ownedSectionStart(CODEX_SECTION_ID));
+        const mergeIntoAqeFile = !hasCodexSection && hasAnyOwnedSection(existing);
+        if (this.overwrite || policy === 'compact' || mergeIntoAqeFile) {
+          const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+          const merged = this.mergeExistingAgentsMdContent(existing, content);
+          if (merged !== existing) {
+            writeFileSync(agentsMdPath, merged);
+            result.agentsMdInstalled = true;
+            result.components.rules.status = 'updated';
+          } else {
+            result.components.rules.status = 'preserved';
+          }
+          result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
         } else {
           result.components.rules.status = 'preserved';
+          result.ownedGuidanceBytes = this.measureOwnedAgentsSection(existing);
         }
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
-      } else {
-        result.components.rules.status = 'preserved';
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(
-          readFileSync(agentsMdPath, 'utf-8'),
-        );
       }
     } catch (error) {
       this.recordComponentFailure(result, 'rules', error);
@@ -419,47 +438,23 @@ export class CodexInstaller {
    * Replaces a previously marked AQE section or appends a new marked section.
    */
   private mergeExistingAgentsMdContent(existing: string, newContent: string): string {
-    this.assertOwnedAgentsSectionsWellFormed(existing);
-    const eol = existing.includes('\r\n') ? '\r\n' : '\n';
-    const marked = this.markAgentsSection(newContent, eol);
-    let replaced = false;
-    const merged = existing.replace(this.ownedAgentsPattern(), () => {
-      if (replaced) return '';
-      replaced = true;
-      return marked;
-    });
-    if (replaced) return merged;
-    if (existing.length === 0) return marked;
-    return existing.trimEnd() + `${eol}${eol}---${eol}${eol}` + marked;
+    return mergeOwnedSection(existing, newContent, CODEX_SECTION_ID, 'Codex');
   }
 
   private removeOwnedAgentsSections(existing: string): string {
-    this.assertOwnedAgentsSectionsWellFormed(existing);
-    return existing.replace(this.ownedAgentsPattern(), '');
+    return removeOwnedSections(existing, CODEX_SECTION_ID, 'Codex');
   }
 
   private measureOwnedAgentsSection(content: string): number {
-    this.assertOwnedAgentsSectionsWellFormed(content);
-    const match = content.match(this.ownedAgentsPattern());
-    return match ? Buffer.byteLength(match[0]) : 0;
+    return measureOwnedSection(content, CODEX_SECTION_ID, 'Codex');
   }
 
   private assertOwnedAgentsSectionsWellFormed(content: string): void {
-    const starts = content.match(/<!-- BEGIN AGENTIC-QE CODEX -->/g)?.length ?? 0;
-    const ends = content.match(/<!-- END AGENTIC-QE CODEX -->/g)?.length ?? 0;
-    const complete = content.match(this.ownedAgentsPattern())?.length ?? 0;
-    if (starts !== ends || complete !== starts) {
-      throw new Error('Malformed Agentic QE Codex sentinel in AGENTS.md; file was preserved');
-    }
-  }
-
-  private ownedAgentsPattern(): RegExp {
-    return /<!-- BEGIN AGENTIC-QE CODEX -->[\s\S]*?<!-- END AGENTIC-QE CODEX -->(?:\r?\n)?/g;
+    assertOwnedSectionsWellFormed(content, CODEX_SECTION_ID, 'Codex');
   }
 
   private markAgentsSection(content: string, eol = '\n'): string {
-    const normalized = content.trim().replace(/\r?\n/g, eol);
-    return `${CodexInstaller.AGENTS_START}${eol}${normalized}${eol}${CodexInstaller.AGENTS_END}${eol}`;
+    return markOwnedSection(content, CODEX_SECTION_ID, eol);
   }
 }
 

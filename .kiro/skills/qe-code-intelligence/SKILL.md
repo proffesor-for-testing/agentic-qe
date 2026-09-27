@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-code-intelligence
-description: "Knowledge graph-based code understanding with semantic search and 80% token reduction through intelligent context retrieval."
+description: "Builds semantic code indexes, maps dependency graphs, and performs intelligent code search across large codebases. Use when understanding unfamiliar code, tracing call chains, analyzing import dependencies, or reducing context window usage through targeted retrieval."
 ---
 
 # QE Code Intelligence
@@ -214,6 +214,14 @@ aqe code deps src/ --depth 5
 # Complexity metrics and hotspots
 aqe code complexity src/ --format json
 ```
+
+## Gotchas
+
+- WARNING: code-intelligence domain has 18% success rate — prefer direct grep/glob over agent-based code search for simple queries
+- Knowledge graph construction fails on repos >50K LOC — scope to specific modules
+- Semantic search returns irrelevant results without domain-specific embeddings — always verify search results manually
+- Agent claims "80% token reduction" but may skip critical context — verify key files are included in results
+- Fleet must be initialized before using: run `aqe health` to diagnose, or `aqe init` to re-initialize if you get initialization errors
 
 ## Coordination
 

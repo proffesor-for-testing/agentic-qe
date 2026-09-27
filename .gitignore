@@ -256,6 +256,7 @@ reports/dependency-audit.json
 reports/dependency-audit.md
 reports/dependency-update.json
 reports/dependency-update.md
+reports/verification-counts.json
 # Transient benchmark/eval run outputs — canonical evidence is force-added below
 benchmarks/interaction/results/*
 tests/safety/behavioral/results/*

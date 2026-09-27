@@ -1,4 +1,6 @@
 # Agentic QE MCP Server
+
+# Agentic QE MCP Server
 [mcp_servers.agentic-qe]
 type = "stdio"
 command = "npx"

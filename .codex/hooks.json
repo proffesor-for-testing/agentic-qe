@@ -10,12 +10,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" session-start",
             "timeout": 30,
             "statusMessage": "Loading AQE learning context"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" session-restore",
-            "timeout": 15,
-            "statusMessage": "Restoring ruflo coordination context"
           }
         ]
       }
@@ -28,12 +22,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" route",
             "timeout": 30,
             "statusMessage": "Routing through the AQE fleet"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" route",
-            "timeout": 15,
-            "statusMessage": "Recording ruflo task routing"
           }
         ]
       }
@@ -47,12 +35,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" pre-command",
             "timeout": 30,
             "statusMessage": "Applying AQE command guardrails"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" pre-command",
-            "timeout": 15,
-            "statusMessage": "Assessing command risk with ruflo"
           }
         ]
       },
@@ -64,12 +46,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" pre-edit",
             "timeout": 30,
             "statusMessage": "Applying AQE edit guardrails"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" pre-edit",
-            "timeout": 15,
-            "statusMessage": "Loading ruflo edit context"
           }
         ]
       }
@@ -83,12 +59,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" post-command",
             "timeout": 30,
             "statusMessage": "Recording AQE command outcome"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" post-command",
-            "timeout": 15,
-            "statusMessage": "Recording command outcome in ruflo"
           }
         ]
       },
@@ -100,53 +70,13 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" post-edit",
             "timeout": 30,
             "statusMessage": "Recording AQE edit outcome"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" post-edit",
-            "timeout": 15,
-            "statusMessage": "Recording edit outcome in ruflo"
           }
         ]
       }
     ],
-    "PreCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" session-end",
-            "timeout": 15,
-            "statusMessage": "Checkpointing ruflo state before compaction"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" pre-task",
-            "timeout": 15,
-            "statusMessage": "Registering subagent task with ruflo"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" post-task",
-            "timeout": 15,
-            "statusMessage": "Recording subagent outcome in ruflo"
-          }
-        ]
-      }
-    ],
+    "PreCompact": [],
+    "SubagentStart": [],
+    "SubagentStop": [],
     "Stop": [
       {
         "hooks": [
@@ -155,12 +85,6 @@
             "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/aqe-codex-hook.cjs\" stop",
             "timeout": 60,
             "statusMessage": "Closing AQE learning outcome and saving session state"
-          },
-          {
-            "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/ruflo-codex-hook.cjs\" session-end",
-            "timeout": 15,
-            "statusMessage": "Saving ruflo session state"
           }
         ]
       }

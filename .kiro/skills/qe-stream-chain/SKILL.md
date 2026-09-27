@@ -2,7 +2,6 @@
 inclusion: auto
 name: qe-stream-chain
 description: "Stream-JSON chaining for multi-agent pipelines, data transformation, and sequential workflows"
-tags: [streaming, pipeline, chaining, multi-agent, workflow]
 ---
 
 # Stream-Chain Skill

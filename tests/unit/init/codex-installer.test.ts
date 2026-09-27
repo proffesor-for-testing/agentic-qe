@@ -471,6 +471,58 @@ web_search = true
       )).toBe(false);
     });
 
+    it('merges its owned section into an AGENTS.md another AQE installer wrote', async () => {
+      // Reproduces the Prime-Agent-first ordering bug: AGENTS.md exists (no
+      // Codex section), overwrite is false, yet the Codex guidance must be
+      // merged in rather than silently skipped.
+      const existingAgentsMd = '# Project\n\nUser content stays.\n\n' +
+        '<!-- BEGIN AGENTIC-QE PRIME-AGENT -->\nPrime Agent rules\n<!-- END AGENTIC-QE PRIME-AGENT -->\n';
+      // Only AGENTS.md exists; packaged hooks/skills stay unavailable so the
+      // install result is driven by the rules component alone.
+      mockExistsSync.mockImplementation((value: unknown) => String(value).endsWith('AGENTS.md'));
+      mockReadFileSync.mockImplementation((value: unknown) =>
+        String(value).endsWith('AGENTS.md') ? existingAgentsMd : '',
+      );
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, overwrite: false }).install();
+
+      expect(result.success).toBe(true);
+      expect(result.agentsMdInstalled).toBe(true);
+      expect(result.components.rules.status).toBe('updated');
+      expect(result.ownedGuidanceBytes).toBeGreaterThan(0);
+
+      const rulesCall = mockWriteFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[0]).endsWith('AGENTS.md'),
+      );
+      const content = rulesCall![1] as string;
+      expect(content).toContain('User content stays.');
+      expect(content.match(/BEGIN AGENTIC-QE PRIME-AGENT/g)).toHaveLength(1);
+      expect(content.match(/BEGIN AGENTIC-QE CODEX/g)).toHaveLength(1);
+    });
+
+    it('does not touch a user-authored AGENTS.md without overwrite', async () => {
+      // The AQE-sentinel merge path must stay conservative: no AQE section
+      // in the file means the user wrote it, so a plain install leaves it
+      // alone (same shipped behavior as before the Prime Agent interplay fix).
+      const existingAgentsMd = '# Project\n\nHand-written guidance only.\n';
+      mockExistsSync.mockImplementation((value: unknown) => String(value).endsWith('AGENTS.md'));
+      mockReadFileSync.mockImplementation((value: unknown) =>
+        String(value).endsWith('AGENTS.md') ? existingAgentsMd : '',
+      );
+
+      const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
+      const result = await createCodexInstaller({ projectRoot, overwrite: false }).install();
+
+      expect(result.success).toBe(true);
+      expect(result.components.rules.status).toBe('preserved');
+      expect(
+        mockWriteFileSync.mock.calls.some(
+          (c: unknown[]) => String(c[0]).endsWith('AGENTS.md'),
+        ),
+      ).toBe(false);
+    });
+
     it('replaces only a marked AQE AGENTS section and preserves user references', async () => {
       mockExistsSync.mockReturnValue(true);
       const existingAgentsMd = '# Project\n\nUse fleet_init in our own docs.\n\n' +

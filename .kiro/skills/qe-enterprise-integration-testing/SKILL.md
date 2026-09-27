@@ -1,11 +1,15 @@
 ---
 inclusion: auto
 name: qe-enterprise-integration-testing
-description: "Orchestration skill for enterprise integration testing across SAP, middleware, WMS, and backend systems. Covers E2E enterprise flows, SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), cross-system data validation, and enterprise quality gates."
+description: "Use when testing enterprise integrations across SAP, middleware, WMS, or backend systems, validating E2E enterprise flows, testing SAP-specific patterns (RFC, BAPI, IDoc, OData, Fiori), or enforcing cross-system quality gates."
 tags: [enterprise, sap, esb, middleware, integration, e2e, order-to-cash]
 ---
 
 # Enterprise Integration Testing
+
+## Browser engine
+
+UI-level enterprise integration checks (SAP Fiori launchpad smoke tests, admin UI validation) should use the **qe-browser** fleet skill. RFC/BAPI/IDoc/OData/SOAP testing continues to use the dedicated `qe-soap-tester`, `qe-sap-rfc-tester`, `qe-sap-idoc-tester`, and `qe-odata-contract-tester` agents. See `.claude/skills/qe-browser/SKILL.md`.
 
 <default_to_action>
 When testing enterprise integrations or SAP-connected systems:
@@ -65,7 +69,7 @@ When testing enterprise integrations or SAP-connected systems:
 ### Tools
 - **SAP**: SAP GUI, Transaction codes (SE37, WE19, SEGW), Eclipse ADT
 - **Middleware**: IBM IIB/ACE, MuleSoft, SAP PI/PO/CPI
-- **Testing**: SoapUI, Postman, Playwright, custom harnesses
+- **Testing**: SoapUI, Postman, qe-browser (via Vibium for Fiori/web UIs), custom harnesses
 - **Monitoring**: SAP Solution Manager, Splunk, Dynatrace
 - **Data**: SAP LSMW, SECATT, eCATT
 

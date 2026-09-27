@@ -1,0 +1,4 @@
+interface:
+  display_name: "AQE Review Quality"
+  short_description: "Assess change risk and enforce AQE quality gates"
+  default_prompt: "Use $aqe-review-quality to review this change and produce a quality verdict."

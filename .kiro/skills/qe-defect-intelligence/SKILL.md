@@ -1,7 +1,7 @@
 ---
 inclusion: auto
 name: qe-defect-intelligence
-description: "AI-powered defect prediction, pattern learning, and root cause analysis for proactive quality management."
+description: "Predicts defect-prone code using change frequency, complexity metrics, and historical bug patterns. Use when predicting defects before they escape, analyzing root causes of test failures, learning from past defect patterns, or implementing proactive quality management."
 ---
 
 # QE Defect Intelligence

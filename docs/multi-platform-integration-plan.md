@@ -235,7 +235,7 @@ AQE_V3_MODE = "true"
 **Timeline**: 3-5 days (parallel)
 **Status**: [x] Complete
 
-- [x] `docs/platform-setup-guide.md` -- per-platform setup instructions (all 11 platforms)
+- [x] `docs/platform-setup-guide.md` -- per-platform setup instructions (all 12 platforms; Prime Agent added via ADR-132)
 - [x] Per-platform quickstart in setup guide (automated + manual for each)
 - [ ] ADR-028: Multi-Platform Support decision record (deferred)
 

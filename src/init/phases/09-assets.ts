@@ -283,6 +283,38 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       }
     }
 
+    // Install Prime Agent platform (optional)
+    const autoPrimeAgent = options.autoMode && existsSync(join(projectRoot, '.prime'));
+    if (options.withPrimeAgent || autoPrimeAgent) {
+      const { createPrimeAgentInstaller } = await import('../primeagent-installer.js');
+      const primeAgentInstaller = createPrimeAgentInstaller({
+        projectRoot,
+        overwrite: shouldOverwrite,
+        // --no-mcp skips the MCP step for Prime Agent too (flag parity with
+        // the other platforms); otherwise instruct by default, auto opt-in.
+        installMcp: options.noMcp
+          ? 'none'
+          : options.primeAgentAutoMcp
+            ? 'auto'
+            : 'instruct',
+        includeRuflo: options.withRuflo,
+        memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
+      });
+
+      const paResult = await primeAgentInstaller.install();
+      if (paResult.errors.length > 0) {
+        context.services.warn(`Prime Agent warnings: ${paResult.errors.join(', ')}`);
+      }
+
+      context.services.log(`  Prime Agent skills: ${paResult.skillsInstalled}`);
+      context.services.log(`  Prime Agent subagents: ${paResult.subagentsSeeded}`);
+      if (paResult.mcpAdded) {
+        context.services.log('  Prime Agent MCP: aqe (user settings)');
+      } else if (paResult.mcpCommand) {
+        context.services.log('  Prime Agent MCP (run once): ' + paResult.mcpCommand);
+      }
+    }
+
     // Install additional coding agent platforms (P1: JSON-based MCP)
     const platformsConfigured: string[] = [];
 

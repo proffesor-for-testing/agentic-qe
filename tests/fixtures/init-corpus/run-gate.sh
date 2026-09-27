@@ -44,6 +44,19 @@ for tool in jq node npm sha256sum tar; do
   fi
 done
 
+# GNU coreutils 'timeout' is not part of stock macOS (only gtimeout via
+# Homebrew coreutils). Resolve whichever variant exists and fail fast with
+# a setup error — otherwise every fixture reports a misleading
+# "A7-exit-127" (127 is the shell's command-not-found code, not an aqe
+# init failure).
+TIMEOUT_BIN="$(command -v timeout || command -v gtimeout || true)"
+if [[ -z "${TIMEOUT_BIN}" ]]; then
+  echo "ERROR: required tool 'timeout' not found in PATH." >&2
+  echo "  On macOS install GNU coreutils (brew install coreutils) to get" >&2
+  echo "  gtimeout/timeout, or run this gate on Linux/CI." >&2
+  exit 1
+fi
+
 # ---------------------------------------------------------------------------
 # Install source — local .tgz or npm registry
 # ---------------------------------------------------------------------------
@@ -295,9 +308,9 @@ run_one() {
   local start_ts
   start_ts=$(date +%s)
 
-  echo "[gate]   running: timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
+  echo "[gate]   running: ${TIMEOUT_BIN} ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
   local init_exit=0
-  timeout --signal=KILL "${timeout_sec}" \
+  "${TIMEOUT_BIN}" --signal=KILL "${timeout_sec}" \
     "${AQE_BINARY}" init --auto --json \
     >"${json}" 2>>"${log}" || init_exit=$?
 
@@ -585,11 +598,11 @@ run_one() {
   # second time in the same cleanroom and assert it also succeeds.
   # This is the only place in the corpus that exercises the delta path.
   if [[ "${double_init}" == "true" ]]; then
-    echo "[gate]   running second init (delta-scan path): timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
+    echo "[gate]   running second init (delta-scan path): ${TIMEOUT_BIN} ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
     local start2_ts
     start2_ts=$(date +%s)
     local init2_exit=0
-    timeout --signal=KILL "${timeout_sec}" \
+    "${TIMEOUT_BIN}" --signal=KILL "${timeout_sec}" \
       "${AQE_BINARY}" init --auto --json \
       >"${json2}" 2>>"${log}" || init2_exit=$?
     local elapsed2=$(( $(date +%s) - start2_ts ))

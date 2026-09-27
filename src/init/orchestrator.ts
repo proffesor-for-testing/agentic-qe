@@ -67,6 +67,8 @@ export class ModularInitOrchestrator {
         codexGuidance: options.codexGuidance,
         withWindsurf: options.withWindsurf || allPlatforms,
         withContinueDev: options.withContinueDev || allPlatforms,
+        withPrimeAgent: options.withPrimeAgent || allPlatforms,
+        primeAgentAutoMcp: options.primeAgentAutoMcp,
         withAllPlatforms: options.withAllPlatforms,
         n8nApiConfig: options.n8nApiConfig,
         wizardAnswers: options.wizardAnswers,
