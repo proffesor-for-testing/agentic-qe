@@ -393,7 +393,7 @@ describe('Settings Merge Utilities', () => {
     it('removes stale database settings when switching to explicit memory mode', () => {
       const existing = {
         MY_SETTING: 'preserve', AQE_MEMORY_BACKEND: 'sqlite',
-        AQE_MEMORY_PATH: '/previous/memory.db', AQE_V3_REASONING_BANK: '/previous/memory.db',
+        AQE_MEMORY_PATH: '.agentic-qe/memory.db', AQE_V3_REASONING_BANK: '.agentic-qe/memory.db',
         AQE_LEARNING_ENABLED: 'true', AQE_WORKERS_ENABLED: 'true',
       };
       const generated = generateAqeEnvVars({ learning: { enabled: true } } as any, { memoryBackend: 'memory' });

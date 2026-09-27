@@ -131,11 +131,21 @@ export function mergeAqeEnv(
   if (options.memoryBackend === 'memory') {
     // An explicit --no-database re-init must replace stale AQE persistence
     // settings, even if the previous init wrote them into this env block.
-    delete merged.AQE_MEMORY_PATH;
-    delete merged.AQE_V3_REASONING_BANK;
+    // Custom paths remain inert under the memory backend and are needed when
+    // switching back. Only discard AQE's generated database locations.
+    for (const key of ['AQE_MEMORY_PATH', 'AQE_V3_REASONING_BANK']) {
+      if (merged[key] === '.agentic-qe/memory.db') delete merged[key];
+    }
     merged.AQE_MEMORY_BACKEND = 'memory';
     merged.AQE_LEARNING_ENABLED = 'false';
     merged.AQE_WORKERS_ENABLED = 'false';
+  } else if (existingEnv?.AQE_MEMORY_BACKEND === 'memory') {
+    // Undo the overrides written by memory-mode init. Ordinary user overrides
+    // still win when there is no memory-mode marker.
+    for (const key of ['AQE_MEMORY_BACKEND', 'AQE_LEARNING_ENABLED', 'AQE_WORKERS_ENABLED']) {
+      if (Object.prototype.hasOwnProperty.call(aqeEnv, key)) merged[key] = aqeEnv[key];
+      else delete merged[key];
+    }
   }
   return merged;
 }
