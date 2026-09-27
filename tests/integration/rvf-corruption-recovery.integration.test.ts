@@ -408,7 +408,7 @@ describe('Unusable-store quarantine (#563)', () => {
     // A stale lock: well-formed, but its owning process is long gone.
     writeFileSync(`${rvfPath}.lock`, lockRecord(0x7ffffffe));
 
-    const quarantined = quarantineUnusableStore(rvfPath, 'test');
+    const quarantined = quarantineUnusableStore(rvfPath, 'test', new Error('ManifestNotFound'));
 
     expect(quarantined).toBe(`${rvfPath}.corrupt-${process.pid}`);
     // The live paths are clear, so the next create can succeed...
@@ -430,7 +430,7 @@ describe('Unusable-store quarantine (#563)', () => {
     writeFileSync(`${rvfPath}.lock`, lockRecord(process.ppid));
 
     expect(isLockHeldByLiveProcess(rvfPath)).toBe(true);
-    expect(quarantineUnusableStore(rvfPath, 'test')).toBeNull();
+    expect(quarantineUnusableStore(rvfPath, 'test', new Error('ManifestNotFound'))).toBeNull();
     expect(existsSync(rvfPath)).toBe(true);
     expect(existsSync(`${rvfPath}.lock`)).toBe(true);
   });
@@ -454,7 +454,7 @@ describe('Unusable-store quarantine (#563)', () => {
 
   it('does nothing when there is no store to quarantine', () => {
     const dir = workDir();
-    expect(quarantineUnusableStore(join(dir, 'absent.rvf'), 'test')).toBeNull();
+    expect(quarantineUnusableStore(join(dir, 'absent.rvf'), 'test', new Error('ManifestNotFound'))).toBeNull();
   });
 
   it('treats a current-process lock as live so duplicate openers cannot break it', () => {
@@ -474,7 +474,7 @@ describe('Unusable-store quarantine (#563)', () => {
     writeFileSync(rvfPath, Buffer.concat([Buffer.from('SFVR'), Buffer.alloc(158)]));
     writeFileSync(`${rvfPath}.lock`, lockRecord(process.pid));
 
-    expect(quarantineUnusableStore(rvfPath, 'duplicate same-process opener')).toBeNull();
+    expect(quarantineUnusableStore(rvfPath, 'duplicate same-process opener', new Error('ManifestNotFound'))).toBeNull();
     expect(existsSync(rvfPath)).toBe(true);
     expect(existsSync(`${rvfPath}.lock`)).toBe(true);
     expect(existsSync(`${rvfPath}.corrupt-${process.pid}`)).toBe(false);

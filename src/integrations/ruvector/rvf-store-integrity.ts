@@ -20,9 +20,9 @@
  *     the store magic is `SFVR`; a 104-byte `FLVR` lock is just a live-or-stale
  *     lock record.
  *
- * So the only sound trigger is "open failed *and* create failed": at that point
- * the file is provably unusable. The lock's pid is used as a *guard* — if it is
- * held by a live process, the store is presumed healthy and left alone.
+ * A failed open must be inspected before recovery. `LockHeld` plus a failed
+ * create says nothing about the store's integrity: create refuses to replace
+ * any existing path. Only a structural open failure can justify quarantine.
  */
 
 import { existsSync, openSync, readSync, closeSync, renameSync, unlinkSync } from 'fs';
@@ -90,18 +90,48 @@ export function isLockHeldByLiveProcess(rvfPath: string): boolean {
   return isPidAlive(pid);
 }
 
+/** The native binding's exclusive-lock failure (never evidence of corruption). */
+export function isRvfLockHeldError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.includes('LockHeld') || message.includes('0x0300');
+}
+
+/** Only known structural open errors permit replacing a derived cache. */
+export function isRvfStructuralError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /ManifestNotFound|InvalidMagic|ChecksumMismatch|CorruptStore/i.test(message);
+}
+
+/** Reclaim a lock only when its record names a process known to have exited. */
+export function removeStaleRvfLock(rvfPath: string): boolean {
+  const pid = readLockOwnerPid(rvfPath);
+  if (pid === null || isPidAlive(pid)) return false;
+  try {
+    // A concurrent owner could have replaced the record since the first read.
+    if (readLockOwnerPid(rvfPath) !== pid) return false;
+    unlinkSync(`${rvfPath}.lock`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Move an unusable store and its sidecars aside so the next create succeeds.
  * Returns the quarantine base path, or null if nothing was quarantined.
  *
- * Only call this once open *and* create have both failed — that is the proof
- * the file is unusable. The store is a derived cache, rebuilt from the unified
- * DB, so quarantining is recoverable; we move rather than delete because the
- * bytes may hold writes that never reached SQLite, and they are the only
- * evidence if this recurs.
+ * Call only after a structural open failure and failed create/re-open. The
+ * store is a derived cache, rebuilt from the unified DB; we move rather than
+ * delete because the bytes may hold writes that never reached SQLite and are
+ * the only evidence if this recurs.
  */
-export function quarantineUnusableStore(rvfPath: string, reason: string): string | null {
+export function quarantineUnusableStore(rvfPath: string, reason: string, openError: unknown): string | null {
   if (!existsSync(rvfPath)) return null;
+
+  // Native create reports FsyncFailed for *every* existing path, including a
+  // healthy one. A last observed LockHeld, permission, or I/O error must never
+  // trigger quarantine even when the owner exits before this check.
+  if (!isRvfStructuralError(openError)) return null;
 
   // Never pull a store out from under a live peer.
   if (isLockHeldByLiveProcess(rvfPath)) {
