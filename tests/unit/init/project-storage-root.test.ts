@@ -36,6 +36,27 @@ describe('project storage from nested working directories (#735)', () => {
     expect(configure).toHaveBeenCalledWith(expect.objectContaining({ filePath: join(root, '.agentic-qe', 'token-metrics.json') }));
   });
 
+  it('isolates bootstrap for a new git project below an ancestor AQE store', async () => {
+    const project = join(root, 'new-project');
+    mkdirSync(join(project, '.git'), {recursive: true});
+    mkdirSync(join(project, 'src'));
+    vi.spyOn(process, 'cwd').mockReturnValue(join(project, 'src'));
+    const configure = vi.spyOn(TokenMetricsCollector, 'configurePersistence');
+    await bootstrapTokenTracking({enableOptimization: false});
+    expect(configure).toHaveBeenCalledWith(expect.objectContaining({filePath: join(project, '.agentic-qe', 'token-metrics.json')}));
+    expect(existsSync(join(project, 'src', '.agentic-qe'))).toBe(false);
+  });
+
+  it('resolves relative embedder memory overrides from the project root', () => {
+    vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'sub'));
+    vi.stubEnv('AQE_MEMORY_PATH', 'custom/identity.db');
+    const identity = {fingerprint: 'relative-path', dim: 3, endpoint: 'http://localhost:9999'};
+    saveEmbedderIdentity(identity);
+    expect(loadEmbedderIdentity(identity.endpoint)).toEqual(identity);
+    expect(existsSync(join(root, 'custom', 'identity.db'))).toBe(true);
+    expect(existsSync(join(root, 'sub', 'custom'))).toBe(false);
+  });
+
   it('honors an explicit project root before bootstrap creates a directory', async () => {
     vi.stubEnv('AQE_PROJECT_ROOT', root);
     vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'sub'));
