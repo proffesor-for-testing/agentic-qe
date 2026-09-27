@@ -23,7 +23,12 @@
     "zod": "^3.22.4"
   },
   "overrides": {
+    "@opentelemetry/core": ">=2.8.0",
+    "@opentelemetry/propagator-jaeger": ">=2.9.0",
+    "@opentelemetry/resources": ">=2.8.0",
     "protobufjs": "^7.5.5",
+    "sharp": ">=0.35.4",
+    "toml": "^4.2.0",
     "uuid": ">=11.1.1",
     "ws": ">=8.21.0"
   },

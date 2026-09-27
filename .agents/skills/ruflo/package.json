@@ -122,8 +122,9 @@
     "form-data": ">=4.0.6",
     "http-proxy-middleware": ">=3.0.7",
     "@ruvector/ruvllm": ">=2.6.0",
-    "adm-zip": ">=0.6.0",
-    "sharp": ">=0.35.4"
+    "adm-zip": ">=0.6.1",
+    "sharp": ">=0.35.4",
+    "toml": "^4.2.0"
   },
   "devDependencies": {
     "@openai/codex": "^0.98.0",
@@ -138,11 +139,14 @@
     "overrides": {
       "@opentelemetry/core": ">=2.8.0",
       "@opentelemetry/propagator-jaeger": ">=2.9.0",
-      "adm-zip": ">=0.6.0",
+      "adm-zip": ">=0.6.1",
       "better-sqlite3": "12.9.0",
+      "fast-uri": "^3.1.6",
       "hono": ">=4.13.5",
       "protobufjs": "^7.5.5",
+      "qs": ">=6.16.0",
       "sharp": ">=0.35.4",
+      "toml": "^4.2.0",
       "uuid": ">=11.1.1"
     }
   },
