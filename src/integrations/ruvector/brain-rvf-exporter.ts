@@ -22,6 +22,7 @@ import {
   domainFilterForColumn,
   ensureTargetTables,
   mergeGenericRow,
+  remapPatternReferences,
   mergeAppendOnlyRow,
   TABLE_CONFIGS,
   TABLE_BLOB_COLUMNS,
@@ -567,6 +568,8 @@ export function importBrainFromRvf(
 
     // Wrap entire import in a transaction for atomicity (Risk #3 from plan)
     const importAll = db.transaction(() => {
+      const patternIds = new Map<string, string>();
+      const patternWinners = new Map<string, string | null>();
       // Import in TABLE_CONFIGS order (FK-aware)
       for (const config of TABLE_CONFIGS) {
         let rows = tablesMap[config.tableName];
@@ -583,7 +586,8 @@ export function importBrainFromRvf(
           }
         }
 
-        for (const row of rows) {
+        for (const originalRow of rows) {
+          const row = remapPatternReferences(originalRow, patternIds);
           let result: MergeResult;
           if (config.dedupColumns && config.dedupColumns.length > 0) {
             result = mergeAppendOnlyRow(db, config.tableName, row, config.dedupColumns, config.preserveId);
@@ -592,7 +596,7 @@ export function importBrainFromRvf(
             const tsCol = TIMESTAMP_COLUMNS[config.tableName];
             const confCol = CONFIDENCE_COLUMNS[config.tableName];
             result = mergeGenericRow(db, config.tableName, row, idCol,
-              options.mergeStrategy, tsCol, confCol);
+              options.mergeStrategy, tsCol, confCol, patternIds, patternWinners, originalRow.pattern_id);
           }
           imported += result.imported;
           skipped += result.skipped;
