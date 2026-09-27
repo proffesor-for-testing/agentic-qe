@@ -757,6 +757,9 @@ export class MCPProtocolServer {
         ...(resultSucceeded ? {} : { isError: true }),
       };
     } catch (err) {
+      // Preserve the diagnostic for operators without exposing it in the MCP
+      // response or AG-UI event. Stderr keeps stdio protocol output valid.
+      console.error(`[MCP] Tool ${name} failed:`, err);
       const error = err instanceof Error ? err : new Error('Tool execution failed');
 
       // IMP-08: Detect context overflow (413) and trigger reactive compaction

@@ -17,6 +17,7 @@ describe('MCP tool error semantics', () => {
 
   afterEach(async () => {
     await server.stop();
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
@@ -63,7 +64,9 @@ describe('MCP tool error semantics', () => {
   });
 
   it('marks thrown handler failures as errors without exposing private details', async () => {
-    register(async () => { throw new Error('token=private-secret /private/project/file.ts'); });
+    const original = new Error('token=private-secret /private/project/file.ts');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    register(async () => { throw original; });
 
     const response = await call();
 
@@ -73,6 +76,18 @@ describe('MCP tool error semantics', () => {
     });
     expect(response.content[0].text).not.toContain('private-secret');
     expect(response.content[0].text).not.toContain('/private/project');
+    expect(log).toHaveBeenCalledWith('[MCP] Tool error_semantics_probe failed:', original);
+  });
+
+  it('retains non-Error thrown diagnostics on stderr only', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    register(async () => { throw 'private handler diagnostic'; });
+
+    const response = await call();
+
+    expect(log).toHaveBeenCalledWith('[MCP] Tool error_semantics_probe failed:', 'private handler diagnostic');
+    expect(response.isError).toBe(true);
+    expect(response.content[0].text).not.toContain('private handler diagnostic');
   });
 
   it.each(['preToolCall', 'postToolResult'] as const)(
