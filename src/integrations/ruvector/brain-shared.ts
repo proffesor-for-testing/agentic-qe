@@ -324,6 +324,18 @@ export function readJsonl<T = unknown>(
   return content.split('\n').map(parser);
 }
 
+/** Remap relational pattern references without rewriting signed witness payloads. */
+export function remapPatternReferences(
+  row: Record<string, unknown>, patternIds: ReadonlyMap<string, string>
+): Record<string, unknown> {
+  const mapped = { ...row };
+  for (const column of ['pattern_id', 'source_pattern_id', 'target_pattern_id']) {
+    const id = mapped[column];
+    if (typeof id === 'string' && patternIds.has(id)) mapped[column] = patternIds.get(id)!;
+  }
+  return mapped;
+}
+
 // --- Generic merge for TEXT PK tables ---
 
 /** Dynamically insert a row into any table using its column keys. */
@@ -357,19 +369,59 @@ function dynamicUpdate(
 export function mergeGenericRow(
   db: Database.Database, tableName: string, row: Record<string, unknown>,
   idColumn: string, strategy: MergeStrategy,
-  timestampColumn?: string, confidenceColumn?: string
+  timestampColumn?: string, confidenceColumn?: string,
+  patternIds?: Map<string, string>,
+  patternWinners?: Map<string, string | null>,
+  originalPatternId?: unknown
 ): MergeResult {
   const validated = validateTableName(tableName);
+  const incomingId = String(row.id);
   if (!tableExists(db, validated)) {
     dynamicInsert(db, validated, row);
     return { imported: 1, skipped: 0, conflicts: 0 };
   }
-  const existing = db.prepare(`SELECT * FROM ${validated} WHERE ${idColumn} = ?`)
+  let existing = db.prepare(`SELECT * FROM ${validated} WHERE ${idColumn} = ?`)
     .get(row[idColumn]) as Record<string, unknown> | undefined;
+  if (!existing && tableName === 'qe_patterns') {
+    existing = db.prepare(
+      'SELECT * FROM qe_patterns WHERE name = ? AND qe_domain = ? AND pattern_type = ?'
+    ).get(row.name, row.qe_domain, row.pattern_type) as Record<string, unknown> | undefined;
+  }
+  if (existing && tableName === 'qe_patterns') {
+    // Keep the destination identity: existing children must remain attached,
+    // and incoming children are remapped after all patterns have merged.
+    if (typeof row.id === 'string' && typeof existing.id === 'string') {
+      patternIds?.set(row.id, existing.id);
+    }
+    row = { ...row, id: existing.id };
+    if (!patternWinners?.has(String(existing.id))) patternWinners?.set(String(existing.id), null);
+  }
+  if (tableName === 'qe_pattern_embeddings' && patternWinners?.has(String(row.pattern_id))) {
+    if (patternWinners.get(String(row.pattern_id)) !== originalPatternId) {
+      return { imported: 0, skipped: 1, conflicts: existing ? 1 : 0 };
+    }
+    if (existing) dynamicUpdate(db, validated, row, idColumn);
+    else dynamicInsert(db, validated, row);
+    return { imported: 1, skipped: 0, conflicts: existing ? 1 : 0 };
+  }
   if (!existing) {
+    if (tableName === 'qe_patterns') patternWinners?.set(String(row.id), incomingId);
     dynamicInsert(db, validated, row);
     return { imported: 1, skipped: 0, conflicts: 0 };
   }
+  const replaceExisting = (): void => {
+    if (tableName === 'qe_patterns' && patternWinners) {
+      patternWinners.set(String(row.id), incomingId);
+      // An embedding describes pattern content, not its confidence or usage.
+      // Keep a valid vector for metadata-only updates when no vector is supplied.
+      const contentColumns = ['name', 'description', 'pattern_type', 'qe_domain', 'domain', 'template_json', 'context_json'];
+      if (contentColumns.some(column => Object.hasOwn(row, column) && (row[column] ?? null) !== (existing![column] ?? null)) &&
+          tableExists(db, 'qe_pattern_embeddings')) {
+        db.prepare('DELETE FROM qe_pattern_embeddings WHERE pattern_id = ?').run(row.id);
+      }
+    }
+    dynamicUpdate(db, validated, row, idColumn);
+  };
   switch (strategy) {
     case 'skip-conflicts':
       return { imported: 0, skipped: 1, conflicts: 1 };
@@ -378,7 +430,7 @@ export function mergeGenericRow(
       const existingTime = (existing[ts] as string) || '';
       const incomingTime = (row[ts] as string) || '';
       if (incomingTime > existingTime) {
-        dynamicUpdate(db, validated, row, idColumn);
+        replaceExisting();
         return { imported: 1, skipped: 0, conflicts: 1 };
       }
       return { imported: 0, skipped: 1, conflicts: 1 };
@@ -387,7 +439,7 @@ export function mergeGenericRow(
       const cc = confidenceColumn || 'confidence';
       if (typeof row[cc] === 'number' && typeof existing[cc] === 'number') {
         if ((row[cc] as number) > (existing[cc] as number)) {
-          dynamicUpdate(db, validated, row, idColumn);
+          replaceExisting();
           return { imported: 1, skipped: 0, conflicts: 1 };
         }
       }

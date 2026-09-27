@@ -1,5 +1,9 @@
 # Agentic QE v3 - Daily QE Pipeline Example
 # Deterministic pipeline: zero LLM tokens (Imp-9)
+# Run gated pipelines through one MCP server: pipeline_load, then pipeline_run.
+# Resolve deploy-approval with pipeline_approve({ executionId, stepId: "deploy-approval" })
+# or pipeline_reject({ executionId, stepId: "deploy-approval", reason: "..." }).
+# Use the executionId returned by pipeline_run; unanswered gates expire.
 
 id: daily-qe-pipeline
 name: Daily QE Pipeline
@@ -49,7 +53,7 @@ steps:
     action: gate-check
     dependsOn: [quality-gate]
     approval:
-      autoApproveAfter: 300000
+      expiresAfter: 300000
       message: "All quality checks passed. Approve deployment?"
     condition:
       path: "results.quality-gate.passed"

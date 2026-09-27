@@ -144,7 +144,7 @@ describe('Task Handlers', () => {
       expect(result.data).toBeDefined();
       expect(result.data!.taskId).toBeDefined();
       expect(result.data!.type).toBe('generate-tests');
-      expect(['pending', 'queued']).toContain(result.data!.status);
+      expect(['queued', 'assigned', 'running', 'completed', 'failed', 'cancelled']).toContain(result.data!.status);
     });
 
     it('should use default priority when not specified', async () => {

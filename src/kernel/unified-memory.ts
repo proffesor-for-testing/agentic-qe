@@ -202,7 +202,7 @@ export class UnifiedMemoryManager {
       return;
     }
 
-    if (!path.isAbsolute(this.config.dbPath)) {
+    if (this.config.dbPath !== ':memory:' && !path.isAbsolute(this.config.dbPath)) {
       const projectRoot = findProjectRoot();
       this.config.dbPath = path.join(projectRoot, this.config.dbPath);
     }

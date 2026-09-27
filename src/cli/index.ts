@@ -125,6 +125,7 @@ async function autoInitialize(): Promise<void> {
   const { WorkflowOrchestrator } = await import('../coordination/workflow-orchestrator.js');
   const { createQueenCoordinator } = await import('../coordination/queen-coordinator.js');
   const { createPersistentScheduler } = await import('./scheduler/index.js');
+  const { loadCLIDomainPlugins } = await import('./helpers/domain-plugins.js');
 
   context.kernel = new QEKernelImpl({
     maxConcurrentAgents: 15,
@@ -133,11 +134,12 @@ async function autoInitialize(): Promise<void> {
     lazyLoading: true,
     enabledDomains: [...ALL_DOMAINS],
     // CLI commands are short-lived and don't benefit from the bridge's
-    // event-driven domain reactions. Skip the eager plugin-load cost.
+    // event-driven domain reactions.
     enableExperienceBridge: false,
   });
 
   await context.kernel.initialize();
+  const domainPlugins = await loadCLIDomainPlugins(context.kernel.plugins);
 
   context.router = new CrossDomainEventRouter(context.kernel.eventBus);
   await context.router.initialize();
@@ -166,7 +168,8 @@ async function autoInitialize(): Promise<void> {
     context.kernel,
     context.router,
     protocolExecutor,
-    undefined
+    undefined,
+    domainPlugins
   );
   await context.queen.initialize();
 
