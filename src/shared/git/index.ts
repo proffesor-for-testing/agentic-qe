@@ -9,3 +9,4 @@ export type {
   GitBlameInfo,
   FileHistory,
 } from './git-analyzer';
+export { assertSafeGitRef, getGitRefError } from './ref-validation';

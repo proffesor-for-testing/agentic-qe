@@ -14,6 +14,7 @@ import {
 } from '../base.js';
 import { ToolResult } from '../../types.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { getGitRefError } from '../../../shared/git/ref-validation.js';
 
 // ============================================================================
 // Types
@@ -95,6 +96,13 @@ export class TestScheduleTool extends MCPToolBase<TestScheduleParams, TestSchedu
     params: TestScheduleParams,
     context: MCPToolContext
   ): Promise<ToolResult<TestScheduleResult>> {
+    if (params.gitRef !== undefined) {
+      const refError = getGitRefError(params.gitRef, 'gitRef');
+      if (refError) {
+        return { success: false, error: refError };
+      }
+    }
+
     try {
       const { runTestPipeline } = await import('../../../test-scheduling/index.js');
       const memory = await getMemoryBackend(context);
