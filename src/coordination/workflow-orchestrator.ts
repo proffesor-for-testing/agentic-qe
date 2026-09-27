@@ -38,6 +38,7 @@ export type {
   WorkflowDefinition,
   WorkflowTrigger,
   StepExecutionResult,
+  ParallelCompositionReceipt,
   WorkflowContext,
   WorkflowExecutionStatus,
   WorkflowListItem,
@@ -65,6 +66,7 @@ import type {
   WorkflowExecutionStatus,
   WorkflowListItem,
   StepExecutionResult,
+  ParallelCompositionReceipt,
   StepCondition,
   IWorkflowOrchestrator,
   DomainAction,
@@ -78,6 +80,9 @@ import type {
 } from './workflow-types.js';
 
 import { WorkflowEvents, DEFAULT_WORKFLOW_CONFIG } from './workflow-types.js';
+import {
+  hashWorkflowValue, parallelOutputConflicts, parallelUndeclaredReads, parallelWritePaths,
+} from './workflow-composition.js';
 
 // Import deterministic actions
 import { findDeterministicAction } from './deterministic-actions.js';
@@ -202,7 +207,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       executionId, workflowId, workflowName: workflow.name,
       status: 'running', startedAt, progress: 0,
       currentSteps: [], completedSteps: [], failedSteps: [], skippedSteps: [],
-      context, stepResults: new Map(),
+      context, stepResults: new Map(), parallelCompositionReceipts: [],
     };
 
     this.executions.set(executionId, execution);
@@ -210,7 +215,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     this.runWorkflow(workflow, execution).catch(async (error) => {
       execution.status = 'failed';
-      execution.error = String(error);
+      execution.error = toErrorMessage(error);
       execution.completedAt = new Date();
       execution.duration = execution.completedAt.getTime() - startedAt.getTime();
       await this.publishWorkflowFailed(execution, 'unknown', String(error));
@@ -265,7 +270,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
     this.runWorkflow(workflow, execution).catch(async (error) => {
       execution.status = 'failed';
-      execution.error = String(error);
+      execution.error = toErrorMessage(error);
     });
 
     return ok(undefined);
@@ -441,12 +446,13 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     } catch (error) {
       if (execution.status === 'running') {
         execution.status = 'failed';
-        execution.error = String(error);
+        execution.error = toErrorMessage(error);
         this.closeApprovalGates(execution.executionId, 'Workflow failed');
         execution.completedAt = new Date();
         execution.duration = execution.completedAt.getTime() - execution.startedAt.getTime();
         const failedStep = execution.currentSteps[0] || 'unknown';
-        await this.publishWorkflowFailed(execution, failedStep, String(error));
+        execution.currentSteps = [];
+        await this.publishWorkflowFailed(execution, failedStep, toErrorMessage(error));
       }
     } finally {
       if (workflowTimer) clearTimeout(workflowTimer);
@@ -476,11 +482,61 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       const parallelSteps = readySteps.filter((s) => !s.dependsOn?.length);
       const sequentialSteps = readySteps.filter((s) => s.dependsOn?.length);
 
-      if (parallelSteps.length > 0) {
+      // A lone root has no concurrent siblings and needs no clone/barrier.
+      if (parallelSteps.length === 1) sequentialSteps.unshift(parallelSteps[0]);
+
+      if (parallelSteps.length > 1) {
         execution.currentSteps = parallelSteps.map((s) => s.id);
-        const results = await Promise.allSettled(
-          parallelSteps.map((step) => this.executeStep(step, execution, workflow))
-        );
+        const receipt: ParallelCompositionReceipt = {
+          version: 1, workflowId: workflow.id,
+          workflowRevision: `${workflow.version}:${hashWorkflowValue(workflow)}`,
+          executionId: execution.executionId,
+          groupId: parallelSteps.map(step => step.id).join('|'),
+          steps: [], conflicts: [], strategy: 'rejected', disposition: 'invalid',
+        };
+        execution.parallelCompositionReceipts ??= [];
+        execution.parallelCompositionReceipts.push(receipt);
+
+        try {
+          receipt.steps = parallelSteps.map(step => ({
+            stepId: step.id, disposition: 'not_started',
+            writes: parallelWritePaths(step).map(write => write.path),
+          }));
+          receipt.conflicts = parallelOutputConflicts(parallelSteps);
+        } catch (error) {
+          throw new Error(`parallel_output_invalid_path: ${toErrorMessage(error)}`);
+        }
+        if (receipt.conflicts.length > 0) {
+          receipt.disposition = 'conflict';
+          throw new Error(`parallel_output_conflict: ${receipt.conflicts.map(c =>
+            `${c.stepA}.${c.pathA} ↔ ${c.stepB}.${c.pathB}`,
+          ).join(', ')}`);
+        }
+        const undeclaredReads = parallelUndeclaredReads(parallelSteps);
+        if (undeclaredReads.length > 0) {
+          throw new Error(`parallel_dependency_error: ${undeclaredReads.map(read =>
+            `${read.stepId} reads ${read.sourcePath} from concurrent step ${read.otherStepId}`,
+          ).join(', ')}`);
+        }
+
+        // Every action observes the same pre-group state. Its own mutations to
+        // the supplied context cannot leak into a sibling's input or the
+        // shared workflow context.
+        let groupContext: WorkflowContext;
+        let contexts: WorkflowContext[];
+        let baseResultsHash: string;
+        try {
+          groupContext = structuredClone(execution.context);
+          baseResultsHash = hashWorkflowValue(groupContext.results);
+          contexts = parallelSteps.map(() => structuredClone(groupContext));
+        } catch (error) {
+          throw new Error(`parallel_context_uncloneable: ${toErrorMessage(error)}`);
+        }
+        const results = await Promise.allSettled(parallelSteps.map((step, index) =>
+          this.executeStep(step, execution, workflow, contexts[index], true),
+        ));
+
+        let hardFailure: string | undefined;
 
         for (let i = 0; i < parallelSteps.length; i++) {
           const step = parallelSteps[i];
@@ -488,19 +544,63 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
           if (result.status === 'fulfilled') {
             const stepResult = result.value;
-            if (stepResult.status === 'completed') { completedSteps.add(step.id); execution.completedSteps.push(step.id); }
-            else if (stepResult.status === 'skipped') { skippedSteps.add(step.id); execution.skippedSteps.push(step.id); }
+            execution.stepResults.set(step.id, stepResult);
+            if (stepResult.status === 'completed') {
+              completedSteps.add(step.id); execution.completedSteps.push(step.id);
+              receipt.steps[i].disposition = 'succeeded';
+              try { receipt.steps[i].outputHash = hashWorkflowValue(stepResult.output); }
+              catch (error) { throw new Error(`parallel_output_unhashable: ${toErrorMessage(error)}`); }
+            }
+            else if (stepResult.status === 'skipped') {
+              skippedSteps.add(step.id); execution.skippedSteps.push(step.id);
+              receipt.steps[i].disposition = 'skipped';
+            }
             else if (stepResult.status === 'failed') {
               failedSteps.add(step.id); execution.failedSteps.push(step.id);
-              if (!step.continueOnFailure) { execution.status = 'failed'; execution.error = stepResult.error; return; }
+              receipt.steps[i].disposition = 'failed';
+              if (!step.continueOnFailure) hardFailure ??= stepResult.error ?? 'Unknown error';
             }
           } else {
             failedSteps.add(step.id); execution.failedSteps.push(step.id);
-            if (!step.continueOnFailure) { execution.status = 'failed'; execution.error = result.reason?.message || 'Unknown error'; return; }
+            receipt.steps[i].disposition = 'failed';
+            if (!step.continueOnFailure) hardFailure ??= toErrorMessage(result.reason);
           }
 
           const pendingIndex = pendingSteps.indexOf(step);
           if (pendingIndex !== -1) pendingSteps.splice(pendingIndex, 1);
+        }
+
+        if (execution.status !== 'running' || hardFailure !== undefined) {
+          receipt.disposition = 'partial';
+          if (hardFailure !== undefined) throw new Error(hardFailure);
+          if (execution.status !== 'running') return;
+        } else {
+          try {
+            const stagedContext: WorkflowContext = {
+              ...groupContext, results: structuredClone(groupContext.results),
+            };
+            for (let i = 0; i < parallelSteps.length; i++) {
+              const result = results[i];
+              if (result.status === 'fulfilled' && result.value.status === 'completed') {
+                this.mapStepOutput(parallelSteps[i], result.value.output, stagedContext);
+              }
+            }
+            const combinedStateHash = hashWorkflowValue(stagedContext.results);
+            if (execution.status !== 'running') {
+              receipt.disposition = 'partial';
+              return;
+            }
+            if (hashWorkflowValue(execution.context.results) !== baseResultsHash) {
+              throw new Error('parallel_context_changed: shared results changed before composition');
+            }
+            execution.context.results = stagedContext.results;
+            receipt.combinedStateHash = combinedStateHash;
+            receipt.strategy = 'disjoint';
+            receipt.disposition = 'composed';
+          } catch (error) {
+            receipt.disposition = 'invalid';
+            throw new Error(`parallel_output_invalid: ${toErrorMessage(error)}`);
+          }
         }
       }
 
@@ -530,22 +630,23 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
   }
 
   private async executeStep(
-    step: WorkflowStepDefinition, execution: WorkflowExecutionStatus, _workflow: WorkflowDefinition
+    step: WorkflowStepDefinition, execution: WorkflowExecutionStatus, _workflow: WorkflowDefinition,
+    context: WorkflowContext = execution.context, deferOutput = false,
   ): Promise<StepExecutionResult> {
     const startedAt = new Date();
     const result: StepExecutionResult = { stepId: step.id, status: 'pending', startedAt };
 
     try {
-      if (step.skipCondition && this.evaluateCondition(step.skipCondition, execution.context)) {
+      if (step.skipCondition && this.evaluateCondition(step.skipCondition, context)) {
         result.status = 'skipped'; result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-        execution.stepResults.set(step.id, result);
+        if (!deferOutput) execution.stepResults.set(step.id, result);
         await this.publishStepSkipped(execution, step);
         return result;
       }
 
-      if (step.condition && !this.evaluateCondition(step.condition, execution.context)) {
+      if (step.condition && !this.evaluateCondition(step.condition, context)) {
         result.status = 'skipped'; result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-        execution.stepResults.set(step.id, result);
+        if (!deferOutput) execution.stepResults.set(step.id, result);
         await this.publishStepSkipped(execution, step);
         return result;
       }
@@ -553,7 +654,7 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
       result.status = 'running';
       await this.publishStepStarted(execution, step);
 
-      const input = this.buildStepInput(step, execution.context);
+      const input = this.buildStepInput(step, context);
 
       // Approval must precede the action and any output mapping. Otherwise a
       // rejected or expired gate cannot prevent the side effect it protects.
@@ -582,34 +683,39 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
 
         try {
           const stepTimeout = step.timeout || this.config.defaultStepTimeout;
-          const output = await this.executeStepAction(step, input, execution.context, stepTimeout);
+          const output = await this.executeStepAction(step, input, context, stepTimeout);
 
-          this.mapStepOutput(step, output, execution.context);
-
-          result.status = 'completed'; result.output = output; result.completedAt = new Date();
+          if (!deferOutput) this.mapStepOutput(step, output, context);
+          let capturedOutput: unknown;
+          try { capturedOutput = deferOutput ? structuredClone(output) : output; }
+          catch (error) { throw new Error(`parallel_output_uncloneable: ${toErrorMessage(error)}`); }
+          result.status = 'completed'; result.output = capturedOutput; result.completedAt = new Date();
           result.duration = result.completedAt.getTime() - startedAt.getTime();
-          execution.stepResults.set(step.id, result);
+          if (!deferOutput) execution.stepResults.set(step.id, result);
 
           await this.publishStepCompleted(execution, step, result);
           return result;
         } catch (error) {
           lastError = toError(error);
+          // Retrying an already-successful external action because its output
+          // could not be snapshotted could duplicate effects.
+          if (lastError.message.startsWith('parallel_output_uncloneable:')) break;
           if (attempt < maxAttempts) { await this.delay(backoffMs); backoffMs *= backoffMultiplier; }
         }
       }
 
       result.status = 'failed'; result.error = lastError?.message || 'Unknown error';
       result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-      execution.stepResults.set(step.id, result);
+      if (!deferOutput) execution.stepResults.set(step.id, result);
 
-      if (step.rollback) await this.executeRollback(step.rollback, execution.context);
+      if (step.rollback) await this.executeRollback(step.rollback, context);
 
       await this.publishStepFailed(execution, step, result.error);
       return result;
     } catch (error) {
       result.status = 'failed'; result.error = toErrorMessage(error);
       result.completedAt = new Date(); result.duration = result.completedAt.getTime() - startedAt.getTime();
-      execution.stepResults.set(step.id, result);
+      if (!deferOutput) execution.stepResults.set(step.id, result);
 
       await this.publishStepFailed(execution, step, result.error);
       return result;
@@ -679,7 +785,9 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
   }
 
   private mapStepOutput(step: WorkflowStepDefinition, output: unknown, context: WorkflowContext): void {
-    context.results[step.id] = output;
+    Object.defineProperty(context.results, step.id, {
+      value: output, writable: true, enumerable: true, configurable: true,
+    });
     if (step.outputMapping && typeof output === 'object' && output !== null) {
       for (const [sourcePath, targetPath] of Object.entries(step.outputMapping)) {
         const value = this.getValueByPath(output, sourcePath);

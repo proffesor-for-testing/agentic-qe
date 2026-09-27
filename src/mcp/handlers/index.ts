@@ -89,6 +89,7 @@ export {
 export {
   handlePipelineLoad,
   handlePipelineRun,
+  handlePipelineStatus,
   handlePipelineApprove,
   handlePipelineReject,
   type PipelineApprovalParams,
@@ -101,6 +102,8 @@ export {
   type PipelineLoadResult,
   type PipelineRunParams,
   type PipelineRunResult,
+  type PipelineStatusParams,
+  type PipelineStatusResult,
   type PipelineListParams,
   type PipelineListResult,
   type PipelineValidateParams,

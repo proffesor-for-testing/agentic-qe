@@ -20,7 +20,7 @@ import {
   tableExists,
   queryAll,
   domainFilterForColumn,
-  ensureTargetTables,
+  runImportTransaction,
   mergeGenericRow,
   remapPatternReferences,
   mergeAppendOnlyRow,
@@ -501,7 +501,7 @@ export function importBrainFromRvf(
   }
 
   // Open read-write so compact() can reclaim space after conflict resolution (4.5)
-  const rvf = openRvfStore(filePath);
+  const rvf = options.dryRun ? openRvfStoreReadonly(filePath) : openRvfStore(filePath);
 
   try {
     // --- Verify HNSW index integrity before importing (4.1) ---
@@ -530,22 +530,7 @@ export function importBrainFromRvf(
       throw new Error(`Failed to parse brain kernel data as JSON: ${parseErr instanceof Error ? parseErr.message : parseErr}`);
     }
 
-    if (options.dryRun) {
-      let total = 0;
-      if (brainData.tables) {
-        for (const rows of Object.values(brainData.tables)) {
-          total += (rows?.length ?? 0);
-        }
-      } else {
-        total = (brainData.patterns?.length ?? 0) +
-          (brainData.qValues?.length ?? 0) +
-          (brainData.dreamInsights?.length ?? 0) +
-          (brainData.witnessChain?.length ?? 0);
-      }
-      return { imported: total, skipped: 0, conflicts: 0, embeddingsRestored: 0 };
-    }
 
-    ensureTargetTables(db);
 
     let imported = 0;
     let skipped = 0;
@@ -567,7 +552,7 @@ export function importBrainFromRvf(
     }
 
     // Wrap entire import in a transaction for atomicity (Risk #3 from plan)
-    const importAll = db.transaction(() => {
+    const importAll = () => {
       const patternIds = new Map<string, string>();
       const patternWinners = new Map<string, string | null>();
       // Import in TABLE_CONFIGS order (FK-aware)
@@ -579,11 +564,6 @@ export function importBrainFromRvf(
         const blobCols = TABLE_BLOB_COLUMNS[config.tableName];
         if (blobCols && blobCols.length > 0) {
           rows = rows.map(r => deserializeRowBlobs(r, blobCols));
-          for (const row of rows) {
-            for (const col of blobCols) {
-              if (row[col] instanceof Buffer) embeddingsRestored++;
-            }
-          }
         }
 
         for (const originalRow of rows) {
@@ -598,17 +578,22 @@ export function importBrainFromRvf(
             result = mergeGenericRow(db, config.tableName, row, idCol,
               options.mergeStrategy, tsCol, confCol, patternIds, patternWinners, originalRow.pattern_id);
           }
+          if (result.imported) {
+            for (const col of blobCols ?? []) {
+              if (row[col] instanceof Buffer) embeddingsRestored++;
+            }
+          }
           imported += result.imported;
           skipped += result.skipped;
           conflicts += result.conflicts;
         }
       }
-    });
+    };
 
-    importAll();
+    runImportTransaction(db, options.dryRun ?? false, importAll);
 
     // Compact after conflict resolution (best-effort)
-    if (conflicts > 0) { try { rvf.compact(); } catch { /* best-effort */ } }
+    if (!options.dryRun && conflicts > 0) { try { rvf.compact(); } catch { /* best-effort */ } }
 
     return { imported, skipped, conflicts, embeddingsRestored };
   } finally {
