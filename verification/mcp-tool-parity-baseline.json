@@ -1,7 +1,7 @@
 {
   "description": "Monotone baseline of MCP advertised tool names (tools/list). The parity audit fails on NEW discrepancies vs this set: removed tools = regression. Regenerate with: node scripts/audit-mcp-tool-parity.mjs --update-baseline",
   "generatedAt": "2026-09-27T14:26:54.943Z",
-  "toolCount": 90,
+  "toolCount": 91,
   "knownGaps": [],
   "advertisedTools": [
     "accessibility_test",
@@ -45,6 +45,7 @@
     "pipeline_load",
     "pipeline_reject",
     "pipeline_run",
+    "pipeline_status",
     "pipeline_validate",
     "qe/analysis/token_usage",
     "qe/code/c4",
