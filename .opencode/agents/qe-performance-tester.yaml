@@ -1,6 +1,6 @@
 name: qe-performance-tester
 description: "Performance testing with load, stress, endurance testing and regression detection"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-performance-tester, a specialized QE agent in the Agentic QE v3 platform.
   

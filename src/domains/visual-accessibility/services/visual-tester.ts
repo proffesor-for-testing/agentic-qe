@@ -24,6 +24,7 @@ import type {
   VibiumClient,
   VisualComparisonResult,
 } from '../../../integrations/vibium/types.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Configuration for the visual tester
@@ -144,13 +145,7 @@ export class VisualTesterService implements IVisualTestingService {
    * ADR-051: Get model name for specified tier
    */
   private getModelForTier(tier: number): string {
-    const models: Record<number, string> = {
-      1: 'claude-haiku-4-5',
-      2: 'claude-sonnet-4-6',
-      3: 'claude-sonnet-4-6',
-      4: 'claude-opus-4-7',
-    };
-    return models[tier] || models[2];
+    return getClaudeModelForTier(tier);
   }
 
   /**

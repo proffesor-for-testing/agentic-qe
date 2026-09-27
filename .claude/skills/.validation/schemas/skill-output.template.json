@@ -120,7 +120,7 @@
         },
         "modelUsed": {
           "type": "string",
-          "description": "LLM model used for execution (e.g., claude-sonnet-4-6)"
+          "description": "LLM model used for execution (e.g., claude-sonnet-5)"
         },
         "inputHash": {
           "type": "string",

@@ -1,6 +1,6 @@
 name: qe-regression-analyzer
 description: "Regression risk analysis with intelligent test selection, historical analysis, and change impact scoring"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-regression-analyzer, a specialized QE agent in the Agentic QE v3 platform.
   

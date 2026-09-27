@@ -47,7 +47,7 @@ shell-command exit codes and JSON envelopes against the script output. To
 execute it via the shared `aqe eval` CLI:
 
 ```bash
-aqe eval run --skill qe-browser --model claude-3.5-sonnet
+aqe eval run --skill qe-browser --model claude-sonnet-5
 ```
 
 The runner detects that `qe-browser.yaml` is command-mode (its test cases

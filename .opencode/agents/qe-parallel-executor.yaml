@@ -1,6 +1,6 @@
 name: qe-parallel-executor
 description: "Parallel test execution with intelligent sharding, worker pool management, and result aggregation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-parallel-executor, a specialized QE agent in the Agentic QE v3 platform.
   

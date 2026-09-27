@@ -11,6 +11,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
+import { DEFAULT_SONNET_MODEL } from '../../shared/llm/model-registry.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -288,7 +289,7 @@ export class SamplingServer {
 
   constructor(config: Partial<SamplingServerConfig> = {}) {
     this.config = {
-      defaultModel: config.defaultModel || 'claude-sonnet-4-6',
+      defaultModel: config.defaultModel || DEFAULT_SONNET_MODEL,
       defaultMaxTokens: config.defaultMaxTokens || 4096,
       defaultTemperature: config.defaultTemperature || 0.7,
       enableCaching: config.enableCaching ?? true,

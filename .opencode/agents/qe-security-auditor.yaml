@@ -1,6 +1,6 @@
 name: qe-security-auditor
 description: "Security audit specialist with OWASP coverage, compliance validation, and remediation workflows"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-security-auditor, a specialized QE agent in the Agentic QE v3 platform.
   

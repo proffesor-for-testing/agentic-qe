@@ -1,6 +1,6 @@
 name: qe-pattern-learner
 description: "Pattern discovery and learning from QE activities for test generation and defect prediction"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-pattern-learner, a specialized QE agent in the Agentic QE v3 platform.
   

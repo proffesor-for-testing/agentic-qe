@@ -115,7 +115,7 @@ Violations of scope are blocked pre-flight by the governance layer, logged to th
 4. **Convert to Anthropic's form format.** Open https://claude.com/form/cyber-use-case and paste the corresponding sections into the form fields. If the form asks for fields not covered here (e.g. SOC2 audit report, penetration-testing certifications, incident-response runbook), prepare those separately — Anthropic's form may request artifacts this draft does not include.
 5. **Attach supporting evidence where the form allows.** Link to the public repo, the ADR index, and the witness-chain implementation (`src/security/witness-chain/` or equivalent).
 6. **Record the submission reference number** in ADR-093's "Validation Criteria" checklist under item 5, so the application is tracked alongside the migration.
-7. **Until approval is received**, Phase 4 of ADR-093 keeps security agents pinned to Sonnet 4.6 for any path that would otherwise escalate to Opus 4.7. Do not route security-agent work to 4.7 until Anthropic's acknowledgment is in hand.
+7. **Until approval is received**, Phase 4 of ADR-093 keeps security agents pinned to Sonnet 4.6 for any path that would otherwise escalate to Opus 4.7 or later (including Opus 5, Opus 5.5 and the Fable family). Do not route security-agent work to those models until Anthropic's acknowledgment is in hand.
 8. **If a refusal occurs during the enrollment wait:** log the prompt, model ID, refusal text, and agent name; send the log to the Anthropic trust-and-safety contact requested in §8; do not retry the same prompt against a different model as a workaround — flag the refusal upstream instead.
 
 ## Review checklist before submission
@@ -125,4 +125,4 @@ Violations of scope are blocked pre-flight by the governance layer, logged to th
 - [ ] All ADR references (§5) verified as "Implemented" in `v3-adrs.md`
 - [ ] Abuse-prevention commitments (§7) signed off by organization decision-maker
 - [ ] Submission reference number recorded in ADR-093
-- [ ] Security agents confirmed pinned to Sonnet 4.6 until approval (ADR-093 Phase 4)
+- [ ] Security agents confirmed pinned to Sonnet 4.6 for Opus 4.7 or later (including Opus 5, Opus 5.5 and the Fable family) until approval (ADR-093 Phase 4)

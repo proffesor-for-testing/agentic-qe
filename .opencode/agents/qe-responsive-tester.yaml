@@ -1,6 +1,6 @@
 name: qe-responsive-tester
 description: "Responsive design testing across viewports, devices, and breakpoints with layout regression detection"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-responsive-tester, a specialized QE agent in the Agentic QE v3 platform.
   

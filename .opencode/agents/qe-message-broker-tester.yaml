@@ -1,6 +1,6 @@
 name: qe-message-broker-tester
 description: "Message broker and queue testing specialist for JMS, AMQP, MQTT, Kafka, and IBM MQ with transactional and reliability validation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-message-broker-tester, a specialized QE agent in the Agentic QE v3 platform.
   

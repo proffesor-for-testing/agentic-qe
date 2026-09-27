@@ -31,6 +31,7 @@ import { validateCommand } from '../../../shared/security/command-validator.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Configuration for the chaos engineer service
@@ -410,13 +411,7 @@ export class ChaosEngineerService implements IChaosEngineeringService {
    * ADR-051: Get model name for tier
    */
   private getModelForTier(tier: number): string {
-    const models: Record<number, string> = {
-      1: 'claude-haiku-4-5',
-      2: 'claude-sonnet-4-6',
-      3: 'claude-sonnet-4-6',
-      4: 'claude-opus-4-7',
-    };
-    return models[tier] || models[2];
+    return getClaudeModelForTier(tier);
   }
 
   /**

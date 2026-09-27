@@ -10,7 +10,8 @@
  */
 
 import { ExtendedProviderType, ALL_PROVIDER_TYPES } from '../router/types';
-import { MODEL_PRICING } from '../cost-tracker';
+import { resolveModelPricing } from '../cost-tracker';
+import { DEFAULT_SONNET_MODEL } from '../model-registry';
 import { TokenUsage, CostInfo } from '../interfaces';
 
 // ============================================================================
@@ -408,7 +409,7 @@ export class CostMetricsCollector {
 
     // Check for expensive models that could use cheaper alternatives
     for (const [model, breakdown] of byModel) {
-      const pricing = MODEL_PRICING[model];
+      const pricing = resolveModelPricing(model);
 
       if (pricing && breakdown.totalCost > 1) {
         // Suggest cheaper alternatives
@@ -418,7 +419,7 @@ export class CostMetricsCollector {
             description: `Consider using Sonnet instead of Opus for non-critical tasks`,
             estimatedSavings: breakdown.totalCost * 0.5,
             currentCost: breakdown.totalCost,
-            suggestedModel: 'claude-sonnet-4-6',
+            suggestedModel: DEFAULT_SONNET_MODEL,
           });
         }
 
@@ -518,7 +519,7 @@ export class CostMetricsCollector {
     inputTokens: number,
     outputTokens: number
   ): CostInfo {
-    const pricing = MODEL_PRICING[model];
+    const pricing = resolveModelPricing(model);
 
     if (!pricing) {
       return {

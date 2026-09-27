@@ -226,9 +226,10 @@ export class CodexProvider implements LLMProvider {
   }
 
   getSupportedModels(): string[] {
-    // Codex resolves the concrete model from its profile/login; these are the
-    // common ids accepted via -m. `default` = whatever the CLI is configured to.
-    return [CODEX_DEFAULT_MODEL, 'gpt-5-codex', 'o3', 'o4-mini'];
+    // Informational only — not used to validate. Codex resolves the concrete
+    // model from its profile/login and validates any id passed via -m itself.
+    // `default` = whatever the CLI is configured to.
+    return [CODEX_DEFAULT_MODEL, 'gpt-6-sol', 'gpt-6-luna', 'gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.3-codex'];
   }
 
   getCostPerToken(): { input: number; output: number } {

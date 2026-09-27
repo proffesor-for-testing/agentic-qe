@@ -176,13 +176,23 @@ describe('ClaudeModelProvider', () => {
       expect(requestBody.max_tokens).toBe(2048);
     });
 
-    it('should respect temperature option', async () => {
+    it('should respect temperature option on models that accept it', async () => {
       mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
 
-      await provider.complete('Test prompt', { temperature: 0.5 });
+      await provider.complete('Test prompt', { temperature: 0.5, model: 'claude-sonnet-4-6' });
 
       const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(requestBody.temperature).toBe(0.5);
+    });
+
+    it('should omit temperature for models that reject it (Sonnet 5, Opus 4.7+)', async () => {
+      mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
+
+      await provider.complete('Test prompt', { temperature: 0.5, model: 'claude-sonnet-5' });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.model).toBe('claude-sonnet-5');
+      expect(requestBody).not.toHaveProperty('temperature');
     });
 
     it('should throw error when provider is disposed', async () => {
@@ -317,9 +327,9 @@ describe('ClaudeModelProvider', () => {
 
       const cost = provider.getCostPerToken();
 
-      // Claude 3 Opus: $15 input, $75 output per 1M tokens
-      expect(cost.input).toBeCloseTo(15 / 1_000_000, 10);
-      expect(cost.output).toBeCloseTo(75 / 1_000_000, 10);
+      // Claude Opus 4.7: $5 input, $25 output per 1M tokens (model registry)
+      expect(cost.input).toBeCloseTo(5 / 1_000_000, 10);
+      expect(cost.output).toBeCloseTo(25 / 1_000_000, 10);
     });
   });
 

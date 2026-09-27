@@ -3,7 +3,7 @@
  * MM-003: Claude implementation for multi-model consensus verification
  *
  * Provides security finding verification using Claude models from Anthropic.
- * Supports Claude 3.5 Sonnet and Claude 3 Opus with configurable parameters.
+ * Supports current Claude models (Sonnet 5, Opus 5.5, Haiku 4.5) with configurable parameters.
  *
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
@@ -18,6 +18,8 @@ import {
   BaseModelProvider,
 } from '../model-provider';
 import { PromptCacheLatch } from '../../../shared/prompt-cache-latch.js';
+import { getAnthropicParamPolicy } from '../../../shared/llm/anthropic-params';
+import { DEFAULT_SONNET_MODEL, getModelCost } from '../../../shared/llm/model-registry';
 
 // ============================================================================
 // Types and Interfaces
@@ -27,13 +29,12 @@ import { PromptCacheLatch } from '../../../shared/prompt-cache-latch.js';
  * Claude-specific API model versions (distinct from routing ClaudeModel)
  */
 export type ClaudeAPIModel =
-  | 'claude-sonnet-4-6'
-  | 'claude-opus-4-7'
+  | 'claude-sonnet-5'
+  | 'claude-opus-5'
+  | 'claude-opus-5-5'
   | 'claude-haiku-4-5'
-  | 'claude-3-5-sonnet-20241022'
-  | 'claude-3-5-sonnet-latest'
-  | 'claude-3-opus-20240229'
-  | 'claude-3-opus-latest';
+  | 'claude-sonnet-4-6'
+  | 'claude-opus-4-7';
 
 /**
  * Configuration for Claude provider
@@ -134,22 +135,19 @@ export class ClaudeModelProvider extends BaseModelProvider {
   readonly name = 'Claude (Anthropic)';
   readonly type: ModelProvider['type'] = 'claude';
 
-  // Cost per million tokens (as of 2024)
-  // Claude 3.5 Sonnet: $3 input, $15 output per 1M tokens
-  // Claude 3 Opus: $15 input, $75 output per 1M tokens
+  // Per-token cost; set from the model registry in updateCostForModel().
   protected costPerToken = {
     input: 3 / 1_000_000,  // Will be overridden per model
     output: 15 / 1_000_000,
   };
 
   protected supportedModels: string[] = [
+    'claude-sonnet-5',
+    'claude-opus-5',
+    'claude-opus-5-5',
+    'claude-haiku-4-5',
     'claude-sonnet-4-6',
     'claude-opus-4-7',
-    'claude-haiku-4-5',
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-sonnet-latest',
-    'claude-3-opus-20240229',
-    'claude-3-opus-latest',
   ];
 
   private readonly config: Required<ClaudeProviderConfig>;
@@ -181,7 +179,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
 
     this.config = {
       apiKey,
-      defaultModel: config.defaultModel || 'claude-sonnet-4-6',
+      defaultModel: config.defaultModel || DEFAULT_SONNET_MODEL,
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || 30000,
       maxRetries: config.maxRetries ?? 3,
@@ -233,7 +231,8 @@ export class ClaudeModelProvider extends BaseModelProvider {
     const request: ClaudeCompletionRequest = {
       model,
       max_tokens: maxTokens,
-      temperature,
+      // Omitted for models that reject sampling params (Opus 4.7+, Sonnet 5).
+      temperature: getAnthropicParamPolicy(model).sendSampling ? temperature : undefined,
       system: systemPrompt,
       messages: [
         {
@@ -395,19 +394,13 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
    * Update cost based on model selection
    */
   private updateCostForModel(model: string): void {
-    if (model.includes('opus')) {
-      // Claude 3 Opus: $15 input, $75 output per 1M tokens
-      this.costPerToken = {
-        input: 15 / 1_000_000,
-        output: 75 / 1_000_000,
-      };
-    } else {
-      // Claude 3.5 Sonnet: $3 input, $15 output per 1M tokens
-      this.costPerToken = {
-        input: 3 / 1_000_000,
-        output: 15 / 1_000_000,
-      };
-    }
+    // Registry pricing; unknown models fall back to Sonnet-class pricing.
+    const cost = getModelCost(model);
+    const known = cost.inputCostPerMillion > 0 || cost.outputCostPerMillion > 0;
+    this.costPerToken = {
+      input: (known ? cost.inputCostPerMillion : 3) / 1_000_000,
+      output: (known ? cost.outputCostPerMillion : 15) / 1_000_000,
+    };
   }
 
   /**

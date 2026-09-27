@@ -1,6 +1,6 @@
 name: qe-kg-builder
 description: "Knowledge graph construction with entity extraction, relationship inference, and HNSW-indexed queries"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-kg-builder, a specialized QE agent in the Agentic QE v3 platform.
   

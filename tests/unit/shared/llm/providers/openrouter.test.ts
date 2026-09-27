@@ -65,11 +65,16 @@ describe('OpenRouterProvider', () => {
       expect(config.siteName).toBe('Example App');
     });
 
+    it('should default to anthropic/claude-sonnet-5', () => {
+      expect(DEFAULT_OPENROUTER_CONFIG.model).toBe('anthropic/claude-sonnet-5');
+    });
+
     it('should return supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('anthropic/claude-3.5-sonnet');
-      expect(models).toContain('openai/gpt-4o');
-      expect(models).toContain('meta-llama/llama-3.1-70b-instruct');
+      expect(models).toContain('anthropic/claude-sonnet-5');
+      expect(models).toContain('openai/gpt-6-sol');
+      expect(models).toContain('meta-llama/llama-4-maverick');
+      expect(models).not.toContain('anthropic/claude-3.5-sonnet');
       expect(models.length).toBeGreaterThan(5);
     });
 
@@ -464,14 +469,14 @@ describe('OpenRouterProvider', () => {
   // ==========================================================================
 
   describe('cost calculation', () => {
-    it('should calculate cost for anthropic/claude-3.5-sonnet', async () => {
+    it('should calculate cost for the default anthropic/claude-sonnet-5', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () =>
           Promise.resolve({
             id: 'chatcmpl-test',
             object: 'chat.completion',
-            model: 'anthropic/claude-3.5-sonnet',
+            model: 'anthropic/claude-sonnet-5',
             choices: [
               {
                 index: 0,
@@ -489,10 +494,10 @@ describe('OpenRouterProvider', () => {
 
       const response = await provider.generate('Test');
 
-      // Cost: (1000/1M * 3.0) + (500/1M * 15.0) = 0.003 + 0.0075 = 0.0105
-      expect(response.cost.inputCost).toBeCloseTo(0.003, 6);
-      expect(response.cost.outputCost).toBeCloseTo(0.0075, 6);
-      expect(response.cost.totalCost).toBeCloseTo(0.0105, 6);
+      // Cost: (1000/1M * 2.0) + (500/1M * 10.0) = 0.002 + 0.005 = 0.007
+      expect(response.cost.inputCost).toBeCloseTo(0.002, 6);
+      expect(response.cost.outputCost).toBeCloseTo(0.005, 6);
+      expect(response.cost.totalCost).toBeCloseTo(0.007, 6);
       expect(response.cost.currency).toBe('USD');
     });
 
@@ -568,6 +573,15 @@ describe('OpenRouterProvider', () => {
       expect(OPENROUTER_PRICING['openai/gpt-4o']).toBeDefined();
       expect(OPENROUTER_PRICING['meta-llama/llama-3.1-70b-instruct']).toBeDefined();
       expect(OPENROUTER_PRICING['default']).toBeDefined();
+    });
+
+    it('should price every fallback supported model (no silent default pricing)', () => {
+      const provider = new OpenRouterProvider();
+      for (const model of provider.getSupportedModels()) {
+        expect(OPENROUTER_PRICING[model], model).toBeDefined();
+      }
+      expect(OPENROUTER_PRICING['anthropic/claude-sonnet-5']).toEqual({ input: 2.0, output: 10.0 });
+      expect(OPENROUTER_PRICING['openai/gpt-6-luna']).toEqual({ input: 0.1, output: 0.5 });
     });
   });
 
@@ -745,7 +759,7 @@ describe('OpenRouterProvider', () => {
       // After dispose, should return default models
       const models = provider.getSupportedModels();
       expect(models).not.toContain('cached-model');
-      expect(models).toContain('anthropic/claude-3.5-sonnet'); // Default model
+      expect(models).toContain('anthropic/claude-sonnet-5'); // Default model
     });
   });
 

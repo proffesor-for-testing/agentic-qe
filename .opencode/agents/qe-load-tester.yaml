@@ -1,6 +1,6 @@
 name: qe-load-tester
 description: "Load and performance testing with traffic simulation, stress testing, and baseline management"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-load-tester, a specialized QE agent in the Agentic QE v3 platform.
   

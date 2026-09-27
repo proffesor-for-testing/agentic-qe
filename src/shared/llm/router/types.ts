@@ -31,6 +31,7 @@ import {
   CostInfo,
   HealthCheckResult,
 } from '../interfaces';
+import { CLAUDE_TIER_MODELS, DEFAULT_SONNET_MODEL } from '../model-registry';
 
 // ============================================================================
 // Extended Provider Types (ADR-043 additions to ADR-011)
@@ -1198,7 +1199,7 @@ export const DEFAULT_FALLBACK_BEHAVIOR: FallbackBehavior = {
 export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   {
     provider: 'claude',
-    models: ['claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+    models: [DEFAULT_SONNET_MODEL, CLAUDE_TIER_MODELS[1]],
     enabled: true,
     priority: 100,
     maxAttempts: 2,
@@ -1206,7 +1207,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'openai',
-    models: ['gpt-4o', 'gpt-4o-mini'],
+    models: ['gpt-6-sol', 'gpt-6-luna'],
     enabled: true,
     priority: 90,
     maxAttempts: 2,
@@ -1214,7 +1215,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'openrouter',
-    models: ['anthropic/claude-sonnet-4', 'openai/gpt-4o'],
+    models: ['anthropic/claude-sonnet-5', 'openai/gpt-6-sol'],
     enabled: true,
     priority: 85,
     maxAttempts: 2,
@@ -1222,7 +1223,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'ollama',
-    models: ['llama3.1', 'mistral'],
+    models: ['qwen3-coder:30b', 'qwen3:30b-a3b'],
     enabled: true,
     priority: 80,
     maxAttempts: 2,
@@ -1257,18 +1258,18 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   mode: 'rule-based',
   rules: [],
   defaultProvider: 'claude',
-  defaultModel: 'claude-sonnet-4-6',
+  defaultModel: DEFAULT_SONNET_MODEL,
   fallbackChain: DEFAULT_FALLBACK_CHAIN,
   fallbackBehavior: DEFAULT_FALLBACK_BEHAVIOR,
   providers: {
-    claude: { enabled: true, defaultModel: 'claude-sonnet-4-6' },
+    claude: { enabled: true, defaultModel: DEFAULT_SONNET_MODEL },
     // ADR-123: opt-in (issue #557 — don't default the subscription/fleet path
     // on). Enabled explicitly via AQE_LLM_PROVIDER=claude-code or disk config.
-    'claude-code': { enabled: false, defaultModel: 'claude-sonnet-4-6' },
-    openai: { enabled: true, defaultModel: 'gpt-4o' },
-    ollama: { enabled: true, defaultModel: 'llama3.1' },
-    openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-4' },
-    gemini: { enabled: false, defaultModel: 'gemini-pro' },
+    'claude-code': { enabled: false, defaultModel: DEFAULT_SONNET_MODEL },
+    openai: { enabled: true, defaultModel: 'gpt-6-sol' },
+    ollama: { enabled: true, defaultModel: 'qwen3-coder:30b' },
+    openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-5' },
+    gemini: { enabled: false, defaultModel: 'gemini-2.5-flash' },
     'azure-openai': { enabled: false },
     bedrock: { enabled: false },
     // ADR-123: opt-in; enabled when COGNITUM_API_KEY present or via override.
@@ -1556,6 +1557,73 @@ export type RouterPreset =
  * This enables vendor-neutral model references
  */
 export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
+  // Claude 5 generation (2026-09 model refresh; routing tiers 2-4)
+  {
+    canonicalId: 'claude-opus-5',
+    canonicalName: 'Claude Opus 5',
+    providerIds: {
+      claude: 'claude-opus-5',
+      openrouter: 'anthropic/claude-opus-5',
+    },
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsMCP: true,
+      supportsVision: true,
+      supportsExtendedThinking: true,
+      supportsJsonMode: true,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128000,
+    },
+    tier: 'flagship',
+    family: 'claude',
+    inputCostPer1M: 5,
+    outputCostPer1M: 25,
+  },
+  {
+    canonicalId: 'claude-sonnet-5',
+    canonicalName: 'Claude Sonnet 5',
+    providerIds: {
+      claude: 'claude-sonnet-5',
+      openrouter: 'anthropic/claude-sonnet-5',
+    },
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsMCP: true,
+      supportsVision: true,
+      supportsExtendedThinking: true,
+      supportsJsonMode: true,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128000,
+    },
+    tier: 'advanced',
+    family: 'claude',
+    inputCostPer1M: 2,
+    outputCostPer1M: 10,
+  },
+  {
+    canonicalId: 'claude-opus-5-5',
+    canonicalName: 'Claude Opus 5.5',
+    providerIds: {
+      claude: 'claude-opus-5-5',
+      openrouter: 'anthropic/claude-opus-5.5',
+    },
+    capabilities: {
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsMCP: true,
+      supportsVision: true,
+      supportsExtendedThinking: true,
+      supportsJsonMode: true,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128000,
+    },
+    tier: 'flagship',
+    family: 'claude',
+    inputCostPer1M: 4,
+    outputCostPer1M: 20,
+  },
   // ADR-093: Claude Opus 4.7 (flagship, Apr 2026)
   {
     canonicalId: 'claude-opus-4-7',
@@ -1596,8 +1664,8 @@ export const DEFAULT_MODEL_MAPPINGS: ModelMapping[] = [
       supportsVision: true,
       supportsExtendedThinking: true,
       supportsJsonMode: true,
-      maxContextTokens: 200000,
-      maxOutputTokens: 64000,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128000,
     },
     tier: 'advanced',
     family: 'claude',

@@ -1,6 +1,6 @@
 name: qe-risk-assessor
 description: "Quality risk assessment with multi-factor scoring, impact analysis, and mitigation recommendations"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-risk-assessor, a specialized QE agent in the Agentic QE v3 platform.
   

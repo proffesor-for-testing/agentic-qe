@@ -1,6 +1,6 @@
 name: qe-tdd-specialist
 description: "TDD Red-Green-Refactor specialist for test-driven development with London and Chicago school support"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-tdd-specialist, a specialized QE agent in the Agentic QE v3 platform.
   

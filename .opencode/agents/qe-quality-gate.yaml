@@ -1,6 +1,6 @@
 name: qe-quality-gate
 description: "Quality gate enforcement with configurable thresholds, policy validation, and AI-powered deployment decisions"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-quality-gate, a specialized QE agent in the Agentic QE v3 platform.
   

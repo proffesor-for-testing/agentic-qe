@@ -80,10 +80,10 @@ describe('AzureOpenAIProvider', () => {
 
     it('should return supported models', () => {
       const models = provider.getSupportedModels();
-      expect(models).toContain('gpt-4o');
-      expect(models).toContain('gpt-4o-mini');
-      expect(models).toContain('gpt-4-turbo');
-      expect(models).toContain('gpt-35-turbo');
+      expect(models).toContain('gpt-6-sol');
+      expect(models).toContain('gpt-6-luna');
+      expect(models).not.toContain('gpt-4o');
+      expect(models).not.toContain('gpt-35-turbo');
       expect(models).toContain('text-embedding-3-small');
     });
 
@@ -461,6 +461,64 @@ describe('AzureOpenAIProvider', () => {
         temperature: 0.5,
         maxTokens: 1000,
       });
+    });
+
+    it('should use the gpt-6 parameter shape when the model is set explicitly', async () => {
+      const gpt6 = new AzureOpenAIProvider({ ...defaultConfig, model: 'gpt-6-sol' });
+      mockFetch.mockImplementationOnce((url, options) => {
+        const body = JSON.parse(options.body as string);
+        expect(body.max_completion_tokens).toBe(1000);
+        expect(body).not.toHaveProperty('max_tokens');
+        expect(body).not.toHaveProperty('temperature');
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(createMockCompletionResponse()),
+        });
+      });
+
+      await gpt6.generate('Test', { temperature: 0.5, maxTokens: 1000 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the default logical model consistent with the legacy request shape (no silent GPT-6 default)', () => {
+      expect(DEFAULT_AZURE_OPENAI_CONFIG.model).toBe('gpt-4o');
+    });
+
+    it('should use the gpt-6 parameter shape for an opaque deployment name when model is set', async () => {
+      const gpt6 = new AzureOpenAIProvider({ ...defaultConfig, deploymentId: 'prod-chat', model: 'gpt-6-sol' });
+      mockFetch.mockImplementationOnce((url, options) => {
+        const body = JSON.parse(options.body as string);
+        expect(body.max_completion_tokens).toBe(1000);
+        expect(body).not.toHaveProperty('max_tokens');
+        expect(body).not.toHaveProperty('temperature');
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(createMockCompletionResponse()),
+        });
+      });
+
+      await gpt6.generate('Test', { temperature: 0.5, maxTokens: 1000 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should use the gpt-6 parameter shape when the deployment is named after the model', async () => {
+      const gpt6 = new AzureOpenAIProvider({ ...defaultConfig, deploymentId: 'gpt-6-luna' });
+      mockFetch.mockImplementationOnce((url, options) => {
+        const body = JSON.parse(options.body as string);
+        expect(body.max_completion_tokens).toBe(1000);
+        expect(body).not.toHaveProperty('max_tokens');
+        expect(body).not.toHaveProperty('temperature');
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(createMockCompletionResponse()),
+        });
+      });
+
+      await gpt6.generate('Test', { temperature: 0.5, maxTokens: 1000 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it('should handle stop sequences', async () => {

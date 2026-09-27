@@ -30,12 +30,13 @@ import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
 import { safeJsonParse } from '../../safe-json.js';
+import { resolveModelPricing } from '../cost-tracker.js';
 
 /**
  * OpenRouter-specific configuration
  */
 export interface OpenRouterConfig extends LLMConfig {
-  /** OpenRouter model (e.g., 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o') */
+  /** OpenRouter model (e.g., 'anthropic/claude-sonnet-5', 'openai/gpt-6-sol') */
   model: string;
   /** Site URL for OpenRouter attribution (optional but recommended) */
   siteUrl?: string;
@@ -51,7 +52,7 @@ export interface OpenRouterConfig extends LLMConfig {
  * Default OpenRouter configuration
  */
 export const DEFAULT_OPENROUTER_CONFIG: OpenRouterConfig = {
-  model: 'anthropic/claude-3.5-sonnet',
+  model: 'anthropic/claude-sonnet-5',
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -147,29 +148,63 @@ interface OpenRouterModelsResponse {
  */
 export const OPENROUTER_PRICING: Record<string, { input: number; output: number }> = {
   // Anthropic models via OpenRouter
+  'anthropic/claude-sonnet-5': { input: 2.0, output: 10.0 },
+  'anthropic/claude-opus-5': { input: 5.0, output: 25.0 },
+  'anthropic/claude-opus-5.5': { input: 4.0, output: 20.0 },
+  'anthropic/claude-haiku-4.5': { input: 1.0, output: 5.0 },
+  // OpenAI models via OpenRouter
+  'openai/gpt-6-astra': { input: 10.0, output: 50.0 },
+  'openai/gpt-6-sol': { input: 2.0, output: 10.0 },
+  'openai/gpt-6-luna': { input: 0.1, output: 0.5 },
+  'openai/gpt-oss-120b': { input: 0.15, output: 0.6 },
+  // Google models via OpenRouter
+  'google/gemini-3.8-flash': { input: 0.75, output: 3.75 },
+  'google/gemini-3.5-flash': { input: 1.5, output: 9.0 },
+  'google/gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
+  'google/gemini-3.1-pro-preview': { input: 2.0, output: 12.0 },
+  'google/gemini-2.5-pro': { input: 1.25, output: 10.0 },
+  'google/gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  // Meta models via OpenRouter
+  'meta-llama/llama-4-maverick': { input: 0.1875, output: 0.6525 },
+  'meta-llama/llama-4-scout': { input: 0.1, output: 0.3 },
+  // Mistral models via OpenRouter
+  'mistralai/mistral-large-2512': { input: 0.5, output: 1.5 },
+  // DeepSeek / Qwen models via OpenRouter
+  'deepseek/deepseek-v4-pro': { input: 0.348, output: 0.696 },
+  'deepseek/deepseek-v4.1-flash': { input: 0.035, output: 0.29 },
+  'qwen/qwen3-coder': { input: 0.3, output: 1.0 },
+  'openai/gpt-oss-20b': { input: 0.018, output: 0.09 },
+  // Deprecated: no longer served by OpenRouter. Kept only so historical
+  // usage records still price correctly — never use as a default.
   'anthropic/claude-3.5-sonnet': { input: 3.0, output: 15.0 },
   'anthropic/claude-3.5-sonnet:beta': { input: 3.0, output: 15.0 },
   'anthropic/claude-3-opus': { input: 15.0, output: 75.0 },
   'anthropic/claude-3-sonnet': { input: 3.0, output: 15.0 },
   'anthropic/claude-3-haiku': { input: 0.25, output: 1.25 },
-  // OpenAI models via OpenRouter
   'openai/gpt-4o': { input: 5.0, output: 15.0 },
   'openai/gpt-4o-mini': { input: 0.15, output: 0.6 },
   'openai/gpt-4-turbo': { input: 10.0, output: 30.0 },
   'openai/gpt-3.5-turbo': { input: 0.5, output: 1.5 },
-  // Google models via OpenRouter
   'google/gemini-pro': { input: 0.125, output: 0.375 },
   'google/gemini-pro-1.5': { input: 3.5, output: 10.5 },
-  // Meta models via OpenRouter
   'meta-llama/llama-3.1-70b-instruct': { input: 0.59, output: 0.79 },
   'meta-llama/llama-3.1-8b-instruct': { input: 0.06, output: 0.06 },
-  // Mistral models via OpenRouter
   'mistralai/mistral-large': { input: 2.0, output: 6.0 },
   'mistralai/mixtral-8x7b-instruct': { input: 0.24, output: 0.24 },
   'mistralai/mistral-7b-instruct': { input: 0.06, output: 0.06 },
   // Default fallback for unknown models
   'default': { input: 1.0, output: 3.0 },
 };
+
+/**
+ * Per-million-token pricing for an OpenRouter slug. The local table wins;
+ * otherwise the shared cost tracker / model registry (which normalize
+ * `anthropic/…`, `openai/…` slugs) are consulted before the generic default,
+ * so routable models are never billed at the placeholder rate.
+ */
+function openRouterPricing(model: string): { input: number; output: number } {
+  return OPENROUTER_PRICING[model] ?? resolveModelPricing(model) ?? OPENROUTER_PRICING['default'];
+}
 
 /**
  * OpenRouter LLM provider implementation
@@ -286,6 +321,7 @@ export class OpenRouterProvider implements LLMProvider {
 
     const start = Date.now();
 
+    // Sent as-is (no openai-params gating): OpenRouter drops params a model's catalog entry doesn't support.
     const body: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
@@ -640,20 +676,21 @@ export class OpenRouterProvider implements LLMProvider {
 
     // Return common models as fallback
     return [
-      'anthropic/claude-3.5-sonnet',
-      'anthropic/claude-3-opus',
-      'anthropic/claude-3-sonnet',
-      'anthropic/claude-3-haiku',
-      'openai/gpt-4o',
-      'openai/gpt-4o-mini',
-      'openai/gpt-4-turbo',
-      'openai/gpt-3.5-turbo',
-      'google/gemini-pro',
-      'google/gemini-pro-1.5',
-      'meta-llama/llama-3.1-70b-instruct',
-      'meta-llama/llama-3.1-8b-instruct',
-      'mistralai/mistral-large',
-      'mistralai/mixtral-8x7b-instruct',
+      'anthropic/claude-sonnet-5',
+      'anthropic/claude-opus-5.5',
+      'anthropic/claude-opus-5',
+      'anthropic/claude-haiku-4.5',
+      'openai/gpt-6-sol',
+      'openai/gpt-6-luna',
+      'openai/gpt-6-astra',
+      'google/gemini-3.8-flash',
+      'google/gemini-3.1-pro-preview',
+      'google/gemini-2.5-flash',
+      'meta-llama/llama-4-maverick',
+      'deepseek/deepseek-v4-pro',
+      'qwen/qwen3-coder',
+      'mistralai/mistral-large-2512',
+      'openai/gpt-oss-120b',
     ];
   }
 
@@ -661,7 +698,7 @@ export class OpenRouterProvider implements LLMProvider {
    * Get cost per token for current model
    */
   getCostPerToken(): { input: number; output: number } {
-    const pricing = OPENROUTER_PRICING[this.config.model] || OPENROUTER_PRICING['default'];
+    const pricing = openRouterPricing(this.config.model);
     return {
       input: pricing.input / 1_000_000,
       output: pricing.output / 1_000_000,
@@ -679,7 +716,7 @@ export class OpenRouterProvider implements LLMProvider {
    * Calculate cost for a given usage
    */
   private calculateCost(model: string, usage: TokenUsage): CostInfo {
-    const pricing = OPENROUTER_PRICING[model] || OPENROUTER_PRICING['default'];
+    const pricing = openRouterPricing(model);
 
     // Convert from per-million to actual cost
     const inputCost = (usage.promptTokens / 1_000_000) * pricing.input;

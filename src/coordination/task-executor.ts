@@ -20,6 +20,7 @@ import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
 import { createLogger } from '../logging/logger-factory.js';
+import { getClaudeModelForTier } from '../shared/llm/model-registry.js';
 
 // ADR-051: Agent Booster integration for Tier 0 tasks
 import {
@@ -149,14 +150,8 @@ type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown
  * Per ADR-026: 3-tier model routing
  */
 function getModelForTier(tier: number): string {
-  switch (tier) {
-    case 0: return 'agent-booster'; // Special case - WASM transforms
-    case 1: return 'claude-haiku-4-5-20251001';
-    case 2: return 'claude-sonnet-4-6';
-    case 3: return 'claude-sonnet-4-6'; // Extended thinking
-    case 4: return 'claude-opus-4-7';
-    default: return 'claude-sonnet-4-6';
-  }
+  if (tier === 0) return 'agent-booster'; // Special case - WASM transforms
+  return getClaudeModelForTier(tier); // Tier 3 = extended thinking, same model as tier 2
 }
 
 /**

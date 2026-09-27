@@ -29,6 +29,7 @@ import {
   isRegisteredProvider,
   registeredProviderTypes,
 } from '../../shared/llm/provider-registry.js';
+import { DEFAULT_OPUS_MODEL, DEFAULT_SONNET_MODEL } from '../../shared/llm/model-registry.js';
 import { resolvesOnPath } from '../../shared/llm/providers/external-cli.js';
 
 // ============================================================================
@@ -152,7 +153,7 @@ Examples:
   $ aqe llm route "security audit"     Test routing for a task
   $ aqe llm config --set mode=cost-optimized
   $ aqe llm health                 Check provider health
-  $ aqe llm cost claude-sonnet-4 --tokens 10000
+  $ aqe llm cost claude-sonnet-5 --tokens 10000
   $ aqe llm advise --transcript t.json --json   Consult advisor (ADR-092)
   $ aqe llm verify --session <id>               Check advisor quality gate
 `);
@@ -567,15 +568,15 @@ function formatCost(cost?: number): string {
 
 function getDefaultModelForProvider(provider: ExtendedProviderType): string {
   const defaults: Record<BuiltinExtendedProviderType, string> = {
-    claude: 'claude-sonnet-4-6',
+    claude: DEFAULT_SONNET_MODEL,
     'claude-code': 'sonnet',
-    codex: 'gpt-5-codex',
-    openai: 'gpt-4o',
-    ollama: 'llama3.1',
-    openrouter: 'anthropic/claude-sonnet-4',
-    gemini: 'gemini-2.0-pro',
+    codex: 'default',
+    openai: 'gpt-6-sol',
+    ollama: 'qwen3-coder:30b',
+    openrouter: 'anthropic/claude-sonnet-5',
+    gemini: 'gemini-2.5-flash',
     'azure-openai': 'gpt-4o',
-    bedrock: 'anthropic.claude-sonnet-4-v1:0',
+    bedrock: 'anthropic.claude-sonnet-4-6-v1:0',
     cognitum: 'cognitum-auto',
     onnx: 'phi-4',
   };
@@ -643,10 +644,10 @@ function simulateRoutingDecision(task: string, options: {
   if (agentType?.includes('security') || task.toLowerCase().includes('security')) {
     return {
       provider: 'claude',
-      model: 'claude-sonnet-4-6',
+      model: DEFAULT_SONNET_MODEL,
       reason: 'Security tasks require advanced reasoning (rule-match)',
       confidence: 0.95,
-      estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.021 },
+      estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.014 },
     };
   }
 
@@ -663,10 +664,10 @@ function simulateRoutingDecision(task: string, options: {
   if (mode === 'performance-optimized' || complexity === 'expert') {
     return {
       provider: 'claude',
-      model: 'claude-opus-4-7',
+      model: DEFAULT_OPUS_MODEL,
       reason: 'Complex task requires flagship model',
       confidence: 0.92,
-      estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.105 },
+      estimatedCost: { inputTokens: 2000, outputTokens: 1000, totalCostUsd: 0.028 },
     };
   }
 

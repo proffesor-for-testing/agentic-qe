@@ -268,7 +268,7 @@ aqe learning import patterns.gz  # Import patterns from another project
 aqe llm providers                # List available LLM providers and status
 aqe llm models --provider anthropic  # List models for a provider
 aqe llm route "generate security tests"  # Test routing decision
-aqe llm cost claude-sonnet --tokens 10000  # Estimate cost
+aqe llm cost claude-sonnet-5 --tokens 10000  # Estimate cost
 aqe llm health                   # Provider health check
 
 # Evaluation

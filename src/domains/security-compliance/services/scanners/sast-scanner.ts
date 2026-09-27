@@ -32,6 +32,7 @@ import type {
 import { ALL_SECURITY_PATTERNS, BUILT_IN_RULE_SETS } from './security-patterns.js';
 import { toError } from '@shared/error-utils.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import { CLAUDE_TIER_MODELS, DEFAULT_OPUS_MODEL } from '@shared/llm/model-registry.js';
 import {
   isSemgrepAvailable,
   runSemgrepWithRules,
@@ -702,13 +703,8 @@ export class SASTScanner {
    * Get model ID for the configured tier
    */
   getModelForTier(tier: number): string {
-    switch (tier) {
-      case 1: return 'claude-haiku-4-5-20251001';
-      case 2: return 'claude-sonnet-4-6';
-      case 3: return 'claude-sonnet-4-6';
-      case 4: return 'claude-opus-4-7';
-      default: return 'claude-opus-4-7'; // Default to Opus for security
-    }
+    // Default to Opus for security when the tier is out of range
+    return CLAUDE_TIER_MODELS[tier as 1 | 2 | 3 | 4] ?? DEFAULT_OPUS_MODEL;
   }
 
   /**

@@ -34,6 +34,7 @@ import {
   type QEFlashAttentionConfig,
   type QEFlashAttentionMetrics,
 } from '../../../integrations/ruvector/wrappers.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Configuration for the learning coordinator
@@ -257,13 +258,7 @@ export class LearningCoordinatorService
    * @returns Model ID string
    */
   private getModelForTier(tier: number): string {
-    const models: Record<number, string> = {
-      1: 'claude-haiku-4-5',
-      2: 'claude-sonnet-4-6',
-      3: 'claude-sonnet-4-6',
-      4: 'claude-opus-4-7',
-    };
-    return models[tier] || models[2];
+    return getClaudeModelForTier(tier);
   }
 
   /**

@@ -6,7 +6,7 @@
  * Integrates with AQE MCP tools for shared learning and QualityFeedbackLoop.
  *
  * Usage:
- *   npx tsx scripts/run-skill-eval.ts --skill security-testing --model claude-sonnet-4-6
+ *   npx tsx scripts/run-skill-eval.ts --skill security-testing --model claude-sonnet-5
  *   npx tsx scripts/run-skill-eval.ts --eval-file .claude/skills/security-testing/evals/security-testing.yaml
  *   npx tsx scripts/run-skill-eval.ts --skill security-testing --all-models
  *
@@ -1235,7 +1235,7 @@ Examples:
   npx tsx scripts/run-skill-eval.ts --skill security-testing
 
   # Run against specific model
-  npx tsx scripts/run-skill-eval.ts --skill security-testing --model claude-sonnet-4-6
+  npx tsx scripts/run-skill-eval.ts --skill security-testing --model claude-sonnet-5
 
   # Run with MCP integration for learning
   npx tsx scripts/run-skill-eval.ts --skill security-testing --use-mcp

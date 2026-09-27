@@ -8,7 +8,7 @@ domain: cross-domain
 advisor:
   enabled: true
   provider: openrouter
-  model: anthropic/claude-opus-4.7
+  model: anthropic/claude-opus-5.5
   max_uses: 3
   redact: strict
 ---

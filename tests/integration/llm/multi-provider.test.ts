@@ -27,6 +27,7 @@ import {
   MODEL_MAPPINGS,
 } from '../../../src/shared/llm/model-mapping';
 import { ClaudeProvider, OpenAIProvider, OllamaProvider } from '../../../src/shared/llm/providers';
+import { DEFAULT_SONNET_MODEL } from '../../../src/shared/llm/model-registry';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -195,7 +196,7 @@ describe('Multi-Provider Integration Tests', () => {
       const config = qeRouter.getConfig();
       expect(config.mode).toBe('rule-based');
       expect(config.defaultProvider).toBe('claude');
-      expect(config.defaultModel).toBe('claude-sonnet-4-6');
+      expect(config.defaultModel).toBe(DEFAULT_SONNET_MODEL);
       expect(config.enableMetrics).toBe(true);
       expect(config.cacheDecisions).toBe(true);
     });
@@ -365,7 +366,7 @@ describe('Multi-Provider Integration Tests', () => {
     it('should respect default provider configuration', () => {
       const config = router.getConfig();
       expect(config.defaultProvider).toBe('claude');
-      expect(config.defaultModel).toBe('claude-sonnet-4-6');
+      expect(config.defaultModel).toBe(DEFAULT_SONNET_MODEL);
     });
 
     it('should have valid fallback chain configuration', () => {

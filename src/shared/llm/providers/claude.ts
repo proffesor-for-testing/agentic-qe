@@ -25,14 +25,14 @@ import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
-import { resolveEffortLevel, downgradeEffort, type EffortLevel } from '../effort-resolver';
-import { getModelCapabilities } from '../model-registry';
+import { applyAnthropicParams } from '../anthropic-params';
+import { DEFAULT_SONNET_MODEL } from '../model-registry';
 
 /**
  * Default Claude configuration
  */
 export const DEFAULT_CLAUDE_CONFIG: ClaudeConfig = {
-  model: 'claude-sonnet-4-6',
+  model: DEFAULT_SONNET_MODEL,
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -189,9 +189,11 @@ export class ClaudeProvider implements LLMProvider {
     const body: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
-      temperature,
       messages,
     };
+    // Sampling params and effort are model-dependent: current Claude models
+    // reject `temperature` and take effort only as `output_config.effort`.
+    applyAnthropicParams(body, model, { temperature, effort: options?.effort });
 
     if (options?.systemPrompt) {
       // ADR-088: when caching is enabled, send the system prompt as a
@@ -207,31 +209,6 @@ export class ClaudeProvider implements LLMProvider {
 
     if (options?.stopSequences && options.stopSequences.length > 0) {
       body.stop_sequences = options.stopSequences;
-    }
-
-    // ADR-093: apply effort level only on models that actually advertise it.
-    //
-    // Anthropic's Messages API accepts effort nested under the `thinking`
-    // block, not as a top-level field. We only set it when the target model
-    // has `supportsEffortXHigh: true` in the registry (= Opus 4.7 today).
-    // For every other model we send nothing thinking/effort-related — the
-    // caller's `options.effort` is ignored rather than silently downgraded
-    // to a value the model may not accept.
-    //
-    // Rationale: the top-level `effort` shape was unverified against
-    // Anthropic's public schema and risked 400-ing Sonnet 4.6 / Haiku 4.5
-    // calls. Gating behind the capability flag keeps behavior safe on
-    // models without xhigh support; Opus 4.7 gets the advertised quality
-    // boost once we verify the exact nested shape Anthropic accepts.
-    try {
-      const caps = getModelCapabilities(model);
-      if (caps.supportsEffortXHigh) {
-        const requested = resolveEffortLevel({ override: options?.effort });
-        const effort: EffortLevel = downgradeEffort(requested, 'xhigh');
-        body.thinking = { type: 'adaptive', effort };
-      }
-    } catch {
-      // Model not in registry — skip effort entirely.
     }
 
     try {

@@ -30,7 +30,7 @@ import { computeAdaptiveTimeoutMs } from './ollama-timeout.js';
  * Default Ollama configuration
  */
 export const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
-  model: 'llama3.1',
+  model: 'qwen3-coder:30b', // ADR-111 local QE floor — never qwen3:8b
   baseUrl: resolveOllamaBaseUrl('http://localhost:11434'),
   maxTokens: 4096,
   temperature: 0.7,
@@ -107,6 +107,8 @@ export class OllamaProvider implements LLMProvider {
   private config: OllamaConfig;
   private requestId: number = 0;
   private availableModels: string[] = [];
+  /** Full installed names including tag (e.g. 'qwen3-coder:30b'), from the last health check. */
+  private installedTags: string[] = [];
   /** EMA of observed generation throughput (tok/s) per model, for adaptive timeouts (#3). */
   private observedTokPerSec = new Map<string, number>();
 
@@ -175,16 +177,18 @@ export class OllamaProvider implements LLMProvider {
       const data = await response.json() as OllamaTagsResponse;
 
       // Extract available model names
-      this.availableModels =
-        data.models?.map((m) => m.name.split(':')[0]) ?? [];
+      this.installedTags = data.models?.map((m) => m.name) ?? [];
+      this.availableModels = this.installedTags.map((name) => name.split(':')[0]);
 
-      // Check if the configured model is available
-      const hasConfiguredModel = this.availableModels.some(
-        (m) =>
-          m === this.config.model ||
-          m.startsWith(this.config.model) ||
-          this.config.model.startsWith(m)
-      );
+      // Check if the configured model is available. A tagged model
+      // ('qwen3-coder:30b') must match an installed tag exactly; prefix
+      // matching reported 'qwen3:8b' as satisfying 'qwen3-coder:30b', a false
+      // healthy that only failed later at generate time. An untagged model
+      // ('llama3.1') matches any installed tag of that name.
+      const configured = this.config.model;
+      const hasConfiguredModel = configured.includes(':')
+        ? this.installedTags.includes(configured)
+        : this.availableModels.includes(configured);
 
       if (!hasConfiguredModel && this.availableModels.length > 0) {
         return {
@@ -409,7 +413,7 @@ export class OllamaProvider implements LLMProvider {
     options?: CompleteOptions
   ): Promise<CompletionResponse> {
     // Use generate with code-completion-optimized settings
-    // Prefer codellama for code completion if available
+    // Prefer a code-tuned model for completion if one is installed
     const model = options?.model ?? this.selectCodeModel();
 
     const response = await this.generate(prompt, {
@@ -441,16 +445,15 @@ export class OllamaProvider implements LLMProvider {
    */
   getSupportedModels(): string[] {
     // Return known models plus any detected from health check
+    // Curated current families; installed models are merged in below.
+    // Tag availability varies by Ollama library version — pull to confirm.
     const knownModels = [
-      'llama3',
-      'llama3.1',
-      'llama3.2',
-      'codellama',
-      'mistral',
-      'mixtral',
-      'phi3',
-      'qwen2',
-      'gemma',
+      'qwen3-coder:30b',
+      'qwen3:30b-a3b',
+      'gpt-oss:20b',
+      'gpt-oss:120b',
+      'llama4:scout',
+      'gemma4',
       'nomic-embed-text',
     ];
 
@@ -532,15 +535,17 @@ export class OllamaProvider implements LLMProvider {
    * Select the best available code model
    */
   private selectCodeModel(): string {
-    const codeModels = ['codellama', 'llama3.1', 'llama3', 'mistral'];
+    // Most-preferred first. Deliberately excludes qwen3:8b (below the ADR-111 floor).
+    const codeModels = ['qwen3-coder', 'gpt-oss', 'qwen3:30b-a3b', 'codellama'];
 
     for (const model of codeModels) {
-      if (
-        this.availableModels.some(
-          (m) => m === model || m.startsWith(model)
-        )
-      ) {
-        return model;
+      // Return the full installed tag (e.g. 'qwen3-coder:30b'), not the prefix — a bare
+      // family name resolves to ':latest', which may not be the tag that is pulled.
+      const installed = this.installedTags.find(
+        (m) => m === model || m.startsWith(model)
+      );
+      if (installed) {
+        return installed;
       }
     }
 

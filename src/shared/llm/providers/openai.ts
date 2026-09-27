@@ -22,6 +22,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
+import { applyOpenAIParams } from '../openai-params';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
@@ -30,7 +31,7 @@ import { backoffDelay } from '../retry.js';
  * Default OpenAI configuration
  */
 export const DEFAULT_OPENAI_CONFIG: OpenAIConfig = {
-  model: 'gpt-4o',
+  model: 'gpt-6-sol',
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -137,11 +138,13 @@ export class OpenAIProvider implements LLMProvider {
         {
           method: 'POST',
           headers: this.getHeaders(),
-          body: JSON.stringify({
-            model: this.config.model,
-            max_tokens: 1,
-            messages: [{ role: 'user', content: 'Hi' }],
-          }),
+          body: JSON.stringify(
+            applyOpenAIParams(
+              { model: this.config.model, messages: [{ role: 'user', content: 'Hi' }] },
+              this.config.model,
+              { maxTokens: 1 }
+            )
+          ),
         },
         5000
       );
@@ -199,12 +202,11 @@ export class OpenAIProvider implements LLMProvider {
 
     const start = Date.now();
 
-    const body: Record<string, unknown> = {
+    const body: Record<string, unknown> = applyOpenAIParams(
+      { model, messages },
       model,
-      max_tokens: maxTokens,
-      temperature,
-      messages,
-    };
+      { maxTokens, temperature }
+    );
 
     if (options?.stopSequences && options.stopSequences.length > 0) {
       body.stop = options.stopSequences;
@@ -387,11 +389,12 @@ export class OpenAIProvider implements LLMProvider {
    */
   getSupportedModels(): string[] {
     return [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-3.5-turbo',
+      'gpt-6-sol',
+      'gpt-6-luna',
+      'gpt-6-astra',
+      'gpt-5.6-sol',
+      'gpt-5.6-luna',
+      'gpt-5.4-mini',
     ];
   }
 

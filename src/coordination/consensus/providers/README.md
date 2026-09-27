@@ -10,11 +10,11 @@ The consensus engine uses multiple AI models to verify security findings, reduci
 
 ### 1. Claude Provider (`claude-provider.ts`)
 
-**Models Supported:**
-- `claude-3-5-sonnet-20241022` (recommended for cost/performance)
-- `claude-3-5-sonnet-latest`
-- `claude-3-opus-20240229` (highest accuracy)
-- `claude-3-opus-latest`
+**Models Supported** (see `claude-provider.ts` for the authoritative list):
+- `claude-sonnet-5` (recommended for cost/performance)
+- `claude-opus-5` (highest accuracy)
+- `claude-opus-5-5`
+- `claude-haiku-4-5`
 
 **Configuration:**
 ```typescript
@@ -22,7 +22,7 @@ import { createClaudeProvider } from './providers';
 
 const provider = createClaudeProvider({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  defaultModel: 'claude-3-5-sonnet-20241022',
+  defaultModel: 'claude-sonnet-5',
   defaultTimeout: 30000,
   maxRetries: 3,
   enableLogging: false,
@@ -30,17 +30,20 @@ const provider = createClaudeProvider({
 ```
 
 **Cost:**
-- Claude 3.5 Sonnet: $3 input / $15 output per 1M tokens
-- Claude 3 Opus: $15 input / $75 output per 1M tokens
+- Claude Sonnet 5: $2 input / $10 output per 1M tokens
+- Claude Opus 5: $5 input / $25 output per 1M tokens
 
 ### 2. OpenAI Provider (`openai-provider.ts`)
 
 **Models Supported:**
-- `gpt-4-turbo` (recommended)
-- `gpt-4-turbo-preview`
-- `gpt-4-0125-preview`
-- `gpt-4-1106-preview`
-- `gpt-4`
+- `gpt-6-sol` (recommended, default)
+- `gpt-6-luna` (fastest, cheapest)
+- `gpt-6-astra` (highest accuracy)
+- `gpt-5.6-sol`
+- `gpt-5.4-mini`
+
+Legacy GPT-4 IDs (`gpt-4`, `gpt-4-turbo`, ...) are still accepted and priced for
+existing configs but are no longer listed or used as defaults.
 
 **Configuration:**
 ```typescript
@@ -49,7 +52,7 @@ import { createOpenAIProvider } from './providers';
 const provider = createOpenAIProvider({
   apiKey: process.env.OPENAI_API_KEY,
   organization: process.env.OPENAI_ORGANIZATION, // optional
-  defaultModel: 'gpt-4-turbo',
+  defaultModel: 'gpt-6-sol',
   defaultTimeout: 30000,
   maxRetries: 3,
   enableLogging: false,
@@ -57,17 +60,23 @@ const provider = createOpenAIProvider({
 ```
 
 **Cost:**
-- GPT-4-turbo: $10 input / $30 output per 1M tokens
-- GPT-4: $30 input / $60 output per 1M tokens
+- GPT-6 Astra: $10 input / $50 output per 1M tokens
+- GPT-6 Sol: $2 input / $10 output per 1M tokens
+- GPT-6 Luna: $0.10 input / $0.50 output per 1M tokens
 
 ### 3. Gemini Provider (`gemini-provider.ts`)
 
 **Models Supported:**
-- `gemini-1.5-pro-latest` (recommended)
-- `gemini-1.5-pro`
-- `gemini-1.5-flash-latest` (fastest, cheapest)
-- `gemini-1.5-flash`
-- `gemini-pro`
+- `gemini-2.5-pro` (recommended, default)
+- `gemini-2.5-flash` (fastest, cheapest)
+- `gemini-3.8-flash`
+- `gemini-3.5-flash`
+- `gemini-3.5-flash-lite`
+- `gemini-3.1-pro-preview`
+
+The 3.x IDs other than `gemini-3.5-flash` come from the OpenRouter catalog and are
+not yet verified against the Gemini API. Retired 1.x IDs are still priced for
+existing configs but are no longer listed or used as defaults.
 
 **Configuration:**
 ```typescript
@@ -75,7 +84,7 @@ import { createGeminiProvider } from './providers';
 
 const provider = createGeminiProvider({
   apiKey: process.env.GOOGLE_API_KEY,
-  defaultModel: 'gemini-1.5-pro-latest',
+  defaultModel: 'gemini-2.5-pro',
   defaultTimeout: 30000,
   maxRetries: 3,
   enableLogging: false,
@@ -83,9 +92,9 @@ const provider = createGeminiProvider({
 ```
 
 **Cost:**
-- Gemini 1.5 Pro: $3.50 input / $10.50 output per 1M tokens
-- Gemini 1.5 Flash: $0.35 input / $1.05 output per 1M tokens (best cost/performance)
-- Gemini Pro: $0.50 input / $1.50 output per 1M tokens
+- Gemini 2.5 Pro: $1.25 input / $10 output per 1M tokens
+- Gemini 2.5 Flash: $0.30 input / $2.50 output per 1M tokens (best cost/performance)
+- Gemini 3.8 Flash: $0.75 input / $3.75 output per 1M tokens
 
 ## Usage
 
@@ -98,15 +107,15 @@ import { registerAllProviders } from './providers';
 const registry = registerAllProviders({
   claude: {
     apiKey: process.env.ANTHROPIC_API_KEY,
-    defaultModel: 'claude-3-5-sonnet-20241022',
+    defaultModel: 'claude-sonnet-5',
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
-    defaultModel: 'gpt-4-turbo',
+    defaultModel: 'gpt-6-sol',
   },
   gemini: {
     apiKey: process.env.GOOGLE_API_KEY,
-    defaultModel: 'gemini-1.5-flash-latest',
+    defaultModel: 'gemini-2.5-flash',
   },
   enableLogging: true,
 });

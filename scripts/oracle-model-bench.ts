@@ -77,20 +77,22 @@ const REFERENCE_IMPL = `export function classify(score, bonus) {
 
 // $/1M out price recorded for cost framing (free = 0). Models chosen as a spread
 // of budget options capable of code; pricing/ids from `tsx scripts/openrouter-models.ts`.
+// OpenRouter `:free` slugs rotate often — re-check the catalog before a run
+// (last verified 2026-09-27).
 interface Candidate { tier: 'free' | 'cheap'; id: string; outPrice: number }
 const FREE: Candidate[] = [
-  { tier: 'free', id: 'qwen/qwen3-coder:free', outPrice: 0 },
-  { tier: 'free', id: 'openai/gpt-oss-120b:free', outPrice: 0 },
-  { tier: 'free', id: 'meta-llama/llama-3.3-70b-instruct:free', outPrice: 0 },
+  { tier: 'free', id: 'qwen/qwen3.8-27b:free', outPrice: 0 },
+  { tier: 'free', id: 'cohere/north-mini-code:free', outPrice: 0 },
+  { tier: 'free', id: 'poolside/laguna-s-2.1:free', outPrice: 0 },
   { tier: 'free', id: 'google/gemma-4-31b-it:free', outPrice: 0 },
   { tier: 'free', id: 'nvidia/nemotron-3-super-120b-a12b:free', outPrice: 0 },
 ];
 const CHEAP: Candidate[] = [
-  { tier: 'cheap', id: 'openai/gpt-oss-120b', outPrice: 0.15 },
-  { tier: 'cheap', id: 'qwen/qwen3-235b-a22b-2507', outPrice: 0.10 },
-  { tier: 'cheap', id: 'qwen/qwen3-235b-a22b-thinking-2507', outPrice: 0.10 },
-  { tier: 'cheap', id: 'deepseek/deepseek-v4-flash', outPrice: 0.18 },
-  { tier: 'cheap', id: 'mistralai/mistral-small-3.2-24b-instruct', outPrice: 0.20 },
+  { tier: 'cheap', id: 'openai/gpt-oss-120b', outPrice: 0.60 },
+  { tier: 'cheap', id: 'qwen/qwen3-235b-a22b-2507', outPrice: 0.35 },
+  { tier: 'cheap', id: 'qwen/qwen3-235b-a22b-thinking-2507', outPrice: 2.30 },
+  { tier: 'cheap', id: 'deepseek/deepseek-v4-flash', outPrice: 0.094 },
+  { tier: 'cheap', id: 'mistralai/mistral-small-3.2-24b-instruct', outPrice: 0.25 },
 ];
 
 const ATTEMPTS = 3; // best-of-N: budget-model output is nondeterministic; report reliability.

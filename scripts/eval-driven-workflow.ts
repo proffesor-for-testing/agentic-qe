@@ -242,7 +242,7 @@ description: >
 # =============================================================================
 
 models_to_test:
-  - claude-sonnet-4-6         # Primary model (high accuracy expected)
+  - claude-sonnet-5           # Primary model (high accuracy expected)
   - claude-haiku-4-5             # Fast model (minimum quality bar)
 
 # =============================================================================

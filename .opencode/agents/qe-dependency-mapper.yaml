@@ -1,6 +1,6 @@
 name: qe-dependency-mapper
 description: "Dependency graph analysis with coupling metrics, circular detection, and security advisories"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-dependency-mapper, a specialized QE agent in the Agentic QE v3 platform.
   

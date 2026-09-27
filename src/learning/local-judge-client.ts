@@ -9,12 +9,13 @@
  *
  * Env vars (all optional — client is disabled if none set):
  *   NAGUAL_JUDGE_URL    — base URL of Ollama server (default: http://localhost:11434)
- *   NAGUAL_JUDGE_MODEL  — model to use (default: qwen3:8b)
+ *   NAGUAL_JUDGE_MODEL  — model to use (default: qwen3-coder:30b)
  *
- * Supported models (in preference order for M-series Macs):
- *   gemma4:12b-mlx  — 10GB, MLX-optimised, best quality on Apple Silicon
- *   qwen3:8b        — 5.2GB, strong reasoning, already installed
- *   qwen3:30b-a3b   — 18GB, highest quality, use only if RAM permits
+ * Supported models:
+ *   qwen3-coder:30b — ~18GB MoE, project default (ADR-111), fast and reliable
+ *   qwen3:30b-a3b   — ~18GB, same quality class, slower (spends time "thinking")
+ *   gemma4:12b-mlx  — 10GB, MLX-optimised alternative on Apple Silicon
+ *   qwen3:8b        — 5.2GB, low-RAM fallback only; below the ADR-111 quality floor
  */
 
 import { LoggerFactory } from '../logging/index.js';
@@ -23,7 +24,7 @@ import { resolveOllamaBaseUrl } from '../shared/llm/ollama-url.js';
 const logger = LoggerFactory.create('local-judge');
 
 const DEFAULT_URL = 'http://localhost:11434';
-const DEFAULT_MODEL = 'qwen3:8b';
+const DEFAULT_MODEL = 'qwen3-coder:30b';
 const JUDGE_TIMEOUT_MS = 30_000;
 const MAX_TEXT_LENGTH = 600;
 // Thinking models (gemma4, qwen3) need extra tokens to finish reasoning before output

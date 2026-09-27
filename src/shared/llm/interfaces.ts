@@ -229,6 +229,8 @@ export interface LLMConfig {
 export interface ClaudeConfig extends LLMConfig {
   /** Claude model version */
   model:
+    | 'claude-opus-5'
+    | 'claude-sonnet-5'
     | 'claude-opus-4-7'
     | 'claude-sonnet-4-6'
     | 'claude-haiku-4-5-20251001'

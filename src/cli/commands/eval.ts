@@ -27,6 +27,7 @@ import {
 } from '../../validation/parallel-eval-runner.js';
 import { resolveEvalExecutor } from '../../validation/provider-llm-executor.js';
 import type { ProviderManager } from '../../shared/llm/provider-manager.js';
+import { DEFAULT_SONNET_MODEL } from '../../shared/llm/model-registry.js';
 import {
   createCommandEvalRunner,
   isCommandEvalSuite,
@@ -772,7 +773,7 @@ export function createEvalCommand(): Command {
     .requiredOption('-s, --skill <skill>', 'Skill name to evaluate')
     .requiredOption(
       '-m, --model <model>',
-      'Model to use (e.g., claude-sonnet-4-6)'
+      `Model to use (e.g., ${DEFAULT_SONNET_MODEL})`
     )
     .option('-p, --parallel', 'Enable parallel execution', false)
     .option('-w, --workers <n>', 'Number of parallel workers', parseInt, 5)
@@ -820,7 +821,7 @@ export function createEvalCommand(): Command {
     .option(
       '--models <models>',
       'Comma-separated models to test',
-      'claude-sonnet-4-6'
+      DEFAULT_SONNET_MODEL
     )
     .option('-p, --parallel', 'Enable parallel execution', true)
     .option('-w, --workers <n>', 'Number of parallel workers', parseInt, 5)

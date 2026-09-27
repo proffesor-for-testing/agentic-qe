@@ -3,7 +3,7 @@
  * MM-005: Google Gemini implementation for multi-model consensus verification
  *
  * Provides security finding verification using Google's Gemini models.
- * Supports Gemini Pro and Gemini Pro Vision with configurable parameters.
+ * Supports Gemini 2.5 and 3.x models with configurable parameters.
  *
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
@@ -26,11 +26,43 @@ import {
  * Gemini-specific model versions
  */
 export type GeminiModel =
+  | 'gemini-2.5-pro'
+  | 'gemini-2.5-flash'
+  | 'gemini-3.8-flash'
+  | 'gemini-3.5-flash'
+  | 'gemini-3.5-flash-lite'
+  | 'gemini-3.1-pro-preview'
+  /** @deprecated Retired by Google — kept for config compatibility only. */
   | 'gemini-1.5-pro-latest'
+  /** @deprecated Retired by Google — kept for config compatibility only. */
   | 'gemini-1.5-pro'
+  /** @deprecated Retired by Google — kept for config compatibility only. */
   | 'gemini-1.5-flash-latest'
+  /** @deprecated Retired by Google — kept for config compatibility only. */
   | 'gemini-1.5-flash'
+  /** @deprecated Retired by Google — kept for config compatibility only. */
   | 'gemini-pro';
+
+/**
+ * Cost per million tokens (USD). 2.5 rows match the shared Gemini provider;
+ * 3.x rows come from the OpenRouter catalog (2026-09-27) and, apart from
+ * gemini-3.5-flash, are not yet verified against the Gemini ListModels API.
+ * Retired 1.x rows are kept so configs pinned to them still price correctly.
+ */
+const GEMINI_MODEL_COSTS: Record<string, { input: number; output: number }> = {
+  'gemini-2.5-pro': { input: 1.25, output: 10 },
+  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  'gemini-3.8-flash': { input: 0.75, output: 3.75 },
+  'gemini-3.5-flash': { input: 1.5, output: 9 },
+  'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
+  'gemini-3.1-pro-preview': { input: 2, output: 12 },
+  // Deprecated (retired)
+  'gemini-1.5-pro-latest': { input: 3.5, output: 10.5 },
+  'gemini-1.5-pro': { input: 3.5, output: 10.5 },
+  'gemini-1.5-flash-latest': { input: 0.35, output: 1.05 },
+  'gemini-1.5-flash': { input: 0.35, output: 1.05 },
+  'gemini-pro': { input: 0.5, output: 1.5 },
+};
 
 /**
  * Configuration for Gemini provider
@@ -136,7 +168,7 @@ interface GeminiErrorResponse {
  * ```typescript
  * const provider = new GeminiModelProvider({
  *   apiKey: process.env.GOOGLE_API_KEY,
- *   defaultModel: 'gemini-1.5-pro-latest',
+ *   defaultModel: 'gemini-2.5-pro',
  * });
  *
  * const response = await provider.complete(prompt);
@@ -147,21 +179,19 @@ export class GeminiModelProvider extends BaseModelProvider {
   readonly name = 'Google Gemini';
   readonly type: ModelProvider['type'] = 'gemini';
 
-  // Cost per million tokens (as of 2024)
-  // Gemini Pro: $0.50 input, $1.50 output per 1M tokens (up to 128k context)
-  // Gemini 1.5 Pro: $3.50 input, $10.50 output per 1M tokens
-  // Gemini 1.5 Flash: $0.35 input, $1.05 output per 1M tokens
+  // Overridden per model from GEMINI_MODEL_COSTS in the constructor
   protected costPerToken = {
-    input: 3.5 / 1_000_000,  // Will be overridden per model
-    output: 10.5 / 1_000_000,
+    input: 1.25 / 1_000_000,
+    output: 10 / 1_000_000,
   };
 
   protected supportedModels: string[] = [
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash',
-    'gemini-pro',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-3.8-flash',
+    'gemini-3.5-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-pro-preview',
   ];
 
   private readonly config: Required<GeminiProviderConfig>;
@@ -190,7 +220,7 @@ export class GeminiModelProvider extends BaseModelProvider {
 
     this.config = {
       apiKey,
-      defaultModel: config.defaultModel || 'gemini-1.5-pro-latest',
+      defaultModel: config.defaultModel || 'gemini-2.5-pro',
       baseUrl: this.baseUrl,
       defaultTimeout: config.defaultTimeout || 30000,
       maxRetries: config.maxRetries ?? 3,
@@ -434,25 +464,12 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
    * Update cost based on model selection
    */
   private updateCostForModel(model: string): void {
-    if (model.includes('flash')) {
-      // Gemini 1.5 Flash: $0.35 input, $1.05 output per 1M tokens
-      this.costPerToken = {
-        input: 0.35 / 1_000_000,
-        output: 1.05 / 1_000_000,
-      };
-    } else if (model.includes('1.5')) {
-      // Gemini 1.5 Pro: $3.50 input, $10.50 output per 1M tokens
-      this.costPerToken = {
-        input: 3.5 / 1_000_000,
-        output: 10.5 / 1_000_000,
-      };
-    } else {
-      // Gemini Pro: $0.50 input, $1.50 output per 1M tokens
-      this.costPerToken = {
-        input: 0.5 / 1_000_000,
-        output: 1.5 / 1_000_000,
-      };
-    }
+    // Unknown models are priced as the default tier (gemini-2.5-pro)
+    const pricing = GEMINI_MODEL_COSTS[model] ?? GEMINI_MODEL_COSTS['gemini-2.5-pro'];
+    this.costPerToken = {
+      input: pricing.input / 1_000_000,
+      output: pricing.output / 1_000_000,
+    };
   }
 
   /**
@@ -484,7 +501,7 @@ Focus on accuracy over speed. It's better to mark something as "INCONCLUSIVE" if
  * ```typescript
  * const provider = createGeminiProvider({
  *   apiKey: process.env.GOOGLE_API_KEY,
- *   defaultModel: 'gemini-1.5-pro-latest',
+ *   defaultModel: 'gemini-2.5-pro',
  * });
  * ```
  */

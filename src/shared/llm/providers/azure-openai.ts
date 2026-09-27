@@ -44,6 +44,7 @@ import {
   createLLMError,
 } from '../interfaces';
 import { CostTracker } from '../cost-tracker';
+import { applyOpenAIParams } from '../openai-params';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
@@ -70,7 +71,11 @@ export interface AzureOpenAIConfig extends LLMConfig {
  * Default Azure OpenAI configuration
  */
 export const DEFAULT_AZURE_OPENAI_CONFIG: Partial<AzureOpenAIConfig> = {
-  model: 'gpt-4o', // Base model - actual deployment may vary
+  // Logical base model for cost tracking only — the deployment decides which
+  // model runs. Kept at gpt-4o so existing deployments keep their request
+  // shape; GPT-5/6 deployments must set `model` explicitly (e.g. 'gpt-6-sol')
+  // so the request uses max_completion_tokens.
+  model: 'gpt-4o',
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -139,9 +144,24 @@ export class AzureOpenAIProvider implements LLMProvider {
 
   private config: AzureOpenAIConfig;
   private requestId: number = 0;
+  /** Model the caller configured explicitly (not the default), for parameter policy. */
+  private readonly explicitModel?: string;
 
   constructor(config: Partial<AzureOpenAIConfig> & { deploymentId: string }) {
     this.config = { ...DEFAULT_AZURE_OPENAI_CONFIG, ...config } as AzureOpenAIConfig;
+    this.explicitModel = config.model;
+  }
+
+  /**
+   * Model ID used to pick the request-parameter policy. The deployment decides
+   * which model actually runs, so the default `model` is not trusted here: an
+   * explicit model wins, otherwise the deployment name is looked up. A
+   * deployment name that hides the base model (e.g. 'prod-chat') falls back to
+   * the name heuristic in openai-params, i.e. the legacy max_tokens shape —
+   * GPT-5/6 deployments with opaque names must therefore set `model`.
+   */
+  private paramPolicyModel(requestModel?: string): string {
+    return requestModel ?? this.explicitModel ?? this.config.deploymentId;
   }
 
   /**
@@ -200,10 +220,13 @@ export class AzureOpenAIProvider implements LLMProvider {
         {
           method: 'POST',
           headers: this.getHeaders(),
-          body: JSON.stringify({
-            max_tokens: 1,
-            messages: [{ role: 'user', content: 'Hi' }],
-          }),
+          body: JSON.stringify(
+            applyOpenAIParams(
+              { messages: [{ role: 'user', content: 'Hi' }] },
+              this.paramPolicyModel(),
+              { maxTokens: 1 }
+            )
+          ),
         },
         5000
       );
@@ -264,11 +287,11 @@ export class AzureOpenAIProvider implements LLMProvider {
 
     const start = Date.now();
 
-    const body: Record<string, unknown> = {
-      max_tokens: maxTokens,
-      temperature,
-      messages,
-    };
+    const body: Record<string, unknown> = applyOpenAIParams(
+      { messages },
+      this.paramPolicyModel(options?.model),
+      { maxTokens, temperature }
+    );
 
     if (options?.stopSequences && options.stopSequences.length > 0) {
       body.stop = options.stopSequences;
@@ -455,11 +478,10 @@ export class AzureOpenAIProvider implements LLMProvider {
    */
   getSupportedModels(): string[] {
     return [
-      'gpt-4o',
-      'gpt-4o-mini',
-      'gpt-4-turbo',
-      'gpt-4',
-      'gpt-35-turbo', // Azure uses different naming
+      'gpt-6-sol',
+      'gpt-6-luna',
+      'gpt-6-astra',
+      'gpt-5.4-mini',
       'text-embedding-ada-002',
       'text-embedding-3-small',
       'text-embedding-3-large',

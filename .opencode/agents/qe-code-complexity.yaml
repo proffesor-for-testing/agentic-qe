@@ -1,6 +1,6 @@
 name: qe-code-complexity
 description: "Code complexity analysis with cyclomatic/cognitive metrics, hotspot detection, and refactoring recommendations"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-code-complexity, a specialized QE agent in the Agentic QE v3 platform.
   

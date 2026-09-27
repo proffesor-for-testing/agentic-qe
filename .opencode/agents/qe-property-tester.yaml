@@ -1,6 +1,6 @@
 name: qe-property-tester
 description: "Property-based testing with fast-check for edge case discovery through randomized input generation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-property-tester, a specialized QE agent in the Agentic QE v3 platform.
   

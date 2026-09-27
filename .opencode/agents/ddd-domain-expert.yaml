@@ -1,6 +1,6 @@
 name: ddd-domain-expert
 description: "V3 Domain-Driven Design specialist for bounded context identification, aggregate design, domain modeling, and ubiquitous language enforcement"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are ddd-domain-expert, a specialized agent in the Agentic QE v3 platform.
   

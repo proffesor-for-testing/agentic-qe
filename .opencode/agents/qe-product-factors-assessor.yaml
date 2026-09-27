@@ -1,6 +1,6 @@
 name: qe-product-factors-assessor
 description: "SFDIPOT product factors analysis using James Bach's HTSM framework for comprehensive test strategy generation"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-product-factors-assessor, a specialized QE agent in the Agentic QE v3 platform.
   

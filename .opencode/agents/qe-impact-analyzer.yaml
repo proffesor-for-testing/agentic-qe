@@ -1,6 +1,6 @@
 name: qe-impact-analyzer
 description: "Change impact analysis with blast radius calculation, test selection, and risk assessment"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-impact-analyzer, a specialized QE agent in the Agentic QE v3 platform.
   

@@ -34,22 +34,24 @@ did the work.
 
 ## Quick start (local Ollama)
 
-1. **Install Ollama** and pull a small coding model:
+1. **Install Ollama** and pull a coding model:
 
    ```bash
    # on your machine (or the Docker host)
-   ollama pull qwen3:8b
+   ollama pull qwen3-coder:30b
    ```
 
-   `qwen3:8b` (~5 GB) is the recommended default — it was the most productive
-   local worker in our benchmarks and fits an 8 GB machine. `qwen3:30b-a3b` is
-   faster if you have the RAM; `gemma3/4` work but were slower for this task.
+   `qwen3-coder:30b` (~18 GB, MoE) is the recommended default (ADR-111). It
+   clears the QE test-generation quality floor and ties `qwen3:30b-a3b` on
+   measured quality while running much faster. `gemma3/4` work but were slower
+   for this task. `qwen3:8b` (~5 GB) fits an 8 GB machine but measured **below
+   the quality floor** — use it only if you cannot run a 30B model.
 
 2. **Enable the opt-in** (either env var or config):
 
    ```bash
    export AQE_FREE_TIER=1                 # turn it on
-   export AQE_FREE_TIER_MODEL=qwen3:8b    # optional; this is the default
+   export AQE_FREE_TIER_MODEL=qwen3-coder:30b    # optional; this is the default
    ```
 
 3. **Generate tests as usual.** AQE now tries the local model first:
@@ -58,7 +60,7 @@ did the work.
    claude "Use qe-test-architect to generate tests for src/services/Add.ts"
    ```
 
-   You'll see a log line: `Free-tier local test generation enabled (model=qwen3:8b, repair-only, no escalation)`.
+   You'll see a log line: `Free-tier local test generation enabled (model=qwen3-coder:30b, repair-only, no escalation)`.
 
 ### Running in a container (Docker Desktop / dev container)
 
@@ -81,12 +83,12 @@ and rebinding the bottom (`local`) tier:
 import { defaultFreeTierLadder } from 'agentic-qe/routing/free-tier';
 
 // 1) Local Ollama (default) — $0, private
-const ladder = defaultFreeTierLadder('qwen3:8b');
+const ladder = defaultFreeTierLadder('qwen3-coder:30b');
 
 // 2) Cloud Ollama (ollama.com) — key from env, never stored
 ladder.bindings.local = {
   provider: 'free-tier',
-  config: { kind: 'cloud-ollama', model: 'qwen3:8b', apiKeyEnv: 'OLLAMA_API_KEY' },
+  config: { kind: 'cloud-ollama', model: 'qwen3-coder:30b', apiKeyEnv: 'OLLAMA_API_KEY' },
 };
 
 // 3) OpenRouter free models
@@ -123,7 +125,7 @@ When constructing the test-generation coordinator (or via project config):
 | Option | Env var | Default | Meaning |
 |---|---|---|---|
 | `enableFreeTier` | `AQE_FREE_TIER=1` | `false` | Turn the free tier on |
-| `freeTierModel` | `AQE_FREE_TIER_MODEL` | `qwen3:8b` | Local model id |
+| `freeTierModel` | `AQE_FREE_TIER_MODEL` | `qwen3-coder:30b` | Local model id |
 | `freeTierRepairAttempts` | — | `1` | Same-tier repair retries before fallback |
 | Ollama base URL | `AQE_OLLAMA_URL` (or `OLLAMA_URL`) | per-client default (`localhost:11434`, or `host.docker.internal:11434` for the free tier) | One knob that points **every** local client — chat provider, consensus, local judge, embeddings, free tier — at your Ollama. Set it to reach a remote GPU box or a non-default host. The judge still honours its own `NAGUAL_JUDGE_URL` first. |
 

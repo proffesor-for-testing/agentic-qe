@@ -117,7 +117,7 @@ describe('mergeRouterConfig', () => {
     });
     // enabled flipped, but defaultModel from DEFAULT preserved
     expect(merged.providers?.gemini?.enabled).toBe(true);
-    expect((merged.providers?.gemini as any)?.defaultModel).toBe('gemini-pro');
+    expect((merged.providers?.gemini as any)?.defaultModel).toBe('gemini-2.5-flash');
   });
 
   it('preserves base providers not mentioned in the override', () => {
@@ -190,7 +190,7 @@ describe('applyEnvProviderDetection', () => {
 
   it('preserves defaultModel on a force-enabled provider', () => {
     const out = applyEnvProviderDetection(DEFAULT_ROUTER_CONFIG, { GEMINI_API_KEY: 'x' });
-    expect((out.providers?.gemini as any)?.defaultModel).toBe('gemini-pro');
+    expect((out.providers?.gemini as any)?.defaultModel).toBe('gemini-2.5-flash');
   });
 });
 

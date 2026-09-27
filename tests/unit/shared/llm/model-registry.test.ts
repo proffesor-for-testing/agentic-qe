@@ -512,9 +512,10 @@ describe('Model Registry', () => {
       expect(cost.outputCostPerMillion).toBe(25.0);
     });
 
-    it('should have claude-sonnet-4-6 at standard 200k context', () => {
+    it('should have claude-sonnet-4-6 at 1M context with 128K output', () => {
       const caps = getModelCapabilities('claude-sonnet-4-6');
-      expect(caps.contextLength).toBe(200000);
+      expect(caps.contextLength).toBe(1_000_000);
+      expect(caps.maxOutputTokens).toBe(128000);
       expect(caps.tokenizerVersion).toBe('legacy');
       expect(caps.supportsEffortXHigh).toBe(false);
     });
@@ -527,13 +528,13 @@ describe('Model Registry', () => {
   });
 
   describe('ADR-093: Central model constants', () => {
-    it('should export DEFAULT_SONNET_MODEL as claude-sonnet-4-6', () => {
-      expect(DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
+    it('should export DEFAULT_SONNET_MODEL as claude-sonnet-5', () => {
+      expect(DEFAULT_SONNET_MODEL).toBe('claude-sonnet-5');
       expect(getModelInfo(DEFAULT_SONNET_MODEL)).toBeDefined();
     });
 
-    it('should export DEFAULT_OPUS_MODEL as claude-opus-4-7', () => {
-      expect(DEFAULT_OPUS_MODEL).toBe('claude-opus-4-7');
+    it('should export DEFAULT_OPUS_MODEL as claude-opus-5-5', () => {
+      expect(DEFAULT_OPUS_MODEL).toBe('claude-opus-5-5');
       expect(getModelInfo(DEFAULT_OPUS_MODEL)).toBeDefined();
     });
 

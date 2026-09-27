@@ -61,7 +61,7 @@ const availableProviders = [];
 if (process.env.OPENROUTER_API_KEY) {
   availableProviders.push({
     name: 'openrouter',
-    model: 'anthropic/claude-opus-4',
+    model: 'anthropic/claude-opus-5.5',
     securityAllowed: false, // third-party proxy
   });
 }
@@ -69,7 +69,7 @@ if (process.env.OPENROUTER_API_KEY) {
 if (process.env.ANTHROPIC_API_KEY) {
   availableProviders.push({
     name: 'claude',
-    model: 'claude-opus-4-6',
+    model: 'claude-opus-5-5',
     securityAllowed: true,
   });
 }
@@ -77,7 +77,7 @@ if (process.env.ANTHROPIC_API_KEY) {
 if (process.env.OLLAMA_HOST || process.env.OLLAMA_BASE_URL) {
   availableProviders.push({
     name: 'ollama',
-    model: process.env.OLLAMA_ADVISOR_MODEL || 'llama3.1:70b',
+    model: process.env.OLLAMA_ADVISOR_MODEL || 'qwen3-coder:30b',
     securityAllowed: true, // self-hosted
   });
 }

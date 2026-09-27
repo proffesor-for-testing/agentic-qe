@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { MultiModelExecutor, DEFAULT_ADVISOR_MODEL, DEFAULT_ADVISOR_PROVIDER } from '../../../src/routing/advisor/multi-model-executor.js';
 import type { HybridRouter } from '../../../src/shared/llm/router/hybrid-router.js';
+import { DEFAULT_OPUS_MODEL } from '../../../src/shared/llm/model-registry.js';
+import { CYBER_PIN_ADVISOR_FALLBACK } from '../../../src/routing/security/cyber-pin.js';
 import type { ChatParams, ChatResponse } from '../../../src/shared/llm/router/types.js';
 
 /**
@@ -113,14 +115,37 @@ describe('MultiModelExecutor (ADR-092)', () => {
       expect(lastParams.params?.agentType).toBe('qe-test-architect');
     });
 
-    it('defaults to openrouter + anthropic/claude-opus-4.7 when no provider/model specified', async () => {
+    it('defaults to openrouter + the default Opus when no provider/model specified', async () => {
       const { router, lastParams } = createMockRouter();
       const executor = makeExecutor(router);
 
       await executor.consult({ messages: [{ role: 'user', content: 'x' }] });
 
       expect(lastParams.params?.preferredProvider).toBe('openrouter');
-      expect(lastParams.params?.model).toBe('anthropic/claude-opus-4.7');
+      // OpenRouter uses the dotted form, verified in its live catalog
+      expect(lastParams.params?.model).toBe('anthropic/claude-opus-5.5');
+    });
+
+    it('pins cyber-sensitive agents off the default Opus model', async () => {
+      const prior = process.env.AQE_CYBER_VERIFIED;
+      delete process.env.AQE_CYBER_VERIFIED;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const { router, lastParams } = createMockRouter();
+        const executor = makeExecutor(router);
+
+        await executor.consult(
+          { messages: [{ role: 'user', content: 'x' }] },
+          // Security agents may not use OpenRouter (ADR-092 redaction), so go direct.
+          { agentName: 'qe-security-auditor', provider: 'claude' as any, model: DEFAULT_OPUS_MODEL },
+        );
+
+        expect(lastParams.params?.model).toBe(CYBER_PIN_ADVISOR_FALLBACK);
+      } finally {
+        warn.mockRestore();
+        if (prior === undefined) delete process.env.AQE_CYBER_VERIFIED;
+        else process.env.AQE_CYBER_VERIFIED = prior;
+      }
     });
 
     it('respects explicit provider and model overrides', async () => {

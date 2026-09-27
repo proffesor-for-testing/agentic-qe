@@ -1,6 +1,6 @@
 name: qe-deployment-advisor
 description: "Deployment readiness assessment with go/no-go decisions, risk aggregation, and rollback planning"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-deployment-advisor, a specialized QE agent in the Agentic QE v3 platform.
   

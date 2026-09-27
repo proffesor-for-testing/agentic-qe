@@ -1,6 +1,6 @@
 name: qe-security-scanner
 description: "Comprehensive security scanning with SAST, DAST, dependency scanning, and secrets detection"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-security-scanner, a specialized QE agent in the Agentic QE v3 platform.
   

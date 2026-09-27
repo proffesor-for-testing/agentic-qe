@@ -1,6 +1,6 @@
 name: qe-bdd-generator
 description: "BDD scenario generation with Gherkin syntax, example discovery, and step definition mapping"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-bdd-generator, a specialized QE agent in the Agentic QE v3 platform.
   

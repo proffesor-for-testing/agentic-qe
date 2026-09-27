@@ -31,7 +31,7 @@ function createSuccessResponse(content: string, promptTokens = 100, completionTo
     id: 'chatcmpl-test123',
     object: 'chat.completion',
     created: Date.now(),
-    model: 'gpt-4-turbo',
+    model: 'gpt-6-sol',
     choices: [
       {
         index: 0,
@@ -110,10 +110,14 @@ describe('OpenAIModelProvider', () => {
       expect(provider).toBeDefined();
     });
 
-    it('should default to gpt-4-turbo model', () => {
+    it('should default to gpt-6-sol model', async () => {
       const provider = new OpenAIModelProvider({ apiKey: 'test-key' });
+      mockFetch.mockResolvedValueOnce(createSuccessResponse('ok'));
 
-      expect(provider).toBeDefined();
+      await provider.complete('Test prompt');
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.model).toBe('gpt-6-sol');
     });
 
     it('should support organization ID', () => {
@@ -189,22 +193,34 @@ describe('OpenAIModelProvider', () => {
       expect(requestBody.model).toBe('gpt-4');
     });
 
-    it('should respect maxTokens option', async () => {
+    it('should send maxTokens as max_completion_tokens for the gpt-6 default', async () => {
       mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
 
       await provider.complete('Test prompt', { maxTokens: 2048 });
 
       const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(requestBody.max_tokens).toBe(2048);
+      expect(requestBody.max_completion_tokens).toBe(2048);
+      expect(requestBody).not.toHaveProperty('max_tokens');
     });
 
-    it('should respect temperature option', async () => {
+    it('should omit temperature for gpt-6 models (only the default is accepted)', async () => {
       mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
 
       await provider.complete('Test prompt', { temperature: 0.5 });
 
       const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody).not.toHaveProperty('temperature');
+    });
+
+    it('should keep the legacy max_tokens + temperature shape for gpt-4o', async () => {
+      mockFetch.mockResolvedValueOnce(createSuccessResponse('Response'));
+
+      await provider.complete('Test prompt', { model: 'gpt-4o', maxTokens: 2048, temperature: 0.5 });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.max_tokens).toBe(2048);
       expect(requestBody.temperature).toBe(0.5);
+      expect(requestBody).not.toHaveProperty('max_completion_tokens');
     });
 
     it('should throw error when provider is disposed', async () => {
@@ -291,7 +307,8 @@ describe('OpenAIModelProvider', () => {
 
       expect(result.healthy).toBe(true);
       expect(result.latencyMs).toBeDefined();
-      expect(result.availableModels).toContain('gpt-4-turbo');
+      expect(result.availableModels).toContain('gpt-6-sol');
+      expect(result.availableModels).not.toContain('gpt-4-turbo');
     });
 
     it('should return unhealthy when API fails', async () => {
@@ -307,7 +324,30 @@ describe('OpenAIModelProvider', () => {
   });
 
   describe('getCostPerToken()', () => {
-    it('should return gpt-4-turbo pricing by default', () => {
+    it('should return gpt-6-sol pricing by default', () => {
+      const provider = new OpenAIModelProvider({ apiKey: 'test-key' });
+
+      const cost = provider.getCostPerToken();
+
+      // GPT-6 Sol: $2 input, $10 output per 1M tokens
+      expect(cost.input).toBeCloseTo(2 / 1_000_000, 10);
+      expect(cost.output).toBeCloseTo(10 / 1_000_000, 10);
+    });
+
+    it('should return gpt-6-luna pricing for the cheap tier', () => {
+      const provider = new OpenAIModelProvider({
+        apiKey: 'test-key',
+        defaultModel: 'gpt-6-luna',
+      });
+
+      const cost = provider.getCostPerToken();
+
+      // GPT-6 Luna: $0.10 input, $0.50 output per 1M tokens
+      expect(cost.input).toBeCloseTo(0.1 / 1_000_000, 12);
+      expect(cost.output).toBeCloseTo(0.5 / 1_000_000, 12);
+    });
+
+    it('should still price legacy gpt-4-turbo when explicitly pinned', () => {
       const provider = new OpenAIModelProvider({
         apiKey: 'test-key',
         defaultModel: 'gpt-4-turbo',

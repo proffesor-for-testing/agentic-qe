@@ -64,6 +64,15 @@ describe('GeminiProvider', () => {
       expect(models).toContain('gemini-2.5-pro');
       expect(models).toContain('gemini-2.5-flash');
       expect(models).toContain('gemini-flash-latest'); // rot-proof alias
+      expect(models).toContain('gemini-3.8-flash');
+      expect(models).toContain('gemini-3.1-pro-preview');
+      expect(models).not.toContain('gemini-1.5-pro');
+    });
+
+    it('should keep gemini-2.5-flash as the default and price the 3.x models', () => {
+      expect(DEFAULT_GEMINI_CONFIG.model).toBe('gemini-2.5-flash');
+      expect(GEMINI_PRICING['gemini-3.8-flash']).toEqual({ input: 0.75, output: 3.75 });
+      expect(GEMINI_PRICING['gemini-3.1-pro-preview']).toEqual({ input: 2.0, output: 12.0 });
     });
 
     it('should return cost per token', () => {

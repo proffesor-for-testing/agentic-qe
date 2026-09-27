@@ -65,6 +65,14 @@ describe('CodexProvider metadata', () => {
     expect(provider.getSupportedModels()).toContain(CODEX_DEFAULT_MODEL);
   });
 
+  it('should_listCurrentModelIds_withSentinelFirst', () => {
+    const models = new CodexProvider().getSupportedModels();
+    expect(models[0]).toBe(CODEX_DEFAULT_MODEL);
+    expect(models).toContain('gpt-6-sol');
+    expect(models).not.toContain('o4-mini');
+    expect(models).not.toContain('o3');
+  });
+
   it('should_rejectEmbeddings_withActionableError', async () => {
     const provider = new CodexProvider();
     await expect(provider.embed('x')).rejects.toThrow(/does not support embeddings/i);

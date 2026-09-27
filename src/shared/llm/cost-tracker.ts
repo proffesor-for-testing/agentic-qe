@@ -15,30 +15,46 @@ import {
   CostSummary,
   CostAlert,
 } from './interfaces';
+import { getModelCost } from './model-registry';
 
 /**
- * Token pricing per model (cost per 1M tokens in USD)
- * Prices as of early 2025 - should be updated periodically
+ * Token pricing per model (cost per 1M tokens in USD).
+ * Current-generation prices verified 2026-09-27 (Anthropic docs, OpenRouter
+ * catalog). Models missing here fall back to the model registry via
+ * `resolveModelPricing()` before being treated as free/local.
  */
 export const MODEL_PRICING: Record<
   string,
   { input: number; output: number; provider: LLMProviderType }
 > = {
-  // Claude models
+  // Claude models — current generation (2026-09 model refresh)
+  'claude-sonnet-5': { input: 2.0, output: 10.0, provider: 'claude' },
+  'claude-opus-5': { input: 5.0, output: 25.0, provider: 'claude' },
+  'claude-opus-5-5': { input: 4.0, output: 20.0, provider: 'claude' },
+  'claude-fable-5-1': { input: 10.0, output: 50.0, provider: 'claude' },
+  'claude-fable-5': { input: 10.0, output: 50.0, provider: 'claude' },
+  'claude-opus-4-8': { input: 5.0, output: 25.0, provider: 'claude' },
   // ADR-093: Opus 4.7 (2026-04-16), Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
   'claude-opus-4-7': { input: 5.0, output: 25.0, provider: 'claude' },
   'claude-sonnet-4-6': { input: 3.0, output: 15.0, provider: 'claude' },
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, provider: 'claude' },
-  // Retiring 2026-06-15 — kept for existing traffic during transition
-  'claude-opus-4-5-20251101': { input: 15.0, output: 75.0, provider: 'claude' },
+  'claude-haiku-4-5': { input: 1.0, output: 5.0, provider: 'claude' },
+  // Previous generation, still served
+  'claude-opus-4-5-20251101': { input: 5.0, output: 25.0, provider: 'claude' },
+  'claude-opus-4-6': { input: 5.0, output: 25.0, provider: 'claude' },
+  // Retired — kept only to price historical usage records
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0, provider: 'claude' },
   'claude-3-5-haiku-20241022': { input: 1.0, output: 5.0, provider: 'claude' },
-  // Legacy Claude models
+  // Legacy Claude models (retired)
   'claude-3-opus-20240229': { input: 15.0, output: 75.0, provider: 'claude' },
   'claude-3-sonnet-20240229': { input: 3.0, output: 15.0, provider: 'claude' },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25, provider: 'claude' },
 
-  // OpenAI models
+  // OpenAI models — GPT-6 generation (OpenRouter pass-through pricing)
+  'gpt-6-astra': { input: 10.0, output: 50.0, provider: 'openai' },
+  'gpt-6-sol': { input: 2.0, output: 10.0, provider: 'openai' },
+  'gpt-6-luna': { input: 0.1, output: 0.5, provider: 'openai' },
+  // OpenAI legacy generation
   'gpt-4o': { input: 5.0, output: 15.0, provider: 'openai' },
   'gpt-4o-mini': { input: 0.15, output: 0.6, provider: 'openai' },
   'gpt-4-turbo': { input: 10.0, output: 30.0, provider: 'openai' },
@@ -54,7 +70,18 @@ export const MODEL_PRICING: Record<
   'phi3': { input: 0, output: 0, provider: 'ollama' },
   'qwen2': { input: 0, output: 0, provider: 'ollama' },
 
-  // OpenRouter models (provider prefixed)
+  // OpenRouter models (provider prefixed) — current generation
+  'anthropic/claude-sonnet-5': { input: 2.0, output: 10.0, provider: 'openrouter' },
+  'anthropic/claude-opus-5': { input: 5.0, output: 25.0, provider: 'openrouter' },
+  'anthropic/claude-opus-5.5': { input: 4.0, output: 20.0, provider: 'openrouter' },
+  'anthropic/claude-haiku-4.5': { input: 1.0, output: 5.0, provider: 'openrouter' },
+  'openai/gpt-6-sol': { input: 2.0, output: 10.0, provider: 'openrouter' },
+  'openai/gpt-6-luna': { input: 0.1, output: 0.5, provider: 'openrouter' },
+  'google/gemini-3.8-flash': { input: 0.75, output: 3.75, provider: 'openrouter' },
+  'meta-llama/llama-4-maverick': { input: 0.1875, output: 0.6525, provider: 'openrouter' },
+  'openai/gpt-oss-120b': { input: 0.15, output: 0.6, provider: 'openrouter' },
+  'qwen/qwen3-coder': { input: 0.3, output: 1.0, provider: 'openrouter' },
+  // OpenRouter legacy slugs (retired upstream for Claude 3.x)
   'anthropic/claude-3.5-sonnet': { input: 3.0, output: 15.0, provider: 'openrouter' },
   'anthropic/claude-3.5-sonnet:beta': { input: 3.0, output: 15.0, provider: 'openrouter' },
   'anthropic/claude-3-opus': { input: 15.0, output: 75.0, provider: 'openrouter' },
@@ -74,6 +101,8 @@ export const MODEL_PRICING: Record<
 
   // AWS Bedrock models (ARN-style model IDs)
   // Pricing reflects Bedrock's pricing which may differ slightly from Anthropic direct
+  // Bedrock sets its own Claude pricing; this row is unverified since the
+  // 2026-09 refresh (direct API / OpenRouter Opus 4.5 is $5/$25).
   'anthropic.claude-opus-4-5-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
   'anthropic.claude-opus-4-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
   'anthropic.claude-sonnet-4-5-v2:0': { input: 3.0, output: 15.0, provider: 'bedrock' },
@@ -98,6 +127,11 @@ export const MODEL_PRICING: Record<
   'azure/text-embedding-3-large': { input: 0.13, output: 0, provider: 'azure-openai' },
 
   // Google Gemini models (direct API)
+  'gemini-3.8-flash': { input: 0.75, output: 3.75, provider: 'gemini' },
+  'gemini-3.5-flash': { input: 1.5, output: 9.0, provider: 'gemini' },
+  'gemini-3.1-pro-preview': { input: 2.0, output: 12.0, provider: 'gemini' },
+  'gemini-2.5-flash': { input: 0.3, output: 2.5, provider: 'gemini' },
+  'gemini-2.5-pro': { input: 1.25, output: 10.0, provider: 'gemini' },
   'gemini-pro': { input: 0.5, output: 1.5, provider: 'gemini' },
   'gemini-1.0-pro': { input: 0.5, output: 1.5, provider: 'gemini' },
   'gemini-1.5-pro': { input: 3.5, output: 10.5, provider: 'gemini' },
@@ -110,6 +144,25 @@ export const MODEL_PRICING: Record<
   // Gemini embedding models
   'text-embedding-004': { input: 0.025, output: 0, provider: 'gemini' },
 };
+
+/**
+ * Resolve per-million-token pricing for a model. Exact `MODEL_PRICING` keys
+ * win; otherwise the model registry is consulted (it normalizes provider
+ * IDs such as `anthropic/claude-sonnet-5` or dated Anthropic IDs). Returns
+ * `undefined` only when neither source knows the model, which callers treat
+ * as a free/local model.
+ */
+export function resolveModelPricing(model: string): { input: number; output: number } | undefined {
+  const pricing = MODEL_PRICING[model];
+  if (pricing) {
+    return { input: pricing.input, output: pricing.output };
+  }
+  const registryCost = getModelCost(model);
+  if (registryCost.inputCostPerMillion > 0 || registryCost.outputCostPerMillion > 0) {
+    return { input: registryCost.inputCostPerMillion, output: registryCost.outputCostPerMillion };
+  }
+  return undefined;
+}
 
 /**
  * Usage record for a single request
@@ -141,7 +194,7 @@ export class CostTracker {
    * Calculate cost for a given usage
    */
   static calculateCost(model: string, usage: TokenUsage): CostInfo {
-    const pricing = MODEL_PRICING[model];
+    const pricing = resolveModelPricing(model);
 
     if (!pricing) {
       // Unknown model - assume Ollama (local) for safety
@@ -174,7 +227,7 @@ export class CostTracker {
    * Get cost per token for a model
    */
   static getCostPerToken(model: string): { input: number; output: number } {
-    const pricing = MODEL_PRICING[model];
+    const pricing = resolveModelPricing(model);
 
     if (!pricing) {
       return { input: 0, output: 0 };

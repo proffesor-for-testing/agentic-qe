@@ -101,10 +101,11 @@ describe('OllamaModelProvider', () => {
       expect(provider).toBeDefined();
     });
 
-    it('should default to llama3.1 model', () => {
+    it('should default to qwen3-coder:30b model (ADR-111)', () => {
       const provider = new OllamaModelProvider();
 
-      expect(provider.name).toContain('llama3.1');
+      expect(provider.name).toContain('qwen3-coder:30b');
+      expect(provider.name).not.toContain('qwen3:8b');
     });
 
     it('should generate unique ID based on model', () => {
@@ -333,8 +334,9 @@ describe('Helper Functions', () => {
       const models = getRecommendedOllamaModels();
 
       expect(models.length).toBe(4);
-      expect(models).toContain('llama3.1:70b');
-      expect(models).toContain('codellama:34b');
+      expect(models).toContain('qwen3-coder:30b');
+      expect(models).toContain('gpt-oss:120b');
+      expect(models).not.toContain('qwen3:8b');
     });
   });
 
@@ -342,9 +344,9 @@ describe('Helper Functions', () => {
     it('should return lightweight models for fast inference', () => {
       const models = getLightweightOllamaModels();
 
-      expect(models.length).toBe(4);
-      expect(models).toContain('llama3.2:3b');
-      expect(models).toContain('phi3');
+      expect(models.length).toBe(3);
+      expect(models).toContain('gpt-oss:20b');
+      expect(models).not.toContain('qwen3:8b');
     });
   });
 
@@ -352,9 +354,9 @@ describe('Helper Functions', () => {
     it('should return code-focused models', () => {
       const models = getCodeOllamaModels();
 
-      expect(models.length).toBe(4);
-      expect(models).toContain('codellama:34b');
-      expect(models).toContain('qwen2.5-coder');
+      expect(models.length).toBe(3);
+      expect(models).toContain('qwen3-coder:30b');
+      expect(models).not.toContain('codellama:34b');
     });
   });
 

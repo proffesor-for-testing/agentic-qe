@@ -15,6 +15,7 @@ import type {
 } from '../router/types';
 import { isBuiltinExtendedProviderType } from '../router/types';
 import type { Message, CostInfo, LLMResponse, LLMProviderType } from '../interfaces';
+import { resolveModelPricing } from '../cost-tracker';
 
 // ============================================================================
 // System Prompt Handling
@@ -352,36 +353,15 @@ export function formatResponse(
 
 /**
  * Calculate cost based on model pricing
- * Note: This is a simplified version - real implementation should use model-mapping pricing
  */
 function calculateCost(
   inputTokens: number,
   outputTokens: number,
   model: string
 ): CostInfo {
-  // Simplified pricing per 1M tokens (should be loaded from model-mapping)
-  const pricing: Record<string, { input: number; output: number }> = {
-    'claude-opus-4-7': { input: 15, output: 75 },
-    'claude-sonnet-4-6': { input: 3, output: 15 },
-    'claude-haiku-4-5-20251001': { input: 0.8, output: 4 },
-    'gpt-4o': { input: 2.5, output: 10 },
-    'gpt-4o-mini': { input: 0.15, output: 0.6 },
-    'gemini-pro': { input: 1.25, output: 5 },
-    'gemini-2.0-pro': { input: 1.25, output: 5 },
-  };
-
-  // Find matching pricing or use default
-  let modelPricing = pricing[model];
-  if (!modelPricing) {
-    // Try prefix matching
-    for (const [key, value] of Object.entries(pricing)) {
-      if (model.includes(key) || key.includes(model.split('-')[0])) {
-        modelPricing = value;
-        break;
-      }
-    }
-  }
-  modelPricing = modelPricing || { input: 1, output: 2 }; // Default fallback
+  // Shared pricing (cost tracker table, then model registry); unknown models
+  // keep the historical conservative fallback rather than being treated as free.
+  const modelPricing = resolveModelPricing(model) ?? { input: 1, output: 2 };
 
   const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
   const outputCost = (outputTokens / 1_000_000) * modelPricing.output;

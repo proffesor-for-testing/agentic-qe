@@ -74,6 +74,19 @@ export interface ModelCapabilities {
    * 1.0–1.35× more tokens per input at the same rate card.
    */
   tokenizerVersion?: 'legacy' | 'opus-4-7';
+  /**
+   * Whether the Messages API accepts sampling parameters (`temperature`,
+   * `top_p`, `top_k`). `false` means they are rejected with a 400
+   * ("`temperature` is deprecated for this model") — true of Opus 4.7+,
+   * Sonnet 5 and the Fable family. Omitted = accepted (legacy behavior).
+   */
+  supportsSamplingParams?: boolean;
+  /**
+   * OpenAI Chat Completions: the model rejects `max_tokens` and requires
+   * `max_completion_tokens` (GPT-5+/GPT-6 and o-series; verified live for
+   * gpt-6-sol / gpt-6-luna on 2026-09-27).
+   */
+  usesMaxCompletionTokens?: boolean;
 }
 
 /**
@@ -200,8 +213,8 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
       supportsCodeExecution: false,
     },
     cost: {
-      inputCostPerMillion: 15.0,
-      outputCostPerMillion: 75.0,
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
     },
   },
   'claude-haiku-3-5': {
@@ -260,6 +273,33 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
   // ==========================================================================
   // ADR-093: Opus 4.7, Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
   // ==========================================================================
+  'claude-opus-4-6': {
+    name: 'Claude Opus 4.6',
+    family: 'claude',
+    tier: 'flagship',
+    description: 'Previous-generation Opus, still served. Accepts sampling params; no xhigh effort.',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: false,
+      tokenizerVersion: 'legacy',
+    },
+    cost: {
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
+    },
+  },
   'claude-opus-4-7': {
     name: 'Claude Opus 4.7',
     family: 'claude',
@@ -284,6 +324,7 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
       supportsAdaptiveThinking: true,
       supportsEffortXHigh: true,
       tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
     },
     cost: {
       inputCostPerMillion: 5.0,
@@ -295,13 +336,13 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     family: 'claude',
     tier: 'standard',
     description:
-      'Steady-state agentic-coding workhorse (2026). Standard 200k context, same pricing as Sonnet 4. ' +
-      'ADR-093 Tier 3 default for the AQE fleet.',
+      'Previous-generation workhorse (ADR-093 tier 3 until the 2026-09 refresh). ' +
+      '1M context, still served; accepts sampling params.',
     releaseDate: '2026-02-01',
     recommended: true,
     capabilities: {
-      contextLength: 200000,
-      maxOutputTokens: 64000,
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
       supportsTools: true,
       supportsStreaming: true,
       supportsVision: true,
@@ -330,7 +371,7 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     recommended: true,
     capabilities: {
       contextLength: 200000,
-      maxOutputTokens: 16384,
+      maxOutputTokens: 64000,
       supportsTools: true,
       supportsStreaming: true,
       supportsVision: true,
@@ -350,9 +391,268 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
     },
   },
 
+
+  // ==========================================================================
+  // Claude 5 generation (verified against GET /v1/models + OpenRouter pricing,
+  // 2026-09-27). All reject sampling params; effort goes in output_config.
+  // ==========================================================================
+  'claude-sonnet-5': {
+    name: 'Claude Sonnet 5',
+    family: 'claude',
+    tier: 'standard',
+    description:
+      'AQE workhorse (tiers 2-3). Adaptive thinking runs by default.',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 2.0,
+      outputCostPerMillion: 10.0,
+    },
+  },
+  'claude-opus-5': {
+    name: 'Claude Opus 5',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'Previous Opus (tier 4 before Opus 5.5). Thinking is on by default when omitted.',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
+    },
+  },
+  'claude-opus-4-8': {
+    name: 'Claude Opus 4.8',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'Previous-generation Opus; same request surface as Opus 4.7.',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
+    },
+  },
+  'claude-opus-5-5': {
+    name: 'Claude Opus 5.5',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'AQE tier 4 flagship. Thinking cannot be disabled; default effort medium; forced tool_choice rejected.',
+    releaseDate: '2026-09-22',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 4.0,
+      outputCostPerMillion: 20.0,
+    },
+  },
+  'claude-fable-5': {
+    name: 'Claude Fable 5',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'Opt-in most-capable tier (superseded by Fable 5.1).',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 10.0,
+      outputCostPerMillion: 50.0,
+    },
+  },
+  'claude-fable-5-1': {
+    name: 'Claude Fable 5.1',
+    family: 'claude',
+    tier: 'flagship',
+    description:
+      'Opt-in most-capable model; 2x Opus pricing, thinking always on.',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true, // adaptive thinking
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: true,
+      tokenizerVersion: 'opus-4-7',
+      supportsSamplingParams: false,
+    },
+    cost: {
+      inputCostPerMillion: 10.0,
+      outputCostPerMillion: 50.0,
+    },
+  },
+
   // ==========================================================================
   // OpenAI Models
   // ==========================================================================
+  'gpt-6-astra': {
+    name: 'GPT-6 Astra',
+    family: 'gpt',
+    tier: 'flagship',
+    description: 'OpenAI flagship (verified in /v1/models 2026-09-27)',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_050_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsSamplingParams: false,
+      usesMaxCompletionTokens: true,
+    },
+    cost: {
+      inputCostPerMillion: 10.0,
+      outputCostPerMillion: 50.0,
+    },
+  },
+  'gpt-6-sol': {
+    name: 'GPT-6 Sol',
+    family: 'gpt',
+    tier: 'standard',
+    description: 'OpenAI default for capable tasks',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_050_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsSamplingParams: false,
+      usesMaxCompletionTokens: true,
+    },
+    cost: {
+      inputCostPerMillion: 2.0,
+      outputCostPerMillion: 10.0,
+    },
+  },
+  'gpt-6-luna': {
+    name: 'GPT-6 Luna',
+    family: 'gpt',
+    tier: 'economy',
+    description: 'OpenAI low-cost tier',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_050_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsSamplingParams: false,
+      usesMaxCompletionTokens: true,
+    },
+    cost: {
+      inputCostPerMillion: 0.1,
+      outputCostPerMillion: 0.5,
+    },
+  },
   'gpt-4o': {
     name: 'GPT-4o',
     family: 'gpt',
@@ -510,6 +810,78 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
   // ==========================================================================
   // Google Gemini Models
   // ==========================================================================
+  'gemini-3.8-flash': {
+    name: 'Gemini 3.8 Flash',
+    family: 'gemini',
+    tier: 'economy',
+    description: 'Latest Gemini Flash (OpenRouter catalog 2026-09-27)',
+    recommended: true,
+    capabilities: {
+      contextLength: 1_048_576,
+      maxOutputTokens: 65536,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 0.75,
+      outputCostPerMillion: 3.75,
+    },
+  },
+  'gemini-3.5-flash': {
+    name: 'Gemini 3.5 Flash',
+    family: 'gemini',
+    tier: 'standard',
+    description: 'Gemini 3.5 Flash',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_048_576,
+      maxOutputTokens: 65536,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 1.5,
+      outputCostPerMillion: 9.0,
+    },
+  },
+  'gemini-3.1-pro-preview': {
+    name: 'Gemini 3.1 Pro (preview)',
+    family: 'gemini',
+    tier: 'premium',
+    description: 'Gemini 3.1 Pro preview',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_048_576,
+      maxOutputTokens: 65536,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: false,
+      supportsMCP: false,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+    },
+    cost: {
+      inputCostPerMillion: 2.0,
+      outputCostPerMillion: 12.0,
+    },
+  },
   'gemini-pro': {
     name: 'Gemini Pro',
     family: 'gemini',
@@ -1383,25 +1755,47 @@ export function compareModels(
 // ============================================================================
 
 /**
- * ADR-093 Tier 3 default Sonnet for the AQE fleet.
- * Standard 200k context (not 1M). Used as the workhorse model across routing,
- * advisor fallback, and provider defaults. Replaces hardcoded 'claude-sonnet-4-20250514'
- * in 25+ call sites.
+ * Default Sonnet for the AQE fleet (routing tiers 2-3, provider defaults,
+ * advisor fallback). Claude Sonnet 5 since the 2026-09 model refresh
+ * (was claude-sonnet-4-6 under ADR-093).
  */
-export const DEFAULT_SONNET_MODEL = 'claude-sonnet-4-6';
+export const DEFAULT_SONNET_MODEL = 'claude-sonnet-5';
 
 /**
- * ADR-093 Opus escalation target. Reserved for the ADR-092 MultiModelExecutor
- * when TinyDancer sets `triggerMultiModel=true` and the task warrants maximum
- * capability. Not the Tier 3 default — that remains Sonnet 4.6 per user
- * direction 2026-04-17.
+ * Opus escalation target (routing tier 4, ADR-092 MultiModelExecutor).
+ * Claude Opus 5.5 since the 2026-09 model refresh (was claude-opus-4-7):
+ * cheaper than Opus 5 ($4/$20 vs $5/$25). Its thinking cannot be disabled,
+ * forced tool_choice (`any`/`tool`) returns 400, and its default effort is
+ * `medium`. Fable 5.1 is registered but opt-in only.
  */
-export const DEFAULT_OPUS_MODEL = 'claude-opus-4-7';
+export const DEFAULT_OPUS_MODEL = 'claude-opus-5-5';
 
 /**
- * ADR-093 economy model. Replaces retired `claude-3-5-haiku-20241022`.
+ * Economy model (routing tier 1). Replaces retired `claude-3-5-haiku-20241022`.
  */
 export const DEFAULT_HAIKU_MODEL = 'claude-haiku-4-5';
+
+/**
+ * Canonical Claude model per AQE routing tier. Single source of truth for the
+ * tier maps in the router, task executor, and domain services — bump models
+ * here, not at each call site.
+ *
+ * Tier 0 is the Agent Booster (WASM) path and has no Claude model.
+ */
+export const CLAUDE_TIER_MODELS: Readonly<Record<1 | 2 | 3 | 4, string>> = {
+  1: 'claude-haiku-4-5-20251001',
+  2: DEFAULT_SONNET_MODEL,
+  3: DEFAULT_SONNET_MODEL, // extended-thinking tier, same model
+  4: DEFAULT_OPUS_MODEL,
+} as const;
+
+/**
+ * Claude model for an AQE routing tier (1-4). Out-of-range tiers fall back to
+ * the tier 2/3 workhorse.
+ */
+export function getClaudeModelForTier(tier: number): string {
+  return CLAUDE_TIER_MODELS[tier as 1 | 2 | 3 | 4] ?? DEFAULT_SONNET_MODEL;
+}
 
 /**
  * ADR-093 registry of retiring/retired model IDs with their retirement dates.
@@ -1414,4 +1808,8 @@ export const RETIRING_MODELS: Readonly<Record<string, string>> = {
   'claude-opus-4-20250514': '2026-06-15',
   'claude-3-5-haiku-20241022': '2026-02-19',
   'claude-3-7-sonnet-20250219': '2026-02-19',
+  'claude-opus-4-1-20250805': '2026-08-05',
+  'claude-3-haiku-20240307': '2026-04-20',
+  'claude-3-5-sonnet-20241022': '2025-10-28',
+  'claude-3-5-sonnet-20240620': '2025-10-28',
 } as const;

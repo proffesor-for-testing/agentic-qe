@@ -30,6 +30,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { existsSync, statSync } from 'fs';
 import { dirname, resolve as resolvePath, join as joinPath } from 'path';
 import { extractTsJs } from '../../../shared/parsers/treesitter-ts-extractor.js';
+import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Interface for the knowledge graph service
@@ -466,13 +467,7 @@ export class KnowledgeGraphService implements IKnowledgeGraphService {
    * @param tier - Model tier (1=Haiku, 2=Sonnet, 3=Sonnet, 4=Opus)
    */
   private getModelForTier(tier: number): string {
-    switch (tier) {
-      case 1: return 'claude-haiku-4-5-20251001';
-      case 2: return 'claude-sonnet-4-6';
-      case 3: return 'claude-sonnet-4-6';
-      case 4: return 'claude-opus-4-7';
-      default: return 'claude-sonnet-4-6';
-    }
+    return getClaudeModelForTier(tier);
   }
 
   /**

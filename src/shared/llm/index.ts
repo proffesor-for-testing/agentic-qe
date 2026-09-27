@@ -145,6 +145,7 @@ export {
 export {
   CostTracker,
   MODEL_PRICING,
+  resolveModelPricing,
   getGlobalCostTracker,
   resetGlobalCostTracker,
 } from './cost-tracker';
@@ -227,6 +228,12 @@ export {
   estimateRequestCost,
   compareModels,
   MODEL_REGISTRY,
+  DEFAULT_SONNET_MODEL,
+  DEFAULT_OPUS_MODEL,
+  DEFAULT_HAIKU_MODEL,
+  CLAUDE_TIER_MODELS,
+  getClaudeModelForTier,
+  RETIRING_MODELS,
   type ModelCapabilities,
   type ModelCostInfo,
   type ModelInfo,

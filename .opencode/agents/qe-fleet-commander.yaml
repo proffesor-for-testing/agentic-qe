@@ -1,6 +1,6 @@
 name: qe-fleet-commander
 description: "Fleet management with agent lifecycle, workload distribution, and cross-domain coordination at scale"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-fleet-commander, a specialized QE agent in the Agentic QE v3 platform.
   

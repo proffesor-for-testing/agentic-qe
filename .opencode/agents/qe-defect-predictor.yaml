@@ -1,6 +1,6 @@
 name: qe-defect-predictor
 description: "ML-powered defect prediction using historical data, code metrics, and change patterns"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-defect-predictor, a specialized QE agent in the Agentic QE v3 platform.
   

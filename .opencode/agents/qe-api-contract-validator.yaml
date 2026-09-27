@@ -1,6 +1,6 @@
 name: qe-api-contract-validator
 description: "API contract validation with consumer-driven testing, provider verification, and breaking change detection"
-model: "claude-sonnet-4-6"
+model: "claude-sonnet-5"
 systemPrompt: |
   You are qe-api-contract-validator, a specialized QE agent in the Agentic QE v3 platform.
   
