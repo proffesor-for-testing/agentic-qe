@@ -78,6 +78,12 @@ Examples:
           let paths: string[];
 
           if (gitSince) {
+            const { getGitRefError } = await import('../../shared/git/ref-validation.js');
+            const refError = getGitRefError(gitSince, '--git-since ref');
+            if (refError) {
+              console.log(chalk.red(refError));
+              return await cleanupAndExit(1);
+            }
             // Use git diff to find changed files since the ref
             // SEC: Use execFileSync with array args to prevent shell injection (CWE-78)
             const { execFileSync } = await import('child_process');

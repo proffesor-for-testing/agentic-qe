@@ -15,6 +15,7 @@ import { spawn } from 'child_process';
 import { resolve, dirname, basename } from 'path';
 import type { ChangedFile, TestMapping } from '../interfaces';
 import type { IImpactAnalyzerService } from '../../domains/code-intelligence/services/impact-analyzer';
+import { assertSafeGitRef } from '../../shared/git/ref-validation';
 
 // ============================================================================
 // Types
@@ -139,6 +140,7 @@ export class GitAwareTestSelector {
     }
     this.cwd = config.cwd || process.cwd();
     this.baseRef = config.baseRef || 'HEAD~1';
+    assertSafeGitRef(this.baseRef, 'base ref');
     this.mappingRules = config.mappingRules || DEFAULT_MAPPING_RULES;
     this.impactAnalyzer = config.impactAnalyzer;
   }
@@ -259,6 +261,7 @@ export class GitAwareTestSelector {
    * Get the merge base between current branch and main
    */
   async getMergeBase(targetBranch = 'main'): Promise<string> {
+    assertSafeGitRef(targetBranch, 'target branch');
     try {
       const output = await this.git(['merge-base', 'HEAD', targetBranch]);
       return output.trim();
