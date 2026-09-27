@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.14.4](v3.14.4.md) | 2026-09-27 | Current model generation, request-failure fixes, and honest task/workflow outcomes. |
 | [v3.14.3](v3.14.3.md) | 2026-09-22 | Honest test, security, coherence, and quality-gate failures; Vitest 5 support. |
 | [v3.14.2](v3.14.2.md) | 2026-09-13 | Reliable foreground daemon lifetime, conservative MCP safety metadata, and patched Hono/Sharp dependencies. |
 | [v3.14.1](v3.14.1.md) | 2026-09-07 | Node 22+ support and stronger verification, recovery, and learning evidence. |

@@ -5,6 +5,117 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.4] - 2026-09-27
+
+This patch moves Agentic QE to the current AI model generation and fixes live
+request failures on the newest Claude and GPT models. It closes a shell
+injection and a git option injection reachable from MCP tool arguments, makes
+task, workflow, and backup results reflect what actually happened, and stops
+subfolder runs from creating stray learning stores.
+
+### Security
+
+- Stopped `model_route` and `task_orchestrate` from executing shell syntax in
+  caller-supplied file paths; git history lookups now run without a shell
+  ([#728]).
+- Rejected option-shaped git refs (for example `--output=<path>`) in
+  `qe_tests_schedule`, `aqe test schedule --git-ref`, and
+  `aqe code index --git-since`, which git would otherwise treat as options
+  ([#738]).
+- Patched all open Dependabot alerts in the vendored Ruflo skill tree
+  (adm-zip, toml, qs, fast-uri, sharp, OpenTelemetry, vitest); the published
+  package was not affected ([#737]).
+
+### Changed
+
+- Moved to the current model generation. Routing tiers are now Claude Haiku
+  4.5 / Sonnet 5 / Sonnet 5 / Opus 5.5 through one shared tier map; OpenAI
+  defaults move to `gpt-6-sol` / `gpt-6-luna`; the local free-tier default is
+  `qwen3-coder:30b`; retired Claude 3.x, Sonnet 4, and Opus 4 defaults are
+  gone from Bedrock, OpenRouter, and the consensus providers. Security agents
+  stay pinned to Sonnet 4.6 for every Opus/Fable-class model until
+  `AQE_CYBER_VERIFIED=true` ([#751]).
+- `aqe fleet run` and `aqe task submit --wait` now report real outcomes and
+  exit 1 when work fails or never ran. `fleet run test` / `analyze` currently
+  fail because `--target` is not yet mapped to a task payload, and `scan`
+  waits for its 60 s deadline — previously these reported success without
+  doing the work ([#746], [#747]).
+- Approval-gated workflow steps now wait for approval *before* running the
+  action; unanswered gates expire as failures instead of auto-approving. New
+  `pipeline_approve` / `pipeline_reject` MCP tools act on the running server
+  ([#725]).
+- `aqe ci run` now evaluates measured evidence in its quality-gate phase and
+  exits 1 when an enforced gate did not run; use `--no-quality-gate` for
+  advisory runs ([#710]).
+
+### Fixed
+
+- Fixed native Claude requests that always failed on Opus 4.7 and every Claude
+  5 model (they reject `temperature` and a nested `thinking.effort`), and
+  GPT-6 requests (they require `max_completion_tokens`). Opus/Fable-class
+  models again honor `QE_EFFORT_LEVEL` and `config/fleet-defaults.yaml`
+  ([#751]).
+- Stopped routable models from being billed at $0 or a placeholder rate in
+  budgets and cost tracking; Opus 4.5/4.7 pricing corrected ([#751]).
+- Marked failed MCP tool calls with `isError`, logging the original error
+  server-side while keeping the client payload sanitized ([#730]);
+  `task_submit` now reports the task's actual state, including immediate
+  failures ([#745]).
+- Kept cancelled tasks terminal when a late result arrives ([#716]); preserved
+  `unknown` protocol outcomes after an ambiguous timeout instead of replaying
+  the action ([#723]); waited for the whole Vitest process tree to stop on
+  abort or Ctrl+C ([#722]).
+- Composed parallel workflow outputs atomically, so concurrent steps can no
+  longer overwrite each other's results ([#721]).
+- Invalidated cached MCP reads after state-changing tools ([#724]).
+- Rejected incomplete Vitest execution evidence ([#712]) and counted Vitest
+  tests from JSON discovery ([#717]).
+- Made learning backups consistent point-in-time snapshots that preserve
+  committed WAL data, with a verified pre-restore safety copy ([#711]).
+- Preserved healthy RVF stores behind stale locks instead of quarantining them
+  ([#719]).
+- Fixed brain import aborting on natural-key pattern conflicts and made
+  `--dry-run` preview the real merge in a rolled-back transaction ([#748],
+  [#749]).
+- Honored configured database filenames ([#742]), kept explicit SQLite
+  `:memory:` databases in memory ([#743]), scoped the project-root cache to
+  the requested directory ([#744]), and restored persistent settings when
+  re-initializing after memory mode ([#726]).
+- Removed external-network and random false-red CI checks ([#718], [#727]).
+
+### Documentation
+
+- Added missing contributors to the README and `CONTRIBUTORS.md` ([#739]).
+
+[#710]: https://github.com/proffesor-for-testing/agentic-qe/pull/710
+[#711]: https://github.com/proffesor-for-testing/agentic-qe/pull/711
+[#712]: https://github.com/proffesor-for-testing/agentic-qe/pull/712
+[#716]: https://github.com/proffesor-for-testing/agentic-qe/pull/716
+[#717]: https://github.com/proffesor-for-testing/agentic-qe/pull/717
+[#718]: https://github.com/proffesor-for-testing/agentic-qe/pull/718
+[#719]: https://github.com/proffesor-for-testing/agentic-qe/pull/719
+[#721]: https://github.com/proffesor-for-testing/agentic-qe/pull/721
+[#722]: https://github.com/proffesor-for-testing/agentic-qe/pull/722
+[#723]: https://github.com/proffesor-for-testing/agentic-qe/pull/723
+[#724]: https://github.com/proffesor-for-testing/agentic-qe/pull/724
+[#725]: https://github.com/proffesor-for-testing/agentic-qe/pull/725
+[#726]: https://github.com/proffesor-for-testing/agentic-qe/pull/726
+[#727]: https://github.com/proffesor-for-testing/agentic-qe/pull/727
+[#728]: https://github.com/proffesor-for-testing/agentic-qe/pull/728
+[#730]: https://github.com/proffesor-for-testing/agentic-qe/pull/730
+[#737]: https://github.com/proffesor-for-testing/agentic-qe/pull/737
+[#738]: https://github.com/proffesor-for-testing/agentic-qe/pull/738
+[#739]: https://github.com/proffesor-for-testing/agentic-qe/pull/739
+[#742]: https://github.com/proffesor-for-testing/agentic-qe/pull/742
+[#743]: https://github.com/proffesor-for-testing/agentic-qe/pull/743
+[#744]: https://github.com/proffesor-for-testing/agentic-qe/pull/744
+[#745]: https://github.com/proffesor-for-testing/agentic-qe/pull/745
+[#746]: https://github.com/proffesor-for-testing/agentic-qe/pull/746
+[#747]: https://github.com/proffesor-for-testing/agentic-qe/pull/747
+[#748]: https://github.com/proffesor-for-testing/agentic-qe/pull/748
+[#749]: https://github.com/proffesor-for-testing/agentic-qe/pull/749
+[#751]: https://github.com/proffesor-for-testing/agentic-qe/pull/751
+
 ## [3.14.3] - 2026-09-22
 
 This patch makes test, security, coherence, and quality-gate results honest
