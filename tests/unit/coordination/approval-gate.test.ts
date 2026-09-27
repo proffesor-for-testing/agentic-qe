@@ -356,6 +356,27 @@ describe('approval gate', () => {
     expect(action).not.toHaveBeenCalled();
   });
 
+  it('does not register a gate after cancellation during StepStarted publication', async () => {
+    const workflow = makeApprovalWorkflow({ expiresAfter: 0 });
+    workflow.steps[1].action = 'privileged-action';
+    const action = vi.fn(async () => ok({ changed: true }));
+    orchestrator.registerAction('quality-assessment', 'privileged-action', action);
+    orchestrator.registerWorkflow(workflow);
+    (eventBus.publish as ReturnType<typeof vi.fn>).mockImplementation(async (event: {
+      type: string; payload: { executionId: string; stepId: string }
+    }) => {
+      if (event.type === 'workflow.StepStarted' && event.payload.stepId === 'approval-step') {
+        await orchestrator.cancelWorkflow(event.payload.executionId);
+      }
+    });
+    const executionId = (await orchestrator.executeWorkflow('approval-test')).value;
+    await vi.waitFor(() => {
+      expect(orchestrator.getWorkflowStatus(executionId)?.stepResults.get('approval-step')?.status).toBe('failed');
+    });
+    expect(orchestrator.approveStep(executionId, 'approval-step')).toBe(false);
+    expect(action).not.toHaveBeenCalled();
+  });
+
   it('closes an indefinite gate when the workflow times out', async () => {
     const workflow = makeApprovalWorkflow({ expiresAfter: 0 });
     workflow.timeout = 250;

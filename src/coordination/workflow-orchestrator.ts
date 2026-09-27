@@ -992,6 +992,11 @@ export class WorkflowOrchestrator implements IWorkflowOrchestrator {
     step: WorkflowStepDefinition,
     execution: WorkflowExecutionStatus,
   ): Promise<{ approved: boolean; reason?: string }> {
+    // Cancellation may arrive while publishing StepStarted, before this gate
+    // exists. Do not register an indefinite approval for a terminal workflow.
+    if (execution.status !== 'running') {
+      return { approved: false, reason: `Workflow is ${execution.status}` };
+    }
     const approvalConfig = typeof step.approval === 'object' ? step.approval : {};
     const expiresAfter = approvalConfig.expiresAfter ?? approvalConfig.autoApproveAfter ?? 300000;
     const message = approvalConfig.message ?? `Awaiting approval for step: ${step.name}`;
