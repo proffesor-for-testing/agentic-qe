@@ -32,7 +32,7 @@ import {
   writeJsonl,
   writeJsonlStreaming,
   readJsonl,
-  ensureTargetTables,
+  runImportTransaction,
   serializeRowBlobs,
   deserializeRowBlobs,
   mergeGenericRow,
@@ -335,23 +335,14 @@ export function importBrain(
 
   const configs = tablesToImport(manifest.version);
 
-  if (options.dryRun) {
-    let total = 0;
-    for (const config of configs) {
-      const rows = readJsonl(join(dir, config.fileName), safeJsonParse);
-      total += rows.length;
-    }
-    return { imported: total, skipped: 0, conflicts: 0 };
-  }
 
-  ensureTargetTables(db);
 
   let imported = 0;
   let skipped = 0;
   let conflicts = 0;
 
   // Wrap entire import in a transaction for atomicity (Risk #3 from plan)
-  const importAll = db.transaction(() => {
+  const importAll = () => {
     const patternIds = new Map<string, string>();
     const patternWinners = new Map<string, string | null>();
     for (const config of configs) {
@@ -383,9 +374,9 @@ export function importBrain(
         conflicts += result.conflicts;
       }
     }
-  });
+  };
 
-  importAll();
+  runImportTransaction(db, options.dryRun ?? false, importAll);
 
   return { imported, skipped, conflicts };
 }
