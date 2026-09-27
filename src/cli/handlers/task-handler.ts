@@ -186,6 +186,7 @@ export class TaskHandler implements ICommandHandler {
           taskId: task.taskId,
           type: task.task.type,
           status: task.status,
+          cancellationResultPending: task.cancellationResultPending,
           priority: task.task.priority,
           domain: task.assignedDomain || null,
           startedAt: task.startedAt?.toISOString() || null,
@@ -227,7 +228,10 @@ export class TaskHandler implements ICommandHandler {
       const result = await context.queen!.cancelTask(taskId);
 
       if (result.success) {
-        console.log(chalk.green(`\n  Task cancelled: ${taskId}\n`));
+        console.log(chalk.green(`\n  Cancellation requested: ${taskId}\n`));
+        if (context.queen!.getTaskStatus(taskId)?.cancellationResultPending) {
+          console.log(chalk.yellow('  Task result pending; work may continue.'));
+        }
       } else {
         console.log(chalk.red(`\n  Failed to cancel task: ${(result as { success: false; error: Error }).error.message}\n`));
       }
@@ -256,6 +260,7 @@ export class TaskHandler implements ICommandHandler {
           taskId,
           type: task.task.type,
           status: task.status,
+          cancellationResultPending: task.cancellationResultPending,
           priority: task.task.priority,
           domain: task.assignedDomain || null,
           agents: task.assignedAgents,
@@ -275,6 +280,9 @@ export class TaskHandler implements ICommandHandler {
       console.log(chalk.blue(`\n  Task: ${taskId}\n`));
       console.log(`  Type: ${task.task.type}`);
       console.log(`  Status: ${getStatusColor(task.status)}`);
+      if (task.cancellationResultPending) {
+        console.log(chalk.yellow('  Task result pending; work may continue.'));
+      }
       console.log(`  Priority: ${task.task.priority}`);
       if (task.assignedDomain) {
         console.log(`  Domain: ${task.assignedDomain}`);

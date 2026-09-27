@@ -540,6 +540,8 @@ export interface TaskStatusResult {
   taskId: string;
   type: TaskType;
   status: 'queued' | 'assigned' | 'running' | 'completed' | 'failed' | 'cancelled';
+  /** Reports an outstanding task result; false does not prove external effects stopped. */
+  cancellationResultPending?: boolean;
   priority: Priority;
   assignedDomain?: DomainName;
   assignedAgents: string[];

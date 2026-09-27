@@ -35,6 +35,7 @@ import type { DomainBreakerRegistry } from './circuit-breaker/index.js';
 import type { TaskAuditLogger } from './services';
 
 import type { TaskExecution, QueenConfig, QueenTask } from './queen-types.js';
+import { settleCancelledTask } from './cancelled-task-settlement.js';
 
 // ============================================================================
 // Shared state interface for event handlers
@@ -134,6 +135,14 @@ export async function handleTaskCompleted(
   event: DomainEvent,
 ): Promise<void> {
   const { taskId, result } = event.payload as { taskId: string; result: unknown };
+  const cancelled = settleCancelledTask(ctx.tasks, taskId);
+  if (cancelled.ignored) {
+    if (cancelled.settledNow) {
+      ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+      await ctx.processQueue();
+    }
+    return;
+  }
   const execution = ctx.tasks.get(taskId);
 
   if (execution) {
@@ -257,6 +266,14 @@ export async function handleTaskFailed(
   event: DomainEvent,
 ): Promise<void> {
   const { taskId, error } = event.payload as { taskId: string; error: string };
+  const cancelled = settleCancelledTask(ctx.tasks, taskId);
+  if (cancelled.ignored) {
+    if (cancelled.settledNow) {
+      ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+      await ctx.processQueue();
+    }
+    return;
+  }
   const execution = ctx.tasks.get(taskId);
 
   if (execution) {
