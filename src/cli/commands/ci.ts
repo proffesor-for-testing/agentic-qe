@@ -22,6 +22,10 @@ import {
 } from '../utils/ci-config.js';
 import { writeOutput, toJSON } from '../utils/ci-output.js';
 import { buildCoverageData } from '../utils/coverage-data.js';
+import {
+  evaluateQualityEvidence,
+  loadQualityEvidence,
+} from '../../domains/quality-assessment/quality-evidence.js';
 
 // ============================================================================
 // Phase Execution
@@ -31,7 +35,7 @@ async function executePhase(
   phase: CIPhase,
   context: CLIContext,
   outputDir: string,
-  outputFormat: string,
+  phaseIndex: number,
 ): Promise<CIPhaseResult> {
   const startTime = Date.now();
   const artifacts: string[] = [];
@@ -172,29 +176,25 @@ async function executePhase(
       }
 
       case 'quality-gate': {
-        const qualityAPI = await context.kernel!.getDomainAPIAsync!<{
-          evaluate(request: Record<string, unknown>): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-        }>('quality-assessment');
-
-        if (!qualityAPI) {
-          return makeResult(phase, startTime, 'failed', 1, 'Quality assessment domain not available', artifacts);
-        }
-
-        const result = await qualityAPI.evaluate({ runGate: true, includeAdvice: true });
-        if (result.success && result.value) {
-          const assessment = result.value as { passed?: boolean; score?: string; grade?: string; checks?: unknown[]; recommendations?: string[]; meetsThreshold?: boolean };
-          const passed = assessment.passed ?? assessment.meetsThreshold ?? true;
-          details = { passed, score: assessment.score || assessment.grade, checks: assessment.checks };
-          status = passed ? 'passed' : 'failed';
-          summary = `Quality gate: ${passed ? 'PASSED' : 'FAILED'} (score: ${assessment.score || assessment.grade || 'N/A'})`;
-
-          const artifactPath = path.join(outputDir, 'quality-gate.json');
-          fs.writeFileSync(artifactPath, toJSON(assessment), 'utf-8');
-          artifacts.push(artifactPath);
-        } else {
+        // Use the same evidence contract as `aqe quality --gate` and registered
+        // MCP quality_assess. The domain API has no evaluate() method.
+        try {
+          const metrics = await loadQualityEvidence(context.kernel!.memory);
+          const assessment = evaluateQualityEvidence(metrics);
+          details = { ...assessment, metrics, evidenceStatus: 'measured' };
+          status = assessment.passed ? 'passed' : 'failed';
+          summary = `Quality gate: ${assessment.passed ? 'PASSED' : 'FAILED'} (${assessment.checks.filter(check => check.passed).length}/${assessment.checks.length} measured checks passed)`;
+        } catch (error) {
           status = 'failed';
-          summary = result.error?.message || 'Quality gate evaluation failed';
+          summary = `Quality gate: ${error instanceof Error ? error.message : String(error)}`;
+          details = { passed: false, evidenceStatus: 'unavailable', error: summary, checks: [] };
         }
+
+        // Each gate owns its evidence. A later passing gate must not overwrite
+        // an earlier failure when a pipeline contains multiple gate phases.
+        const artifactPath = path.join(outputDir, `quality-gate-${phaseIndex + 1}.json`);
+        fs.writeFileSync(artifactPath, toJSON(details), 'utf-8');
+        artifacts.push(artifactPath);
         break;
       }
 
@@ -285,7 +285,7 @@ function generateCombinedReport(result: CIRunResult): string {
   let md = `# AQE CI/CD Report\n\n`;
   md += `**Status:** ${result.overallStatus === 'passed' ? 'PASSED' : result.overallStatus === 'warning' ? 'WARNING' : 'FAILED'}\n`;
   md += `**Duration:** ${(result.duration / 1000).toFixed(1)}s\n`;
-  md += `**Quality Gate:** ${result.qualityGatePassed ? 'Passed' : 'Failed'}\n\n`;
+  md += `**Quality Gate:** ${describeQualityGate(result)}\n\n`;
   md += `## Phases\n\n`;
   md += `| Phase | Type | Status | Duration | Summary |\n`;
   md += `|-------|------|--------|----------|---------|\n`;
@@ -309,6 +309,12 @@ function generateCombinedReport(result: CIRunResult): string {
   }
 
   return md;
+}
+
+function describeQualityGate(result: CIRunResult): string {
+  const status = result.qualityGateStatus === 'not-run' ? 'Not run' :
+    result.qualityGatePassed ? 'Passed' : 'Failed';
+  return `${status} (${result.qualityGateEnforced ? 'enforced' : 'advisory'})`;
 }
 
 // ============================================================================
@@ -397,10 +403,16 @@ export function createCICommand(
         // Create output directory
         const outputDir = path.resolve(config.output.directory);
         fs.mkdirSync(outputDir, { recursive: true });
+        const gateReportPath = path.join(outputDir, 'quality-gate.json');
+        // Invalidate an earlier approval before executing any phase. This also
+        // covers early stops, disabled gates, and --phase selections without a gate.
+        fs.writeFileSync(gateReportPath, toJSON({
+          passed: false, status: 'not-run', evidenceStatus: 'not-run',
+          enforced: config.qualityGate.enforced, phases: [],
+        }), 'utf-8');
 
         // Execute phases
         const phaseResults: CIPhaseResult[] = [];
-        let pipelineFailed = false;
 
         for (const phase of config.phases) {
           if (format === 'text') {
@@ -408,7 +420,7 @@ export function createCICommand(
             process.stdout.write(chalk.cyan(spinner));
           }
 
-          const result = await executePhase(phase, context, outputDir, config.output.format);
+          const result = await executePhase(phase, context, outputDir, phaseResults.length);
           phaseResults.push(result);
 
           if (format === 'text') {
@@ -423,8 +435,7 @@ export function createCICommand(
             }
           }
 
-          if (result.status === 'failed') {
-            pipelineFailed = true;
+          if (result.status === 'failed' && (result.type !== 'quality-gate' || config.qualityGate.enforced)) {
             if (!phase.continueOnFailure) {
               if (format === 'text') {
                 console.log(chalk.red(`\n  Pipeline stopped: "${phase.name}" failed (continue_on_failure: false)\n`));
@@ -435,13 +446,18 @@ export function createCICommand(
         }
 
         // Determine overall status
-        const hasFailure = phaseResults.some(r => r.status === 'failed');
-        const hasWarning = phaseResults.some(r => r.status === 'warning');
-        const qualityGateResult = phaseResults.find(r => r.type === 'quality-gate');
-        const qualityGatePassed = !config.qualityGate.enforced || !qualityGateResult || qualityGateResult.status === 'passed';
+        const hasFailure = phaseResults.some(r => r.status === 'failed' && r.type !== 'quality-gate');
+        const hasWarning = phaseResults.some(r => r.status === 'warning' ||
+          (r.type === 'quality-gate' && r.status === 'failed' && !config.qualityGate.enforced));
+        const gateResults = phaseResults.filter(r => r.type === 'quality-gate');
+        const expectedGates = config.phases.filter(phase => phase.type === 'quality-gate').length;
+        const qualityGatePassed = gateResults.length > 0 && gateResults.length === expectedGates &&
+          gateResults.every(r => r.status === 'passed');
+        const qualityGateStatus = qualityGatePassed ? 'passed' :
+          gateResults.some(r => r.status === 'failed') ? 'failed' : 'not-run';
 
         const overallStatus: 'passed' | 'failed' | 'warning' =
-          hasFailure || !qualityGatePassed ? 'failed' :
+          hasFailure || (config.qualityGate.enforced && !qualityGatePassed) ? 'failed' :
           hasWarning ? 'warning' : 'passed';
 
         const completedAt = new Date();
@@ -454,9 +470,20 @@ export function createCICommand(
           duration,
           phases: phaseResults,
           qualityGatePassed,
+          qualityGateStatus,
+          qualityGateEnforced: config.qualityGate.enforced,
           overallStatus,
           exitCode: overallStatus === 'failed' ? 1 : 0,
         };
+
+        fs.writeFileSync(gateReportPath, toJSON({
+          ...(gateResults.length === 1 ? gateResults[0].details : {}),
+          passed: qualityGatePassed,
+          status: qualityGateStatus,
+          enforced: config.qualityGate.enforced,
+          ...(qualityGateStatus === 'not-run' ? { evidenceStatus: 'not-run' } : {}),
+          phases: gateResults,
+        }), 'utf-8');
 
         // Write combined report
         if (config.output.combinedReport) {
@@ -478,7 +505,7 @@ export function createCICommand(
           const statusColor = overallStatus === 'passed' ? chalk.green :
                              overallStatus === 'failed' ? chalk.red : chalk.yellow;
           console.log(`  ${statusColor(`Pipeline: ${overallStatus.toUpperCase()}`)} (${(duration / 1000).toFixed(1)}s)`);
-          console.log(`  Quality Gate: ${qualityGatePassed ? chalk.green('PASSED') : chalk.red('FAILED')}`);
+          console.log(`  Quality Gate: ${describeQualityGate(runResult)}`);
           console.log(chalk.gray(`  Artifacts: ${outputDir}/`));
           console.log('');
         }

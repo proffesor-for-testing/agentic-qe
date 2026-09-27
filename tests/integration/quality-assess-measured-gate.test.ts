@@ -9,6 +9,8 @@ import type { MemoryBackend } from '../../src/kernel/interfaces.js';
 import type { QualityAssessResult } from '../../src/mcp/handlers/domain-handler-configs.js';
 import type { ToolResult } from '../../src/mcp/types.js';
 import type { QualityEvidenceValues } from '../../src/domains/quality-assessment/quality-evidence.js';
+import type { CLIContext } from '../../src/cli/handlers/interfaces.js';
+import type { CIRunResult } from '../../src/cli/utils/ci-config.js';
 
 // Routing advice is unrelated to gate enforcement. Keep the real registered
 // handler, executor, analyzer, kernel memory, and evidence validator in this test.
@@ -31,9 +33,27 @@ describe('registered quality_assess measured gate', () => {
   let memory: MemoryBackend;
   let evidence: typeof import('../../src/domains/quality-assessment/quality-evidence.js');
   let cli: typeof import('../../src/cli/commands/quality.js');
+  let ci: typeof import('../../src/cli/commands/ci.js');
   let core: typeof import('../../src/mcp/handlers/core-handlers.js');
   let resetCache: () => void;
   const originalCwd = process.cwd();
+
+  async function runCIGate(args: string[] = []) {
+    const output = join(process.cwd(), 'ci-result.json');
+    const cleanup = vi.fn(async (_code: number) => undefined);
+    const command = ci.createCICommand(
+      { kernel: core.getFleetState().kernel } as CLIContext,
+      cleanup as unknown as (code: number) => Promise<never>,
+      async () => true,
+    );
+    await command.parseAsync([
+      'run', '--phase', 'quality-gate', '--format', 'json', '--output', output, ...args,
+    ], { from: 'user' });
+    return {
+      report: JSON.parse(await readFile(output, 'utf8')) as CIRunResult,
+      exitCode: cleanup.mock.calls[0]?.[0],
+    };
+  }
 
   async function callTool<T>(name: string, args: Record<string, unknown>): Promise<ToolResult<T>> {
     const response = await server['handleRequest']({
@@ -82,6 +102,7 @@ describe('registered quality_assess measured gate', () => {
     core = await import('../../src/mcp/handlers/core-handlers.js');
     evidence = await import('../../src/domains/quality-assessment/quality-evidence.js');
     cli = await import('../../src/cli/commands/quality.js');
+    ci = await import('../../src/cli/commands/ci.js');
     ({ resetSessionCache: resetCache } = await import('../../src/optimization/session-cache.js'));
     server = createMCPProtocolServer();
     const fleet = await callTool('fleet_init', { memoryBackend: 'memory', maxAgents: 2 });
@@ -119,6 +140,16 @@ describe('registered quality_assess measured gate', () => {
     const report = result.data?.savedFiles?.find(file => file.endsWith('_report.md'));
     expect(report).toBeDefined();
     expect(await readFile(report!, 'utf8')).toContain('N/A — measured gate uses individual checks.');
+
+    const pipeline = await runCIGate();
+    expect(pipeline.exitCode).toBe(0);
+    expect(pipeline.report).toMatchObject({
+      overallStatus: 'passed', qualityGatePassed: true, qualityGateStatus: 'passed',
+      phases: [{ status: 'passed', details: { passed: true, checks: expected.checks } }],
+    });
+    const artifact = JSON.parse(await readFile(pipeline.report.phases[0].artifacts[0], 'utf8'));
+    expect(artifact).toMatchObject({ passed: true, checks: expected.checks });
+    expect(artifact).not.toHaveProperty('score');
   });
 
   it.each(failures)('blocks measured %s failure even when static code analysis passes', async (metric, value) => {
@@ -131,6 +162,12 @@ describe('registered quality_assess measured gate', () => {
     expect(result.data).toMatchObject({ passed: false, checks: expected.checks,
       recommendations: expected.recommendations, riskDecision: { decision: 'block' } });
     expect(cli.getMeasuredQualityExitCode(expected)).toBe(1);
+    const pipeline = await runCIGate();
+    expect(pipeline.exitCode).toBe(1);
+    expect(pipeline.report).toMatchObject({
+      overallStatus: 'failed', qualityGatePassed: false, qualityGateStatus: 'failed',
+      phases: [{ status: 'failed', details: { passed: false, checks: expected.checks } }],
+    });
   });
 
   it.each(['missing', 'partial', 'stale', 'malformed', 'future'] as const)(
@@ -151,8 +188,43 @@ describe('registered quality_assess measured gate', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe((expected as Error).message);
       expect(result.data).toBeUndefined();
+      const pipeline = await runCIGate();
+      expect(pipeline.exitCode).toBe(1);
+      expect(pipeline.report.qualityGatePassed).toBe(false);
+      expect(pipeline.report.phases[0].summary).toContain((expected as Error).message);
+      const artifact = JSON.parse(await readFile(pipeline.report.phases[0].artifacts[0], 'utf8'));
+      expect(artifact).toMatchObject({ passed: false, evidenceStatus: 'unavailable' });
     },
   );
+
+  it('does not report an omitted gate as passed, even when enforcement is explicitly disabled', async () => {
+    await seed();
+    await runCIGate();
+    const required = await runCIGate(['--phase', 'no-such-phase']);
+    expect(required.exitCode).toBe(1);
+    expect(required.report).toMatchObject({
+      phases: [], qualityGatePassed: false, qualityGateStatus: 'not-run', overallStatus: 'failed',
+    });
+    expect(JSON.parse(await readFile(join(process.cwd(), '.aqe-ci-output', 'quality-gate.json'), 'utf8')))
+      .toMatchObject({ passed: false, status: 'not-run', evidenceStatus: 'not-run' });
+    const advisory = await runCIGate(['--phase', 'no-such-phase', '--no-quality-gate']);
+    expect(advisory.exitCode).toBe(0);
+    expect(advisory.report).toMatchObject({
+      phases: [], qualityGatePassed: false, qualityGateStatus: 'not-run', qualityGateEnforced: false,
+    });
+    expect(await readFile(join(process.cwd(), '.aqe-ci-output', 'ci-report.md'), 'utf8'))
+      .toContain('**Quality Gate:** Not run (advisory)');
+  });
+
+  it('retains a failed advisory gate and continues without blocking the pipeline', async () => {
+    await seed({ ...passing, criticalBugs: 1 });
+    const pipeline = await runCIGate(['--no-quality-gate']);
+    expect(pipeline.exitCode).toBe(0);
+    expect(pipeline.report).toMatchObject({
+      overallStatus: 'warning', qualityGatePassed: false, qualityGateEnforced: false,
+      qualityGateStatus: 'failed', phases: [{ status: 'failed' }],
+    });
+  });
 
   it('rechecks changed evidence with identical gate arguments and the session cache enabled', async () => {
     await seed();
