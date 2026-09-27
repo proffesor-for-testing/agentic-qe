@@ -541,3 +541,18 @@ export function insertWitnessEntry(db: Database.Database, entry: WitnessRow): vo
 export function ensureTargetTables(db: Database.Database): void {
   ensureAllBrainTables(db);
 }
+
+/** Execute the real importer; dry runs roll back rows and schema, including nested calls. */
+export function runImportTransaction(db: Database.Database, dryRun: boolean, importer: () => void): void {
+  const rollback = Symbol('brain import dry run');
+  const transaction = db.transaction(() => {
+    ensureTargetTables(db);
+    importer();
+    if (dryRun) throw rollback;
+  });
+  try {
+    transaction();
+  } catch (error) {
+    if (error !== rollback) throw error;
+  }
+}
