@@ -261,6 +261,15 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       shell: false,
       detached: process.platform !== 'win32',
     });
+    // Detached workers do not receive the terminal's SIGINT. The CLI may
+    // exit synchronously from its signal handler, so kill this owned group
+    // synchronously while the command is active.
+    const stopOnExit = () => {
+      if (child.pid) {
+        try { process.kill(-child.pid, 'SIGKILL'); } catch { /* already exited */ }
+      }
+    };
+    if (process.platform !== 'win32') process.once('exit', stopOnExit);
     let stdout = '';
     let stderr = '';
     let exitCode = 1;
@@ -301,6 +310,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
         return { stdout, stderr, exitCode };
       } finally {
         clearTimeout(timeout);
+        if (process.platform !== 'win32') process.removeListener('exit', stopOnExit);
         // A failed kill leaves an unknown survivor. Keep this executor closed
         // to new work rather than replacing the only handle to that tree.
         if (this.currentCommand === active && !terminationError) this.currentCommand = null;

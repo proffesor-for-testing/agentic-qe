@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { VitestPhaseExecutor } from '../../../src/test-scheduling/executors/vitest-executor.js';
 import { createPhaseScheduler } from '../../../src/test-scheduling/phase-scheduler.js';
@@ -69,12 +71,39 @@ afterEach(() => {
 describe.skipIf(process.platform === 'win32')('Vitest executor cancellation quiescence', () => {
   it('still accepts a normally completed test process', async () => {
     const { root, executor, phase } = fixture();
-    writeFileSync(path.join(root, 'vitest'), `console.log(JSON.stringify({
+    writeFileSync(path.join(root, 'vitest'), `require('node:fs').writeFileSync(process.argv.find(arg => arg.startsWith('--outputFile=')).slice('--outputFile='.length), JSON.stringify({
       numTotalTestSuites: 1, numPassedTestSuites: 1, numFailedTestSuites: 0,
       numTotalTests: 1, numPassedTests: 1, numFailedTests: 0, numPendingTests: 0,
       success: true, startTime: Date.now(), testResults: []
     }));`);
+    const exitListeners = process.listenerCount('exit');
     expect((await executor.execute(phase)).success).toBe(true);
+    expect(process.listenerCount('exit')).toBe(exitListeners);
+  });
+
+  it('stops detached workers when the CLI exits after terminal SIGINT', async () => {
+    const { root, phase, heartbeat, spawned } = fixture();
+    const parentScript = path.join(root, 'parent.mts');
+    const executorUrl = pathToFileURL(path.resolve('src/test-scheduling/executors/vitest-executor.ts')).href;
+    writeFileSync(parentScript, `
+      import { VitestPhaseExecutor } from ${JSON.stringify(executorUrl)};
+      process.on('SIGINT', () => process.exit(130));
+      const executor = new VitestPhaseExecutor({ cwd: ${JSON.stringify(root)}, vitestPath: process.execPath });
+      await executor.execute(${JSON.stringify(phase)});
+    `);
+    const parent = spawn(process.execPath, ['--import', path.resolve('node_modules/tsx/dist/loader.mjs'), parentScript], {
+      cwd: root, detached: true, stdio: 'ignore',
+    });
+    pids.push(parent.pid!);
+    const exited = new Promise<number | null>((resolve, reject) => {
+      parent.once('exit', resolve);
+      parent.once('error', reject);
+    });
+    await spawned();
+    process.kill(-parent.pid!, 'SIGINT');
+    expect(await exited).toBe(130);
+    await new Promise(resolve => setTimeout(resolve, 75));
+    await assertHeartbeatStopped(heartbeat);
   });
 
   it('waits for a TERM-resistant worker before abort reports completion', async () => {
