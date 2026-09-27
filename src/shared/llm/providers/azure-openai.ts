@@ -71,7 +71,11 @@ export interface AzureOpenAIConfig extends LLMConfig {
  * Default Azure OpenAI configuration
  */
 export const DEFAULT_AZURE_OPENAI_CONFIG: Partial<AzureOpenAIConfig> = {
-  model: 'gpt-6-sol', // Base model - actual deployment may vary
+  // Logical base model for cost tracking only — the deployment decides which
+  // model runs. Kept at gpt-4o so existing deployments keep their request
+  // shape; GPT-5/6 deployments must set `model` explicitly (e.g. 'gpt-6-sol')
+  // so the request uses max_completion_tokens.
+  model: 'gpt-4o',
   maxTokens: 4096,
   temperature: 0.7,
   timeoutMs: 60000,
@@ -153,7 +157,8 @@ export class AzureOpenAIProvider implements LLMProvider {
    * which model actually runs, so the default `model` is not trusted here: an
    * explicit model wins, otherwise the deployment name is looked up. A
    * deployment name that hides the base model (e.g. 'prod-chat') falls back to
-   * the name heuristic in openai-params, i.e. the legacy max_tokens shape.
+   * the name heuristic in openai-params, i.e. the legacy max_tokens shape —
+   * GPT-5/6 deployments with opaque names must therefore set `model`.
    */
   private paramPolicyModel(requestModel?: string): string {
     return requestModel ?? this.explicitModel ?? this.config.deploymentId;
@@ -275,7 +280,7 @@ export class AzureOpenAIProvider implements LLMProvider {
     }
 
     const messages = this.formatMessages(input, options?.systemPrompt);
-    const model = options?.model ?? this.config.model ?? 'gpt-6-sol';
+    const model = options?.model ?? this.config.model ?? 'gpt-4o';
     const maxTokens = options?.maxTokens ?? this.config.maxTokens ?? 4096;
     const temperature = options?.temperature ?? this.config.temperature ?? 0.7;
     const requestId = `azure-openai-${++this.requestId}-${Date.now()}`;
@@ -488,7 +493,7 @@ export class AzureOpenAIProvider implements LLMProvider {
    * Azure OpenAI has the same pricing as OpenAI
    */
   getCostPerToken(): { input: number; output: number } {
-    return CostTracker.getCostPerToken(this.config.model ?? 'gpt-6-sol');
+    return CostTracker.getCostPerToken(this.config.model ?? 'gpt-4o');
   }
 
   /**
