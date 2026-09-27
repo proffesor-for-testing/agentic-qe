@@ -17,6 +17,7 @@ import * as path from 'path';
 
 /** Module-level cache for findProjectRoot result. */
 let _cachedProjectRoot: string | null = null;
+let _cachedStartDir: string | null = null;
 
 /**
  * Clear the cached project root. Useful for testing or when the
@@ -24,6 +25,7 @@ let _cachedProjectRoot: string | null = null;
  */
 export function clearProjectRootCache(): void {
   _cachedProjectRoot = null;
+  _cachedStartDir = null;
 }
 
 /**
@@ -40,16 +42,13 @@ export function clearProjectRootCache(): void {
  * and the result is cached at module level for subsequent calls.
  */
 export function findProjectRoot(startDir: string = process.cwd()): string {
-  if (_cachedProjectRoot) {
-    return _cachedProjectRoot;
-  }
+  // Environment overrides may change between SDK calls. Do not let a cached
+  // discovery hide a new explicit root or leak it after the override is unset.
+  if (process.env.AQE_PROJECT_ROOT) return process.env.AQE_PROJECT_ROOT;
 
-  if (process.env.AQE_PROJECT_ROOT) {
-    _cachedProjectRoot = process.env.AQE_PROJECT_ROOT;
-    return _cachedProjectRoot;
-  }
-
-  const dir = startDir;
+  const dir = path.resolve(startDir);
+  if (_cachedProjectRoot && _cachedStartDir === dir) return _cachedProjectRoot;
+  _cachedStartDir = dir;
   const root = path.parse(dir).root;
 
   let checkDir = dir;
@@ -85,7 +84,7 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   } else if (topmostPackageJson) {
     _cachedProjectRoot = topmostPackageJson;
   } else {
-    _cachedProjectRoot = process.cwd();
+    _cachedProjectRoot = dir;
   }
 
   return _cachedProjectRoot;
