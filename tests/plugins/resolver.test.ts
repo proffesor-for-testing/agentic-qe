@@ -113,18 +113,18 @@ describe('PluginResolver', () => {
   });
 
   describe('missing dependencies', () => {
-    it('should record missing dependencies without failing', () => {
+    it('should report missing dependencies without emitting an unsafe load order', () => {
       const result = resolver.resolve([
         makeManifest('a', { 'not-installed': '^1.0.0' }),
       ]);
-      expect(result.ordered).toHaveLength(1);
+      expect(result.ordered).toHaveLength(0);
       expect(result.missing.get('a')).toContain('not-installed');
     });
   });
 
   describe('canLoad', () => {
     it('should return true when all deps are loaded', () => {
-      const loaded = new Set(['dep-a', 'dep-b']);
+      const loaded = new Map([['dep-a', '1.0.0'], ['dep-b', '1.0.0']]);
       const result = resolver.canLoad(
         makeManifest('plugin', { 'dep-a': '^1.0.0', 'dep-b': '^1.0.0' }),
         loaded,
@@ -134,7 +134,7 @@ describe('PluginResolver', () => {
     });
 
     it('should return false when deps are missing', () => {
-      const loaded = new Set(['dep-a']);
+      const loaded = new Map([['dep-a', '1.0.0']]);
       const result = resolver.canLoad(
         makeManifest('plugin', { 'dep-a': '^1.0.0', 'dep-b': '^1.0.0' }),
         loaded,

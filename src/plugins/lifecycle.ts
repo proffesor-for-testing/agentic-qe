@@ -136,6 +136,19 @@ export class PluginLifecycleManager {
       };
     }
 
+    // Admit only the requested dependency closure, using all cached candidates.
+    // Force this manifest's version so an older cached copy cannot mask failure.
+    try {
+      const candidates = this.cache.listCandidates().map(c => c.manifest)
+        .filter(c => c.name !== manifest.name);
+      const resolution = this.resolver.resolve([...candidates, manifest], [manifest.name]);
+      if (resolution.errors.length) {
+        return { success: false, manifest, errors: resolution.errors.map(e => `${e.code}: ${e.message}`), securityViolations: [] };
+      }
+    } catch (error) {
+      return { success: false, manifest, errors: [error instanceof Error ? error.message : String(error)], securityViolations: [] };
+    }
+
     // 5. Check if already cached
     if (this.cache.has(manifest.name, manifest.version)) {
       const cached = this.cache.get(manifest.name, manifest.version)!;
@@ -210,7 +223,7 @@ export class PluginLifecycleManager {
    * Resolve load order for all cached plugins.
    */
   resolveLoadOrder(): ResolutionResult {
-    const all = this.cache.listAll();
+    const all = this.cache.listCandidates();
     return this.resolver.resolve(all.map(c => c.manifest));
   }
 
