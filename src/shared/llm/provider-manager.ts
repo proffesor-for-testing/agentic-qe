@@ -885,12 +885,12 @@ export function createQEProviderManager(): ProviderManager {
         temperature: 0.3, // Lower for QE tasks
       },
       openai: {
-        model: 'gpt-4o',
+        model: 'gpt-6-sol',
         maxTokens: 8192,
         temperature: 0.3,
       },
       ollama: {
-        model: 'llama3.1',
+        model: 'qwen3-coder:30b',
         maxTokens: 4096,
         temperature: 0.3,
       },

@@ -1207,7 +1207,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'openai',
-    models: ['gpt-4o', 'gpt-4o-mini'],
+    models: ['gpt-6-sol', 'gpt-6-luna'],
     enabled: true,
     priority: 90,
     maxAttempts: 2,
@@ -1215,7 +1215,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'openrouter',
-    models: ['anthropic/claude-sonnet-4', 'openai/gpt-4o'],
+    models: ['anthropic/claude-sonnet-5', 'openai/gpt-6-sol'],
     enabled: true,
     priority: 85,
     maxAttempts: 2,
@@ -1223,7 +1223,7 @@ export const DEFAULT_FALLBACK_CHAIN_ENTRIES: FallbackChainEntry[] = [
   },
   {
     provider: 'ollama',
-    models: ['llama3.1', 'mistral'],
+    models: ['qwen3-coder:30b', 'qwen3:30b-a3b'],
     enabled: true,
     priority: 80,
     maxAttempts: 2,
@@ -1266,10 +1266,10 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
     // ADR-123: opt-in (issue #557 — don't default the subscription/fleet path
     // on). Enabled explicitly via AQE_LLM_PROVIDER=claude-code or disk config.
     'claude-code': { enabled: false, defaultModel: DEFAULT_SONNET_MODEL },
-    openai: { enabled: true, defaultModel: 'gpt-4o' },
-    ollama: { enabled: true, defaultModel: 'llama3.1' },
-    openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-4' },
-    gemini: { enabled: false, defaultModel: 'gemini-pro' },
+    openai: { enabled: true, defaultModel: 'gpt-6-sol' },
+    ollama: { enabled: true, defaultModel: 'qwen3-coder:30b' },
+    openrouter: { enabled: true, defaultModel: 'anthropic/claude-sonnet-5' },
+    gemini: { enabled: false, defaultModel: 'gemini-2.5-flash' },
     'azure-openai': { enabled: false },
     bedrock: { enabled: false },
     // ADR-123: opt-in; enabled when COGNITUM_API_KEY present or via override.

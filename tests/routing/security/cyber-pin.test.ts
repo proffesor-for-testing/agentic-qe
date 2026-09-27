@@ -16,6 +16,7 @@ import {
   CYBER_PINNED_AGENTS,
   CYBER_PIN_ADVISOR_FALLBACK,
   CYBER_PIN_CHAT_FALLBACK,
+  cyberPinFallbackFor,
 } from '../../../src/routing/security/cyber-pin';
 import {
   DEFAULT_OPUS_MODEL,
@@ -191,6 +192,23 @@ describe('ADR-093 cyber-pin', () => {
           AQE_CYBER_VERIFIED: 'true',
         }),
       ).toBe('claude-opus-5');
+    });
+  });
+  describe('alias, case and provider-form coverage', () => {
+    it.each(['opus', 'fable', 'Opus', 'Claude-Opus-5-5', 'ANTHROPIC/CLAUDE-FABLE-5.1', ' claude-opus-4-8 '])(
+      'gates %j', (id) => {
+        expect(isCyberGatedModel(id)).toBe(true);
+      },
+    );
+
+    it.each(['sonnet', 'haiku', 'Claude-Sonnet-5'])('does not gate %j', (id) => {
+      expect(isCyberGatedModel(id)).toBe(false);
+    });
+
+    it('returns the Sonnet 4.6 fallback in each provider form', () => {
+      expect(cyberPinFallbackFor('claude')).toBe('claude-sonnet-4-6');
+      expect(cyberPinFallbackFor('openrouter')).toBe('anthropic/claude-sonnet-4.6');
+      expect(cyberPinFallbackFor('bedrock')).toBe('anthropic.claude-sonnet-4-6-v1:0');
     });
   });
 });

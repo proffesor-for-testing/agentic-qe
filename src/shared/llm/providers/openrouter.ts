@@ -30,6 +30,7 @@ import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
 import { safeJsonParse } from '../../safe-json.js';
+import { resolveModelPricing } from '../cost-tracker.js';
 
 /**
  * OpenRouter-specific configuration
@@ -194,6 +195,16 @@ export const OPENROUTER_PRICING: Record<string, { input: number; output: number 
   // Default fallback for unknown models
   'default': { input: 1.0, output: 3.0 },
 };
+
+/**
+ * Per-million-token pricing for an OpenRouter slug. The local table wins;
+ * otherwise the shared cost tracker / model registry (which normalize
+ * `anthropic/…`, `openai/…` slugs) are consulted before the generic default,
+ * so routable models are never billed at the placeholder rate.
+ */
+function openRouterPricing(model: string): { input: number; output: number } {
+  return OPENROUTER_PRICING[model] ?? resolveModelPricing(model) ?? OPENROUTER_PRICING['default'];
+}
 
 /**
  * OpenRouter LLM provider implementation
@@ -687,7 +698,7 @@ export class OpenRouterProvider implements LLMProvider {
    * Get cost per token for current model
    */
   getCostPerToken(): { input: number; output: number } {
-    const pricing = OPENROUTER_PRICING[this.config.model] || OPENROUTER_PRICING['default'];
+    const pricing = openRouterPricing(this.config.model);
     return {
       input: pricing.input / 1_000_000,
       output: pricing.output / 1_000_000,
@@ -705,7 +716,7 @@ export class OpenRouterProvider implements LLMProvider {
    * Calculate cost for a given usage
    */
   private calculateCost(model: string, usage: TokenUsage): CostInfo {
-    const pricing = OPENROUTER_PRICING[model] || OPENROUTER_PRICING['default'];
+    const pricing = openRouterPricing(model);
 
     // Convert from per-million to actual cost
     const inputCost = (usage.promptTokens / 1_000_000) * pricing.input;

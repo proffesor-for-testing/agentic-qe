@@ -385,7 +385,7 @@ export const DEFAULT_QE_ROUTING_RULES: RoutingRule[] = [
     },
     action: {
       provider: 'ollama',
-      model: 'llama3.1',
+      model: 'qwen3-coder:30b',
       temperature: 0.3,
     },
     enabled: true,

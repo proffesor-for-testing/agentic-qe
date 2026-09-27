@@ -40,7 +40,8 @@ export const MODEL_PRICING: Record<
   'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0, provider: 'claude' },
   'claude-haiku-4-5': { input: 1.0, output: 5.0, provider: 'claude' },
   // Previous generation, still served
-  'claude-opus-4-5-20251101': { input: 15.0, output: 75.0, provider: 'claude' },
+  'claude-opus-4-5-20251101': { input: 5.0, output: 25.0, provider: 'claude' },
+  'claude-opus-4-6': { input: 5.0, output: 25.0, provider: 'claude' },
   // Retired — kept only to price historical usage records
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0, provider: 'claude' },
   'claude-3-5-haiku-20241022': { input: 1.0, output: 5.0, provider: 'claude' },
@@ -100,6 +101,8 @@ export const MODEL_PRICING: Record<
 
   // AWS Bedrock models (ARN-style model IDs)
   // Pricing reflects Bedrock's pricing which may differ slightly from Anthropic direct
+  // Bedrock sets its own Claude pricing; this row is unverified since the
+  // 2026-09 refresh (direct API / OpenRouter Opus 4.5 is $5/$25).
   'anthropic.claude-opus-4-5-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
   'anthropic.claude-opus-4-v1:0': { input: 15.0, output: 75.0, provider: 'bedrock' },
   'anthropic.claude-sonnet-4-5-v2:0': { input: 3.0, output: 15.0, provider: 'bedrock' },

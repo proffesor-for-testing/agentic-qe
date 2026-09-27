@@ -77,7 +77,7 @@ if (process.env.ANTHROPIC_API_KEY) {
 if (process.env.OLLAMA_HOST || process.env.OLLAMA_BASE_URL) {
   availableProviders.push({
     name: 'ollama',
-    model: process.env.OLLAMA_ADVISOR_MODEL || 'llama3.1:70b',
+    model: process.env.OLLAMA_ADVISOR_MODEL || 'qwen3-coder:30b',
     securityAllowed: true, // self-hosted
   });
 }

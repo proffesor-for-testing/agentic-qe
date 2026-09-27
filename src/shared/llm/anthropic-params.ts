@@ -9,8 +9,8 @@
  * model bump cannot silently break calls.
  */
 
-import { getModelCapabilities } from './model-registry';
-import type { EffortLevel } from './effort-resolver';
+import { getModelCapabilities, getModelInfo } from './model-registry';
+import { resolveEffortLevel, type EffortLevel } from './effort-resolver';
 
 export interface AnthropicParamPolicy {
   /** Whether `temperature` (and other sampling params) may be sent. */
@@ -39,7 +39,12 @@ export function getAnthropicParamPolicy(model: string): AnthropicParamPolicy {
 
 export interface AnthropicParamInput {
   temperature?: number;
-  /** Only an explicitly requested effort is sent; otherwise the model default applies. */
+  /**
+   * Explicit effort. When omitted, flagship (Opus/Fable-class) models get the
+   * fleet effort (QE_EFFORT_LEVEL > config/fleet-defaults.yaml > xhigh, per
+   * ADR-093); other models keep their API default to avoid raising cost on
+   * every Sonnet/Haiku call.
+   */
   effort?: EffortLevel;
 }
 
@@ -56,8 +61,15 @@ export function applyAnthropicParams(
   if (policy.sendSampling && input.temperature !== undefined) {
     body.temperature = input.temperature;
   }
-  if (policy.supportsEffort && input.effort !== undefined) {
-    body.output_config = { effort: input.effort };
+  if (policy.supportsEffort) {
+    const effort = input.effort ?? (isFlagship(model) ? resolveEffortLevel() : undefined);
+    if (effort !== undefined) {
+      body.output_config = { effort };
+    }
   }
   return body;
+}
+
+function isFlagship(model: string): boolean {
+  return getModelInfo(model)?.tier === 'flagship';
 }

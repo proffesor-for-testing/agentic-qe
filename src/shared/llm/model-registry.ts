@@ -213,8 +213,8 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
       supportsCodeExecution: false,
     },
     cost: {
-      inputCostPerMillion: 15.0,
-      outputCostPerMillion: 75.0,
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
     },
   },
   'claude-haiku-3-5': {
@@ -273,6 +273,33 @@ export const MODEL_REGISTRY: Record<string, Omit<ModelInfo, 'id' | 'providers'>>
   // ==========================================================================
   // ADR-093: Opus 4.7, Sonnet 4.6, Haiku 4.5 (Apr 2026 cluster)
   // ==========================================================================
+  'claude-opus-4-6': {
+    name: 'Claude Opus 4.6',
+    family: 'claude',
+    tier: 'flagship',
+    description: 'Previous-generation Opus, still served. Accepts sampling params; no xhigh effort.',
+    recommended: false,
+    capabilities: {
+      contextLength: 1_000_000,
+      maxOutputTokens: 128000,
+      supportsTools: true,
+      supportsStreaming: true,
+      supportsVision: true,
+      supportsJsonMode: true,
+      supportsSystemPrompt: true,
+      supportsExtendedThinking: true,
+      supportsMCP: true,
+      supportsEmbeddings: false,
+      supportsCodeExecution: false,
+      supportsAdaptiveThinking: true,
+      supportsEffortXHigh: false,
+      tokenizerVersion: 'legacy',
+    },
+    cost: {
+      inputCostPerMillion: 5.0,
+      outputCostPerMillion: 25.0,
+    },
+  },
   'claude-opus-4-7': {
     name: 'Claude Opus 4.7',
     family: 'claude',

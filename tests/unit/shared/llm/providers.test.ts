@@ -534,6 +534,30 @@ describe('OllamaProvider', () => {
       expect(result.models).toContain('codellama');
     });
 
+    it('should warn when only a different tag of a similar family is installed', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ models: [{ name: 'qwen3:8b' }] }),
+      });
+
+      const result = await provider.healthCheck();
+
+      expect(DEFAULT_OLLAMA_CONFIG.model).toBe('qwen3-coder:30b');
+      expect(result.details?.warning).toContain("Configured model 'qwen3-coder:30b' not found");
+    });
+
+    it('should not warn when the exact configured tag is installed', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ models: [{ name: 'qwen3-coder:30b' }, { name: 'qwen3:8b' }] }),
+      });
+
+      const result = await provider.healthCheck();
+
+      expect(result.healthy).toBe(true);
+      expect(result.details?.warning).toBeUndefined();
+    });
+
     it('should return unhealthy when Ollama is not running', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
 

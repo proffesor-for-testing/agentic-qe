@@ -16,7 +16,7 @@ function provider(type: LLMProviderType) {
     isAvailable: vi.fn().mockResolvedValue(true),
     getConfig: () => ({ model: type === 'claude' ? 'claude-sonnet-4-6' : 'llama3.1' }),
     getCostPerToken: () => ({ input: 0, output: 0 }),
-    getSupportedModels: () => [DEFAULT_OPUS_MODEL, 'llama3.1'],
+    getSupportedModels: () => [DEFAULT_OPUS_MODEL, 'qwen3-coder:30b', 'llama3.1'],
     generate: vi.fn(async (messages: Message[], options: GenerateOptions): Promise<LLMResponse> => ({
       content: messages[0].content === 'Reply with exactly: OK' ? 'OK' : '{"unmet":[]}',
       model: options.model!,
@@ -79,7 +79,7 @@ describe('frontier judge model routing', () => {
   it('keeps a shared router and its warmed ordinary decision unchanged', async () => {
     const { router, claude, ollama } = setup();
     const ordinary = { messages: [{ role: 'user' as const, content: 'small ordinary request' }] };
-    expect((await router.chat(ordinary)).model).toBe('llama3.1');
+    expect((await router.chat(ordinary)).model).toBe('qwen3-coder:30b');
     const config = router.getConfig();
 
     expect((await verdict(router)).verdict).toBe('pass');
@@ -87,7 +87,7 @@ describe('frontier judge model routing', () => {
     expect(claude.generate).toHaveBeenCalledTimes(2);
     expect(claude.generate.mock.calls.every(([, options]) => options.model === DEFAULT_OPUS_MODEL)).toBe(true);
     expect(router.getConfig()).toEqual(config);
-    expect((await router.chat(ordinary)).model).toBe('llama3.1');
+    expect((await router.chat(ordinary)).model).toBe('qwen3-coder:30b');
     expect(ollama.generate).toHaveBeenCalledTimes(2);
   });
 

@@ -3,7 +3,7 @@
  * MM-003: Claude implementation for multi-model consensus verification
  *
  * Provides security finding verification using Claude models from Anthropic.
- * Supports Claude 3.5 Sonnet and Claude 3 Opus with configurable parameters.
+ * Supports current Claude models (Sonnet 5, Opus 5.5, Haiku 4.5) with configurable parameters.
  *
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 2: Multi-Model Verification
  */
@@ -135,9 +135,7 @@ export class ClaudeModelProvider extends BaseModelProvider {
   readonly name = 'Claude (Anthropic)';
   readonly type: ModelProvider['type'] = 'claude';
 
-  // Cost per million tokens (as of 2024)
-  // Claude 3.5 Sonnet: $3 input, $15 output per 1M tokens
-  // Claude 3 Opus: $15 input, $75 output per 1M tokens
+  // Per-token cost; set from the model registry in updateCostForModel().
   protected costPerToken = {
     input: 3 / 1_000_000,  // Will be overridden per model
     output: 15 / 1_000_000,

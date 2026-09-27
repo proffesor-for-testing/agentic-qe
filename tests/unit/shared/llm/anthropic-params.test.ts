@@ -53,9 +53,34 @@ describe('applyAnthropicParams', () => {
     expect(body.output_config).toEqual({ effort: 'max' });
   });
 
-  it('sends no effort unless the caller asked for one', () => {
-    const body = applyAnthropicParams({}, 'claude-opus-5', { temperature: 0.7 });
+  it('sends no effort to non-flagship models unless the caller asked for one', () => {
+    const body = applyAnthropicParams({}, 'claude-sonnet-5', { temperature: 0.7 });
     expect(body).toEqual({});
+  });
+
+  it('applies the fleet effort (QE_EFFORT_LEVEL) to flagship models when none is requested', () => {
+    const prev = process.env.QE_EFFORT_LEVEL;
+    process.env.QE_EFFORT_LEVEL = 'high';
+    try {
+      expect(applyAnthropicParams({}, 'claude-opus-5-5', {})).toEqual({ output_config: { effort: 'high' } });
+      expect(applyAnthropicParams({}, 'claude-fable-5-1', {})).toEqual({ output_config: { effort: 'high' } });
+    } finally {
+      if (prev === undefined) delete process.env.QE_EFFORT_LEVEL; else process.env.QE_EFFORT_LEVEL = prev;
+    }
+  });
+
+  it('falls back to config/fleet-defaults.yaml (xhigh) for flagship models without an env override', () => {
+    const prev = process.env.QE_EFFORT_LEVEL;
+    delete process.env.QE_EFFORT_LEVEL;
+    try {
+      expect(applyAnthropicParams({}, 'claude-opus-5-5', {})).toEqual({ output_config: { effort: 'xhigh' } });
+    } finally {
+      if (prev !== undefined) process.env.QE_EFFORT_LEVEL = prev;
+    }
+  });
+
+  it('lets an explicit effort win over the fleet effort', () => {
+    expect(applyAnthropicParams({}, 'claude-opus-5-5', { effort: 'low' })).toEqual({ output_config: { effort: 'low' } });
   });
 
   it('keeps temperature for Sonnet 4.6', () => {

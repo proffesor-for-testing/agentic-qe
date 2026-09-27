@@ -148,6 +148,15 @@ export const MODEL_MAPPINGS: Record<string, ModelMapping> = {
   },
   // Claude 5 generation (verified against GET /v1/models, 2026-09-27).
   // Bedrock IDs use the Mantle `anthropic.<id>` form.
+  'claude-opus-4-6': {
+    canonical: 'Claude Opus 4.6',
+    family: 'claude',
+    tier: 'flagship',
+    providers: {
+      anthropic: 'claude-opus-4-6',
+      openrouter: 'anthropic/claude-opus-4.6',
+    },
+  },
   'claude-opus-4-8': {
     canonical: 'Claude Opus 4.8',
     family: 'claude',

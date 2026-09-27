@@ -1041,3 +1041,76 @@ describe('HybridRouter', () => {
     });
   });
 });
+
+// ============================================================================
+// ADR-093 cyber pin on fallback candidates
+// ============================================================================
+
+describe('HybridRouter cyber pin across the fallback path', () => {
+  const messages = [{ role: 'user' as const, content: 'audit this' }];
+  let prior: string | undefined;
+
+  beforeEach(() => {
+    prior = process.env.AQE_CYBER_VERIFIED;
+    delete process.env.AQE_CYBER_VERIFIED;
+  });
+
+  afterEach(() => {
+    if (prior === undefined) delete process.env.AQE_CYBER_VERIFIED;
+    else process.env.AQE_CYBER_VERIFIED = prior;
+  });
+
+  it('pins an Opus default-model fallback for a security agent when the primary fails', async () => {
+    const openrouter = createMockProvider('openrouter', { shouldFail: true, failError: new Error('primary down') });
+    const claude = createMockProvider('claude', { model: 'claude-sonnet-4-6' });
+    const manager = createMockProviderManager(new Map([['openrouter', openrouter], ['claude', claude]]));
+    const router = new HybridRouter(manager, {
+      mode: 'manual',
+      defaultProvider: 'claude',
+      defaultModel: 'claude-opus-5-5',
+    });
+
+    await router.chat({
+      messages,
+      preferredProvider: 'openrouter',
+      model: 'anthropic/claude-sonnet-5',
+      agentType: 'qe-security-auditor',
+    });
+
+    expect(claude.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-sonnet-4-6' }));
+    expect(claude.generate).not.toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-opus-5-5' }));
+  });
+
+  it('pins an OpenRouter Opus request to the OpenRouter Sonnet 4.6 slug, not the bare Anthropic ID', async () => {
+    const openrouter = createMockProvider('openrouter', { model: 'anthropic/claude-sonnet-4.6' });
+    const manager = createMockProviderManager(new Map([['openrouter', openrouter]]));
+    const router = new HybridRouter(manager, { mode: 'manual', defaultProvider: 'openrouter' });
+
+    await router.chat({
+      messages,
+      preferredProvider: 'openrouter',
+      model: 'anthropic/claude-opus-5.5',
+      agentType: 'qe-pentest-validator',
+    });
+
+    expect(openrouter.generate).toHaveBeenCalledWith(
+      messages,
+      expect.objectContaining({ model: 'anthropic/claude-sonnet-4.6' }),
+    );
+  });
+
+  it('leaves the fallback path alone for non-security agents', async () => {
+    const openrouter = createMockProvider('openrouter', { shouldFail: true, failError: new Error('primary down') });
+    const claude = createMockProvider('claude', { model: 'claude-opus-5-5' });
+    const manager = createMockProviderManager(new Map([['openrouter', openrouter], ['claude', claude]]));
+    const router = new HybridRouter(manager, {
+      mode: 'manual',
+      defaultProvider: 'claude',
+      defaultModel: 'claude-opus-5-5',
+    });
+
+    await router.chat({ messages, preferredProvider: 'openrouter', model: 'anthropic/claude-sonnet-5', agentType: 'qe-test-architect' });
+
+    expect(claude.generate).toHaveBeenCalledWith(messages, expect.objectContaining({ model: 'claude-opus-5-5' }));
+  });
+});

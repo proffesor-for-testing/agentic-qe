@@ -15,6 +15,7 @@ import {
 } from '../interfaces';
 import { BaseModelProvider } from '../model-provider';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
+import { resolveModelPricing } from '../../../shared/llm/cost-tracker.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -207,7 +208,7 @@ const DEPRECATED_MODEL_COSTS: Record<string, { input: number; output: number }> 
 };
 
 function lookupModelCost(model: string): { input: number; output: number } | undefined {
-  return MODEL_COSTS[model] ?? DEPRECATED_MODEL_COSTS[model];
+  return MODEL_COSTS[model] ?? DEPRECATED_MODEL_COSTS[model] ?? resolveModelPricing(model);
 }
 
 /**

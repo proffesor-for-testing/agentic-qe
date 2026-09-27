@@ -180,13 +180,15 @@ export class OllamaProvider implements LLMProvider {
       this.installedTags = data.models?.map((m) => m.name) ?? [];
       this.availableModels = this.installedTags.map((name) => name.split(':')[0]);
 
-      // Check if the configured model is available
-      const hasConfiguredModel = this.availableModels.some(
-        (m) =>
-          m === this.config.model ||
-          m.startsWith(this.config.model) ||
-          this.config.model.startsWith(m)
-      );
+      // Check if the configured model is available. A tagged model
+      // ('qwen3-coder:30b') must match an installed tag exactly; prefix
+      // matching reported 'qwen3:8b' as satisfying 'qwen3-coder:30b', a false
+      // healthy that only failed later at generate time. An untagged model
+      // ('llama3.1') matches any installed tag of that name.
+      const configured = this.config.model;
+      const hasConfiguredModel = configured.includes(':')
+        ? this.installedTags.includes(configured)
+        : this.availableModels.includes(configured);
 
       if (!hasConfiguredModel && this.availableModels.length > 0) {
         return {

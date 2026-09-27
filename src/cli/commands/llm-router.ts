@@ -153,7 +153,7 @@ Examples:
   $ aqe llm route "security audit"     Test routing for a task
   $ aqe llm config --set mode=cost-optimized
   $ aqe llm health                 Check provider health
-  $ aqe llm cost claude-sonnet-4 --tokens 10000
+  $ aqe llm cost claude-sonnet-5 --tokens 10000
   $ aqe llm advise --transcript t.json --json   Consult advisor (ADR-092)
   $ aqe llm verify --session <id>               Check advisor quality gate
 `);
@@ -570,13 +570,13 @@ function getDefaultModelForProvider(provider: ExtendedProviderType): string {
   const defaults: Record<BuiltinExtendedProviderType, string> = {
     claude: DEFAULT_SONNET_MODEL,
     'claude-code': 'sonnet',
-    codex: 'gpt-5-codex',
-    openai: 'gpt-4o',
-    ollama: 'llama3.1',
-    openrouter: 'anthropic/claude-sonnet-4',
-    gemini: 'gemini-2.0-pro',
+    codex: 'default',
+    openai: 'gpt-6-sol',
+    ollama: 'qwen3-coder:30b',
+    openrouter: 'anthropic/claude-sonnet-5',
+    gemini: 'gemini-2.5-flash',
     'azure-openai': 'gpt-4o',
-    bedrock: 'anthropic.claude-sonnet-4-v1:0',
+    bedrock: 'anthropic.claude-sonnet-4-6-v1:0',
     cognitum: 'cognitum-auto',
     onnx: 'phi-4',
   };

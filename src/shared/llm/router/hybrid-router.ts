@@ -38,6 +38,7 @@ import { RoutingRuleEngine, DEFAULT_QE_ROUTING_RULES } from './routing-rules';
 import {
   applyCyberPin,
   CYBER_PIN_CHAT_FALLBACK,
+  cyberPinFallbackFor,
   shouldCyberPin,
   isCyberGatedModel,
 } from '../../../routing/security/cyber-pin';
@@ -281,7 +282,8 @@ export class HybridRouter {
     // cannot reach an Opus/Fable model >= 4.7 until AQE_CYBER_VERIFIED=true.
     // Covers both the canonical model field and the provider-specific id — if
     // either targets a cyber-gated model for a cyber-pinned agent, downgrade
-    // to the default Sonnet on the same provider. Applies to direct chat() calls; MultiModelExecutor.consult()
+    // to the pinned Sonnet 4.6 on the same provider (fallback candidates are
+    // pinned again in executeWithFallback). MultiModelExecutor.consult()
     // applies the same pin independently for advisor escalations.
     const agentName = params.agentType ?? '';
     if (shouldCyberPin(agentName) && (isCyberGatedModel(decision.model) || isCyberGatedModel(decision.providerModelId))) {
@@ -298,7 +300,7 @@ export class HybridRouter {
       decision.providerModelId = applyCyberPin(
         agentName,
         decision.providerModelId,
-        CYBER_PIN_CHAT_FALLBACK,
+        cyberPinFallbackFor(decision.providerType),
       );
       // eslint-disable-next-line no-console
       console.warn(
@@ -670,6 +672,18 @@ export class HybridRouter {
 
         for (const model of entry.models) {
           executionOrder.push({ provider: entry.provider as LLMProviderType, model });
+        }
+      }
+    }
+
+    // ADR-093: fallback candidates (default model, fallback chain) are added
+    // after chat() applied the cyber pin, so pin them here too — otherwise a
+    // failed primary could escalate a security agent to an Opus/Fable model.
+    const pinAgent = params.agentType ?? '';
+    if (shouldCyberPin(pinAgent)) {
+      for (const entry of executionOrder) {
+        if (isCyberGatedModel(entry.model)) {
+          entry.model = cyberPinFallbackFor(entry.provider);
         }
       }
     }
