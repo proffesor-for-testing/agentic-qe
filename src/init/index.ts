@@ -188,6 +188,7 @@ export {
   removeOwnedSections,
   measureOwnedSection,
   assertOwnedSectionsWellFormed,
+  hasAnyOwnedSection,
 } from './agents-md-section.js';
 export {
   PRIME_AGENT_SKILL_MANIFEST,

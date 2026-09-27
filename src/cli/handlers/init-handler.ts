@@ -660,7 +660,7 @@ interface InitOptions {
   withCodex?: boolean;
   withRuflo?: boolean;
   codexGuidance?: 'full' | 'compact' | 'none';
-    withWindsurf?: boolean;
+  withWindsurf?: boolean;
   /** Include Prime Agent skills, aqe-fleet subagents, and AGENTS.md guidance */
   withPrimeAgent?: boolean;
   /** Execute `prime-agent mcp add` when the binary is on PATH (default: instruct-only) */

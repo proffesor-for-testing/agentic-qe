@@ -411,7 +411,12 @@ npx agentic-qe init --auto --with-prime-agent
   impact analyst) as spawnable subagent prompts. Prime Agent has no
   file-based agents, so roles are carried as skill content.
 - `AGENTS.md` — an AQE-owned guidance section (sentinel-marked, merged with
-  any existing content, shared file with Codex installs)
+  any existing content, shared file with Codex installs; Codex and Prime
+  Agent sections coexist in either install order)
+
+Adding `--with-ruflo` also installs the `aqe-ruflo` skill (guidance only,
+no runtime). Passing `--no-mcp` skips the MCP step for Prime Agent too, in
+line with the other platforms.
 
 ### MCP — one manual step
 
@@ -463,6 +468,7 @@ When running `npx agentic-qe init --auto`, platforms are auto-detected based on 
 | `.codex/` | OpenAI Codex CLI |
 | `.windsurf/` | Windsurf |
 | `.continue/` | Continue.dev |
+| `.prime/` | Prime Agent |
 
 > **Note**: Cline is not auto-detected (shares `.vscode/` with Copilot). Use `--with-cline` explicitly.
 

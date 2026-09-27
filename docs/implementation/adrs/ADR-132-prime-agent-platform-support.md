@@ -75,6 +75,15 @@ the installer always prints the exact command.
   owned sections, tested in both orders).
 - The owned-section merge logic now has one implementation instead of a
   second copy.
+- Review fix: the Codex installer now merges its owned section into an
+  `AGENTS.md` another AQE installer already wrote (it previously reported
+  success while silently dropping its guidance when Prime Agent — which the
+  assets phase runs first — had created the file). A user-authored
+  `AGENTS.md` without AQE sentinels is still left untouched without
+  `--overwrite`; the merge never modifies content outside the owned section.
+- Flag parity: `--with-ruflo` now reaches the Prime Agent installer
+  (optional `aqe-ruflo` skill), and `--no-mcp` maps to the Prime Agent
+  `'none'` MCP mode like every other platform.
 
 ### Negative
 
@@ -90,14 +99,25 @@ the installer always prints the exact command.
 
 ## Verification
 
-- `tests/unit/init/primeagent-installer.test.ts` — 12 tests: instruct/auto/none
+- `tests/unit/init/primeagent-installer.test.ts` — 13 tests: instruct/auto/none
   MCP modes, database-free env, AGENTS.md create/merge/replace/malformed-sentinel
-  preservation, skills under `.prime/agent/skills/`, aqe-fleet seeding,
-  `removeGuidance()`.
-- `tests/integration/platform-installers.test.ts` — 3 real-filesystem tests:
-  full install, Codex coexistence in one `AGENTS.md`, reinstall replaces only
-  the owned section and preserves user content.
-- `tests/unit/init/codex-installer.test.ts` — 22 tests still green after the
-  merge-helper extraction.
-- `npm run typecheck`, `npm run lint` clean; full fast unit suite green.
+  preservation, skills under `.prime/agent/skills/`, the optional `aqe-ruflo`
+  skill behind `includeRuflo`, aqe-fleet seeding, `removeGuidance()`.
+- `tests/integration/platform-installers.test.ts` — 4 real-filesystem tests:
+  full install, Codex+Prime Agent coexistence in one `AGENTS.md` in both
+  orders (the Prime-Agent-first test reproduced the silent Codex guidance
+  drop before the review fix), reinstall replaces only the owned section and
+  preserves user content.
+- `tests/integration/primeagent-init-phase.test.ts` — 3 real-filesystem tests
+  driving `AssetsPhase.run()`: `--with-prime-agent` wiring (skills, fleet,
+  AGENTS.md, instruct-mode command log), `--no-mcp` → `'none'` MCP mode, and
+  `--with-ruflo` → `aqe-ruflo` skill.
+- `tests/unit/init/codex-installer.test.ts` — 24 tests green: the 22 existing
+  (unchanged behavior, including the conservative skip of a user-authored
+  `AGENTS.md` without overwrite) plus the AQE-sentinel merge and its
+  conservative counterpart.
+- `npm run typecheck` clean; full fast unit suite green. `npm run lint`
+  reports pre-existing failures elsewhere in the repo but zero findings in
+  the files this decision touches (repo-wide lint debt predates ADR-132 and
+  is tracked separately).
 

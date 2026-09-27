@@ -290,7 +290,14 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       const primeAgentInstaller = createPrimeAgentInstaller({
         projectRoot,
         overwrite: shouldOverwrite,
-        installMcp: options.primeAgentAutoMcp ? 'auto' : 'instruct',
+        // --no-mcp skips the MCP step for Prime Agent too (flag parity with
+        // the other platforms); otherwise instruct by default, auto opt-in.
+        installMcp: options.noMcp
+          ? 'none'
+          : options.primeAgentAutoMcp
+            ? 'auto'
+            : 'instruct',
+        includeRuflo: options.withRuflo,
         memoryBackend: options.memoryBackend === 'memory' ? 'memory' : undefined,
       });
 

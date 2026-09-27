@@ -32,6 +32,17 @@ export function assertOwnedSectionsWellFormed(content: string, id: string, label
   }
 }
 
+/**
+ * True when the content carries any AQE-owned section sentinel (any
+ * platform). An AGENTS.md with an AQE sentinel was written or maintained by
+ * an AQE installer, so installers may merge their own owned section into it;
+ * a user-authored AGENTS.md (no sentinels) is left untouched unless the
+ * caller explicitly requests overwrite.
+ */
+export function hasAnyOwnedSection(content: string): boolean {
+  return content.includes('<!-- BEGIN AGENTIC-QE ');
+}
+
 /** Mark content as the owned AQE section, normalizing line endings. */
 export function markOwnedSection(content: string, id: string, eol = '\n'): string {
   const normalized = content.trim().replace(/\r?\n/g, eol);

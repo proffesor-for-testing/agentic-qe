@@ -156,6 +156,33 @@ describe('PrimeAgentInstaller', () => {
       const mkdirCalls = mockMkdirSync.mock.calls.map((c: unknown[]) => c[0] as string);
       expect(mkdirCalls.some((c) => c.includes(join('.prime', 'agent', 'skills')))).toBe(true);
       expect(result.skillsInstalled).toBe(5);
+      // The optional Ruflo skill stays out of the default install set.
+      expect(
+        mockCopyFileSync.mock.calls.some((c: unknown[]) => String(c[1]).includes('aqe-ruflo')),
+      ).toBe(false);
+    });
+
+    it('installs the optional aqe-ruflo skill only when includeRuflo is set', async () => {
+      mockExistsSync.mockImplementation((target: unknown) => {
+        const s = String(target);
+        return s.endsWith('package.json') || s.includes('.agents') || s.includes('.claude');
+      });
+      mockReadFileSync.mockImplementation((target: unknown) => {
+        if (String(target).endsWith('package.json')) return '{"name":"agentic-qe"}';
+        return '';
+      });
+      const { createPrimeAgentInstaller } = await import(
+        '../../../src/init/primeagent-installer.js'
+      );
+      const installer = createPrimeAgentInstaller({ projectRoot, includeRuflo: true });
+      const result = await installer.install();
+
+      expect(result.skillsInstalled).toBe(6);
+      // aqe-ruflo installs with a file allowlist: SKILL.md only.
+      const rufloCopy = mockCopyFileSync.mock.calls.find(
+        (c: unknown[]) => String(c[1]).includes(join('aqe-ruflo', 'SKILL.md')),
+      );
+      expect(rufloCopy).toBeDefined();
     });
 
     it('seeds the aqe-fleet subagent skill', async () => {

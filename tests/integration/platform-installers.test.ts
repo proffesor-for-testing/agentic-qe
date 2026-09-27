@@ -446,6 +446,34 @@ models:
       expect(agentsMd).toContain('<!-- BEGIN AGENTIC-QE PRIME-AGENT -->');
     });
 
+    it('coexists when Prime Agent installed first (Codex must still merge)', async () => {
+      // Reproduces the review finding: the Codex installer used to report
+      // success while silently dropping its guidance when AGENTS.md already
+      // existed (created here by the Prime Agent installer), because the
+      // phase runs Prime Agent before Codex.
+      const { createCodexInstaller } = await import('../../src/init/codex-installer.js');
+      const { createPrimeAgentInstaller } = await import('../../src/init/primeagent-installer.js');
+
+      const primeAgent = await createPrimeAgentInstaller({
+        projectRoot: tempDir,
+        installMcp: 'none',
+      }).install();
+      expect(primeAgent.success).toBe(true);
+
+      const codex = await createCodexInstaller({
+        projectRoot: tempDir,
+        installMcp: false,
+      }).install();
+      expect(codex.success).toBe(true);
+      expect(codex.agentsMdInstalled).toBe(true);
+      expect(codex.ownedGuidanceBytes).toBeGreaterThan(0);
+
+      const agentsMd = readFileAt('AGENTS.md');
+      // Both owned sections present, exactly once each, in one file.
+      expect(agentsMd.match(/BEGIN AGENTIC-QE PRIME-AGENT/g)?.length).toBe(1);
+      expect(agentsMd.match(/BEGIN AGENTIC-QE CODEX/g)?.length).toBe(1);
+    });
+
     it('coexists with a Codex install in the same AGENTS.md', async () => {
       const { createCodexInstaller } = await import('../../src/init/codex-installer.js');
       const { createPrimeAgentInstaller } = await import('../../src/init/primeagent-installer.js');

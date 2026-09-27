@@ -20,9 +20,11 @@ import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import {
   assertOwnedSectionsWellFormed,
+  hasAnyOwnedSection,
   markOwnedSection,
   measureOwnedSection,
   mergeOwnedSection,
+  ownedSectionStart,
   removeOwnedSections,
 } from './agents-md-section.js';
 import { selectCodexSkills } from './codex-skill-manifest.js';
@@ -184,23 +186,32 @@ export class CodexInstaller {
         result.agentsMdInstalled = true;
         result.ownedGuidanceBytes = Buffer.byteLength(marked);
         result.components.rules.status = 'installed';
-      } else if (this.overwrite || policy === 'compact') {
-        const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+      } else {
         const existing = readFileSync(agentsMdPath, 'utf-8');
-        const merged = this.mergeExistingAgentsMdContent(existing, content);
-        if (merged !== existing) {
-          writeFileSync(agentsMdPath, merged);
-          result.agentsMdInstalled = true;
-          result.components.rules.status = 'updated';
+        // Merge the owned section into an AGENTS.md that another AQE
+        // installer already wrote or maintained (e.g. the Prime Agent
+        // installer, which runs first in the assets phase), even without
+        // --overwrite: the shared merge replaces only the sentinel-marked
+        // Codex section and never touches user content. A user-authored
+        // AGENTS.md without AQE sentinels is left untouched without
+        // --overwrite (preserving the documented skip behavior).
+        const hasCodexSection = existing.includes(ownedSectionStart(CODEX_SECTION_ID));
+        const mergeIntoAqeFile = !hasCodexSection && hasAnyOwnedSection(existing);
+        if (this.overwrite || policy === 'compact' || mergeIntoAqeFile) {
+          const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
+          const merged = this.mergeExistingAgentsMdContent(existing, content);
+          if (merged !== existing) {
+            writeFileSync(agentsMdPath, merged);
+            result.agentsMdInstalled = true;
+            result.components.rules.status = 'updated';
+          } else {
+            result.components.rules.status = 'preserved';
+          }
+          result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
         } else {
           result.components.rules.status = 'preserved';
+          result.ownedGuidanceBytes = this.measureOwnedAgentsSection(existing);
         }
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
-      } else {
-        result.components.rules.status = 'preserved';
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(
-          readFileSync(agentsMdPath, 'utf-8'),
-        );
       }
     } catch (error) {
       this.recordComponentFailure(result, 'rules', error);
