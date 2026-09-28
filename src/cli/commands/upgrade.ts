@@ -2,9 +2,9 @@
  * `aqe upgrade` — read-only advisory
  *
  * Detects which optional native bindings load on this platform and prints a
- * report with recommendations. Does NOT modify feature flags, env vars, or
- * config files — it only tells the user what they'd gain by installing the
- * missing optional deps.
+ * report with recommendations. It reports the effective runtime flags after
+ * CLI startup applies environment overrides, but does not persist changes to
+ * environment variables or config files.
  *
  * Related: issue #383 item 2.
  */

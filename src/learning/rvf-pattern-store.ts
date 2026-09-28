@@ -38,8 +38,8 @@ import type {
   PatternSearchResult,
 } from './pattern-store.js';
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
-import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
-import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
+import { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { EMBEDDING_SPACE_CANARY, verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
@@ -122,6 +122,16 @@ export class RvfPatternStore implements IPatternStore {
     }
 
     try {
+      // The endpoint runtime is lazy. Resolve its executable identity before
+      // binding a new RVF index; otherwise every fresh process sees null here
+      // and permanently disables RVF even though the endpoint is configured.
+      const endpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+      if (endpoint && !this.embeddingSpaceId && !getActiveEmbeddingSpaceIdentity()) {
+        await computeRealEmbedding(EMBEDDING_SPACE_CANARY, {
+          endpoint,
+          endpointToken: process.env.AQE_EMBEDDER_TOKEN,
+        });
+      }
       this.adapter = this.createAdapter(
         this.rvfPath,
         this.config.embeddingDimension,
@@ -143,9 +153,10 @@ export class RvfPatternStore implements IPatternStore {
       this.rvfInitError = toErrorMessage(error);
       try { this.adapter?.close(); } catch { /* best effort */ }
       console.error(
-        `[RvfPatternStore] ERROR: RVF native init failed — vector search is DISABLED. ` +
+        `[RvfPatternStore] ERROR: RVF initialization failed — vector search is DISABLED. ` +
         `Cause: ${this.rvfInitError}. ` +
-        `Fix: install @ruvector/rvf-node native bindings, or set useRVFPatternStore=false to use SQLite HNSW.`,
+        `Fix: check the embedder endpoint and @ruvector/rvf-node binding, ` +
+        `or set RUVECTOR_USE_RVF_PATTERN_STORE=false to use SQLite HNSW.`,
       );
       this.adapter = null;
       this.initialized = true; // mark initialized to prevent retry loops
