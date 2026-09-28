@@ -338,18 +338,20 @@ describe('CodexInstaller', () => {
   });
 
   describe('install() - existing files', () => {
-    it('skips when files exist and overwrite is false', async () => {
+    it('preserves an existing MCP config while adding owned guidance to AGENTS.md', async () => {
       mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue('User rule\n');
 
       const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
       const installer = createCodexInstaller({ projectRoot, overwrite: false });
       const result = await installer.install();
 
       expect(result.mcpConfigured).toBe(false);
-      expect(result.agentsMdInstalled).toBe(false);
-      expect(mockWriteFileSync.mock.calls.some(
-        (c: unknown[]) => String(c[0]).endsWith('config.toml') || String(c[0]).endsWith('AGENTS.md'),
-      )).toBe(false);
+      expect(result.agentsMdInstalled).toBe(true);
+      expect(mockWriteFileSync.mock.calls.some((c: unknown[]) => String(c[0]).endsWith('config.toml'))).toBe(false);
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        join(projectRoot, 'AGENTS.md'), expect.stringContaining('User rule\n<!-- BEGIN AGENTIC-QE CODEX -->'),
+      );
     });
 
     it('appends to existing TOML when overwrite is true', async () => {
