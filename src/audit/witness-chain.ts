@@ -170,37 +170,44 @@ export class WitnessChain {
     actionData: Record<string, unknown>,
     actor: string
   ): WitnessEntry {
-    if (!this.db) throw new Error('WitnessChain not initialized');
-    const timestamp = new Date().toISOString();
+    const db = this.db;
+    if (!db) throw new Error('WitnessChain not initialized');
     const actionDataStr = JSON.stringify(actionData);
     const algo = 'shake256';
     const actionHash = shake256(actionDataStr);
 
-    const lastEntry = this.db
-      .prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1')
-      .get() as WitnessEntry | undefined;
-    const prevHash = lastEntry ? hashWith(algo, serializeEntry(lastEntry)) : GENESIS_PREV_HASH;
+    // BEGIN IMMEDIATE acquires the write lock before reading the tail. Without
+    // it, two AQE processes can both hash the same predecessor and fork the
+    // audit chain despite SQLite serializing their eventual INSERTs.
+    const appendEntry = db.transaction((): WitnessEntry => {
+      const timestamp = new Date().toISOString();
+      const lastEntry = db
+        .prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1')
+        .get() as WitnessEntry | undefined;
+      const prevHash = lastEntry ? hashWith(algo, serializeEntry(lastEntry)) : GENESIS_PREV_HASH;
 
-    let signature: string | null = null;
-    let signerKeyId: string | null = null;
-    if (this.keyManager) {
-      const sigData = Buffer.from(prevHash + actionHash + actionType + timestamp + actor, 'utf-8');
-      const result = this.keyManager.sign(sigData);
-      signature = result.signature.toString('hex');
-      signerKeyId = result.keyId;
-    }
+      let signature: string | null = null;
+      let signerKeyId: string | null = null;
+      if (this.keyManager) {
+        const sigData = Buffer.from(prevHash + actionHash + actionType + timestamp + actor, 'utf-8');
+        const result = this.keyManager.sign(sigData);
+        signature = result.signature.toString('hex');
+        signerKeyId = result.keyId;
+      }
 
-    const ins = this.db.prepare(
-      `INSERT INTO witness_chain
-       (prev_hash, action_hash, action_type, action_data, timestamp, actor, hash_algo, signature, signer_key_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(prevHash, actionHash, actionType, actionDataStr, timestamp, actor, algo, signature, signerKeyId);
+      const ins = db.prepare(
+        `INSERT INTO witness_chain
+         (prev_hash, action_hash, action_type, action_data, timestamp, actor, hash_algo, signature, signer_key_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(prevHash, actionHash, actionType, actionDataStr, timestamp, actor, algo, signature, signerKeyId);
 
-    return {
-      id: ins.lastInsertRowid as number, prev_hash: prevHash, action_hash: actionHash,
-      action_type: actionType, action_data: actionDataStr, timestamp, actor,
-      hash_algo: algo, signature, signer_key_id: signerKeyId,
-    };
+      return {
+        id: ins.lastInsertRowid as number, prev_hash: prevHash, action_hash: actionHash,
+        action_type: actionType, action_data: actionDataStr, timestamp, actor,
+        hash_algo: algo, signature, signer_key_id: signerKeyId,
+      };
+    });
+    return appendEntry.immediate();
   }
 
   /**
