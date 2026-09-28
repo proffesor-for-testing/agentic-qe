@@ -70,9 +70,13 @@ export async function bootstrapTokenTracking(
 
   // Resolve the project before creating any directory: a new cwd-local store
   // would otherwise become the nearest AQE root and split project memory.
+  // A relative AQE_STORAGE_PATH is anchored at the project root too, so it
+  // cannot recreate a cwd-local store from a subdirectory.
+  const envStorage = process.env.AQE_STORAGE_PATH;
   const cfg = {
     ...DEFAULT_CONFIG, ...config,
-    storagePath: config?.storagePath ?? (process.env.AQE_STORAGE_PATH || path.join(findProjectRoot(), '.agentic-qe')),
+    storagePath: config?.storagePath
+      ?? (envStorage ? path.resolve(findProjectRoot(), envStorage) : path.join(findProjectRoot(), '.agentic-qe')),
   };
 
   if (cfg.verbose) {
