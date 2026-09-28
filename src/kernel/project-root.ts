@@ -13,6 +13,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /** Module-level cache for findProjectRoot result. */
@@ -26,6 +27,12 @@ let _cachedStartDir: string | null = null;
 export function clearProjectRootCache(): void {
   _cachedProjectRoot = null;
   _cachedStartDir = null;
+}
+
+/** True when `dir` is `parent` or inside it. */
+function isWithin(dir: string, parent: string): boolean {
+  const rel = path.relative(parent, dir);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
 /**
@@ -51,6 +58,13 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   _cachedStartDir = dir;
   const root = path.parse(dir).root;
 
+  // A store directly in $HOME is almost always a stray from an `aqe` run in
+  // the home directory. Outside any git repository there is no boundary to
+  // stop at, so never let it claim a descendant directory (#735/#516); an
+  // `aqe` run from $HOME itself still uses it, and AQE_PROJECT_ROOT overrides.
+  let home: string | null = null;
+  try { home = path.resolve(os.homedir()); } catch { home = null; }
+
   let checkDir = dir;
   let nearestAqeDir: string | null = null;
   let lowestGitDir: string | null = null;
@@ -63,7 +77,9 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
     // every descendant project and fragment its learning into $HOME. Stop
     // considering stores above the nearest git boundary, even when the repo
     // has not been initialized with AQE yet.
-    if (lowestGitDir === null && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
+    const isHomeStoreAboveStart = checkDir === home && checkDir !== dir
+      && !isWithin(dir, path.join(checkDir, '.agentic-qe'));
+    if (lowestGitDir === null && !isHomeStoreAboveStart && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
       if (nearestAqeDir === null) {
         nearestAqeDir = checkDir;
       }

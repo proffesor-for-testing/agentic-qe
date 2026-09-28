@@ -6,6 +6,7 @@ import { bootstrapTokenTracking, shutdownTokenTracking } from '../../../src/init
 import { TokenMetricsCollector } from '../../../src/learning/token-tracker.js';
 import { clearProjectRootCache } from '../../../src/kernel/project-root.js';
 import { saveEmbedderIdentity, resetEmbedderIdentityStore, loadEmbedderIdentity } from '../../../src/learning/embedder-identity-store.js';
+import { SessionStore } from '../../../src/mcp/services/session-store.js';
 
 describe('project storage from nested working directories (#735)', () => {
   let root: string;
@@ -70,6 +71,25 @@ describe('project storage from nested working directories (#735)', () => {
     saveEmbedderIdentity(identity);
     expect(loadEmbedderIdentity(identity.endpoint)).toEqual(identity);
     expect(existsSync(join(root, '.agentic-qe', 'memory.db'))).toBe(true);
+    expect(existsSync(join(root, 'sub', '.agentic-qe'))).toBe(false);
+  });
+
+  it('anchors a relative AQE_STORAGE_PATH at the project root', async () => {
+    vi.stubEnv('AQE_STORAGE_PATH', '.agentic-qe');
+    vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'sub'));
+    const configure = vi.spyOn(TokenMetricsCollector, 'configurePersistence');
+    await bootstrapTokenTracking({ enableOptimization: false });
+    expect(configure).toHaveBeenCalledWith(expect.objectContaining({ filePath: join(root, '.agentic-qe', 'token-metrics.json') }));
+    expect(existsSync(join(root, 'sub', '.agentic-qe'))).toBe(false);
+  });
+
+  it('writes MCP session journals to the project store from a subdirectory', () => {
+    vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'sub'));
+    const store = new SessionStore();
+    const sessionId = store.startSession();
+    store.append({ timestamp: Date.now(), type: 'tool_call', toolName: 't', params: {}, state: 'running' });
+    store.close();
+    expect(existsSync(join(root, '.agentic-qe', 'sessions', `${sessionId}.jsonl`))).toBe(true);
     expect(existsSync(join(root, 'sub', '.agentic-qe'))).toBe(false);
   });
 

@@ -135,4 +135,43 @@ describe('findProjectRoot (Issue #516)', () => {
     // Assert: .agentic-qe (priority 2) beats .git (priority 3), and it's the nearest one.
     expect(root).toBe(pkg);
   });
+  describe('home-directory store outside a git repository (#735)', () => {
+    let savedHome: string | undefined;
+
+    beforeEach(() => {
+      savedHome = process.env.HOME;
+      process.env.HOME = tmpRoot;
+    });
+
+    afterEach(() => {
+      if (savedHome === undefined) delete process.env.HOME;
+      else process.env.HOME = savedHome;
+    });
+
+    it('should_notAdoptHomeStore_when_nonGitProjectBelowHome', () => {
+      // Arrange: a stray ~/.agentic-qe and a non-git project under $HOME.
+      const project = path.join(tmpRoot, 'bar');
+      mkdirs(path.join(tmpRoot, '.agentic-qe'), project);
+
+      // Act
+      const root = findProjectRoot(project);
+
+      // Assert: the project resolves to itself, not to $HOME's store.
+      expect(root).toBe(project);
+    });
+
+    it('should_useHomeRoot_when_runFromInsideHomeStore', () => {
+      // Running from inside ~/.agentic-qe must not create a nested store.
+      const inside = path.join(tmpRoot, '.agentic-qe', 'witness-keys');
+      mkdirs(inside);
+
+      expect(findProjectRoot(inside)).toBe(tmpRoot);
+    });
+
+    it('should_useHomeStore_when_runFromHomeItself', () => {
+      mkdirs(path.join(tmpRoot, '.agentic-qe'));
+
+      expect(findProjectRoot(tmpRoot)).toBe(tmpRoot);
+    });
+  });
 });
