@@ -203,6 +203,7 @@ async function ensureInitializedStrict(): Promise<boolean> {
   if (!fs.existsSync(configDir)) {
     console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
     console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));
+    process.exitCode = 1;
     return false;
   }
 
@@ -233,6 +234,8 @@ async function ensureInitialized(): Promise<boolean> {
       console.error(chalk.red('Failed to auto-initialize:'), err);
       console.log(chalk.yellow('Try running `aqe init` manually.'));
     }
+    // Callers `return` on false; main() then exits with this code (#758).
+    process.exitCode = 1;
     return false;
   }
 }

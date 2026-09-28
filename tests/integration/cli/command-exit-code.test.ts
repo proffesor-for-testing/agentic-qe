@@ -1,6 +1,6 @@
 /** Regression for commands that report failure through process.exitCode. */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -35,4 +35,28 @@ describe.skipIf(SKIP)('CLI command exit codes', () => {
       rmSync(projectRoot, { recursive: true, force: true });
     }
   });
+
+  // Commands `return` when auto-initialization fails; that must not exit 0.
+  it.each([['domain', 'list'], ['status'], ['health']])(
+    'exits nonzero when %s cannot initialize the project',
+    (...args: string[]) => {
+      const projectRoot = mkdtempSync(join(tmpdir(), 'aqe-cli-init-fail-'));
+      try {
+        // A directory where the database file should be makes initialization fail.
+        mkdirSync(join(projectRoot, '.agentic-qe', 'memory.db'), { recursive: true });
+        const result = spawnSync(process.execPath, [CLI_BUNDLE, ...args], {
+          cwd: projectRoot,
+          encoding: 'utf-8',
+          timeout: 60_000,
+          env: { ...process.env, HOME: projectRoot, AQE_PROJECT_ROOT: projectRoot },
+        });
+
+        expect(result.error).toBeUndefined();
+        expect(result.stdout + result.stderr).toContain('Failed to auto-initialize');
+        expect(result.status).toBe(1);
+      } finally {
+        rmSync(projectRoot, { recursive: true, force: true });
+      }
+    }
+  );
 });
