@@ -176,7 +176,7 @@ export class CodexInstaller {
         result.agentsMdInstalled = true;
         result.ownedGuidanceBytes = Buffer.byteLength(marked);
         result.components.rules.status = 'installed';
-      } else if (this.overwrite || policy === 'compact') {
+      } else {
         const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
         const existing = readFileSync(agentsMdPath, 'utf-8');
         const merged = this.mergeExistingAgentsMdContent(existing, content);
@@ -188,11 +188,6 @@ export class CodexInstaller {
           result.components.rules.status = 'preserved';
         }
         result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
-      } else {
-        result.components.rules.status = 'preserved';
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(
-          readFileSync(agentsMdPath, 'utf-8'),
-        );
       }
     } catch (error) {
       this.recordComponentFailure(result, 'rules', error);
@@ -430,7 +425,10 @@ export class CodexInstaller {
     });
     if (replaced) return merged;
     if (existing.length === 0) return marked;
-    return existing.trimEnd() + `${eol}${eol}---${eol}${eol}` + marked;
+    // The owned block starts at the original EOF. Keeping every pre-existing
+    // byte outside the sentinel lets `none` remove the block exactly, even
+    // when the user's file has no trailing newline.
+    return existing + marked;
   }
 
   private removeOwnedAgentsSections(existing: string): string {
