@@ -38,8 +38,8 @@ import type {
   PatternSearchResult,
 } from './pattern-store.js';
 import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
-import { computeRealEmbedding, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
-import { EMBEDDING_SPACE_CANARY, verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
+import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
@@ -125,12 +125,8 @@ export class RvfPatternStore implements IPatternStore {
       // The endpoint runtime is lazy. Resolve its executable identity before
       // binding a new RVF index; otherwise every fresh process sees null here
       // and permanently disables RVF even though the endpoint is configured.
-      const endpoint = process.env.AQE_EMBEDDER_ENDPOINT;
-      if (endpoint && !this.embeddingSpaceId && !getActiveEmbeddingSpaceIdentity()) {
-        await computeRealEmbedding(EMBEDDING_SPACE_CANARY, {
-          endpoint,
-          endpointToken: process.env.AQE_EMBEDDER_TOKEN,
-        });
+      if (!this.embeddingSpaceId && !getActiveEmbeddingSpaceIdentity()) {
+        await ensureEndpointEmbeddingSpaceIdentity();
       }
       this.adapter = this.createAdapter(
         this.rvfPath,
