@@ -26,6 +26,18 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 
 const VALID_PLATFORM_IDS = Object.keys(PLATFORM_REGISTRY) as PlatformId[];
 
+// Literal import paths let esbuild include every installer in the shipped CLI.
+const PLATFORM_INSTALLERS = {
+  copilot: () => import('../../init/copilot-installer.js'),
+  cursor: () => import('../../init/cursor-installer.js'),
+  cline: () => import('../../init/cline-installer.js'),
+  kilocode: () => import('../../init/kilocode-installer.js'),
+  roocode: () => import('../../init/roocode-installer.js'),
+  codex: () => import('../../init/codex-installer.js'),
+  windsurf: () => import('../../init/windsurf-installer.js'),
+  continuedev: () => import('../../init/continuedev-installer.js'),
+} satisfies Record<PlatformId, () => Promise<unknown>>;
+
 function isValidPlatformId(name: string): name is PlatformId {
   return VALID_PLATFORM_IDS.includes(name as PlatformId);
 }
@@ -267,8 +279,8 @@ export function createPlatformCommand(): Command {
       console.log('');
 
       try {
-        // Dynamic import of the installer
-        const installerModule = await import(`../../init/${name}-installer.js`);
+        // Load the selected installer from a statically declared import.
+        const installerModule = await PLATFORM_INSTALLERS[name]() as Record<string, unknown>;
 
         // Resolve the factory function name: create<Name>Installer
         const factoryName = `create${name.charAt(0).toUpperCase()}${name.slice(1).replace(/([a-z])([A-Z])/g, '$1$2')}Installer`;
@@ -282,7 +294,7 @@ export function createPlatformCommand(): Command {
         let factory: ((opts: { projectRoot: string; overwrite?: boolean; guidancePolicy?: 'full' | 'compact' | 'none' }) => { install: () => Promise<unknown> }) | undefined;
         for (const fn of possibleNames) {
           if (typeof installerModule[fn] === 'function') {
-            factory = installerModule[fn];
+            factory = installerModule[fn] as NonNullable<typeof factory>;
             break;
           }
         }
@@ -291,7 +303,7 @@ export function createPlatformCommand(): Command {
           // Fallback: look for any exported create*Installer function
           for (const key of Object.keys(installerModule)) {
             if (key.startsWith('create') && key.endsWith('Installer') && typeof installerModule[key] === 'function') {
-              factory = installerModule[key];
+              factory = installerModule[key] as NonNullable<typeof factory>;
               break;
             }
           }
@@ -343,9 +355,11 @@ export function createPlatformCommand(): Command {
               console.log(chalk.red(`    ${err}`));
             }
           }
+          process.exit(1);
         }
       } catch (error) {
         console.log(chalk.red(`  Failed to set up ${platform.name}: ${toErrorMessage(error)}`));
+        process.exit(1);
       }
 
       console.log('');
