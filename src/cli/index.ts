@@ -12,6 +12,7 @@
  */
 
 import { toErrorMessage } from '../shared/error-utils.js';
+import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
@@ -498,6 +499,8 @@ async function main(): Promise<void> {
     console.log(VERSION);
     process.exit(0);
   }
+
+  initFeatureFlagsFromEnv();
 
   // File recovery must validate its input before anything opens, migrates, or
   // auto-restores the project's database. Commander accepts `--` separators.

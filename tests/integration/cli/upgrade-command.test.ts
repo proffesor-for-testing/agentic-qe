@@ -154,4 +154,19 @@ describe('aqe upgrade — integration', () => {
     expect(found.value).toBe('true');
     expect(found.flagName).toBe('useRVFPatternStore');
   }, 30_000);
+
+  it('applies an RVF pattern-store override before reporting effective flags', () => {
+    const res = runCli(['upgrade', '--json'], {
+      RUVECTOR_USE_RVF_PATTERN_STORE: 'false',
+      RUVECTOR_USE_NATIVE_HNSW: 'false',
+    });
+    const parsed = JSON.parse(res.stdout);
+    expect(parsed.envOverrides).toContainEqual({
+      envVar: 'RUVECTOR_USE_RVF_PATTERN_STORE',
+      value: 'false',
+      flagName: 'useRVFPatternStore',
+    });
+    expect(parsed.flags.useRVFPatternStore).toBe(false);
+    expect(parsed.flags.useNativeHNSW).toBe(false);
+  }, 30_000);
 });
