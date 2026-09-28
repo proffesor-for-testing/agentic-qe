@@ -238,7 +238,7 @@ async function ensureInitialized(): Promise<boolean> {
 /**
  * Cleanup resources and exit the process
  */
-async function cleanupAndExit(code: number = 0): Promise<never> {
+async function cleanupAndExit(code: number | string = 0): Promise<never> {
   // Synchronous best-effort cleanup first — no awaits that could block.
   try {
     if (context.workflowOrchestrator) { context.workflowOrchestrator.dispose().catch(() => {}); }
@@ -520,7 +520,7 @@ async function main(): Promise<void> {
 
   // If the command didn't explicitly exit, clean up and exit now.
   // This prevents process hangs from active handles (domain init, embeddings, etc.)
-  await cleanupAndExit(0);
+  await cleanupAndExit(process.exitCode ?? 0);
 }
 
 main().catch(async (error) => {
