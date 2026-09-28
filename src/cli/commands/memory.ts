@@ -14,7 +14,7 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 export function createMemoryCommand(
   context: CLIContext,
   cleanupAndExit: (code: number) => Promise<never>,
-  ensureInitialized: () => Promise<boolean>
+  ensureMemoryReady: () => Promise<boolean>
 ): Command {
   const memory = new Command('memory')
     .description('Memory store, retrieve, search, and delete operations')
@@ -55,7 +55,7 @@ Examples:
     .option('--ttl <seconds>', 'Time-to-live in seconds')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryStore } = await import('../../mcp/handlers/memory-handlers.js');
@@ -97,7 +97,7 @@ Examples:
     .option('--include-metadata', 'Include metadata in response')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryRetrieve } = await import('../../mcp/handlers/memory-handlers.js');
@@ -147,7 +147,7 @@ Examples:
         await cleanupAndExit(1);
       }
 
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryQuery } = await import('../../mcp/handlers/memory-handlers.js');
@@ -193,7 +193,7 @@ Examples:
     .option('--limit <n>', 'Maximum results', '50')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryQuery } = await import('../../mcp/handlers/memory-handlers.js');
@@ -232,7 +232,7 @@ Examples:
     .option('--namespace <ns>', 'Namespace', 'default')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryDelete } = await import('../../mcp/handlers/memory-handlers.js');
@@ -270,7 +270,7 @@ Examples:
     .requiredOption('--content <json>', 'JSON content to share')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryShare } = await import('../../mcp/handlers/memory-handlers.js');
@@ -314,7 +314,7 @@ Examples:
     .description('Show memory usage statistics')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      if (!await ensureInitialized()) return;
+      if (!await ensureMemoryReady()) return;
 
       try {
         const { handleMemoryUsage } = await import('../../mcp/handlers/memory-handlers.js');

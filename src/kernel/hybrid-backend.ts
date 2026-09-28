@@ -23,6 +23,7 @@ import {
   UnifiedMemoryConfig,
   DEFAULT_UNIFIED_MEMORY_CONFIG
 } from './unified-memory';
+import * as path from 'path';
 import { MEMORY_CONSTANTS } from './constants.js';
 import { LoggerFactory } from '../logging/index.js';
 
@@ -456,4 +457,22 @@ export class HybridMemoryBackend implements MemoryBackend {
       }
     }
   }
+}
+
+/**
+ * Create the project memory backend exactly as the QE kernel does
+ * (<dataDir>/memory.db, WAL, 'qe-kernel' default namespace). Shared with the
+ * CLI's lightweight memory path so both always open the same store.
+ */
+export function createKernelMemoryBackend(dataDir: string): HybridMemoryBackend {
+  return new HybridMemoryBackend({
+    sqlite: {
+      path: path.join(dataDir, 'memory.db'),
+      walMode: true,
+      poolSize: 3,
+      busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
+    },
+    enableFallback: true,
+    defaultNamespace: 'qe-kernel',
+  });
 }

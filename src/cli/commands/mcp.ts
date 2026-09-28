@@ -14,6 +14,8 @@ import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { findPackageRoot } from '../../init/find-package-root.js';
+import { resolveCliLogLevel, setCliLogLevel } from '../log-gate.js';
+import { LogLevel } from '../../logging/index.js';
 
 /**
  * Create the MCP command
@@ -30,6 +32,10 @@ export function createMcpCommand(): Command {
       if (options.verbose) {
         process.env.AQE_VERBOSE = 'true';
       }
+      // The server runs in this process under the CLI log gate. Keep its
+      // historical INFO default (diagnostics go to stderr, never the stdio
+      // protocol stream) unless AQE_LOG_LEVEL / LOG_LEVEL say otherwise.
+      setCliLogLevel(resolveCliLogLevel(process.env, LogLevel.INFO));
 
       // Find the MCP entry point
       const entryPath = findMcpEntry();
