@@ -33,7 +33,7 @@ export function clearProjectRootCache(): void {
  *
  * Priority order:
  * 1. AQE_PROJECT_ROOT environment variable (set by MCP config or init)
- * 2. Walk up looking for the NEAREST .agentic-qe directory (existing AQE project)
+ * 2. Nearest .agentic-qe at or below the nearest .git boundary
  * 3. Walk up looking for .git directory (git repo root)
  * 4. Walk up looking for package.json WITHOUT node_modules sibling (monorepo root)
  * 5. Fallback to current working directory
@@ -60,8 +60,10 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
     // Issue #516: prefer the NEAREST (lowest) .agentic-qe, mirroring the
     // .git logic below. Keeping the topmost match let an ancestor store
     // (e.g. ~/.agentic-qe, created by any `aqe` run from $HOME) hijack
-    // every descendant project and fragment its learning into $HOME.
-    if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
+    // every descendant project and fragment its learning into $HOME. Stop
+    // considering stores above the nearest git boundary, even when the repo
+    // has not been initialized with AQE yet.
+    if (lowestGitDir === null && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
       if (nearestAqeDir === null) {
         nearestAqeDir = checkDir;
       }

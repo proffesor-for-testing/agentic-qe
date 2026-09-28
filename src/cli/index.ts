@@ -198,7 +198,8 @@ async function ensureInitializedStrict(): Promise<boolean> {
   // For diagnostic commands: check if project was explicitly initialized
   const fs = await import('fs');
   const path = await import('path');
-  const configDir = path.resolve('.agentic-qe');
+  const { findProjectRoot } = await import('../kernel/project-root.js');
+  const configDir = path.join(findProjectRoot(), '.agentic-qe');
   if (!fs.existsSync(configDir)) {
     console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
     console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));

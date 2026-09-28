@@ -53,6 +53,15 @@ describe('findProjectRoot (Issue #516)', () => {
     expect(root).not.toBe(tmpRoot);
   });
 
+  it.each(['directory', 'worktree file'])('ignores an ancestor store above the nearest git %s', marker => {
+    const project = path.join(tmpRoot, 'new-project');
+    const nested = path.join(project, 'src', 'deep');
+    mkdirs(path.join(tmpRoot, '.agentic-qe'), nested);
+    if (marker === 'directory') mkdirs(path.join(project, '.git'));
+    else fs.writeFileSync(path.join(project, '.git'), 'gitdir: /external/worktree');
+    expect(findProjectRoot(nested)).toBe(project);
+  });
+
   it('should_honorAqeProjectRootEnv_when_set', () => {
     // Arrange
     const project = path.join(tmpRoot, 'proj');
