@@ -13,7 +13,7 @@ import {
   formatDuration,
 } from './interfaces.js';
 import type { TaskType } from '../../coordination/queen-coordinator.js';
-import { DomainName, Priority } from '../../shared/types/index.js';
+import { ALL_DOMAINS, DomainName, Priority, isDomainName } from '../../shared/types/index.js';
 import { createTimedSpinner } from '../utils/progress.js';
 import { parseJsonOption } from '../helpers/safe-json.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
@@ -50,7 +50,7 @@ export class TaskHandler implements ICommandHandler {
       .option('-d, --domain <domain>', 'Target domain')
       .option('-t, --timeout <ms>', 'Task timeout in ms', '300000')
       .option('--payload <json>', 'Task payload as JSON', '{}')
-      .option('--wait', 'Wait for task completion with progress')
+      .option('--wait', 'Wait for task completion (required: CLI tasks are not persisted)')
       .option('--no-progress', 'Disable progress indicator')
       .action(async (type: string, options) => {
         await this.executeSubmit(type, options, context);
@@ -89,6 +89,27 @@ export class TaskHandler implements ICommandHandler {
   }
 
   private async executeSubmit(type: string, options: SubmitOptions, context: CLIContext): Promise<void> {
+    // #734 D: reject an unknown domain up front instead of accepting work that
+    // no domain will ever run.
+    if (options.domain !== undefined && !isDomainName(options.domain)) {
+      console.error(chalk.red(`\n  Unknown domain: ${options.domain}`));
+      console.error(chalk.gray(`  Valid domains: ${ALL_DOMAINS.join(', ')}\n`));
+      return this.cleanupAndExit(1);
+    }
+
+    // #734 C: a CLI-submitted task runs inside this process and is not
+    // persisted, so a detached submit would report an ID for work that is
+    // abandoned when the command exits. Refuse it rather than claim success.
+    if (!options.wait) {
+      console.error(chalk.red('\n  Detached task submission is not supported.'));
+      console.error(chalk.gray('  Tasks submitted from the CLI run inside this process and are not persisted;'));
+      console.error(chalk.gray('  the task would be abandoned when the command exits, and `aqe task status`'));
+      console.error(chalk.gray('  from another process could not find it.'));
+      console.error(chalk.gray('  Re-run with --wait to execute the task and report its result, or submit it'));
+      console.error(chalk.gray('  through the MCP server (task_submit), which keeps a long-lived coordinator.\n'));
+      return this.cleanupAndExit(1);
+    }
+
     if (!await this.ensureInitialized()) return this.cleanupAndExit(1);
 
     try {
@@ -334,7 +355,8 @@ Submit Options:
   -d, --domain <domain>       Target domain
   -t, --timeout <ms>          Task timeout in milliseconds (default: 300000)
   --payload <json>            Task payload as JSON
-  --wait                      Wait for task completion with progress
+  --wait                      Wait for task completion (required; CLI-submitted
+                              tasks run in this process and are not persisted)
   --no-progress               Disable progress indicator
 
 List Options:
@@ -343,7 +365,7 @@ List Options:
   -d, --domain <domain>       Filter by domain
 
 Examples:
-  aqe task submit generate-tests --domain test-generation
+  aqe task submit generate-tests --domain test-generation --wait
   aqe task submit analyze-coverage --wait --timeout 60000
   aqe task list --status running
   aqe task status task-123

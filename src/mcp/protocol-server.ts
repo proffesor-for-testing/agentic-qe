@@ -858,6 +858,7 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'type', type: 'string', description: 'Task type', required: true },
           { name: 'priority', type: 'string', description: 'Task priority', enum: ['p0', 'p1', 'p2', 'p3'], default: 'p1' },
+          { name: 'targetDomains', type: 'array', description: 'Target domains (e.g. ["coverage-analysis"]); unknown domains are rejected' },
           { name: 'payload', type: 'object', description: 'Task payload data' },
         ],
       },
