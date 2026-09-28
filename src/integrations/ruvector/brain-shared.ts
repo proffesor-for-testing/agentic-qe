@@ -603,7 +603,7 @@ export function runImportTransaction(db: Database.Database, dryRun: boolean, imp
     if (dryRun) throw rollback;
   });
   try {
-    transaction();
+    transaction.immediate();
   } catch (error) {
     if (error !== rollback) throw error;
   }

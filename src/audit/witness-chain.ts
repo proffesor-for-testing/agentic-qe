@@ -21,7 +21,8 @@ export type WitnessActionType =
   // A7: provenance of DELIVERED review findings (adversarially-verified survivors)
   // and the ones the verify gate BLOCKED — tamper-evident, optionally Ed25519-signed.
   | 'FINDING_DELIVERED' | 'FINDING_BLOCKED'
-  | 'BRANCH_MERGE' | 'BRANCH_DISCARD' | 'HEBBIAN_PENALTY' | 'KEY_ROTATION';
+  | 'BRANCH_MERGE' | 'BRANCH_DISCARD' | 'HEBBIAN_PENALTY' | 'KEY_ROTATION'
+  | 'BRAIN_IMPORT';
 
 export interface WitnessEntry {
   id: number;

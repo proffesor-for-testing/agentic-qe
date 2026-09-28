@@ -240,7 +240,7 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
       });
 
       expect(mocks.verifyWitness).toHaveBeenCalledOnce();
-      expect(result.imported).toBe(1);
+      expect(result.imported).toBe(2); // data row and local BRAIN_IMPORT event
     });
   });
 
@@ -484,7 +484,7 @@ describe('Brain RVF Advanced Features (Phase 4)', () => {
       });
 
       expect(result.conflicts).toBe(1);
-      expect(result.imported).toBe(0);
+      expect(result.imported).toBe(1); // local BRAIN_IMPORT event
       expect(mocks.compact).toHaveBeenCalledOnce();
     });
   });
