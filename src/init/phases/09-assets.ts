@@ -35,6 +35,10 @@ export interface AssetsResult {
   platformsConfigured: string[];
   browserEngine?: BrowserEngineInstallResult;
   codexGuidance?: { policy: 'full' | 'compact' | 'none'; ownedBytes: number };
+  codexComponents?: {
+    hooks: { status: string; error?: string };
+    skills: { status: string; error?: string };
+  };
 }
 
 /**
@@ -68,6 +72,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let kiroSkills = 0;
     let kiroHooks = 0;
     let codexGuidance: AssetsResult['codexGuidance'];
+    let codexComponents: AssetsResult['codexComponents'];
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -349,6 +354,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       });
       const res = await installer.install();
       codexGuidance = { policy: res.guidancePolicy, ownedBytes: res.ownedGuidanceBytes };
+      codexComponents = { hooks: res.components.hooks, skills: res.components.skills };
       if (res.mcpConfigured) platformsConfigured.push('codex');
       if (res.errors.length > 0) context.services.warn(`Codex warnings: ${res.errors.join(', ')}`);
       if (res.mcpConfigured) context.services.log(`  Codex MCP: ${res.configPath}`);
@@ -397,6 +403,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       platformsConfigured,
       browserEngine,
       codexGuidance,
+      codexComponents,
     };
   }
 

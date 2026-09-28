@@ -18,6 +18,7 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { findPackageRoot } from './find-package-root.js';
 import { selectCodexSkills } from './codex-skill-manifest.js';
 import {
   createPlatformConfigGenerator,
@@ -212,6 +213,13 @@ export class CodexInstaller {
       this.recordComponentFailure(result, 'skills', error);
     }
 
+    for (const component of ['hooks', 'skills'] as const) {
+      if (result.components[component].status === 'unavailable') {
+        const message = `Codex ${component} unavailable: packaged assets could not be located`;
+        result.components[component].error = message;
+        result.errors.push(message);
+      }
+    }
     result.success = result.errors.length === 0;
     return result;
   }
@@ -378,6 +386,10 @@ export class CodexInstaller {
   }
 
   private resolvePackageRoot(): string | undefined {
+    // Bundled chunks retain their real package location even when npm's aqe
+    // bin is a symlink in a global prefix.
+    const packagedRoot = findPackageRoot(import.meta.url);
+    if (packagedRoot) return packagedRoot;
     const moduleDir = dirname(fileURLToPath(import.meta.url));
     const candidates = [
       join(moduleDir, '..', '..'),
