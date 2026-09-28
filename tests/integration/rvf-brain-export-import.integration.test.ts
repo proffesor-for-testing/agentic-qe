@@ -241,9 +241,9 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
 
     const result = importBrainFromRvf(targetDb, rvfPath, { mergeStrategy: 'skip-conflicts' });
 
-    // Imported count should match totalRecords from manifest
-    expect(result.imported).toBe(manifest.stats.totalRecords);
-    expect(result.skipped).toBe(0);
+    // Source witness rows are skipped and replaced by one local import event.
+    expect(result.imported).toBe(manifest.stats.totalRecords - manifest.stats.witnessChainLength + 1);
+    expect(result.skipped).toBe(manifest.stats.witnessChainLength);
     expect(result.conflicts).toBe(0);
 
     // Verify specific table counts match source
@@ -252,6 +252,9 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
     expect(countTable(targetDb, 'dream_cycles')).toBe(1);
     expect(countTable(targetDb, 'dream_insights')).toBe(1);
     expect(countTable(targetDb, 'witness_chain')).toBe(1);
+    expect(targetDb.prepare('SELECT action_type, actor FROM witness_chain').get()).toMatchObject({
+      action_type: 'BRAIN_IMPORT', actor: 'brain-import',
+    });
     expect(countTable(targetDb, 'captured_experiences')).toBe(1);
     expect(countTable(targetDb, 'goap_actions')).toBe(1);
     expect(countTable(targetDb, 'sona_patterns')).toBe(1);
@@ -333,9 +336,9 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
     expect(first.imported).toBeGreaterThan(0);
     expect(first.conflicts).toBe(0);
 
-    // Second import — same data, should all be conflicts/skipped
+    // Second import preserves data rows and appends a local provenance event.
     const second = importBrainFromRvf(targetDb, rvfPath, { mergeStrategy: 'skip-conflicts' });
-    expect(second.imported).toBe(0);
+    expect(second.imported).toBe(1);
     expect(second.skipped).toBeGreaterThan(0);
 
     // Table counts should be unchanged after second import
@@ -532,8 +535,8 @@ describe.skipIf(!NATIVE_AVAILABLE)('RVF Brain Export/Import Integration', () => 
 
     const result = importBrainFromRvf(targetDb, rvfPath, { mergeStrategy: 'skip-conflicts' });
 
-    expect(result.imported).toBe(4); // 1 pattern + 1 qValue + 1 insight + 1 witness
-    expect(result.skipped).toBe(0);
+    expect(result.imported).toBe(4); // 3 data rows + 1 local import event
+    expect(result.skipped).toBe(1); // source witness row is not grafted
 
     // Verify rows arrived in correct tables
     expect(countTable(targetDb, 'qe_patterns')).toBe(1);

@@ -34,6 +34,7 @@ import {
   type MergeStrategy,
   type MergeResult,
 } from './brain-shared.js';
+import { appendBrainImportWitness } from './brain-import-audit.js';
 
 // --- Types ---
 
@@ -555,10 +556,18 @@ export function importBrainFromRvf(
     const importAll = () => {
       const patternIds = new Map<string, string>();
       const patternWinners = new Map<string, string | null>();
+      let sourceWitnessRows = 0;
       // Import in TABLE_CONFIGS order (FK-aware)
       for (const config of TABLE_CONFIGS) {
         let rows = tablesMap[config.tableName];
         if (!rows || !Array.isArray(rows)) continue;
+
+        if (config.tableName === 'witness_chain') {
+          // A source chain cannot be grafted into another store's live chain.
+          sourceWitnessRows += rows.length;
+          skipped += rows.length;
+          continue;
+        }
 
         // Deserialize BLOBs
         const blobCols = TABLE_BLOB_COLUMNS[config.tableName];
@@ -588,6 +597,14 @@ export function importBrainFromRvf(
           conflicts += result.conflicts;
         }
       }
+      appendBrainImportWitness(db, {
+        sourceChecksum: sha256(kernel.image.toString('utf-8')),
+        sourceWitnessRows,
+        importedRecords: imported,
+        skippedRecords: skipped,
+        conflicts,
+      });
+      imported += 1;
     };
 
     runImportTransaction(db, options.dryRun ?? false, importAll);

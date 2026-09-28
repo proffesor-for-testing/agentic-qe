@@ -43,7 +43,7 @@ for (const format of ['jsonl', 'rvf'] as const) {
         if (fileBefore) expect(readFileSync(outputPath)).toEqual(fileBefore);
         expect(projected.conflicts).toBe(1);
         expect(projected.imported).toBe(strategy === 'skip-conflicts' ? 1 : 2);
-        expect(projected.skipped).toBe(strategy === 'skip-conflicts' ? 1 : 0);
+        expect(projected.skipped).toBe(strategy === 'skip-conflicts' ? 2 : 1); // includes source witness row
         expect(run(false)).toEqual(projected);
         expect(target.pragma('integrity_check')).toEqual([{ integrity_check: 'ok' }]);
       } finally { source.close(); target.close(); }
@@ -70,7 +70,7 @@ it('does not count skipped RVF vectors and rolls back inside a caller transactio
       target.exec("CREATE TABLE outer_write(value TEXT); INSERT INTO outer_write VALUES ('retained')");
       const before = snapshot(target);
       const dry = importBrainFromRvf(target, outputPath, { mergeStrategy: 'skip-conflicts', dryRun: true });
-      expect(dry).toMatchObject({ imported: 0, skipped: 2, conflicts: 2, embeddingsRestored: 0 });
+      expect(dry).toMatchObject({ imported: 1, skipped: 2, conflicts: 2, embeddingsRestored: 0 });
       expect(snapshot(target)).toEqual(before);
       expect(target.inTransaction).toBe(true);
     })();
