@@ -27,7 +27,9 @@ import {
 import {
   detectWorldState,
   overlayCallerState,
+  validateWorldStatePatch,
   defaultedFields,
+  type WorldStatePatch,
   type WorldStateProvenance,
   type WorldStateSources,
 } from './world-state.js';
@@ -52,7 +54,7 @@ export interface GOAPPlanParams {
   /** Goal name (named goal) or custom goal conditions object */
   goal: string | Record<string, unknown>;
   /** Current world state (auto-detected if not provided; may be partial) */
-  currentState?: Partial<V3WorldState>;
+  currentState?: WorldStatePatch;
   /** Plan constraints */
   constraints?: {
     maxCost?: number;
@@ -229,6 +231,12 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
       // Issue #535: start from the live/measured world state (not a static
       // DEFAULT_V3_WORLD_STATE copy), overlaid with any caller-supplied
       // fields, and keep track of which values are assumptions.
+      if (params.currentState !== undefined) {
+        const stateError = validateWorldStatePatch(params.currentState, Object.keys(goalConditions));
+        if (stateError) {
+          return { success: false, error: `Invalid currentState: ${stateError}` };
+        }
+      }
       const detected = params.currentState
         ? overlayCallerState(await detectWorldState(this.worldStateSources), params.currentState)
         : await detectWorldState(this.worldStateSources);

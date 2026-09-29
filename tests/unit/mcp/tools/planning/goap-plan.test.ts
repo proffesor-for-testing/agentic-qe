@@ -107,6 +107,35 @@ describe('GOAPPlanTool (issue #535)', () => {
     expect(result.error).toMatch(/maxSteps must be a positive integer/);
   });
 
+  it.each([
+    [{ coverage: { line: -20 } }, 'currentState.coverage.line must be a number between 0 and 100'],
+    [{ context: { environment: 'invalid' } }, 'currentState.context.environment must be one of'],
+    [{ quality: { typo: 100 } }, 'currentState.quality.typo is not a known world-state field'],
+    [{ bogus: {} }, 'currentState.bogus is not a world-state section'],
+    [{ fleet: { availableAgents: 'x' } }, 'currentState.fleet.availableAgents must be an array of strings'],
+  ])('rejects an invalid caller currentState %j', async (currentState, message) => {
+    const result = await tool.invoke({
+      goal: 'achieve-90-percent-coverage',
+      currentState: currentState as Record<string, never>,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid currentState');
+    expect(result.error).toContain(message);
+  });
+
+  it('accepts planner flag keys used by the action library in currentState', async () => {
+    const result = await tool.invoke({
+      goal: 'achieve-90-percent-coverage',
+      currentState: { coverage: { line: 80, measured: true, gapsIdentified: true } },
+      constraints: { maxSteps: 1 },
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.data!.actions.map((a) => a.name)).toEqual(['generate-coverage-tests']);
+    expect(result.data!.stateProvenance['coverage.gapsIdentified']).toBe('caller');
+  }, 30000);
+
   it('rejects unknown constraint properties instead of silently ignoring them', async () => {
     const result = await tool.invoke({
       goal: 'achieve-90-percent-coverage',

@@ -20,7 +20,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { DEFAULT_V3_WORLD_STATE, type V3WorldState } from '../../../planning/index.js';
+import {
+  DEFAULT_V3_WORLD_STATE,
+  QE_GOALS,
+  getAllQEActions,
+  type V3WorldState,
+} from '../../../planning/index.js';
 import { findProjectRoot } from '../../../kernel/project-root.js';
 
 // ============================================================================
@@ -61,6 +66,15 @@ export interface DetectedWorldState {
   /** Coverage report the coverage fields came from, if any. */
   coverageReport?: { source: string; measuredAt: string };
 }
+
+/**
+ * Caller-supplied (partial) world state: any subset of each section's
+ * fields, plus planner flag keys the action library uses (e.g.
+ * `coverage.gapsIdentified`).
+ */
+export type WorldStatePatch = {
+  [S in keyof V3WorldState]?: Partial<V3WorldState[S]> & Record<string, unknown>;
+};
 
 export interface WorldStateSources {
   readFleet?: () => Promise<FleetSnapshot | null>;
@@ -211,34 +225,124 @@ export async function detectWorldState(sources: WorldStateSources = {}): Promise
   return { state, provenance, fleetInitialized: fleet !== null, coverageReport };
 }
 
-/** World-state leaves are finite numbers, booleans, strings, or string lists. */
-function isAcceptableStateValue(value: unknown): boolean {
-  if (typeof value === 'number') return Number.isFinite(value);
-  if (typeof value === 'boolean' || typeof value === 'string') return true;
-  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+// ============================================================================
+// Caller-state validation (system boundary)
+// ============================================================================
+
+type FieldCheck = (value: unknown) => string | null;
+
+const percent: FieldCheck = (v) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100 ? null : 'a number between 0 and 100';
+const nonNegativeInt: FieldCheck = (v) =>
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 ? null : 'a non-negative integer';
+const nonNegative: FieldCheck = (v) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 ? null : 'a non-negative number';
+const bool: FieldCheck = (v) => (typeof v === 'boolean' ? null : 'a boolean');
+const stringList: FieldCheck = (v) =>
+  Array.isArray(v) && v.every((x) => typeof x === 'string') ? null : 'an array of strings';
+const oneOf = (...allowed: string[]): FieldCheck => (v) =>
+  typeof v === 'string' && allowed.includes(v) ? null : `one of ${allowed.join(', ')}`;
+
+/** Schema of the known V3WorldState leaves. */
+const FIELD_CHECKS: Record<string, FieldCheck> = {
+  'coverage.line': percent,
+  'coverage.branch': percent,
+  'coverage.function': percent,
+  'coverage.target': percent,
+  'coverage.measured': bool,
+  'quality.testsPassing': percent,
+  'quality.totalTests': nonNegativeInt,
+  'quality.securityScore': percent,
+  'quality.performanceScore': percent,
+  'fleet.activeAgents': nonNegativeInt,
+  'fleet.availableAgents': stringList,
+  'fleet.maxAgents': nonNegativeInt,
+  'resources.timeRemaining': nonNegative,
+  'resources.memoryAvailable': nonNegative,
+  'resources.parallelSlots': nonNegativeInt,
+  'context.environment': oneOf('development', 'staging', 'production'),
+  'context.riskLevel': oneOf('low', 'medium', 'high'),
+  'patterns.available': nonNegativeInt,
+  'patterns.reusable': nonNegativeInt,
+};
+
+const SECTIONS = ['coverage', 'quality', 'fleet', 'resources', 'context', 'patterns'] as const;
+
+let libraryFlagKeys: Set<string> | null = null;
+
+/** Extra state keys the seeded action library / goals read or write. */
+function plannerFlagKeys(): Set<string> {
+  if (!libraryFlagKeys) {
+    const keys = new Set<string>();
+    for (const action of getAllQEActions()) {
+      for (const k of Object.keys(action.preconditions)) keys.add(k);
+      for (const k of Object.keys(action.effects)) keys.add(k);
+    }
+    for (const goal of QE_GOALS) {
+      for (const k of Object.keys(goal.conditions)) keys.add(k);
+    }
+    libraryFlagKeys = keys;
+  }
+  return libraryFlagKeys;
+}
+
+/**
+ * Validate a caller-supplied world state (issue #535, codex review): known
+ * fields must match the V3WorldState schema (types, 0-100 percentages,
+ * enums); other keys are accepted only if the action library or the goal
+ * uses them (planner flags such as `coverage.gapsIdentified`) and hold a
+ * boolean or finite number. Returns an error message, or null when valid.
+ */
+export function validateWorldStatePatch(
+  provided: unknown,
+  extraAllowedKeys: Iterable<string> = []
+): string | null {
+  if (typeof provided !== 'object' || provided === null || Array.isArray(provided)) {
+    return 'currentState must be an object';
+  }
+  const flags = new Set([...plannerFlagKeys(), ...extraAllowedKeys]);
+  for (const [section, patch] of Object.entries(provided)) {
+    if (!(SECTIONS as readonly string[]).includes(section)) {
+      return `currentState.${section} is not a world-state section (expected one of ${SECTIONS.join(', ')})`;
+    }
+    if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) {
+      return `currentState.${section} must be an object`;
+    }
+    for (const [key, value] of Object.entries(patch)) {
+      const field = `${section}.${key}`;
+      const check = FIELD_CHECKS[field];
+      if (check) {
+        const expected = check(value);
+        if (expected) return `currentState.${field} must be ${expected}, got ${JSON.stringify(value)}`;
+        continue;
+      }
+      if (!flags.has(field)) {
+        return `currentState.${field} is not a known world-state field`;
+      }
+      if (typeof value !== 'boolean' && !(typeof value === 'number' && Number.isFinite(value))) {
+        return `currentState.${field} must be a boolean or finite number, got ${JSON.stringify(value)}`;
+      }
+    }
+  }
+  return null;
 }
 
 /**
  * Overlay a caller-supplied (possibly partial) world state onto a detected
  * one, section by section, marking every overridden leaf as 'caller'.
- * Only the known top-level sections are merged; anything else is ignored so
- * a malformed payload can't replace whole sections with non-objects.
+ * Callers must run validateWorldStatePatch() first; this only merges.
  */
 export function overlayCallerState(
   detected: DetectedWorldState,
-  provided: unknown
+  provided: WorldStatePatch
 ): DetectedWorldState {
-  if (typeof provided !== 'object' || provided === null || Array.isArray(provided)) {
-    return detected;
-  }
   const state = detected.state as unknown as Record<string, Record<string, unknown>>;
   const provenance = { ...detected.provenance };
-  for (const section of ['coverage', 'quality', 'fleet', 'resources', 'context', 'patterns']) {
+  for (const section of SECTIONS) {
     const patch = (provided as Record<string, unknown>)[section];
     if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) continue;
     for (const [key, value] of Object.entries(patch)) {
       if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
-      if (!isAcceptableStateValue(value)) continue;
       state[section][key] = Array.isArray(value) ? [...value] : value;
       provenance[`${section}.${key}`] = 'caller';
     }
