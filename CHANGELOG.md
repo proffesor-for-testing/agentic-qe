@@ -5,14 +5,98 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.14.5] - 2026-09-29
+
+This patch makes Agentic QE's results trustworthy for scripts and CI: failed
+commands now exit non-zero, `aqe platform setup` works again, and Codex setup
+through a globally installed `aqe` installs its hooks and skills. It also stops
+the audit chain from breaking when several AQE processes share a store or when
+stores are merged, lets the pattern search index bind when an embedder is
+configured, quiets the CLI's internal startup logging, and resolves plugin
+versions with npm SemVer. Ten of the issues fixed here were reported by
+[@pacphi](https://github.com/pacphi), and most of the fixes were contributed by
+[@rudycelekli](https://github.com/rudycelekli).
+
+### Security
+
+- Patched a high-severity undici advisory (GHSA-w293-vg96-wgc3) in the
+  vendored Ruflo skill tree; the published package was not affected ([#774]).
 
 ### Changed
 
-- Plugin versions and dependency ranges now follow npm SemVer. Noncanonical
-  plugin version strings, `latest` dependency ranges, and invalid
-  `minAqeVersion` values are rejected. Startup reports rejected plugins while
-  continuing to load independent compatible plugins.
+- The CLI is much quieter by default. Internal startup diagnostics are filtered
+  by `AQE_LOG_LEVEL` / `LOG_LEVEL` (default `warn`) and always go to stderr, and
+  `aqe memory list|get|search|store|delete|usage` open the project store
+  directly instead of starting the whole fleet, so they no longer print ~99
+  lines of startup logging. A command's own `--verbose` flag still shows its
+  detail ([#763]).
+- Plugin versions and dependency ranges now follow npm SemVer. The newest
+  compatible cached version is selected, `minAqeVersion` and dependency ranges
+  are enforced at install and startup, and a rejected plugin is reported
+  without stopping independent plugins from loading. Noncanonical version
+  strings, `latest` ranges, and invalid `minAqeVersion` values are rejected
+  ([#750]).
+- `aqe task submit` without `--wait` now exits 1 and tells you to use `--wait`
+  or the MCP server. A task submitted from the CLI only ran inside that CLI
+  process and was lost when it exited, so the printed ID could never be looked
+  up ([#769]).
+- `aqe init --auto` in a project with a `.codex/` folder now applies the
+  selected Codex guidance mode (default `full`) to an existing `AGENTS.md`,
+  inside AQE's own marked block ([#767]).
+- `RUVECTOR_USE_*` environment overrides now take effect in the CLI and MCP
+  server. Any value other than `true` switches that feature off ([#768]).
+- Git submodules and worktrees inside a repository now use their own
+  `.agentic-qe` store instead of the parent repository's ([#741]).
+
+### Fixed
+
+- Commands that report failure now exit 1 instead of 0: `platform verify`,
+  `plugin install` / `remove` / `info`, invalid hook provenance, and every
+  command whose automatic initialization fails ([#760], [#770]).
+- `aqe platform setup <platform>` works again for Copilot, Cursor, Cline,
+  Kilo Code, Roo Code, Codex, Windsurf and Continue.dev; it failed for all of
+  them with "Module not found in bundle" ([#761]).
+- `aqe task submit --domain` and MCP `task_submit` reject unknown domains
+  instead of accepting a task nothing will run ([#769]).
+- `aqe init --with-codex` through a globally installed `aqe`, a project-local
+  install, or `npx` now installs the Codex hooks and QE skills, and warns when
+  packaged assets cannot be found ([#765]).
+- `--codex-guidance full` is applied to an existing `AGENTS.md`, the `--json`
+  summary reports the bytes actually written, and switching modes no longer
+  piles `---` separators into your part of the file ([#767]).
+- The audit chain no longer forks when two AQE processes (for example an MCP
+  server and hooks) append at once, so `aqe audit verify --chain audit` stays
+  valid ([#764]).
+- `brain import` no longer copies the source store's audit rows into the
+  target chain; it records one `BRAIN_IMPORT` entry instead, so the target
+  chain still verifies after a merge ([#766], [#771]).
+- With an embedder endpoint configured, the pattern search index (and
+  `brain.rvf`) now binds in every process instead of leaving patterns
+  `COMMITTED_PENDING_INDEX`. The provenance guard still refuses when no
+  embedder or a mismatched one is configured ([#768], [#773]).
+- Running `aqe`, the hook runner or the MCP server from a subfolder no longer
+  creates a separate `.agentic-qe` store there; relative `AQE_MEMORY_PATH` /
+  `AQE_STORAGE_PATH` and MCP session journals resolve from the project root, a
+  stray `~/.agentic-qe` no longer claims non-git folders below your home
+  directory, and `status` / `health` exit 1 when they refuse to run
+  ([#741], [#772]).
+
+[#750]: https://github.com/proffesor-for-testing/agentic-qe/pull/750
+[#763]: https://github.com/proffesor-for-testing/agentic-qe/pull/763
+[#774]: https://github.com/proffesor-for-testing/agentic-qe/pull/774
+[#741]: https://github.com/proffesor-for-testing/agentic-qe/pull/741
+[#760]: https://github.com/proffesor-for-testing/agentic-qe/pull/760
+[#761]: https://github.com/proffesor-for-testing/agentic-qe/pull/761
+[#764]: https://github.com/proffesor-for-testing/agentic-qe/pull/764
+[#765]: https://github.com/proffesor-for-testing/agentic-qe/pull/765
+[#766]: https://github.com/proffesor-for-testing/agentic-qe/pull/766
+[#767]: https://github.com/proffesor-for-testing/agentic-qe/pull/767
+[#768]: https://github.com/proffesor-for-testing/agentic-qe/pull/768
+[#769]: https://github.com/proffesor-for-testing/agentic-qe/pull/769
+[#770]: https://github.com/proffesor-for-testing/agentic-qe/pull/770
+[#771]: https://github.com/proffesor-for-testing/agentic-qe/pull/771
+[#772]: https://github.com/proffesor-for-testing/agentic-qe/pull/772
+[#773]: https://github.com/proffesor-for-testing/agentic-qe/pull/773
 
 ## [3.14.4] - 2026-09-27
 
