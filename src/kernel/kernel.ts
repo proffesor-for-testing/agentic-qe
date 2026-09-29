@@ -18,6 +18,7 @@ import {
 import { InMemoryEventBus } from './event-bus';
 import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
+import { formatErrorForLog } from '../logging/redaction';
 import { InMemoryBackend } from './memory-backend';
 import { createKernelMemoryBackend } from './hybrid-backend';
 import { SemanticAntiDriftMiddleware, ToolCallSignatureTracker } from './anti-drift-middleware.js';
@@ -603,7 +604,7 @@ export class QEKernelImpl implements QEKernel {
       try {
         plugin = await this._plugins.load(domain);
       } catch (error) {
-        console.error(`[QEKernel] Failed to lazy load domain ${domain}:`, error);
+        console.error(`[QEKernel] Failed to lazy load domain ${domain}:`, formatErrorForLog(error));
         return undefined;
       }
     }
@@ -629,7 +630,7 @@ export class QEKernelImpl implements QEKernel {
       await this._plugins.load(domain);
       return true;
     } catch (error) {
-      console.error(`[QEKernel] Failed to load domain ${domain}:`, error);
+      console.error(`[QEKernel] Failed to load domain ${domain}:`, formatErrorForLog(error));
       return false;
     }
   }

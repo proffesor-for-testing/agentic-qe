@@ -76,7 +76,10 @@ describe('MCP tool error semantics', () => {
     });
     expect(response.content[0].text).not.toContain('private-secret');
     expect(response.content[0].text).not.toContain('/private/project');
-    expect(log).toHaveBeenCalledWith('[MCP] Tool error_semantics_probe failed:', original);
+    // #740: stderr keeps the operator diagnostic but not the secret
+    expect(log).toHaveBeenCalledWith('[MCP] Tool error_semantics_probe failed:', expect.stringContaining('/private/project/file.ts'));
+    const logged = log.mock.calls.map(args => args.join(' ')).join('\n');
+    expect(logged).not.toContain('private-secret');
   });
 
   it('retains non-Error thrown diagnostics on stderr only', async () => {

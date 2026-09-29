@@ -32,6 +32,7 @@ import type { CLIContext } from './handlers/interfaces.js';
 
 import { applyCommandVerbosity, installCliLogGate, isCliLogLevelEnabled } from './log-gate.js';
 import { LogLevel } from '../logging/index.js';
+import { formatErrorForLog } from '../logging/redaction.js';
 
 installCliLogGate();
 
@@ -518,6 +519,6 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error(chalk.red('Fatal error:'), error);
+  console.error(chalk.red('Fatal error:'), formatErrorForLog(error));
   await cleanupAndExit(1);
 });
