@@ -286,6 +286,7 @@ aqe prove --format json -o proof.json
 
 # Audit trail
 aqe audit verify                 # Verify witness chain integrity
+aqe audit repair --chain audit   # Re-anchor pre-3.14.5 concurrent-write forks (backs up first; refuses on tampering)
 
 # Token usage tracking
 aqe token-usage --period 24h --by-agent --recommendations
