@@ -35,6 +35,9 @@ export function createEnsureMemoryBackend(context: CLIContext): () => Promise<bo
       return true;
     } catch (error) {
       console.error(chalk.red(`  Failed to open memory store: ${toErrorMessage(error)}`));
+      // Callers `return` on false; main() then exits with this code, matching
+      // ensureInitialized()'s failure path (#758).
+      process.exitCode = 1;
       return false;
     }
   };

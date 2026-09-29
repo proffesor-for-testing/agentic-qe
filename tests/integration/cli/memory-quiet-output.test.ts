@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -27,16 +27,22 @@ const LOG_ENV_KEYS = ['LOG_LEVEL', 'AQE_LOG_LEVEL', 'AQE_VERBOSE', 'AQE_PROJECT_
 const INFO_LINE_RE = /\[INFO\s*\]/;
 const TAGGED_LINE_RE = /^\[[A-Za-z][\w./:-]*\]\s/m;
 
+/**
+ * Native onnxruntime writes this straight to fd 2 on some hosts (ARM/linuxkit)
+ * when the embedding model loads; it cannot be gated by the CLI.
+ */
+const NATIVE_NOISE_RE = /^onnxruntime cpuid_info warning:.*\n?/gm;
+
 let projectDir: string;
 let homeDir: string;
 
-function runCli(args: string[], envExtra: NodeJS.ProcessEnv = {}) {
+function runCli(args: string[], envExtra: NodeJS.ProcessEnv = {}, cwd?: string) {
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: homeDir, ...envExtra };
   for (const key of LOG_ENV_KEYS) {
     if (!(key in envExtra)) delete env[key];
   }
   const res = spawnSync(process.execPath, [CLI_PATH, ...args], {
-    cwd: projectDir,
+    cwd: cwd ?? projectDir,
     encoding: 'utf-8',
     env,
     timeout: 60_000,
@@ -88,7 +94,33 @@ describe('aqe memory — quiet output', { timeout: 120_000 }, () => {
     const res = runCli(args);
 
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stderr).toBe('');
+    expect(res.stderr.replace(NATIVE_NOISE_RE, '')).toBe('');
+  });
+
+  it('should print a stored value that starts with a bracketed tag to stdout', () => {
+    const store = runCli(['memory', 'store', '--key', 'todo', '--value', '[TODO] fix auth', '--namespace', 'aqe']);
+    expect(store.status, store.stderr).toBe(0);
+
+    const res = runCli(['memory', 'get', '--key', 'todo', '--namespace', 'aqe']);
+
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain('[TODO] fix auth');
+  });
+
+  it('should exit 1 when the memory store cannot be opened', () => {
+    const brokenDir = mkdtempSync(join(tmpdir(), 'aqe-memory-broken-'));
+    try {
+      writeFileSync(join(brokenDir, 'package.json'), '{"name":"memory-broken","version":"1.0.0"}\n');
+      mkdirSync(join(brokenDir, '.agentic-qe'));
+      writeFileSync(join(brokenDir, '.agentic-qe', 'memory.db'), 'this is not a sqlite database'.repeat(512));
+
+      const res = runCli(['memory', 'list'], {}, brokenDir);
+
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('Failed to open memory store');
+    } finally {
+      rmSync(brokenDir, { recursive: true, force: true });
+    }
   });
 
   it('should keep stdout valid JSON with --json', () => {

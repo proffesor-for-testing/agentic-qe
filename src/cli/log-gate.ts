@@ -54,6 +54,11 @@ const STRUCTURED_RE =
  * "[UnifiedMemory] ...", "[sona-three-loop] ...", "[quality-assessment/rl] ...".
  * Requires a letter first and whitespace after the closing bracket so JSON
  * arrays such as '["a"]' or '[true]' are never mistaken for diagnostics.
+ *
+ * Only a tag at column 0 counts. Indented bracketed text is command output:
+ * severity markers ("    [critical] Code Injection ..." from `aqe security`,
+ * "  [high] ..." from `aqe status` / `aqe coverage`) and user data such as a
+ * stored memory value "[TODO] fix auth" printed by `aqe memory get`.
  */
 const TAGGED_RE = /^\[[A-Za-z][\w./:-]*\]\s/;
 
@@ -94,9 +99,9 @@ export function resolveCliLogLevel(
  */
 export function classifyConsoleLine(method: ConsoleMethod, firstArg: unknown): LogLevel | null {
   if (typeof firstArg !== 'string') return null;
-  const text = firstArg.replace(ANSI_RE, '').trimStart();
+  const text = firstArg.replace(ANSI_RE, '');
 
-  const structured = STRUCTURED_RE.exec(text);
+  const structured = STRUCTURED_RE.exec(text.trimStart());
   if (structured) {
     return LEVEL_NAMES[structured[1].toLowerCase()];
   }
@@ -104,6 +109,27 @@ export function classifyConsoleLine(method: ConsoleMethod, firstArg: unknown): L
     return TAG_METHOD_LEVEL[method];
   }
   return null;
+}
+
+/** True when AQE_LOG_LEVEL or LOG_LEVEL holds a recognised level. */
+export function hasExplicitCliLogLevel(env: NodeJS.ProcessEnv = process.env): boolean {
+  return parseLevel(env.AQE_LOG_LEVEL) !== undefined || parseLevel(env.LOG_LEVEL) !== undefined;
+}
+
+/**
+ * Honour a command's own `--verbose` flag (e.g. `aqe sync --verbose`): raise
+ * the threshold to INFO so the diagnostics the user explicitly asked for are
+ * printed (on stderr). An explicit AQE_LOG_LEVEL / LOG_LEVEL still wins.
+ * Returns true when the level was raised.
+ */
+export function applyCommandVerbosity(
+  options: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  if (options.verbose !== true || hasExplicitCliLogLevel(env)) return false;
+  if (isCliLogLevelEnabled(LogLevel.INFO)) return false;
+  setCliLogLevel(LogLevel.INFO);
+  return true;
 }
 
 /** Current CLI log threshold. */

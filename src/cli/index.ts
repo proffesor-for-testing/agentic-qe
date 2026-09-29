@@ -30,7 +30,7 @@ import type { CLIContext } from './handlers/interfaces.js';
 // AQE_VERBOSE (default: warn), so stdout stays clean for CI/JSON.
 // ============================================================================
 
-import { installCliLogGate, isCliLogLevelEnabled } from './log-gate.js';
+import { applyCommandVerbosity, installCliLogGate, isCliLogLevelEnabled } from './log-gate.js';
 import { LogLevel } from '../logging/index.js';
 
 installCliLogGate();
@@ -251,6 +251,12 @@ Environment:
   LOG_LEVEL       Same as AQE_LOG_LEVEL; AQE_LOG_LEVEL takes precedence
   AQE_VERBOSE=1   Shorthand for info-level logging (full system-init output)
 Diagnostics are written to stderr; stdout carries command output only.`);
+
+// A command's own --verbose flag (aqe sync|status|workflow|eval ... --verbose)
+// raises the log gate to INFO for that run; AQE_LOG_LEVEL / LOG_LEVEL win.
+program.hook('preAction', (_thisCommand, actionCommand) => {
+  applyCommandVerbosity(actionCommand.opts());
+});
 
 // ============================================================================
 // Register Handlers (lazy — each handler loads only when its command runs)

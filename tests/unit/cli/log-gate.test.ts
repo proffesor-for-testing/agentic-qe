@@ -4,6 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  applyCommandVerbosity,
   classifyConsoleLine,
   getCliLogLevel,
   installCliLogGate,
@@ -64,9 +65,20 @@ describe('classifyConsoleLine', () => {
     expect(classifyConsoleLine('error', '[QEKernel] dispose failed')).toBe(LogLevel.ERROR);
   });
 
-  it('should see through ANSI colour codes and leading whitespace', () => {
+  it('should see through ANSI colour codes', () => {
     expect(classifyConsoleLine('log', '\x1b[2m[hooks] System initialized\x1b[22m')).toBe(LogLevel.INFO);
-    expect(classifyConsoleLine('log', '   [QueenCoordinator] ready')).toBe(LogLevel.INFO);
+    expect(classifyConsoleLine('log', '   [10:01:10.407] [INFO ] [DreamScheduler] Started')).toBe(LogLevel.INFO);
+  });
+
+  it('should pass indented bracketed command output through (severity markers, user data)', () => {
+    // aqe security --sast finding lines
+    expect(classifyConsoleLine('log', '    [critical] Code Injection via eval(): src/vuln.js:6')).toBeNull();
+    // aqe status / aqe coverage: `  ${color('[high]')} ...`
+    expect(classifyConsoleLine('log', '  \x1b[31m[high]\x1b[39m Memory usage above threshold')).toBeNull();
+    // aqe hooks pre-task Nagual context
+    expect(classifyConsoleLine('log', '\x1b[2m  [test-generation] login flow (reward: 0.92)\x1b[22m')).toBeNull();
+    // aqe memory get of a stored value "[TODO] fix auth"
+    expect(classifyConsoleLine('log', '  [TODO] fix auth')).toBeNull();
   });
 
   it('should pass regular command output and JSON through', () => {
@@ -168,5 +180,36 @@ describe('installCliLogGate', () => {
     uninstall();
     gated.log('[UnifiedMemory] x');
     expect(spies.log).toHaveBeenCalledWith('[UnifiedMemory] x');
+  });
+});
+
+describe('applyCommandVerbosity', () => {
+  let restore: () => void;
+
+  beforeEach(() => {
+    const target = { log: vi.fn(), info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as Console;
+    restore = installCliLogGate({ level: LogLevel.WARN, target, writeStderr: () => {} });
+  });
+
+  afterEach(() => {
+    restore();
+    LoggerFactory.reset();
+  });
+
+  it('should raise the gate to INFO for a command --verbose flag', () => {
+    expect(applyCommandVerbosity({ verbose: true }, {})).toBe(true);
+    expect(getCliLogLevel()).toBe(LogLevel.INFO);
+  });
+
+  it('should leave the gate alone without --verbose', () => {
+    expect(applyCommandVerbosity({ verbose: false }, {})).toBe(false);
+    expect(applyCommandVerbosity({}, {})).toBe(false);
+    expect(getCliLogLevel()).toBe(LogLevel.WARN);
+  });
+
+  it('should let an explicit AQE_LOG_LEVEL / LOG_LEVEL win over --verbose', () => {
+    expect(applyCommandVerbosity({ verbose: true }, { AQE_LOG_LEVEL: 'error' })).toBe(false);
+    expect(applyCommandVerbosity({ verbose: true }, { LOG_LEVEL: 'silent' })).toBe(false);
+    expect(getCliLogLevel()).toBe(LogLevel.WARN);
   });
 });
