@@ -129,4 +129,39 @@ describe('Codex guidance policy', () => {
     expect(second).toContain('\r\n');
     expect(second.match(/BEGIN AGENTIC-QE CODEX/g)).toHaveLength(1);
   });
+
+  it('applies full guidance to an existing user AGENTS.md without replacing user text', async () => {
+    const root = projectRoot();
+    const userText = '# Project notes\n\nKeep this user-owned rule.\n';
+    writeFileSync(join(root, 'AGENTS.md'), userText);
+
+    const result = await createCodexInstaller({
+      projectRoot: root, installMcp: false, guidancePolicy: 'full',
+    }).install();
+
+    const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+    expect(content.startsWith(userText)).toBe(true);
+    expect(content).toContain(START);
+    expect(content).toContain(END);
+    expect(result.components.rules.status).toBe('updated');
+    expect(result.ownedGuidanceBytes).toBeGreaterThan(CODEX_COMPACT_GUIDANCE_MAX_BYTES);
+  });
+
+  it.each([
+    '# Project notes\n\nUser rule.\n',
+    '# Project notes\n\nUser rule.',
+    '# Project notes\r\n\r\nUser rule.\r\n',
+  ])('preserves exact user bytes through compact, full, and none transitions', async (userText) => {
+    const root = projectRoot();
+    writeFileSync(join(root, 'AGENTS.md'), userText);
+    for (const policy of ['compact', 'full', 'none', 'compact', 'none'] as const) {
+      await createCodexInstaller({ projectRoot: root, installMcp: false, guidancePolicy: policy }).install();
+      const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+      if (policy === 'none') expect(content).toBe(userText);
+      else {
+        expect(content.startsWith(userText)).toBe(true);
+        expect(content.match(/BEGIN AGENTIC-QE CODEX/g)).toHaveLength(1);
+      }
+    }
+  });
 });

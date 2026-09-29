@@ -62,6 +62,15 @@ export const ALL_DOMAINS: readonly DomainName[] = [
   'coordination',
 ] as const;
 
+/**
+ * Type guard for user-supplied domain names (CLI flags, MCP arguments).
+ * Validate at the boundary so an unknown domain is rejected instead of being
+ * accepted as work no domain will ever run (#734).
+ */
+export function isDomainName(value: unknown): value is DomainName {
+  return typeof value === 'string' && (ALL_DOMAINS as readonly string[]).includes(value);
+}
+
 // ============================================================================
 // Event Types
 // ============================================================================

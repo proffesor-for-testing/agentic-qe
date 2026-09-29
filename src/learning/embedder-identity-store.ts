@@ -14,10 +14,11 @@
  * reasons are surfaced as thrown errors only for genuine I/O problems.
  */
 
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import type { EndpointIdentity } from './embedder-endpoint-client.js';
+import { findProjectRoot } from '../kernel/project-root.js';
 
 // `require` is unavailable in pure ESM; createRequire gives us synchronous
 // access to CommonJS modules like better-sqlite3 from the ESM build output.
@@ -29,8 +30,8 @@ const nodeRequire = createRequire(import.meta.url);
  */
 function getMemoryDbPath(): string {
   const env = process.env.AQE_MEMORY_PATH;
-  if (env && env.length > 0) return env;
-  return join(process.cwd(), '.agentic-qe', 'memory.db');
+  if (env && env.length > 0) return env === ':memory:' ? env : resolve(findProjectRoot(), env);
+  return join(findProjectRoot(), '.agentic-qe', 'memory.db');
 }
 
 const NAMESPACE = '_system';

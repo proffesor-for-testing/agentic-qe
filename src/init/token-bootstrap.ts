@@ -14,6 +14,7 @@ import { initializeTokenOptimizer, TokenOptimizerService } from '../optimization
 import { TokenMetricsCollector } from '../learning/token-tracker.js';
 import { createDefaultMemoryBackend } from '../kernel/memory-factory.js';
 import type { MemoryBackend } from '../kernel/interfaces.js';
+import { findProjectRoot } from '../kernel/project-root.js';
 
 // ============================================================================
 // Configuration
@@ -26,7 +27,7 @@ export interface TokenBootstrapConfig {
   /** Enable persistence (default: true) */
   enablePersistence: boolean;
 
-  /** Storage directory for metrics (default: .aqe) */
+  /** Storage directory for metrics (default: <project>/.agentic-qe) */
   storagePath: string;
 
   /** Auto-save interval in ms (default: 60000 = 1 minute) */
@@ -39,7 +40,7 @@ export interface TokenBootstrapConfig {
 const DEFAULT_CONFIG: TokenBootstrapConfig = {
   enableOptimization: true,
   enablePersistence: true,
-  storagePath: process.env.AQE_STORAGE_PATH ?? '.agentic-qe',
+  storagePath: '.agentic-qe',
   autoSaveIntervalMs: 60000,
   verbose: process.env.AQE_VERBOSE === 'true',
 };
@@ -67,7 +68,16 @@ export async function bootstrapTokenTracking(
     return;
   }
 
-  const cfg = { ...DEFAULT_CONFIG, ...config };
+  // Resolve the project before creating any directory: a new cwd-local store
+  // would otherwise become the nearest AQE root and split project memory.
+  // A relative AQE_STORAGE_PATH is anchored at the project root too, so it
+  // cannot recreate a cwd-local store from a subdirectory.
+  const envStorage = process.env.AQE_STORAGE_PATH;
+  const cfg = {
+    ...DEFAULT_CONFIG, ...config,
+    storagePath: config?.storagePath
+      ?? (envStorage ? path.resolve(findProjectRoot(), envStorage) : path.join(findProjectRoot(), '.agentic-qe')),
+  };
 
   if (cfg.verbose) {
     console.log('[TokenBootstrap] Initializing token tracking...');

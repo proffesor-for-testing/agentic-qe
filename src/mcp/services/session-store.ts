@@ -12,6 +12,7 @@
 import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
 // Types
@@ -65,7 +66,10 @@ export class SessionStore {
   private readonly persistDisabled: boolean = process.env.AQE_MEMORY_BACKEND === 'memory';
 
   constructor(sessionDir?: string) {
-    this.sessionDir = sessionDir ?? DEFAULT_SESSION_DIR;
+    // #735: a cwd-relative default created `<subdir>/.agentic-qe/sessions`
+    // on the first MCP tool call, which later runs then adopted as the
+    // nearest project store. Anchor the default at the project root.
+    this.sessionDir = sessionDir ?? path.join(findProjectRoot(), DEFAULT_SESSION_DIR);
   }
 
   /**

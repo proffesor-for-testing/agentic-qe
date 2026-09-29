@@ -12,6 +12,7 @@
  */
 
 import { toErrorMessage } from '../shared/error-utils.js';
+import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
 import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import chalk from 'chalk';
@@ -197,10 +198,12 @@ async function ensureInitializedStrict(): Promise<boolean> {
   // For diagnostic commands: check if project was explicitly initialized
   const fs = await import('fs');
   const path = await import('path');
-  const configDir = path.resolve('.agentic-qe');
+  const { findProjectRoot } = await import('../kernel/project-root.js');
+  const configDir = path.join(findProjectRoot(), '.agentic-qe');
   if (!fs.existsSync(configDir)) {
     console.error(chalk.red('\nError: AQE system not initialized in this directory.'));
     console.log(chalk.yellow('Run `aqe init` first to set up this project.\n'));
+    process.exitCode = 1;
     return false;
   }
 
@@ -231,6 +234,8 @@ async function ensureInitialized(): Promise<boolean> {
       console.error(chalk.red('Failed to auto-initialize:'), err);
       console.log(chalk.yellow('Try running `aqe init` manually.'));
     }
+    // Callers `return` on false; main() then exits with this code (#758).
+    process.exitCode = 1;
     return false;
   }
 }
@@ -238,7 +243,7 @@ async function ensureInitialized(): Promise<boolean> {
 /**
  * Cleanup resources and exit the process
  */
-async function cleanupAndExit(code: number = 0): Promise<never> {
+async function cleanupAndExit(code: number | string = 0): Promise<never> {
   // Synchronous best-effort cleanup first — no awaits that could block.
   try {
     if (context.workflowOrchestrator) { context.workflowOrchestrator.dispose().catch(() => {}); }
@@ -499,6 +504,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  initFeatureFlagsFromEnv();
+
   // File recovery must validate its input before anything opens, migrates, or
   // auto-restores the project's database. Commander accepts `--` separators.
   const commandArgs = process.argv.slice(2).filter(arg => arg !== '--');
@@ -520,7 +527,7 @@ async function main(): Promise<void> {
 
   // If the command didn't explicitly exit, clean up and exit now.
   // This prevents process hangs from active handles (domain init, embeddings, etc.)
-  await cleanupAndExit(0);
+  await cleanupAndExit(process.exitCode ?? 0);
 }
 
 main().catch(async (error) => {

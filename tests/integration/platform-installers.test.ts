@@ -393,8 +393,8 @@ models:
       });
     });
 
-    describe('No overwrite skips existing files', () => {
-      it.each(ALL_PLATFORMS)('%s skips existing config when overwrite=false', async (platformId) => {
+    describe('No overwrite preserves existing configuration', () => {
+      it.each(ALL_PLATFORMS)('%s preserves existing config when overwrite=false', async (platformId) => {
         const def = PLATFORM_REGISTRY[platformId];
         const configFullPath = path.join(tempDir, def.configPath);
         const rulesFullPath = path.join(tempDir, def.rulesPath);
@@ -411,9 +411,16 @@ models:
         expect(result.success).toBe(true);
         expect(result.mcpConfigured).toBe(false);
 
-        // Original content preserved
+        // Codex owns only its marked section and applies the selected policy
+        // to existing AGENTS.md without changing the user's prefix.
         expect(readFileAt(def.configPath)).toBe('ORIGINAL_CONFIG');
-        expect(readFileAt(def.rulesPath)).toBe('ORIGINAL_RULES');
+        if (platformId === 'codex') {
+          expect(readFileAt(def.rulesPath)).toMatch(/^ORIGINAL_RULES<!-- BEGIN AGENTIC-QE CODEX -->/);
+          await createCodexInstaller({ projectRoot: tempDir, guidancePolicy: 'none' }).install();
+          expect(readFileAt(def.rulesPath)).toBe('ORIGINAL_RULES');
+        } else {
+          expect(readFileAt(def.rulesPath)).toBe('ORIGINAL_RULES');
+        }
       });
     });
   });

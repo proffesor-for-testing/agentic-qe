@@ -18,6 +18,7 @@ import {
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { findPackageRoot } from './find-package-root.js';
 import { selectCodexSkills } from './codex-skill-manifest.js';
 import {
   createPlatformConfigGenerator,
@@ -176,7 +177,7 @@ export class CodexInstaller {
         result.agentsMdInstalled = true;
         result.ownedGuidanceBytes = Buffer.byteLength(marked);
         result.components.rules.status = 'installed';
-      } else if (this.overwrite || policy === 'compact') {
+      } else {
         const content = policy === 'compact' ? COMPACT_CODEX_GUIDANCE : rules.content;
         const existing = readFileSync(agentsMdPath, 'utf-8');
         const merged = this.mergeExistingAgentsMdContent(existing, content);
@@ -188,11 +189,6 @@ export class CodexInstaller {
           result.components.rules.status = 'preserved';
         }
         result.ownedGuidanceBytes = this.measureOwnedAgentsSection(merged);
-      } else {
-        result.components.rules.status = 'preserved';
-        result.ownedGuidanceBytes = this.measureOwnedAgentsSection(
-          readFileSync(agentsMdPath, 'utf-8'),
-        );
       }
     } catch (error) {
       this.recordComponentFailure(result, 'rules', error);
@@ -212,6 +208,13 @@ export class CodexInstaller {
       this.recordComponentFailure(result, 'skills', error);
     }
 
+    for (const component of ['hooks', 'skills'] as const) {
+      if (result.components[component].status === 'unavailable') {
+        const message = `Codex ${component} unavailable: packaged assets could not be located`;
+        result.components[component].error = message;
+        result.errors.push(message);
+      }
+    }
     result.success = result.errors.length === 0;
     return result;
   }
@@ -378,6 +381,10 @@ export class CodexInstaller {
   }
 
   private resolvePackageRoot(): string | undefined {
+    // Bundled chunks retain their real package location even when npm's aqe
+    // bin is a symlink in a global prefix.
+    const packagedRoot = findPackageRoot(import.meta.url);
+    if (packagedRoot) return packagedRoot;
     const moduleDir = dirname(fileURLToPath(import.meta.url));
     const candidates = [
       join(moduleDir, '..', '..'),
@@ -430,7 +437,10 @@ export class CodexInstaller {
     });
     if (replaced) return merged;
     if (existing.length === 0) return marked;
-    return existing.trimEnd() + `${eol}${eol}---${eol}${eol}` + marked;
+    // The owned block starts at the original EOF. Keeping every pre-existing
+    // byte outside the sentinel lets `none` remove the block exactly, even
+    // when the user's file has no trailing newline.
+    return existing + marked;
   }
 
   private removeOwnedAgentsSections(existing: string): string {

@@ -22,6 +22,7 @@ import { initializeExperienceCapture, stopCleanupTimer } from '../learning/exper
 import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../strange-loop/infra-healing/index.js';
 import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.js';
 import { parallelPrefetch } from '../boot/parallel-prefetch.js';
+import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +34,7 @@ let server: MCPProtocolServer | null = null;
 let httpServer: HTTPServer | null = null;
 
 async function main(): Promise<void> {
+  initFeatureFlagsFromEnv();
   // Output startup message BEFORE suppressing stderr (Claude Code health check needs this)
   const version = pkg.version;
   process.stderr.write(`[agentic-qe-v3] MCP server starting v${version}\n`);

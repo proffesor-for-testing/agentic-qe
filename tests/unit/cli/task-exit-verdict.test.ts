@@ -51,7 +51,8 @@ describe('task CLI failure exit codes (#734)', () => {
 
   it('exits nonzero for rejected submissions', async () => {
     submitTask.mockResolvedValue({ success: false, error: new Error('No capacity') });
-    await run('submit', 'execute-tests', '--no-progress');
+    await run('submit', 'execute-tests', '--wait', '--no-progress');
+    expect(submitTask).toHaveBeenCalledTimes(1);
     expect(cleanup).toHaveBeenCalledWith(1);
   });
 
@@ -63,7 +64,8 @@ describe('task CLI failure exit codes (#734)', () => {
 
   it('exits nonzero when initialization fails', async () => {
     ensure.mockResolvedValue(false);
-    await run('submit', 'execute-tests');
+    await run('submit', 'execute-tests', '--wait');
+    expect(ensure).toHaveBeenCalled();
     expect(cleanup).toHaveBeenCalledWith(1);
     expect(submitTask).not.toHaveBeenCalled();
   });
@@ -71,5 +73,36 @@ describe('task CLI failure exit codes (#734)', () => {
   it('retains a successful exit for completed work', async () => {
     await run('submit', 'execute-tests', '--wait', '--no-progress');
     expect(cleanup).not.toHaveBeenCalledWith(1);
+  });
+
+  // #734 D: an unknown --domain must be rejected before any work is accepted.
+  it('rejects an unknown --domain with a nonzero exit and lists valid domains', async () => {
+    const errors = vi.mocked(console.error);
+    await run('submit', 'analyze-coverage', '--domain', 'no-such-domain', '--wait', '--no-progress');
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(ensure).not.toHaveBeenCalled();
+    expect(submitTask).not.toHaveBeenCalled();
+    const text = errors.mock.calls.flat().join('\n');
+    expect(text).toContain('Unknown domain: no-such-domain');
+    expect(text).toContain('coverage-analysis');
+  });
+
+  it('passes a known --domain through to the coordinator', async () => {
+    await run('submit', 'analyze-coverage', '--domain', 'coverage-analysis', '--wait', '--no-progress');
+    expect(submitTask).toHaveBeenCalledWith(expect.objectContaining({ targetDomains: ['coverage-analysis'] }));
+    expect(cleanup).not.toHaveBeenCalledWith(1);
+  });
+
+  // #734 C: CLI tasks live only in this process, so a detached submit would
+  // print an ID for work abandoned on exit. It must fail instead of succeed.
+  it('refuses a detached submit (no --wait) with a nonzero exit and no submission', async () => {
+    const errors = vi.mocked(console.error);
+    await run('submit', 'analyze-coverage', '--domain', 'coverage-analysis', '--no-progress');
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(ensure).not.toHaveBeenCalled();
+    expect(submitTask).not.toHaveBeenCalled();
+    const text = errors.mock.calls.flat().join('\n');
+    expect(text).toContain('not persisted');
+    expect(text).toContain('--wait');
   });
 });

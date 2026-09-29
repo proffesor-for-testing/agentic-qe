@@ -50,6 +50,7 @@ import {
   type DreamInsightRow,
   type WitnessRow,
 } from './brain-shared.js';
+import { appendBrainImportWitness } from './brain-import-audit.js';
 
 // Re-export shared types for external consumers
 export type { MergeStrategy, MergeResult, PatternRow, QValueRow, DreamInsightRow, WitnessRow };
@@ -345,9 +346,18 @@ export function importBrain(
   const importAll = () => {
     const patternIds = new Map<string, string>();
     const patternWinners = new Map<string, string | null>();
+    let sourceWitnessRows = 0;
     for (const config of configs) {
       const filePath = join(dir, config.fileName);
       let rows = readJsonl<Record<string, unknown>>(filePath, safeJsonParse);
+
+      if (config.tableName === 'witness_chain') {
+        // Source rows are signed/linked to a different store. Copying them into
+        // this live chain would make the first imported predecessor invalid.
+        sourceWitnessRows += rows.length;
+        skipped += rows.length;
+        continue;
+      }
 
       // Deserialize BLOBs from Base64
       if (config.blobColumns && config.blobColumns.length > 0) {
@@ -374,6 +384,14 @@ export function importBrain(
         conflicts += result.conflicts;
       }
     }
+    appendBrainImportWitness(db, {
+      sourceChecksum: manifest.checksum,
+      sourceWitnessRows,
+      importedRecords: imported,
+      skippedRecords: skipped,
+      conflicts,
+    });
+    imported += 1;
   };
 
   runImportTransaction(db, options.dryRun ?? false, importAll);

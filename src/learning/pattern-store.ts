@@ -71,7 +71,7 @@ import {
   type HyperbolicPatternResult,
 } from './hyperbolic-pattern-index.js';
 import { PatternNullStore, type NullSummary } from './pattern-null-store.js';
-import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
@@ -591,6 +591,10 @@ export class PatternStore implements IPatternStore {
    */
   private async initializeHNSWInternal(): Promise<void> {
     try {
+      // #754: resolve a configured endpoint's identity before binding HNSW.
+      if (!getActiveEmbeddingSpaceIdentity() && !this.config.embeddingSpaceId) {
+        await ensureEndpointEmbeddingSpaceIdentity();
+      }
       this.hnswSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId ?? null;
       if (!this.hnswSpaceId) {
         throw new Error('VECTOR_SPACE_UNVERIFIED: cannot initialize HNSW without runtime provenance');

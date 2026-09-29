@@ -175,8 +175,8 @@ describe('Brain Backward Compatibility', () => {
     const targetDb = createTestDb();
     const result = importBrain(targetDb, dir, { mergeStrategy: 'skip-conflicts' });
 
-    expect(result.imported).toBe(5); // 2 patterns + 1 qvalue + 1 dream_insight + 1 witness
-    expect(result.skipped).toBe(0);
+    expect(result.imported).toBe(5); // 4 data rows + 1 local import event
+    expect(result.skipped).toBe(1); // source witness row is not grafted
 
     const patternCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number }).cnt;
     expect(patternCount).toBe(2);
@@ -228,7 +228,7 @@ describe('Brain Backward Compatibility', () => {
     const result = importBrain(targetDb, dir, { mergeStrategy: 'skip-conflicts' });
 
     // Should only import from the 4 v1.0 tables
-    expect(result.imported).toBe(1); // 1 pattern
+    expect(result.imported).toBe(2); // 1 pattern + 1 local import event
     const expCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM captured_experiences').get() as { cnt: number }).cnt;
     expect(expCount).toBe(0); // Should NOT have imported captured_experiences
 
@@ -259,7 +259,7 @@ describe('Brain Backward Compatibility', () => {
     const targetDb = createTestDb();
     // Should not throw
     const result = importBrain(targetDb, dir, { mergeStrategy: 'skip-conflicts' });
-    expect(result.imported).toBe(1); // 1 pattern, no q-values
+    expect(result.imported).toBe(2); // 1 pattern + 1 local import event, no q-values
     targetDb.close();
   });
 
@@ -293,8 +293,8 @@ describe('Brain Backward Compatibility', () => {
     const targetDb = createTestDb();
     const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
-    expect(result.imported).toBe(manifest.stats.totalRecords);
-    expect(result.skipped).toBe(0);
+    expect(result.imported).toBe(manifest.stats.totalRecords - manifest.stats.witnessChainLength + 1);
+    expect(result.skipped).toBe(manifest.stats.witnessChainLength);
     expect(result.conflicts).toBe(0);
 
     // Verify specific counts
@@ -347,7 +347,7 @@ describe('Brain Backward Compatibility', () => {
 
     // Import same data again
     const result2 = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
-    expect(result2.imported).toBe(0);
+    expect(result2.imported).toBe(1); // local provenance event for the repeated import
     expect(result2.skipped).toBeGreaterThan(0);
 
     targetDb.close();
@@ -399,7 +399,7 @@ describe('Brain Backward Compatibility', () => {
     const result = importBrain(targetDb, dir, { mergeStrategy: 'skip-conflicts', dryRun: true });
 
     // Dry run reports what would be imported
-    expect(result.imported).toBe(3); // 2 patterns + 1 qvalue (only v1.0 tables scanned)
+    expect(result.imported).toBe(4); // 2 patterns + 1 qvalue + local audit event (only v1.0 tables scanned)
 
     // Database should be unchanged
     const patternCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM qe_patterns').get() as { cnt: number }).cnt;
