@@ -162,6 +162,14 @@ export function hashEmbedding(text: string, dimension: number = 384): number[] {
 }
 
 /**
+ * Lowercased letter/digit tokens with diacritics removed, approximating the
+ * FTS5 unicode61 tokenizer so query terms and stored text compare alike.
+ */
+function ftsTokens(text: string): string[] {
+  return text.normalize('NFKD').replace(/\p{M}+/gu, '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+/**
  * SQLite-based pattern persistence
  */
 export class SQLitePatternStore {
@@ -622,26 +630,37 @@ export class SQLitePatternStore {
 
   /**
    * FTS5 full-text search for patterns.
-   * Returns pattern IDs with BM25 relevance scores.
+   * Returns pattern IDs with BM25 relevance scores. `phrase` marks hits that
+   * also contain the whole query as a phrase (near-duplicate evidence).
+   * `coverage` is the fraction of distinct query terms the hit contains: an
+   * absolute measure, unlike `ftsScore`, which is relative to the best hit.
    */
-  searchFTS(query: string, limit: number = 20): Array<{ id: string; ftsScore: number }> {
+  searchFTS(query: string, limit: number = 20): Array<{ id: string; ftsScore: number; phrase: boolean; coverage: number }> {
     if (!this.db) throw new Error('Database not initialized');
     if (!query.trim()) return [];
 
-    // Sanitize: wrap in double quotes to force literal phrase match,
-    // escaping any internal double quotes to prevent FTS5 syntax injection
-    const sanitized = '"' + query.replace(/"/g, '""') + '"';
+    // #653: match any query term (BM25 ranks docs matching more/rarer terms
+    // higher). A whole-query phrase almost never matched sentence-style task
+    // queries. Terms are letters/digits only, quoted, so FTS5 syntax can't leak in.
+    const terms = [...new Set(ftsTokens(query))]
+      .filter(term => term.length >= 2)
+      .slice(0, 32);
+    if (terms.length === 0) return [];
+    const sanitized = terms.map(term => `"${term}"`).join(' OR ');
 
     const start = performance.now();
     try {
       const rows = this.db.prepare(`
-        SELECT p.id, rank AS fts_score
+        SELECT p.id, rank AS fts_score, p.name, p.description, p.pattern_type, p.qe_domain
         FROM qe_patterns_fts fts
         JOIN qe_patterns p ON p.rowid = fts.rowid
         WHERE qe_patterns_fts MATCH ?
         ORDER BY rank
         LIMIT ?
-      `).all(sanitized, limit) as Array<{ id: string; fts_score: number }>;
+      `).all(sanitized, limit) as Array<{
+        id: string; fts_score: number; name: string | null; description: string | null;
+        pattern_type: string | null; qe_domain: string | null;
+      }>;
 
       const elapsed = performance.now() - start;
       if (elapsed > 50) {
@@ -653,13 +672,39 @@ export class SQLitePatternStore {
       // Use Math.max(maxScore, 1.0) to prevent single-result inflation:
       // without this, a single FTS5 result always normalizes to 1.0
       const maxAbsScore = Math.max(...rows.map(r => Math.abs(r.fts_score)), 1.0);
-      return rows.map(r => ({
-        id: r.id,
-        ftsScore: Math.abs(r.fts_score) / maxAbsScore,
-      }));
+      const phraseIds = rows.length > 0 ? this.searchFTSPhraseIds(query, limit) : new Set<string>();
+      return rows.map(r => {
+        const docTerms = new Set(ftsTokens(
+          [r.name, r.description, r.pattern_type, r.qe_domain].filter(Boolean).join(' '),
+        ));
+        const matched = terms.filter(term => docTerms.has(term)).length;
+        return {
+          id: r.id,
+          ftsScore: Math.abs(r.fts_score) / maxAbsScore,
+          phrase: phraseIds.has(r.id),
+          coverage: matched / terms.length,
+        };
+      });
     } catch {
       // FTS5 table may not exist yet (unified DB migrated before schema update)
       return [];
+    }
+  }
+
+  /** IDs whose FTS5 text contains the whole query as one phrase. */
+  private searchFTSPhraseIds(query: string, limit: number): Set<string> {
+    // Whole query quoted as one phrase, internal quotes escaped (FTS5 syntax-safe)
+    const phrase = '"' + query.replace(/"/g, '""') + '"';
+    try {
+      const rows = this.db!.prepare(`
+        SELECT p.id FROM qe_patterns_fts fts
+        JOIN qe_patterns p ON p.rowid = fts.rowid
+        WHERE qe_patterns_fts MATCH ?
+        LIMIT ?
+      `).all(phrase, limit) as Array<{ id: string }>;
+      return new Set(rows.map(r => r.id));
+    } catch {
+      return new Set();
     }
   }
 

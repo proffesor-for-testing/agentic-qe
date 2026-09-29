@@ -37,7 +37,7 @@ import type {
   PatternSearchOptions,
   PatternSearchResult,
 } from './pattern-store.js';
-import { DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
+import { DEFAULT_PATTERN_STORE_CONFIG, blendFtsScore } from './pattern-store.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
@@ -482,22 +482,36 @@ export class RvfPatternStore implements IPatternStore {
       } catch { /* SQLite unavailable */ }
     }
 
-    // FTS5 text search fallback via SQLite
-    if (typeof query === 'string' && query.trim() && this.sqliteStore) {
+    // FTS5 hybrid search via SQLite
+    const ftsText = typeof query === 'string' ? query : options.textQuery;
+    if (ftsText?.trim() && this.sqliteStore) {
       try {
-        const ftsResults = this.sqliteStore.searchFTS(query, limit * 2);
+        const ftsResults = this.sqliteStore.searchFTS(ftsText, limit * 2);
         const existingIds = new Set(results.map(r => r.pattern.id));
+
+        // #653: same vector/FTS5 blend as PatternStore for hits found by
+        // both, so lexical relevance can reorder vector results.
+        const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
+        for (const result of results) {
+          const ftsScore = ftsScoreMap.get(result.pattern.id);
+          if (ftsScore !== undefined) {
+            result.score = blendFtsScore(result.score, ftsScore);
+          }
+        }
 
         for (const ftsResult of ftsResults) {
           if (existingIds.has(ftsResult.id)) continue;
           const pattern = await this.get(ftsResult.id);
           if (pattern && this.matchesFilters(pattern, options)) {
-            const reuseInfo = this.calculateReuseInfo(pattern, ftsResult.ftsScore);
+            // Same keyword-only similarity rule as PatternStore (#653)
+            const keywordScore = 0.5 * ftsResult.ftsScore * ftsResult.coverage;
+            const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
+            const reuseInfo = this.calculateReuseInfo(pattern, similarity);
             results.push({
               pattern,
-              score: 0.5 * ftsResult.ftsScore,
+              score: keywordScore,
               matchType: 'exact',
-              similarity: ftsResult.ftsScore,
+              similarity,
               canReuse: reuseInfo.canReuse,
               estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
               reuseConfidence: reuseInfo.reuseConfidence,

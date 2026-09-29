@@ -420,6 +420,8 @@ export class QEReasoningBank implements IQEReasoningBank {
 
     return this.patternStore.search(searchQuery, {
       ...options,
+      // #653: keep the text so FTS5 hybrid scoring still runs on the vector path
+      textQuery: typeof query === 'string' && query.trim() ? query : options?.textQuery,
       useVectorSearch,
       embeddingSpaceId: typeof query === 'string'
         ? getActiveEmbeddingSpaceIdentity()?.spaceId
@@ -544,6 +546,7 @@ export class QEReasoningBank implements IQEReasoningBank {
         limit: this.config.maxRoutingCandidates,
         domain: detectedDomains[0],
         useVectorSearch: true,
+        textQuery: request.task,
       });
 
       const patterns = patternResults.success
