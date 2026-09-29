@@ -111,6 +111,13 @@ describe('SQLitePatternStore.searchFTS natural-language queries (#653)', () => {
   it('returns nothing for a query with no usable terms', () => {
     expect(sqlite.searchFTS('" - * ( )', 10)).toEqual([]);
   });
+
+  it('reports the fraction of distinct query terms each hit contains', () => {
+    const hits = sqlite.searchFTS('idempotency key for the checkout', 10);
+
+    // needle text has "idempotency" and "key" but not "for", "the", "checkout"
+    expect(hits.find(h => h.id === 'needle')?.coverage).toBeCloseTo(2 / 5, 6);
+  });
 });
 
 describe('PatternStore.search with a pre-computed vector and textQuery (#653)', () => {
@@ -250,9 +257,29 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     expect(scores.get('filler-1')).toBeCloseTo(0.7, 6);
   });
 
+  it('does not let a hit sharing one query word outrank a semantic vector hit', async () => {
+    // ftsScore is relative to the best lexical hit, so without term coverage
+    // the best of a weak set (here: one shared word) always scored 0.5.
+    for (let i = 0; i < 6; i++) {
+      sqlite.storePattern(pattern(`other-${i}`, `Unrelated check ${i}`, `Assert widget ${i} renders a tooltip`));
+    }
+    adapter.search.mockReturnValue([{ id: 'needle', distance: 0.55, score: 0.45 }]);
+
+    const result = await store.search(UNRELATED_VECTOR, {
+      embeddingSpaceId: SPACE_ID,
+      textQuery: 'prevent double charging when a client retries the checkout page',
+      limit: 3,
+    });
+
+    const ranked = result.success ? result.value : [];
+    expect(ranked[0]?.pattern.id).toBe('needle');
+    const pageHit = ranked.find(r => r.pattern.id === 'filler-2');
+    expect(pageHit?.score ?? 0).toBeLessThan(0.45);
+  });
+
   it('never lowers a strong vector hit because its lexical score is weaker', async () => {
     adapter.search.mockReturnValue([{ id: 'needle', distance: 0.02, score: 0.98 }]);
-    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 0.1, phrase: false }]);
+    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 0.1, phrase: false, coverage: 1 }]);
 
     const result = await store.search(UNRELATED_VECTOR, {
       embeddingSpaceId: SPACE_ID,

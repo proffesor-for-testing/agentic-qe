@@ -1220,7 +1220,9 @@ export class PatternStore implements IPatternStore {
                 // #653: ftsScore is normalized to the best hit, so only a
                 // whole-phrase hit may read as a near-duplicate; term-only hits
                 // report the conservative keyword score as their similarity.
-                const keywordScore = 0.5 * ftsResult.ftsScore;
+                // Scaled by query-term coverage so the best of a weak lexical
+                // set (e.g. one shared stopword) cannot outrank vector hits.
+                const keywordScore = 0.5 * ftsResult.ftsScore * ftsResult.coverage;
                 const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
                 const reuseInfo = this.calculateReuseInfo(pattern, similarity);
                 results.push({
