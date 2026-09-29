@@ -94,6 +94,23 @@ describe('handleAuditChainVerify', () => {
     expect(tables).toEqual(['kv_store']);
   });
 
+  it.each(['emptied', 'dropped'])('should report tampering when archived rows remain but the live chain was %s', async (how) => {
+    const db = new Database(dbPath);
+    const chain = createWitnessChain(db);
+    await chain.initialize();
+    for (let i = 0; i < 5; i++) chain.append('PATTERN_CREATE', { i }, 'reasoning-bank');
+    chain.archiveEntries(new Date(Date.now() + 60_000).toISOString());
+    if (how === 'emptied') db.exec('DELETE FROM witness_chain');
+    else db.exec('DROP TABLE witness_chain');
+    db.close();
+
+    const output = await handleAuditChainVerify({ format: 'json' });
+
+    expect(output.integrity).toBe(false);
+    expect(output.tampered).toBe(true);
+    expect(output.tamperReason).toBe('live-chain-missing');
+  });
+
   it('should verify a legacy chain that has no archive table or signature columns', async () => {
     // Stores from before archiving/signing: witness_chain with the original
     // columns only, no witness_chain_archive. Read-only verify cannot migrate.

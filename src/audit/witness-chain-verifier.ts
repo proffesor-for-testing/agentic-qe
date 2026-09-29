@@ -69,6 +69,7 @@ export type TamperReason =
   | 'unlinked-genesis-prev-hash'
   | 'unlinked-prev-hash'
   | 'id-gap'
+  | 'live-chain-missing'
   | 'fork-signature-invalid'
   | 'reanchor-signature-invalid'
   | 'reanchored-row-changed'
@@ -152,6 +153,12 @@ export class WitnessChainVerifier {
       ? this.db.prepare('SELECT * FROM witness_chain ORDER BY id ASC').all() as WitnessEntry[]
       : [];
     if (live.length === 0) {
+      // Archiving never moves genesis (id 1) out of the live table, so archived
+      // rows with no live chain mean the live table was emptied or dropped.
+      if (this.getArchive().length > 0) {
+        this.tamper = { id: 1, reason: 'live-chain-missing' };
+        return this.result(1);
+      }
       return { valid: true, entriesChecked: 0, status: 'valid', tampered: false, forks: [], acknowledgedForks: [], forkDetails: [] };
     }
 
