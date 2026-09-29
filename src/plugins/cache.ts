@@ -117,7 +117,12 @@ export class PluginCache {
         try {
           const raw = fs.readFileSync(manifestPath, 'utf-8');
           const manifest = JSON.parse(raw) as QEPluginManifest;
-          if (!validVersion(manifest.version)) continue;
+          if (!validVersion(manifest.version)) {
+            // Older releases admitted versions SemVer now rejects (e.g. 01.0.0);
+            // say why the plugin disappeared instead of dropping it silently.
+            console.warn(`[PluginCache] Skipping cached plugin ${name}@${entry}: invalid version ${JSON.stringify(manifest.version)}`);
+            continue;
+          }
           const stat = fs.statSync(fullPath);
           results.push({
             manifest,
