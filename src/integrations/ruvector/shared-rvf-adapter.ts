@@ -28,6 +28,17 @@ import {
 let sharedAdapter: RvfNativeAdapter | null = null;
 let initAttempted = false;
 
+/**
+ * The store is locked by a live process. The open ladder has already logged
+ * why it is degrading, so callers should not log it again (#574).
+ */
+export class RvfLiveLockError extends Error {
+  constructor(readonly lockError: unknown) {
+    super(lockError instanceof Error ? lockError.message : String(lockError));
+    this.name = 'RvfLiveLockError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Test seam: allow tests to install a fake adapter without going through the
 // native binding loader. NOT part of the public API — used by tests only.
@@ -119,6 +130,8 @@ export function getSharedRvfAdapter(
     runBootCompactGuard(sharedAdapter, rvfPath);
     return sharedAdapter;
   } catch (error) {
+    // Already reported by the open ladder as "locked by a live process".
+    if (error instanceof RvfLiveLockError) return null;
     console.warn(
       '[RVF] Shared adapter init failed:',
       error instanceof Error ? error.message : error,
@@ -168,12 +181,14 @@ function openOrCreateRvf(
   // assumption. This includes a lock owned by the current PID: another
   // in-process adapter may still hold the store, so PID equality is not proof
   // that the lock can be removed safely.
+  let liveOwner = false;
   if (!opened && isRvfLockHeldError(openErr)) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('fs');
       const lockPath = `${rvfPath}.lock`;
       if (fs.existsSync(lockPath) && isLockHeldByLiveProcess(rvfPath)) {
+        liveOwner = true;
         console.warn(
           `[RVF] ${rvfPath} is locked by a live process (pid ${readLockOwnerPid(rvfPath)}) — ` +
             'not breaking the lock; degrading to SQLite for this run.',
@@ -195,6 +210,11 @@ function openOrCreateRvf(
       }
     }
   }
+
+  // #574: a live owner means the store is busy, not missing or broken. A
+  // create on an existing path always fails and a reopen hits the same lock,
+  // so stop at the warning above instead of running Passes 2 and 3.
+  if (liveOwner) throw new RvfLiveLockError(openErr);
 
   if (opened) {
     const actualDim = opened.dimension();
@@ -374,6 +394,9 @@ function formatBytes(n: number): string {
   }
   return `${v.toFixed(i === 0 ? 0 : 1)}${units[i]}`;
 }
+
+/** @internal test-only seam: the open ladder with injectable open/create */
+export { openOrCreateRvf as __openOrCreateRvfForTests };
 
 /** Close the shared adapter and reset the singleton. */
 export function resetSharedRvfAdapter(): void {
