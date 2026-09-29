@@ -436,16 +436,16 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
    * Get plans
    */
   private async getPlans(
-    _status?: string,
-    _limit: number = 20
+    status?: string,
+    limit: number = 20
   ): Promise<ToolResult<GOAPStatusResult>> {
     const planner = await this.getPlanner();
 
-    // Get plan reuse statistics
-    const reuseStats = await planner.getPlanReuseStats();
+    const [{ plans, count }, reuseStats] = await Promise.all([
+      planner.listPlanSummaries(status, limit),
+      planner.getPlanReuseStats(),
+    ]);
 
-    // Plans are typically stored in the database
-    // For now, return empty list with stats
     this.markAsRealData();
 
     return {
@@ -453,8 +453,8 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
       data: {
         type: 'plans',
         data: {
-          plans: [], // Would query from database
-          count: 0,
+          plans,
+          count,
           reuseStats: {
             totalPlans: reuseStats.totalPlans,
             reusedPlans: reuseStats.reusedPlans,
