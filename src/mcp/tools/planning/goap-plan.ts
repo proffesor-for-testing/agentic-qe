@@ -22,8 +22,24 @@ import {
   V3WorldState,
   StateConditions,
   PlanConstraints,
-  DEFAULT_V3_WORLD_STATE,
+  validateMaxSteps,
 } from '../../../planning/index.js';
+import {
+  detectWorldState,
+  overlayCallerState,
+  defaultedFields,
+  type WorldStateProvenance,
+  type WorldStateSources,
+} from './world-state.js';
+
+/** Constraint keys goap_plan understands; anything else is rejected (#535). */
+const KNOWN_CONSTRAINT_KEYS = [
+  'maxCost',
+  'maxDurationMs',
+  'maxSteps',
+  'requiredAgentTypes',
+  'excludedActions',
+] as const;
 
 // ============================================================================
 // Types
@@ -35,12 +51,14 @@ import {
 export interface GOAPPlanParams {
   /** Goal name (named goal) or custom goal conditions object */
   goal: string | Record<string, unknown>;
-  /** Current world state (auto-detected if not provided) */
-  currentState?: V3WorldState;
+  /** Current world state (auto-detected if not provided; may be partial) */
+  currentState?: Partial<V3WorldState>;
   /** Plan constraints */
   constraints?: {
     maxCost?: number;
     maxDurationMs?: number;
+    /** Maximum number of plan steps (positive integer) */
+    maxSteps?: number;
     requiredAgentTypes?: string[];
     excludedActions?: string[];
   };
@@ -66,6 +84,13 @@ export interface GOAPPlanResult {
   stepCount: number;
   reusedFrom?: string;
   similarityScore?: number;
+  /**
+   * Where each start-state field came from ('live' | 'measured' | 'caller' |
+   * 'default'). Issue #535: the plan is only as real as its start state.
+   */
+  stateProvenance: WorldStateProvenance;
+  /** Start-state fields that were DEFAULT_V3_WORLD_STATE assumptions. */
+  defaultedFields: string[];
 }
 
 // ============================================================================
@@ -79,6 +104,11 @@ export interface GOAPPlanResult {
  */
 export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
   private planner: GOAPPlanner | null = null;
+
+  /** World-state sources; injectable for tests (defaults read live state). */
+  constructor(private readonly worldStateSources: WorldStateSources = {}) {
+    super();
+  }
 
   readonly config: MCPToolConfig = {
     name: 'qe/planning/goap_plan',
@@ -115,6 +145,11 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
             maxDurationMs: {
               type: 'number',
               description: 'Maximum total duration in milliseconds',
+            },
+            maxSteps: {
+              type: 'number',
+              description: 'Maximum number of steps (actions) in the plan; positive integer',
+              minimum: 1,
             },
             requiredAgentTypes: {
               type: 'array',
@@ -156,14 +191,21 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
    */
   async execute(
     params: GOAPPlanParams,
-    context: MCPToolContext
+    _context: MCPToolContext
   ): Promise<ToolResult<GOAPPlanResult>> {
     try {
+      // Issue #535: nested constraint properties aren't covered by the base
+      // schema validation (and the MCP bridge only exposes top-level
+      // params), so validate them here instead of silently ignoring them.
+      const constraintError = this.validateConstraints(params.constraints);
+      if (constraintError) {
+        return { success: false, error: constraintError };
+      }
+
       const planner = await this.getPlanner();
 
       // Resolve goal to conditions
       let goalConditions: StateConditions;
-      let goalName: string;
 
       if (typeof params.goal === 'string') {
         // Look up named goal
@@ -179,21 +221,26 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
         }
 
         goalConditions = found.conditions;
-        goalName = found.name;
       } else {
         // Use custom goal conditions
         goalConditions = params.goal as StateConditions;
-        goalName = 'custom';
       }
 
-      // Get current state or use default
-      const currentState = params.currentState || await this.detectCurrentState();
+      // Issue #535: start from the live/measured world state (not a static
+      // DEFAULT_V3_WORLD_STATE copy), overlaid with any caller-supplied
+      // fields, and keep track of which values are assumptions.
+      const detected = params.currentState
+        ? overlayCallerState(await detectWorldState(this.worldStateSources), params.currentState)
+        : await detectWorldState(this.worldStateSources);
+      const currentState: V3WorldState = detected.state;
+      const defaulted = defaultedFields(detected.provenance);
 
       // Build constraints
       const constraints: PlanConstraints | undefined = params.constraints
         ? {
             maxCost: params.constraints.maxCost,
             maxDurationMs: params.constraints.maxDurationMs,
+            maxSteps: params.constraints.maxSteps,
             requiredAgentTypes: params.constraints.requiredAgentTypes,
             excludedActions: params.constraints.excludedActions,
           }
@@ -203,16 +250,24 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
       const plan = await planner.findPlan(currentState, goalConditions, constraints);
 
       if (!plan) {
+        const stepHint = constraints?.maxSteps !== undefined
+          ? ` (maxSteps: ${constraints.maxSteps} — the goal may need more steps)`
+          : '';
         return {
           success: false,
           error:
-            'No valid plan found for the given goal and constraints. ' +
+            `No valid plan found for the given goal and constraints${stepHint}. ` +
             'Try relaxing constraints or seeding more actions.',
         };
       }
 
-      // Mark as real data
-      this.markAsRealData();
+      // The search is real; the start state is only 'real' if nothing in it
+      // was an assumed default.
+      if (defaulted.length === 0) {
+        this.markAsRealData();
+      } else {
+        this.markAsEstimatedData();
+      }
 
       return {
         success: true,
@@ -231,6 +286,8 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
           stepCount: plan.actions.length,
           reusedFrom: plan.reusedFrom,
           similarityScore: plan.similarityScore,
+          stateProvenance: detected.provenance,
+          defaultedFields: defaulted,
         },
       };
     } catch (error) {
@@ -242,16 +299,39 @@ export class GOAPPlanTool extends MCPToolBase<GOAPPlanParams, GOAPPlanResult> {
   }
 
   /**
-   * Detect current world state
-   * In a full implementation, this would integrate with actual QE metrics
+   * Validate `constraints` (issue #535): must be an object, only known keys,
+   * numeric limits must be numbers, maxSteps a positive integer, and the
+   * list constraints string arrays.
    */
-  private async detectCurrentState(): Promise<V3WorldState> {
-    // Return default state for now
-    // Real implementation would query:
-    // - Coverage metrics from coverage-analysis domain
-    // - Test results from test-execution domain
-    // - Security scores from security-compliance domain
-    // - Fleet status from coordination
-    return { ...DEFAULT_V3_WORLD_STATE };
+  private validateConstraints(constraints: unknown): string | null {
+    if (constraints === undefined || constraints === null) return null;
+    if (typeof constraints !== 'object' || Array.isArray(constraints)) {
+      return 'constraints must be an object';
+    }
+    const c = constraints as Record<string, unknown>;
+    const unknownKeys = Object.keys(c).filter(
+      (k) => !(KNOWN_CONSTRAINT_KEYS as readonly string[]).includes(k)
+    );
+    if (unknownKeys.length > 0) {
+      return (
+        `Unknown constraint(s): ${unknownKeys.join(', ')}. ` +
+        `Supported constraints: ${KNOWN_CONSTRAINT_KEYS.join(', ')}`
+      );
+    }
+    for (const key of ['maxCost', 'maxDurationMs'] as const) {
+      const v = c[key];
+      if (v !== undefined && (typeof v !== 'number' || !Number.isFinite(v) || v < 0)) {
+        return `constraints.${key} must be a non-negative number, got ${String(v)}`;
+      }
+    }
+    const stepsError = validateMaxSteps(c.maxSteps);
+    if (stepsError) return stepsError;
+    for (const key of ['requiredAgentTypes', 'excludedActions'] as const) {
+      const v = c[key];
+      if (v !== undefined && (!Array.isArray(v) || !v.every((x) => typeof x === 'string'))) {
+        return `constraints.${key} must be an array of strings`;
+      }
+    }
+    return null;
   }
 }

@@ -85,9 +85,11 @@ export interface ToolResult<T = unknown> {
 }
 
 /**
- * Data source tracking for audit/transparency
+ * Data source tracking for audit/transparency.
+ * 'estimated': computed from real inputs mixed with assumed/default values
+ * (the result names which ones) — never presented as fully real (#535).
  */
-export type DataSource = 'real' | 'demo' | 'fallback';
+export type DataSource = 'real' | 'demo' | 'fallback' | 'estimated';
 
 /**
  * Tool result metadata

@@ -347,9 +347,11 @@ export interface MCPToolContext {
 }
 
 /**
- * Data source tracking for audit/transparency
+ * Data source tracking for audit/transparency.
+ * 'estimated': computed from real inputs mixed with assumed/default values
+ * (the result names which ones) — never presented as fully real (#535).
  */
-export type DataSource = 'real' | 'demo' | 'fallback';
+export type DataSource = 'real' | 'demo' | 'fallback' | 'estimated';
 
 /**
  * Logger interface for tool operations
@@ -416,6 +418,14 @@ export abstract class MCPToolBase<
       requestId: context.requestId,
       demoMode: context.demoMode,
     });
+  }
+
+  /**
+   * Mark result as partly derived from assumed/default values (#535). The
+   * tool's result must say which values were assumed.
+   */
+  protected markAsEstimatedData(): void {
+    this.currentDataSource = 'estimated';
   }
 
   /**
