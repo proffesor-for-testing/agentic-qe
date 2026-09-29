@@ -2,7 +2,7 @@
  * #753: `repairWitnessChainForks` re-anchors accidental forks without touching
  * existing rows, backs up first, refuses on tampering, and is idempotent.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { repairWitnessChainForks } from '../../../src/audit/witness-chain-repair.js';
@@ -81,6 +81,43 @@ describe('repairWitnessChainForks (#753)', () => {
     } finally {
       copy.close();
     }
+  });
+
+  it('backs up the exact state it modifies, even if another process commits just before the lock', async () => {
+    const { s } = await forkedStore();
+    // Another AQE process appends after the preliminary verify, right before
+    // repair takes its write lock (codex review finding on the first draft).
+    const other = new Database(s.dbPath);
+    const otherChain = (await import('../../../src/audit/witness-chain.js')).createWitnessChain(other);
+    await otherChain.initialize();
+    const realTransaction = s.db.transaction.bind(s.db);
+    let fired = false;
+    const spy = vi.spyOn(s.db, 'transaction').mockImplementation(((fn: (...a: unknown[]) => unknown) => {
+      if (!fired) { // only before repair's own transaction, not append()'s nested one
+        fired = true;
+        otherChain.append('PATTERN_CREATE', { patternId: 'concurrent' }, 'other-process');
+      }
+      return realTransaction(fn);
+    }) as typeof s.db.transaction);
+
+    let r;
+    try {
+      r = await repairWitnessChainForks(s.db, { dbPath: s.dbPath });
+    } finally {
+      spy.mockRestore();
+      other.close();
+    }
+
+    expect(r.action).toBe('reanchored');
+    const copy = new Database(r.backupPath!, { readonly: true });
+    try {
+      const backupLive = (copy.prepare('SELECT COUNT(*) AS n FROM witness_chain').get() as { n: number }).n;
+      expect(backupLive).toBe(r.rowsAfter.live - 1); // everything except the CHAIN_REANCHOR itself
+      expect(copy.prepare("SELECT COUNT(*) AS n FROM witness_chain WHERE actor = 'other-process'").get()).toEqual({ n: 1 });
+    } finally {
+      copy.close();
+    }
+    expect(s.chain.verify({ includeArchive: true })).toMatchObject({ valid: true, status: 'valid-with-forks' });
   });
 
   it('a second repair is a no-op (no new row, no new backup)', async () => {

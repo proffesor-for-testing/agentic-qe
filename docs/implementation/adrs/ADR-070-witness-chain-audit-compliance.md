@@ -295,10 +295,13 @@ should tolerate unrepaired forks can test `tampered === false`.
 1. Refuses (exit 1) if `verify()` reports any tampering or signature failure.
 2. Writes nothing on `--dry-run`. It opens the store read-only and never
    generates a key.
-3. Backs up first with `VACUUM INTO <memory.db>.bak-<epoch>`, then checks the
-   backup (`integrity_check` = ok, witness row count) before writing.
-4. Never deletes, moves or rewrites a row. Inside one `BEGIN IMMEDIATE`
-   transaction it re-verifies and appends a single `CHAIN_REANCHOR` entry,
+3. Takes the write lock (`BEGIN IMMEDIATE`) and re-verifies. Still holding
+   the lock, it backs up with `VACUUM INTO <memory.db>.bak-<epoch>` from a
+   second read-only connection. The backup is therefore exactly the state
+   being modified, and it must pass `integrity_check` and match the witness
+   row counts before anything is written.
+4. Never deletes, moves or rewrites a row. In the same transaction it
+   appends a single `CHAIN_REANCHOR` entry,
    signed with the project key. The entry lists each unacknowledged fork (id,
    parent id, `prev_hash`, `action_hash`), pins the hash of every dead-end row
    (the losing race siblings that no later row links to), and records the

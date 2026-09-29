@@ -13,12 +13,13 @@
  * It:
  *
  * - refuses when any tamper-class break or signature failure exists;
- * - backs up the database first (`VACUUM INTO <db>.bak-<epoch>`, consistent
- *   under concurrent writers) and checks the backup before writing;
+ * - backs up the database first (`VACUUM INTO <db>.bak-<epoch>`, taken while
+ *   holding the write lock so it is exactly the state being modified) and
+ *   checks the backup (integrity_check, witness row counts) before writing;
  * - never deletes, moves or rewrites an existing row — history stays as-is
  *   and `verify()` still lists every fork (`status: 'valid-with-forks'`);
- * - re-verifies and appends inside ONE `BEGIN IMMEDIATE` transaction, so no
- *   writer can slip a row in between the check and the acknowledgement;
+ * - re-verifies, backs up and appends inside ONE `BEGIN IMMEDIATE`
+ *   transaction, so no writer can slip a row in between;
  * - checks row counts before/after (live +1, archive unchanged);
  * - is idempotent: a second run finds nothing unacknowledged and writes nothing.
  */
@@ -144,17 +145,28 @@ function nextBackupPath(dbPath: string): string {
   return `${base}-${i}`;
 }
 
-/** Consistent snapshot via VACUUM INTO, then prove it opens clean and holds the chain. */
-function backupDatabase(db: DatabaseType, dbPath: string, minRows: number): string {
+/**
+ * Snapshot the database with VACUUM INTO from a SECOND, read-only connection.
+ * Called while the repairing connection holds the write lock (BEGIN IMMEDIATE)
+ * and before it writes anything, so the snapshot is exactly the state about to
+ * be modified: no other process can commit in between (issue found in review).
+ * The backup must then open clean and hold exactly `expected` witness rows.
+ */
+function backupDatabase(dbPath: string, expected: WitnessRowCounts): string {
   const backupPath = nextBackupPath(dbPath);
-  db.prepare('VACUUM INTO ?').run(backupPath);
+  const reader = openDatabase(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    reader.prepare('VACUUM INTO ?').run(backupPath);
+  } finally {
+    reader.close();
+  }
   const copy = openDatabase(backupPath, { readonly: true, fileMustExist: true });
   try {
     const check = copy.pragma('integrity_check', { simple: true });
     if (check !== 'ok') throw new Error(`backup integrity_check failed: ${String(check)}`);
     const counts = countRows(copy);
-    if (counts.live + counts.archive < minRows) {
-      throw new Error(`backup holds ${counts.live + counts.archive} witness rows, expected >= ${minRows}`);
+    if (counts.live !== expected.live || counts.archive !== expected.archive) {
+      throw new Error(`backup holds ${JSON.stringify(counts)} witness rows, expected ${JSON.stringify(expected)}`);
     }
   } finally {
     copy.close();
@@ -192,15 +204,17 @@ export async function repairWitnessChainForks(db: DatabaseType, options: RepairO
     };
   }
 
-  const backupPath = backupDatabase(db, options.dbPath, rowsBefore.live + rowsBefore.archive);
-
-  // Re-verify and append under one write lock: nothing can land between them.
+  // Re-verify, back up and append under ONE write lock: nothing can land
+  // between the check, the snapshot and the write.
+  let backupPath: string | undefined;
   const reanchor = db.transaction((): TxOutcome => {
     const txBefore = countRows(db);
     const check = chain.verify(VERIFY_OPTIONS);
     if (check.tampered) return { kind: 'refused', check };
     const forks = unacknowledged(check);
     if (forks.length === 0) return { kind: 'noop' };
+
+    backupPath = backupDatabase(options.dbPath, txBefore);
 
     const tip = db.prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1').get() as WitnessEntry;
     const entry = chain.append('CHAIN_REANCHOR', {
@@ -225,10 +239,10 @@ export async function repairWitnessChainForks(db: DatabaseType, options: RepairO
   }).immediate();
 
   if (reanchor.kind === 'refused') {
-    return { ...base, action: 'refused', message: refusal(reanchor.check), forksAcknowledged: [], backupPath };
+    return { ...base, action: 'refused', message: refusal(reanchor.check), forksAcknowledged: [] };
   }
   if (reanchor.kind === 'noop') {
-    return { ...base, action: 'none', message: 'Nothing to repair (another process re-anchored first).', forksAcknowledged: [], backupPath };
+    return { ...base, action: 'none', message: 'Nothing to repair (another process re-anchored first).', forksAcknowledged: [] };
   }
 
   const after = chain.verify(VERIFY_OPTIONS);
