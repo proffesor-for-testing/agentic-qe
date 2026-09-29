@@ -5,6 +5,12 @@
  * Types for project analysis, self-configuration, and initialization.
  */
 
+import { ALL_DOMAINS as CANONICAL_DOMAINS } from '../shared/types/index.js';
+import {
+  PROMOTION_MIN_SUCCESS_RATE,
+  PROMOTION_THRESHOLD,
+} from '../learning/qe-patterns.js';
+
 // ============================================================================
 // Project Analysis Types
 // ============================================================================
@@ -374,8 +380,9 @@ export const DEFAULT_LEARNING_CONFIG: LearningConfig = {
   enabled: true,
   pretrainedPatterns: true,
   hnswConfig: DEFAULT_HNSW_CONFIG,
-  promotionThreshold: 3,
-  qualityThreshold: 0.7,
+  // Single source of truth: the values the learning runtime enforces (#778).
+  promotionThreshold: PROMOTION_THRESHOLD,
+  qualityThreshold: PROMOTION_MIN_SUCCESS_RATE,
   embeddingModel: 'auto',
 };
 
@@ -436,21 +443,13 @@ export const DEFAULT_N8N_PLATFORM_CONFIG: N8nPlatformConfig = {
   installTypeScriptAgents: false,
 };
 
-export const ALL_DOMAINS = [
-  'test-generation',
-  'test-execution',
-  'coverage-analysis',
-  'quality-assessment',
-  'defect-intelligence',
-  'requirements-validation',
-  'code-intelligence',
-  'security-compliance',
-  'contract-testing',
-  'visual-accessibility',
-  'chaos-resilience',
-  'learning-optimization',
-  'enterprise-integration',
-];
+/**
+ * The QE domains `aqe init` enables by default: every loadable DDD domain
+ * plugin, i.e. the canonical shared ALL_DOMAINS minus the cross-domain
+ * `coordination` context (the Queen, not a domain plugin). Derived — never
+ * hand-maintained — so fresh and existing installs cannot drift (#778).
+ */
+export const ALL_DOMAINS: string[] = CANONICAL_DOMAINS.filter((d) => d !== 'coordination');
 
 /**
  * Get the current AQE version from build-time constant
@@ -470,14 +469,15 @@ export function createDefaultConfig(projectName: string, projectRoot: string): A
       root: projectRoot,
       type: 'single',
     },
-    learning: DEFAULT_LEARNING_CONFIG,
-    routing: DEFAULT_ROUTING_CONFIG,
-    workers: DEFAULT_WORKERS_CONFIG,
-    hooks: DEFAULT_HOOKS_CONFIG,
-    skills: DEFAULT_SKILLS_CONFIG,
-    autoTuning: DEFAULT_AUTO_TUNING_CONFIG,
+    // Cloned so callers that mutate the config cannot corrupt the shared defaults.
+    learning: structuredClone(DEFAULT_LEARNING_CONFIG),
+    routing: structuredClone(DEFAULT_ROUTING_CONFIG),
+    workers: structuredClone(DEFAULT_WORKERS_CONFIG),
+    hooks: structuredClone(DEFAULT_HOOKS_CONFIG),
+    skills: structuredClone(DEFAULT_SKILLS_CONFIG),
+    autoTuning: structuredClone(DEFAULT_AUTO_TUNING_CONFIG),
     domains: {
-      enabled: ALL_DOMAINS,
+      enabled: [...ALL_DOMAINS],
       disabled: [],
     },
     agents: {

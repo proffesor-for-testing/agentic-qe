@@ -10,6 +10,12 @@ import {
   recommendConfig,
 } from '../../../src/init/self-configurator.js';
 import type { ProjectAnalysis } from '../../../src/init/types.js';
+import { ALL_DOMAINS } from '../../../src/init/types.js';
+import { ALL_DOMAINS as SHARED_ALL_DOMAINS } from '../../../src/shared/types/index.js';
+import {
+  PROMOTION_MIN_SUCCESS_RATE,
+  PROMOTION_THRESHOLD,
+} from '../../../src/learning/qe-patterns.js';
 
 // Helper to create a base project analysis
 // Note: We set totalCount > 0 to avoid triggering the "no-tests" rule which overwrites domains
@@ -72,6 +78,61 @@ describe('SelfConfigurator', () => {
       expect(config.project.name).toBe('test-project');
       expect(config.project.root).toBe('/test/project');
       expect(config.project.type).toBe('single');
+    });
+
+    it('enables every canonical domain regardless of analysis (#778)', () => {
+      const canonical = SHARED_ALL_DOMAINS.filter((d) => d !== 'coordination');
+      expect(ALL_DOMAINS).toEqual(canonical);
+
+      const simple = recommendConfig(createBaseAnalysis());
+      const complex = recommendConfig(createBaseAnalysis({
+        codeComplexity: {
+          totalFiles: 50,
+          totalLines: 5000,
+          averageFileSize: 100,
+          averageCyclomatic: 30,
+          maxCyclomatic: 60,
+          complexFiles: [],
+          recommendation: 'complex',
+        },
+      }));
+      expect(simple.domains.enabled).toEqual(canonical);
+      expect(complex.domains.enabled).toEqual(canonical);
+      expect(simple.domains.enabled).toContain('enterprise-integration');
+    });
+
+    it('reports the runtime pattern-promotion thresholds whether or not the project has tests (#778)', () => {
+      const withTests = recommendConfig(createBaseAnalysis());
+      const noTests = recommendConfig(createBaseAnalysis({
+        existingTests: {
+          totalCount: 0,
+          byType: { unit: 0, integration: 0, e2e: 0, other: 0 },
+          byFramework: {},
+          directories: [],
+        },
+      }));
+      for (const config of [withTests, noTests]) {
+        expect(config.learning.promotionThreshold).toBe(PROMOTION_THRESHOLD);
+        expect(config.learning.qualityThreshold).toBe(PROMOTION_MIN_SUCCESS_RATE);
+      }
+    });
+
+    it('does not mutate the shared default configs across recommendations', () => {
+      const large = createBaseAnalysis({
+        codeComplexity: {
+          totalFiles: 700,
+          totalLines: 70000,
+          averageFileSize: 100,
+          averageCyclomatic: 30,
+          maxCyclomatic: 60,
+          complexFiles: [],
+          recommendation: 'complex',
+        },
+      });
+      const first = recommendConfig(large);
+      const second = recommendConfig(large);
+      expect(second.autoTuning.parameters).toEqual(first.autoTuning.parameters);
+      expect(second.learning.hnswConfig).toEqual(first.learning.hnswConfig);
     });
 
     it('should enable learning by default', () => {
@@ -281,8 +342,11 @@ describe('SelfConfigurator', () => {
 
       const config = recommendConfig(analysis);
 
-      expect(config.learning.qualityThreshold).toBe(0.5);
-      expect(config.learning.promotionThreshold).toBe(2);
+      // #778: thresholds are no longer lowered per-project — they always
+      // report what the learning runtime enforces.
+      expect(config.learning.qualityThreshold).toBe(PROMOTION_MIN_SUCCESS_RATE);
+      expect(config.learning.promotionThreshold).toBe(PROMOTION_THRESHOLD);
+      expect(config.workers.enabled).toEqual(['pattern-consolidator']);
       expect(config.domains.enabled).toContain('test-generation');
       // No-tests rule focuses on test generation domains only
       expect(config.domains.enabled).toContain('coverage-analysis');

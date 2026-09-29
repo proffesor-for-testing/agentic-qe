@@ -8,13 +8,17 @@
 
 import { existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync } from 'fs';
+import { writeTextIfChangedIgnoring } from '../idempotent-write.js';
 import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
 import { openDatabase } from '../../shared/safe-db.js';
+
+/** The `# <ISO timestamp>` header line written by configToYAML(). */
+const CONFIG_TIMESTAMP_LINE = /^# \d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
 
 export interface VerificationResult {
   verified: boolean;
@@ -171,7 +175,9 @@ export class VerificationPhase extends BasePhase<VerificationResult> {
     }
 
     const yaml = this.configToYAML(config);
-    writeFileSync(configPath, yaml, 'utf-8');
+    // #778: the header carries a generation timestamp; ignore that line when
+    // deciding whether the file actually changed, so a repeat init is a no-op.
+    writeTextIfChangedIgnoring(configPath, yaml, CONFIG_TIMESTAMP_LINE);
   }
 
   /**

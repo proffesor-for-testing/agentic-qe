@@ -86,7 +86,7 @@ const configurationRules: ConfigurationRule[] = [
       // Complex code needs more careful testing
       config.autoTuning.parameters.push('complexity.analysisDepth');
       // Enable all quality domains
-      config.domains.enabled = ALL_DOMAINS;
+      config.domains.enabled = [...ALL_DOMAINS];
     },
   },
 
@@ -180,10 +180,11 @@ const configurationRules: ConfigurationRule[] = [
       // Focus on test generation - but keep ALL domains enabled
       // Limiting domains causes "No factory registered" errors in fleet_init
       config.workers.enabled = ['pattern-consolidator'];
-      // Don't override domains.enabled - keep all 12 domains from createDefaultConfig
-      // Lower thresholds for new projects
-      config.learning.qualityThreshold = 0.5;
-      config.learning.promotionThreshold = 2;
+      // Don't override domains.enabled - keep every default domain.
+      // Pattern-promotion thresholds are NOT lowered here: the learning
+      // runtime always enforces PROMOTION_THRESHOLD / PROMOTION_MIN_SUCCESS_RATE,
+      // so a per-project override only made the generated settings misreport
+      // the runtime and flip between fresh and repeat inits (#778).
     },
   },
 
@@ -291,7 +292,7 @@ export class SelfConfigurator {
    * Recommend learning configuration
    */
   private recommendLearning(analysis: ProjectAnalysis): LearningConfig {
-    const config = { ...DEFAULT_LEARNING_CONFIG };
+    const config = structuredClone(DEFAULT_LEARNING_CONFIG);
 
     // Adjust HNSW based on project size
     if (analysis.codeComplexity.totalFiles > 1000) {
@@ -320,7 +321,7 @@ export class SelfConfigurator {
    * Recommend routing configuration
    */
   private recommendRouting(analysis: ProjectAnalysis): RoutingConfig {
-    const config = { ...DEFAULT_ROUTING_CONFIG };
+    const config = structuredClone(DEFAULT_ROUTING_CONFIG);
 
     // ML routing for complex projects, rules for simple
     if (analysis.codeComplexity.recommendation === 'simple') {
@@ -338,7 +339,7 @@ export class SelfConfigurator {
    * Recommend workers configuration
    */
   private recommendWorkers(analysis: ProjectAnalysis): WorkersConfig {
-    const config = { ...DEFAULT_WORKERS_CONFIG };
+    const config = structuredClone(DEFAULT_WORKERS_CONFIG);
 
     // Always enable core workers
     const workers = new Set(['pattern-consolidator', 'routing-accuracy-monitor']);
@@ -369,7 +370,7 @@ export class SelfConfigurator {
    * Recommend hooks configuration
    */
   private recommendHooks(analysis: ProjectAnalysis): HooksConfig {
-    const config = { ...DEFAULT_HOOKS_CONFIG };
+    const config = structuredClone(DEFAULT_HOOKS_CONFIG);
 
     // Enable CI integration if CI is configured
     config.ciIntegration = analysis.hasCIConfig;
@@ -384,7 +385,7 @@ export class SelfConfigurator {
    * Recommend skills configuration
    */
   private recommendSkills(analysis: ProjectAnalysis): SkillsConfig {
-    const config = { ...DEFAULT_SKILLS_CONFIG };
+    const config = structuredClone(DEFAULT_SKILLS_CONFIG);
 
     // Always install by default
     config.install = true;
@@ -405,7 +406,7 @@ export class SelfConfigurator {
    * Recommend auto-tuning configuration
    */
   private recommendAutoTuning(analysis: ProjectAnalysis): AutoTuningConfig {
-    const config = { ...DEFAULT_AUTO_TUNING_CONFIG };
+    const config = structuredClone(DEFAULT_AUTO_TUNING_CONFIG);
 
     // Disable auto-tuning for small projects
     if (analysis.codeComplexity.totalFiles < 20) {
@@ -418,30 +419,18 @@ export class SelfConfigurator {
   /**
    * Recommend enabled domains
    *
-   * IMPORTANT: Always enable ALL 12 domains by default.
-   * Limiting domains causes "No factory registered" errors in fleet_init
-   * when MCP tools try to use domains that aren't enabled.
+   * IMPORTANT: Always enable ALL default domains (init's ALL_DOMAINS, derived
+   * from the canonical shared domain list). Limiting domains causes "No factory
+   * registered" errors in fleet_init when MCP tools try to use domains that
+   * aren't enabled. A hand-maintained copy here previously omitted
+   * enterprise-integration, so fresh and repeat inits disagreed (#778).
    *
    * Project analysis is used for prioritization and worker selection,
    * but all domains remain available for users who need them.
    */
   private recommendDomains(_analysis: ProjectAnalysis): string[] {
-    // All 12 DDD domains - always enabled to prevent fleet_init failures
     // Users can disable domains manually in config.yaml if needed
-    return [
-      'test-generation',
-      'test-execution',
-      'coverage-analysis',
-      'quality-assessment',
-      'defect-intelligence',
-      'requirements-validation',
-      'code-intelligence',
-      'security-compliance',
-      'contract-testing',
-      'visual-accessibility',
-      'chaos-resilience',
-      'learning-optimization',
-    ];
+    return [...ALL_DOMAINS];
   }
 
   /**

@@ -12,7 +12,8 @@
  * makes the config portable across machines, devcontainers, and CI.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { writeFileIfChanged } from '../idempotent-write.js';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
 
@@ -105,7 +106,8 @@ export class MCPPhase extends BasePhase<MCPResult> {
     const rootServers = rootMcpConfig.mcpServers as Record<string, unknown>;
     rootServers['agentic-qe'] = aqeServerConfig;
 
-    writeFileSync(rootMcpPath, JSON.stringify(rootMcpConfig, null, 2), 'utf-8');
+    // #778: no rewrite (mtime churn) when the merged config is unchanged.
+    writeFileIfChanged(rootMcpPath, JSON.stringify(rootMcpConfig, null, 2));
 
     context.services.log(`  MCP config: ${rootMcpPath}`);
     context.services.log(`  Server: agentic-qe`);

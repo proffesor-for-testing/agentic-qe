@@ -19,6 +19,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { findPackageRoot } from './find-package-root.js';
+import { writeFileIfChanged } from './idempotent-write.js';
 import { selectCodexSkills } from './codex-skill-manifest.js';
 import {
   createPlatformConfigGenerator,
@@ -316,12 +317,13 @@ export class CodexInstaller {
       const userGroups = (existing.hooks?.[event] || []).filter((group) => !owned(group));
       mergedHooks[event] = [...userGroups, ...(generated.hooks?.[event] || [])];
     }
-    writeFileSync(
+    // #778: a converged hooks.json is left untouched (no mtime churn).
+    const changed = writeFileIfChanged(
       targetConfig,
       JSON.stringify({ ...existing, description: generated.description, hooks: mergedHooks }, null, 2) + '\n',
     );
     result.hooksConfigured = true;
-    return 'updated';
+    return changed ? 'updated' : 'preserved';
   }
 
   /** Install the curated repo-scoped AQE skills Codex discovers automatically. */

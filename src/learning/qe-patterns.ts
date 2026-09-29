@@ -345,6 +345,13 @@ export function calculateQualityScore(pattern: {
  */
 export const PROMOTION_THRESHOLD = 3;
 
+/**
+ * Minimum success rate a pattern needs before it can be promoted to long-term
+ * storage. Paired with PROMOTION_THRESHOLD; `aqe init` reports both values in
+ * the generated settings so they match what the runtime enforces (#778).
+ */
+export const PROMOTION_MIN_SUCCESS_RATE = 0.7;
+
 export interface PromotionCheck {
   meetsUsageCriteria: boolean;
   meetsQualityCriteria: boolean;
@@ -367,7 +374,7 @@ export function shouldPromotePattern(
   coherenceThreshold: number = 0.4
 ): PromotionCheck {
   const meetsUsageCriteria = pattern.tier === 'short-term' && pattern.successfulUses >= PROMOTION_THRESHOLD;
-  const meetsQualityCriteria = pattern.successRate >= 0.7 && pattern.confidence >= 0.6;
+  const meetsQualityCriteria = pattern.successRate >= PROMOTION_MIN_SUCCESS_RATE && pattern.confidence >= 0.6;
 
   // NEW: Coherence criteria - only block if coherence energy is provided and exceeds threshold
   const meetsCoherenceCriteria = coherenceEnergy === undefined || coherenceEnergy < coherenceThreshold;
