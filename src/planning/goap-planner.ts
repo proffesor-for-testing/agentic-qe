@@ -852,9 +852,8 @@ export class GOAPPlanner {
    * to its already-closed parent and was pruned. That made e.g. the seeded
    * `achieve-90-percent-coverage` goal unplannable from any state (the
    * analyze-coverage-gaps -> generate-coverage-tests chain was unreachable).
-   * Now every key in the state participates. Numbers are rounded (and
-   * resources.timeRemaining bucketed per minute) to keep the state space
-   * bounded, as before.
+   * Now every key in the state participates. Numbers are compared at 1e-6
+   * precision; resources.timeRemaining is bucketed per minute, as before.
    */
   private hashState(state: V3WorldState): string {
     return GOAPPlanner.stableStateKey(state, '');
@@ -864,9 +863,12 @@ export class GOAPPlanner {
     if (value === null || value === undefined) return String(value);
     if (typeof value === 'number') {
       if (!Number.isFinite(value)) return String(value);
+      // Keep fractional progress distinguishable (codex review: integer
+      // rounding collapsed e.g. custom.progress 0 -> 0.4 into its parent);
+      // only timeRemaining is bucketed (per minute) to bound the space.
       return path === 'resources.timeRemaining'
         ? String(Math.floor(value / 60))
-        : String(Math.round(value));
+        : String(Math.round(value * 1e6) / 1e6);
     }
     if (typeof value === 'string') return JSON.stringify(value);
     if (typeof value === 'boolean') return value ? 'true' : 'false';

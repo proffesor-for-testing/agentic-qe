@@ -650,6 +650,28 @@ describe('GOAPPlanner', () => {
       expect(capped?.reusedFrom).toBeUndefined();
     }, 30000);
 
+    it('keeps fractional progress on custom numeric keys distinguishable (not rounded away)', async () => {
+      await planner.addAction({
+        name: 'Fractional Progress 535',
+        agentType: 'worker',
+        preconditions: {},
+        effects: { 'quality.progress535': { delta: 0.4 } },
+        cost: 0.1,
+        successRate: 1.0,
+        category: 'test',
+      });
+      planner.setPlanReuseEnabled(false);
+      const start = {
+        ...DEFAULT_V3_WORLD_STATE,
+        quality: { ...DEFAULT_V3_WORLD_STATE.quality, progress535: 0 },
+      } as unknown as V3WorldState;
+
+      const plan = await planner.findPlan(start, { 'quality.progress535': { min: 0.8 } });
+
+      expect(plan).not.toBeNull();
+      expect(plan!.actions).toHaveLength(2);
+    });
+
     it.each([0, -1, 2.5, Number.NaN])('rejects invalid maxSteps=%s', async (bad) => {
       await expect(
         planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, { 'coverage.measured': true }, { maxSteps: bad })

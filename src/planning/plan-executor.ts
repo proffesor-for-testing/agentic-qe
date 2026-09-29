@@ -674,15 +674,9 @@ export class PlanExecutor {
 
     try {
       // Execute with timeout
-      const timeoutPromise = new Promise<AgentSpawnResult>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Step timeout after ${this.config.stepTimeoutMs}ms`)),
-          this.config.stepTimeoutMs
-        )
+      const agentResult = await this.withStepTimeout(
+        this.spawner.spawn(action.agentType, taskDescription)
       );
-
-      const spawnPromise = this.spawner.spawn(action.agentType, taskDescription);
-      const agentResult = await Promise.race([spawnPromise, timeoutPromise]);
 
       if (agentResult.success) {
         // Apply action effects to world state
@@ -770,14 +764,8 @@ export class PlanExecutor {
     }
 
     try {
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Step timeout after ${this.config.stepTimeoutMs}ms`)),
-          this.config.stepTimeoutMs
-        )
-      );
       const invokePromise = (method as (...args: unknown[]) => Promise<unknown>).call(api, action.params ?? {});
-      const result = await Promise.race([invokePromise, timeoutPromise]);
+      const result = await this.withStepTimeout(invokePromise);
 
       // Issue #535: domain APIs return Result<T, Error> ({ success: false,
       // error }) rather than throwing. Treating any resolved value as
@@ -812,6 +800,27 @@ export class PlanExecutor {
         newState: currentState,
         error: toErrorMessage(error),
       };
+    }
+  }
+
+  /**
+   * Race `work` against the per-step timeout, clearing the timer once the
+   * race settles so completed steps don't leave a pending timer behind
+   * (codex review, #535: it kept short-lived processes alive for up to
+   * stepTimeoutMs and accumulated timers across executions).
+   */
+  private async withStepTimeout<T>(work: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`Step timeout after ${this.config.stepTimeoutMs}ms`)),
+        this.config.stepTimeoutMs
+      );
+    });
+    try {
+      return await Promise.race([work, timeout]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
   }
 

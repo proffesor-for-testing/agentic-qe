@@ -608,6 +608,22 @@ describe('PlanExecutor', () => {
       await realExecutor.close();
     });
 
+    it('issue #535: clears the step timeout timer once a real action settles', async () => {
+      const realMethod = vi.fn().mockResolvedValue({ success: true, value: 'ok' });
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, { replanOnFailure: false }, getDomainAPI);
+      await realExecutor.initialize();
+      const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests' });
+      const result = await realExecutor.execute(createTestPlan([action]));
+
+      expect(result.status).toBe('completed');
+      expect(clearSpy).toHaveBeenCalled();
+      clearSpy.mockRestore();
+      await realExecutor.close();
+    });
+
     it('should fail clearly when the resolved domain API has no such method', async () => {
       const getDomainAPI = vi.fn().mockReturnValue({ someOtherMethod: vi.fn() });
       const realExecutor = new PlanExecutor(planner, mockSpawner, undefined, undefined, getDomainAPI);
