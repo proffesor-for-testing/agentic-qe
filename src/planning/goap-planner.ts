@@ -1158,6 +1158,47 @@ export class GOAPPlanner {
   }
 
   /**
+   * List persisted plan summaries without loading every plan into memory.
+   * Count includes all rows matching the optional status, before pagination.
+   */
+  async listPlanSummaries(status?: string, limit = 20): Promise<{
+    plans: Array<{ id: string; status: string; stepCount: number; totalCost: number; createdAt: string }>;
+    count: number;
+  }> {
+    await this.initialize();
+    const db = this.ensureDb();
+    const where = status ? ' WHERE status = ?' : '';
+    const args = status ? [status] : [];
+    const boundedLimit = Number.isFinite(limit)
+      ? Math.max(1, Math.min(100, Math.trunc(limit)))
+      : 20;
+    const { count } = db.prepare(`SELECT COUNT(*) AS count FROM goap_plans${where}`)
+      .get(...args) as { count: number };
+    const rows = db.prepare(`
+      SELECT id, status, action_sequence, total_cost, created_at
+      FROM goap_plans${where}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+    `).all(...args, boundedLimit) as Array<Pick<
+      GOAPPlanRecord, 'id' | 'status' | 'action_sequence' | 'total_cost' | 'created_at'
+    >>;
+    const plans = rows.map((row) => {
+      const actionIds = safeJsonParse<unknown>(row.action_sequence);
+      if (!Array.isArray(actionIds)) {
+        throw new Error(`Invalid action sequence in GOAP plan ${row.id}`);
+      }
+      return {
+        id: row.id,
+        status: row.status,
+        stepCount: actionIds.length,
+        totalCost: row.total_cost,
+        createdAt: row.created_at,
+      };
+    });
+    return { plans, count };
+  }
+
+  /**
    * Find a similar plan by goal conditions
    */
   async findSimilarPlan(
