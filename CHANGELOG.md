@@ -5,6 +5,15 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Plugin versions and dependency ranges now follow npm SemVer. Noncanonical
+  plugin version strings, `latest` dependency ranges, and invalid
+  `minAqeVersion` values are rejected. Startup reports rejected plugins while
+  continuing to load independent compatible plugins.
+
 ## [3.14.4] - 2026-09-27
 
 This patch moves Agentic QE to the current AI model generation and fixes live

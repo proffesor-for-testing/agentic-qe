@@ -7,6 +7,7 @@
  */
 
 import type { DomainName } from '../shared/types';
+import { validVersion, validRange } from './version-policy';
 
 // ============================================================================
 // Types
@@ -48,9 +49,6 @@ export interface ManifestValidationResult {
 /** Regex for valid plugin names: lowercase, alphanumeric, hyphens */
 const VALID_NAME_REGEX = /^[a-z][a-z0-9-]*$/;
 
-/** Regex for semver: major.minor.patch with optional pre-release */
-const SEMVER_REGEX = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
-
 /** Reserved name prefixes that third-party plugins cannot use */
 const RESERVED_PREFIXES = ['aqe-core-', 'agentic-qe-core-'];
 
@@ -86,7 +84,7 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
 
   if (!m.version || typeof m.version !== 'string') {
     errors.push('version is required and must be a string');
-  } else if (!SEMVER_REGEX.test(m.version)) {
+  } else if (!validVersion(m.version)) {
     errors.push(`version "${m.version}" is not valid semver (expected: major.minor.patch)`);
   }
 
@@ -125,6 +123,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
       for (const [depName, depVersion] of Object.entries(m.dependencies)) {
         if (typeof depVersion !== 'string') {
           errors.push(`Dependency "${depName}" must have a string version range`);
+        } else if (!validRange(depVersion)) {
+          errors.push(`Dependency "${depName}" has an invalid semver range`);
         }
       }
     }
@@ -147,8 +147,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
   }
 
   if (m.minAqeVersion !== undefined) {
-    if (typeof m.minAqeVersion !== 'string' || !SEMVER_REGEX.test(m.minAqeVersion)) {
-      warnings.push('minAqeVersion should be valid semver');
+    if (typeof m.minAqeVersion !== 'string' || !validVersion(m.minAqeVersion)) {
+      errors.push('minAqeVersion must be valid semver');
     }
   }
 

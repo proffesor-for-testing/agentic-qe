@@ -9,6 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { QEPluginManifest } from './manifest';
+import { validVersion, newestVersionFirst } from './version-policy';
 
 // ============================================================================
 // Types
@@ -116,6 +117,12 @@ export class PluginCache {
         try {
           const raw = fs.readFileSync(manifestPath, 'utf-8');
           const manifest = JSON.parse(raw) as QEPluginManifest;
+          if (!validVersion(manifest.version)) {
+            // Older releases admitted versions SemVer now rejects (e.g. 01.0.0);
+            // say why the plugin disappeared instead of dropping it silently.
+            console.warn(`[PluginCache] Skipping cached plugin ${name}@${entry}: invalid version ${JSON.stringify(manifest.version)}`);
+            continue;
+          }
           const stat = fs.statSync(fullPath);
           results.push({
             manifest,
@@ -141,13 +148,19 @@ export class PluginCache {
     for (const name of entries) {
       const versions = this.listVersions(name);
       if (versions.length > 0) {
-        // Return the latest version (lexicographic semver sort)
-        versions.sort((a, b) => b.manifest.version.localeCompare(a.manifest.version));
+        // Return the latest version by npm SemVer precedence.
+        versions.sort((a, b) => newestVersionFirst(a.manifest.version, b.manifest.version));
         results.push(versions[0]);
       }
     }
 
     return results;
+  }
+
+  /** Every cached candidate, for constraint-aware dependency resolution. */
+  listCandidates(): CachedPlugin[] {
+    if (!fs.existsSync(this.cacheDir)) return [];
+    return fs.readdirSync(this.cacheDir).flatMap(name => this.listVersions(name));
   }
 
   // --------------------------------------------------------------------------

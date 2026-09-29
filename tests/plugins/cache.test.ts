@@ -2,7 +2,7 @@
  * Tests for Plugin Cache (IMP-09)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -128,6 +128,21 @@ describe('PluginCache', () => {
 
       const versions = cache.listVersions('my-plugin');
       expect(versions.length).toBeLessThanOrEqual(2);
+    });
+  });
+  describe('invalid cached versions', () => {
+    it('should skip and warn about a cached manifest with a non-SemVer version', () => {
+      const legacyDir = path.join(tmpDir, 'cache', 'legacy', '01.0.0');
+      fs.mkdirSync(legacyDir, { recursive: true });
+      fs.writeFileSync(path.join(legacyDir, 'qe-plugin.json'), JSON.stringify(makeManifest('legacy', '01.0.0')));
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      try {
+        expect(cache.listVersions('legacy')).toEqual([]);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('legacy@01.0.0: invalid version "01.0.0"'));
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 });
