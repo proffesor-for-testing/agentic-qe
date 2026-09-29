@@ -23,7 +23,7 @@ export type {
 } from './types.js';
 
 // Constant exports
-export { DEFAULT_V3_WORLD_STATE } from './types.js';
+export { DEFAULT_V3_WORLD_STATE, DEFAULT_MAX_PLAN_STEPS, validateMaxSteps } from './types.js';
 
 // Action Library exports
 export {

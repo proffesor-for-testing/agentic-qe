@@ -326,6 +326,13 @@ export interface PlanConstraints {
   /** Maximum total duration in milliseconds */
   maxDurationMs?: number;
 
+  /**
+   * Maximum number of actions (steps) in the returned plan. Must be a
+   * positive integer; the planner rejects anything else. Defaults to
+   * DEFAULT_MAX_PLAN_STEPS when omitted. Issue #535.
+   */
+  maxSteps?: number;
+
   /** Only use actions that these agent types can execute */
   requiredAgentTypes?: string[];
 
@@ -334,6 +341,24 @@ export interface PlanConstraints {
 
   /** Prefer actions in these QE domains */
   preferredQeDomains?: QEDomain[];
+}
+
+/**
+ * Default A* depth limit (plan length cap) when constraints.maxSteps is unset.
+ */
+export const DEFAULT_MAX_PLAN_STEPS = 20;
+
+/**
+ * Validate a constraints.maxSteps value. Returns an error message, or null
+ * when the value is absent or a positive integer. Issue #535: shared by the
+ * planner and the goap_plan MCP tool so both boundaries reject the same input.
+ */
+export function validateMaxSteps(maxSteps: unknown): string | null {
+  if (maxSteps === undefined) return null;
+  if (typeof maxSteps !== 'number' || !Number.isInteger(maxSteps) || maxSteps < 1) {
+    return `constraints.maxSteps must be a positive integer, got ${String(maxSteps)}`;
+  }
+  return null;
 }
 
 // ============================================================================

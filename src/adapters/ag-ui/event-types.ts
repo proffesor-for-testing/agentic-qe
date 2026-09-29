@@ -465,7 +465,7 @@ export interface AQEToolResult<T = unknown> {
     readonly domain?: string;
     readonly taskId?: string;
     readonly toolName?: string;
-    readonly dataSource?: 'real' | 'demo' | 'fallback';
+    readonly dataSource?: 'real' | 'demo' | 'fallback' | 'estimated';
   };
 }
 

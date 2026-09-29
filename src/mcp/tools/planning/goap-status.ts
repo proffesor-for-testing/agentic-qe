@@ -21,10 +21,14 @@ import {
   getSharedGOAPPlanner,
   PlanExecutor,
   createMockExecutor,
-  V3WorldState,
-  DEFAULT_V3_WORLD_STATE,
   getAllQEActions,
 } from '../../../planning/index.js';
+import {
+  detectWorldState,
+  defaultedFields,
+  type WorldStateProvenance,
+  type WorldStateSources,
+} from './world-state.js';
 
 // ============================================================================
 // Types
@@ -52,28 +56,41 @@ export interface GOAPStatusParams {
 }
 
 /**
- * World state status result
+ * World state status result.
+ *
+ * Issue #535: values that are not observed from a live source are reported
+ * as `null` (not the planner's optimistic defaults such as securityScore
+ * 100), and `provenance` names the source of every field.
  */
 export interface WorldStateResult {
   coverage: {
-    line: number;
-    branch: number;
-    function: number;
+    line: number | null;
+    branch: number | null;
+    function: number | null;
     measured: boolean;
+    /** Coverage report the values were read from, when measured. */
+    report?: { source: string; measuredAt: string };
   };
   quality: {
-    testsPassing: number;
-    securityScore: number;
-    performanceScore: number;
+    testsPassing: number | null;
+    securityScore: number | null;
+    performanceScore: number | null;
   };
   fleet: {
+    /** Whether a fleet (fleet_init) is running in this MCP server process. */
+    initialized: boolean;
     activeAgents: number;
-    maxAgents: number;
+    maxAgents: number | null;
+    availableAgents: string[];
   };
   resources: {
-    timeRemaining: number;
-    parallelSlots: number;
+    timeRemaining: number | null;
+    parallelSlots: number | null;
   };
+  /** Dotted field path -> 'live' | 'measured' | 'caller' | 'default'. */
+  provenance: WorldStateProvenance;
+  /** Fields the planner would fill with DEFAULT_V3_WORLD_STATE assumptions. */
+  defaultedFields: string[];
 }
 
 /**
@@ -158,6 +175,11 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
   private planner: GOAPPlanner | null = null;
   private executor: PlanExecutor | null = null;
 
+  /** World-state sources; injectable for tests (defaults read live state). */
+  constructor(private readonly worldStateSources: WorldStateSources = {}) {
+    super();
+  }
+
   readonly config: MCPToolConfig = {
     name: 'qe/planning/goap_status',
     description:
@@ -238,7 +260,7 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
    */
   async execute(
     params: GOAPStatusParams,
-    context: MCPToolContext
+    _context: MCPToolContext
   ): Promise<ToolResult<GOAPStatusResult>> {
     try {
       switch (params.type) {
@@ -267,14 +289,32 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
   }
 
   /**
-   * Get current world state
+   * Get current world state.
+   *
+   * Issue #535: previously returned a static DEFAULT_V3_WORLD_STATE copy
+   * (fleet.activeAgents always 0) and called markAsRealData() on it. Now
+   * reads the live fleet and any coverage report, reports unobserved values
+   * as null, and only claims 'real' when nothing was defaulted.
    */
   private async getWorldState(): Promise<ToolResult<GOAPStatusResult>> {
-    // In a full implementation, this would query actual metrics
-    // For now, return the default state with some variation
-    const state: V3WorldState = { ...DEFAULT_V3_WORLD_STATE };
+    const detected = await detectWorldState(this.worldStateSources);
+    const { state, provenance } = detected;
+    const observed = (field: string): boolean => provenance[field] !== 'default';
+    const valueIfObserved = (field: string, value: number): number | null =>
+      observed(field) ? value : null;
 
-    this.markAsRealData();
+    const defaulted = defaultedFields(provenance);
+    const exposedFields = [
+      'coverage.line', 'coverage.branch', 'coverage.function',
+      'quality.testsPassing', 'quality.securityScore', 'quality.performanceScore',
+      'fleet.activeAgents', 'fleet.maxAgents',
+      'resources.timeRemaining', 'resources.parallelSlots',
+    ];
+    if (exposedFields.every(observed)) {
+      this.markAsRealData();
+    } else {
+      this.markAsEstimatedData();
+    }
 
     return {
       success: true,
@@ -282,24 +322,29 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
         type: 'world',
         data: {
           coverage: {
-            line: state.coverage.line,
-            branch: state.coverage.branch,
-            function: state.coverage.function,
+            line: valueIfObserved('coverage.line', state.coverage.line),
+            branch: valueIfObserved('coverage.branch', state.coverage.branch),
+            function: valueIfObserved('coverage.function', state.coverage.function),
             measured: state.coverage.measured,
+            ...(detected.coverageReport ? { report: detected.coverageReport } : {}),
           },
           quality: {
-            testsPassing: state.quality.testsPassing,
-            securityScore: state.quality.securityScore,
-            performanceScore: state.quality.performanceScore,
+            testsPassing: valueIfObserved('quality.testsPassing', state.quality.testsPassing),
+            securityScore: valueIfObserved('quality.securityScore', state.quality.securityScore),
+            performanceScore: valueIfObserved('quality.performanceScore', state.quality.performanceScore),
           },
           fleet: {
+            initialized: detected.fleetInitialized,
             activeAgents: state.fleet.activeAgents,
-            maxAgents: state.fleet.maxAgents,
+            maxAgents: valueIfObserved('fleet.maxAgents', state.fleet.maxAgents),
+            availableAgents: [...state.fleet.availableAgents],
           },
           resources: {
-            timeRemaining: state.resources.timeRemaining,
-            parallelSlots: state.resources.parallelSlots,
+            timeRemaining: valueIfObserved('resources.timeRemaining', state.resources.timeRemaining),
+            parallelSlots: valueIfObserved('resources.parallelSlots', state.resources.parallelSlots),
           },
+          provenance,
+          defaultedFields: defaulted,
         },
       },
     };
@@ -339,8 +384,6 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
     category?: string,
     limit: number = 50
   ): Promise<ToolResult<GOAPStatusResult>> {
-    const planner = await this.getPlanner();
-
     // Get actions from the library
     let actions: Array<{
       id: string;
@@ -393,8 +436,8 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
    * Get plans
    */
   private async getPlans(
-    status?: string,
-    limit: number = 20
+    _status?: string,
+    _limit: number = 20
   ): Promise<ToolResult<GOAPStatusResult>> {
     const planner = await this.getPlanner();
 
