@@ -5,6 +5,82 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.14.6] - 2026-09-29
+
+This patch fixes an `aqe audit verify` crash on stores with no audit chain yet.
+It adds `aqe audit repair` for stores forked by concurrent writers before
+3.14.5, makes repeat `aqe init --auto` runs leave an unchanged project
+untouched, and makes GOAP planning work from the live fleet state. It also
+redacts secrets from AQE's logs and lets keyword matches improve pattern
+search.
+
+### Security
+
+- Secrets are redacted from AQE's structured logs and from logged errors. This
+  covers API keys (`sk-ant-`, `sk-`, `ghp_`, `github_pat_`, `AKIA…`),
+  Bearer/Basic credentials, credentials in URLs, JWTs, PEM private keys,
+  cookies, and values under sensitive keys (`password`, `token`, `apiKey`,
+  `access_token`, …) in objects, JSON text and query strings. Command output
+  such as `aqe memory get` is not changed ([#789]).
+
+### Added
+
+- `aqe audit verify --chain audit` now keeps checking past accidental forks
+  left by pre-3.14.5 concurrent writers, and reports them separately from
+  tampering (`status: "forked"`, `tampered: false`). The new
+  `aqe audit repair --chain audit [--dry-run]` acknowledges those forks with
+  one signed entry. It refuses if anything was tampered with, backs up the
+  database first, and never edits or deletes an existing row. Afterwards verify
+  passes again ([#784]).
+- `goap_status {type:"plans"}` lists saved GOAP plans ([#791]).
+
+### Changed
+
+- Running `aqe init --auto` again on an unchanged project no longer rewrites
+  generated files or creates `.claude/settings.json.backup`. Fresh and repeat
+  runs now produce the same settings: all 13 domains, and pattern promotion at
+  3 successes / 0.7 success rate, which is what the learning runtime actually
+  enforces ([#783]).
+- Keyword matches now contribute to pattern search alongside vector
+  similarity. A keyword-only hit is weighted by how many of the query's terms
+  it matches ([#779]).
+- `qe_coherence_consensus` rejects malformed votes with a clear error. Only a
+  unanimous vote is flagged as possible false consensus, and every
+  recommendation states the real tally ([#781]).
+- `goap_plan` rejects unknown constraint keys and supports
+  `constraints.maxSteps` ([#785]).
+
+### Fixed
+
+- `aqe audit verify --chain audit` and `aqe audit repair --dry-run` no longer
+  crash with `SQLITE_READONLY` on a store that has no audit chain yet (for
+  example after `aqe init --minimal`) or on older stores without the archive
+  table. A store whose live chain was deleted while archived rows remain is
+  now reported as tampered instead of valid ([#788]).
+- GOAP world state is read from the live fleet, and coverage from a coverage
+  report when one exists. Values it can't measure are reported as `null` with
+  `dataSource: "estimated"` instead of defaults labelled as real. Planning for
+  goals such as `achieve-90-percent-coverage` works again, and a plan can be
+  dry-run executed by its ID. A step whose domain call returns an error now
+  fails instead of being recorded as completed ([#785]).
+- A repeat `fleet_init` reports the fleet settings actually in effect instead
+  of echoing the requested ones ([#790]).
+- When another live process holds an RVF lock, AQE logs one clear warning and
+  falls back to SQLite, without a second, misleading `LockHeld` error ([#782]).
+- Updated `ip-address` to 10.7.2 ([#776]).
+
+[#776]: https://github.com/proffesor-for-testing/agentic-qe/pull/776
+[#779]: https://github.com/proffesor-for-testing/agentic-qe/pull/779
+[#781]: https://github.com/proffesor-for-testing/agentic-qe/pull/781
+[#782]: https://github.com/proffesor-for-testing/agentic-qe/pull/782
+[#783]: https://github.com/proffesor-for-testing/agentic-qe/pull/783
+[#784]: https://github.com/proffesor-for-testing/agentic-qe/pull/784
+[#785]: https://github.com/proffesor-for-testing/agentic-qe/pull/785
+[#788]: https://github.com/proffesor-for-testing/agentic-qe/pull/788
+[#789]: https://github.com/proffesor-for-testing/agentic-qe/pull/789
+[#790]: https://github.com/proffesor-for-testing/agentic-qe/pull/790
+[#791]: https://github.com/proffesor-for-testing/agentic-qe/pull/791
+
 ## [3.14.5] - 2026-09-29
 
 This patch makes Agentic QE's results trustworthy for scripts and CI: failed

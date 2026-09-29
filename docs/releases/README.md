@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.14.6](v3.14.6.md) | 2026-09-29 | Audit verify crash fix, audit repair, converging init, live GOAP state. |
 | [v3.14.5](v3.14.5.md) | 2026-09-29 | Trustworthy exit codes, working platform setup, stable audit chains, quieter CLI. |
 | [v3.14.4](v3.14.4.md) | 2026-09-27 | Current model generation, request-failure fixes, and honest task/workflow outcomes. |
 | [v3.14.3](v3.14.3.md) | 2026-09-22 | Honest test, security, coherence, and quality-gate failures; Vitest 5 support. |
