@@ -24,6 +24,33 @@ import {
 } from '../../../integrations/coherence/index.js';
 import type { AgentType } from '../../../shared/types/index.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { tallyVotes, describeBreakdown } from '../../../integrations/coherence/vote-tally.js';
+
+/**
+ * Check every vote's shape. Returns an error message naming the first bad
+ * field, or null when all votes are usable.
+ */
+function validateVotes(votes: unknown[]): string | null {
+  const shape = 'Each vote must be { agentId: string, verdict: string | number | boolean, confidence: number 0-1 }.';
+  for (let i = 0; i < votes.length; i++) {
+    const vote = votes[i];
+    if (typeof vote !== 'object' || vote === null || Array.isArray(vote)) {
+      return `votes[${i}] must be an object. ${shape}`;
+    }
+    const { agentId, verdict, confidence } = vote as Record<string, unknown>;
+    if (typeof agentId !== 'string' || agentId.trim() === '') {
+      return `votes[${i}].agentId must be a non-empty string. ${shape}`;
+    }
+    const verdictType = typeof verdict;
+    if (verdictType !== 'string' && verdictType !== 'number' && verdictType !== 'boolean') {
+      return `votes[${i}].verdict is required (string, number, or boolean), got ${verdict === null ? 'null' : verdictType}. ${shape}`;
+    }
+    if (typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      return `votes[${i}].confidence must be a number between 0 and 1, got ${JSON.stringify(confidence) ?? 'undefined'}. ${shape}`;
+    }
+  }
+  return null;
+}
 
 // ============================================================================
 // Types
@@ -83,7 +110,23 @@ const COHERENCE_CONSENSUS_SCHEMA: MCPToolSchema = {
   properties: {
     votes: {
       type: 'array',
-      description: 'Array of agent votes to verify for consensus',
+      description:
+        'Array of agent votes to verify for consensus (at least 2). Each vote is an object ' +
+        '{ agentId: string, verdict: string | number | boolean, confidence: number 0-1, ' +
+        'agentType?: string, reasoning?: string }.',
+      items: {
+        type: 'object',
+        description: 'One agent vote',
+        properties: {
+          agentId: { type: 'string', description: 'Agent identifier', minLength: 1 },
+          agentType: { type: 'string', description: 'Agent type (default: worker)' },
+          // `verdict` may be a string, number, or boolean, which this schema
+          // type cannot express; it is required below and checked in execute().
+          confidence: { type: 'number', description: 'Confidence in the verdict', minimum: 0, maximum: 1 },
+          reasoning: { type: 'string', description: 'Optional reasoning text' },
+        },
+        required: ['agentId', 'verdict', 'confidence'],
+      },
     },
     confidenceThreshold: {
       type: 'number',
@@ -183,6 +226,14 @@ export class CoherenceConsensusTool extends MCPToolBase<
       };
     }
 
+    // A vote without a usable verdict would be grouped as the string
+    // "undefined"; three such votes looked like a unanimous false consensus
+    // even for a 2-1 split sent under another key (issue #535).
+    const voteError = validateVotes(votes);
+    if (voteError) {
+      return { success: false, error: voteError };
+    }
+
     try {
       // Get service
       const service = await this.getService();
@@ -245,7 +296,8 @@ export class CoherenceConsensusTool extends MCPToolBase<
           data: {
             ...fallbackResult,
             recommendation:
-              'Running in fallback mode (simple analysis). ' +
+              `Running in fallback mode (simple analysis): ${describeBreakdown(tallyVotes(votes))} ` +
+              `across ${votes.length} votes. ` +
               'Install prime-radiant-advanced-wasm for spectral consensus analysis.',
             usedFallback: true,
             executionTimeMs: Date.now() - startTime,
