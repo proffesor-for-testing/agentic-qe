@@ -545,3 +545,18 @@ export function getEndpointIdentity(): EndpointIdentity | null {
 export function getActiveEmbeddingSpaceIdentity(): EmbeddingSpaceIdentity | null {
   return activeEmbeddingSpaceIdentity;
 }
+
+/**
+ * #754: resolve the configured endpoint's embedding-space identity before an
+ * index binder (RVF pattern store, brain.rvf dual writer, SQLite HNSW) checks
+ * its space manifest. The endpoint runtime otherwise initializes lazily on the
+ * first embed call — after the binder has already refused for the process.
+ * Returns null when no endpoint is configured, so binders stay fail-closed.
+ */
+export async function ensureEndpointEmbeddingSpaceIdentity(): Promise<EmbeddingSpaceIdentity | null> {
+  if (activeEmbeddingSpaceIdentity) return activeEmbeddingSpaceIdentity;
+  const endpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+  if (!endpoint) return null;
+  await initializeModel({ endpoint, endpointToken: process.env.AQE_EMBEDDER_TOKEN });
+  return activeEmbeddingSpaceIdentity;
+}

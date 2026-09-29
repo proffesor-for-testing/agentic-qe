@@ -13,6 +13,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 /** Module-level cache for findProjectRoot result. */
@@ -28,12 +29,18 @@ export function clearProjectRootCache(): void {
   _cachedStartDir = null;
 }
 
+/** True when `dir` is `parent` or inside it. */
+function isWithin(dir: string, parent: string): boolean {
+  const rel = path.relative(parent, dir);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
 /**
  * Find the project root by walking up the directory tree.
  *
  * Priority order:
  * 1. AQE_PROJECT_ROOT environment variable (set by MCP config or init)
- * 2. Walk up looking for the NEAREST .agentic-qe directory (existing AQE project)
+ * 2. Nearest .agentic-qe at or below the nearest .git boundary
  * 3. Walk up looking for .git directory (git repo root)
  * 4. Walk up looking for package.json WITHOUT node_modules sibling (monorepo root)
  * 5. Fallback to current working directory
@@ -51,6 +58,13 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   _cachedStartDir = dir;
   const root = path.parse(dir).root;
 
+  // A store directly in $HOME is almost always a stray from an `aqe` run in
+  // the home directory. Outside any git repository there is no boundary to
+  // stop at, so never let it claim a descendant directory (#735/#516); an
+  // `aqe` run from $HOME itself still uses it, and AQE_PROJECT_ROOT overrides.
+  let home: string | null = null;
+  try { home = path.resolve(os.homedir()); } catch { home = null; }
+
   let checkDir = dir;
   let nearestAqeDir: string | null = null;
   let lowestGitDir: string | null = null;
@@ -60,8 +74,12 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
     // Issue #516: prefer the NEAREST (lowest) .agentic-qe, mirroring the
     // .git logic below. Keeping the topmost match let an ancestor store
     // (e.g. ~/.agentic-qe, created by any `aqe` run from $HOME) hijack
-    // every descendant project and fragment its learning into $HOME.
-    if (fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
+    // every descendant project and fragment its learning into $HOME. Stop
+    // considering stores above the nearest git boundary, even when the repo
+    // has not been initialized with AQE yet.
+    const isHomeStoreAboveStart = checkDir === home && checkDir !== dir
+      && !isWithin(dir, path.join(checkDir, '.agentic-qe'));
+    if (lowestGitDir === null && !isHomeStoreAboveStart && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
       if (nearestAqeDir === null) {
         nearestAqeDir = checkDir;
       }

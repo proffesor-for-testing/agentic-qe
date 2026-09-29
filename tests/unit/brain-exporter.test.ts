@@ -229,9 +229,10 @@ describe('Brain Export/Import System', () => {
       const targetDb = createTestDb();
       const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
-      // 3 patterns + 2 qvalues + 1 dream_cycle + 2 insights + 2 witness + 1 vector = 11
-      expect(result.imported).toBe(11);
-      expect(result.skipped).toBe(0);
+      // Source witness rows belong to their original chain; one local import
+      // event replaces them in the destination audit chain.
+      expect(result.imported).toBe(10);
+      expect(result.skipped).toBe(2);
       expect(result.conflicts).toBe(0);
 
       // Verify target DB has the data
@@ -254,7 +255,7 @@ describe('Brain Export/Import System', () => {
 
       const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
-      expect(result.imported).toBe(0);
+      expect(result.imported).toBe(1); // the local BRAIN_IMPORT audit event
       expect(result.skipped).toBeGreaterThan(0);
       expect(result.conflicts).toBeGreaterThan(0);
 
@@ -360,12 +361,8 @@ describe('Brain Export/Import System', () => {
       const targetDb = createTestDb();
       const result = importBrain(targetDb, outDir, { mergeStrategy: 'skip-conflicts' });
 
-      // All records imported
-      expect(result.imported).toBe(manifest.stats.totalRecords ?? (
-        manifest.stats.patternCount + manifest.stats.qValueCount +
-        manifest.stats.dreamInsightCount + manifest.stats.witnessChainLength
-      ));
-      expect(result.skipped).toBe(0);
+      expect(result.imported).toBe(manifest.stats.totalRecords - manifest.stats.witnessChainLength + 1);
+      expect(result.skipped).toBe(manifest.stats.witnessChainLength);
       expect(result.conflicts).toBe(0);
 
       // Verify counts match
@@ -379,7 +376,7 @@ describe('Brain Export/Import System', () => {
       expect(insightCount).toBe(manifest.stats.dreamInsightCount);
 
       const witnessCount = (targetDb.prepare('SELECT COUNT(*) as cnt FROM witness_chain').get() as { cnt: number }).cnt;
-      expect(witnessCount).toBe(manifest.stats.witnessChainLength);
+      expect(witnessCount).toBe(1); // only the destination's import event
 
       targetDb.close();
     });

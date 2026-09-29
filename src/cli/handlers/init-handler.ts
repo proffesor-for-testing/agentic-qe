@@ -623,6 +623,10 @@ export interface InitJsonOutput {
       policy: 'full' | 'compact' | 'none';
       ownedBytes: number;
     };
+    codexComponents?: {
+      hooks: { status: string; error?: string };
+      skills: { status: string; error?: string };
+    };
   };
   totalDurationMs: number;
   timestamp: string;

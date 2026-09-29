@@ -259,6 +259,9 @@ contract and is capped at 512 UTF-8 bytes including AQE's ownership sentinels
 (a conservative ceiling of 171 planning tokens at three bytes per token).
 `none` removes only well-formed AQE-owned sentinel blocks. It leaves all other
 `AGENTS.md` bytes untouched and still provisions MCP, hooks, and skills.
+On an existing `AGENTS.md`, `full` and `compact` add or replace only the
+AQE-owned block. Switching to `none` removes that block and restores the
+pre-existing bytes, including the file's original trailing newline state.
 
 ```bash
 npx agentic-qe init --auto --with-codex --codex-guidance compact

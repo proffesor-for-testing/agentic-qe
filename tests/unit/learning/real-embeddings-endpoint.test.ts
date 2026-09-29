@@ -17,12 +17,21 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as http from 'node:http';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { RvfNativeAdapter } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
+import { RvfPatternStore } from '../../../src/learning/rvf-pattern-store.js';
+import Database from 'better-sqlite3';
+import { RvfDualWriter } from '../../../src/integrations/ruvector/rvf-dual-writer.js';
+import { isRvfNativeAvailable } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
 import {
   computeRealEmbedding,
   computeBatchEmbeddings,
   resetInitialization,
   isUsingEndpoint,
   getEndpointIdentity,
+  getActiveEmbeddingSpaceIdentity,
   getEmbeddingDimension,
 } from '../../../src/learning/real-embeddings.js';
 
@@ -96,6 +105,91 @@ describe('real-embeddings.ts — ADR-097 endpoint branch', () => {
     expect(id?.dim).toBe(384);
     // Endpoint was called at least twice: probe + actual embed
     expect(server.calls).toBeGreaterThanOrEqual(2);
+  });
+
+  it('binds a fresh RVF pattern index after resolving the configured endpoint identity', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-rvf-endpoint-'));
+    const rvfPath = join(directory, 'patterns.rvf');
+    const previousEndpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+    const previousMemoryPath = process.env.AQE_MEMORY_PATH;
+    process.env.AQE_EMBEDDER_ENDPOINT = server.url;
+    process.env.AQE_MEMORY_PATH = join(directory, 'memory.db');
+    const adapter = {
+      status: () => ({ totalVectors: 0 }),
+      close: () => undefined,
+    } as RvfNativeAdapter;
+    const store = new RvfPatternStore(() => adapter, { rvfPath });
+    store.setSqliteStore({ getStats: () => ({ totalPatterns: 0 }) } as Parameters<typeof store.setSqliteStore>[0]);
+
+    try {
+      expect(getActiveEmbeddingSpaceIdentity()).toBeNull();
+      await store.initialize();
+      const active = getActiveEmbeddingSpaceIdentity();
+      expect(active?.spaceId).toMatch(/^[0-9a-f]{64}$/);
+      expect(store.getAdapter()).toBe(adapter);
+      expect(JSON.parse(readFileSync(`${rvfPath}.space.json`, 'utf8'))).toEqual({
+        version: 1,
+        spaceId: active?.spaceId,
+      });
+      expect(server.calls).toBeGreaterThan(0);
+    } finally {
+      await store.dispose();
+      resetInitialization();
+      if (previousEndpoint === undefined) delete process.env.AQE_EMBEDDER_ENDPOINT;
+      else process.env.AQE_EMBEDDER_ENDPOINT = previousEndpoint;
+      if (previousMemoryPath === undefined) delete process.env.AQE_MEMORY_PATH;
+      else process.env.AQE_MEMORY_PATH = previousMemoryPath;
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(!isRvfNativeAvailable())('binds brain.rvf in a fresh process before any embed call (#754)', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-dual-endpoint-'));
+    const rvfPath = join(directory, 'brain.rvf');
+    const previousEndpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+    const previousMemoryPath = process.env.AQE_MEMORY_PATH;
+    process.env.AQE_EMBEDDER_ENDPOINT = server.url;
+    process.env.AQE_MEMORY_PATH = join(directory, 'memory.db');
+    const db = new Database(':memory:');
+    const writer = new RvfDualWriter(db, { rvfPath, mode: 'dual-write' });
+    try {
+      expect(getActiveEmbeddingSpaceIdentity()).toBeNull();
+      await writer.initialize();
+      const active = getActiveEmbeddingSpaceIdentity();
+      expect(active?.spaceId).toMatch(/^[0-9a-f]{64}$/);
+      expect(writer.status().rvf).not.toBeNull();
+      expect(JSON.parse(readFileSync(`${rvfPath}.space.json`, 'utf8'))).toEqual({
+        version: 1,
+        spaceId: active?.spaceId,
+      });
+    } finally {
+      writer.close();
+      db.close();
+      if (previousEndpoint === undefined) delete process.env.AQE_EMBEDDER_ENDPOINT;
+      else process.env.AQE_EMBEDDER_ENDPOINT = previousEndpoint;
+      if (previousMemoryPath === undefined) delete process.env.AQE_MEMORY_PATH;
+      else process.env.AQE_MEMORY_PATH = previousMemoryPath;
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps brain.rvf fail-closed when no endpoint is configured (#633)', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-dual-noendpoint-'));
+    const previousEndpoint = process.env.AQE_EMBEDDER_ENDPOINT;
+    delete process.env.AQE_EMBEDDER_ENDPOINT;
+    const db = new Database(':memory:');
+    const writer = new RvfDualWriter(db, { rvfPath: join(directory, 'brain.rvf'), mode: 'dual-write' });
+    try {
+      await writer.initialize();
+      expect(getActiveEmbeddingSpaceIdentity()).toBeNull();
+      expect(writer.status().rvf).toBeNull();
+      expect(server.calls).toBe(0);
+    } finally {
+      writer.close();
+      db.close();
+      if (previousEndpoint !== undefined) process.env.AQE_EMBEDDER_ENDPOINT = previousEndpoint;
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('routes batch embeddings through endpoint preserving order', async () => {

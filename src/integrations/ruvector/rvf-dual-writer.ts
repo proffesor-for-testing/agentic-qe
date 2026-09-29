@@ -15,7 +15,7 @@ import type {
   RvfNativeAdapter,
   RvfStatus as NativeRvfStatus,
 } from './rvf-native-adapter.js';
-import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
+import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
 import { verifyOrCreateEmbeddingSpaceManifest } from '../../learning/embedding-space.js';
 
 // ============================================================================
@@ -192,6 +192,12 @@ export class RvfDualWriter {
       if (!adapter.isRvfNativeAvailable()) {
         this.rvfAvailable = false;
         return;
+      }
+
+      // #754: a later process opens brain.rvf before any embed call has
+      // initialized the (lazy) endpoint runtime; resolve its identity first.
+      if (!this.activeSpaceId()) {
+        await ensureEndpointEmbeddingSpaceIdentity();
       }
 
       const { isRvfLockHeldError, removeStaleRvfLock, quarantineUnusableStore } =

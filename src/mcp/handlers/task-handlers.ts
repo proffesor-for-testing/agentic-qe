@@ -32,6 +32,7 @@ import type { ModelTier } from '../../integrations/agentic-flow';
 import type { QEDomain, QEPattern } from '../../learning/qe-patterns.js';
 import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { ALL_DOMAINS, isDomainName } from '../../shared/types/index.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -59,13 +60,26 @@ export async function handleTaskSubmit(
     };
   }
 
+  // #734 D: reject unknown domains instead of accepting work no domain runs.
+  // Parity with `aqe task submit --domain`.
+  const targetDomains: unknown = params.targetDomains ?? [];
+  if (!Array.isArray(targetDomains) || !targetDomains.every(isDomainName)) {
+    const unknown = Array.isArray(targetDomains)
+      ? targetDomains.filter((d) => !isDomainName(d)).map(String)
+      : [String(targetDomains)];
+    return {
+      success: false,
+      error: `Unknown domain: ${unknown.join(', ')}. Valid domains: ${ALL_DOMAINS.join(', ')}`,
+    };
+  }
+
   const { queen } = getFleetState();
 
   try {
     const result = await queen!.submitTask({
       type: params.type as TaskType,
       priority: params.priority || 'p1',
-      targetDomains: params.targetDomains || [],
+      targetDomains,
       payload: params.payload || {},
       timeout: params.timeout || 300000,
     });

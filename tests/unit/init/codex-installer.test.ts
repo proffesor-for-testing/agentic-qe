@@ -94,17 +94,20 @@ describe('CodexInstaller', () => {
       );
     });
 
-    it('returns success with correct result shape', async () => {
+    it('reports missing packaged assets while retaining successful core components', async () => {
       const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
       const installer = createCodexInstaller({ projectRoot });
       const result = await installer.install();
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.mcpConfigured).toBe(true);
       expect(result.agentsMdInstalled).toBe(true);
       expect(result.hooksConfigured).toBe(false);
       expect(result.skillsInstalled).toBe(0);
-      expect(result.errors).toEqual([]);
+      expect(result.errors).toEqual([
+        expect.stringContaining('Codex hooks unavailable'),
+        expect.stringContaining('Codex skills unavailable'),
+      ]);
       expect(result.components.mcp.status).toBe('installed');
       expect(result.components.rules.status).toBe('installed');
       expect(result.configPath).toBe(join(projectRoot, '.codex/config.toml'));
@@ -319,32 +322,36 @@ describe('CodexInstaller', () => {
       expect(result.components.skills.status).toBe('installed');
     });
 
-    it('reports packaged hooks and skills as unavailable without failing core install', async () => {
+    it('reports packaged hooks and skills as unavailable instead of silently succeeding', async () => {
       mockExistsSync.mockImplementation((value: unknown) => String(value).startsWith(projectRoot) ? false : false);
 
       const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
       const result = await createCodexInstaller({ projectRoot }).install();
 
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
       expect(result.components.hooks.status).toBe('unavailable');
       expect(result.components.skills.status).toBe('unavailable');
+      expect(result.components.hooks.error).toContain('Codex hooks unavailable');
+      expect(result.components.skills.error).toContain('Codex skills unavailable');
       expect(result.skillsInstalled).toBe(0);
     });
   });
 
   describe('install() - existing files', () => {
-    it('skips when files exist and overwrite is false', async () => {
+    it('preserves an existing MCP config while adding owned guidance to AGENTS.md', async () => {
       mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue('User rule\n');
 
       const { createCodexInstaller } = await import('../../../src/init/codex-installer.js');
       const installer = createCodexInstaller({ projectRoot, overwrite: false });
       const result = await installer.install();
 
       expect(result.mcpConfigured).toBe(false);
-      expect(result.agentsMdInstalled).toBe(false);
-      expect(mockWriteFileSync.mock.calls.some(
-        (c: unknown[]) => String(c[0]).endsWith('config.toml') || String(c[0]).endsWith('AGENTS.md'),
-      )).toBe(false);
+      expect(result.agentsMdInstalled).toBe(true);
+      expect(mockWriteFileSync.mock.calls.some((c: unknown[]) => String(c[0]).endsWith('config.toml'))).toBe(false);
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        join(projectRoot, 'AGENTS.md'), expect.stringContaining('User rule\n<!-- BEGIN AGENTIC-QE CODEX -->'),
+      );
     });
 
     it('appends to existing TOML when overwrite is true', async () => {
