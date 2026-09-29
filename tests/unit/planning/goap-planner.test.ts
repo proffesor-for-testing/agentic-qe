@@ -672,6 +672,26 @@ describe('GOAPPlanner', () => {
       expect(plan!.actions).toHaveLength(2);
     });
 
+    it('a reused plan is checked against maxCost with effective (success-rate adjusted) cost', async () => {
+      await planner.addAction({
+        name: 'Unreliable 535',
+        agentType: 'worker',
+        preconditions: {},
+        effects: { 'quality.unreliable535': true },
+        cost: 5,
+        successRate: 0.5, // effective cost 10
+        category: 'test',
+      });
+      const goal = { 'quality.unreliable535': true };
+      planner.setPlanReuseEnabled(true);
+      const first = await planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, goal);
+      expect(first).not.toBeNull();
+
+      const capped = await planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, goal, { maxCost: 6 });
+
+      expect(capped).toBeNull();
+    });
+
     it.each([0, -1, 2.5, Number.NaN])('rejects invalid maxSteps=%s', async (bad) => {
       await expect(
         planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, { 'coverage.measured': true }, { maxSteps: bad })

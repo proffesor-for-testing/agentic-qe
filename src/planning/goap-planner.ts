@@ -1285,9 +1285,6 @@ export class GOAPPlanner {
     const maxSteps = constraints?.maxSteps ?? DEFAULT_MAX_PLAN_STEPS;
     if (plan.actions.length > maxSteps) return false;
 
-    if (constraints?.maxCost !== undefined && plan.totalCost > constraints.maxCost) {
-      return false;
-    }
     if (
       constraints?.maxDurationMs !== undefined &&
       plan.estimatedDurationMs > constraints.maxDurationMs
@@ -1298,9 +1295,16 @@ export class GOAPPlanner {
     const allowed = new Set(this.getAvailableActions(constraints).map((a) => a.id));
     if (!plan.actions.every((a) => allowed.has(a.id))) return false;
 
+    // Replay with the same effective cost fresh search enforces
+    // (getActionCost: success-rate and risk adjusted), not raw totalCost.
     let state = this.cloneState(currentState);
+    let effectiveCost = 0;
     for (const action of plan.actions) {
+      effectiveCost += this.getActionCost(action, state);
       state = this.applyAction(state, action);
+    }
+    if (constraints?.maxCost !== undefined && effectiveCost > constraints.maxCost) {
+      return false;
     }
     return this.meetsConditions(state, goal);
   }
