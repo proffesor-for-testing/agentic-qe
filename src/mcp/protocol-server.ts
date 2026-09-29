@@ -127,6 +127,7 @@ import {
 
 // ADR-062: Loop detection for MCP tool calls
 import { ToolCallSignatureTracker } from '../kernel/anti-drift-middleware.js';
+import { formatErrorForLog } from '../logging/redaction.js';
 
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
@@ -753,7 +754,7 @@ export class MCPProtocolServer {
     } catch (err) {
       // Preserve the diagnostic for operators without exposing it in the MCP
       // response or AG-UI event. Stderr keeps stdio protocol output valid.
-      console.error(`[MCP] Tool ${name} failed:`, err);
+      console.error(`[MCP] Tool ${name} failed:`, formatErrorForLog(err));
       const error = err instanceof Error ? err : new Error('Tool execution failed');
 
       // IMP-08: Detect context overflow (413) and trigger reactive compaction

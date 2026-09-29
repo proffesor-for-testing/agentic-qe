@@ -16,6 +16,7 @@ import {
   LogContext,
   LOG_LEVEL_NAMES,
 } from './logger.js';
+import { redactLogText, redactLogValue } from './redaction.js';
 
 /**
  * Configuration options for ConsoleLogger
@@ -96,11 +97,11 @@ export class ConsoleLogger implements Logger {
         if (error.stack) {
           errorContext.stack = error.stack;
         }
-        // Capture any additional properties on the error
+        // Keep the cause structured; format() redacts it with everything else
         // Use type assertion for ES2022 Error.cause compatibility
         const errorWithCause = error as Error & { cause?: unknown };
         if (errorWithCause.cause !== undefined) {
-          errorContext.cause = String(errorWithCause.cause);
+          errorContext.cause = errorWithCause.cause;
         }
       }
 
@@ -166,8 +167,8 @@ export class ConsoleLogger implements Logger {
     // Add domain
     parts.push(`[${this.domain}]`);
 
-    // Add message
-    parts.push(message);
+    // Add message (#740: redaction is a sink invariant, at every level)
+    parts.push(redactLogText(message));
 
     // Add context if provided
     const mergedContext = this.mergeContext(context);
@@ -219,64 +220,19 @@ export class ConsoleLogger implements Logger {
   }
 
   /**
-   * Format context object for display
+   * Format context object for display. The context is first reduced to a
+   * redacted, bounded, cycle-free copy (#740), so it serializes safely.
    */
   private formatContext(context: LogContext): string {
     try {
+      const safe = redactLogValue(context, { maxDepth: this.config.maxContextDepth + 1 });
       if (this.config.prettyPrint) {
-        return '\n' + JSON.stringify(context, this.createReplacer(), 2);
+        return '\n' + JSON.stringify(safe, null, 2);
       }
-      return JSON.stringify(context, this.createReplacer());
+      return JSON.stringify(safe);
     } catch {
       return '[unserializable context]';
     }
-  }
-
-  /**
-   * Create a JSON replacer that handles circular references and depth limiting
-   */
-  private createReplacer(): (key: string, value: unknown) => unknown {
-    const seen = new WeakSet();
-    let depth = 0;
-
-    return (_key: string, value: unknown) => {
-      // Handle depth limiting
-      if (typeof value === 'object' && value !== null) {
-        if (depth >= this.config.maxContextDepth) {
-          return '[object]';
-        }
-
-        // Handle circular references
-        if (seen.has(value)) {
-          return '[circular]';
-        }
-        seen.add(value);
-        depth++;
-      }
-
-      // Handle special types
-      if (value instanceof Error) {
-        return {
-          name: value.name,
-          message: value.message,
-          stack: value.stack,
-        };
-      }
-
-      if (typeof value === 'bigint') {
-        return value.toString();
-      }
-
-      if (typeof value === 'function') {
-        return '[function]';
-      }
-
-      if (typeof value === 'symbol') {
-        return value.toString();
-      }
-
-      return value;
-    };
   }
 }
 

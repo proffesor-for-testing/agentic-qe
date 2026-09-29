@@ -45,3 +45,7 @@ export { ConsoleLogger, NullLogger, DEFAULT_CONSOLE_LOGGER_CONFIG } from './cons
 // Factory for creating loggers
 export type { LoggerFactoryConfig, LoggerProvider } from './logger-factory.js';
 export { LoggerFactory, createLogger, getLogger } from './logger-factory.js';
+
+// Sink-side sensitive-data redaction (#740)
+export type { LogRedactionOptions } from './redaction.js';
+export { redactLogValue, redactLogText, formatErrorForLog, isSensitiveLogKey } from './redaction.js';
