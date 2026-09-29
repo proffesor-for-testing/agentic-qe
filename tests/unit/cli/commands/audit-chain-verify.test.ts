@@ -61,6 +61,80 @@ describe('handleAuditChainVerify', () => {
     expect(output.message).toContain('No database found');
   });
 
+  it('should verify a store that has no witness tables without writing to it', async () => {
+    // A fresh `aqe init --minimal` store: memory.db exists, but nothing has
+    // appended to the audit chain yet. Verify opens read-only and must not
+    // try to create the schema (SQLITE_READONLY).
+    const seed = new Database(dbPath);
+    seed.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT)');
+    seed.close();
+
+    const output = await handleAuditChainVerify({ format: 'json' });
+
+    expect(output.integrity).toBe(true);
+    expect(output.chainLength).toBe(0);
+    const check = new Database(dbPath, { readonly: true });
+    const tables = check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all();
+    check.close();
+    expect(tables).toEqual(['kv_store']);
+  });
+
+  it('should dry-run repair a store that has no witness tables without writing to it', async () => {
+    const seed = new Database(dbPath);
+    seed.exec('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT)');
+    seed.close();
+
+    const result = await handleAuditChainRepair({ format: 'json', dryRun: true });
+
+    expect(result.action).not.toBe('refused');
+    expect(result.rowsBefore).toEqual({ live: 0, archive: 0 });
+    const check = new Database(dbPath, { readonly: true });
+    const tables = check.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all();
+    check.close();
+    expect(tables).toEqual(['kv_store']);
+  });
+
+  it.each(['emptied', 'dropped'])('should report tampering when archived rows remain but the live chain was %s', async (how) => {
+    const db = new Database(dbPath);
+    const chain = createWitnessChain(db);
+    await chain.initialize();
+    for (let i = 0; i < 5; i++) chain.append('PATTERN_CREATE', { i }, 'reasoning-bank');
+    chain.archiveEntries(new Date(Date.now() + 60_000).toISOString());
+    if (how === 'emptied') db.exec('DELETE FROM witness_chain');
+    else db.exec('DROP TABLE witness_chain');
+    db.close();
+
+    const output = await handleAuditChainVerify({ format: 'json' });
+
+    expect(output.integrity).toBe(false);
+    expect(output.tampered).toBe(true);
+    expect(output.tamperReason).toBe('live-chain-missing');
+  });
+
+  it('should verify a legacy chain that has no archive table or signature columns', async () => {
+    // Stores from before archiving/signing: witness_chain with the original
+    // columns only, no witness_chain_archive. Read-only verify cannot migrate.
+    const db = new Database(dbPath);
+    db.exec(`CREATE TABLE witness_chain (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, prev_hash TEXT NOT NULL, action_hash TEXT NOT NULL,
+      action_type TEXT NOT NULL, action_data TEXT, timestamp TEXT NOT NULL, actor TEXT NOT NULL)`);
+    let prev = '0'.repeat(64);
+    for (let i = 0; i < 3; i++) {
+      const data = JSON.stringify({ i });
+      const row = { prev_hash: prev, action_hash: hashWith('sha256', data), action_type: 'PATTERN_CREATE',
+        action_data: data, timestamp: new Date(Date.now() + i).toISOString(), actor: 'legacy' };
+      const id = Number(db.prepare(`INSERT INTO witness_chain (prev_hash, action_hash, action_type, action_data, timestamp, actor)
+        VALUES (?, ?, ?, ?, ?, ?)`).run(row.prev_hash, row.action_hash, row.action_type, row.action_data, row.timestamp, row.actor).lastInsertRowid);
+      prev = hashWith('sha256', serializeEntry({ id, ...row } as never));
+    }
+    db.close();
+
+    const output = await handleAuditChainVerify({ format: 'json' });
+
+    expect(output.integrity).toBe(true);
+    expect(output.chainLength).toBe(3);
+  });
+
   it('should report valid for a real, untampered chain', async () => {
     const db = new Database(dbPath);
     const chain = createWitnessChain(db);
