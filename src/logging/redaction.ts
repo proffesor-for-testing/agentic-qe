@@ -37,11 +37,28 @@ const SENSITIVE_SUFFIXES = [
 
 /** Log-specific credential shapes, applied before the shared advisor patterns. */
 const LOG_PATTERNS: Array<[RegExp, string]> = [
-  [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:"']+:[^\s/@"']+@/gi, '$1<REDACTED:credentials>@'],
+  // Anchored on '://' rather than a scheme prefix: `\b[a-z][a-z0-9+.-]*://`
+  // backtracks quadratically on inputs such as 'a.a.a.…' (seconds per call at
+  // 100 KB). The scheme is left in place; an empty user (://:pw@) is covered.
+  [/(:\/\/)[^\s/@:"']*:[^\s/@"']+@/g, '$1<REDACTED:credentials>@'],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 <REDACTED:credential>'],
   [/\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{16,}/g, '<REDACTED:api_key>'],
   [/\b(set-cookie|cookie):\s*[^\n]+/gi, '$1: <REDACTED:cookie>'],
+  // Compound query/assignment keys the shared pattern misses: access_token=, client_secret=
+  [/\b([A-Za-z0-9_-]{0,64}?[_-](?:token|secret|password|passwd))=([^\s&"'#]+)/gi, '$1=<REDACTED:credential>'],
 ];
+
+/**
+ * JSON / repr serialized fields ("apiKey":"…", 'password': 123). The key is
+ * checked with isSensitiveLogKey() so text and structured values agree.
+ * Unterminated strings are redacted to end of line (fail closed).
+ */
+const SERIALIZED_FIELD = /(["'])([A-Za-z0-9_.-]{1,64})\1(\s*:\s*)("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|-?\d[\d.eE+-]*)/g;
+
+function redactSerializedFields(text: string): string {
+  return text.replace(SERIALIZED_FIELD, (match, q: string, key: string, sep: string) =>
+    isSensitiveLogKey(key) ? `${q}${key}${q}${sep}${q}<REDACTED:sensitive-key>${q}` : match);
+}
 
 export function isSensitiveLogKey(key: string): boolean {
   const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -50,9 +67,13 @@ export function isSensitiveLogKey(key: string): boolean {
 
 /** Redact credential-shaped substrings from free text. */
 export function redactLogText(text: string, maxLength = DEFAULTS.maxStringLength): string {
+  // Untyped (JS / `any`) callers may pass a non-string message; render it
+  // safely instead of throwing from inside the logger.
+  if (typeof text !== 'string') return formatErrorForLog(text);
   if (text.length > MAX_SCAN_LENGTH) return `[REDACTED:size-limit ${text.length} chars]`;
   let result = text;
   for (const [regex, replacement] of LOG_PATTERNS) result = result.replace(regex, replacement);
+  result = redactSerializedFields(result);
   result = redact(result, 'balanced').text;
   return result.length > maxLength
     ? `${result.slice(0, maxLength)}…[truncated ${result.length - maxLength} chars]`
@@ -78,7 +99,9 @@ export function formatErrorForLog(error: unknown): string {
       }
       return text;
     }
-    return typeof error === 'string' ? redactLogText(error) : JSON.stringify(redactLogValue(error, { maxDepth: 3 }));
+    return typeof error === 'string'
+      ? redactLogText(error)
+      : JSON.stringify(redactLogValue(error, { maxDepth: 3 })) ?? String(error);
   } catch {
     return '[REDACTED:sanitization-failed]';
   }
@@ -135,7 +158,9 @@ function sanitizeRecord(
     if (!descriptor) continue;
     if (!('value' in descriptor)) { out[key] = '[getter]'; continue; }
     const v: unknown = descriptor.value;
-    if (isSensitiveLogKey(key) && v !== null && v !== undefined && typeof v !== 'number' && typeof v !== 'boolean') {
+    // Numbers are redacted too (numeric PINs, session IDs); counters such as
+    // maxTokens/tokensUsed do not match a sensitive suffix in the first place.
+    if (isSensitiveLogKey(key) && v !== null && v !== undefined && typeof v !== 'boolean') {
       out[key] = '[REDACTED:sensitive-key]';
       continue;
     }

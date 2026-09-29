@@ -129,6 +129,59 @@ describe('redactLogText / formatErrorForLog (#740)', () => {
     expect(formatErrorForLog({ apiKey: CANARY })).not.toContain(CANARY);
     expect(formatErrorForLog(`Bearer ${CANARY}`)).not.toContain(CANARY);
   });
+
+  it.each([
+    ['JSON double-quoted key', JSON.stringify({ password: CANARY, user: 'bob' })],
+    ['JSON camelCase key', JSON.stringify({ apiKey: CANARY })],
+    ['repr single-quoted key', `{'client_secret': '${CANARY}'}`],
+    ['OAuth query access_token', `https://h/cb?code=1&access_token=${CANARY}`],
+    ['compound refresh_token', `refresh_token=${CANARY}`],
+    ...['passphrase', 'connectionString', 'pwd', 'dsn', 'auth', 'x-api-key', 'Set-Cookie'].map(
+      (key): [string, string] => [`JSON key ${key}`, JSON.stringify({ [key]: CANARY })]),
+    ['JSON value over 4 KB', JSON.stringify({ password: `${CANARY}${'x'.repeat(5000)}` })],
+    ['unterminated JSON value', `{"apiKey":"${CANARY}`],
+    ['compound value over 4 KB', `refresh_token=${CANARY}${'x'.repeat(5000)}`],
+    ['long custom URL scheme', `${'x'.repeat(40)}://bot:${CANARY}@host/x`],
+    ['URL with empty user', `https://:${CANARY}@host/x`],
+  ])('redacts a %s serialized into text', (_label, text) => {
+    expect(redactLogText(text)).not.toContain(CANARY);
+  });
+
+  it('redacts numeric values under sensitive keys in serialized text', () => {
+    const out = redactLogText(JSON.stringify({ password: 918273645, sessionId: 5647382910, user: 'bob' }));
+    expect(out).not.toContain('918273645');
+    expect(out).not.toContain('5647382910');
+    expect(out).toContain('bob');
+  });
+
+  it('keeps numeric counters in serialized text', () => {
+    const text = JSON.stringify({ maxTokens: 4096, tokensUsed: 12, tokenizer: 'cl100k' });
+    expect(redactLogText(text)).toBe(text);
+  });
+
+  it('stays linear on backtracking-prone input (URL scheme ReDoS)', () => {
+    const hostile = 'a.'.repeat(100_000);
+    const start = performance.now();
+    redactLogText(hostile);
+    redactLogText('a-'.repeat(100_000));
+    // Unbounded scheme quantifier took ~4 s here; bounded it is milliseconds.
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it('does not throw on a non-string message from an untyped caller', () => {
+    const err = new Error(`boom Bearer ${CANARY}`);
+    expect(() => redactLogText(err as unknown as string)).not.toThrow();
+    expect(redactLogText(err as unknown as string)).toContain('boom Bearer');
+    expect(redactLogText(err as unknown as string)).not.toContain(CANARY);
+    expect(redactLogText(undefined as unknown as string)).toBe('undefined');
+  });
+});
+
+describe('redactLogValue — numeric values under sensitive keys (#740)', () => {
+  it('redacts numeric PINs and session ids but keeps boolean flags', () => {
+    const out = redactLogValue({ password: 123456, sessionId: 987654321, hasPassword: true });
+    expect(out).toEqual({ password: '[REDACTED:sensitive-key]', sessionId: '[REDACTED:sensitive-key]', hasPassword: true });
+  });
 });
 
 describe('ConsoleLogger sink redaction (#740)', () => {
