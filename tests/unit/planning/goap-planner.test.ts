@@ -547,4 +547,113 @@ describe('GOAPPlanner', () => {
       }
     }, 60000); // A* search with many actions takes time, CI is slower
   });
+
+  // ==========================================================================
+  // Issue #535 — seeded coverage goal unplannable + constraints.maxSteps
+  // ==========================================================================
+  describe('issue #535', () => {
+    /** Replay a plan's effects to prove it actually reaches the goal. */
+    function simulateLine(start: V3WorldState, actions: GOAPAction[]): number {
+      let line = start.coverage.line;
+      for (const a of actions) {
+        const eff = a.effects['coverage.line'];
+        if (eff && typeof eff === 'object' && 'delta' in eff && typeof eff.delta === 'number') {
+          line = Math.min(100, line + eff.delta);
+        }
+      }
+      return line;
+    }
+
+    async function coverageGoal() {
+      const goals = await planner.getGoals();
+      const goal = goals.find((g) => g.name === 'achieve-90-percent-coverage');
+      expect(goal).toBeDefined();
+      return goal!.conditions;
+    }
+
+    it('plans the seeded achieve-90-percent-coverage goal from the default world state', async () => {
+      // Root cause: hashState() ignored every state key outside a fixed
+      // list (e.g. coverage.gapsIdentified), so analyze-coverage-gaps'
+      // successor state hashed identical to its (already closed) parent
+      // and generate-coverage-tests was never reachable.
+      planner.setPlanReuseEnabled(false);
+      const plan = await planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, await coverageGoal());
+
+      expect(plan).not.toBeNull();
+      expect(simulateLine(DEFAULT_V3_WORLD_STATE, plan!.actions)).toBeGreaterThanOrEqual(90);
+    }, 30000);
+
+    it('constraints.maxSteps caps plan length (fails when the goal needs more steps)', async () => {
+      planner.setPlanReuseEnabled(false);
+      // From line=0 the goal needs measure + analyze + 9x generate = 11 steps.
+      const plan = await planner.findPlan(
+        { ...DEFAULT_V3_WORLD_STATE },
+        await coverageGoal(),
+        { maxSteps: 3 }
+      );
+      expect(plan).toBeNull();
+    }, 30000);
+
+    it('constraints.maxSteps=1 rejects a goal that needs two steps (was silently ignored)', async () => {
+      await planner.addAction({
+        name: 'Plus Ten 535',
+        agentType: 'worker',
+        preconditions: {},
+        effects: { 'coverage.line': { delta: 10 } },
+        cost: 0.1,
+        successRate: 1.0,
+        category: 'coverage',
+      });
+      planner.setPlanReuseEnabled(false);
+      const start: V3WorldState = {
+        ...DEFAULT_V3_WORLD_STATE,
+        coverage: { ...DEFAULT_V3_WORLD_STATE.coverage, line: 70 },
+      };
+
+      const uncapped = await planner.findPlan(start, { 'coverage.line': { min: 90 } });
+      expect(uncapped).not.toBeNull();
+      expect(uncapped!.actions.length).toBe(2);
+
+      const capped = await planner.findPlan(start, { 'coverage.line': { min: 90 } }, { maxSteps: 1 });
+      expect(capped).toBeNull();
+    });
+
+    it('constraints.maxSteps admits a plan that fits within the cap', async () => {
+      planner.setPlanReuseEnabled(false);
+      const start: V3WorldState = {
+        ...DEFAULT_V3_WORLD_STATE,
+        coverage: { ...DEFAULT_V3_WORLD_STATE.coverage, line: 75, measured: true },
+      };
+      const plan = await planner.findPlan(start, await coverageGoal(), { maxSteps: 3 });
+
+      expect(plan).not.toBeNull();
+      expect(plan!.actions.length).toBeLessThanOrEqual(3);
+      expect(simulateLine(start, plan!.actions)).toBeGreaterThanOrEqual(90);
+    }, 30000);
+
+    it('a reused plan longer than maxSteps is not returned', async () => {
+      const start: V3WorldState = {
+        ...DEFAULT_V3_WORLD_STATE,
+        coverage: { ...DEFAULT_V3_WORLD_STATE.coverage, line: 75, measured: true },
+      };
+      const goal = await coverageGoal();
+      planner.setPlanReuseEnabled(true);
+      const first = await planner.findPlan(start, goal);
+      expect(first).not.toBeNull();
+      expect(first!.actions.length).toBeGreaterThan(1);
+
+      const capped = await planner.findPlan(start, goal, { maxSteps: 1 });
+      // Either no plan, or a genuinely <=1-step plan — never the reused longer one.
+      if (capped) {
+        expect(capped.actions.length).toBeLessThanOrEqual(1);
+      }
+      expect(capped?.reusedFrom).toBeUndefined();
+    }, 30000);
+
+    it.each([0, -1, 2.5, Number.NaN])('rejects invalid maxSteps=%s', async (bad) => {
+      await expect(
+        planner.findPlan({ ...DEFAULT_V3_WORLD_STATE }, { 'coverage.measured': true }, { maxSteps: bad })
+      ).rejects.toThrow(/maxSteps/);
+    });
+  });
 });

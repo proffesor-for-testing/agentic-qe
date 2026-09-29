@@ -53,6 +53,13 @@ export interface ExecutionConfig {
   stepTimeoutMs: number;
   /** Auto-replan if step fails (default: true) */
   replanOnFailure: boolean;
+  /**
+   * Maximum number of successive replans within one execution (default: 3).
+   * Issue #535: once the planner could actually find plans again, an
+   * unbounded failure -> replan -> failure chain could ping-pong forever
+   * between two alternative actions.
+   */
+  maxReplans?: number;
   /** Execute independent steps in parallel (default: false) */
   parallelExecution: boolean;
   /** Record state before/after each step (default: true) */
@@ -83,6 +90,7 @@ const DEFAULT_CONFIG: ExecutionConfig = {
   maxRetries: 2,
   stepTimeoutMs: 60000,
   replanOnFailure: true,
+  maxReplans: 3,
   parallelExecution: false,
   recordWorldState: true,
   useUnified: true, // ADR-046: Default to unified storage
@@ -104,9 +112,33 @@ function safeStringify(value: unknown, maxLength = 2000): string {
   }
 }
 
+/**
+ * Issue #535: render the `error` of a domain Result err as text — an Error's
+ * message, a string as-is, else a (truncated) JSON rendering.
+ */
+function describeDomainError(reason: unknown): string {
+  if (reason === undefined || reason === null) return 'unknown error';
+  if (reason instanceof Error || typeof reason === 'string') return toErrorMessage(reason);
+  const message = (reason as { message?: unknown }).message;
+  return typeof message === 'string' ? message : safeStringify(reason, 500);
+}
+
 // ============================================================================
 // Result Types
 // ============================================================================
+
+/**
+ * Outcome of a single attempt at a step. `retryable: false` marks a
+ * deterministic failure that retrying cannot fix (issue #535).
+ */
+interface StepAttemptResult {
+  success: boolean;
+  newState: V3WorldState;
+  output?: string;
+  agentId?: string;
+  error?: string;
+  retryable?: boolean;
+}
 
 /**
  * Result of executing a complete plan
@@ -397,9 +429,39 @@ export class PlanExecutor {
   ): Promise<ExecutionResult> {
     await this.initialize();
 
-    const startTime = Date.now();
     const executionId = `exec-${Date.now()}-${randomUUID().slice(0, 8)}`;
     this.currentExecution = { planId: plan.id, cancelled: false };
+
+    try {
+      const result = await this.runPlan(plan, onStepStart, onStepComplete, initialState, {
+        excludedActions: new Set<string>(),
+        replanDepth: 0,
+      });
+
+      // Persist once per top-level execution. Issue #535: replanned
+      // sub-plans used to persist their own steps AND hand them back to the
+      // parent, which persisted them again under the same step ids
+      // ("UNIQUE constraint failed: goap_execution_steps.id").
+      await this.persistExecutionResult(executionId, result);
+
+      return result;
+    } finally {
+      this.currentExecution = null;
+    }
+  }
+
+  /**
+   * Run a plan's steps (and any replacement plans after a failure) without
+   * persisting or resetting execution tracking — see executeWithCallbacks.
+   */
+  private async runPlan(
+    plan: GOAPPlan,
+    onStepStart: (step: ExecutionStep) => void,
+    onStepComplete: (step: ExecutedStep) => void,
+    initialState: V3WorldState | undefined,
+    replan: { excludedActions: Set<string>; replanDepth: number }
+  ): Promise<ExecutionResult> {
+    const startTime = Date.now();
 
     const result: ExecutionResult = {
       planId: plan.id,
@@ -423,127 +485,139 @@ export class PlanExecutor {
       status: 'pending' as const,
     }));
 
-    try {
-      for (const step of steps) {
-        // Check for cancellation
-        if (this.currentExecution?.cancelled) {
-          result.status = 'cancelled';
-          result.error = 'Execution was cancelled';
+    for (const step of steps) {
+      // Check for cancellation
+      if (this.currentExecution?.cancelled) {
+        result.status = 'cancelled';
+        result.error = 'Execution was cancelled';
+        break;
+      }
+
+      // Record world state before execution
+      if (this.config.recordWorldState) {
+        step.worldStateBefore = this.cloneState(currentState);
+      }
+
+      // Notify step start
+      onStepStart(step);
+
+      // Execute with retries
+      let success = false;
+      let lastError: string | undefined;
+      let retries = 0;
+      let output: string | undefined;
+      let agentId: string | undefined;
+      const stepStartTime = Date.now();
+
+      for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
+        const execResult = await this.executeStep(step, currentState);
+
+        if (execResult.success) {
+          success = true;
+          currentState = execResult.newState;
+          output = execResult.output;
+          agentId = execResult.agentId;
           break;
         }
 
-        // Record world state before execution
-        if (this.config.recordWorldState) {
-          step.worldStateBefore = this.cloneState(currentState);
+        lastError = execResult.error;
+        retries = attempt;
+
+        // Issue #535: deterministic failures (no implementation, domain
+        // not loaded, missing method, unmet preconditions) cannot succeed
+        // on retry — don't burn seconds of backoff on them.
+        if (execResult.retryable === false) {
+          break;
         }
 
-        // Notify step start
-        onStepStart(step);
-
-        // Execute with retries
-        let success = false;
-        let lastError: string | undefined;
-        let retries = 0;
-        let output: string | undefined;
-        let agentId: string | undefined;
-        const stepStartTime = Date.now();
-
-        for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
-          const execResult = await this.executeStep(step, currentState);
-
-          if (execResult.success) {
-            success = true;
-            currentState = execResult.newState;
-            output = execResult.output;
-            agentId = execResult.agentId;
-            break;
-          }
-
-          lastError = execResult.error;
-          retries = attempt;
-
-          // Wait before retry (exponential backoff)
-          if (attempt < this.config.maxRetries) {
-            await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
-          }
-        }
-
-        // Record executed step
-        const executedStep: ExecutedStep = {
-          ...step,
-          status: success ? 'completed' : 'failed',
-          retries,
-          startedAt: new Date(stepStartTime),
-          completedAt: new Date(),
-          durationMs: Date.now() - stepStartTime,
-          agentId,
-          agentOutput: output,
-          worldStateAfter: this.config.recordWorldState
-            ? this.cloneState(currentState)
-            : undefined,
-          error: lastError,
-        };
-
-        result.steps.push(executedStep);
-        onStepComplete(executedStep);
-
-        if (success) {
-          result.stepsCompleted++;
-          await this.updateActionStats(step.action.id, true, executedStep.durationMs ?? 0);
-        } else {
-          result.stepsFailed++;
-          await this.updateActionStats(step.action.id, false, 0);
-
-          // Try to replan if configured
-          if (this.config.replanOnFailure) {
-            const newPlan = await this.replanFromFailure(
-              plan,
-              step.stepOrder,
-              currentState
-            );
-
-            if (newPlan) {
-              // Execute new plan recursively
-              const replanResult = await this.executeWithCallbacks(
-                newPlan,
-                onStepStart,
-                onStepComplete,
-                currentState
-              );
-
-              result.steps.push(...replanResult.steps);
-              result.stepsCompleted += replanResult.stepsCompleted;
-              result.stepsFailed += replanResult.stepsFailed;
-
-              if (replanResult.status === 'completed' && replanResult.finalWorldState) {
-                currentState = replanResult.finalWorldState;
-              } else {
-                result.status = 'partial';
-                result.error = `Replanning partially succeeded: ${replanResult.error || 'unknown error'}`;
-              }
-            } else {
-              result.status = 'failed';
-              result.error = `Step ${step.stepOrder} failed and replanning unsuccessful: ${lastError}`;
-              break;
-            }
-          } else {
-            result.status = 'failed';
-            result.error = `Step ${step.stepOrder} failed: ${lastError}`;
-            break;
-          }
+        // Wait before retry (exponential backoff)
+        if (attempt < this.config.maxRetries) {
+          await this.delay(Math.min(1000 * Math.pow(2, attempt), 5000));
         }
       }
 
-      result.finalWorldState = currentState;
-      result.totalDurationMs = Date.now() - startTime;
+      // Record executed step
+      const executedStep: ExecutedStep = {
+        ...step,
+        status: success ? 'completed' : 'failed',
+        retries,
+        startedAt: new Date(stepStartTime),
+        completedAt: new Date(),
+        durationMs: Date.now() - stepStartTime,
+        agentId,
+        agentOutput: output,
+        worldStateAfter: this.config.recordWorldState
+          ? this.cloneState(currentState)
+          : undefined,
+        error: lastError,
+      };
 
-      // Persist execution result
-      await this.persistExecutionResult(executionId, result);
+      result.steps.push(executedStep);
+      onStepComplete(executedStep);
 
-      return result;
-    } finally {
-      this.currentExecution = null;
+      if (success) {
+        result.stepsCompleted++;
+        await this.updateActionStats(step.action.id, true, executedStep.durationMs ?? 0);
+      } else {
+        result.stepsFailed++;
+        await this.updateActionStats(step.action.id, false, 0);
+
+        // Try to replan if configured (bounded — issue #535)
+        const maxReplans = this.config.maxReplans ?? 3;
+        if (this.config.replanOnFailure && replan.replanDepth < maxReplans) {
+          // Accumulate exclusions across successive replans so a chain of
+          // failures can't bounce back to an action that already failed.
+          replan.excludedActions.add(step.action.id);
+          const newPlan = await this.replanFromFailure(
+            plan,
+            step.stepOrder,
+            currentState,
+            [...replan.excludedActions]
+          );
+
+          if (newPlan) {
+            const replanResult = await this.runPlan(
+              newPlan,
+              onStepStart,
+              onStepComplete,
+              currentState,
+              { excludedActions: replan.excludedActions, replanDepth: replan.replanDepth + 1 }
+            );
+
+            result.steps.push(...replanResult.steps);
+            result.stepsCompleted += replanResult.stepsCompleted;
+            result.stepsFailed += replanResult.stepsFailed;
+
+            if (replanResult.status === 'completed' && replanResult.finalWorldState) {
+              currentState = replanResult.finalWorldState;
+            } else {
+              // The goal was not reached — report it as such rather than
+              // the old 'partial' ("Replanning partially succeeded").
+              result.status = replanResult.status === 'cancelled' ? 'cancelled' : 'failed';
+              result.error =
+                `Step ${step.stepOrder} failed (${lastError}); replanning did not recover: ` +
+                `${replanResult.error || 'unknown error'}`;
+            }
+            // The replacement plan supersedes the rest of this plan —
+            // don't keep executing stale steps after it.
+            break;
+          } else {
+            result.status = 'failed';
+            result.error = `Step ${step.stepOrder} failed and replanning unsuccessful: ${lastError}`;
+            break;
+          }
+        } else {
+          result.status = 'failed';
+          result.error = `Step ${step.stepOrder} failed: ${lastError}`;
+          break;
+        }
+      }
     }
+
+    result.finalWorldState = currentState;
+    result.totalDurationMs = Date.now() - startTime;
+
+    return result;
   }
 
   /**
@@ -552,13 +626,7 @@ export class PlanExecutor {
   private async executeStep(
     step: ExecutionStep,
     currentState: V3WorldState
-  ): Promise<{
-    success: boolean;
-    newState: V3WorldState;
-    output?: string;
-    agentId?: string;
-    error?: string;
-  }> {
+  ): Promise<StepAttemptResult> {
     const action = step.action;
 
     // Check preconditions
@@ -567,6 +635,7 @@ export class PlanExecutor {
         success: false,
         newState: currentState,
         error: `Preconditions not met for action: ${action.name}`,
+        retryable: false,
       };
     }
 
@@ -581,6 +650,7 @@ export class PlanExecutor {
         success: false,
         newState: currentState,
         error: `Action '${action.name}' has no real implementation yet (not simulated — see GOAPAction.implemented)`,
+        retryable: false,
       };
     }
 
@@ -644,18 +714,13 @@ export class PlanExecutor {
   private async executeRealAction(
     action: GOAPAction,
     currentState: V3WorldState
-  ): Promise<{
-    success: boolean;
-    newState: V3WorldState;
-    output?: string;
-    agentId?: string;
-    error?: string;
-  }> {
+  ): Promise<StepAttemptResult> {
     if (!action.qeDomain) {
       return {
         success: false,
         newState: currentState,
         error: `Action '${action.name}' has no qeDomain to resolve a real API from`,
+        retryable: false,
       };
     }
     if (!action.method) {
@@ -663,6 +728,7 @@ export class PlanExecutor {
         success: false,
         newState: currentState,
         error: `Action '${action.name}' is marked implemented but has no method binding`,
+        retryable: false,
       };
     }
 
@@ -681,6 +747,7 @@ export class PlanExecutor {
         success: false,
         newState: currentState,
         error: `Domain '${action.qeDomain}' is not available (kernel not initialized, or the domain isn't loaded — try fleet_init)`,
+        retryable: false,
       };
     }
 
@@ -690,6 +757,7 @@ export class PlanExecutor {
         success: false,
         newState: currentState,
         error: `Domain '${action.qeDomain}' has no method '${action.method}'`,
+        retryable: false,
       };
     }
 
@@ -702,6 +770,26 @@ export class PlanExecutor {
       );
       const invokePromise = (method as (...args: unknown[]) => Promise<unknown>).call(api, action.params ?? {});
       const result = await Promise.race([invokePromise, timeoutPromise]);
+
+      // Issue #535: domain APIs return Result<T, Error> ({ success: false,
+      // error }) rather than throwing. Treating any resolved value as
+      // success reported e.g. detectGaps({}) -> err("missing coverageData")
+      // as a completed step and applied its effects — a fabricated success.
+      if (
+        typeof result === 'object' &&
+        result !== null &&
+        (result as { success?: unknown }).success === false
+      ) {
+        const reason = (result as { error?: unknown }).error;
+        return {
+          success: false,
+          newState: currentState,
+          agentId: `domain:${action.qeDomain}`,
+          error:
+            `Domain '${action.qeDomain}' method '${action.method}' returned an error: ` +
+            describeDomainError(reason),
+        };
+      }
 
       const newState = this.applyEffects(currentState, action.effects);
       return {
@@ -760,12 +848,14 @@ export class PlanExecutor {
   async replanFromFailure(
     originalPlan: GOAPPlan,
     failedStepIndex: number,
-    currentState: V3WorldState
+    currentState: V3WorldState,
+    additionalExcluded: string[] = []
   ): Promise<GOAPPlan | null> {
     try {
-      // Exclude the failed action from replanning
+      // Exclude the failed action (and any that failed earlier in this
+      // execution) from replanning
       const failedAction = originalPlan.actions[failedStepIndex];
-      const excludedActions = [failedAction.id];
+      const excludedActions = [...new Set([failedAction.id, ...additionalExcluded])];
 
       // Try to find a new plan
       const newPlan = await this.planner.findPlan(

@@ -27,6 +27,7 @@ import type {
   GOAPGoalRecord,
   GOAPPlanRecord,
 } from './types.js';
+import { DEFAULT_MAX_PLAN_STEPS, validateMaxSteps } from './types.js';
 import { getAllQEActions, QE_GOALS } from './actions/qe-action-library.js';
 
 // ============================================================================
@@ -318,6 +319,13 @@ export class GOAPPlanner {
     goal: StateConditions,
     constraints?: PlanConstraints
   ): Promise<GOAPPlan | null> {
+    // Issue #535: reject a malformed step cap up front rather than silently
+    // ignoring it (maxSteps: 0 would otherwise mean "no plan ever").
+    const maxStepsError = validateMaxSteps(constraints?.maxSteps);
+    if (maxStepsError) {
+      throw new Error(maxStepsError);
+    }
+
     await this.initialize();
 
     const startTime = Date.now();
@@ -325,7 +333,11 @@ export class GOAPPlanner {
     // Try to reuse a similar plan first
     if (this.enablePlanReuse) {
       const reusedPlan = await this.findSimilarPlan(goal, 0.75);
-      if (reusedPlan && this.validatePlanForState(reusedPlan, currentState)) {
+      if (
+        reusedPlan &&
+        this.validatePlanForState(reusedPlan, currentState) &&
+        this.planSatisfiesConstraints(reusedPlan, currentState, goal, constraints)
+      ) {
         // Update reuse stats
         this.recordPlanReuse(reusedPlan.id, true);
         const clonedPlan: GOAPPlan = {
@@ -418,13 +430,21 @@ export class GOAPPlanner {
     // removed when the node is popped (moved to the closed set).
     const openSetCosts = new Map<string, number>();
 
+    // Issue #535: cost-unit heuristic built once per search from the
+    // actions that can actually move each goal key (see buildHeuristic).
+    const heuristic = this.buildHeuristic(goal, availableActions);
+    const startH = heuristic(start);
+    if (!Number.isFinite(startH)) {
+      return null; // some unmet goal key can never be changed by any action
+    }
+
     // Initialize start node
     const startNode: PlanNode = {
       state: this.cloneState(start),
       action: null,
       parent: null,
       g: 0,
-      h: this.calculateHeuristic(start, goal),
+      h: startH,
       f: 0,
       depth: 0,
     };
@@ -434,7 +454,8 @@ export class GOAPPlanner {
 
     // Constraint defaults
     const maxIterations = 10000;
-    const maxPlanLength = 20;
+    // Issue #535: constraints.maxSteps caps the search depth (= plan length).
+    const maxPlanLength = constraints?.maxSteps ?? DEFAULT_MAX_PLAN_STEPS;
     const maxCost = constraints?.maxCost ?? Infinity;
     const maxDuration = constraints?.maxDurationMs ?? Infinity;
 
@@ -484,7 +505,10 @@ export class GOAPPlanner {
 
         // Calculate costs
         const g = current.g + this.getActionCost(action, current.state);
-        const h = this.calculateHeuristic(newState, goal);
+        const h = heuristic(newState);
+        if (!Number.isFinite(h)) {
+          continue; // dead end: an unmet goal key no action can change
+        }
         const f = g + h;
 
         // Check cost constraints
@@ -678,63 +702,92 @@ export class GOAPPlanner {
   }
 
   /**
-   * Calculate heuristic distance to goal (admissible)
+   * Build an admissible, cost-unit A* heuristic for `goal` over `actions`.
+   *
+   * Issue #535: the previous heuristic was the raw percentage gap / 100 (e.g.
+   * 0.9 for coverage 0 -> 90) while a single generate-coverage-tests step
+   * costs ~5, so it carried almost no information and A* degenerated into
+   * uniform-cost search: it enumerated every combination of the ~40 cheap
+   * flag-setting library actions and hit the iteration cap before reaching
+   * any deep goal. Now each unmet goal key contributes a lower bound on the
+   * cost still needed to satisfy it:
+   *   - numeric min/max gap reachable by deltas: ceil(gap / largest delta)
+   *     steps x cheapest such action;
+   *   - any key an action can `set` (primitive or {set}) directly: that
+   *     action's cost (one step);
+   *   - unmet key no action can move: Infinity (dead end, pruned).
+   * The per-key bounds are combined with max(), which keeps the heuristic
+   * admissible and consistent even when one action moves several keys.
+   * Costs use the same base as getActionCost() (cost / successRate), whose
+   * risk multiplier only ever increases cost, so the bound never overshoots.
    */
-  private calculateHeuristic(
-    state: V3WorldState,
-    goal: StateConditions
-  ): number {
-    let distance = 0;
+  private buildHeuristic(
+    goal: StateConditions,
+    actions: GOAPAction[]
+  ): (state: V3WorldState) => number {
+    interface KeyMovers {
+      setCost: number;
+      upDelta: number;
+      upCost: number;
+      downDelta: number;
+      downCost: number;
+    }
+    const lowerBoundCost = (a: GOAPAction): number =>
+      a.successRate > 0 && a.successRate < 1 ? a.cost / a.successRate : a.cost;
 
-    for (const [key, condition] of Object.entries(goal)) {
-      const currentValue = this.getStateValue(state, key);
-
-      if (
-        typeof condition === 'object' &&
-        condition !== null &&
-        'min' in condition
-      ) {
-        const minValue = condition.min as number;
-        if (typeof currentValue === 'number' && currentValue < minValue) {
-          // Normalize distance (percentage points to heuristic units)
-          distance += (minValue - currentValue) / 100;
+    const movers = new Map<string, KeyMovers>();
+    for (const key of Object.keys(goal)) {
+      const m: KeyMovers = { setCost: Infinity, upDelta: 0, upCost: Infinity, downDelta: 0, downCost: Infinity };
+      for (const action of actions) {
+        if (!Object.hasOwn(action.effects, key)) continue;
+        const effect = action.effects[key];
+        const c = lowerBoundCost(action);
+        if (typeof effect !== 'object' || effect === null) {
+          m.setCost = Math.min(m.setCost, c);
+          continue;
+        }
+        if ('set' in effect && effect.set !== undefined) {
+          m.setCost = Math.min(m.setCost, c);
+        }
+        if ('delta' in effect && typeof effect.delta === 'number') {
+          if (effect.delta > 0) {
+            m.upDelta = Math.max(m.upDelta, effect.delta);
+            m.upCost = Math.min(m.upCost, c);
+          } else if (effect.delta < 0) {
+            m.downDelta = Math.max(m.downDelta, -effect.delta);
+            m.downCost = Math.min(m.downCost, c);
+          }
         }
       }
-
-      if (
-        typeof condition === 'object' &&
-        condition !== null &&
-        'max' in condition
-      ) {
-        const maxValue = condition.max as number;
-        if (typeof currentValue === 'number' && currentValue > maxValue) {
-          distance += (currentValue - maxValue) / 100;
-        }
-      }
-
-      if (
-        typeof condition === 'object' &&
-        condition !== null &&
-        'eq' in condition
-      ) {
-        if (currentValue !== condition.eq) {
-          distance += 1;
-        }
-      }
-
-      // Primitive conditions
-      if (
-        typeof condition === 'string' ||
-        typeof condition === 'number' ||
-        typeof condition === 'boolean'
-      ) {
-        if (currentValue !== condition) {
-          distance += 1;
-        }
-      }
+      movers.set(key, m);
     }
 
-    return distance;
+    return (state: V3WorldState): number => {
+      let h = 0;
+      for (const [key, condition] of Object.entries(goal)) {
+        if (this.checkCondition(state, key, condition)) continue;
+        const m = movers.get(key)!;
+        const value = this.getStateValue(state, key);
+        let bound = m.setCost;
+
+        if (typeof value === 'number' && typeof condition === 'object' && condition !== null) {
+          if ('min' in condition && typeof condition.min === 'number' && value < condition.min && m.upDelta > 0) {
+            bound = Math.min(bound, Math.ceil((condition.min - value) / m.upDelta) * m.upCost);
+          } else if ('max' in condition && typeof condition.max === 'number' && value > condition.max && m.downDelta > 0) {
+            bound = Math.min(bound, Math.ceil((value - condition.max) / m.downDelta) * m.downCost);
+          } else if ('eq' in condition && typeof condition.eq === 'number') {
+            // An eq target can be hit by a delta in (at least) one step.
+            bound = Math.min(bound, m.upCost, m.downCost);
+          }
+        } else if (typeof value === 'number' && typeof condition === 'number') {
+          bound = Math.min(bound, m.upCost, m.downCost);
+        }
+
+        if (!Number.isFinite(bound)) return Infinity;
+        h = Math.max(h, bound);
+      }
+      return h;
+    };
   }
 
   /**
@@ -790,36 +843,45 @@ export class GOAPPlanner {
   }
 
   /**
-   * Create hash of state for deduplication
+   * Create hash of state for deduplication.
+   *
+   * Issue #535: this previously hashed a fixed list of known fields only, so
+   * every action effect on any other key (coverage.gapsIdentified,
+   * quality.unitTestsRun, fleet.specialistAvailable, ... — most of the
+   * seeded action library) produced a successor state that hashed identical
+   * to its already-closed parent and was pruned. That made e.g. the seeded
+   * `achieve-90-percent-coverage` goal unplannable from any state (the
+   * analyze-coverage-gaps -> generate-coverage-tests chain was unreachable).
+   * Now every key in the state participates. Numbers are rounded (and
+   * resources.timeRemaining bucketed per minute) to keep the state space
+   * bounded, as before.
    */
   private hashState(state: V3WorldState): string {
-    const key = {
-      // Coverage
-      coverageLine: Math.round(state.coverage.line),
-      coverageBranch: Math.round(state.coverage.branch),
-      coverageFunc: Math.round(state.coverage.function),
-      coverageMeasured: state.coverage.measured,
+    return GOAPPlanner.stableStateKey(state, '');
+  }
 
-      // Quality
-      testsPassing: Math.round(state.quality.testsPassing),
-      securityScore: Math.round(state.quality.securityScore),
-      performanceScore: Math.round(state.quality.performanceScore),
-
-      // Fleet
-      activeAgents: state.fleet.activeAgents,
-      // PERF: Copy before sort to avoid mutating original array on every A* expansion
-      availableAgents: [...state.fleet.availableAgents].sort().join(','),
-
-      // Resources (rounded to reduce state space)
-      timeRemaining: Math.floor(state.resources.timeRemaining / 60),
-      parallelSlots: state.resources.parallelSlots,
-
-      // Context
-      environment: state.context.environment,
-      riskLevel: state.context.riskLevel,
-    };
-
-    return JSON.stringify(key);
+  private static stableStateKey(value: unknown, path: string): string {
+    if (value === null || value === undefined) return String(value);
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return String(value);
+      return path === 'resources.timeRemaining'
+        ? String(Math.floor(value / 60))
+        : String(Math.round(value));
+    }
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (Array.isArray(value)) {
+      // Copy before sort to avoid mutating the state's own array.
+      return `[${value.map((v) => GOAPPlanner.stableStateKey(v, path)).sort().join(',')}]`;
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      const parts = Object.keys(obj)
+        .sort()
+        .map((k) => `${k}:${GOAPPlanner.stableStateKey(obj[k], path ? `${path}.${k}` : k)}`);
+      return `{${parts.join(',')}}`;
+    }
+    return typeof value;
   }
 
   /**
@@ -1189,6 +1251,42 @@ export class GOAPPlanner {
     }
 
     return true;
+  }
+
+  /**
+   * Issue #535: a reused plan must honour the caller's constraints exactly
+   * like a freshly searched one — otherwise a cached 11-step plan is handed
+   * back for a `maxSteps: 3` request (or one using an excluded action, or
+   * over budget). Also requires that replaying the plan from the current
+   * state actually reaches the goal.
+   */
+  private planSatisfiesConstraints(
+    plan: GOAPPlan,
+    currentState: V3WorldState,
+    goal: StateConditions,
+    constraints?: PlanConstraints
+  ): boolean {
+    const maxSteps = constraints?.maxSteps ?? DEFAULT_MAX_PLAN_STEPS;
+    if (plan.actions.length > maxSteps) return false;
+
+    if (constraints?.maxCost !== undefined && plan.totalCost > constraints.maxCost) {
+      return false;
+    }
+    if (
+      constraints?.maxDurationMs !== undefined &&
+      plan.estimatedDurationMs > constraints.maxDurationMs
+    ) {
+      return false;
+    }
+
+    const allowed = new Set(this.getAvailableActions(constraints).map((a) => a.id));
+    if (!plan.actions.every((a) => allowed.has(a.id))) return false;
+
+    let state = this.cloneState(currentState);
+    for (const action of plan.actions) {
+      state = this.applyAction(state, action);
+    }
+    return this.meetsConditions(state, goal);
   }
 
   /**

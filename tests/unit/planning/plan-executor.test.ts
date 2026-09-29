@@ -388,6 +388,96 @@ describe('PlanExecutor', () => {
     });
   });
 
+  // Issue #535: once the planner could find plans again, replanning became
+  // reachable and exposed three latent executor bugs (duplicate step
+  // persistence, unbounded ping-pong replans, stale steps after a replan).
+  describe('issue #535: replanning', () => {
+    const goal = { 'custom535.done': true };
+
+    async function registerAction(
+      name: string,
+      overrides: Partial<GOAPAction> = {}
+    ): Promise<GOAPAction> {
+      const id = await planner.addAction({
+        name,
+        agentType: 'test-agent',
+        preconditions: {},
+        effects: { 'custom535.done': true },
+        cost: 1.0,
+        successRate: 1.0,
+        category: 'test',
+        ...overrides,
+      });
+      const all = await planner.getActionsByCategory('test');
+      return all.find((a) => a.id === id)!;
+    }
+
+    function planOf(actions: GOAPAction[]): GOAPPlan {
+      return {
+        id: `test-plan-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        initialState: { ...DEFAULT_V3_WORLD_STATE },
+        goalState: goal,
+        actions,
+        totalCost: actions.length,
+        estimatedDurationMs: 1000,
+        status: 'pending',
+      };
+    }
+
+    it('persists a replanned execution without duplicate step ids and completes via the alternative', async () => {
+      const failing = await registerAction('Failing 535', { implemented: false, cost: 0.5 });
+      const alternative = await registerAction('Alternative 535', { cost: 2.0 });
+      planner.setPlanReuseEnabled(false);
+
+      const result = await executor.execute(planOf([failing]));
+
+      expect(result.status).toBe('completed');
+      expect(result.steps.map((s) => s.action.id)).toEqual([failing.id, alternative.id]);
+      expect(result.steps[0].status).toBe('failed');
+      expect(result.steps[1].status).toBe('completed');
+    });
+
+    it('terminates (failed) when every alternative also fails instead of ping-ponging', async () => {
+      const a = await registerAction('Fail A 535', { implemented: false });
+      await registerAction('Fail B 535', { implemented: false });
+      planner.setPlanReuseEnabled(false);
+
+      const result = await executor.execute(planOf([a]));
+
+      expect(result.status).toBe('failed');
+      // A fails, replan -> B fails, replan (A and B excluded) -> no plan.
+      expect(result.steps).toHaveLength(2);
+      expect(result.stepsCompleted).toBe(0);
+    }, 10000);
+
+    it('does not keep executing the stale original plan after a successful replan', async () => {
+      const failing = await registerAction('Failing first 535', { implemented: false, cost: 0.5 });
+      await registerAction('Alternative 535 b', { cost: 2.0 });
+      const stale = createTestAction('stale-535', 'Stale follow-up', { 'custom535.extra': true });
+      planner.setPlanReuseEnabled(false);
+
+      const result = await executor.execute(planOf([failing, stale]));
+
+      expect(result.status).toBe('completed');
+      expect(result.steps.some((s) => s.action.id === 'stale-535')).toBe(false);
+    });
+
+    it('does not retry deterministic failures (implemented:false) with backoff', async () => {
+      const failing = createTestAction('det-535', 'Deterministic failure');
+      failing.implemented = false;
+      const noReplan = new PlanExecutor(planner, mockSpawner, undefined, { replanOnFailure: false, maxRetries: 2 });
+      await noReplan.initialize();
+
+      const started = Date.now();
+      const result = await noReplan.execute(planOf([failing]));
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].retries).toBe(0);
+      expect(Date.now() - started).toBeLessThan(900); // first backoff alone is 1000ms
+      await noReplan.close();
+    });
+  });
+
   describe('A14: real domain dispatch', () => {
     function createBoundAction(overrides: Partial<GOAPAction>): GOAPAction {
       return {
@@ -450,6 +540,28 @@ describe('PlanExecutor', () => {
 
       expect(result.status).toBe('failed');
       expect(result.steps[0].error).toContain('not available');
+
+      await realExecutor.close();
+    });
+
+    it('issue #535: a domain method returning a Result err is a failed step, not a completed one', async () => {
+      // Domain APIs return Result<T, Error> rather than throwing; the real
+      // MCP run showed detectGaps({}) -> { success: false, error } being
+      // recorded as a completed step with its effects applied.
+      const realMethod = vi.fn().mockResolvedValue({ success: false, error: new Error('missing coverageData') });
+      const getDomainAPI = vi.fn().mockReturnValue({ generateTests: realMethod });
+      const realExecutor = new PlanExecutor(
+        planner, mockSpawner, undefined, { replanOnFailure: false, maxRetries: 0 }, getDomainAPI
+      );
+      await realExecutor.initialize();
+
+      const action = createBoundAction({ implemented: true, method: 'generateTests', effects: { 'coverage.line': { delta: 10 } } });
+      const result = await realExecutor.execute(createTestPlan([action]));
+
+      expect(result.status).toBe('failed');
+      expect(result.steps[0].status).toBe('failed');
+      expect(result.steps[0].error).toContain('missing coverageData');
+      expect(result.finalWorldState?.coverage.line).toBe(DEFAULT_V3_WORLD_STATE.coverage.line);
 
       await realExecutor.close();
     });
