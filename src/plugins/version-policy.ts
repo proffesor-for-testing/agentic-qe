@@ -16,7 +16,10 @@ export const AQE_VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSIO
     : (require('../../package.json') as { version: string }).version;
 // semver.valid drops build metadata; retain valid metadata but reject normalized
 // prefixes/whitespace so cache directory names remain canonical.
-export const validVersion = (value: string): boolean => semver.valid(value) === value.split('+')[0];
+// Cached manifests are untrusted JSON (older releases admitted a non-string
+// minAqeVersion), so a non-string must be rejected here rather than throw.
+export const validVersion = (value: unknown): boolean =>
+  typeof value === 'string' && semver.valid(value) === value.split('+')[0];
 export const validRange = (value: string): boolean => semver.validRange(value) !== null;
 export const satisfiesVersion = (version: string, range: string): boolean => semver.satisfies(version, range);
 export const compareVersions = (a: string, b: string): number => semver.compare(a, b);

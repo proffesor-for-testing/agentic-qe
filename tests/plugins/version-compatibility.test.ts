@@ -92,6 +92,17 @@ describe('plugin version compatibility', () => {
     expect((await manager.install(source(join(dir, 'independent'), manifest('independent')))).success).toBe(true);
     expect(manager.resolveLoadOrder().ordered.map(p => p.manifest.name)).toEqual(['independent']);
   });
+  it('keeps loading independent plugins when a legacy cached manifest has a non-string minAqeVersion', () => {
+    // v3.14.4 admitted a non-string minAqeVersion with only a warning, so upgraded caches can hold one.
+    const dir = fixture();
+    const cache = new PluginCache({ cacheDir: join(dir, 'cache') });
+    cache.store(manifest('independent'), source(join(dir, 'independent'), manifest('independent')));
+    const legacy = { ...manifest('legacy'), minAqeVersion: 3 } as unknown as QEPluginManifest;
+    cache.store(legacy, source(join(dir, 'legacy'), legacy));
+    const result = new PluginLifecycleManager({ cache }).resolveLoadOrder();
+    expect(result.ordered.map(p => p.manifest.name)).toEqual(['independent']);
+    expect(result.errors).toContainEqual(expect.objectContaining({ plugin: 'legacy', code: 'AQE_VERSION_INCOMPATIBLE' }));
+  });
   it('backtracks from a cyclic candidate to an acyclic compatible version', () => {
     const result = new PluginResolver().resolve([
       manifest('a', '2.0.0', { b: '*' }), manifest('a', '1.0.0'),
