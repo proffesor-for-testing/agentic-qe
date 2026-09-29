@@ -157,6 +157,8 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
+    // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
+    for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
   it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
@@ -219,6 +221,8 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
+    // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
+    for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
   it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {

@@ -93,8 +93,10 @@ describe('TokenOptimizerService', () => {
       );
 
       expect(result.canExit).toBe(false);
-      // Reason should be one of the valid reasons (no patterns yet)
-      expect(['no_matching_pattern', 'confidence_too_low', 'pattern_too_old']).toContain(result.reason);
+      // Reason should be one of the valid reasons (no patterns yet). With a
+      // shared store, a keyword-only candidate (score <= 0.5, #653) may be found
+      // and is rejected as too dissimilar - still no early exit.
+      expect(['no_matching_pattern', 'confidence_too_low', 'pattern_too_old', 'similarity_too_low']).toContain(result.reason);
     });
 
     it('should record early exits in TokenMetricsCollector', async () => {
