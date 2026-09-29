@@ -243,8 +243,16 @@ interface ExecutionHistoryAggregateRow {
   steps_failed: number;
   total_duration_ms: number;
   steps_recorded: number;
+  cancelled_markers: number;
   last_error: string | null;
 }
+
+/**
+ * Issue #535: goap_execution_steps marker row recording that an execution
+ * was cancelled (see persistExecutionResult). Excluded from step lists.
+ */
+const CANCELLED_MARKER_ACTION_ID = '__execution_cancelled__';
+const CANCELLED_MARKER_STATUS = 'cancelled';
 
 // ============================================================================
 // Plan Executor Class
@@ -926,7 +934,8 @@ export class PlanExecutor {
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as steps_completed,
         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as steps_failed,
         SUM(COALESCE(duration_ms, 0)) as total_duration_ms,
-        COUNT(*) as steps_recorded,
+        SUM(CASE WHEN action_id = '${CANCELLED_MARKER_ACTION_ID}' THEN 0 ELSE 1 END) as steps_recorded,
+        SUM(CASE WHEN action_id = '${CANCELLED_MARKER_ACTION_ID}' THEN 1 ELSE 0 END) as cancelled_markers,
         MAX(CASE WHEN status = 'failed' THEN error_message END) as last_error
       FROM goap_execution_steps
     `;
@@ -954,7 +963,8 @@ export class PlanExecutor {
         // planned means it was cancelled.
         const lastStep = steps[steps.length - 1];
         let status: ExecutionResult['status'];
-        if (lastStep?.status === 'failed') status = 'failed';
+        if (row.cancelled_markers > 0) status = 'cancelled';
+        else if (lastStep?.status === 'failed') status = 'failed';
         else if (row.steps_failed > 0) status = 'completed';
         else if (plannedStepCount != null && row.steps_recorded < plannedStepCount) status = 'cancelled';
         else status = 'completed';
@@ -989,9 +999,9 @@ export class PlanExecutor {
   private async getExecutedSteps(executionId: string): Promise<ExecutedStep[]> {
     const rows = this.db
       .prepare(
-        `SELECT * FROM goap_execution_steps WHERE execution_id = ? ORDER BY step_order`
+        `SELECT * FROM goap_execution_steps WHERE execution_id = ? AND action_id != ? ORDER BY step_order`
       )
-      .all(executionId) as GoapExecutionStepRecord[];
+      .all(executionId, CANCELLED_MARKER_ACTION_ID) as GoapExecutionStepRecord[];
 
     return rows.map((row) => ({
       id: row.id,
@@ -1077,6 +1087,29 @@ export class PlanExecutor {
         step.error ?? null
       );
     });
+
+    // Issue #535 (codex review): an execution's cancellation cannot be
+    // inferred from its step rows once replanning is involved (the step
+    // count no longer matches the executed plan's action count), so record
+    // it explicitly with a marker row that history reads and then hides.
+    if (result.status === 'cancelled') {
+      insertStep.run(
+        `${executionId}-${CANCELLED_MARKER_STATUS}`,
+        result.planId,
+        executionId,
+        CANCELLED_MARKER_ACTION_ID,
+        result.steps.length,
+        CANCELLED_MARKER_STATUS,
+        0,
+        new Date().toISOString(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        result.error ?? 'Execution was cancelled'
+      );
+    }
 
     // Reflects only the most recent execution attempt for this plan — a
     // deliberate, documented scope limit: goap_plans is one row per plan,

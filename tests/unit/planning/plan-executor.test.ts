@@ -452,6 +452,33 @@ describe('PlanExecutor', () => {
       expect(history[0].steps.map((s) => s.action.id)).toEqual([failing.id, alternative.id]);
     });
 
+    it('records a replanned execution cancelled mid-replacement as cancelled in history', async () => {
+      const failing = await registerAction('Fail cancel 535', { implemented: false, cost: 0.5 });
+      const prep = await registerAction('Prep cancel 535', {
+        effects: { 'custom535.prep': true },
+      });
+      await registerAction('Finish cancel 535', {
+        preconditions: { 'custom535.prep': true },
+      });
+      planner.setPlanReuseEnabled(false);
+      const plan = planOf([failing]);
+
+      const result = await executor.executeWithCallbacks(
+        plan,
+        () => {},
+        (step) => {
+          if (step.action.id === prep.id) void executor.cancel();
+        }
+      );
+      expect(result.status).toBe('cancelled');
+      expect(result.steps.map((s) => s.action.id)).toEqual([failing.id, prep.id]);
+
+      const history = await executor.getExecutionHistory(plan.id);
+      expect(history).toHaveLength(1);
+      expect(history[0].status).toBe('cancelled');
+      expect(history[0].steps.map((s) => s.action.id)).toEqual([failing.id, prep.id]);
+    });
+
     it('terminates (failed) when every alternative also fails instead of ping-ponging', async () => {
       const a = await registerAction('Fail A 535', { implemented: false });
       await registerAction('Fail B 535', { implemented: false });
