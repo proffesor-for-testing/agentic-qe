@@ -289,9 +289,10 @@ function plannerFlagKeys(): Set<string> {
 /**
  * Validate a caller-supplied world state (issue #535, codex review): known
  * fields must match the V3WorldState schema (types, 0-100 percentages,
- * enums); other keys are accepted only if the action library or the goal
- * uses them (planner flags such as `coverage.gapsIdentified`) and hold a
- * boolean or finite number. Returns an error message, or null when valid.
+ * enums); other keys are accepted only if a loaded planner action (seeded
+ * or custom), the seeded library, or the goal references them (planner
+ * flags such as `coverage.gapsIdentified`) and hold a primitive value.
+ * Returns an error message, or null when valid.
  */
 export function validateWorldStatePatch(
   provided: unknown,
@@ -319,8 +320,12 @@ export function validateWorldStatePatch(
       if (!flags.has(field)) {
         return `currentState.${field} is not a known world-state field`;
       }
-      if (typeof value !== 'boolean' && !(typeof value === 'number' && Number.isFinite(value))) {
-        return `currentState.${field} must be a boolean or finite number, got ${JSON.stringify(value)}`;
+      if (
+        typeof value !== 'boolean' &&
+        typeof value !== 'string' &&
+        !(typeof value === 'number' && Number.isFinite(value))
+      ) {
+        return `currentState.${field} must be a boolean, string or finite number, got ${JSON.stringify(value)}`;
       }
     }
   }

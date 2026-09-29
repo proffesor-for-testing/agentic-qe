@@ -15,7 +15,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { GOAPPlanTool } from '../../../../../src/mcp/tools/planning/goap-plan';
 import { GOAPExecuteTool } from '../../../../../src/mcp/tools/planning/goap-execute';
-import { resetSharedGOAPPlanner } from '../../../../../src/planning/index';
+import { getSharedGOAPPlanner, resetSharedGOAPPlanner } from '../../../../../src/planning/index';
 import { resetUnifiedPersistence, initializeUnifiedPersistence } from '../../../../../src/kernel/unified-persistence';
 import { resetUnifiedMemory, initializeUnifiedMemory } from '../../../../../src/kernel/unified-memory';
 import type { FleetSnapshot } from '../../../../../src/mcp/tools/planning/world-state';
@@ -134,6 +134,29 @@ describe('GOAPPlanTool (issue #535)', () => {
     expect(result.error).toBeUndefined();
     expect(result.data!.actions.map((a) => a.name)).toEqual(['generate-coverage-tests']);
     expect(result.data!.stateProvenance['coverage.gapsIdentified']).toBe('caller');
+  }, 30000);
+
+  it('accepts caller state keys (incl. strings) referenced by custom actions added to the planner', async () => {
+    const planner = getSharedGOAPPlanner();
+    await planner.initialize();
+    await planner.addAction({
+      name: 'Region Deploy Check 535',
+      agentType: 'worker',
+      preconditions: { 'context.region': 'eu' },
+      effects: { 'coverage.line': { delta: 20 } },
+      cost: 0.1,
+      successRate: 1.0,
+      category: 'coverage',
+    });
+
+    const result = await tool.invoke({
+      goal: 'achieve-90-percent-coverage',
+      currentState: { coverage: { line: 75, measured: true }, context: { region: 'eu' } },
+      constraints: { maxSteps: 1 },
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.data!.actions.map((a) => a.name)).toEqual(['Region Deploy Check 535']);
   }, 30000);
 
   it('rejects unknown constraint properties instead of silently ignoring them', async () => {

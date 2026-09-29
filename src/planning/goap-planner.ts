@@ -1057,6 +1057,20 @@ export class GOAPPlanner {
   }
 
   /**
+   * State keys referenced by any loaded action's preconditions or effects
+   * (seeded library plus custom actions added via addAction()). Used by the
+   * goap_plan tool to validate caller-supplied world-state keys (#535).
+   */
+  getReferencedStateKeys(): string[] {
+    const keys = new Set<string>();
+    for (const action of this.actions.values()) {
+      for (const k of Object.keys(action.preconditions)) keys.add(k);
+      for (const k of Object.keys(action.effects)) keys.add(k);
+    }
+    return [...keys];
+  }
+
+  /**
    * Get available actions based on constraints
    */
   private getAvailableActions(constraints?: PlanConstraints): GOAPAction[] {
