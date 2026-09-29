@@ -96,6 +96,13 @@ describe('SQLitePatternStore.searchFTS natural-language queries (#653)', () => {
     expect(hits[0]?.id).toBe('needle');
   });
 
+  it('flags hits that contain the whole query as a phrase', () => {
+    const hits = sqlite.searchFTS('idempotency key replay', 10);
+
+    expect(hits.find(h => h.id === 'needle')?.phrase).toBe(true);
+    expect(sqlite.searchFTS('replay the idempotency key', 10).find(h => h.id === 'needle')?.phrase).toBe(false);
+  });
+
   it('treats FTS5 operators and quotes in the query as literal text', () => {
     expect(() => sqlite.searchFTS('idempotency" OR NEAR(key AND * -', 10)).not.toThrow();
     expect(sqlite.searchFTS('idempotency" OR NEAR(key AND * -', 10)[0]?.id).toBe('needle');
@@ -140,6 +147,23 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     const top = result.success ? result.value[0] : undefined;
     expect(top?.pattern.id).toBe('needle');
     expect(top?.matchType).toBe('exact');
+  });
+
+  it('never reports a keyword-only hit as a near-duplicate', async () => {
+    // Experience capture merges into an existing pattern at similarity >= 0.85;
+    // sharing query words must not qualify, however the BM25 score normalizes.
+    const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
+
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    expect(keywordHits.length).toBeGreaterThan(0);
+    for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
+  });
+
+  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+    const result = await store.search('Idempotency key replay guard', { limit: 5 });
+
+    const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
+    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
   });
 
   it('keeps vector-only behaviour when no textQuery is supplied', async () => {
@@ -189,6 +213,21 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     expect(result.success ? result.value.map(r => r.pattern.id) : []).toContain('needle');
   });
 
+  it('never reports a keyword-only hit as a near-duplicate', async () => {
+    const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
+
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    expect(keywordHits.length).toBeGreaterThan(0);
+    for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
+  });
+
+  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+    const result = await store.search('Idempotency key replay guard', { limit: 5 });
+
+    const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
+    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
+  });
+
   it('blends FTS5 relevance into vector hits the same way PatternStore does', async () => {
     adapter.search.mockReturnValue([
       { id: 'filler-1', distance: 0.3, score: 0.7 },
@@ -209,7 +248,7 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
 
   it('never lowers a strong vector hit because its lexical score is weaker', async () => {
     adapter.search.mockReturnValue([{ id: 'needle', distance: 0.02, score: 0.98 }]);
-    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 0.1 }]);
+    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 0.1, phrase: false }]);
 
     const result = await store.search(UNRELATED_VECTOR, {
       embeddingSpaceId: SPACE_ID,

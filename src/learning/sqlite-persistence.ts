@@ -622,9 +622,10 @@ export class SQLitePatternStore {
 
   /**
    * FTS5 full-text search for patterns.
-   * Returns pattern IDs with BM25 relevance scores.
+   * Returns pattern IDs with BM25 relevance scores. `phrase` marks hits that
+   * also contain the whole query as a phrase (near-duplicate evidence).
    */
-  searchFTS(query: string, limit: number = 20): Array<{ id: string; ftsScore: number }> {
+  searchFTS(query: string, limit: number = 20): Array<{ id: string; ftsScore: number; phrase: boolean }> {
     if (!this.db) throw new Error('Database not initialized');
     if (!query.trim()) return [];
 
@@ -658,13 +659,32 @@ export class SQLitePatternStore {
       // Use Math.max(maxScore, 1.0) to prevent single-result inflation:
       // without this, a single FTS5 result always normalizes to 1.0
       const maxAbsScore = Math.max(...rows.map(r => Math.abs(r.fts_score)), 1.0);
+      const phraseIds = rows.length > 0 ? this.searchFTSPhraseIds(query, limit) : new Set<string>();
       return rows.map(r => ({
         id: r.id,
         ftsScore: Math.abs(r.fts_score) / maxAbsScore,
+        phrase: phraseIds.has(r.id),
       }));
     } catch {
       // FTS5 table may not exist yet (unified DB migrated before schema update)
       return [];
+    }
+  }
+
+  /** IDs whose FTS5 text contains the whole query as one phrase. */
+  private searchFTSPhraseIds(query: string, limit: number): Set<string> {
+    // Whole query quoted as one phrase, internal quotes escaped (FTS5 syntax-safe)
+    const phrase = '"' + query.replace(/"/g, '""') + '"';
+    try {
+      const rows = this.db!.prepare(`
+        SELECT p.id FROM qe_patterns_fts fts
+        JOIN qe_patterns p ON p.rowid = fts.rowid
+        WHERE qe_patterns_fts MATCH ?
+        LIMIT ?
+      `).all(phrase, limit) as Array<{ id: string }>;
+      return new Set(rows.map(r => r.id));
+    } catch {
+      return new Set();
     }
   }
 

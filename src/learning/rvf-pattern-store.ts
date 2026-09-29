@@ -503,12 +503,15 @@ export class RvfPatternStore implements IPatternStore {
           if (existingIds.has(ftsResult.id)) continue;
           const pattern = await this.get(ftsResult.id);
           if (pattern && this.matchesFilters(pattern, options)) {
-            const reuseInfo = this.calculateReuseInfo(pattern, ftsResult.ftsScore);
+            // Same keyword-only similarity rule as PatternStore (#653)
+            const keywordScore = 0.5 * ftsResult.ftsScore;
+            const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
+            const reuseInfo = this.calculateReuseInfo(pattern, similarity);
             results.push({
               pattern,
-              score: 0.5 * ftsResult.ftsScore,
+              score: keywordScore,
               matchType: 'exact',
-              similarity: ftsResult.ftsScore,
+              similarity,
               canReuse: reuseInfo.canReuse,
               estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
               reuseConfidence: reuseInfo.reuseConfidence,

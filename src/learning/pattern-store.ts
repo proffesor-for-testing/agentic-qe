@@ -1217,12 +1217,17 @@ export class PatternStore implements IPatternStore {
               if (existingIds.has(ftsResult.id)) continue;
               const pattern = await this.get(ftsResult.id);
               if (pattern && this.matchesFilters(pattern, options)) {
-                const reuseInfo = this.calculateReuseInfo(pattern, ftsResult.ftsScore);
+                // #653: ftsScore is normalized to the best hit, so only a
+                // whole-phrase hit may read as a near-duplicate; term-only hits
+                // report the conservative keyword score as their similarity.
+                const keywordScore = 0.5 * ftsResult.ftsScore;
+                const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
+                const reuseInfo = this.calculateReuseInfo(pattern, similarity);
                 results.push({
                   pattern,
-                  score: 0.5 * ftsResult.ftsScore, // FTS-only: exact keyword match is valuable
+                  score: keywordScore, // FTS-only: exact keyword match is valuable
                   matchType: 'exact',
-                  similarity: ftsResult.ftsScore,
+                  similarity,
                   canReuse: reuseInfo.canReuse,
                   estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
                   reuseConfidence: reuseInfo.reuseConfidence,
