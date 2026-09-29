@@ -12,6 +12,7 @@ import { toErrorMessage } from '../shared/error-utils.js';
 import { loadOverlays, applyOverlayToContent } from '../agents/overlay-loader.js';
 import { validateFleetMcpDeps } from '../validation/steps/agent-mcp-validator.js';
 import { findPackageRoot } from './find-package-root.js';
+import { GENERATED_ON_LINE, writeTextIfChangedIgnoring } from './idempotent-write.js';
 
 // ============================================================================
 // Helpers
@@ -321,14 +322,21 @@ export class AgentsInstaller {
     // Filter agents based on options
     const agentsToInstall = this.filterAgents(availableAgents);
 
+    // Every selected agent present on disk after this run — newly installed or
+    // already there — so the index describes the install, not just this run's
+    // delta (a repeat init used to rewrite it as "Total Agents: 0", #778).
+    const presentAgents: AgentInfo[] = [];
+
     // Install each agent
     for (const agentName of agentsToInstall) {
       try {
         const agentInfo = await this.installAgent(agentName, targetAgentsDir, targetSubagentsDir);
         if (agentInfo) {
           result.installed.push(agentInfo);
+          presentAgents.push(agentInfo);
         } else {
           result.skipped.push(agentName);
+          presentAgents.push(this.describeAgent(agentName, targetAgentsDir, targetSubagentsDir));
         }
       } catch (error) {
         result.errors.push(`Failed to install ${agentName}: ${toErrorMessage(error)}`);
@@ -412,7 +420,7 @@ export class AgentsInstaller {
     }
 
     // Create agents index file
-    await this.createAgentsIndex(targetAgentsDir, result.installed);
+    await this.createAgentsIndex(targetAgentsDir, presentAgents);
 
     return result;
   }
@@ -523,20 +531,28 @@ export class AgentsInstaller {
       throw new Error(`Source file not found: ${sourceFile}`);
     }
 
-    // Determine agent type
-    const agentType = this.getAgentType(agentName, isSubagent);
+    return this.describeAgent(agentPath, targetDir, targetSubagentsDir);
+  }
 
-    // Get description from agent file
-    const description = this.getAgentDescription(targetFile);
-
-    // Get domain from agent name
-    const domain = this.getAgentDomain(agentName);
+  /**
+   * Describe an agent from its installed file (type, description, domain).
+   */
+  private describeAgent(
+    agentPath: string,
+    targetDir: string,
+    targetSubagentsDir: string
+  ): AgentInfo {
+    const isSubagent = agentPath.startsWith('subagents/');
+    const agentName = isSubagent ? agentPath.split('/')[1] : agentPath;
+    const targetFile = isSubagent
+      ? join(targetSubagentsDir, `${agentName}.md`)
+      : join(targetDir, `${agentName}.md`);
 
     return {
       name: agentName,
-      type: agentType,
-      description,
-      domain,
+      type: this.getAgentType(agentName, isSubagent),
+      description: this.getAgentDescription(targetFile),
+      domain: this.getAgentDomain(agentName),
     };
   }
 
@@ -761,7 +777,8 @@ ${subagents.map(a => `- **${a.name}**${a.description ? `: ${a.description}` : ''
     if (!existsSync(docsDir)) {
       mkdirSync(docsDir, { recursive: true });
     }
-    writeFileSync(join(docsDir, 'v3-agents-index.md'), indexContent, 'utf-8');
+    // #778: ignore the generation-timestamp footer when deciding to rewrite.
+    writeTextIfChangedIgnoring(join(docsDir, 'v3-agents-index.md'), indexContent, GENERATED_ON_LINE);
   }
 }
 

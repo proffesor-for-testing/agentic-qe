@@ -17,7 +17,8 @@
  * - Local pattern learning
  */
 
-import { existsSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { writeFileIfChanged } from '../../init/idempotent-write.js';
 import { join } from 'node:path';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
@@ -203,8 +204,8 @@ function updateMCPConfig(projectRoot: string): void {
     };
   }
 
-  // Write updated settings
-  writeFileSync(claudeSettingsPath, JSON.stringify(settings, null, 2));
+  // Write updated settings — only when something changed (#778).
+  writeFileIfChanged(claudeSettingsPath, JSON.stringify(settings, null, 2));
 }
 
 // ============================================================================
@@ -265,7 +266,7 @@ export async function setupClaudeFlowIntegration(
 
   try {
     const config = generateClaudeFlowConfig(projectRoot, features);
-    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    writeFileIfChanged(configPath, JSON.stringify(config, null, 2));
     if (debug) console.log(`[ClaudeFlow] Config written to: ${configPath}`);
   } catch (error) {
     return {

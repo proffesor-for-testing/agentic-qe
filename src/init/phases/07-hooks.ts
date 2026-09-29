@@ -25,11 +25,16 @@ import {
   backupSettingsFile,
 } from '../settings-merge.js';
 
+import { copyFileIfChanged, stabilizeVolatileFields } from '../idempotent-write.js';
+
 import {
   BasePhase,
   type InitContext,
 } from './phase-interface.js';
 import type { AQEInitConfig } from '../types.js';
+
+/** settings.json fields that change on every run without a real change (#778). */
+const SETTINGS_VOLATILE_FIELDS = [['aqe', 'initialized']] as const;
 
 export interface HooksResult {
   configured: boolean;
@@ -81,14 +86,17 @@ export class HooksPhase extends BasePhase<HooksResult> {
       mkdirSync(hooksDir, { recursive: true });
     }
 
-    // Load existing settings
+    // Load existing settings. `previousSettings` is an untouched parse used to
+    // decide whether this run changes anything (#778); `settings` is mutated.
     const settingsPath = join(claudeDir, 'settings.json');
     let settings: Record<string, unknown> = {};
+    let previousSettings: Record<string, unknown> | undefined;
 
     if (existsSync(settingsPath)) {
       try {
         const content = readFileSync(settingsPath, 'utf-8');
         settings = safeJsonParse<Record<string, unknown>>(content);
+        previousSettings = safeJsonParse<Record<string, unknown>>(content);
       } catch {
         settings = {};
       }
@@ -134,14 +142,24 @@ export class HooksPhase extends BasePhase<HooksResult> {
     }
     settings.enabledMcpjsonServers = existingMcp;
 
-    // Back up the pristine original settings.json before writing (like CLAUDE.md)
-    const backupPath = backupSettingsFile(settingsPath);
-    if (backupPath) {
-      context.services.log(`  Backup created: ${backupPath}`);
-    }
+    // Converge instead of rewriting (#778): keep the original `aqe.initialized`
+    // stamp and skip the write (and the backup) entirely when the merged
+    // settings are equivalent to what is already on disk. Any real change —
+    // a version upgrade, a restored AQE hook, a new flag — still writes, and
+    // then records a fresh initialization timestamp.
+    const settingsChanged = stabilizeVolatileFields(previousSettings, settings, SETTINGS_VOLATILE_FIELDS);
 
-    // Write settings
-    writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    if (settingsChanged) {
+      // Back up the pristine original settings.json before writing (like CLAUDE.md)
+      const backupPath = backupSettingsFile(settingsPath);
+      if (backupPath) {
+        context.services.log(`  Backup created: ${backupPath}`);
+      }
+
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    } else {
+      context.services.log('  Settings unchanged — .claude/settings.json left as-is');
+    }
 
     // Write README and install hook assets (bridge script, cross-phase memory)
     this.writeHooksReadme(hooksDir, hookTypes);
@@ -303,9 +321,9 @@ export class HooksPhase extends BasePhase<HooksResult> {
 
     for (const src of sourcePaths) {
       if (existsSync(src) && src !== destPath) {
-        const { copyFileSync } = require('fs');
-        copyFileSync(src, destPath);
-        context.services.log('  Installed brain-checkpoint.cjs (copied)');
+        if (copyFileIfChanged(src, destPath)) {
+          context.services.log('  Installed brain-checkpoint.cjs (copied)');
+        }
         return;
       }
     }
@@ -338,9 +356,9 @@ export class HooksPhase extends BasePhase<HooksResult> {
 
     for (const src of sourcePaths) {
       if (existsSync(src) && src !== destPath) {
-        const { copyFileSync } = require('fs');
-        copyFileSync(src, destPath);
-        context.services.log('  Installed statusline-v3.cjs (copied)');
+        if (copyFileIfChanged(src, destPath)) {
+          context.services.log('  Installed statusline-v3.cjs (copied)');
+        }
         return;
       }
     }
@@ -374,9 +392,9 @@ export class HooksPhase extends BasePhase<HooksResult> {
 
     for (const src of sourcePaths) {
       if (existsSync(src) && src !== destPath) {
-        const { copyFileSync } = require('fs');
-        copyFileSync(src, destPath);
-        context.services.log('  Installed aqe-hook.cjs (copied)');
+        if (copyFileIfChanged(src, destPath)) {
+          context.services.log('  Installed aqe-hook.cjs (copied)');
+        }
         return;
       }
     }

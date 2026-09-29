@@ -3,7 +3,8 @@
  * Configures background workers for continuous monitoring
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
+import { writeFileIfChanged, writeJsonIfChanged } from '../idempotent-write.js';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -123,7 +124,8 @@ export class WorkersPhase extends BasePhase<WorkersResult> {
       createdAt: new Date().toISOString(),
       daemonPid: null,
     };
-    writeFileSync(registryPath, JSON.stringify(registryData, null, 2), 'utf-8');
+    // #778: an unchanged registry keeps its bytes and original createdAt.
+    writeJsonIfChanged(registryPath, registryData, [['createdAt']]);
 
     // Write individual worker configs
     for (const workerName of config.workers.enabled) {
@@ -136,7 +138,7 @@ export class WorkersPhase extends BasePhase<WorkersResult> {
         dataDir: join(projectRoot, '.agentic-qe', 'data'),
         createdAt: new Date().toISOString(),
       };
-      writeFileSync(workerConfigPath, JSON.stringify(workerConfig, null, 2), 'utf-8');
+      writeJsonIfChanged(workerConfigPath, workerConfig, [['createdAt']]);
     }
 
     // Write cross-platform daemon startup script
@@ -217,7 +219,7 @@ console.log('AQE v3 Worker Daemon started (PID: ' + child.pid + ')');
 console.log('Log file: ' + logFile);
 console.log('To stop: node ' + join(workersDir, 'stop-daemon.cjs'));
 `;
-    writeFileSync(daemonScriptPath, daemonScript);
+    writeFileIfChanged(daemonScriptPath, daemonScript);
 
     // Also write a cross-platform stop script
     const stopScriptPath = join(workersDir, 'stop-daemon.cjs');
@@ -245,7 +247,7 @@ try {
   try { unlinkSync(pidFile); } catch {}
 }
 `;
-    writeFileSync(stopScriptPath, stopScript);
+    writeFileIfChanged(stopScriptPath, stopScript);
 
     context.services.log(`  Workers dir: ${workersDir}`);
     context.services.log(`  Workers: ${config.workers.enabled.join(', ')}`);

@@ -211,12 +211,32 @@ function getPackageVersion(root: string, packageName: string): string | undefine
   return pkg.devDependencies?.[packageName] || pkg.dependencies?.[packageName];
 }
 
+/**
+ * Directories never scanned by the analyzer: build/vendor output plus the
+ * tool-generated trees that `aqe init` itself (and the agent platforms it
+ * configures) writes into the project. Scanning AQE's own installed skills,
+ * helpers and hook scripts made a repeat `aqe init` "see" a different project
+ * than the first run (new languages, tests, complexity) and silently change
+ * the generated configuration (#778).
+ */
+export const ANALYZER_EXCLUDED_DIRS: readonly string[] = [
+  // build / vendor output
+  'node_modules', '.git', 'dist', 'build', 'coverage', '.next', '__pycache__',
+  // AQE-generated state and assets
+  '.agentic-qe', '.claude',
+  // agent-platform trees written by `aqe init --with-<platform>`
+  '.agents', '.codex', '.opencode', '.kiro', '.cursor', '.roo', '.kilocode',
+  '.windsurf', '.continue', '.clinerules',
+  // companion tooling state (claude-flow / ruflo)
+  '.swarm', '.claude-flow', '.hive-mind',
+];
+
 function walkDir(
   dir: string,
   callback: (filePath: string) => void,
-  options: { maxDepth?: number; exclude?: string[] } = {}
+  options: { maxDepth?: number; exclude?: readonly string[] } = {}
 ): void {
-  const { maxDepth = 10, exclude = ['node_modules', '.git', 'dist', 'build', 'coverage', '.next', '__pycache__'] } = options;
+  const { maxDepth = 10, exclude = ANALYZER_EXCLUDED_DIRS } = options;
 
   function walk(currentDir: string, depth: number): void {
     if (depth > maxDepth) return;

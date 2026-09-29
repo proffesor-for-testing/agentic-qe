@@ -4,6 +4,7 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { writeJsonIfChanged } from '../idempotent-write.js';
 import { join } from 'path';
 
 import {
@@ -73,7 +74,8 @@ export class LearningPhase extends BasePhase<LearningResult> {
       hnswIndexPath: join(hnswDir, 'index.bin'),
       initialized: new Date().toISOString(),
     };
-    writeFileSync(learningConfigPath, JSON.stringify(learningConfig, null, 2), 'utf-8');
+    // #778: leave an equivalent file (and its `initialized` stamp) untouched.
+    writeJsonIfChanged(learningConfigPath, learningConfig, [['initialized']]);
 
     // Load pre-trained patterns if available and not skipped
     let patternsLoaded = 0;
