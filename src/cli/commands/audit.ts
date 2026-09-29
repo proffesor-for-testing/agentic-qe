@@ -203,7 +203,8 @@ export async function handleAuditChainVerify(options: {
       // signed by keys this project never stored (e.g. imported rows).
       const result = chain.verify({ includeArchive: true, checkSignatures: false });
 
-      const lastEntry = db.prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1').get() as
+      const { tableExists } = await import('../../audit/witness-chain-verifier.js');
+      const lastEntry = !tableExists(db, 'witness_chain') ? undefined : db.prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1').get() as
         | { hash_algo?: string; [key: string]: unknown }
         | undefined;
       const lastHash = lastEntry

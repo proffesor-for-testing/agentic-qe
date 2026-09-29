@@ -32,7 +32,7 @@ import { WitnessChain, type WitnessEntry } from './witness-chain.js';
 import type { WitnessKeyManager } from './witness-key-manager.js';
 import { sha256, shake256, serializeEntry } from './witness-chain-hash.js';
 import {
-  ownHash, type ChainStatus, type ReanchorForkRecord, type ReanchorPin, type TamperReason, type VerifyResult,
+  ownHash, tableExists, type ChainStatus, type ReanchorForkRecord, type ReanchorPin, type TamperReason, type VerifyResult,
 } from './witness-chain-verifier.js';
 
 export interface WitnessRowCounts { live: number; archive: number }
@@ -82,11 +82,10 @@ type TxOutcome =
   | { kind: 'reanchored'; entry: WitnessEntry; forks: ReanchorForkRecord[]; txAfter: WitnessRowCounts };
 
 function countRows(db: DatabaseType): WitnessRowCounts {
-  const n = (sql: string): number => (db.prepare(sql).get() as { n: number }).n;
-  return {
-    live: n('SELECT COUNT(*) AS n FROM witness_chain'),
-    archive: n('SELECT COUNT(*) AS n FROM witness_chain_archive'),
-  };
+  const n = (table: string): number => (tableExists(db, table)
+    ? (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n
+    : 0);
+  return { live: n('witness_chain'), archive: n('witness_chain_archive') };
 }
 
 function summarize(r: VerifyResult): VerifySummary {

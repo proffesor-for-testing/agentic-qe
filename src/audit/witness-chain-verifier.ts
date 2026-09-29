@@ -139,6 +139,7 @@ export class WitnessChainVerifier {
   private signatureFailures = 0;
   private firstSignatureFailure: number | undefined;
   private entriesChecked = 0;
+  private archiveExists: boolean | undefined;
 
   constructor(
     private readonly db: DatabaseType,
@@ -147,7 +148,9 @@ export class WitnessChainVerifier {
   ) {}
 
   run(): VerifyResult {
-    const live = this.db.prepare('SELECT * FROM witness_chain ORDER BY id ASC').all() as WitnessEntry[];
+    const live = tableExists(this.db, 'witness_chain')
+      ? this.db.prepare('SELECT * FROM witness_chain ORDER BY id ASC').all() as WitnessEntry[]
+      : [];
     if (live.length === 0) {
       return { valid: true, entriesChecked: 0, status: 'valid', tampered: false, forks: [], acknowledgedForks: [], forkDetails: [] };
     }
@@ -220,14 +223,24 @@ export class WitnessChainVerifier {
 
   private findEntryById(id: number): WitnessEntry | undefined {
     return (this.db.prepare('SELECT * FROM witness_chain WHERE id = ?').get(id) as WitnessEntry | undefined)
-      ?? (this.db.prepare('SELECT * FROM witness_chain_archive WHERE id = ?').get(id) as WitnessEntry | undefined);
+      ?? (this.hasArchive()
+        ? this.db.prepare('SELECT * FROM witness_chain_archive WHERE id = ?').get(id) as WitnessEntry | undefined
+        : undefined);
   }
 
   private getArchive(): WitnessEntry[] {
     if (!this.archiveRows) {
-      this.archiveRows = this.db.prepare('SELECT * FROM witness_chain_archive ORDER BY id ASC').all() as WitnessEntry[];
+      this.archiveRows = this.hasArchive()
+        ? this.db.prepare('SELECT * FROM witness_chain_archive ORDER BY id ASC').all() as WitnessEntry[]
+        : [];
     }
     return this.archiveRows;
+  }
+
+  /** Stores written before archiving existed (or opened read-only) may lack the archive table. */
+  private hasArchive(): boolean {
+    if (this.archiveExists === undefined) this.archiveExists = tableExists(this.db, 'witness_chain_archive');
+    return this.archiveExists;
   }
 
   /** hash → id over every row (live + archive), built lazily per hash algo on the first fork candidate. */
@@ -254,11 +267,13 @@ export class WitnessChainVerifier {
   private idsContiguous(from: number, to: number): boolean {
     const expected = to - from - 1;
     if (expected <= 0) return true;
-    const row = this.db.prepare(
-      `SELECT COUNT(*) AS n FROM (
-         SELECT id FROM witness_chain WHERE id > ? AND id < ?
-         UNION SELECT id FROM witness_chain_archive WHERE id > ? AND id < ?)`,
-    ).get(from, to, from, to) as { n: number };
+    const row = (this.hasArchive()
+      ? this.db.prepare(
+        `SELECT COUNT(*) AS n FROM (
+           SELECT id FROM witness_chain WHERE id > ? AND id < ?
+           UNION SELECT id FROM witness_chain_archive WHERE id > ? AND id < ?)`,
+      ).get(from, to, from, to)
+      : this.db.prepare('SELECT COUNT(*) AS n FROM witness_chain WHERE id > ? AND id < ?').get(from, to)) as { n: number };
     return row.n === expected;
   }
 
@@ -355,4 +370,9 @@ export function verifyWitnessChain(
   options?: VerifyOptions,
 ): VerifyResult {
   return new WitnessChainVerifier(db, keyManager, options).run();
+}
+
+/** True when `name` is a table in the connected database. */
+export function tableExists(db: DatabaseType, name: string): boolean {
+  return db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined;
 }

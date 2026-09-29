@@ -89,6 +89,9 @@ export class WitnessChain {
 
   private ensureTable(): void {
     if (!this.db) throw new Error('Database not initialized');
+    // A read-only connection (e.g. `aqe audit verify`) must not create or
+    // migrate the schema; readers treat missing tables as empty instead.
+    if (this.db.readonly) return;
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS witness_chain (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
