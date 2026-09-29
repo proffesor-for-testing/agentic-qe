@@ -29,7 +29,33 @@ import {
 
 // Real transformer embeddings for semantic search (384-dim, matches ExperienceReplay)
 import { computeRealEmbedding } from '../../learning/real-embeddings.js';
-import type { VectorSearchProvenance } from '../../kernel/interfaces.js';
+import type { MemoryBackend, VectorSearchProvenance } from '../../kernel/interfaces.js';
+
+// ============================================================================
+// Memory Backend Resolution
+// ============================================================================
+
+/**
+ * Backend used when no fleet is initialized. The CLI memory subcommands set
+ * this so they can run against .agentic-qe/memory.db without booting the
+ * kernel, Queen Coordinator, and every domain coordinator.
+ */
+let standaloneMemory: MemoryBackend | null = null;
+
+/**
+ * Register (or clear) a standalone memory backend for the memory handlers.
+ * An initialized fleet always takes precedence over it.
+ */
+export function setStandaloneMemoryBackend(backend: MemoryBackend | null): void {
+  standaloneMemory = backend;
+}
+
+function getMemoryBackend(): MemoryBackend | null {
+  if (isFleetInitialized()) {
+    return getFleetState().kernel!.memory;
+  }
+  return standaloneMemory;
+}
 
 // ============================================================================
 // Memory Store Handler
@@ -38,14 +64,13 @@ import type { VectorSearchProvenance } from '../../kernel/interfaces.js';
 export async function handleMemoryStore(
   params: MemoryStoreParams
 ): Promise<ToolResult<MemoryStoreResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
-
-  const { kernel } = getFleetState();
 
   try {
     const namespace = params.namespace || 'default';
@@ -93,7 +118,7 @@ export async function handleMemoryStore(
       }
     }
 
-    await kernel!.memory.set(fullKey, params.value, {
+    await memory.set(fullKey, params.value, {
       ttl: params.ttl,
     });
 
@@ -103,7 +128,7 @@ export async function handleMemoryStore(
     try {
       const textForEmbedding = `${params.key} ${JSON.stringify(params.value)}`;
       const embedding = await computeRealEmbedding(textForEmbedding);
-      await kernel!.memory.storeVector(fullKey, embedding, {
+      await memory.storeVector(fullKey, embedding, {
         key: params.key,
         namespace,
         storedAt: Date.now(),
@@ -163,20 +188,19 @@ export async function handleMemoryStore(
 export async function handleMemoryRetrieve(
   params: MemoryRetrieveParams
 ): Promise<ToolResult<MemoryRetrieveResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
 
-  const { kernel } = getFleetState();
-
   try {
     const namespace = params.namespace || 'default';
     const fullKey = `${namespace}:${params.key}`;
 
-    const value = await kernel!.memory.get(fullKey);
+    const value = await memory.get(fullKey);
 
     if (value === undefined) {
       return {
@@ -241,14 +265,13 @@ function isNaturalLanguageQuery(pattern: string): boolean {
 export async function handleMemoryQuery(
   params: MemoryQueryParams
 ): Promise<ToolResult<MemoryQueryResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
-
-  const { kernel } = getFleetState();
 
   try {
     const namespace = params.namespace || 'default';
@@ -265,7 +288,7 @@ export async function handleMemoryQuery(
         // Generate real 384-dim transformer embedding for accurate cosine similarity search
         const embedding = await computeRealEmbedding(params.pattern);
         const keyPrefix = namespace !== 'default' ? `${namespace}:` : undefined;
-        const filtered = await kernel!.memory.vectorSearch(
+        const filtered = await memory.vectorSearch(
           embedding,
           limit + offset,
           keyPrefix
@@ -289,7 +312,7 @@ export async function handleMemoryQuery(
             total: filtered.length,
             hasMore: offset + limit < filtered.length,
             searchType: 'semantic',
-            searchProvenance: kernel!.memory.getVectorSearchProvenance?.(),
+            searchProvenance: memory.getVectorSearchProvenance?.(),
           },
         };
       } catch (vectorError) {
@@ -302,7 +325,7 @@ export async function handleMemoryQuery(
     const pattern = params.pattern
       ? `${namespace}:${params.pattern}`
       : `${namespace}:*`;
-    const keys = await kernel!.memory.search(pattern, limit + offset);
+    const keys = await memory.search(pattern, limit + offset);
 
     // Apply pagination
     const paginatedKeys = keys.slice(offset, offset + limit);
@@ -353,20 +376,19 @@ interface MemoryDeleteResult {
 export async function handleMemoryDelete(
   params: MemoryDeleteParams
 ): Promise<ToolResult<MemoryDeleteResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
 
-  const { kernel } = getFleetState();
-
   try {
     const namespace = params.namespace || 'default';
     const fullKey = `${namespace}:${params.key}`;
 
-    const deleted = await kernel!.memory.delete(fullKey);
+    const deleted = await memory.delete(fullKey);
 
     return {
       success: true,
@@ -400,24 +422,23 @@ interface MemoryUsageResult {
 }
 
 export async function handleMemoryUsage(): Promise<ToolResult<MemoryUsageResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
 
-  const { kernel } = getFleetState();
-
   try {
     // Estimate stats by searching for all keys
-    const allKeys = await kernel!.memory.search('*', 10000);
+    const allKeys = await memory.search('*', 10000);
 
     // Issue N4: Query real vector count from SQLite instead of hardcoding 0
     let vectorCount = 0;
     let namespaceCount = 1;
     try {
-      const backend = kernel!.memory as import('../../kernel/hybrid-backend').HybridMemoryBackend;
+      const backend = memory as import('../../kernel/hybrid-backend').HybridMemoryBackend;
       if (backend.getVectorStats) {
         const stats = await backend.getVectorStats();
         vectorCount = stats?.vectorCount ?? 0;
@@ -471,14 +492,13 @@ interface MemoryShareResult {
 export async function handleMemoryShare(
   params: MemoryShareParams
 ): Promise<ToolResult<MemoryShareResult>> {
-  if (!isFleetInitialized()) {
+  const memory = getMemoryBackend();
+  if (!memory) {
     return {
       success: false,
       error: 'Fleet not initialized. Call fleet_init first.',
     };
   }
-
-  const { kernel } = getFleetState();
 
   try {
     // Store shared knowledge for each target agent
@@ -529,7 +549,7 @@ export async function handleMemoryShare(
       }
     }
 
-    await kernel!.memory.set(sharedKey, sharedContent, {
+    await memory.set(sharedKey, sharedContent, {
       namespace: 'agent-knowledge',
     });
 

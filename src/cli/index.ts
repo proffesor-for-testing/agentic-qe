@@ -26,48 +26,14 @@ import type { RequirementsValidationExtendedAPI } from '../domains/requirements-
 import type { CLIContext } from './handlers/interfaces.js';
 
 // ============================================================================
-// Redirect internal domain logs to stderr so stdout stays clean for CI/JSON
+// Route internal diagnostics to stderr, filtered by AQE_LOG_LEVEL / LOG_LEVEL /
+// AQE_VERBOSE (default: warn), so stdout stays clean for CI/JSON.
 // ============================================================================
 
-const INTERNAL_LOG_PREFIXES = [
-  '[UnifiedMemory]', '[HybridBackend]', '[UnifiedPersistence]',
-  '[PersistentSONAEngine]', '[QueenGovernance]', '[QueenCoordinator]',
-  '[Queen]', '[QUEEN]', '[DomainBreakerRegistry]',
-  '[RealEmbeddings]', '[HNSWIndex]', '[PatternStore]',
-  '[TestGenerationCoordinator]', '[CodeIntelligence]', '[ProductFactorsBridge]',
-  '[LearningOptimizationCoordinator]', '[DreamEngine]', '[DreamScheduler]',
-  '[SecurityCompliance]', '[Providers]', '[GNN]',
-  '[test-generation]', '[test-execution]', '[coverage-analysis]',
-  '[quality-assessment]', '[defect-intelligence]', '[requirements-validation]',
-  '[code-intelligence]', '[security-compliance]', '[contract-testing]',
-  '[visual-accessibility]', '[chaos-resilience]', '[learning-optimization]',
-  '[enterprise-integration]', '[coordination]', '[PatternLearnerService]',
-  '[RequirementsValidation]', '[ParserRegistry]', '[AdversarialDefense]',
-  '[ContinueGateIntegration]', '[ContinueGate]', '[SQLitePatternStore]',
-  '[TokenTracking]', '[InfraHealing]', '[ExperienceCapture]',
-];
+import { applyCommandVerbosity, installCliLogGate, isCliLogLevelEnabled } from './log-gate.js';
+import { LogLevel } from '../logging/index.js';
 
-/** Timestamped log pattern: [HH:MM:SS.sss] [LEVEL] */
-const TIMESTAMPED_LOG_RE = /^\[\d{2}:\d{2}:\d{2}\.\d{3}\]\s+\[/;
-
-const originalConsoleLog = console.log.bind(console);
-console.log = (...args: unknown[]) => {
-  const first = typeof args[0] === 'string' ? args[0] : '';
-  const trimmed = first.trimStart();
-  if (
-    INTERNAL_LOG_PREFIXES.some(prefix => trimmed.startsWith(prefix)) ||
-    TIMESTAMPED_LOG_RE.test(trimmed)
-  ) {
-    process.stderr.write(args.map(String).join(' ') + '\n');
-    return;
-  }
-  originalConsoleLog(...args);
-};
-
-// Also redirect timestamped INFO/WARN/ERROR log lines (e.g. "[07:12:24.372] [INFO ]")
-console.info = (...args: unknown[]) => {
-  process.stderr.write(args.map(String).join(' ') + '\n');
-};
+installCliLogGate();
 
 // ============================================================================
 // CLI State
@@ -215,7 +181,10 @@ async function ensureInitialized(): Promise<boolean> {
     return true;
   }
 
-  process.stderr.write(chalk.gray('Auto-initializing v3 system...') + '\n');
+  const showProgress = isCliLogLevelEnabled(LogLevel.INFO);
+  if (showProgress) {
+    process.stderr.write(chalk.gray('Auto-initializing v3 system...') + '\n');
+  }
   const timeout = 30000;
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Initialization timeout after 30 seconds')), timeout);
@@ -223,7 +192,9 @@ async function ensureInitialized(): Promise<boolean> {
 
   try {
     await Promise.race([autoInitialize(), timeoutPromise]);
-    process.stderr.write(chalk.green('System ready') + '\n\n');
+    if (showProgress) {
+      process.stderr.write(chalk.green('System ready') + '\n\n');
+    }
     return true;
   } catch (err) {
     const error = err as Error;
@@ -273,7 +244,19 @@ const VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : packa
 program
   .name('aqe')
   .description('Agentic QE - Domain-Driven Quality Engineering')
-  .version(VERSION);
+  .version(VERSION)
+  .addHelpText('after', `
+Environment:
+  AQE_LOG_LEVEL   Internal log level: debug | info | warn | error | silent (default: warn)
+  LOG_LEVEL       Same as AQE_LOG_LEVEL; AQE_LOG_LEVEL takes precedence
+  AQE_VERBOSE=1   Shorthand for info-level logging (full system-init output)
+Diagnostics are written to stderr; stdout carries command output only.`);
+
+// A command's own --verbose flag (aqe sync|status|workflow|eval ... --verbose)
+// raises the log gate to INFO for that run; AQE_LOG_LEVEL / LOG_LEVEL win.
+program.hook('preAction', (_thisCommand, actionCommand) => {
+  applyCommandVerbosity(actionCommand.opts());
+});
 
 // ============================================================================
 // Register Handlers (lazy — each handler loads only when its command runs)
@@ -434,7 +417,11 @@ registerLazyCommand(program, {
 registerLazyCommand(program, {
   name: 'memory',
   description: 'Memory store, retrieve, search, and delete operations',
-  factory: () => import('./commands/memory.js').then(m => m.createMemoryCommand(context, cleanupAndExit, ensureInitialized)),
+  // Memory subcommands open only the memory store, not the full v3 system.
+  factory: () => Promise.all([
+    import('./commands/memory.js'),
+    import('./helpers/standalone-memory.js'),
+  ]).then(([m, h]) => m.createMemoryCommand(context, cleanupAndExit, h.createEnsureMemoryBackend(context))),
 });
 registerLazyCommand(program, {
   name: 'mcp',

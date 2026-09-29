@@ -11,7 +11,9 @@ import {
   handleMemoryDelete,
   handleMemoryUsage,
   handleMemoryShare,
+  setStandaloneMemoryBackend,
 } from '../../../../src/mcp/handlers/memory-handlers';
+import { InMemoryBackend } from '../../../../src/kernel/memory-backend';
 import {
   handleFleetInit,
   disposeFleet,
@@ -720,6 +722,61 @@ describe('Memory Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.persisted).toBe(true);
+    });
+  });
+
+  // --------------------------------------------------------------------------
+  // Standalone backend (CLI lightweight memory path)
+  // --------------------------------------------------------------------------
+
+  describe('standalone memory backend', () => {
+    let standalone: InMemoryBackend;
+
+    beforeEach(async () => {
+      standalone = new InMemoryBackend();
+      await standalone.initialize();
+    });
+
+    afterEach(async () => {
+      setStandaloneMemoryBackend(null);
+      await standalone.dispose();
+    });
+
+    it('should serve store/retrieve/query/delete without an initialized fleet', async () => {
+      await disposeFleet();
+      setStandaloneMemoryBackend(standalone);
+
+      const stored = await handleMemoryStore({ key: 'solo', value: 'v', namespace: 'aqe' });
+      expect(stored.success).toBe(true);
+      expect(await standalone.get('aqe:solo')).toBe('v');
+
+      const retrieved = await handleMemoryRetrieve({ key: 'solo', namespace: 'aqe' });
+      expect(retrieved.data).toMatchObject({ found: true, value: 'v' });
+
+      const listed = await handleMemoryQuery({ pattern: '*', namespace: 'aqe' });
+      expect(listed.data!.entries.map((e) => e.key)).toEqual(['solo']);
+
+      const deleted = await handleMemoryDelete({ key: 'solo', namespace: 'aqe' });
+      expect(deleted.data!.deleted).toBe(true);
+    });
+
+    it('should prefer the fleet kernel memory when a fleet is initialized', async () => {
+      setStandaloneMemoryBackend(standalone);
+
+      const stored = await handleMemoryStore({ key: 'fleet-first', value: 'v' });
+      expect(stored.success).toBe(true);
+      expect(await standalone.get('default:fleet-first')).toBeUndefined();
+      expect(await getFleetState().kernel!.memory.get('default:fleet-first')).toBe('v');
+    });
+
+    it('should report fleet not initialized once the standalone backend is cleared', async () => {
+      await disposeFleet();
+      setStandaloneMemoryBackend(standalone);
+      setStandaloneMemoryBackend(null);
+
+      const result = await handleMemoryUsage();
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Fleet not initialized. Call fleet_init first.');
     });
   });
 });

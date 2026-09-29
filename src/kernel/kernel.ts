@@ -19,11 +19,11 @@ import { InMemoryEventBus } from './event-bus';
 import { DefaultAgentCoordinator } from './agent-coordinator';
 import { DefaultPluginLoader } from './plugin-loader';
 import { InMemoryBackend } from './memory-backend';
-import { HybridMemoryBackend } from './hybrid-backend';
+import { createKernelMemoryBackend } from './hybrid-backend';
 import { SemanticAntiDriftMiddleware, ToolCallSignatureTracker } from './anti-drift-middleware.js';
 import type { LoopDetectionResult } from './anti-drift-middleware.js';
 import { LOOP_EVENT_TYPES } from './event-bus.js';
-import { AGENT_CONSTANTS, MEMORY_CONSTANTS } from './constants.js';
+import { AGENT_CONSTANTS } from './constants.js';
 import { findProjectRoot } from './unified-memory.js';
 import { initializeUnifiedPersistence } from './unified-persistence.js';
 import * as path from 'path';
@@ -223,16 +223,7 @@ export class QEKernelImpl implements QEKernel {
     } else {
       // Use hybrid backend for persistent storage (default)
       // All data goes to unified memory.db via UnifiedMemoryManager
-      this._memory = new HybridMemoryBackend({
-        sqlite: {
-          path: path.join(dataDir, 'memory.db'),
-          walMode: true,
-          poolSize: 3,
-          busyTimeout: MEMORY_CONSTANTS.BUSY_TIMEOUT_MS,
-        },
-        enableFallback: true,
-        defaultNamespace: 'qe-kernel',
-      });
+      this._memory = createKernelMemoryBackend(dataDir);
 
       // Re-create plugins with the real memory backend
       this._plugins = new DefaultPluginLoader(
