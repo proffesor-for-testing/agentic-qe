@@ -187,14 +187,15 @@ export async function handleFleetInit(
   try {
     // If already initialized, return existing fleet
     if (state.initialized && state.kernel && state.queen) {
+      const effectiveConfig = state.kernel.getConfig();
       return {
         success: true,
         data: {
           fleetId: state.fleetId!,
-          topology: params.topology || 'hierarchical',
-          maxAgents: params.maxAgents || 15,
-          // Show only user-facing QE domains (12 domains, excludes internal 'coordination')
-          enabledDomains: (params.enabledDomains || QE_USER_DOMAINS) as DomainName[],
+          topology: state.topology,
+          maxAgents: effectiveConfig.maxConcurrentAgents,
+          // Report the running kernel, not the later caller's requested domains.
+          enabledDomains: effectiveConfig.enabledDomains.filter(d => d !== 'coordination'),
           status: 'ready',
         },
       };
