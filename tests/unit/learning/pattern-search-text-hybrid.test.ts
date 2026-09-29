@@ -85,6 +85,17 @@ describe('SQLitePatternStore.searchFTS natural-language queries (#653)', () => {
     expect(hits[0]?.id).toBe('needle');
   });
 
+  it('ranks rare query terms above patterns that only share common words', () => {
+    for (let i = 0; i < 5; i++) {
+      sqlite.storePattern(pattern(`noise-${i}`, `Write a test for the ${i} test case`,
+        'How to write a test that the test runner should run for the test case in the test suite'));
+    }
+
+    const hits = sqlite.searchFTS('how should I write a test for the idempotency key', 10);
+
+    expect(hits[0]?.id).toBe('needle');
+  });
+
   it('treats FTS5 operators and quotes in the query as literal text', () => {
     expect(() => sqlite.searchFTS('idempotency" OR NEAR(key AND * -', 10)).not.toThrow();
     expect(sqlite.searchFTS('idempotency" OR NEAR(key AND * -', 10)[0]?.id).toBe('needle');
