@@ -70,6 +70,35 @@ import {
   HomotopyAdapter,
   WitnessAdapter,
 } from './engines';
+import { tallyVotes, describeLeader, describeBreakdown, type VoteTally } from './vote-tally.js';
+
+/** Fallback consensus is valid only when more than this share of votes agree */
+const FALLBACK_MAJORITY_THRESHOLD = 0.6;
+
+/**
+ * Minimum number of voters for unanimity to be flagged as possible false
+ * consensus. Two agreeing agents are too few to call it groupthink.
+ */
+const MIN_VOTERS_FOR_FALSE_CONSENSUS = 3;
+
+/**
+ * False consensus means votes that *appear* unified but may not be
+ * (tool contract: "appears unified but isn't"). From verdicts alone the only
+ * observable "appears unified" signal is unanimity, so both the spectral and
+ * the fallback path flag unanimity among at least three voters as a risk.
+ * A split vote (e.g. 2 pass / 1 fail) shows its disagreement openly: it is a
+ * majority or an unverified consensus, never a false one (issue #535).
+ */
+function appearsFalselyUnified(tally: VoteTally): boolean {
+  return tally.isUnanimous && tally.total >= MIN_VOTERS_FOR_FALSE_CONSENSUS;
+}
+
+/** e.g. "3 of 3 votes 'pass'" or "2 of 3 votes 'pass'; 2 'pass' / 1 'fail'" */
+function describeTally(tally: VoteTally): string {
+  return tally.isUnanimous
+    ? describeLeader(tally)
+    : `${describeLeader(tally)}; ${describeBreakdown(tally)}`;
+}
 
 // ============================================================================
 // Coherence Service Interface
@@ -825,16 +854,46 @@ export class CoherenceService implements ICoherenceService {
 
         const collapseRisk = this.spectralAdapter.predictCollapseRisk();
         const fiedlerValue = this.spectralAdapter.computeFiedlerValue();
+        const tally = tallyVotes(votes);
+
+        // When every vote agrees and carries positive confidence, the agreement
+        // graph is complete with positive edge weights, so its algebraic
+        // connectivity is necessarily > 0. A non-positive value here means the
+        // engine's eigen-solver result cannot be trusted; count votes instead
+        // of reporting a unanimous vote as a collapsed one.
+        if (tally.isUnanimous && votes.every(v => v.confidence > 0) && !(fiedlerValue > 0)) {
+          this.logger.warn('Spectral engine returned a zero Fiedler value for a connected agreement graph, using fallback', {
+            fiedlerValue,
+            voteCount: votes.length,
+          });
+          return this.verifyConsensusWithFallback(votes, startTime);
+        }
+
+        // Agents are connected only when they share a verdict, so any split
+        // vote disconnects the graph (λ2 = 0) and fails verification here.
+        const isValid = collapseRisk < 0.3 && fiedlerValue > 0.1;
+        const isFalseConsensus = appearsFalselyUnified(tally);
+
+        let recommendation: string;
+        if (!isValid) {
+          recommendation =
+            `No verified consensus (${describeTally(tally)}): agreement-graph Fiedler value ` +
+            `${fiedlerValue.toFixed(3)}, collapse risk ${collapseRisk.toFixed(2)}. Spawn independent reviewer.`;
+        } else if (isFalseConsensus) {
+          recommendation =
+            `Consensus verified (${describeTally(tally)}), but unanimous agreement may indicate ` +
+            'false consensus. Consider adding diversity.';
+        } else {
+          recommendation = `Consensus verified (${describeTally(tally)}).`;
+        }
 
         return {
-          isValid: collapseRisk < 0.3 && fiedlerValue > 0.1,
+          isValid,
           confidence: 1 - collapseRisk,
-          isFalseConsensus: fiedlerValue < 0.05,
+          isFalseConsensus,
           fiedlerValue,
           collapseRisk,
-          recommendation: collapseRisk > 0.3
-            ? 'Spawn independent reviewer'
-            : 'Consensus verified',
+          recommendation,
           durationMs: Date.now() - startTime,
           usedFallback: false,
         };
@@ -859,33 +918,36 @@ export class CoherenceService implements ICoherenceService {
     votes: AgentVote[],
     startTime: number
   ): ConsensusResult {
-    // Count verdicts
-    const verdictCounts = new Map<string, number>();
-    for (const vote of votes) {
-      const key = String(vote.verdict);
-      verdictCounts.set(key, (verdictCounts.get(key) || 0) + 1);
-    }
-
-    // Find majority
-    let maxCount = 0;
-    verdictCounts.forEach(count => {
-      maxCount = Math.max(maxCount, count);
-    });
-
-    const majorityRatio = maxCount / votes.length;
+    const tally = tallyVotes(votes);
+    const { majorityRatio } = tally;
     const avgConfidence = votes.reduce((sum, v) => sum + v.confidence, 0) / votes.length;
 
+    // Flags and text are derived from the same predicates so the
+    // recommendation can never contradict them (issue #535).
+    const isValid = majorityRatio > FALLBACK_MAJORITY_THRESHOLD;
+    const isFalseConsensus = appearsFalselyUnified(tally);
+
+    let recommendation: string;
+    if (!isValid) {
+      recommendation =
+        `No clear majority: ${describeBreakdown(tally)} across ${tally.total} votes ` +
+        `(needs more than ${Math.round(FALLBACK_MAJORITY_THRESHOLD * 100)}% agreeing). Consider spawning additional agents.`;
+    } else if (isFalseConsensus) {
+      recommendation =
+        `Unanimous consensus (${describeLeader(tally)}) may indicate false consensus. Consider adding diversity.`;
+    } else if (tally.isUnanimous) {
+      recommendation = `Unanimous consensus achieved (${describeLeader(tally)}).`;
+    } else {
+      recommendation = `Majority consensus achieved (${describeTally(tally)}).`;
+    }
+
     return {
-      isValid: majorityRatio > 0.6,
+      isValid,
       confidence: majorityRatio * avgConfidence,
-      isFalseConsensus: verdictCounts.size === 1 && votes.length > 2,
+      isFalseConsensus,
       fiedlerValue: majorityRatio, // Approximation
       collapseRisk: 1 - majorityRatio,
-      recommendation: majorityRatio < 0.6
-        ? 'No clear majority. Consider spawning additional agents.'
-        : majorityRatio === 1 && verdictCounts.size === 1
-          ? 'Unanimous consensus may indicate false consensus. Consider adding diversity.'
-          : 'Majority consensus achieved.',
+      recommendation,
       durationMs: Date.now() - startTime,
       usedFallback: true,
     };
