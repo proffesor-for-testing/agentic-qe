@@ -628,9 +628,14 @@ export class SQLitePatternStore {
     if (!this.db) throw new Error('Database not initialized');
     if (!query.trim()) return [];
 
-    // Sanitize: wrap in double quotes to force literal phrase match,
-    // escaping any internal double quotes to prevent FTS5 syntax injection
-    const sanitized = '"' + query.replace(/"/g, '""') + '"';
+    // #653: match any query term (BM25 ranks docs matching more/rarer terms
+    // higher). A whole-query phrase almost never matched sentence-style task
+    // queries. Terms are letters/digits only, quoted, so FTS5 syntax can't leak in.
+    const terms = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])]
+      .filter(term => term.length >= 2)
+      .slice(0, 32);
+    if (terms.length === 0) return [];
+    const sanitized = terms.map(term => `"${term}"`).join(' OR ');
 
     const start = performance.now();
     try {

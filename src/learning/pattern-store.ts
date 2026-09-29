@@ -316,6 +316,12 @@ export interface PatternSearchOptions {
   embeddingSpaceId?: string;
 
   /**
+   * Original text of a pre-computed query vector (#653). Lets FTS5 lexical
+   * scoring participate when the caller embedded the text before searching.
+   */
+  textQuery?: string;
+
+  /**
    * Composable metadata filter expression (Task 1.2: ruvector-filter).
    * Applied post-search to refine results by domain, severity,
    * confidence range, tags, date range, etc.
@@ -1189,10 +1195,11 @@ export class PatternStore implements IPatternStore {
       }
 
       // FTS5 hybrid search: blend BM25 text relevance with vector similarity
-      // 75% vector score + 25% FTS5 score for patterns found by both
-      if (typeof query === 'string' && query.trim() && this.sqliteStore) {
+      // (see blendFtsScore) for patterns found by both
+      const ftsText = typeof query === 'string' ? query : options.textQuery;
+      if (ftsText?.trim() && this.sqliteStore) {
         try {
-          const ftsResults = this.sqliteStore.searchFTS(query, limit * 2);
+          const ftsResults = this.sqliteStore.searchFTS(ftsText, limit * 2);
           if (ftsResults.length > 0) {
             const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
             const existingIds = new Set(results.map(r => r.pattern.id));
@@ -1201,7 +1208,7 @@ export class PatternStore implements IPatternStore {
             for (const result of results) {
               const ftsScore = ftsScoreMap.get(result.pattern.id);
               if (ftsScore !== undefined) {
-                result.score = 0.75 * result.score + 0.25 * ftsScore;
+                result.score = blendFtsScore(result.score, ftsScore);
               }
             }
 
@@ -1230,8 +1237,10 @@ export class PatternStore implements IPatternStore {
 
       // Text search fallback or additional
       if (typeof query === 'string' || results.length < limit) {
+        // #653: with the caller's text, pad with text matches rather than
+        // unrelated patterns ranked by quality score alone.
         const textResults = await this.searchByText(
-          typeof query === 'string' ? query : '',
+          ftsText ?? '',
           options,
           limit - results.length
         );
@@ -1967,6 +1976,15 @@ export class PatternStore implements IPatternStore {
 // ============================================================================
 // Factory Functions
 // ============================================================================
+
+/**
+ * Hybrid score for a hit found by both vector and FTS5 search (#653):
+ * 75% vector + 25% BM25, but lexical agreement may only raise the vector
+ * score — a weak BM25 match must not demote a near-identical vector hit.
+ */
+export function blendFtsScore(vectorScore: number, ftsScore: number): number {
+  return Math.max(vectorScore, 0.75 * vectorScore + 0.25 * ftsScore);
+}
 
 /**
  * Create a new pattern store instance.
