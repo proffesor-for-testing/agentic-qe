@@ -58,6 +58,33 @@ export async function runGate(): Promise<GateResult> {
     record('clean chain verifies as valid', clean.integrity === true, `integrity=${clean.integrity}`);
     record('clean chain reports all 4 entries', clean.chainLength === 4, `chainLength=${clean.chainLength}`);
 
+    // #753: a pre-3.14.5 concurrent-append fork (a row chained to the row
+    // before the tail) is reported as a fork, not tampering, and
+    // `aqe audit repair` re-anchors it so verify passes again.
+    const { hashWith, serializeEntry, shake256 } = await import('../src/audit/witness-chain.js');
+    const { handleAuditChainRepair } = await import('../src/cli/commands/audit.js');
+    const { _resetDefaultWitnessKeyManagerForTests } = await import('../src/audit/witness-key-manager.js');
+    _resetDefaultWitnessKeyManagerForTests();
+    const forkDb = new Database(dbPath);
+    const parent = forkDb.prepare('SELECT * FROM witness_chain ORDER BY id DESC LIMIT 1 OFFSET 1').get();
+    const raceData = JSON.stringify({ patternId: 'gate-race' });
+    forkDb.prepare(`INSERT INTO witness_chain (prev_hash, action_hash, action_type, action_data, timestamp, actor, hash_algo)
+      VALUES (?, ?, 'PATTERN_CREATE', ?, ?, 'ci-gate', 'shake256')`)
+      .run(hashWith('shake256', serializeEntry(parent as never)), shake256(raceData), raceData, new Date().toISOString());
+    forkDb.close();
+
+    const forked = await handleAuditChainVerify({ format: 'json' });
+    record('forked chain is reported as forked, not tampered',
+      forked.integrity === false && forked.status === 'forked' && forked.tampered === false && forked.forks?.length === 1,
+      `integrity=${forked.integrity} status=${forked.status} tampered=${forked.tampered} forks=${forked.forks?.length}`);
+
+    const repaired = await handleAuditChainRepair({ format: 'json' });
+    _resetDefaultWitnessKeyManagerForTests();
+    record('repair re-anchors the fork', repaired.action === 'reanchored', `action=${repaired.action}`);
+    const reanchored = await handleAuditChainVerify({ format: 'json' });
+    record('re-anchored chain verifies as valid', reanchored.integrity === true && reanchored.status === 'valid-with-forks',
+      `integrity=${reanchored.integrity} status=${reanchored.status}`);
+
     // Tamper directly with the live table (bypassing the API) and confirm
     // the gate actually catches it — a gate that always reports "valid" is
     // worse than no gate.
@@ -67,6 +94,8 @@ export async function runGate(): Promise<GateResult> {
 
     const tampered = await handleAuditChainVerify({ format: 'json' });
     record('tampered chain is detected as broken', tampered.integrity === false, `integrity=${tampered.integrity}`);
+    record('tampering after a re-anchored fork is reported as tampering', tampered.tampered === true,
+      `tampered=${tampered.tampered} status=${tampered.status}`);
   } finally {
     if (prevRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
     else process.env.AQE_PROJECT_ROOT = prevRoot;

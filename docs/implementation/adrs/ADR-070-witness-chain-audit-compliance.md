@@ -252,6 +252,73 @@ Phase 4.1 for the witness verification implementation plan.
 
 ---
 
+## Forks vs Tampering, and Re-anchoring Old Stores (issue #753)
+
+Before v3.14.5, `append()` read the tail and inserted without a transaction.
+Two AQE processes on one store (MCP server + `aqe hooks`, or two agent hosts)
+could both chain to the same tail, forking the chain. v3.14.5 (#764) takes the
+write lock first (`BEGIN IMMEDIATE`), so new forks no longer happen. Stores
+written earlier still hold them, and `verify()` used to stop at the first one,
+so every later row went unchecked.
+
+`verify()` (`src/audit/witness-chain-verifier.ts`) now classifies every break
+and keeps walking past forks:
+
+| Class | Rule | Walk |
+|-------|------|------|
+| linked | `prev_hash` = hash of the predecessor row, and no id between them is missing (live ∪ archive) | continues |
+| **fork** | own `action_hash` recomputes; `prev_hash` = hash of an **earlier, existing** row; every id between that parent and the row still exists; if the row is signed by a key in `.agentic-qe/witness-keys/`, the signature verifies | continues |
+| **tamper** | anything else: content/`action_hash` mismatch, `prev_hash` naming no row or a later row, rows missing (`id-gap`), a bad signature on a fork or re-anchor row, a changed re-anchored row | stops |
+
+A mid-chain row whose `prev_hash` is the genesis sentinel (the legacy #759
+`brain import` splice) is reported as **tamper** (`unlinked-genesis-prev-hash`).
+The sentinel is the one value anyone can write without reading the chain, and a
+forged or history-deleting edit produces exactly the same shape. A store with
+that shape has to be restored from a backup taken before the import.
+
+Result fields (`VerifyResult`, `aqe audit verify --chain audit --format json`):
+`status` (`valid` | `valid-with-forks` | `forked` | `tampered`), `tampered`,
+`tamperedAt`, `tamperReason`, `forks`, `acknowledgedForks`. The existing fields
+keep their meaning: `integrity`/`valid` is true only for `valid` and
+`valid-with-forks`, and `brokenAt` is the first unaccepted break in walk order,
+which is the same id the pre-#753 verify stopped at.
+
+**Integrity stays false for unrepaired forks** (exit code 1, `status: "forked"`,
+`tampered: false`). This is deliberate. For unsigned rows the fork class is
+structural, not cryptographic, so a store that older versions reported as broken
+never turns valid without an explicit operator action. A health check that
+should tolerate unrepaired forks can test `tampered === false`.
+
+**Repair.** `aqe audit repair --chain audit [--dry-run] [--format json]`
+(`src/audit/witness-chain-repair.ts`):
+
+1. Refuses (exit 1) if `verify()` reports any tampering or signature failure.
+2. Writes nothing on `--dry-run`. It opens the store read-only and never
+   generates a key.
+3. Takes the write lock (`BEGIN IMMEDIATE`) and re-verifies. Still holding
+   the lock, it backs up with `VACUUM INTO <memory.db>.bak-<epoch>` from a
+   second read-only connection. The backup is therefore exactly the state
+   being modified, and it must pass `integrity_check` and match the witness
+   row counts before anything is written.
+4. Never deletes, moves or rewrites a row. In the same transaction it
+   appends a single `CHAIN_REANCHOR` entry,
+   signed with the project key. The entry lists each unacknowledged fork (id,
+   parent id, `prev_hash`, `action_hash`), pins the hash of every dead-end row
+   (the losing race siblings that no later row links to), and records the
+   verified tip. Row counts are checked in the same transaction: live +1,
+   archive unchanged.
+5. Is idempotent. A second run finds nothing unacknowledged and writes nothing.
+
+Afterwards `verify()` reports `valid-with-forks`, which keeps the history
+visible: every fork is still listed. A fork is accepted only when a later,
+normally linked `CHAIN_REANCHOR` lists that exact row. Forks that appear after
+the re-anchor, edits to a re-anchored fork or a pinned dead-end row, and any
+tampering later in the chain are all reported again. Versions before this
+change do not understand `CHAIN_REANCHOR` and still report a repaired store as
+broken at its first fork.
+
+---
+
 ## Dependencies
 
 | Relationship | ADR ID | Title | Notes |
@@ -297,6 +364,7 @@ Phase 4.1 for the witness verification implementation plan.
 | Proposed | 2026-02-22 | Initial creation. Cryptographic witness chain for tamper-evident pattern lineage and enterprise audit compliance. |
 | — | 2026-03-08 | Added partial implementation note: witness_chain table (12,857 entries) exported/imported via brain export. RVF `verify_witness()` planned for Phase 4.1 of brain export v3.0 improvement plan. |
 | Verified | 2026-07-06 | System-integrity remediation (A13) found Ed25519 signing had never been wired to any real construction site (`WitnessKeyManager` was constructed only in tests) — every entry's `signature`/`signer_key_id` was null. Also found a real correctness bug: `archiveEntries()` deletes archived rows from the live table, but `verify()` diffed against whatever was array-adjacent, so any future archival run would have falsely reported the chain broken from that point forward (confirmed dormant — `archiveEntries` is never called in production, but would have broken on first use). Fixed: real signing via a persistent `keyDir` (`.agentic-qe/witness-keys/`, gitignored), and a two-tier predecessor-resolution fix for `verify()` (array-adjacent first, cross-table archive lookup on mismatch) that correctly handles both "predecessor got archived out from under an existing entry" and "new entry appended after archival" — two structurally different cases that need opposite handling. Added a CI gate (`.github/workflows/optimized-ci.yml`, `scripts/witness-chain-audit-gate.ts`) and a `--chain=audit` flag on `aqe audit verify` for the real 13,463-row chain (previously only the 29-row governance-receipt chain was checked). **Verified by**: `tests/unit/audit/witness-chain.test.ts` (30/30), `tests/unit/witness-chain-v3.test.ts` (43/43); real production verification via `npx tsx src/cli/index.ts audit verify --chain=audit` confirmed the live 13,463-row chain is genuinely valid end-to-end, and a real Ed25519 key pair now exists at `.agentic-qe/witness-keys/` (generated the first time `getWitnessChain()` was constructed during this session's testing). Details in `docs/plans/SYSTEM-INTEGRITY-REMEDIATION-GOAP-PLAN-2026-07-04.md` (A13). Scope note: existing historical entries remain unsigned (expected — signatures can't be retroactively derived); only future entries get signed. |
+| Amended | 2026-09-29 | Issue #753 (suggestions 2+3): `verify()` classifies breaks as fork vs tamper and keeps walking past forks; `aqe audit repair --chain audit` re-anchors fork-only stores with a signed `CHAIN_REANCHOR` entry (backup first, refuses on tamper, no row rewritten). See "Forks vs Tampering". |
 
 ---
 

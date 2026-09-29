@@ -74,7 +74,10 @@ export function recordGateResult(
 export function verifyDeliveryChain(chain: WitnessChain, opts?: { checkSignatures?: boolean }): { valid: true; entriesChecked: number } {
   const r = chain.verify({ checkSignatures: opts?.checkSignatures === true });
   if (!r.valid) {
-    throw new Error(`Witness delivery chain INVALID — tampering detected at entry ${r.brokenAt ?? '?'} (checked ${r.entriesChecked}). Delivered findings cannot be trusted.`);
+    const what = r.tampered
+      ? `tampering detected at entry ${r.tamperedAt ?? r.brokenAt ?? '?'}`
+      : `${r.forks.length - r.acknowledgedForks.length} unacknowledged fork(s), first at entry ${r.brokenAt ?? '?'}`;
+    throw new Error(`Witness delivery chain INVALID — ${what} (checked ${r.entriesChecked}). Delivered findings cannot be trusted.`);
   }
   if (opts?.checkSignatures && (r.signatureFailures ?? 0) > 0) {
     throw new Error(`Witness delivery chain has ${r.signatureFailures} signature failure(s) — provenance unverifiable.`);
