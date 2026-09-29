@@ -948,8 +948,14 @@ export class PlanExecutor {
         const finalWorldState = [...steps].reverse().find((s) => s.worldStateAfter)?.worldStateAfter;
         const plannedStepCount = this.getPlannedActionCount(row.plan_id);
 
+        // Issue #535: a failed step followed by a successful replacement plan
+        // is a recovered (completed) execution; only a run that ENDS on a
+        // failed step failed. Without failures, fewer recorded steps than
+        // planned means it was cancelled.
+        const lastStep = steps[steps.length - 1];
         let status: ExecutionResult['status'];
-        if (row.steps_failed > 0) status = 'failed';
+        if (lastStep?.status === 'failed') status = 'failed';
+        else if (row.steps_failed > 0) status = 'completed';
         else if (plannedStepCount != null && row.steps_recorded < plannedStepCount) status = 'cancelled';
         else status = 'completed';
 
@@ -1049,13 +1055,17 @@ export class PlanExecutor {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    for (const step of result.steps) {
+    // Issue #535: steps from replacement plans (replanning) are recorded
+    // under the top-level plan id with a chronological step order, so one
+    // execution is one history record for the plan the caller executed —
+    // not split across sub-plan ids with colliding step orders.
+    result.steps.forEach((step, index) => {
       insertStep.run(
         step.id,
-        step.planId,
+        result.planId,
         executionId,
         step.action.id,
-        step.stepOrder,
+        index,
         step.status,
         step.retries,
         step.startedAt.toISOString(),
@@ -1066,7 +1076,7 @@ export class PlanExecutor {
         step.worldStateAfter ? JSON.stringify(step.worldStateAfter) : null,
         step.error ?? null
       );
-    }
+    });
 
     // Reflects only the most recent execution attempt for this plan — a
     // deliberate, documented scope limit: goap_plans is one row per plan,

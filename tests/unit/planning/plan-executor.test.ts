@@ -437,6 +437,21 @@ describe('PlanExecutor', () => {
       expect(result.steps[1].status).toBe('completed');
     });
 
+    it('records a recovered (replanned) execution as one completed history entry of the executed plan', async () => {
+      const failing = await registerAction('Failing hist 535', { implemented: false, cost: 0.5 });
+      const alternative = await registerAction('Alternative hist 535', { cost: 2.0 });
+      planner.setPlanReuseEnabled(false);
+      const plan = planOf([failing]);
+
+      const result = await executor.execute(plan);
+      expect(result.status).toBe('completed');
+
+      const history = await executor.getExecutionHistory(plan.id);
+      expect(history).toHaveLength(1);
+      expect(history[0].status).toBe('completed');
+      expect(history[0].steps.map((s) => s.action.id)).toEqual([failing.id, alternative.id]);
+    });
+
     it('terminates (failed) when every alternative also fails instead of ping-ponging', async () => {
       const a = await registerAction('Fail A 535', { implemented: false });
       await registerAction('Fail B 535', { implemented: false });
