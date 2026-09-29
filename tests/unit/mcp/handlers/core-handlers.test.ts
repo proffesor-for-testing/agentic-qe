@@ -225,6 +225,33 @@ describe('Core Handlers', { timeout: 30000 }, () => {
       expect(second.data!.status).toBe('ready'); // Returns 'ready' for existing fleet
     });
 
+    it('should report the effective configuration when a later init requests different settings', async () => {
+      await disposeFleet();
+      const first = await handleFleetInit({
+        topology: 'ring',
+        maxAgents: 7,
+        enabledDomains: ['test-generation', 'test-execution'],
+        memoryBackend: 'memory',
+      });
+
+      const second = await handleFleetInit({
+        topology: 'mesh',
+        maxAgents: 3,
+        enabledDomains: ['security-compliance'],
+        memoryBackend: 'memory',
+      });
+
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      expect(second.data).toMatchObject({
+        fleetId: first.data!.fleetId,
+        topology: 'ring',
+        maxAgents: 7,
+        enabledDomains: ['test-generation', 'test-execution'],
+        status: 'ready',
+      });
+    });
+
     it('should respect lazyLoading parameter', async () => {
       await disposeFleet();
       const result = await handleFleetInit({ lazyLoading: false, memoryBackend: 'memory' });
