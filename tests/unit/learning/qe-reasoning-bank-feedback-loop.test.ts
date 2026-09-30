@@ -16,6 +16,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setRuVectorFeatureFlags, resetRuVectorFeatureFlags } from '../../../src/integrations/ruvector/feature-flags.js';
 import {
   QEReasoningBank,
@@ -24,7 +27,8 @@ import {
 import { createMockMemory } from '../../mocks';
 import type { MemoryBackend } from '../../../src/kernel/interfaces';
 import { checkRuvectorPackagesAvailable } from '../../../src/integrations/ruvector/wrappers';
-import { resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
+import { initializeUnifiedPersistence, resetUnifiedPersistence } from '../../../src/kernel/unified-persistence';
+import { getUnifiedMemory } from '../../../src/kernel/unified-memory';
 import { queenGovernanceAdapter } from '../../../src/governance/queen-governance-adapter';
 import { resetSharedMinCutState } from '../../../src/coordination/mincut/shared-singleton';
 import { clearEmbeddingCache, resetInitialization } from '../../../src/learning/real-embeddings';
@@ -50,6 +54,7 @@ const canTest = checkRuvectorPackagesAvailable();
 describe.runIf(canTest.gnn)('QEReasoningBank — recordOutcome qe_pattern_usage feedback loop', () => {
   let memory: MemoryBackend;
   let reasoningBank: QEReasoningBank;
+  let testDir: string;
 
   beforeEach(async () => {
     // Reset shared singletons to prevent cross-test contamination
@@ -57,17 +62,32 @@ describe.runIf(canTest.gnn)('QEReasoningBank — recordOutcome qe_pattern_usage 
     queenGovernanceAdapter.reset();
     resetSharedMinCutState();
 
+    // Resetting the singleton closes the connection but retains its on-disk
+    // patterns. Use a fresh owned database so seeding cannot compound (#792).
+    testDir = mkdtempSync(join(tmpdir(), 'aqe-feedback-loop-'));
+    await initializeUnifiedPersistence({ dbPath: join(testDir, 'memory.db') });
+
     memory = createMockMemory();
     reasoningBank = createQEReasoningBank(memory);
     await reasoningBank.initialize();
+
+    // A prior case's feedback pattern must not survive this case's setup (#792).
+    const priorPatterns = getUnifiedMemory().getDatabase().prepare(
+      'SELECT COUNT(*) AS count FROM qe_patterns WHERE name = ?',
+    ).get('Analytics Feedback Pattern');
+    expect(priorPatterns).toEqual({ count: 0 });
   });
 
   afterEach(async () => {
-    await reasoningBank.dispose();
-    vi.clearAllMocks();
-
-    // Clean up singletons after test
-    resetUnifiedPersistence();
+    try {
+      await reasoningBank?.dispose();
+    } finally {
+      // Restore dynamic mocks even if an assertion or disposal fails.
+      vi.doUnmock('../../../src/kernel/unified-memory.js');
+      vi.clearAllMocks();
+      resetUnifiedPersistence();
+      if (testDir) rmSync(testDir, { recursive: true, force: true });
+    }
   });
 
   // Helper: store a pattern and return its ID
