@@ -17,6 +17,14 @@ vector. Hash fallbacks and resized vectors use text-only retrieval even if anoth
 caller initialized a global provider identity. The same guard covers searchPatterns. The RVF fallback
 scans all stored embeddings and admits only those belonging to that space.
 Neither path silently treats unknown or different spaces as comparable vectors.
+The Hopfield exact-recall path validates provenance before recall, honors disabled
+vector search, and resets its cache whenever the embedding space changes.
+
+Experience reinforcement uses a separate exact task/domain/type identity stored
+in pattern context, with a full SHA-256 identifier in the generated pattern name
+and tags. It does not depend on lexical similarity or authorize vector reuse.
+This preserves promotion on repeated observations, including after SQLite reopen,
+and prevents truncated-name collisions from combining unrelated experiences.
 
 ## Measured structural retrieval
 
@@ -51,6 +59,10 @@ that structural distractors are solved; 64 relation violations remain.
   and RVF fallback beyond the old arbitrary prefix while excluding alien spaces.
   Removing the routing space identity makes the routing regression fail with no
   pattern evidence; restoring it passes.
+- `experience-capture.integration.test.ts`: memory and isolated SQLite persistence,
+  repeated exact observations promote and stay promoted on the fourth capture,
+  SQLite reopen preserves origin identity, and shared task prefixes and different
+  domains produce distinct patterns without upgrading lexical reuse.
 - `task-orchestrate-pattern-provenance.test.ts`: stream JSON-RPC protocol through
   handler, service, enhanced adapter, SQLite and native HNSW. Controlled embedding
   fixtures isolate vector evidence from lexical-only alien-space rows. Both task

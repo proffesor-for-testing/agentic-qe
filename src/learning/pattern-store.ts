@@ -109,11 +109,13 @@ function getHDCTokenFingerprinter(): HDCPatternFingerprinter | null {
 /** Module-level Hopfield memory for exact pattern recall */
 let hopfieldMemory: HopfieldMemory | null = null;
 let hopfieldDimension = 0;
+let hopfieldSpaceId: string | undefined;
 
-function getHopfieldMemory(dimension: number): HopfieldMemory {
-  if (!hopfieldMemory || hopfieldDimension !== dimension) {
+function getHopfieldMemory(dimension: number, spaceId: string): HopfieldMemory {
+  if (!hopfieldMemory || hopfieldDimension !== dimension || hopfieldSpaceId !== spaceId) {
     hopfieldMemory = createHopfieldMemory({ dimension, maxPatterns: 10000 });
     hopfieldDimension = dimension;
+    hopfieldSpaceId = spaceId;
   }
   return hopfieldMemory;
 }
@@ -971,9 +973,9 @@ export class PatternStore implements IPatternStore {
     }
 
     // R5: Store embedding in Hopfield memory for exact recall
-    if (isHopfieldMemoryEnabled() && pattern.embedding) {
+    if (isHopfieldMemoryEnabled() && pattern.embedding && activeSpaceId) {
       try {
-        const hopfield = getHopfieldMemory(pattern.embedding.length);
+        const hopfield = getHopfieldMemory(pattern.embedding.length, activeSpaceId);
         hopfield.store(new Float32Array(pattern.embedding), {
           id: pattern.id,
           name: pattern.name,
@@ -1136,10 +1138,14 @@ export class PatternStore implements IPatternStore {
     const results: PatternSearchResult[] = [];
 
     try {
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+      if (Array.isArray(query) && (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId)) {
+        throw new Error('VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId');
+      }
       // R5: Exact recall via Hopfield — check for high-confidence exact match
-      if (Array.isArray(query) && isHopfieldMemoryEnabled()) {
+      if (Array.isArray(query) && options.useVectorSearch !== false && activeSpaceId && isHopfieldMemoryEnabled()) {
         try {
-          const hopfield = getHopfieldMemory(query.length);
+          const hopfield = getHopfieldMemory(query.length, activeSpaceId);
           if (hopfield.getPatternCount() > 0) {
             const recallResult = hopfield.recall(new Float32Array(query));
             if (recallResult && recallResult.similarity > 0.98) {
@@ -1166,12 +1172,6 @@ export class PatternStore implements IPatternStore {
 
       // Vector search if query is embedding and HNSW available (lazy-load)
       if (Array.isArray(query) && options.useVectorSearch !== false) {
-        const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
-        if (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId) {
-          throw new Error(
-            'VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId',
-          );
-        }
         const hnsw = await this.ensureHNSW();
         if (hnsw) {
           const hnswResults = await hnsw.search(query, limit * 2);

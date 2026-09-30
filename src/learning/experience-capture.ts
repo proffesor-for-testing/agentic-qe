@@ -13,6 +13,7 @@
  * - Cross-domain experience sharing
  */
 
+import { createHash } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { MemoryBackend, EventBus } from '../kernel/interfaces.js';
 import type { Result } from '../shared/types/index.js';
@@ -646,18 +647,25 @@ export class ExperienceCaptureService {
       return { newPattern: false, reinforced: false, promoted: false };
     }
 
-    // Search for similar existing patterns
-    const searchResult = await this.patternStore.search(experience.task, {
+    // Reinforcement records repeated observations of the exact originating task;
+    // lexical relevance is not a semantic reuse oracle.
+    const identity = this.experienceIdentity(experience);
+    const searchResult = await this.patternStore.search(identity, {
       limit: 1,
       domain: experience.domain,
-      useVectorSearch: true,
+      patternType: this.detectPatternType(experience.task),
+      useVectorSearch: false,
     });
 
     if (searchResult.success && searchResult.value.length > 0) {
       const existing = searchResult.value[0];
 
-      // If similarity is high enough, reinforce existing pattern
-      if (existing.similarity >= this.config.similarityThreshold) {
+      const origin = existing.pattern.context?.experienceOrigin;
+      if (origin?.task === experience.task
+        && origin.domain === (experience.domain ?? null)
+        && origin.patternType === this.detectPatternType(experience.task)
+        && existing.pattern.patternType === origin.patternType
+        && (!experience.domain || existing.pattern.qeDomain === experience.domain)) {
         const usageResult = await this.patternStore.recordUsage(
           existing.pattern.id,
           experience.success
@@ -919,10 +927,12 @@ Duration: ${experience.durationMs}ms`;
 
     return {
       patternType,
+      qeDomain: experience.domain,
       name: this.generatePatternName(experience),
       description: `Pattern extracted from: ${experience.task}`,
       context: {
-        tags: this.extractTags(experience),
+        tags: [...this.extractTags(experience), this.experienceIdentity(experience)],
+        experienceOrigin: { task: experience.task, domain: experience.domain ?? null, patternType },
         testType: this.detectTestType(experience.task),
       },
       template: {
@@ -997,8 +1007,14 @@ Duration: ${experience.durationMs}ms`;
   }
 
   /**
-   * Generate pattern name from experience
+   * Stable lookup identity; verify full origin metadata before reinforcement.
    */
+  private experienceIdentity(experience: TaskExperience): string {
+    return createHash('sha256').update(JSON.stringify([
+      experience.task, experience.domain ?? null, this.detectPatternType(experience.task),
+    ])).digest('hex');
+  }
+
   private generatePatternName(experience: TaskExperience): string {
     // Take first 50 chars of task, sanitize
     const sanitized = experience.task
@@ -1007,7 +1023,7 @@ Duration: ${experience.durationMs}ms`;
       .trim();
 
     const domain = experience.domain ? `[${experience.domain}] ` : '';
-    return `${domain}${sanitized}`;
+    return `${domain}${sanitized} ${this.experienceIdentity(experience)}`;
   }
 
   /**

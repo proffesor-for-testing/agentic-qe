@@ -187,6 +187,33 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     }
   });
 
+  it('requires provenance before Hopfield recall and honors disabled vector search', async () => {
+    Object.assign(store, { ensureHNSW: async () => ({ insert: async () => undefined, search: async () => [] }) });
+    await store.store({ ...NEEDLE, embedding: UNRELATED_VECTOR });
+    const verified = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID });
+    expect(verified.success && verified.value.some(hit => hit.matchType === 'vector' && hit.similarity > 0.98)).toBe(true);
+    const unverified = await store.search(UNRELATED_VECTOR, { useVectorSearch: false });
+    expect(unverified.success).toBe(false);
+    const disabled = await store.search(UNRELATED_VECTOR, {
+      embeddingSpaceId: SPACE_ID, useVectorSearch: false, textQuery: 'idempotency key replay',
+    });
+    expect(disabled.success).toBe(true);
+    if (disabled.success) {
+      expect(disabled.value.length).toBeGreaterThan(0);
+      for (const hit of disabled.value) expect(hit).toMatchObject({ matchType: 'lexical', similarity: 0, canReuse: false });
+    }
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity').mockReturnValue({ spaceId: 'new-space' } as never);
+    try {
+      const switched = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: 'new-space' });
+      expect(switched.success).toBe(true);
+      if (switched.success) for (const hit of switched.value) {
+        expect(hit.matchType).not.toBe('vector');
+        expect(hit.similarity).toBe(0);
+        expect(hit.canReuse).toBe(false);
+      }
+    } finally { identity.mockRestore(); }
+  });
+
   it('never reports a keyword-only hit as a near-duplicate', async () => {
     // Experience capture merges into an existing pattern at similarity >= 0.85;
     // sharing query words must not qualify, however the BM25 score normalizes.
