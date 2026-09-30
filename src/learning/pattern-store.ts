@@ -347,7 +347,7 @@ export interface PatternSearchResult {
   score: number;
 
   /** How the pattern was matched */
-  matchType: 'vector' | 'exact' | 'context';
+  matchType: 'vector' | 'exact' | 'lexical' | 'context';
 
   /** Similarity score for vector matches (ADR-042) */
   similarity: number;
@@ -1201,7 +1201,7 @@ export class PatternStore implements IPatternStore {
         try {
           const ftsResults = this.sqliteStore.searchFTS(ftsText, limit * 2);
           if (ftsResults.length > 0) {
-            const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
+            const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore * r.coverage]));
             const existingIds = new Set(results.map(r => r.pattern.id));
 
             // Boost existing vector results that also match FTS5
@@ -1217,22 +1217,18 @@ export class PatternStore implements IPatternStore {
               if (existingIds.has(ftsResult.id)) continue;
               const pattern = await this.get(ftsResult.id);
               if (pattern && this.matchesFilters(pattern, options)) {
-                // #653: ftsScore is normalized to the best hit, so only a
-                // whole-phrase hit may read as a near-duplicate; term-only hits
-                // report the conservative keyword score as their similarity.
-                // Scaled by query-term coverage so the best of a weak lexical
-                // set (e.g. one shared stopword) cannot outrank vector hits.
+                // Relative BM25 is weighted by query coverage for ranking;
+                // lexical evidence alone never authorizes vector reuse.
                 const keywordScore = 0.5 * ftsResult.ftsScore * ftsResult.coverage;
-                const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
-                const reuseInfo = this.calculateReuseInfo(pattern, similarity);
+                const similarity = 0; // Lexical relevance is not vector similarity or safe reuse.
                 results.push({
                   pattern,
-                  score: keywordScore, // FTS-only: exact keyword match is valuable
-                  matchType: 'exact',
+                  score: keywordScore,
+                  matchType: 'lexical',
                   similarity,
-                  canReuse: reuseInfo.canReuse,
-                  estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-                  reuseConfidence: reuseInfo.reuseConfidence,
+                  canReuse: false,
+                  estimatedTokenSavings: 0,
+                  reuseConfidence: 0,
                 });
               }
             }

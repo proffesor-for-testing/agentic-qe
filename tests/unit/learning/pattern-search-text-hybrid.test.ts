@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { blendFtsScore, createPatternStore, type PatternStore } from '../../../src/learning/pattern-store.js';
 import { RvfPatternStore } from '../../../src/learning/rvf-pattern-store.js';
 import { createSQLitePatternStore, type SQLitePatternStore } from '../../../src/learning/sqlite-persistence.js';
+import * as embeddings from '../../../src/learning/real-embeddings.js';
 import { QEReasoningBank } from '../../../src/learning/qe-reasoning-bank.js';
 import type { QEPattern } from '../../../src/learning/qe-patterns.js';
 import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
@@ -153,7 +154,20 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     expect(result.success).toBe(true);
     const top = result.success ? result.value[0] : undefined;
     expect(top?.pattern.id).toBe('needle');
-    expect(top?.matchType).toBe('exact');
+    expect(top?.matchType).toBe('lexical');
+  });
+
+  it('routes with compatible stored pattern evidence instead of swallowing a provenance error', async () => {
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity')
+      .mockReturnValue({ spaceId: SPACE_ID } as never);
+    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: false });
+    Object.assign(bank, { initialized: true, patternStore: store });
+    vi.spyOn(bank, 'embed').mockResolvedValue(UNRELATED_VECTOR);
+    try {
+      const result = await bank.routeTask({ task: 'idempotency key replay', domain: 'test-generation' });
+      expect(result.success).toBe(true);
+      expect(result.success ? result.value.patterns.map(p => p.id) : []).toContain('needle');
+    } finally { identity.mockRestore(); }
   });
 
   it('never reports a keyword-only hit as a near-duplicate', async () => {
@@ -161,25 +175,27 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     // sharing query words must not qualify, however the BM25 score normalizes.
     const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
 
-    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
     // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
     for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
-  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+  it('keeps whole-phrase keyword evidence separate from vector reuse', async () => {
     const result = await store.search('Idempotency key replay guard', { limit: 5 });
 
     const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
-    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
+    expect(needle?.similarity).toBe(0);
+    expect(needle?.matchType).toBe('lexical');
+    expect(needle?.canReuse).toBeFalsy();
   });
 
   it('keeps vector-only behaviour when no textQuery is supplied', async () => {
     const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, limit: 3 });
 
     expect(result.success).toBe(true);
-    const exact = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const exact = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(exact).toEqual([]);
   });
 });
@@ -225,18 +241,20 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
   it('never reports a keyword-only hit as a near-duplicate', async () => {
     const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
 
-    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
     // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
     for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
-  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+  it('keeps whole-phrase keyword evidence separate from vector reuse', async () => {
     const result = await store.search('Idempotency key replay guard', { limit: 5 });
 
     const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
-    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
+    expect(needle?.similarity).toBe(0);
+    expect(needle?.matchType).toBe('lexical');
+    expect(needle?.canReuse).toBeFalsy();
   });
 
   it('blends FTS5 relevance into vector hits the same way PatternStore does', async () => {
@@ -275,6 +293,24 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     expect(ranked[0]?.pattern.id).toBe('needle');
     const pageHit = ranked.find(r => r.pattern.id === 'filler-2');
     expect(pageHit?.score ?? 0).toBeLessThan(0.45);
+  });
+
+  it('does not boost a weak vector on one common query term', async () => {
+    adapter.search.mockReturnValue([{ id: 'needle', distance: 0.7, score: 0.3 }]);
+    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 1, phrase: false, coverage: 0.1 }]);
+    const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, textQuery: 'test a rare invariant' });
+    expect(result.success && result.value[0].score).toBeCloseTo(0.3);
+    expect(result.success && result.value[0].similarity).toBeCloseTo(0.3);
+  });
+
+  it('scans every compatible embedding when RVF is unbound, excluding alien and legacy spaces', async () => {
+    Object.assign(store, { adapter: null });
+    for (let i = 0; i < 8; i++) {
+      sqlite.storePattern(pattern(`alien-${i}`, 'Alien vector', 'Different embedding space'), UNRELATED_VECTOR, 'alien');
+    }
+    sqlite.storePattern(pattern('late-compatible', 'Compatible vector', 'Same embedding space'), UNRELATED_VECTOR, SPACE_ID);
+    const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, limit: 1 });
+    expect(result.success ? result.value.map(r => r.pattern.id) : []).toEqual(['late-compatible']);
   });
 
   it('never lowers a strong vector hit because its lexical score is weaker', async () => {

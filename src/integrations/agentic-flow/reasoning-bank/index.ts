@@ -20,6 +20,7 @@ import {
   RealQEReasoningBank,
   createRealQEReasoningBank,
   type RealQEReasoningBankConfig,
+  type RealQEPatternSearchResult,
   type RealQERoutingRequest,
   type RealQERoutingResult,
   type LearningOutcome,
@@ -502,7 +503,7 @@ export class EnhancedReasoningBankAdapter {
   async searchPatterns(
     query: string,
     options?: { limit?: number; domain?: QEDomain; minSimilarity?: number }
-  ): Promise<Result<Array<{ pattern: QEPattern; similarity: number }>>> {
+  ): Promise<Result<RealQEPatternSearchResult[]>> {
     this.ensureInitialized();
     return this.reasoningBank!.searchQEPatterns(query, options);
   }

@@ -6,7 +6,7 @@
  * text), and prints evaluateStructuralRetrieval() metrics. Never touches the
  * project's .agentic-qe/memory.db.
  *
- *   npx tsx scripts/structural-retrieval-baseline.ts [--store=pattern|rvf|both] [--hash] [--json]
+ *   npx tsx scripts/structural-retrieval-baseline.ts [--store=pattern|rvf|real|both|all] [--hash] [--json]
  */
 
 import * as fs from 'node:fs';
@@ -19,13 +19,16 @@ process.env.AQE_PROJECT_ROOT = tmpRoot;
 const args = new Set(process.argv.slice(2));
 const storeArg = [...args].find(a => a.startsWith('--store='))?.split('=')[1] ?? 'both';
 const useHash = args.has('--hash');
+if (useHash && ['real', 'all'].includes(storeArg)) throw new Error('RealQEReasoningBank requires real embeddings; omit --hash');
 const asJson = args.has('--json');
+if (args.has('--vector-only') && storeArg !== 'real') throw new Error('--vector-only is supported only with --store=real');
 const K = 10;
 
 const { createStructuralRetrievalCorpus, evaluateStructuralRetrieval } = await import('../src/learning/structural-retrieval/index.js');
 const { createPatternStore } = await import('../src/learning/pattern-store.js');
 const { RvfPatternStore } = await import('../src/learning/rvf-pattern-store.js');
 const { createSQLitePatternStore } = await import('../src/learning/sqlite-persistence.js');
+const { RealQEReasoningBank } = await import('../src/learning/real-qe-reasoning-bank.js');
 const { QEReasoningBank } = await import('../src/learning/qe-reasoning-bank.js');
 const { setRuVectorFeatureFlags } = await import('../src/integrations/ruvector/feature-flags.js');
 const { getActiveEmbeddingSpaceIdentity } = await import('../src/learning/real-embeddings.js');
@@ -118,13 +121,42 @@ async function run(kind: 'pattern' | 'rvf') {
   return { report, meanReturned: returned / corpus.queries.length };
 }
 
+async function runReal() {
+  const dir = fs.mkdtempSync(path.join(tmpRoot, 'real-'));
+  const sqliteConfig = { useUnified: false, dbPath: path.join(dir, 'patterns.db') };
+  const sqlite = createSQLitePatternStore(sqliteConfig);
+  await sqlite.initialize();
+  for (const p of corpus.patterns) {
+    const embedding = await embed(p.text);
+    sqlite.storePattern(toPattern(p, embedding) as never, embedding, SPACE_ID);
+  }
+  sqlite.close();
+  const real = new RealQEReasoningBank({ sqlite: sqliteConfig });
+  await real.initialize();
+  // This baseline switch reproduces the pre-#780 vector-only algorithm.
+  if (args.has('--vector-only')) {
+    (real as unknown as { sqliteStore: { searchFTS: () => [] } }).sqliteStore.searchFTS = () => [];
+  }
+  const results = [];
+  let returned = 0;
+  for (const q of corpus.queries) {
+    const res = await real.searchQEPatterns(q.text, { limit: K });
+    if (!res.success) throw res.error;
+    returned += res.value.length;
+    results.push({ queryId: q.id, candidates: res.value.map(r => ({ patternId: r.pattern.id, score: r.score })) });
+  }
+  await real.dispose();
+  return { report: evaluateStructuralRetrieval(corpus, results, { rankerVersion: 'real-bank', k: K }),
+    meanReturned: returned / corpus.queries.length };
+}
+
 const fmt = (m: { value: number; confidenceInterval: { lower: number; upper: number } }) =>
   `${m.value.toFixed(3)} [${m.confidenceInterval.lower.toFixed(3)}, ${m.confidenceInterval.upper.toFixed(3)}]`;
 
-const summary: Record<string, unknown> = { embedder: useHash ? 'hash' : 'onnx', dimension, k: K, corpus: corpus.corpusRevision };
+const summary: Record<string, unknown> = { rankerMode: args.has('--vector-only') ? 'vector-only' : 'hybrid', embedder: useHash ? 'hash' : 'onnx', dimension, k: K, corpus: corpus.corpusRevision };
 try {
-  for (const kind of (storeArg === 'both' ? ['pattern', 'rvf'] : [storeArg]) as Array<'pattern' | 'rvf'>) {
-    const { report, meanReturned } = await run(kind);
+  for (const kind of (storeArg === 'both' ? ['pattern', 'rvf'] : storeArg === 'all' ? ['pattern', 'rvf', 'real'] : [storeArg]) as Array<'pattern' | 'rvf' | 'real'>) {
+    const { report, meanReturned } = await (kind === 'real' ? runReal() : run(kind));
     const o = report.overall;
     summary[kind] = {
       recallAtK: o.recallAtK.value, hitAt1: o.hitAt1.value, mrr: o.mrr.value, ndcg: o.ndcg.value,

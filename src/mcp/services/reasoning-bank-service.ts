@@ -26,6 +26,7 @@ import {
   type RealQERoutingResult,
   type LearningOutcome,
   type RealQEReasoningBankStats,
+  type RealQEPatternSearchResult,
 } from '../../learning/real-qe-reasoning-bank.js';
 import type { QEPattern, QEDomain } from '../../learning/qe-patterns.js';
 import { getPatternLoader } from '../../integrations/agentic-flow/pattern-loader.js';
@@ -692,6 +693,14 @@ export class ReasoningBankService {
     query: string,
     options?: { limit?: number; domain?: QEDomain }
   ): Promise<QEPattern[]> {
+    return (await this.searchPatternMatches(query, options)).map(match => match.pattern);
+  }
+
+  /** Preserve measured relevance and vector reuse safety for orchestration. */
+  async searchPatternMatches(
+    query: string,
+    options?: { limit?: number; domain?: QEDomain }
+  ): Promise<RealQEPatternSearchResult[]> {
     if (this.disposed) {
       return [];
     }
@@ -705,7 +714,7 @@ export class ReasoningBankService {
         console.error('[ReasoningBankService] Search returned error:', results.error);
         return [];
       }
-      return results.value.map((r: { pattern: QEPattern; similarity: number }) => r.pattern);
+      return results.value;
     } catch (error) {
       console.error('[ReasoningBankService] Search failed:', error);
       return [];

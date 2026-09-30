@@ -547,6 +547,7 @@ export class QEReasoningBank implements IQEReasoningBank {
         domain: detectedDomains[0],
         useVectorSearch: true,
         textQuery: request.task,
+        embeddingSpaceId: getActiveEmbeddingSpaceIdentity()?.spaceId,
       });
 
       const patterns = patternResults.success
