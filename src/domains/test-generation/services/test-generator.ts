@@ -442,7 +442,6 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const {
         sourceFiles,
         testType,
-        coverageTarget = this.config.coverageTargetDefault,
         patterns = [],
       } = request;
 
@@ -484,7 +483,9 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         }
       }
 
-      const coverageEstimate = tests.some(t => t.generationMode) ? 0 : this.estimateCoverage(tests, coverageTarget);
+      // Generation does not execute or instrument the source. Assertion counts
+      // are not coverage evidence, including LLM-generated and empty results.
+      const coverageEstimate = null;
       await this.storeGenerationMetadata(tests, patternsUsed);
 
       return ok({
@@ -1284,25 +1285,6 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     return Math.max(1, count);
   }
 
-  private estimateCoverage(tests: GeneratedTest[], target: number): number {
-    const totalAssertions = tests.reduce((sum, t) => sum + t.assertions, 0);
-    const totalTests = tests.length;
-
-    const testBasedCoverage = totalTests * 4;
-    const assertionCoverage = totalAssertions * 1.5;
-
-    const typeMultiplier = tests.reduce((mult, t) => {
-      if (t.type === 'integration') return mult + 0.1;
-      if (t.type === 'e2e') return mult + 0.15;
-      return mult;
-    }, 1);
-
-    const rawEstimate = (testBasedCoverage + assertionCoverage) * typeMultiplier;
-    const diminishedEstimate = rawEstimate * (1 - rawEstimate / 200);
-
-    const estimatedCoverage = Math.min(target, Math.max(0, diminishedEstimate));
-    return Math.round(estimatedCoverage * 10) / 10;
-  }
 
   private async storeGenerationMetadata(
     tests: GeneratedTest[],

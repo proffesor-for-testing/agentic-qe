@@ -33,7 +33,7 @@ describe('#787 behavior examples via real MCP tools/call', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('emits runnable assertions from fixtures; preserves zero unmeasured coverage at the protocol boundary', async () => {
+  it('emits runnable assertions from fixtures; preserves null unmeasured coverage at the protocol boundary', async () => {
     const source = join(dir, 'add.js');
     writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
     writeFileSync(source, 'export function add(a,b) { return a+b; }');
@@ -43,7 +43,7 @@ describe('#787 behavior examples via real MCP tools/call', () => {
     });
     expect(result.success).toBe(true);
     expect(result.data.generationMode).toBe('behavior-examples');
-    expect(result.data.coverage.predicted).toBe(0);
+    expect(result.data.coverage.predicted).toBeNull();
     expect(result.data.coverage.confidence).toBe(0);
     expect(result.data.tests[0].generationLimits.join(' ')).toContain('unmeasured');
     const file = join(dir, 'generated.test.mjs');

@@ -342,11 +342,11 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
       aiInsights,
       coverage: {
-        predicted: (data.coverageEstimate as number | undefined) ?? 0,
+        predicted: (data.coverageEstimate as number | null | undefined) ?? null,
         // #567: a template scaffold's coverage prediction is a guess, not a
         // 0.9-confidence estimate. Don't dress it up as one.
-        confidence: llmEnhanced ? 0.9 : 0,
-        achievable: true,
+        confidence: data.coverageEstimate == null ? 0 : llmEnhanced ? 0.9 : 0,
+        achievable: data.coverageEstimate == null ? null : true,
       },
       properties: tests.filter(t => t.type === 'property').map(t => ({
         name: t.name,
@@ -359,7 +359,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       taskId,
       status: 'completed',
       testsGenerated: tests.length,
-      coverageEstimate: (data.coverageEstimate as number | undefined) ?? 0,
+      coverageEstimate: (data.coverageEstimate as number | null | undefined) ?? null,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
       savedFiles,

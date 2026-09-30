@@ -77,6 +77,19 @@ describe('CI gate execution and reporting', () => {
     };
   }
 
+  it.each([null, 0])('renders generation coverage %s without confusing unknown and zero', async coverageEstimate => {
+    config.phases = [phase('Generate', { type: 'test', config: { target: directory } })];
+    config.qualityGate.enforced = false;
+    const generated = { tests: [], coverageEstimate };
+    const context = { kernel: { getDomainAPIAsync: async () => ({ generateTests: async () => ({ success: true, value: generated }) }) } } as unknown as CLIContext;
+    const command = createCICommand(context, vi.fn() as never, async () => true);
+    const output = path.join(directory, 'generation-result.json');
+    await command.parseAsync(['run', '--no-quality-gate', '--format', 'json', '--output', output], { from: 'user' });
+    const result = JSON.parse(readFileSync(output, 'utf8')) as CIRunResult;
+    expect(result.phases[0].summary).toContain(coverageEstimate === null ? 'coverage unmeasured' : 'est. 0% coverage');
+    expect(JSON.parse(readFileSync(path.join(directory, 'test-generation.json'), 'utf8')).coverageEstimate).toBe(coverageEstimate);
+  });
+
   it('does not count disabled gates as executed or passed', async () => {
     config.phases[0].enabled = false;
     const result = await run();

@@ -588,11 +588,12 @@ export class TestGenerationCoordinator
         }
 
         // Three-loop protocol: instantAdapt must precede recordOutcome
-        if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+        const coverageEstimate = result.value.coverageEstimate;
+        if (coverageEstimate !== null && isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
           const tests = result.value;
           this.qesona.instantAdapt([
             tests.tests.length / 20,
-            tests.coverageEstimate / 100,
+            coverageEstimate / 100,
             tests.patternsUsed.length / 10,
             request.sourceFiles.length / 20,
             (request.coverageTarget ?? 80) / 100,
@@ -713,7 +714,7 @@ export class TestGenerationCoordinator
       framework,
       llmEnhanced: true,
     };
-    return { tests: [test], coverageEstimate: 0, patternsUsed: ['free-tier-local', `tier:${r.tierUsed}`] };
+    return { tests: [test], coverageEstimate: null, patternsUsed: ['free-tier-local', `tier:${r.tierUsed}`] };
   }
 
   /**
@@ -1373,7 +1374,7 @@ export class TestGenerationCoordinator
     tests: GeneratedTests,
     request: GenerateTestsRequest
   ): Promise<void> {
-    if (!this.qesona) {
+    if (!this.qesona || tests.coverageEstimate === null) {
       return;
     }
 

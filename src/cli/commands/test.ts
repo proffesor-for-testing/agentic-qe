@@ -76,7 +76,7 @@ export function createTestCommand(
           });
 
           if (result.success && result.value) {
-            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number; patternsUsed: string[] };
+            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number | null; patternsUsed: string[] };
             const format = options.format as OutputFormat;
             const rejected = generated.tests.filter(
               test => test.qualityGateResult?.passed !== true
@@ -99,7 +99,7 @@ export function createTestCommand(
             } else if (format === 'markdown') {
               const md = `# Test Generation Report\n\n` +
                 `- **Tests Generated**: ${generated.tests.length}\n` +
-                `- **Coverage Estimate**: ${generated.coverageEstimate}%\n` +
+                `- **Coverage Estimate**: ${generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%'}\n` +
                 `- **Patterns Used**: ${generated.patternsUsed.join(', ') || 'none'}\n\n` +
                 `## Tests\n\n` +
                 generated.tests.map(t => `- **${t.name}** (${t.assertions} assertions) — \`${t.sourceFile}\``).join('\n') + '\n';
@@ -126,7 +126,7 @@ export function createTestCommand(
               if (generated.tests.length > 10) {
                 console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
               }
-              console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate + '%')}`);
+              console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);
               if (generated.patternsUsed.length > 0) {
                 console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);
               }

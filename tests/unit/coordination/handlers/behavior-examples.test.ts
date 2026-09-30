@@ -31,7 +31,7 @@ describe('#787 deterministic behavior specifications', () => {
     const generated = result.value.tests[0];
     expect(generated.generationMode).toBe('behavior-examples');
     expect(generated.assertions).toBe(2);
-    expect(result.value.coverageEstimate).toBe(0);
+    expect(result.value.coverageEstimate).toBeNull();
     const testFile = join(dir, 'calculator.test.mjs');
     writeFileSync(testFile, generated.testCode);
     expect(spawnSync(process.execPath, ['--test', testFile]).status).toBe(0);

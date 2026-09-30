@@ -108,7 +108,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         // Return a graceful fallback with warning when no source files provided
         return ok({
           testsGenerated: 0,
-          coverageEstimate: 0,
+          coverageEstimate: null,
           tests: [],
           patternsUsed: [],
           warning: 'No source files or code provided for test generation. Provide sourceCode, filePath, or sourceFiles in the payload.',

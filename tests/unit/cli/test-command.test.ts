@@ -87,7 +87,16 @@ describe('#787 CLI behavior examples', () => {
       ], { from: 'user' });
       const result = JSON.parse(readFileSync(output, 'utf8'));
       expect(result.tests[0]).toMatchObject({ generationMode: 'behavior-examples', assertions: 1, qualityGateResult: { passed: true } });
-      expect(result.coverageEstimate).toBe(0);
+      expect(result.coverageEstimate).toBeNull();
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([
+        'generate', source, '--behavior-examples', fixtures, '--framework', 'node-test', '--format', 'markdown', '--output', output,
+      ], { from: 'user' });
+      expect(readFileSync(output, 'utf8')).toContain('**Coverage Estimate**: Unmeasured');
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([
+        'generate', source, '--behavior-examples', fixtures, '--framework', 'node-test',
+      ], { from: 'user' });
+      expect(log.mock.calls.flat().join(' ')).toContain('Coverage Estimate: Unmeasured');
+      expect(log.mock.calls.flat().join(' ')).not.toContain('Coverage Estimate: 0%');
       expect(exit).not.toHaveBeenCalledWith(1);
     } finally {
       log.mockRestore();

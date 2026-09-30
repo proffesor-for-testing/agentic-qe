@@ -65,7 +65,8 @@ export interface IGenerateTestsRequest {
 
 export interface IGeneratedTests {
   tests: IGeneratedTest[];
-  coverageEstimate: number;
+  /** null means unmeasured; never coerce unknown coverage to measured zero. */
+  coverageEstimate: number | null;
   /** Human-readable pattern names, for display (reports, CLI output). */
   patternsUsed: string[];
   /** Real qe_patterns.id values for the same patterns, for usage/ADR-110 tracking. */

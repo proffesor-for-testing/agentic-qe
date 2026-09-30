@@ -15,6 +15,7 @@
  * - Consensus verification
  */
 
+import { getRuVectorFeatureFlags, setRuVectorFeatureFlags } from '../../../../src/integrations/ruvector/feature-flags';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   TestGenerationCoordinator,
@@ -412,6 +413,37 @@ describe('TestGenerationCoordinator', () => {
   // A7: learnFromGeneration was a no-op stub — a comment claimed usage
   // tracking "is handled internally by recordPatternUsage" but nothing was
   // ever called. These tests cover the real wiring.
+  describe('coverage-derived learning', () => {
+    it('does not train the SONA three-loop outcome on unmeasured coverage', async () => {
+      await coordinator.initialize();
+      const previous = getRuVectorFeatureFlags();
+      setRuVectorFeatureFlags({ useSONAThreeLoop: true });
+      const qesona = { isThreeLoopEnabled: () => true, instantAdapt: vi.fn(), recordOutcome: vi.fn() };
+      Object.assign(coordinator, { qesona });
+      try {
+        const result = await coordinator.generateTests({ sourceFiles: ['nonexistent.ts'], testType: 'unit', framework: 'vitest' });
+        expect(result.success).toBe(true);
+        if (result.success) expect(result.value.coverageEstimate).toBeNull();
+        expect(qesona.instantAdapt).not.toHaveBeenCalled();
+        expect(qesona.recordOutcome).not.toHaveBeenCalled();
+      } finally {
+        Object.assign(coordinator, { qesona: undefined });
+        setRuVectorFeatureFlags(previous);
+      }
+    });
+
+    it.each([null, 0, 80])('does not turn unknown coverage %s into a zero learning reward', async coverageEstimate => {
+      const createPattern = vi.fn(() => ({ id: 'pattern' }));
+      Object.assign(coordinator, { qesona: { createPattern } });
+      try {
+        await (coordinator as unknown as { storeTestGenerationPattern(t: GeneratedTests, r: GenerateTestsRequest): Promise<void> })
+          .storeTestGenerationPattern({ tests: [], patternsUsed: [], coverageEstimate }, { sourceFiles: ['a.ts'], framework: 'vitest', testType: 'unit' });
+        if (coverageEstimate === null) expect(createPattern).not.toHaveBeenCalled();
+        else expect(createPattern.mock.calls[0][2]).toMatchObject({ reward: coverageEstimate / 100, quality: coverageEstimate / 100 });
+      } finally { Object.assign(coordinator, { qesona: undefined }); }
+    });
+  });
+
   describe('learnFromGeneration (A7 pattern usage tracking)', () => {
     beforeEach(() => {
       recordPatternUsageMock.mockClear();

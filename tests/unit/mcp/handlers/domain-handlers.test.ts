@@ -173,8 +173,7 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(true);
       // Coverage estimate should be a valid percentage (0-100)
-      expect(result.data!.coverageEstimate).toBeGreaterThanOrEqual(0);
-      expect(result.data!.coverageEstimate).toBeLessThanOrEqual(100);
+      expect(result.data!.coverageEstimate).toBeNull();
     }, 30000);
 
     it('should include V2-compatible test objects', async () => {

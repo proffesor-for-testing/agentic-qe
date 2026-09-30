@@ -46,9 +46,9 @@ The CLI's existing quality gate rejects such a scaffold as having no assertions;
 provide examples before using CLI output as executable quality evidence.
 
 Each test reports `generationLimits`; supplied examples use `generationMode:
-"behavior-examples"`. Coverage is **unmeasured**: legacy numeric coverage fields
-are zero, not an assertion of measured zero coverage. MCP coverage confidence is
-zero for deterministic generation. Run coverage collection to obtain measurement.
+"behavior-examples"`. Coverage is **unmeasured**: coverage fields
+are `null` (unknown), distinct from measured numeric zero. MCP coverage confidence is
+zero whenever coverage is unmeasured, including AI-enhanced generation. Run coverage collection to obtain measurement.
 Missing examples for other supported exports are listed explicitly. Unsupported
 source shapes are not covered. Other languages/frameworks and integration/e2e
 requests retain their existing template behavior and do not accept these fixtures.

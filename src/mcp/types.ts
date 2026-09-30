@@ -566,14 +566,15 @@ export interface TestGenerateResult {
   status: string;
   duration: number;
   testsGenerated: number;
-  coverageEstimate: number;
+  /** null means unmeasured; never coerce unknown coverage to measured zero. */
+  coverageEstimate: number | null;
   antiPatternsDetected?: number;
   suggestions?: string[];
   savedFiles?: string[];
   patternsUsed?: string[];
   /**
    * #567: true when the ADR-051 LLM branch actually ran. When false the tests
-   * are deterministic template scaffolding — see `generationMode`/`note`.
+   * come from deterministic fixtures or scaffolding — see `generationMode`/`note`.
    */
   llmEnhanced?: boolean;
   /** #567: set to 'deterministic-template' when no LLM enhancement was applied. */

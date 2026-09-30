@@ -80,9 +80,9 @@ async function executePhase(
         });
 
         if (result.success && result.value) {
-          const gen = result.value as { tests: unknown[]; coverageEstimate: number };
+          const gen = result.value as { tests: unknown[]; coverageEstimate: number | null };
           details = { testsGenerated: gen.tests.length, coverageEstimate: gen.coverageEstimate };
-          summary = `Generated ${gen.tests.length} tests (est. ${gen.coverageEstimate}% coverage)`;
+          summary = `Generated ${gen.tests.length} tests (${gen.coverageEstimate == null ? 'coverage unmeasured' : `est. ${gen.coverageEstimate}% coverage`})`;
 
           const artifactPath = path.join(outputDir, 'test-generation.json');
           fs.writeFileSync(artifactPath, toJSON(gen), 'utf-8');

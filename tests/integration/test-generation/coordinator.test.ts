@@ -50,7 +50,7 @@ describe('Test Generation Coordinator Integration', () => {
       if (result.success) {
         expect(result.value.tests).toBeDefined();
         expect(Array.isArray(result.value.tests)).toBe(true);
-        expect(result.value.coverageEstimate).toBeGreaterThanOrEqual(0);
+        expect(result.value.coverageEstimate).toBeNull();
       }
     });
 

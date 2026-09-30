@@ -33,7 +33,8 @@ export interface TestGenerateParams {
 
 export interface TestGenerateResult {
   tests: GeneratedTest[];
-  coverageEstimate: number;
+  /** null means unmeasured; never coerce unknown coverage to measured zero. */
+  coverageEstimate: number | null;
   patternsUsed: string[];
   suggestions: string[];
   antiPatterns?: AntiPattern[];

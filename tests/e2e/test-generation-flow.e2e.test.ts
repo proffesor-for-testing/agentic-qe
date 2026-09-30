@@ -75,7 +75,7 @@ describe('Test Generation Flow E2E - Analyze -> Generate -> Validate', () => {
     if (result.success) {
       expect(result.value.tests).toBeDefined();
       expect(Array.isArray(result.value.tests)).toBe(true);
-      expect(result.value.coverageEstimate).toBeGreaterThanOrEqual(0);
+      expect(result.value.coverageEstimate).toBeNull();
     }
   });
 
@@ -190,7 +190,7 @@ describe('Test Generation Flow E2E - Analyze -> Generate -> Validate', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.tests).toBeDefined();
-      expect(result.value.coverageEstimate).toBeGreaterThanOrEqual(0);
+      expect(result.value.coverageEstimate).toBeNull();
     }
   });
 

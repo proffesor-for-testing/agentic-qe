@@ -257,9 +257,11 @@ describe('DomainTaskExecutor', () => {
       expect(result.domain).toBe('test-generation');
       expect(result.data).toBeDefined();
 
-      const data = result.data as { testsGenerated: number; coverageEstimate: number };
+      const data = result.data as { testsGenerated: number; coverageEstimate: number | null; tests: Array<{generationMode: string; assertions: number; testCode: string}> };
       expect(data.testsGenerated).toBeGreaterThan(0);
-      expect(data.coverageEstimate).toBeGreaterThan(0);
+      expect(data.coverageEstimate).toBeNull();
+      expect(data.tests[0]).toMatchObject({ generationMode: 'scaffolding', assertions: 0 });
+      expect(data.tests[0].testCode).toContain('test.skip');
     });
 
     it('should save test generation results to files', async () => {
