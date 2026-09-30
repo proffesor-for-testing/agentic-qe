@@ -22,6 +22,13 @@ on:
       - '.claude/skills/qe-browser/**'
       - 'src/validation/command-eval-runner.ts'
       - 'src/init/browser-engine-installer.ts'
+      - 'src/integrations/vibium/**'
+      - 'src/domains/visual-accessibility/services/axe-core-audit.ts'
+      - 'src/mcp/tools/test-execution/e2e-execute.ts'
+      - 'tests/integrations/vibium/**'
+      - 'config/vitest.browser.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/cli/commands/eval.ts'
       - 'tests/unit/validation/command-eval-runner*.test.ts'
       - 'tests/unit/scripts/qe-browser-*.test.ts'
@@ -32,6 +39,15 @@ on:
     paths:
       - '.claude/skills/qe-browser/**'
       - 'src/validation/command-eval-runner.ts'
+      - 'src/integrations/vibium/**'
+      - 'src/init/browser-engine-installer.ts'
+      - 'src/domains/visual-accessibility/services/axe-core-audit.ts'
+      - 'src/mcp/tools/test-execution/e2e-execute.ts'
+      - 'tests/integrations/vibium/**'
+      - 'config/vitest.browser.config.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/test-qe-browser.yml'
   workflow_dispatch: {}
 
 # Least-privilege: this workflow only reads the repo and uploads an artifact.
@@ -96,7 +112,7 @@ jobs:
       # drift here would be caught immediately by the unit job above.
       - name: Install Vibium (pinned spec)
         run: |
-          npm install -g 'vibium@^26.3.18'
+          npm install -g 'vibium@^26.8.21'
           vibium --version
 
       # `vibium install` downloads Chrome for Testing + chromedriver into
@@ -153,9 +169,14 @@ jobs:
       - name: Build AQE CLI
         run: npm run build
 
+      - name: Verify fresh non-browser consumer install
+        run: |
+          npm pack --pack-destination /tmp
+          node scripts/verify-browser-free-install.mjs /tmp/agentic-qe-*.tgz
+
       - name: Install Vibium (pinned spec)
         run: |
-          npm install -g 'vibium@^26.3.18'
+          npm install -g 'vibium@^26.8.21'
           vibium --version
 
       # See smoke job for rationale — Vibium drives its own bundled Chrome
@@ -176,6 +197,9 @@ jobs:
           WRAPPER
           chmod +x "$CHROME"
           head -3 "$CHROME"
+
+      - name: Run modern library, accessibility, CLI and MCP browser regressions
+        run: npm run test:integration:browser
 
       - name: Start deterministic browser fixtures
         run: |

@@ -9,7 +9,7 @@
  * Design goals:
  *   - Graceful: never fail init if Vibium install fails; report and continue.
  *   - Idempotent: skip if Vibium is already on PATH.
- *   - Opt-out friendly: respect --minimal and --no-browser-engine flags.
+ *   - Opt-in only: called by init only with --browser-engine.
  *   - No new runtime deps: shells out to `npm install -g vibium` via child_process.
  */
 
@@ -19,8 +19,8 @@ import * as fs from 'node:fs';
 import { toErrorMessage } from '../shared/error-utils.js';
 
 /**
- * Default Vibium npm spec. Major-line pin via caret (`^26.3.18`) — npm
- * semver will accept any 26.x.y >= 26.3.18 but reject 27.0.0+. The intent
+ * Default Vibium npm spec. Major-line pin via caret (`^26.8.21`) — npm
+ * semver will accept any 26.x.y >= 26.8.21 but reject 27.0.0+. The intent
  * is to auto-receive security patches and additive minor features while
  * blocking breaking-change major bumps, which is where Vibium's CLI
  * contract (`go`, `--headless`, `viewport`, exit codes) can change.
@@ -32,7 +32,7 @@ import { toErrorMessage } from '../shared/error-utils.js';
  * Bump procedure: update this constant (e.g. to ^27.0.0 at a major), run
  * scripts/smoke-test.sh against the new version, then land the bump.
  */
-export const DEFAULT_VIBIUM_SPEC = 'vibium@^26.3.18';
+export const DEFAULT_VIBIUM_SPEC = 'vibium@^26.8.21';
 
 /**
  * Spawner injected into {@link installBrowserEngine} so tests can mock the
@@ -81,7 +81,7 @@ export interface BrowserEngineInstallResult {
   platformHint?: PlatformHint;
 }
 
-export type BrowserEngineDetectionStatus = 'ready' | 'cli-missing' | 'payload-missing';
+export type BrowserEngineDetectionStatus = 'ready' | 'cli-missing' | 'payload-missing' | 'unsupported-version';
 
 export interface BrowserEngineDetectionResult {
   status: BrowserEngineDetectionStatus;
@@ -204,7 +204,7 @@ export function detectVibium(spawner: Spawner = defaultSpawner, timeoutMs = 5_00
   // returned version is consistent regardless of where the binary printed it.
   const raw = stdout || stderr;
   if (!raw) return 'unknown';
-  // Extract first semver-looking token if present (e.g. "vibium version 26.3.18" → "26.3.18")
+  // Extract first semver-looking token if present (e.g. "vibium version 26.8.21" → "26.8.21")
   const match = raw.match(/v?(\d+\.\d+\.\d+(?:[-+][\w.]+)?)/);
   return match ? match[1] : raw.split(/\s+/)[0] || 'unknown';
 }
@@ -219,6 +219,16 @@ export function detectBrowserEngine(
 ): BrowserEngineDetectionResult {
   const version = detectVibium(spawner, timeoutMs);
   if (!version) return { status: 'cli-missing' };
+
+  // The modern JS adapter is supported only by stable 26.x releases >= 26.8.21.
+  const semver = /^(\d+)\.(\d+)\.(\d+)(?:\+[\w.]+)?$/.exec(version);
+  if (!semver || Number(semver[1]) !== 26 ||
+      Number(semver[2]) < 8 || (Number(semver[2]) === 8 && Number(semver[3]) < 21)) {
+    return {
+      status: 'unsupported-version', version,
+      message: `Vibium ${version} is unsupported; install ${DEFAULT_VIBIUM_SPEC} for the browser.start() API`,
+    };
+  }
 
   const payload = tryRun(spawner, 'vibium', ['is-installed'], timeoutMs);
   if (payload.status === 0) return { status: 'ready', version };
@@ -285,7 +295,20 @@ export function installBrowserEngine(
     };
   }
 
-  const verified = detectBrowserEngine(spawner);
+  let verified = detectBrowserEngine(spawner);
+  if (verified.status === 'payload-missing') {
+    // Reinstalling an already-current npm package may not rerun postinstall.
+    // This installer is explicitly requested, so provision the payload directly.
+    const payloadInstall = tryRun(spawner, 'vibium', ['install'], timeoutMs);
+    if (payloadInstall.status !== 0) {
+      return {
+        status: 'install-failed', packageSpec, platformHint,
+        message: `Browser payload installation failed: ${payloadInstall.stderr?.trim() ||
+          payloadInstall.stdout?.trim() || 'vibium install failed'}. Run \`vibium install\` and verify with \`vibium is-installed\`.`,
+      };
+    }
+    verified = detectBrowserEngine(spawner);
+  }
   if (verified.status !== 'ready') {
     const reason = verified.message ? `: ${verified.message}` : '';
     return {

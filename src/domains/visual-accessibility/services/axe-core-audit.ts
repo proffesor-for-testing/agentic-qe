@@ -1,3 +1,4 @@
+import { loadVibium, isVibiumReady, VIBIUM_SETUP } from '../../../integrations/vibium/runtime.js';
 /**
  * Agentic QE v3 - Axe-Core Accessibility Audit
  *
@@ -242,8 +243,8 @@ export class AccessibilityAuditor {
 
     // Check for vibium
     try {
-      await import('vibium');
-      this.toolsAvailable.vibium = true;
+      await loadVibium();
+      this.toolsAvailable.vibium = isVibiumReady();
     } catch {
       this.toolsAvailable.vibium = false;
     }
@@ -299,12 +300,13 @@ export class AccessibilityAuditor {
    * Run actual axe-core audit using vibium
    */
   private async runAxeCoreAudit(startTime: number): Promise<A11yAuditResult> {
-    const { browser } = await import('vibium');
+    const { browser } = await loadVibium();
 
-    let vibe: Awaited<ReturnType<typeof browser.launch>> | null = null;
+    let instance: Awaited<ReturnType<typeof browser.start>> | null = null;
     try {
       // Launch browser
-      vibe = await browser.launch();
+      instance = await browser.start({ headless: true });
+      const vibe = await instance.page();
 
       // Navigate to URL
       await vibe.go(this.config.url);
@@ -318,14 +320,14 @@ export class AccessibilityAuditor {
 
       // Inject axe-core library
       const axeSource = loadAxeCoreSource();
-      await vibe.evaluate(axeSource);
+      await vibe.addScript(axeSource);
 
       // Build axe configuration
       const axeConfig = this.buildAxeConfig();
 
       // Run axe-core audit
       const axeScript = `
-        return axe.run(${this.config.context ? `'${this.config.context}'` : 'document'}, ${JSON.stringify(axeConfig)});
+        axe.run(${this.config.context ? JSON.stringify(this.config.context) : 'document'}, ${JSON.stringify(axeConfig)})
       `;
       const results = await vibe.evaluate<AxeResults>(axeScript);
 
@@ -358,8 +360,8 @@ export class AccessibilityAuditor {
         },
       };
     } finally {
-      if (vibe) {
-        await vibe.quit();
+      if (instance) {
+        await instance.stop();
       }
     }
   }
@@ -393,7 +395,7 @@ export class AccessibilityAuditor {
     const errors: string[] = [];
 
     if (!this.toolsAvailable.vibium) {
-      errors.push('vibium is not installed. Install with: npm install vibium');
+      errors.push(`Vibium runtime or browser payload unavailable; run ${VIBIUM_SETUP}`);
     }
     if (!this.toolsAvailable.axeCore) {
       errors.push('axe-core is not installed. Install with: npm install axe-core');

@@ -60,9 +60,12 @@ const mockVibeInstance = {
 /**
  * Mock vibium browser object
  */
-const mockVibiumBrowser = {
-  launch: vi.fn().mockResolvedValue(mockVibeInstance),
-};
+const mockBrowserInstance = { page: vi.fn().mockResolvedValue(mockVibeInstance), stop: mockVibeInstance.quit };
+const mockVibiumBrowser = { start: vi.fn().mockResolvedValue(mockBrowserInstance) };
+vi.mock('../../../src/integrations/vibium/runtime.js', async (importOriginal) => ({
+  ...await importOriginal(),
+  isVibiumReady: vi.fn(() => true),
+}));
 
 // Mock the vibium module
 vi.mock('vibium', () => ({
@@ -171,7 +174,7 @@ describe('VibiumClientImpl', () => {
 
     // Reset Vibium mocks
     vi.clearAllMocks();
-    mockVibiumBrowser.launch.mockResolvedValue(mockVibeInstance);
+    mockVibiumBrowser.start.mockResolvedValue(mockBrowserInstance);
     mockVibeInstance.go.mockResolvedValue(undefined);
     mockVibeInstance.screenshot.mockResolvedValue(Buffer.from('fake-image-data'));
     mockVibeInstance.quit.mockResolvedValue(undefined);

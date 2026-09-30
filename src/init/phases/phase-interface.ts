@@ -105,6 +105,8 @@ export interface InitOptions {
    */
   skipCodeIndex?: boolean;
   /** Minimal configuration (no skills, patterns, workers) */
+  /** Explicitly install the optional browser engine and browser payload. */
+  browserEngine?: boolean;
   minimal?: boolean;
   /** Automatically migrate from v2 if detected */
   /** Install n8n workflow testing platform */

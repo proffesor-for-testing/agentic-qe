@@ -127,6 +127,8 @@ export interface InitOrchestratorOptions {
   autoMode?: boolean;
   /** Skip pattern loading */
   skipPatterns?: boolean;
+  /** Explicitly install the optional browser engine and browser payload. */
+  browserEngine?: boolean;
   /** Minimal configuration */
   minimal?: boolean;
   /** Pre-trained patterns library */

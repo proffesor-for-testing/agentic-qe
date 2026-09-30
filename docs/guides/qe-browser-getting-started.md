@@ -11,14 +11,22 @@ you'll use most often.
 
 ## Install
 
-`aqe init` installs Vibium globally via `npm install -g`, pinned to the
-version verified against the skill's primitives (see
-`DEFAULT_VIBIUM_SPEC` in `src/init/browser-engine-installer.ts`).
+Ordinary `npm install agentic-qe` and `aqe init` do not install Vibium or
+download a browser. Browser automation is optional and requires explicit setup:
 
 ```bash
-aqe init                    # installs Vibium if missing (or run --minimal to skip)
-vibium --version            # should print a 26.3.x version string
+aqe init --browser-engine   # installs supported Vibium globally and its browser payload
+vibium --version            # stable 26.x, at least 26.8.21
+vibium is-installed         # checks the matching Chrome/chromedriver payload
 ```
+
+`--no-browser-engine` explicitly skips setup (the default). `--minimal` also
+skips browser setup. Setup failures are reported without preventing other AQE
+features from working. A CLI version alone is not browser readiness: the
+supported version and browser payload must both pass verification. If a payload
+download failed, run `vibium install`, then `vibium is-installed` to verify it.
+The Node adapter uses the supported local installation when present, otherwise
+the global installation created by this setup command.
 
 If you're on **Linux ARM64** and `vibium go` can't launch Chrome, Vibium
 doesn't yet auto-download Chrome for Testing on that architecture. Use your

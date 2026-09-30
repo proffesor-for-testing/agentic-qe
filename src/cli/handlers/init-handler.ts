@@ -51,6 +51,8 @@ export class InitHandler implements ICommandHandler {
       .option('--wizard', 'Run interactive setup wizard')
       .option('--auto', 'Auto-configure based on project analysis')
       .option('-u, --upgrade', 'Upgrade existing installation (overwrite skills, agents, validation)')
+      .option('--browser-engine', 'Install optional Vibium and browser payload (explicit download)', false)
+      .option('--no-browser-engine', 'Skip optional browser setup (default)')
       .option('--minimal', 'Minimal configuration (skip optional features)')
       .option('--skip-patterns', 'Skip loading pre-trained patterns')
       .option('--skip-code-index', 'Skip code intelligence pre-scan (supported escape hatch — KG can be built later via `aqe code index`, also via env AQE_SKIP_CODE_INDEX=1)')
@@ -122,7 +124,7 @@ export class InitHandler implements ICommandHandler {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
 
         // Use modular orchestrator for --auto or --modular
-        if (options.auto || options.modular) {
+        if (options.auto || options.modular || options.browserEngine) {
           await this.runModularInit(options, context);
           return;
         }
@@ -152,7 +154,7 @@ export class InitHandler implements ICommandHandler {
       const noClaudeRequested = options.claude === false;
       const noStatusLineRequested = options.statusline === false;
 
-      if (options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
+      if (options.browserEngine || options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
         await this.runModularInit(options, context);
         return;
@@ -203,6 +205,7 @@ export class InitHandler implements ICommandHandler {
       autoMode: options.auto,
       upgrade: options.upgrade,
       minimal: options.minimal,
+      browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       skipCodeIndex: options.skipCodeIndex,
       withN8n: options.withN8n,
@@ -342,6 +345,7 @@ export class InitHandler implements ICommandHandler {
       projectRoot: process.cwd(),
       autoMode: options.auto,
       minimal: options.minimal,
+      browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
     };
@@ -536,6 +540,8 @@ Options:
   -u, --upgrade              Upgrade existing installation (overwrite skills, agents, validation)
   --minimal                  Minimal configuration (skip optional features)
   --skip-patterns            Skip loading pre-trained patterns
+  --browser-engine          Install optional Vibium and browser payload
+  --no-browser-engine       Skip browser setup (default)
   --with-n8n                 Install n8n workflow testing agents and skills
   --with-opencode            Include OpenCode agent/skill provisioning
   --with-codex               Include OpenAI Codex hooks, instructions, skills, and MCP
@@ -642,6 +648,8 @@ interface InitOptions {
   wizard?: boolean;
   auto?: boolean;
   upgrade?: boolean;
+  /** Explicitly install the optional browser engine and browser payload. */
+  browserEngine?: boolean;
   minimal?: boolean;
   skipPatterns?: boolean;
   skipCodeIndex?: boolean;
