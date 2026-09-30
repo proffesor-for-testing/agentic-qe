@@ -469,15 +469,14 @@ export class RvfPatternStore implements IPatternStore {
         for (const pattern of allPatterns) {
           if (existingIds.has(pattern.id)) continue;
           if (!this.matchesFilters(pattern, options)) continue;
-          const reuseInfo = this.calculateReuseInfo(pattern, pattern.confidence);
           results.push({
             pattern,
             score: pattern.confidence,
-            matchType: 'exact',
-            similarity: pattern.confidence,
-            canReuse: reuseInfo.canReuse,
-            estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-            reuseConfidence: reuseInfo.reuseConfidence,
+            matchType: 'context',
+            similarity: 0,
+            canReuse: false,
+            estimatedTokenSavings: 0,
+            reuseConfidence: 0,
           });
         }
       } catch { /* SQLite unavailable */ }

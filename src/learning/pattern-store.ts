@@ -1410,15 +1410,14 @@ export class PatternStore implements IPatternStore {
       }
 
       if (score > 0 || !queryLower) {
-        const reuseInfo = this.calculateReuseInfo(pattern, score);
         results.push({
           pattern,
-          score: score || pattern.qualityScore,
-          matchType: queryLower ? 'exact' : 'context',
-          similarity: score || pattern.qualityScore,
-          canReuse: reuseInfo.canReuse,
-          estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-          reuseConfidence: reuseInfo.reuseConfidence,
+          score: queryLower ? 0.5 * score : pattern.qualityScore,
+          matchType: queryLower ? 'lexical' : 'context',
+          similarity: 0,
+          canReuse: false,
+          estimatedTokenSavings: 0,
+          reuseConfidence: 0,
         });
       }
     }

@@ -160,14 +160,31 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
   it('routes with compatible stored pattern evidence instead of swallowing a provenance error', async () => {
     const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity')
       .mockReturnValue({ spaceId: SPACE_ID } as never);
-    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: false });
+    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: true, embeddingDimension: DIM });
     Object.assign(bank, { initialized: true, patternStore: store });
-    vi.spyOn(bank, 'embed').mockResolvedValue(UNRELATED_VECTOR);
+    const provider = vi.spyOn(embeddings, 'computeRealEmbedding').mockResolvedValue(UNRELATED_VECTOR);
+    const routedSearch = vi.spyOn(store, 'search');
     try {
       const result = await bank.routeTask({ task: 'idempotency key replay', domain: 'test-generation' });
       expect(result.success).toBe(true);
       expect(result.success ? result.value.patterns.map(p => p.id) : []).toContain('needle');
-    } finally { identity.mockRestore(); }
+      expect(routedSearch).toHaveBeenCalledWith(UNRELATED_VECTOR, expect.objectContaining({
+        embeddingSpaceId: SPACE_ID, useVectorSearch: true,
+      }));
+    } finally { identity.mockRestore(); provider.mockRestore(); routedSearch.mockRestore(); }
+  });
+
+  it('never upgrades text fallback or list-all metadata into reusable vector evidence', async () => {
+    const reusable = { ...pattern('reusable', 'sentinel', 'sentinel', 1),
+      reusable: true, successRate: 1, confidence: 1, averageTokenSavings: 100 };
+    await store.store(reusable);
+    vi.spyOn(sqlite, 'searchFTS').mockImplementation(() => { throw new Error('FTS unavailable'); });
+    for (const query of ['sentinel', '']) {
+      const result = await store.search(query);
+      const hit = result.success ? result.value.find(r => r.pattern.id === reusable.id) : undefined;
+      expect(hit).toMatchObject({ matchType: query ? 'lexical' : 'context', similarity: 0,
+        canReuse: false, estimatedTokenSavings: 0 });
+    }
   });
 
   it('never reports a keyword-only hit as a near-duplicate', async () => {
@@ -236,6 +253,16 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
 
     expect(result.success).toBe(true);
     expect(result.success ? result.value.map(r => r.pattern.id) : []).toContain('needle');
+  });
+
+  it('does not treat list-all quality metadata as vector reuse evidence', async () => {
+    const reusable = { ...pattern('reusable', 'sentinel', 'sentinel', 1),
+      reusable: true, successRate: 1, confidence: 1, averageTokenSavings: 100 };
+    sqlite.storePattern(reusable);
+    const result = await store.search('');
+    const hit = result.success ? result.value.find(r => r.pattern.id === reusable.id) : undefined;
+    expect(hit).toMatchObject({ matchType: 'context', similarity: 0,
+      canReuse: false, estimatedTokenSavings: 0 });
   });
 
   it('never reports a keyword-only hit as a near-duplicate', async () => {
@@ -349,8 +376,30 @@ describe('QEReasoningBank.searchPatterns forwards the original text (#653)', () 
 
     expect(search).toHaveBeenCalledTimes(1);
     const [query, options] = search.mock.calls[0] as unknown as [number[], Record<string, unknown>];
-    expect(Array.isArray(query)).toBe(true);
+    expect(query).toBe('idempotency key replay');
+    expect(options.useVectorSearch).toBe(false);
     expect(options.textQuery).toBe('idempotency key replay');
+  });
+
+  it.each(['hash', 'resized', 'failed'] as const)('does not stamp global provider identity on %s vectors', async mode => {
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity').mockReturnValue({ spaceId: SPACE_ID } as never);
+    const provider = vi.spyOn(embeddings, 'computeRealEmbedding');
+    if (mode === 'failed') provider.mockRejectedValue(new Error('provider offline'));
+    else provider.mockResolvedValue(Array(384).fill(0.1));
+    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: mode !== 'hash', embeddingDimension: DIM });
+    const search = vi.fn(async () => ({ success: true as const, value: [] }));
+    Object.assign(bank, { initialized: true, patternStore: { search } });
+    try {
+      await bank.routeTask({ task: 'idempotency key replay', domain: 'test-generation' });
+      await bank.searchPatterns('idempotency key replay');
+      for (const call of search.mock.calls) {
+        const [query, options] = call as unknown as [unknown, Record<string, unknown>];
+        expect(query).toBe('idempotency key replay');
+        expect(options.embeddingSpaceId).toBeUndefined();
+        expect(options.useVectorSearch).toBe(false);
+      }
+      expect(search).toHaveBeenCalledTimes(2);
+    } finally { identity.mockRestore(); provider.mockRestore(); }
   });
 
   it('does not attach a textQuery to the empty list-all query', async () => {

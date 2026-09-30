@@ -3,7 +3,8 @@
 The MCP RealQEReasoningBank ranker now merges FTS5 relevance with HNSW candidates.
 Ranking score is distinct from measured vector similarity. Query-term coverage
 weights lexical boosts; lexical-only matches have similarity zero, type `lexical`,
-and cannot authorize reuse. An explicit `minSimilarity` requires vector evidence,
+and cannot authorize reuse. Text-only fallback and list-all results also never
+claim vector similarity or reuse eligibility. An explicit `minSimilarity` requires vector evidence,
 so a rejected vector cannot return through the lexical branch.
 
 The service preserves this evidence through both `task_orchestrate` task and
@@ -11,7 +12,9 @@ workflow inputs. Quality score and long-term tier no longer substitute for
 similarity and reuse eligibility. Vector reuse requires the shared default
 similarity, successful-use, age, and explicit reusable criteria.
 
-`QEReasoningBank.routeTask` supplies the active embedding space. The RVF fallback
+`QEReasoningBank.routeTask` supplies the provenance recorded for the exact provider
+vector. Hash fallbacks and resized vectors use text-only retrieval even if another
+caller initialized a global provider identity. The same guard covers searchPatterns. The RVF fallback
 scans all stored embeddings and admits only those belonging to that space.
 Neither path silently treats unknown or different spaces as comparable vectors.
 

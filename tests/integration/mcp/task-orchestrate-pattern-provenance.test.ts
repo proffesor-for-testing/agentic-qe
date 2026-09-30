@@ -42,6 +42,7 @@ describe('task_orchestrate measured pattern evidence over JSON-RPC', () => {
   const responses = new Map<number, (response: JSONRPCResponse) => void>();
   let vectorId: string;
   let lexicalId: string;
+  let weakVectorId: string;
 
   async function callTool(name: string, args: Record<string, unknown>) {
     const id = ++nextId;
@@ -91,6 +92,7 @@ describe('task_orchestrate measured pattern evidence over JSON-RPC', () => {
     };
     const vector = await store('regression sentinel');
     vectorId = vector.id;
+    weakVectorId = (await store('lexicalonly regression sentinel weak')).id;
     lexicalId = 'alien-space-lexical-fixture';
     // Simulate a persisted pattern from another embedding provider: it is
     // searchable by text but never enters this active provider's vector index.
@@ -135,6 +137,7 @@ describe('task_orchestrate measured pattern evidence over JSON-RPC', () => {
     if (!result.success) throw result.error;
     expect(result.value.map(match => match.pattern.id)).toContain(vectorId);
     expect(result.value.map(match => match.pattern.id)).not.toContain(lexicalId);
+    expect(result.value.map(match => match.pattern.id)).not.toContain(weakVectorId);
   });
 
   it('forwards compatible vector evidence and lexical-only hints to the task queue without upgrading reuse', async () => {
