@@ -273,6 +273,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
 
     return {
       sourceCode: params.sourceCode,
+      behaviorExamples: params.behaviorExamples,
       filePath: params.filePath,
       language,
       framework,
@@ -305,6 +306,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const domainTests = data.tests as Array<{
       name: string; file?: string; testFile?: string; type: string;
       sourceFile?: string; assertions?: number; testCode?: string;
+      generationMode?: string; generationLimits?: string[];
     }> | undefined;
     const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
       && domainTests[0].testCode;
@@ -326,6 +328,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
           estimatedDuration: t.type === 'integration' ? 2000 : 1000,
           aiGenerated: llmEnhanced,
           testCode: t.testCode,
+          generationMode: t.generationMode,
+          generationLimits: t.generationLimits,
           sourceFile: t.sourceFile,
           testFile: t.testFile || t.file,
         }))
@@ -338,10 +342,10 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
       aiInsights,
       coverage: {
-        predicted: (data.coverageEstimate as number) || params?.coverageGoal || 80,
+        predicted: (data.coverageEstimate as number | undefined) ?? 0,
         // #567: a template scaffold's coverage prediction is a guess, not a
         // 0.9-confidence estimate. Don't dress it up as one.
-        confidence: llmEnhanced ? 0.9 : 0.3,
+        confidence: llmEnhanced ? 0.9 : 0,
         achievable: true,
       },
       properties: tests.filter(t => t.type === 'property').map(t => ({
@@ -355,7 +359,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       taskId,
       status: 'completed',
       testsGenerated: tests.length,
-      coverageEstimate: (data.coverageEstimate as number) || params?.coverageGoal || 80,
+      coverageEstimate: (data.coverageEstimate as number | undefined) ?? 0,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
       savedFiles,

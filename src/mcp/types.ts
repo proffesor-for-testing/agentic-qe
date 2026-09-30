@@ -224,6 +224,7 @@ export interface TestGenerateParams {
   framework?: string;
   testType?: 'unit' | 'integration' | 'e2e' | 'property-based';
   coverageGoal?: number;
+  behaviorExamples?: import('../domains/test-generation/interfaces').BehaviorExample[];
   aiEnhancement?: boolean;
   detectAntiPatterns?: boolean;
 }

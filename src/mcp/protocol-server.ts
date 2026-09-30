@@ -1064,6 +1064,7 @@ export class MCPProtocolServer {
           { name: 'testType', type: 'string', description: 'Type of tests', enum: ['unit', 'integration', 'e2e'] },
           { name: 'framework', type: 'string', description: 'Test framework to use. If omitted, derived from `language`.', enum: ['jest', 'vitest', 'mocha', 'pytest', 'node-test', 'junit5', 'testng', 'xunit', 'nunit', 'go-test', 'rust-test', 'swift-testing', 'xctest', 'kotlin-junit', 'flutter-test', 'jest-rn'] },
           { name: 'coverageGoal', type: 'number', description: 'Target coverage percentage (0-100)', default: 80 },
+          { name: 'behaviorExamples', type: 'array', description: 'Trusted specification fixtures: [{functionName: "add", args: [2,3], expected: 5}]. Named JS/TS functions with required simple parameters; unit vitest/jest/node-test. No source-derived oracle. Omit for scaffolding.' },
           { name: 'aiEnhancement', type: 'boolean', description: 'Enable AI-powered enhancement', default: true },
           { name: 'detectAntiPatterns', type: 'boolean', description: 'Detect and report anti-patterns', default: false },
         ],

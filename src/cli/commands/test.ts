@@ -20,6 +20,7 @@ export function createTestCommand(
     .description('Test generation, execution, scheduling, and load testing')
     .argument('<action>', 'Action (generate|execute|schedule|load)')
     .argument('[target]', 'Target file or directory')
+    .option('--behavior-examples <path>', 'JSON specification examples for a single source file')
     .option('-f, --framework <framework>', 'Test framework', 'vitest')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
@@ -39,7 +40,7 @@ export function createTestCommand(
           console.log(chalk.blue(`\n Generating tests for ${target || 'current directory'}...\n`));
 
           const testGenAPI = await context.kernel!.getDomainAPIAsync!<{
-            generateTests(request: { sourceFiles: string[]; testType: string; framework: string; coverageTarget?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+            generateTests(request: { sourceFiles: string[]; testType: string; framework: string; coverageTarget?: number; behaviorExamples?: import('../../domains/test-generation/interfaces.js').BehaviorExample[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           }>('test-generation');
 
           if (!testGenAPI) {
@@ -60,7 +61,14 @@ export function createTestCommand(
 
           console.log(chalk.gray(`  Found ${sourceFiles.length} source files\n`));
 
+          let behaviorExamples;
+          if (options.behaviorExamples) {
+            if (sourceFiles.length !== 1) throw new Error('--behavior-examples requires exactly one source file');
+            const fs = await import('node:fs/promises');
+            behaviorExamples = JSON.parse(await fs.readFile(options.behaviorExamples, 'utf8'));
+          }
           const result = await testGenAPI.generateTests({
+            behaviorExamples,
             sourceFiles,
             testType: options.type as 'unit' | 'integration' | 'e2e',
             framework: options.framework as 'jest' | 'vitest',

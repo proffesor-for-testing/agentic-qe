@@ -19,6 +19,7 @@ import { toErrorMessage } from '../../../shared/error-utils.js';
 // ============================================================================
 
 export interface TestGenerateParams {
+  behaviorExamples?: GenerateTestsRequest['behaviorExamples'];
   sourceFiles: string[];
   testType?: 'unit' | 'integration' | 'e2e';
   framework?: 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test';
@@ -46,6 +47,8 @@ export interface GeneratedTest {
   testCode: string;
   type: 'unit' | 'integration' | 'e2e';
   assertions: number;
+  generationMode?: string;
+  generationLimits?: string[];
 }
 
 export interface AntiPattern {
@@ -155,6 +158,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
       // Build the domain request from MCP params
       const domainRequest: GenerateTestsRequest = {
+        behaviorExamples: params.behaviorExamples,
         sourceFiles,
         testType: testType as 'unit' | 'integration' | 'e2e',
         framework: framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test',
@@ -182,6 +186,8 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
         testCode: test.testCode,
         type: test.type,
         assertions: test.assertions,
+        generationMode: test.generationMode,
+        generationLimits: test.generationLimits,
       }));
 
       this.emitStream(context, {
@@ -235,6 +241,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 const TEST_GENERATE_SCHEMA: MCPToolSchema = {
   type: 'object',
   properties: {
+    behaviorExamples: { type: 'array', description: 'Trusted JSON specification fixtures: functionName, args, expected', items: { type: 'object', description: 'A named function with args array and explicit expected JSON value' } },
     sourceFiles: {
       type: 'array',
       description: 'Array of source file paths to generate tests for',

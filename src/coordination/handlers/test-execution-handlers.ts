@@ -74,6 +74,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       framework: string;
       testType: 'unit' | 'integration' | 'e2e';
       coverageGoal: number;
+      behaviorExamples?: import('../../domains/test-generation/interfaces').BehaviorExample[];
       aiEnhancement?: boolean;
     };
 
@@ -132,6 +133,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         coverageTarget: payload.coverageGoal || 80,
         patterns: [],
         importPathOverrides,
+        behaviorExamples: payload.behaviorExamples,
       });
 
       // Always clean up the temp file we created — even on failure
@@ -161,6 +163,8 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
           type: t.type,
           sourceFile: rewritten.sourceFile,
           assertions: t.assertions,
+          generationMode: t.generationMode,
+          generationLimits: t.generationLimits,
           testCode: rewritten.testCode,
         };
       });
@@ -177,9 +181,11 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         patternsUsed: generatedTests.patternsUsed,
         llmEnhanced,
         ...(llmEnhanced ? {} : {
-          generationMode: 'deterministic-template' as const,
-          note: payload.aiEnhancement === false
-            ? 'LLM enhancement was disabled by the caller (aiEnhancement: false).'
+          generationMode: generatedTests.tests.some(t => t.generationMode === 'behavior-examples') ? 'behavior-examples' : 'deterministic-template',
+          note: generatedTests.tests.some(t => t.generationMode === 'behavior-examples')
+            ? 'Assertions use caller-supplied specification examples. Coverage is unmeasured; inspect generationLimits on each test.'
+            : payload.aiEnhancement === false
+            ? 'LLM enhancement was disabled by the caller (aiEnhancement: false). Coverage is unmeasured; inspect generationLimits on each test.'
             : 'No LLM provider was available, so tests are deterministic template ' +
               'scaffolding rather than source-aware. Configure a provider in ' +
               '.agentic-qe/llm-config.json (or set a provider API key) and ensure ' +

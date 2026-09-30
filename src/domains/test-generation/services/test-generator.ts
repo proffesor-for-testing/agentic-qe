@@ -7,6 +7,7 @@
  * Delegates to specialized services for TDD, property tests, and test data
  */
 
+import { generateBehaviorExamples } from './behavior-examples.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
@@ -171,6 +172,7 @@ export class TestGeneratorService implements ITestGenerationService {
   private readonly config: TestGeneratorConfig;
   private readonly memory: MemoryBackend;
   private readonly generatorFactory: ITestGeneratorFactory;
+  private readonly usesDefaultGenerator: boolean;
   private readonly tddGenerator: ITDDGeneratorService;
   private readonly propertyTestGenerator: IPropertyTestGeneratorService;
   private readonly testDataGenerator: ITestDataGeneratorService;
@@ -184,6 +186,7 @@ export class TestGeneratorService implements ITestGenerationService {
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.memory = dependencies.memory;
+    this.usesDefaultGenerator = !dependencies.generatorFactory;
     this.generatorFactory = dependencies.generatorFactory || new TestGeneratorFactory();
     this.tddGenerator = dependencies.tddGenerator || new TDDGeneratorService();
     this.propertyTestGenerator = dependencies.propertyTestGenerator || new PropertyTestGeneratorService();
@@ -423,6 +426,9 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    */
   async generateTests(request: GenerateTestsRequest): Promise<Result<GeneratedTests, Error>> {
     try {
+      if (request.behaviorExamples !== undefined && !Array.isArray(request.behaviorExamples)) {
+        return err(new Error('behaviorExamples must be an array'));
+      }
       // Auto-detect language and framework if not provided (ADR-078)
       const resolved = resolveRequest({
         sourceFiles: request.sourceFiles,
@@ -439,6 +445,10 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         coverageTarget = this.config.coverageTargetDefault,
         patterns = [],
       } = request;
+
+      if (request.behaviorExamples?.length && sourceFiles.length !== 1) {
+        return err(new Error('behaviorExamples requires exactly one source file'));
+      }
 
       if (sourceFiles.length === 0) {
         return err(new Error('No source files provided'));
@@ -474,7 +484,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         }
       }
 
-      const coverageEstimate = this.estimateCoverage(tests, coverageTarget);
+      const coverageEstimate = tests.some(t => t.generationMode) ? 0 : this.estimateCoverage(tests, coverageTarget);
       await this.storeGenerationMetadata(tests, patternsUsed);
 
       return ok({
@@ -619,14 +629,24 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       similarCode,
     };
 
-    let testCode = generator.generateTests(context);
+    const jsSource = /\.(?:[cm]?[jt]s|[jt]sx)$/i.test(sourceFile);
+    const deterministic = (this.usesDefaultGenerator || originalRequest?.behaviorExamples?.length)
+      && testType === 'unit' && jsSource && ['vitest', 'jest', 'node-test'].includes(framework)
+      ? generateBehaviorExamples(sourceContent, sourceFile,
+          originalRequest?.importPathOverrides?.[sourceFile] ?? path.resolve(sourceFile),
+          framework, originalRequest?.behaviorExamples, testType)
+      : undefined;
+    if (originalRequest?.behaviorExamples?.length && !deterministic) {
+      throw new Error('Behavior examples require JavaScript/TypeScript and vitest, jest, or node-test');
+    }
+    let testCode = deterministic?.code ?? generator.generateTests(context);
 
     // ADR-051: Enhance with LLM if enabled and available.
     // #567: `llmEnhanced` reflects whether the LLM actually produced the code,
     // not merely whether a router was configured — a broken provider must not
     // report AI-enhanced output it did not produce.
     let llmEnhanced = false;
-    if (this.isLLMEnhancementAvailable() && sourceContent) {
+    if (this.isLLMEnhancementAvailable() && sourceContent && !originalRequest?.behaviorExamples?.length) {
       const result = await this.enhanceTestWithLLM(
         testCode,
         sourceContent,
@@ -645,7 +665,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       testFile,
       testCode,
       type: testType,
-      assertions: this.countAssertions(testCode),
+      assertions: deterministic && !llmEnhanced ? deterministic.assertions : this.countAssertions(testCode),
+      ...(!llmEnhanced && deterministic ? { generationMode: deterministic.mode, generationLimits: deterministic.limits } : {}),
       // ADR-078: Include detected language and framework
       language: effectiveLanguage as SupportedLanguage | undefined,
       framework: framework,

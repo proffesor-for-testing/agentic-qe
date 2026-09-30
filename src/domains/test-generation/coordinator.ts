@@ -466,7 +466,7 @@ export class TestGenerationCoordinator
 
       // Opt-in (plan 06, D7-wire): try the FREE local model first with a repair
       // loop. Fully guarded — any miss falls through to the normal LLM path.
-      if (this.freeTierExecutor) {
+      if (this.freeTierExecutor && !request.behaviorExamples?.length) {
         try {
           const ft = await this.tryFreeTierGeneration(request);
           if (ft) {

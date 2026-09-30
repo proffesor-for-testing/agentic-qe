@@ -63,3 +63,35 @@ describe('test command', () => {
     expect(context.kernel.memory.set).not.toHaveBeenCalled();
   });
 });
+
+describe('#787 CLI behavior examples', () => {
+  it('loads caller fixtures, invokes the real generator, and publishes passing quality evidence', async () => {
+    const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { createTestGeneratorService } = await import('../../../src/domains/test-generation/services/test-generator');
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-787-'));
+    const source = join(directory, 'add.js');
+    const fixtures = join(directory, 'examples.json');
+    const output = join(directory, 'result.json');
+    writeFileSync(source, 'export function add(a,b) { return a+b; }');
+    writeFileSync(fixtures, JSON.stringify([{ functionName: 'add', args: [2,3], expected: 5 }]));
+    const memory = { set: vi.fn(), search: vi.fn(async () => []), vectorSearch: vi.fn(async () => []), get: vi.fn() };
+    const generator = createTestGeneratorService(memory as never);
+    const context = { kernel: { getDomainAPIAsync: vi.fn(async () => generator), memory } } as unknown as CLIContext;
+    const exit = vi.fn() as unknown as (code: number) => Promise<never>;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([
+        'generate', source, '--behavior-examples', fixtures, '--framework', 'node-test', '--format', 'json', '--output', output,
+      ], { from: 'user' });
+      const result = JSON.parse(readFileSync(output, 'utf8'));
+      expect(result.tests[0]).toMatchObject({ generationMode: 'behavior-examples', assertions: 1, qualityGateResult: { passed: true } });
+      expect(result.coverageEstimate).toBe(0);
+      expect(exit).not.toHaveBeenCalledWith(1);
+    } finally {
+      log.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
