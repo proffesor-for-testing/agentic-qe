@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createTestGeneratorService } from '../../../src/domains/test-generation/services/test-generator';
 import { createTestCommand } from '../../../src/cli/commands/test.js';
 import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
 
@@ -69,7 +70,6 @@ describe('#787 CLI behavior examples', () => {
     const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
-    const { createTestGeneratorService } = await import('../../../src/domains/test-generation/services/test-generator');
     const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-787-'));
     const source = join(directory, 'add.js');
     const fixtures = join(directory, 'examples.json');
