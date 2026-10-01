@@ -45,7 +45,7 @@ const nativeModules = [
   '@huggingface/transformers',
   'onnxruntime-node',
   'onnxruntime-web',
-  'vibium',
+  // NOTE: do NOT list 'vibium' here — see esmExternals below.
   '@claude-flow/browser',
   'prime-radiant-advanced-wasm',
   'pg',
@@ -67,6 +67,10 @@ const esmExternals = [
   // Keeping it external means it is never bundled into the shipped MCP —
   // callers that invoke test-data generation need to install it themselves.
   '@faker-js/faker',
+  // vibium (optional peer) has a proper "exports" map, so it must stay a
+  // plain ESM external. The nativeRequirePlugin shim only re-exports
+  // `default` plus a fixed name list and drops `browser` (#797).
+  'vibium',
 ];
 
 /**

@@ -51,7 +51,7 @@ const nativeModules = [
   '@huggingface/transformers',
   'onnxruntime-node',
   'onnxruntime-web',
-  'vibium',
+  // NOTE: do NOT list 'vibium' here — see esmExternals below.
   '@claude-flow/browser',
   'prime-radiant-advanced-wasm',
   'pg',
@@ -72,6 +72,13 @@ const esmExternals = [
   // Keeping it external means it is never bundled into the shipped CLI —
   // users who call test-data generation need to install it themselves.
   '@faker-js/faker',
+  // vibium (optional peer, opt-in via `aqe init --browser-engine`) ships a
+  // proper "exports" map with an "import" condition, so a plain external
+  // dynamic import() resolves it. Routing it through nativeRequirePlugin
+  // instead wraps it in a shim that only re-exports `default` plus a fixed
+  // list of names — `browser` is not among them, so the bundled loader
+  // rejected a correctly installed vibium as "Unsupported Vibium API" (#797).
+  'vibium',
 ];
 
 /**

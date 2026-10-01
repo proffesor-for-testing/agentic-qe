@@ -24,19 +24,44 @@ function resolveRuntime(): string {
   }
 }
 
+/** A module namespace as seen through ESM import, CJS interop, or a bundler shim. */
+type LoadedModule = { browser?: { start?: unknown }; default?: { browser?: { start?: unknown } } };
+
+/**
+ * Accept the modern API from the namespace itself or from its `default`
+ * export. CJS interop and bundler createRequire shims expose the package
+ * object only as `default`, so checking the namespace alone rejects a
+ * correctly installed runtime.
+ */
+function selectBrowserApi(loaded: LoadedModule | null | undefined): Runtime | null {
+  if (typeof loaded?.browser?.start === 'function') return loaded as unknown as Runtime;
+  if (typeof loaded?.default?.browser?.start === 'function') return loaded.default as unknown as Runtime;
+  return null;
+}
+
 export async function loadVibium(): Promise<Runtime> {
-  let runtime: Runtime;
+  let loaded: LoadedModule;
   try {
-    runtime = await import('vibium');
+    loaded = await import('vibium');
   } catch (error) {
     // Only a missing local package permits global resolution. A broken local
     // installation must not be silently replaced by an unrelated runtime.
     if ((error as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND' &&
         (error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND') throw error;
-    runtime = requireFromHere(resolveRuntime()) as Runtime;
+    let entry: string;
+    try {
+      entry = resolveRuntime();
+    } catch (cause) {
+      throw new Error(`Vibium is not installed; run ${VIBIUM_SETUP}`, { cause });
+    }
+    loaded = requireFromHere(entry) as LoadedModule;
   }
-  if (typeof runtime.browser?.start !== 'function') {
-    throw new Error(`Unsupported Vibium API; run ${VIBIUM_SETUP}`);
+  const runtime = selectBrowserApi(loaded);
+  if (!runtime) {
+    throw new Error(
+      'Unsupported Vibium API: the installed package exposes no browser.start() ' +
+      `(neither as a named nor a default export); run ${VIBIUM_SETUP}`,
+    );
   }
   return runtime;
 }

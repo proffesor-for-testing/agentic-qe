@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const seam = vi.hoisted(() => ({
-  resolve: vi.fn(), execute: vi.fn(), runtime: { browser: { start: vi.fn() } },
+  resolve: vi.fn(), execute: vi.fn(),
+  runtime: { browser: { start: vi.fn() }, default: undefined } as {
+    browser?: { start?: unknown }; default?: { browser?: { start?: unknown } };
+  },
 }));
 vi.mock('node:module', () => ({ createRequire: () => Object.assign(() => seam.runtime, { resolve: seam.resolve }) }));
 vi.mock('node:child_process', () => ({ execFileSync: seam.execute }));
@@ -11,7 +14,8 @@ describe('Optional modern Vibium runtime contract', () => {
   beforeEach(() => {
     seam.resolve.mockReset().mockReturnValue('/project/node_modules/vibium/dist/index.js');
     seam.execute.mockReset().mockReturnValue('');
-    seam.runtime.browser.start = vi.fn();
+    seam.runtime.browser = { start: vi.fn() };
+    seam.runtime.default = undefined;
   });
   it('accepts the modern API without launching or installing', async () => {
     expect((await loadVibium()).browser.start).toBe(seam.runtime.browser.start);
@@ -19,9 +23,30 @@ describe('Optional modern Vibium runtime contract', () => {
     expect(seam.runtime.browser.start).not.toHaveBeenCalled();
   });
   it('rejects an old launch-only API with explicit recovery guidance', async () => {
-    seam.runtime.browser.start = undefined as never;
+    seam.runtime.browser = { start: undefined };
     await expect(loadVibium()).rejects.toThrow('aqe init --browser-engine');
     expect(seam.execute).not.toHaveBeenCalled();
+  });
+  // #797: the bundler's createRequire shim (and CJS interop) expose the package
+  // object only as `default`; a correct install must not be rejected for that.
+  it('accepts the modern API when it is only reachable through the default export', async () => {
+    const start = vi.fn();
+    seam.runtime.browser = undefined;
+    seam.runtime.default = { browser: { start } };
+    expect((await loadVibium()).browser.start).toBe(start);
+    expect(start).not.toHaveBeenCalled();
+    expect(seam.execute).not.toHaveBeenCalled();
+  });
+  it('prefers the named export when both named and default expose the API', async () => {
+    const named = vi.fn();
+    seam.runtime.browser = { start: named };
+    seam.runtime.default = { browser: { start: vi.fn() } };
+    expect((await loadVibium()).browser.start).toBe(named);
+  });
+  it('stays honest when neither the named nor the default export has browser.start', async () => {
+    seam.runtime.browser = undefined;
+    seam.runtime.default = { browser: {} };
+    await expect(loadVibium()).rejects.toThrow(/Unsupported Vibium API.*aqe init --browser-engine/);
   });
   it('checks the exact library payload, not a different PATH CLI', () => {
     expect(isVibiumReady()).toBe(true);
