@@ -115,7 +115,7 @@
     "test:journeys:ci": "vitest run tests/integration/ --exclude='**/browser/**' --exclude='**/browser-integration/**' --exclude='**/integration/mcp/**' --exclude='**/integration/sync/**' --exclude='**/integration/learning/**' --exclude='**/integration/domains/**' --exclude='**/integration/llm/**' --exclude='**/integration/n8n/**' --exclude='**/*.e2e.test.ts'",
     "test:watch": "vitest",
     "performance:gate": "npx tsx src/performance/run-gates.ts",
-    "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run tests/integrations/vibium/vibium-real.test.ts",
+    "test:integration:browser": "VIBIUM_REAL_TESTS=true vitest run --config config/vitest.browser.config.ts",
     "benchmark:token-reduction": "vitest bench tests/benchmarks/code-intelligence-token-reduction.bench.ts",
     "benchmark:self-learning": "tsx scripts/benchmark-self-learning.ts",
     "benchmark:rabitq": "tsx scripts/benchmark-rabitq.ts",
@@ -196,19 +196,22 @@
     "semver": "^7.8.5",
     "typescript": "^5.9.3",
     "uuid": "^14.0.0",
-    "vibium": "^0.1.2",
     "web-tree-sitter": "~0.26.8",
     "yaml": "^2.8.2"
   },
   "peerDependencies": {
     "@claude-flow/browser": "3.0.0-alpha.1",
-    "@claude-flow/guidance": "3.0.0-alpha.1"
+    "@claude-flow/guidance": "3.0.0-alpha.1",
+    "vibium": "^26.8.21"
   },
   "peerDependenciesMeta": {
     "@claude-flow/browser": {
       "optional": true
     },
     "@claude-flow/guidance": {
+      "optional": true
+    },
+    "vibium": {
       "optional": true
     }
   },
@@ -276,7 +279,8 @@
     "glob": "^13.0.0",
     "msw": "^2.12.7",
     "tsx": "^4.21.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "vibium": "^26.8.21"
   },
   "engines": {
     "node": ">=22.13.0",

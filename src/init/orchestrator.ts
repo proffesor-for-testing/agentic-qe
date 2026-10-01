@@ -54,6 +54,7 @@ export class ModularInitOrchestrator {
         skipPatterns: options.skipPatterns,
         skipCodeIndex: options.skipCodeIndex,
         minimal: options.minimal,
+        browserEngine: options.browserEngine,
         withN8n: options.withN8n,
         withOpenCode: options.withOpenCode,
         withKiro: options.withKiro,

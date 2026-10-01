@@ -90,6 +90,7 @@ export class E2EExecuteTool extends MCPToolBase<E2EExecuteParams, E2EExecuteResu
     }
 
     const startTime = Date.now();
+    let vibiumClient: import('../../../integrations/vibium').VibiumClient | undefined;
 
     try {
       // Get E2E runner from domain
@@ -97,11 +98,15 @@ export class E2EExecuteTool extends MCPToolBase<E2EExecuteParams, E2EExecuteResu
       const { createVibiumClient } = await import('../../../integrations/vibium');
 
       // Create Vibium client
-      const vibiumClient = await createVibiumClient({
+      vibiumClient = await createVibiumClient({
         enabled: true,
+        fallbackEnabled: false,
       });
 
       // Create E2E runner
+      if (!await vibiumClient.isAvailable()) {
+        throw new Error('Browser unavailable; run aqe init --browser-engine');
+      }
       const runner = createE2ETestRunnerService(vibiumClient, runnerConfig);
 
       // Execute test case or suite
@@ -168,6 +173,8 @@ export class E2EExecuteTool extends MCPToolBase<E2EExecuteParams, E2EExecuteResu
         success: false,
         error: `E2E test execution failed: ${toErrorMessage(error)}`,
       };
+    } finally {
+      await vibiumClient?.dispose();
     }
   }
 }

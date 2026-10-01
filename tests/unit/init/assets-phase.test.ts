@@ -7,9 +7,10 @@
  * 3. Skills and agents are overwritten when upgrading
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
+import * as browserInstaller from '../../../src/init/browser-engine-installer.js';
 import { AssetsPhase } from '../../../src/init/phases/09-assets.js';
 import type { InitContext } from '../../../src/init/phases/phase-interface.js';
 import type { AQEInitConfig } from '../../../src/init/types.js';
@@ -51,6 +52,35 @@ describe('AssetsPhase - Version Upgrade Detection', () => {
       error: () => {},
     },
     phaseResults: new Map(),
+  });
+
+  describe('explicit browser setup', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it.each([{}, { browserEngine: false }, { browserEngine: true, minimal: true }])(
+      'does not probe or install browsers without opt-in: %j', async (options) => {
+        const detect = vi.spyOn(browserInstaller, 'detectBrowserEngine');
+        const install = vi.spyOn(browserInstaller, 'installBrowserEngine');
+        const result = await phase.run(createMockContext('3.5.3', { noClaude: true, ...options }));
+        expect(result.browserEngine.status).toBe('skipped');
+        expect(detect).not.toHaveBeenCalled();
+        expect(install).not.toHaveBeenCalled();
+      }
+    );
+
+    it('installs on explicit request and preserves an honest failure result', async () => {
+      vi.spyOn(browserInstaller, 'detectBrowserEngine').mockReturnValue({ status: 'cli-missing' });
+      const install = vi.spyOn(browserInstaller, 'installBrowserEngine').mockReturnValue({
+        status: 'install-failed', packageSpec: browserInstaller.DEFAULT_VIBIUM_SPEC,
+        message: 'browser payload unavailable',
+      });
+      const context = createMockContext('3.5.3', { noClaude: true, browserEngine: true });
+      const warn = vi.spyOn(context.services, 'warn');
+      const result = await phase.run(context);
+      expect(install).toHaveBeenCalledOnce();
+      expect(result.browserEngine.status).toBe('install-failed');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('browser payload unavailable'));
+    });
   });
 
   describe('detectVersionUpgrade', () => {

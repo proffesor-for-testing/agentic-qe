@@ -92,6 +92,29 @@ describe('Init Command', () => {
   });
 
   describe('Init Options Validation', () => {
+    it.each([
+      [[], false],
+      [['--browser-engine'], true],
+      [['--no-browser-engine'], false],
+    ])('parses browser setup opt-in %j', async (flags, browserEngine) => {
+      const program = new Command();
+      const handler = new InitHandler(async () => undefined as never);
+      const context = {} as CLIContext;
+      const execute = vi.spyOn(handler, 'execute').mockResolvedValue(undefined);
+      handler.register(program, context);
+      await program.parseAsync(['node', 'aqe', 'init', ...flags]);
+      expect(execute).toHaveBeenCalledWith(expect.objectContaining({ browserEngine }), context);
+    });
+
+    it('routes explicit browser setup to the modular installer without --auto', async () => {
+      const handler = new InitHandler(async () => undefined as never);
+      const modular = vi.spyOn(handler as any, 'runModularInit').mockResolvedValue(undefined);
+      const standard = vi.spyOn(handler as any, 'runStandardInit').mockResolvedValue(undefined);
+      await handler.execute({ browserEngine: true } as any, {} as CLIContext);
+      expect(modular).toHaveBeenCalledOnce();
+      expect(standard).not.toHaveBeenCalled();
+    });
+
     it('should_parseCompactCodexGuidance_when_requested', async () => {
       const program = new Command();
       const handler = new InitHandler(async () => undefined as never);

@@ -8,6 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
+import { loadVibium, isVibiumReady, VIBIUM_SETUP } from './runtime.js';
 import type {
   VibiumClient,
   VibiumConfig,
@@ -65,7 +66,7 @@ async function getVibiumBrowser(): Promise<typeof import('vibium').browser | nul
   }
 
   try {
-    const vibium = await import('vibium');
+    const vibium = await loadVibium();
     vibiumBrowser = vibium.browser;
     vibiumAvailable = true;
     return vibiumBrowser;
@@ -77,7 +78,8 @@ async function getVibiumBrowser(): Promise<typeof import('vibium').browser | nul
 }
 
 // Type for Vibium's Vibe instance
-type VibeInstance = Awaited<ReturnType<typeof import('vibium').browser.launch>>;
+type BrowserInstance = Awaited<ReturnType<typeof import('vibium').browser.start>>;
+type VibeInstance = Awaited<ReturnType<BrowserInstance['page']>>;
 
 // ============================================================================
 // Retry Utilities
@@ -176,6 +178,7 @@ export class VibiumClientImpl implements VibiumClient {
 
   // Real Vibium browser instance
   private vibeInstance: VibeInstance | null = null;
+  private browserInstance: BrowserInstance | null = null;
 
   /**
    * Create a new Vibium client
@@ -202,7 +205,7 @@ export class VibiumClientImpl implements VibiumClient {
     try {
       // Check if Vibium package is available
       const browser = await getVibiumBrowser();
-      this._available = browser !== null;
+      this._available = browser !== null && isVibiumReady();
       return this._available;
     } catch {
       this._available = false;
@@ -229,7 +232,7 @@ export class VibiumClientImpl implements VibiumClient {
       if (isAvailable) {
         this.lastHealthCheck = {
           status: this.vibeInstance ? 'connected' : 'disconnected',
-          version: '0.1.2', // From package.json
+          // Runtime availability is checked against the installed payload.
           browserType: this.config.browserType,
           features: [
             'browser-launch',
@@ -248,7 +251,7 @@ export class VibiumClientImpl implements VibiumClient {
           status: 'unavailable',
           features: ['fallback-only'],
           lastChecked,
-          error: 'Vibium package not available - install with: npm install vibium',
+          error: `Vibium runtime or browser payload unavailable; run ${VIBIUM_SETUP}`,
           sessionActive: false,
         };
       }
@@ -285,16 +288,24 @@ export class VibiumClientImpl implements VibiumClient {
       const browser = await getVibiumBrowser();
       if (!browser) {
         throw new VibiumUnavailableError(
-          'Vibium package not available. Install with: npm install vibium'
+          `Vibium runtime unavailable; run ${VIBIUM_SETUP}`
         );
       }
 
       // Launch REAL browser using Vibium
       const headless = options?.headless ?? this.config.headless;
 
-      this.vibeInstance = await browser.launch({
-        headless,
-      });
+      if (!isVibiumReady()) {
+        throw new VibiumUnavailableError(`Vibium browser payload unavailable; run ${VIBIUM_SETUP}`);
+      }
+      const instance = await browser.start({ headless });
+      try {
+        this.vibeInstance = await instance.page();
+        this.browserInstance = instance;
+      } catch (error) {
+        await instance.stop();
+        throw error;
+      }
 
       const session: BrowserSession = {
         id: this.generateSessionId(),
@@ -335,8 +346,9 @@ export class VibiumClientImpl implements VibiumClient {
 
     const operation = async () => {
       if (this.vibeInstance) {
-        await this.vibeInstance.quit();
+        await this.browserInstance?.stop();
         this.vibeInstance = null;
+        this.browserInstance = null;
       }
       this.currentSession = null;
     };
@@ -741,7 +753,7 @@ export class VibiumClientImpl implements VibiumClient {
 
     try {
       // Use real Vibium evaluate method
-      const result = await this.vibeInstance!.evaluate<T>(script);
+      const result = await this.vibeInstance!.evaluate<T>(`(async () => { ${script} })()`);
       return { success: true, value: result };
     } catch (error) {
       const vibiumError = createVibiumError(error, 'Failed to evaluate script');
@@ -784,12 +796,13 @@ export class VibiumClientImpl implements VibiumClient {
   async dispose(): Promise<void> {
     if (this.vibeInstance) {
       try {
-        await this.vibeInstance.quit();
+        await this.browserInstance?.stop();
       } catch (error) {
         // Non-critical: Vibium disposal errors
         console.debug('[VibiumClient] Disposal error:', error instanceof Error ? error.message : error);
       }
       this.vibeInstance = null;
+        this.browserInstance = null;
     }
     this.currentSession = null;
     this._initialized = false;

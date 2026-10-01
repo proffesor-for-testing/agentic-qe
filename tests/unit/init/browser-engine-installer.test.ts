@@ -65,18 +65,24 @@ describe('browser-engine-installer', () => {
   describe('detectBrowserEngine', () => {
     it('should_reportReady_when_cliAndBrowserPayloadAreUsable', () => {
       const { spawner, calls } = makeSpawner((call) => {
-        if (call.args[0] === '--version') return canned({ stdout: 'v26.5.31\n' });
+        if (call.args[0] === '--version') return canned({ stdout: 'v26.8.21\n' });
         if (call.args[0] === 'is-installed') return canned({ stdout: 'installed\n' });
         throw new Error(`unexpected call: ${call.bin} ${call.args.join(' ')}`);
       });
 
       const result = detectBrowserEngine(spawner);
 
-      expect(result).toEqual({ status: 'ready', version: '26.5.31' });
+      expect(result).toEqual({ status: 'ready', version: '26.8.21' });
       expect(calls).toEqual([
         { bin: 'vibium', args: ['--version'] },
         { bin: 'vibium', args: ['is-installed'] },
       ]);
+    });
+
+    it.each(['26.3.18', '26.8.20', '27.0.0', '26.8.21-rc.1', 'unknown'])('rejects unsupported version %s without claiming readiness', (version) => {
+      const { spawner, calls } = makeSpawner(() => canned({ stdout: version }));
+      expect(detectBrowserEngine(spawner).status).toBe('unsupported-version');
+      expect(calls).toHaveLength(1);
     });
 
     it('should_reportCliMissing_when_versionProbeCannotStart', () => {
@@ -91,7 +97,7 @@ describe('browser-engine-installer', () => {
     it('should_reportPayloadMissing_when_cliExistsWithoutBrowserPair', () => {
       const { spawner, calls } = makeSpawner((call) =>
         call.args[0] === '--version'
-          ? canned({ stdout: 'v26.5.31\n' })
+          ? canned({ stdout: 'v26.8.21\n' })
           : canned({ status: 1, stderr: 'Chrome and chromedriver revision mismatch' })
       );
 
@@ -99,7 +105,7 @@ describe('browser-engine-installer', () => {
 
       expect(result).toEqual({
         status: 'payload-missing',
-        version: '26.5.31',
+        version: '26.8.21',
         message: 'Chrome and chromedriver revision mismatch',
       });
       expect(calls.every((call) => call.bin === 'vibium')).toBe(true);
@@ -170,13 +176,13 @@ describe('browser-engine-installer', () => {
     it('returns already-installed when vibium and its browser payload are ready', () => {
       const { spawner, calls } = makeSpawner((call) =>
         call.args[0] === '--version'
-          ? canned({ stdout: 'v26.3.18\n' })
+          ? canned({ stdout: 'v26.8.21\n' })
           : canned({ stdout: 'installed\n' })
       );
       const result = installBrowserEngine({ spawner });
       expect(result.status).toBe('already-installed');
       // H1 fix: detectVibium now extracts the bare semver, dropping the v prefix.
-      expect(result.version).toBe('26.3.18');
+      expect(result.version).toBe('26.8.21');
       expect(calls).toEqual([
         { bin: 'vibium', args: ['--version'] },
         { bin: 'vibium', args: ['is-installed'] },
@@ -200,7 +206,7 @@ describe('browser-engine-installer', () => {
       let installed = false;
       const { spawner, calls } = makeSpawner((call) => {
         if (call.bin === 'vibium' && call.args[0] === '--version') {
-          return installed ? canned({ stdout: 'v26.3.18' }) : enoent();
+          return installed ? canned({ stdout: 'v26.8.21' }) : enoent();
         }
         if (call.bin === 'vibium' && call.args[0] === 'is-installed') {
           return canned({ stdout: 'installed' });
@@ -218,7 +224,7 @@ describe('browser-engine-installer', () => {
       const result = installBrowserEngine({ spawner });
       expect(result.status).toBe('installed');
       // H1 fix: detectVibium now extracts the bare semver.
-      expect(result.version).toBe('26.3.18');
+      expect(result.version).toBe('26.8.21');
       // version check, npm check, npm install, version + payload verification
       expect(calls).toHaveLength(5);
       expect(calls[2]).toEqual({ bin: 'npm', args: ['install', '-g', DEFAULT_VIBIUM_SPEC] });
@@ -228,7 +234,7 @@ describe('browser-engine-installer', () => {
       let payloadChecks = 0;
       const { spawner, calls } = makeSpawner((call) => {
         if (call.bin === 'vibium' && call.args[0] === '--version') {
-          return canned({ stdout: 'v26.5.31' });
+          return canned({ stdout: 'v26.8.21' });
         }
         if (call.bin === 'vibium' && call.args[0] === 'is-installed') {
           payloadChecks += 1;
@@ -245,6 +251,25 @@ describe('browser-engine-installer', () => {
 
       expect(result.status).toBe('installed');
       expect(calls.filter((call) => call.bin === 'npm' && call.args[0] === 'install')).toHaveLength(1);
+    });
+
+    it.each([0, 1])('explicitly provisions missing payload and verifies it (exit %s)', (exitCode) => {
+      let provisioned = false;
+      const { spawner, calls } = makeSpawner((call) => {
+        if (call.bin === 'npm') return canned({ stdout: 'ok' });
+        if (call.args[0] === '--version') return canned({ stdout: '26.8.21' });
+        if (call.args[0] === 'is-installed') return canned({ status: provisioned ? 0 : 1 });
+        if (call.args[0] === 'install') {
+          provisioned = exitCode === 0;
+          return canned({ status: exitCode, stderr: exitCode ? 'download failed' : '' });
+        }
+        throw new Error('unexpected command');
+      });
+      const result = installBrowserEngine({ spawner });
+      expect(result.status).toBe(exitCode === 0 ? 'installed' : 'install-failed');
+      expect(calls).toContainEqual({ bin: 'vibium', args: ['install'] });
+      if (exitCode === 1) expect(result.message).toContain('download failed');
+      else expect(calls.at(-1)).toEqual({ bin: 'vibium', args: ['is-installed'] });
     });
 
     it('should_reportInstallFailed_when_npmSucceedsButCliVerificationFails', () => {
@@ -276,9 +301,9 @@ describe('browser-engine-installer', () => {
     });
 
     it('respects a custom packageSpec', () => {
-      const { spawner, calls } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
-      const result = installBrowserEngine({ spawner, packageSpec: 'vibium@26.3.18' });
-      expect(result.packageSpec).toBe('vibium@26.3.18');
+      const { spawner, calls } = makeSpawner(() => canned({ stdout: 'v26.8.21' }));
+      const result = installBrowserEngine({ spawner, packageSpec: 'vibium@26.8.21' });
+      expect(result.packageSpec).toBe('vibium@26.8.21');
       // Already-installed detection path should not trigger npm install.
       expect(calls).toHaveLength(2);
       expect(calls.every((call) => call.bin === 'vibium')).toBe(true);
@@ -286,21 +311,21 @@ describe('browser-engine-installer', () => {
 
     describe('Linux ARM64 platform hint (GAP-05)', () => {
       it('attaches no platformHint on macOS (Chrome auto-download works)', () => {
-        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.8.21' }));
         const probe = makePlatformProbe({ platform: () => 'darwin', arch: () => 'arm64' });
         const result = installBrowserEngine({ spawner, platformProbe: probe });
         expect(result.platformHint).toBeUndefined();
       });
 
       it('attaches no platformHint on Linux x86_64', () => {
-        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.8.21' }));
         const probe = makePlatformProbe({ platform: () => 'linux', arch: () => 'x64' });
         const result = installBrowserEngine({ spawner, platformProbe: probe });
         expect(result.platformHint).toBeUndefined();
       });
 
       it('points Linux ARM64 at /usr/bin/chromium when present', () => {
-        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.8.21' }));
         const probe = makePlatformProbe({
           platform: () => 'linux',
           arch: () => 'arm64',
@@ -326,7 +351,7 @@ describe('browser-engine-installer', () => {
       });
 
       it('emits the no-chromium hint when no system browser is found', () => {
-        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.3.18' }));
+        const { spawner } = makeSpawner(() => canned({ stdout: 'v26.8.21' }));
         const probe = makePlatformProbe({
           platform: () => 'linux',
           arch: () => 'arm64',
@@ -344,7 +369,7 @@ describe('browser-engine-installer', () => {
       const { spawner, calls } = makeSpawner((call) => {
         if (call.bin === 'vibium') {
           vibiumChecks += 1;
-          return vibiumChecks === 1 ? enoent() : canned({ stdout: 'v26.3.18' });
+          return vibiumChecks === 1 ? enoent() : canned({ stdout: 'v26.8.21' });
         }
         return canned({ stdout: 'ok' });
       });
