@@ -1,7 +1,8 @@
 /** Real bundled MCP lifecycle regression for #801. All stores are owned fixtures. */
 import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import Database from 'better-sqlite3';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createRvfStore, isRvfNativeAvailable } from '../../../src/integrations/ruvector/rvf-native-adapter.js';
@@ -28,6 +29,7 @@ async function driveMcp(
   args = [bundle],
   trigger: Trigger = 'eof',
   afterExit: () => void = () => {},
+  storeRows = 0,
 ) {
   const env: NodeJS.ProcessEnv = { ...process.env, HOME: join(root, 'home'), AQE_PROJECT_ROOT: root };
   for (const key of Object.keys(env)) {
@@ -48,6 +50,8 @@ async function driveMcp(
     await new Promise<void>((resolveReady, reject) => {
       child.once('error', reject);
       child.once('close', () => reject(new Error(`MCP closed before tools/list: ${stderr}`)));
+      // Ready once tools/list (id 2) and every memory_store call (ids 100+) answered.
+      let pending = storeRows + 1;
       child.stdout.on('data', data => {
         stdout += data.toString();
         let newline: number;
@@ -57,8 +61,17 @@ async function driveMcp(
           try { message = JSON.parse(line); } catch { continue; }
           if (message.id === 2) {
             if (!message.result?.tools?.length) { reject(new Error('No MCP tools returned')); return; }
-            resolveReady();
+            for (let i = 0; i < storeRows; i++) {
+              child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 100 + i, method: 'tools/call', params: {
+                name: 'memory_store', arguments: { key: `shutdown-row-${i}`, value: { i }, namespace: 'shutdown-durability' },
+              } }) + '\n');
+            }
+          } else if (typeof message.id !== 'number' || message.id < 100) {
+            continue;
+          } else if (message.error || message.result?.isError) {
+            reject(new Error(`memory_store ${message.id} failed: ${line}`)); return;
           }
+          if (--pending === 0) resolveReady();
         }
       });
       child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
@@ -129,6 +142,30 @@ describe.skipIf(!built && !process.env.CI)('bundled MCP graceful RVF shutdown', 
         expect(readFileSync(`${path}.lock`)).toEqual(marker);
       });
     } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+  }, 60000);
+
+  // F2: every graceful path, not just signals, must close memory.db so SQLite
+  // checkpoints the WAL into the main file (WAL left behind on a bind mount is
+  // how memory.db has been corrupted before). Rows must stay durable.
+  it.each(cases)('%s closes memory.db cleanly (WAL checkpointed) on %s', async (_name, trigger, args) => {
+    const root = fixture();
+    const db = join(root, '.agentic-qe', 'memory.db');
+    const rows = 5;
+    try {
+      await driveMcp(root, () => {}, false, [...args], trigger, () => {
+        const wal = `${db}-wal`;
+        const walBytes = existsSync(wal) ? statSync(wal).size : 0;
+        expect(walBytes, `memory.db-wal left un-checkpointed after ${trigger}`).toBe(0);
+        const reader = new Database(db, { readonly: true, fileMustExist: true });
+        try {
+          // memory_store keeps its namespace as a `<namespace>:` key prefix.
+          const { n } = reader.prepare(
+            "SELECT COUNT(*) AS n FROM kv_store WHERE key LIKE 'shutdown-durability:%'",
+          ).get() as { n: number };
+          expect(n, `rows stored before ${trigger} must survive it`).toBe(rows);
+        } finally { reader.close(); }
+      }, rows);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   }, 60000);
 
   it('shuts down normally when database-free startup opens no native adapter', async () => {

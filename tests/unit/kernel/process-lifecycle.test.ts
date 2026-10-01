@@ -6,7 +6,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   claimProcessLifecycle,
+  closeRegisteredStores,
   getProcessLifecycleOwner,
+  registerStoreCloser,
   releaseProcessLifecycle,
   requestOwnedShutdown,
 } from '../../../src/kernel/process-lifecycle.js';
@@ -76,15 +78,47 @@ describe.each([
     expect(exit).toHaveBeenCalledWith(0);
   });
 
-  it.each(['SIGTERM', 'SIGINT'] as const)('defers %s to a claimed owner and closes at exit', async (signal) => {
+  it.each(['SIGTERM', 'SIGINT'] as const)('defers %s to a claimed owner without adding exit listeners', async (signal) => {
     const handlers = await captureHandlers();
     const exit = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
     const once = vi.spyOn(process, 'once').mockImplementation((() => process) as typeof process.once);
     const shutdown = vi.fn();
     claimProcessLifecycle({ name: 'mcp', shutdown });
-    for (const fn of handlers.get(signal) ?? []) fn(signal);
+    // Repeated signals (Ctrl-C twice) must not pile up listeners: the owner
+    // closes the store through the registered closer instead.
+    for (let i = 0; i < 3; i++) for (const fn of handlers.get(signal) ?? []) fn(signal);
     expect(exit).not.toHaveBeenCalled();
     expect(shutdown).toHaveBeenCalledWith(signal);
-    expect(once).toHaveBeenCalledWith('exit', expect.any(Function));
+    expect(once).not.toHaveBeenCalled();
+  });
+
+  it('registers a store closer that the owner runs on every shutdown path', async () => {
+    const before = closerCount();
+    await captureHandlers();
+    // unified-persistence also loads a fresh unified-memory, so >= one closer.
+    expect(closerCount()).toBeGreaterThan(before);
+    expect(() => closeRegisteredStores()).not.toThrow();
+  });
+});
+
+function closerCount(): number {
+  return ((globalThis as Record<symbol, unknown>)[
+    Symbol.for('agentic-qe.process-lifecycle-store-closers')
+  ] as unknown[] | undefined)?.length ?? 0;
+}
+
+describe('registered store closers', () => {
+  it('closes most recently registered first, isolates failures, and unregisters', () => {
+    const order: string[] = [];
+    const offMemory = registerStoreCloser(() => order.push('memory'));
+    const offBroken = registerStoreCloser(() => { throw new Error('boom'); });
+    const offFacade = registerStoreCloser(() => order.push('facade'));
+    try {
+      expect(() => closeRegisteredStores()).not.toThrow();
+      expect(order).toEqual(['facade', 'memory']);
+    } finally { offFacade(); offBroken(); offMemory(); }
+    order.length = 0;
+    closeRegisteredStores();
+    expect(order).toEqual([]);
   });
 });

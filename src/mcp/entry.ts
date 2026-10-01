@@ -25,7 +25,7 @@ import { parallelPrefetch } from '../boot/parallel-prefetch.js';
 import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
-import { claimProcessLifecycle } from '../kernel/process-lifecycle.js';
+import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +47,21 @@ function releaseSharedRvfStores(): void {
   // Dual writer first, then the adapter, each independent of the other's failure.
   try { resetSharedRvfDualWriter(); } catch { /* best effort */ }
   try { resetSharedRvfAdapter(); } catch { /* best effort */ }
+}
+
+let processStoresReleased = false;
+
+/**
+ * Release every process-wide store exactly once, on every shutdown path:
+ * the shared RVF stores first, then the kernel's unified persistence/memory
+ * (registered closers), whose close() checkpoints the memory.db WAL. All
+ * synchronous, so the process 'exit' backstop can run it too; never throws.
+ */
+function releaseProcessStores(): void {
+  if (processStoresReleased) return;
+  processStoresReleased = true;
+  releaseSharedRvfStores();
+  try { closeRegisteredStores(); } catch { /* best effort */ }
 }
 
 async function main(): Promise<void> {
@@ -97,8 +112,8 @@ async function main(): Promise<void> {
     } catch { /* best-effort — the watchdog still guarantees exit */ } finally {
       // Close data stores AFTER the server has drained connections, and even
       // when a step above threw. Shared pattern-store consumers leave
-      // singleton disposal to this lifecycle.
-      releaseSharedRvfStores();
+      // singleton disposal to this lifecycle; memory.db closes last.
+      releaseProcessStores();
     }
     process.exit(0);
   };
@@ -112,7 +127,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
   // Last line of defence for exits that bypass shutdown() (the watchdog, or a
   // process.exit elsewhere): 'exit' listeners run synchronously on every exit.
-  process.on('exit', releaseSharedRvfStores);
+  process.on('exit', releaseProcessStores);
 
   // Issue #513: when the parent (e.g. the Claude Code session) exits, our stdin
   // reaches EOF. An orphaned stdio MCP server has no parent to serve, so exit

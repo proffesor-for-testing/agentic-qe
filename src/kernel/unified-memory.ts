@@ -85,7 +85,7 @@ import {
 // working unchanged. Imported (not bare re-exported) so internal callers below
 // have a usable local binding.
 import { findProjectRoot, clearProjectRootCache } from './project-root.js';
-import { requestOwnedShutdown } from './process-lifecycle.js';
+import { registerStoreCloser, requestOwnedShutdown } from './process-lifecycle.js';
 export { findProjectRoot, clearProjectRootCache };
 
 /**
@@ -1251,14 +1251,15 @@ function registerExitHandlers(): void {
   };
 
   process.on('beforeExit', cleanup);
+  // A claimed lifecycle owner (the MCP server) closes this store at the end of
+  // its shutdown on every path (EOF, JSON-RPC shutdown, signals, watchdog), so
+  // the WAL is checkpointed into memory.db. close() is idempotent.
+  registerStoreCloser(cleanup);
   const onSignal = (signal: NodeJS.Signals): void => {
-    // #801: when a lifecycle owner (the MCP server) is claimed, its graceful
-    // shutdown may still need this store, and exiting here would pre-empt it.
-    // Close at exit instead; close() is idempotent.
-    if (requestOwnedShutdown(signal)) {
-      process.once('exit', cleanup);
-      return;
-    }
+    // #801: when a lifecycle owner is claimed, its graceful shutdown may still
+    // need this store, and exiting here would pre-empt it. The owner closes it
+    // through the closer registered above.
+    if (requestOwnedShutdown(signal)) return;
     cleanup();
     process.exit(0);
   };
