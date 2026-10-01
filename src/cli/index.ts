@@ -265,6 +265,7 @@ program.hook('preAction', (_thisCommand, actionCommand) => {
 
 import { registerLazyCommand, registerLazyHandler } from './lazy-registry.js';
 import { isForegroundCommandActive } from './foreground-command.js';
+import { requestOwnedShutdown } from '../kernel/process-lifecycle.js';
 
 registerLazyHandler(program, 'init', 'Initialize the AQE v3 system',
   () => import('./handlers/init-handler.js').then(m => m.createInitHandler(cleanupAndExit)),
@@ -469,13 +470,18 @@ registerLazyCommand(program, {
 // Shutdown Handlers
 // ============================================================================
 
+// #801: `aqe mcp` runs the MCP server in this process and it claims the
+// lifecycle; exiting here would pre-empt its graceful shutdown (which releases
+// the shared patterns RVF lock). Every other command keeps the immediate exit.
 process.on('SIGINT', async () => {
+  if (requestOwnedShutdown('SIGINT')) return;
   console.log(chalk.yellow('\n\nShutting down...'));
   console.log(chalk.green('Shutdown complete\n'));
   await cleanupAndExit(0);
 });
 
 process.on('SIGTERM', async () => {
+  if (requestOwnedShutdown('SIGTERM')) return;
   console.log(chalk.yellow('\nReceived SIGTERM, shutting down gracefully...'));
   await cleanupAndExit(0);
 });

@@ -24,6 +24,8 @@ import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.j
 import { parallelPrefetch } from '../boot/parallel-prefetch.js';
 import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
+import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
+import { claimProcessLifecycle } from '../kernel/process-lifecycle.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +35,19 @@ const pkg = require('../../package.json') as { version: string };
 
 let server: MCPProtocolServer | null = null;
 let httpServer: HTTPServer | null = null;
+
+/**
+ * Close the shared RVF stores (#801). Closing the native handle is what removes
+ * its own `patterns.rvf.lock` marker; an adapter that never opened (or another
+ * live process's store) is untouched. Both resets are synchronous and
+ * idempotent: each handle is closed at most once however many shutdown paths
+ * reach this.
+ */
+function releaseSharedRvfStores(): void {
+  // Dual writer first, then the adapter, each independent of the other's failure.
+  try { resetSharedRvfDualWriter(); } catch { /* best effort */ }
+  try { resetSharedRvfAdapter(); } catch { /* best effort */ }
+}
 
 async function main(): Promise<void> {
   initFeatureFlagsFromEnv();
@@ -79,17 +94,25 @@ async function main(): Promise<void> {
       if (server) {
         await server.stop();
       }
-      // Close data stores AFTER server has drained connections
-      try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
-      // Shared pattern-store consumers leave singleton disposal to this lifecycle.
-      // Keep its close independent of dual-writer cleanup (including failed imports).
-      try { resetSharedRvfAdapter(); } catch { /* best effort */ }
-    } catch { /* best-effort — the watchdog still guarantees exit */ }
+    } catch { /* best-effort — the watchdog still guarantees exit */ } finally {
+      // Close data stores AFTER the server has drained connections, and even
+      // when a step above threw. Shared pattern-store consumers leave
+      // singleton disposal to this lifecycle.
+      releaseSharedRvfStores();
+    }
     process.exit(0);
   };
 
+  // #801: this server owns the process lifecycle. The kernel stores' and the
+  // `aqe` CLI wrapper's SIGINT/SIGTERM handlers, and the JSON-RPC `shutdown`
+  // method, route to this one shutdown instead of calling process.exit()
+  // underneath it (which skipped the drain and leaked patterns.rvf.lock).
+  claimProcessLifecycle({ name: 'mcp', shutdown: (reason) => { void shutdown(reason); } });
   process.on('SIGINT', () => { void shutdown('SIGINT'); });
   process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+  // Last line of defence for exits that bypass shutdown() (the watchdog, or a
+  // process.exit elsewhere): 'exit' listeners run synchronously on every exit.
+  process.on('exit', releaseSharedRvfStores);
 
   // Issue #513: when the parent (e.g. the Claude Code session) exits, our stdin
   // reaches EOF. An orphaned stdio MCP server has no parent to serve, so exit

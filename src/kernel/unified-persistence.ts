@@ -29,6 +29,7 @@ import {
   DEFAULT_UNIFIED_MEMORY_CONFIG,
 } from './unified-memory';
 import { MEMORY_CONSTANTS } from './constants.js';
+import { requestOwnedShutdown } from './process-lifecycle.js';
 
 // ============================================================================
 // Configuration (delegates to unified-memory)
@@ -319,15 +320,18 @@ function registerExitHandlers(): void {
 
   process.on('beforeExit', cleanup);
 
-  process.on('SIGINT', () => {
+  const onSignal = (signal: NodeJS.Signals): void => {
+    // #801: defer to a claimed lifecycle owner (the MCP server) instead of
+    // exiting under its graceful shutdown; close the facade at exit.
+    if (requestOwnedShutdown(signal)) {
+      process.once('exit', cleanup);
+      return;
+    }
     cleanup();
     process.exit(0);
-  });
-
-  process.on('SIGTERM', () => {
-    cleanup();
-    process.exit(0);
-  });
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
 }
 
 // Register exit handlers when module is loaded

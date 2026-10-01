@@ -85,6 +85,7 @@ import {
 // working unchanged. Imported (not bare re-exported) so internal callers below
 // have a usable local binding.
 import { findProjectRoot, clearProjectRootCache } from './project-root.js';
+import { requestOwnedShutdown } from './process-lifecycle.js';
 export { findProjectRoot, clearProjectRootCache };
 
 /**
@@ -1250,8 +1251,19 @@ function registerExitHandlers(): void {
   };
 
   process.on('beforeExit', cleanup);
-  process.on('SIGINT', () => { cleanup(); process.exit(0); });
-  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+  const onSignal = (signal: NodeJS.Signals): void => {
+    // #801: when a lifecycle owner (the MCP server) is claimed, its graceful
+    // shutdown may still need this store, and exiting here would pre-empt it.
+    // Close at exit instead; close() is idempotent.
+    if (requestOwnedShutdown(signal)) {
+      process.once('exit', cleanup);
+      return;
+    }
+    cleanup();
+    process.exit(0);
+  };
+  process.on('SIGINT', onSignal);
+  process.on('SIGTERM', onSignal);
 }
 
 registerExitHandlers();
