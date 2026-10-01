@@ -57,6 +57,7 @@ import {
   GOAP_SCHEMA,
   DREAM_SCHEMA,
   QE_PATTERNS_SCHEMA,
+  QE_PATTERNS_FTS_SCHEMA,
   MINCUT_SCHEMA,
   SONA_PATTERNS_SCHEMA,
   FEEDBACK_SCHEMA,
@@ -64,6 +65,7 @@ import {
   PATTERN_NULLS_SCHEMA,
   STATS_TABLES,
 } from './unified-memory-schemas.js';
+import { ensurePatternFtsInSync } from './pattern-fts-self-heal.js';
 import { applyMigration as applyLearningEvidenceMigration } from '../migrations/20260830_add_learning_evidence_tables.js';
 
 // CRDT imports for distributed state synchronization
@@ -350,6 +352,9 @@ export class UnifiedMemoryManager {
         signal.throwIfAborted();
       }
       await this.runMigrations();
+      // Not gated on schema version: repairs missing qe_patterns_fts sync
+      // triggers / index drift on every open. Never throws; silent when healthy.
+      ensurePatternFtsInSync(this.db!, { logPrefix: '[UnifiedMemory]' });
       signal?.throwIfAborted();
 
       // DATA LOSS PREVENTION: After migration, if the DB existed before and was
@@ -540,37 +545,14 @@ export class UnifiedMemoryManager {
         if (currentVersion < 7) this.db!.exec(SONA_PATTERNS_SCHEMA);
         if (currentVersion < 8) this.db!.exec(FEEDBACK_SCHEMA);
         if (currentVersion < 9) {
-          // Add FTS5 full-text search for qe_patterns (hybrid vector/text search)
-          this.db!.exec(`
-            CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
-              name, description, pattern_type, qe_domain,
-              content='qe_patterns',
-              content_rowid='rowid'
-            );
+          // Add FTS5 full-text search for qe_patterns (hybrid vector/text search).
+          // DDL shared with QE_PATTERNS_SCHEMA and the on-open self-heal.
+          this.db!.exec(QE_PATTERNS_FTS_SCHEMA);
 
-            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
-              INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-              VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
-              INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-              VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-            END;
-
-            CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
-              INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-              VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-              INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-              VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-            END;
-          `);
-
-          // Populate FTS5 index from existing patterns
-          this.db!.exec(`
-            INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-            SELECT rowid, name, description, pattern_type, qe_domain FROM qe_patterns;
-          `);
+          // Populate the index from existing patterns. 'rebuild' rather than a
+          // raw INSERT...SELECT so it's idempotent when QE_PATTERNS_SCHEMA's
+          // triggers already indexed some rows.
+          this.db!.exec(`INSERT INTO qe_patterns_fts(qe_patterns_fts) VALUES('rebuild')`);
         }
         if (currentVersion < 10) this.db!.exec(PATTERN_NULLS_SCHEMA);
         if (currentVersion < 11) this.migrateToV11GoapExecutionSteps();

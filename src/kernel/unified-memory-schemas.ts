@@ -266,6 +266,52 @@ export const DREAM_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_dream_status ON dream_cycles(status);
 `;
 
+// ============================================================================
+// qe_patterns FTS5 index (single source of truth)
+// ============================================================================
+//
+// Shared by QE_PATTERNS_SCHEMA, the v9 migration, the legacy SQLitePatternStore
+// schema and the on-open self-heal (pattern-fts-self-heal.ts), so the DDL can't
+// drift between paths. External-content table: the index stores no text of its
+// own and is kept in sync ONLY by the three triggers below.
+
+/** FTS5 external-content index over qe_patterns (hybrid vector/text search). */
+export const QE_PATTERNS_FTS_TABLE_DDL = `
+  CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
+    name, description, pattern_type, qe_domain,
+    content='qe_patterns',
+    content_rowid='rowid'
+  );
+`;
+
+/** Sync triggers keeping qe_patterns_fts in step with qe_patterns, keyed by name. */
+export const QE_PATTERNS_FTS_TRIGGER_DDL: Readonly<Record<string, string>> = Object.freeze({
+  qe_patterns_fts_insert: `
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+  END;
+`,
+  qe_patterns_fts_delete: `
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+  END;
+`,
+  qe_patterns_fts_update: `
+  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
+    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
+    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
+    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
+    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
+  END;
+`,
+});
+
+/** FTS5 table plus all sync triggers (idempotent). Requires qe_patterns to exist. */
+export const QE_PATTERNS_FTS_SCHEMA =
+  QE_PATTERNS_FTS_TABLE_DDL + Object.values(QE_PATTERNS_FTS_TRIGGER_DDL).join('');
+
 export const QE_PATTERNS_SCHEMA = `
   -- QE Patterns table (unified from sqlite-persistence.ts)
   CREATE TABLE IF NOT EXISTS qe_patterns (
@@ -379,30 +425,8 @@ export const QE_PATTERNS_SCHEMA = `
     FOREIGN KEY (execution_id) REFERENCES execution_results(id)
   );
 
-  -- FTS5 full-text search index for hybrid vector/text search
-  CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
-    name, description, pattern_type, qe_domain,
-    content='qe_patterns',
-    content_rowid='rowid'
-  );
-
-  -- FTS5 triggers to keep index in sync
-  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
-    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
-    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-  END;
-
-  CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
-    INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-    VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-    INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-    VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-  END;
+  -- FTS5 full-text search index + sync triggers for hybrid vector/text search
+  ${QE_PATTERNS_FTS_SCHEMA}
 
   -- QE Patterns indexes
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_domain ON qe_patterns(qe_domain);
