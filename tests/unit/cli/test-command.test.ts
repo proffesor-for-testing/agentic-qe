@@ -103,4 +103,33 @@ describe('#787 CLI behavior examples', () => {
       rmSync(directory, { recursive: true, force: true });
     }
   });
+
+  it('exits 1 when the domain rejects a well-formed fixture file (unknown export)', async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-795-'));
+    const source = join(directory, 'add.js');
+    const fixtures = join(directory, 'examples.json');
+    writeFileSync(source, 'export function add(a,b) { return a+b; }');
+    // Passes the shape validator; only the domain can tell `missing` is not an export.
+    writeFileSync(fixtures, JSON.stringify([{ functionName: 'missing', args: [1], expected: 1 }]));
+    const memory = { set: vi.fn(), search: vi.fn(async () => []), vectorSearch: vi.fn(async () => []), get: vi.fn() };
+    const generator = createTestGeneratorService(memory as never);
+    const context = { kernel: { getDomainAPIAsync: vi.fn(async () => generator), memory } } as unknown as CLIContext;
+    const cleanupAndExit = vi.fn(async (code: number): Promise<never> => {
+      throw Object.assign(new Error('exit'), { exitCode: code });
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      await expect(createTestCommand(context, cleanupAndExit, vi.fn(async () => true)).parseAsync([
+        'generate', source, '--behavior-examples', fixtures, '--framework', 'node-test',
+      ], { from: 'user' })).rejects.toMatchObject({ exitCode: 1 });
+      expect(cleanupAndExit.mock.calls[0]).toEqual([1]);
+      expect(error.mock.calls.flat().join(' ')).toContain("'missing' is not one");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
