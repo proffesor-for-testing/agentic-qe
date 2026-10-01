@@ -423,16 +423,17 @@ export class RvfPatternStore implements IPatternStore {
     // Uses getPattern(id) which joins the embedding from qe_pattern_embeddings.
     if (Array.isArray(query) && !this.adapter && this.sqliteStore && results.length === 0) {
       try {
-        const allPatterns = this.sqliteStore.getPatterns({ limit: limit * 4 });
+        const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId;
+        const embeddings = this.sqliteStore.getAllEmbeddings();
         const qArr = query as number[];
         const qMag = Math.sqrt(qArr.reduce((s, v) => s + v * v, 0));
 
         if (qMag > 0) {
-          for (const pat of allPatterns) {
-            if (!this.matchesFilters(pat, options)) continue;
-            // getPattern() joins the embedding; getPatterns() does not
-            const full = this.sqliteStore.getPattern(pat.id);
-            const emb = full?.embedding;
+          for (const row of embeddings) {
+            if (!activeSpaceId || row.spaceId !== activeSpaceId) continue;
+            const full = this.sqliteStore.getPattern(row.patternId);
+            if (!full || !this.matchesFilters(full, options)) continue;
+            const emb = row.embedding;
             if (!emb || emb.length !== qArr.length) continue;
 
             let dot = 0, eMag = 0;
@@ -468,15 +469,14 @@ export class RvfPatternStore implements IPatternStore {
         for (const pattern of allPatterns) {
           if (existingIds.has(pattern.id)) continue;
           if (!this.matchesFilters(pattern, options)) continue;
-          const reuseInfo = this.calculateReuseInfo(pattern, pattern.confidence);
           results.push({
             pattern,
             score: pattern.confidence,
-            matchType: 'exact',
-            similarity: pattern.confidence,
-            canReuse: reuseInfo.canReuse,
-            estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-            reuseConfidence: reuseInfo.reuseConfidence,
+            matchType: 'context',
+            similarity: 0,
+            canReuse: false,
+            estimatedTokenSavings: 0,
+            reuseConfidence: 0,
           });
         }
       } catch { /* SQLite unavailable */ }
@@ -491,7 +491,7 @@ export class RvfPatternStore implements IPatternStore {
 
         // #653: same vector/FTS5 blend as PatternStore for hits found by
         // both, so lexical relevance can reorder vector results.
-        const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
+        const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore * r.coverage]));
         for (const result of results) {
           const ftsScore = ftsScoreMap.get(result.pattern.id);
           if (ftsScore !== undefined) {
@@ -505,16 +505,15 @@ export class RvfPatternStore implements IPatternStore {
           if (pattern && this.matchesFilters(pattern, options)) {
             // Same keyword-only similarity rule as PatternStore (#653)
             const keywordScore = 0.5 * ftsResult.ftsScore * ftsResult.coverage;
-            const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
-            const reuseInfo = this.calculateReuseInfo(pattern, similarity);
+            const similarity = 0; // Lexical relevance is not vector similarity or safe reuse.
             results.push({
               pattern,
               score: keywordScore,
-              matchType: 'exact',
+              matchType: 'lexical',
               similarity,
-              canReuse: reuseInfo.canReuse,
-              estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-              reuseConfidence: reuseInfo.reuseConfidence,
+              canReuse: false,
+              estimatedTokenSavings: 0,
+              reuseConfidence: 0,
             });
           }
         }

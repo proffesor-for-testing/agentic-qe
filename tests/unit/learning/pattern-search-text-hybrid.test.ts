@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { blendFtsScore, createPatternStore, type PatternStore } from '../../../src/learning/pattern-store.js';
 import { RvfPatternStore } from '../../../src/learning/rvf-pattern-store.js';
 import { createSQLitePatternStore, type SQLitePatternStore } from '../../../src/learning/sqlite-persistence.js';
+import * as embeddings from '../../../src/learning/real-embeddings.js';
 import { QEReasoningBank } from '../../../src/learning/qe-reasoning-bank.js';
 import type { QEPattern } from '../../../src/learning/qe-patterns.js';
 import type { MemoryBackend } from '../../../src/kernel/interfaces.js';
@@ -153,7 +154,64 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     expect(result.success).toBe(true);
     const top = result.success ? result.value[0] : undefined;
     expect(top?.pattern.id).toBe('needle');
-    expect(top?.matchType).toBe('exact');
+    expect(top?.matchType).toBe('lexical');
+  });
+
+  it('routes with compatible stored pattern evidence instead of swallowing a provenance error', async () => {
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity')
+      .mockReturnValue({ spaceId: SPACE_ID } as never);
+    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: true, embeddingDimension: DIM });
+    Object.assign(bank, { initialized: true, patternStore: store });
+    const provider = vi.spyOn(embeddings, 'computeRealEmbedding').mockResolvedValue(UNRELATED_VECTOR);
+    const routedSearch = vi.spyOn(store, 'search');
+    try {
+      const result = await bank.routeTask({ task: 'idempotency key replay', domain: 'test-generation' });
+      expect(result.success).toBe(true);
+      expect(result.success ? result.value.patterns.map(p => p.id) : []).toContain('needle');
+      expect(routedSearch).toHaveBeenCalledWith(UNRELATED_VECTOR, expect.objectContaining({
+        embeddingSpaceId: SPACE_ID, useVectorSearch: true,
+      }));
+    } finally { identity.mockRestore(); provider.mockRestore(); routedSearch.mockRestore(); }
+  });
+
+  it('never upgrades text fallback or list-all metadata into reusable vector evidence', async () => {
+    const reusable = { ...pattern('reusable', 'sentinel', 'sentinel', 1),
+      reusable: true, successRate: 1, confidence: 1, averageTokenSavings: 100 };
+    await store.store(reusable);
+    vi.spyOn(sqlite, 'searchFTS').mockImplementation(() => { throw new Error('FTS unavailable'); });
+    for (const query of ['sentinel', '']) {
+      const result = await store.search(query);
+      const hit = result.success ? result.value.find(r => r.pattern.id === reusable.id) : undefined;
+      expect(hit).toMatchObject({ matchType: query ? 'lexical' : 'context', similarity: 0,
+        canReuse: false, estimatedTokenSavings: 0 });
+    }
+  });
+
+  it('requires provenance before Hopfield recall and honors disabled vector search', async () => {
+    Object.assign(store, { ensureHNSW: async () => ({ insert: async () => undefined, search: async () => [] }) });
+    await store.store({ ...NEEDLE, embedding: UNRELATED_VECTOR });
+    const verified = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID });
+    expect(verified.success && verified.value.some(hit => hit.matchType === 'vector' && hit.similarity > 0.98)).toBe(true);
+    const unverified = await store.search(UNRELATED_VECTOR, { useVectorSearch: false });
+    expect(unverified.success).toBe(false);
+    const disabled = await store.search(UNRELATED_VECTOR, {
+      embeddingSpaceId: SPACE_ID, useVectorSearch: false, textQuery: 'idempotency key replay',
+    });
+    expect(disabled.success).toBe(true);
+    if (disabled.success) {
+      expect(disabled.value.length).toBeGreaterThan(0);
+      for (const hit of disabled.value) expect(hit).toMatchObject({ matchType: 'lexical', similarity: 0, canReuse: false });
+    }
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity').mockReturnValue({ spaceId: 'new-space' } as never);
+    try {
+      const switched = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: 'new-space' });
+      expect(switched.success).toBe(true);
+      if (switched.success) for (const hit of switched.value) {
+        expect(hit.matchType).not.toBe('vector');
+        expect(hit.similarity).toBe(0);
+        expect(hit.canReuse).toBe(false);
+      }
+    } finally { identity.mockRestore(); }
   });
 
   it('never reports a keyword-only hit as a near-duplicate', async () => {
@@ -161,25 +219,27 @@ describe('PatternStore.search with a pre-computed vector and textQuery (#653)', 
     // sharing query words must not qualify, however the BM25 score normalizes.
     const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
 
-    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
     // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
     for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
-  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+  it('keeps whole-phrase keyword evidence separate from vector reuse', async () => {
     const result = await store.search('Idempotency key replay guard', { limit: 5 });
 
     const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
-    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
+    expect(needle?.similarity).toBe(0);
+    expect(needle?.matchType).toBe('lexical');
+    expect(needle?.canReuse).toBeFalsy();
   });
 
   it('keeps vector-only behaviour when no textQuery is supplied', async () => {
     const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, limit: 3 });
 
     expect(result.success).toBe(true);
-    const exact = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const exact = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(exact).toEqual([]);
   });
 });
@@ -222,21 +282,33 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     expect(result.success ? result.value.map(r => r.pattern.id) : []).toContain('needle');
   });
 
+  it('does not treat list-all quality metadata as vector reuse evidence', async () => {
+    const reusable = { ...pattern('reusable', 'sentinel', 'sentinel', 1),
+      reusable: true, successRate: 1, confidence: 1, averageTokenSavings: 100 };
+    sqlite.storePattern(reusable);
+    const result = await store.search('');
+    const hit = result.success ? result.value.find(r => r.pattern.id === reusable.id) : undefined;
+    expect(hit).toMatchObject({ matchType: 'context', similarity: 0,
+      canReuse: false, estimatedTokenSavings: 0 });
+  });
+
   it('never reports a keyword-only hit as a near-duplicate', async () => {
     const result = await store.search('Generate unit tests for UserService idempotency', { limit: 5 });
 
-    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'exact') : [];
+    const keywordHits = result.success ? result.value.filter(r => r.matchType === 'lexical') : [];
     expect(keywordHits.length).toBeGreaterThan(0);
     for (const hit of keywordHits) expect(hit.similarity).toBeLessThanOrEqual(0.5);
     // Below every early-exit threshold (lowest preset 0.7): keywords alone never skip work
     for (const hit of keywordHits) expect(hit.score).toBeLessThanOrEqual(0.5);
   });
 
-  it('still treats a whole-phrase keyword hit as a near-duplicate', async () => {
+  it('keeps whole-phrase keyword evidence separate from vector reuse', async () => {
     const result = await store.search('Idempotency key replay guard', { limit: 5 });
 
     const needle = result.success ? result.value.find(r => r.pattern.id === 'needle') : undefined;
-    expect(needle?.similarity).toBeGreaterThanOrEqual(0.85);
+    expect(needle?.similarity).toBe(0);
+    expect(needle?.matchType).toBe('lexical');
+    expect(needle?.canReuse).toBeFalsy();
   });
 
   it('blends FTS5 relevance into vector hits the same way PatternStore does', async () => {
@@ -277,6 +349,24 @@ describe('RvfPatternStore.search with a pre-computed vector and textQuery (#653)
     expect(pageHit?.score ?? 0).toBeLessThan(0.45);
   });
 
+  it('does not boost a weak vector on one common query term', async () => {
+    adapter.search.mockReturnValue([{ id: 'needle', distance: 0.7, score: 0.3 }]);
+    vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 1, phrase: false, coverage: 0.1 }]);
+    const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, textQuery: 'test a rare invariant' });
+    expect(result.success && result.value[0].score).toBeCloseTo(0.3);
+    expect(result.success && result.value[0].similarity).toBeCloseTo(0.3);
+  });
+
+  it('scans every compatible embedding when RVF is unbound, excluding alien and legacy spaces', async () => {
+    Object.assign(store, { adapter: null });
+    for (let i = 0; i < 8; i++) {
+      sqlite.storePattern(pattern(`alien-${i}`, 'Alien vector', 'Different embedding space'), UNRELATED_VECTOR, 'alien');
+    }
+    sqlite.storePattern(pattern('late-compatible', 'Compatible vector', 'Same embedding space'), UNRELATED_VECTOR, SPACE_ID);
+    const result = await store.search(UNRELATED_VECTOR, { embeddingSpaceId: SPACE_ID, limit: 1 });
+    expect(result.success ? result.value.map(r => r.pattern.id) : []).toEqual(['late-compatible']);
+  });
+
   it('never lowers a strong vector hit because its lexical score is weaker', async () => {
     adapter.search.mockReturnValue([{ id: 'needle', distance: 0.02, score: 0.98 }]);
     vi.spyOn(sqlite, 'searchFTS').mockReturnValue([{ id: 'needle', ftsScore: 0.1, phrase: false, coverage: 1 }]);
@@ -313,8 +403,30 @@ describe('QEReasoningBank.searchPatterns forwards the original text (#653)', () 
 
     expect(search).toHaveBeenCalledTimes(1);
     const [query, options] = search.mock.calls[0] as unknown as [number[], Record<string, unknown>];
-    expect(Array.isArray(query)).toBe(true);
+    expect(query).toBe('idempotency key replay');
+    expect(options.useVectorSearch).toBe(false);
     expect(options.textQuery).toBe('idempotency key replay');
+  });
+
+  it.each(['hash', 'resized', 'failed'] as const)('does not stamp global provider identity on %s vectors', async mode => {
+    const identity = vi.spyOn(embeddings, 'getActiveEmbeddingSpaceIdentity').mockReturnValue({ spaceId: SPACE_ID } as never);
+    const provider = vi.spyOn(embeddings, 'computeRealEmbedding');
+    if (mode === 'failed') provider.mockRejectedValue(new Error('provider offline'));
+    else provider.mockResolvedValue(Array(384).fill(0.1));
+    const bank = new QEReasoningBank(memoryBackend(), undefined, { useONNXEmbeddings: mode !== 'hash', embeddingDimension: DIM });
+    const search = vi.fn(async () => ({ success: true as const, value: [] }));
+    Object.assign(bank, { initialized: true, patternStore: { search } });
+    try {
+      await bank.routeTask({ task: 'idempotency key replay', domain: 'test-generation' });
+      await bank.searchPatterns('idempotency key replay');
+      for (const call of search.mock.calls) {
+        const [query, options] = call as unknown as [unknown, Record<string, unknown>];
+        expect(query).toBe('idempotency key replay');
+        expect(options.embeddingSpaceId).toBeUndefined();
+        expect(options.useVectorSearch).toBe(false);
+      }
+      expect(search).toHaveBeenCalledTimes(2);
+    } finally { identity.mockRestore(); provider.mockRestore(); }
   });
 
   it('does not attach a textQuery to the empty list-all query', async () => {

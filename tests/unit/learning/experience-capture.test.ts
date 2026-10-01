@@ -346,13 +346,14 @@ describe('ExperienceCaptureService', () => {
       expect(patternStore.create).not.toHaveBeenCalled();
     });
 
-    it('should reinforce existing pattern if similar found', async () => {
+    it('should reinforce the exact originating experience without vector similarity', async () => {
       // Setup: pattern store returns existing similar pattern
       (patternStore.search as any).mockResolvedValue(
         ok([
           {
-            pattern: { id: 'existing-pattern', usageCount: 2 },
-            similarity: 0.9, // Above threshold (0.85)
+            pattern: { id: 'existing-pattern', usageCount: 2, patternType: 'test-template',
+              context: { experienceOrigin: { task: 'Similar task', domain: null, patternType: 'test-template' } } },
+            similarity: 0, // Exact experience identity is independent of lexical similarity
             score: 0.9,
           },
         ])
@@ -377,6 +378,8 @@ describe('ExperienceCaptureService', () => {
           {
             pattern: {
               id: 'promotable-pattern',
+              patternType: 'test-template',
+              context: { experienceOrigin: { task: 'Promote trigger task', domain: null, patternType: 'test-template' } },
               tier: 'short-term',
               usageCount: 3,
             },

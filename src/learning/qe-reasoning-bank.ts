@@ -114,6 +114,7 @@ import {
  */
 export class QEReasoningBank implements IQEReasoningBank {
   private readonly config: QEReasoningBankConfig;
+  private readonly embeddingProvenance = new WeakMap<number[], string>();
   private patternStore: IPatternStore;
   private initialized = false;
   private sqliteStore: SQLitePatternStore | null = null;
@@ -414,7 +415,11 @@ export class QEReasoningBank implements IQEReasoningBank {
         useVectorSearch = false;
         searchQuery = '';
       } else {
-        searchQuery = await this.embed(query);
+        const embedding = await this.embed(query);
+        // Hash fallback and resized vectors do not belong to the active provider.
+        // Keep their text searchable without claiming semantic comparability.
+        searchQuery = this.embeddingProvenance.has(embedding) ? embedding : query;
+        useVectorSearch = Array.isArray(searchQuery);
       }
     }
 
@@ -424,7 +429,7 @@ export class QEReasoningBank implements IQEReasoningBank {
       textQuery: typeof query === 'string' && query.trim() ? query : options?.textQuery,
       useVectorSearch,
       embeddingSpaceId: typeof query === 'string'
-        ? getActiveEmbeddingSpaceIdentity()?.spaceId
+        ? (Array.isArray(searchQuery) ? this.embeddingProvenance.get(searchQuery) : undefined)
         : options?.embeddingSpaceId,
     });
   }
@@ -542,11 +547,13 @@ export class QEReasoningBank implements IQEReasoningBank {
 
       // 2. Search for similar patterns
       const embedding = await this.embed(request.task);
-      const patternResults = await this.patternStore.search(embedding, {
+      const embeddingSpaceId = this.embeddingProvenance.get(embedding);
+      const patternResults = await this.patternStore.search(embeddingSpaceId ? embedding : request.task, {
         limit: this.config.maxRoutingCandidates,
         domain: detectedDomains[0],
-        useVectorSearch: true,
+        useVectorSearch: Boolean(embeddingSpaceId),
         textQuery: request.task,
+        embeddingSpaceId,
       });
 
       const patterns = patternResults.success
@@ -737,6 +744,8 @@ export class QEReasoningBank implements IQEReasoningBank {
         if (embedding.length !== this.config.embeddingDimension) {
           return resizeEmbedding(embedding, this.config.embeddingDimension);
         }
+        const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+        if (spaceId) this.embeddingProvenance.set(embedding, spaceId);
         return embedding;
       } catch (error) {
         // ADR-097: if the external embedder endpoint is configured, we MUST NOT

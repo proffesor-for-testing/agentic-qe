@@ -29,7 +29,8 @@ import {
   type TaskOutcome,
 } from '../services/reasoning-bank-service';
 import type { ModelTier } from '../../integrations/agentic-flow';
-import type { QEDomain, QEPattern } from '../../learning/qe-patterns.js';
+import type { QEDomain } from '../../learning/qe-patterns.js';
+import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
 import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { ALL_DOMAINS, isDomainName } from '../../shared/types/index.js';
@@ -362,11 +363,11 @@ export async function handleTaskOrchestrate(
     // routing — the catalog of consolidated long-term patterns was never
     // consulted for new tasks. Fail-soft: empty array on error.
     const patternHintMatches = await reasoningBankService
-      .searchPatterns(params.task, {
+      .searchPatternMatches(params.task, {
         limit: 5,
         domain: (params.context?.project as QEDomain | undefined) ?? (inferredDomain as QEDomain | undefined),
       })
-      .catch(() => [] as QEPattern[]);
+      .catch(() => [] as RealQEPatternSearchResult[]);
 
     // Parse task description to determine task type
     const taskType = inferTaskType(params.task);
@@ -407,13 +408,15 @@ export async function handleTaskOrchestrate(
         // workflow branch routes through executeWorkflow, so the same catalog
         // of consolidated long-term patterns should reach it.
         patternHints: patternHintMatches.length > 0
-          ? patternHintMatches.map(p => ({
+          ? patternHintMatches.map(({ pattern: p, similarity, score, matchType, canReuse }) => ({
               patternId: p.id,
               name: p.name,
               description: p.description,
               confidence: p.confidence,
-              similarity: p.qualityScore,
-              canReuse: p.tier === 'long-term',
+              similarity,
+              score,
+              matchType,
+              canReuse,
             }))
           : undefined,
       };
@@ -495,13 +498,15 @@ export async function handleTaskOrchestrate(
         } : undefined,
         // HNSW A pattern hints for the executing agent
         patternHints: patternHintMatches.length > 0
-          ? patternHintMatches.map(p => ({
+          ? patternHintMatches.map(({ pattern: p, similarity, score, matchType, canReuse }) => ({
               patternId: p.id,
               name: p.name,
               description: p.description,
               confidence: p.confidence,
-              similarity: p.qualityScore,
-              canReuse: p.tier === 'long-term',
+              similarity,
+              score,
+              matchType,
+              canReuse,
             }))
           : undefined,
       },

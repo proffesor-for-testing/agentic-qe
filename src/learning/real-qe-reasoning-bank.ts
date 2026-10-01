@@ -20,6 +20,7 @@ import { LoggerFactory } from '../logging/index.js';
 import type { Logger } from '../logging/index.js';
 import { toError, toErrorMessage } from '../shared/error-utils.js';
 import { maybeEnhanceRoutingWithPatterns } from './pattern-routing-guidance.js';
+import { blendFtsScore, DEFAULT_PATTERN_STORE_CONFIG } from './pattern-store.js';
 import { EMBEDDING_SPACE_CANARY } from './embedding-space.js';
 
 const logger: Logger = LoggerFactory.create('RealQEReasoningBank');
@@ -140,6 +141,15 @@ export const DEFAULT_REAL_CONFIG: RealQEReasoningBankConfig = {
 // ============================================================================
 // Routing Types
 // ============================================================================
+
+/** Ranking evidence keeps lexical relevance separate from vector reuse safety. */
+export interface RealQEPatternSearchResult {
+  pattern: QEPattern;
+  score: number;
+  similarity: number;
+  matchType: 'vector' | 'lexical';
+  canReuse: boolean;
+}
 
 export interface RealQERoutingRequest {
   task: string;
@@ -608,7 +618,7 @@ export class RealQEReasoningBank {
   async searchQEPatterns(
     query: string,
     options: { limit?: number; domain?: QEDomain; minSimilarity?: number } = {}
-  ): Promise<Result<Array<{ pattern: QEPattern; similarity: number }>>> {
+  ): Promise<Result<RealQEPatternSearchResult[]>> {
     // Require explicit initialization - don't auto-initialize to avoid memory issues
 
     const startTime = performance.now();
@@ -625,14 +635,14 @@ export class RealQEReasoningBank {
       const limit = options.limit || 10;
       const results = this.hnswIndex.searchKnn(queryEmbedding, limit * 2); // Get extra for filtering
 
-      const patterns: Array<{ pattern: QEPattern; similarity: number }> = [];
+      const patterns: RealQEPatternSearchResult[] = [];
 
-      for (let i = 0; i < results.neighbors.length && patterns.length < limit; i++) {
+      for (let i = 0; i < results.neighbors.length; i++) {
         const hnswIndex = results.neighbors[i];
         const distance = results.distances[i];
         const similarity = 1 - distance; // Convert distance to similarity
 
-        if (options.minSimilarity && similarity < options.minSimilarity) {
+        if (options.minSimilarity !== undefined && similarity < options.minSimilarity) {
           continue;
         }
 
@@ -647,15 +657,37 @@ export class RealQEReasoningBank {
           continue;
         }
 
-        patterns.push({ pattern, similarity });
+        const reuse = DEFAULT_PATTERN_STORE_CONFIG.reuseOptimization;
+        const ageDays = (Date.now() - new Date(pattern.lastUsedAt).getTime()) / 86_400_000;
+        patterns.push({ pattern, similarity, score: similarity, matchType: 'vector',
+          canReuse: Boolean(pattern.reusable && similarity >= reuse.minSimilarityForReuse
+            && pattern.successRate >= reuse.minSuccessRateForReuse && ageDays <= reuse.maxAgeForReuse),
+        });
       }
+
+      const existing = new Map(patterns.map(hit => [hit.pattern.id, hit]));
+      for (const lexical of this.sqliteStore.searchFTS(query, limit * 2)) {
+        const vector = existing.get(lexical.id);
+        if (vector) {
+          vector.score = blendFtsScore(vector.score, lexical.ftsScore * lexical.coverage);
+          continue;
+        }
+        // A vector threshold requires measured vector evidence. A rejected
+        // vector must never re-enter through the lexical-only branch.
+        if (options.minSimilarity !== undefined) continue;
+        const pattern = this.sqliteStore.getPattern(lexical.id);
+        if (!pattern || (options.domain && pattern.qeDomain !== options.domain)) continue;
+        patterns.push({ pattern, score: 0.5 * lexical.ftsScore * lexical.coverage,
+          similarity: 0, matchType: 'lexical', canReuse: false });
+      }
+      patterns.sort((a, b) => b.score - a.score);
 
       const searchTime = performance.now() - startTime;
       if (searchTime > 10) {
         logger.warn('Slow search', { searchTimeMs: Number(searchTime.toFixed(1)) });
       }
 
-      return ok(patterns);
+      return ok(patterns.slice(0, limit));
     } catch (error) {
       return err(toError(error));
     }

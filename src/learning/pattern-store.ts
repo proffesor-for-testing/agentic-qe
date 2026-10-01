@@ -109,11 +109,13 @@ function getHDCTokenFingerprinter(): HDCPatternFingerprinter | null {
 /** Module-level Hopfield memory for exact pattern recall */
 let hopfieldMemory: HopfieldMemory | null = null;
 let hopfieldDimension = 0;
+let hopfieldSpaceId: string | undefined;
 
-function getHopfieldMemory(dimension: number): HopfieldMemory {
-  if (!hopfieldMemory || hopfieldDimension !== dimension) {
+function getHopfieldMemory(dimension: number, spaceId: string): HopfieldMemory {
+  if (!hopfieldMemory || hopfieldDimension !== dimension || hopfieldSpaceId !== spaceId) {
     hopfieldMemory = createHopfieldMemory({ dimension, maxPatterns: 10000 });
     hopfieldDimension = dimension;
+    hopfieldSpaceId = spaceId;
   }
   return hopfieldMemory;
 }
@@ -347,7 +349,7 @@ export interface PatternSearchResult {
   score: number;
 
   /** How the pattern was matched */
-  matchType: 'vector' | 'exact' | 'context';
+  matchType: 'vector' | 'exact' | 'lexical' | 'context';
 
   /** Similarity score for vector matches (ADR-042) */
   similarity: number;
@@ -971,9 +973,9 @@ export class PatternStore implements IPatternStore {
     }
 
     // R5: Store embedding in Hopfield memory for exact recall
-    if (isHopfieldMemoryEnabled() && pattern.embedding) {
+    if (isHopfieldMemoryEnabled() && pattern.embedding && activeSpaceId) {
       try {
-        const hopfield = getHopfieldMemory(pattern.embedding.length);
+        const hopfield = getHopfieldMemory(pattern.embedding.length, activeSpaceId);
         hopfield.store(new Float32Array(pattern.embedding), {
           id: pattern.id,
           name: pattern.name,
@@ -1136,10 +1138,14 @@ export class PatternStore implements IPatternStore {
     const results: PatternSearchResult[] = [];
 
     try {
+      const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
+      if (Array.isArray(query) && (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId)) {
+        throw new Error('VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId');
+      }
       // R5: Exact recall via Hopfield — check for high-confidence exact match
-      if (Array.isArray(query) && isHopfieldMemoryEnabled()) {
+      if (Array.isArray(query) && options.useVectorSearch !== false && activeSpaceId && isHopfieldMemoryEnabled()) {
         try {
-          const hopfield = getHopfieldMemory(query.length);
+          const hopfield = getHopfieldMemory(query.length, activeSpaceId);
           if (hopfield.getPatternCount() > 0) {
             const recallResult = hopfield.recall(new Float32Array(query));
             if (recallResult && recallResult.similarity > 0.98) {
@@ -1166,12 +1172,6 @@ export class PatternStore implements IPatternStore {
 
       // Vector search if query is embedding and HNSW available (lazy-load)
       if (Array.isArray(query) && options.useVectorSearch !== false) {
-        const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.config.embeddingSpaceId;
-        if (!activeSpaceId || options.embeddingSpaceId !== activeSpaceId) {
-          throw new Error(
-            'VECTOR_SPACE_UNVERIFIED: pre-computed query vectors require the active embeddingSpaceId',
-          );
-        }
         const hnsw = await this.ensureHNSW();
         if (hnsw) {
           const hnswResults = await hnsw.search(query, limit * 2);
@@ -1201,7 +1201,7 @@ export class PatternStore implements IPatternStore {
         try {
           const ftsResults = this.sqliteStore.searchFTS(ftsText, limit * 2);
           if (ftsResults.length > 0) {
-            const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore]));
+            const ftsScoreMap = new Map(ftsResults.map(r => [r.id, r.ftsScore * r.coverage]));
             const existingIds = new Set(results.map(r => r.pattern.id));
 
             // Boost existing vector results that also match FTS5
@@ -1217,22 +1217,18 @@ export class PatternStore implements IPatternStore {
               if (existingIds.has(ftsResult.id)) continue;
               const pattern = await this.get(ftsResult.id);
               if (pattern && this.matchesFilters(pattern, options)) {
-                // #653: ftsScore is normalized to the best hit, so only a
-                // whole-phrase hit may read as a near-duplicate; term-only hits
-                // report the conservative keyword score as their similarity.
-                // Scaled by query-term coverage so the best of a weak lexical
-                // set (e.g. one shared stopword) cannot outrank vector hits.
+                // Relative BM25 is weighted by query coverage for ranking;
+                // lexical evidence alone never authorizes vector reuse.
                 const keywordScore = 0.5 * ftsResult.ftsScore * ftsResult.coverage;
-                const similarity = ftsResult.phrase ? ftsResult.ftsScore : keywordScore;
-                const reuseInfo = this.calculateReuseInfo(pattern, similarity);
+                const similarity = 0; // Lexical relevance is not vector similarity or safe reuse.
                 results.push({
                   pattern,
-                  score: keywordScore, // FTS-only: exact keyword match is valuable
-                  matchType: 'exact',
+                  score: keywordScore,
+                  matchType: 'lexical',
                   similarity,
-                  canReuse: reuseInfo.canReuse,
-                  estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-                  reuseConfidence: reuseInfo.reuseConfidence,
+                  canReuse: false,
+                  estimatedTokenSavings: 0,
+                  reuseConfidence: 0,
                 });
               }
             }
@@ -1414,15 +1410,14 @@ export class PatternStore implements IPatternStore {
       }
 
       if (score > 0 || !queryLower) {
-        const reuseInfo = this.calculateReuseInfo(pattern, score);
         results.push({
           pattern,
-          score: score || pattern.qualityScore,
-          matchType: queryLower ? 'exact' : 'context',
-          similarity: score || pattern.qualityScore,
-          canReuse: reuseInfo.canReuse,
-          estimatedTokenSavings: reuseInfo.estimatedTokenSavings,
-          reuseConfidence: reuseInfo.reuseConfidence,
+          score: queryLower ? 0.5 * score : pattern.qualityScore,
+          matchType: queryLower ? 'lexical' : 'context',
+          similarity: 0,
+          canReuse: false,
+          estimatedTokenSavings: 0,
+          reuseConfidence: 0,
         });
       }
     }

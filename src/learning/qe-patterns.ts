@@ -201,6 +201,9 @@ export interface QEPattern {
  * Pattern applicability context
  */
 export interface QEPatternContext {
+  /** Exact originating experience; reinforcement identity, never a similarity claim. */
+  readonly experienceOrigin?: { task: string; domain: QEDomain | null; patternType: QEPatternType };
+
   /** Programming language this pattern applies to */
   readonly language?: ProgrammingLanguage;
 
