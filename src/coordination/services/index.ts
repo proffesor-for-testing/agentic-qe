@@ -7,6 +7,10 @@ export {
   TaskAuditLogger,
   createTaskAuditLogger,
   type TaskAuditEntry,
+  type TaskAuditSequencedEntry,
   type TaskAuditConfig,
+  type TaskAuditFilter,
+  type TaskAuditWindow,
+  type TaskAuditSnapshot,
   type TaskOperation,
 } from './task-audit-logger';
