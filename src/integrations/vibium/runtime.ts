@@ -1,11 +1,30 @@
 /** Resolve the opt-in Vibium runtime for both local and global AQE installs. */
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 export const VIBIUM_SETUP = 'aqe init --browser-engine (or npm install vibium@^26.8.21)';
 type Runtime = typeof import('vibium');
 const requireFromHere = createRequire(import.meta.url);
+
+/**
+ * How to run npm without a shell. On Windows `npm` is an `npm.cmd` shim, which
+ * execFile cannot start without `shell: true` (EINVAL/ENOENT since the
+ * CVE-2024-27980 fix), so run the npm CLI bundled next to node.exe instead.
+ * Falls back to plain `npm` when that layout is absent.
+ */
+export function npmInvocation(
+  platform: NodeJS.Platform = process.platform,
+  execPath: string = process.execPath,
+  exists: (path: string) => boolean = existsSync,
+): [string, string[]] {
+  if (platform === 'win32') {
+    const npmCli = join(dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    if (exists(npmCli)) return [execPath, [npmCli]];
+  }
+  return ['npm', []];
+}
 
 /** Never install or download anything while probing availability. */
 function resolveRuntime(): string {
@@ -17,7 +36,8 @@ function resolveRuntime(): string {
     } catch { /* No project-local opt-in runtime. Try global setup below. */ }
     // A global CLI installation is not on Node's normal module search path.
     // npm root is read-only and honors the same npm prefix as explicit setup.
-    const root = execFileSync('npm', ['root', '-g'], {
+    const [npmBin, npmPrefixArgs] = npmInvocation();
+    const root = execFileSync(npmBin, [...npmPrefixArgs, 'root', '-g'], {
       encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'pipe'],
     }).trim();
     return requireFromHere.resolve(join(root, 'vibium'));

@@ -8,7 +8,7 @@ const seam = vi.hoisted(() => ({
 vi.mock('node:module', () => ({ createRequire: () => Object.assign(() => seam.runtime, { resolve: seam.resolve }) }));
 vi.mock('node:child_process', () => ({ execFileSync: seam.execute }));
 vi.mock('vibium', () => seam.runtime);
-import { isVibiumReady, loadVibium } from '../../../src/integrations/vibium/runtime.js';
+import { isVibiumReady, loadVibium, npmInvocation } from '../../../src/integrations/vibium/runtime.js';
 
 describe('Optional modern Vibium runtime contract', () => {
   beforeEach(() => {
@@ -79,5 +79,18 @@ describe('Optional modern Vibium runtime contract', () => {
     seam.execute.mockReturnValue('/global/node_modules');
     expect(isVibiumReady()).toBe(false);
     expect(seam.execute.mock.calls.every(call => call[1].join(' ') === 'root -g')).toBe(true);
+  });
+
+  // Windows: `npm` is an npm.cmd shim that execFile cannot spawn without a shell.
+  it('runs the npm CLI bundled with node on Windows instead of the npm.cmd shim', () => {
+    const node = 'C:\\Program Files\\nodejs\\node.exe';
+    const [bin, prefix] = npmInvocation('win32', node, () => true);
+    expect(bin).toBe(node);
+    expect(prefix).toHaveLength(1);
+    expect(prefix[0]).toMatch(/node_modules[\\/]npm[\\/]bin[\\/]npm-cli\.js$/);
+  });
+  it('falls back to plain npm when the bundled npm CLI is absent or not on Windows', () => {
+    expect(npmInvocation('win32', 'C:\\node\\node.exe', () => false)).toEqual(['npm', []]);
+    expect(npmInvocation('linux', '/usr/bin/node', () => true)).toEqual(['npm', []]);
   });
 });
