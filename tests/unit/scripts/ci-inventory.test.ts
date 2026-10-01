@@ -73,35 +73,69 @@ describe('CI inventory evidence (#690)', () => {
   }));
 
   it.each([
-    [{ GITHUB_EVENT_NAME: 'pull_request', CI_SOURCE_SHA: HEAD, GITHUB_SHA: MERGE }, HEAD, 'pr-head', 'PR head commit'],
-    [{ GITHUB_EVENT_NAME: 'pull_request', GITHUB_SHA: MERGE }, MERGE, 'pr-merge', 'PR merge commit'],
-    [{ GITHUB_EVENT_NAME: 'push', CI_SOURCE_SHA: HEAD }, HEAD, 'commit', 'Commit'],
-    [{ GITHUB_EVENT_NAME: 'push', GITHUB_SHA: MERGE }, MERGE, 'commit', 'Commit'],
-  ])('labels the reported revision by provenance (%o)', (env, sha, kind, label) => fixture(root => {
+    [{ GITHUB_EVENT_NAME: 'pull_request', CI_PR_HEAD_SHA: HEAD, GITHUB_SHA: MERGE }, MERGE, 'pr-merge', HEAD,
+      'Scanned commit (PR merge commit'],
+    [{ GITHUB_EVENT_NAME: 'pull_request', GITHUB_SHA: MERGE }, MERGE, 'pr-merge', null, 'Scanned commit (PR merge commit'],
+    [{ GITHUB_EVENT_NAME: 'push', CI_PR_HEAD_SHA: HEAD, GITHUB_SHA: MERGE }, MERGE, 'commit', null, 'Scanned commit**'],
+    [{ GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_SHA: MERGE }, MERGE, 'commit', null, 'Scanned commit**'],
+  ])('labels the scanned revision by provenance (%o)', (env, sha, kind, head, label) => fixture(root => {
     mkdirSync(join(root, 'tests'));
     const revision = resolveSourceRevision(env);
-    expect(revision).toEqual({ sourceRevision: sha, sourceRevisionKind: kind });
-    expect(renderInventory(collectInventory({ root, ...revision }))).toContain(`**${label}`);
-    expect(renderInventory(collectInventory({ root, ...revision }))).toContain(`: ${sha}`);
+    expect(revision).toEqual({ sourceRevision: sha, sourceRevisionKind: kind, prHeadRevision: head });
+    const markdown = renderInventory(collectInventory({ root, ...revision }));
+    expect(markdown).toContain(`**${label}`);
+    expect(markdown).toContain(`: ${sha}`);
+    if (head) expect(markdown).toContain(`**PR head commit**: ${head}`);
+    else expect(markdown).not.toContain('PR head commit');
   }));
 
-  it.each([{}, { CI_SOURCE_SHA: 'head-sha' }, { GITHUB_SHA: '<img src=x>' }])(
-    'reports a missing or non-hex revision as unavailable (%o)', env => fixture(root => {
-      mkdirSync(join(root, 'tests'));
-      expect(resolveSourceRevision(env)).toEqual({ sourceRevision: null, sourceRevisionKind: null });
-      expect(renderInventory(collectInventory({ root, ...resolveSourceRevision(env) })))
-        .toContain('**Source commit**: unavailable');
-    }));
+  // On pull_request runs actions/checkout scans GitHub's test merge commit (github.sha),
+  // which also contains base-branch changes. Its counts must not be attributed to the PR head.
+  it('attributes counts to the scanned merge commit and reports the PR head only as context', () => fixture(root => {
+    mkdirSync(join(root, 'tests'));
+    const env = { GITHUB_EVENT_NAME: 'pull_request', GITHUB_SHA: MERGE, CI_PR_HEAD_SHA: HEAD };
+    const report = collectInventory({ root, ...resolveSourceRevision(env) });
+    expect(report).toMatchObject({ sourceRevision: MERGE, sourceRevisionKind: 'pr-merge', prHeadRevision: HEAD });
+    const [, , revisionLine, headLine] = renderInventory(report).split('\n');
+    expect(revisionLine).toMatch(/^\*\*Scanned commit\b.*PR merge commit/);
+    expect(revisionLine).toContain(MERGE);
+    expect(revisionLine).not.toContain(HEAD);
+    expect(headLine).toContain(`**PR head commit**: ${HEAD}`);
+    expect(headLine).toContain('base-branch changes');
+  }));
+
+  it('scans the commit it reports: the dashboard checks out github.sha and passes the PR head separately', () => {
+    const workflow = parse(readFileSync(resolve(repoRoot, '.github/workflows/optimized-ci.yml'), 'utf8'));
+    const steps: Array<{ name?: string; uses?: string; env?: Record<string, string>; with?: Record<string, unknown> }> =
+      workflow.jobs.dashboard.steps;
+    const checkout = steps.find(step => step.uses?.startsWith('actions/checkout@'))!;
+    expect(checkout.with?.ref).toBeUndefined();
+    const inventory = steps.find(step => step.name === 'Generate Test Inventory')!;
+    expect(inventory.env).toMatchObject({ CI_PR_HEAD_SHA: '${{ github.event.pull_request.head.sha }}' });
+    expect(inventory.env).not.toHaveProperty('CI_SOURCE_SHA');
+    expect(inventory.env).not.toHaveProperty('GITHUB_SHA');
+  });
+
+  it.each([
+    {}, { GITHUB_EVENT_NAME: 'pull_request', CI_PR_HEAD_SHA: 'head-sha' }, { GITHUB_SHA: '<img src=x>' },
+    { GITHUB_EVENT_NAME: 'pull_request', GITHUB_SHA: 'merge', CI_PR_HEAD_SHA: '<img src=x>' },
+  ])('reports a missing or non-hex revision as unavailable (%o)', env => fixture(root => {
+    mkdirSync(join(root, 'tests'));
+    expect(resolveSourceRevision(env)).toEqual({ sourceRevision: null, sourceRevisionKind: null, prHeadRevision: null });
+    const markdown = renderInventory(collectInventory({ root, ...resolveSourceRevision(env) }));
+    expect(markdown).toContain('**Source commit**: unavailable');
+    expect(markdown).not.toContain('<img');
+  }));
 
   it('writes JSON and Markdown from one report and fails malformed input clearly', () => fixture(root => {
     mkdirSync(join(root, 'tests'));
     const ok = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8', env: {
-      ...process.env, GITHUB_EVENT_NAME: 'pull_request', CI_SOURCE_SHA: HEAD, GITHUB_SHA: MERGE,
+      ...process.env, GITHUB_EVENT_NAME: 'pull_request', CI_PR_HEAD_SHA: HEAD, GITHUB_SHA: MERGE,
       CI_JOB_OUTCOMES: '{"test":{"result":"success"}}',
     } });
     expect(ok.status).toBe(0);
     const json = JSON.parse(readFileSync(join(root, 'ci-metrics.json'), 'utf8'));
-    expect(json).toMatchObject({ sourceRevision: HEAD, sourceRevisionKind: 'pr-head' });
+    expect(json).toMatchObject({ sourceRevision: MERGE, sourceRevisionKind: 'pr-merge', prHeadRevision: HEAD });
     expect(readFileSync(join(root, 'ci-metrics.md'), 'utf8')).toBe(renderInventory(json));
     expect(ok.stdout).toContain(`**PR head commit**: ${HEAD}`);
     const bad = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8', env: {
@@ -111,16 +145,12 @@ describe('CI inventory evidence (#690)', () => {
     expect(bad.stderr).toContain('CI_JOB_OUTCOMES');
   }));
 
-  it('wires the PR head revision through env and nests the comment headings', () => {
+  it('runs the inventory script and nests the comment headings', () => {
     const workflow = parse(readFileSync(resolve(repoRoot, '.github/workflows/optimized-ci.yml'), 'utf8'));
     const steps: Array<{ name?: string; run?: string; env?: Record<string, string>; with?: { script?: string } }> =
       workflow.jobs.dashboard.steps;
     const inventory = steps.find(step => step.name === 'Generate Test Inventory')!;
     expect(inventory.run).toBe('node scripts/ci-inventory.cjs');
-    expect(inventory.env).toMatchObject({
-      CI_SOURCE_SHA: '${{ github.event.pull_request.head.sha || github.sha }}',
-    });
-    expect(inventory.env).not.toHaveProperty('GITHUB_SHA');
     const comment = steps.find(step => step.name === 'Comment on PR')!.with!.script!;
     // The report owns the top-level heading; the comment must not add another above it.
     expect(comment).not.toMatch(/^#{1,6} /m);

@@ -8,22 +8,25 @@ const EXPLICIT_SKIP = /\b(?:describe|it|test)\.skip\b/;
 const CONDITIONAL_SKIP = /\b(?:describe|it|test)\.(?:skipIf|runIf)\b/;
 const SHA = /^[0-9a-f]{7,64}$/i;
 const REVISION_LABELS = {
-  'pr-head': 'PR head commit',
-  'pr-merge': 'PR merge commit (GitHub test merge, not the PR head)',
-  commit: 'Commit',
+  'pr-merge': 'Scanned commit (PR merge commit: GitHub test merge of the PR head into its base)',
+  commit: 'Scanned commit',
 };
 
 /**
- * Resolve the commit to report. CI_SOURCE_SHA is the PR head on pull_request
- * runs (github.sha there is the synthetic merge commit); GITHUB_SHA is the
- * fallback. Non-hex values are reported as unavailable rather than rendered.
+ * Resolve the commit whose tree was scanned. actions/checkout checks out
+ * GITHUB_SHA, which on pull_request runs is GitHub's test merge commit (the PR
+ * head merged into its base). The counts belong to that tree, so the PR head
+ * (CI_PR_HEAD_SHA) is reported only as context. Non-hex values are unavailable.
  */
 function resolveSourceRevision(env = process.env) {
+  const hex = value => (SHA.test(value || '') ? value : null);
   const pr = env.GITHUB_EVENT_NAME === 'pull_request';
-  const [sha, kind] = env.CI_SOURCE_SHA ? [env.CI_SOURCE_SHA, pr ? 'pr-head' : 'commit']
-    : env.GITHUB_SHA ? [env.GITHUB_SHA, pr ? 'pr-merge' : 'commit'] : [null, null];
-  return SHA.test(sha || '') ? { sourceRevision: sha, sourceRevisionKind: kind }
-    : { sourceRevision: null, sourceRevisionKind: null };
+  const sourceRevision = hex(env.GITHUB_SHA);
+  return {
+    sourceRevision,
+    sourceRevisionKind: sourceRevision ? (pr ? 'pr-merge' : 'commit') : null,
+    prHeadRevision: pr ? hex(env.CI_PR_HEAD_SHA) : null,
+  };
 }
 
 function collectInventory(options = {}, io = fs) {
@@ -32,6 +35,7 @@ function collectInventory(options = {}, io = fs) {
     schemaVersion: 'ci-inventory/v1',
     sourceRevision: options.sourceRevision || null,
     sourceRevisionKind: options.sourceRevisionKind || null,
+    prHeadRevision: options.prHeadRevision || null,
     observedAt: options.observedAt || new Date().toISOString(),
     scope: 'Regular *.test.ts files recursively under tests/; symlinks excluded',
     interpretation: 'informational',
@@ -77,6 +81,8 @@ function renderInventory(report) {
   const lines = [
     '# CI Test Inventory', '',
     `**${REVISION_LABELS[report.sourceRevisionKind] || 'Source commit'}**: ${report.sourceRevision || 'unavailable'}`,
+    ...(report.prHeadRevision ? [`**PR head commit**: ${report.prHeadRevision} ` +
+      '(context only; the scanned merge commit also contains base-branch changes)'] : []),
     `**Observed at**: ${report.observedAt}`,
     `**Schema / producer**: ${report.schemaVersion} / scripts/ci-inventory.cjs`,
     `**Scope**: ${report.scope}`,
