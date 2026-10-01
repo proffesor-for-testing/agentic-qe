@@ -389,7 +389,8 @@ jobs:
       - name: Generate Test Inventory
         run: node scripts/ci-inventory.cjs
         env:
-          GITHUB_SHA: ${{ github.sha }}
+          # On pull_request runs github.sha is the test merge commit; report the PR head.
+          CI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           CI_JOB_OUTCOMES: ${{ toJSON(needs) }}
       - uses: actions/upload-artifact@v7
         with:
@@ -413,8 +414,8 @@ jobs:
             const metrics = fs.readFileSync('ci-metrics.md', 'utf8');
 
             const marker = '<!-- aqe-optimized-ci-inventory -->';
-            const body = `${marker}\n## Test Suite Metrics
-
+            // ci-metrics.md carries its own top-level heading.
+            const body = `${marker}
             ${metrics}
 
             ---
