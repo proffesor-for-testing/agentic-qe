@@ -58,6 +58,7 @@ import {
   DREAM_SCHEMA,
   QE_PATTERNS_SCHEMA,
   QE_PATTERNS_FTS_SCHEMA,
+  QE_PATTERNS_SCHEMA_WITHOUT_FTS,
   MINCUT_SCHEMA,
   SONA_PATTERNS_SCHEMA,
   FEEDBACK_SCHEMA,
@@ -926,7 +927,9 @@ export class UnifiedMemoryManager {
       "SELECT name FROM sqlite_master WHERE type='table' AND name='qe_pattern_embeddings'",
     ).get();
     if (!table) {
-      db.exec(QE_PATTERNS_SCHEMA);
+      // FTS objects are left to ensurePatternFtsInSync (runs after migrations)
+      // so missing triggers are still seen and the index is rebuilt.
+      db.exec(QE_PATTERNS_SCHEMA_WITHOUT_FTS);
       return;
     }
     const columns = db.prepare("PRAGMA table_info('qe_pattern_embeddings')").all() as Array<{ name: string }>;

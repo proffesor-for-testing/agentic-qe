@@ -375,6 +375,30 @@ describe('qe_patterns FTS5 self-heal', () => {
     expect(healLines(warn)).toEqual([]);
   });
 
+  it('v13 migration does not mask UPDATE-only drift by re-creating triggers before the heal', async () => {
+    // v9..v12 DB without qe_pattern_embeddings: migrateToV13EmbeddingSpace
+    // runs QE_PATTERNS_SCHEMA. If that re-created the FTS triggers, the cheap
+    // check after migrations would pass and the stale text would never rebuild.
+    const db = new Database(dbPath);
+    for (const t of QE_PATTERNS_FTS_TRIGGERS) db.exec(`DROP TRIGGER ${t}`);
+    db.prepare("UPDATE qe_patterns SET name = 'Session cookie expiry' WHERE id = 'p-date'").run();
+    db.exec('DROP TABLE qe_pattern_embeddings');
+    db.prepare('UPDATE schema_version SET version = 12 WHERE id = 1').run();
+    db.close();
+
+    await openUnified(dbPath);
+
+    const after = new Database(dbPath);
+    expect((after.prepare('SELECT version FROM schema_version WHERE id = 1').get() as { version: number }).version).toBeGreaterThanOrEqual(13);
+    expect(after.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='qe_pattern_embeddings'").get()).toBeDefined();
+    expect(triggerNames(after)).toEqual([...QE_PATTERNS_FTS_TRIGGERS].sort());
+    expect(matchIds(after, 'session')).toEqual(['p-date']);
+    expect(matchIds(after, 'formatting')).toEqual([]);
+    expect(ftsIntegrityOk(after)).toBe(true);
+    after.close();
+    expect(healLines(warn)).toHaveLength(1);
+  });
+
   it('v9 migration creates and fills the index on a pre-v9 DB without one', async () => {
     const db = new Database(dbPath);
     db.exec('DROP TABLE qe_patterns_fts');

@@ -312,7 +312,7 @@ export const QE_PATTERNS_FTS_TRIGGER_DDL: Readonly<Record<string, string>> = Obj
 export const QE_PATTERNS_FTS_SCHEMA =
   QE_PATTERNS_FTS_TABLE_DDL + Object.values(QE_PATTERNS_FTS_TRIGGER_DDL).join('');
 
-export const QE_PATTERNS_SCHEMA = `
+const qePatternsSchema = (ftsSchema: string): string => `
   -- QE Patterns table (unified from sqlite-persistence.ts)
   CREATE TABLE IF NOT EXISTS qe_patterns (
     id TEXT PRIMARY KEY,
@@ -426,7 +426,7 @@ export const QE_PATTERNS_SCHEMA = `
   );
 
   -- FTS5 full-text search index + sync triggers for hybrid vector/text search
-  ${QE_PATTERNS_FTS_SCHEMA}
+  ${ftsSchema}
 
   -- QE Patterns indexes
   CREATE INDEX IF NOT EXISTS idx_qe_patterns_domain ON qe_patterns(qe_domain);
@@ -443,6 +443,17 @@ export const QE_PATTERNS_SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_executed_steps_execution ON executed_steps(execution_id);
   CREATE INDEX IF NOT EXISTS idx_executed_steps_action ON executed_steps(action_id);
 `;
+
+export const QE_PATTERNS_SCHEMA = qePatternsSchema(QE_PATTERNS_FTS_SCHEMA);
+
+/**
+ * QE_PATTERNS_SCHEMA without the FTS5 table/triggers, for migrations that run
+ * after v9 on an existing DB. Re-creating the sync triggers there (with
+ * CREATE TRIGGER IF NOT EXISTS, no rebuild) would hide "triggers were missing"
+ * from the on-open self-heal, leaving UPDATE-only drift unrepaired; the heal
+ * creates any missing FTS objects and rebuilds instead.
+ */
+export const QE_PATTERNS_SCHEMA_WITHOUT_FTS = qePatternsSchema('');
 
 export const MINCUT_SCHEMA = `
   -- MinCut Graph Snapshots (ADR-047)
