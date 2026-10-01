@@ -14,7 +14,9 @@
  * This module detects that state cheaply and repairs it idempotently:
  *   1. qe_patterns exists but qe_patterns_fts doesn't  -> create the table
  *   2. any sync trigger missing                         -> recreate it (shared DDL)
- *   3. triggers were missing OR index rowids != content rowids -> FTS5 'rebuild'
+ *   3. a sync trigger whose body differs from the shared DDL -> drop + recreate
+ *      (CREATE TRIGGER IF NOT EXISTS never replaces a same-named trigger)
+ *   4. any of the above OR index rowids != content rowids -> FTS5 'rebuild'
  *
  * Detection is read-only (counts + one anti-join on the docsize PK); the write
  * transaction (BEGIN IMMEDIATE) is taken only when a repair is needed. It never
@@ -48,6 +50,8 @@ export interface PatternFtsHealResult {
   createdTable: boolean;
   /** Triggers that were missing and have been recreated. */
   recreatedTriggers: string[];
+  /** Triggers whose body differed from the shared DDL and have been replaced. */
+  replacedTriggers: string[];
   /** True when the FTS5 'rebuild' command ran. */
   rebuilt: boolean;
   /** qe_patterns row count observed before repair (-1 if unknown). */
@@ -70,6 +74,8 @@ interface Inspection {
   hasTable: boolean;
   hasDocsize: boolean;
   missingTriggers: string[];
+  /** Present triggers whose SQL differs from the canonical DDL. */
+  mismatchedTriggers: string[];
   patterns: number;
   indexed: number;
   /** qe_patterns rowids with no index entry (only computed when counts match). */
@@ -79,6 +85,26 @@ interface Inspection {
 function objectExists(db: DatabaseType, type: 'table' | 'trigger', name: string): boolean {
   return db.prepare('SELECT 1 FROM sqlite_master WHERE type = ? AND name = ?').get(type, name) !== undefined;
 }
+
+/**
+ * Canonical form of a CREATE TRIGGER statement for comparison: sqlite_master
+ * stores the text as written minus IF NOT EXISTS, and older code paths used
+ * different indentation, so collapse whitespace and drop the clause/semicolon.
+ */
+function normalizeTriggerSql(sql: string): string {
+  return sql
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^CREATE TRIGGER IF NOT EXISTS /i, 'CREATE TRIGGER ')
+    .replace(/ ?;$/, '')
+    .toLowerCase();
+}
+
+const CANONICAL_TRIGGER_SQL: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(QE_PATTERNS_FTS_TRIGGER_DDL).map(([name, ddl]) => [name, normalizeTriggerSql(ddl)]),
+  ),
+);
 
 function count(db: DatabaseType, sql: string): number {
   const row = db.prepare(sql).get() as { n: number } | undefined;
@@ -95,7 +121,14 @@ function count(db: DatabaseType, sql: string): number {
 function inspect(db: DatabaseType): Inspection {
   const hasTable = objectExists(db, 'table', 'qe_patterns_fts');
   const hasDocsize = hasTable && objectExists(db, 'table', 'qe_patterns_fts_docsize');
-  const missingTriggers = QE_PATTERNS_FTS_TRIGGERS.filter((t) => !objectExists(db, 'trigger', t));
+  const missingTriggers: string[] = [];
+  const mismatchedTriggers: string[] = [];
+  const triggerSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?");
+  for (const name of QE_PATTERNS_FTS_TRIGGERS) {
+    const row = triggerSql.get(name) as { sql: string | null } | undefined;
+    if (row === undefined) missingTriggers.push(name);
+    else if (normalizeTriggerSql(row.sql ?? '') !== CANONICAL_TRIGGER_SQL[name]) mismatchedTriggers.push(name);
+  }
   const patterns = count(db, 'SELECT count(*) AS n FROM qe_patterns');
   const indexed = hasDocsize ? count(db, 'SELECT count(*) AS n FROM qe_patterns_fts_docsize') : -1;
   // Equal counts + every content rowid indexed => identical rowid sets (both
@@ -104,11 +137,11 @@ function inspect(db: DatabaseType): Inspection {
     ? count(db, `SELECT count(*) AS n FROM qe_patterns p
                  WHERE NOT EXISTS (SELECT 1 FROM qe_patterns_fts_docsize d WHERE d.id = p.rowid)`)
     : 0;
-  return { hasTable, hasDocsize, missingTriggers, patterns, indexed, unindexed };
+  return { hasTable, hasDocsize, missingTriggers, mismatchedTriggers, patterns, indexed, unindexed };
 }
 
 function needsRepair(s: Inspection): boolean {
-  if (!s.hasTable || s.missingTriggers.length > 0) return true;
+  if (!s.hasTable || s.missingTriggers.length > 0 || s.mismatchedTriggers.length > 0) return true;
   // Without a docsize table (non-default FTS options) drift can't be measured
   // cheaply; trust the triggers rather than rebuilding on every open.
   if (!s.hasDocsize) return false;
@@ -139,6 +172,7 @@ export function ensurePatternFtsInSync(
     status: 'healthy',
     createdTable: false,
     recreatedTriggers: [],
+    replacedTriggers: [],
     rebuilt: false,
     patternsBefore: -1,
     indexedBefore: -1,
@@ -161,24 +195,34 @@ export function ensurePatternFtsInSync(
     if (!needsRepair(before)) return result;
 
     // Re-inspect inside BEGIN IMMEDIATE so a concurrent opener that already
-    // healed (or is mid-write) is observed under the write lock.
-    db.transaction(() => {
+    // healed (or is mid-write) is observed under the write lock. Results are
+    // only published after COMMIT succeeds: a failed commit rolls everything
+    // back and must not be reported as a repair.
+    const repaired = db.transaction(() => {
       const s = inspect(db);
-      if (!needsRepair(s)) return;
-      if (!s.hasTable) {
-        db.exec(QE_PATTERNS_FTS_TABLE_DDL);
-        result.createdTable = true;
-      }
-      for (const name of s.missingTriggers) {
+      if (!needsRepair(s)) return null;
+      if (!s.hasTable) db.exec(QE_PATTERNS_FTS_TABLE_DDL);
+      for (const name of s.missingTriggers) db.exec(QE_PATTERNS_FTS_TRIGGER_DDL[name]);
+      for (const name of s.mismatchedTriggers) {
+        db.exec(`DROP TRIGGER IF EXISTS ${name}`);
         db.exec(QE_PATTERNS_FTS_TRIGGER_DDL[name]);
-        result.recreatedTriggers.push(name);
       }
       // Rebuild from the content table: clears stale entries and indexes rows
       // inserted/updated while triggers were absent. Never touches qe_patterns.
       db.exec("INSERT INTO qe_patterns_fts(qe_patterns_fts) VALUES('rebuild')");
-      result.rebuilt = true;
-      result.indexedAfter = count(db, 'SELECT count(*) AS n FROM qe_patterns_fts_docsize');
+      return { s, indexedAfter: count(db, 'SELECT count(*) AS n FROM qe_patterns_fts_docsize') };
     }).immediate();
+
+    if (repaired) {
+      const { s } = repaired;
+      result.createdTable = !s.hasTable;
+      result.recreatedTriggers = [...s.missingTriggers];
+      result.replacedTriggers = [...s.mismatchedTriggers];
+      result.patternsBefore = s.patterns;
+      result.indexedBefore = s.indexed;
+      result.indexedAfter = repaired.indexedAfter;
+      result.rebuilt = true;
+    }
 
     if (result.rebuilt) {
       result.status = 'healed';
@@ -186,6 +230,9 @@ export function ensurePatternFtsInSync(
       if (result.createdTable) parts.push('created qe_patterns_fts');
       if (result.recreatedTriggers.length > 0) {
         parts.push(`recreated triggers [${result.recreatedTriggers.join(', ')}]`);
+      }
+      if (result.replacedTriggers.length > 0) {
+        parts.push(`replaced triggers [${result.replacedTriggers.join(', ')}]`);
       }
       const indexedBefore = result.indexedBefore < 0 ? 'n/a' : String(result.indexedBefore);
       parts.push(`rebuilt index (indexed ${indexedBefore} -> ${result.indexedAfter}, qe_patterns ${result.patternsBefore})`);

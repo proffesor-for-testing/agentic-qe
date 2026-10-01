@@ -282,6 +282,68 @@ describe('qe_patterns FTS5 self-heal', () => {
     b.close();
   });
 
+  it('replaces a sync trigger whose body is wrong (same name) and rebuilds', () => {
+    // CREATE TRIGGER IF NOT EXISTS never replaces an existing trigger, so a
+    // same-named trigger with a broken body would otherwise drift forever.
+    const db = new Database(dbPath);
+    db.exec('DROP TRIGGER qe_patterns_fts_update');
+    db.exec('CREATE TRIGGER qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN SELECT 1; END;');
+    db.prepare("UPDATE qe_patterns SET name = 'Cursor paging' WHERE id = 'p-page'").run();
+    expect(ftsIntegrityOk(db)).toBe(false);
+    const log = vi.fn();
+
+    const result = ensurePatternFtsInSync(db, { log });
+
+    expect(result).toMatchObject({ status: 'healed', rebuilt: true, replacedTriggers: ['qe_patterns_fts_update'] });
+    expect(matchIds(db, 'cursor')).toEqual(['p-page']);
+    expect(ftsIntegrityOk(db)).toBe(true);
+    // the replacement is the canonical body: a later UPDATE stays in sync
+    db.prepare("UPDATE qe_patterns SET name = 'Keyset paging' WHERE id = 'p-page'").run();
+    expect(matchIds(db, 'keyset')).toEqual(['p-page']);
+    expect(ftsIntegrityOk(db)).toBe(true);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(String(log.mock.calls[0][0])).toContain('replaced triggers [qe_patterns_fts_update]');
+    // and the next open is quiet
+    expect(ensurePatternFtsInSync(db, { log }).status).toBe('healthy');
+    db.close();
+  });
+
+  it('treats whitespace/IF NOT EXISTS variants of the canonical triggers as healthy', () => {
+    // Older code paths created the same triggers from differently indented
+    // templates; that must never cause a rebuild on every open.
+    const db = new Database(dbPath);
+    for (const t of QE_PATTERNS_FTS_TRIGGERS) {
+      db.exec(`DROP TRIGGER ${t}`);
+      db.exec(QE_PATTERNS_FTS_TRIGGER_DDL[t].replace(/\n\s*/g, '\n            ').replace('IF NOT EXISTS ', ''));
+    }
+    const execSpy = vi.spyOn(db, 'exec');
+    const result = ensurePatternFtsInSync(db, { log: () => undefined });
+    expect(result).toMatchObject({ status: 'healthy', rebuilt: false, replacedTriggers: [] });
+    expect(execSpy).not.toHaveBeenCalled();
+    db.close();
+  });
+
+  it('reports nothing as repaired when the heal transaction fails to commit', () => {
+    breakFtsSync(dbPath);
+    const setup = new Database(dbPath);
+    setup.pragma('journal_mode = DELETE'); // rollback journal: COMMIT needs EXCLUSIVE
+    setup.close();
+    const reader = new Database(dbPath);
+    reader.exec('BEGIN');
+    reader.prepare('SELECT count(*) FROM qe_patterns').get(); // holds SHARED
+    const db = new Database(dbPath, { timeout: 0 });
+
+    const result = ensurePatternFtsInSync(db, { log: () => undefined });
+
+    expect(result.status).toBe('failed');
+    expect(result).toMatchObject({ rebuilt: false, createdTable: false, recreatedTriggers: [], replacedTriggers: [], indexedAfter: -1 });
+    expect(db.inTransaction).toBe(false);
+    reader.exec('COMMIT');
+    expect(triggerNames(db)).toEqual([]); // rolled back
+    reader.close();
+    db.close();
+  });
+
   it('known limit: UPDATE-only drift behind re-created triggers is not detected cheaply', () => {
     // Triggers dropped, a row renamed, triggers re-created WITHOUT a rebuild
     // (e.g. by a CREATE TRIGGER IF NOT EXISTS schema path). Rowid sets still
