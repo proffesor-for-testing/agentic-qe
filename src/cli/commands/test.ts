@@ -10,6 +10,7 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 import { writeQualityEvidence } from '../../domains/quality-assessment/quality-evidence.js';
+import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -20,6 +21,7 @@ export function createTestCommand(
     .description('Test generation, execution, scheduling, and load testing')
     .argument('<action>', 'Action (generate|execute|schedule|load)')
     .argument('[target]', 'Target file or directory')
+    .option('--behavior-examples <path>', 'JSON specification examples for a single source file')
     .option('-f, --framework <framework>', 'Test framework', 'vitest')
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
@@ -39,7 +41,7 @@ export function createTestCommand(
           console.log(chalk.blue(`\n Generating tests for ${target || 'current directory'}...\n`));
 
           const testGenAPI = await context.kernel!.getDomainAPIAsync!<{
-            generateTests(request: { sourceFiles: string[]; testType: string; framework: string; coverageTarget?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+            generateTests(request: { sourceFiles: string[]; testType: string; framework: string; coverageTarget?: number; behaviorExamples?: import('../../domains/test-generation/interfaces.js').BehaviorExample[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           }>('test-generation');
 
           if (!testGenAPI) {
@@ -60,7 +62,16 @@ export function createTestCommand(
 
           console.log(chalk.gray(`  Found ${sourceFiles.length} source files\n`));
 
+          let behaviorExamples;
+          if (options.behaviorExamples) {
+            if (sourceFiles.length !== 1) throw new Error('--behavior-examples requires exactly one source file');
+            const fs = await import('node:fs/promises');
+            // Same boundary validator as the MCP tools (#795): a malformed
+            // fixture file fails here with a non-zero exit.
+            behaviorExamples = validateBehaviorExamples(JSON.parse(await fs.readFile(options.behaviorExamples, 'utf8')));
+          }
           const result = await testGenAPI.generateTests({
+            behaviorExamples,
             sourceFiles,
             testType: options.type as 'unit' | 'integration' | 'e2e',
             framework: options.framework as 'jest' | 'vitest',
@@ -68,7 +79,7 @@ export function createTestCommand(
           });
 
           if (result.success && result.value) {
-            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number; patternsUsed: string[] };
+            const generated = result.value as { tests: Array<{ name: string; sourceFile: string; testFile: string; testCode?: string; assertions: number; qualityGateResult?: { passed: boolean; score: number; issues?: Array<{ description?: string }> } }>; coverageEstimate: number | null; patternsUsed: string[] };
             const format = options.format as OutputFormat;
             const rejected = generated.tests.filter(
               test => test.qualityGateResult?.passed !== true
@@ -91,7 +102,7 @@ export function createTestCommand(
             } else if (format === 'markdown') {
               const md = `# Test Generation Report\n\n` +
                 `- **Tests Generated**: ${generated.tests.length}\n` +
-                `- **Coverage Estimate**: ${generated.coverageEstimate}%\n` +
+                `- **Coverage Estimate**: ${generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%'}\n` +
                 `- **Patterns Used**: ${generated.patternsUsed.join(', ') || 'none'}\n\n` +
                 `## Tests\n\n` +
                 generated.tests.map(t => `- **${t.name}** (${t.assertions} assertions) — \`${t.sourceFile}\``).join('\n') + '\n';
@@ -118,7 +129,7 @@ export function createTestCommand(
               if (generated.tests.length > 10) {
                 console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
               }
-              console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate + '%')}`);
+              console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);
               if (generated.patternsUsed.length > 0) {
                 console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);
               }

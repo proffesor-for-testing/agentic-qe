@@ -7,13 +7,15 @@
  * Delegates to specialized services for TDD, property tests, and test data
  */
 
+import { generateBehaviorExamples } from './behavior-examples.js';
+import { validateBehaviorExamples } from './behavior-example-validation.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
-import { toErrorMessage } from '../../../shared/error-utils.js';
+import { CallerInputError, toErrorMessage } from '../../../shared/error-utils.js';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   GenerateTestsRequest,
@@ -171,6 +173,7 @@ export class TestGeneratorService implements ITestGenerationService {
   private readonly config: TestGeneratorConfig;
   private readonly memory: MemoryBackend;
   private readonly generatorFactory: ITestGeneratorFactory;
+  private readonly usesDefaultGenerator: boolean;
   private readonly tddGenerator: ITDDGeneratorService;
   private readonly propertyTestGenerator: IPropertyTestGeneratorService;
   private readonly testDataGenerator: ITestDataGeneratorService;
@@ -184,6 +187,7 @@ export class TestGeneratorService implements ITestGenerationService {
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.memory = dependencies.memory;
+    this.usesDefaultGenerator = !dependencies.generatorFactory;
     this.generatorFactory = dependencies.generatorFactory || new TestGeneratorFactory();
     this.tddGenerator = dependencies.tddGenerator || new TDDGeneratorService();
     this.propertyTestGenerator = dependencies.propertyTestGenerator || new PropertyTestGeneratorService();
@@ -229,7 +233,7 @@ export class TestGeneratorService implements ITestGenerationService {
     if (!this.llmRouter) return { code: testCode, enhanced: false };
 
     try {
-      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis, sourceFilePath, context?.importPath);
 
       // Prepend historical edge case patterns if injector is available (loki-mode Item 5)
       if (this.edgeCaseInjector) {
@@ -332,9 +336,17 @@ Return ONLY the enhanced test code, no explanations.`,
   private buildTestEnhancementPrompt(
     testCode: string,
     sourceCode: string,
-    analysis: CodeAnalysis | null
+    analysis: CodeAnalysis | null,
+    sourceFilePath?: string,
+    importPath?: string
   ): string {
-    let prompt = `## Source Code to Test:\n\`\`\`typescript\n${sourceCode}\n\`\`\`\n\n`;
+    let prompt = '';
+    if (sourceFilePath) {
+      prompt += `## Module Under Test:\n- Source file: ${sourceFilePath}\n`;
+      if (importPath) prompt += `- Import it in the tests from: '${importPath}'\n`;
+      prompt += '\n';
+    }
+    prompt += `## Source Code to Test:\n\`\`\`typescript\n${sourceCode}\n\`\`\`\n\n`;
     prompt += `## Current Test Code:\n\`\`\`typescript\n${testCode}\n\`\`\`\n\n`;
 
     if (analysis) {
@@ -423,6 +435,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    */
   async generateTests(request: GenerateTestsRequest): Promise<Result<GeneratedTests, Error>> {
     try {
+      // Throws CallerInputError (caught below) for malformed examples.
+      validateBehaviorExamples(request.behaviorExamples);
       // Auto-detect language and framework if not provided (ADR-078)
       const resolved = resolveRequest({
         sourceFiles: request.sourceFiles,
@@ -436,9 +450,12 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       const {
         sourceFiles,
         testType,
-        coverageTarget = this.config.coverageTargetDefault,
         patterns = [],
       } = request;
+
+      if (request.behaviorExamples?.length && sourceFiles.length !== 1) {
+        return err(new CallerInputError('behaviorExamples requires exactly one source file'));
+      }
 
       if (sourceFiles.length === 0) {
         return err(new Error('No source files provided'));
@@ -474,7 +491,9 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         }
       }
 
-      const coverageEstimate = this.estimateCoverage(tests, coverageTarget);
+      // Generation does not execute or instrument the source. Assertion counts
+      // are not coverage evidence, including LLM-generated and empty results.
+      const coverageEstimate = null;
       await this.storeGenerationMetadata(tests, patternsUsed);
 
       return ok({
@@ -619,14 +638,32 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       similarCode,
     };
 
-    let testCode = generator.generateTests(context);
+    const hasExamples = (originalRequest?.behaviorExamples?.length ?? 0) > 0;
+    const jsSource = /\.(?:[cm]?[jt]s|[jt]sx)$/i.test(sourceFile);
+    const deterministicEligible = (this.usesDefaultGenerator || hasExamples)
+      && testType === 'unit' && jsSource && ['vitest', 'jest', 'node-test'].includes(framework);
+    if (hasExamples && !deterministicEligible) {
+      throw new CallerInputError('Behavior examples require JavaScript/TypeScript and vitest, jest, or node-test');
+    }
+    const buildDeterministic = () => generateBehaviorExamples(sourceContent, sourceFile,
+      originalRequest?.importPathOverrides?.[sourceFile] ?? path.resolve(sourceFile),
+      framework, originalRequest?.behaviorExamples, testType);
 
-    // ADR-051: Enhance with LLM if enabled and available.
+    // ADR-051: Enhance with LLM if enabled and available. Caller-supplied
+    // behavior examples are the oracle, so they are never rewritten by an LLM.
     // #567: `llmEnhanced` reflects whether the LLM actually produced the code,
     // not merely whether a router was configured — a broken provider must not
     // report AI-enhanced output it did not produce.
+    const willEnhance = this.isLLMEnhancementAvailable() && !!sourceContent && !hasExamples;
+
+    // #795: without fixtures the LLM must start from the framework template,
+    // which carries the real import line for the module under test. The
+    // zero-assertion scaffold is only emitted when no LLM output is used.
+    let deterministic = deterministicEligible && !willEnhance ? buildDeterministic() : undefined;
+    let testCode = deterministic?.code ?? generator.generateTests(context);
+
     let llmEnhanced = false;
-    if (this.isLLMEnhancementAvailable() && sourceContent) {
+    if (willEnhance) {
       const result = await this.enhanceTestWithLLM(
         testCode,
         sourceContent,
@@ -634,8 +671,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         sourceFile,
         context,
       );
-      testCode = result.code;
       llmEnhanced = result.enhanced;
+      if (llmEnhanced) {
+        testCode = result.code;
+      } else if (deterministicEligible) {
+        // The LLM produced nothing usable: fall back to the honest scaffold,
+        // never to template assertions with guessed expected values (#787).
+        deterministic = buildDeterministic();
+        testCode = deterministic.code;
+      }
     }
 
     const test: GeneratedTest = {
@@ -645,7 +689,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       testFile,
       testCode,
       type: testType,
-      assertions: this.countAssertions(testCode),
+      assertions: deterministic && !llmEnhanced ? deterministic.assertions : this.countAssertions(testCode),
+      ...(!llmEnhanced && deterministic ? { generationMode: deterministic.mode, generationLimits: deterministic.limits } : {}),
       // ADR-078: Include detected language and framework
       language: effectiveLanguage as SupportedLanguage | undefined,
       framework: framework,
@@ -1263,25 +1308,6 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
     return Math.max(1, count);
   }
 
-  private estimateCoverage(tests: GeneratedTest[], target: number): number {
-    const totalAssertions = tests.reduce((sum, t) => sum + t.assertions, 0);
-    const totalTests = tests.length;
-
-    const testBasedCoverage = totalTests * 4;
-    const assertionCoverage = totalAssertions * 1.5;
-
-    const typeMultiplier = tests.reduce((mult, t) => {
-      if (t.type === 'integration') return mult + 0.1;
-      if (t.type === 'e2e') return mult + 0.15;
-      return mult;
-    }, 1);
-
-    const rawEstimate = (testBasedCoverage + assertionCoverage) * typeMultiplier;
-    const diminishedEstimate = rawEstimate * (1 - rawEstimate / 200);
-
-    const estimatedCoverage = Math.min(target, Math.max(0, diminishedEstimate));
-    return Math.round(estimatedCoverage * 10) / 10;
-  }
 
   private async storeGenerationMetadata(
     tests: GeneratedTest[],

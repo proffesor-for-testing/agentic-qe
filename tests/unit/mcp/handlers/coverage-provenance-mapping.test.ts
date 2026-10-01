@@ -24,7 +24,7 @@ import { describe, it, expect } from 'vitest';
 // Side-effect import: domain-handler-configs participates in a circular import
 // with domain-handlers, so the barrel must be initialized first.
 import '../../../../src/mcp/handlers/domain-handlers';
-import { coverageAnalyzeConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
+import { coverageAnalyzeConfig, testGenerateConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
 
 type Mapped = ReturnType<typeof coverageAnalyzeConfig.mapToResult>;
 
@@ -129,5 +129,19 @@ describe('#569 — mapToResult must not launder missing provenance into numbers'
       expect(insights.riskAssessment).toBe('unknown');
       expect(insights.confidence).toBe(0);
     });
+  });
+});
+
+
+describe('#787 generation coverage remains unknown without execution', () => {
+  it.each([null, undefined])('preserves %s as unknown even when LLM enhancement succeeded', coverageEstimate => {
+    const result = testGenerateConfig.mapToResult('task', { coverageEstimate, llmEnhanced: true }, 0, []);
+    expect(result.coverageEstimate).toBeNull();
+    expect(result.coverage).toMatchObject({ predicted: null, confidence: 0, achievable: null });
+  });
+  it('preserves an explicit numeric zero supplied by a producer distinctly from unknown', () => {
+    const result = testGenerateConfig.mapToResult('task', { coverageEstimate: 0 }, 0, []);
+    expect(result.coverageEstimate).toBe(0);
+    expect(result.coverage?.predicted).toBe(0);
   });
 });

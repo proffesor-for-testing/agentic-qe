@@ -15,7 +15,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName, Result } from '../shared/types';
-import { toErrorMessage } from '../shared/error-utils.js';
+import { isCallerInputError, toErrorMessage } from '../shared/error-utils.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
@@ -588,7 +588,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
 
       if (!result.success) {
         const errorMsg = 'error' in result ? (result.error as Error).message : 'Unknown error';
-        await this.publishTaskFailed(task.id, errorMsg, domain);
+        await this.publishTaskFailed(task.id, errorMsg, domain, 'error' in result && isCallerInputError(result.error));
         // ADR-051: Record failed outcome
         this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
         return {
@@ -640,7 +640,7 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       };
     } catch (error) {
       const errorMessage = toErrorMessage(error);
-      await this.publishTaskFailed(task.id, errorMessage, domain);
+      await this.publishTaskFailed(task.id, errorMessage, domain, isCallerInputError(error));
       // ADR-051: Record failed outcome
       this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
 
@@ -828,13 +828,18 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     });
   }
 
-  private async publishTaskFailed(taskId: string, error: string, domain: DomainName): Promise<void> {
+  /**
+   * @param callerError true when the task was rejected because of invalid
+   *   caller input; the queen then neither retries it nor counts it toward
+   *   the domain circuit breaker.
+   */
+  private async publishTaskFailed(taskId: string, error: string, domain: DomainName, callerError = false): Promise<void> {
     await this.eventBus.publish({
       id: uuidv4(),
       type: 'TaskFailed',
       timestamp: new Date(),
       source: domain,
-      payload: { taskId, error },
+      payload: { taskId, error, ...(callerError ? { callerError: true } : {}) },
     });
   }
 }

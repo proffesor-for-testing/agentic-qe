@@ -19,3 +19,27 @@ export function toErrorMessage(error: unknown): string {
 export function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
+
+/**
+ * A request was rejected because the caller's input is invalid (a malformed
+ * argument, an unknown function name, an unsupported option combination).
+ *
+ * The failure is deterministic and says nothing about the health of the
+ * component that rejected it, so it must not be retried and must not count
+ * toward a domain circuit breaker (ADR-064). The marker survives being
+ * flattened to a message string via `callerError` on TaskFailed events.
+ */
+export class CallerInputError extends Error {
+  readonly callerError = true as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'CallerInputError';
+  }
+}
+
+/** True when `error` is (or is marked as) a caller-input error. */
+export function isCallerInputError(error: unknown): boolean {
+  return error instanceof CallerInputError
+    || (typeof error === 'object' && error !== null && (error as { callerError?: unknown }).callerError === true);
+}

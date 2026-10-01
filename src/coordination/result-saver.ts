@@ -254,7 +254,7 @@ export class ResultSaver {
     const data = result as {
       testsGenerated: number;
       tests: Array<{ name: string; file: string; type: string; code?: string }>;
-      coverageEstimate: number;
+      coverageEstimate: number | null;
       patternsUsed: string[];
     };
 
@@ -579,7 +579,7 @@ end_of_record
   private generateTestReport(
     data: {
       testsGenerated: number;
-      coverageEstimate: number;
+      coverageEstimate: number | null;
       patternsUsed: string[];
       tests: Array<{ name: string; file: string; type: string }>;
     },
@@ -596,7 +596,7 @@ end_of_record
 | Metric | Value |
 |--------|-------|
 | Tests Generated | ${data.testsGenerated} |
-| Coverage Estimate | ${data.coverageEstimate}% |
+| Coverage Estimate | ${data.coverageEstimate == null ? 'Unmeasured' : data.coverageEstimate + '%'} |
 | Patterns Used | ${data.patternsUsed.length} |
 
 ## Patterns Applied

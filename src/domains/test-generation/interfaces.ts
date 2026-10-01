@@ -31,7 +31,15 @@ export interface ITestGenerationAPI {
 // Request/Response Types
 // ============================================================================
 
+/** Caller-owned specifications; expected values are never inferred from source. */
+export interface BehaviorExample {
+  functionName: string;
+  args: unknown[];
+  expected: unknown;
+}
+
 export interface IGenerateTestsRequest {
+  behaviorExamples?: BehaviorExample[];
   sourceFiles: string[];
   testType: 'unit' | 'integration' | 'e2e';
   framework?: TestFramework;
@@ -57,7 +65,8 @@ export interface IGenerateTestsRequest {
 
 export interface IGeneratedTests {
   tests: IGeneratedTest[];
-  coverageEstimate: number;
+  /** null means unmeasured; never coerce unknown coverage to measured zero. */
+  coverageEstimate: number | null;
   /** Human-readable pattern names, for display (reports, CLI output). */
   patternsUsed: string[];
   /** Real qe_patterns.id values for the same patterns, for usage/ADR-110 tracking. */
@@ -78,6 +87,8 @@ export interface IGeneratedTest {
   compilationErrors?: string[];
   /** ADR-051: Whether test was enhanced by LLM */
   llmEnhanced?: boolean;
+  generationMode?: 'behavior-examples' | 'scaffolding';
+  generationLimits?: string[];
   /** Test quality gate validation result (loki-mode Gates 8 & 9) */
   qualityGateResult?: TestQualityGateResult;
   /** ADR-062: Whether this test is a holdout test (not shown to developer, runs in CI only) */

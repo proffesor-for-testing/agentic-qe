@@ -45,6 +45,7 @@ import {
 } from '../../contracts/verdicts.js';
 
 import type { EvaluatedQualityCheck } from '../../domains/quality-assessment/quality-evidence.js';
+import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
@@ -271,8 +272,14 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       framework = DEFAULT_FRAMEWORKS[language];
     }
 
+    // #795: validate caller fixtures here, before the task reaches the
+    // domain. Throwing from mapToPayload returns a clean tool error without
+    // submitting a task, so malformed input cannot trip the domain breaker.
+    const behaviorExamples = validateBehaviorExamples(params.behaviorExamples);
+
     return {
       sourceCode: params.sourceCode,
+      behaviorExamples,
       filePath: params.filePath,
       language,
       framework,
@@ -305,6 +312,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
     const domainTests = data.tests as Array<{
       name: string; file?: string; testFile?: string; type: string;
       sourceFile?: string; assertions?: number; testCode?: string;
+      generationMode?: string; generationLimits?: string[];
     }> | undefined;
     const hasRealTests = Array.isArray(domainTests) && domainTests.length > 0
       && domainTests[0].testCode;
@@ -326,6 +334,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
           estimatedDuration: t.type === 'integration' ? 2000 : 1000,
           aiGenerated: llmEnhanced,
           testCode: t.testCode,
+          generationMode: t.generationMode,
+          generationLimits: t.generationLimits,
           sourceFile: t.sourceFile,
           testFile: t.testFile || t.file,
         }))
@@ -338,11 +348,11 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       suggestions: antiPatterns.map(ap => `Fix: ${ap.type} - ${ap.suggestion}`),
       aiInsights,
       coverage: {
-        predicted: (data.coverageEstimate as number) || params?.coverageGoal || 80,
+        predicted: (data.coverageEstimate as number | null | undefined) ?? null,
         // #567: a template scaffold's coverage prediction is a guess, not a
         // 0.9-confidence estimate. Don't dress it up as one.
-        confidence: llmEnhanced ? 0.9 : 0.3,
-        achievable: true,
+        confidence: data.coverageEstimate == null ? 0 : llmEnhanced ? 0.9 : 0,
+        achievable: data.coverageEstimate == null ? null : true,
       },
       properties: tests.filter(t => t.type === 'property').map(t => ({
         name: t.name,
@@ -355,7 +365,7 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       taskId,
       status: 'completed',
       testsGenerated: tests.length,
-      coverageEstimate: (data.coverageEstimate as number) || params?.coverageGoal || 80,
+      coverageEstimate: (data.coverageEstimate as number | null | undefined) ?? null,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
       savedFiles,

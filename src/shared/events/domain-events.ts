@@ -44,7 +44,8 @@ export interface TestSuiteCreatedPayload {
   suiteId: string;
   testCount: number;
   sourceFiles: string[];
-  coverageEstimate: number;
+  /** null means unmeasured; never coerce unknown coverage to measured zero. */
+  coverageEstimate: number | null;
 }
 
 export const TestGenerationEvents = {

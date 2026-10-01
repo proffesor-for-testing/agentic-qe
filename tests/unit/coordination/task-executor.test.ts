@@ -257,9 +257,11 @@ describe('DomainTaskExecutor', () => {
       expect(result.domain).toBe('test-generation');
       expect(result.data).toBeDefined();
 
-      const data = result.data as { testsGenerated: number; coverageEstimate: number };
+      const data = result.data as { testsGenerated: number; coverageEstimate: number | null; tests: Array<{generationMode: string; assertions: number; testCode: string}> };
       expect(data.testsGenerated).toBeGreaterThan(0);
-      expect(data.coverageEstimate).toBeGreaterThan(0);
+      expect(data.coverageEstimate).toBeNull();
+      expect(data.tests[0]).toMatchObject({ generationMode: 'scaffolding', assertions: 0 });
+      expect(data.tests[0].testCode).toContain('test.skip');
     });
 
     it('should save test generation results to files', async () => {
@@ -670,6 +672,26 @@ describe('DomainTaskExecutor', () => {
       const events = (kernel.eventBus as MockEventBus).publishedEvents;
       const completedEvent = events.find(e => e.type === 'TaskCompleted');
       expect(completedEvent).toBeDefined();
+    });
+
+    it('marks TaskFailed as a caller error when behaviorExamples do not match the source (#795)', async () => {
+      const task = createTestTask('generate-tests', {
+        sourceCode: 'export function add(a, b) { return a + b; }',
+        language: 'javascript',
+        framework: 'vitest',
+        aiEnhancement: false,
+        behaviorExamples: [{ functionName: 'missing', args: [], expected: 1 }],
+      });
+
+      const result = await executor.execute(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("'missing' is not one");
+      const events = (kernel.eventBus as MockEventBus).publishedEvents;
+      expect(events.find(e => e.type === 'TaskFailed')?.payload).toMatchObject({
+        taskId: task.id,
+        callerError: true,
+      });
     });
   });
 

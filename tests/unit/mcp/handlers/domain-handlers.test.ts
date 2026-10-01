@@ -41,6 +41,7 @@ import {
 import {
   handleFleetInit,
   disposeFleet,
+  getFleetState,
 } from '../../../../src/mcp/handlers/core-handlers';
 import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import { queenGovernanceAdapter } from '../../../../src/governance/queen-governance-adapter';
@@ -173,8 +174,34 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(true);
       // Coverage estimate should be a valid percentage (0-100)
-      expect(result.data!.coverageEstimate).toBeGreaterThanOrEqual(0);
-      expect(result.data!.coverageEstimate).toBeLessThanOrEqual(100);
+      expect(result.data!.coverageEstimate).toBeNull();
+    }, 30000);
+
+    // #795: malformed caller fixtures are rejected at the MCP boundary, before
+    // a task is submitted, so they can never count toward the domain breaker.
+    it.each([
+      ['a non-array', { functionName: 'add', args: [2, 3], expected: 5 }, 'must be an array'],
+      ['a non-object entry', ['add'], 'behaviorExamples[0] must be an object'],
+      ['a missing functionName', [{ args: [1], expected: 1 }], 'functionName must be a non-empty string'],
+      ['non-array args', [{ functionName: 'add', args: 2, expected: 5 }], 'args must be an array'],
+      ['a missing expected', [{ functionName: 'add', args: [2, 3] }], 'expected is required'],
+    ])('rejects behaviorExamples with %s without invoking the domain', async (_label, behaviorExamples, message) => {
+      const { queen } = getFleetState();
+      const submitTask = vi.spyOn(queen!, 'submitTask');
+      try {
+        const result = await handleTestGenerate({
+          sourceCode: 'export function add(a, b) { return a + b; }',
+          framework: 'vitest',
+          behaviorExamples: behaviorExamples as unknown as TestGenerateParams['behaviorExamples'],
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain(message);
+        expect(submitTask).not.toHaveBeenCalled();
+        expect(mockExecute).not.toHaveBeenCalled();
+      } finally {
+        submitTask.mockRestore();
+      }
     }, 30000);
 
     it('should include V2-compatible test objects', async () => {

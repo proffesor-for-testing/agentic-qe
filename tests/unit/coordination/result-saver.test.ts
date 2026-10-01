@@ -154,6 +154,16 @@ describe('ResultSaver', () => {
   });
 
   describe('test generation results', () => {
+    it.each([null, 0])('preserves coverage %s in saved JSON and displays its distinct meaning', async coverageEstimate => {
+      const result = await saver.save('coverage-provenance', 'generate-tests', { ...TEST_GENERATION_RESULT, coverageEstimate });
+      expect(result.summary.coverageEstimate).toBe(coverageEstimate);
+      const json = JSON.parse(await fs.readFile(result.files.find(f => f.format === 'json')!.path, 'utf8'));
+      expect(json.coverageEstimate).toBe(coverageEstimate);
+      const report = await fs.readFile(result.files.find(f => f.format === 'markdown')!.path, 'utf8');
+      expect(report).toContain(`| Coverage Estimate | ${coverageEstimate === null ? 'Unmeasured' : '0%'} |`);
+      expect(report).not.toContain('null%');
+    });
+
     it('should save test generation result with manifest', async () => {
       const result = await saver.save('task_001', 'generate-tests', TEST_GENERATION_RESULT, {
         language: 'typescript',
