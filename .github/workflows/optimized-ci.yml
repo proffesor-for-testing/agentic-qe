@@ -323,12 +323,13 @@ jobs:
       - name: Run native RVF performance baselines
         run: npx vitest run tests/performance/rvf-pattern-store.test.ts
 
-  # ─── Coverage analysis (PRs only, after journey shards) ───
+  # ─── Coverage analysis (PRs only, independent of journey shards) ───
 
   coverage:
     name: Coverage Analysis
     runs-on: ubuntu-latest
-    needs: [journey-governance, journey-ruvector-coordination, journey-root, journey-remaining]
+    # Coverage checks out and builds the same revision itself; it consumes no
+    # journey artifacts. Start alongside them rather than extending the PR path.
     # Full serial V8 instrumentation exceeds ten minutes as the suite grows.
     # Keep a finite bound while allowing the report and threshold steps to run.
     timeout-minutes: 30
