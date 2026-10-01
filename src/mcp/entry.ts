@@ -23,6 +23,7 @@ import { createInfraHealingOrchestratorSync, ShellCommandRunner } from '../stran
 import { setInfraHealingOrchestrator, handleFleetInit } from './handlers/index.js';
 import { parallelPrefetch } from '../boot/parallel-prefetch.js';
 import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.js';
+import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +81,9 @@ async function main(): Promise<void> {
       }
       // Close data stores AFTER server has drained connections
       try { const { resetSharedRvfDualWriter } = await import('../integrations/ruvector/shared-rvf-dual-writer.js'); resetSharedRvfDualWriter(); } catch { /* ignore */ }
+      // Shared pattern-store consumers leave singleton disposal to this lifecycle.
+      // Keep its close independent of dual-writer cleanup (including failed imports).
+      try { resetSharedRvfAdapter(); } catch { /* best effort */ }
     } catch { /* best-effort — the watchdog still guarantees exit */ }
     process.exit(0);
   };
