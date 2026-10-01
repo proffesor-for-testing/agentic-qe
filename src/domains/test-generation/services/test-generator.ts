@@ -228,12 +228,13 @@ export class TestGeneratorService implements ITestGenerationService {
     sourceCode: string,
     analysis: CodeAnalysis | null,
     sourceFilePath: string,
-    context?: TestGenerationContext
+    context?: TestGenerationContext,
+    showSourcePath = true,
   ): Promise<{ code: string; enhanced: boolean }> {
     if (!this.llmRouter) return { code: testCode, enhanced: false };
 
     try {
-      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis, sourceFilePath, context?.importPath);
+      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis, showSourcePath ? sourceFilePath : undefined, context?.importPath);
 
       // Prepend historical edge case patterns if injector is available (loki-mode Item 5)
       if (this.edgeCaseInjector) {
@@ -341,8 +342,9 @@ Return ONLY the enhanced test code, no explanations.`,
     importPath?: string
   ): string {
     let prompt = '';
-    if (sourceFilePath) {
-      prompt += `## Module Under Test:\n- Source file: ${sourceFilePath}\n`;
+    if (sourceFilePath || importPath) {
+      prompt += '## Module Under Test:\n';
+      if (sourceFilePath) prompt += `- Source file: ${sourceFilePath}\n`;
       if (importPath) prompt += `- Import it in the tests from: '${importPath}'\n`;
       prompt += '\n';
     }
@@ -664,12 +666,16 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
 
     let llmEnhanced = false;
     if (willEnhance) {
+      // An import override means `sourceFile` is a stand-in (the MCP handler's
+      // /tmp/aqe-temp-* copy of inline source). Do not show the LLM that path:
+      // it could echo it into the test in a form the temp-path rewrite misses.
       const result = await this.enhanceTestWithLLM(
         testCode,
         sourceContent,
         codeAnalysis,
         sourceFile,
         context,
+        originalRequest?.importPathOverrides?.[sourceFile] === undefined,
       );
       llmEnhanced = result.enhanced;
       if (llmEnhanced) {

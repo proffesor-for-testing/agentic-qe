@@ -12,8 +12,56 @@
  * placeholder plus a TODO comment.
  */
 
-import { describe, it, expect } from 'vitest';
-import { rewriteTempPathsInGeneratedTest } from '../../../../src/coordination/handlers/test-execution-handlers';
+import { describe, it, expect, vi } from 'vitest';
+import { registerTestExecutionHandlers, rewriteTempPathsInGeneratedTest } from '../../../../src/coordination/handlers/test-execution-handlers';
+import type { InstanceTaskHandler, TaskHandlerContext } from '../../../../src/coordination/handlers/handler-types';
+import type { QueenTask } from '../../../../src/coordination/queen-coordinator';
+import { TestGeneratorService } from '../../../../src/domains/test-generation/services/test-generator';
+
+describe('generate-tests handler with inline sourceCode and an LLM (#795 follow-up)', () => {
+  it('never shows the LLM the temp path, so it cannot leak into the emitted test', async () => {
+    // Stub LLM that echoes whatever source path the prompt names, in the
+    // basename form the full-path rewrite cannot catch.
+    const prompts: string[] = [];
+    const chat = vi.fn(async (request: { messages: Array<{ role: string; content: string }> }) => {
+      const prompt = request.messages.filter(m => m.role === 'user').map(m => m.content).join('\n');
+      prompts.push(prompt);
+      const named = /Source file: (\S+)/.exec(prompt)?.[1]?.split('/').pop() ?? 'calculator';
+      return { content: [
+        "import { describe, it, expect } from 'vitest';",
+        "import { add } from './module-under-test';",
+        `describe(${JSON.stringify(named)}, () => { it('adds', () => { expect(add(1, 2)).toBe(3); }); });`,
+      ].join('\n') };
+    });
+    const memory = {
+      get: vi.fn(async () => null), set: vi.fn(async () => undefined), delete: vi.fn(async () => true),
+      search: vi.fn(async () => []), vectorSearch: vi.fn(async () => []), has: vi.fn(async () => false),
+    };
+    const handlers = new Map<string, InstanceTaskHandler>();
+    registerTestExecutionHandlers({
+      registerHandler: (type, handler) => { handlers.set(type, handler); },
+      memory,
+      getTestGenerator: async () => new TestGeneratorService(
+        { memory: memory as never, llmRouter: { chat } as never },
+        { enableLLMEnhancement: true, enableEdgeCaseInjection: false },
+      ),
+      config: { defaultLanguage: 'typescript', defaultFramework: 'vitest' },
+    } as unknown as TaskHandlerContext);
+
+    const result = await handlers.get('generate-tests')!({
+      id: 'task-795-leak', type: 'generate-tests', priority: 'p1', targetDomains: [], createdAt: new Date(),
+      payload: { sourceCode: 'export function add(a: number, b: number) { return a + b; }', language: 'typescript', framework: 'vitest', testType: 'unit', coverageGoal: 80 },
+    } as unknown as QueenTask);
+
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(prompts[0]).not.toContain('aqe-temp-');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    const tests = (result.value as { tests: Array<{ testCode: string }>; llmEnhanced: boolean });
+    expect(tests.llmEnhanced).toBe(true);
+    expect(tests.tests[0].testCode).not.toContain('aqe-temp-');
+  });
+});
 
 describe('rewriteTempPathsInGeneratedTest (bug #1)', () => {
   const tempPath = '/tmp/aqe-temp-abc-123.ts';
