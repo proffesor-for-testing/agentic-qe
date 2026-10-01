@@ -63,4 +63,44 @@ describe('#787 behavior examples via real MCP tools/call', () => {
     const invalid = await call('test_generate_enhanced', { ...params, behaviorExamples: [{ functionName: 'missing', args: [], expected: 1 }] });
     expect(invalid.success).toBe(false);
   }, 180000);
+
+  it('advertises the behaviorExamples item shape in tools/list (#795)', async () => {
+    const list = await server['handleRequest']({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) as {
+      tools: Array<{ name: string; inputSchema: { properties: Record<string, { type: string; items?: { required?: string[] } }> } }>;
+    };
+    const schema = list.tools.find(t => t.name === 'test_generate_enhanced')!.inputSchema.properties.behaviorExamples;
+    expect(schema.type).toBe('array');
+    expect(schema.items?.required).toEqual(['functionName', 'args', 'expected']);
+  });
+
+  it('returns clean errors for invalid fixtures without opening the test-generation breaker (#795)', async () => {
+    const source = join(dir, 'math.js');
+    writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
+    writeFileSync(source, 'export function add(a,b) { return a+b; }\nexport function isEven(n) { return n % 2 === 0; }');
+    const base = { filePath: source, language: 'javascript', framework: 'vitest', aiEnhancement: false };
+    const invalidCalls: unknown[] = [
+      { functionName: 'add', args: [2, 3], expected: 5 },          // not an array (boundary)
+      [{ functionName: 'add', args: [2, 3] }],                    // missing expected (boundary)
+      [{ functionName: 'missing', args: [1], expected: 1 }],      // unknown export (domain)
+      [{ functionName: 'add', args: [2], expected: 2 }],          // wrong arity (domain)
+      [{ functionName: 'nope', args: [], expected: null }],       // unknown export (domain)
+      'add(2,3)=5',                                               // not an array (boundary)
+    ];
+    // The test-generation breaker opens after 2 counted failures; send 3x that.
+    for (const behaviorExamples of invalidCalls) {
+      const response = await server['handleRequest']({
+        jsonrpc: '2.0', id: 3, method: 'tools/call',
+        params: { name: 'test_generate_enhanced', arguments: { ...base, behaviorExamples } },
+      }) as { isError?: boolean; content: Array<{ text: string }> };
+      const body = JSON.parse(response.content[0].text);
+      expect(response.isError).toBe(true);
+      expect(body.success).toBe(false);
+      expect(body.error).not.toContain('circuit breaker');
+    }
+
+    const valid = await call('test_generate_enhanced', { ...base, behaviorExamples: [{ functionName: 'isEven', args: [4], expected: true }] });
+    expect(valid.error).toBeUndefined();
+    expect(valid.success).toBe(true);
+    expect(valid.data.tests[0].generationMode).toBe('behavior-examples');
+  }, 180000);
 });

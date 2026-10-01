@@ -10,6 +10,7 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 import { writeQualityEvidence } from '../../domains/quality-assessment/quality-evidence.js';
+import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -65,7 +66,9 @@ export function createTestCommand(
           if (options.behaviorExamples) {
             if (sourceFiles.length !== 1) throw new Error('--behavior-examples requires exactly one source file');
             const fs = await import('node:fs/promises');
-            behaviorExamples = JSON.parse(await fs.readFile(options.behaviorExamples, 'utf8'));
+            // Same boundary validator as the MCP tools (#795): a malformed
+            // fixture file fails here with a non-zero exit.
+            behaviorExamples = validateBehaviorExamples(JSON.parse(await fs.readFile(options.behaviorExamples, 'utf8')));
           }
           const result = await testGenAPI.generateTests({
             behaviorExamples,

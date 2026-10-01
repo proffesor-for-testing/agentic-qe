@@ -7,12 +7,13 @@
  * Supports unit, integration, and e2e test generation with AI enhancement.
  */
 
-import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, getSharedMemoryBackend, getLLMRouter } from '../base';
+import { MCPToolBase, MCPToolConfig, MCPToolContext, MCPToolSchema, MCPSchemaProperty, getSharedMemoryBackend, getLLMRouter } from '../base';
 import { ToolResult } from '../../types';
 import { createTestGeneratorServiceWithDependencies, type TestGeneratorService } from '../../../domains/test-generation/services/test-generator';
 import { GenerateTestsRequest } from '../../../domains/test-generation/interfaces';
 import { TokenOptimizerService } from '../../../optimization/token-optimizer-service.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
+import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA, validateBehaviorExamples } from '../../../domains/test-generation/services/behavior-example-validation.js';
 
 // ============================================================================
 // Types
@@ -114,6 +115,10 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
     } = params;
 
     try {
+      // #795: reject malformed caller fixtures at the tool boundary, before
+      // any service or domain work runs.
+      const behaviorExamples = validateBehaviorExamples(params.behaviorExamples);
+
       // Stream progress updates
       this.emitStream(context, {
         status: 'analyzing',
@@ -159,7 +164,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 
       // Build the domain request from MCP params
       const domainRequest: GenerateTestsRequest = {
-        behaviorExamples: params.behaviorExamples,
+        behaviorExamples,
         sourceFiles,
         testType: testType as 'unit' | 'integration' | 'e2e',
         framework: framework as 'jest' | 'vitest' | 'mocha' | 'pytest' | 'node-test',
@@ -242,7 +247,7 @@ export class TestGenerateTool extends MCPToolBase<TestGenerateParams, TestGenera
 const TEST_GENERATE_SCHEMA: MCPToolSchema = {
   type: 'object',
   properties: {
-    behaviorExamples: { type: 'array', description: 'Trusted JSON specification fixtures: functionName, args, expected', items: { type: 'object', description: 'A named function with args array and explicit expected JSON value' } },
+    behaviorExamples: { type: 'array', description: 'Trusted JSON specification fixtures: functionName, args, expected', items: BEHAVIOR_EXAMPLE_ITEM_SCHEMA as unknown as MCPSchemaProperty },
     sourceFiles: {
       type: 'array',
       description: 'Array of source file paths to generate tests for',

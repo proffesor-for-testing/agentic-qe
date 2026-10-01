@@ -265,7 +265,7 @@ export async function handleTaskFailed(
   ctx: QueenEventHandlerContext,
   event: DomainEvent,
 ): Promise<void> {
-  const { taskId, error } = event.payload as { taskId: string; error: string };
+  const { taskId, error, callerError } = event.payload as { taskId: string; error: string; callerError?: boolean };
   const cancelled = settleCancelledTask(ctx.tasks, taskId);
   if (cancelled.ignored) {
     if (cancelled.settledNow) {
@@ -282,8 +282,10 @@ export async function handleTaskFailed(
       ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
     }
 
-    // ADR-064: Record failure in domain circuit breaker
-    if (ctx.domainBreakerRegistry && execution.assignedDomain) {
+    // ADR-064: Record failure in domain circuit breaker. A task rejected for
+    // invalid caller input says nothing about the domain's health, so it must
+    // not open the breaker for every other caller (#795).
+    if (ctx.domainBreakerRegistry && execution.assignedDomain && !callerError) {
       ctx.domainBreakerRegistry.getBreaker(execution.assignedDomain).recordFailure(
         new Error(error || 'Task failed'),
       );
@@ -298,8 +300,9 @@ export async function handleTaskFailed(
       }
     }
 
-    // Check if we should retry
-    if (execution.retryCount < ctx.config.taskRetryLimit) {
+    // Check if we should retry. Caller-input errors are deterministic, so a
+    // retry would fail the same way.
+    if (!callerError && execution.retryCount < ctx.config.taskRetryLimit) {
       ctx.auditLogger.logFail(taskId, execution.assignedAgents[0], error);
 
       const retried: TaskExecution = {
@@ -344,7 +347,7 @@ export async function handleTaskFailed(
 
       // ADR-064 Phase 4A: Create competing hypotheses investigation for
       // permanent failures in critical domains (p0/p1 priority)
-      if (ctx.hypothesisManager && (execution.task.priority === 'p0' || execution.task.priority === 'p1')) {
+      if (!callerError && ctx.hypothesisManager && (execution.task.priority === 'p0' || execution.task.priority === 'p1')) {
         try {
           const domain = execution.assignedDomain || 'test-generation';
           const investigation = ctx.hypothesisManager.createInvestigation(

@@ -45,6 +45,7 @@ import {
 } from '../../contracts/verdicts.js';
 
 import type { EvaluatedQualityCheck } from '../../domains/quality-assessment/quality-evidence.js';
+import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
 
@@ -271,9 +272,14 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       framework = DEFAULT_FRAMEWORKS[language];
     }
 
+    // #795: validate caller fixtures here, before the task reaches the
+    // domain. Throwing from mapToPayload returns a clean tool error without
+    // submitting a task, so malformed input cannot trip the domain breaker.
+    const behaviorExamples = validateBehaviorExamples(params.behaviorExamples);
+
     return {
       sourceCode: params.sourceCode,
-      behaviorExamples: params.behaviorExamples,
+      behaviorExamples,
       filePath: params.filePath,
       language,
       framework,

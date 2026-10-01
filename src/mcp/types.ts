@@ -20,6 +20,8 @@ export interface ToolParameter {
   required?: boolean;
   default?: unknown;
   enum?: string[];
+  /** JSON Schema for array elements (only meaningful when type is 'array'). */
+  items?: Record<string, unknown>;
 }
 
 /**

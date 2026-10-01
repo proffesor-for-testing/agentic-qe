@@ -673,6 +673,26 @@ describe('DomainTaskExecutor', () => {
       const completedEvent = events.find(e => e.type === 'TaskCompleted');
       expect(completedEvent).toBeDefined();
     });
+
+    it('marks TaskFailed as a caller error when behaviorExamples do not match the source (#795)', async () => {
+      const task = createTestTask('generate-tests', {
+        sourceCode: 'export function add(a, b) { return a + b; }',
+        language: 'javascript',
+        framework: 'vitest',
+        aiEnhancement: false,
+        behaviorExamples: [{ functionName: 'missing', args: [], expected: 1 }],
+      });
+
+      const result = await executor.execute(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("'missing' is not one");
+      const events = (kernel.eventBus as MockEventBus).publishedEvents;
+      expect(events.find(e => e.type === 'TaskFailed')?.payload).toMatchObject({
+        taskId: task.id,
+        callerError: true,
+      });
+    });
   });
 
   describe('result persistence toggle', () => {

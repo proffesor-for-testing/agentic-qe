@@ -8,13 +8,14 @@
  */
 
 import { generateBehaviorExamples } from './behavior-examples.js';
+import { validateBehaviorExamples } from './behavior-example-validation.js';
 import { LoggerFactory } from '../../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import ts from 'typescript';
 import { Result, ok, err } from '../../../shared/types';
-import { toErrorMessage } from '../../../shared/error-utils.js';
+import { CallerInputError, toErrorMessage } from '../../../shared/error-utils.js';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import {
   GenerateTestsRequest,
@@ -232,7 +233,7 @@ export class TestGeneratorService implements ITestGenerationService {
     if (!this.llmRouter) return { code: testCode, enhanced: false };
 
     try {
-      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis);
+      let prompt = this.buildTestEnhancementPrompt(testCode, sourceCode, analysis, sourceFilePath, context?.importPath);
 
       // Prepend historical edge case patterns if injector is available (loki-mode Item 5)
       if (this.edgeCaseInjector) {
@@ -335,9 +336,17 @@ Return ONLY the enhanced test code, no explanations.`,
   private buildTestEnhancementPrompt(
     testCode: string,
     sourceCode: string,
-    analysis: CodeAnalysis | null
+    analysis: CodeAnalysis | null,
+    sourceFilePath?: string,
+    importPath?: string
   ): string {
-    let prompt = `## Source Code to Test:\n\`\`\`typescript\n${sourceCode}\n\`\`\`\n\n`;
+    let prompt = '';
+    if (sourceFilePath) {
+      prompt += `## Module Under Test:\n- Source file: ${sourceFilePath}\n`;
+      if (importPath) prompt += `- Import it in the tests from: '${importPath}'\n`;
+      prompt += '\n';
+    }
+    prompt += `## Source Code to Test:\n\`\`\`typescript\n${sourceCode}\n\`\`\`\n\n`;
     prompt += `## Current Test Code:\n\`\`\`typescript\n${testCode}\n\`\`\`\n\n`;
 
     if (analysis) {
@@ -426,9 +435,8 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
    */
   async generateTests(request: GenerateTestsRequest): Promise<Result<GeneratedTests, Error>> {
     try {
-      if (request.behaviorExamples !== undefined && !Array.isArray(request.behaviorExamples)) {
-        return err(new Error('behaviorExamples must be an array'));
-      }
+      // Throws CallerInputError (caught below) for malformed examples.
+      validateBehaviorExamples(request.behaviorExamples);
       // Auto-detect language and framework if not provided (ADR-078)
       const resolved = resolveRequest({
         sourceFiles: request.sourceFiles,
@@ -446,7 +454,7 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       } = request;
 
       if (request.behaviorExamples?.length && sourceFiles.length !== 1) {
-        return err(new Error('behaviorExamples requires exactly one source file'));
+        return err(new CallerInputError('behaviorExamples requires exactly one source file'));
       }
 
       if (sourceFiles.length === 0) {
@@ -630,24 +638,32 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       similarCode,
     };
 
+    const hasExamples = (originalRequest?.behaviorExamples?.length ?? 0) > 0;
     const jsSource = /\.(?:[cm]?[jt]s|[jt]sx)$/i.test(sourceFile);
-    const deterministic = (this.usesDefaultGenerator || originalRequest?.behaviorExamples?.length)
-      && testType === 'unit' && jsSource && ['vitest', 'jest', 'node-test'].includes(framework)
-      ? generateBehaviorExamples(sourceContent, sourceFile,
-          originalRequest?.importPathOverrides?.[sourceFile] ?? path.resolve(sourceFile),
-          framework, originalRequest?.behaviorExamples, testType)
-      : undefined;
-    if (originalRequest?.behaviorExamples?.length && !deterministic) {
-      throw new Error('Behavior examples require JavaScript/TypeScript and vitest, jest, or node-test');
+    const deterministicEligible = (this.usesDefaultGenerator || hasExamples)
+      && testType === 'unit' && jsSource && ['vitest', 'jest', 'node-test'].includes(framework);
+    if (hasExamples && !deterministicEligible) {
+      throw new CallerInputError('Behavior examples require JavaScript/TypeScript and vitest, jest, or node-test');
     }
-    let testCode = deterministic?.code ?? generator.generateTests(context);
+    const buildDeterministic = () => generateBehaviorExamples(sourceContent, sourceFile,
+      originalRequest?.importPathOverrides?.[sourceFile] ?? path.resolve(sourceFile),
+      framework, originalRequest?.behaviorExamples, testType);
 
-    // ADR-051: Enhance with LLM if enabled and available.
+    // ADR-051: Enhance with LLM if enabled and available. Caller-supplied
+    // behavior examples are the oracle, so they are never rewritten by an LLM.
     // #567: `llmEnhanced` reflects whether the LLM actually produced the code,
     // not merely whether a router was configured — a broken provider must not
     // report AI-enhanced output it did not produce.
+    const willEnhance = this.isLLMEnhancementAvailable() && !!sourceContent && !hasExamples;
+
+    // #795: without fixtures the LLM must start from the framework template,
+    // which carries the real import line for the module under test. The
+    // zero-assertion scaffold is only emitted when no LLM output is used.
+    let deterministic = deterministicEligible && !willEnhance ? buildDeterministic() : undefined;
+    let testCode = deterministic?.code ?? generator.generateTests(context);
+
     let llmEnhanced = false;
-    if (this.isLLMEnhancementAvailable() && sourceContent && !originalRequest?.behaviorExamples?.length) {
+    if (willEnhance) {
       const result = await this.enhanceTestWithLLM(
         testCode,
         sourceContent,
@@ -655,8 +671,15 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
         sourceFile,
         context,
       );
-      testCode = result.code;
       llmEnhanced = result.enhanced;
+      if (llmEnhanced) {
+        testCode = result.code;
+      } else if (deterministicEligible) {
+        // The LLM produced nothing usable: fall back to the honest scaffold,
+        // never to template assertions with guessed expected values (#787).
+        deterministic = buildDeterministic();
+        testCode = deterministic.code;
+      }
     }
 
     const test: GeneratedTest = {
