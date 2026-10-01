@@ -71,7 +71,11 @@ export {
 
 export type {
   TaskAuditEntry,
+  TaskAuditSequencedEntry,
   TaskAuditConfig,
+  TaskAuditFilter,
+  TaskAuditWindow,
+  TaskAuditSnapshot,
   TaskOperation,
 } from './services';
 

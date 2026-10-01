@@ -6,6 +6,7 @@
  * for a local CLI tool where all agents are trusted.
  */
 
+import { randomUUID } from 'node:crypto';
 import { DomainName } from '../../shared/types';
 
 /**
@@ -34,6 +35,38 @@ export interface TaskAuditEntry {
   readonly details?: Record<string, unknown>;
 }
 
+/** An entry produced by this logger, positioned within its generation. */
+export interface TaskAuditSequencedEntry extends TaskAuditEntry {
+  readonly sequence: number;
+}
+
+/** Filters select retained entries; they do not change retention metadata. */
+export interface TaskAuditFilter {
+  operation?: TaskOperation;
+  taskId?: string;
+  agentId?: string;
+  domain?: DomainName;
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+  limit?: number;
+}
+
+/** Completeness of the bounded observation window since construction/clear. */
+export interface TaskAuditWindow {
+  generation: string;
+  recordedEntries: number;
+  retainedEntries: number;
+  droppedEntries: number;
+  firstRetainedSequence: number | null;
+  lastRetainedSequence: number | null;
+  disposition: 'complete' | 'truncated';
+}
+
+/** Filtered entries with metadata for the entire retained window. */
+export interface TaskAuditSnapshot extends TaskAuditWindow {
+  entries: TaskAuditSequencedEntry[];
+}
+
 /**
  * Configuration for task audit logger
  */
@@ -59,11 +92,17 @@ const DEFAULT_CONFIG: TaskAuditConfig = {
  * Useful for debugging, monitoring, and understanding task flow.
  */
 export class TaskAuditLogger {
-  private readonly entries: TaskAuditEntry[] = [];
+  private readonly entries: TaskAuditSequencedEntry[] = [];
   private readonly config: TaskAuditConfig;
+  private generation = randomUUID();
+  private recordedEntries = 0;
+  private droppedEntries = 0;
 
   constructor(config: Partial<TaskAuditConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    if (!Number.isSafeInteger(this.config.maxEntries) || this.config.maxEntries < 0) {
+      throw new RangeError('maxEntries must be a non-negative safe integer');
+    }
   }
 
   /**
@@ -78,7 +117,8 @@ export class TaskAuditLogger {
       details?: Record<string, unknown>;
     }
   ): void {
-    const entry: TaskAuditEntry = {
+    const entry: TaskAuditSequencedEntry = {
+      sequence: ++this.recordedEntries,
       timestamp: new Date(),
       operation,
       taskId,
@@ -91,7 +131,9 @@ export class TaskAuditLogger {
 
     // Trim if exceeds max
     if (this.entries.length > this.config.maxEntries) {
-      this.entries.splice(0, this.entries.length - this.config.maxEntries);
+      const dropped = this.entries.length - this.config.maxEntries;
+      this.entries.splice(0, dropped);
+      this.droppedEntries += dropped;
     }
 
     // Console log if enabled
@@ -144,15 +186,7 @@ export class TaskAuditLogger {
   /**
    * Get audit entries with optional filtering
    */
-  getEntries(filter?: {
-    operation?: TaskOperation;
-    taskId?: string;
-    agentId?: string;
-    domain?: DomainName;
-    fromTimestamp?: Date;
-    toTimestamp?: Date;
-    limit?: number;
-  }): TaskAuditEntry[] {
+  getEntries(filter?: TaskAuditFilter): TaskAuditSequencedEntry[] {
     let result = [...this.entries];
 
     if (filter) {
@@ -177,13 +211,29 @@ export class TaskAuditLogger {
     }
 
     const limit = filter?.limit ?? result.length;
-    return result.slice(-limit);
+    return limit === 0 ? [] : result.slice(-limit);
   }
 
-  /**
-   * Get statistics about task operations
-   */
-  getStatistics(): {
+  /** Get selected entries without losing evidence of earlier evictions/resets. */
+  getSnapshot(filter?: TaskAuditFilter): TaskAuditSnapshot {
+    return { ...this.getWindow(), entries: this.getEntries(filter) };
+  }
+
+  private getWindow(): TaskAuditWindow {
+    return {
+      generation: this.generation,
+      recordedEntries: this.recordedEntries,
+      retainedEntries: this.entries.length,
+      droppedEntries: this.droppedEntries,
+      firstRetainedSequence: this.entries[0]?.sequence ?? null,
+      lastRetainedSequence: this.entries[this.entries.length - 1]?.sequence ?? null,
+      disposition: this.droppedEntries > 0 ? 'truncated' : 'complete',
+    };
+  }
+
+  /** Get counts for the retained window, with its completeness metadata. */
+  getStatistics(): TaskAuditWindow & {
+    basis: 'retained-window';
     totalEntries: number;
     operationCounts: Record<TaskOperation, number>;
     taskCount: number;
@@ -213,6 +263,8 @@ export class TaskAuditLogger {
     }
 
     return {
+      ...this.getWindow(),
+      basis: 'retained-window',
       totalEntries: this.entries.length,
       operationCounts,
       taskCount: taskIds.size,
@@ -225,6 +277,9 @@ export class TaskAuditLogger {
    */
   clear(): void {
     this.entries.length = 0;
+    this.generation = randomUUID();
+    this.recordedEntries = 0;
+    this.droppedEntries = 0;
   }
 }
 
