@@ -6,6 +6,7 @@
  * and ComplianceReporter for violation tracking.
  */
 
+import { randomUUID } from 'node:crypto';
 import { getFleetState, isFleetInitialized } from './core-handlers';
 import {
   ToolResult,
@@ -502,7 +503,8 @@ export async function handleMemoryShare(
 
   try {
     // Store shared knowledge for each target agent
-    const sharedKey = `shared:${params.knowledgeDomain}:${Date.now()}`;
+    // Concurrent agents can publish several findings within the same millisecond.
+    const sharedKey = `shared:${params.knowledgeDomain}:${Date.now()}:${randomUUID()}`;
     const sharedContent = {
       source: params.sourceAgentId,
       targets: params.targetAgentIds,
