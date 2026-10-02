@@ -106,7 +106,8 @@ export class InMemoryBackend implements MemoryBackend {
 
     for (const key of this.store.keys()) {
       if (nsPrefix && !key.startsWith(nsPrefix)) continue;
-      if (regex.test(key)) {
+      const searchableKey = nsPrefix ? key.slice(nsPrefix.length) : key;
+      if (regex.test(searchableKey)) {
         results.push(key);
         if (results.length >= limit) break;
       }

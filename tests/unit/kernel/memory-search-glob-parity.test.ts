@@ -45,6 +45,15 @@ describe.each(['memory', 'sqlite'] as const)('memory key glob parity (%s)', (kin
   it('includes newline characters in star matches', async () => {
     expect(await memory.search('config:newline*')).toEqual(['config:newline\npart']);
   });
+  it('matches logical keys when an explicit storage namespace is selected', async () => {
+    await memory.set('config:itema', 'selected', { namespace: 'custom' });
+    await memory.set('prefix:config:itema', 'not-selected', { namespace: 'custom' });
+    await memory.set('config:itema', 'other-namespace', { namespace: 'other' });
+    const keys = await memory.search('config:itema', 100, { namespace: 'custom' });
+    // In-memory search historically returns physical keys; preserve that representation.
+    const logicalKeys = keys.map((key) => kind === 'memory' ? key.slice('custom:'.length) : key);
+    expect(logicalKeys).toEqual(['config:itema']);
+  });
   it('preserves a literal SQL escape character', async () => {
     expect(await memory.search('config:rate!1')).toEqual(['config:rate!1']);
   });
