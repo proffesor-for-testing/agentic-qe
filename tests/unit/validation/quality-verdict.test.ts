@@ -37,6 +37,22 @@ const op = (coverage: number, ran = true): JudgeOpinion => ({
 });
 
 describe('computeQualityVerdict — mechanical gate', () => {
+  it.each([['false'], ['true'], [1], [[]], [{}]])('rejects truthy non-boolean mechanical evidence (%j)', async (value) => {
+    for (const field of ['passed', 'baselinePassed'] as const) {
+      let judgeCalls = 0;
+      const oracle = { ...passedOracle, [field]: value } as unknown as typeof passedOracle;
+      const r = await computeQualityVerdict({
+        oracle, artifact: 't', checklist: CHECKLIST,
+        judge: {
+          preflight: () => { judgeCalls++; return true; },
+          grade: () => { judgeCalls++; return op(1); },
+        },
+      });
+      expect(r).toMatchObject({ verdict: 'fail', mechanical: 'fail', attempts: 0 });
+      expect(judgeCalls).toBe(0);
+    }
+  });
+
   it('should_fail_when_oracle_did_not_run', async () => {
     const r = await computeQualityVerdict({
       oracle: null, artifact: 't', checklist: CHECKLIST, judge: fakeJudge([op(1)]),

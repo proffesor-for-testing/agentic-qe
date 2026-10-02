@@ -111,11 +111,12 @@ export async function computeQualityVerdict(
   }
 
   // 1. Mechanical gate (ADR-113). Non-execution ⇒ fail, no judge consulted.
-  const mechanicalPass = input.oracle != null && input.oracle.baselinePassed && input.oracle.passed;
+  const mechanicalPass = input.oracle != null
+    && input.oracle.baselinePassed === true && input.oracle.passed === true;
   if (!mechanicalPass) {
     const why = input.oracle == null
       ? 'oracle did not run'
-      : !input.oracle.baselinePassed
+      : input.oracle.baselinePassed !== true
         ? 'tests did not execute against the reference implementation'
         : 'mutation score below threshold';
     return {
