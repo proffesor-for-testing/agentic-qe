@@ -19,6 +19,8 @@ import { safeJsonParse } from '../shared/safe-json.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import type { QEPattern, QEDomain, QEPatternType } from './qe-patterns.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
+import { QE_PATTERNS_FTS_SCHEMA } from '../kernel/unified-memory-schemas.js';
+import { ensurePatternFtsInSync } from '../kernel/pattern-fts-self-heal.js';
 import {
   computeBatchEmbeddings,
   getEmbeddingDimension,
@@ -221,6 +223,12 @@ export class SQLitePatternStore {
           this.db.pragma('foreign_keys = ON');
         }
 
+        // Unified mode heals on UnifiedMemoryManager open; legacy DBs get the
+        // same repair. Runs BEFORE createSchema so a missing trigger is still
+        // observable (createSchema would silently recreate it without
+        // rebuilding the drifted index). No-op on a fresh DB.
+        ensurePatternFtsInSync(this.db, { logPrefix: '[SQLitePatternStore]' });
+
         // Create schema (only for legacy mode)
         this.createSchema();
         console.log(`[SQLitePatternStore] Initialized (legacy): ${this.config.dbPath}`);
@@ -336,30 +344,8 @@ export class SQLitePatternStore {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique_name_domain_type
         ON qe_patterns(name, qe_domain, pattern_type);
 
-      -- FTS5 full-text search index for hybrid vector/text search
-      CREATE VIRTUAL TABLE IF NOT EXISTS qe_patterns_fts USING fts5(
-        name, description, pattern_type, qe_domain,
-        content='qe_patterns',
-        content_rowid='rowid'
-      );
-
-      -- FTS5 triggers to keep index in sync
-      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_insert AFTER INSERT ON qe_patterns BEGIN
-        INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-        VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_delete AFTER DELETE ON qe_patterns BEGIN
-        INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-        VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS qe_patterns_fts_update AFTER UPDATE ON qe_patterns BEGIN
-        INSERT INTO qe_patterns_fts(qe_patterns_fts, rowid, name, description, pattern_type, qe_domain)
-        VALUES ('delete', old.rowid, old.name, old.description, old.pattern_type, old.qe_domain);
-        INSERT INTO qe_patterns_fts(rowid, name, description, pattern_type, qe_domain)
-        VALUES (new.rowid, new.name, new.description, new.pattern_type, new.qe_domain);
-      END;
+      -- FTS5 full-text search index + sync triggers (shared DDL)
+      ${QE_PATTERNS_FTS_SCHEMA}
 
       -- Indexes for performance
       CREATE INDEX IF NOT EXISTS idx_patterns_domain ON qe_patterns(qe_domain);
