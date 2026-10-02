@@ -129,6 +129,7 @@ import {
 import { ToolCallSignatureTracker } from '../kernel/anti-drift-middleware.js';
 import { formatErrorForLog } from '../logging/redaction.js';
 import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA } from '../domains/test-generation/services/behavior-example-validation.js';
+import { requestOwnedShutdown } from '../kernel/process-lifecycle.js';
 
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
@@ -574,10 +575,15 @@ export class MCPProtocolServer {
 
   private async handleShutdown(): Promise<Record<string, never>> {
     console.error('[MCP] Shutdown requested');
-    // Graceful shutdown - stop accepting new requests
+    // Reply first, then shut down. #801: the entry point's lifecycle owner
+    // runs the same graceful shutdown as stdin EOF and signals (drains the
+    // server, then releases the shared RVF stores). Without an owner (an
+    // embedded server), await stop() under a bounded cap before exiting.
     setTimeout(() => {
-      this.stop();
-      process.exit(0);
+      if (requestOwnedShutdown('jsonrpc-shutdown')) return;
+      const exit = (): never => process.exit(0);
+      setTimeout(exit, 3000).unref();
+      this.stop().catch(() => { /* best effort */ }).finally(exit);
     }, 100);
     return {};
   }
