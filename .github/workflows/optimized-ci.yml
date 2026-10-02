@@ -389,7 +389,10 @@ jobs:
       - name: Generate Test Inventory
         run: node scripts/ci-inventory.cjs
         env:
-          GITHUB_SHA: ${{ github.sha }}
+          # The scanned tree is GITHUB_SHA (what actions/checkout checked out). On
+          # pull_request runs that is GitHub's test merge commit, so the PR head is
+          # passed separately and reported as context, not as the scanned commit.
+          CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CI_JOB_OUTCOMES: ${{ toJSON(needs) }}
       - uses: actions/upload-artifact@v7
         with:
@@ -413,8 +416,8 @@ jobs:
             const metrics = fs.readFileSync('ci-metrics.md', 'utf8');
 
             const marker = '<!-- aqe-optimized-ci-inventory -->';
-            const body = `${marker}\n## Test Suite Metrics
-
+            // ci-metrics.md carries its own top-level heading.
+            const body = `${marker}
             ${metrics}
 
             ---
