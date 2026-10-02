@@ -5,7 +5,8 @@
 
 import { LoggerFactory } from '../../../logging/index.js';
 import { spawn, ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
@@ -507,7 +508,7 @@ Provide:
     }
 
     // Build command based on framework
-    const { command, args, report } = this.buildTestCommand(files, framework);
+    const { command, args, report, coverageDirectory } = this.buildTestCommand(files, framework);
     const fileLabel = files.join(', ');
 
     return new Promise((resolve) => {
@@ -515,10 +516,16 @@ Provide:
       let stderr = '';
       let killed = false;
       let settled = false;
+      const cleanupArtifacts = (): void => {
+        report?.cleanup();
+        if (coverageDirectory) {
+          try { rmSync(coverageDirectory, { recursive: true, force: true }); } catch { /* Best effort. */ }
+        }
+      };
       const finish = (result: Result<TestExecutionResult, Error>, cleanup = true): void => {
         if (settled) return;
         settled = true;
-        if (cleanup) report?.cleanup();
+        if (cleanup) cleanupArtifacts();
         resolve(result);
       };
 
@@ -559,7 +566,7 @@ Provide:
         clearTimeout(timeoutId);
 
         if (killed) {
-          report?.cleanup();
+          cleanupArtifacts();
           return; // Timeout result was already returned; child has now closed.
         }
 
@@ -578,10 +585,10 @@ Provide:
         }
         const parseResult = this.parseTestOutput(reportText, stderr, fileLabel, framework, code);
 
-        // If no coverage in stdout JSON, try reading from disk
-        // (vitest/jest write coverage to coverage/coverage-summary.json)
-        if (parseResult.success && !parseResult.value.coverage && ['vitest', 'jest'].includes(framework.toLowerCase())) {
-          const diskCoverage = this.readCoverageFromDisk();
+        // Read only this invocation's coverage artifacts. A previous or
+        // concurrent run's project coverage directory is not evidence.
+        if (parseResult.success && !parseResult.value.coverage && coverageDirectory) {
+          const diskCoverage = this.readCoverageFromDisk(coverageDirectory);
           if (diskCoverage) {
             parseResult.value.coverage = diskCoverage.summary;
             if (diskCoverage.perFile.length > 0) {
@@ -607,24 +614,34 @@ Provide:
   private buildTestCommand(
     fileOrFiles: string | string[],
     framework: string
-  ): { command: string; args: string[]; report?: VitestJsonReport } {
+  ): { command: string; args: string[]; report?: VitestJsonReport; coverageDirectory?: string } {
     const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    const createCoverageDirectory = (): string => mkdtempSync(join(tmpdir(), 'aqe-test-coverage-'));
     switch (framework.toLowerCase()) {
       case 'vitest': {
         // --outputFile makes Vitest 4 and 5 both write the JSON report to a
         // file we own; Vitest 5 no longer prints it to stdout.
-        const report = createVitestJsonReport();
+        const coverageDirectory = createCoverageDirectory();
+        let report: VitestJsonReport;
+        try { report = createVitestJsonReport(); } catch (error) {
+          rmSync(coverageDirectory, { recursive: true, force: true });
+          throw error;
+        }
         return {
           command: 'npx',
-          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args, `--coverage.reportsDirectory=${coverageDirectory}`],
           report,
+          coverageDirectory,
         };
       }
-      case 'jest':
+      case 'jest': {
+        const coverageDirectory = createCoverageDirectory();
         return {
           command: 'npx',
-          args: ['jest', ...files, '--json', '--no-colors', '--testLocationInResults'],
+          args: ['jest', ...files, '--json', '--no-colors', '--testLocationInResults', `--coverageDirectory=${coverageDirectory}`],
+          coverageDirectory,
         };
+      }
       case 'mocha':
         // Note: mocha has no built-in coverage — requires external nyc/c8 wrapper.
         // Coverage data will be unavailable for mocha-based test runs.
@@ -640,11 +657,17 @@ Provide:
         };
       default: {
         // Default to vitest
-        const report = createVitestJsonReport();
+        const coverageDirectory = createCoverageDirectory();
+        let report: VitestJsonReport;
+        try { report = createVitestJsonReport(); } catch (error) {
+          rmSync(coverageDirectory, { recursive: true, force: true });
+          throw error;
+        }
         return {
           command: 'npx',
-          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args],
+          args: ['vitest', 'run', ...files, '--reporter=json', '--no-color', ...report.args, `--coverage.reportsDirectory=${coverageDirectory}`],
           report,
+          coverageDirectory,
         };
       }
     }
@@ -1266,19 +1289,19 @@ Provide:
   }
 
   /**
-   * Read coverage from disk files written by vitest/jest.
-   * Both runners write coverage-summary.json to a coverage/ directory when
-   * --coverage is passed, rather than embedding it in stdout JSON.
+   * Read coverage from the private output directory of a completed runner.
+   * Setting the directory does not enable coverage; project configuration
+   * still decides whether coverage is collected.
    */
-  private readCoverageFromDisk(): {
+  private readCoverageFromDisk(coverageDirectory: string): {
     summary: { line: number; branch: number; function: number; statement: number };
     perFile: Array<{ path: string; line: number; branch: number; function: number; statement: number }>;
   } | undefined {
     try {
       // Check common coverage output paths
       const candidates = [
-        join(process.cwd(), 'coverage', 'coverage-summary.json'),
-        join(process.cwd(), 'coverage', 'coverage-final.json'),
+        join(coverageDirectory, 'coverage-summary.json'),
+        join(coverageDirectory, 'coverage-final.json'),
       ];
 
       for (const filePath of candidates) {
