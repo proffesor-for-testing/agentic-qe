@@ -287,7 +287,8 @@ export async function handleMemoryQuery(
       try {
         // Generate real 384-dim transformer embedding for accurate cosine similarity search
         const embedding = await computeRealEmbedding(params.pattern);
-        const keyPrefix = namespace !== 'default' ? `${namespace}:` : undefined;
+        // Semantic queries have the same namespace boundary as pattern queries.
+        const keyPrefix = `${namespace}:`;
         const filtered = await memory.vectorSearch(
           embedding,
           limit + offset,
