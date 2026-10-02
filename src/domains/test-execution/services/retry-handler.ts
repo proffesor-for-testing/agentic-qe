@@ -652,14 +652,16 @@ export class RetryHandlerService implements IRetryHandler {
     stdout: string,
     stderr: string
   ): { passed: boolean; error?: string } {
-    // A passing process and a passing report must agree when JSON is available.
+    // A retry can clear a prior failure only when the report proves a test
+    // actually passed. Empty/fully skipped selections can also exit zero.
     try {
       // Vitest JSON output
       const vitestMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
       if (vitestMatch) {
         const result = safeJsonParse(vitestMatch[0]);
         if (exitCode === 0 && result.success !== false
-          && result.numFailedTests === 0 && result.numFailedTestSuites === 0) {
+          && result.numFailedTests === 0 && result.numFailedTestSuites === 0
+          && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0) {
           return { passed: true };
         }
         const failedTest = result.testResults?.[0]?.assertionResults?.find(
@@ -667,7 +669,8 @@ export class RetryHandlerService implements IRetryHandler {
         );
         return {
           passed: false,
-          error: failedTest?.failureMessages?.join('\n') || stderr || `Test failed with exit code ${exitCode}`,
+          error: failedTest?.failureMessages?.join('\n') || stderr
+            || (exitCode === 0 ? 'Retry runner did not report any passing tests.' : `Test failed with exit code ${exitCode}`),
         };
       }
 
@@ -676,7 +679,8 @@ export class RetryHandlerService implements IRetryHandler {
       if (jestMatch) {
         const result = safeJsonParse(jestMatch[0]);
         if (exitCode === 0 && result.success !== false
-          && result.numFailedTests === 0 && result.numFailedTestSuites === 0) {
+          && result.numFailedTests === 0 && result.numFailedTestSuites === 0
+          && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0) {
           return { passed: true };
         }
         const failedTest = result.testResults?.[0]?.assertionResults?.find(
@@ -684,7 +688,8 @@ export class RetryHandlerService implements IRetryHandler {
         );
         return {
           passed: false,
-          error: failedTest?.failureMessages?.join('\n') || stderr || `Test failed with exit code ${exitCode}`,
+          error: failedTest?.failureMessages?.join('\n') || stderr
+            || (exitCode === 0 ? 'Retry runner did not report any passing tests.' : `Test failed with exit code ${exitCode}`),
         };
       }
 
@@ -692,20 +697,22 @@ export class RetryHandlerService implements IRetryHandler {
       const mochaMatch = stdout.match(/\{[\s\S]*"stats"[\s\S]*"failures"[\s\S]*\}/);
       if (mochaMatch) {
         const result = safeJsonParse(mochaMatch[0]);
-        if (exitCode === 0 && result.stats?.failures === 0) {
+        if (exitCode === 0 && result.stats?.failures === 0
+          && Number.isFinite(result.stats?.passes) && result.stats.passes > 0) {
           return { passed: true };
         }
         const failure = result.failures?.[0];
         return {
           passed: false,
-          error: failure?.err?.message || stderr || `Test failed with exit code ${exitCode}`,
+          error: failure?.err?.message || stderr
+            || (exitCode === 0 ? 'Retry runner did not report any passing tests.' : `Test failed with exit code ${exitCode}`),
         };
       }
     } catch {
-      // JSON parsing failed, fall back to simple exit code check
+      // Unreadable output cannot prove that the retry executed a passing test.
     }
 
-    if (exitCode === 0) return { passed: true };
+    if (exitCode === 0) return { passed: false, error: 'Retry runner did not report any passing tests.' };
 
     // Non-zero exit code means failure
     const errorOutput = stderr || stdout || `Test failed with exit code ${exitCode}`;
