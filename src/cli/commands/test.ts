@@ -135,7 +135,10 @@ export function createTestCommand(
               }
             }
           } else {
-            console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            // A rejected generation (including fixtures the domain refuses,
+            // e.g. an unknown export) must not exit 0 (#795).
+            console.error(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            await cleanupAndExit(1);
           }
 
         } else if (action === 'execute') {

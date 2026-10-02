@@ -84,6 +84,24 @@ describe('#795 AI-enhanced generation without behaviorExamples', () => {
     expect(test.generationLimits).toBeUndefined();
   });
 
+  it('does not name the physical source path when the caller overrides the import path (inline source)', async () => {
+    // The MCP handler writes inline sourceCode to a throwaway /tmp/aqe-temp-*
+    // file and passes an import override. That path must not reach the LLM,
+    // or it can echo it into the emitted test in a form the rewrite misses.
+    const { sourceFile } = fixture();
+    const { router, prompts } = stubRouter("import { add } from './module-under-test';\ntest('adds', () => { expect(add(1, 2)).toBe(3); });");
+
+    const result = await service(router).generateTests({
+      sourceFiles: [sourceFile], testType: 'unit', framework: 'vitest', language: 'javascript',
+      importPathOverrides: { [sourceFile]: './module-under-test' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).not.toContain(sourceFile);
+    expect(prompts[0]).toContain("Import it in the tests from: './module-under-test'");
+  });
+
   it.each([
     ['returns nothing', ''],
     ['throws', new Error('provider down')],
