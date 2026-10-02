@@ -689,10 +689,11 @@ export class UnifiedMemoryManager {
 
   async kvSearch(pattern: string, namespace: string = 'default', limit: number = 100): Promise<string[]> {
     this.ensureInitialized();
-    const sqlPattern = pattern.replace(/\*/g, '%').replace(/\?/g, '_');
+    // Only glob wildcards are special; SQL LIKE's own wildcard/escape bytes are literal.
+    const sqlPattern = pattern.replace(/[!%_]/g, '!$&').replace(/\*/g, '%').replace(/\?/g, '_');
     const rows = this.db!.prepare(`
       SELECT key FROM kv_store
-      WHERE namespace = ? AND key LIKE ?
+      WHERE namespace = ? AND key LIKE ? ESCAPE '!'
         AND (expires_at IS NULL OR expires_at > ?)
       LIMIT ?
     `).all(namespace, sqlPattern, Date.now(), limit) as Array<{ key: string }>;
