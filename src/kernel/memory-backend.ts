@@ -95,7 +95,7 @@ export class InMemoryBackend implements MemoryBackend {
   ): Promise<string[]> {
     // Match the same whole-key glob contract as persistent memory.
     const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 's');
+    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'su');
     const results: string[] = [];
 
     // When a namespace is supplied, scope the scan to that prefix. Matches

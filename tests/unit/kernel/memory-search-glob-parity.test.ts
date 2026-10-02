@@ -17,7 +17,8 @@ describe.each(['memory', 'sqlite'] as const)('memory key glob parity (%s)', (kin
     await memory.initialize();
     for (const key of ['config:rate_1', 'config:rateX1', 'config:100%', 'config:1000',
       'config:itema', 'config:itemb', 'config:itemabc', 'prefix:config:itema',
-      'config:a.b', 'config:aXb', 'config:rate!1', 'config:rate11', String.raw`config:a\b`]) {
+      'config:a.b', 'config:aXb', 'config:rate!1', 'config:rate11',
+      'config:glyph😀', 'config:glyphA', 'config:glyphAB', 'config:newline\npart', String.raw`config:a\b`]) {
       await memory.set(key, key);
     }
   });
@@ -37,6 +38,12 @@ describe.each(['memory', 'sqlite'] as const)('memory key glob parity (%s)', (kin
   });
   it('matches the whole key rather than a contained substring', async () => {
     expect(await memory.search('config:itema')).toEqual(['config:itema']);
+  });
+  it('matches one Unicode code point with a question-mark wildcard', async () => {
+    expect((await memory.search('config:glyph?')).sort()).toEqual(['config:glyphA', 'config:glyph😀']);
+  });
+  it('includes newline characters in star matches', async () => {
+    expect(await memory.search('config:newline*')).toEqual(['config:newline\npart']);
   });
   it('preserves a literal SQL escape character', async () => {
     expect(await memory.search('config:rate!1')).toEqual(['config:rate!1']);
