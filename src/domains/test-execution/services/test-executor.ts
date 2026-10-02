@@ -27,6 +27,7 @@ import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
 
 // ============================================================================
 // Configuration
@@ -515,6 +516,7 @@ Provide:
       let stdout = '';
       let stderr = '';
       let killed = false;
+      let termination: Promise<void> | undefined;
       let settled = false;
       const cleanupArtifacts = (): void => {
         report?.cleanup();
@@ -536,6 +538,7 @@ Provide:
       try {
         proc = spawn(command, args, {
           cwd: process.cwd(),
+          detached: process.platform !== 'win32',
           env: {
             ...process.env,
             FORCE_COLOR: '0', // Disable color codes for easier parsing
@@ -547,10 +550,16 @@ Provide:
         return;
       }
 
+      const untrackExit = trackTestRunnerExit(proc);
+
       // Set timeout
       const timeoutId = setTimeout(() => {
         killed = true;
-        proc.kill('SIGTERM');
+        termination = terminateTestRunner(proc);
+        // Keep the timeout outcome immediate; cleanup waits for the owned
+        // group, rather than treating the root's close as descendant exit.
+        termination.catch(error => logger.warn(`Test runner cleanup failed: ${toErrorMessage(error)}`));
+        termination.then(untrackExit, () => undefined);
         finish(err(new Error(`Test execution timed out after ${timeout}ms for files: ${fileLabel}`)), false);
       }, timeout);
 
@@ -566,9 +575,11 @@ Provide:
         clearTimeout(timeoutId);
 
         if (killed) {
-          cleanupArtifacts();
-          return; // Timeout result was already returned; child has now closed.
+          // Coverage and JSON reports belong to this run; clean both only
+          // after the entire owned process group has stopped.
+          termination?.then(() => cleanupArtifacts(), () => undefined);
         }
+        untrackExit();
 
         // Parse results based on framework. Vitest 5 writes the JSON report to
         // a file instead of stdout, so read it back through the report handle.
@@ -603,6 +614,7 @@ Provide:
       proc.on('error', (error: Error) => {
         clearTimeout(timeoutId);
         if (killed) return;
+        untrackExit();
         finish(err(new Error(`Failed to spawn test runner: ${error.message}. Is '${command}' installed?`)));
       });
     });
