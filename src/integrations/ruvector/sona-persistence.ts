@@ -1472,18 +1472,28 @@ export class PersistentSONAEngine {
   /**
    * Schedule batched save
    */
-  private scheduleSave(): void {
+  private scheduleSave(delayMs = this.config.autoSaveInterval): void {
     if (this.saveTimer) return;
 
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
       const patterns = Array.from(this.pendingSaves.values());
-      this.pendingSaves.clear();
 
       for (const pattern of patterns) {
-        this.savePatternToDb(pattern);
+        try {
+          this.savePatternToDb(pattern);
+          this.pendingSaves.delete(pattern.id);
+        } catch (error) {
+          logger.warn('Deferred SONA save failed; retaining pending pattern', {
+            patternId: pattern.id, error: toErrorMessage(error),
+          });
+        }
       }
-    }, this.config.autoSaveInterval);
+      if (this.pendingSaves.size > 0) {
+        // A storage failure must not spin at a short normal batching interval.
+        this.scheduleSave(Math.max(1000, this.config.autoSaveInterval));
+      }
+    }, delayMs);
   }
 
   /**
