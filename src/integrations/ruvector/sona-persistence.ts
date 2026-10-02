@@ -1426,11 +1426,12 @@ export class PersistentSONAEngine {
       ? this.floatArrayToBuffer(pattern.action.value as number[])
       : null;
 
-    const actionValue = typeof pattern.action?.value === 'string'
-      ? pattern.action.value
-      : pattern.action?.value !== undefined
-        ? JSON.stringify(pattern.action.value)
-        : null;
+    // Encode strings too: the reader parses JSON, so raw "123"/"false"
+    // would otherwise change the action type after restarting. Legacy raw
+    // non-JSON strings remain readable through rowToPattern's fallback.
+    const actionValue = pattern.action?.value !== undefined
+      ? JSON.stringify(pattern.action.value)
+      : null;
 
     stmt.run(
       pattern.id,
