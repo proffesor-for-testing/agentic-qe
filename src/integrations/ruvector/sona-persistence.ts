@@ -1139,6 +1139,8 @@ export class PersistentSONAEngine {
     this.db = null;
     this.persistence = null;
     this.initialized = false;
+    // A completed initialization promise belongs to the closed lifecycle.
+    this.initPromise = null;
 
     console.log(`[PersistentSONAEngine] Closed: domain=${this.config.domain}`);
   }
