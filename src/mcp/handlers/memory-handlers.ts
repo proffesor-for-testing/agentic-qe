@@ -248,6 +248,7 @@ interface MemoryQueryResult {
     score?: number;
     timestamp?: string;
   }>;
+  /** Matching candidates fetched, including the look-ahead; not a corpus-wide count. */
   total: number;
   hasMore: boolean;
   searchType: 'pattern' | 'semantic';
@@ -275,8 +276,15 @@ export async function handleMemoryQuery(
 
   try {
     const namespace = params.namespace || 'default';
-    const limit = params.limit || 100;
-    const offset = params.offset || 0;
+    const limit = params.limit ?? 100;
+    const offset = params.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 0 ||
+        !Number.isSafeInteger(offset) || offset < 0 ||
+        !Number.isSafeInteger(limit + offset + 1)) {
+      return { success: false, error: 'Memory query limit and offset must be non-negative safe integers with a safe combined page size.' };
+    }
+    // One extra candidate proves whether another page exists without scanning all memory.
+    const fetchLimit = limit + offset + 1;
 
     // Determine if we should use semantic (HNSW vector) search
     const useSemantic = params.semantic === true ||
@@ -290,7 +298,7 @@ export async function handleMemoryQuery(
         const keyPrefix = namespace !== 'default' ? `${namespace}:` : undefined;
         const filtered = await memory.vectorSearch(
           embedding,
-          limit + offset,
+          fetchLimit,
           keyPrefix
         );
 
@@ -325,7 +333,7 @@ export async function handleMemoryQuery(
     const pattern = params.pattern
       ? `${namespace}:${params.pattern}`
       : `${namespace}:*`;
-    const keys = await memory.search(pattern, limit + offset);
+    const keys = await memory.search(pattern, fetchLimit);
 
     // Apply pagination
     const paginatedKeys = keys.slice(offset, offset + limit);
