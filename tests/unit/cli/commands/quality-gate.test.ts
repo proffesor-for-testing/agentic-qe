@@ -26,7 +26,7 @@ describe('quality-gate CLI diagnostics', () => {
     stderr = [];
     chat.mockReset();
     vi.spyOn(console, 'log').mockImplementation((message) => stdout.push(String(message)));
-    vi.spyOn(console, 'error').mockImplementation((message) => stderr.push(String(message)));
+    vi.spyOn(console, 'error').mockImplementation((...messages) => stderr.push(messages.map(String).join(' ')));
   });
 
   afterEach(() => {
@@ -34,6 +34,78 @@ describe('quality-gate CLI diagnostics', () => {
     for (const directory of temporaryDirectories.splice(0)) {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    { passed: 'false', baselinePassed: true },
+    { passed: true, baselinePassed: 'false' },
+    { passed: 1, baselinePassed: true },
+    { passed: true, baselinePassed: [] },
+    { passed: {}, baselinePassed: true },
+    { passed: true },
+    null,
+  ])('rejects malformed oracle-file evidence before consulting the judge (%j)', async (oracle) => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aqe-oracle-'));
+    temporaryDirectories.push(directory);
+    const oraclePath = path.join(directory, 'oracle.json');
+    writeFileSync(oraclePath, JSON.stringify(oracle));
+    chat.mockResolvedValue({ content: 'OK' });
+    const cleanupAndExit = vi.fn(async () => undefined) as unknown as (code: number) => Promise<never>;
+    const command = createQualityGateCommand({} as CLIContext, cleanupAndExit, vi.fn(async () => true));
+
+    await command.parseAsync([
+      '--checklist', 'A1-inRange', '--artifact', 'test artifact',
+      '--oracle-file', oraclePath, '--format', 'json',
+      '--anchor', path.resolve('verification/anchors/qe-anchor-v1.json'),
+    ], { from: 'user' });
+
+    expect(cleanupAndExit).toHaveBeenCalledWith(1);
+    expect(stderr.join('\n')).toContain('oracle-file must contain boolean passed and baselinePassed fields');
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { passed: false, baselinePassed: true },
+    { passed: true, baselinePassed: false },
+    { passed: false, baselinePassed: false },
+  ])('preserves valid false oracle values and oracle-file precedence (%j)', async (oracle) => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aqe-oracle-'));
+    temporaryDirectories.push(directory);
+    const oraclePath = path.join(directory, 'oracle.json');
+    writeFileSync(oraclePath, JSON.stringify(oracle));
+    const cleanupAndExit = vi.fn(async () => undefined) as unknown as (code: number) => Promise<never>;
+    const command = createQualityGateCommand({} as CLIContext, cleanupAndExit, vi.fn(async () => true));
+
+    await command.parseAsync([
+      '--checklist', 'A1-inRange', '--artifact', 'test artifact',
+      '--oracle-passed', '--baseline-passed', '--oracle-file', oraclePath, '--format', 'json',
+      '--anchor', path.resolve('verification/anchors/qe-anchor-v1.json'),
+    ], { from: 'user' });
+
+    expect(JSON.parse(stdout.join('\n'))).toMatchObject({ verdict: 'fail', mechanical: 'fail', attempts: 0 });
+    expect(cleanupAndExit).toHaveBeenCalledWith(1);
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it('accepts explicit true booleans from an oracle file', async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'aqe-oracle-'));
+    temporaryDirectories.push(directory);
+    const oraclePath = path.join(directory, 'oracle.json');
+    writeFileSync(oraclePath, JSON.stringify({ passed: true, baselinePassed: true }));
+    chat.mockResolvedValueOnce({ content: 'OK' }).mockResolvedValueOnce({ content: '{"unmet": []}' });
+    const cleanupAndExit = vi.fn(async () => undefined) as unknown as (code: number) => Promise<never>;
+    const command = createQualityGateCommand({} as CLIContext, cleanupAndExit, vi.fn(async () => true));
+
+    await command.parseAsync([
+      '--checklist', 'A1-inRange', '--artifact', 'test artifact',
+      '--oracle-file', oraclePath, '--format', 'json',
+      '--anchor', path.resolve('verification/anchors/qe-anchor-v1.json'),
+    ], { from: 'user' });
+
+    expect(JSON.parse(stdout.join('\n'))).toMatchObject({ qualityVerdict: 'pass', mechanical: 'pass' });
+    // Missing reach evidence remains inconclusive; this test only proves valid oracle parsing.
+    expect(cleanupAndExit).toHaveBeenCalledWith(3);
+    expect(chat).toHaveBeenCalledTimes(2);
   });
 
   it('should_acceptRevisionBoundReachManifest_throughSharedCliPath', async () => {

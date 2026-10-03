@@ -134,8 +134,15 @@ function resolveOracle(
   options: { oracleFile?: string; oraclePassed?: boolean; baselinePassed?: boolean },
 ): { passed: boolean; baselinePassed: boolean } | null {
   if (options.oracleFile) {
-    const raw = JSON.parse(fs.readFileSync(options.oracleFile, 'utf8'));
-    return { passed: !!raw.passed, baselinePassed: !!raw.baselinePassed };
+    const raw: unknown = JSON.parse(fs.readFileSync(options.oracleFile, 'utf8'));
+    if (
+      raw === null || typeof raw !== 'object' || Array.isArray(raw)
+      || !('passed' in raw) || typeof raw.passed !== 'boolean'
+      || !('baselinePassed' in raw) || typeof raw.baselinePassed !== 'boolean'
+    ) {
+      throw new Error('oracle-file must contain boolean passed and baselinePassed fields');
+    }
+    return { passed: raw.passed, baselinePassed: raw.baselinePassed };
   }
   if (options.oraclePassed === undefined && options.baselinePassed === undefined) {
     return null;
