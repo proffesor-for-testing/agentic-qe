@@ -93,9 +93,9 @@ export class InMemoryBackend implements MemoryBackend {
     limit: number = MEMORY_CONSTANTS.DEFAULT_SEARCH_LIMIT,
     options?: RetrieveOptions
   ): Promise<string[]> {
-    // Escape regex-special chars first, then convert glob wildcards to regex
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escaped.replace(/\*/g, '.*'));
+    // Match the same whole-key glob contract as persistent memory.
+    const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'su');
     const results: string[] = [];
 
     // When a namespace is supplied, scope the scan to that prefix. Matches
@@ -106,7 +106,8 @@ export class InMemoryBackend implements MemoryBackend {
 
     for (const key of this.store.keys()) {
       if (nsPrefix && !key.startsWith(nsPrefix)) continue;
-      if (regex.test(key)) {
+      const searchableKey = nsPrefix ? key.slice(nsPrefix.length) : key;
+      if (regex.test(searchableKey)) {
         results.push(key);
         if (results.length >= limit) break;
       }
