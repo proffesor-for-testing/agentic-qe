@@ -144,9 +144,17 @@ export async function loadQualityEvidence(
 
 export function evaluateQualityEvidence(
   values: QualityEvidenceValues,
+  thresholds: { coverage?: number } = {},
 ): { passed: boolean; checks: EvaluatedQualityCheck[]; recommendations: string[] } {
+  if (thresholds.coverage !== undefined && (
+    !Number.isFinite(thresholds.coverage) || thresholds.coverage < 0 || thresholds.coverage > 100
+  )) {
+    throw new Error('Coverage quality threshold must be a finite number between 0 and 100.');
+  }
   const checks = QUALITY_METRICS.map((name) => {
-    const threshold = DEFAULT_QUALITY_THRESHOLDS[name];
+    const threshold = name === 'coverage' && thresholds.coverage !== undefined
+      ? { ...DEFAULT_QUALITY_THRESHOLDS[name], value: thresholds.coverage }
+      : DEFAULT_QUALITY_THRESHOLDS[name];
     const value = values[name];
     return {
       name,
