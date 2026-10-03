@@ -3,14 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 describe('registered MCP task cancellation', () => {
-  it('keeps a cancelled task terminal when an already-running test finishes', () => {
+  it.each([0, 1500])('keeps cancellation terminal with %ims observer scheduling delay', (observerDelay) => {
     const source = process.cwd();
     const child = spawnSync(process.execPath, [
       '--import', join(source, 'node_modules/tsx/dist/loader.mjs'),
       join(source, 'tests/fixtures/cancellation-mcp.mjs'),
     ], {
       cwd: source,
-      env: { ...process.env, AQE_SOURCE_ROOT: source },
+      env: { ...process.env, AQE_SOURCE_ROOT: source, AQE_CANCEL_OBSERVER_DELAY_MS: String(observerDelay) },
       encoding: 'utf8',
       timeout: 40000,
     });
@@ -24,6 +24,7 @@ describe('registered MCP task cancellation', () => {
     expect(receipt.cancel.data.cancelled).toBe(true);
     expect(typeof receipt.cancel.data.cancellationResultPending).toBe('boolean');
     expect(receipt.immediate.data.status).toBe('cancelled');
+    expect(receipt.immediate.data.cancellationResultPending).toBe(true);
     expect(typeof receipt.immediate.data.cancellationResultPending).toBe('boolean');
     expect(receipt.final.data.status).toBe('cancelled');
     expect(receipt.final.data.cancellationResultPending).toBe(false);
