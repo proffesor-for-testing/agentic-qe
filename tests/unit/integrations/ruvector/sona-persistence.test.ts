@@ -17,7 +17,7 @@ import {
 } from '../../../../src/integrations/ruvector/sona-persistence';
 import type { QESONAPattern, QEPatternType } from '../../../../src/integrations/ruvector/sona-wrapper';
 import type { RLState, RLAction, DomainName } from '../../../../src/integrations/rl-suite/interfaces';
-import { resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
+import { initializeUnifiedPersistence, resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence';
 import { resetUnifiedMemory } from '../../../../src/kernel/unified-memory';
 
 // Each test gets its OWN unique DB dir (assigned in beforeEach). A fixed shared
@@ -79,14 +79,16 @@ describe('PersistentSONAEngine', () => {
     // Setup fresh test database
     setupTestDb();
 
-    // Set environment to use test database
-    process.env.AQE_DB_PATH = TEST_DB_PATH;
+    // Initialize the shared manager with this owned fixture. AQE_DB_PATH is
+    // not a database override; setting it alone reuses the worker's store.
+    const persistence = await initializeUnifiedPersistence({ dbPath: TEST_DB_PATH });
+    expect(persistence.getDatabase().prepare('SELECT COUNT(*) AS count FROM sona_patterns').get())
+      .toEqual({ count: 0 });
   });
 
   afterEach(async () => {
     resetUnifiedPersistence();
     resetUnifiedMemory();
-    delete process.env.AQE_DB_PATH;
     // Remove this test's unique DB dir so nothing lingers between tests/runs.
     if (TEST_DB_DIR) {
       fs.rmSync(TEST_DB_DIR, { recursive: true, force: true });
