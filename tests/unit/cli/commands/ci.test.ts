@@ -159,13 +159,18 @@ describe('CI gate execution and reporting', () => {
       { kernel: { memory: { get }, getDomainAPIAsync } } as unknown as CLIContext,
       cleanup as unknown as (code: number) => Promise<never>, async () => true,
     );
+    const failedReport = path.join(directory, 'failed-selection.json');
 
-    await command.parseAsync(['run', '--phase', selector, '--no-quality-gate', '--format', 'json'], { from: 'user' });
+    await command.parseAsync(['run', '--phase', selector, '--no-quality-gate', '--format', 'json', '--output', failedReport], { from: 'user' });
 
     expect(cleanup).toHaveBeenCalledWith(1);
     expect(error.mock.calls.flat().map(String).join(' ')).toContain('Unknown or empty CI phase selector');
     expect(get).not.toHaveBeenCalled();
     expect(getDomainAPIAsync).not.toHaveBeenCalled();
+    expect(JSON.parse(readFileSync(failedReport, 'utf8'))).toMatchObject({
+      exitCode: 1, overallStatus: 'failed', phases: [], qualityGateStatus: 'not-run',
+      configurationError: expect.stringContaining('Unknown or empty CI phase selector'),
+    });
     expect(JSON.parse(readFileSync(path.join(directory, 'quality-gate.json'), 'utf8')))
       .toMatchObject({ passed: false, status: 'not-run' });
   });
