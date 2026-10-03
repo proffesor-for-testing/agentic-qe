@@ -36,6 +36,7 @@ async function executePhase(
   context: CLIContext,
   outputDir: string,
   phaseIndex: number,
+  coverageThreshold?: number,
 ): Promise<CIPhaseResult> {
   const startTime = Date.now();
   const artifacts: string[] = [];
@@ -180,7 +181,7 @@ async function executePhase(
         // MCP quality_assess. The domain API has no evaluate() method.
         try {
           const metrics = await loadQualityEvidence(context.kernel!.memory);
-          const assessment = evaluateQualityEvidence(metrics);
+          const assessment = evaluateQualityEvidence(metrics, { coverage: coverageThreshold });
           details = { ...assessment, metrics, evidenceStatus: 'measured' };
           status = assessment.passed ? 'passed' : 'failed';
           summary = `Quality gate: ${assessment.passed ? 'PASSED' : 'FAILED'} (${assessment.checks.filter(check => check.passed).length}/${assessment.checks.length} measured checks passed)`;
@@ -420,7 +421,9 @@ export function createCICommand(
             process.stdout.write(chalk.cyan(spinner));
           }
 
-          const result = await executePhase(phase, context, outputDir, phaseResults.length);
+          const result = await executePhase(
+            phase, context, outputDir, phaseResults.length, config.qualityGate.thresholds.coverage,
+          );
           phaseResults.push(result);
 
           if (format === 'text') {
