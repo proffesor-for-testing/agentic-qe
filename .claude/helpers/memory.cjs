@@ -70,14 +70,17 @@ const commands = {
   },
 };
 
-// CLI
-const [,, command, key, ...valueParts] = process.argv;
-const value = valueParts.join(' ');
+// CLI — only when run directly, never when require()d by hook-handler.cjs
+// (local patch, agentic-qe#837: it used to dispatch on the caller's argv).
+if (require.main === module) {
+  const [,, command, key, ...valueParts] = process.argv;
+  const value = valueParts.join(' ');
 
-if (command && commands[command]) {
-  commands[command](key, value);
-} else {
-  console.log('Usage: memory.cjs <get|set|delete|clear|keys> [key] [value]');
+  if (command && commands[command]) {
+    commands[command](key, value);
+  } else {
+    console.log('Usage: memory.cjs <get|set|delete|clear|keys> [key] [value]');
+  }
 }
 
 module.exports = commands;
