@@ -578,6 +578,7 @@ Provide:
           // Coverage and JSON reports belong to this run; clean both only
           // after the entire owned process group has stopped.
           termination?.then(() => cleanupArtifacts(), () => undefined);
+          return; // The timeout result has already been returned.
         }
         untrackExit();
 

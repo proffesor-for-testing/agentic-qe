@@ -584,6 +584,9 @@ export class RetryHandlerService implements IRetryHandler {
       let stderr = '';
       let timedOut = false;
       let termination: Promise<void> | undefined;
+      const timeoutError = new Error(
+        `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
+      );
       const settle = <T,>(fn: (value: T) => void, value: T): void => {
         report?.cleanup();
         fn(value);
@@ -603,7 +606,9 @@ export class RetryHandlerService implements IRetryHandler {
         termination = terminateTestRunner(proc);
         termination.catch(error => {
           logger.warn(`Retry runner cleanup failed: ${toError(error).message}`);
-          reject(toError(error));
+          // A denied cleanup can leave the root alive: preserve the timeout
+          // outcome immediately, keeping artifacts because settlement is unknown.
+          reject(timeoutError);
         });
         termination.then(untrackExit, () => undefined);
       }, timeout);
@@ -620,10 +625,7 @@ export class RetryHandlerService implements IRetryHandler {
         clearTimeout(timeoutHandle);
 
         if (timedOut) {
-          const timeoutError = new Error(
-            `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
-          );
-          termination?.then(() => settle(reject, timeoutError), error => reject(toError(error)));
+          termination?.then(() => settle(reject, timeoutError), () => reject(timeoutError));
           return;
         }
         untrackExit();

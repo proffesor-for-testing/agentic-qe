@@ -1,4 +1,38 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+
+/** Linux signal 0 also sees zombies, which can never execute or write files. */
+function hasLiveLinuxGroupMember(group: number): boolean {
+  for (const pid of readdirSync('/proc')) {
+    if (!/^\d+$/.test(pid)) continue;
+    let stat: string;
+    try { stat = readFileSync(`/proc/${pid}/stat`, 'utf8'); }
+    catch (error) {
+      if (['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) continue;
+      throw error; // Unknown process state must not be claimed as stopped.
+    }
+    // The comm field can contain spaces and parentheses; its final ')' is the
+    // boundary before state, ppid and pgrp, not the first whitespace token.
+    const fields = stat.slice(stat.lastIndexOf(')') + 1).trim().split(/\s+/);
+    if (fields.length < 3 || !/^\d+$/.test(fields[2])) throw new Error(`Invalid process stat for ${pid}`);
+    if (Number(fields[2]) === group && fields[0] !== 'Z' && fields[0] !== 'X') return true;
+  }
+  return false;
+}
+
+/** Signal probes on Darwin may deny access while dead group members are reaped. */
+function hasLiveDarwinGroupMember(group: number): boolean {
+  const snapshot = execFileSync('ps', ['-axo', 'pgid=,stat='], {
+    encoding: 'utf8', timeout: 1000, maxBuffer: 1024 * 1024,
+  });
+  for (const line of snapshot.split('\n')) {
+    if (!line.trim()) continue;
+    const match = /^\s*(\d+)\s+([A-Z?])\S*\s*$/.exec(line);
+    if (!match) throw new Error('Could not determine Darwin process group state');
+    if (Number(match[1]) === group && match[2] !== 'Z') return true;
+  }
+  return false;
+}
 
 const activeGroups = new Set<number>();
 const stopGroupsOnExit = (): void => {
@@ -26,6 +60,8 @@ export function trackTestRunnerExit(proc: ChildProcess): () => void {
  */
 export function terminateTestRunner(proc: ChildProcess): Promise<void> {
   return new Promise((resolve, reject) => {
+    const platform = process.platform;
+    const linux = platform === 'linux';
     const grouped = process.platform !== 'win32' && proc.pid !== undefined;
     const windowsTree = process.platform === 'win32' && proc.pid !== undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -49,11 +85,19 @@ export function terminateTestRunner(proc: ChildProcess): Promise<void> {
       reject(error);
     };
     const groupExists = (): boolean => {
-      try { process.kill(-proc.pid!, 0); return true; } catch (error) {
+      try {
+        process.kill(-proc.pid!, 0);
+        return forceSent && linux ? hasLiveLinuxGroupMember(proc.pid!) : true;
+      } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
-        // Darwin can report EPERM for signal 0 while an already-killed group
-        // is being reaped. Only tolerate it after our SIGKILL succeeded.
-        if (forceSent && (error as NodeJS.ErrnoException).code === 'EPERM') return true;
+        // A delivered group signal is not proof every member died. Inspect
+        // actual states; failures/malformed snapshots remain unknown and reject.
+        if (platform === 'darwin' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+          return hasLiveDarwinGroupMember(proc.pid!);
+        }
+        if (forceSent && linux && (error as NodeJS.ErrnoException).code === 'EPERM') {
+          return hasLiveLinuxGroupMember(proc.pid!);
+        }
         throw error;
       }
     };

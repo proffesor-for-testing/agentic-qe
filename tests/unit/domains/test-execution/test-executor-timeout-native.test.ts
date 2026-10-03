@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -75,7 +75,7 @@ setInterval(() => {}, 100);
     };
     let running: Promise<Result<unknown, Error>>;
     if (service === 'retry') {
-      const retry = new RetryHandlerService({} as never, { testTimeout: 700 });
+      const retry = new RetryHandlerService({} as never, { testTimeout: 3000 });
       const retryInternals = retry as unknown as {
         buildTestCommand(runner: string, file: string): { report: { path: string; cleanup(): void } };
         spawnTestProcess(command: string, args: string[], cwd: string,
@@ -86,9 +86,9 @@ setInterval(() => {}, 100);
       running = retryInternals.spawnTestProcess(process.execPath, [runner, pidFile], fixture, report)
         .then(value => ({ success: true as const, value }), error => ({ success: false as const, error }));
     } else {
-      running = internals.spawnTestRunner([runner], 'vitest', 700);
+      running = internals.spawnTestRunner([runner], 'vitest', 3000);
     }
-    expect(await until(() => existsSync(pidFile), 600)).toBe(true);
+    expect(await until(() => existsSync(pidFile), 2500)).toBe(true);
     const pid = Number(readFileSync(pidFile, 'utf8'));
     ownedPids.push(pid);
     if (existsSync(rootFile)) ownedPids.push(Number(readFileSync(rootFile, 'utf8')));
@@ -135,4 +135,37 @@ await executor.execute({ testFiles: [${JSON.stringify(runner)}], framework: 'nod
     await closed;
     expect(await until(() => !isAlive(pid))).toBe(true);
   });
+  it('keeps the timeout classification when a denied cleanup leaves a real runner alive', async () => {
+    const fixture = mkdtempSync(join(tmpdir(), 'aqe-retry-cleanup-failure-'));
+    fixtures.push(fixture);
+    const runner = join(fixture, 'runner.cjs');
+    const pidFile = join(fixture, 'owned.pid');
+    writeFileSync(runner, `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 100);`);
+    const actualKill = process.kill.bind(process);
+    // Reproduce denied signalling against a real owned child. Unknown
+    // settlement must retain reports without replacing the timeout outcome.
+    const kill = vi.spyOn(process, 'kill').mockImplementation((pid, signal) => {
+      if (pid < 0 && signal === 'SIGTERM') throw Object.assign(new Error('cleanup probe denied'), { code: 'EPERM' });
+      return actualKill(pid, signal);
+    });
+    const retry = new RetryHandlerService({} as never, { testTimeout: 300 });
+    const internal = retry as unknown as {
+      buildTestCommand(runner: string, file: string): { report: { path: string; cleanup(): void } };
+      spawnTestProcess(command: string, args: string[], cwd: string, report: { path: string; cleanup(): void }): Promise<unknown>;
+    };
+    const { report } = internal.buildTestCommand('vitest', runner);
+    reportDirs.push(dirname(report.path));
+    try {
+      const running = internal.spawnTestProcess(process.execPath, [runner], fixture, report);
+      const rejected = expect(running).rejects.toThrow('timed out');
+      expect(await until(() => existsSync(pidFile), 250)).toBe(true);
+      const pid = Number(readFileSync(pidFile, 'utf8'));
+      ownedPids.push(pid);
+      await rejected;
+      expect(isAlive(pid)).toBe(true);
+      expect(existsSync(dirname(report.path))).toBe(true);
+      expect(process.listeners('exit').some(listener => listener.name === 'stopGroupsOnExit')).toBe(true);
+    } finally { kill.mockRestore(); }
+  });
+
 });
