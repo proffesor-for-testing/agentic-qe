@@ -65,4 +65,40 @@ describe('deferred SONA write recovery', () => {
     engine = await createPersistentSONAEngine({ domain });
     expect(engine.getAllPatterns().map(p => p.id)).toEqual([pattern.id]);
   });
+  it('bounds permanent native failures without losing the pending row', async () => {
+    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 10 });
+    const pattern = createPattern();
+    const db = getUnifiedPersistence().getDatabase();
+    db.exec(`CREATE TRIGGER reject_sona_save BEFORE INSERT ON sona_patterns
+      BEGIN SELECT RAISE(ABORT, 'permanent SONA write rejection'); END`);
+    vi.advanceTimersByTime(60000);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await engine.getAllPersistedPatterns()).toHaveLength(0);
+    db.exec('DROP TRIGGER reject_sona_save');
+    await engine.close();
+    engine = await createPersistentSONAEngine({ domain });
+    expect(engine.getAllPatterns().map(p => p.id)).toEqual([pattern.id]);
+  });
+  it('does not let a deferred-save timer keep the CLI process alive', async () => {
+    vi.useRealTimers();
+    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 10 });
+    createPattern();
+    const timer = (engine as unknown as { saveTimer: NodeJS.Timeout }).saveTimer;
+    expect(timer.hasRef()).toBe(false);
+  });
+  it('tries healthy rows during close even if an earlier row still fails', async () => {
+    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 10 });
+    const blocked = createPattern();
+    const healthy = createPattern();
+    const db = getUnifiedPersistence().getDatabase();
+    db.exec(`CREATE TRIGGER reject_sona_save BEFORE INSERT ON sona_patterns
+      WHEN NEW.id = '${blocked.id}' BEGIN SELECT RAISE(ABORT, 'permanent SONA write rejection'); END`);
+    await expect(engine.close()).rejects.toThrow('permanent SONA write rejection');
+    expect((await engine.getAllPersistedPatterns()).map(p => p.id)).toEqual([healthy.id]);
+    db.exec('DROP TRIGGER reject_sona_save');
+    await engine.close();
+    engine = await createPersistentSONAEngine({ domain });
+    expect(new Set(engine.getAllPatterns().map(p => p.id))).toEqual(new Set([blocked.id, healthy.id]));
+  });
+
 });
