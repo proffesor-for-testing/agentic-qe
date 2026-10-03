@@ -818,7 +818,10 @@ export class PersistentSONAEngine {
     if (!stmt) throw new Error('Statement not prepared');
 
     const result = stmt.run(patternId);
-    return result.changes > 0;
+    // Delete queued writes too: otherwise the next batch or sync restores it.
+    const pending = this.pendingSaves.delete(patternId);
+    const cached = this.baseEngine.deletePattern(patternId);
+    return result.changes > 0 || pending || cached;
   }
 
   /**
@@ -827,13 +830,16 @@ export class PersistentSONAEngine {
   clearDomainPatterns(): void {
     this.ensureInitialized();
 
-    // Clear in base engine
-    this.baseEngine.clear();
-
-    // Clear in SQLite for this domain
+    // Finish the durable delete first so a failed statement preserves memory.
     const stmt = this.prepared.get('deleteByDomain');
-    if (stmt) {
-      stmt.run(this.config.domain);
+    if (!stmt) throw new Error('Statement not prepared');
+    stmt.run(this.config.domain);
+
+    for (const pattern of this.baseEngine.getPatternsByDomain(this.config.domain)) {
+      this.baseEngine.deletePattern(pattern.id);
+    }
+    for (const [id, pattern] of this.pendingSaves) {
+      if (pattern.domain === this.config.domain) this.pendingSaves.delete(id);
     }
   }
 

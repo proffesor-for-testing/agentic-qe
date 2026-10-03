@@ -268,6 +268,15 @@ class QESONAPatternRegistry {
     return Array.from(this.patterns.values()).filter(p => p.domain === domain);
   }
 
+  /** Remove a pattern and its trajectory associations from the registry. */
+  delete(id: string): boolean {
+    const removed = this.patterns.delete(id);
+    for (const [trajectoryId, patternId] of this.trajectoryMap) {
+      if (patternId === id) this.trajectoryMap.delete(trajectoryId);
+    }
+    return removed;
+  }
+
   /**
    * Clear all patterns
    */
@@ -600,6 +609,11 @@ export class QESONA {
       cacheHitRate: this.totalAdaptations > 0 ? this.cacheHits / this.totalAdaptations : 0,
       engineStats,
     };
+  }
+
+  /** Stop recalling a pattern without resetting learned model weights. */
+  deletePattern(patternId: string): boolean {
+    return this.registry.delete(patternId);
   }
 
   /**
