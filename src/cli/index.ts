@@ -33,8 +33,12 @@ import type { CLIContext } from './handlers/interfaces.js';
 import { applyCommandVerbosity, installCliLogGate, isCliLogLevelEnabled } from './log-gate.js';
 import { LogLevel } from '../logging/index.js';
 import { formatErrorForLog } from '../logging/redaction.js';
+import { releaseCliProcessStores } from './process-store-cleanup.js';
 
 installCliLogGate();
+// Backstop for direct process.exit() paths as well as cleanupAndExit(). An
+// in-process MCP owner still drains before exit; this callback is synchronous.
+process.on('exit', releaseCliProcessStores);
 
 // ============================================================================
 // CLI State
@@ -224,11 +228,13 @@ async function cleanupAndExit(code: number | string = 0): Promise<never> {
     if (context.kernel) { context.kernel.dispose().catch(() => {}); }
   } catch { /* best effort */ }
 
-  // Force exit immediately. Native NAPI handles (@ruvector/rvf-node and
+  releaseCliProcessStores();
+
+  // Force exit after synchronous store cleanup. Native NAPI handles (@ruvector/rvf-node and
   // historically @ruvector/router, replaced by hnswlib-node in #399 /
   // ADR-090) create ref'd event loop handles that prevent natural exit,
   // and dynamic import() of cleanup modules can load more native
-  // bindings that make it worse. Exit now, clean later.
+  // bindings that make it worse. Do not wait for asynchronous disposers here.
   process.exit(code);
 }
 
