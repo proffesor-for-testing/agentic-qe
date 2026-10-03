@@ -226,7 +226,7 @@ function parseCIYAML(content: string): Record<string, unknown> {
   if (lines.some(line => line.length > YAML_MAX_LINE_LENGTH)) {
     throw new Error(`YAML exceeds maximum line length (${YAML_MAX_LINE_LENGTH})`);
   }
-  const document = parseDocument(content, { prettyErrors: false });
+  const document = parseDocument(content, { prettyErrors: false, merge: true });
   if (document.errors.length) throw new Error(document.errors.map(error => error.message).join('; '));
   visit(document, {
     Collection: (_key, _node, ancestry) => {
@@ -347,11 +347,56 @@ export function parseCIConfigContent(content: string, sourcePath?: string): CICo
         name, type: value.type as CIPhaseType, timeout,
         enabled: readBoolean(value, 'enabled', true, `Phase "${name}" enabled`),
         continueOnFailure: readBoolean(value, 'continue_on_failure', false, `Phase "${name}" continue_on_failure`),
-        config: isRecord(value.config) ? value.config : {},
+        config: isRecord(value.config) ? { ...value.config } : {},
       });
     }
   }
   if (config.phases.length === 0) errors.push('Config must have at least one phase');
+  // Paths in a file are relative to that file's project, not the caller's cwd.
+  // Resolve existing ancestors too so a symlink cannot bypass containment.
+  const root = path.resolve(sourcePath ? path.dirname(sourcePath) : process.cwd());
+  function canonicalAncestor(candidate: string): string {
+    let ancestor = candidate;
+    const suffix: string[] = [];
+    while (!fs.existsSync(ancestor)) {
+      const parent = path.dirname(ancestor);
+      if (parent === ancestor) break;
+      suffix.unshift(path.basename(ancestor));
+      ancestor = parent;
+    }
+    return path.resolve(fs.realpathSync(ancestor), ...suffix);
+  }
+  function containedPath(value: unknown, label: string): string | undefined {
+    if (typeof value !== 'string' || !value.trim() || value.includes('\0')) {
+      errors.push(`${label} must be a non-empty relative path`);
+      return undefined;
+    }
+    const resolved = path.resolve(root, value);
+    const relative = path.relative(root, resolved);
+    if (path.isAbsolute(value) || path.win32.isAbsolute(value) ||
+        relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      errors.push(`${label} must stay inside the project and use a relative path`);
+      return undefined;
+    }
+    try {
+      const realRelative = path.relative(canonicalAncestor(root), canonicalAncestor(resolved));
+      if (realRelative === '..' || realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) {
+        errors.push(`${label} must stay inside the project (symlink escapes are not allowed)`);
+        return undefined;
+      }
+    } catch (error) {
+      errors.push(`${label} cannot be resolved safely: ${error}`);
+      return undefined;
+    }
+    return sourcePath ? resolved : value;
+  }
+  config.output.directory = containedPath(config.output.directory, 'output.directory') ?? config.output.directory;
+  for (const phase of config.phases) {
+    if (phase.config.target !== undefined) {
+      const target = containedPath(phase.config.target, `Phase "${phase.name}" config.target`);
+      if (target !== undefined) phase.config.target = target;
+    }
+  }
   if (errors.length > 0) return { success: false, config, errors };
   return { success: true, config, errors: [], configPath: sourcePath };
 }

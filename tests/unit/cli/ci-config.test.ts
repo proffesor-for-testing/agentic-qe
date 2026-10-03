@@ -197,8 +197,8 @@ quality_gate:
       version: '1', name: 'owned-project',
       phases: [{ name: 'Only Custom', type: 'custom', enabled: false,
         continueOnFailure: true, timeout: 17,
-        config: { target: 'src/custom#target', labels: ['one', 'two'] } }],
-      output: { format: 'sarif', directory: 'owned-output', combinedReport: false },
+        config: { target: path.join(directory, 'src/custom#target'), labels: ['one', 'two'] } }],
+      output: { format: 'sarif', directory: path.join(directory, 'owned-output'), combinedReport: false },
       qualityGate: { enforced: false, thresholds: { coverage: 97, security: 'high', quality: 91 } },
     });
     expect(result.configPath).toBe(path.join(directory, '.aqe-ci.yml'));
@@ -213,7 +213,8 @@ quality_gate: { enforced: true, thresholds: { coverage: 0, quality: 0 } }
 `);
     expect(result.success).toBe(true);
     expect(result.config!.phases.map(p => p.name)).toEqual(['A', 'B']);
-    expect(result.config!.phases[0].config).toEqual({ target: 'source:with#punctuation', labels: ['one', 'two'] });
+    expect(result.config!.phases[0].config).toEqual({ target: path.join(directory, 'source:with#punctuation'), labels: ['one', 'two'] });
+    expect(result.config!.phases[1].config.target).toBe(path.join(directory, 'source:with#punctuation'));
     expect(result.config!.qualityGate.thresholds).toMatchObject({ coverage: 0, quality: 0 });
   });
 
@@ -241,7 +242,7 @@ quality_gate: { enforced: true, thresholds: { coverage: 0, quality: 0 } }
     const first = parseFile('name: first').config!;
     const second = parseFile('name: second').config!;
     first.phases[0].config.target = 'changed';
-    expect(second.phases[0].config.target).toBe('.');
+    expect(second.phases[0].config.target).toBe(directory);
   });
 
   it.each([
@@ -255,5 +256,48 @@ quality_gate: { enforced: true, thresholds: { coverage: 0, quality: 0 } }
   ])('retains bounded YAML/prototype validation (%#)', yaml => {
     expect(parseFile(yaml).success).toBe(false);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+
+describe('CI path containment', () => {
+  it.each(['../outside', '../../escape-out', '/tmp/outside', 'C:\\outside'])('rejects an output directory outside the project: %s', directory => {
+    const result = parseCIConfigContent(`output:\n  directory: '${directory}'`);
+    expect(result.success).toBe(false);
+    expect(result.errors.join(' ')).toContain('output.directory');
+  });
+  it.each(['../outside', '/tmp/outside', 'C:\\outside'])('rejects an external phase target: %s', target => {
+    const result = parseCIConfigContent(`phases:\n  - name: Tests\n    type: test\n    config: { target: '${target}' }`);
+    expect(result.success).toBe(false);
+    expect(result.errors.join(' ')).toContain('target');
+  });
+  it('anchors paths to the config directory rather than the invoking directory', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-config-paths-'));
+    try {
+      const configFile = path.join(directory, '.aqe-ci.yml');
+      fs.writeFileSync(configFile, 'output: { directory: reports }\nphases:\n  - name: Tests\n    type: test\n    config: { target: src }');
+      const result = parseCIConfigFile(configFile);
+      expect(result.success).toBe(true);
+      expect(result.config!.output.directory).toBe(path.join(directory, 'reports'));
+      expect(result.config!.phases[0].config.target).toBe(path.join(directory, 'src'));
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
+  it.skipIf(process.platform === 'win32')('rejects a symlinked output ancestor escaping the config directory', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-config-symlink-'));
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-config-outside-'));
+    try {
+      fs.symlinkSync(outside, path.join(directory, 'link'));
+      const result = parseCIConfigContent('output: { directory: link/reports }', path.join(directory, '.aqe-ci.yml'));
+      expect(result.success).toBe(false);
+      expect(result.errors.join(' ')).toContain('output.directory');
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+  it('accepts bounded YAML merge keys without silently dropping phase settings', () => {
+    const result = parseCIConfigContent('defaults: &defaults { type: test, enabled: false }\nphases:\n  - <<: *defaults\n    name: Tests');
+    expect(result.success).toBe(true);
+    expect(result.config!.phases[0]).toMatchObject({ name: 'Tests', type: 'test', enabled: false });
   });
 });
