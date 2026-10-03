@@ -61,6 +61,36 @@ describe('PluginCache', () => {
       expect(path1).toBe(path2);
     });
 
+    it('should remove a failed copy so retry stores the plugin', () => {
+      const manifest = makeManifest('my-plugin', '1.0.0');
+      const brokenFile = path.join(sourceDir, 'broken.js');
+      fs.symlinkSync(path.join(sourceDir, 'missing.js'), brokenFile);
+
+      expect(() => cache.store(manifest, sourceDir)).toThrow();
+      const versionDir = path.join(tmpDir, 'cache', 'my-plugin', '1.0.0');
+      expect(fs.existsSync(versionDir)).toBe(false);
+
+      fs.unlinkSync(brokenFile);
+      const cachePath = cache.store(manifest, sourceDir);
+      expect(cache.has('my-plugin', '1.0.0')).toBe(true);
+      expect(fs.readFileSync(path.join(cachePath, 'index.js'), 'utf-8'))
+        .toBe('module.exports = {}');
+    });
+
+    it('should remove a failed manifest write so retry stores the plugin', () => {
+      const manifest = makeManifest('my-plugin', '1.0.0');
+      const manifestPath = path.join(sourceDir, 'qe-plugin.json');
+      fs.mkdirSync(manifestPath);
+
+      expect(() => cache.store(manifest, sourceDir)).toThrow();
+      expect(fs.existsSync(path.join(tmpDir, 'cache', 'my-plugin', '1.0.0')))
+        .toBe(false);
+
+      fs.rmdirSync(manifestPath);
+      cache.store(manifest, sourceDir);
+      expect(cache.has('my-plugin', '1.0.0')).toBe(true);
+    });
+
     it('should copy source files to cache', () => {
       const manifest = makeManifest('my-plugin', '1.0.0');
       const cachePath = cache.store(manifest, sourceDir);
