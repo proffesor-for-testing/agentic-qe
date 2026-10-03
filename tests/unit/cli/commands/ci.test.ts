@@ -148,4 +148,32 @@ describe('CI gate execution and reporting', () => {
     expect(result.report).toMatchObject({ qualityGatePassed: false, qualityGateStatus: 'not-run' });
     expect(result.artifact.passed).toBe(false);
   });
+
+  it.each(['missing', 'Gate,missing', ' ', ',', ''])('rejects invalid phase selection %j without a successful no-op', async selector => {
+    expect((await run()).artifact.passed).toBe(true);
+    const get = vi.fn();
+    const getDomainAPIAsync = vi.fn();
+    const cleanup = vi.fn(async (_code: number) => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const command = createCICommand(
+      { kernel: { memory: { get }, getDomainAPIAsync } } as unknown as CLIContext,
+      cleanup as unknown as (code: number) => Promise<never>, async () => true,
+    );
+
+    await command.parseAsync(['run', '--phase', selector, '--no-quality-gate', '--format', 'json'], { from: 'user' });
+
+    expect(cleanup).toHaveBeenCalledWith(1);
+    expect(error.mock.calls.flat().map(String).join(' ')).toContain('Unknown or empty CI phase selector');
+    expect(get).not.toHaveBeenCalled();
+    expect(getDomainAPIAsync).not.toHaveBeenCalled();
+    expect(JSON.parse(readFileSync(path.join(directory, 'quality-gate.json'), 'utf8')))
+      .toMatchObject({ passed: false, status: 'not-run' });
+  });
+
+  it.each(['gate', ' QUALITY-GATE ', 'Gate,quality-gate'])('selects valid case-insensitive names and types once (%s)', async selector => {
+    const result = await run(['--phase', selector]);
+    expect(result.exitCode).toBe(0);
+    expect(result.report.phases.map(p => p.phase)).toEqual(['Gate']);
+    expect(result.artifact.passed).toBe(true);
+  });
 });

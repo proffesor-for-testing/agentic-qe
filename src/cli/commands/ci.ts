@@ -378,8 +378,16 @@ export function createCICommand(
         }
 
         // Filter phases if --phase specified
-        if (options.phase) {
+        let phaseSelectionError: string | undefined;
+        if (options.phase !== undefined) {
           const requested = (options.phase as string).split(',').map((s: string) => s.trim().toLowerCase());
+          const unknown = requested.filter(selector => !selector || !config.phases.some(p =>
+            selector === p.name.toLowerCase() || selector === p.type
+          ));
+          if (unknown.length > 0) {
+            phaseSelectionError = `Unknown or empty CI phase selector: ${unknown.map(s => s || '(empty)').join(', ')}. `
+              + `Available phases: ${config.phases.map(p => `${p.name} (${p.type})`).join(', ')}`;
+          }
           config.phases = config.phases.filter(p =>
             requested.includes(p.name.toLowerCase()) || requested.includes(p.type)
           );
@@ -410,6 +418,9 @@ export function createCICommand(
           passed: false, status: 'not-run', evidenceStatus: 'not-run',
           enforced: config.qualityGate.enforced, phases: [],
         }), 'utf-8');
+
+        // Invalidate prior approval even when a typo prevents any execution.
+        if (phaseSelectionError) throw new Error(phaseSelectionError);
 
         // Execute phases
         const phaseResults: CIPhaseResult[] = [];
