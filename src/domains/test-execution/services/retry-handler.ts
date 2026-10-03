@@ -14,6 +14,7 @@ import { TEST_EXECUTION_CONSTANTS, RETRY_CONSTANTS } from '../../constants.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
+import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
 
 // ============================================================================
 // Configuration
@@ -582,6 +583,10 @@ export class RetryHandlerService implements IRetryHandler {
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      let termination: Promise<void> | undefined;
+      const timeoutError = new Error(
+        `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
+      );
       const settle = <T,>(fn: (value: T) => void, value: T): void => {
         report?.cleanup();
         fn(value);
@@ -591,14 +596,21 @@ export class RetryHandlerService implements IRetryHandler {
       // Arguments are passed as array to avoid shell interpretation
       const proc = spawn(command, args, {
         cwd,
+        detached: process.platform !== 'win32',
         env: { ...process.env, FORCE_COLOR: '0', CI: 'true' },
       });
+      const untrackExit = trackTestRunnerExit(proc);
 
       const timeoutHandle = setTimeout(() => {
         timedOut = true;
-        proc.kill('SIGTERM');
-        // Give it a moment to terminate gracefully, then force kill
-        setTimeout(() => proc.kill('SIGKILL'), 1000);
+        termination = terminateTestRunner(proc);
+        termination.catch(error => {
+          logger.warn(`Retry runner cleanup failed: ${toError(error).message}`);
+          // A denied cleanup can leave the root alive: preserve the timeout
+          // outcome immediately, keeping artifacts because settlement is unknown.
+          reject(timeoutError);
+        });
+        termination.then(untrackExit, () => undefined);
       }, timeout);
 
       proc.stdout?.on('data', (data: Buffer) => {
@@ -613,11 +625,10 @@ export class RetryHandlerService implements IRetryHandler {
         clearTimeout(timeoutHandle);
 
         if (timedOut) {
-          settle(reject, new Error(
-            `Test execution timed out after ${timeout}ms for command: ${command} ${args.join(' ')}`
-          ));
+          termination?.then(() => settle(reject, timeoutError), () => reject(timeoutError));
           return;
         }
+        untrackExit();
 
         // Parse result based on exit code and output (Vitest writes the JSON
         // report to the --outputFile; read it back rather than trusting stdout).
@@ -634,6 +645,7 @@ export class RetryHandlerService implements IRetryHandler {
 
       proc.on('error', (err: Error) => {
         clearTimeout(timeoutHandle);
+        untrackExit();
         report?.cleanup();
         reject(new Error(
           `Failed to spawn test process: ${err.message}. ` +

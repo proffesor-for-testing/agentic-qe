@@ -219,6 +219,7 @@ export class PersistentSONAEngine {
   private initPromise: Promise<void> | null = null;
   private pendingSaves: Map<string, QESONAPattern> = new Map();
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private consecutiveSaveFailures = 0;
   private serverClient: RuVectorServerClient | null = null;
 
   constructor(config: PersistentSONAConfig) {
@@ -1129,10 +1130,18 @@ export class PersistentSONAEngine {
     }
 
     if (this.pendingSaves.size > 0) {
+      const failures: Error[] = [];
       for (const pattern of this.pendingSaves.values()) {
-        this.savePatternToDb(pattern);
+        try {
+          this.savePatternToDb(pattern);
+          this.pendingSaves.delete(pattern.id);
+        } catch (error) {
+          failures.push(new Error(toErrorMessage(error)));
+        }
       }
-      this.pendingSaves.clear();
+      if (failures.length > 0) {
+        throw new AggregateError(failures, `Deferred SONA saves failed: ${failures.map(error => error.message).join('; ')}`);
+      }
     }
 
     // A10 fix: checkpoint the request counter once per process lifetime
@@ -1422,6 +1431,8 @@ export class PersistentSONAEngine {
     } else {
       // Batch saves
       this.pendingSaves.set(pattern.id, pattern);
+      // New explicit work starts a fresh, bounded recovery cycle.
+      this.consecutiveSaveFailures = 0;
       this.scheduleSave();
     }
   }
@@ -1472,18 +1483,39 @@ export class PersistentSONAEngine {
   /**
    * Schedule batched save
    */
-  private scheduleSave(): void {
-    if (this.saveTimer) return;
+  private scheduleSave(delayMs = this.config.autoSaveInterval): void {
+    if (this.saveTimer) {
+      // New explicit work must survive natural exit, even during a retry delay.
+      if (this.consecutiveSaveFailures === 0) this.saveTimer.ref();
+      return;
+    }
 
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
       const patterns = Array.from(this.pendingSaves.values());
-      this.pendingSaves.clear();
 
       for (const pattern of patterns) {
-        this.savePatternToDb(pattern);
+        try {
+          this.savePatternToDb(pattern);
+          this.pendingSaves.delete(pattern.id);
+        } catch (error) {
+          logger.warn('Deferred SONA save failed; retaining pending pattern', {
+            patternId: pattern.id, error: toErrorMessage(error),
+          });
+        }
       }
-    }, this.config.autoSaveInterval);
+      if (this.pendingSaves.size > 0) {
+        this.consecutiveSaveFailures++;
+        // Stop after five failed batches; close() can still flush retained rows.
+        if (this.consecutiveSaveFailures < 5 && this.db?.open) {
+          this.scheduleSave(Math.min(60000, Math.max(1000, this.config.autoSaveInterval) * 2 ** (this.consecutiveSaveFailures - 1)));
+        }
+      } else {
+        this.consecutiveSaveFailures = 0;
+      }
+    }, delayMs);
+    // The initial batch must flush on natural exit; only failure retries are optional.
+    if (this.consecutiveSaveFailures > 0) this.saveTimer.unref();
   }
 
   /**
