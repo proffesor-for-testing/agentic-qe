@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { rmSync } from 'node:fs';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { RetryHandlerService } from '../../../../src/domains/test-execution/services/retry-handler.js';
 
@@ -11,6 +12,7 @@ describe('TestExecutorService runner command', () => {
           command: string;
           args: string[];
           report?: { path: string; cleanup(): void };
+          coverageDirectory?: string;
         };
       }
     ).buildTestCommand('tests/unit/example.test.ts', 'vitest');
@@ -25,10 +27,27 @@ describe('TestExecutorService runner command', () => {
         '--no-color',
         // Vitest 5 writes the JSON report to a file, not stdout (#700).
         `--outputFile=${command.report?.path}`,
+        `--coverage.reportsDirectory=${command.coverageDirectory}`,
       ]);
       expect(command.args).not.toContain('--coverage');
     } finally {
       command.report?.cleanup();
+      if ('coverageDirectory' in command && command.coverageDirectory) rmSync(command.coverageDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('isolates Jest coverage output without turning coverage on', () => {
+    const executor = new TestExecutorService({ memory: {} as never });
+    const internals = executor as unknown as {
+      buildTestCommand(files: string[], framework: string): { args: string[]; coverageDirectory: string };
+    };
+    const command = internals.buildTestCommand(['example.test.ts'], 'jest');
+    try {
+      expect(command.args).toContain(`--coverageDirectory=${command.coverageDirectory}`);
+      expect(command.args).not.toContain('--coverage');
+      expect(command.args).toContain('--json');
+    } finally {
+      rmSync(command.coverageDirectory, { recursive: true, force: true });
     }
   });
 
