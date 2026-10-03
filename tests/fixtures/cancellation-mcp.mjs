@@ -27,10 +27,15 @@ await symlink(join(source, 'node_modules'), join(fixture, 'node_modules'), 'dir'
 await writeFile(join(fixture, 'package.json'), JSON.stringify({ type: 'module', private: true }));
 await writeFile(join(fixture, 'vitest.config.mjs'), 'export default {test:{maxWorkers:1,minWorkers:1,fileParallelism:false}};');
 await writeFile(join(fixture, 'slow.test.js'),
-  "import { it, expect } from 'vitest'; import { writeFileSync } from 'node:fs'; " +
+  "import { it, expect } from 'vitest'; import { existsSync, writeFileSync } from 'node:fs'; " +
   "it('slow effect', async () => { writeFileSync('slow-started', String(process.pid)); " +
-  "await new Promise(resolve => setTimeout(resolve, 1000)); " +
-  "writeFileSync('slow-effect', String(process.pid)); expect(true).toBe(true); });");
+  // Keep the real runner active until the parent has made its cancellation
+  // decision. A fixed sleep races a descheduled observer on busy CI hosts.
+  "const deadline = Date.now() + 15000; " +
+  "while (!existsSync('slow-release')) { " +
+  "if (Date.now() > deadline) throw new Error('Parent did not release the runner'); " +
+  "await new Promise(resolve => setTimeout(resolve, 20)); } " +
+  "writeFileSync('slow-effect', String(process.pid)); expect(true).toBe(true); }, 20000);");
 await writeFile(join(fixture, 'healthy.test.js'),
   "import { it, expect } from 'vitest'; it('healthy control', () => expect(true).toBe(true));");
 
@@ -79,13 +84,19 @@ try {
   });
 
   const started = await call('task_submit', {
-    type: 'execute-tests', payload: { testFiles: [join(fixture, 'slow.test.js')], parallel: false, timeout: 10000 },
+    type: 'execute-tests', payload: { testFiles: [join(fixture, 'slow.test.js')], parallel: false, timeout: 25000 },
   });
   if (!started.success) throw new Error(JSON.stringify(started));
   const taskId = started.data.taskId;
   await until(() => exists(join(fixture, 'slow-started')), 'Runner did not start');
+  // The delayed case proves scheduling cannot let the runner finish before
+  // cancellation. This knob belongs only to this subprocess test fixture.
+  const observerDelay = Number(process.env.AQE_CANCEL_OBSERVER_DELAY_MS ?? 0);
+  if (observerDelay > 0) await sleep(observerDelay);
   receipt.cancel = await call('task_cancel', { taskId });
+  if (!receipt.cancel.success) throw new Error('Cancellation failed: ' + JSON.stringify(receipt.cancel));
   receipt.immediate = await call('task_status', { taskId });
+  await writeFile(join(fixture, 'slow-release'), 'release after cancellation');
   receipt.final = await until(async () => {
     const status = await call('task_status', { taskId });
     return status.data?.status === 'completed' || status.data?.cancellationResultPending === false ? status : null;
@@ -113,6 +124,9 @@ try {
   receipt.metrics = core.getFleetState().queen.getMetrics();
   console.log('CANCEL_RECEIPT ' + JSON.stringify(receipt));
 } finally {
+  // Unblock a child even when a cancellation assertion/handler failed, so
+  // teardown cannot leave a runner waiting on a fixture that is removed.
+  await writeFile(join(fixture, 'slow-release'), 'teardown release').catch(() => {});
   if (server) await server.stop();
   await new Promise(resolve => embedder.close(resolve));
   await rm(fixture, { recursive: true, force: true });
