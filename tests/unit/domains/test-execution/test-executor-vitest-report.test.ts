@@ -101,6 +101,7 @@ describe('Vitest report process boundaries', () => {
     expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     expect(existsSync(dirname(reportPaths[0]))).toBe(true);
     proc.emit('close', null);
+    await Promise.resolve();
     expect(existsSync(dirname(reportPaths[0]))).toBe(false);
   });
 
