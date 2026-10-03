@@ -50,6 +50,8 @@ export interface ToolDefinition {
   domain?: DomainName;
   lazyLoad?: boolean;
   isConcurrencySafe?: boolean;
+  /** False for live reads whose results must not be reused by the session cache. */
+  isCacheable?: boolean;
   annotations?: ToolAnnotations;
 }
 

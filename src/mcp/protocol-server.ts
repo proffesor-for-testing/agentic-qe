@@ -617,6 +617,7 @@ export class MCPProtocolServer {
     const startTime = performance.now();
     let success = false;
     let cacheable: boolean | undefined;
+    let invalidatesCache = false;
 
     // Emit AG-UI progress event for tool start
     const stepId = `${name}-${Date.now()}`;
@@ -664,14 +665,13 @@ export class MCPProtocolServer {
       const processedCtx = await this.middlewareChain.executePreHooks(ctx);
 
       // Issue #473: Session-cache lookup for read-only tools.
-      // Concurrency-safe tools are idempotent in practice — same input yields
-      // the same output, so we can short-circuit repeated calls with an O(1)
-      // fingerprint lookup. Tools without isConcurrencySafe (writes, scans,
-      // executions) always re-run.
-      // Explicit quality gates depend on current measured evidence and its age,
-      // not just arguments. A cached approval can outlive or contradict evidence.
+      // Concurrency safety does not imply stable output: status and metrics
+      // can change in the background without another MCP mutation. Live reads
+      // opt out of reuse while retaining their concurrency-safe scheduling hint.
+      // Explicit quality gates also depend on current measured evidence/age.
       const measuredQualityGate = name === 'quality_assess' && processedCtx.params?.runGate === true;
-      cacheable = tool.definition.isConcurrencySafe === true && !measuredQualityGate;
+      invalidatesCache = tool.definition.isConcurrencySafe !== true || measuredQualityGate;
+      cacheable = !invalidatesCache && tool.definition.isCacheable !== false;
       let cacheFingerprint: string | null = null;
       let cacheGeneration: number | null = null;
       if (cacheable && process.env.AQE_SESSION_CACHE !== 'off') {
@@ -796,7 +796,7 @@ export class MCPProtocolServer {
       // Tool names and success flags do not prove whether state changed.
       // Unknown cross-domain effects require a global flush, including after
       // a handler throws or reports failure following a partial effect.
-      if (cacheable === false && process.env.AQE_SESSION_CACHE !== 'off') {
+      if (invalidatesCache && process.env.AQE_SESSION_CACHE !== 'off') {
         try {
           const { getSessionCache } = await import('../optimization/session-cache.js');
           getSessionCache().invalidateAll();
@@ -837,6 +837,7 @@ export class MCPProtocolServer {
         description: 'Get fleet status: agents, tasks, health, and learning stats. Example: fleet_status({ verbose: true })',
         category: 'core',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed information', default: false },
         ],
@@ -850,6 +851,7 @@ export class MCPProtocolServer {
         description: 'Check fleet and per-domain health status with load metrics. Example: fleet_health({ domain: "test-generation" })',
         category: 'core',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'domain', type: 'string', description: 'Specific domain to check' },
         ],
@@ -879,6 +881,7 @@ export class MCPProtocolServer {
         description: 'List tasks with optional status/limit filtering. Example: task_list({ status: "running", limit: 10 })',
         category: 'task',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'status', type: 'string', description: 'Filter by status' },
           { name: 'limit', type: 'number', description: 'Maximum results', default: 50 },
@@ -893,6 +896,7 @@ export class MCPProtocolServer {
         description: 'Get detailed status, progress, and result of a specific task. Example: task_status({ taskId: "abc-123" })',
         category: 'task',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'taskId', type: 'string', description: 'Task ID', required: true },
         ],
@@ -932,6 +936,7 @@ export class MCPProtocolServer {
         description: 'List all active agents, optionally filtered by domain. Example: agent_list({ domain: "test-generation" })',
         category: 'agent',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
         ],
@@ -958,6 +963,7 @@ export class MCPProtocolServer {
         description: 'Get CPU, memory, and task performance metrics for agents. Example: agent_metrics({ agentId: "agent-1" })',
         category: 'agent',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'agentId', type: 'string', description: 'Specific agent ID', required: true },
         ],
@@ -971,6 +977,7 @@ export class MCPProtocolServer {
         description: 'Get detailed status and current task of a specific agent. Example: agent_status({ agentId: "agent-1" })',
         category: 'agent',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'agentId', type: 'string', description: 'Agent ID', required: true },
         ],
@@ -985,6 +992,7 @@ export class MCPProtocolServer {
         description: 'List all active domain teams and their agent counts. Example: team_list({ domain: "coverage-analysis" })',
         category: 'agent',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'domain', type: 'string', description: 'Filter by domain' },
         ],
@@ -998,6 +1006,7 @@ export class MCPProtocolServer {
         description: 'Get team health, agent utilization, and consensus status for a domain. Example: team_health({ domain: "security-compliance" })',
         category: 'agent',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'domain', type: 'string', description: 'Domain to check', required: true },
         ],
@@ -1286,6 +1295,7 @@ export class MCPProtocolServer {
         description: 'Get memory usage statistics: entry counts, namespaces, and storage size. Example: memory_usage({})',
         category: 'memory',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: () => handleMemoryUsage(),
@@ -1333,6 +1343,7 @@ export class MCPProtocolServer {
         description: 'Get model routing statistics: tier distribution, cost savings, and routing log. Example: routing_metrics({ includeLog: true, logLimit: 20 })',
         category: 'routing',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'includeLog', type: 'boolean', description: 'Include routing log entries', default: false },
           { name: 'logLimit', type: 'number', description: 'Max log entries to return', default: 100 },
@@ -1347,6 +1358,7 @@ export class MCPProtocolServer {
         description: 'Get economic routing report: tier efficiency, budget status, cost-per-quality analysis, and savings opportunities. Example: routing_economics({ taskComplexity: 0.5 })',
         category: 'routing',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'taskComplexity', type: 'number', description: 'Task complexity score 0-1 for tier scoring (default: 0.5)', default: 0.5 },
         ],
@@ -1361,6 +1373,7 @@ export class MCPProtocolServer {
         description: 'Get infrastructure self-healing status: detected failures, recovery stats, and failing services. Example: infra_healing_status({ verbose: true })',
         category: 'infra-healing',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [
           { name: 'verbose', type: 'boolean', description: 'Include detailed observation data', default: false },
         ],
@@ -1470,6 +1483,7 @@ export class MCPProtocolServer {
         description: 'Get cross-phase memory statistics (total signals, by loop, by namespace)',
         category: 'cross-phase',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: () => handleCrossPhaseStats(),
@@ -1576,6 +1590,7 @@ export class MCPProtocolServer {
         description: 'List all loaded YAML pipelines. Example: pipeline_list({})',
         category: 'coordination',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: (params) => handlePipelineList(params as Record<string, never>),
@@ -1619,6 +1634,7 @@ export class MCPProtocolServer {
         description: 'Get session operation cache statistics: hit rate, cache size, tokens saved via O(1) fingerprint reuse. Example: session_cache_stats({})',
         category: 'learning',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: async () => {
@@ -1654,6 +1670,7 @@ export class MCPProtocolServer {
         description: 'Check AQE server health: returns status, loaded domains, memory stats, HNSW index status, and pattern count. Example: aqe_health({})',
         category: 'core',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: () => handleAQEHealth(),
@@ -1666,6 +1683,7 @@ export class MCPProtocolServer {
         description: 'Get RVF migration status: current stage, metrics, consistency, and gate evaluation. Example: migration_status({})',
         category: 'persistence',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: () => handleMigrationStatus(),
@@ -1677,6 +1695,7 @@ export class MCPProtocolServer {
         description: 'Run a consistency check comparing SQLite and RVF search results. Samples random patterns and reports divergences. Example: migration_check({})',
         category: 'persistence',
         isConcurrencySafe: true,
+        isCacheable: false,
         parameters: [],
       },
       handler: () => handleMigrationCheck(),
