@@ -422,8 +422,6 @@ export class PersistentSONAEngine {
         ON CONFLICT(id) DO UPDATE SET
           confidence = excluded.confidence,
           usage_count = excluded.usage_count,
-          success_count = excluded.success_count,
-          failure_count = excluded.failure_count,
           metadata = excluded.metadata,
           updated_at = datetime('now'),
           last_used_at = excluded.last_used_at
@@ -448,6 +446,8 @@ export class PersistentSONAEngine {
         SET confidence = ?,
             success_count = success_count + ?,
             failure_count = failure_count + ?,
+            usage_count = usage_count + 1,
+            last_used_at = datetime('now'),
             updated_at = datetime('now')
         WHERE id = ?
       `)
@@ -674,6 +674,13 @@ export class PersistentSONAEngine {
       // Get updated pattern and persist confidence change
       const pattern = this.getPattern(patternId);
       if (pattern) {
+        // Feedback needs a durable row before incrementing its counters.
+        // Remove the queued snapshot only after its write succeeds.
+        const pending = this.pendingSaves.get(patternId);
+        if (pending) {
+          this.savePatternToDb(pending);
+          this.pendingSaves.delete(patternId);
+        }
         this.persistPatternConfidenceUpdate(
           patternId,
           pattern.confidence,
