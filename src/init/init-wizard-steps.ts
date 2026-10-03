@@ -251,12 +251,13 @@ export async function runCodeIntelligenceScan(
       enableVectorEmbeddings: true,
     });
 
-    const glob = await import('fast-glob');
-    const files = await glob.default([
+    const { glob } = await import('tinyglobby');
+    const files = await glob([
       '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
     ], {
       cwd: projectPath,
       ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
+      expandDirectories: false,
     });
 
     const result = await kgService.index({

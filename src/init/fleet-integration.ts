@@ -178,12 +178,13 @@ export class FleetInitEnhancer {
       });
 
       // Find all source files
-      const glob = await import('fast-glob');
-      const files = await glob.default([
+      const { glob } = await import('tinyglobby');
+      const files = await glob([
         '**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx', '**/*.py'
       ], {
         cwd: this.projectRoot,
         ignore: ['node_modules/**', 'dist/**', 'coverage/**', '.agentic-qe/**'],
+        expandDirectories: false,
       });
 
       console.log(chalk.gray(`  Indexing ${files.length} files...`));
