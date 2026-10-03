@@ -13,8 +13,8 @@ vi.mock('node:fs/promises', () => ({
   stat: vi.fn(),
 }));
 
-vi.mock('fast-glob', () => ({
-  default: vi.fn(),
+vi.mock('tinyglobby', () => ({
+  glob: vi.fn(),
 }));
 
 vi.mock('../../../../src/agents/claim-verifier/index', () => ({
@@ -22,12 +22,12 @@ vi.mock('../../../../src/agents/claim-verifier/index', () => ({
 }));
 
 import { readFile, stat } from 'node:fs/promises';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import { FileBasedVerifier } from '../../../../src/agents/claim-verifier/verifiers/file-verifier';
 
 const mockedStat = vi.mocked(stat);
 const mockedReadFile = vi.mocked(readFile);
-const mockedFg = vi.mocked(fg);
+const mockedGlob = vi.mocked(glob);
 
 function makeClaim(overrides: Partial<Claim> = {}): Claim {
   return {
@@ -155,7 +155,7 @@ describe('FileBasedVerifier', () => {
         statement: 'All database queries use parameterized queries',
         evidence: [],
       });
-      mockedFg.mockResolvedValue(['/workspace/project/src/db.ts'] as any);
+      mockedGlob.mockResolvedValue(['/workspace/project/src/db.ts'] as any);
       mockedStat.mockResolvedValue({ size: 500 } as any);
       mockedReadFile.mockResolvedValue(
         'const result = db.query(sql, params); // parameterized queries\n'
@@ -175,7 +175,7 @@ describe('FileBasedVerifier', () => {
         statement: 'Input validation applied across the codebase',
         evidence: [],
       });
-      mockedFg.mockResolvedValue(['/workspace/project/src/handler.ts'] as any);
+      mockedGlob.mockResolvedValue(['/workspace/project/src/handler.ts'] as any);
       mockedStat.mockResolvedValue({ size: 200 } as any);
       mockedReadFile.mockResolvedValue('function handler(req) { return req.body; }\n');
 

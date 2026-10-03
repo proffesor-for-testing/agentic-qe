@@ -173,7 +173,7 @@ export class PretrainBridge {
     depth: 'shallow' | 'medium' | 'deep'
   ): Promise<PretrainResult> {
     try {
-      const glob = await import('fast-glob');
+      const { glob } = await import('tinyglobby');
       const { existsSync, readFileSync } = await import('fs');
       const { join } = await import('path');
 
@@ -186,9 +186,10 @@ export class PretrainBridge {
 
       const ignore = ['node_modules/**', 'dist/**', 'coverage/**', '.git/**'];
 
-      const files = await glob.default(patterns, {
+      const files = await glob(patterns, {
         cwd: targetPath,
         ignore,
+        expandDirectories: false,
         onlyFiles: true,
       });
 

@@ -12,7 +12,7 @@
 
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import fg from 'fast-glob';
+import { glob } from 'tinyglobby';
 import type {
   Claim,
   Evidence,
@@ -320,10 +320,11 @@ export class FileBasedVerifier {
 
     for (const { pattern, fileGlob } of patterns) {
       const searchGlob = fileGlob ?? '**/*.{ts,js,tsx,jsx}';
-      const files = await fg(searchGlob, {
+      const files = await glob(searchGlob, {
         cwd: this.config.rootDir,
         ignore: this.config.excludePatterns,
         absolute: true,
+        expandDirectories: false,
       });
 
       const filesToCheck = maxInstances && !checkAll
