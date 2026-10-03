@@ -28,9 +28,7 @@ phases:
     const result = parseCIConfigContent(yaml);
     expect(result.success).toBe(true);
     expect(result.config!.name).toBe('test-project');
-    // Parser uses default phases if YAML array parsing isn't supported
-    // by the lightweight parseYAMLContent. Either way, must have phases.
-    expect(result.config!.phases.length).toBeGreaterThan(0);
+    expect(result.config!.phases.map(p => [p.name, p.type])).toEqual([['Tests', 'test']]);
   });
 
   it('should apply default values', () => {
@@ -50,8 +48,6 @@ phases:
   });
 
   it('should accept config with valid top-level fields', () => {
-    // The lightweight YAML parser may not fully parse array-of-objects.
-    // When phases array isn't parsed, defaults are used (which is valid).
     const yaml = `version: '1'\nname: my-project`;
     const result = parseCIConfigContent(yaml);
     expect(result.success).toBe(true);
@@ -60,13 +56,10 @@ phases:
   });
 
   it('should parse output section when present', () => {
-    // Test via file-based parsing which handles YAML properly
     const yaml = 'output:\n  format: sarif\n  directory: custom-output\n  combined_report: false';
     const result = parseCIConfigContent(yaml);
     expect(result.success).toBe(true);
-    // Verify defaults are at least set (parser may not handle all nested YAML)
-    expect(result.config!.output).toBeDefined();
-    expect(result.config!.output.format).toBeDefined();
+    expect(result.config!.output).toEqual({ format: 'sarif', directory: 'custom-output', combinedReport: false });
   });
 
   it('should have quality_gate defaults', () => {
@@ -96,12 +89,8 @@ name: test
   it('should handle empty content gracefully', () => {
     // Empty YAML should use defaults
     const result = parseCIConfigContent('');
-    // Either succeeds with defaults or reports an error — both are valid
-    if (result.success) {
-      expect(result.config!.phases.length).toBeGreaterThan(0);
-    } else {
-      expect(result.errors.length).toBeGreaterThan(0);
-    }
+    expect(result.success).toBe(true);
+    expect(result.config).toEqual(getDefaultCIConfig());
   });
 });
 
@@ -166,5 +155,105 @@ describe('getDefaultCIConfig', () => {
     const config2 = getDefaultCIConfig();
     config1.phases[0].name = 'modified';
     expect(config2.phases[0].name).not.toBe('modified');
+  });
+});
+
+
+describe('real CI YAML file semantics', () => {
+  let directory: string;
+  beforeEach(() => { directory = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-ci-yaml-')); });
+  afterEach(() => { fs.rmSync(directory, { recursive: true, force: true }); });
+  function parseFile(yaml: string) {
+    const file = path.join(directory, '.aqe-ci.yml');
+    fs.writeFileSync(file, yaml);
+    return parseCIConfigFile(file);
+  }
+
+  it('preserves only supplied phases, nested config, output and gate settings', () => {
+    const result = parseFile(`version: 1
+name: owned-project
+phases:
+  - name: Only Custom
+    type: custom
+    enabled: false
+    continue_on_failure: true
+    timeout: 17
+    config:
+      target: 'src/custom#target'
+      labels: [one, two]
+output:
+  format: sarif
+  directory: owned-output
+  combined_report: false
+quality_gate:
+  enforced: false
+  thresholds:
+    coverage: 97
+    security: high
+    quality: 91
+`);
+    expect(result.success).toBe(true);
+    expect(result.config).toEqual({
+      version: '1', name: 'owned-project',
+      phases: [{ name: 'Only Custom', type: 'custom', enabled: false,
+        continueOnFailure: true, timeout: 17,
+        config: { target: 'src/custom#target', labels: ['one', 'two'] } }],
+      output: { format: 'sarif', directory: 'owned-output', combinedReport: false },
+      qualityGate: { enforced: false, thresholds: { coverage: 97, security: 'high', quality: 91 } },
+    });
+    expect(result.configPath).toBe(path.join(directory, '.aqe-ci.yml'));
+  });
+
+  it('accepts bounded aliases and quoted/flow YAML without changing values', () => {
+    const result = parseFile(`defaults: &settings { target: 'source:with#punctuation', labels: [one, two] }
+phases:
+  - { name: A, type: custom, config: *settings }
+  - { name: B, type: custom, config: *settings }
+quality_gate: { enforced: true, thresholds: { coverage: 0, quality: 0 } }
+`);
+    expect(result.success).toBe(true);
+    expect(result.config!.phases.map(p => p.name)).toEqual(['A', 'B']);
+    expect(result.config!.phases[0].config).toEqual({ target: 'source:with#punctuation', labels: ['one', 'two'] });
+    expect(result.config!.qualityGate.thresholds).toMatchObject({ coverage: 0, quality: 0 });
+  });
+
+  it.each([
+    '42', '[test, custom]', 'null', 'output: [unterminated',
+    'phases: [null]', 'phases: custom', 'phases: []', 'output: [json]',
+    'quality_gate: false', 'quality_gate: { thresholds: false }',
+    'name: []', 'output: { directory: 4 }', 'output: { combined_report: "false" }',
+    'quality_gate: { enforced: "false" }', 'quality_gate: { thresholds: { coverage: "90" } }',
+    'quality_gate: { thresholds: { quality: .nan } }',
+    'phases: [{ name: A, type: custom, enabled: "false" }]',
+    'phases: [{ name: A, type: custom, timeout: 0 }]',
+    'phases: [{ name: A, type: custom, config: [] }]',
+    'phases: [{ name: A, type: invalid }]',
+    'phases: [{ type: custom }]', 'phases: [{ name: A }]',
+    'phases: [{ name: A, type: custom, continue_on_failure: "false" }]',
+    'quality_gate: { thresholds: { security: critical } }',
+  ])('rejects malformed/non-map/invalid config %s as a parse result', yaml => {
+    const result = parseFile(yaml);
+    expect(result.success).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('does not share fallback phase objects between separate parsed configs', () => {
+    const first = parseFile('name: first').config!;
+    const second = parseFile('name: second').config!;
+    first.phases[0].config.target = 'changed';
+    expect(second.phases[0].config.target).toBe('.');
+  });
+
+  it.each([
+    'name: '.padEnd(10001, 'x'),
+    '\n'.repeat(10001),
+    'phases: [{ name: A, type: custom, config: { nested: ' + '['.repeat(21) + '0' + ']'.repeat(21) + ' } }]',
+    'config: &loop { child: *loop }',
+    'name: first\nname: duplicate',
+    'phases: [{ name: A, type: custom, config: { __proto__: { polluted: true } } }]',
+    'anchor: &a [0]\nphases: [{ name: A, type: custom, config: { aliases: [' + Array(101).fill('*a').join(',') + '] } }]',
+  ])('retains bounded YAML/prototype validation (%#)', yaml => {
+    expect(parseFile(yaml).success).toBe(false);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
