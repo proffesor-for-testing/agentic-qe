@@ -1260,6 +1260,8 @@ export class MCPProtocolServer {
           { name: 'pattern', type: 'string', description: 'Key pattern (glob) or natural language query (for semantic search)' },
           { name: 'namespace', type: 'string', description: 'Memory namespace' },
           { name: 'semantic', type: 'boolean', description: 'Use HNSW vector search instead of pattern matching. Auto-detected when pattern contains spaces and no wildcards.' },
+          { name: 'limit', type: 'number', description: 'Maximum entries in the page (non-negative safe integer)', default: 100 },
+          { name: 'offset', type: 'number', description: 'Number of entries to skip (non-negative safe integer)', default: 0 },
         ],
       },
       handler: (params) => handleMemoryQuery(params as unknown as Parameters<typeof handleMemoryQuery>[0]),
