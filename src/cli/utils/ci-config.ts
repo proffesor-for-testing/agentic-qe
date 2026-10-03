@@ -82,6 +82,8 @@ export interface CIPhaseResult {
 
 /** Result of the full CI run */
 export interface CIRunResult {
+  /** Invalid phase selections fail before execution and retain a fresh report. */
+  configurationError?: string;
   config: string;
   startedAt: Date;
   completedAt: Date;

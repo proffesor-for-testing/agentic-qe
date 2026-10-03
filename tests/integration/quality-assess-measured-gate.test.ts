@@ -197,7 +197,7 @@ describe('registered quality_assess measured gate', () => {
     },
   );
 
-  it('does not report an omitted gate as passed, even when enforcement is explicitly disabled', async () => {
+  it('rejects an invalid phase without reporting a passing gate, even when enforcement is disabled', async () => {
     await seed();
     await runCIGate();
     const required = await runCIGate(['--phase', 'no-such-phase']);
@@ -205,12 +205,14 @@ describe('registered quality_assess measured gate', () => {
     expect(required.report).toMatchObject({
       phases: [], qualityGatePassed: false, qualityGateStatus: 'not-run', overallStatus: 'failed',
     });
+    expect(required.report.configurationError).toContain('no-such-phase');
     expect(JSON.parse(await readFile(join(process.cwd(), '.aqe-ci-output', 'quality-gate.json'), 'utf8')))
       .toMatchObject({ passed: false, status: 'not-run', evidenceStatus: 'not-run' });
     const advisory = await runCIGate(['--phase', 'no-such-phase', '--no-quality-gate']);
-    expect(advisory.exitCode).toBe(0);
+    expect(advisory.exitCode).toBe(1);
     expect(advisory.report).toMatchObject({
       phases: [], qualityGatePassed: false, qualityGateStatus: 'not-run', qualityGateEnforced: false,
+      overallStatus: 'failed',
     });
     expect(await readFile(join(process.cwd(), '.aqe-ci-output', 'ci-report.md'), 'utf8'))
       .toContain('**Quality Gate:** Not run (advisory)');

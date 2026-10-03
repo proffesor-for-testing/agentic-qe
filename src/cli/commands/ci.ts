@@ -379,8 +379,16 @@ export function createCICommand(
         }
 
         // Filter phases if --phase specified
-        if (options.phase) {
+        let phaseSelectionError: string | undefined;
+        if (options.phase !== undefined) {
           const requested = (options.phase as string).split(',').map((s: string) => s.trim().toLowerCase());
+          const unknown = requested.filter(selector => !selector || !config.phases.some(p =>
+            selector === p.name.toLowerCase() || selector === p.type
+          ));
+          if (unknown.length > 0) {
+            phaseSelectionError = `Unknown or empty CI phase selector: ${unknown.map(s => s || '(empty)').join(', ')}. `
+              + `Available phases: ${config.phases.map(p => `${p.name} (${p.type})`).join(', ')}`;
+          }
           config.phases = config.phases.filter(p =>
             requested.includes(p.name.toLowerCase()) || requested.includes(p.type)
           );
@@ -412,10 +420,13 @@ export function createCICommand(
           enforced: config.qualityGate.enforced, phases: [],
         }), 'utf-8');
 
+        // Invalidate prior approval even when a typo prevents any execution.
+        if (phaseSelectionError) console.error(chalk.red(phaseSelectionError));
+
         // Execute phases
         const phaseResults: CIPhaseResult[] = [];
 
-        for (const phase of config.phases) {
+        for (const phase of phaseSelectionError ? [] : config.phases) {
           if (format === 'text') {
             const spinner = `  [${phaseResults.length + 1}/${config.phases.length}] ${phase.name}...`;
             process.stdout.write(chalk.cyan(spinner));
@@ -449,7 +460,8 @@ export function createCICommand(
         }
 
         // Determine overall status
-        const hasFailure = phaseResults.some(r => r.status === 'failed' && r.type !== 'quality-gate');
+        const hasFailure = phaseSelectionError !== undefined
+          || phaseResults.some(r => r.status === 'failed' && r.type !== 'quality-gate');
         const hasWarning = phaseResults.some(r => r.status === 'warning' ||
           (r.type === 'quality-gate' && r.status === 'failed' && !config.qualityGate.enforced));
         const gateResults = phaseResults.filter(r => r.type === 'quality-gate');
@@ -477,6 +489,7 @@ export function createCICommand(
           qualityGateEnforced: config.qualityGate.enforced,
           overallStatus,
           exitCode: overallStatus === 'failed' ? 1 : 0,
+          ...(phaseSelectionError ? { configurationError: phaseSelectionError } : {}),
         };
 
         fs.writeFileSync(gateReportPath, toJSON({
