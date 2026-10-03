@@ -1484,7 +1484,11 @@ export class PersistentSONAEngine {
    * Schedule batched save
    */
   private scheduleSave(delayMs = this.config.autoSaveInterval): void {
-    if (this.saveTimer) return;
+    if (this.saveTimer) {
+      // New explicit work must survive natural exit, even during a retry delay.
+      if (this.consecutiveSaveFailures === 0) this.saveTimer.ref();
+      return;
+    }
 
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
@@ -1510,7 +1514,8 @@ export class PersistentSONAEngine {
         this.consecutiveSaveFailures = 0;
       }
     }, delayMs);
-    this.saveTimer.unref();
+    // The initial batch must flush on natural exit; only failure retries are optional.
+    if (this.consecutiveSaveFailures > 0) this.saveTimer.unref();
   }
 
   /**

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import Database from 'better-sqlite3';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { createPersistentSONAEngine, type PersistentSONAEngine } from '../../../../src/integrations/ruvector/sona-persistence.js';
 import { getUnifiedPersistence, initializeUnifiedPersistence, resetUnifiedPersistence } from '../../../../src/kernel/unified-persistence.js';
 
@@ -79,12 +82,57 @@ describe('deferred SONA write recovery', () => {
     engine = await createPersistentSONAEngine({ domain });
     expect(engine.getAllPatterns().map(p => p.id)).toEqual([pattern.id]);
   });
-  it('does not let a deferred-save timer keep the CLI process alive', async () => {
+  it('keeps the first batch referenced but unrefs a retry after a native failed batch', async () => {
     vi.useRealTimers();
-    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 10 });
+    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 20 });
+    const db = getUnifiedPersistence().getDatabase();
+    db.exec(`CREATE TRIGGER reject_sona_save BEFORE INSERT ON sona_patterns
+      BEGIN SELECT RAISE(ABORT, 'retry timer fixture'); END`);
     createPattern();
-    const timer = (engine as unknown as { saveTimer: NodeJS.Timeout }).saveTimer;
-    expect(timer.hasRef()).toBe(false);
+    const internals = engine as unknown as { saveTimer: NodeJS.Timeout; consecutiveSaveFailures: number };
+    expect(internals.saveTimer.hasRef()).toBe(true);
+    await vi.waitFor(() => expect(internals.consecutiveSaveFailures).toBe(1));
+    expect(internals.saveTimer.hasRef()).toBe(false);
+  });
+  it('references an existing retry when new explicit work starts a fresh batch', async () => {
+    vi.useRealTimers();
+    engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 20 });
+    const db = getUnifiedPersistence().getDatabase();
+    db.exec(`CREATE TRIGGER reject_sona_save BEFORE INSERT ON sona_patterns
+      BEGIN SELECT RAISE(ABORT, 'retry timer fixture'); END`);
+    createPattern();
+    const internals = engine as unknown as { saveTimer: NodeJS.Timeout; consecutiveSaveFailures: number };
+    await vi.waitFor(() => expect(internals.consecutiveSaveFailures).toBe(1));
+    const retry = internals.saveTimer;
+    expect(retry.hasRef()).toBe(false);
+    db.exec('DROP TRIGGER reject_sona_save');
+    createPattern();
+    expect(internals.saveTimer).toBe(retry);
+    expect(retry.hasRef()).toBe(true);
+    expect(internals.consecutiveSaveFailures).toBe(0);
+  });
+  it('persists the first batch when a real process drains naturally without close', () => {
+    vi.useRealTimers();
+    const databasePath = join(directory, 'drain.db');
+    const scriptPath = join(directory, 'drain.mts');
+    writeFileSync(scriptPath, `
+      import { initializeUnifiedPersistence } from ${JSON.stringify(pathToFileURL(resolve('src/kernel/unified-persistence.ts')).href)};
+      import { createPersistentSONAEngine } from ${JSON.stringify(pathToFileURL(resolve('src/integrations/ruvector/sona-persistence.ts')).href)};
+      await initializeUnifiedPersistence({ dbPath: ${JSON.stringify(databasePath)} });
+      const engine = await createPersistentSONAEngine({ domain: 'test-generation', autoSaveInterval: 200 });
+      engine.createPattern({ id: 'drain', features: new Array(384).fill(0.25) },
+        { type: 'test-action', value: 'run-tests' },
+        { reward: 0.8, success: true, quality: 0.9 }, 'test-generation', 'test-generation');
+      // No close, forced exit, or additional referenced timer: drain naturally.
+    `);
+    const child = spawnSync(process.execPath, ['--import', 'tsx', scriptPath], {
+      cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    });
+    expect(child.error).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+    const db = new Database(databasePath, { readonly: true });
+    try { expect(db.prepare('SELECT COUNT(*) AS count FROM sona_patterns').get()).toEqual({ count: 1 }); }
+    finally { db.close(); }
   });
   it('tries healthy rows during close even if an earlier row still fails', async () => {
     engine = await createPersistentSONAEngine({ domain, autoSaveInterval: 10 });
