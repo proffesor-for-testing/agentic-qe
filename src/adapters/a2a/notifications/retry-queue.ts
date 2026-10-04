@@ -371,6 +371,8 @@ export class RetryQueue extends EventEmitter {
       this.emit('processing', { delivery });
 
       const result = await this.deliveryFn!(delivery);
+      // A removal or replacement during the await revokes this delivery.
+      if (this.queue.get(delivery.id) !== delivery) return;
       this.stats.totalProcessed++;
 
       if (result.success) {
@@ -389,6 +391,7 @@ export class RetryQueue extends EventEmitter {
         this.emit('failed', { delivery, result });
       }
     } catch (error) {
+      if (this.queue.get(delivery.id) !== delivery) return;
       // Unexpected error - attempt retry
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
