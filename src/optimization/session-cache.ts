@@ -79,15 +79,17 @@ export const DEFAULT_SESSION_CACHE_CONFIG: SessionCacheConfig = {
  * Ensures identical logical objects always produce the same fingerprint.
  */
 function canonicalStringify(value: unknown): string {
-  if (value === null || value === undefined) return JSON.stringify(value);
-  if (typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return '[' + value.map(v => canonicalStringify(v)).join(',') + ']';
+  // Honor JSON's array holes, undefined fields and toJSON (for example Date)
+  // before ordering keys. Hand-built fragments can conflate distinct inputs.
+  const normalized: unknown = JSON.parse(JSON.stringify(value));
+  function encode(item: unknown): string {
+    if (item === null || typeof item !== 'object') return JSON.stringify(item);
+    if (Array.isArray(item)) return '[' + item.map(encode).join(',') + ']';
+    const obj = item as Record<string, unknown>;
+    return '{' + Object.keys(obj).sort()
+      .map(key => JSON.stringify(key) + ':' + encode(obj[key])).join(',') + '}';
   }
-  const obj = value as Record<string, unknown>;
-  const sortedKeys = Object.keys(obj).sort();
-  const pairs = sortedKeys.map(k => JSON.stringify(k) + ':' + canonicalStringify(obj[k]));
-  return '{' + pairs.join(',') + '}';
+  return encode(normalized);
 }
 
 // ============================================================================
