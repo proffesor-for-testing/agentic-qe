@@ -89,7 +89,9 @@ export class PriorityQueue<T = DaemonTaskPayload> {
    */
   enqueue(item: QueueItem<T>): boolean {
     if (this.size >= this._maxSize) {
-      return false;
+      // Stale background tasks must not consume capacity needed by new alerts.
+      this.pruneExpired();
+      if (this.size >= this._maxSize) return false;
     }
     this.queues[item.priority].push(item);
     return true;
