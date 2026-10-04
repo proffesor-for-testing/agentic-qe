@@ -6,6 +6,8 @@
  * for repeated queries. Uses LRU (Least Recently Used) eviction policy.
  */
 
+import { createHash } from 'node:crypto';
+
 import {
   CacheEntry,
   LLMCacheConfig,
@@ -69,15 +71,9 @@ export class LLMCache<T = CacheableResponse> {
       input,
     ];
 
-    // Simple hash function
-    const str = parts.join('|');
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return `${type}:${Math.abs(hash).toString(36)}`;
+    // Encode field boundaries before hashing: prompt text may contain delimiters.
+    const hash = createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+    return `${type}:${hash}`;
   }
 
   /**
