@@ -43,7 +43,7 @@ export class EmbeddingCache {
       // Move to end (LRU update)
       this.cache.delete(key);
       this.cache.set(key, entry);
-      return entry.embedding;
+      return [...entry.embedding];
     }
 
     this.misses++;
@@ -65,7 +65,7 @@ export class EmbeddingCache {
     }
 
     const entry: EmbeddingCacheEntry = {
-      embedding,
+      embedding: [...embedding],
       timestamp: Date.now(),
       model,
     };
@@ -139,7 +139,7 @@ export class EmbeddingCache {
   export(): Array<{ key: string; entry: EmbeddingCacheEntry }> {
     return Array.from(this.cache.entries()).map(([key, entry]) => ({
       key,
-      entry,
+      entry: { ...entry, embedding: [...entry.embedding] },
     }));
   }
 
@@ -150,7 +150,7 @@ export class EmbeddingCache {
     this.cache.clear();
     for (const { key, entry } of data) {
       if (this.cache.size < this.maxSize) {
-        this.cache.set(key, entry);
+        this.cache.set(key, { ...entry, embedding: [...entry.embedding] });
       }
     }
   }
