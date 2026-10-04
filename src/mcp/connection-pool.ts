@@ -190,7 +190,7 @@ class ConnectionPoolImpl {
     // O(1) acquisition from idle set
     for (const connId of this.idleConnections) {
       const conn = this.connections.get(connId);
-      if (conn && conn.isHealthy) {
+      if (conn && conn.isHealthy && !conn.inUse) {
         // Mark as in use and remove from idle set
         conn.inUse = true;
         conn.lastUsedAt = Date.now();
@@ -212,6 +212,7 @@ class ConnectionPoolImpl {
       const newConn = this.createConnectionSync();
       if (newConn) {
         newConn.inUse = true;
+        this.idleConnections.delete(newConn.id);
         this.cacheHits++;
         const elapsed = performance.now() - startTime;
         this.trackAcquisitionTime(elapsed);
@@ -315,7 +316,7 @@ class ConnectionPoolImpl {
 
     for (const [id, conn] of this.connections.entries()) {
       // Prune if unhealthy or idle for too long
-      if (!conn.isHealthy || (now - conn.lastUsedAt > this.config.idleTimeoutMs)) {
+      if (!conn.inUse && (!conn.isHealthy || (now - conn.lastUsedAt > this.config.idleTimeoutMs))) {
         pruned.push(id);
       }
     }
