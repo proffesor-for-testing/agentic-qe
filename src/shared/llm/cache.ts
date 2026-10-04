@@ -234,7 +234,9 @@ export class LLMCache<T = CacheableResponse> {
       entry.createdAt = new Date(entry.createdAt);
       entry.lastAccessedAt = new Date(entry.lastAccessedAt);
       this.cache.set(key, entry);
-      this.accessOrder.push(key);
+      if (this.config.enableLRU) {
+        this.updateAccessOrder(key);
+      }
     }
 
     // Evict if over capacity
