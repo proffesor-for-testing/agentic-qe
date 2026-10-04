@@ -165,7 +165,7 @@ export class SessionOperationCache {
     if (!this.config.enabled) return;
 
     // Evict oldest if at capacity
-    if (this.cache.size >= this.config.maxEntries) {
+    if (!this.cache.has(fingerprint) && this.cache.size >= this.config.maxEntries) {
       this.evictOldest();
     }
 
