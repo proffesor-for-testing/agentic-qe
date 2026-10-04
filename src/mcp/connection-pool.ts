@@ -86,6 +86,7 @@ class ConnectionPoolImpl {
   private readonly config: ConnectionPoolConfig;
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   // Performance tracking
   private totalRequests = 0;
@@ -109,6 +110,15 @@ class ConnectionPoolImpl {
       return;
     }
 
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.initializeOnce().finally(() => {
+        this.initializationPromise = null;
+      });
+    }
+    return this.initializationPromise;
+  }
+
+  private async initializeOnce(): Promise<void> {
     // Pre-warm minimum connections
     const warmupPromises: Promise<void>[] = [];
     for (let i = 0; i < this.config.minConnections; i++) {
@@ -349,6 +359,7 @@ class ConnectionPoolImpl {
    * Shutdown the pool
    */
   async shutdown(): Promise<void> {
+    await this.initializationPromise;
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
