@@ -87,7 +87,7 @@
 		"highlight.js": "^11.7.0",
 		"hono": "^4.13.5",
 		"htmlparser2": "^10.0.0",
-		"ip-address": "^10.7.2",
+		"ip-address": "^10.7.3",
 		"jsdom": "^22.0.0",
 		"json5": "^2.2.3",
 		"katex": "^0.16.21",
