@@ -278,3 +278,6 @@ tests/safety/behavioral/results/*
 # LLM-generated security audit reports dumped to root by the ruflo audit worker (daemon now disabled)
 SECURITY_AUDIT_*.json
 security-audit-*.json
+
+# Local opt-out of ruflo helper auto-refresh, which would revert the patched helpers (#837)
+.claude/helpers/.LOCKED
