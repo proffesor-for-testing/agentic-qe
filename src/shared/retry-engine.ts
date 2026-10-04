@@ -205,6 +205,11 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   options?: Partial<RetryOptions>,
 ): Promise<RetryResult<T>> {
+  // Disabling retries must not bypass the caller's cancellation boundary.
+  if (options?.abortSignal?.aborted) {
+    throw options.abortSignal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
+  }
+
   // Kill switch: bypass retry entirely when disabled
   if (process.env.AQE_RETRY_DISABLED === 'true') {
     const result = await fn();
