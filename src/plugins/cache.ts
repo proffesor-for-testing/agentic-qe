@@ -79,13 +79,19 @@ export class PluginCache {
 
     // Copy source to cache
     fs.mkdirSync(dir, { recursive: true });
-    this.copyDir(sourceDir, dir);
+    try {
+      this.copyDir(sourceDir, dir);
 
-    // Write the manifest (ensure it's present even if source didn't have it at root)
-    fs.writeFileSync(
-      path.join(dir, 'qe-plugin.json'),
-      JSON.stringify(manifest, null, 2),
-    );
+      // Write the manifest (ensure it's present even if source didn't have it at root)
+      fs.writeFileSync(
+        path.join(dir, 'qe-plugin.json'),
+        JSON.stringify(manifest, null, 2),
+      );
+    } catch (error) {
+      // A partial directory must not satisfy the immutable-cache fast path on retry.
+      fs.rmSync(dir, { recursive: true, force: true });
+      throw error;
+    }
 
     // Cleanup old versions
     this.pruneOldVersions(manifest.name);
