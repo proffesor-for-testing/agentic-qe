@@ -51,6 +51,18 @@ export function loadOptionalModule<T = unknown>(
     return { available: true, degraded: false, module: req(name) as T };
   } catch (err) {
     if (isModuleAbsent(err)) {
+      // MODULE_NOT_FOUND can name a transitive dependency of a present package.
+      // Resolution checks availability without executing the package again.
+      if (typeof req.resolve === 'function') {
+        try {
+          req.resolve(name);
+        } catch (resolutionError) {
+          if (!isModuleAbsent(resolutionError)) throw resolutionError;
+          return { available: false, degraded: true, name, reason: `optional module "${name}" not installed (running degraded)` };
+        }
+        throw err;
+      }
+      // Injected minimal require functions retain the historical absence contract.
       return { available: false, degraded: true, name, reason: `optional module "${name}" not installed (running degraded)` };
     }
     throw err; // present but broken — do NOT mask a real failure (#528)
