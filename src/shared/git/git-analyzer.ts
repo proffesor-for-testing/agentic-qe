@@ -530,7 +530,7 @@ export class GitAnalyzer {
       const sanitizedHash = sanitizeGitArg(commitHash);
 
       const output = execFileSync('git', [
-        'diff-tree', '--no-commit-id', '--name-only', '-r', sanitizedHash
+        'diff-tree', '--root', '--no-commit-id', '--name-only', '-r', sanitizedHash
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
