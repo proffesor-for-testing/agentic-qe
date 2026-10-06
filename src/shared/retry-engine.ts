@@ -1,3 +1,5 @@
+import { isCallerInputError } from './error-utils.js';
+
 /**
  * Agentic QE v3 - Unified Retry Engine
  * IMP-03: Retry Engine with Exponential Backoff
@@ -105,7 +107,7 @@ const NON_RETRYABLE_HTTP_STATUSES = new Set([400, 401, 403, 404, 422]);
  * Returns `false` for recognised non-retryable client errors (4xx).
  */
 export function isRetryableError(error: unknown): boolean {
-  if (error == null) return false;
+  if (error == null || isCallerInputError(error)) return false;
 
   // --- code property (errno) -------------------------------------------
   const code = (error as Record<string, unknown>).code;
