@@ -138,7 +138,13 @@ export class SystemMetricsCollector {
    */
   private collectProcessMetrics(): ProcessMetrics {
     const memUsage = process.memoryUsage();
-    const cpuUsage = process.cpuUsage(this.lastCpuUsage ?? undefined);
+    const currentCpuUsage = process.cpuUsage();
+    const cpuUsage = this.lastCpuUsage
+      ? {
+          user: currentCpuUsage.user - this.lastCpuUsage.user,
+          system: currentCpuUsage.system - this.lastCpuUsage.system,
+        }
+      : currentCpuUsage;
 
     // Calculate CPU percentage
     const now = Date.now();
@@ -150,7 +156,7 @@ export class SystemMetricsCollector {
     const cpuPercent = (totalCpuUs / elapsedUs) * 100;
 
     // Update last values
-    this.lastCpuUsage = cpuUsage;
+    this.lastCpuUsage = currentCpuUsage;
     this.lastCpuTime = now;
 
     // Calculate memory percentage
