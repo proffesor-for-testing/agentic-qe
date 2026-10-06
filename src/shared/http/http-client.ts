@@ -370,20 +370,19 @@ export class HttpClient {
       return 'UNKNOWN_ERROR';
     }
 
-    if (error.name === 'AbortError') {
-      return 'TIMEOUT';
-    }
-
-    if (error.message.includes('ECONNREFUSED')) {
-      return 'CONNECTION_REFUSED';
-    }
-
-    if (error.message.includes('ENOTFOUND')) {
-      return 'DNS_ERROR';
-    }
-
-    if (error.message.includes('ETIMEDOUT')) {
-      return 'NETWORK_TIMEOUT';
+    // Native fetch wraps transport errors in a TypeError whose cause carries
+    // the socket/DNS code. Retain message-based handling for existing callers.
+    const visited = new Set<object>();
+    let current: unknown = error;
+    while (typeof current === 'object' && current !== null && !visited.has(current)) {
+      visited.add(current);
+      const detail = current as { name?: unknown; message?: unknown; code?: unknown; cause?: unknown };
+      if (detail.name === 'AbortError') return 'TIMEOUT';
+      const message = typeof detail.message === 'string' ? detail.message : '';
+      if (detail.code === 'ECONNREFUSED' || message.includes('ECONNREFUSED')) return 'CONNECTION_REFUSED';
+      if (detail.code === 'ENOTFOUND' || message.includes('ENOTFOUND')) return 'DNS_ERROR';
+      if (detail.code === 'ETIMEDOUT' || message.includes('ETIMEDOUT')) return 'NETWORK_TIMEOUT';
+      current = detail.cause;
     }
 
     return 'REQUEST_FAILED';
