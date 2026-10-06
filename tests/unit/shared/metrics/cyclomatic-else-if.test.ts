@@ -5,7 +5,7 @@ import ts from 'typescript';
 import { CodeMetricsAnalyzer } from '../../../../src/shared/metrics/code-metrics';
 
 let directory: string;
-beforeEach(async () => { directory = await mkdtemp(join(process.cwd(), '.aqe-metrics-')); });
+beforeEach(async () => { directory = await mkdtemp(join(process.cwd(), 'aqe-metrics-')); });
 afterEach(async () => { await rm(directory, { recursive: true, force: true }); });
 
 const examples = [
