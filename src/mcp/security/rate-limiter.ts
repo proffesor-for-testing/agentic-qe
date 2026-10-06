@@ -359,12 +359,22 @@ export class RateLimiter {
         ? createSafeRegex(limit.pattern)
         : limit.pattern;
 
-      if (pattern && pattern.test(endpoint)) {
+      if (pattern && this.matchesEndpoint(pattern, endpoint)) {
         return `ep${i}`;
       }
     }
 
     return null;
+  }
+
+  private matchesEndpoint(pattern: RegExp, endpoint: string): boolean {
+    const previousIndex = pattern.lastIndex;
+    try {
+      pattern.lastIndex = 0;
+      return pattern.test(endpoint);
+    } finally {
+      pattern.lastIndex = previousIndex;
+    }
   }
 
   private getConfig(endpoint?: string): { tokensPerSecond: number; maxBurst: number } {
@@ -374,7 +384,7 @@ export class RateLimiter {
           ? createSafeRegex(limit.pattern)
           : limit.pattern;
 
-        if (pattern && pattern.test(endpoint)) {
+        if (pattern && this.matchesEndpoint(pattern, endpoint)) {
           return {
             tokensPerSecond: limit.tokensPerSecond,
             maxBurst: limit.maxBurst,
