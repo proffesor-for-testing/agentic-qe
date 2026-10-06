@@ -194,7 +194,10 @@ export class RetryQueue extends EventEmitter {
    * Add a delivery to the retry queue
    */
   enqueue(delivery: PendingDelivery): void {
-    if (this.queue.size >= this.config.maxQueueSize) {
+    const existing = this.queue.get(delivery.id);
+    if (existing) {
+      this.removeFromScheduleIndex(existing);
+    } else if (this.queue.size >= this.config.maxQueueSize) {
       // Evict oldest item
       this.evictOldest();
     }
