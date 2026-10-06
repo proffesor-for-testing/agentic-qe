@@ -24,6 +24,8 @@ import {
   IEmbeddingProvider,
 } from './types';
 
+const PSEUDO_EMBEDDING_MODEL = 'pseudo-embedding';
+
 /**
  * Configuration for NomicEmbedder
  */
@@ -86,10 +88,14 @@ export class NomicEmbedder implements IEmbeddingProvider {
 
     // Try Ollama first, fall back to pseudo-embedding if unavailable
     let embedding: number[];
+    let model: string = EMBEDDING_CONFIG.MODEL;
 
     if (await this.isOllamaAvailable()) {
       embedding = await this.client.generateEmbedding(text);
     } else if (this.enableFallback) {
+      model = PSEUDO_EMBEDDING_MODEL;
+      const cachedFallback = this.cache.get(text, model);
+      if (cachedFallback) return cachedFallback;
       embedding = this.generatePseudoEmbedding(text);
     } else {
       throw new Error(
@@ -99,7 +105,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     }
 
     // Cache result
-    this.cache.set(text, EMBEDDING_CONFIG.MODEL, embedding);
+    this.cache.set(text, model, embedding);
 
     return embedding;
   }
@@ -241,13 +247,18 @@ export class NomicEmbedder implements IEmbeddingProvider {
       const chunkStartTime = Date.now();
 
       // Check cache
-      const cachedEmbedding = this.cache.get(formattedText, EMBEDDING_CONFIG.MODEL);
+      let cachedModel: string = EMBEDDING_CONFIG.MODEL;
+      let cachedEmbedding = this.cache.get(formattedText, cachedModel);
+      if (!cachedEmbedding && !useOllama) {
+        cachedModel = PSEUDO_EMBEDDING_MODEL;
+        cachedEmbedding = this.cache.get(formattedText, cachedModel);
+      }
 
       if (cachedEmbedding) {
         return {
           chunkId: chunk.id,
           embedding: cachedEmbedding,
-          model: EMBEDDING_CONFIG.MODEL,
+          model: cachedModel,
           cached: true,
           computeTimeMs: Date.now() - chunkStartTime,
         };
@@ -264,12 +275,13 @@ export class NomicEmbedder implements IEmbeddingProvider {
         }
 
         // Cache the result
-        this.cache.set(formattedText, EMBEDDING_CONFIG.MODEL, embedding);
+        const model = useOllama ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+        this.cache.set(formattedText, model, embedding);
 
         return {
           chunkId: chunk.id,
           embedding,
-          model: useOllama ? EMBEDDING_CONFIG.MODEL : 'pseudo-embedding',
+          model,
           cached: false,
           computeTimeMs: Date.now() - chunkStartTime,
         };
