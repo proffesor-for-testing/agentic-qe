@@ -279,7 +279,7 @@ export class LLMCache<T = CacheableResponse> {
     if (this.accessOrder.length === 0) {
       // Fallback: delete first entry
       const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
+      if (firstKey !== undefined) {
         this.cache.delete(firstKey);
         this.evictions++;
       }
@@ -287,7 +287,7 @@ export class LLMCache<T = CacheableResponse> {
     }
 
     const lruKey = this.accessOrder.shift();
-    if (lruKey) {
+    if (lruKey !== undefined) {
       this.cache.delete(lruKey);
       this.evictions++;
     }
