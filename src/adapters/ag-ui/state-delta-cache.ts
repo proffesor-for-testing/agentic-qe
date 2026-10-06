@@ -518,8 +518,16 @@ export class StateDeltaCache {
    * Hash a state object for cache key
    */
   private hashState(state: Record<string, unknown>): string {
-    // Ensure consistent key ordering by sorting
-    const serialized = JSON.stringify(state, Object.keys(state).sort());
+    // A JSON replacer key list applies at every depth and drops nested fields.
+    // Normalize JSON values first, then sort each object without filtering keys.
+    const normalized: unknown = JSON.parse(JSON.stringify(state));
+    const encode = (value: unknown): string => {
+      if (value === null || typeof value !== 'object') return JSON.stringify(value);
+      if (Array.isArray(value)) return `[${value.map(encode).join(',')}]`;
+      const object = value as Record<string, unknown>;
+      return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${encode(object[key])}`).join(',')}}`;
+    };
+    const serialized = encode(normalized);
     return createHash('sha256').update(serialized).digest('hex').substring(0, 16);
   }
 
