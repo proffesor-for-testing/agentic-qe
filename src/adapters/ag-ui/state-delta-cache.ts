@@ -528,7 +528,7 @@ export class StateDeltaCache {
    */
   private setDelta(key: string, delta: JsonPatchOperation[]): void {
     // Evict if at capacity (LRU)
-    while (this.cache.size >= this.config.maxSize) {
+    while (!this.cache.has(key) && this.cache.size >= this.config.maxSize) {
       this.evictLRU();
     }
 
