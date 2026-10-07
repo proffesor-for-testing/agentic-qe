@@ -39,6 +39,8 @@ import {
  */
 export type GOAPStatusType = 'world' | 'goals' | 'actions' | 'plans' | 'execution';
 
+const PLAN_STATUSES = ['pending', 'executing', 'completed', 'failed', 'cancelled'] as const;
+
 /**
  * Parameters for GOAP status tool
  */
@@ -208,7 +210,8 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
             },
             status: {
               type: 'string',
-              description: 'Filter plans by status (pending, executing, completed, failed)',
+              description: 'Filter plans by status (pending, executing, completed, failed, cancelled)',
+              enum: [...PLAN_STATUSES],
             },
             limit: {
               type: 'number',
@@ -439,6 +442,9 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
     status?: string,
     limit: number = 20
   ): Promise<ToolResult<GOAPStatusResult>> {
+    if (status !== undefined && !(PLAN_STATUSES as readonly string[]).includes(status)) {
+      return { success: false, error: `filter.status must be one of: ${PLAN_STATUSES.join(', ')}` };
+    }
     const planner = await this.getPlanner();
 
     const [{ plans, count }, reuseStats] = await Promise.all([
