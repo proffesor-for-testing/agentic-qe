@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,30 +37,49 @@ function fixture(source: string): string {
   writeFileSync(join(root, 'bin', 'cargo'), '#!/bin/sh\nexec /usr/bin/env -i ' +
     Object.entries(environment).map(([key, value]) => key + '=' + quote(value)).join(' ') +
     ' ' + quote(cargo!) + ' "$@"\n', { mode: 0o755 });
-  process.env.PATH = join(root, 'bin') + ':' + (initialPath || '');
   return root;
 }
 
 afterEach(() => {
   if (initialPath === undefined) delete process.env.PATH;
   else process.env.PATH = initialPath;
+});
+afterAll(() => {
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe.skipIf(process.platform === 'win32' || !cargo || !rustc || !rustdoc)('native Cargo test discovery', () => {
-  it('forwards the listing option to libtest and leaves callbacks unexecuted', async () => {
-    const root = fixture(`#[test]
+  let populated: string;
+  let empty: string;
+  beforeAll(() => {
+    populated = fixture(`#[test]
       fn first() { std::fs::write("executed", "bad").unwrap(); panic!("must not execute"); }
       #[test]
       fn second() { panic!("must not execute"); }`);
-    const metrics = await countTests(root);
+    empty = fixture('pub fn library_function() {}');
+    // Compilation is fixture setup, not the listing assertion. Cold Rust
+    // compiler startup can exceed the owner's 10s listing limit in CI.
+    // The combined setup stays within the existing 60s production budget.
+    const deadline = Date.now() + 60000;
+    for (const root of [populated, empty]) {
+      const build = spawnSync(join(root, 'bin', 'cargo'), ['test', '--no-run'], {
+        cwd: root, encoding: 'utf-8', timeout: Math.max(1, deadline - Date.now()),
+      });
+      expect(build.status, build.stdout + build.stderr).toBe(0);
+      expect(existsSync(join(root, 'executed'))).toBe(false);
+    }
+  }, 60000);
+
+  it('forwards the listing option to libtest and leaves callbacks unexecuted', async () => {
+    process.env.PATH = join(populated, 'bin') + ':' + (initialPath || '');
+    const metrics = await countTests(populated);
     expect(metrics).toMatchObject({ source: 'cargo', total: 2, unit: 2, integration: 0, e2e: 0 });
-    expect(existsSync(join(root, 'executed'))).toBe(false);
+    expect(existsSync(join(populated, 'executed'))).toBe(false);
   });
 
   it('preserves a genuinely empty native collection', async () => {
-    const root = fixture('pub fn library_function() {}');
-    const metrics = await countTests(root);
+    process.env.PATH = join(empty, 'bin') + ':' + (initialPath || '');
+    const metrics = await countTests(empty);
     expect(metrics).toMatchObject({ source: 'cargo', total: 0, unit: 0, integration: 0, e2e: 0 });
   });
 });
