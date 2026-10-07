@@ -6,6 +6,7 @@
  * Supports Llama, Mistral, CodeLlama, and other local models.
  */
 
+import { fetchWithResponseDeadline } from './response-deadline.js';
 import {
   LLMProvider,
   LLMProviderType,
@@ -597,25 +598,11 @@ export class OllamaProvider implements LLMProvider {
     options: RequestInit,
     timeoutMs: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw createLLMError('Request timed out', 'TIMEOUT', {
-          provider: 'ollama',
-          retryable: true,
-        });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return fetchWithResponseDeadline(url, options, timeoutMs, () =>
+      createLLMError('Request timed out', 'TIMEOUT', {
+        provider: 'ollama',
+        retryable: true,
+      })
+    );
   }
 }

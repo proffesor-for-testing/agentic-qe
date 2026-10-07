@@ -28,6 +28,7 @@ import {
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
+import { fetchWithResponseDeadline } from './response-deadline.js';
 import { safeJsonParse } from '../../safe-json.js';
 
 /**
@@ -478,6 +479,8 @@ export class GeminiProvider implements LLMProvider {
         }
       }
     } finally {
+      // Returning early from the generator must also release its request deadline.
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
 
@@ -811,26 +814,12 @@ export class GeminiProvider implements LLMProvider {
     options: RequestInit,
     timeoutMs: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw createLLMError('Request timed out', 'TIMEOUT', {
-          provider: 'gemini',
-          retryable: true,
-        });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return fetchWithResponseDeadline(url, options, timeoutMs, () =>
+      createLLMError('Request timed out', 'TIMEOUT', {
+        provider: 'gemini',
+        retryable: true,
+      })
+    );
   }
 
   /**

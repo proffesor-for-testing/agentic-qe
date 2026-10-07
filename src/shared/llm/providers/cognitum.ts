@@ -33,6 +33,7 @@ import {
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
+import { fetchWithResponseDeadline } from './response-deadline.js';
 
 export type { CognitumConfig };
 
@@ -441,21 +442,12 @@ export class CognitumProvider implements LLMProvider {
     options: RequestInit,
     timeoutMs: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(url, { ...options, signal: controller.signal });
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw createLLMError('Request timed out', 'TIMEOUT', {
-          provider: 'cognitum',
-          retryable: true,
-        });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return fetchWithResponseDeadline(url, options, timeoutMs, () =>
+      createLLMError('Request timed out', 'TIMEOUT', {
+        provider: 'cognitum',
+        retryable: true,
+      })
+    );
   }
 
   private async fetchWithRetry(
