@@ -370,20 +370,19 @@ function countPytestTests(
     );
     const total = testLines.length;
 
-    // Classify by path patterns
-    const unit = testLines.filter(t =>
-      t.includes('unit') || (!t.includes('integration') && !t.includes('e2e'))
-    ).length;
-    const integration = testLines.filter(t =>
-      t.includes('integration') || t.includes('_integration')
-    ).length;
+    // Match fallback classification precedence so every collected test belongs
+    // to exactly one category, even when its path names multiple categories.
     const e2e = testLines.filter(t =>
       t.includes('e2e') || t.includes('end_to_end')
     ).length;
+    const integration = testLines.filter(t =>
+      !t.includes('e2e') && !t.includes('end_to_end') && t.includes('integration')
+    ).length;
+    const unit = total - integration - e2e;
 
     return {
       total,
-      unit: unit - integration - e2e, // Exclude overlap
+      unit,
       integration,
       e2e,
       source: 'pytest',
@@ -417,18 +416,17 @@ function countGoTests(
       }
     );
 
-    // Count lines starting with "Test" (Go test naming convention)
-    const testLines = output.split('\n').filter(line =>
-      line.startsWith('Test') || line.startsWith('Example') || line.startsWith('Benchmark')
-    );
-    const total = testLines.filter(l => l.startsWith('Test')).length;
+    // Benchmarks and examples are listed too, but are not included in the
+    // test total. Apply that same selection to every category.
+    const testLines = output.split('\n').filter(line => line.startsWith('Test'));
+    const total = testLines.length;
 
-    // Classify by test name patterns
-    const unit = testLines.filter(t =>
-      t.startsWith('Test') && !t.includes('Integration') && !t.includes('E2E')
-    ).length;
-    const integration = testLines.filter(t => t.includes('Integration')).length;
+    // Use disjoint categories, with e2e taking precedence over integration.
     const e2e = testLines.filter(t => t.includes('E2E')).length;
+    const integration = testLines.filter(t =>
+      !t.includes('E2E') && t.includes('Integration')
+    ).length;
+    const unit = total - integration - e2e;
 
     return {
       total,
