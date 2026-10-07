@@ -39,6 +39,40 @@ afterEach(async () => {
 });
 
 describe('Nomic cache backend identity', () => {
+  it.each([false, true])('counts one lookup per text when model availability is %s', async (modelAvailable) => {
+    available = modelAvailable;
+    const embedder = new NomicEmbedder({ ollamaBaseUrl: baseUrl });
+    await embedder.embed('first');
+    await embedder.embed('second');
+    await embedder.embed('first');
+    expect(embedder.getCacheStats()).toMatchObject({ size: 2, hits: 1, misses: 2 });
+  });
+
+  it.each([false, true])('counts one lookup per chunk when model availability is %s', async (modelAvailable) => {
+    available = modelAvailable;
+    const embedder = new NomicEmbedder({ ollamaBaseUrl: baseUrl });
+    await embedder.embedCodeChunks([chunk]);
+    await embedder.embedCodeChunks([chunk]);
+    expect(embedder.getCacheStats()).toMatchObject({ size: 1, hits: 1, misses: 1 });
+  });
+
+  it.each([false, true])('labels newly generated vectors after an availability reset from %s', async (initiallyAvailable) => {
+    available = initiallyAvailable;
+    const cache = new EmbeddingCache();
+    const embedder = new NomicEmbedder({ ollamaBaseUrl: baseUrl, cache });
+    const get = cache.get.bind(cache);
+    // An injected cache can trigger the public reset between lookup and work.
+    cache.get = (text, model) => {
+      available = !initiallyAvailable;
+      embedder.resetOllamaCheck();
+      return get(text, model);
+    };
+    const result = await embedder.embed('availability transition');
+    expect(cache.export()[0].entry.model).toBe(initiallyAvailable ? 'pseudo-embedding' : EMBEDDING_CONFIG.MODEL);
+    expect(providerRequests).toBe(initiallyAvailable ? 0 : 1);
+    if (!initiallyAvailable) expect(result).toEqual(vector);
+  });
+
   it('reports cached fallback chunks with the same model as their cache miss', async () => {
     const embedder = new NomicEmbedder({ ollamaBaseUrl: baseUrl });
     const first = (await embedder.embedCodeChunks([chunk])).results[0];

@@ -80,22 +80,23 @@ export class NomicEmbedder implements IEmbeddingProvider {
    * Generate embedding for a single text string
    */
   async embed(text: string): Promise<number[]> {
-    // Check cache first
-    const cached = this.cache.get(text, EMBEDDING_CONFIG.MODEL);
+    // Prefer genuine cached vectors, then select the active backend before a
+    // single counted lookup so alternate namespaces do not inflate misses.
+    let model: string = this.cache.has(text, EMBEDDING_CONFIG.MODEL) ||
+      await this.isOllamaAvailable() || !this.enableFallback
+      ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+    const cached = this.cache.get(text, model);
     if (cached) {
       return cached;
     }
 
     // Try Ollama first, fall back to pseudo-embedding if unavailable
     let embedding: number[];
-    let model: string = EMBEDDING_CONFIG.MODEL;
-
     if (await this.isOllamaAvailable()) {
+      model = EMBEDDING_CONFIG.MODEL;
       embedding = await this.client.generateEmbedding(text);
     } else if (this.enableFallback) {
       model = PSEUDO_EMBEDDING_MODEL;
-      const cachedFallback = this.cache.get(text, model);
-      if (cachedFallback) return cachedFallback;
       embedding = this.generatePseudoEmbedding(text);
     } else {
       throw new Error(
@@ -247,12 +248,9 @@ export class NomicEmbedder implements IEmbeddingProvider {
       const chunkStartTime = Date.now();
 
       // Check cache
-      let cachedModel: string = EMBEDDING_CONFIG.MODEL;
-      let cachedEmbedding = this.cache.get(formattedText, cachedModel);
-      if (!cachedEmbedding && !useOllama) {
-        cachedModel = PSEUDO_EMBEDDING_MODEL;
-        cachedEmbedding = this.cache.get(formattedText, cachedModel);
-      }
+      const cachedModel = useOllama || this.cache.has(formattedText, EMBEDDING_CONFIG.MODEL)
+        ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+      const cachedEmbedding = this.cache.get(formattedText, cachedModel);
 
       if (cachedEmbedding) {
         return {
