@@ -448,10 +448,10 @@ export class GeminiProvider implements LLMProvider {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
 
           try {
-            const chunk = safeJsonParse(trimmed.slice(6)) as GeminiStreamChunk;
+            const chunk = safeJsonParse(trimmed.slice(5).trimStart()) as GeminiStreamChunk;
             const text = chunk.candidates?.[0]?.content?.parts
               ?.map(p => p.text ?? '')
               .join('') ?? '';
