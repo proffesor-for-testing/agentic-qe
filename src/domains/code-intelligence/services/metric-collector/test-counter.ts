@@ -14,8 +14,9 @@
  */
 
 import { execSync, spawnSync } from 'child_process';
+import { createRequire } from 'module';
 import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join, extname } from 'path';
+import { join, extname, resolve } from 'path';
 import {
   TestMetrics,
   TestSource,
@@ -204,10 +205,23 @@ function countVitestTests(
   config: MetricCollectorConfig
 ): TestMetrics {
   try {
-    // Use vitest list for safe enumeration (NO execution). --json emits one
-    // entry per discovered test in Vitest 4 and 5; --reporter=json does not.
+    // Static parsing cannot expand parameterized or computed tests. Collect
+    // them without executing callbacks, including projects that opt into static
+    // parsing. Vitest 4.0 does not support the flag, so resolve the installed
+    // runner rather than guessing from the declared dependency range.
+    let collectionFlag = '';
+    try {
+      const projectRequire = createRequire(resolve(projectPath, 'package.json'));
+      const pkg = safeJsonParse(readFileSync(projectRequire.resolve('vitest/package.json'), 'utf-8'));
+      const [major, minor] = String(pkg.version).split('.').map(Number);
+      if (major > 4 || (major === 4 && minor >= 1)) {
+        collectionFlag = ' --no-static-parse';
+      }
+    } catch {
+      // Keep the existing listing fallback when no installed version resolves.
+    }
     const output = execSync(
-      'npx vitest list --json',
+      `npx vitest list --json${collectionFlag}`,
       {
         cwd: projectPath,
         encoding: 'utf-8',
