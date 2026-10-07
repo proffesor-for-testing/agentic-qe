@@ -38,32 +38,29 @@ export class OllamaClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await this.fetchWithTimeout(
+      return await this.fetchWithTimeout(
         `${this.baseUrl}/api/tags`,
         {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         },
-        5000 // Shorter timeout for health check
+        5000, // Shorter timeout for health check
+        async (response) => {
+          if (!response.ok) return false;
+          const data = await response.json() as OllamaHealthResponse;
+
+          // Check if configured embedding model is available
+          // Model names may include tags like ":latest", so use startsWith for matching
+          if (data.models) {
+            return data.models.some(
+              (model) =>
+                model.name?.startsWith(EMBEDDING_CONFIG.MODEL) ||
+                model.model?.startsWith(EMBEDDING_CONFIG.MODEL)
+            );
+          }
+          return false;
+        }
       );
-
-      if (!response.ok) {
-        return false;
-      }
-
-      const data = await response.json() as OllamaHealthResponse;
-
-      // Check if configured embedding model is available
-      // Model names may include tags like ":latest", so use startsWith for matching
-      if (data.models) {
-        return data.models.some(
-          (model) =>
-            model.name?.startsWith(EMBEDDING_CONFIG.MODEL) ||
-            model.model?.startsWith(EMBEDDING_CONFIG.MODEL)
-        );
-      }
-
-      return false;
     } catch {
       return false;
     }
@@ -82,22 +79,22 @@ export class OllamaClient {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const response = await this.fetchWithTimeout(
+        const data = await this.fetchWithTimeout(
           `${this.baseUrl}/api/embeddings`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(request),
           },
-          this.timeoutMs
+          this.timeoutMs,
+          async (response) => {
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Ollama API error (${response.status}): ${errorText}`);
+            }
+            return await response.json() as OllamaEmbeddingResponse;
+          }
         );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Ollama API error (${response.status}): ${errorText}`);
-        }
-
-        const data = await response.json() as OllamaEmbeddingResponse;
 
         // Validate embedding dimensions
         if (data.embedding.length !== EMBEDDING_CONFIG.DIMENSIONS) {
@@ -129,13 +126,14 @@ export class OllamaClient {
   }
 
   /**
-   * Fetch with timeout support
+   * Keep the request timeout active through required body consumption.
    */
-  private async fetchWithTimeout(
+  private async fetchWithTimeout<T>(
     url: string,
     options: RequestInit,
-    timeoutMs: number
-  ): Promise<Response> {
+    timeoutMs: number,
+    consume: (response: Response) => Promise<T>
+  ): Promise<T> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -144,7 +142,7 @@ export class OllamaClient {
         ...options,
         signal: controller.signal,
       });
-      return response;
+      return await consume(response);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -162,20 +160,17 @@ export class OllamaClient {
    */
   async getServerInfo(): Promise<OllamaHealthResponse | null> {
     try {
-      const response = await this.fetchWithTimeout(
+      return await this.fetchWithTimeout(
         `${this.baseUrl}/api/tags`,
         {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
         },
-        5000
+        5000,
+        async (response) => response.ok
+          ? await response.json() as OllamaHealthResponse
+          : null
       );
-
-      if (!response.ok) {
-        return null;
-      }
-
-      return await response.json() as OllamaHealthResponse;
     } catch {
       return null;
     }
