@@ -568,9 +568,9 @@ function countTestsInPythonFile(filePath: string): number {
 
     // Count def test_ functions and async def test_ functions
     const funcMatches = content.match(/\bdef\s+test_\w+\s*\(/g) || [];
-    const asyncMatches = content.match(/\basync\s+def\s+test_\w+\s*\(/g) || [];
 
-    return funcMatches.length + asyncMatches.length;
+    // The def pattern also matches async def; every declaration counts once.
+    return funcMatches.length;
   } catch {
     return 0;
   }
