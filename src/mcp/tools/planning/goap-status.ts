@@ -135,6 +135,8 @@ export interface PlansResult {
     createdAt?: string;
   }>;
   count: number;
+  /** Stored rows omitted from this page because their action sequence is invalid. */
+  invalidPlanIds?: string[];
   reuseStats?: {
     totalPlans: number;
     reusedPlans: number;
@@ -441,7 +443,7 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
   ): Promise<ToolResult<GOAPStatusResult>> {
     const planner = await this.getPlanner();
 
-    const [{ plans, count }, reuseStats] = await Promise.all([
+    const [{ plans, count, invalidPlanIds }, reuseStats] = await Promise.all([
       planner.listPlanSummaries(status, limit),
       planner.getPlanReuseStats(),
     ]);
@@ -455,6 +457,7 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
         data: {
           plans,
           count,
+          ...(invalidPlanIds ? { invalidPlanIds } : {}),
           reuseStats: {
             totalPlans: reuseStats.totalPlans,
             reusedPlans: reuseStats.reusedPlans,

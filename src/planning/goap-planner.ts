@@ -1164,6 +1164,7 @@ export class GOAPPlanner {
   async listPlanSummaries(status?: string, limit = 20): Promise<{
     plans: Array<{ id: string; status: string; stepCount: number; totalCost: number; createdAt: string }>;
     count: number;
+    invalidPlanIds?: string[];
   }> {
     await this.initialize();
     const db = this.ensureDb();
@@ -1182,20 +1183,29 @@ export class GOAPPlanner {
     `).all(...args, boundedLimit) as Array<Pick<
       GOAPPlanRecord, 'id' | 'status' | 'action_sequence' | 'total_cost' | 'created_at'
     >>;
-    const plans = rows.map((row) => {
-      const actionIds = safeJsonParse<unknown>(row.action_sequence);
-      if (!Array.isArray(actionIds)) {
-        throw new Error(`Invalid action sequence in GOAP plan ${row.id}`);
+    const plans: Array<{ id: string; status: string; stepCount: number; totalCost: number; createdAt: string }> = [];
+    const invalidPlanIds: string[] = [];
+    for (const row of rows) {
+      let actionIds: unknown;
+      try {
+        actionIds = safeJsonParse<unknown>(row.action_sequence);
+      } catch {
+        invalidPlanIds.push(row.id);
+        continue;
       }
-      return {
+      if (!Array.isArray(actionIds) || !actionIds.every((id) => typeof id === 'string')) {
+        invalidPlanIds.push(row.id);
+        continue;
+      }
+      plans.push({
         id: row.id,
         status: row.status,
         stepCount: actionIds.length,
         totalCost: row.total_cost,
         createdAt: row.created_at,
-      };
-    });
-    return { plans, count };
+      });
+    }
+    return { plans, count, ...(invalidPlanIds.length ? { invalidPlanIds } : {}) };
   }
 
   /**
