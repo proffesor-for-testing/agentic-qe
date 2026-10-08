@@ -155,7 +155,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
     // Parallelism
     if (phase.parallelism > 0) {
       args.push('--pool', 'threads');
-      args.push('--poolOptions.threads.maxThreads', String(phase.parallelism));
+      args.push('--maxWorkers', String(phase.parallelism));
     }
 
     // Fail fast
