@@ -224,11 +224,13 @@ describe('A/B Benchmarking Framework - ADR-058 Phase 3', () => {
 
       // Preserve the 100% versus 30% rates with qualifying evidence for promotion.
       for (let i = 0; i < 30; i++) {
-        framework.recordOutcome(benchmarkId, 'a', true);
-        framework.recordOutcome(benchmarkId, 'b', i < 9);
+        framework.recordOutcome(benchmarkId, 'a', true, { success_rate: 1 });
+        framework.recordOutcome(benchmarkId, 'b', i < 9, { success_rate: Number(i < 9) });
       }
 
       expect(framework.calculateStatisticalSignificance(benchmarkId).chiSquareTest!.isSignificant).toBe(true);
+      const comparison = framework.compareVariants(benchmarkId, 'a', 'b');
+      expect(comparison.combinedScores.variantA).toBeGreaterThan(comparison.combinedScores.variantB);
 
       // Apply winner to complete
       framework.applyWinner(benchmarkId);
