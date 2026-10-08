@@ -11,6 +11,7 @@ const vitestDirectory = dirname(realpathSync(vitestPackage));
 const nativeCli = join(vitestDirectory, 'vitest.mjs');
 const fixtures: string[] = [];
 const initialPath = process.env.PATH;
+const initialTmpdir = process.env.TMPDIR;
 
 function fixture(source: string, staticParse = false): string {
   const root = mkdtempSync(join(tmpdir(), 'aqe-native-test-count-'));
@@ -33,10 +34,42 @@ function fixture(source: string, staticParse = false): string {
 afterEach(() => {
   if (initialPath === undefined) delete process.env.PATH;
   else process.env.PATH = initialPath;
+  if (initialTmpdir === undefined) delete process.env.TMPDIR;
+  else process.env.TMPDIR = initialTmpdir;
   for (const root of fixtures.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe.skipIf(process.platform === 'win32')('native Vitest collection metrics', () => {
+  it('counts expanded cases when imports write raw non-JSON output', async () => {
+    const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs';
+      process.stdout.write('module ready\\n');
+      it.each([1, 2, 3])('raw output case %s', () => { writeFileSync('executed', 'bad'); });`);
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(3);
+    expect(existsSync(join(root, 'executed'))).toBe(false);
+  }, 10000);
+
+  it('does not count raw import messages as tests in an empty collection', async () => {
+    const root = fixture(`import 'vitest'; process.stdout.write('preflight > Ready\\n');`);
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(0);
+  }, 10000);
+
+  it('keeps artifact paths with spaces and shell syntax as a single argument', async () => {
+    const root = fixture(`import { it } from 'vitest';
+      it.each([1, 2])('path case %s', () => { throw new Error('must not execute'); });`);
+    const privateTmpdir = join(root, "artifact space ' $(touch injected) `touch injected`");
+    mkdirSync(privateTmpdir);
+    process.env.TMPDIR = privateTmpdir;
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(2);
+    expect(existsSync(join(root, 'injected'))).toBe(false);
+    expect(existsSync(join(privateTmpdir, 'injected'))).toBe(false);
+  }, 10000);
+
   it('counts expanded parameter cases without executing callbacks', async () => {
     const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs';
       it.each([1, 2, 3, 4])('handles value %s', () => { writeFileSync('executed', 'bad'); throw new Error('must not execute'); });`);
