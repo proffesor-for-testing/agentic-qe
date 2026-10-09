@@ -66,10 +66,14 @@ function walk(d) {
     }
   }
 }
-walk('$PLUGIN');
+// Only component dirs carry name: frontmatter; docs/adrs use ADR (id:) frontmatter.
+for (const sub of ['agents', 'commands', 'skills']) {
+  const d = path.join('$PLUGIN', sub);
+  if (fs.existsSync(d)) walk(d);
+}
 console.log(errors);
 " 2>/dev/null)
-check "all .md files have valid frontmatter" "[ \"$fm_errors\" = '0' ]"
+check "all component .md files have valid frontmatter" "[ \"$fm_errors\" = '0' ]"
 
 # === Each agent has a model field ===
 agents_no_model=$(grep -L "^model:" $PLUGIN/agents/*.md 2>/dev/null | wc -l)
