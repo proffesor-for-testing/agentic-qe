@@ -183,6 +183,9 @@ export class RateLimiter {
    * Consume tokens (blocks if not available in sync mode)
    */
   consume(clientId?: string, endpoint?: string, tokens = 1): RateLimitResult {
+    if (!Number.isFinite(tokens) || tokens < 0) {
+      throw new RangeError('Token cost must be finite and nonnegative');
+    }
     this.stats.totalRequests++;
     const now = Date.now();
 
@@ -253,7 +256,9 @@ export class RateLimiter {
    * Reset a client's bucket
    */
   resetClient(clientId: string): void {
-    this.clientBuckets.delete(clientId);
+    for (const key of this.clientBuckets.keys()) {
+      if ((JSON.parse(key) as [string, string | null])[0] === clientId) this.clientBuckets.delete(key);
+    }
   }
 
   /**
@@ -291,7 +296,7 @@ export class RateLimiter {
    * Get client-specific statistics
    */
   getClientStats(clientId: string): TokenBucket | null {
-    const bucket = this.clientBuckets.get(clientId);
+    const bucket = this.clientBuckets.get(JSON.stringify([clientId, null]));
     return bucket ? { ...bucket } : null;
   }
 
@@ -333,7 +338,8 @@ export class RateLimiter {
 
     // Create a composite key for client + endpoint-specific limits
     const endpointKey = this.getEndpointKey(endpoint);
-    const bucketKey = endpointKey ? `${clientId}:${endpointKey}` : clientId;
+    // Encode boundaries so an endpoint bucket cannot alias another client ID.
+    const bucketKey = JSON.stringify([clientId, endpointKey]);
 
     let bucket = this.clientBuckets.get(bucketKey);
     if (!bucket) {
@@ -359,12 +365,22 @@ export class RateLimiter {
         ? createSafeRegex(limit.pattern)
         : limit.pattern;
 
-      if (pattern && pattern.test(endpoint)) {
+      if (pattern && this.matchesEndpoint(pattern, endpoint)) {
         return `ep${i}`;
       }
     }
 
     return null;
+  }
+
+  private matchesEndpoint(pattern: RegExp, endpoint: string): boolean {
+    const previousIndex = pattern.lastIndex;
+    try {
+      pattern.lastIndex = 0;
+      return pattern.test(endpoint);
+    } finally {
+      pattern.lastIndex = previousIndex;
+    }
   }
 
   private getConfig(endpoint?: string): { tokensPerSecond: number; maxBurst: number } {
@@ -374,7 +390,7 @@ export class RateLimiter {
           ? createSafeRegex(limit.pattern)
           : limit.pattern;
 
-        if (pattern && pattern.test(endpoint)) {
+        if (pattern && this.matchesEndpoint(pattern, endpoint)) {
           return {
             tokensPerSecond: limit.tokensPerSecond,
             maxBurst: limit.maxBurst,

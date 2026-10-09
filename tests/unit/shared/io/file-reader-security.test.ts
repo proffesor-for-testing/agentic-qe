@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   FileReader,
   PathTraversalError,
@@ -277,6 +278,49 @@ describe('FileReader valid path handling (SEC-004 regression)', () => {
     expect(notExistsResult.success).toBe(true);
     if (notExistsResult.success) {
       expect(notExistsResult.value).toBe(false);
+    }
+  });
+});
+
+
+describe('FileReader checkout-relative depth', () => {
+  it('reads deep absolute and relative paths while retaining containment and depth limits', async () => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), 'aqe-file-reader-depth-'));
+    try {
+      const base = path.join(root, ...Array.from({ length: 11 }, (_, index) => `checkout-${index}`));
+      await fs.mkdir(path.join(base, 'src'), { recursive: true });
+      await fs.writeFile(path.join(base, 'src', 'app.ts'), 'export const answer = 42;');
+      const reader = new FileReader({ basePath: base });
+      for (const file of ['src/app.ts', path.join(base, 'src', 'app.ts')]) {
+        expect(await reader.readFile(file)).toEqual({ success: true, value: 'export const answer = 42;' });
+      }
+      const sibling = `${base}-other`;
+      await fs.mkdir(sibling);
+      await fs.writeFile(path.join(sibling, 'secret.ts'), 'outside');
+      await fs.writeFile(path.join(path.dirname(base), 'secret.ts'), 'parent');
+      await fs.mkdir(path.join(base, '%2e%2e'));
+      await fs.writeFile(path.join(base, '%2e%2e', 'secret.ts'), 'encoded spelling');
+      const tenComponents = path.join(...Array.from({ length: 9 }, () => 'child'), 'app.ts');
+      const elevenComponents = path.join('extra', tenComponents);
+      for (const relative of [tenComponents, elevenComponents]) {
+        await fs.mkdir(path.dirname(path.join(base, relative)), { recursive: true });
+        await fs.writeFile(path.join(base, relative), 'boundary fixture');
+      }
+      for (const file of [tenComponents, path.join(base, tenComponents)]) {
+        expect(await reader.readFile(file)).toEqual({ success: true, value: 'boundary fixture' });
+      }
+      for (const file of [path.join(sibling, 'secret.ts'), '../secret.ts', '%2e%2e/secret.ts', elevenComponents, path.join(base, elevenComponents)]) {
+        const result = await reader.readFile(file);
+        expect(result.success).toBe(false);
+        if (!result.success) expect(result.error).toBeInstanceOf(PathTraversalError);
+      }
+      // An explicit empty base historically permits absolute paths.
+      const unrestricted = path.join(root, 'unrestricted.ts');
+      await fs.writeFile(unrestricted, 'unrestricted fixture');
+      expect(await new FileReader({ basePath: '' }).readFile(unrestricted))
+        .toEqual({ success: true, value: 'unrestricted fixture' });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
     }
   });
 });

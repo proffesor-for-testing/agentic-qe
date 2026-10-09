@@ -66,6 +66,13 @@ interface VitestJsonResult {
   success: boolean;
   startTime: number;
   testResults: VitestTestFile[];
+  /** Istanbul map included by Vitest's JSON reporter when coverage is collected. */
+  coverageMap?: Record<string, VitestFileCoverage>;
+}
+
+interface VitestFileCoverage {
+  statementMap: Record<string, { start: { line: number } }>;
+  s: Record<string, number>;
 }
 
 interface VitestTestFile {
@@ -155,7 +162,7 @@ export class VitestPhaseExecutor implements PhaseExecutor {
     // Parallelism
     if (phase.parallelism > 0) {
       args.push('--pool', 'threads');
-      args.push('--poolOptions.threads.maxThreads', String(phase.parallelism));
+      args.push('--maxWorkers', String(phase.parallelism));
     }
 
     // Fail fast
@@ -434,8 +441,8 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       flakyRatio = totalTests > 0 ? flakyInRun.length / totalTests : 0;
     }
 
-    // Get coverage from coverage report
-    const coverage = await this.getCoverageFromReport();
+    // Coverage belongs to this invocation's owned JSON report, not a shared artifact.
+    const coverage = this.getCoverageFromReport(vitestResult);
 
     const success =
       passRate >= phase.thresholds.minPassRate &&
@@ -459,28 +466,29 @@ export class VitestPhaseExecutor implements PhaseExecutor {
     };
   }
 
-  private async getCoverageFromReport(): Promise<number> {
-    // Try to read coverage from JSON report
-    try {
-      const fs = await import('fs/promises');
-      const path = await import('path');
+  private getCoverageFromReport(result: VitestJsonResult): number {
+    if (!result.coverageMap) return 0;
 
-      const coverageDir = this.config.coverageDir || 'coverage';
-      const coverageFile = path.join(
-        this.config.cwd || process.cwd(),
-        coverageDir,
-        'coverage-summary.json'
-      );
-
-      const content = await fs.readFile(coverageFile, 'utf-8');
-      const coverage = safeJsonParse(content);
-
-      // Return line coverage percentage
-      return (coverage.total?.lines?.pct ?? 0) / 100;
-    } catch {
-      // Coverage file not available
-      return 0;
+    let totalLines = 0;
+    let coveredLines = 0;
+    for (const file of Object.values(result.coverageMap)) {
+      // Istanbul counts each statement's starting line once per file, using
+      // the maximum hit count when several statements share that line.
+      const lines = new Map<number, number>();
+      for (const [id, hits] of Object.entries(file.s)) {
+        const line = file.statementMap[id]?.start.line;
+        if (line === undefined) continue;
+        const previous = lines.get(line);
+        if (previous === undefined || previous < hits) lines.set(line, hits);
+      }
+      totalLines += lines.size;
+      coveredLines += [...lines.values()].filter(hits => hits > 0).length;
     }
+
+    // Match Istanbul's summary precision; an empty map supplies no coverage evidence.
+    if (totalLines === 0) return 0;
+    const percent = Math.floor((100_000 * coveredLines / totalLines) / 10) / 100;
+    return percent / 100;
   }
 
   private createErrorResult(

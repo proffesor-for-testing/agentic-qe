@@ -118,28 +118,27 @@ export class SessionStore {
       parentUuid: this.lastUuid,
     };
 
+    // Database-free mode keeps bookkeeping without serialization or disk I/O.
+    if (!this.persistDisabled) {
+      const line = JSON.stringify(fullEntry) + '\n';
+
+      if (!this.fileCreated) {
+        // First write: synchronous for write-ahead guarantee
+        this.ensureDirectory();
+        fs.appendFileSync(this.filePath!, line, 'utf-8');
+        this.fileCreated = true;
+      } else {
+        // Subsequent writes: buffer and batch
+        this.writeBuffer.push(line);
+        this.scheduleBatchFlush();
+      }
+    }
+
+    // Only advance the chain and metadata after the entry has been accepted.
     this.lastUuid = uuid;
     this.entryCount++;
     this.lastActivityAt = fullEntry.timestamp;
     this.currentState = fullEntry.state;
-
-    // Database-free mode: bookkeeping done above; skip all disk I/O.
-    if (this.persistDisabled) {
-      return uuid;
-    }
-
-    const line = JSON.stringify(fullEntry) + '\n';
-
-    if (!this.fileCreated) {
-      // First write: synchronous for write-ahead guarantee
-      this.ensureDirectory();
-      fs.appendFileSync(this.filePath!, line, 'utf-8');
-      this.fileCreated = true;
-    } else {
-      // Subsequent writes: buffer and batch
-      this.writeBuffer.push(line);
-      this.scheduleBatchFlush();
-    }
 
     return uuid;
   }
@@ -155,8 +154,8 @@ export class SessionStore {
 
     if (this.writeBuffer.length > 0 && this.filePath && this.fileCreated) {
       const batch = this.writeBuffer.join('');
-      this.writeBuffer = [];
       fs.appendFileSync(this.filePath, batch, 'utf-8');
+      this.writeBuffer = [];
     }
   }
 

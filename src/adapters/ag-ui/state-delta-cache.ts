@@ -16,7 +16,7 @@
 
 import { createHash } from 'crypto';
 import type { JsonPatchOperation } from './event-types.js';
-import { computeDiff, deepEqual, type DiffConfig } from './json-patch.js';
+import { computeDiff, deepEqual, parsePath, type DiffConfig } from './json-patch.js';
 
 // ============================================================================
 // Types
@@ -181,6 +181,9 @@ export class StateDeltaCache {
 
   constructor(config: StateDeltaCacheConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    if (!Number.isSafeInteger(this.config.maxSize) || this.config.maxSize <= 0) {
+      throw new RangeError('State delta cache maxSize must be a positive safe integer');
+    }
     this.cache = new Map();
     this.preComputedKeys = new Set();
 
@@ -215,7 +218,7 @@ export class StateDeltaCache {
       // Move to end for LRU (delete and re-add)
       this.cache.delete(key);
       this.cache.set(key, cached);
-      return cached.delta;
+      return structuredClone(cached.delta);
     }
 
     // Cache miss - compute delta
@@ -371,11 +374,7 @@ export class StateDeltaCache {
    * Parse a JSON Pointer path into segments
    */
   private parseJsonPointerPath(path: string): string[] {
-    if (path === '' || path === '/') return [];
-    if (!path.startsWith('/')) {
-      throw new Error(`Invalid JSON Pointer: ${path}`);
-    }
-    return path.slice(1).split('/');
+    return parsePath(path);
   }
 
   /**
@@ -518,8 +517,16 @@ export class StateDeltaCache {
    * Hash a state object for cache key
    */
   private hashState(state: Record<string, unknown>): string {
-    // Ensure consistent key ordering by sorting
-    const serialized = JSON.stringify(state, Object.keys(state).sort());
+    // A JSON replacer key list applies at every depth and drops nested fields.
+    // Normalize JSON values first, then sort each object without filtering keys.
+    const normalized: unknown = JSON.parse(JSON.stringify(state));
+    const encode = (value: unknown): string => {
+      if (value === null || typeof value !== 'object') return JSON.stringify(value);
+      if (Array.isArray(value)) return `[${value.map(encode).join(',')}]`;
+      const object = value as Record<string, unknown>;
+      return `{${Object.keys(object).sort().map(key => `${JSON.stringify(key)}:${encode(object[key])}`).join(',')}}`;
+    };
+    const serialized = encode(normalized);
     return createHash('sha256').update(serialized).digest('hex').substring(0, 16);
   }
 
@@ -528,13 +535,13 @@ export class StateDeltaCache {
    */
   private setDelta(key: string, delta: JsonPatchOperation[]): void {
     // Evict if at capacity (LRU)
-    while (this.cache.size >= this.config.maxSize) {
+    while (!this.cache.has(key) && this.cache.size >= this.config.maxSize) {
       this.evictLRU();
     }
 
     const now = Date.now();
     this.cache.set(key, {
-      delta,
+      delta: structuredClone(delta),
       createdAt: now,
       lastAccessedAt: now,
       accessCount: 0,

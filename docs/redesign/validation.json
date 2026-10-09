@@ -1,0 +1,469 @@
+{
+  "date": "2026-10-09",
+  "inventory": {
+    "main_agents": 53,
+    "subagents": 7,
+    "packaged_skills": 86,
+    "domain_directories": 13,
+    "plugin_agents": 11,
+    "plugin_skills": 9,
+    "plugin_commands": 9
+  },
+  "local_links": [
+    {
+      "repo": "agentic-qe",
+      "target": "#choose-your-client",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "#contribute",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "#inspect-the-evidence",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "#start-with-one-task",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "AGENTS.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "CHANGELOG.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "CONTRIBUTING.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "CONTRIBUTORS.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "FUNDING.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "LICENSE",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "SECURITY.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/agents/v3/",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/readme/credit-ruflo.svg",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/readme/credit-ruvector.svg",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/readme/project-header.svg",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/readme/quality-loop.svg",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "assets/skills/",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "benchmarks/interaction/results/README.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/guides/fleet-code-intelligence-integration.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/guides/free-tier-local-models.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/guides/reasoningbank-learning-system.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/guides/skill-validation.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/implementation/adrs/ADR-124-qe-court-adversarial-verdict-service.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/loki-mode-features.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/platform-setup-guide.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/releases/README.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "docs/v3-technical-architecture-glossary.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "plugins/agentic-qe-fleet/README.md",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "tests/integration/mcp/",
+      "pass": true
+    },
+    {
+      "repo": "agentic-qe",
+      "target": "tests/unit/mcp/",
+      "pass": true
+    },
+    {
+      "repo": "dragan-profile",
+      "target": "assets/readme/credit-ruflo.svg",
+      "pass": true
+    },
+    {
+      "repo": "dragan-profile",
+      "target": "assets/readme/credit-ruvector.svg",
+      "pass": true
+    },
+    {
+      "repo": "dragan-profile",
+      "target": "assets/readme/practice-map.svg",
+      "pass": true
+    },
+    {
+      "repo": "dragan-profile",
+      "target": "assets/readme/profile-header.svg",
+      "pass": true
+    }
+  ],
+  "external_links": [
+    {
+      "url": "https://agentic-qe.dev",
+      "status": 200,
+      "resolved": "https://agentic-qe.dev"
+    },
+    {
+      "url": "https://cognitum.one/",
+      "status": 200,
+      "resolved": "https://cognitum.one/"
+    },
+    {
+      "url": "https://forge-quality.dev",
+      "status": 200,
+      "resolved": "https://forge-quality.dev"
+    },
+    {
+      "url": "https://github.com/JLMA-Agentic-Ai",
+      "status": 200,
+      "resolved": "https://github.com/JLMA-Agentic-Ai"
+    },
+    {
+      "url": "https://github.com/JLMA-Agentic-Ai.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/103587815?v=4"
+    },
+    {
+      "url": "https://github.com/Jordi-Izquierdo-DDS",
+      "status": 200,
+      "resolved": "https://github.com/Jordi-Izquierdo-DDS"
+    },
+    {
+      "url": "https://github.com/Jordi-Izquierdo-DDS.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/210671751?v=4"
+    },
+    {
+      "url": "https://github.com/amonkarsidhant",
+      "status": 200,
+      "resolved": "https://github.com/amonkarsidhant"
+    },
+    {
+      "url": "https://github.com/amonkarsidhant.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/38343333?v=4"
+    },
+    {
+      "url": "https://github.com/fndlalit",
+      "status": 200,
+      "resolved": "https://github.com/fndlalit"
+    },
+    {
+      "url": "https://github.com/fndlalit.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/3765931?v=4"
+    },
+    {
+      "url": "https://github.com/gurdasnijor",
+      "status": 200,
+      "resolved": "https://github.com/gurdasnijor"
+    },
+    {
+      "url": "https://github.com/gurdasnijor.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/1755404?v=4"
+    },
+    {
+      "url": "https://github.com/mondweep",
+      "status": 200,
+      "resolved": "https://github.com/mondweep"
+    },
+    {
+      "url": "https://github.com/mondweep.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/9681875?v=4"
+    },
+    {
+      "url": "https://github.com/nagoodman",
+      "status": 200,
+      "resolved": "https://github.com/nagoodman"
+    },
+    {
+      "url": "https://github.com/nagoodman.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/523080?v=4"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/214853444?v=4"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/agentic-qe"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/blob/main/CONTRIBUTING.md",
+      "status": "local-source-confirmed"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/blob/main/CONTRIBUTORS.md",
+      "status": "local-source-confirmed"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/blob/main/benchmarks/interaction/results/README.md",
+      "status": "local-source-confirmed"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/guides/skill-validation.md",
+      "status": "local-source-confirmed"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/blob/main/docs/loki-mode-features.md",
+      "status": "local-source-confirmed"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/issues",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/agentic-qe/issues"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/agentic-qe/tree/829d03060d56ee82e6fa294b2be8f6c5fc9f2766",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/agentic-qe/tree/829d03060d56ee82e6fa294b2be8f6c5fc9f2766"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/lionagi-qe-fleet",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/lionagi-qe-fleet"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/nagual-qe",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/nagual-qe"
+    },
+    {
+      "url": "https://github.com/proffesor-for-testing/sentinel-api-testing",
+      "status": 200,
+      "resolved": "https://github.com/proffesor-for-testing/sentinel-api-testing"
+    },
+    {
+      "url": "https://github.com/rudycelekli",
+      "status": 200,
+      "resolved": "https://github.com/rudycelekli"
+    },
+    {
+      "url": "https://github.com/rudycelekli.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/47457359?v=4"
+    },
+    {
+      "url": "https://github.com/ruvnet",
+      "status": 200,
+      "resolved": "https://github.com/ruvnet"
+    },
+    {
+      "url": "https://github.com/ruvnet/agentic-flow",
+      "status": 200,
+      "resolved": "https://github.com/ruvnet/agentic-flow"
+    },
+    {
+      "url": "https://github.com/ruvnet/ruflo",
+      "status": 200,
+      "resolved": "https://github.com/ruvnet/ruflo"
+    },
+    {
+      "url": "https://github.com/ruvnet/ruvector",
+      "status": 200,
+      "resolved": "https://github.com/ruvnet/ruvector"
+    },
+    {
+      "url": "https://github.com/shaal",
+      "status": 200,
+      "resolved": "https://github.com/shaal"
+    },
+    {
+      "url": "https://github.com/shaal.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/22901?v=4"
+    },
+    {
+      "url": "https://github.com/stuinfla",
+      "status": 200,
+      "resolved": "https://github.com/stuinfla"
+    },
+    {
+      "url": "https://github.com/stuinfla.png",
+      "status": 200,
+      "resolved": "https://avatars.githubusercontent.com/u/86920480?v=4"
+    },
+    {
+      "url": "https://img.shields.io/badge/license-MIT-168c91",
+      "status": 200,
+      "resolved": "https://img.shields.io/badge/license-MIT-168c91"
+    },
+    {
+      "url": "https://img.shields.io/npm/v/agentic-qe?color=168c91",
+      "status": 200,
+      "resolved": "https://img.shields.io/npm/v/agentic-qe?color=168c91"
+    },
+    {
+      "url": "https://quantum-qe.dev",
+      "status": 200,
+      "resolved": "https://quantum-qe.dev"
+    },
+    {
+      "url": "https://spiridonovdragan.com/",
+      "status": 200,
+      "resolved": "https://spiridonovdragan.com/"
+    },
+    {
+      "url": "https://www.linkedin.com/in/dragan-spiridonov",
+      "status": 405
+    },
+    {
+      "url": "https://www.youtube.com/@AgenticFoundationSerbia",
+      "status": "unverified",
+      "reason": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+    }
+  ],
+  "svg": [
+    {
+      "file": "assets/readme/project-header.svg",
+      "repo": "agentic-qe",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/quality-loop.svg",
+      "repo": "agentic-qe",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/credit-ruflo.svg",
+      "repo": "agentic-qe",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/credit-ruvector.svg",
+      "repo": "agentic-qe",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/practice-map.svg",
+      "repo": "dragan-profile",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/profile-header.svg",
+      "repo": "dragan-profile",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/credit-ruflo.svg",
+      "repo": "dragan-profile",
+      "pass": true
+    },
+    {
+      "file": "assets/readme/credit-ruvector.svg",
+      "repo": "dragan-profile",
+      "pass": true
+    }
+  ],
+  "errors": [],
+  "external_failures": [
+    {
+      "url": "https://www.linkedin.com/in/dragan-spiridonov",
+      "status": 405
+    },
+    {
+      "url": "https://www.youtube.com/@AgenticFoundationSerbia",
+      "status": "unverified",
+      "reason": "<urlopen error Tunnel connection failed: 403 Forbidden>"
+    }
+  ]
+}
