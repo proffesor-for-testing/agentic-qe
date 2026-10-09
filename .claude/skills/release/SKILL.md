@@ -65,9 +65,13 @@ cd /workspaces/agentic-qe && npm version <version> --no-git-tag-version
 
 Also update `fleetVersion` in `.claude/skills/skills-manifest.json`.
 
+`npm version` runs the `version` lifecycle script (`scripts/sync-plugin-versions.cjs`), which also bumps the Claude Code plugin surfaces: `.claude-plugin/plugin.json` (version + `agentic-qe@<version>` MCP pin), `plugins/agentic-qe-fleet/.claude-plugin/plugin.json` (version) and `plugins/agentic-qe-fleet/.mcp.json` (`agentic-qe@<version>` pin). Add a `## <version> — <date>` entry to `plugins/agentic-qe-fleet/CHANGELOG.md` when the plugin itself changed.
+
 Verify:
 ```bash
 grep '"version"' package.json
+node scripts/sync-plugin-versions.cjs --check   # must print "in sync"
+bash plugins/agentic-qe-fleet/scripts/smoke.sh  # plugin contract incl. MCP pin
 ```
 
 **STOP — confirm version is correct.**
@@ -254,6 +258,8 @@ cd /workspaces/agentic-qe
 # Stage version bump + changelog + release docs + any version audit fixes
 git add package.json package-lock.json CHANGELOG.md docs/releases/README.md docs/releases/v<version>.md
 git add .claude/skills/skills-manifest.json  # if fleetVersion was updated
+git add .claude-plugin/plugin.json plugins/agentic-qe-fleet/.claude-plugin/plugin.json \
+  plugins/agentic-qe-fleet/.mcp.json plugins/agentic-qe-fleet/CHANGELOG.md
 git status
 
 git commit -m "chore(release): bump version to v<version>"

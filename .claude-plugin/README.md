@@ -32,7 +32,7 @@ PACTS-based agentic quality engineering fleet — slim Claude Code bundle with 1
 
 **Slash commands**: `/aqe-analyze`, `/aqe-execute`, `/aqe-generate`, `/aqe-optimize`, `/aqe-chaos`, `/aqe-fleet-status`, `/aqe-report`, `/aqe-benchmark`, `/aqe-costs`
 
-**MCP server**: auto-registers via `npx -y agentic-qe@latest mcp` — no separate setup.
+**MCP server**: ships in the plugin's own `.mcp.json` and runs `npx -y agentic-qe@<plugin version> mcp` (pinned; the plugin version tracks the npm package) — no separate setup.
 
 ## Usage examples
 

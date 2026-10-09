@@ -79,11 +79,72 @@ done
 # 7. README present and non-trivial.
 [ -s "$PLUGIN_DIR/README.md" ] && pass "README.md present" || err "README.md missing/empty"
 
-# 8. The top-level plugin manifest registers the MCP server.
-TOP_MANIFEST="$REPO_ROOT/.claude-plugin/plugin.json"
-jq -e '.mcpServers["agentic-qe"]' "$TOP_MANIFEST" >/dev/null 2>&1 \
-  && pass "top-level plugin.json registers the agentic-qe MCP server" \
-  || err "top-level plugin.json does not register the agentic-qe MCP server"
+# 8. THIS plugin registers the MCP server itself. A marketplace install copies
+#    only plugins/agentic-qe-fleet/, so the repo-root manifest never reaches
+#    users — the fleet's own .mcp.json is what Claude Code loads.
+MCP_JSON="$PLUGIN_DIR/.mcp.json"
+PKG_VERSION="$(jq -r '.version' "$REPO_ROOT/package.json" 2>/dev/null)"
+if jq -e '.mcpServers["agentic-qe"]' "$MCP_JSON" >/dev/null 2>&1; then
+  pass ".mcp.json registers the agentic-qe MCP server"
+else
+  err ".mcp.json missing or does not register the agentic-qe MCP server"
+fi
+PIN="$(jq -r '.mcpServers["agentic-qe"].args[]? | select(startswith("agentic-qe@"))' "$MCP_JSON" 2>/dev/null)"
+if [ "$PIN" = "agentic-qe@$PKG_VERSION" ]; then
+  pass ".mcp.json pins agentic-qe@$PKG_VERSION (== package.json)"
+else
+  err ".mcp.json pin '${PIN:-<none>}' != agentic-qe@$PKG_VERSION (run: node scripts/sync-plugin-versions.cjs)"
+fi
+[ "$(jq -r '.version' "$MANIFEST" 2>/dev/null)" = "$PKG_VERSION" ] \
+  && pass "plugin.json version == package.json ($PKG_VERSION)" \
+  || err "plugin.json version != package.json ($PKG_VERSION)"
+
+# 9. Every ${user_config.X} referenced by .mcp.json is declared in userConfig,
+#    and every declared option has a default (unset options must not break boot).
+for key in $(grep -oE '\$\{user_config\.[A-Za-z0-9_]+\}' "$MCP_JSON" 2>/dev/null | sed -E 's/.*\.([A-Za-z0-9_]+)\}/\1/' | sort -u); do
+  jq -e --arg k "$key" '.userConfig[$k] | has("default")' "$MANIFEST" >/dev/null 2>&1 \
+    && pass "userConfig.$key declared with a default" \
+    || err "userConfig.$key referenced by .mcp.json but not declared (with a default) in plugin.json"
+done
+
+# 10. Skills: no wildcard allowed-tools; every legacy mcp__agentic-qe__X has its
+#     plugin-scoped twin mcp__plugin_agentic-qe-fleet_agentic-qe__X (the name an
+#     installed plugin actually exposes).
+fail_before_skills=$fail; fail=0
+for s in "$PLUGIN_DIR"/skills/*/SKILL.md; do
+  fm="$(awk 'NR==1{next} /^---/{exit} {print}' "$s")"
+  printf '%s\n' "$fm" | grep -qE '^\s*-\s*\*\s*$|allowed-tools:\s*\*|mcp__[A-Za-z0-9_-]*\*' \
+    && err "skill uses wildcard allowed-tools: $(basename "$(dirname "$s")")"
+  for t in $(printf '%s\n' "$fm" | grep -oE 'mcp__agentic-qe__[a-z_]+' | sed 's/mcp__agentic-qe__//'); do
+    printf '%s\n' "$fm" | grep -q "mcp__plugin_agentic-qe-fleet_agentic-qe__$t\$" \
+      || err "skill $(basename "$(dirname "$s")") lacks plugin-scoped tool name for $t"
+  done
+done
+[ "$fail" -eq 0 ] && pass "skills: no wildcard allowed-tools; plugin-scoped MCP tool names present"
+[ "$fail_before_skills" -eq 1 ] && fail=1
+
+# 11. Agents declare a model (validate-plugin check 8).
+missing_model=$(grep -L '^model:' "$PLUGIN_DIR"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+[ "$missing_model" -eq 0 ] && pass "agents: all declare model" || err "agents: $missing_model missing model frontmatter"
+
+# 12. Ruflo contract cadence: CHANGELOG + contract ADR present.
+[ -s "$PLUGIN_DIR/CHANGELOG.md" ] && pass "CHANGELOG.md present" || err "CHANGELOG.md missing/empty"
+[ -s "$PLUGIN_DIR/docs/adrs/0001-agentic-qe-fleet-contract.md" ] \
+  && pass "docs/adrs/0001-agentic-qe-fleet-contract.md present" \
+  || err "contract ADR missing: docs/adrs/0001-agentic-qe-fleet-contract.md"
+grep -qF "/plugin install $PLUGIN_NAME --marketplace proffesor-for-testing/agentic-qe" "$PLUGIN_DIR/README.md" \
+  && pass "README has the marketplace install line" \
+  || err "README missing: /plugin install $PLUGIN_NAME --marketplace proffesor-for-testing/agentic-qe"
+
+# 13. Version-sync tooling agrees (root manifest + fleet manifest + pins).
+node "$REPO_ROOT/scripts/sync-plugin-versions.cjs" --check >/dev/null 2>&1 \
+  && pass "sync-plugin-versions --check: all plugin versions == package.json" \
+  || err "plugin version drift (run: node scripts/sync-plugin-versions.cjs --check)"
+
+# 14. Mod (hooks/) contract, when present — owned by the mod's own smoke script.
+if [ -f "$SCRIPT_DIR/smoke-mod.sh" ]; then
+  bash "$SCRIPT_DIR/smoke-mod.sh" && pass "smoke-mod.sh passed" || err "smoke-mod.sh failed"
+fi
 
 echo "======================================="
 if [ "$fail" -eq 0 ]; then
