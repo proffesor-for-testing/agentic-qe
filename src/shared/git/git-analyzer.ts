@@ -495,7 +495,7 @@ export class GitAnalyzer {
 
     try {
       const sinceDate = since || new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const sinceStr = sinceDate.toISOString().split('T')[0];
+      const sinceStr = sinceDate.toISOString();
 
       // Get files changed since the date using execFileSync with argument array
       const output = execFileSync('git', [
