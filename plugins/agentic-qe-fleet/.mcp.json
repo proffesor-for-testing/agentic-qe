@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "agentic-qe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "agentic-qe@3.14.8",
+        "mcp"
+      ],
+      "env": {
+        "AQE_LLM_PROVIDER": "${user_config.llm_provider}",
+        "AQE_MAX_BUDGET_USD": "${user_config.max_budget_usd}",
+        "AQE_MEMORY_BACKEND": "${user_config.memory_backend}"
+      }
+    }
+  }
+}

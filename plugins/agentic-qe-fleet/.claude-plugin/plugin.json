@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe-fleet",
   "description": "PACTS-based agentic quality engineering fleet — 11 specialized QE agents, sublinear coverage analysis, chaos/resilience testing, and TDD skills for Claude Code",
-  "version": "0.1.0",
+  "version": "3.14.8",
   "author": {
     "name": "Agentic QE",
     "url": "https://github.com/proffesor-for-testing/agentic-qe"
@@ -19,5 +19,33 @@
     "claude-code",
     "agentic-qe",
     "pact"
-  ]
+  ],
+  "userConfig": {
+    "llm_provider": {
+      "type": "string",
+      "title": "LLM provider",
+      "description": "Pins the provider the AQE MCP server routes LLM calls to (sets AQE_LLM_PROVIDER), e.g. claude-code, claude, openrouter, ollama. Leave empty to use llm-config.json / environment auto-detection. Unknown values are ignored with a warning.",
+      "required": false,
+      "default": ""
+    },
+    "max_budget_usd": {
+      "type": "number",
+      "title": "Per-run LLM budget cap (USD)",
+      "description": "Per-run spend cap for metered LLM providers (sets AQE_MAX_BUDGET_USD). 0 = no cap from the plugin (llm-config.json global.maxCostPerRun still applies).",
+      "required": false,
+      "default": 0,
+      "min": 0
+    },
+    "memory_backend": {
+      "type": "string",
+      "title": "Memory backend",
+      "description": "hybrid = persist learning to .agentic-qe/memory.db in the project (default). memory = database-free mode: full feature parity, nothing written under .agentic-qe/ (sets AQE_MEMORY_BACKEND).",
+      "required": false,
+      "default": "hybrid",
+      "options": [
+        "hybrid",
+        "memory"
+      ]
+    }
+  }
 }
