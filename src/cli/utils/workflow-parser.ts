@@ -896,37 +896,55 @@ function detectCircularDependencies(stages: PipelineStageYAML[]): string | null 
  * Validate cron expression (basic validation)
  */
 export function isValidCronExpression(expression: string): boolean {
-  // Check for aliases
-  if (Object.keys(CRON_PATTERNS).includes(expression)) {
-    return true;
-  }
+  return parseCronFields(expression) !== undefined;
+}
 
-  // Basic cron validation: 5 fields separated by spaces
-  const parts = expression.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    return false;
-  }
+type CronFields = [Set<number>, Set<number>, Set<number>, Set<number>, Set<number>];
 
-  // Validate each field
-  const fieldPatterns = [
-    /^(\*|[0-5]?\d)(-[0-5]?\d)?(\/\d+)?$/, // minute (0-59)
-    /^(\*|1?\d|2[0-3])(-\d+)?(\/\d+)?$/, // hour (0-23)
-    /^(\*|[1-9]|[12]\d|3[01])(-\d+)?(\/\d+)?$/, // day of month (1-31)
-    /^(\*|[1-9]|1[0-2])(-\d+)?(\/\d+)?$/, // month (1-12)
-    /^(\*|[0-7])(-[0-7])?(\/\d+)?$/, // day of week (0-7)
+interface ParsedCron {
+  fields: CronFields;
+  wildcardDay: boolean;
+}
+
+/** Parse the existing numeric five-field grammar and its four named aliases. */
+function parseCronFields(expression: string): ParsedCron | undefined {
+  const normalized = Object.hasOwn(CRON_PATTERNS, expression)
+    ? CRON_PATTERNS[expression as keyof typeof CRON_PATTERNS]
+    : expression;
+  const parts = normalized.trim().split(/\s+/);
+  if (parts.length !== 5) return undefined;
+  const bounds = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]];
+  const syntax = [
+    /^(\*|[0-5]?\d)(-[0-5]?\d)?(\/\d+)?$/,
+    /^(\*|1?\d|2[0-3])(-\d+)?(\/\d+)?$/,
+    /^(\*|[1-9]|[12]\d|3[01])(-\d+)?(\/\d+)?$/,
+    /^(\*|[1-9]|1[0-2])(-\d+)?(\/\d+)?$/,
+    /^(\*|[0-7])(-[0-7])?(\/\d+)?$/,
   ];
+  const fields: Set<number>[] = [];
 
-  for (let i = 0; i < 5; i++) {
-    // Allow comma-separated values
-    const values = parts[i].split(',');
-    for (const value of values) {
-      if (!fieldPatterns[i].test(value) && value !== '*') {
-        return false;
+  for (let index = 0; index < parts.length; index++) {
+    const [minimum, maximum] = bounds[index];
+    const values = new Set<number>();
+    for (const item of parts[index].split(',')) {
+      if (!syntax[index].test(item)) return undefined;
+      const match = /^(\*|\d+)(?:-(\d+))?(?:\/(\d+))?$/.exec(item);
+      if (!match || (match[1] === '*' && match[2] !== undefined)) return undefined;
+      const start = match[1] === '*' ? minimum : Number(match[1]);
+      const end = match[2] !== undefined ? Number(match[2])
+        : match[1] === '*' || match[3] !== undefined ? maximum : start;
+      const step = match[3] === undefined ? 1 : Number(match[3]);
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+          !Number.isSafeInteger(step) || step <= 0 ||
+          start < minimum || end > maximum || start > end) return undefined;
+      for (let value = start; value <= end; value += step) {
+        values.add(index === 4 && value === 7 ? 0 : value);
       }
     }
+    fields.push(values);
   }
-
-  return true;
+  // Cronie records DOM_STAR/DOW_STAR from the first character, before parsing lists.
+  return { fields: fields as CronFields, wildcardDay: parts[2].startsWith('*') || parts[4].startsWith('*') };
 }
 
 /**
@@ -1003,39 +1021,36 @@ export interface ScheduledWorkflow {
  * Calculate next run time from cron expression
  */
 export function calculateNextRun(cronExpression: string, fromDate: Date = new Date()): Date {
-  // Simplified next run calculation
-  const parts = cronExpression.trim().split(/\s+/);
-  if (parts.length !== 5) {
-    // Default to 1 day from now
-    return new Date(fromDate.getTime() + 24 * 60 * 60 * 1000);
+  const parsed = parseCronFields(cronExpression);
+  if (!parsed) throw new Error(`Invalid cron expression: ${cronExpression}`);
+  if (!Number.isFinite(fromDate.getTime())) throw new Error('Invalid schedule start date');
+  const [minutes, hours, days, months, weekdays] = parsed.fields;
+  // Preserve the existing host-local timezone. Advance elapsed minutes to
+  // skip absent DST times and inspect both occurrences of repeated times.
+  let candidate = new Date(Math.floor(fromDate.getTime() / 60000) * 60000 + 60000);
+  const deadline = new Date(fromDate);
+  deadline.setFullYear(fromDate.getFullYear() + 400);
+  // A complete Gregorian cycle contains 146097 days and repeats weekdays.
+  // Near the Date maximum a full cycle is not representable: clamp the
+  // search to that finite boundary and report the limitation on exhaustion.
+  const deadlineMs = Number.isFinite(deadline.getTime())
+    ? deadline.getTime() : 8_640_000_000_000_000;
+
+  while (Number.isFinite(candidate.getTime()) && candidate.getTime() <= deadlineMs) {
+    const dayMatches = days.has(candidate.getDate());
+    const weekdayMatches = weekdays.has(candidate.getDay());
+    const calendarMatches = months.has(candidate.getMonth() + 1) &&
+      (parsed.wildcardDay ? dayMatches && weekdayMatches : dayMatches || weekdayMatches);
+    if (!calendarMatches) {
+      // Skip a nonmatching local calendar day instead of scanning its minutes.
+      candidate.setHours(24, 0, 0, 0);
+      continue;
+    }
+    if (hours.has(candidate.getHours()) && minutes.has(candidate.getMinutes())) return candidate;
+    candidate = new Date(candidate.getTime() + 60000);
   }
-
-  const [minute, hour] = parts;
-  const nextRun = new Date(fromDate);
-
-  // Handle specific hour and minute
-  if (hour !== '*' && minute !== '*') {
-    nextRun.setHours(parseInt(hour, 10), parseInt(minute, 10), 0, 0);
-    if (nextRun <= fromDate) {
-      nextRun.setDate(nextRun.getDate() + 1);
-    }
-  } else if (hour !== '*') {
-    // Every day at specific hour
-    nextRun.setHours(parseInt(hour, 10), 0, 0, 0);
-    if (nextRun <= fromDate) {
-      nextRun.setDate(nextRun.getDate() + 1);
-    }
-  } else if (minute !== '*') {
-    // Every hour at specific minute
-    nextRun.setMinutes(parseInt(minute, 10), 0, 0);
-    if (nextRun <= fromDate) {
-      nextRun.setHours(nextRun.getHours() + 1);
-    }
-  } else {
-    // Every minute
-    nextRun.setSeconds(0, 0);
-    nextRun.setMinutes(nextRun.getMinutes() + 1);
-  }
-
-  return nextRun;
+  // An impossible date such as February 31 must not spin indefinitely or
+  // silently become a daily schedule. Leap-day/weekday intersections may
+  // exceed a leap-day-only horizon, so search one complete Gregorian cycle.
+  throw new Error(`No matching cron date within a 400-year Gregorian cycle and the supported Date range: ${cronExpression}`);
 }
