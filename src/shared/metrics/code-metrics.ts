@@ -318,7 +318,7 @@ export class CodeMetricsAnalyzer {
     // Count decision points
     const decisionPatterns = [
       /\bif\s*\(/g,
-      /\belse\s+if\s*\(/g,
+      // The if pattern already counts else-if decisions.
       /\bfor\s*\(/g,
       /\bwhile\s*\(/g,
       /\bcase\s+/g,
