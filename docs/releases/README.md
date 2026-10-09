@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.0](v3.15.0.md) | 2026-10-09 | Ruflo-ready plugin with aqe-mod, working MCP install, ~40 fixes. |
 | [v3.14.8](v3.14.8.md) | 2026-10-04 | Braces CVE removed, reliable memory, learning, CI gates and caches. |
 | [v3.14.7](v3.14.7.md) | 2026-10-02 | Opt-in browser setup, clean MCP shutdown, self-healing pattern search. |
 | [v3.14.6](v3.14.6.md) | 2026-09-29 | Audit verify crash fix, audit repair, converging init, live GOAP state. |
