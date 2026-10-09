@@ -256,7 +256,9 @@ export class RateLimiter {
    * Reset a client's bucket
    */
   resetClient(clientId: string): void {
-    this.clientBuckets.delete(clientId);
+    for (const key of this.clientBuckets.keys()) {
+      if ((JSON.parse(key) as [string, string | null])[0] === clientId) this.clientBuckets.delete(key);
+    }
   }
 
   /**
@@ -294,7 +296,7 @@ export class RateLimiter {
    * Get client-specific statistics
    */
   getClientStats(clientId: string): TokenBucket | null {
-    const bucket = this.clientBuckets.get(clientId);
+    const bucket = this.clientBuckets.get(JSON.stringify([clientId, null]));
     return bucket ? { ...bucket } : null;
   }
 
@@ -336,7 +338,8 @@ export class RateLimiter {
 
     // Create a composite key for client + endpoint-specific limits
     const endpointKey = this.getEndpointKey(endpoint);
-    const bucketKey = endpointKey ? `${clientId}:${endpointKey}` : clientId;
+    // Encode boundaries so an endpoint bucket cannot alias another client ID.
+    const bucketKey = JSON.stringify([clientId, endpointKey]);
 
     let bucket = this.clientBuckets.get(bucketKey);
     if (!bucket) {
