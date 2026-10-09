@@ -215,7 +215,7 @@ export class StateDeltaCache {
       // Move to end for LRU (delete and re-add)
       this.cache.delete(key);
       this.cache.set(key, cached);
-      return cached.delta;
+      return structuredClone(cached.delta);
     }
 
     // Cache miss - compute delta
@@ -542,7 +542,7 @@ export class StateDeltaCache {
 
     const now = Date.now();
     this.cache.set(key, {
-      delta,
+      delta: structuredClone(delta),
       createdAt: now,
       lastAccessedAt: now,
       accessCount: 0,
