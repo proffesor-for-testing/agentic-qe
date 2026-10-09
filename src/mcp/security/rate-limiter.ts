@@ -183,6 +183,9 @@ export class RateLimiter {
    * Consume tokens (blocks if not available in sync mode)
    */
   consume(clientId?: string, endpoint?: string, tokens = 1): RateLimitResult {
+    if (!Number.isFinite(tokens) || tokens < 0) {
+      throw new RangeError('Token cost must be finite and nonnegative');
+    }
     this.stats.totalRequests++;
     const now = Date.now();
 
