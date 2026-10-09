@@ -1,0 +1,391 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dragan + Agentic QE · README review</title><style>*{box-sizing:border-box}body{margin:0;background:#f6f8fa;color:#1f2328;font:16px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif}header{background:#09252d;color:#e6f4f4;padding:18px 28px;border-bottom:2px solid #52d4ca}header small{color:#b6d4d8}nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}button{font:inherit;cursor:pointer;border:1px solid #64d3cd;border-radius:7px;padding:7px 14px;background:#103840;color:#e6f4f4}button.active{background:#a0eee2;color:#08242c}main{max-width:1012px;margin:24px auto;padding:32px;border:1px solid #d1d9e0;border-radius:8px;background:white}.markdown-body h1,.markdown-body h2{border-bottom:1px solid #d1d9e0;padding-bottom:.3em;line-height:1.25;margin:24px 0 16px}.markdown-body h1{font-size:2em}.markdown-body h2{font-size:1.5em}.markdown-body h3{font-size:1.25em}.markdown-body a{color:#0969da;text-decoration:none}.markdown-body a:hover{text-decoration:underline}.markdown-body p{margin:0 0 16px}.markdown-body img{max-width:100%;height:auto;vertical-align:middle}.markdown-body table{border-collapse:collapse;display:block;overflow-x:auto;width:max-content;max-width:100%;margin:0 0 16px}.markdown-body th,.markdown-body td{border:1px solid #d1d9e0;padding:6px 13px}.markdown-body tr:nth-child(2n){background:#f6f8fa}.markdown-body pre{padding:16px;background:#f6f8fa;border-radius:6px;overflow:auto;font-size:85%;line-height:1.45}.markdown-body code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;background:#eff1f3;border-radius:4px;padding:.15em .3em;font-size:85%}.markdown-body pre code{background:transparent;padding:0;font-size:100%}.markdown-body summary{cursor:pointer}.markdown-body details{margin:16px 0}.dark{background:#010409;color:#e6edf3}.dark main{background:#0d1117;border-color:#30363d}.dark .markdown-body h1,.dark .markdown-body h2,.dark .markdown-body th,.dark .markdown-body td{border-color:#30363d}.dark .markdown-body a{color:#58a6ff}.dark .markdown-body tr:nth-child(2n),.dark .markdown-body pre,.dark .markdown-body code{background:#161b22}@media(max-width:700px){body{font-size:14px}header{padding:16px}main{padding:16px;margin:12px}.markdown-body h1{font-size:1.7em}.markdown-body h2{font-size:1.4em}}</style><header><b>Agentic QE README · Draft review</b><br><small>Rendered by GitHub Markdown API · October 9, 2026</small></header><main class="markdown-body"><p dir="auto"><a target="_blank" rel="noopener noreferrer" href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/assets/readme/project-header.svg"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjM4MCIgdmlld0JveD0iMCAwIDEyMDAgMzgwIiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUgZGVzYyI+PHRpdGxlIGlkPSJ0aXRsZSI+QWdlbnRpYyBRRSDigJQgQmV0dGVyIHRlc3RzLiBDbGVhcmVyIHJpc2suIEV2aWRlbmNlIHlvdSBjYW4gaW5zcGVjdC48L3RpdGxlPjxkZXNjIGlkPSJkZXNjIj5PcmlnaW5hbCBBZ2VudGljIFFFIHZpc3VhbCBpbiBkYXJrIHRlYWwgYW5kIGN5YW4uIEFnZW50aWMgUUUg4oCUIEJldHRlciB0ZXN0cy4gQ2xlYXJlciByaXNrLiBFdmlkZW5jZSB5b3UgY2FuIGluc3BlY3QuPC9kZXNjPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iYmciIHgyPSIxIiB5Mj0iMSI+PHN0b3Agc3RvcC1jb2xvcj0iIzA3MWEyMCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzEwMzQzYiIvPjwvbGluZWFyR3JhZGllbnQ+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTQwIDBIMFY0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNjFjYmM5IiBzdHJva2Utb3BhY2l0eT0iLjA3Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSIzODAiIHJ4PSIyMiIgZmlsbD0idXJsKCNiZykiLz48cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSIzODAiIHJ4PSIyMiIgZmlsbD0idXJsKCNncmlkKSIvPjxnIGZvbnQtZmFtaWx5PSJBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmaWxsPSIjZTZmNGY0Ij48dGV4dCB4PSI1MCIgeT0iNTIiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiM3OGRkZDMiIGxldHRlci1zcGFjaW5nPSIzIj5BR0VOVElDIFFFIC8gT1BFTiBTT1VSQ0UgUVVBTElUWSBFTkdJTkVFUklORzwvdGV4dD48dGV4dCB4PSI1MCIgeT0iMTI1IiBmb250LXNpemU9IjU0IiBmaWxsPSIjZTZmNGY0IiBmb250LXdlaWdodD0iNzAwIj5CZXR0ZXIgdGVzdHMuIENsZWFyZXIgcmlzay48L3RleHQ+PHRleHQgeD0iNTAiIHk9IjE5MCIgZm9udC1zaXplPSI1NCIgZmlsbD0iI2U2ZjRmNCIgZm9udC13ZWlnaHQ9IjcwMCI+RXZpZGVuY2UgeW91IGNhbiBpbnNwZWN0LjwvdGV4dD48dGV4dCB4PSI1MCIgeT0iMjU0IiBmb250LXNpemU9IjI0IiBmaWxsPSIjYmVkOGRjIiA+R2VuZXJhdGUgwrcgRXhlY3V0ZSDCtyBDaGFsbGVuZ2UgwrcgTGVhcm48L3RleHQ+PHRleHQgeD0iNTAiIHk9IjMzMSIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzc4ZGRkMyIgbGV0dGVyLXNwYWNpbmc9IjIiPllPVVIgQ09ERUJBU0UgIOKGkiAgWU9VUiBUT09MUyAg4oaSICBZT1VSIFFVQUxJVFkgREVDSVNJT048L3RleHQ+PGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTMwLDEzMikgc2NhbGUoMSkiPjxwYXRoIGQ9Ik0wIDAgNjUgLTM3IDEzMCAwVjEwMEw2NSAxMzggMCAxMDBaIiBmaWxsPSIjMGQzNDNiIiBzdHJva2U9IiM1NWRmY2YiIHN0cm9rZS13aWR0aD0iMyIvPjxwYXRoIGQ9Ik0zMyA0OCA1NyA3MiAxMDEgMjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzZlZTdkNSIgc3Ryb2tlLXdpZHRoPSI5IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNLTY4IDI1SC0xOE0tNTIgNThILTE4TS0zOCA5MUgtMThNMTUwIDU4SDIxOCIgc3Ryb2tlPSIjNzNkNmU4IiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIyMjQiIGN5PSI1OCIgcj0iNyIgZmlsbD0iIzczZDZlOCIvPjwvZz48L2c+PC9zdmc+" width="100%" alt="Agentic QE. Better tests, clearer risk, evidence you can inspect. Generate, execute, challenge and learn." style="max-width: 100%;"></a></p>
+<h1 id="agentic-qe">Agentic QE</h1>
+<p dir="auto"><strong>Quality engineering tools for your coding agent.</strong> Generate tests, investigate coverage gaps, analyze flaky behavior and coordinate quality checks across the software lifecycle. Keep the findings close to the code and use them to make a better quality decision.</p>
+<p dir="auto"><a href="https://www.npmjs.com/package/agentic-qe" rel="nofollow"><img src="https://camo.githubusercontent.com/4384dd9f9897caf8a1e7534ae71545c212d3a106ce564355eea0626e2e533530/68747470733a2f2f696d672e736869656c64732e696f2f6e706d2f762f6167656e7469632d71653f636f6c6f723d313638633931" alt="npm version" data-canonical-src="https://img.shields.io/npm/v/agentic-qe?color=168c91" style="max-width: 100%;"></a><br>
+<a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/LICENSE"><img src="https://camo.githubusercontent.com/b6f32a2cf3837c50578b5ba3dbdd88a39f1a2150885813806ec805bfcfe41a4e/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f6c6963656e73652d4d49542d313638633931" alt="License: MIT" data-canonical-src="https://img.shields.io/badge/license-MIT-168c91" style="max-width: 100%;"></a></p>
+<p dir="auto"><a href="#start-with-one-task">Start with one task</a> · <a href="#choose-your-client">Choose your client</a> · <a href="#inspect-the-evidence">Inspect the evidence</a> · <a href="#contribute">Contribute</a> · <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/releases/README.md">Release notes</a></p>
+<h2 id="put-aqe-to-work">Put AQE to work</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Your QE problem</th>
+<th>What AQE helps you do</th>
+<th>What to inspect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A changed service needs meaningful tests</td>
+<td>Generate unit, integration, property-based or BDD tests</td>
+<td>Assertions, edge cases and executed test results</td>
+</tr>
+<tr>
+<td>Coverage is high but important behavior is missing</td>
+<td>Analyze gaps and prioritize by risk</td>
+<td>Uncovered branches and the rationale for priorities</td>
+</tr>
+<tr>
+<td>A flaky suite is eroding trust</td>
+<td>Investigate failure patterns and suggest stabilization</td>
+<td>Reproduction and results before and after a change</td>
+</tr>
+<tr>
+<td>A release needs a quality assessment</td>
+<td>Coordinate coverage, security, contracts and resilience checks</td>
+<td>Findings, tool output and unresolved risks</td>
+</tr>
+<tr>
+<td>Your team repeats the same investigation</td>
+<td>Store and retrieve QE patterns</td>
+<td>Pattern relevance and recorded outcomes</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">Supports framework-specific output for tools including Jest, Vitest, Playwright, Cypress, pytest and JUnit. Review generated tests and run them in your environment; an agent's recommendation is an input to your team's decision.</p>
+<h2 id="start-with-one-task">Start with one task</h2>
+<p dir="auto">Requires <strong>Node.js ≥22.13.0</strong> and <strong>npm ≥10.0.0</strong>. Use the coding agent/client you already have configured.</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">npm install -g agentic-qe
+<span class="pl-c1">cd</span> your-project
+aqe init --auto
+aqe health</pre></div>
+<p dir="auto"><code class="notranslate">aqe init --auto</code> analyzes your project and configures the default Claude Code surface, including MCP. Review the generated project files. For another client, select its setup flag below and use its MCP connection flow.</p>
+<p dir="auto">In your coding agent, start with a narrow request:</p>
+<pre lang="text" class="notranslate"><code class="notranslate">Generate tests for src/services/UserService.ts.
+Explain the risks and edge cases each test covers.
+Run the tests if execution is available, and report failures and anything you could not verify.
+</code></pre>
+<p dir="auto">Then ask for a second view:</p>
+<pre lang="text" class="notranslate"><code class="notranslate">Find coverage gaps in src/services/ and prioritize them by risk.
+Challenge weak assertions in the generated tests and explain what still needs human review.
+</code></pre>
+<p dir="auto">The paths are examples; use a real file in your project. Success means tests you can inspect and execute, plus a clear account of what remains untested. A coverage target is a request, not a promised result.</p>
+<h2 id="choose-your-client">Choose your client</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Client</th>
+<th>Project setup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code class="notranslate">aqe init --auto</code></td>
+</tr>
+<tr>
+<td>OpenAI Codex CLI</td>
+<td><code class="notranslate">aqe init --auto --with-codex</code></td>
+</tr>
+<tr>
+<td>GitHub Copilot</td>
+<td><code class="notranslate">aqe init --auto --with-copilot</code></td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td><code class="notranslate">aqe init --auto --with-cursor</code></td>
+</tr>
+<tr>
+<td>Cline</td>
+<td><code class="notranslate">aqe init --auto --with-cline</code></td>
+</tr>
+<tr>
+<td>OpenCode</td>
+<td><code class="notranslate">aqe init --auto --with-opencode</code></td>
+</tr>
+<tr>
+<td>AWS Kiro</td>
+<td><code class="notranslate">aqe init --auto --with-kiro</code></td>
+</tr>
+<tr>
+<td>Kilo Code</td>
+<td><code class="notranslate">aqe init --auto --with-kilocode</code></td>
+</tr>
+<tr>
+<td>Roo Code</td>
+<td><code class="notranslate">aqe init --auto --with-roocode</code></td>
+</tr>
+<tr>
+<td>Windsurf</td>
+<td><code class="notranslate">aqe init --auto --with-windsurf</code></td>
+</tr>
+<tr>
+<td>Continue.dev</td>
+<td><code class="notranslate">aqe init --auto --with-continuedev</code></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto">These are implemented setup paths, not a claim of identical behavior across clients. The default Claude Code files are also created unless you add <code class="notranslate">--no-claude</code> when targeting another client.</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate"><span class="pl-c"><span class="pl-c">#</span> Configure every supported client</span>
+aqe init --auto --with-all-platforms
+
+<span class="pl-c"><span class="pl-c">#</span> Inspect or add client configuration later</span>
+aqe platform list
+aqe platform setup cursor
+aqe platform verify cursor
+
+<span class="pl-c"><span class="pl-c">#</span> Standalone MCP server entry point</span>
+aqe-mcp</pre></div>
+<p dir="auto">See the <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/platform-setup-guide.md">Platform Setup Guide</a> for client-specific configuration.</p>
+<h3 id="claude-code-plugin-a-scoped-alternative">Claude Code plugin: a scoped alternative</h3>
+<p dir="auto">Use the <code class="notranslate">agentic-qe-fleet</code> plugin when you want a smaller Claude Code surface with slash commands. The full <code class="notranslate">aqe init</code> path adds broader project configuration and persistent learning setup.</p>
+<p dir="auto">In Claude Code:</p>
+<pre lang="text" class="notranslate"><code class="notranslate">/plugin marketplace add proffesor-for-testing/agentic-qe
+/plugin install agentic-qe-fleet
+</code></pre>
+<p dir="auto">Or load it from a checkout:</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">git clone https://github.com/proffesor-for-testing/agentic-qe.git
+claude --plugin-dir ./agentic-qe/plugins/agentic-qe-fleet</pre></div>
+<p dir="auto">Start with <code class="notranslate">/aqe-fleet-status</code>, <code class="notranslate">/aqe-generate src/services/Auth.ts</code> or <code class="notranslate">/aqe-analyze src/</code>. The plugin auto-registers its MCP server through <code class="notranslate">npx -y agentic-qe@latest mcp</code>. See the <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/plugins/agentic-qe-fleet/README.md">plugin README</a> for the bundled agents, commands and skills.</p>
+<details>
+<summary>Windows and native dependency setup</summary>
+<p dir="auto"><code class="notranslate">agentic-qe</code> runs on Windows, but several of its performance-oriented native<br>
+dependencies (<code class="notranslate">hnswlib-node</code> for HNSW search, <code class="notranslate">@ruvector/gnn</code> for graph<br>
+neural networks, <code class="notranslate">@ruvector/rvf-node</code> for the RVF pattern store) ship as<br>
+optional native modules. <code class="notranslate">hnswlib-node</code> in particular has no prebuilt<br>
+binaries and compiles from source via <code class="notranslate">node-gyp</code>. <code class="notranslate">npm install</code> does not<br>
+fail when these modules can't build — they're declared optional and AQE<br>
+falls back to JavaScript paths at runtime.</p>
+<p dir="auto"><strong>Important caveat about the fallback.</strong> The pure-JavaScript HNSW fallback<br>
+(<code class="notranslate">ProgressiveHnswBackend</code>) is correct but degrades to O(N) brute-force search<br>
+when neither <code class="notranslate">hnswlib-node</code> nor <code class="notranslate">@ruvector/gnn</code> is available. That's fine for<br>
+small projects but <strong>unsuitable for large indexes</strong> (tens of thousands of<br>
+vectors and up). If you plan to run AQE against a sizeable codebase on<br>
+Windows, install the native build toolchain so <code class="notranslate">hnswlib-node</code> compiles:</p>
+<ul dir="auto">
+<li><strong>Python 3</strong> (added to <code class="notranslate">PATH</code>), and</li>
+<li><strong>Visual Studio 2022 Build Tools</strong> with the <em>Desktop development with C++</em><br>
+workload — works with any node-gyp version, <strong>or</strong></li>
+<li><strong>Visual Studio 2026</strong> with the same workload <strong>plus</strong> an upgraded npm<br>
+(<code class="notranslate">npm install -g npm@latest</code> — VS 2026 detection requires npm ≥ 11.6.3,<br>
+shipped via node-gyp ≥ 12.1.0). Node 22 LTS still ships npm 10.x by<br>
+default, which cannot detect VS 2026; either upgrade npm globally or use<br>
+VS 2022 Build Tools instead.</li>
+</ul>
+<p dir="auto">If the native dep fails to build you'll see a <code class="notranslate">node-gyp</code> warning during<br>
+install (e.g. <code class="notranslate">gyp ERR! find VS</code>); the install itself completes. To verify<br>
+which backend is active:</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">aqe health
+<span class="pl-c"><span class="pl-c">#</span> Look for "HNSW backend: native" (hnswlib-node) or "HNSW backend: js"</span>
+<span class="pl-c"><span class="pl-c">#</span> (ProgressiveHnswBackend — see caveat above).</span></pre></div>
+<p dir="auto">On Linux and macOS, verify the active backend with <code class="notranslate">aqe health</code> as well; native module availability depends on your environment.</p>
+</details>
+<h2 id="how-a-quality-task-flows">How a quality task flows</h2>
+<p dir="auto"><a target="_blank" rel="noopener noreferrer" href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/assets/readme/quality-loop.svg"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjAwIiBoZWlnaHQ9IjUxMCIgdmlld0JveD0iMCAwIDEyMDAgNTEwIiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUgZGVzYyI+PHRpdGxlIGlkPSJ0aXRsZSI+RnJhbWUgcmlzaywgZG8gdGhlIHdvcmssIGNoYWxsZW5nZSByZXN1bHRzLCBkZWNpZGUgYW5kIGxlYXJuLiBDb25jZXB0dWFsIHdvcmtmbG93IHdpdGggaHVtYW4gcmV2aWV3LjwvdGl0bGU+PGRlc2MgaWQ9ImRlc2MiPk9yaWdpbmFsIEFnZW50aWMgUUUgdmlzdWFsIGluIGRhcmsgdGVhbCBhbmQgY3lhbi4gRnJhbWUgcmlzaywgZG8gdGhlIHdvcmssIGNoYWxsZW5nZSByZXN1bHRzLCBkZWNpZGUgYW5kIGxlYXJuLiBDb25jZXB0dWFsIHdvcmtmbG93IHdpdGggaHVtYW4gcmV2aWV3LjwvZGVzYz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIHN0b3AtY29sb3I9IiMwNzFhMjAiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxMDM0M2IiLz48L2xpbmVhckdyYWRpZW50PjxwYXR0ZXJuIGlkPSJncmlkIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik00MCAwSDBWNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzYxY2JjOSIgc3Ryb2tlLW9wYWNpdHk9Ii4wNyIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iNTEwIiByeD0iMjIiIGZpbGw9InVybCgjYmcpIi8+PHJlY3Qgd2lkdGg9IjEyMDAiIGhlaWdodD0iNTEwIiByeD0iMjIiIGZpbGw9InVybCgjZ3JpZCkiLz48ZyBmb250LWZhbWlseT0iQXJpYWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZiIgZmlsbD0iI2U2ZjRmNCI+PHRleHQgeD0iNDAiIHk9IjQ0IiBmb250LXNpemU9IjE4IiBmaWxsPSIjNzhkZGQzIiBsZXR0ZXItc3BhY2luZz0iMiI+QSBRVUFMSVRZIEZFRURCQUNLIExPT1A8L3RleHQ+PHRleHQgeD0iNDAiIHk9IjgyIiBmb250LXNpemU9IjI4IiBmaWxsPSIjZTZmNGY0IiA+QSByZWNvbW1lbmRhdGlvbiBlYXJucyB0cnVzdCB0aHJvdWdoIGNoZWNrcyBhbmQgcmV2aWV3LjwvdGV4dD48cmVjdCB4PSI0MCIgeT0iMTIyIiB3aWR0aD0iMjUwIiBoZWlnaHQ9IjE4MiIgcng9IjE0IiBmaWxsPSIjMGEyNTJkIiBzdHJva2U9IiMzMTcxN2EiLz48dGV4dCB4PSI1OSIgeT0iMTU1IiBmb250LXNpemU9IjE1IiBmaWxsPSIjNzhkZGQzIiA+MDE8L3RleHQ+PHRleHQgeD0iNTkiIHk9IjE5MiIgZm9udC1zaXplPSIyMyIgZmlsbD0iI2U2ZjRmNCIgZm9udC13ZWlnaHQ9IjcwMCI+RnJhbWUgdGhlIHJpc2s8L3RleHQ+PHRleHQgeD0iNTkiIHk9IjIzNCIgZm9udC1zaXplPSIxOCIgZmlsbD0iI2U2ZjRmNCIgPkNoYW5nZSArIGNvbnRleHQ8L3RleHQ+PHRleHQgeD0iNTkiIHk9IjI2OSIgZm9udC1zaXplPSIxOCIgZmlsbD0iI2JlZDhkYyIgPldoYXQgY291bGQgZmFpbD88L3RleHQ+PHJlY3QgeD0iMzMwIiB5PSIxMjIiIHdpZHRoPSIyNTAiIGhlaWdodD0iMTgyIiByeD0iMTQiIGZpbGw9IiMwYTI1MmQiIHN0cm9rZT0iIzMxNzE3YSIvPjx0ZXh0IHg9IjM0OSIgeT0iMTU1IiBmb250LXNpemU9IjE1IiBmaWxsPSIjNzhkZGQzIiA+MDI8L3RleHQ+PHRleHQgeD0iMzQ5IiB5PSIxOTIiIGZvbnQtc2l6ZT0iMjMiIGZpbGw9IiNlNmY0ZjQiIGZvbnQtd2VpZ2h0PSI3MDAiPkRvIHRoZSB3b3JrPC90ZXh0Pjx0ZXh0IHg9IjM0OSIgeT0iMjM0IiBmb250LXNpemU9IjE4IiBmaWxsPSIjZTZmNGY0IiA+R2VuZXJhdGUgKyBleGVjdXRlPC90ZXh0Pjx0ZXh0IHg9IjM0OSIgeT0iMjY5IiBmb250LXNpemU9IjE4IiBmaWxsPSIjYmVkOGRjIiA+S2VlcCBydW4gZXZpZGVuY2U8L3RleHQ+PHJlY3QgeD0iNjIwIiB5PSIxMjIiIHdpZHRoPSIyNTAiIGhlaWdodD0iMTgyIiByeD0iMTQiIGZpbGw9IiMwYTI1MmQiIHN0cm9rZT0iIzMxNzE3YSIvPjx0ZXh0IHg9IjYzOSIgeT0iMTU1IiBmb250LXNpemU9IjE1IiBmaWxsPSIjNzhkZGQzIiA+MDM8L3RleHQ+PHRleHQgeD0iNjM5IiB5PSIxOTIiIGZvbnQtc2l6ZT0iMjMiIGZpbGw9IiNlNmY0ZjQiIGZvbnQtd2VpZ2h0PSI3MDAiPkNoYWxsZW5nZSBpdDwvdGV4dD48dGV4dCB4PSI2MzkiIHk9IjIzNCIgZm9udC1zaXplPSIxOCIgZmlsbD0iI2U2ZjRmNCIgPkNvdmVyYWdlICsgbXV0YXRpb248L3RleHQ+PHRleHQgeD0iNjM5IiB5PSIyNjkiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNiZWQ4ZGMiID5TZWN1cml0eSArIHJldmlldzwvdGV4dD48cmVjdCB4PSI5MTAiIHk9IjEyMiIgd2lkdGg9IjI1MCIgaGVpZ2h0PSIxODIiIHJ4PSIxNCIgZmlsbD0iIzBhMjUyZCIgc3Ryb2tlPSIjMzE3MTdhIi8+PHRleHQgeD0iOTI5IiB5PSIxNTUiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiM3OGRkZDMiID4wNDwvdGV4dD48dGV4dCB4PSI5MjkiIHk9IjE5MiIgZm9udC1zaXplPSIyMyIgZmlsbD0iI2U2ZjRmNCIgZm9udC13ZWlnaHQ9IjcwMCI+RGVjaWRlICsgbGVhcm48L3RleHQ+PHRleHQgeD0iOTI5IiB5PSIyMzQiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IiNlNmY0ZjQiID5IdW1hbiBxdWFsaXR5IGRlY2lzaW9uPC90ZXh0Pjx0ZXh0IHg9IjkyOSIgeT0iMjY5IiBmb250LXNpemU9IjE4IiBmaWxsPSIjYmVkOGRjIiA+UmVjb3JkIHRoZSBvdXRjb21lPC90ZXh0PjxwYXRoIGQ9Ik0yOTAgMjExSDMyMk01ODAgMjExSDYxMk04NzAgMjExSDkwMk0xMDM1IDMyMVYzNThIMTY1VjMyMSIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNzhkZGQzIiBzdHJva2Utd2lkdGg9IjMiLz48dGV4dCB4PSI0NTUiIHk9IjM4OCIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzc4ZGRkMyIgbGV0dGVyLXNwYWNpbmc9IjIiPk9VVENPTUUgRkVFREJBQ0sg4oaSIFJFVVNBQkxFIFBBVFRFUk5TPC90ZXh0Pjx0ZXh0IHg9IjQwIiB5PSI0NDEiIGZvbnQtc2l6ZT0iMjEiIGZpbGw9IiNlNmY0ZjQiID5UcnV0aCBmaWx0ZXI6IGluc3BlY3QgY2xhaW1zLCBzdXJmYWNlIHVuY2VydGFpbnR5LCBrZWVwIHBlb3BsZSBhY2NvdW50YWJsZS48L3RleHQ+PHRleHQgeD0iNDAiIHk9IjQ3OSIgZm9udC1zaXplPSIxNyIgZmlsbD0iI2JlZDhkYyIgPkNvbmNlcHR1YWwgd29ya2Zsb3cuIEF2YWlsYWJsZSBjaGVja3MgZGVwZW5kIG9uIHlvdXIgdGFzaywgdG9vbHMgYW5kIGNvbmZpZ3VyYXRpb24uPC90ZXh0PjwvZz48L3N2Zz4=" width="100%" alt="Conceptual quality workflow: frame risk, generate and execute tests, challenge findings through coverage, mutation, security and review, then make a human quality decision and record the outcome." style="max-width: 100%;"></a></p>
+<p dir="auto">The <code class="notranslate">qe-queen-coordinator</code> decomposes a quality assessment into domain tasks and combines findings. Domains cover test generation and execution, coverage, quality assessment, defect intelligence, requirements, code intelligence, security, contracts, visual accessibility, resilience, learning and enterprise integration.</p>
+<p dir="auto">Patterns can be stored and retrieved across sessions. AQE provides outcome feedback and consolidation mechanisms; retrieval alone does not prove that future tests are better. Model routing offers cost-aware task selection, while actual costs and quality depend on your provider and workload.</p>
+<p dir="auto">Anti-sycophancy checks examine weak or tautological tests. Adversarial review adds a way to challenge a verdict. See <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/loki-mode-features.md">quality gate features</a> and <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/implementation/adrs/ADR-124-qe-court-adversarial-verdict-service.md">QE Court design</a>.</p>
+<h2 id="inspect-the-evidence">Inspect the evidence</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Evidence</th>
+<th>What it supports</th>
+<th>Scope and limits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/assets/agents/v3/">Shipped agent definitions</a></td>
+<td>Inspect each agent's intended role and instructions</td>
+<td>Source definitions establish inventory, not demonstrated effectiveness</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/assets/skills/">Packaged skills</a> and <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/skill-validation.md">validation guide</a></td>
+<td>Inspect workflows, validators and evaluations</td>
+<td>Trust tiers describe validation artifacts; they do not guarantee production outcomes</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/benchmarks/interaction/results/README.md">Interaction benchmark run records</a></td>
+<td>Compare QE-guided and bare interactions against ground truth</td>
+<td>June 11, 2026: two scenarios; no demonstrated arm benefit, statistically underpowered</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/tests/unit/mcp/">MCP tests</a> and <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/tests/integration/mcp/">integration tests</a></td>
+<td>Inspect protocol and handler checks</td>
+<td>Repository tests are not a record of a fresh passing run</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/CHANGELOG.md">Changelog</a> and <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/releases/README.md">release notes</a></td>
+<td>Trace changes and fixes</td>
+<td>Read the entry matching your installed version</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<p dir="auto"><strong>Inventory verified October 9, 2026 at <a href="https://github.com/proffesor-for-testing/agentic-qe/tree/829d03060d56ee82e6fa294b2be8f6c5fc9f2766"><code class="notranslate">829d030</code></a>:</strong> 53 top-level <code class="notranslate">qe-*.md</code> agent definitions + 7 QE subagents; 86 packaged <code class="notranslate">SKILL.md</code> entry points; 13 domain directories. The scoped plugin separately contains 11 agents, 9 skills and 9 command files. Client setup flags above cover 11 clients. These counts exclude platform infrastructure agents and supporting Markdown files.</p>
+<h2 id="commands-for-everyday-work">Commands for everyday work</h2>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">aqe agent list                  <span class="pl-c"><span class="pl-c">#</span> Agent inventory</span>
+aqe fleet status                <span class="pl-c"><span class="pl-c">#</span> Fleet status</span>
+aqe health                      <span class="pl-c"><span class="pl-c">#</span> Runtime health</span>
+aqe learning stats              <span class="pl-c"><span class="pl-c">#</span> Learning statistics</span>
+aqe learning dream              <span class="pl-c"><span class="pl-c">#</span> Pattern consolidation</span>
+aqe brain <span class="pl-k">export</span>                <span class="pl-c"><span class="pl-c">#</span> Export learned patterns</span>
+
+aqe code index src/             <span class="pl-c"><span class="pl-c">#</span> Build code intelligence index</span>
+aqe code index src/ --incremental
+aqe code index <span class="pl-c1">.</span> --git-since HEAD~5
+aqe code search <span class="pl-s"><span class="pl-pds">"</span>authentication<span class="pl-pds">"</span></span>
+aqe code impact src/
+aqe code deps src/
+aqe code complexity src/
+aqe code c4 <span class="pl-c1">.</span>                   <span class="pl-c"><span class="pl-c">#</span> C4 diagrams with confidence</span></pre></div>
+<h2 id="llm-providers-and-local-models">LLM providers and local models</h2>
+<p dir="auto">AQE Fleet's LLM-enhanced analysis (ADR-043, ADR-051) routes through a<br>
+HybridRouter that picks providers based on routing rules and your env<br>
+config. Set one or more API keys and Fleet auto-detects what's available:</p>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Provider</th>
+<th>Env var(s)</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Claude</strong></td>
+<td><code class="notranslate">ANTHROPIC_API_KEY</code></td>
+<td>Cloud</td>
+<td>Default in routing rules</td>
+</tr>
+<tr>
+<td><strong>OpenAI</strong></td>
+<td><code class="notranslate">OPENAI_API_KEY</code></td>
+<td>Cloud</td>
+<td>Wide model coverage</td>
+</tr>
+<tr>
+<td><strong>Gemini</strong></td>
+<td><code class="notranslate">GOOGLE_AI_API_KEY</code> / <code class="notranslate">GEMINI_API_KEY</code> / <code class="notranslate">GOOGLE_API_KEY</code></td>
+<td>Cloud</td>
+<td>Cheap; free tier</td>
+</tr>
+<tr>
+<td><strong>OpenRouter</strong></td>
+<td><code class="notranslate">OPENROUTER_API_KEY</code></td>
+<td>Cloud</td>
+<td>Multiple models behind one key</td>
+</tr>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>(local)</td>
+<td>Local</td>
+<td>Local inference</td>
+</tr>
+<tr>
+<td><strong>Azure OpenAI</strong></td>
+<td><code class="notranslate">AZURE_OPENAI_API_KEY</code></td>
+<td>Cloud</td>
+<td>Enterprise</td>
+</tr>
+<tr>
+<td><strong>Bedrock</strong></td>
+<td><code class="notranslate">AWS_ACCESS_KEY_ID</code></td>
+<td>Cloud</td>
+<td>AWS-native</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate"><span class="pl-k">export</span> GEMINI_API_KEY=<span class="pl-s"><span class="pl-pds">"</span>...<span class="pl-pds">"</span></span>  <span class="pl-c"><span class="pl-c">#</span> or any supported provider</span>
+aqe init --auto</pre></div>
+<p dir="auto">Persistent config (<code class="notranslate">aqe llm config --set</code> writes to <code class="notranslate">.agentic-qe/llm-config.json</code>):</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">aqe llm config --set mode=cost-optimized
+aqe llm config --set defaultProvider=gemini
+aqe llm config           <span class="pl-c"><span class="pl-c">#</span> show current effective config</span></pre></div>
+<p dir="auto">API keys are env-only — <code class="notranslate">aqe llm config --set apiKey=...</code> is refused<br>
+to keep secrets out of project-committed config.</p>
+<h3 id="opting-out">Opting out</h3>
+<p dir="auto">To run Fleet without any LLM calls (deterministic-only mode):</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate"><span class="pl-k">export</span> AQE_LLM_ROUTER_DISABLED=1   <span class="pl-c"><span class="pl-c">#</span> env-only kill-switch</span></pre></div>
+<p dir="auto">Or programmatically: <code class="notranslate">new QEKernelImpl({ llmRouter: { enabled: false } })</code>.</p>
+<h3 id="free-local-models-opt-in--cheap-first-test-generation">Free local models (opt-in) — cheap-first test generation</h3>
+<p dir="auto">Run test generation on a <strong>free local model first</strong> (local Ollama, cloud Ollama,<br>
+OpenRouter free models, or any OpenAI-compatible endpoint), with an automatic<br>
+<strong>repair loop</strong>, falling back to your normal LLM path only when needed. Off by<br>
+default — enable with <code class="notranslate">AQE_FREE_TIER=1</code>:</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">ollama pull qwen3-coder:30b
+<span class="pl-k">export</span> AQE_FREE_TIER=1            <span class="pl-c"><span class="pl-c">#</span> opt in (default model: qwen3-coder:30b)</span></pre></div>
+<p dir="auto"><code class="notranslate">qwen3-coder:30b</code> needs ~18 GB of RAM. <code class="notranslate">qwen3:8b</code> fits smaller machines but<br>
+measured below the QE test-generation quality floor (ADR-111).</p>
+<p dir="auto">Local inference avoids per-call cloud charges; hardware costs and fallback cloud calls still apply. See the<br>
+<a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/free-tier-local-models.md">Free-Tier Local Models guide</a> for<br>
+provider options and configuration.</p>
+<h2 id="documentation">Documentation</h2>
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th>Guide</th>
+<th>Use it for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/platform-setup-guide.md">Platform setup</a></td>
+<td>Client configuration</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/free-tier-local-models.md">Free-tier local models</a></td>
+<td>Opt-in local/free generation and fallback</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/skill-validation.md">Skill validation</a></td>
+<td>Trust tiers and evaluations</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/reasoningbank-learning-system.md">Learning system</a></td>
+<td>Pattern storage and feedback</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/guides/fleet-code-intelligence-integration.md">Code intelligence</a></td>
+<td>Indexing, graphs and search</td>
+</tr>
+<tr>
+<td><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/v3-technical-architecture-glossary.md">Architecture glossary</a></td>
+<td>Technical terminology</td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+<h2 id="contribute">Contribute</h2>
+<p dir="auto">Bring a small problem we can reproduce. Useful starting points include a failing test, a client setup issue, a better example, or a validator that challenges an unsupported claim.</p>
+<p dir="auto">Read <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/CONTRIBUTING.md">CONTRIBUTING.md</a> and <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/AGENTS.md">AGENTS.md</a> before changing code. For bug reports, include your AQE version, Node version, operating system, client, expected behavior and a minimal reproduction. Use <a href="https://github.com/proffesor-for-testing/agentic-qe/issues">Issues</a> for reproducible bugs, <a href="https://github.com/proffesor-for-testing/agentic-qe/issues">Issues</a> for questions and use cases, and the <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/SECURITY.md">security policy</a> for security reports.</p>
+<div class="highlight highlight-source-shell" dir="auto"><pre class="notranslate">git clone https://github.com/proffesor-for-testing/agentic-qe.git
+<span class="pl-c1">cd</span> agentic-qe
+npm install
+npm run build
+npm <span class="pl-c1">test</span> -- --run</pre></div>
+<p dir="auto">For a focused change, start with the relevant checks documented in <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/AGENTS.md">AGENTS.md</a>, such as <code class="notranslate">npm run typecheck</code>, <code class="notranslate">npm run lint</code> and the relevant test suite. Keep production learning databases intact and test data changes against copies.</p>
+<h2 id="license-and-support">License and support</h2>
+<p dir="auto"><strong>MIT</strong> — see <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/LICENSE">LICENSE</a>. Free to use, fork, build and contribute under its terms.</p>
+<p dir="auto"><a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/FUNDING.md">Support the project</a> · <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/docs/">Project documentation</a> · <a href="https://github.com/proffesor-for-testing/agentic-qe/blob/docs/quality-evidence-redesign-20261009/CONTRIBUTORS.md">View all contributors</a></p>
+<h2 id="contributors">Contributors</h2>
+
+<markdown-accessiblity-table><table role="table">
+<thead>
+<tr>
+<th align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/proffesor-for-testing.png"><img src="https://github.com/proffesor-for-testing.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/proffesor-for-testing">@proffesor-for-testing</a></strong><br>Project Lead</th>
+<th align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/fndlalit.png"><img src="https://github.com/fndlalit.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/fndlalit">@fndlalit</a></strong><br>QX Partner, Testability</th>
+<th align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/shaal.png"><img src="https://github.com/shaal.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/shaal">@shaal</a></strong><br>Core Development</th>
+<th align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/mondweep.png"><img src="https://github.com/mondweep.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/mondweep">@mondweep</a></strong><br>Architecture</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/rudycelekli.png"><img src="https://github.com/rudycelekli.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/rudycelekli">@rudycelekli</a></strong><br>Reliability &amp; Security Fixes</td>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/stuinfla.png"><img src="https://github.com/stuinfla.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/stuinfla">@stuinfla</a></strong><br>Test Execution Evidence</td>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/nagoodman.png"><img src="https://github.com/nagoodman.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/nagoodman">@nagoodman</a></strong><br>OpenCode Integration</td>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/Jordi-Izquierdo-DDS.png"><img src="https://github.com/Jordi-Izquierdo-DDS.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/Jordi-Izquierdo-DDS">@Jordi-Izquierdo-DDS</a></strong><br>RVF/HNSW Fix</td>
+</tr>
+<tr>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/JLMA-Agentic-Ai.png"><img src="https://github.com/JLMA-Agentic-Ai.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/JLMA-Agentic-Ai">@JLMA-Agentic-Ai</a></strong><br>Package Exports</td>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/amonkarsidhant.png"><img src="https://github.com/amonkarsidhant.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/amonkarsidhant">@amonkarsidhant</a></strong><br>MCP-first Setup</td>
+<td align="center"><a target="_blank" rel="noopener noreferrer" href="https://github.com/gurdasnijor.png"><img src="https://github.com/gurdasnijor.png" width="60" style="max-width: 100%;"></a><br><strong><a href="https://github.com/gurdasnijor">@gurdasnijor</a></strong><br>Smithery Integration</td>
+<td align="center"></td>
+</tr>
+</tbody>
+</table></markdown-accessiblity-table>
+
+<h2 id="acknowledgments">Acknowledgments</h2>
+<p dir="auto">Agentic QE was developed with help from <strong><a href="https://github.com/ruvnet/ruflo">Ruflo</a>, formerly Claude Flow</strong>, by <strong><a href="https://github.com/ruvnet">rUv</a></strong>, for coordination during development. <strong><a href="https://github.com/ruvnet/ruvector">RuVector</a> provides the vector and RVF database foundation</strong> through the <code class="notranslate">@ruvector/*</code> packages; AQE also uses <code class="notranslate">better-sqlite3</code> for SQLite persistence. Ruflo is development tooling, not a required AQE runtime dependency.</p>
+<p dir="auto"><a href="https://github.com/ruvnet/ruflo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iMjMwIiB2aWV3Qm94PSIwIDAgNjAwIDIzMCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InRpdGxlIGRlc2MiPjx0aXRsZSBpZD0idGl0bGUiPlJ1ZmxvIOKAlCBGb3JtZXJseSBDbGF1ZGUgRmxvdy4gQ29vcmRpbmF0aW9uIGR1cmluZyBkZXZlbG9wbWVudC48L3RpdGxlPjxkZXNjIGlkPSJkZXNjIj5PcmlnaW5hbCBBZ2VudGljIFFFIHZpc3VhbCBpbiBkYXJrIHRlYWwgYW5kIGN5YW4uIFJ1ZmxvIOKAlCBGb3JtZXJseSBDbGF1ZGUgRmxvdy4gQ29vcmRpbmF0aW9uIGR1cmluZyBkZXZlbG9wbWVudC48L2Rlc2M+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDI9IjEiIHkyPSIxIj48c3RvcCBzdG9wLWNvbG9yPSIjMDcxYTIwIi8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMTAzNDNiIi8+PC9saW5lYXJHcmFkaWVudD48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNNDAgMEgwVjQwIiBmaWxsPSJub25lIiBzdHJva2U9IiM2MWNiYzkiIHN0cm9rZS1vcGFjaXR5PSIuMDciLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSI2MDAiIGhlaWdodD0iMjMwIiByeD0iMjIiIGZpbGw9InVybCgjYmcpIi8+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSIyMzAiIHJ4PSIyMiIgZmlsbD0idXJsKCNncmlkKSIvPjxnIGZvbnQtZmFtaWx5PSJBcmlhbCwgSGVsdmV0aWNhLCBzYW5zLXNlcmlmIiBmaWxsPSIjZTZmNGY0Ij48dGV4dCB4PSIyOCIgeT0iMzgiIGZvbnQtc2l6ZT0iMTMiIGZpbGw9IiM3OGRkZDMiIGxldHRlci1zcGFjaW5nPSIyIj5ERVZFTE9QTUVOVCBTVVBQT1JUPC90ZXh0Pjx0ZXh0IHg9IjI4IiB5PSI4OCIgZm9udC1zaXplPSIzNiIgZmlsbD0iI2U2ZjRmNCIgZm9udC13ZWlnaHQ9IjcwMCI+UnVmbG88L3RleHQ+PHRleHQgeD0iMjgiIHk9IjEzMSIgZm9udC1zaXplPSIxOSIgZmlsbD0iI2U2ZjRmNCIgPkZvcm1lcmx5IENsYXVkZSBGbG93PC90ZXh0Pjx0ZXh0IHg9IjI4IiB5PSIxNjciIGZvbnQtc2l6ZT0iMTciIGZpbGw9IiNiZWQ4ZGMiID5Db29yZGluYXRpb24gZHVyaW5nIGRldmVsb3BtZW50PC90ZXh0Pjx0ZXh0IHg9IjI4IiB5PSIyMDUiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiM3OGRkZDMiID5FeHBsb3JlIHRoZSB1cHN0cmVhbSBwcm9qZWN0IOKGkjwvdGV4dD48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg0NDksODMpIHNjYWxlKDAuNTMpIj48cGF0aCBkPSJNMCAwIDY1IC0zNyAxMzAgMFYxMDBMNjUgMTM4IDAgMTAwWiIgZmlsbD0iIzBkMzQzYiIgc3Ryb2tlPSIjNTVkZmNmIiBzdHJva2Utd2lkdGg9IjMiLz48cGF0aCBkPSJNMzMgNDggNTcgNzIgMTAxIDIyIiBmaWxsPSJub25lIiBzdHJva2U9IiM2ZWU3ZDUiIHN0cm9rZS13aWR0aD0iOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHBhdGggZD0iTS02OCAyNUgtMThNLTUyIDU4SC0xOE0tMzggOTFILTE4TTE1MCA1OEgyMTgiIHN0cm9rZT0iIzczZDZlOCIgc3Ryb2tlLXdpZHRoPSIzIi8+PGNpcmNsZSBjeD0iMjI0IiBjeT0iNTgiIHI9IjciIGZpbGw9IiM3M2Q2ZTgiLz48L2c+PC9nPjwvc3ZnPg==" width="600" alt="Ruflo, formerly Claude Flow. Coordination support during Agentic QE development. Open the upstream repository." style="max-width: 100%;"></a></p>
+<p dir="auto"><a href="https://github.com/ruvnet/ruvector"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iMjMwIiB2aWV3Qm94PSIwIDAgNjAwIDIzMCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsbGVkYnk9InRpdGxlIGRlc2MiPjx0aXRsZSBpZD0idGl0bGUiPlJ1VmVjdG9yIOKAlCBWZWN0b3Igc2VhcmNoIGFuZCBSVkYgcGF0dGVybnMuIEFsb25nc2lkZSBTUUxpdGUgcGVyc2lzdGVuY2UuPC90aXRsZT48ZGVzYyBpZD0iZGVzYyI+T3JpZ2luYWwgQWdlbnRpYyBRRSB2aXN1YWwgaW4gZGFyayB0ZWFsIGFuZCBjeWFuLiBSdVZlY3RvciDigJQgVmVjdG9yIHNlYXJjaCBhbmQgUlZGIHBhdHRlcm5zLiBBbG9uZ3NpZGUgU1FMaXRlIHBlcnNpc3RlbmNlLjwvZGVzYz48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIHN0b3AtY29sb3I9IiMwNzFhMjAiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxMDM0M2IiLz48L2xpbmVhckdyYWRpZW50PjxwYXR0ZXJuIGlkPSJncmlkIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik00MCAwSDBWNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzYxY2JjOSIgc3Ryb2tlLW9wYWNpdHk9Ii4wNyIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSIyMzAiIHJ4PSIyMiIgZmlsbD0idXJsKCNiZykiLz48cmVjdCB3aWR0aD0iNjAwIiBoZWlnaHQ9IjIzMCIgcng9IjIyIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PGcgZm9udC1mYW1pbHk9IkFyaWFsLCBIZWx2ZXRpY2EsIHNhbnMtc2VyaWYiIGZpbGw9IiNlNmY0ZjQiPjx0ZXh0IHg9IjI4IiB5PSIzOCIgZm9udC1zaXplPSIxMyIgZmlsbD0iIzc4ZGRkMyIgbGV0dGVyLXNwYWNpbmc9IjIiPk1FTU9SWSArIERBVEEgRk9VTkRBVElPTjwvdGV4dD48dGV4dCB4PSIyOCIgeT0iODgiIGZvbnQtc2l6ZT0iMzYiIGZpbGw9IiNlNmY0ZjQiIGZvbnQtd2VpZ2h0PSI3MDAiPlJ1VmVjdG9yPC90ZXh0Pjx0ZXh0IHg9IjI4IiB5PSIxMzEiIGZvbnQtc2l6ZT0iMTkiIGZpbGw9IiNlNmY0ZjQiID5WZWN0b3Igc2VhcmNoIGFuZCBSVkYgcGF0dGVybnM8L3RleHQ+PHRleHQgeD0iMjgiIHk9IjE2NyIgZm9udC1zaXplPSIxNyIgZmlsbD0iI2JlZDhkYyIgPkFsb25nc2lkZSBTUUxpdGUgcGVyc2lzdGVuY2U8L3RleHQ+PHRleHQgeD0iMjgiIHk9IjIwNSIgZm9udC1zaXplPSIxNSIgZmlsbD0iIzc4ZGRkMyIgPkV4cGxvcmUgdGhlIHVwc3RyZWFtIHByb2plY3Qg4oaSPC90ZXh0PjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQ0OSw4Mykgc2NhbGUoMC41MykiPjxwYXRoIGQ9Ik0wIDAgNjUgLTM3IDEzMCAwVjEwMEw2NSAxMzggMCAxMDBaIiBmaWxsPSIjMGQzNDNiIiBzdHJva2U9IiM1NWRmY2YiIHN0cm9rZS13aWR0aD0iMyIvPjxwYXRoIGQ9Ik0zMyA0OCA1NyA3MiAxMDEgMjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzZlZTdkNSIgc3Ryb2tlLXdpZHRoPSI5IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNLTY4IDI1SC0xOE0tNTIgNThILTE4TS0zOCA5MUgtMThNMTUwIDU4SDIxOCIgc3Ryb2tlPSIjNzNkNmU4IiBzdHJva2Utd2lkdGg9IjMiLz48Y2lyY2xlIGN4PSIyMjQiIGN5PSI1OCIgcj0iNyIgZmlsbD0iIzczZDZlOCIvPjwvZz48L2c+PC9zdmc+" width="600" alt="RuVector. Vector search and RVF pattern storage, alongside SQLite persistence. Open the upstream repository." style="max-width: 100%;"></a></p>
+<p dir="auto">Thanks also to <a href="https://github.com/ruvnet/agentic-flow">Agentic Flow</a> for agent patterns and learning systems, and to the maintainers and contributors across the testing tools this project builds on. The cards are original AQE artwork and link to the upstream projects.</p></main></html>

@@ -145,6 +145,13 @@ export function buildPath(tokens: string[]): string {
   return '/' + tokens.map(escapePathToken).join('/');
 }
 
+/** Parse the RFC 6901 array-index grammar without prefix coercion. */
+function parseArrayIndex(token: string): number {
+  if (!/^(0|[1-9][0-9]*)$/.test(token)) return Number.NaN;
+  const index = Number(token);
+  return Number.isSafeInteger(index) ? index : Number.NaN;
+}
+
 /**
  * Get a value from an object using a JSON Pointer path
  */
@@ -165,7 +172,7 @@ export function getValueAtPath(
     }
 
     if (Array.isArray(current)) {
-      const index = token === '-' ? current.length : parseInt(token, 10);
+      const index = parseArrayIndex(token);
       if (isNaN(index) || index < 0) {
         return undefined;
       }
@@ -200,7 +207,7 @@ export function pathExists(
     }
 
     if (Array.isArray(current)) {
-      const index = parseInt(token, 10);
+      const index = parseArrayIndex(token);
       if (isNaN(index) || index < 0 || index >= current.length) {
         return false;
       }
@@ -240,7 +247,7 @@ export function setValueAtPath(
     }
 
     if (Array.isArray(current)) {
-      const index = parseInt(token, 10);
+      const index = parseArrayIndex(token);
       if (isNaN(index) || index < 0 || index >= current.length) {
         throw new JsonPatchError(`Invalid array index: ${token}`, 'INVALID_INDEX', { token, path });
       }
@@ -256,8 +263,8 @@ export function setValueAtPath(
   }
 
   if (Array.isArray(current)) {
-    const index = lastToken === '-' ? current.length : parseInt(lastToken, 10);
-    if (isNaN(index) || index < 0) {
+    const index = lastToken === '-' ? current.length : parseArrayIndex(lastToken);
+    if (isNaN(index) || index < 0 || index > current.length) {
       throw new JsonPatchError(`Invalid array index: ${lastToken}`, 'INVALID_INDEX', { token: lastToken, path });
     }
     current[index] = value;
@@ -289,7 +296,7 @@ export function deleteValueAtPath(
     }
 
     if (Array.isArray(current)) {
-      const index = parseInt(token, 10);
+      const index = parseArrayIndex(token);
       if (isNaN(index) || index < 0 || index >= current.length) {
         throw new JsonPatchError(`Invalid array index: ${token}`, 'INVALID_INDEX', { token, path });
       }
@@ -302,7 +309,7 @@ export function deleteValueAtPath(
   }
 
   if (Array.isArray(current)) {
-    const index = parseInt(lastToken, 10);
+    const index = parseArrayIndex(lastToken);
     if (isNaN(index) || index < 0 || index >= current.length) {
       throw new JsonPatchError(`Invalid array index: ${lastToken}`, 'INVALID_INDEX', { token: lastToken, path });
     }
