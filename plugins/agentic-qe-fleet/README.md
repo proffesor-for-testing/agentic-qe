@@ -121,6 +121,18 @@ node scripts/sync-plugin-versions.cjs --check      # plugin versions == package.
 
 - [`ADR-0001` — agentic-qe-fleet plugin contract (bundled pinned MCP server, version tracking, tool naming, userConfig, smoke as contract)](./docs/adrs/0001-agentic-qe-fleet-contract.md)
 
-## As a mod
+## As a mod (Claude Code >= 2.1.287)
 
-_Placeholder — the function-hook mod (`hooks/`) is being added in a follow-up phase. This section will describe its guard, status file, local slash command and options._
+The plugin ships a hooks module, `aqe-mod` (`hooks/hooks.json` -> `hooks/register.ts`), which loads with the plugin by default.
+
+- **Learning-data guard (on by default).** It refuses tool calls that would destroy AQE's learning data:
+  - `rm`, `mv`, `truncate`, `shred`, `dd`, `tee` or a `>` redirect on `.agentic-qe/*.db` (and `-wal`, `-shm`, `*.rvf`)
+  - `rm -rf .agentic-qe`, `find .agentic-qe ... -delete`, `git clean -x`
+  - `sqlite3 .agentic-qe/memory.db` with `DROP TABLE`, `DELETE FROM`, `TRUNCATE` or `.restore`
+  - Write/Edit on those files
+
+  Reads and backups pass: `cp .agentic-qe/memory.db x.bak`, `SELECT`, `PRAGMA integrity_check`, `.backup`. The guard only refuses and never loosens anything. Set the plugin option `guardMode` to `enforce` (default), `notify` or `off`.
+- **`/aqe-mod`**: `status`, `check <command>` (a dry run of the guard's verdict), `fleet` (the learning-data files present and the AQE MCP tools connected), `gate`. Anything only the AQE MCP server knows is reported as unknown, never estimated.
+- **Console status.** Writes `.claude-flow/aqe-mod/status.json` (version 1: mode, calls, blocked, lastDenied) for the ruflo console's Mods section. When ruflo-mods is loaded, it also adds an `aqe` segment to ruflo's status bar.
+
+Tests: `claude plugin test plugins/agentic-qe-fleet` and `bash plugins/agentic-qe-fleet/scripts/smoke-mod.sh`.

@@ -6,6 +6,7 @@ Newest first. One `## <version> — <date>` heading per version, then `feat:`, `
 - fix: ship `.mcp.json` inside the plugin so a marketplace install registers the `agentic-qe` MCP server (previously only the repo-root manifest declared it, and a marketplace install copies only `plugins/agentic-qe-fleet/`)
 - fix: pin the MCP server to `agentic-qe@<plugin version>` instead of `@latest`
 - fix: skills list the plugin-scoped MCP tool names (`mcp__plugin_agentic-qe-fleet_agentic-qe__*`) that an installed plugin actually exposes, alongside the `mcp__agentic-qe__*` names used by `aqe init` projects
+- feat: `userConfig` option `guardMode` (off / notify / enforce) for the aqe-mod learning-data guard
 - feat: `userConfig` options `llm_provider`, `max_budget_usd`, `memory_backend`, wired into the MCP server env (`AQE_LLM_PROVIDER`, `AQE_MAX_BUDGET_USD`, `AQE_MEMORY_BACKEND`)
 - feat: contract ADR-0001, CHANGELOG, README Install / Requires / Compatibility / Namespace coordination / Verification sections
 - fix: `scripts/smoke.sh` check 8 validates this plugin's own `.mcp.json` and its version pin, not the repo-root manifest
