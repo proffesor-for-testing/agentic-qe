@@ -286,12 +286,7 @@ export class ProviderManager {
     // Check cache first
     if (!options?.skipCache) {
       const inputStr = typeof input === 'string' ? input : JSON.stringify(input);
-      const cached = this.cache.getGeneration(inputStr, {
-        model: options?.model,
-        temperature: options?.temperature,
-        maxTokens: options?.maxTokens,
-        systemPrompt: options?.systemPrompt,
-      });
+      const cached = this.cache.getGeneration(inputStr, options);
 
       if (cached) {
         return { ...cached, cached: true };
@@ -311,12 +306,7 @@ export class ProviderManager {
     // Cache the response
     if (!options?.skipCache) {
       const inputStr = typeof input === 'string' ? input : JSON.stringify(input);
-      this.cache.setGeneration(inputStr, response, {
-        model: options?.model,
-        temperature: options?.temperature,
-        maxTokens: options?.maxTokens,
-        systemPrompt: options?.systemPrompt,
-      });
+      this.cache.setGeneration(inputStr, response, options);
     }
 
     // Track cost (in-process) and persist to the cross-process ledger.
@@ -374,11 +364,7 @@ export class ProviderManager {
 
     // Check cache first
     if (!options?.skipCache) {
-      const cached = this.cache.getCompletion(prompt, {
-        model: options?.model,
-        temperature: options?.temperature,
-        maxTokens: options?.maxTokens,
-      });
+      const cached = this.cache.getCompletion(prompt, options);
 
       if (cached) {
         return { ...cached, cached: true };
@@ -395,11 +381,7 @@ export class ProviderManager {
 
     // Cache the response
     if (!options?.skipCache) {
-      this.cache.setCompletion(prompt, response, {
-        model: options?.model,
-        temperature: options?.temperature,
-        maxTokens: options?.maxTokens,
-      });
+      this.cache.setCompletion(prompt, response, options);
     }
 
     // ADR-123: persist to the cross-process ledger (completion has usage too).

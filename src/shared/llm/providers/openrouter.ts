@@ -494,11 +494,13 @@ export class OpenRouterProvider implements LLMProvider {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          const data = trimmed.slice(5).trimStart();
+          if (data === '[DONE]') continue;
 
-          if (trimmed.startsWith('data: ')) {
+          if (trimmed.startsWith('data:')) {
             try {
-              const chunk = safeJsonParse(trimmed.slice(6)) as OpenRouterStreamChunk;
+              const chunk = safeJsonParse(data) as OpenRouterStreamChunk;
               const delta = chunk.choices[0]?.delta;
 
               if (delta?.content) {

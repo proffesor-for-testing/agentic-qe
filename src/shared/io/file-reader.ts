@@ -290,12 +290,24 @@ export class FileReader {
     // Determine if path is absolute
     const isAbsolutePath = path.isAbsolute(filePath);
 
+    const normalizedBase = path.resolve(this.basePath);
+    const normalizedPath = path.resolve(normalizedBase, filePath);
+    const relativePath = path.relative(normalizedBase, normalizedPath);
+    if (this.basePath && (relativePath === '..' || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath))) {
+      throw new PathTraversalError(filePath, ['Path escapes base directory'], 'critical');
+    }
+
+    // Absolute checkout prefixes are not user-controlled depth beneath the root.
+    // Keep validating the original spelling so encoded traversal remains blocked.
+    const baseDepth = this.basePath ? normalizedBase.split(/[\\/]/).filter(Boolean).length : 0;
+
     // SEC-004 FIX: Validate path to prevent directory traversal
     // For absolute paths, validate without basePath to avoid incorrect combination
     // For relative paths, validate with basePath for proper containment check
     const validation = validatePath(filePath, {
       basePath: isAbsolutePath ? '' : this.basePath,
       allowAbsolute: true,
+      maxDepth: 10 + (isAbsolutePath ? baseDepth : 0),
       // Allow common development file extensions
       deniedExtensions: ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'],
     });
@@ -308,19 +320,7 @@ export class FileReader {
       );
     }
 
-    // For absolute paths, verify they stay within basePath if one is configured
-    if (isAbsolutePath && this.basePath) {
-      const normalizedBase = path.resolve(this.basePath);
-      const normalizedPath = path.resolve(filePath);
-      if (!normalizedPath.startsWith(normalizedBase)) {
-        throw new PathTraversalError(
-          filePath,
-          ['Path escapes base directory'],
-          'critical'
-        );
-      }
-      return normalizedPath;
-    }
+    if (isAbsolutePath) return normalizedPath;
 
     // Use the normalized path from validation if available
     if (validation.normalizedPath) {

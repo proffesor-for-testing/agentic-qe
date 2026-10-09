@@ -27,7 +27,7 @@ export class EmbeddingCache {
    */
   private hashContent(content: string, model: string): string {
     return createHash('sha256')
-      .update(`${model}:${content}`)
+      .update(JSON.stringify([model, content]))
       .digest('hex');
   }
 
