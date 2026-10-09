@@ -189,7 +189,8 @@ export interface WinnerResult {
   benchmarkId: string;
   winnerId: string;
   winnerName: string;
-  confidence: number;
+  /** Ranking heuristic, not a probability or statistical confidence level. */
+  heuristicScore: number;
   combinedScore: number;
   significantMetrics: string[];
   recommendation: string;
@@ -899,12 +900,19 @@ export class ABBenchmarkingFramework {
    * Calculate statistical significance for a benchmark
    */
   calculateStatisticalSignificance(benchmarkId: string): SignificanceResult {
+    return this.calculateSignificance(benchmarkId);
+  }
+
+  private calculateSignificance(benchmarkId: string, variantIds?: string[]): SignificanceResult {
     const benchmark = this.benchmarks.get(benchmarkId);
     if (!benchmark) {
       throw new Error(`Benchmark ${benchmarkId} not found`);
     }
 
-    const { config, variantMetrics } = benchmark;
+    const { config } = benchmark;
+    const variantMetrics = variantIds
+      ? new Map(variantIds.map(id => [id, benchmark.variantMetrics.get(id)!]))
+      : benchmark.variantMetrics;
     const alpha = 1 - config.confidenceLevel;
 
     // Bonferroni correction for multiple comparisons
@@ -920,11 +928,11 @@ export class ABBenchmarkingFramework {
 
     // Per-metric statistics (pairwise comparisons between first two variants)
     const metricStatistics: MetricStatistics[] = [];
-    const variantIds = Array.from(variantMetrics.keys());
+    const comparedIds = Array.from(variantMetrics.keys());
 
-    if (variantIds.length >= 2) {
-      const v1 = variantMetrics.get(variantIds[0])!;
-      const v2 = variantMetrics.get(variantIds[1])!;
+    if (comparedIds.length >= 2) {
+      const v1 = variantMetrics.get(comparedIds[0])!;
+      const v2 = variantMetrics.get(comparedIds[1])!;
 
       for (const metricConfig of config.metrics) {
         const values1 = (v1.metrics.get(metricConfig.name) || []).map(d => d.value);
@@ -1019,10 +1027,10 @@ export class ABBenchmarkingFramework {
     scores.sort((a, b) => b.score - a.score);
     const winner = scores[0];
 
-    // Calculate confidence based on significance and score gap
+    // Calculate a ranking heuristic based on significance and score gap
     const significance = this.calculateStatisticalSignificance(benchmarkId);
     const scoreGap = scores.length > 1 ? winner.score - scores[1].score : winner.score;
-    const confidence = significance.isSignificant
+    const heuristicScore = significance.isSignificant
       ? Math.min(0.99, 0.5 + scoreGap * 0.5 + (significance.powerAnalysis.currentPower * 0.25))
       : Math.min(0.5, scoreGap * 0.5);
 
@@ -1036,11 +1044,40 @@ export class ABBenchmarkingFramework {
       benchmarkId,
       winnerId: winner.variantId,
       winnerName: variantConfig?.name || winner.variantId,
-      confidence,
+      heuristicScore,
       combinedScore: winner.score,
       significantMetrics,
-      recommendation: this.generateWinnerRecommendation(winner, confidence, significantMetrics),
+      recommendation: this.generateWinnerRecommendation(winner, heuristicScore, significantMetrics),
     };
+  }
+
+  /** Require evidence for this candidate over its ranked runner-up. */
+  private isSignificantlyBetterThanRunnerUp(benchmarkId: string, winnerId: string): boolean {
+    const benchmark = this.benchmarks.get(benchmarkId)!;
+    const scores = this.calculateCombinedScores(benchmark).sort((a, b) => b.score - a.score);
+    const [winner, runnerUp] = scores;
+    if (!runnerUp || winner.variantId !== winnerId || winner.score <= runnerUp.score) {
+      return false;
+    }
+
+    const significance = this.calculateSignificance(benchmarkId, [winnerId, runnerUp.variantId]);
+    const winnerMetrics = benchmark.variantMetrics.get(winnerId)!;
+    const runnerUpMetrics = benchmark.variantMetrics.get(runnerUp.variantId)!;
+    const successMetrics = benchmark.config.metrics.filter(metric => metric.type === 'success_rate');
+    const successContributesToScore = successMetrics.length === 0 ||
+      successMetrics.some(metric => metric.weight > 0);
+    if (successContributesToScore && significance.chiSquareTest?.isSignificant &&
+        this.getSuccessRate(winnerMetrics) > this.getSuccessRate(runnerUpMetrics)) {
+      return true;
+    }
+
+    return significance.metricStatistics.some(statistic => {
+      const metric = benchmark.config.metrics.find(config => config.name === statistic.metric)!;
+      return statistic.isSignificant && metric.weight > 0 &&
+        (metric.higherIsBetter
+          ? statistic.variantA.mean > statistic.variantB.mean
+          : statistic.variantA.mean < statistic.variantB.mean);
+    });
   }
 
   /**
@@ -1119,10 +1156,6 @@ export class ABBenchmarkingFramework {
       scoreA += normalizedA * metricConfig.weight;
       scoreB += normalizedB * metricConfig.weight;
     }
-
-    // Add success rate comparison
-    const successRateA = this.getSuccessRate(metricsA);
-    const successRateB = this.getSuccessRate(metricsB);
 
     const overallWinner = scoreA > scoreB ? variantA : scoreB > scoreA ? variantB : null;
     const confidence =
@@ -1205,15 +1238,17 @@ export class ABBenchmarkingFramework {
         reasoning.push(`Significant improvements in: ${winner.significantMetrics.join(', ')}`);
       }
 
-      if (winner.confidence >= 0.95) {
+      if (!this.isSignificantlyBetterThanRunnerUp(benchmarkId, winner.winnerId)) {
+        caveats.push('Leading variant is not significantly better than the runner-up');
+      } else if (winner.heuristicScore >= 0.95) {
         readyToApply = true;
-        reasoning.push('High confidence - ready to apply');
-      } else if (winner.confidence >= 0.8 && significance?.isSignificant) {
+        reasoning.push('High heuristic score with runner-up significance - ready to apply');
+      } else if (winner.heuristicScore >= 0.8) {
         readyToApply = true;
-        reasoning.push('Good confidence with statistical significance - ready to apply');
+        reasoning.push('Good heuristic score with runner-up significance - ready to apply');
       } else {
         caveats.push(
-          `Confidence (${(winner.confidence * 100).toFixed(1)}%) below recommended threshold`
+          `Heuristic score (${winner.heuristicScore.toFixed(3)}) below recommended threshold`
         );
       }
     } else {
@@ -1223,7 +1258,7 @@ export class ABBenchmarkingFramework {
     return {
       benchmarkId,
       suggestedWinnerId,
-      confidence: winner?.confidence ?? 0,
+      confidence: winner?.heuristicScore ?? 0,
       reasoning,
       caveats,
       readyToApply,
@@ -1246,6 +1281,10 @@ export class ABBenchmarkingFramework {
       throw new Error(`No winner determined for benchmark ${benchmarkId}`);
     }
 
+    if (!this.isSignificantlyBetterThanRunnerUp(benchmarkId, winner.winnerId)) {
+      throw new Error(`Winner is not significantly better than the runner-up for benchmark ${benchmarkId}`);
+    }
+
     // Mark benchmark as completed
     benchmark.status = 'completed';
     benchmark.endTime = Date.now();
@@ -1254,7 +1293,7 @@ export class ABBenchmarkingFramework {
     // Promote winner in Evolution Pipeline
     evolutionPipelineIntegration.promoteRule(
       winner.winnerId,
-      `Won A/B benchmark ${benchmarkId} with ${(winner.confidence * 100).toFixed(1)}% confidence`
+      `Won A/B benchmark ${benchmarkId} with heuristic score ${winner.heuristicScore.toFixed(3)} and runner-up significance`
     );
 
     // Complete the variant test
@@ -1480,24 +1519,24 @@ export class ABBenchmarkingFramework {
    */
   private generateWinnerRecommendation(
     winner: { variantId: string; score: number },
-    confidence: number,
+    heuristicScore: number,
     significantMetrics: string[]
   ): string {
-    if (confidence >= 0.95) {
+    if (heuristicScore >= 0.95) {
       return `Strongly recommend applying ${winner.variantId}. ` +
-        `High confidence (${(confidence * 100).toFixed(1)}%) with significant improvements ` +
+        `High heuristic score (${heuristicScore.toFixed(3)}) with significant improvements ` +
         `in: ${significantMetrics.length > 0 ? significantMetrics.join(', ') : 'overall performance'}.`;
-    } else if (confidence >= 0.8) {
+    } else if (heuristicScore >= 0.8) {
       return `Recommend applying ${winner.variantId}. ` +
-        `Good confidence (${(confidence * 100).toFixed(1)}%). ` +
-        `Consider collecting more samples for higher confidence.`;
-    } else if (confidence >= 0.6) {
-      return `${winner.variantId} shows promise with moderate confidence ` +
-        `(${(confidence * 100).toFixed(1)}%). ` +
+        `Good heuristic score (${heuristicScore.toFixed(3)}). ` +
+        `Consider collecting more samples for a higher heuristic score.`;
+    } else if (heuristicScore >= 0.6) {
+      return `${winner.variantId} shows promise with moderate heuristic score ` +
+        `(${heuristicScore.toFixed(3)}). ` +
         `Recommend collecting more samples before applying.`;
     } else {
       return `Results are inconclusive. ${winner.variantId} is currently leading but ` +
-        `confidence (${(confidence * 100).toFixed(1)}%) is low. Continue collecting data.`;
+        `heuristic score (${heuristicScore.toFixed(3)}) is low. Continue collecting data.`;
     }
   }
 
