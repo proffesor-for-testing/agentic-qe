@@ -121,8 +121,9 @@ class CircuitBreaker {
       return false;
     }
 
-    // half-open: allow one request through
-    return true;
+    // The open -> half-open transition already admitted the recovery probe.
+    // Keep further requests out until that probe records success or failure.
+    return false;
   }
 
   reset(url?: string): void {
