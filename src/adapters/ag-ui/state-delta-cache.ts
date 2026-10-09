@@ -181,6 +181,9 @@ export class StateDeltaCache {
 
   constructor(config: StateDeltaCacheConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    if (!Number.isSafeInteger(this.config.maxSize) || this.config.maxSize <= 0) {
+      throw new RangeError('State delta cache maxSize must be a positive safe integer');
+    }
     this.cache = new Map();
     this.preComputedKeys = new Set();
 
