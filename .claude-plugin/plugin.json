@@ -7,10 +7,7 @@
     "url": "https://github.com/proffesor-for-testing/agentic-qe"
   },
   "homepage": "https://github.com/proffesor-for-testing/agentic-qe",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/proffesor-for-testing/agentic-qe.git"
-  },
+  "repository": "https://github.com/proffesor-for-testing/agentic-qe",
   "bugs": {
     "url": "https://github.com/proffesor-for-testing/agentic-qe/issues"
   },
@@ -32,30 +29,15 @@
     "self-learning",
     "ai-agents"
   ],
-  "category": "testing",
-  "tags": [
-    "testing",
-    "quality",
-    "qe",
-    "tdd",
-    "automation",
-    "ai",
-    "agents",
-    "fleet",
-    "coverage",
-    "chaos",
-    "security"
-  ],
-  "engines": {
-    "claudeCode": ">=2.0.0",
-    "node": ">=22.13.0"
-  },
   "mcpServers": {
     "agentic-qe": {
       "command": "npx",
-      "args": ["-y", "agentic-qe@latest", "mcp"],
-      "description": "Agentic QE MCP server — 88 tools for test generation, coverage analysis, quality assessment, chaos testing, security scanning, and fleet coordination",
-      "optional": false
+      "args": [
+        "-y",
+        "agentic-qe@3.14.8",
+        "mcp"
+      ],
+      "description": "Agentic QE MCP server — 88 tools for test generation, coverage analysis, quality assessment, chaos testing, security scanning, and fleet coordination"
     }
   }
 }

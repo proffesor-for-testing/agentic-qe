@@ -30,12 +30,14 @@ describe('Node support policy', () => {
     expect(lock.packages?.['']?.engines?.node).toBe('>=22.13.0');
   });
 
-  it('uses the same floor for the Claude Code plugin', () => {
-    const manifest = JSON.parse(read('.claude-plugin/plugin.json')) as {
-      engines?: { node?: string };
-    };
+  it('documents the same floor for the Claude Code plugin', () => {
+    // Claude Code ignores an `engines` field in plugin.json (and
+    // `claude plugin validate` flags it), so the floor is stated in the
+    // fleet plugin README's Requires section, where installers read it.
+    const readme = read('plugins/agentic-qe-fleet/README.md');
+    const requires = readme.split('## Requires')[1]?.split('\n## ')[0] ?? '';
 
-    expect(manifest.engines?.node).toBe('>=22.13.0');
+    expect(requires).toContain('Node.js >= 22.13.0');
   });
 
   it('enforces the exact floor in the shipped environment validator', () => {
