@@ -1,7 +1,7 @@
 {
   "name": "agentic-qe-fleet",
   "description": "PACTS-based agentic quality engineering fleet — 11 specialized QE agents, sublinear coverage analysis, chaos/resilience testing, and TDD skills for Claude Code",
-  "version": "3.14.8",
+  "version": "3.15.0",
   "author": {
     "name": "Agentic QE",
     "url": "https://github.com/proffesor-for-testing/agentic-qe"
