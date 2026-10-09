@@ -123,6 +123,8 @@ interface PlanNode {
   f: number;
   /** Depth in the search tree */
   depth: number;
+  /** Sum of action estimates along this path, in milliseconds */
+  estimatedDurationMs: number;
 }
 
 /**
@@ -219,6 +221,7 @@ export class GOAPPlanner {
     // for databases seeded before this feature existed, or before a given
     // action's binding was added to the library.
     this.backfillActionMethodBindings();
+    this.backfillActionDurationEstimates();
 
     await this.loadActions();
     this.initialized = true;
@@ -234,8 +237,8 @@ export class GOAPPlanner {
     const allActions = getAllQEActions();
     const db = this.ensureDb();
     const insertAction = db.prepare(`
-      INSERT INTO goap_actions (id, name, description, category, preconditions, effects, cost, qe_domain, agent_type, method, params, implemented)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO goap_actions (id, name, description, category, preconditions, effects, cost, qe_domain, agent_type, method, params, implemented, estimated_duration_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (const action of allActions) {
@@ -252,7 +255,8 @@ export class GOAPPlanner {
         action.agentType ?? null,
         action.method ?? null,
         action.params ? JSON.stringify(action.params) : null,
-        action.implemented ? 1 : 0
+        action.implemented ? 1 : 0,
+        action.estimatedDurationMs ?? null
       );
     }
 
@@ -302,6 +306,27 @@ export class GOAPPlanner {
     }
   }
 
+  /** Restore missing estimates only for unchanged legacy library definitions. */
+  private backfillActionDurationEstimates(): void {
+    const update = this.ensureDb().prepare(`
+      UPDATE goap_actions SET estimated_duration_ms = ?
+      WHERE estimated_duration_ms IS NULL AND name = ?
+        AND agent_type IS ? AND category = ? AND qe_domain IS ?
+        AND preconditions = ? AND effects = ?
+        AND method IS ? AND params IS ? AND implemented = ?
+    `);
+    for (const action of getAllQEActions()) {
+      if (action.estimatedDurationMs === undefined) continue;
+      update.run(
+        action.estimatedDurationMs, action.name, action.agentType ?? null,
+        action.category, action.qeDomain ?? null,
+        JSON.stringify(action.preconditions), JSON.stringify(action.effects),
+        action.method ?? null, action.params ? JSON.stringify(action.params) : null,
+        action.implemented ? 1 : 0
+      );
+    }
+  }
+
   // ==========================================================================
   // Core Planning - A* Search
   // ==========================================================================
@@ -342,6 +367,9 @@ export class GOAPPlanner {
         this.recordPlanReuse(reusedPlan.id, true);
         const clonedPlan: GOAPPlan = {
           ...reusedPlan,
+          estimatedDurationMs: reusedPlan.actions.reduce(
+            (sum, action) => sum + (action.estimatedDurationMs ?? 0), 0
+          ),
           id: `plan-${Date.now()}-${randomUUID().slice(0, 8)}`,
           initialState: this.cloneState(currentState),
           reusedFrom: reusedPlan.id,
@@ -429,6 +457,9 @@ export class GOAPPlanner {
     // Entries are added on insert, updated when a better path is found, and
     // removed when the node is popped (moved to the closed set).
     const openSetCosts = new Map<string, number>();
+    // Under a duration budget, cheaper paths can be slower or deeper. Keep
+    // nondominated labels rather than closing the entire state at its first cost.
+    const durationLabels = new Map<string, PlanNode[]>();
 
     // Issue #535: cost-unit heuristic built once per search from the
     // actions that can actually move each goal key (see buildHeuristic).
@@ -447,10 +478,12 @@ export class GOAPPlanner {
       h: startH,
       f: 0,
       depth: 0,
+      estimatedDurationMs: 0,
     };
     startNode.f = startNode.g + startNode.h;
     openHeap.push(startNode);
     openSetCosts.set(this.hashState(start), 0);
+    durationLabels.set(this.hashState(start), [startNode]);
 
     // Constraint defaults
     const maxIterations = 10000;
@@ -458,6 +491,7 @@ export class GOAPPlanner {
     const maxPlanLength = constraints?.maxSteps ?? DEFAULT_MAX_PLAN_STEPS;
     const maxCost = constraints?.maxCost ?? Infinity;
     const maxDuration = constraints?.maxDurationMs ?? Infinity;
+    const boundedDuration = Number.isFinite(maxDuration);
 
     let iterations = 0;
 
@@ -466,21 +500,23 @@ export class GOAPPlanner {
 
       // Get node with lowest f score — O(log n)
       const current = openHeap.pop()!;
+      const stateKey = this.hashState(current.state);
+      if (boundedDuration && !durationLabels.get(stateKey)?.includes(current)) {
+        continue; // a later label dominates this queued path
+      }
 
       // Check if goal reached
       if (this.meetsConditions(current.state, goal)) {
         return this.reconstructPlan(current);
       }
 
-      // Generate state hash for closed set
-      const stateKey = this.hashState(current.state);
-      if (closedSet.has(stateKey)) {
-        // Lazy deletion: skip stale duplicate nodes
-        continue;
+      if (!boundedDuration) {
+        if (closedSet.has(stateKey)) {
+          continue; // lazy deletion for the existing cost-only search
+        }
+        closedSet.add(stateKey);
+        openSetCosts.delete(stateKey);
       }
-      closedSet.add(stateKey);
-      // Node is now closed — remove from open set cost tracker
-      openSetCosts.delete(stateKey);
 
       // Check depth limit
       if (current.depth >= maxPlanLength) {
@@ -499,7 +535,7 @@ export class GOAPPlanner {
         const newStateKey = this.hashState(newState);
 
         // Skip if already visited
-        if (closedSet.has(newStateKey)) {
+        if (!boundedDuration && closedSet.has(newStateKey)) {
           continue;
         }
 
@@ -518,28 +554,32 @@ export class GOAPPlanner {
 
         // Check duration constraints
         const estimatedDuration =
-          current.depth * 1000 + (action.estimatedDurationMs ?? 0);
+          current.estimatedDurationMs + (action.estimatedDurationMs ?? 0);
         if (estimatedDuration > maxDuration) {
           continue;
         }
 
-        // Only push if this is a better path than any previously seen in the open set
-        const prevG = openSetCosts.get(newStateKey);
-        if (prevG !== undefined && g >= prevG) {
-          continue;
+        const next: PlanNode = {
+          state: newState, action, parent: current, g, h, f,
+          depth: current.depth + 1, estimatedDurationMs: estimatedDuration,
+        };
+        if (boundedDuration) {
+          const labels = durationLabels.get(newStateKey) ?? [];
+          if (labels.some((label) => label.g <= g &&
+            label.estimatedDurationMs <= estimatedDuration && label.depth <= next.depth)) {
+            continue;
+          }
+          durationLabels.set(newStateKey, [
+            ...labels.filter((label) => !(g <= label.g &&
+              estimatedDuration <= label.estimatedDurationMs && next.depth <= label.depth)),
+            next,
+          ]);
+        } else {
+          const prevG = openSetCosts.get(newStateKey);
+          if (prevG !== undefined && g >= prevG) continue;
+          openSetCosts.set(newStateKey, g);
         }
-        openSetCosts.set(newStateKey, g);
-
-        // Add new node — O(log n)
-        openHeap.push({
-          state: newState,
-          action,
-          parent: current,
-          g,
-          h,
-          f,
-          depth: current.depth + 1,
-        });
+        openHeap.push(next);
       }
     }
 
@@ -1328,7 +1368,8 @@ export class GOAPPlanner {
 
     if (
       constraints?.maxDurationMs !== undefined &&
-      plan.estimatedDurationMs > constraints.maxDurationMs
+      plan.actions.reduce((sum, action) => sum + (action.estimatedDurationMs ?? 0), 0)
+        > constraints.maxDurationMs
     ) {
       return false;
     }
