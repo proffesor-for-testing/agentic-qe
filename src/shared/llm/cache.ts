@@ -15,6 +15,7 @@ import {
   LLMResponse,
   EmbeddingResponse,
   CompletionResponse,
+  type GenerateOptions,
 } from './interfaces';
 
 /**
@@ -33,6 +34,12 @@ export const DEFAULT_CACHE_CONFIG: LLMCacheConfig = {
  * Type for cacheable response types
  */
 export type CacheableResponse = LLMResponse | EmbeddingResponse | CompletionResponse;
+
+// Cache identity includes options that affect the requested output, not tracking metadata.
+type CacheKeyOptions = Pick<
+  GenerateOptions,
+  'model' | 'temperature' | 'maxTokens' | 'systemPrompt' | 'stopSequences' | 'effort' | 'preferredProvider'
+>;
 
 /**
  * LRU Cache implementation for LLM responses
@@ -55,12 +62,7 @@ export class LLMCache<T = CacheableResponse> {
   static generateKey(
     type: 'generation' | 'embedding' | 'completion',
     input: string,
-    options?: {
-      model?: string;
-      temperature?: number;
-      maxTokens?: number;
-      systemPrompt?: string;
-    }
+    options?: CacheKeyOptions
   ): string {
     const parts = [
       type,
@@ -70,6 +72,11 @@ export class LLMCache<T = CacheableResponse> {
       options?.systemPrompt ?? '',
       input,
     ];
+
+    const outputOptions = [options?.stopSequences, options?.effort, options?.preferredProvider];
+    if (outputOptions.some(value => value !== undefined)) {
+      parts.push(JSON.stringify(outputOptions));
+    }
 
     // Encode field boundaries before hashing: prompt text may contain delimiters.
     const hash = createHash('sha256').update(JSON.stringify(parts)).digest('hex');
@@ -279,7 +286,7 @@ export class LLMCache<T = CacheableResponse> {
     if (this.accessOrder.length === 0) {
       // Fallback: delete first entry
       const firstKey = this.cache.keys().next().value;
-      if (firstKey) {
+      if (firstKey !== undefined) {
         this.cache.delete(firstKey);
         this.evictions++;
       }
@@ -287,7 +294,7 @@ export class LLMCache<T = CacheableResponse> {
     }
 
     const lruKey = this.accessOrder.shift();
-    if (lruKey) {
+    if (lruKey !== undefined) {
       this.cache.delete(lruKey);
       this.evictions++;
     }
@@ -328,7 +335,7 @@ export class LLMResponseCache {
    */
   getGeneration(
     input: string,
-    options?: { model?: string; temperature?: number; maxTokens?: number; systemPrompt?: string }
+    options?: CacheKeyOptions
   ): LLMResponse | undefined {
     if (!this.config.cacheGenerations) {
       return undefined;
@@ -343,7 +350,7 @@ export class LLMResponseCache {
   setGeneration(
     input: string,
     response: LLMResponse,
-    options?: { model?: string; temperature?: number; maxTokens?: number; systemPrompt?: string },
+    options?: CacheKeyOptions,
     ttlMs?: number
   ): void {
     if (!this.config.cacheGenerations) {
@@ -388,7 +395,7 @@ export class LLMResponseCache {
    */
   getCompletion(
     prompt: string,
-    options?: { model?: string; temperature?: number; maxTokens?: number }
+    options?: CacheKeyOptions
   ): CompletionResponse | undefined {
     if (!this.config.cacheCompletions) {
       return undefined;
@@ -403,7 +410,7 @@ export class LLMResponseCache {
   setCompletion(
     prompt: string,
     response: CompletionResponse,
-    options?: { model?: string; temperature?: number; maxTokens?: number },
+    options?: CacheKeyOptions,
     ttlMs?: number
   ): void {
     if (!this.config.cacheCompletions) {
