@@ -6,7 +6,7 @@
  *
  * Detection priority by project type:
  * 1. Node.js: vitest > jest > fallback pattern matching
- * 2. Rust: cargo test --list
+ * 2. Rust: cargo test -- --list
  * 3. Python: pytest --collect-only
  * 4. Go: go test -list
  *
@@ -195,11 +195,11 @@ export function checkTestRunners(projectPath: string): ToolAvailability[] {
 
 /**
  * Count tests using Vitest
- * Uses `vitest list` for accurate test discovery WITHOUT execution.
+ * Uses `vitest list` for accurate test discovery without executing test callbacks.
  *
  * IMPORTANT: We use `vitest list` (not `vitest --run`) because:
  * - `vitest --run` EXECUTES tests, causing OOM in test-of-tests scenarios
- * - `vitest list` only enumerates tests without running them
+ * - Collection imports test modules but does not run test callbacks
  */
 function countVitestTests(
   projectPath: string,
@@ -230,8 +230,8 @@ function countVitestTests(
     const listingArgument = process.platform === 'win32'
       ? '"%AQE_VITEST_LIST_JSON%"'
       : '"$AQE_VITEST_LIST_JSON"';
-    execSync(
-      `npx vitest list --json=${listingArgument}${collectionFlag}`,
+    const listTests = (flag: string) => execSync(
+      `npx vitest list --json=${listingArgument}${flag}`,
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -240,6 +240,16 @@ function countVitestTests(
         env: { ...process.env, AQE_VITEST_LIST_JSON: listingFile },
       }
     );
+    try {
+      listTests(collectionFlag);
+    } catch (error) {
+      if (!collectionFlag) throw error;
+      // Collection imports project test modules (and their side effects). If
+      // those imports fail or exceed the listing cap, retain native discovery
+      // through static parsing before degrading to file-pattern estimates.
+      rmSync(listingFile, { force: true });
+      listTests(' --static-parse');
+    }
 
     // Preserve the listing size cap when the runner writes an artifact.
     if (statSync(listingFile).size > 10 * 1024 * 1024) {
@@ -325,7 +335,7 @@ function countJestTests(
 
 /**
  * Count tests using Cargo (Rust)
- * Uses `cargo test --list` for accurate test enumeration
+ * Uses `cargo test -- --list` for accurate test enumeration
  */
 function countCargoTests(
   projectPath: string,
@@ -333,7 +343,7 @@ function countCargoTests(
 ): TestMetrics {
   try {
     const output = execSync(
-      'cargo test --list',
+      'cargo test -- --list',
       {
         cwd: projectPath,
         encoding: 'utf-8',
@@ -394,20 +404,19 @@ function countPytestTests(
     );
     const total = testLines.length;
 
-    // Classify by path patterns
-    const unit = testLines.filter(t =>
-      t.includes('unit') || (!t.includes('integration') && !t.includes('e2e'))
-    ).length;
-    const integration = testLines.filter(t =>
-      t.includes('integration') || t.includes('_integration')
-    ).length;
+    // Match fallback classification precedence so every collected test belongs
+    // to exactly one category, even when its path names multiple categories.
     const e2e = testLines.filter(t =>
       t.includes('e2e') || t.includes('end_to_end')
     ).length;
+    const integration = testLines.filter(t =>
+      !t.includes('e2e') && !t.includes('end_to_end') && t.includes('integration')
+    ).length;
+    const unit = total - integration - e2e;
 
     return {
       total,
-      unit: unit - integration - e2e, // Exclude overlap
+      unit,
       integration,
       e2e,
       source: 'pytest',
@@ -441,18 +450,17 @@ function countGoTests(
       }
     );
 
-    // Count lines starting with "Test" (Go test naming convention)
-    const testLines = output.split('\n').filter(line =>
-      line.startsWith('Test') || line.startsWith('Example') || line.startsWith('Benchmark')
-    );
-    const total = testLines.filter(l => l.startsWith('Test')).length;
+    // Benchmarks and examples are listed too, but are not included in the
+    // test total. Apply that same selection to every category.
+    const testLines = output.split('\n').filter(line => line.startsWith('Test'));
+    const total = testLines.length;
 
-    // Classify by test name patterns
-    const unit = testLines.filter(t =>
-      t.startsWith('Test') && !t.includes('Integration') && !t.includes('E2E')
-    ).length;
-    const integration = testLines.filter(t => t.includes('Integration')).length;
+    // Use disjoint categories, with e2e taking precedence over integration.
     const e2e = testLines.filter(t => t.includes('E2E')).length;
+    const integration = testLines.filter(t =>
+      !t.includes('E2E') && t.includes('Integration')
+    ).length;
+    const unit = total - integration - e2e;
 
     return {
       total,
@@ -592,9 +600,9 @@ function countTestsInPythonFile(filePath: string): number {
 
     // Count def test_ functions and async def test_ functions
     const funcMatches = content.match(/\bdef\s+test_\w+\s*\(/g) || [];
-    const asyncMatches = content.match(/\basync\s+def\s+test_\w+\s*\(/g) || [];
 
-    return funcMatches.length + asyncMatches.length;
+    // The def pattern also matches async def; every declaration counts once.
+    return funcMatches.length;
   } catch {
     return 0;
   }

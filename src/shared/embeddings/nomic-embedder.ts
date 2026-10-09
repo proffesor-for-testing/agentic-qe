@@ -24,6 +24,8 @@ import {
   IEmbeddingProvider,
 } from './types';
 
+const PSEUDO_EMBEDDING_MODEL = 'pseudo-embedding';
+
 /**
  * Configuration for NomicEmbedder
  */
@@ -78,18 +80,23 @@ export class NomicEmbedder implements IEmbeddingProvider {
    * Generate embedding for a single text string
    */
   async embed(text: string): Promise<number[]> {
-    // Check cache first
-    const cached = this.cache.get(text, EMBEDDING_CONFIG.MODEL);
+    // Prefer genuine cached vectors, then select the active backend before a
+    // single counted lookup so alternate namespaces do not inflate misses.
+    let model: string = this.cache.has(text, EMBEDDING_CONFIG.MODEL) ||
+      await this.isOllamaAvailable() || !this.enableFallback
+      ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+    const cached = this.cache.get(text, model);
     if (cached) {
       return cached;
     }
 
     // Try Ollama first, fall back to pseudo-embedding if unavailable
     let embedding: number[];
-
     if (await this.isOllamaAvailable()) {
+      model = EMBEDDING_CONFIG.MODEL;
       embedding = await this.client.generateEmbedding(text);
     } else if (this.enableFallback) {
+      model = PSEUDO_EMBEDDING_MODEL;
       embedding = this.generatePseudoEmbedding(text);
     } else {
       throw new Error(
@@ -99,7 +106,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     }
 
     // Cache result
-    this.cache.set(text, EMBEDDING_CONFIG.MODEL, embedding);
+    this.cache.set(text, model, embedding);
 
     return embedding;
   }
@@ -241,13 +248,15 @@ export class NomicEmbedder implements IEmbeddingProvider {
       const chunkStartTime = Date.now();
 
       // Check cache
-      const cachedEmbedding = this.cache.get(formattedText, EMBEDDING_CONFIG.MODEL);
+      const cachedModel = useOllama || this.cache.has(formattedText, EMBEDDING_CONFIG.MODEL)
+        ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+      const cachedEmbedding = this.cache.get(formattedText, cachedModel);
 
       if (cachedEmbedding) {
         return {
           chunkId: chunk.id,
           embedding: cachedEmbedding,
-          model: EMBEDDING_CONFIG.MODEL,
+          model: cachedModel,
           cached: true,
           computeTimeMs: Date.now() - chunkStartTime,
         };
@@ -264,12 +273,13 @@ export class NomicEmbedder implements IEmbeddingProvider {
         }
 
         // Cache the result
-        this.cache.set(formattedText, EMBEDDING_CONFIG.MODEL, embedding);
+        const model = useOllama ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
+        this.cache.set(formattedText, model, embedding);
 
         return {
           chunkId: chunk.id,
           embedding,
-          model: useOllama ? EMBEDDING_CONFIG.MODEL : 'pseudo-embedding',
+          model,
           cached: false,
           computeTimeMs: Date.now() - chunkStartTime,
         };

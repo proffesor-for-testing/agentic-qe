@@ -39,6 +39,8 @@ import {
  */
 export type GOAPStatusType = 'world' | 'goals' | 'actions' | 'plans' | 'execution';
 
+const PLAN_STATUSES = ['pending', 'executing', 'completed', 'failed', 'cancelled'] as const;
+
 /**
  * Parameters for GOAP status tool
  */
@@ -135,6 +137,8 @@ export interface PlansResult {
     createdAt?: string;
   }>;
   count: number;
+  /** Stored rows omitted from this page because their action sequence is invalid. */
+  invalidPlanIds?: string[];
   reuseStats?: {
     totalPlans: number;
     reusedPlans: number;
@@ -208,7 +212,8 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
             },
             status: {
               type: 'string',
-              description: 'Filter plans by status (pending, executing, completed, failed)',
+              description: 'Filter plans by status (pending, executing, completed, failed, cancelled)',
+              enum: [...PLAN_STATUSES],
             },
             limit: {
               type: 'number',
@@ -439,9 +444,12 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
     status?: string,
     limit: number = 20
   ): Promise<ToolResult<GOAPStatusResult>> {
+    if (status !== undefined && !(PLAN_STATUSES as readonly string[]).includes(status)) {
+      return { success: false, error: `filter.status must be one of: ${PLAN_STATUSES.join(', ')}` };
+    }
     const planner = await this.getPlanner();
 
-    const [{ plans, count }, reuseStats] = await Promise.all([
+    const [{ plans, count, invalidPlanIds }, reuseStats] = await Promise.all([
       planner.listPlanSummaries(status, limit),
       planner.getPlanReuseStats(),
     ]);
@@ -455,6 +463,7 @@ export class GOAPStatusTool extends MCPToolBase<GOAPStatusParams, GOAPStatusResu
         data: {
           plans,
           count,
+          ...(invalidPlanIds ? { invalidPlanIds } : {}),
           reuseStats: {
             totalPlans: reuseStats.totalPlans,
             reusedPlans: reuseStats.reusedPlans,

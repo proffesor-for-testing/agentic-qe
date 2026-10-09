@@ -222,11 +222,15 @@ describe('A/B Benchmarking Framework - ADR-058 Phase 3', () => {
       const benchmarkId = framework.createBenchmark(config);
       framework.startBenchmark(benchmarkId);
 
-      // Record enough samples to get a winner
-      for (let i = 0; i < 10; i++) {
-        framework.recordOutcome(benchmarkId, 'a', true);
-        framework.recordOutcome(benchmarkId, 'b', i < 3);
+      // Preserve the 100% versus 30% rates with qualifying evidence for promotion.
+      for (let i = 0; i < 30; i++) {
+        framework.recordOutcome(benchmarkId, 'a', true, { success_rate: 1 });
+        framework.recordOutcome(benchmarkId, 'b', i < 9, { success_rate: Number(i < 9) });
       }
+
+      expect(framework.calculateStatisticalSignificance(benchmarkId).chiSquareTest!.isSignificant).toBe(true);
+      const comparison = framework.compareVariants(benchmarkId, 'a', 'b');
+      expect(comparison.combinedScores.variantA).toBeGreaterThan(comparison.combinedScores.variantB);
 
       // Apply winner to complete
       framework.applyWinner(benchmarkId);
@@ -501,7 +505,7 @@ describe('A/B Benchmarking Framework - ADR-058 Phase 3', () => {
 
       expect(winner).toBeDefined();
       expect(winner!.winnerId).toBe('treatment');
-      expect(winner!.confidence).toBeGreaterThan(0);
+      expect(winner!.heuristicScore).toBeGreaterThan(0);
       expect(winner!.recommendation).toContain('treatment');
     });
 

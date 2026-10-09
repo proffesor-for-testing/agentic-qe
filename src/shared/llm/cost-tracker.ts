@@ -307,7 +307,8 @@ export class CostTracker {
     for (const record of relevantRecords) {
       totalCost += record.cost.totalCost;
       totalTokens += record.usage.totalTokens;
-      byProvider[record.provider] += record.cost.totalCost;
+      const providerCost = Object.hasOwn(byProvider, record.provider) ? byProvider[record.provider] : 0;
+      byProvider[record.provider] = providerCost + record.cost.totalCost;
       byModel[record.model] = (byModel[record.model] || 0) + record.cost.totalCost;
     }
 

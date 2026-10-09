@@ -58,7 +58,12 @@ export const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
 /**
  * Gemini API response types
  */
+interface GeminiPromptFeedback {
+  blockReason?: 'BLOCK_REASON_UNSPECIFIED' | 'SAFETY' | 'OTHER' | 'BLOCKLIST' | 'PROHIBITED_CONTENT' | 'IMAGE_SAFETY';
+}
+
 interface GeminiGenerateResponse {
+  promptFeedback?: GeminiPromptFeedback;
   candidates: Array<{
     content: {
       parts: Array<{
@@ -85,6 +90,7 @@ interface GeminiGenerateResponse {
 }
 
 interface GeminiStreamChunk {
+  promptFeedback?: GeminiPromptFeedback;
   candidates?: Array<{
     content: {
       parts: Array<{
@@ -338,7 +344,10 @@ export class GeminiProvider implements LLMProvider {
         }
       );
 
-      const content = data.candidates[0]?.content?.parts
+      // A blocked prompt has no candidates; preserve it as a terminal result.
+      const blocked = this.isPromptBlocked(data.promptFeedback);
+      const candidate = blocked ? undefined : data.candidates[0];
+      const content = candidate?.content?.parts
         ?.map(p => p.text ?? '')
         .join('') ?? '';
 
@@ -349,7 +358,7 @@ export class GeminiProvider implements LLMProvider {
         usage,
         cost,
         latencyMs,
-        finishReason: this.mapFinishReason(data.candidates[0]?.finishReason),
+        finishReason: blocked ? 'content_filter' : this.mapFinishReason(candidate?.finishReason),
         cached: false,
         requestId,
       };
@@ -448,10 +457,10 @@ export class GeminiProvider implements LLMProvider {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
 
           try {
-            const chunk = safeJsonParse(trimmed.slice(6)) as GeminiStreamChunk;
+            const chunk = safeJsonParse(trimmed.slice(5).trimStart()) as GeminiStreamChunk;
             const text = chunk.candidates?.[0]?.content?.parts
               ?.map(p => p.text ?? '')
               .join('') ?? '';
@@ -461,7 +470,9 @@ export class GeminiProvider implements LLMProvider {
               yield text;
             }
 
-            if (chunk.candidates?.[0]?.finishReason) {
+            if (this.isPromptBlocked(chunk.promptFeedback)) {
+              finishReason = 'content_filter';
+            } else if (chunk.candidates?.[0]?.finishReason) {
               finishReason = this.mapFinishReason(chunk.candidates[0].finishReason);
             }
 
@@ -709,6 +720,10 @@ export class GeminiProvider implements LLMProvider {
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
       }));
+  }
+
+  private isPromptBlocked(feedback?: GeminiPromptFeedback): boolean {
+    return !!feedback?.blockReason && feedback.blockReason !== 'BLOCK_REASON_UNSPECIFIED';
   }
 
   /**

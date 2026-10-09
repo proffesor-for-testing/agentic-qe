@@ -54,12 +54,14 @@ export class OllamaClient {
       const data = await response.json() as OllamaHealthResponse;
 
       // Check if configured embedding model is available
-      // Model names may include tags like ":latest", so use startsWith for matching
+      // Match the configured model exactly, allowing its existing tag suffix.
       if (data.models) {
         return data.models.some(
           (model) =>
-            model.name?.startsWith(EMBEDDING_CONFIG.MODEL) ||
-            model.model?.startsWith(EMBEDDING_CONFIG.MODEL)
+            model.name === EMBEDDING_CONFIG.MODEL ||
+            model.name?.startsWith(`${EMBEDDING_CONFIG.MODEL}:`) ||
+            model.model === EMBEDDING_CONFIG.MODEL ||
+            model.model?.startsWith(`${EMBEDDING_CONFIG.MODEL}:`)
         );
       }
 

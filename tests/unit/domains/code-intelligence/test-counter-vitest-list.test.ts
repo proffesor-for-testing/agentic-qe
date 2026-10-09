@@ -113,3 +113,46 @@ describe.skipIf(process.platform === 'win32')('native Vitest collection metrics'
     expect(metrics.total).toBe(2);
   });
 });
+
+
+describe.skipIf(process.platform === 'win32')('native Vitest collection recovery', () => {
+  it('uses the static list when importing a test module times out', async () => {
+    const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs';
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3000);
+      it('first static case', () => { writeFileSync('executed', 'bad'); });
+      it('second static case', () => { writeFileSync('executed', 'bad'); });`, true);
+    const metrics = await countTests(root, { timeout: 1500 });
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(2);
+    expect(existsSync(join(root, 'executed'))).toBe(false);
+  }, 10000);
+
+  it('uses the static list when importing a test module throws', async () => {
+    const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs';
+      throw new Error('collection import deliberately refused');
+      it('first static case', () => { writeFileSync('executed', 'bad'); });
+      it('second static case', () => { writeFileSync('executed', 'bad'); });`, true);
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(2);
+    expect(existsSync(join(root, 'executed'))).toBe(false);
+  }, 10000);
+
+  it('preserves an empty static list after collection fails', async () => {
+    const root = fixture(`import { describe } from 'vitest'; throw new Error('empty import deliberately refused'); describe('empty suite', () => {});`, true);
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('vitest');
+    expect(metrics.total).toBe(0);
+  }, 10000);
+
+  it('uses file-pattern estimates when collection and static listing both fail', async () => {
+    const root = fixture(`import { it } from 'vitest';
+      it('first estimated case', () => { throw new Error('must not execute'); });
+      it('second estimated case', () => { throw new Error('must not execute'); });`, true);
+    writeFileSync(join(root, 'vitest.config.mjs'), 'export default { test: ');
+    const metrics = await countTests(root);
+    expect(metrics.source).toBe('fallback');
+    expect(metrics.total).toBe(2);
+  }, 10000);
+
+});
