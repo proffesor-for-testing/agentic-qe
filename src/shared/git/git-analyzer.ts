@@ -127,10 +127,11 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
-      // Use execFileSync with argument array to prevent injection
+      const relativePath = this.getRelativePath(filePath);
+      // Literal pathspecs preserve route filenames such as app/[id].tsx.
+      // execFileSync passes arguments directly without shell interpretation.
       const output = execFileSync('git', [
-        'log', '--oneline', '--since=90 days ago', '--', relativePath
+        '--literal-pathspecs', 'log', '--oneline', '--since=90 days ago', '--', relativePath
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
@@ -160,11 +161,11 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
+      const relativePath = this.getRelativePath(filePath);
 
       // Get blame info using execFileSync with argument array
       const blameOutput = execFileSync('git', [
-        'blame', '--line-porcelain', '--', relativePath
+        '--literal-pathspecs', 'blame', '--line-porcelain', '--', relativePath
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
@@ -211,13 +212,13 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
+      const relativePath = this.getRelativePath(filePath);
 
       // Get first commit date using execFileSync with argument array
       let firstCommitTimestamp: number = NaN;
       try {
         const firstCommitOutput = execFileSync('git', [
-          'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath
+          '--literal-pathspecs', 'log', '--format=%at', '--follow', '--diff-filter=A', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -236,7 +237,7 @@ export class GitAnalyzer {
       let lastCommitTimestamp: number = NaN;
       try {
         const lastCommitOutput = execFileSync('git', [
-          'log', '-1', '--format=%at', '--', relativePath
+          '--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -288,7 +289,7 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
+      const relativePath = this.getRelativePath(filePath);
 
       // Search for each keyword separately and count unique commits
       // This avoids shell injection from keywords config
@@ -299,7 +300,7 @@ export class GitAnalyzer {
         const sanitizedKeyword = sanitizeGitArg(keyword);
         try {
           const output = execFileSync('git', [
-            'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
+            '--literal-pathspecs', 'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
           ], {
             cwd: this.config.repoRoot,
             encoding: 'utf-8',
@@ -343,13 +344,13 @@ export class GitAnalyzer {
     }
 
     try {
-      const relativePath = sanitizeGitArg(this.getRelativePath(filePath));
+      const relativePath = this.getRelativePath(filePath);
 
       // Get commit count using execFileSync with argument array
       let totalCommits = 0;
       try {
         const commitCountOutput = execFileSync('git', [
-          'log', '--oneline', '--', relativePath
+          '--literal-pathspecs', 'log', '--oneline', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -364,7 +365,7 @@ export class GitAnalyzer {
       let uniqueAuthors = 0;
       try {
         const authorsOutput = execFileSync('git', [
-          'log', '--format=%ae', '--', relativePath
+          '--literal-pathspecs', 'log', '--format=%ae', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -382,7 +383,7 @@ export class GitAnalyzer {
       let firstCommit: Date | null = null;
       try {
         const firstCommitOutput = execFileSync('git', [
-          'log', '--format=%at', '--follow', '--', relativePath
+          '--literal-pathspecs', 'log', '--format=%at', '--follow', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -405,7 +406,7 @@ export class GitAnalyzer {
       let lastCommit: Date | null = null;
       try {
         const lastCommitOutput = execFileSync('git', [
-          'log', '-1', '--format=%at', '--', relativePath
+          '--literal-pathspecs', 'log', '-1', '--format=%at', '--', relativePath
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
@@ -443,7 +444,7 @@ export class GitAnalyzer {
         const sanitizedKeyword = sanitizeGitArg(keyword);
         try {
           const bugFixOutput = execFileSync('git', [
-            'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
+            '--literal-pathspecs', 'log', '--oneline', '--grep', sanitizedKeyword, '-i', '--', relativePath
           ], {
             cwd: this.config.repoRoot,
             encoding: 'utf-8',
@@ -498,17 +499,17 @@ export class GitAnalyzer {
 
       // Get files changed since the date using execFileSync with argument array
       const output = execFileSync('git', [
-        'log', `--since=${sinceStr}`, '--name-only', '--pretty=format:'
+        'log', `--since=${sinceStr}`, '--name-only', '-z', '--format='
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
+      });
 
       if (!output) return [];
 
-      // Deduplicate and filter empty lines manually (instead of sort -u | grep -v)
-      const files = output.split('\n').filter(Boolean);
+      // NUL records preserve whitespace, newlines and Git-quoted Unicode paths.
+      const files = output.split('\0').filter(Boolean);
       return Array.from(new Set(files));
     } catch {
       return [];
@@ -530,16 +531,16 @@ export class GitAnalyzer {
       const sanitizedHash = sanitizeGitArg(commitHash);
 
       const output = execFileSync('git', [
-        'diff-tree', '--no-commit-id', '--name-only', '-r', sanitizedHash
+        'diff-tree', '--no-commit-id', '--name-only', '-z', '-r', sanitizedHash
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim();
+      });
 
       if (!output) return [];
 
-      return output.split('\n').filter(Boolean);
+      return output.split('\0').filter(Boolean);
     } catch {
       return [];
     }
@@ -560,14 +561,14 @@ export class GitAnalyzer {
       // Get unstaged changes using execFileSync with argument array
       try {
         const unstagedOutput = execFileSync('git', [
-          'diff', '--name-only', 'HEAD'
+          'diff', '--name-only', '-z', 'HEAD'
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim();
+        });
         if (unstagedOutput) {
-          files.push(...unstagedOutput.split('\n').filter(Boolean));
+          files.push(...unstagedOutput.split('\0').filter(Boolean));
         }
       } catch {
         // May fail if no HEAD commit exists
@@ -576,14 +577,14 @@ export class GitAnalyzer {
       // Get staged changes using execFileSync with argument array
       try {
         const stagedOutput = execFileSync('git', [
-          'diff', '--name-only', '--cached'
+          'diff', '--name-only', '-z', '--cached'
         ], {
           cwd: this.config.repoRoot,
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
-        }).trim();
+        });
         if (stagedOutput) {
-          files.push(...stagedOutput.split('\n').filter(Boolean));
+          files.push(...stagedOutput.split('\0').filter(Boolean));
         }
       } catch {
         // May fail if no commits exist
