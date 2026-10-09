@@ -6,7 +6,7 @@
  *
  * Detection priority by project type:
  * 1. Node.js: vitest > jest > fallback pattern matching
- * 2. Rust: cargo test --list
+ * 2. Rust: cargo test -- --list
  * 3. Python: pytest --collect-only
  * 4. Go: go test -list
  *
@@ -301,7 +301,7 @@ function countJestTests(
 
 /**
  * Count tests using Cargo (Rust)
- * Uses `cargo test --list` for accurate test enumeration
+ * Uses `cargo test -- --list` for accurate test enumeration
  */
 function countCargoTests(
   projectPath: string,
@@ -309,7 +309,7 @@ function countCargoTests(
 ): TestMetrics {
   try {
     const output = execSync(
-      'cargo test --list',
+      'cargo test -- --list',
       {
         cwd: projectPath,
         encoding: 'utf-8',
