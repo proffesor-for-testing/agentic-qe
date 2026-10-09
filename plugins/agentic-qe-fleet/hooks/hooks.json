@@ -1,0 +1,6 @@
+{
+  "description": "agentic-qe as a mod (aqe-mod, ADR-446 minimum): a tighten-only tool.call guard, on by default, that refuses rm/mv/truncate/overwrite of .agentic-qe learning databases and destructive SQL against them; `/aqe-mod` (status, check, fleet, gate); and .claude-flow/aqe-mod/status.json for the ruflo console. No network, no process.",
+  "modules": [
+    "./register.ts"
+  ]
+}
