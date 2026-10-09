@@ -16,7 +16,7 @@
 
 import { createHash } from 'crypto';
 import type { JsonPatchOperation } from './event-types.js';
-import { computeDiff, deepEqual, type DiffConfig } from './json-patch.js';
+import { computeDiff, deepEqual, parsePath, type DiffConfig } from './json-patch.js';
 
 // ============================================================================
 // Types
@@ -374,11 +374,7 @@ export class StateDeltaCache {
    * Parse a JSON Pointer path into segments
    */
   private parseJsonPointerPath(path: string): string[] {
-    if (path === '' || path === '/') return [];
-    if (!path.startsWith('/')) {
-      throw new Error(`Invalid JSON Pointer: ${path}`);
-    }
-    return path.slice(1).split('/');
+    return parsePath(path);
   }
 
   /**
