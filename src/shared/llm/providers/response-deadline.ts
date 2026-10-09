@@ -1,19 +1,27 @@
-/** A provider request deadline covers headers and the response body. */
+/** Bound headers and bodies; streaming callers may use an idle body deadline. */
 export async function fetchWithResponseDeadline(
   url: string,
   options: RequestInit,
   timeoutMs: number,
   timeoutError: () => Error,
+  bodyDeadline: 'absolute' | 'idle' = 'absolute',
 ): Promise<Response> {
   const abort = new AbortController();
   let expired = false;
   let expireBody: ((error: Error) => void) | undefined;
-  const timer = setTimeout(() => {
+  const expire = () => {
     expired = true;
     const error = timeoutError();
     expireBody?.(error);
     abort.abort(error);
-  }, timeoutMs);
+  };
+  let timer = setTimeout(expire, timeoutMs);
+  const resetIdleDeadline = () => {
+    if (bodyDeadline !== 'idle') return;
+    clearTimeout(timer);
+    timer = setTimeout(expire, timeoutMs);
+    timer.unref?.();
+  };
   // A status-only caller must not keep a process alive until its deadline.
   timer.unref?.();
 
@@ -24,6 +32,7 @@ export async function fetchWithResponseDeadline(
       return response;
     }
 
+    resetIdleDeadline();
     const reader = response.body.getReader();
     let finished = false;
     const finish = () => {
@@ -49,6 +58,7 @@ export async function fetchWithResponseDeadline(
             reader.releaseLock();
             controller.close();
           } else {
+            resetIdleDeadline();
             controller.enqueue(result.value);
           }
         } catch (error) {

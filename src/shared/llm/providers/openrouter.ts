@@ -458,7 +458,8 @@ export class OpenRouterProvider implements LLMProvider {
         headers: this.getHeaders(),
         body: JSON.stringify(body),
       },
-      options?.timeoutMs ?? this.config.timeoutMs ?? 60000
+      options?.timeoutMs ?? this.config.timeoutMs ?? 60000,
+      'idle'
     );
 
     if (!response.ok) {
@@ -892,13 +893,15 @@ export class OpenRouterProvider implements LLMProvider {
   private async fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeoutMs: number
+    timeoutMs: number,
+    bodyDeadline: 'absolute' | 'idle' = 'absolute'
   ): Promise<Response> {
     return fetchWithResponseDeadline(url, options, timeoutMs, () =>
       createLLMError('Request timed out', 'TIMEOUT', {
         provider: 'openrouter',
         retryable: true,
-      })
+      }),
+      bodyDeadline
     );
   }
 
