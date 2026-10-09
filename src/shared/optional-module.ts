@@ -60,7 +60,17 @@ export function loadOptionalModule<T = unknown>(
           if (!isModuleAbsent(resolutionError)) throw resolutionError;
           return { available: false, degraded: true, name, reason: `optional module "${name}" not installed (running degraded)` };
         }
-        throw err;
+        // Installed optional wrappers may lack the binary for this platform.
+        // Preserve degradation, but identify the missing inner dependency.
+        const message = (err as { message?: string }).message;
+        const inner = typeof message === 'string'
+          ? /Cannot find (?:module|package) ['"]([^'"]+)['"]/.exec(message)?.[1]
+          : undefined;
+        const dependency = inner ? ` its dependency "${inner}" is missing` : ' a dependency is missing';
+        return {
+          available: false, degraded: true, name,
+          reason: `optional module "${name}" is installed but${dependency} (running degraded)`,
+        };
       }
       // Injected minimal require functions retain the historical absence contract.
       return { available: false, degraded: true, name, reason: `optional module "${name}" not installed (running degraded)` };

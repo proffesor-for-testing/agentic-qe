@@ -14,7 +14,10 @@ describe('optional dependency load failures', () => {
       writeFileSync(join(folder, 'package.json'), JSON.stringify({ name: 'installed-optional', main: 'index.cjs' }));
       writeFileSync(join(folder, 'index.cjs'), "module.exports = require('missing-inner-dependency-aqe');");
       const req = createRequire(join(root, 'consumer.cjs'));
-      expect(() => loadOptionalModule('installed-optional', req)).toThrow(/missing-inner-dependency-aqe/);
+      expect(loadOptionalModule('installed-optional', req)).toMatchObject({
+        available: false, degraded: true, name: 'installed-optional',
+        reason: expect.stringContaining('missing-inner-dependency-aqe'),
+      });
       expect(loadOptionalModule('really-absent-optional-aqe', req)).toMatchObject({ available: false, degraded: true });
       writeFileSync(join(folder, 'index.cjs'), 'module.exports = { ready: true };');
       expect(loadOptionalModule('installed-optional', req)).toMatchObject({ available: true, module: { ready: true } });
