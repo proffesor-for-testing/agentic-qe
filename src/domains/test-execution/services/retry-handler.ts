@@ -535,6 +535,9 @@ export class RetryHandlerService implements IRetryHandler {
     testName?: string
   ): { command: string; args: string[]; report?: VitestJsonReport } {
     const npx = this.config.npxPath;
+    // These runners interpret name filters as regular expressions, but a
+    // FailedTest contains the literal assertion name from the previous run.
+    const namePattern = testName?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') ?? '';
 
     switch (runner) {
       case 'vitest':
@@ -543,7 +546,7 @@ export class RetryHandlerService implements IRetryHandler {
         { const report = createVitestJsonReport();
         const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
         if (testName && testName !== testFile) {
-          vitestArgs.push('-t', testName);
+          vitestArgs.push('-t', namePattern);
         }
         vitestArgs.push(...report.args);
         return { command: npx, args: vitestArgs, report }; }
@@ -552,7 +555,7 @@ export class RetryHandlerService implements IRetryHandler {
         // jest --json testFile -t "testName"
         { const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
         if (testName && testName !== testFile) {
-          jestArgs.push('-t', testName);
+          jestArgs.push('-t', namePattern);
         }
         return { command: npx, args: jestArgs }; }
 
@@ -560,7 +563,7 @@ export class RetryHandlerService implements IRetryHandler {
         // mocha --reporter json testFile --grep "testName"
         { const mochaArgs = ['mocha', '--reporter', 'json', testFile];
         if (testName && testName !== testFile) {
-          mochaArgs.push('--grep', testName);
+          mochaArgs.push('--grep', namePattern);
         }
         return { command: npx, args: mochaArgs }; }
 
