@@ -34,6 +34,8 @@ export type Segment = {
   readonly dropped?: string
   /** A heredoc fed to it whose end is not in the text: what it reads is unknown. */
   readonly opaqueStdin?: boolean
+  /** Here-string words (`<<< "$(find ...)"`), as written: what they expand to feeds read/mapfile/xargs. */
+  readonly hereStrings?: readonly string[]
 }
 
 /** How deep `$(...)` / backtick nesting is read; deeper text is handed back unread, as `dropped`. */
@@ -50,6 +52,7 @@ type Building = {
   pipeline: number
   stage: number
   opaqueStdin?: boolean
+  hereStrings?: string[]
 }
 
 type Heredoc = { readonly seg: Building; readonly delim: string; readonly strip: boolean; readonly literal: boolean }
@@ -168,7 +171,10 @@ export function parse(src: string, depth = 0): Segment[] {
   const endWord = () => {
     if (!started) return
     if (pendingOp === '<<' || pendingOp === '<<-') heredocs.push({ seg, delim: word, strip: pendingOp === '<<-', literal: wasQuoted })
-    else if (pendingOp === '<<<') seg.stdin += `${word}\n`
+    else if (pendingOp === '<<<') {
+      seg.stdin += `${word}\n`
+      seg.hereStrings = [...(seg.hereStrings ?? []), word]
+    }
     else if (pendingOp !== undefined) seg.redirects.push({ op: pendingOp, target: word })
     else {
       seg.words.push(word)
@@ -354,6 +360,7 @@ class Stage implements Segment {
   readonly redirects: readonly Redirect[]
   readonly piped: boolean
   readonly opaqueStdin: boolean
+  readonly hereStrings: readonly string[]
   private readonly built: Building
   private readonly pipeline: readonly Building[]
   private readonly at: number
@@ -367,6 +374,7 @@ class Stage implements Segment {
     this.redirects = built.redirects
     this.piped = built.stage > 0
     this.opaqueStdin = built.opaqueStdin === true
+    this.hereStrings = built.hereStrings ?? []
     this.pipeline = pipeline
     this.at = at
   }

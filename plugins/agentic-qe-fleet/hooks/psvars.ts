@@ -18,10 +18,10 @@ const REF = /(?<![\w.`])([$@])\{?([A-Za-z_]\w*)\}?((?:\.\w+)*)/g
 
 const unquote = (v: string): string => v.trim().replace(/^(['"])([\s\S]*)\1$/, '$2')
 
-/** `$name = <rhs>` as a statement: the name and the right side, or undefined. */
-export const assignment = (statement: string): { name: string; rhs: string } | undefined => {
-  const m = /^\$\{?([A-Za-z_]\w*)\}?\s*=(?!=)\s*([\s\S]+)$/.exec(statement.trim())
-  return m === null ? undefined : { name: (m[1] as string).toLowerCase(), rhs: m[2] as string }
+/** `$name = <rhs>` / `$name += <rhs>` as a statement: the name, the right side, and whether it appends. */
+export const assignment = (statement: string): { name: string; rhs: string; append: boolean } | undefined => {
+  const m = /^\$\{?([A-Za-z_]\w*)\}?\s*(\+?)=(?!=)\s*([\s\S]+)$/.exec(statement.trim())
+  return m === null ? undefined : { name: (m[1] as string).toLowerCase(), rhs: m[3] as string, append: m[2] === '+' }
 }
 
 /** `foreach ($d in <expr>)`: the loop variable and its source, or undefined. */
@@ -48,7 +48,11 @@ export function rhsValues(rhs: string, ctx: Ctx, feeds: (text: string) => boolea
       return [`-${m[1] as string}`, v]
     })
   }
-  const array = /^@\(([\s\S]*)\)$/.exec(t)?.[1] ?? (/^(['"][^'"]*['"]\s*,\s*)+['"][^'"]*['"]$/.test(t) ? t : undefined)
+  // `@(...)`, `(...)`, `$(...)` around a command: what that command yields (`@(Get-ChildItem -Recurse -Filter *.db)`).
+  const group = /^[@$]?\(([\s\S]*)\)((?:\.\w+)*)$/.exec(t)?.[1]
+  const literals = (v: string) => /^\s*(['"][^'"]*['"]\s*,\s*)*['"][^'"]*['"]\s*$/.test(v) || v.trim() === ''
+  if (group !== undefined && !literals(group)) return rhsValues(group, ctx, feeds)
+  const array = group ?? (/^(['"][^'"]*['"]\s*,\s*)+['"][^'"]*['"]$/.test(t) ? t : undefined)
   if (array !== undefined) return array.split(',').map(unquote).filter(v => v !== '')
   const literal = /^(['"])([^'"]*)\1$/.exec(t)
   if (literal !== null) return [literal[2] as string]

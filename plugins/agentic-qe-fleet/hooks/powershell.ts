@@ -27,6 +27,36 @@ const PWSH = /^(pwsh|powershell)(\.exe)?$/
 const CONSUMES = /(^|[\s{;(])(remove-item|ri|rm|del|erase|rd|rmdir|move-item|mv|move|mi|clear-content|clc|set-content|sc|rename-item|ren|rni)(?=$|[\s;})])|\.delete\s*\(/i
 /** .NET file APIs that delete, move or overwrite. */
 const DOTNET = /\[(System\.)?IO\.(File|Directory|FileInfo|DirectoryInfo)\]::(Delete|Move|Copy|Replace|WriteAll\w*|AppendAll\w*|Create\w*|Open\w*)\b|\.Delete\s*\(/i
+/** Names and extensions of the store's files and directory, for literal Where-Object filters. */
+const STORE_NAMES = ['memory.db', 'memory.db-wal', 'memory.db-shm', 'memory.db-journal', 'brain.rvf', '.agentic-qe']
+const STORE_EXTENSIONS = ['.db', '.db-wal', '.db-shm', '.db-journal', '.rvf', '.agentic-qe']
+/** A `(...)`, `@(...)` or `$(...)` group inside a stage (one level of nesting). */
+const GROUP = /[@$]?\(((?:[^()]|\([^()]*\))*)\)/g
+/** `$x.Delete(...)` / `$x.MoveTo(...)` on a variable. */
+const METHOD_ON_VAR = /\$\{?([A-Za-z_]\w*)\}?\.(delete|moveto)\s*\(/gi
+
+/**
+ * Whether a stage is a Where-Object filter on Name or Extension, by `-eq`, `-like` or `-match`
+ * against a literal that cannot match a store file or the directory (`Where-Object Extension -eq '.tmp'`).
+ */
+function narrowsAwayFromStore(stage: string): boolean {
+  if (!/^\s*(where-object|where|\?)(\s|\{|$)/i.test(stage)) return false
+  // A literal: single-quoted (where `$` is literal), or double-quoted without `$` (no expansion).
+  const m = /(?:\$_\.)?\b(name|extension)\s+-[ic]?(eq|like|match)\s+(?:'([^']*)'|"([^"$]*)")/i.exec(stage)
+  if (m === null) return false
+  const candidates = (m[1] as string).toLowerCase() === 'name' ? STORE_NAMES : STORE_EXTENSIONS
+  const literal = (m[3] ?? m[4]) as string
+  const op = (m[2] as string).toLowerCase()
+  if (op === 'eq') return candidates.every(c => c.toLowerCase() !== literal.toLowerCase())
+  if (op === 'like') return candidates.every(c => !globMatches(literal, c))
+  try {
+    const re = new RegExp(literal, 'i')
+    return candidates.every(c => !re.test(c))
+  } catch {
+    return false
+  }
+}
+
 /** How deep `iex`, `& { }` and `Start-Process` text is followed before naming the store at all is refused. */
 const MAX_DEPTH = 6
 
@@ -191,6 +221,10 @@ export function judgePowerShell(command: string, ctx: Ctx, depth = 0, vars: PsVa
     if (/^(iex|invoke-expression)\b/i.test(raw.trim()) && hasUnknownVar(raw, vars)) return '`Invoke-Expression` runs text the guard cannot read'
     const loop = foreachOf(raw)
     if (loop !== undefined) vars.set(loop.name, rhsValues(substitute(loop.source, vars), ctx, t => feedsStore(t, ctx, true)))
+    // `$db.Delete()`, `$f.MoveTo(...)` on a variable that holds the store or a listing of it.
+    for (const m of raw.matchAll(METHOD_ON_VAR)) {
+      if ((vars.get((m[1] as string).toLowerCase()) ?? []).some(v => isData(v.replace(/\\/g, '/'), ctx))) return `\`$${m[1] as string}.${m[2] as string}()\` on AQE learning data`
+    }
     const bound = assignment(raw)
     const statement = substitute(bound === undefined ? raw : bound.rhs, vars)
     const parts = stages(statement)
@@ -198,11 +232,23 @@ export function judgePowerShell(command: string, ctx: Ctx, depth = 0, vars: PsVa
       const part = parts[i] as string
       const what = judgePsSegment(part, ctx, depth)
       if (what !== undefined) return what
-      // Data flow: a destroying stage fed by one that names, lists recursively or lists hidden items of the store.
       const recursive = hasSwitch(verbOf(part).args, 'recurse', 1)
-      if (i > 0 && CONSUMES.test(part) && parts.slice(0, i).some(up => feedsStore(up, ctx, recursive))) return `a PowerShell pipeline feeds AQE learning data to \`${verbOf(part).verb}\``
+      if (CONSUMES.test(part)) {
+        // A `(...)`/`@(...)`/`$(...)` argument is a stage of its own (`Remove-Item (gci -r -Filter *.db)`).
+        for (const g of part.matchAll(GROUP)) if (feedsStore(g[1] as string, ctx, recursive)) return `\`${verbOf(part).verb}\` is handed AQE learning data by \`(${(g[1] as string).trim()})\``
+        // Data flow: a destroying stage fed by one that names, lists recursively or lists hidden items of the store,
+        // unless a literal Where-Object filter in between cannot pass a store file.
+        const fed = parts.slice(0, i).some((up, j) => feedsStore(up, ctx, recursive) && !parts.slice(j + 1, i).some(narrowsAwayFromStore))
+        if (i > 0 && fed) return `a PowerShell pipeline feeds AQE learning data to \`${verbOf(part).verb}\``
+      }
+      // `-OutVariable dbs` / `-ov dbs`: the variable holds what this stage outputs.
+      const ov = /-(?:outvariable|ov)\s+\+?([A-Za-z_]\w*)/i.exec(part)
+      if (ov !== null) vars.set((ov[1] as string).toLowerCase(), rhsValues(part, ctx, t => feedsStore(t, ctx, true)))
     }
-    if (bound !== undefined) vars.set(bound.name, rhsValues(statement, ctx, t => feedsStore(t, ctx, true)))
+    if (bound !== undefined) {
+      const values = rhsValues(statement, ctx, t => feedsStore(t, ctx, true))
+      vars.set(bound.name, bound.append ? [...(vars.get(bound.name) ?? []), ...values] : values)
+    }
   }
   return undefined
 }

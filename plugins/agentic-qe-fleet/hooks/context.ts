@@ -64,8 +64,8 @@ function matching(w: string, open: number, o: string, c: string): number {
 function braceParam(inner: string, vars: ReadonlyMap<string, readonly string[]>, depth: number): Unit {
   const name = /^[A-Za-z_][A-Za-z0-9_]*$/.test(inner) ? inner : undefined
   if (name !== undefined) return vars.get(name) ?? ['*']
-  // `${arr[@]}`, `${arr[*]}`, `${arr[0]}`: the array's values (an array binding holds every element).
-  const element = /^([A-Za-z_][A-Za-z0-9_]*)\[[^\]]*\]$/.exec(inner)
+  // `${arr[@]}`, `${arr[*]}`, `${arr[0]}`, slices `${arr[@]:1}`: the array's values (an array binding holds every element).
+  const element = /^([A-Za-z_][A-Za-z0-9_]*)\[[^\]]*\](:[^}]*)?$/.exec(inner)
   if (element !== null) return vars.get(element[1] as string) ?? ['*']
   const op = /^([A-Za-z_][A-Za-z0-9_]*)(:?[-=?+])(.*)$/s.exec(inner)
   if (op === null || depth > 8) return ['*']

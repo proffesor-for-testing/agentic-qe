@@ -18,7 +18,7 @@
  * interpreter one-liners, powershell.ts the PowerShell tool, paths.ts says what
  * is learning data.
  */
-import { isData, textNamesData, type Ctx, type GuardScope } from './context'
+import { expandVars, isData, textNamesData, WORD_BUDGET, type Ctx, type GuardScope } from './context'
 import { protectedKind } from './paths'
 import type { GuardMode } from './options'
 import { judgePowerShell } from './powershell'
@@ -63,6 +63,14 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
     ctx.mentionsData = segs.some(s => s.words.some(w => isData(w, ctx)) || s.redirects.some(r => isData(r.target, ctx)) || (s.stdin !== '' && textNamesData(s.stdin, ctx)))
   // `done < <(find ...)`: what the process substitution prints is what `read` receives, earlier on the line.
   for (const s of segs) {
+    // `done <<< "$(find ...)"`: a here-string feeds `read` the same way.
+    for (const w of s.hereStrings ?? []) {
+      const named = expandVars(w, ctx.vars, WORD_BUDGET, inner => ctx.subst(inner, ctx)).filter(v => isData(v, ctx))
+      if (named.length > 0) {
+        ctx.readFed = [...new Set([...(ctx.readFed ?? []), ...named, '*'])]
+        ctx.mentionsData = true
+      }
+    }
     for (const r of s.redirects) {
       if (r.op !== '<' || !r.target.startsWith('<(')) continue
       const alts = ctx.subst(r.target.slice(2, r.target.endsWith(')') ? -1 : undefined), ctx)

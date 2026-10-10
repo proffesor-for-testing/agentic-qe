@@ -4,7 +4,7 @@
  * through `ctx.bash`, so every rule applies at any depth.
  */
 import { isVerb, SHELLS, verbName } from './commands'
-import { expandWords, isData, isDataFileOrGlob, textNamesData, type Ctx } from './context'
+import { expandVars, expandWords, isData, isDataFileOrGlob, textNamesData, WORD_BUDGET, type Ctx } from './context'
 import { judgeFind } from './find'
 import { hasGlob, MAX_PATH, underAqe } from './paths'
 import { fedByProducer, opaqueScript } from './producers'
@@ -15,6 +15,8 @@ import { judgeGit, judgeWriters } from './writers'
 export { isVerb } from './commands'
 
 const WRITE_OPS = new Set(['>', '>>', '>|', '&>', '&>>', '<>'])
+/** Commands that read names (or a script) from stdin: a feed matters to them. */
+const FEED_CONSUMERS = /(^|\/)(xargs|parallel|read|mapfile|readarray|bash|sh|zsh|dash|ksh|fish|eval)$/
 
 /**
  * `cd`/`pushd`: entering `.agentic-qe` makes bare `memory.db` the store; leaving it does the
@@ -30,35 +32,54 @@ function changeDir(targets: readonly string[], ctx: Ctx): void {
 /** A value as it is remembered: one too long to be a path reads as `*`, so values cannot grow without bound. */
 const remembered = (v: string): string => (v.length > MAX_PATH ? '*' : v)
 
+/** A word as the shell expands it here (variables, arrays, substitutions). */
+const expanded = (w: string, ctx: Ctx): string[] => expandVars(w, ctx.vars, WORD_BUDGET, inner => ctx.subst(inner, ctx))
+
+/**
+ * What may reach this command's stdin that names the store: the expanded words of earlier
+ * pipeline stages (`echo "$dbs" | xargs rm`), a producer that lists it (`find ... | xargs rm`),
+ * here-strings (`<<< "$(find ...)"`), and a `< <(...)` on the line.
+ */
+function feedValues(seg: Segment, ctx: Ctx): string[] {
+  const out: string[] = []
+  if (seg.piped) {
+    for (const stage of seg.stages) for (const w of stage) out.push(...expanded(w, ctx).filter(v => isData(v, ctx)))
+    if (fedByProducer(seg, ctx)) out.push('.agentic-qe/memory.db', '.agentic-qe')
+  }
+  for (const w of seg.hereStrings ?? []) out.push(...expanded(w, ctx).filter(v => isData(v, ctx)))
+  return out
+}
+
 /** `NAME=value` words before the command word, and `for NAME in ...`, `read NAME`: remembered for `$NAME`. */
 function bindVars(ws: readonly string[], start: number, seg: Segment, ctx: Ctx): void {
   // An assignment's word may have expanded to several alternatives (`DB=$(ls ...)`): the variable may hold any of them.
-  // An array (`arr=(a $(find ...))`) holds each of its elements.
+  // An array (`arr=(a $(find ...))`) holds each of its elements; `NAME+=...` adds to what NAME held.
   const assigned = new Map<string, string[]>()
   for (const w of ws.slice(0, start)) {
-    const m = /^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$/s.exec(w)
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)(\+?)=(.*)$/s.exec(w)
     if (m === null) continue
-    const value = m[2] as string
+    const name = m[1] as string
+    const value = m[3] as string
     const array = /^\(([\s\S]*)\)$/.exec(value)
-    const values = array === null ? [value] : (array[1] as string).split(/\s+/).filter(v => v !== '')
-    assigned.set(m[1] as string, [...(assigned.get(m[1] as string) ?? []), ...values.map(remembered)])
+    // Elements keep their quotes inside the word (`files+=("$f")`): unquote each one.
+    const values = array === null ? [value] : (array[1] as string).split(/\s+/).filter(v => v !== '').map(v => v.replace(/^(['"])([\s\S]*)\1$/, '$2'))
+    const before = assigned.get(name) ?? (m[2] === '+' ? [...(ctx.vars.get(name) ?? [])] : [])
+    // `arr+=(x)` adds elements; `s+=x` extends the string (`P=.agentic; P+=-qe`).
+    const added = array !== null || m[2] !== '+' || before.length === 0 ? [...before, ...values] : before.map(b => b + value)
+    assigned.set(name, added.map(remembered))
   }
   for (const [name, values] of assigned) ctx.vars.set(name, [...new Set(values)])
   const verb = ws[start]
   if (verb === 'export' || verb === 'local' || verb === 'declare' || verb === 'readonly' || verb === 'typeset') bindVars(ws.slice(start + 1), ws.length - start - 1, seg, ctx)
   if ((verb === 'for' || verb === 'select') && ws[start + 2] === 'in') ctx.vars.set(ws[start + 1] as string, ws.slice(start + 3).flatMap(w => expandBraces(w)).map(remembered))
-  // `read f`, `mapfile -t arr`, `readarray arr` hold whatever was piped or `< <(...)`-fed in:
-  // unknown (`*`), plus the store when that feed may be it.
-  if (verb === 'mapfile' || verb === 'readarray') {
-    const piped = seg.piped && (fedByProducer(seg, ctx) || seg.upstream.split(/\s+/).some(w => isData(w, ctx)))
-    const fed = [...(piped ? ['.agentic-qe/memory.db', '.agentic-qe'] : []), ...(ctx.readFed ?? []), '*']
-    const names = ws.slice(start + 1).filter((w, i, all) => !isOption(w) && !/^-[dnOsuCc]$/.test(all[i - 1] ?? ''))
-    ctx.vars.set(names[names.length - 1] ?? 'MAPFILE', [...new Set(fed)])
-  }
-  if (verb === 'read') {
-    const piped = seg.piped ? (seg.upstream.split(/\s+/).find(w => isData(w, ctx)) ?? (fedByProducer(seg, ctx) ? '.agentic-qe/memory.db' : undefined)) : undefined
-    const fed = [...(piped === undefined ? [] : [piped]), ...(ctx.readFed ?? []), '*']
-    for (const name of ws.slice(start + 1).filter(w => !isOption(w))) ctx.vars.set(name, [...new Set(fed)])
+  // `read f`, `mapfile -t arr`, `readarray arr` hold whatever is fed in: unknown (`*`), plus the store when the feed may be it.
+  if (verb === 'mapfile' || verb === 'readarray' || verb === 'read') {
+    const fed = [...new Set([...feedValues(seg, ctx), ...(ctx.readFed ?? []), '*'])]
+    // Options that take a value differ: `mapfile -t` is a flag, `read -t 5` a timeout.
+    const valued = verb === 'read' ? /^-[dnNptui]$/ : /^-[dnOsuCc]$/
+    const names = ws.slice(start + 1).filter((w, i, all) => !isOption(w) && !valued.test(all[i - 1] ?? ''))
+    if (verb === 'read') for (const name of names) ctx.vars.set(name, fed)
+    else ctx.vars.set(names[names.length - 1] ?? 'MAPFILE', fed)
   }
 }
 
@@ -87,7 +108,9 @@ function judgeShell(verb: string, args: readonly string[], seg: Segment, ctx: Ct
   }
   if (command !== undefined) {
     if (viaXargs && ctx.mentionsData) return `\`xargs ${verb} -c\` fed learning-data paths`
-    return ctx.bash(command, ctx)
+    // The script as written: prefix assignments (`D=.agentic-qe bash -c 'rm -rf $D'`) are bound by now,
+    // so the inner judge expands `$D` itself; the outer expansion read it as unknown.
+    return ctx.bash(rawScripts(seg)[0] ?? command, ctx)
   }
   // A heredoc the guard cannot see the end of is a script it cannot read.
   if (seg.opaqueStdin) return `\`${verb}\` reads a script the guard cannot see`
@@ -103,8 +126,10 @@ function judgeShell(verb: string, args: readonly string[], seg: Segment, ctx: Ct
 export function judgeSegment(seg: Segment, ctx: Ctx, viaXargs = false): string | undefined {
   // Text nested past what the reader follows is not judged piecemeal: it is refused when it names learning data.
   if (seg.dropped !== undefined) return /agentic/i.test(seg.dropped) || textNamesData(seg.dropped, ctx) ? 'a command nested too deeply to read names learning data' : undefined
-  // Paths a `find`/`ls -A`/`git ls-files -o` stage would print count as named here (`xargs rm`, `while read f`).
-  if (seg.piped && fedByProducer(seg, ctx)) ctx.mentionsData = true
+  // What a pipe, producer or here-string feeds in counts as named here (`xargs rm`, `while read f`).
+  // Only commands that take names on stdin need it, so most pipeline stages skip the work.
+  const consumes = seg.words.some(w => FEED_CONSUMERS.test(w))
+  if (consumes && (seg.piped || (seg.hereStrings ?? []).length > 0) && feedValues(seg, ctx).length > 0) ctx.mentionsData = true
   const ws = expandWords(seg, ctx)
   const start = commandStart(ws, isVerb)
   bindVars(ws, start, seg, ctx)

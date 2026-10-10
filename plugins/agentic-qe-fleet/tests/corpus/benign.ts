@@ -132,6 +132,15 @@ export const BENIGN: readonly Case[] = [
   { name: 'PowerShell splat of a log', tool: 'PowerShell', input: { command: "$a = @{Path='build.log'}; Remove-Item @a" } },
   { name: 'PowerShell gci -Force listing only', tool: 'PowerShell', input: { command: 'Get-ChildItem -Force' } },
   { name: 'PowerShell Start-Process notepad', tool: 'PowerShell', input: { command: "Start-Process notepad -ArgumentList 'notes.txt'" } },
+  // sixth review (b274998e): appends and feeds that never reach the store
+  bash('files+= of logs then rm', "files=(); for f in *.log; do files+=(\"$f\"); done; rm -f \"${files[@]}\""),
+  bash('mapfile of tmp files then rm', "mapfile -t files < <(find . -name '*.tmp'); rm -f \"${files[@]}\""),
+  bash('D=dist bash -c rm $D', "D=dist bash -c 'rm -rf $D'"),
+  bash('echo a list | xargs rm', "echo a.tmp b.tmp | xargs rm -f"),
+  { name: 'PowerShell Where-Object Extension -eq .tmp', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object Extension -eq '.tmp' | Remove-Item" } },
+  { name: 'PowerShell Where-Object Name -like *.log', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object Name -like '*.log' | Remove-Item" } },
+  { name: 'PowerShell ? { $_.Extension -match tmp }', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | ? { $_.Extension -match '^\\.tmp$' } | Remove-Item" } },
+  { name: 'PowerShell $x += logs then Remove-Item', tool: 'PowerShell', input: { command: "$x = @(); $x += 'build.log'; Remove-Item $x" } },
   // file tools
   { name: 'Write source', tool: 'Write', input: { file_path: 'src/index.ts', content: 'x' } },
   { name: 'Edit aqe config', tool: 'Edit', input: { file_path: '.agentic-qe/config.yaml', old_string: 'a', new_string: 'b' } },
