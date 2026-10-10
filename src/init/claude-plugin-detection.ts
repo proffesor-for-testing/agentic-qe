@@ -115,3 +115,33 @@ export function detectAqeFleetPlugin(
 export const AQE_PLUGIN_MCP_SKIP_MESSAGE =
   '  MCP: skipped — the agentic-qe-fleet plugin already provides the AQE MCP server ' +
   '(mcp__plugin_agentic-qe-fleet_agentic-qe__* tools); run `aqe init --with-mcp` to add the project entry anyway';
+
+/**
+ * One-line notice printed when the plugin is enabled but `.mcp.json` already
+ * has an `agentic-qe` entry (e.g. an upgrade from 3.15.1). Init never deletes
+ * user config, so the entry is kept and the user is told how to remove it.
+ */
+export const AQE_PLUGIN_MCP_EXISTING_ENTRY_MESSAGE =
+  '  MCP: kept the existing project `agentic-qe` entry in .mcp.json — it duplicates the agentic-qe-fleet ' +
+  "plugin's AQE MCP server (mcp__plugin_agentic-qe-fleet_agentic-qe__* tools); to remove it, delete the " +
+  '`agentic-qe` key from .mcp.json or run `claude mcp remove agentic-qe -s project`';
+
+/** True when `<projectRoot>/.mcp.json` declares an `agentic-qe` server. Never throws. */
+export function hasProjectAqeMcpEntry(projectRoot: string): boolean {
+  try {
+    const parsed = safeJsonParse<unknown>(readFileSync(join(projectRoot, '.mcp.json'), 'utf-8'));
+    if (!parsed || typeof parsed !== 'object') return false;
+    const servers = (parsed as Record<string, unknown>).mcpServers;
+    return !!servers && typeof servers === 'object' && !Array.isArray(servers) &&
+      Object.prototype.hasOwnProperty.call(servers, 'agentic-qe');
+  } catch {
+    return false;
+  }
+}
+
+/** The notice to print when init skips the project entry because of the plugin. */
+export function aqePluginMcpSkipMessage(projectRoot: string): string {
+  return hasProjectAqeMcpEntry(projectRoot)
+    ? AQE_PLUGIN_MCP_EXISTING_ENTRY_MESSAGE
+    : AQE_PLUGIN_MCP_SKIP_MESSAGE;
+}

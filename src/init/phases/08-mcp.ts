@@ -17,7 +17,7 @@ import { writeFileIfChanged } from '../idempotent-write.js';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import {
-  AQE_PLUGIN_MCP_SKIP_MESSAGE,
+  aqePluginMcpSkipMessage,
   detectAqeFleetPlugin,
   type PluginDetectionResult,
 } from '../claude-plugin-detection.js';
@@ -74,11 +74,12 @@ export class MCPPhase extends BasePhase<MCPResult> {
 
     // #922: the agentic-qe-fleet Claude Code plugin bundles the AQE MCP
     // server. Adding a project entry too registers AQE twice, so skip it
-    // unless --with-mcp forces it. An existing entry is left untouched.
+    // unless --with-mcp forces it. An existing entry is left untouched (and
+    // reported as a duplicate, with how to remove it).
     if (!context.options.withMcp) {
       const plugin = this.detectPlugin(projectRoot);
       if (plugin.enabled) {
-        context.services.log(AQE_PLUGIN_MCP_SKIP_MESSAGE);
+        context.services.log(aqePluginMcpSkipMessage(projectRoot));
         return {
           configured: false,
           mcpPath: '',

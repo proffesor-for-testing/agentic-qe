@@ -119,6 +119,51 @@ describe('MCPPhase with the agentic-qe-fleet plugin (#922)', () => {
     expect(readFileSync(mcpPath(), 'utf-8')).toBe(existing);
   });
 
+  it('reports a kept agentic-qe entry as a duplicate and says how to remove it (upgrade from 3.15.1)', async () => {
+    enablePluginForUser();
+    const existing = JSON.stringify(
+      { mcpServers: { 'agentic-qe': { command: 'aqe-mcp', args: [] } } },
+      null,
+      2,
+    );
+    writeFileSync(mcpPath(), existing);
+
+    const result = await new MCPPhase().execute(context());
+
+    expect(result.data).toMatchObject({ configured: false, skippedForPlugin: KEY });
+    expect(readFileSync(mcpPath(), 'utf-8')).toBe(existing);
+    const mcpLines = loggedLines().filter((l) => l.includes('MCP:'));
+    expect(mcpLines).toHaveLength(1);
+    expect(mcpLines[0]).toContain('kept the existing project `agentic-qe` entry');
+    expect(mcpLines[0]).toContain('duplicates the agentic-qe-fleet');
+    expect(mcpLines[0]).toContain('delete the `agentic-qe` key from .mcp.json');
+    expect(mcpLines[0]).toContain('claude mcp remove agentic-qe -s project');
+    expect(mcpLines[0]).not.toContain('--with-mcp');
+  });
+
+  it('uses the plain skip notice when .mcp.json has only other servers', async () => {
+    enablePluginForUser();
+    writeFileSync(mcpPath(), JSON.stringify({ mcpServers: { other: { command: 'o' } } }));
+
+    await new MCPPhase().execute(context());
+
+    const mcpLines = loggedLines().filter((l) => l.includes('MCP:'));
+    expect(mcpLines).toHaveLength(1);
+    expect(mcpLines[0]).toContain('aqe init --with-mcp');
+    expect(mcpLines[0]).not.toContain('kept the existing');
+  });
+
+  it('uses the plain skip notice when .mcp.json is malformed', async () => {
+    enablePluginForUser();
+    writeFileSync(mcpPath(), '{ "mcpServers": { "agentic-qe": ');
+
+    const result = await new MCPPhase().execute(context());
+
+    expect(result.success).toBe(true);
+    expect(loggedLines().filter((l) => l.includes('MCP:'))[0]).toContain('aqe init --with-mcp');
+    expect(readFileSync(mcpPath(), 'utf-8')).toBe('{ "mcpServers": { "agentic-qe": ');
+  });
+
   it('honours a project-scope enable written in the project itself', async () => {
     mkdirSync(join(project, '.claude'), { recursive: true });
     writeFileSync(join(project, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [KEY]: true } }));
@@ -157,6 +202,19 @@ describe('MCPPhase with the agentic-qe-fleet plugin (#922)', () => {
       expect(configured).toBe(false);
       expect(existsSync(mcpPath())).toBe(false);
       expect(spy).toHaveBeenCalledWith(expect.stringContaining('aqe init --with-mcp'));
+      spy.mockRestore();
+    });
+
+    it('reports a kept agentic-qe entry and does not touch it', async () => {
+      enablePluginForUser();
+      const existing = JSON.stringify({ mcpServers: { 'agentic-qe': { command: 'aqe-mcp' } } });
+      writeFileSync(mcpPath(), existing);
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      expect(await configureMCP(project)).toBe(false);
+
+      expect(readFileSync(mcpPath(), 'utf-8')).toBe(existing);
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('claude mcp remove agentic-qe -s project'));
       spy.mockRestore();
     });
 

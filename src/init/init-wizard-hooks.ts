@@ -13,7 +13,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { safeJsonParse } from '../shared/safe-json.js';
-import { AQE_PLUGIN_MCP_SKIP_MESSAGE, detectAqeFleetPlugin } from './claude-plugin-detection.js';
+import { aqePluginMcpSkipMessage, detectAqeFleetPlugin } from './claude-plugin-detection.js';
 import {
   mergeHooksSmart,
   generateAqeEnvVars,
@@ -312,7 +312,7 @@ export async function configureMCP(
   options: { force?: boolean } = {},
 ): Promise<boolean> {
   if (!options.force && detectAqeFleetPlugin(projectRoot).enabled) {
-    console.log(AQE_PLUGIN_MCP_SKIP_MESSAGE);
+    console.log(aqePluginMcpSkipMessage(projectRoot));
     return false;
   }
 
