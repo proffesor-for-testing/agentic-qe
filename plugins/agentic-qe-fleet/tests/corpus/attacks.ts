@@ -392,6 +392,9 @@ export const ATTACKS: readonly Case[] = [
   { name: 'PowerShell Start-Process comma list', tool: 'PowerShell', input: { command: "Start-Process -FilePath cmd.exe -ArgumentList '/c','rd','/s','/q','.agentic-qe' -Wait" } },
   { name: 'PowerShell Start-Process powershell -Command', tool: 'PowerShell', input: { command: "Start-Process powershell -ArgumentList '-Command Remove-Item .agentic-qe -Recurse'" } },
   { name: 'PowerShell wsl rm', tool: 'PowerShell', input: { command: 'wsl rm -rf .agentic-qe' } },
+  // pinned by the round-5 mutation check
+  bash('find -path glob from another root', "find src -path '*agentic*' -delete"),
+  { name: 'PowerShell $f = recursive listing then Remove-Item $f', tool: 'PowerShell', input: { command: '$f = Get-ChildItem -Recurse -Filter *.db; Remove-Item $f' } },
   // file tools
   { name: 'Write the store', tool: 'Write', input: { file_path: '.agentic-qe/memory.db', content: '' } },
   { name: 'Write the store, absolute', tool: 'Write', input: { file_path: '/home/dev/p/.agentic-qe/memory.db', content: '' } },
