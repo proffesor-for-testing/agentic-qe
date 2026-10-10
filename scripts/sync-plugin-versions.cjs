@@ -61,7 +61,13 @@ function syncModVersion(version, problems) {
   }
   if (have === want) return null;
   const m = have === null ? null : have.match(/MOD_VERSION = '([^']*)'/);
-  problems.push(`${MOD_VERSION_FILE}: MOD_VERSION ${m ? JSON.stringify(m[1]) : '<missing or not generated>'} != ${version}`);
+  if (have === null) {
+    problems.push(`${MOD_VERSION_FILE}: missing (expected the generated file with MOD_VERSION '${version}')`);
+  } else if (m && m[1] === version) {
+    problems.push(`${MOD_VERSION_FILE}: MOD_VERSION is '${version}' but the file differs from the generated text (hand-edited?); expected exactly:\n${want}`);
+  } else {
+    problems.push(`${MOD_VERSION_FILE}: MOD_VERSION ${m ? `'${m[1]}'` : '<not found>'}, expected '${version}' (package.json)`);
+  }
   return want;
 }
 

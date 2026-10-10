@@ -3,38 +3,84 @@ import type { Hook, Register } from 'claude-code'
 import { answer, type DataFile } from './command'
 import { fallbackVerdict, isGuarded, judge, SUFFIX } from './guard'
 import { readOptions, type GuardMode } from './options'
-import { cleanReason, type Counts, countsOf, mergeSaved, MOD_NAME, newStats, noSaved, parseSaved, type Saved, segmentText, STATUS_PATH, statusText, type Stats, toolName, ZERO } from './status'
+import { cleanReason, type Counts, countsOf, mergeSaved, MOD_NAME, newStats, noSaved, parseSaved, type Saved, segmentText, STATUS_DIR, STATUS_PATH, statusText, type Stats, toolName, ZERO } from './status'
 
 type Dollar = Parameters<Hook<'session.start'>>[0]
 
-/**
- * One session of the mod: its mode, its counters, the project root, the segment last drawn,
- * the cross-session totals as last written (`saved`) and the session counts already in them (`written`).
- */
-type Session = { readonly mode: GuardMode; readonly stats: Stats; root?: string; segment?: string; saved: Saved; written: Counts }
+/** The status file and the folders above it under the project root, outermost first. */
+const PARTS: readonly (readonly [string, 'dir' | 'file'])[] = [
+  ['.claude-flow', 'dir'],
+  [STATUS_DIR, 'dir'],
+  [STATUS_PATH, 'file'],
+]
 
-/** What the status file carries across sessions now, or null when it is missing or unreadable. */
-async function readSaved($: Dollar, path: string): Promise<Saved | null> {
+const missing = (err: unknown): boolean => /ENOENT|no such file|not found|does not exist/i.test(String((err as { message?: unknown })?.message ?? err))
+
+/**
+ * Why the status file must not be touched, or undefined when it may be: a
+ * symbolic link anywhere from `.claude-flow` down, or something other than a
+ * folder or a regular file where one is expected. A missing part is fine (the
+ * write creates it); a part that cannot be checked is not. Never follows a
+ * link, never removes one.
+ *
+ * `$.fs` has no no-follow write or rename, so a link swapped in between this
+ * check and the read or write that follows is not caught (a short window).
+ */
+async function statusBlocked($: Dollar, root: string): Promise<string | undefined> {
+  for (const [rel, kind] of PARTS) {
+    let st: { kind: string; isLink: boolean }
+    try {
+      st = await $.fs.stat(`${root}/${rel}`)
+    } catch (err) {
+      if (missing(err)) continue // not there yet: the write creates it; the parts below are still checked
+      return `${rel} could not be checked`
+    }
+    if (st.isLink) return `${rel} is a symbolic link (never followed)`
+    if (st.kind !== kind) return `${rel} is not a ${kind === 'dir' ? 'folder' : 'regular file'}`
+  }
+  return undefined
+}
+
+/** What the status file carries across sessions, or null when it is missing, unreadable or unsafe to read. */
+async function readSaved($: Dollar, root: string, nowMs: number): Promise<Saved | null> {
   try {
-    return parseSaved(await $.fs.read(path))
+    if ((await statusBlocked($, root)) !== undefined) return null
+    return parseSaved(await $.fs.read(`${root}/${STATUS_PATH}`), nowMs)
   } catch {
     return null
   }
 }
 
+/** Writes the status file unless it is unsafe; returns why it was not written, or undefined when it was. */
+async function writeStatus($: Dollar, root: string, text: string): Promise<string | undefined> {
+  const blocked = await statusBlocked($, root)
+  if (blocked !== undefined) return blocked
+  await $.fs.write(`${root}/${STATUS_PATH}`, text)
+  return undefined
+}
+
+/**
+ * One session of the mod: its mode, its counters, the project root, the segment last drawn,
+ * the cross-session totals as last written (`saved`) and the session counts already in them (`written`).
+ */
+type Session = { readonly mode: GuardMode; readonly stats: Stats; root?: string; segment?: string; saved: Saved; written: Counts; unavailable?: string }
+
 /**
  * Writes the console's status file; a failure only costs the console a row. The totals are
  * re-read first, so sessions running side by side add to them rather than overwrite each other;
  * a missing or corrupt file falls back to what this session last wrote (zero at the start).
+ * A status file reached through a symbolic link is neither read nor written (statusfile.ts).
  */
 async function flush($: Dollar, s: Session): Promise<void> {
   if (s.root === undefined) return
   try {
-    const path = `${s.root}/${STATUS_PATH}`
-    const saved = mergeSaved((await readSaved($, path)) ?? s.saved, s.stats, s.written)
-    await $.fs.write(path, statusText(s.stats, s.mode, await $.clock.now(), saved))
-    s.saved = saved
-    s.written = countsOf(s.stats)
+    const now = await $.clock.now()
+    const saved = mergeSaved((await readSaved($, s.root, now)) ?? s.saved, s.stats, s.written)
+    s.unavailable = await writeStatus($, s.root, statusText(s.stats, s.mode, now, saved))
+    if (s.unavailable === undefined) {
+      s.saved = saved
+      s.written = countsOf(s.stats)
+    }
   } catch {
     /* the status file is a courtesy */
   }
@@ -128,6 +174,7 @@ export const register: Register = (on, options) => {
       mode: s.mode,
       stats: s.stats,
       saved: mergeSaved(s.saved, s.stats, s.written),
+      unavailable: s.unavailable,
       tools: async () => (await $.tool.list()).map(t => t.name),
       aqeDir: () => aqeDir($, s.root),
       root: s.root,

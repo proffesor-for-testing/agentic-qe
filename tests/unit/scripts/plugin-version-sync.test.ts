@@ -78,13 +78,20 @@ describe('Claude Code plugin version sync', () => {
 
       const drift = spawnSync('node', [script, '--check'], { encoding: 'utf8' });
       expect(drift.status).toBe(1);
-      expect(drift.stderr).toContain(`hooks/version.ts: MOD_VERSION "0.1.0" != ${version}`);
+      expect(drift.stderr).toContain(`plugins/agentic-qe-fleet/hooks/version.ts: MOD_VERSION '0.1.0', expected '${version}' (package.json)`);
       expect(readFileSync(modFile, 'utf8')).toContain("'0.1.0'");
 
       const write = spawnSync('node', [script], { encoding: 'utf8' });
       expect(write.status).toBe(0);
       expect(readFileSync(modFile, 'utf8')).toBe(readFileSync(resolve(root, 'plugins/agentic-qe-fleet/hooks/version.ts'), 'utf8'));
       expect(spawnSync('node', [script, '--check'], { encoding: 'utf8' }).status).toBe(0);
+
+      // Right version, hand-edited text: --check names the file and shows what it expected.
+      writeFileSync(modFile, `export const MOD_VERSION = '${version}' // edited\n`);
+      const edited = spawnSync('node', [script, '--check'], { encoding: 'utf8' });
+      expect(edited.status).toBe(1);
+      expect(edited.stderr).toContain(`plugins/agentic-qe-fleet/hooks/version.ts: MOD_VERSION is '${version}' but the file differs from the generated text`);
+      expect(edited.stderr).toContain('expected exactly:');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

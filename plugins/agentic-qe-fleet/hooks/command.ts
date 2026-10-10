@@ -16,6 +16,8 @@ export type CommandDeps = {
   readonly stats: Stats
   /** The totals across sessions, this one included, and the last refusal of any session. */
   readonly saved?: Saved
+  /** Why the status file was last neither read nor written (a symbolic link on its path), if it was not. */
+  readonly unavailable?: string
   /** Names of the tools connected now. */
   readonly tools: () => Promise<readonly string[]>
   /** The entries of `<root>/.agentic-qe`, or null when it is missing or unreadable. */
@@ -46,7 +48,11 @@ async function aqeToolCount(deps: CommandDeps): Promise<string> {
 }
 
 const counts = (c: Counts): string => `${c.calls} call${c.calls === 1 ? '' : 's'} checked · ${c.blocked} blocked · ${c.flagged} flagged`
-const iso = (ms: number): string => new Date(ms).toISOString()
+/** An ISO time, or `unknown` for a time no Date can hold (never throws). */
+export const iso = (ms: number): string => {
+  const d = new Date(ms)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : 'unknown'
+}
 
 function refusalLine(r: LastRefusal | undefined, denied: Stats['lastDenied']): string {
   if (r === undefined) return denied === undefined ? 'last refusal: none' : `last refusal: ${denied} (this session)`
@@ -69,7 +75,7 @@ function status(deps: CommandDeps): string {
     `this session: ${counts(stats)}`,
     `all sessions: ${counts(saved.totals)}${since}`,
     refusalLine(saved.lastRefusal, stats.lastDenied),
-    `status file: ${STATUS_PATH}`,
+    deps.unavailable === undefined ? `status file: ${STATUS_PATH}` : `status file: not written: ${deps.unavailable}`,
   ].join('\n')
 }
 

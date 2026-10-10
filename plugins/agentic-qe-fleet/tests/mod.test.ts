@@ -27,6 +27,11 @@ function world(on: On, seed: Readonly<Record<string, string>> = {}) {
     if (text === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: text }
   })
+  on('fs.stat', ($, e) => {
+    const kind = files.has(e.path) ? 'file' : [...files.keys()].some(k => k.startsWith(`${e.path}/`)) ? 'dir' : undefined
+    if (kind === undefined) return { deny: `ENOENT: no such file or directory, stat '${e.path}'` }
+    return { value: { kind, size: 0, mtimeMs: NOW, isLink: false } }
+  })
   on('fs.exists', ($, e) => ({ value: e.path === `${ROOT}/.agentic-qe` }))
   on('fs.list', () => ({
     value: [
