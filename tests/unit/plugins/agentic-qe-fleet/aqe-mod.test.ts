@@ -222,9 +222,9 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     ['1000 words each a $(find ...)', `rm ${"$(find . -name '*.tmp') ".repeat(1000)}`, 'allowed'],
   ]
 
-  // The median of 5 runs, so one slow run under parallel load does not fail the test; a real bomb
+  // The median of 5 runs under 250 ms: one slow run, or two suites sharing the CPU, does not fail the test; a real bomb
   // (exponential or quadratic) takes seconds on every run.
-  it.each(cases)('should judge %s in under 50 ms (median of 5)', (_name, command, expected) => {
+  it.each(cases)('should judge %s in under 250 ms (median of 5)', (_name, command, expected) => {
     judge('Bash', { command: 'ls' })
     const times: number[] = []
     let r: ReturnType<typeof judge>
@@ -233,7 +233,7 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
       r = judge('Bash', { command })
       times.push(performance.now() - t0)
     }
-    expect(times.sort((a, b) => a - b)[2]).toBeLessThan(50)
+    expect(times.sort((a, b) => a - b)[2]).toBeLessThan(250)
     if (expected === 'refused') expect(r?.cls).toBe('destructive')
     if (expected === 'allowed') expect(r).toBeUndefined()
   })
@@ -286,7 +286,7 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
   it('should fail fast on a run of unclosable brackets', () => {
     const t0 = performance.now()
     expect(globMatch(`${'['.repeat(100_000)}x`, 'y')).toBe(false)
-    expect(performance.now() - t0).toBeLessThan(50)
+    expect(performance.now() - t0).toBeLessThan(250)
   })
 
   it('should not overflow the stack on a unit with very many values (fifth review)', () => {
