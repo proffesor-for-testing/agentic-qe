@@ -303,6 +303,36 @@ describe('aqe-mod status file: hostile contents (review of #930)', () => {
     expect(status(files).lastRefusal.reason).toBe('aqe-mod refused this: `rm` on .agentic-qe.')
   })
 
+  it('should stat the whole status path immediately before every read and write (the check-to-use window is one call)', async () => {
+    const files: Files = new Map()
+    const ops: string[] = []
+    // A fresh mod over a `$` that logs every file system call in order.
+    const hooks = new Map<string, (...a: unknown[]) => unknown>()
+    register(((name: string, a: unknown, b?: unknown) => (hooks.set(name, (typeof a === 'function' ? a : b) as never), { catch: () => undefined })) as never, {} as never)
+    const $ = {
+      session: { root: async () => ROOT },
+      clock: { now: async () => NOW },
+      command: { register: async () => undefined },
+      fs: {
+        stat: async (p: string) => {
+          ops.push(`stat ${p.slice(ROOT.length + 1)}`)
+          throw new Error(`ENOENT: no such file or directory, stat '${p}'`)
+        },
+        read: async (p: string) => (ops.push(`read ${p.slice(ROOT.length + 1)}`), Promise.reject(new Error('ENOENT'))),
+        write: async (p: string, text: string) => (ops.push(`write ${p.slice(ROOT.length + 1)}`), files.set(p, text)),
+        exists: async () => false,
+        list: async () => [],
+      },
+      tool: { list: async () => [] },
+      ui: { toast: () => undefined },
+      ruflo: { segment: async () => undefined },
+    }
+    await (hooks.get('session.start') as (...a: unknown[]) => Promise<unknown>)($, { cwd: ROOT }, async () => ({}))
+    const parts = ['stat .claude-flow', 'stat .claude-flow/aqe-mod', `stat ${STATUS_PATH}`]
+    expect(ops).toEqual([...parts, `read ${STATUS_PATH}`, ...parts, `write ${STATUS_PATH}`])
+    expect(files.size).toBe(1)
+  })
+
   it('should start every judge reason with REASON_PREFIX, so a real refusal is never dropped', () => {
     expect(cleanReason(`${REASON_PREFIX}\`rm\` on .agentic-qe/memory.db.${SUFFIX}`, SUFFIX).startsWith(REASON_PREFIX)).toBe(true)
   })
