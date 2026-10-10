@@ -10,9 +10,9 @@ import { answer } from '../../../../plugins/agentic-qe-fleet/hooks/command'
 import { fallbackVerdict, GUARD_FAILED, judge, judgeBash, segments } from '../../../../plugins/agentic-qe-fleet/hooks/guard'
 import { readOptions } from '../../../../plugins/agentic-qe-fleet/hooks/options'
 import { globMatch } from '../../../../plugins/agentic-qe-fleet/hooks/glob'
-import { globReachesData, normalisePath, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
+import { globReachesData, MAX_PATH, normalisePath, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
 import { expandVars } from '../../../../plugins/agentic-qe-fleet/hooks/context'
-import { expandBraces, parse, readAnsiC } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
+import { BRACE_MAX_DEPTH, BRACE_MAX_LENGTH, expandBraces, parse, readAnsiC } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
 import {
   MOD_NAME,
   newStats,
@@ -252,6 +252,32 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     expect(expandVars('$V$V$V', new Map([['V', ['x', 'y']]]))).toHaveLength(8)
     const big = new Map([['V', Array.from({ length: 32 }, (_, i) => `w${i}`)]])
     expect(expandVars('$V'.repeat(50), big)).toEqual(['*'.repeat(50)])
+  })
+
+  it('should read past-limit words as the glob they cover (fail closed)', () => {
+    const long = `x{a,b}${'y'.repeat(BRACE_MAX_LENGTH)}`
+    expect(expandBraces(long)).toEqual([`x*${'y'.repeat(BRACE_MAX_LENGTH)}`])
+    const deep = `x${'{'.repeat(BRACE_MAX_DEPTH + 1)}a,b${'}'.repeat(BRACE_MAX_DEPTH + 1)}`
+    expect(expandBraces(deep)).toEqual(['x*'])
+    expect(protectedKind(`.agentic-qe/${'x'.repeat(MAX_PATH)}`)).toBe('glob')
+    expect(judge('Bash', { command: `rm .agentic-qe/${'x'.repeat(MAX_PATH)}` })?.cls).toBe('destructive')
+  })
+
+  it('should refuse a script with more path-like literals than it reads', () => {
+    const lits = Array.from({ length: 70 }, (_, i) => `'.agentic-qe/n${i}'`).join(', ')
+    expect(judge('Bash', { command: `python3 -c "import os; os.chdir('.agentic-qe'); os.system(' '.join([${lits}]))"` })?.reason).toContain('more commands than the guard reads')
+  })
+
+  it('should refuse text mentioning agentic past the eval/bash -c depth it follows', () => {
+    expect(judge('Bash', { command: `${'eval '.repeat(8)}touch .agentic-qeX` })?.reason).toContain('nested too deeply')
+    expect(judge('Bash', { command: `${'eval '.repeat(8)}touch notes.txt` })).toBeUndefined()
+    expect(judge('Bash', { command: `${'eval '.repeat(3)}touch .agentic-qeX` })).toBeUndefined()
+  })
+
+  it('should fail fast on a run of unclosable brackets', () => {
+    const t0 = performance.now()
+    expect(globMatch(`${'['.repeat(100_000)}x`, 'y')).toBe(false)
+    expect(performance.now() - t0).toBeLessThan(50)
   })
 
   it('should decode ANSI-C quoting as bash does', () => {

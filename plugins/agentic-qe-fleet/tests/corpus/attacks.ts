@@ -268,6 +268,11 @@ export const ATTACKS: readonly Case[] = [
   bash('here-string into xargs rm', 'xargs rm -rf <<< .agentic-qe'),
   bash('find piped into parallel rm', "find . -name '*.db' | parallel rm"),
   bash('node template literal with ${...}', "node -e 'fs.unlinkSync(`${process.cwd()}/.agentic-qe/memory.db`)'"),
+  // pinned by the mutation check: each fails only when its own rule is off
+  bash('find -path naming it under another root', "find src -path '*/.agentic-qe/*' -delete"),
+  bash('eval nested past the guard depth with an unresolved name', "eval eval eval eval eval eval eval eval 'rm -rf .agentic-q${X}e'"),
+  bash('cp a glob into the directory', 'cp /tmp/bk/* .agentic-qe/'),
+  bash('cp an unresolved source into the directory', 'cp "$BACKUP" .agentic-qe/'),
   // file tools
   { name: 'Write the store', tool: 'Write', input: { file_path: '.agentic-qe/memory.db', content: '' } },
   { name: 'Write the store, absolute', tool: 'Write', input: { file_path: '/home/dev/p/.agentic-qe/memory.db', content: '' } },

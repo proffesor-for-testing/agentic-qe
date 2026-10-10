@@ -98,6 +98,7 @@ export const BENIGN: readonly Case[] = [
   bash('rm an output file by variable', 'rm -f "$OUT"'),
   bash('rm a cache by variable under node_modules', 'rm -rf node_modules/.cache/$X'),
   bash('echo a ${X:-default}', 'echo "${X:-hello}"'),
+  bash('quoted braces are literal', 'rm -f ".agentic-qe/{memory.db,x}"'),
   // file tools
   { name: 'Write source', tool: 'Write', input: { file_path: 'src/index.ts', content: 'x' } },
   { name: 'Edit aqe config', tool: 'Edit', input: { file_path: '.agentic-qe/config.yaml', old_string: 'a', new_string: 'b' } },
