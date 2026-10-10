@@ -5,6 +5,50 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.1] - 2026-10-10
+
+This patch hardens the aqe-mod guard that ships with the `agentic-qe-fleet`
+plugin. After 3.15.0, adversarial reviews found many ordinary shell and
+PowerShell commands that the guard let through, and that would delete or
+overwrite your AQE learning data. The guard now refuses whenever it cannot
+prove the learning store is untouched, and everyday dev commands still pass.
+
+### Fixed
+
+- **The aqe-mod guard protects your learning data much more reliably.** It
+  now refuses commands that reach `.agentic-qe/*.db` indirectly, including:
+  - `rm` fed by `$(find …)`, `$(ls -A …)`, `$(git status …)`, variables,
+    arrays, `mapfile`, `while read` loops, here-strings or `xargs`;
+  - `find … -delete` and `find -exec`, unless an exclusion really protects
+    the store;
+  - `bash -c`/`sh -c`, `eval` and interpreter one-liners (Node, Python, Perl,
+    Ruby and others) that delete or overwrite the store;
+  - destructive SQL against the store (`DROP`, `DELETE`, `TRUNCATE`,
+    `UPDATE`, `ALTER … DROP`), SQL it cannot read, and other SQLite clients;
+  - PowerShell pipelines, variables, splatting, `foreach`, `.Delete()`,
+    `Invoke-Expression`, `Start-Process` and `pwsh -c`;
+  - more delete tools: `rimraf`, `shx rm`, `trash`, `sponge`,
+    `awk -i inplace`, and archives extracted into `.agentic-qe` ([#920]).
+- **Everyday commands keep working.** For example, these pass:
+  - `rm -rf dist build`, `rm -rf "$OUT_DIR"`, `rm -rf "$(mktemp -d)"` and
+    `rm -rf "$(npm config get cache)"`;
+  - `git clean -fdx dist/`, `npm ci`, `aqe init --auto`, `sqlite3 -readonly`
+    and `find . -name '*.tmp' -delete`;
+  - `Get-ChildItem -Recurse | Where-Object Extension -eq '.tmp' | Remove-Item`,
+    and backups made with `cp` ([#920]).
+- **The guard can't be made to hang.** Pathological inputs, such as huge
+  brace or variable expansions, many globs or very long pipelines, are judged
+  quickly or refused. Realistic commands take under 5 ms to judge ([#920]).
+
+### Known limitations
+
+- The guard reads commands as text, so it cannot catch everything.
+  Obfuscated or computed commands, shell functions, aliases and `make`/`npm run`
+  scripts are not judged. These are tracked in [#917].
+
+[#917]: https://github.com/proffesor-for-testing/agentic-qe/issues/917
+[#920]: https://github.com/proffesor-for-testing/agentic-qe/pull/920
+
 ## [3.15.0] - 2026-10-09
 
 This release makes the `agentic-qe-fleet` Claude Code plugin ready for the
