@@ -16,6 +16,7 @@ import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { resolveInitMcpFlags } from './init-mcp-flags.js';
 
 // ============================================================================
 // Init Handler
@@ -72,8 +73,9 @@ export class InitHandler implements ICommandHandler {
       .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks to the Codex setup')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
-      .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
-      .option('--with-mcp', 'Write the project .mcp.json agentic-qe entry even when the agentic-qe-fleet Claude Code plugin already provides the AQE MCP server (#922)')
+      .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default). Cannot be combined with --with-mcp')
+      .addOption(new Option('--with-mcp', 'Write the project .mcp.json agentic-qe entry even when the agentic-qe-fleet Claude Code plugin already provides the AQE MCP server (#922). Cannot be combined with --no-mcp')
+        .conflicts('mcp'))
       .option('--with-all-platforms', 'Include all coding agent platform configurations')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
@@ -170,6 +172,8 @@ export class InitHandler implements ICommandHandler {
 
   private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
     const isJsonMode = options.json === true;
+    // #931: commander maps --no-mcp to options.mcp === false.
+    const mcpFlags = resolveInitMcpFlags(options);
 
     // Database-free mode: `--no-database` or `--memory memory`. Skips the SQLite
     // database phase and configures any MCP server to run in-memory. Export the
@@ -221,8 +225,8 @@ export class InitHandler implements ICommandHandler {
       codexGuidance: options.codexGuidance,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
-      noMcp: options.noMcp && !options.withMcp,
-      withMcp: options.withMcp,
+      noMcp: mcpFlags.noMcp,
+      withMcp: mcpFlags.withMcp,
       noGovernance: options.noGovernance,
       noClaude,
       noStatusLine: options.statusline === false,
@@ -341,6 +345,7 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runLegacyWizard(options: InitOptions, _context: CLIContext): Promise<void> {
+    const mcpFlags = resolveInitMcpFlags(options);
     const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
       projectRoot: process.cwd(),
@@ -349,7 +354,8 @@ export class InitHandler implements ICommandHandler {
       browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
-      withMcp: options.withMcp,
+      noMcp: mcpFlags.noMcp,
+      withMcp: mcpFlags.withMcp,
     };
 
     const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -554,6 +560,7 @@ Options:
   --skip-claude-flow         Skip Claude Flow integration
   --no-mcp                   Skip MCP server config (MCP is enabled by default)
   --with-mcp                 Add the .mcp.json entry even if the agentic-qe-fleet plugin is enabled
+                             (--no-mcp and --with-mcp cannot be combined)
   --no-governance            Skip governance configuration (ADR-058)
   --modular                  Use new modular init system
 
@@ -674,6 +681,9 @@ interface InitOptions {
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
+  /** commander negatable flag: `--no-mcp` sets this to false (#931). */
+  mcp?: boolean;
+  /** Programmatic alias for `--no-mcp`. */
   noMcp?: boolean;
   withMcp?: boolean;
   withClaudeFlow?: boolean;
