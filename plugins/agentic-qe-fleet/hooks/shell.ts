@@ -302,6 +302,12 @@ export function parse(src: string, depth = 0): Segment[] {
       const r = readParen(src, i + 1)
       plain(src.slice(i, r.end + 1))
       i = r.end
+    } else if (c === '(' && started && /^[A-Za-z_][A-Za-z0-9_]*\+?=$/.test(word)) {
+      // An array assignment (`arr=($(find ...))`): its elements belong to the word; their substitutions run.
+      const r = readParen(src, i + 1)
+      for (const inner of substitutions(r.inner)) nested(inner)
+      plain(src.slice(i, r.end + 1))
+      i = r.end
     } else if (c === '(' || c === ')') endSegment(false)
     else if (c === '>' || c === '<' || (c === '&' && next === '>')) {
       REDIRECT.lastIndex = i
@@ -396,13 +402,13 @@ export const KEYWORDS = new Set(['!', '{', '}', 'then', 'do', 'else', 'elif', 'i
 /** Commands that take a command after them (their own options skipped). */
 export const WRAPPERS = new Set([
   'sudo', 'doas', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'ionice', 'stdbuf', 'builtin', 'xargs', 'timeout', 'chronic', 'unbuffer',
-  'npx', 'bunx', 'pnpx', 'watch', 'noglob', 'nocorrect', 'caffeinate', 'busybox', 'parallel', 'shx',
+  'npx', 'bunx', 'pnpx', 'watch', 'noglob', 'nocorrect', 'caffeinate', 'busybox', 'parallel', 'shx', 'wsl',
 ])
 /** Package runners whose `exec`/`dlx`/`x` subcommand runs the command after it (`pnpm exec rimraf`). */
 const RUNNERS = /^(pnpm|yarn|npm|bun)$/
 const RUNNER_SUBCOMMANDS = /^(exec|dlx|x)$/
 /** Wrapper options that take a separate value (`sudo -u root rm ...`). */
-const VALUED = new Set(['-u', '-g', '-C', '-D', '-h', '-p', '-U', '-r', '-t', '-n', '-I', '-L', '-P', '-s', '-k', '--signal', '--kill-after', '--user', '--group', '--package', '--interval', '-j', '--jobs'])
+const VALUED = new Set(['-u', '-g', '-C', '-D', '-h', '-p', '-U', '-r', '-t', '-n', '-I', '-L', '-P', '-s', '-k', '--signal', '--kill-after', '--user', '--group', '--package', '--interval', '-j', '--jobs', '-d', '--distribution', '--cd'])
 
 export const isOption = (w: string): boolean => w.startsWith('-') && w !== '-'
 

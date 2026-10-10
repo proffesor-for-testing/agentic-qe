@@ -33,16 +33,28 @@ const remembered = (v: string): string => (v.length > MAX_PATH ? '*' : v)
 /** `NAME=value` words before the command word, and `for NAME in ...`, `read NAME`: remembered for `$NAME`. */
 function bindVars(ws: readonly string[], start: number, seg: Segment, ctx: Ctx): void {
   // An assignment's word may have expanded to several alternatives (`DB=$(ls ...)`): the variable may hold any of them.
+  // An array (`arr=(a $(find ...))`) holds each of its elements.
   const assigned = new Map<string, string[]>()
   for (const w of ws.slice(0, start)) {
-    const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s.exec(w)
-    if (m !== null) assigned.set(m[1] as string, [...(assigned.get(m[1] as string) ?? []), remembered(m[2] as string)])
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)\+?=(.*)$/s.exec(w)
+    if (m === null) continue
+    const value = m[2] as string
+    const array = /^\(([\s\S]*)\)$/.exec(value)
+    const values = array === null ? [value] : (array[1] as string).split(/\s+/).filter(v => v !== '')
+    assigned.set(m[1] as string, [...(assigned.get(m[1] as string) ?? []), ...values.map(remembered)])
   }
   for (const [name, values] of assigned) ctx.vars.set(name, [...new Set(values)])
   const verb = ws[start]
   if (verb === 'export' || verb === 'local' || verb === 'declare' || verb === 'readonly' || verb === 'typeset') bindVars(ws.slice(start + 1), ws.length - start - 1, seg, ctx)
   if ((verb === 'for' || verb === 'select') && ws[start + 2] === 'in') ctx.vars.set(ws[start + 1] as string, ws.slice(start + 3).flatMap(w => expandBraces(w)).map(remembered))
-  // `read f` holds whatever was piped or `< <(...)`-fed in: unknown (`*`), plus the store when that feed may be it.
+  // `read f`, `mapfile -t arr`, `readarray arr` hold whatever was piped or `< <(...)`-fed in:
+  // unknown (`*`), plus the store when that feed may be it.
+  if (verb === 'mapfile' || verb === 'readarray') {
+    const piped = seg.piped && (fedByProducer(seg, ctx) || seg.upstream.split(/\s+/).some(w => isData(w, ctx)))
+    const fed = [...(piped ? ['.agentic-qe/memory.db', '.agentic-qe'] : []), ...(ctx.readFed ?? []), '*']
+    const names = ws.slice(start + 1).filter((w, i, all) => !isOption(w) && !/^-[dnOsuCc]$/.test(all[i - 1] ?? ''))
+    ctx.vars.set(names[names.length - 1] ?? 'MAPFILE', [...new Set(fed)])
+  }
   if (verb === 'read') {
     const piped = seg.piped ? (seg.upstream.split(/\s+/).find(w => isData(w, ctx)) ?? (fedByProducer(seg, ctx) ? '.agentic-qe/memory.db' : undefined)) : undefined
     const fed = [...(piped === undefined ? [] : [piped]), ...(ctx.readFed ?? []), '*']
@@ -110,6 +122,13 @@ export function judgeSegment(seg: Segment, ctx: Ctx, viaXargs = false): string |
     return undefined
   }
   if (SHELLS.has(verb) || verb === 'eval') return judgeShell(verb, args, seg, ctx, piped)
+  // `pwsh -c ...` / `powershell -Command ...` from a shell: the PowerShell rules read it.
+  if (/^(pwsh|powershell)(\.exe)?$/i.test(verb)) {
+    const c = args.findIndex(a => /^-(c|command|encodedcommand|ec|e)$/i.test(a))
+    if (c === -1) return seg.opaqueStdin || seg.piped ? `\`${verb}\` reads a script the guard cannot see` : undefined
+    if (/^-(encodedcommand|ec|e)$/i.test(args[c] as string)) return `\`${verb} -EncodedCommand\` runs a script the guard cannot read`
+    return ctx.pwsh(args.slice(c + 1).join(' '), ctx)
+  }
   if (verb === 'su') {
     const c = args.findIndex(a => a === '-c' || a === '--command')
     return c === -1 ? undefined : ctx.bash(args[c + 1] ?? '', ctx)

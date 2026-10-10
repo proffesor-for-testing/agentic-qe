@@ -27,6 +27,8 @@ export type Ctx = {
   readonly subst: (inner: string, ctx: Ctx) => readonly string[]
   /** What `read` receives from a `< <(...)` on the line, when that may be the store. */
   readFed: readonly string[] | undefined
+  /** Judges a PowerShell command line (`pwsh -c ...` from the Bash tool) under this context. */
+  readonly pwsh: (command: string, ctx: Ctx) => string | undefined
 }
 
 /** How a word touches learning data under this context, or undefined. */
@@ -62,6 +64,9 @@ function matching(w: string, open: number, o: string, c: string): number {
 function braceParam(inner: string, vars: ReadonlyMap<string, readonly string[]>, depth: number): Unit {
   const name = /^[A-Za-z_][A-Za-z0-9_]*$/.test(inner) ? inner : undefined
   if (name !== undefined) return vars.get(name) ?? ['*']
+  // `${arr[@]}`, `${arr[*]}`, `${arr[0]}`: the array's values (an array binding holds every element).
+  const element = /^([A-Za-z_][A-Za-z0-9_]*)\[[^\]]*\]$/.exec(inner)
+  if (element !== null) return vars.get(element[1] as string) ?? ['*']
   const op = /^([A-Za-z_][A-Za-z0-9_]*)(:?[-=?+])(.*)$/s.exec(inner)
   if (op === null || depth > 8) return ['*']
   const known = vars.get(op[1] as string)
@@ -135,7 +140,8 @@ export function expandVars(word: string, vars: ReadonlyMap<string, readonly stri
     if (typeof p === 'string') length += p.length
     else {
       count *= Math.max(1, p.length)
-      length += Math.max(0, ...p.map(v => v.length))
+      // A loop, not Math.max(...spread): a unit may hold more values than the call stack takes.
+      length += p.reduce((m, v) => Math.max(m, v.length), 0)
     }
   }
   // Too many results, or too long: read loose, but keep any alternative that names the store as a word of its own.
@@ -165,7 +171,7 @@ export function expandWords(seg: Segment, ctx: Ctx): string[] {
  * whitespace and punctuation, so `rmSync('.agentic-qe', {...})`,
  * `os.path.join('.agentic-qe','memory.db')` and `'${root}/.agentic-qe/memory.db'` each yield the path.
  */
-export const pathTokens = (text: string): string[] => text.split(/[\s'"`,;()[\]{}+<>|&=$]+/).filter(t => t !== '')
+export const pathTokens = (text: string): string[] => text.split(/[\s'"`,;(){}+<>|&=$]+/).filter(t => t !== '')
 
 /** Whether a script or SQL text names learning data (the directory counts). */
 export const textNamesData = (text: string, ctx: Ctx): boolean => pathTokens(text).some(t => isData(t, ctx))

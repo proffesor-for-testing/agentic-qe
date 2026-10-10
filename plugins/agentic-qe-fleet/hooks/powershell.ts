@@ -10,6 +10,7 @@
 import { holdsAqe } from './commands'
 import { isData, isDataFileOrGlob, kindOf, textNamesData, type Ctx } from './context'
 import { DATA_FILE, baseName, globMatches, globReachesData, underAqe } from './paths'
+import { assignment, foreachOf, hasUnknownVar, rhsValues, substitute, type PsVars } from './psvars'
 
 const DELETE = new Set(['remove-item', 'rm', 'del', 'erase', 'rd', 'rmdir', 'ri'])
 const MOVE = new Set(['move-item', 'mv', 'move', 'mi'])
@@ -21,8 +22,9 @@ const CD = new Set(['cd', 'set-location', 'sl', 'chdir', 'pushd', 'push-location
 const LIST = new Set(['get-childitem', 'gci', 'ls', 'dir'])
 const EXPR = new Set(['invoke-expression', 'iex'])
 const START = new Set(['start-process', 'saps', 'start'])
+const PWSH = /^(pwsh|powershell)(\.exe)?$/
 /** A downstream stage that destroys what is piped to it. */
-const CONSUMES = /(^|[\s{;(])(remove-item|ri|rm|del|erase|rd|rmdir|move-item|mv|move|mi|clear-content|clc|set-content|sc|rename-item|ren|rni)(?=$|[\s;})])/i
+const CONSUMES = /(^|[\s{;(])(remove-item|ri|rm|del|erase|rd|rmdir|move-item|mv|move|mi|clear-content|clc|set-content|sc|rename-item|ren|rni)(?=$|[\s;})])|\.delete\s*\(/i
 /** .NET file APIs that delete, move or overwrite. */
 const DOTNET = /\[(System\.)?IO\.(File|Directory|FileInfo|DirectoryInfo)\]::(Delete|Move|Copy|Replace|WriteAll\w*|AppendAll\w*|Create\w*|Open\w*)\b|\.Delete\s*\(/i
 /** How deep `iex`, `& { }` and `Start-Process` text is followed before naming the store at all is refused. */
@@ -93,11 +95,17 @@ function verbOf(seg: string): { verb: string; args: string[] } {
   return { verb: baseName(call ? (ws[1] ?? '') : (ws[0] ?? '')).toLowerCase(), args: call ? ws.slice(2) : ws.slice(1) }
 }
 
-/** Whether a stage hands the store to the next one: it names it, or lists recursively from where it may be. */
-function feedsStore(seg: string, ctx: Ctx): boolean {
+/**
+ * Whether a stage hands the store to the next one: it names it; it lists recursively from
+ * where it may be; it lists hidden items (`-Force`, `-Hidden`) for a recursive delete; or it
+ * lists inside `.agentic-qe` (after `sl .agentic-qe`).
+ */
+function feedsStore(seg: string, ctx: Ctx, recursiveConsumer = false): boolean {
   if (textNamesData(seg.replace(/\\/g, '/'), ctx)) return true
   const { verb, args } = verbOf(seg)
-  if (!LIST.has(verb) || !hasSwitch(args, 'recurse', 1)) return false
+  if (!LIST.has(verb)) return false
+  const hidden = hasSwitch(args, 'force', 2) || hasSwitch(args, 'hidden', 2)
+  if (!hasSwitch(args, 'recurse', 1) && !(hidden && recursiveConsumer) && !ctx.inAqe) return false
   const ops = operands(args)
   // The listing root: -Path, or the first operand unless it is a bare pattern (`ls -r *.db` lists from here).
   const first = ops[0]
@@ -110,7 +118,8 @@ function feedsStore(seg: string, ctx: Ctx): boolean {
 function judgePsSegment(seg: string, ctx: Ctx, depth: number): string | undefined {
   const redirect = psRedirects(seg).find(t => isDataFileOrGlob(t, ctx))
   if (redirect !== undefined) return `a PowerShell redirect overwrites ${redirect}`
-  if (DOTNET.test(seg) && textNamesData(seg.replace(/\\/g, '/'), ctx)) return 'a .NET file API deletes or overwrites AQE learning data'
+  // A .NET file API on the store, or on an argument the guard cannot resolve (an unknown `$p`, read as `*`).
+  if (DOTNET.test(seg) && (textNamesData(seg.replace(/\\/g, '/'), ctx) || /\(\s*['"]?\*/.test(seg))) return 'a .NET file API deletes or overwrites AQE learning data'
   // A script block (`& { ... }`, `ForEach-Object { ... }`) is read as PowerShell of its own.
   for (const block of seg.matchAll(/\{([^{}]*)\}/g)) {
     const what = judgePowerShell(block[1] ?? '', ctx, depth + 1)
@@ -129,9 +138,17 @@ function judgePsSegment(seg: string, ctx: Ctx, depth: number): string | undefine
   }
   if (EXPR.has(verb)) return judgePowerShell(ops.join(' '), ctx, depth + 1)
   if (START.has(verb)) {
+    // `-ArgumentList '/c','rd','/s','/q','.agentic-qe'` is a comma list; `'-Command ...'` one string.
+    const listed = /-(?:argumentlist|args)\s+((?:(?:'[^']*'|"[^"]*"|[^\s,'"]+)\s*,\s*)*(?:'[^']*'|"[^"]*"|[^\s,'"]+))/i.exec(seg)?.[1]
+    const list = listed === undefined ? ops.slice(1).join(' ') : listed.split(/\s*,\s*/).map(a => a.replace(/^(['"])([\s\S]*)\1$/, '$2')).join(' ')
     const file = param(args, 'filepath') ?? ops[0] ?? ''
-    const list = param(args, 'argumentlist', 'args') ?? ops.slice(1).join(' ')
     return judgePowerShell(`${file} ${list}`, ctx, depth + 1)
+  }
+  if (PWSH.test(verb)) {
+    const c = args.findIndex(a => /^-(c|command|encodedcommand|ec|e)$/i.test(a))
+    if (c === -1) return undefined
+    if (/^-(encodedcommand|ec|e)$/i.test(args[c] as string)) return `\`${verb} -EncodedCommand\` runs a script the guard cannot read`
+    return judgePowerShell(args.slice(c + 1).join(' '), ctx, depth + 1)
   }
   if (DELETE.has(verb)) {
     const hit = ops.find(a => isData(a, ctx))
@@ -166,18 +183,26 @@ function judgePsSegment(seg: string, ctx: Ctx, depth: number): string | undefine
   return ctx.bash(seg.replace(/\\/g, '/'), ctx)
 }
 
-/** The refusal reason for a PowerShell command line, or undefined. */
-export function judgePowerShell(command: string, ctx: Ctx, depth = 0): string | undefined {
+/** The refusal reason for a PowerShell command line, or undefined. Variables bound on the line are read through. */
+export function judgePowerShell(command: string, ctx: Ctx, depth = 0, vars: PsVars = new Map()): string | undefined {
   if (depth > MAX_DEPTH) return /agentic/i.test(command) ? 'PowerShell nested too deeply to read names learning data' : undefined
-  for (const statement of statements(command)) {
+  for (const raw of statements(command)) {
+    // `iex` of text holding a variable the guard cannot resolve: it cannot read what runs.
+    if (/^(iex|invoke-expression)\b/i.test(raw.trim()) && hasUnknownVar(raw, vars)) return '`Invoke-Expression` runs text the guard cannot read'
+    const loop = foreachOf(raw)
+    if (loop !== undefined) vars.set(loop.name, rhsValues(substitute(loop.source, vars), ctx, t => feedsStore(t, ctx, true)))
+    const bound = assignment(raw)
+    const statement = substitute(bound === undefined ? raw : bound.rhs, vars)
     const parts = stages(statement)
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i] as string
       const what = judgePsSegment(part, ctx, depth)
       if (what !== undefined) return what
-      // Data flow: a destroying stage fed by one that names or recursively lists the store.
-      if (i > 0 && CONSUMES.test(part) && parts.slice(0, i).some(up => feedsStore(up, ctx))) return `a PowerShell pipeline feeds AQE learning data to \`${verbOf(part).verb}\``
+      // Data flow: a destroying stage fed by one that names, lists recursively or lists hidden items of the store.
+      const recursive = hasSwitch(verbOf(part).args, 'recurse', 1)
+      if (i > 0 && CONSUMES.test(part) && parts.slice(0, i).some(up => feedsStore(up, ctx, recursive))) return `a PowerShell pipeline feeds AQE learning data to \`${verbOf(part).verb}\``
     }
+    if (bound !== undefined) vars.set(bound.name, rhsValues(statement, ctx, t => feedsStore(t, ctx, true)))
   }
   return undefined
 }

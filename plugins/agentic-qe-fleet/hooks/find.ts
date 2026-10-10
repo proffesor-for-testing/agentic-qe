@@ -22,6 +22,33 @@ function findRoots(args: readonly string[]): { roots: string[]; end: number } {
   return { roots, end: i }
 }
 
+/** Output actions: what a find prints is what its reader (`$(...)`, `| xargs`) receives. */
+const OUTPUTS = /^-(print0?|ls)$/
+const OUTPUTS_VALUED = /^-(printf|fprint0?|fprintf|fls)$/
+
+/**
+ * The same find, deleting what it would print: `-delete` beside each output action, or the
+ * whole expression wrapped as `( ... ) -delete` when it has none (the implicit `-print` covers
+ * every `-o` branch, so a trailing `-delete` would bind only to the last one).
+ */
+export function asDeleting(args: readonly string[]): string[] {
+  const { end } = findRoots(args)
+  const head = args.slice(0, end)
+  const expr = args.slice(end)
+  if (expr.length === 0) return [...head, '-delete']
+  if (!expr.some(a => OUTPUTS.test(a) || OUTPUTS_VALUED.test(a))) return [...head, '(', ...expr, ')', '-delete']
+  const out: string[] = []
+  for (let i = 0; i < expr.length; i++) {
+    const a = expr[i] as string
+    if (OUTPUTS.test(a)) out.push('-delete')
+    else if (OUTPUTS_VALUED.test(a)) {
+      out.push('-delete')
+      i++
+    } else out.push(a)
+  }
+  return [...head, ...out]
+}
+
 /** What a found path is replaced by when an `-exec` command is judged as if it ran on the store. */
 const FOUND = '.agentic-qe/memory.db'
 
@@ -151,7 +178,8 @@ export function judgeFind(args: readonly string[], ctx: Ctx): string | undefined
 
   const direct = roots.some(r => underAqe(r, ctx.inAqe)) || (roots.length === 0 && ctx.inAqe) || paths.some(reachesSpot)
   const above = (roots.length === 0 && !ctx.inAqe) || roots.some(r => holdsAqe(r, ctx))
-  const narrowed = paths.some(p => !reachesSpot(p))
+  // Only a literal -path narrows: one with `*`, `?` or `[` may match a store at any depth (`-path '*proj*'` under ~).
+  const narrowed = paths.some(p => !/[*?[]/.test(p) && !reachesSpot(p))
   if (!direct && !(above && !narrowed)) return undefined
   // A -name/-iname in the action's branch must be able to match a data file, or the directory itself.
   if (names.length > 0 && !names.some(n => globReachesData(n) || globMatches(n, '.agentic-qe'))) return undefined

@@ -74,6 +74,8 @@ function namesAqe(component: string, dotglob: boolean): boolean {
   // A `--db=` or `file:` prefix, never one reaching into a glob (`.agentic-q[[:alpha:]]`).
   const c = component.replace(/^[^*?[]*[=:]/, '')
   if (c.toLowerCase() === AQE) return true
+  // Leading `*`s are often an unknown expansion that may be empty (`"$X.agentic-qe"`, `$(true).agentic-qe`).
+  if (/^\*+\./.test(c) && globMatches(c.replace(/^\*+/, ''), AQE)) return true
   return hasGlob(c) && (dotglob || c.startsWith('.') || c.startsWith('[')) && globMatches(c, AQE)
 }
 

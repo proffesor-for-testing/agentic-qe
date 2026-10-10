@@ -289,6 +289,12 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     expect(performance.now() - t0).toBeLessThan(50)
   })
 
+  it('should not overflow the stack on a unit with very many values (fifth review)', () => {
+    const many = new Map([['V', Array.from({ length: 200_000 }, (_, i) => `v${i}`)]])
+    expect(() => expandVars('$V', many)).not.toThrow()
+    expect(expandVars('$V', many)[0]).toBe('*')
+  })
+
   it('should decode ANSI-C quoting as bash does', () => {
     expect(readAnsiC("\\x2eagentic-qe'", 0).text).toBe('.agentic-qe')
     expect(readAnsiC("\\056agentic-qe'", 0).text).toBe('.agentic-qe')

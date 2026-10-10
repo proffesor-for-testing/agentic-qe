@@ -95,6 +95,7 @@ const newCtx = (scope: GuardScope | undefined): Ctx => ({
   bash: (command, ctx) => bashWhat(command, { ...ctx }),
   subst: cachedSubst(),
   readFed: undefined,
+  pwsh: (command, ctx) => judgePowerShell(command, { ...ctx }),
 })
 
 /** `substitutionAlts`, remembered per inner text for one call (a word may repeat a substitution). */
