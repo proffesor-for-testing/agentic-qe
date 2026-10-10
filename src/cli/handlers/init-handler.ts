@@ -73,7 +73,7 @@ export class InitHandler implements ICommandHandler {
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
       .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
-      .option('--with-mcp', 'Enable MCP server config (default — kept for backward compatibility)')
+      .option('--with-mcp', 'Write the project .mcp.json agentic-qe entry even when the agentic-qe-fleet Claude Code plugin already provides the AQE MCP server (#922)')
       .option('--with-all-platforms', 'Include all coding agent platform configurations')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
@@ -222,6 +222,7 @@ export class InitHandler implements ICommandHandler {
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
       noMcp: options.noMcp && !options.withMcp,
+      withMcp: options.withMcp,
       noGovernance: options.noGovernance,
       noClaude,
       noStatusLine: options.statusline === false,
@@ -348,6 +349,7 @@ export class InitHandler implements ICommandHandler {
       browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
+      withMcp: options.withMcp,
     };
 
     const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -551,6 +553,7 @@ Options:
   --with-claude-flow         Force Claude Flow integration setup
   --skip-claude-flow         Skip Claude Flow integration
   --no-mcp                   Skip MCP server config (MCP is enabled by default)
+  --with-mcp                 Add the .mcp.json entry even if the agentic-qe-fleet plugin is enabled
   --no-governance            Skip governance configuration (ADR-058)
   --modular                  Use new modular init system
 
@@ -558,6 +561,9 @@ MCP Server:
   MCP server configuration is ENABLED BY DEFAULT. It writes .mcp.json
   at the project root so Claude Code auto-discovers the AQE MCP server.
   Use --no-mcp to skip if you only want CLI commands.
+  If the agentic-qe-fleet Claude Code plugin is enabled (user, project or
+  local settings), init skips the entry because the plugin already provides
+  the AQE MCP server. Use --with-mcp to add the project entry anyway.
 
 Governance:
   Governance is ENABLED BY DEFAULT. It installs .claude/guidance/ with:
