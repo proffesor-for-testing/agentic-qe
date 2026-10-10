@@ -11,9 +11,13 @@ import { isDataFileOrGlob, kindOf, pathTokens, textNamesData, textNamesDataFile,
 import { baseName, DATA_FILE } from './paths'
 import type { Segment } from './shell'
 
-/** SQL that destroys rows, columns or schema, and sqlite dot-commands that replace the open database. */
+/** SQL that destroys or overwrites rows, columns or schema (UPDATE included), and sqlite dot-commands that replace the open database. */
 export const DESTRUCTIVE_SQL =
-  /\b(drop\s+(table|index|view|trigger)|delete\s+from|truncate(\s+table)?\s+\w|alter\s+table\s+\S{1,256}\s+drop\b)|(^|[\s"';])\.(restore|drop)\b/i
+  /\b(drop\s+(table|index|view|trigger)|delete\s+from|truncate(\s+table)?\s+\w|alter\s+table\s+\S{1,256}\s+drop\b|update\s+(or\s+\w+\s+)?\S{1,256}\s+set\b)|(^|[\s"';])\.(restore|drop)\b/i
+/** `VACUUM INTO 'file'`: writes a copy of the open database to that file. */
+const VACUUM_INTO = /\bvacuum\b[^;]{0,256}?\binto\s+(['"])([^'"]*)\1/gi
+/** sqlite3 dot-command that runs SQL from a file the guard cannot see. */
+const DOT_READ = /(^|[\s;"'])\.read\b/i
 
 /** sqlite3 dot-commands that write a file named after them (`.backup FILE`, `.output FILE`). */
 const DOT_WRITE = /(?:^|[\s;"'])\.(backup|save|output|once)\b([^\n;]*)/gi
@@ -84,7 +88,9 @@ export function judgeSqlite(args: readonly string[], seg: Segment, ctx: Ctx): st
   const db = operands[0] ?? ''
   // A `file:` URI opened read-only (`?mode=ro`, `?immutable=1`) cannot change the store either.
   if (/^file:.*[?&](mode=ro|immutable=1)(&|#|$)/i.test(db)) readonly = true
-  const sql = [...cmds, ...operands.slice(1), seg.stdin, seg.piped ? seg.upstream : ''].join('\n')
+  // Path operands (a substitution may have expanded to several) are databases, not SQL: `.agentic-qe/*.db` must not read as a `/*` comment.
+  const isPath = (o: string) => !/\s/.test(o) && (o === '*' || isDataFileOrGlob(o, ctx))
+  const sql = [...cmds, ...operands.slice(1).filter(o => !isPath(o)), seg.stdin, seg.piped ? seg.upstream : ''].join('\n')
 
   // Dot-commands judged whatever the database: `.backup .agentic-qe/memory.db` from an empty one overwrites the store.
   for (const m of sql.matchAll(DOT_WRITE)) {
@@ -96,13 +102,17 @@ export function judgeSqlite(args: readonly string[], seg: Segment, ctx: Ctx): st
     const what = ctx.bash(m[2] ?? '', ctx)
     if (what !== undefined) return `sqlite3 \`.${m[1] ?? ''}\` runs ${what}`
   }
+  for (const m of sql.matchAll(VACUUM_INTO)) if (isDataFileOrGlob(m[2] ?? '', ctx)) return `sqlite3 \`VACUUM INTO\` writes over ${m[2] ?? ''}`
 
+  // The database is the first operand, but a substitution may have expanded to several: any path operand that is a store counts.
   const opens = DOT_OPEN.test(sql) || /\battach\b/i.test(sql)
-  const onData = isDataFileOrGlob(db, ctx) || (opens && textNamesDataFile(sql, ctx))
+  const onData = isDataFileOrGlob(db, ctx) || operands.some(o => !/\s/.test(o) && isDataFileOrGlob(o, ctx)) || (opens && textNamesDataFile(sql, ctx))
   if (!onData) return undefined
   // A read-only connection cannot change the store (its ATTACHed databases are read-only too); `.open` reopens read-write.
   if (readonly && !DOT_OPEN.test(sql)) return undefined
-  return DESTRUCTIVE_SQL.test(sqlCode(sql)) ? 'destructive SQL (DROP/DELETE FROM/TRUNCATE/ALTER ... DROP/.restore) against an AQE learning database' : undefined
+  // SQL from a file or an unterminated heredoc cannot be read: on a store, refuse.
+  if (DOT_READ.test(sql) || seg.redirects.some(r => r.op === '<') || seg.opaqueStdin === true) return 'sqlite3 runs SQL the guard cannot read against an AQE learning database'
+  return DESTRUCTIVE_SQL.test(sqlCode(sql)) ? 'destructive SQL (DROP/DELETE FROM/TRUNCATE/ALTER ... DROP/UPDATE/.restore) against an AQE learning database' : undefined
 }
 
 /** Interpreters whose one-liners and stdin scripts the guard reads. */

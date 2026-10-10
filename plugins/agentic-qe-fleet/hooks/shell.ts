@@ -32,6 +32,8 @@ export type Segment = {
   readonly stages: readonly (readonly string[])[]
   /** Set on a stand-in segment for a substitution nested past the depth the reader follows: its text, unread. */
   readonly dropped?: string
+  /** A heredoc fed to it whose end is not in the text: what it reads is unknown. */
+  readonly opaqueStdin?: boolean
 }
 
 /** How deep `$(...)` / backtick nesting is read; deeper text is handed back unread, as `dropped`. */
@@ -47,6 +49,7 @@ type Building = {
   stdin: string
   pipeline: number
   stage: number
+  opaqueStdin?: boolean
 }
 
 type Heredoc = { readonly seg: Building; readonly delim: string; readonly strip: boolean; readonly literal: boolean }
@@ -190,13 +193,18 @@ export function parse(src: string, depth = 0): Segment[] {
     while (heredocs.length > 0) {
       const h = heredocs.shift() as Heredoc
       const body: string[] = []
+      let closed = false
       while (i < src.length) {
         const nl = src.indexOf('\n', i)
         const line = src.slice(i, nl === -1 ? src.length : nl)
         i = nl === -1 ? src.length : nl + 1
-        if ((h.strip ? line.replace(/^\t+/, '') : line) === h.delim) break
+        if ((h.strip ? line.replace(/^\t+/, '') : line) === h.delim) {
+          closed = true
+          break
+        }
         body.push(line)
       }
+      if (!closed) h.seg.opaqueStdin = true
       const text = body.join('\n')
       h.seg.stdin += `${text}\n`
       if (!h.literal) for (const s of substitutions(text)) nested(s)
@@ -339,6 +347,7 @@ class Stage implements Segment {
   readonly expandable: readonly string[]
   readonly redirects: readonly Redirect[]
   readonly piped: boolean
+  readonly opaqueStdin: boolean
   private readonly built: Building
   private readonly pipeline: readonly Building[]
   private readonly at: number
@@ -351,6 +360,7 @@ class Stage implements Segment {
     this.expandable = built.expandable
     this.redirects = built.redirects
     this.piped = built.stage > 0
+    this.opaqueStdin = built.opaqueStdin === true
     this.pipeline = pipeline
     this.at = at
   }
@@ -386,8 +396,11 @@ export const KEYWORDS = new Set(['!', '{', '}', 'then', 'do', 'else', 'elif', 'i
 /** Commands that take a command after them (their own options skipped). */
 export const WRAPPERS = new Set([
   'sudo', 'doas', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'ionice', 'stdbuf', 'builtin', 'xargs', 'timeout', 'chronic', 'unbuffer',
-  'npx', 'bunx', 'pnpx', 'watch', 'noglob', 'nocorrect', 'caffeinate', 'busybox', 'parallel',
+  'npx', 'bunx', 'pnpx', 'watch', 'noglob', 'nocorrect', 'caffeinate', 'busybox', 'parallel', 'shx',
 ])
+/** Package runners whose `exec`/`dlx`/`x` subcommand runs the command after it (`pnpm exec rimraf`). */
+const RUNNERS = /^(pnpm|yarn|npm|bun)$/
+const RUNNER_SUBCOMMANDS = /^(exec|dlx|x)$/
 /** Wrapper options that take a separate value (`sudo -u root rm ...`). */
 const VALUED = new Set(['-u', '-g', '-C', '-D', '-h', '-p', '-U', '-r', '-t', '-n', '-I', '-L', '-P', '-s', '-k', '--signal', '--kill-after', '--user', '--group', '--package', '--interval', '-j', '--jobs'])
 
@@ -407,8 +420,8 @@ export function commandStart(ws: readonly string[], isVerb: (w: string) => boole
     else if (w === 'function') i += 2
     // `coproc NAME { cmd; }` names the coprocess; `coproc cmd args` does not.
     else if (w === 'coproc') i += ws[i + 2] === '{' || ws[i + 2] === '(' ? 2 : 1
-    else if (WRAPPERS.has(name)) {
-      i++
+    else if (WRAPPERS.has(name) || (RUNNERS.test(name) && RUNNER_SUBCOMMANDS.test(ws[i + 1] ?? ''))) {
+      i += WRAPPERS.has(name) ? 1 : 2
       while (i < ws.length && (isOption(ws[i] as string) || /^\d+(\.\d+)?[smhd]?$/.test(ws[i] as string))) {
         const after = ws[i + 1]
         i += VALUED.has(ws[i] as string) && after !== undefined && !isVerb(after) ? 2 : 1

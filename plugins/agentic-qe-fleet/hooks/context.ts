@@ -3,7 +3,7 @@
  * changed into, the variables it has set, the project root, and how to judge a
  * nested shell command. Pure: no `$`.
  */
-import { protectedKind, type ProtectedKind } from './paths'
+import { MAX_PATH, protectedKind, type ProtectedKind } from './paths'
 import { expandBraces, unmask, type Segment } from './shell'
 
 /** Where the guard is judging: the project root, when the session knows it (so `find /abs/root ...` is read as from above `.agentic-qe`). */
@@ -23,6 +23,10 @@ export type Ctx = {
   readonly depth: number
   /** Judges a nested shell command line (`bash -c "..."`, `.shell ...`) under this context. */
   readonly bash: (command: string, ctx: Ctx) => string | undefined
+  /** What a `$(...)`/backtick substitution may expand to (producers.ts), cached per inner text. */
+  readonly subst: (inner: string, ctx: Ctx) => readonly string[]
+  /** What `read` receives from a `< <(...)` on the line, when that may be the store. */
+  readFed: readonly string[] | undefined
 }
 
 /** How a word touches learning data under this context, or undefined. */
@@ -66,8 +70,11 @@ function braceParam(inner: string, vars: ReadonlyMap<string, readonly string[]>,
   return [...(known ?? []), word, '*']
 }
 
+/** Resolves a substitution's inner text to what it may expand to; without one, every substitution is `*`. */
+export type Subst = (inner: string) => readonly string[]
+
 /** Splits a word into literal text and `$` expansions (unknown ones as `*`). */
-function units(word: string, vars: ReadonlyMap<string, readonly string[]>, depth = 0): Array<string | Unit> {
+function units(word: string, vars: ReadonlyMap<string, readonly string[]>, depth = 0, subst?: Subst): Array<string | Unit> {
   const out: Array<string | Unit> = []
   let lit = ''
   for (let i = 0; i < word.length; i++) {
@@ -78,11 +85,11 @@ function units(word: string, vars: ReadonlyMap<string, readonly string[]>, depth
     if (c === '`') {
       const close = word.indexOf('`', i + 1)
       end = close === -1 ? word.length - 1 : close
-      unit = ['*']
+      unit = subst === undefined ? ['*'] : subst(word.slice(i + 1, end))
     } else if (c === '$' && n === '(') {
       const close = matching(word, i + 1, '(', ')')
       end = close === -1 ? word.length - 1 : close
-      unit = ['*']
+      unit = subst === undefined ? ['*'] : subst(word.slice(i + 2, close === -1 ? word.length : close))
     } else if (c === '$' && n === '{') {
       const close = matching(word, i + 1, '{', '}')
       end = close === -1 ? word.length - 1 : close
@@ -119,12 +126,23 @@ const loose = (word: string, depth = 0): string =>
  * (unknown text can be anything), `${X:-w}` as `w` or `*`. Past `budget`
  * results the whole word is read loose, every expansion as `*`.
  */
-export function expandVars(word: string, vars: ReadonlyMap<string, readonly string[]>, budget = WORD_BUDGET): string[] {
+export function expandVars(word: string, vars: ReadonlyMap<string, readonly string[]>, budget = WORD_BUDGET, subst?: Subst): string[] {
   if (!word.includes('$') && !word.includes('`')) return [word]
-  const parts = units(word, vars)
+  const parts = units(word, vars, 0, subst)
   let count = 1
-  for (const p of parts) if (typeof p !== 'string') count *= Math.max(1, p.length)
-  if (count > budget) return [loose(word)]
+  let length = 0
+  for (const p of parts) {
+    if (typeof p === 'string') length += p.length
+    else {
+      count *= Math.max(1, p.length)
+      length += Math.max(0, ...p.map(v => v.length))
+    }
+  }
+  // Too many results, or too long: read loose, but keep any alternative that names the store as a word of its own.
+  if (count > budget || length > MAX_PATH) {
+    const named = parts.flatMap(p => (typeof p === 'string' ? [] : p.filter(v => /agentic/i.test(v))))
+    return [loose(word), ...new Set(named)]
+  }
   let out = ['']
   for (const p of parts) out = typeof p === 'string' ? out.map(o => o + p) : out.flatMap(o => p.map(v => o + v))
   return out
@@ -138,7 +156,7 @@ export function expandWords(seg: Segment, ctx: Ctx): string[] {
     const ex = seg.expandable[i] ?? w
     const braced = ex.includes('{') ? expandBraces(ex).map(unmask) : [w]
     const budget = Math.max(1, Math.floor(WORD_BUDGET / braced.length))
-    return braced.flatMap(b => expandVars(b, ctx.vars, budget))
+    return braced.flatMap(b => expandVars(b, ctx.vars, budget, inner => ctx.subst(inner, ctx)))
   })
 }
 

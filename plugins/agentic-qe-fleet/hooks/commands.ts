@@ -12,16 +12,21 @@ export const COPIERS = new Set(['cp', 'install', 'ln', 'rsync', 'scp'])
 /** Compressors that replace the file they compress (unless told to keep it). */
 export const COMPRESSORS = new Set(['gzip', 'bzip2', 'xz', 'lzma', 'compress', 'pigz', 'lzip'])
 /** Other commands that move, rewrite or truncate the files they are given. */
-export const REWRITERS = new Set(['mv', 'truncate', 'dd', 'tee', 'sed', 'xargs', 'parallel'])
+export const REWRITERS = new Set(['mv', 'truncate', 'dd', 'tee', 'sed', 'xargs', 'parallel', 'sponge'])
+/** SQLite clients that can change a database they are given. */
+export const SQLITE_TOOLS = new Set(['sqlite3', 'sqlite', 'sqlite-utils', 'litecli', 'better-sqlite3-cli'])
+
+/** A command word's name: its last path component without an npm `@version` (`rimraf@5`, `/usr/bin/rm`). */
+export const verbName = (w: string): string => baseName(w).replace(/^(.+?)@[^/]*$/, '$1')
 
 /** Every command word the guard judges (so a wrapper's valued flag never swallows it). */
-const KNOWN = new Set([...DELETERS, ...COPIERS, ...SHELLS, ...COMPRESSORS, ...REWRITERS, 'find', 'git', 'cd', 'pushd', 'sqlite3', 'sqlite', 'eval', 'su'])
-export const isVerb = (w: string): boolean => KNOWN.has(baseName(w)) || INTERPRETER.test(baseName(w))
+const KNOWN = new Set([...DELETERS, ...COPIERS, ...SHELLS, ...COMPRESSORS, ...REWRITERS, ...SQLITE_TOOLS, 'find', 'git', 'cd', 'pushd', 'eval', 'su', 'awk', 'gawk', 'tar', 'unzip'])
+export const isVerb = (w: string): boolean => KNOWN.has(verbName(w)) || INTERPRETER.test(verbName(w))
 
-/** Whether a word, anywhere in an argv, is a command that can delete or overwrite (`-exec sudo rm`, `-exec git rm`). */
-export const isDestructiveWord = (w: string): boolean => {
-  const b = baseName(w)
-  return DELETERS.has(b) || COPIERS.has(b) || SHELLS.has(b) || COMPRESSORS.has(b) || REWRITERS.has(b) || INTERPRETER.test(b) || b === 'eval'
+/** Whether a command word deletes, moves or rewrites the files it is given (`rm`, `mv`, `sqlite3`, `bash`, `python3`). */
+export const isDestructiveVerb = (w: string): boolean => {
+  const b = verbName(w)
+  return DELETERS.has(b) || COPIERS.has(b) || SHELLS.has(b) || COMPRESSORS.has(b) || REWRITERS.has(b) || SQLITE_TOOLS.has(b) || INTERPRETER.test(b) || b === 'eval'
 }
 
 /** One file of each learning-data kind: an exclusion must keep them all. */

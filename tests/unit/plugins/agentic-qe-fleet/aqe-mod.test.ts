@@ -217,14 +217,23 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     ['100000 open brackets', `rm .agentic-qe/${'['.repeat(100_000)}`, 'either'],
     ['extglob with 50000 alternatives', `rm .agentic-@(${'a|'.repeat(50_000)}qe)`, 'refused'],
     ['POSIX classes x 20000', `rm .agentic-qe/${'[[:alpha:]]'.repeat(20_000)}`, 'either'],
+    // fourth review: a value that doubles 28 times, and substitutions classified on every word
+    ['a value doubled 28 times', `X0=ab; ${Array.from({ length: 28 }, (_, i) => `X${i + 1}="$X${i}$X${i}"`).join('; ')}; rm -rf $X28`, 'either'],
+    ['1000 words each a $(find ...)', `rm ${"$(find . -name '*.tmp') ".repeat(1000)}`, 'allowed'],
   ]
 
-  it.each(cases)('should judge %s in under 50 ms', (_name, command, expected) => {
+  // The median of 5 runs, so one slow run under parallel load does not fail the test; a real bomb
+  // (exponential or quadratic) takes seconds on every run.
+  it.each(cases)('should judge %s in under 50 ms (median of 5)', (_name, command, expected) => {
     judge('Bash', { command: 'ls' })
-    const t0 = performance.now()
-    const r = judge('Bash', { command })
-    const ms = performance.now() - t0
-    expect(ms).toBeLessThan(50)
+    const times: number[] = []
+    let r: ReturnType<typeof judge>
+    for (let k = 0; k < 5; k++) {
+      const t0 = performance.now()
+      r = judge('Bash', { command })
+      times.push(performance.now() - t0)
+    }
+    expect(times.sort((a, b) => a - b)[2]).toBeLessThan(50)
     if (expected === 'refused') expect(r?.cls).toBe('destructive')
     if (expected === 'allowed') expect(r).toBeUndefined()
   })

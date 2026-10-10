@@ -12,14 +12,17 @@
  * Reads and backups pass: `cp .agentic-qe/memory.db x.bak`, `sqlite3 ... "SELECT ..."`,
  * `PRAGMA integrity_check`, `.backup /tmp/x`, `ls`, `du`.
  *
- * The rules live by concern: shell.ts reads the command line, verbs.ts judges
- * each command, scripts.ts judges sqlite3 and interpreter one-liners,
- * powershell.ts the PowerShell tool, paths.ts says what is learning data.
+ * The rules live by concern: shell.ts reads the command line, verbs.ts and
+ * writers.ts judge each command, find.ts judges find, producers.ts decides what
+ * substitutions and pipelines may yield, scripts.ts judges sqlite3 and
+ * interpreter one-liners, powershell.ts the PowerShell tool, paths.ts says what
+ * is learning data.
  */
 import { isData, textNamesData, type Ctx, type GuardScope } from './context'
 import { protectedKind } from './paths'
 import type { GuardMode } from './options'
 import { judgePowerShell } from './powershell'
+import { substitutionAlts } from './producers'
 import { parse } from './shell'
 import { judgeSegment } from './verbs'
 
@@ -58,6 +61,17 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
   const segs = parse(command)
   if (!ctx.mentionsData)
     ctx.mentionsData = segs.some(s => s.words.some(w => isData(w, ctx)) || s.redirects.some(r => isData(r.target, ctx)) || (s.stdin !== '' && textNamesData(s.stdin, ctx)))
+  // `done < <(find ...)`: what the process substitution prints is what `read` receives, earlier on the line.
+  for (const s of segs) {
+    for (const r of s.redirects) {
+      if (r.op !== '<' || !r.target.startsWith('<(')) continue
+      const alts = ctx.subst(r.target.slice(2, r.target.endsWith(')') ? -1 : undefined), ctx)
+      if (alts.length > 1) {
+        ctx.readFed = alts
+        ctx.mentionsData = true
+      }
+    }
+  }
   const inner: Ctx = { ...ctx, depth: ctx.depth + 1 }
   for (const seg of segs) {
     const what = judgeSegment(seg, inner)
@@ -65,6 +79,7 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
     ctx.inAqe = inner.inAqe
     ctx.mentionsData = ctx.mentionsData || inner.mentionsData
     ctx.dotglob = ctx.dotglob || inner.dotglob
+    ctx.readFed = ctx.readFed ?? inner.readFed
     if (what !== undefined) return what
   }
   return undefined
@@ -78,7 +93,22 @@ const newCtx = (scope: GuardScope | undefined): Ctx => ({
   vars: new Map(),
   depth: 0,
   bash: (command, ctx) => bashWhat(command, { ...ctx }),
+  subst: cachedSubst(),
+  readFed: undefined,
 })
+
+/** `substitutionAlts`, remembered per inner text for one call (a word may repeat a substitution). */
+function cachedSubst(): Ctx['subst'] {
+  const seen = new Map<string, readonly string[]>()
+  return (inner, ctx) => {
+    const key = `${ctx.inAqe ? 1 : 0}${ctx.dotglob ? 1 : 0}${inner}`
+    const hit = seen.get(key)
+    if (hit !== undefined) return hit
+    const alts = substitutionAlts(inner, ctx)
+    seen.set(key, alts)
+    return alts
+  }
+}
 
 /** The refusal for one shell command line, or undefined to let it run. */
 export function judgeBash(command: string, scope?: GuardScope): Refusal | undefined {
