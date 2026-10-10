@@ -1,10 +1,11 @@
 /**
- * Test: `aqe init` MCP flags through the real Commander parser (#931, #922)
+ * Test: `aqe init` negatable flags through the real Commander parser
+ * (#922, #931, #935)
  *
- * `--no-mcp` is a Commander negatable flag, so it arrives as
- * `options.mcp === false`, never as `options.noMcp`. These tests parse real
- * argv with the real InitHandler registration and assert what reaches the
- * modular init orchestrator.
+ * `--no-<name>` is a Commander negatable flag, so it arrives as
+ * `options.<name> === false`, never as `options.no<Name>`. These tests parse
+ * real argv with the real InitHandler registration and assert what reaches
+ * the modular init orchestrator.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -26,8 +27,8 @@ vi.mock('../../../src/init/orchestrator.js', () => ({
 import { InitHandler } from '../../../src/cli/handlers/init-handler.js';
 import {
   INIT_MCP_FLAG_CONFLICT_MESSAGE,
-  resolveInitMcpFlags,
-} from '../../../src/cli/handlers/init-mcp-flags.js';
+  resolveInitFlags,
+} from '../../../src/cli/handlers/init-flags.js';
 import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
 
 function buildProgram() {
@@ -52,7 +53,7 @@ async function parseOptions(args: string[]): Promise<Record<string, unknown>> {
   return options;
 }
 
-describe('aqe init MCP flags (#931)', () => {
+describe('aqe init negatable flags (#931, #935)', () => {
   beforeEach(() => {
     captured.options = undefined;
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -69,20 +70,54 @@ describe('aqe init MCP flags (#931)', () => {
 
       expect(options.mcp).toBe(false);
       expect(options.noMcp).toBeUndefined();
-      expect(resolveInitMcpFlags(options)).toEqual({ noMcp: true, withMcp: false });
+      expect(resolveInitFlags(options)).toMatchObject({ noMcp: true, withMcp: false });
     });
 
     it('no MCP flags resolves to the default (entry written)', async () => {
       const options = await parseOptions([]);
 
       expect(options.mcp).toBe(true);
-      expect(resolveInitMcpFlags(options)).toEqual({ noMcp: false, withMcp: false });
+      expect(resolveInitFlags(options)).toMatchObject({ noMcp: false, withMcp: false });
     });
 
     it('--with-mcp resolves to withMcp', async () => {
       const options = await parseOptions(['--with-mcp']);
 
-      expect(resolveInitMcpFlags(options)).toEqual({ noMcp: false, withMcp: true });
+      expect(resolveInitFlags(options)).toMatchObject({ noMcp: false, withMcp: true });
+    });
+
+    it('--no-governance parses to governance === false and resolves noGovernance (#935)', async () => {
+      const options = await parseOptions(['--no-governance']);
+
+      expect(options.governance).toBe(false);
+      expect(options.noGovernance).toBeUndefined();
+      expect(resolveInitFlags(options)).toMatchObject({ noGovernance: true, noMcp: false });
+    });
+
+    it('no flags resolves every negatable flag to its default (on)', async () => {
+      const options = await parseOptions([]);
+
+      expect(resolveInitFlags(options)).toEqual({
+        noMcp: false,
+        withMcp: false,
+        noGovernance: false,
+        noClaude: false,
+        noStatusLine: false,
+        noDatabase: false,
+      });
+    });
+
+    it.each([
+      ['--no-mcp', 'noMcp'],
+      ['--no-governance', 'noGovernance'],
+      ['--no-claude', 'noClaude'],
+      ['--no-statusline', 'noStatusLine'],
+      ['--no-database', 'noDatabase'],
+    ])('%s resolves %s and nothing else', async (flag, key) => {
+      const resolved = resolveInitFlags(await parseOptions([flag]));
+
+      const on = Object.entries(resolved).filter(([, v]) => v).map(([k]) => k);
+      expect(on).toEqual([key]);
     });
 
     it.each([
@@ -118,6 +153,22 @@ describe('aqe init MCP flags (#931)', () => {
       expect(captured.options).toMatchObject({ noMcp: false, withMcp: false });
     });
 
+    it('--auto --no-governance passes noGovernance: true (#935)', async () => {
+      const { program } = buildProgram();
+
+      await program.parseAsync(['node', 'aqe', 'init', '--auto', '--no-governance']);
+
+      expect(captured.options).toMatchObject({ noGovernance: true, noMcp: false });
+    });
+
+    it('--auto alone passes noGovernance: false', async () => {
+      const { program } = buildProgram();
+
+      await program.parseAsync(['node', 'aqe', 'init', '--auto']);
+
+      expect(captured.options).toMatchObject({ noGovernance: false, noClaude: false, noStatusLine: false });
+    });
+
     it('--auto --with-mcp passes withMcp: true', async () => {
       const { program } = buildProgram();
 
@@ -127,14 +178,16 @@ describe('aqe init MCP flags (#931)', () => {
     });
   });
 
-  describe('resolveInitMcpFlags (programmatic callers)', () => {
-    it('honours the legacy noMcp alias', () => {
-      expect(resolveInitMcpFlags({ noMcp: true })).toEqual({ noMcp: true, withMcp: false });
+  describe('resolveInitFlags (programmatic callers)', () => {
+    it('honours the programmatic no<Name> aliases', () => {
+      expect(resolveInitFlags({ noMcp: true })).toMatchObject({ noMcp: true, withMcp: false });
+      expect(resolveInitFlags({ noGovernance: true })).toMatchObject({ noGovernance: true });
+      expect(resolveInitFlags({ noClaude: true, noStatusLine: true })).toMatchObject({ noClaude: true, noStatusLine: true });
     });
 
     it('throws on a contradictory combination', () => {
-      expect(() => resolveInitMcpFlags({ noMcp: true, withMcp: true })).toThrow(INIT_MCP_FLAG_CONFLICT_MESSAGE);
-      expect(() => resolveInitMcpFlags({ mcp: false, withMcp: true })).toThrow(INIT_MCP_FLAG_CONFLICT_MESSAGE);
+      expect(() => resolveInitFlags({ noMcp: true, withMcp: true })).toThrow(INIT_MCP_FLAG_CONFLICT_MESSAGE);
+      expect(() => resolveInitFlags({ mcp: false, withMcp: true })).toThrow(INIT_MCP_FLAG_CONFLICT_MESSAGE);
     });
   });
 });

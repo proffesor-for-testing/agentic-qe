@@ -16,7 +16,7 @@ import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { resolveInitMcpFlags } from './init-mcp-flags.js';
+import { resolveInitFlags } from './init-flags.js';
 
 // ============================================================================
 // Init Handler
@@ -148,13 +148,14 @@ export class InitHandler implements ICommandHandler {
         options.withKilocode || options.withRoocode || options.withCodex ||
         options.withWindsurf || options.withContinuedev || options.withAllPlatforms
       );
-      const databaseFree = options.database === false || options.memory === 'memory';
+      const flags = resolveInitFlags(options);
+      const databaseFree = flags.noDatabase || options.memory === 'memory';
       // #532: `--no-claude` (commander negatable → options.claude === false) is
       // only honored by the modular orchestrator. Route there too, or the flag
       // silently falls through to runStandardInit and installs the full Claude
       // surface it was meant to suppress.
-      const noClaudeRequested = options.claude === false;
-      const noStatusLineRequested = options.statusline === false;
+      const noClaudeRequested = flags.noClaude;
+      const noStatusLineRequested = flags.noStatusLine;
 
       if (options.browserEngine || options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
@@ -172,13 +173,13 @@ export class InitHandler implements ICommandHandler {
 
   private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
     const isJsonMode = options.json === true;
-    // #931: commander maps --no-mcp to options.mcp === false.
-    const mcpFlags = resolveInitMcpFlags(options);
+    // #931/#935: commander maps --no-<name> to options.<name> === false.
+    const flags = resolveInitFlags(options);
 
     // Database-free mode: `--no-database` or `--memory memory`. Skips the SQLite
     // database phase and configures any MCP server to run in-memory. Export the
     // backend env up-front so every subsystem spawned during init honors it.
-    const memoryOnly = options.database === false || options.memory === 'memory';
+    const memoryOnly = flags.noDatabase || options.memory === 'memory';
     if (memoryOnly) {
       process.env.AQE_MEMORY_BACKEND = 'memory';
       if (!isJsonMode) {
@@ -190,7 +191,7 @@ export class InitHandler implements ICommandHandler {
     // `--with-<platform>` flags become the only targets. Commander maps the
     // negatable flag to `options.claude === false`. Warn if it would produce an
     // empty install (no platform selected) so the user isn't surprised.
-    const noClaude = options.claude === false;
+    const noClaude = flags.noClaude;
     if (noClaude) {
       const anyPlatform = Boolean(
         options.withOpencode || options.withN8n || options.withKiro ||
@@ -225,11 +226,11 @@ export class InitHandler implements ICommandHandler {
       codexGuidance: options.codexGuidance,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
-      noMcp: mcpFlags.noMcp,
-      withMcp: mcpFlags.withMcp,
-      noGovernance: options.noGovernance,
+      noMcp: flags.noMcp,
+      withMcp: flags.withMcp,
+      noGovernance: flags.noGovernance,
       noClaude,
-      noStatusLine: options.statusline === false,
+      noStatusLine: flags.noStatusLine,
       memoryBackend: memoryOnly ? 'memory' : undefined,
     });
 
@@ -345,7 +346,7 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runLegacyWizard(options: InitOptions, _context: CLIContext): Promise<void> {
-    const mcpFlags = resolveInitMcpFlags(options);
+    const flags = resolveInitFlags(options);
     const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
       projectRoot: process.cwd(),
@@ -354,8 +355,8 @@ export class InitHandler implements ICommandHandler {
       browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
-      noMcp: mcpFlags.noMcp,
-      withMcp: mcpFlags.withMcp,
+      noMcp: flags.noMcp,
+      withMcp: flags.withMcp,
     };
 
     const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -688,6 +689,9 @@ interface InitOptions {
   withMcp?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
+  /** commander negatable flag: `--no-governance` sets this to false (#935). */
+  governance?: boolean;
+  /** Programmatic alias for `--no-governance`. */
   noGovernance?: boolean;
   /** commander negatable flag: `--no-claude` sets this to false (#532). */
   claude?: boolean;
