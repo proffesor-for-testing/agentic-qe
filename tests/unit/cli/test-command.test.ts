@@ -157,6 +157,13 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
       expect(noSaveOutput).toContain('Not written (--no-save)');
       expect(noSaveOutput).toContain('no generated test files were written');
 
+      // An explicit --output is a separate request and is still honored.
+      const report = join(directory, 'report.json');
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(
+        [...args, '--no-save', '--format', 'json', '--output', report], { from: 'user' });
+      expect(readdirSync(directory).sort()).toEqual(['add.js', 'examples.json', 'report.json']);
+      rmSync(report);
+
       log.mockClear();
       await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(args, { from: 'user' });
       expect(readdirSync(directory).length).toBeGreaterThan(2);
