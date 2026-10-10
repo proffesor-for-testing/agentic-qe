@@ -125,13 +125,25 @@ node scripts/sync-plugin-versions.cjs --check      # plugin versions == package.
 
 The plugin ships a hooks module, `aqe-mod` (`hooks/hooks.json` -> `hooks/register.ts`), which loads with the plugin by default.
 
-- **Learning-data guard (on by default).** It refuses tool calls that would destroy AQE's learning data:
-  - `rm`, `mv`, `truncate`, `shred`, `dd`, `tee` or a `>` redirect on `.agentic-qe/*.db` (and `-wal`, `-shm`, `*.rvf`)
-  - `rm -rf .agentic-qe`, `find .agentic-qe ... -delete`, `git clean -x`
-  - `sqlite3 .agentic-qe/memory.db` with `DROP TABLE`, `DELETE FROM`, `TRUNCATE` or `.restore`
+- **Learning-data guard (on by default).** It refuses Bash, Monitor, PowerShell, Write, Edit and NotebookEdit calls that would destroy AQE's learning data:
+  - `rm`, `mv`, `cp`/`install`/`ln` over, `truncate`, `shred`, `dd`, `tee`, `gzip`, `sed -i` or a `>` redirect on `.agentic-qe/*.db` (and `-wal`, `-shm`, `*.rvf`)
+  - `rm -rf .agentic-qe` (also as `.agentic*`), `find ... -delete/-exec` that can reach it, `git clean -x`
+  - `sqlite3` with `DROP`, `DELETE FROM`, `TRUNCATE`, `ALTER TABLE ... DROP` or `.restore` on a store, and `.backup`/`.save`/`.output`/`.once` onto one
+  - `node -e`, `python3 -c`, `perl`, `ruby` and similar scripts that name the data and delete, move or overwrite it
+  - PowerShell `Remove-Item`, `Move-Item`, `Set-Content`, `Out-File` and similar on those files
   - Write/Edit on those files
 
-  Reads and backups pass: `cp .agentic-qe/memory.db x.bak`, `SELECT`, `PRAGMA integrity_check`, `.backup`. The guard only refuses and never loosens anything. Set the plugin option `guardMode` to `enforce` (default), `notify` or `off`.
+  The guard reads commands the way the shell does. It follows `bash -c`/`-lc`, `eval`, heredocs, pipes, `$(...)`, keywords (`then`, `do`, `!`), brace expansion (`memory.db{,-wal}`), variables, `cd .agentic-qe` and `git -C`. SQL is checked only in a `sqlite3` command, and code only in an interpreter command, so `grep -rn "DROP TABLE" src` next to `ls .agentic-qe` passes.
+
+  These pass: reads and backups (`cp .agentic-qe/memory.db .agentic-qe/memory.db.bak-$(date +%s)`, `cp ... .agentic-qe/memory-backup-20261009.db`, `SELECT`, `PRAGMA integrity_check`, `.backup /tmp/x.db`, `sqlite3 -readonly`), and `rm -rf .agentic-qe/tmp` or `rm .agentic-qe/*.log`. The guard only refuses and never loosens anything. Set the plugin option `guardMode` to `enforce` (default), `notify` or `off`.
+
+  Decisions and limits:
+  - **Refused in enforce mode on purpose:** the CLAUDE.md restore flow (`cp memory.db.bak-X .agentic-qe/memory.db`, then removing `-wal`/`-shm`). To restore, ask the user to run it, or set `guardMode` to `notify` or `off` for that step.
+  - **Fixtures outside the project:** a `.agentic-qe` under a temp directory (`/tmp`, `/var/tmp`, `/var/folders`, `/private/tmp`, `/dev/shm`, `$TMPDIR`) is allowed only when the project root is known and lies outside that directory. So `rm -rf /tmp/fixture/.agentic-qe` passes in a session. Any other path stays protected, including another project's `.agentic-qe`, a relative path after `cd /tmp/...`, and every path when the root is unknown (`/aqe-mod check` without a session). If the project itself is under `/tmp`, its data stays protected.
+  - **Row edits are allowed:** `UPDATE`, `INSERT` and `REPLACE` pass in every mode, including `UPDATE ... SET col = NULL`. Refusing them would block routine maintenance, and the backup that CLAUDE.md requires undoes them. Only schema and bulk deletes (`DROP`, `DELETE FROM`, `TRUNCATE`, `ALTER ... DROP`) are refused.
+  - **Backup names:** a file whose name contains `backup` or a `.bak`/`-bak` part (`memory-backup-1.db`, `memory.bak.db`) is a copy, not the store. Tools may write and remove it.
+  - **`git clean -x -e`:** an exclude passes only if it keeps every data file (`-e .agentic-qe`, or `-e '*.db*' -e '*.rvf'`). `-e '*.db'` alone still lets git delete `-wal`/`-shm`/`*.rvf`, so it is refused.
+  - **What the guard cannot see:** a script file it is not shown (`python3 cleanup.py`, `sqlite3 db < drop.sql`), paths assembled at run time (`'.agentic' + '-qe'`), symlinks pointing into `.agentic-qe`, and archive extraction (`tar -x`, `unzip`) over it. It is a guard against mistakes, not a sandbox.
 - **`/aqe-mod`**: `status`, `check <command>` (a dry run of the guard's verdict), `fleet` (the learning-data files present and the AQE MCP tools connected), `gate`. Anything only the AQE MCP server knows is reported as unknown, never estimated.
 - **Console status.** Writes `.claude-flow/aqe-mod/status.json` (version 1: mode, calls, blocked, lastDenied) for the ruflo console's Mods section. When ruflo-mods is loaded, it also adds an `aqe` segment to ruflo's status bar.
 
