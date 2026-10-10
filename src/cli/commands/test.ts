@@ -26,6 +26,7 @@ export function createTestCommand(
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .option('--no-save', 'generate action: do not write generated test files to disk (#925); output is printed only')
     .option('--git-ref <ref>', 'Git ref for schedule action (e.g., main, HEAD~3)')
     .option('--no-git-aware', 'Disable git-aware test selection (schedule action)')
     .option('--no-flaky', 'Disable flaky test tracking (schedule action)')
@@ -117,6 +118,10 @@ export function createTestCommand(
                 console.log(chalk.gray(`      Assertions: ${test.assertions}`));
                 if (test.testCode) {
                   console.log(chalk.gray(`      Test File: ${test.testFile}`));
+                  if (options.save === false) {
+                    console.log(chalk.gray(`      Not written (--no-save)`));
+                    continue;
+                  }
 
                   // Bug #295 fix: Write generated test code to disk
                   const fs = await import('fs');
@@ -132,6 +137,9 @@ export function createTestCommand(
               console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);
               if (generated.patternsUsed.length > 0) {
                 console.log(`  Patterns Used: ${chalk.cyan(generated.patternsUsed.join(', '))}`);
+              }
+              if (options.save === false) {
+                console.log(chalk.gray('  --no-save: no generated test files were written.'));
               }
             }
           } else {

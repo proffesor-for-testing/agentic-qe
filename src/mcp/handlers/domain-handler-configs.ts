@@ -16,6 +16,7 @@ import {
   detectAntiPatterns,
   generateTestId,
 } from './handler-factory';
+import { describeSavedResults } from './save-results-option';
 import {
   TestGenerateParams,
   TestGenerateResult,
@@ -368,7 +369,8 @@ export const testGenerateConfig: DomainHandlerConfig<TestGenerateParams, TestGen
       coverageEstimate: (data.coverageEstimate as number | null | undefined) ?? null,
       patternsUsed: (data.patternsUsed as string[]) || ['assertion-patterns', 'mock-generation', 'edge-case-detection'],
       duration,
-      savedFiles,
+      // #925: state plainly whether result files were written, with their paths.
+      ...describeSavedResults(params?.saveResults !== false, savedFiles),
       // #567: propagate the LLM-enhancement signal to the MCP caller.
       llmEnhanced,
       ...(data.generationMode ? { generationMode: data.generationMode as string } : {}),
