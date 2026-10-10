@@ -18,6 +18,8 @@ export type CommandDeps = {
   readonly tools: () => Promise<readonly string[]>
   /** The entries of `<root>/.agentic-qe`, or null when it is missing or unreadable. */
   readonly aqeDir: () => Promise<readonly DataFile[] | null>
+  /** The project root, when known: `check` then judges exactly as the guard does. */
+  readonly root?: string
 }
 
 const HELP = [
@@ -57,9 +59,9 @@ function status(deps: CommandDeps): string {
   ].join('\n')
 }
 
-function check(command: string): string {
+function check(command: string, root: string | undefined): string {
   if (command === '') return 'Usage: /aqe-mod check <shell command>'
-  const r = judgeBash(command)
+  const r = judgeBash(command, { root })
   return r === undefined ? 'allowed: the guard would let this run.' : `refused: ${r.reason}`
 }
 
@@ -94,7 +96,7 @@ export async function answer(args: string, deps: CommandDeps): Promise<string> {
   const [verb = '', ...rest] = trimmed.split(/\s+/)
   if (verb === '' || verb === 'help') return HELP
   if (verb === 'status') return status(deps)
-  if (verb === 'check') return check(trimmed.slice(verb.length).trim())
+  if (verb === 'check') return check(trimmed.slice(verb.length).trim(), deps.root)
   if (verb === 'fleet') return fleet(deps)
   if (verb === 'gate') return gate(deps)
   return `Unknown: ${verb.slice(0, 40)}${rest.length > 0 ? ' …' : ''}\n${HELP}`

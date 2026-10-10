@@ -7,9 +7,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { answer } from '../../../../plugins/agentic-qe-fleet/hooks/command'
-import { judge, judgeBash, segments } from '../../../../plugins/agentic-qe-fleet/hooks/guard'
+import { fallbackVerdict, GUARD_FAILED, judge, judgeBash, segments } from '../../../../plugins/agentic-qe-fleet/hooks/guard'
 import { readOptions } from '../../../../plugins/agentic-qe-fleet/hooks/options'
-import { globReachesData, normalisePath, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
+import { globReachesData, normalisePath, outsideProjectTemp, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
+import { expandBraces, parse } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
 import {
   MOD_NAME,
   newStats,
@@ -61,6 +62,58 @@ describe('aqe-mod guard: paths', () => {
   it('should normalise dot segments before matching', () => {
     expect(normalisePath('src/../.agentic-qe/./memory.db')).toBe('.agentic-qe/memory.db')
     expect(normalisePath('a//b')).toBe('a/b')
+    expect(normalisePath('./memory.db')).toBe('memory.db')
+    expect(normalisePath('./')).toBe('.')
+    expect(normalisePath('./../x')).toBe('../x')
+    expect(protectedKind('./memory.db', true)).toBe('file')
+    expect(protectedKind('./*', true)).toBe('glob')
+  })
+
+  it('should treat a glob component that can match the directory as the directory', () => {
+    expect(protectedKind('.agentic*')).toBe('dir')
+    expect(protectedKind('.[a]gentic-qe/memory.db')).toBe('file')
+    expect(protectedKind('.*')).toBe('dir')
+    expect(protectedKind('*')).toBeUndefined()
+    expect(protectedKind('.eslint*')).toBeUndefined()
+  })
+
+  it('should not protect backup-named copies', () => {
+    expect(protectedKind('.agentic-qe/memory-backup-20261009.db')).toBeUndefined()
+    expect(protectedKind('.agentic-qe/memory.bak.db')).toBeUndefined()
+    expect(protectedKind('.agentic-qe/memory.db')).toBe('file')
+    expect(protectedKind('.agentic-qe/bakery.db')).toBe('file')
+  })
+
+  it('should exempt a temp-directory fixture only when it is outside a known project root', () => {
+    expect(outsideProjectTemp('/tmp/fixture/.agentic-qe', '/work/p')).toBe(true)
+    expect(outsideProjectTemp('/tmp/fixture/.agentic-qe', undefined)).toBe(false)
+    expect(outsideProjectTemp('/tmp/p/.agentic-qe/memory.db', '/tmp/p')).toBe(false)
+    expect(outsideProjectTemp('/tmp/p/.agentic-qe/memory.db', '/private/tmp/p')).toBe(false)
+    expect(outsideProjectTemp('/tmp/../work/p/.agentic-qe', '/elsewhere')).toBe(false)
+    expect(outsideProjectTemp('/home/dev/other/.agentic-qe/memory.db', '/work/p')).toBe(false)
+    expect(outsideProjectTemp('.agentic-qe/memory.db', '/work/p')).toBe(false)
+  })
+
+  it('should let fixture cleanup under /tmp through only with the root (review O3)', () => {
+    const scope = { root: '/work/p' }
+    expect(judge('Bash', { command: 'rm -rf /tmp/fixture/.agentic-qe' }, scope)).toBeUndefined()
+    expect(judge('Write', { file_path: '/tmp/fixture/.agentic-qe/memory.db' }, scope)).toBeUndefined()
+    expect(judge('Bash', { command: 'rm -rf /tmp/fixture/.agentic-qe' })?.cls).toBe('destructive')
+    expect(judge('Bash', { command: 'rm -rf .agentic-qe' }, scope)?.cls).toBe('destructive')
+    expect(judge('Bash', { command: 'rm /tmp/p/.agentic-qe/memory.db' }, { root: '/tmp/p' })?.cls).toBe('destructive')
+    expect(judge('Bash', { command: 'rm /home/dev/other/.agentic-qe/memory.db' }, scope)?.cls).toBe('destructive')
+  })
+
+  it('should refuse the CLAUDE.md restore flow in enforce mode, by design (review O3)', () => {
+    expect(judge('Bash', { command: 'cp .agentic-qe/memory.db.bak-1700000000 .agentic-qe/memory.db' })?.cls).toBe('destructive')
+    expect(judge('Bash', { command: 'rm -f .agentic-qe/memory.db-wal .agentic-qe/memory.db-shm' })?.cls).toBe('destructive')
+  })
+
+  it('should guard Monitor and PowerShell commands and nothing else new', () => {
+    expect(judge('Monitor', { command: 'rm -f .agentic-qe/memory.db' })?.cls).toBe('destructive')
+    expect(judge('PowerShell', { command: 'Remove-Item .agentic-qe\\memory.db' })?.cls).toBe('destructive')
+    expect(judge('Monitor', { ws: { url: 'wss://x' } })).toBeUndefined()
+    expect(judge('Grep', { pattern: 'rm .agentic-qe/memory.db' })).toBeUndefined()
   })
 
   it('should decide whether a glob can reach a data file', () => {
@@ -70,14 +123,66 @@ describe('aqe-mod guard: paths', () => {
     expect(globReachesData('*.yaml')).toBe(false)
   })
 
-  it('should split compound commands at every separator', () => {
-    expect(segments('a && b || c; d | e & f\ng $(h) `i`')).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'])
+  it('should split compound commands at every separator, substitutions first and kept in their word', () => {
+    expect(segments('a && b || c; d | e & f\ng $(h) `i`')).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'h', 'i', 'g $(h) `i`'])
+  })
+
+  it('should keep quoted words and command substitutions whole', () => {
+    const [sub, rm] = parse('rm "$(pwd)/.agentic-qe/memory.db"')
+    expect(sub?.words).toEqual(['pwd'])
+    expect(rm?.words).toEqual(['rm', '$(pwd)/.agentic-qe/memory.db'])
+    expect(parse("grep -rn 'x > y' src")[0]?.redirects).toEqual([])
+    expect(parse('echo x 2>/dev/null >> out.txt')[0]?.redirects).toEqual([
+      { op: '>', target: '/dev/null' },
+      { op: '>>', target: 'out.txt' },
+    ])
+  })
+
+  it('should feed heredocs and earlier pipeline stages to a command', () => {
+    const segs = parse('cat <<EOF | sqlite3 db\nDELETE FROM t;\nEOF\nls')
+    expect(segs.map(s => s.words[0])).toEqual(['cat', 'sqlite3', 'ls'])
+    expect(segs[0]?.stdin).toContain('DELETE FROM t;')
+    expect(segs[1]?.piped).toBe(true)
+    expect(segs[1]?.upstream).toContain('DELETE FROM t;')
+    expect(segs[2]?.piped).toBe(false)
+  })
+
+  it('should expand braces as bash does, falling back to a glob past the limit', () => {
+    expect(expandBraces('memory.db{,-wal,-shm}')).toEqual(['memory.db', 'memory.db-wal', 'memory.db-shm'])
+    expect(expandBraces('{a,{b,c}}.db')).toEqual(['a.db', 'b.db', 'c.db'])
+    expect(expandBraces('x{1..3}')).toEqual(['x1', 'x2', 'x3'])
+    expect(expandBraces('${HOME}/{}')).toEqual(['${HOME}/{}'])
+    const many = `.agentic-qe/{${Array.from({ length: 300 }, (_, i) => `n${i}`).join(',')},memory.db}`
+    expect(expandBraces(many).some(w => protectedKind(w) !== undefined)).toBe(true)
   })
 
   it('should let an empty or missing command through', () => {
     expect(judgeBash('')).toBeUndefined()
     expect(judge('Bash', { command: 42 })).toBeUndefined()
     expect(judge('Bash', null)).toBeUndefined()
+  })
+})
+
+describe('aqe-mod guard: .catch handler decision (fail closed)', () => {
+  const throwing = {
+    get command(): string {
+      throw new Error('unreadable input')
+    },
+  }
+
+  it('should refuse in enforce what the pure check refuses and pass the rest', () => {
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)?.deny).toContain('aqe-mod refused this')
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false)).toBeUndefined()
+  })
+
+  it('should refuse outright when the check itself throws', () => {
+    expect(fallbackVerdict('enforce', 'Bash', throwing, false)).toEqual({ deny: GUARD_FAILED })
+  })
+
+  it('should replay next when it already ran, and never refuse in notify or off', () => {
+    expect(fallbackVerdict('enforce', 'Bash', throwing, true)).toBeUndefined()
+    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)).toBeUndefined()
+    expect(fallbackVerdict('off', 'Bash', throwing, false)).toBeUndefined()
   })
 })
 

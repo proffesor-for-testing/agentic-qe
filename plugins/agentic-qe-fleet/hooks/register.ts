@@ -1,7 +1,7 @@
 import type { Hook, Register } from 'claude-code'
 
 import { answer, type DataFile } from './command'
-import { isGuarded, judge } from './guard'
+import { fallbackVerdict, isGuarded, judge } from './guard'
 import { readOptions, type GuardMode } from './options'
 import { MOD_NAME, newStats, segmentText, STATUS_PATH, statusText, type Stats } from './status'
 
@@ -64,7 +64,7 @@ export const register: Register = (on, options) => {
   on('tool.call', async ($, e, next) => {
     if (s.mode === 'off' || !isGuarded(e.tool)) return next(e)
     s.stats.calls++
-    const refusal = judge(e.tool, e)
+    const refusal = judge(e.tool, e, { root: s.root })
     if (refusal === undefined) return next(e)
     s.stats.lastDenied = refusal.cls
     if (s.mode === 'enforce') {
@@ -81,15 +81,10 @@ export const register: Register = (on, options) => {
     await flush($, s)
     return next(e)
   }).catch(($, e, next) => {
-    // A guard that failed refuses only what its own pure check refuses; everything else goes on.
-    if (next.called) return next(e)
-    if (s.mode !== 'enforce' || !isGuarded(e.tool)) return next(e)
-    try {
-      const refusal = judge(e.tool, e)
-      return refusal === undefined ? next(e) : { deny: refusal.reason }
-    } catch {
-      return { deny: 'aqe-mod: the learning-data guard failed on this call, so it was refused.' }
-    }
+    // A guard that failed (threw, overran, or was re-entered beneath its own `$` call) refuses
+    // what its own pure check refuses, and refuses outright when that check throws.
+    const verdict = fallbackVerdict(s.mode, e.tool, e, next.called, { root: s.root })
+    return verdict ?? next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -106,6 +101,7 @@ export const register: Register = (on, options) => {
       stats: s.stats,
       tools: async () => (await $.tool.list()).map(t => t.name),
       aqeDir: () => aqeDir($, s.root),
+      root: s.root,
     })
     await flush($, s)
     return { text }

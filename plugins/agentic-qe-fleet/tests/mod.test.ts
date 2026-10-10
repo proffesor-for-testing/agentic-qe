@@ -2,6 +2,7 @@ import type { On } from 'claude-code'
 import { describe, expect, test, tier } from 'claude-code/testing'
 
 import { answer } from '../hooks/command'
+import { fallbackVerdict, GUARD_FAILED } from '../hooks/guard'
 import { readOptions } from '../hooks/options'
 import { newStats, STATUS_DIR_RULE, STATUS_MAX_BYTES } from '../hooks/status'
 
@@ -76,6 +77,82 @@ describe('tool.call guard (enforce, the default)', () => {
     expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: check } as never))).toContain('ran')
     expect(JSON.stringify(await $.tool.call({ tool: 'Read', file_path: '.agentic-qe/memory.db' } as never))).toContain('ran')
     expect(w.ran).toEqual([backup, check, 'Read'])
+  })
+})
+
+describe('tool.call guard: notify mode, Monitor, scope', () => {
+  test('notify lets a destructive call run, toasts, and counts it as flagged', { options: { guardMode: 'notify' } }, async ($, on) => {
+    const w = world(on)
+    const toasts: string[] = []
+    on('ui.toast', ($, e) => (toasts.push(JSON.stringify(e)), { value: undefined }))
+    await $.session.start(START)
+    const out = JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -f .agentic-qe/memory.db' } as never))
+    expect(out).toContain('ran')
+    expect(out).not.toContain('aqe-mod refused this')
+    expect(w.ran).toEqual(['rm -f .agentic-qe/memory.db'])
+    expect(toasts.join(' ')).toContain('aqe-mod (notify)')
+    expect(w.status()).toMatchObject({ mode: 'notify', calls: 1, blocked: 0, flagged: 1, lastDenied: 'destructive' })
+  })
+
+  test('off reads nothing', { options: { guardMode: 'off' } }, async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -rf .agentic-qe' } as never))).toContain('ran')
+    expect(w.status()).toMatchObject({ mode: 'off', calls: 0 })
+  })
+
+  test('a Monitor command is judged like Bash', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    const out = JSON.stringify(await $.tool.call({ tool: 'Monitor', command: 'rm -f .agentic-qe/memory.db', description: 'x', timeout_ms: 1000 } as never))
+    expect(out).toContain('aqe-mod refused this')
+    expect(w.ran).toEqual([])
+  })
+
+  test('a review bypass (keyword before the verb) is refused through the engine', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    const out = JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'if true; then rm .agentic-qe/memory.db; fi' } as never))
+    expect(out).toContain('aqe-mod refused this')
+    expect(w.ran).toEqual([])
+  })
+
+  test('a temp-directory fixture outside the session root is not this project\'s data', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/fixture/.agentic-qe' } as never))).toContain('ran')
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: `rm -rf ${ROOT}/.agentic-qe` } as never))).toContain('aqe-mod refused this')
+    expect(w.ran).toEqual(['rm -rf /tmp/fixture/.agentic-qe'])
+  })
+})
+
+describe('tool.call guard: the .catch handler (fail closed)', () => {
+  // A test's own hooks may not make $ calls, so a re-entry or an overrun cannot be raised here;
+  // the handler's whole decision is fallbackVerdict, which register.ts returns as-is.
+  const throwing = {
+    get command(): string {
+      throw new Error('unreadable input')
+    },
+  }
+
+  test('enforce: refuses what the pure check refuses, passes the rest', () => {
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)?.deny).toContain('aqe-mod refused this')
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false)).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Read', { file_path: '.agentic-qe/memory.db' }, false)).toBeUndefined()
+  })
+
+  test('enforce: a check that throws refuses the call', () => {
+    expect(fallbackVerdict('enforce', 'Bash', throwing, false)).toEqual({ deny: GUARD_FAILED })
+  })
+
+  test('next already ran: its result is replayed, nothing is judged twice', () => {
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, true)).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Bash', throwing, true)).toBeUndefined()
+  })
+
+  test('notify and off never refuse from the handler', () => {
+    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)).toBeUndefined()
+    expect(fallbackVerdict('off', 'Bash', throwing, false)).toBeUndefined()
   })
 })
 
