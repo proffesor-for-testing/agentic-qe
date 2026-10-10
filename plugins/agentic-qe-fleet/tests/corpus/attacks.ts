@@ -165,6 +165,7 @@ export const ATTACKS: readonly Case[] = [
   bash('find -exec sh -c', "find .agentic-qe -name '*.db' -exec sh -c 'rm \"$1\"' _ {} \\;"),
   bash('find -fprint over the store', 'find . -fprint .agentic-qe/memory.db'),
   bash('find -path naming the directory', 'find . -path "./.agentic-qe/*" -delete'),
+  bash('find -path naming it from home', "find ~ -path '*/.agentic-qe/*' -name '*.db' -delete"),
   bash('find *.db -delete from the project root', "find . -name '*.db' -delete"),
   bash('find old files -delete from the project root', 'find . -type f -mtime +30 -delete'),
   bash('cp -t into the directory', 'cp -t .agentic-qe/ /tmp/memory.db'),

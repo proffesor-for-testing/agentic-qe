@@ -47,6 +47,7 @@ export const BENIGN: readonly Case[] = [
   bash('ls then grep for unlinkSync', 'ls .agentic-qe; grep -rn "unlinkSync(" src'),
   bash('echo TRUNCATE to a note then ls', 'echo "TRUNCATE x" > notes.txt; ls .agentic-qe'),
   bash('sqlite3 -readonly select mentioning delete from', "sqlite3 -readonly .agentic-qe/memory.db \"SELECT * FROM qe_patterns WHERE name LIKE '%delete from%'\""),
+  bash('sqlite3 -readonly EXPLAIN of a DELETE', 'sqlite3 -readonly .agentic-qe/memory.db "EXPLAIN QUERY PLAN DELETE FROM qe_patterns WHERE id = 1"'),
   bash('select with a literal that says DROP TABLE', "sqlite3 .agentic-qe/memory.db \"SELECT COUNT(*) FROM qe_patterns WHERE content LIKE '%DROP TABLE%'\""),
   bash('node reads the store', "node -e \"console.log(require('fs').statSync('.agentic-qe/memory.db').size)\""),
   bash('python counts rows', "python3 -c \"import sqlite3; print(sqlite3.connect('.agentic-qe/memory.db').execute('SELECT COUNT(*) FROM qe_patterns').fetchone())\""),

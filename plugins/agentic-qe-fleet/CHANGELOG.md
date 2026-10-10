@@ -7,7 +7,7 @@ Newest first. One `## <version> — <date>` heading per version, then `feat:`, `
 - feat: aqe-mod guard also reads Monitor and PowerShell tool commands (`Remove-Item`, `Move-Item`, `Set-Content`, `Out-File`, .NET file APIs, `cmd /c del`)
 - fix: aqe-mod guard no longer refuses read-only lines that mention SQL or code words elsewhere (`ls .agentic-qe && grep -rn "DROP TABLE" src/`). SQL is checked only in `sqlite3` commands (`-readonly` exempt, string literals ignored), and code only in interpreter commands
 - fix: aqe-mod guard allows backup-named copies next to the store (`.agentic-qe/memory-backup-20261009.db`) and, when the session's project root is known, a temp-directory fixture outside the project (`rm -rf /tmp/fixture/.agentic-qe`)
-- chore: aqe-mod guard split into focused modules (`shell.ts`, `context.ts`, `verbs.ts`, `scripts.ts`, `powershell.ts`); the `.catch` fail-closed decision is the pure `fallbackVerdict`, now tested with notify mode; the attack/benign corpus grows from 95 to 226 cases (157 attacks, 69 benign)
+- chore: aqe-mod guard split into focused modules (`shell.ts`, `context.ts`, `verbs.ts`, `scripts.ts`, `powershell.ts`); the `.catch` fail-closed decision is the pure `fallbackVerdict`, now tested with notify mode; the attack/benign corpus grows from 95 to 228 cases (158 attacks, 70 benign)
 - docs: README "As a mod" records the guard's decisions (restore flow refused in enforce, `UPDATE` allowed, temp fixtures, `git clean -e`) and its limits
 
 ## 3.15.0 — 2026-10-09
