@@ -4,7 +4,7 @@ import { describe, expect, test, tier } from 'claude-code/testing'
 import { answer } from '../hooks/command'
 import { fallbackVerdict, GUARD_FAILED } from '../hooks/guard'
 import { readOptions } from '../hooks/options'
-import { newStats, STATUS_DIR_RULE, STATUS_MAX_BYTES } from '../hooks/status'
+import { MOD_VERSION, newStats, STATUS_DIR_RULE, STATUS_MAX_BYTES } from '../hooks/status'
 
 tier('user')
 
@@ -14,14 +14,24 @@ const START = { surface: 'terminal', isInteractive: true, cwd: ROOT } as const
 const STATUS = `${ROOT}/.claude-flow/aqe-mod/status.json`
 const slash = (args: string) => ({ command: 'aqe-mod', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 100 } }) as const
 
-/** The engine beneath the mod: a root, a clock, a file system in a map, and a tool that answers `ran`. */
-function world(on: On) {
-  const files = new Map<string, string>()
+/** The engine beneath the mod: a root, a clock, a file system in a map (seeded by `seed`), and a tool that answers `ran`. */
+function world(on: On, seed: Readonly<Record<string, string>> = {}) {
+  const files = new Map<string, string>(Object.entries(seed))
   const ran: string[] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('session.root', () => ({ value: ROOT }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('fs.write', ($, e) => (files.set(e.path, e.text), { value: undefined }))
+  on('fs.read', ($, e) => {
+    const text = files.get(e.path)
+    if (text === undefined) throw new Error(`ENOENT: ${e.path}`)
+    return { value: text }
+  })
+  on('fs.stat', ($, e) => {
+    const kind = files.has(e.path) ? 'file' : [...files.keys()].some(k => k.startsWith(`${e.path}/`)) ? 'dir' : undefined
+    if (kind === undefined) return { deny: `ENOENT: no such file or directory, stat '${e.path}'` }
+    return { value: { kind, size: 0, mtimeMs: NOW, isLink: false } }
+  })
   on('fs.exists', ($, e) => ({ value: e.path === `${ROOT}/.agentic-qe` }))
   on('fs.list', () => ({
     value: [
@@ -44,9 +54,64 @@ describe('status file (ruflo console contract)', () => {
     expect(text.length).toBeGreaterThan(0)
     expect(text.length).toBeLessThanOrEqual(STATUS_MAX_BYTES)
     expect(STATUS_DIR_RULE.test('aqe-mod')).toBe(true)
-    expect(w.status()).toMatchObject({ version: 1, modVersion: '0.1.0', guard: true, mode: 'enforce', calls: 0, blocked: 0, startedMs: NOW, updatedMs: NOW })
+    expect(w.status()).toMatchObject({ version: 1, modVersion: MOD_VERSION, guard: true, mode: 'enforce', calls: 0, blocked: 0, startedMs: NOW, updatedMs: NOW })
     expect(String(w.status().summary).length).toBeLessThanOrEqual(120)
     expect(w.status().lastDenied).toBeUndefined()
+  })
+})
+
+describe('status file: totals across sessions (#923, #924)', () => {
+  /** What session 1 left behind: one refusal, then the session ended. */
+  const EARLIER = {
+    version: 1, modVersion: '3.15.0', summary: 's', guard: true, mode: 'enforce', calls: 2, blocked: 1, flagged: 0,
+    lastDenied: 'destructive', startedMs: NOW - 5000, updatedMs: NOW - 4000,
+    totals: { calls: 7, blocked: 3, flagged: 1, since: NOW - 90_000 },
+    lastRefusal: { atMs: NOW - 4000, tool: 'Bash', outcome: 'blocked', reason: 'aqe-mod refused this: rm on .agentic-qe/memory.db.' },
+  }
+
+  test('modVersion is the plugin version, not 0.1.0', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    expect(w.status().modVersion).toBe(MOD_VERSION)
+    expect(MOD_VERSION).not.toBe('0.1.0')
+  })
+
+  test('a new session keeps the earlier totals and last refusal, with its own counters at zero', async ($, on) => {
+    const w = world(on, { [STATUS]: JSON.stringify(EARLIER) })
+    await $.session.start(START)
+    expect(w.status()).toMatchObject({ calls: 0, blocked: 0, flagged: 0, lastDenied: 'destructive', totals: EARLIER.totals, lastRefusal: EARLIER.lastRefusal })
+    await $.tool.call({ tool: 'Bash', command: 'ls .agentic-qe' } as never)
+    await $.tool.call({ tool: 'Bash', command: 'rm .agentic-qe/memory.db-wal' } as never)
+    expect(w.status()).toMatchObject({ calls: 2, blocked: 1, totals: { calls: 9, blocked: 4, flagged: 1, since: NOW - 90_000 } })
+    const last = w.status().lastRefusal as Record<string, unknown>
+    expect(last).toMatchObject({ atMs: NOW, tool: 'Bash', outcome: 'blocked' })
+    expect(String(last.reason)).toContain('memory.db-wal')
+    const text = (await $.command.run(slash('status'))).text
+    expect(text).toContain('this session: 2 calls checked · 1 blocked · 0 flagged')
+    expect(text).toContain('all sessions: 9 calls checked · 4 blocked · 1 flagged')
+    expect(text).toContain('last refusal: ')
+  })
+
+  test('a corrupt status file starts the totals from zero and the guard still refuses', async ($, on) => {
+    const w = world(on, { [STATUS]: '{ "version": 1, "totals": ' })
+    await $.session.start(START)
+    expect(w.status()).toMatchObject({ version: 1, totals: { calls: 0, blocked: 0, flagged: 0, since: NOW } })
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -f .agentic-qe/memory.db' } as never))).toContain('aqe-mod refused this')
+    expect(w.ran).toEqual([])
+    expect(w.status()).toMatchObject({ totals: { calls: 1, blocked: 1 } })
+  })
+
+  test('the reason is kept short and the command never reaches the file', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    const secret = 'sk-live-0123456789abcdef'
+    const command = `API_KEY=${secret} rm -f .agentic-qe/memory.db # ${'x'.repeat(400)}`
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command } as never))).toContain('aqe-mod refused this')
+    const text = w.files.get(STATUS) ?? ''
+    expect(text).not.toContain(secret)
+    expect(text).not.toContain(command)
+    expect(text).not.toContain('Back it up')
+    expect(String((w.status().lastRefusal as Record<string, unknown>).reason).length).toBeLessThanOrEqual(200)
   })
 })
 

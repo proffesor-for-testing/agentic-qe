@@ -36,7 +36,8 @@ export type Refusal = { readonly reason: string; readonly cls: 'destructive' }
 export const GUARDED_TOOLS = ['Bash', 'Monitor', 'PowerShell', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'] as const
 
 const PREFIX = 'aqe-mod refused this: '
-const SUFFIX = ' AQE learning data (.agentic-qe/*.db, -wal, -shm, *.rvf) is irreplaceable. Back it up with `cp .agentic-qe/memory.db .agentic-qe/memory.db.bak-$(date +%s)` and ask the user to run this themselves, or set the plugin option guardMode to notify/off.'
+/** The fixed advice every refusal ends with; the status file drops it from the reason it keeps. */
+export const SUFFIX = ' AQE learning data (.agentic-qe/*.db, -wal, -shm, *.rvf) is irreplaceable. Back it up with `cp .agentic-qe/memory.db .agentic-qe/memory.db.bak-$(date +%s)` and ask the user to run this themselves, or set the plugin option guardMode to notify/off.'
 
 const refuse = (what: string): Refusal => ({ reason: `${PREFIX}${what}.${SUFFIX}`, cls: 'destructive' })
 

@@ -1,7 +1,7 @@
 import { judgeBash } from './guard'
 import type { GuardMode } from './options'
 import { DATA_FILE } from './paths'
-import { STATUS_PATH, type Stats } from './status'
+import { type Counts, type LastRefusal, mergeSaved, noSaved, type Saved, STATUS_PATH, type Stats, ZERO } from './status'
 
 /** A learning-data file as `$.fs.list` reports it. */
 export type DataFile = { readonly name: string; readonly size: number; readonly mtimeMs: number }
@@ -14,6 +14,10 @@ export type DataFile = { readonly name: string; readonly size: number; readonly 
 export type CommandDeps = {
   readonly mode: GuardMode
   readonly stats: Stats
+  /** The totals across sessions, this one included, and the last refusal of any session. */
+  readonly saved?: Saved
+  /** Why the status file was last neither read nor written (a symbolic link on its path), if it was not. */
+  readonly unavailable?: string
   /** Names of the tools connected now. */
   readonly tools: () => Promise<readonly string[]>
   /** The entries of `<root>/.agentic-qe`, or null when it is missing or unreadable. */
@@ -23,7 +27,7 @@ export type CommandDeps = {
 }
 
 const HELP = [
-  '/aqe-mod status          guard mode and this session\'s counts',
+  '/aqe-mod status          guard mode, counts for this session and all sessions, the last refusal',
   '/aqe-mod check <command> would the guard refuse this shell command? (nothing runs)',
   '/aqe-mod fleet           AQE data files present and AQE MCP tools connected',
   '/aqe-mod gate            what is known about the last quality gate',
@@ -43,8 +47,23 @@ async function aqeToolCount(deps: CommandDeps): Promise<string> {
   }
 }
 
+const counts = (c: Counts): string => `${c.calls} call${c.calls === 1 ? '' : 's'} checked · ${c.blocked} blocked · ${c.flagged} flagged`
+/** An ISO time, or `unknown` for a time no Date can hold (never throws). */
+export const iso = (ms: number): string => {
+  const d = new Date(ms)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : 'unknown'
+}
+
+function refusalLine(r: LastRefusal | undefined, denied: Stats['lastDenied']): string {
+  if (r === undefined) return denied === undefined ? 'last refusal: none' : `last refusal: ${denied} (this session)`
+  const what = r.outcome === 'flagged' ? 'flagged (notify: it ran)' : 'blocked'
+  return `last refusal: ${iso(r.atMs)} · ${r.tool} · ${what} · ${r.reason}`
+}
+
 function status(deps: CommandDeps): string {
   const { mode, stats } = deps
+  const saved = deps.saved ?? mergeSaved(noSaved(), stats, ZERO)
+  const since = saved.totals.since === undefined ? '' : ` (since ${iso(saved.totals.since)})`
   const line =
     mode === 'enforce'
       ? 'guard: enforce (refuses destructive operations on .agentic-qe learning data)'
@@ -53,9 +72,10 @@ function status(deps: CommandDeps): string {
         : 'guard: off (nothing is checked)'
   return [
     line,
-    `this session: ${stats.calls} call${stats.calls === 1 ? '' : 's'} checked · ${stats.blocked} blocked · ${stats.flagged} flagged`,
-    stats.lastDenied === undefined ? 'last refusal: none' : `last refusal: ${stats.lastDenied}`,
-    `status file: ${STATUS_PATH}`,
+    `this session: ${counts(stats)}`,
+    `all sessions: ${counts(saved.totals)}${since}`,
+    refusalLine(saved.lastRefusal, stats.lastDenied),
+    deps.unavailable === undefined ? `status file: ${STATUS_PATH}` : `status file: not written: ${deps.unavailable}`,
   ].join('\n')
 }
 
