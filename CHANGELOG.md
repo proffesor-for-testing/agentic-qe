@@ -5,6 +5,49 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.2] - 2026-10-10
+
+This hardening patch fixes problems found by installing the
+`agentic-qe-fleet` plugin from the marketplace into a fresh project and
+using it end to end.
+
+### Fixed
+
+- **No duplicate AQE MCP server.** When the `agentic-qe-fleet` plugin is
+  enabled, `aqe init` no longer also adds its own `agentic-qe` server to the
+  project's `.mcp.json`, so AQE is registered only once. If your project
+  already has that entry, init keeps it and tells you how to remove it. Use
+  `aqe init --with-mcp` to add the project entry anyway ([#922]).
+- **`aqe init --no-mcp` and `--no-governance` now work.** Both flags were
+  ignored before: init still wrote the MCP entry and the governance files.
+  Combining `--no-mcp` with `--with-mcp` now stops with a clear error
+  ([#931], [#935]).
+- **aqe-mod reports its real version.** The status file and the ruflo
+  console now show the plugin version instead of `0.1.0` ([#923]).
+- **aqe-mod remembers past refusals.** `/aqe-mod status` now shows totals
+  across sessions and the most recent refusal, not just the current
+  session's counts. The command text is never stored ([#924]).
+- **aqe-mod status file handling is hardened.** The mod no longer follows
+  symbolic links when reading or writing its status file, and it validates
+  what it reads back ([#930]).
+- **Test generation can skip saving results.** `test_generate_enhanced` (and
+  the other MCP tools that save results) accept `saveResults: false` to skip
+  writing reports under `.agentic-qe/results/`. The tool description now says
+  results are saved by default. `aqe test generate --no-save` prints the
+  generated tests instead of writing files ([#925]).
+- **No broken `ruflo` plugin entry in this repository.** The vendored `ruflo`
+  skill is now just its `SKILL.md`, so Claude Code no longer lists a broken
+  skills-directory plugin when you work in this repo ([#926]).
+
+[#922]: https://github.com/proffesor-for-testing/agentic-qe/issues/922
+[#923]: https://github.com/proffesor-for-testing/agentic-qe/issues/923
+[#924]: https://github.com/proffesor-for-testing/agentic-qe/issues/924
+[#925]: https://github.com/proffesor-for-testing/agentic-qe/issues/925
+[#926]: https://github.com/proffesor-for-testing/agentic-qe/issues/926
+[#930]: https://github.com/proffesor-for-testing/agentic-qe/pull/930
+[#931]: https://github.com/proffesor-for-testing/agentic-qe/issues/931
+[#935]: https://github.com/proffesor-for-testing/agentic-qe/issues/935
+
 ## [3.15.1] - 2026-10-10
 
 This patch hardens the aqe-mod guard that ships with the `agentic-qe-fleet`
