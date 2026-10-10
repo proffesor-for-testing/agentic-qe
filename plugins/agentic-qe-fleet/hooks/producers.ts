@@ -47,7 +47,7 @@ function verdictOf(words: readonly string[], ctx: Ctx, piped: boolean): Verdict 
     return GIT_READS.has(sub) ? 'harmless' : 'opaque'
   }
   // echo/printf print their arguments: harmless unless an unknown variable feeds them.
-  if (HARMLESS.has(verb)) return (verb === 'echo' || verb === 'printf') && args.some(a => /\$[A-Za-z_{@*0-9]/.test(a)) ? 'opaque' : 'harmless'
+  if (HARMLESS.has(verb)) return (verb === 'echo' || verb === 'printf') && args.some(a => /[$][A-Za-z_{@*0-9]/.test(a)) ? 'opaque' : 'harmless'
   if (FILTERS.has(verb) && (piped || operands.length === 0)) return 'harmless'
   return 'opaque'
 }
