@@ -34,6 +34,9 @@ const AQE = '.agentic-qe'
 
 export type ProtectedKind = 'dir' | 'file' | 'glob'
 
+/** The longest word read as a path; a longer one is judged by whether it mentions the store at all. */
+export const MAX_PATH = 4096
+
 /**
  * Collapses `\`, `//`, `/./`, `a/../` and a leading `./`, so `.agentic-qe/./memory.db`,
  * `x/../.agentic-qe/memory.db` and `./memory.db` read plainly. `./` alone reads as `.`.
@@ -67,26 +70,30 @@ export const globReachesData = (glob: string): boolean => SAMPLES.some(name => g
  * a `--db=` or `file:` style prefix), or as a glob the shell would expand to it.
  * A glob only reaches a dot-directory when it starts with `.` or a bracket.
  */
-function namesAqe(component: string): boolean {
-  const c = component.replace(/^.*[=:]/, '')
+function namesAqe(component: string, dotglob: boolean): boolean {
+  // A `--db=` or `file:` prefix, never one reaching into a glob (`.agentic-q[[:alpha:]]`).
+  const c = component.replace(/^[^*?[]*[=:]/, '')
   if (c.toLowerCase() === AQE) return true
-  return hasGlob(c) && (c.startsWith('.') || c.startsWith('[')) && globMatches(c, AQE)
+  return hasGlob(c) && (dotglob || c.startsWith('.') || c.startsWith('[')) && globMatches(c, AQE)
 }
 
 /** The index of the first component naming `.agentic-qe`, or -1. */
-const aqeIndex = (parts: readonly string[]): number => parts.findIndex(namesAqe)
+const aqeIndex = (parts: readonly string[], dotglob = false): number => parts.findIndex(p => namesAqe(p, dotglob))
 
 /**
  * How a path touches learning data, or undefined when it does not.
  * `inAqe`: the command already changed into `.agentic-qe`, so a bare `memory.db` is the store.
+ * `dotglob`: the line may have set `shopt -s dotglob`/`GLOBIGNORE`, so `*` also matches dot names.
  */
-export function protectedKind(raw: string, inAqe = false): ProtectedKind | undefined {
+export function protectedKind(raw: string, inAqe = false, dotglob = false): ProtectedKind | undefined {
   // Outside `.agentic-qe`, a path can only reach it by naming it or by a glob: a cheap exit for every other word.
   if (!inAqe && !/agentic|[*?[]/i.test(raw)) return undefined
+  // No real path is this long: read it as a glob that may reach the store when it could name it.
+  if (raw.length > MAX_PATH) return inAqe || /agentic/i.test(raw) ? 'glob' : undefined
   const path = normalisePath(stripUri(raw.trim()))
   if (path === '') return undefined
   const parts = path.split('/')
-  const at = aqeIndex(parts)
+  const at = aqeIndex(parts, dotglob)
   let rest: string
   if (at === -1) {
     if (!inAqe || path.includes('/')) return undefined

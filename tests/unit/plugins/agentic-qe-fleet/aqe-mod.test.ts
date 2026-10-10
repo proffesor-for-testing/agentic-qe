@@ -11,6 +11,7 @@ import { fallbackVerdict, GUARD_FAILED, judge, judgeBash, segments } from '../..
 import { readOptions } from '../../../../plugins/agentic-qe-fleet/hooks/options'
 import { globMatch } from '../../../../plugins/agentic-qe-fleet/hooks/glob'
 import { globReachesData, normalisePath, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
+import { expandVars } from '../../../../plugins/agentic-qe-fleet/hooks/context'
 import { expandBraces, parse, readAnsiC } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
 import {
   MOD_NAME,
@@ -204,6 +205,18 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     ['10k-stage pipeline', `${'cat x | '.repeat(10_000)}cat`, 'allowed'],
     ['10k redirects', 'echo x 2>/dev/null '.repeat(10_000), 'allowed'],
     ['long open( with many quotes', `node -e "open(${"'a',".repeat(5000)} .agentic-qe/memory.db"`, 'either'],
+    // third review (6c8d8187) P1-P3 and other bombs
+    ['P1 for over 32 words, 5 x $V', `for V in ${Array.from({ length: 32 }, (_, i) => `w${i}`).join(' ')}; do rm ${'$V'.repeat(5)}; done`, 'either'],
+    ['P1 for over 32 words, 50 x $V', `for V in ${Array.from({ length: 32 }, (_, i) => `w${i}`).join(' ')}; do rm ${'$V'.repeat(50)}; done`, 'either'],
+    ['P1 50 x $V under the directory', `for V in a b c; do rm .agentic-qe/${'$V'.repeat(50)}; done`, 'refused'],
+    ['P2 20000 nested braces', `rm x${'{'.repeat(20_000)}a,b${'}'.repeat(20_000)}`, 'either'],
+    ['P2 60000 nested braces', `rm x${'{'.repeat(60_000)}a,b${'}'.repeat(60_000)}`, 'either'],
+    ['P2 60000 nested braces under the directory', `rm .agentic-qe/${'{'.repeat(60_000)}a,b${'}'.repeat(60_000)}`, 'refused'],
+    ['P3 80000 escaped quotes in a literal', `python3 -c "os.system('.agentic-qe/' ${"'\\\\".repeat(80_000)}"`, 'either'],
+    ['10000 nested ${a:-', `rm ${'${a:-'.repeat(10_000)}x${'}'.repeat(10_000)}`, 'either'],
+    ['100000 open brackets', `rm .agentic-qe/${'['.repeat(100_000)}`, 'either'],
+    ['extglob with 50000 alternatives', `rm .agentic-@(${'a|'.repeat(50_000)}qe)`, 'refused'],
+    ['POSIX classes x 20000', `rm .agentic-qe/${'[[:alpha:]]'.repeat(20_000)}`, 'either'],
   ]
 
   it.each(cases)('should judge %s in under 50 ms', (_name, command, expected) => {
@@ -228,6 +241,17 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     expect(globMatch('memory.d[a-c]', 'memory.db')).toBe(true)
     expect(globMatch('.AGENTIC*', '.agentic-qe')).toBe(true)
     expect(globMatch(`${stars(500)}x`, 'y'.repeat(500))).toBe(false)
+  })
+
+  it('should read unresolved expansions as `*` and stay within the word budget (third review B4/P1)', () => {
+    const none = new Map<string, readonly string[]>()
+    expect(expandVars('.agentic-qe/$DB', none)).toEqual(['.agentic-qe/*'])
+    expect(expandVars('.agentic-q${X}e', none)).toEqual(['.agentic-q*e'])
+    expect(expandVars('${X:-.agentic-qe}', none)).toEqual(['.agentic-qe', '*'])
+    expect(expandVars('a$(pwd)b`date`c$@', none)).toEqual(['a*b*c*'])
+    expect(expandVars('$V$V$V', new Map([['V', ['x', 'y']]]))).toHaveLength(8)
+    const big = new Map([['V', Array.from({ length: 32 }, (_, i) => `w${i}`)]])
+    expect(expandVars('$V'.repeat(50), big)).toEqual(['*'.repeat(50)])
   })
 
   it('should decode ANSI-C quoting as bash does', () => {

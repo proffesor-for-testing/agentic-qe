@@ -51,15 +51,20 @@ const MAX_DEPTH = 6
 /** Judges one shell command line under `ctx`; the recursion behind `bash -c`, `eval`, heredocs and `.shell`. */
 function bashWhat(command: string, ctx: Ctx): string | undefined {
   if (command.trim() === '') return undefined
+  // Past the depth the guard follows, the text is not read piecemeal: naming the store at all is enough.
+  if (ctx.depth > MAX_DEPTH) return ctx.mentionsData || /agentic/i.test(command) || textNamesData(command, ctx) ? 'a command nested too deeply to read names learning data' : undefined
+  // `shopt -s dotglob`/`GLOBIGNORE` make `*` match dot names: from here on, globs may reach `.agentic-qe`.
+  if (/\bshopt\b|GLOBIGNORE/.test(command)) ctx.dotglob = true
   const segs = parse(command)
-  if (!ctx.mentionsData) ctx.mentionsData = segs.some(s => s.words.some(w => isData(w, ctx)) || s.redirects.some(r => isData(r.target, ctx)))
-  if (ctx.depth > MAX_DEPTH) return ctx.mentionsData || textNamesData(command, ctx) ? 'a command nested too deeply to read names learning data' : undefined
+  if (!ctx.mentionsData)
+    ctx.mentionsData = segs.some(s => s.words.some(w => isData(w, ctx)) || s.redirects.some(r => isData(r.target, ctx)) || (s.stdin !== '' && textNamesData(s.stdin, ctx)))
   const inner: Ctx = { ...ctx, depth: ctx.depth + 1 }
   for (const seg of segs) {
     const what = judgeSegment(seg, inner)
     // `cd`, variables and mentions inside a nested shell carry on in the line that holds it.
     ctx.inAqe = inner.inAqe
     ctx.mentionsData = ctx.mentionsData || inner.mentionsData
+    ctx.dotglob = ctx.dotglob || inner.dotglob
     if (what !== undefined) return what
   }
   return undefined
@@ -68,6 +73,7 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
 const newCtx = (scope: GuardScope | undefined): Ctx => ({
   inAqe: false,
   mentionsData: false,
+  dotglob: false,
   root: scope?.root,
   vars: new Map(),
   depth: 0,

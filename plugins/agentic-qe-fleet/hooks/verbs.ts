@@ -3,29 +3,21 @@
  * Pure: no `$`. Nested shell text (`bash -c`, `eval`, heredocs) goes back
  * through `ctx.bash`, so every rule applies at any depth.
  */
+import { COMPRESSORS, COPIERS, DATA_SAMPLES, DELETERS, holdsAqe, isVerb, SHELLS } from './commands'
 import { expandWords, isData, isDataFileOrGlob, kindOf, textNamesData, type Ctx } from './context'
-import { globMatch } from './glob'
-import { baseName, DATA_FILE, globMatches, globReachesData, underAqe } from './paths'
+import { fedByFind, judgeFind } from './find'
+import { baseName, DATA_FILE, globMatches, globReachesData, hasGlob, normalisePath, underAqe } from './paths'
 import { INTERPRETER, judgeInterpreter, judgeSqlite } from './scripts'
 import { commandStart, expandBraces, isOption, type Segment } from './shell'
 
-const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'mksh', 'ash', 'fish', 'busybox'])
-const DELETERS = new Set(['rm', 'unlink', 'shred', 'srm', 'trash', 'trash-put', 'trash-cli', 'gio', 'rmdir', 'wipe', 'rimraf', 'del', 'del-cli'])
-const COPIERS = new Set(['cp', 'install', 'ln', 'rsync', 'scp'])
-/** Compressors that replace the file they compress (unless told to keep it). */
-const COMPRESSORS = new Set(['gzip', 'bzip2', 'xz', 'lzma', 'compress', 'pigz', 'lzip'])
+export { isVerb } from './commands'
+
 /** Commands that write the file named by an output option. */
 const OUTPUT_FLAGS: Readonly<Record<string, readonly string[]>> = {
   curl: ['-o', '--output'],
   wget: ['-O', '--output-document'],
   sort: ['-o', '--output'],
 }
-/** Every command word the guard judges (so a wrapper's valued flag never swallows it). */
-const KNOWN = new Set([...DELETERS, ...COPIERS, ...SHELLS, ...COMPRESSORS, 'mv', 'truncate', 'dd', 'tee', 'find', 'git', 'cd', 'pushd', 'sqlite3', 'sqlite', 'sed', 'eval', 'su'])
-export const isVerb = (w: string): boolean => KNOWN.has(baseName(w)) || INTERPRETER.test(baseName(w))
-
-/** One file of each learning-data kind: an exclude must keep them all. */
-const DATA_SAMPLES = ['memory.db', 'memory.db-wal', 'memory.db-shm', 'memory.db-journal', 'brain.rvf']
 
 const WRITE_OPS = new Set(['>', '>>', '>|', '&>', '&>>', '<>'])
 
@@ -39,11 +31,17 @@ function targetDir(args: readonly string[]): string | undefined {
   return undefined
 }
 
-/** Whether writing to `dest` replaces learning data: a data file or glob, or the directory with a data-named source. */
+/** A source that is, or may be (a glob, an unresolved `$X` read as `*`), a data file by name. */
+const mayBeDataName = (src: string): boolean => {
+  const b = baseName(src)
+  return DATA_FILE.test(b) || (hasGlob(b) && globReachesData(b))
+}
+
+/** Whether writing to `dest` replaces learning data: a data file or glob, or the directory with a source that may be data-named. */
 function overwrites(dest: string, sources: readonly string[], ctx: Ctx): boolean {
   const kind = kindOf(dest, ctx)
   if (kind === 'file' || kind === 'glob') return true
-  return kind === 'dir' && sources.some(s => DATA_FILE.test(baseName(s)))
+  return kind === 'dir' && sources.some(mayBeDataName)
 }
 
 /**
@@ -54,7 +52,8 @@ function restoresInto(verb: string, args: readonly string[], dest: string, sourc
   const recursive = verb === 'rsync' || args.some(a => /^-[A-Za-z]*[rRa]/.test(a) || a === '--recursive' || a === '--archive')
   if (!recursive || (verb !== 'cp' && verb !== 'rsync' && verb !== 'scp')) return undefined
   if (kindOf(dest, ctx) === 'dir') return `\`${verb}\` copies a directory over ${dest}`
-  const copied = sources.find(src => kindOf(src, ctx) === 'dir' && baseName(src).toLowerCase() === '.agentic-qe')
+  // Another `.agentic-qe` (a backup's), not the project's own: copying that one out cannot overwrite it.
+  const copied = sources.find(src => kindOf(src, ctx) === 'dir' && baseName(src).toLowerCase() === '.agentic-qe' && normalisePath(src).replace(/\/+$/, '').toLowerCase() !== '.agentic-qe')
   if (copied !== undefined && holdsAqe(dest, ctx)) return `\`${verb}\` copies ${copied} over the project's .agentic-qe`
   return undefined
 }
@@ -75,9 +74,10 @@ function bindVars(ws: readonly string[], start: number, seg: Segment, ctx: Ctx):
   const verb = ws[start]
   if (verb === 'export' || verb === 'local' || verb === 'declare' || verb === 'readonly' || verb === 'typeset') bindVars(ws.slice(start + 1), ws.length - start - 1, seg, ctx)
   if ((verb === 'for' || verb === 'select') && ws[start + 2] === 'in') ctx.vars.set(ws[start + 1] as string, ws.slice(start + 3).flatMap(w => expandBraces(w)))
-  if (verb === 'read' && seg.piped) {
-    const fed = seg.upstream.split(/\s+/).find(w => isData(w, ctx)) ?? (fedByFind(seg, ctx) ? '.agentic-qe/memory.db' : undefined)
-    if (fed !== undefined) for (const name of ws.slice(start + 1).filter(w => !isOption(w))) ctx.vars.set(name, [fed])
+  // `read f` holds whatever was piped in: unknown (`*`), plus the data path the upstream names, if any.
+  if (verb === 'read') {
+    const fed = seg.piped ? (seg.upstream.split(/\s+/).find(w => isData(w, ctx)) ?? (fedByFind(seg, ctx) ? '.agentic-qe/memory.db' : undefined)) : undefined
+    for (const name of ws.slice(start + 1).filter(w => !isOption(w))) ctx.vars.set(name, fed === undefined ? ['*'] : [fed, '*'])
   }
 }
 
@@ -103,81 +103,6 @@ function judgeShell(verb: string, args: readonly string[], seg: Segment, ctx: Ct
   }
   if (seg.piped && seg.upstream.split(/\s+/).some(w => isData(w, ctx))) return `a script piped into \`${verb}\` names learning data`
   return undefined
-}
-
-/** find's starting points: the words before its first test (after -H/-L/-P/-D x/-O n). */
-function findRoots(args: readonly string[]): string[] {
-  let i = 0
-  while (i < args.length && /^-([HLP]|O\d*|D)$/.test(args[i] as string)) i += args[i] === '-D' ? 2 : 1
-  const roots: string[] = []
-  for (; i < args.length && !/^[-(!]/.test(args[i] as string); i++) roots.push(args[i] as string)
-  return roots
-}
-
-/** Whether a find root holds the project's `.agentic-qe` beneath it (`.`, `$PWD`, the project root). */
-function holdsAqe(root: string, ctx: Ctx): boolean {
-  if (/^(\.\/?|\$\{?PWD\}?\/?|\$\(pwd\)\/?)$/.test(root)) return true
-  if (ctx.root === undefined || !root.startsWith('/')) return false
-  const r = ctx.root.replace(/\/+$/, '')
-  const q = root.replace(/\/+$/, '')
-  return q === r || r.startsWith(`${q}/`)
-}
-
-/**
- * `find` that deletes, moves or rewrites what it finds (`-delete`, `-exec rm/mv/cp/sh ...`)
- * where that can reach learning data: a root under `.agentic-qe`, a `-path` naming it, or a root
- * above it (`find . -name '*.db' -delete`) not excluded by `-not -path`/`-prune`. Every
- * `-name` must be able to match a data file. `-fprint` over a store is refused too.
- */
-function judgeFind(args: readonly string[], ctx: Ctx): string | undefined {
-  const out = args.findIndex((a, i) => /^-f(print0?|printf|ls)$/.test(a) && isDataFileOrGlob(args[i + 1] ?? '', ctx))
-  if (out !== -1) return `\`find ${args[out] ?? ''}\` overwrites ${args[out + 1] ?? ''}`
-  const execAt = args.findIndex(a => a === '-exec' || a === '-execdir' || a === '-ok' || a === '-okdir')
-  const execVerb = execAt === -1 ? '' : baseName(args[execAt + 1] ?? '')
-  const destroys =
-    args.includes('-delete') ||
-    DELETERS.has(execVerb) ||
-    COPIERS.has(execVerb) ||
-    SHELLS.has(execVerb) ||
-    INTERPRETER.test(execVerb) ||
-    ['truncate', 'mv', 'shred', 'dd', 'tee', 'sed'].includes(execVerb) ||
-    COMPRESSORS.has(execVerb)
-  if (!destroys) return undefined
-
-  const roots = findRoots(args)
-  // -path/-wholename patterns are matched (`*` crossing `/`) against where the store would be printed from each root.
-  const bases = (roots.length === 0 ? ['.'] : roots).map(r => r.replace(/\/+$/, '') || '/')
-  const spots = bases.flatMap(b => [
-    `${b}/.agentic-qe`,
-    ...DATA_SAMPLES.map(f => `${b}/.agentic-qe/${f}`),
-    ...(underAqe(b, ctx.inAqe) ? [b, ...DATA_SAMPLES.map(f => `${b}/${f}`)] : []),
-  ])
-  const reachesSpot = (pattern: string) => expandBraces(pattern).some(g => spots.some(spot => globMatch(g, spot, true)))
-  const paths = args.flatMap((a, i) => (/^-i?(path|wholename)$/.test(a) ? [{ value: args[i + 1] ?? '', negated: args[i - 1] === '-not' || args[i - 1] === '!', pruned: args[i + 2] === '-prune' }] : []))
-  if (paths.some(p => (p.negated || p.pruned) && reachesSpot(p.value))) return undefined
-  const direct = roots.some(r => underAqe(r, ctx.inAqe)) || (roots.length === 0 && ctx.inAqe) || paths.some(p => !p.negated && !p.pruned && reachesSpot(p.value))
-  const above = (roots.length === 0 && !ctx.inAqe) || roots.some(r => holdsAqe(r, ctx))
-  const narrowed = paths.some(p => !p.negated && !p.pruned && !reachesSpot(p.value))
-  if (!direct && !(above && !narrowed)) return undefined
-
-  // A -name/-iname must be able to match a data file, or the directory itself (`-name .agentic-qe -exec rm -rf {} +`).
-  // `-name .agentic-qe -prune` / `-not -name .agentic-qe` keep find out of it, as `-path` exclusions do.
-  const nameTests = args.flatMap((a, i) =>
-    a === '-name' || a === '-iname' ? expandBraces(args[i + 1] ?? '*').map(value => ({ value, excluded: args[i + 2] === '-prune' || args[i - 1] === '-not' || args[i - 1] === '!' })) : [],
-  )
-  if (nameTests.some(n => n.excluded && globMatches(n.value, '.agentic-qe'))) return undefined
-  const names = nameTests.filter(n => !n.excluded).map(n => n.value)
-  if (names.length > 0 && !names.some(n => globReachesData(n) || globMatches(n, '.agentic-qe'))) return undefined
-  return direct ? '`find ... -delete/-exec` under .agentic-qe' : '`find ... -delete/-exec` from above .agentic-qe reaches its learning data'
-}
-
-/** Whether an earlier stage of this pipeline is a `find` that would reach learning data if it deleted (`find . -name '*.db' | xargs rm`). */
-function fedByFind(seg: Segment, ctx: Ctx): boolean {
-  return seg.stages.some(stage => {
-    if (!stage.some(w => w === 'find' || w.endsWith('/find'))) return false
-    const at = commandStart(stage, isVerb)
-    return baseName(stage[at] ?? '') === 'find' && judgeFind([...stage.slice(at + 1), '-delete'], ctx) !== undefined
-  })
 }
 
 /** git options before the subcommand that take a separate value. */
@@ -302,7 +227,7 @@ export function judgeSegment(seg: Segment, ctx: Ctx, viaXargs = false): string |
 
   const verb = baseName(ws[start] as string)
   const args = ws.slice(start + 1)
-  const piped = viaXargs || ws.slice(0, start).some(w => baseName(w) === 'xargs')
+  const piped = viaXargs || ws.slice(0, start).some(w => baseName(w) === 'xargs' || baseName(w) === 'parallel')
 
   if (verb === 'cd' || verb === 'pushd') {
     changeDir(args.find(a => !isOption(a)), ctx)

@@ -13,7 +13,7 @@ import type { Segment } from './shell'
 
 /** SQL that destroys rows, columns or schema, and sqlite dot-commands that replace the open database. */
 export const DESTRUCTIVE_SQL =
-  /\b(drop\s+(table|index|view|trigger)|delete\s+from|truncate(\s+table)?\s+\w|alter\s+table\s+\S+\s+drop\b)|(^|[\s"';])\.(restore|drop)\b/i
+  /\b(drop\s+(table|index|view|trigger)|delete\s+from|truncate(\s+table)?\s+\w|alter\s+table\s+\S{1,256}\s+drop\b)|(^|[\s"';])\.(restore|drop)\b/i
 
 /** sqlite3 dot-commands that write a file named after them (`.backup FILE`, `.output FILE`). */
 const DOT_WRITE = /(?:^|[\s;"'])\.(backup|save|output|once)\b([^\n;]*)/gi
@@ -123,11 +123,27 @@ const CODE_DESTROY = new RegExp(
 const CODE_COPY = /\b(copyFile|copyFileSync|copyfile|copy2|copytree|cpSync|cp|shutil\.copy|Files\.copy|Deno\.copyFile(Sync)?|FileUtils\.(cp_r|cp|copy\w*))\s*\(/g
 /** Python's `Path(...).replace(...)` / `str.replace` look alike; only Python's is taken as a move. */
 const PY_REPLACE = /\.replace\s*\(/
+/** The most string literals of one script the guard reads as commands one by one. */
+const MAX_LITERALS = 64
+/** The most literal text (16 KiB) of one script the guard reads as a command. */
+const MAX_LITERAL_TEXT = 16 * 1024
+
 /** Code that starts a process: its string arguments are read as a shell command. */
 const SPAWN = /\b(system|exec|execSync|execFile|execFileSync|spawn|spawnSync|popen|Popen|check_call|check_output|call|run|Command|shell_exec|passthru)\s*\(|`|\bqx\b/
 
-/** String literals in code (single, double, backtick). */
-const literals = (code: string): string[] => [...code.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g)].map(m => m[1] ?? m[2] ?? m[3] ?? '')
+/** String literals in code (single, double, backtick), read in one linear pass; an unclosed one runs to the end. */
+function literals(code: string): string[] {
+  const out: string[] = []
+  for (let i = 0; i < code.length; i++) {
+    const q = code[i]
+    if (q !== "'" && q !== '"' && q !== '`') continue
+    let j = i + 1
+    while (j < code.length && code[j] !== q) j += code[j] === '\\' ? 2 : 1
+    out.push(code.slice(i + 1, Math.min(j, code.length)))
+    i = j
+  }
+  return out
+}
 
 /** A call's top-level arguments, from just past its `(` (bounded scan). */
 function callArgs(code: string, from: number): string[] {
@@ -187,7 +203,8 @@ export function judgeInterpreter(verb: string, args: readonly string[], seg: Seg
     const hit = args.find(a => !a.startsWith('-') && isDataFileOrGlob(a, ctx))
     if (hit !== undefined) return `\`${verb} -i\` edits ${hit} in place`
   }
-  const code = [...args, seg.stdin, seg.piped ? seg.upstream : ''].join('\n')
+  // The words as written too: shell expansion reads `${...}` and backticks in a JS/Python string as `*`, hiding the path.
+  const code = [...args, ...seg.words, seg.stdin, seg.piped ? seg.upstream : ''].join('\n')
   if (!textNamesData(code, ctx)) return undefined
   if (CODE_DESTROY.test(code) || (/^(python|pypy)/.test(verb) && PY_REPLACE.test(code))) return `a \`${verb}\` script deletes, moves or overwrites AQE learning data`
   const copy = copyOntoData(code, ctx)
@@ -196,7 +213,10 @@ export function judgeInterpreter(verb: string, args: readonly string[], seg: Seg
   if (DESTRUCTIVE_SQL.test(code.replace(/\/\*[\s\S]*?\*\//g, ' '))) return `a \`${verb}\` script runs destructive SQL against an AQE learning database`
   if (SPAWN.test(code)) {
     const lits = literals(code)
-    const what = ctx.bash(lits.join(' '), ctx) ?? lits.map(l => ctx.bash(l, ctx)).find(w => w !== undefined)
+    // Each literal that could name a path is read as a command; more than the guard reads one by one is refused.
+    const suspects = lits.filter(l => /agentic|[*?[$`{]/i.test(l))
+    if (suspects.length > MAX_LITERALS || suspects.join(' ').length > MAX_LITERAL_TEXT) return `a \`${verb}\` script runs more commands than the guard reads`
+    const what = ctx.bash(lits.join(' ').slice(0, MAX_LITERAL_TEXT), ctx) ?? suspects.map(l => ctx.bash(l, ctx)).find(w => w !== undefined)
     if (what !== undefined) return `a \`${verb}\` script runs ${what}`
   }
   return undefined

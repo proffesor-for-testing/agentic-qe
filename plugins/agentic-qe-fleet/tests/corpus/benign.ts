@@ -91,6 +91,13 @@ export const BENIGN: readonly Case[] = [
   bash('python copytree out of .agentic-qe', "python3 -c \"import shutil; shutil.copytree('.agentic-qe', '/tmp/aqe-bk')\""),
   bash('sqlite3 file: URI read-only cannot delete', 'sqlite3 "file:.agentic-qe/memory.db?mode=ro" "DELETE FROM qe_patterns"'),
   bash('find *.db | wc', 'find . -name "*.db" | wc -l'),
+  // third review (6c8d8187): exclusions in certain forms, unresolved names that cannot reach the store
+  bash('find -name node_modules -prune, deleting logs', "find . -name node_modules -prune -o -name '*.log' -delete"),
+  bash('loop echoing sources', 'for f in src/*.ts; do echo "$f"; done'),
+  bash('rm a temp build dir by variable', 'rm -rf "$TMPDIR/build"'),
+  bash('rm an output file by variable', 'rm -f "$OUT"'),
+  bash('rm a cache by variable under node_modules', 'rm -rf node_modules/.cache/$X'),
+  bash('echo a ${X:-default}', 'echo "${X:-hello}"'),
   // file tools
   { name: 'Write source', tool: 'Write', input: { file_path: 'src/index.ts', content: 'x' } },
   { name: 'Edit aqe config', tool: 'Edit', input: { file_path: '.agentic-qe/config.yaml', old_string: 'a', new_string: 'b' } },

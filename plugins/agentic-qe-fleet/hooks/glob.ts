@@ -8,22 +8,57 @@
 
 type Token = { readonly t: 'star' } | { readonly t: 'any' } | { readonly t: 'lit'; readonly c: string } | { readonly t: 'class'; readonly neg: boolean; readonly body: string }
 
+/**
+ * A bracket expression from its `[`: bash's rules for where it ends (a `]` right after
+ * `[`, `[!` or `[^` is a member). One holding `[:class:]`, `[=x=]`, `[.x.]` or a backslash
+ * is read as matching any character: the matcher does not model it, so it may match.
+ */
+function readClass(g: string, at: number, last: Closers): { token: Token; end: number } | undefined {
+  // Nothing can close it: fail fast instead of scanning (a run of `[` stays linear).
+  if (at >= last.bracket) return undefined
+  let k = at + 1
+  const neg = g[k] === '!' || g[k] === '^'
+  if (neg) k++
+  const bodyStart = k
+  if (g[k] === ']') k++
+  let opaque = false
+  for (; k < g.length; k++) {
+    const c = g[k] as string
+    if (c === '[' && (g[k + 1] === ':' || g[k + 1] === '=' || g[k + 1] === '.')) {
+      const kind = g[k + 1] as ':' | '=' | '.'
+      if (k + 2 > last[kind]) return undefined
+      const close = g.indexOf(`${kind}]`, k + 2)
+      if (close === -1) return undefined
+      opaque = true
+      k = close + 1
+    } else if (c === '\\') {
+      opaque = true
+      k++
+    } else if (c === ']') {
+      return { token: opaque ? { t: 'any' } : { t: 'class', neg, body: g.slice(bodyStart, k) }, end: k }
+    }
+  }
+  return undefined
+}
+
+/** Where the last `]`, `:]`, `=]` and `.]` are, so an unclosable bracket is known at once. */
+type Closers = { readonly bracket: number; readonly ':': number; readonly '=': number; readonly '.': number }
+
 function tokens(glob: string): Token[] {
   const out: Token[] = []
   const g = glob.toLowerCase()
+  const last: Closers = { bracket: g.lastIndexOf(']'), ':': g.lastIndexOf(':]'), '=': g.lastIndexOf('=]'), '.': g.lastIndexOf('.]') }
   for (let i = 0; i < g.length; i++) {
     const c = g[i] as string
     if (c === '*') {
       if (out[out.length - 1]?.t !== 'star') out.push({ t: 'star' })
     } else if (c === '?') out.push({ t: 'any' })
     else if (c === '[') {
-      const end = g.indexOf(']', i + 2)
-      if (end === -1) out.push({ t: 'lit', c })
+      const cls = readClass(g, i, last)
+      if (cls === undefined) out.push({ t: 'lit', c })
       else {
-        const inner = g.slice(i + 1, end)
-        const neg = inner.startsWith('!') || inner.startsWith('^')
-        out.push({ t: 'class', neg, body: neg ? inner.slice(1) : inner })
-        i = end
+        out.push(cls.token)
+        i = cls.end
       }
     } else if (c === '\\' && i + 1 < g.length) out.push({ t: 'lit', c: g[++i] as string })
     else out.push({ t: 'lit', c })
