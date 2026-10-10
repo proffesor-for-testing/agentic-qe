@@ -335,6 +335,14 @@ export const ATTACKS: readonly Case[] = [
   bash('git ls-files -oi -z | xargs -0 rm', 'git ls-files -oi --exclude-standard -z | xargs -0 rm -rf'),
   bash('cd $(dirname ...) then rm memory.db', 'cd $(dirname .agentic-qe/memory.db) && rm memory.db'),
   bash('bash an unterminated heredoc', "bash <<'EOF2'"),
+  // pinned by the round-4 mutation check
+  bash('find -depth with an exact prune branch and -exec', "find . -name .agentic-qe -prune -o -name '*.db' -depth -exec rm {} +"),
+  bash('rm $(ls -A)', 'rm -rf $(ls -A)'),
+  bash('cp /dev/null over $(find ...)', 'cp /dev/null $(find . -name memory.db)'),
+  bash('D=${X:-.agentic-qe} then rm "$D"', 'D=${X:-.agentic-qe}; rm -rf "$D"'),
+  bash('an over-budget word holding a store substitution', 'for V in a b c d e f g h i j k l m n o p q; do rm -f $V$V$(ls .agentic-qe/memory.db); done'),
+  bash('litecli opens the store interactively', 'litecli .agentic-qe/memory.db'),
+  bash('cd to an unresolved directory then rm memory.db', 'cd "$DIR" && rm memory.db'),
   // file tools
   { name: 'Write the store', tool: 'Write', input: { file_path: '.agentic-qe/memory.db', content: '' } },
   { name: 'Write the store, absolute', tool: 'Write', input: { file_path: '/home/dev/p/.agentic-qe/memory.db', content: '' } },
