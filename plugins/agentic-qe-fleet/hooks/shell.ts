@@ -26,7 +26,17 @@ export type Segment = {
   readonly piped: boolean
   /** The words and stdin of the earlier stages of its pipeline ('' when none). */
   readonly upstream: string
+  /** The words of each earlier stage of its pipeline (`find ... | xargs rm`). */
+  readonly stages: readonly (readonly string[])[]
+  /** Set on a stand-in segment for a substitution nested past the depth the reader follows: its text, unread. */
+  readonly dropped?: string
 }
+
+/** How deep `$(...)` / backtick nesting is read; deeper text is handed back unread, as `dropped`. */
+export const MAX_NESTING = 8
+
+/** How many earlier pipeline stages feed a stage (`find | grep | xargs rm` needs two). */
+const FEED = 8
 
 type Building = {
   words: string[]
@@ -67,6 +77,37 @@ function readBacktick(src: string, from: number): { inner: string; end: number }
   return { inner: src.slice(from), end: src.length }
 }
 
+const SIMPLE_ESCAPES: Readonly<Record<string, string>> = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?' }
+
+/** Reads `$'...'` from just past its opening quote, decoding escapes as bash does; returns the text and the closing quote's index. */
+export function readAnsiC(src: string, from: number): { text: string; end: number } {
+  let text = ''
+  let j = from
+  for (; j < src.length && src[j] !== "'"; j++) {
+    if (src[j] !== '\\' || j + 1 >= src.length) {
+      text += src[j]
+      continue
+    }
+    const e = src[j + 1] as string
+    const hex = e === 'x' ? /^[0-9a-fA-F]{1,2}/.exec(src.slice(j + 2, j + 4)) : e === 'u' || e === 'U' ? /^[0-9a-fA-F]{1,8}/.exec(src.slice(j + 2, j + (e === 'u' ? 6 : 10))) : null
+    const oct = /^[0-7]{1,3}/.exec(src.slice(j + 1, j + 4))
+    if (hex !== null) {
+      text += String.fromCodePoint(Math.min(parseInt(hex[0], 16), 0x10ffff))
+      j += 1 + hex[0].length
+    } else if (oct !== null) {
+      text += String.fromCharCode(parseInt(oct[0], 8) & 0xff)
+      j += oct[0].length
+    } else if (e === 'c' && j + 2 < src.length) {
+      text += String.fromCharCode((src.charCodeAt(j + 2) & 0x1f) >>> 0)
+      j += 2
+    } else {
+      text += SIMPLE_ESCAPES[e] ?? `\\${e}`
+      j++
+    }
+  }
+  return { text, end: j }
+}
+
 /** The command substitutions (`$(...)`, backticks) inside text the shell expands, such as an unquoted heredoc body. */
 export function substitutions(text: string): string[] {
   const out: string[] = []
@@ -84,7 +125,10 @@ export function substitutions(text: string): string[] {
   return out
 }
 
-const REDIRECT = /^(&>>|&>|>>|>\||>&|>|<<<|<<-|<<|<>|<&|<)/
+const REDIRECT = /&>>|&>|>>|>\||>&|>|<<<|<<-|<<|<>|<&|</y
+const FD_DUP = /\s*[\d-]+/y
+/** Characters with no meaning to the reader, read as one run. */
+const PLAIN = /[^ \t\n'"\\$`;&|()<>]+/y
 
 /** Reads a command line into its simple commands, in the order they run (substitutions first). */
 export function parse(src: string, depth = 0): Segment[] {
@@ -99,7 +143,8 @@ export function parse(src: string, depth = 0): Segment[] {
   const heredocs: Heredoc[] = []
 
   const nested = (inner: string) => {
-    if (depth < 8) order.push(...parse(inner, depth + 1))
+    if (depth < MAX_NESTING) order.push(...parse(inner, depth + 1))
+    else order.push({ words: [], quoted: [], redirects: [], stdin: '', piped: false, upstream: '', stages: [], dropped: inner })
   }
   const endWord = () => {
     if (!started) return
@@ -181,17 +226,12 @@ export function parse(src: string, depth = 0): Segment[] {
       started = true
       wasQuoted = true
     } else if (c === '$' && next === "'") {
-      // ANSI-C quoting: read to the closing quote; escapes other than \' are kept as written.
-      let j = i + 2
-      for (; j < src.length && src[j] !== "'"; j++) {
-        if (src[j] === '\\' && j + 1 < src.length) {
-          word += src[j + 1] === "'" ? "'" : `\\${src[j + 1]}`
-          j++
-        } else word += src[j]
-      }
+      // ANSI-C quoting: decoded as bash does (`$'\x2eagentic-qe'` is `.agentic-qe`).
+      const r = readAnsiC(src, i + 2)
+      word += r.text
       started = true
       wasQuoted = true
-      i = j
+      i = r.end
     } else if ((c === '$' || ((c === '<' || c === '>') && !started)) && next === '(') {
       const r = readParen(src, i + 2)
       nested(r.inner)
@@ -225,37 +265,82 @@ export function parse(src: string, depth = 0): Segment[] {
       endSegment(true)
     } else if (c === '(' || c === ')') endSegment(false)
     else if (c === '>' || c === '<' || (c === '&' && next === '>')) {
-      const m = REDIRECT.exec(src.slice(i)) as RegExpExecArray
-      const op = m[0]
+      REDIRECT.lastIndex = i
+      const op = (REDIRECT.exec(src) as RegExpExecArray)[0]
       // A numeric word right before is the fd (`2>`), not an argument.
       if (started && !wasQuoted && /^\d+$/.test(word)) {
         word = ''
         started = false
       } else endWord()
       i += op.length - 1
-      const dup = (op === '>&' || op === '<&') && /^\s*[\d-]/.test(src.slice(i + 1))
-      if (dup) {
-        const m2 = /^\s*[\d-]+/.exec(src.slice(i + 1)) as RegExpExecArray
-        i += m2[0].length
-      } else pendingOp = op === '>&' ? '>' : op
+      FD_DUP.lastIndex = i + 1
+      const dup = op === '>&' || op === '<&' ? FD_DUP.exec(src) : null
+      if (dup !== null) i += dup[0].length
+      else pendingOp = op === '>&' ? '>' : op
     } else if (c === '&') endSegment(false)
     else {
-      word += c
+      // A run of ordinary characters at once.
+      PLAIN.lastIndex = i
+      const run = PLAIN.exec(src)
+      word += run === null ? c : run[0]
+      if (run !== null) i += run[0].length - 1
       started = true
     }
   }
   endSegment(false)
   readHeredocs(src.length)
 
-  const built = order.filter((o): o is Building => 'pipeline' in o)
+  // Each pipeline's stages in order; a stage reads the (at most FEED) stages right before it.
+  const byPipeline = new Map<number, Building[]>()
   return order.map(o => {
     if (!('pipeline' in o)) return o
-    const upstream = built
-      .filter(u => u.pipeline === o.pipeline && u.stage < o.stage)
-      .map(u => `${u.words.join(' ')}\n${u.stdin}`)
-      .join('\n')
-    return { words: o.words, quoted: o.quoted, redirects: o.redirects, stdin: o.stdin, piped: o.stage > 0, upstream }
+    const list = byPipeline.get(o.pipeline) ?? []
+    if (list.length === 0) byPipeline.set(o.pipeline, list)
+    list.push(o)
+    return new Stage(o, list, list.length - 1)
   })
+}
+
+/** A simple command as `parse` hands it back; what feeds it is built on first read (most commands never look). */
+class Stage implements Segment {
+  readonly words: readonly string[]
+  readonly quoted: readonly boolean[]
+  readonly redirects: readonly Redirect[]
+  readonly piped: boolean
+  private readonly built: Building
+  private readonly pipeline: readonly Building[]
+  private readonly at: number
+  private cachedUpstream: string | undefined
+  private cachedStages: (readonly string[])[] | undefined
+
+  constructor(built: Building, pipeline: readonly Building[], at: number) {
+    this.built = built
+    this.words = built.words
+    this.quoted = built.quoted
+    this.redirects = built.redirects
+    this.piped = built.stage > 0
+    this.pipeline = pipeline
+    this.at = at
+  }
+
+  private feeders(): Building[] {
+    return this.at === 0 ? [] : this.pipeline.slice(Math.max(0, this.at - FEED), this.at)
+  }
+
+  get stages(): readonly (readonly string[])[] {
+    this.cachedStages ??= this.feeders().map(u => u.words)
+    return this.cachedStages
+  }
+
+  /** Heredoc bodies arrive after the command line, so stdin is read from the builder. */
+  get stdin(): string {
+    return this.built.stdin
+  }
+
+  get upstream(): string {
+    this.cachedUpstream ??= this.feeders().map(u => `${u.words.join(' ')}\n${u.stdin}`).join('\n')
+    return this.cachedUpstream
+  }
 }
 
 /** Splits a command line into the text of its simple commands (words joined by spaces). */
@@ -312,6 +397,7 @@ function firstBrace(w: string): { start: number; end: number; alts: string[] } |
  * as `*` instead, so a huge expansion is judged as the glob it covers.
  */
 export function expandBraces(word: string, limit = 256): string[] {
+  if (!word.includes('{')) return [word]
   const out: string[] = []
   let over = false
   const walk = (w: string) => {
@@ -332,7 +418,7 @@ export function expandBraces(word: string, limit = 256): string[] {
 }
 
 /** Shell keywords and grouping words that come before a command word (`then rm x`, `! rm x`, `{ rm x; }`). */
-export const KEYWORDS = new Set(['!', '{', '}', 'then', 'do', 'else', 'elif', 'if', 'while', 'until', 'fi', 'done', 'esac', 'coproc'])
+export const KEYWORDS = new Set(['!', '{', '}', 'then', 'do', 'else', 'elif', 'if', 'while', 'until', 'fi', 'done', 'esac'])
 /** Commands that take a command after them (their own options skipped). */
 export const WRAPPERS = new Set([
   'sudo', 'doas', 'env', 'command', 'exec', 'nohup', 'time', 'nice', 'ionice', 'stdbuf', 'builtin', 'xargs', 'timeout', 'chronic', 'unbuffer',
@@ -355,6 +441,8 @@ export function commandStart(ws: readonly string[], isVerb: (w: string) => boole
     const name = w.replace(/^.*\//, '')
     if (/^[A-Za-z_][A-Za-z0-9_]*\+?=/.test(w) || KEYWORDS.has(w)) i++
     else if (w === 'function') i += 2
+    // `coproc NAME { cmd; }` names the coprocess; `coproc cmd args` does not.
+    else if (w === 'coproc') i += ws[i + 2] === '{' || ws[i + 2] === '(' ? 2 : 1
     else if (WRAPPERS.has(name)) {
       i++
       while (i < ws.length && (isOption(ws[i] as string) || /^\d+(\.\d+)?[smhd]?$/.test(ws[i] as string))) {

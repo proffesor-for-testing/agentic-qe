@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest'
 import { answer } from '../../../../plugins/agentic-qe-fleet/hooks/command'
 import { fallbackVerdict, GUARD_FAILED, judge, judgeBash, segments } from '../../../../plugins/agentic-qe-fleet/hooks/guard'
 import { readOptions } from '../../../../plugins/agentic-qe-fleet/hooks/options'
-import { globReachesData, normalisePath, outsideProjectTemp, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
-import { expandBraces, parse } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
+import { globMatch } from '../../../../plugins/agentic-qe-fleet/hooks/glob'
+import { globReachesData, normalisePath, protectedKind } from '../../../../plugins/agentic-qe-fleet/hooks/paths'
+import { expandBraces, parse, readAnsiC } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
 import {
   MOD_NAME,
   newStats,
@@ -84,24 +85,12 @@ describe('aqe-mod guard: paths', () => {
     expect(protectedKind('.agentic-qe/bakery.db')).toBe('file')
   })
 
-  it('should exempt a temp-directory fixture only when it is outside a known project root', () => {
-    expect(outsideProjectTemp('/tmp/fixture/.agentic-qe', '/work/p')).toBe(true)
-    expect(outsideProjectTemp('/tmp/fixture/.agentic-qe', undefined)).toBe(false)
-    expect(outsideProjectTemp('/tmp/p/.agentic-qe/memory.db', '/tmp/p')).toBe(false)
-    expect(outsideProjectTemp('/tmp/p/.agentic-qe/memory.db', '/private/tmp/p')).toBe(false)
-    expect(outsideProjectTemp('/tmp/../work/p/.agentic-qe', '/elsewhere')).toBe(false)
-    expect(outsideProjectTemp('/home/dev/other/.agentic-qe/memory.db', '/work/p')).toBe(false)
-    expect(outsideProjectTemp('.agentic-qe/memory.db', '/work/p')).toBe(false)
-  })
-
-  it('should let fixture cleanup under /tmp through only with the root (review O3)', () => {
-    const scope = { root: '/work/p' }
-    expect(judge('Bash', { command: 'rm -rf /tmp/fixture/.agentic-qe' }, scope)).toBeUndefined()
-    expect(judge('Write', { file_path: '/tmp/fixture/.agentic-qe/memory.db' }, scope)).toBeUndefined()
-    expect(judge('Bash', { command: 'rm -rf /tmp/fixture/.agentic-qe' })?.cls).toBe('destructive')
-    expect(judge('Bash', { command: 'rm -rf .agentic-qe' }, scope)?.cls).toBe('destructive')
-    expect(judge('Bash', { command: 'rm /tmp/p/.agentic-qe/memory.db' }, { root: '/tmp/p' })?.cls).toBe('destructive')
-    expect(judge('Bash', { command: 'rm /home/dev/other/.agentic-qe/memory.db' }, scope)?.cls).toBe('destructive')
+  it('should protect every .agentic-qe, a temp-directory fixture included, root or not (review B1/B2)', () => {
+    for (const scope of [undefined, { root: '/work/p' }]) {
+      expect(judge('Bash', { command: 'rm -rf /tmp/fixture/.agentic-qe' }, scope)?.cls).toBe('destructive')
+      expect(judge('Write', { file_path: '/tmp/fixture/.agentic-qe/memory.db' }, scope)?.cls).toBe('destructive')
+      expect(judge('Bash', { command: 'rm /home/dev/other/.agentic-qe/memory.db' }, scope)?.cls).toBe('destructive')
+    }
   })
 
   it('should refuse the CLAUDE.md restore flow in enforce mode, by design (review O3)', () => {
@@ -171,18 +160,80 @@ describe('aqe-mod guard: .catch handler decision (fail closed)', () => {
   }
 
   it('should refuse in enforce what the pure check refuses and pass the rest', () => {
-    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)?.deny).toContain('aqe-mod refused this')
-    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false)).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false, 're-entry')?.deny).toContain('aqe-mod refused this')
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false, 're-entry')).toBeUndefined()
   })
 
-  it('should refuse outright when the check itself throws', () => {
-    expect(fallbackVerdict('enforce', 'Bash', throwing, false)).toEqual({ deny: GUARD_FAILED })
+  it('should refuse outright when the check itself throws on a re-entry', () => {
+    expect(fallbackVerdict('enforce', 'Bash', throwing, false, 're-entry')).toEqual({ deny: GUARD_FAILED })
+  })
+
+  it('should refuse a hook that threw or overran without running the judge again', () => {
+    let reads = 0
+    const counted = {
+      get command(): string {
+        reads++
+        return 'ls'
+      },
+    }
+    expect(fallbackVerdict('enforce', 'Bash', counted, false, 'timeout')).toEqual({ deny: GUARD_FAILED })
+    expect(fallbackVerdict('enforce', 'Bash', counted, false, 'throw')).toEqual({ deny: GUARD_FAILED })
+    expect(reads).toBe(0)
   })
 
   it('should replay next when it already ran, and never refuse in notify or off', () => {
-    expect(fallbackVerdict('enforce', 'Bash', throwing, true)).toBeUndefined()
-    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)).toBeUndefined()
-    expect(fallbackVerdict('off', 'Bash', throwing, false)).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Bash', throwing, true, 'throw')).toBeUndefined()
+    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false, 'timeout')).toBeUndefined()
+    expect(fallbackVerdict('off', 'Bash', throwing, false, 're-entry')).toBeUndefined()
+  })
+})
+
+describe('aqe-mod guard: bounded cost (review B5)', () => {
+  const stars = (n: number) => '*'.repeat(n)
+  const deepSubst = (n: number) => `${'echo $('.repeat(n)}rm .agentic-qe/memory.db${')'.repeat(n)}`
+  const cases: Array<[string, string, 'refused' | 'allowed' | 'either']> = [
+    ['rm with 20 stars', `rm .agentic-qe/${stars(20)}x`, 'either'],
+    ['rm with 200 stars', `rm .agentic-qe/${stars(200)}x`, 'either'],
+    ['find -name with 20 stars', `find . -name "${stars(20)}x" -delete`, 'either'],
+    ['find -name with 200 stars', `find . -name "${stars(200)}x" -delete`, 'either'],
+    ['find -path with 200 stars', `find . -path "${stars(200)}x" -delete`, 'either'],
+    ['git clean -e with 200 stars', `git clean -fdx -e "${stars(200)}x"`, 'either'],
+    ['200 nested $(', deepSubst(200), 'refused'],
+    ['2000 nested $(', deepSubst(2000), 'refused'],
+    ['10k true;', 'true; '.repeat(10_000), 'allowed'],
+    ['10k-stage pipeline', `${'cat x | '.repeat(10_000)}cat`, 'allowed'],
+    ['10k redirects', 'echo x 2>/dev/null '.repeat(10_000), 'allowed'],
+    ['long open( with many quotes', `node -e "open(${"'a',".repeat(5000)} .agentic-qe/memory.db"`, 'either'],
+  ]
+
+  it.each(cases)('should judge %s in under 50 ms', (_name, command, expected) => {
+    judge('Bash', { command: 'ls' })
+    const t0 = performance.now()
+    const r = judge('Bash', { command })
+    const ms = performance.now() - t0
+    expect(ms).toBeLessThan(50)
+    if (expected === 'refused') expect(r?.cls).toBe('destructive')
+    if (expected === 'allowed') expect(r).toBeUndefined()
+  })
+
+  it('should refuse a command too long to read', () => {
+    expect(judge('Bash', { command: `echo ${'a'.repeat(300 * 1024)}` })?.reason).toContain('too long')
+  })
+
+  it('should match globs linearly, `*` stopping at `/` unless asked', () => {
+    expect(globMatch('*.db', 'memory.db')).toBe(true)
+    expect(globMatch('*', 'a/b')).toBe(false)
+    expect(globMatch('*', 'a/b', true)).toBe(true)
+    expect(globMatch('memory.d[!x]', 'memory.db')).toBe(true)
+    expect(globMatch('memory.d[a-c]', 'memory.db')).toBe(true)
+    expect(globMatch('.AGENTIC*', '.agentic-qe')).toBe(true)
+    expect(globMatch(`${stars(500)}x`, 'y'.repeat(500))).toBe(false)
+  })
+
+  it('should decode ANSI-C quoting as bash does', () => {
+    expect(readAnsiC("\\x2eagentic-qe'", 0).text).toBe('.agentic-qe')
+    expect(readAnsiC("\\056agentic-qe'", 0).text).toBe('.agentic-qe')
+    expect(readAnsiC("a\\nb\\'c'", 0).text).toBe("a\nb'c")
   })
 })
 

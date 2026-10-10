@@ -3,13 +3,14 @@
  * Pure: no `$`. Nested shell text (`bash -c`, `eval`, heredocs) goes back
  * through `ctx.bash`, so every rule applies at any depth.
  */
-import { expandWords, isData, isDataFileOrGlob, kindOf, type Ctx } from './context'
-import { baseName, DATA_FILE, globReachesData, globToRegex, underAqe } from './paths'
+import { expandWords, isData, isDataFileOrGlob, kindOf, textNamesData, type Ctx } from './context'
+import { globMatch } from './glob'
+import { baseName, DATA_FILE, globMatches, globReachesData, underAqe } from './paths'
 import { INTERPRETER, judgeInterpreter, judgeSqlite } from './scripts'
 import { commandStart, expandBraces, isOption, type Segment } from './shell'
 
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'mksh', 'ash', 'fish', 'busybox'])
-const DELETERS = new Set(['rm', 'unlink', 'shred', 'srm', 'trash', 'trash-put', 'gio', 'rmdir', 'wipe'])
+const DELETERS = new Set(['rm', 'unlink', 'shred', 'srm', 'trash', 'trash-put', 'trash-cli', 'gio', 'rmdir', 'wipe', 'rimraf', 'del', 'del-cli'])
 const COPIERS = new Set(['cp', 'install', 'ln', 'rsync', 'scp'])
 /** Compressors that replace the file they compress (unless told to keep it). */
 const COMPRESSORS = new Set(['gzip', 'bzip2', 'xz', 'lzma', 'compress', 'pigz', 'lzip'])
@@ -45,6 +46,19 @@ function overwrites(dest: string, sources: readonly string[], ctx: Ctx): boolean
   return kind === 'dir' && sources.some(s => DATA_FILE.test(baseName(s)))
 }
 
+/**
+ * A directory copy that lands in `.agentic-qe` replaces the stores in it: `cp -r backup/. .agentic-qe/`,
+ * `rsync -a backup/ .agentic-qe/`, or a copied `.agentic-qe` dropped into the project (`cp -r backup/.agentic-qe ./`).
+ */
+function restoresInto(verb: string, args: readonly string[], dest: string, sources: readonly string[], ctx: Ctx): string | undefined {
+  const recursive = verb === 'rsync' || args.some(a => /^-[A-Za-z]*[rRa]/.test(a) || a === '--recursive' || a === '--archive')
+  if (!recursive || (verb !== 'cp' && verb !== 'rsync' && verb !== 'scp')) return undefined
+  if (kindOf(dest, ctx) === 'dir') return `\`${verb}\` copies a directory over ${dest}`
+  const copied = sources.find(src => kindOf(src, ctx) === 'dir' && baseName(src).toLowerCase() === '.agentic-qe')
+  if (copied !== undefined && holdsAqe(dest, ctx)) return `\`${verb}\` copies ${copied} over the project's .agentic-qe`
+  return undefined
+}
+
 /** `cd`/`pushd`: entering `.agentic-qe` makes bare `memory.db` the store; leaving it does the opposite. */
 function changeDir(target: string | undefined, ctx: Ctx): void {
   if (target === undefined || target === '~' || target === '-' || target.startsWith('/') || target.startsWith('~')) ctx.inAqe = target !== undefined && underAqe(target)
@@ -62,7 +76,7 @@ function bindVars(ws: readonly string[], start: number, seg: Segment, ctx: Ctx):
   if (verb === 'export' || verb === 'local' || verb === 'declare' || verb === 'readonly' || verb === 'typeset') bindVars(ws.slice(start + 1), ws.length - start - 1, seg, ctx)
   if ((verb === 'for' || verb === 'select') && ws[start + 2] === 'in') ctx.vars.set(ws[start + 1] as string, ws.slice(start + 3).flatMap(w => expandBraces(w)))
   if (verb === 'read' && seg.piped) {
-    const fed = seg.upstream.split(/\s+/).find(w => isData(w, ctx))
+    const fed = seg.upstream.split(/\s+/).find(w => isData(w, ctx)) ?? (fedByFind(seg, ctx) ? '.agentic-qe/memory.db' : undefined)
     if (fed !== undefined) for (const name of ws.slice(start + 1).filter(w => !isOption(w))) ctx.vars.set(name, [fed])
   }
 }
@@ -131,17 +145,39 @@ function judgeFind(args: readonly string[], ctx: Ctx): string | undefined {
   if (!destroys) return undefined
 
   const roots = findRoots(args)
+  // -path/-wholename patterns are matched (`*` crossing `/`) against where the store would be printed from each root.
+  const bases = (roots.length === 0 ? ['.'] : roots).map(r => r.replace(/\/+$/, '') || '/')
+  const spots = bases.flatMap(b => [
+    `${b}/.agentic-qe`,
+    ...DATA_SAMPLES.map(f => `${b}/.agentic-qe/${f}`),
+    ...(underAqe(b, ctx.inAqe) ? [b, ...DATA_SAMPLES.map(f => `${b}/${f}`)] : []),
+  ])
+  const reachesSpot = (pattern: string) => expandBraces(pattern).some(g => spots.some(spot => globMatch(g, spot, true)))
   const paths = args.flatMap((a, i) => (/^-i?(path|wholename)$/.test(a) ? [{ value: args[i + 1] ?? '', negated: args[i - 1] === '-not' || args[i - 1] === '!', pruned: args[i + 2] === '-prune' }] : []))
-  const namesAqe = (v: string) => /agentic-qe/i.test(v)
-  if (paths.some(p => (p.negated || p.pruned) && namesAqe(p.value))) return undefined
-  const direct = roots.some(r => underAqe(r, ctx.inAqe)) || (roots.length === 0 && ctx.inAqe) || paths.some(p => !p.negated && !p.pruned && namesAqe(p.value))
+  if (paths.some(p => (p.negated || p.pruned) && reachesSpot(p.value))) return undefined
+  const direct = roots.some(r => underAqe(r, ctx.inAqe)) || (roots.length === 0 && ctx.inAqe) || paths.some(p => !p.negated && !p.pruned && reachesSpot(p.value))
   const above = (roots.length === 0 && !ctx.inAqe) || roots.some(r => holdsAqe(r, ctx))
-  const narrowed = paths.some(p => !p.negated && !p.pruned && !namesAqe(p.value) && !/^\*?$/.test(p.value))
+  const narrowed = paths.some(p => !p.negated && !p.pruned && !reachesSpot(p.value))
   if (!direct && !(above && !narrowed)) return undefined
 
-  const names = args.flatMap((a, i) => (a === '-name' || a === '-iname' ? expandBraces(args[i + 1] ?? '*') : []))
-  if (names.length > 0 && !names.some(globReachesData)) return undefined
+  // A -name/-iname must be able to match a data file, or the directory itself (`-name .agentic-qe -exec rm -rf {} +`).
+  // `-name .agentic-qe -prune` / `-not -name .agentic-qe` keep find out of it, as `-path` exclusions do.
+  const nameTests = args.flatMap((a, i) =>
+    a === '-name' || a === '-iname' ? expandBraces(args[i + 1] ?? '*').map(value => ({ value, excluded: args[i + 2] === '-prune' || args[i - 1] === '-not' || args[i - 1] === '!' })) : [],
+  )
+  if (nameTests.some(n => n.excluded && globMatches(n.value, '.agentic-qe'))) return undefined
+  const names = nameTests.filter(n => !n.excluded).map(n => n.value)
+  if (names.length > 0 && !names.some(n => globReachesData(n) || globMatches(n, '.agentic-qe'))) return undefined
   return direct ? '`find ... -delete/-exec` under .agentic-qe' : '`find ... -delete/-exec` from above .agentic-qe reaches its learning data'
+}
+
+/** Whether an earlier stage of this pipeline is a `find` that would reach learning data if it deleted (`find . -name '*.db' | xargs rm`). */
+function fedByFind(seg: Segment, ctx: Ctx): boolean {
+  return seg.stages.some(stage => {
+    if (!stage.some(w => w === 'find' || w.endsWith('/find'))) return false
+    const at = commandStart(stage, isVerb)
+    return baseName(stage[at] ?? '') === 'find' && judgeFind([...stage.slice(at + 1), '-delete'], ctx) !== undefined
+  })
 }
 
 /** git options before the subcommand that take a separate value. */
@@ -153,7 +189,7 @@ function excludesData(patterns: readonly string[]): boolean {
     const bare = pattern.replace(/^\/+|\/+$/g, '').replace(/^\*\*\//, '')
     if (/^\.agentic-qe(\/\*{1,2})?$/i.test(bare)) return true
     const name = bare.replace(/^\.agentic-qe\//i, '')
-    return !name.includes('/') && expandBraces(name).some(n => globToRegex(n).test(file))
+    return !name.includes('/') && expandBraces(name).some(n => globMatches(n, file))
   }
   return DATA_SAMPLES.every(f => patterns.some(p => keeps(p, f)))
 }
@@ -224,6 +260,8 @@ function judgeWriters(verb: string, args: readonly string[], ctx: Ctx, piped: bo
     if (dest === undefined) return undefined
     const sources = dir === undefined ? operands.slice(0, -1) : operands.filter(o => o !== dir)
     if (overwrites(dest, sources, ctx)) return `\`${verb}\` overwrites ${dest}`
+    const restore = restoresInto(verb, args, dest, sources, ctx)
+    if (restore !== undefined) return restore
     if (verb === 'rsync' && args.some(a => a.startsWith('--delete')) && underAqe(dest, ctx.inAqe)) return `\`rsync --delete\` into ${dest}`
     if (verb === 'rsync' && args.includes('--remove-source-files') && sources.some(s => underAqe(s, ctx.inAqe))) return '`rsync --remove-source-files` moves learning data away'
     return undefined
@@ -250,6 +288,10 @@ function judgeWriters(verb: string, args: readonly string[], ctx: Ctx, piped: bo
 
 /** One simple command's refusal, or undefined. */
 export function judgeSegment(seg: Segment, ctx: Ctx, viaXargs = false): string | undefined {
+  // Text nested past what the reader follows is not judged piecemeal: it is refused when it names learning data.
+  if (seg.dropped !== undefined) return /agentic/i.test(seg.dropped) || textNamesData(seg.dropped, ctx) ? 'a command nested too deeply to read names learning data' : undefined
+  // Paths a `find` stage would print count as named here (`xargs rm`, `while read f`).
+  if (seg.piped && fedByFind(seg, ctx)) ctx.mentionsData = true
   const ws = expandWords(seg, ctx)
   const start = commandStart(ws, isVerb)
   bindVars(ws, start, seg, ctx)

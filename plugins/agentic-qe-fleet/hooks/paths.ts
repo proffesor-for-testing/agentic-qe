@@ -1,8 +1,8 @@
 /**
  * Which paths are AQE's irreplaceable learning data.
  *
- * Pure: no `$`, no imports. Shared by the guard (hooks/guard.ts), the
- * `/aqe-mod fleet` verb and the tests.
+ * Pure: no `$`. Shared by the guard (hooks/guard.ts), the `/aqe-mod fleet`
+ * verb and the tests.
  *
  * Protected, case-insensitively, anywhere in a path:
  * - the `.agentic-qe` directory itself (deleting or moving it loses everything),
@@ -13,10 +13,13 @@
  *
  * Not protected: backups (`memory.db.bak-<ts>` does not end in `.db`, and a
  * name containing `backup` or a `.bak`/`-bak` part is a copy, not the store),
- * subdirectories (`.agentic-qe/agents/`), config, logs, and (when the project
- * root is known) a copy under a temp directory outside the project
- * (`/tmp/fixture/.agentic-qe`; see `outsideProjectTemp`).
+ * subdirectories (`.agentic-qe/agents/`), config, logs.
+ *
+ * Every `.agentic-qe` is protected wherever it lives, `/tmp/...` included: a
+ * pure check cannot resolve globs, `$`-expansions or symlinks, so it cannot
+ * tell a throwaway fixture from a project that lives under a temp directory.
  */
+import { globMatch } from './glob'
 
 /** A learning-data file's name: what the CLAUDE.md Data Protection rule guards. */
 export const DATA_FILE = /\.(db(-wal|-shm|-journal)?|rvf)$/i
@@ -53,32 +56,8 @@ export function normalisePath(raw: string): string {
 
 export const hasGlob = (s: string): boolean => /[*?[]/.test(s)
 
-/** A shell glob as an anchored regex (`*`, `?`, `[...]`; braces are expanded before this, by the shell reader). */
-export function globToRegex(glob: string): RegExp {
-  let out = ''
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i] as string
-    if (c === '*') out += '[^/]*'
-    else if (c === '?') out += '[^/]'
-    else if (c === '[') {
-      const end = glob.indexOf(']', i + 1)
-      if (end === -1) out += '\\['
-      else {
-        out += `[${glob.slice(i + 1, end).replace(/^!/, '^').replace(/\\/g, '\\\\')}]`
-        i = end
-      }
-    } else out += c.replace(/[.+^${}()|\\]/g, '\\$&')
-  }
-  return new RegExp(`^${out}$`, 'i')
-}
-
-const globMatches = (glob: string, name: string): boolean => {
-  try {
-    return globToRegex(glob).test(name)
-  } catch {
-    return true
-  }
-}
+/** Whether a glob matches a name (linear; see glob.ts). */
+export const globMatches = (glob: string, name: string): boolean => globMatch(glob, name)
 
 /** Whether a glob (a file-name pattern, no directory part) could match a learning-data file. */
 export const globReachesData = (glob: string): boolean => SAMPLES.some(name => globMatches(glob, name))
@@ -102,7 +81,9 @@ const aqeIndex = (parts: readonly string[]): number => parts.findIndex(namesAqe)
  * `inAqe`: the command already changed into `.agentic-qe`, so a bare `memory.db` is the store.
  */
 export function protectedKind(raw: string, inAqe = false): ProtectedKind | undefined {
-  const path = normalisePath(raw.trim())
+  // Outside `.agentic-qe`, a path can only reach it by naming it or by a glob: a cheap exit for every other word.
+  if (!inAqe && !/agentic|[*?[]/i.test(raw)) return undefined
+  const path = normalisePath(stripUri(raw.trim()))
   if (path === '') return undefined
   const parts = path.split('/')
   const at = aqeIndex(parts)
@@ -120,8 +101,12 @@ export function protectedKind(raw: string, inAqe = false): ProtectedKind | undef
   return DATA_FILE.test(rest) && !BACKUP_NAME.test(rest) ? 'file' : undefined
 }
 
+/** A `file:` URI's path without its `?query`/`#fragment` (`file:.agentic-qe/memory.db?mode=rw`). */
+export const stripUri = (raw: string): string => (/^file:/i.test(raw) ? raw.replace(/[?#].*$/s, '') : raw)
+
 /** The last path component. */
 export const baseName = (p: string): string => {
+  if (!/[\\/]/.test(p)) return p
   const parts = normalisePath(p).split('/').filter(s => s !== '')
   return parts[parts.length - 1] ?? ''
 }
@@ -129,23 +114,3 @@ export const baseName = (p: string): string => {
 /** True when a path names something under `.agentic-qe` at any depth (for `find` roots and `rsync --delete`). */
 export const underAqe = (raw: string, inAqe = false): boolean =>
   aqeIndex(normalisePath(raw.trim()).split('/')) !== -1 || (inAqe && (raw === '.' || raw === './' || !raw.startsWith('/')))
-
-/** Temp directories a test fixture's `.agentic-qe` lives under (`$TMPDIR` as written, unexpanded). */
-const TEMP = /^(\/private)?(\/tmp|\/var\/tmp|\/var\/folders|\/dev\/shm|\$\{?TMPDIR\}?)(\/|$)/i
-
-const withoutPrivate = (p: string): string => p.replace(/^\/private(?=\/)/i, '').toLowerCase()
-
-/**
- * True for an absolute path under a temp directory that is outside the project
- * root: a throwaway fixture (`rm -rf /tmp/fixture/.agentic-qe`), not this
- * project's learning data. False when the root is unknown (fail closed) or the
- * project itself lives under that temp directory.
- */
-export function outsideProjectTemp(raw: string, root: string | undefined): boolean {
-  if (root === undefined || root.trim() === '') return false
-  const p = normalisePath(raw.trim())
-  if (!TEMP.test(p)) return false
-  const r = withoutPrivate(normalisePath(root.trim()).replace(/\/+$/, ''))
-  const q = withoutPrivate(p)
-  return !(q === r || q.startsWith(`${r}/`))
-}

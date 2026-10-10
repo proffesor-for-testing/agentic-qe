@@ -117,12 +117,21 @@ describe('tool.call guard: notify mode, Monitor, scope', () => {
     expect(w.ran).toEqual([])
   })
 
-  test('a temp-directory fixture outside the session root is not this project\'s data', async ($, on) => {
+  test('every .agentic-qe is protected, a temp-directory fixture included (review B1/B2)', async ($, on) => {
     const w = world(on)
     await $.session.start(START)
-    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/fixture/.agentic-qe' } as never))).toContain('ran')
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/fixture/.agentic-qe' } as never))).toContain('aqe-mod refused this')
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'rm -rf /tmp/*/.agentic-qe' } as never))).toContain('aqe-mod refused this')
     expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: `rm -rf ${ROOT}/.agentic-qe` } as never))).toContain('aqe-mod refused this')
-    expect(w.ran).toEqual(['rm -rf /tmp/fixture/.agentic-qe'])
+    expect(w.ran).toEqual([])
+  })
+
+  test('the session root widens find: find <root> -name "*.db" -delete is refused', async ($, on) => {
+    const w = world(on)
+    await $.session.start(START)
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: `find ${ROOT} -name '*.db' -delete` } as never))).toContain('aqe-mod refused this')
+    expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: `find ${ROOT}/dist -name '*.db' -delete` } as never))).toContain('ran')
+    expect(w.ran).toEqual([`find ${ROOT}/dist -name '*.db' -delete`])
   })
 })
 
@@ -135,24 +144,29 @@ describe('tool.call guard: the .catch handler (fail closed)', () => {
     },
   }
 
-  test('enforce: refuses what the pure check refuses, passes the rest', () => {
-    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)?.deny).toContain('aqe-mod refused this')
-    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false)).toBeUndefined()
-    expect(fallbackVerdict('enforce', 'Read', { file_path: '.agentic-qe/memory.db' }, false)).toBeUndefined()
+  test('re-entry in enforce: judged once, refusing what the pure check refuses', () => {
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false, 're-entry')?.deny).toContain('aqe-mod refused this')
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false, 're-entry')).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Read', { file_path: '.agentic-qe/memory.db' }, false, 're-entry')).toBeUndefined()
   })
 
-  test('enforce: a check that throws refuses the call', () => {
-    expect(fallbackVerdict('enforce', 'Bash', throwing, false)).toEqual({ deny: GUARD_FAILED })
+  test('re-entry in enforce: a check that throws refuses the call', () => {
+    expect(fallbackVerdict('enforce', 'Bash', throwing, false, 're-entry')).toEqual({ deny: GUARD_FAILED })
+  })
+
+  test('a hook that threw or overran is refused outright, without judging again', () => {
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'ls .agentic-qe' }, false, 'throw')).toEqual({ deny: GUARD_FAILED })
+    expect(fallbackVerdict('enforce', 'Bash', throwing, false, 'timeout')).toEqual({ deny: GUARD_FAILED })
   })
 
   test('next already ran: its result is replayed, nothing is judged twice', () => {
-    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, true)).toBeUndefined()
-    expect(fallbackVerdict('enforce', 'Bash', throwing, true)).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Bash', { command: 'rm .agentic-qe/memory.db' }, true, 'throw')).toBeUndefined()
+    expect(fallbackVerdict('enforce', 'Bash', throwing, true, 're-entry')).toBeUndefined()
   })
 
   test('notify and off never refuse from the handler', () => {
-    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false)).toBeUndefined()
-    expect(fallbackVerdict('off', 'Bash', throwing, false)).toBeUndefined()
+    expect(fallbackVerdict('notify', 'Bash', { command: 'rm .agentic-qe/memory.db' }, false, 'timeout')).toBeUndefined()
+    expect(fallbackVerdict('off', 'Bash', throwing, false, 're-entry')).toBeUndefined()
   })
 })
 

@@ -17,7 +17,7 @@
  * powershell.ts the PowerShell tool, paths.ts says what is learning data.
  */
 import { isData, textNamesData, type Ctx, type GuardScope } from './context'
-import { outsideProjectTemp, protectedKind } from './paths'
+import { protectedKind } from './paths'
 import type { GuardMode } from './options'
 import { judgePowerShell } from './powershell'
 import { parse } from './shell'
@@ -41,6 +41,9 @@ const field = (input: unknown, key: string): string => {
   const v = typeof input === 'object' && input !== null ? (input as Record<string, unknown>)[key] : undefined
   return typeof v === 'string' ? v : ''
 }
+
+/** The longest shell command the guard reads (256 KiB); a longer one is refused unread. */
+export const MAX_COMMAND = 256 * 1024
 
 /** Nesting past this (`bash -c "bash -c ..."`) is refused when the line names learning data at all. */
 const MAX_DEPTH = 6
@@ -85,8 +88,7 @@ export function judgePwsh(command: string, scope?: GuardScope): Refusal | undefi
 }
 
 /** The refusal for a file tool writing to a learning-data file, or undefined. */
-export function judgeFileTool(path: string, scope?: GuardScope): Refusal | undefined {
-  if (outsideProjectTemp(path, scope?.root)) return undefined
+export function judgeFileTool(path: string): Refusal | undefined {
   const k = protectedKind(path)
   return k === 'file' || k === 'glob' ? refuse(`a file tool writes to ${path}`) : undefined
 }
@@ -96,29 +98,47 @@ export const isGuarded = (tool: string): boolean => (GUARDED_TOOLS as readonly s
 
 /**
  * The guard's verdict on one tool call (`input` the call's fields), or undefined to let it run.
- * `scope.root` (the project root) lets a temp-directory fixture outside the project through;
- * without it every `.agentic-qe` path is protected.
+ * `scope.root` (the project root) only widens what is refused (`find /root -name '*.db' -delete`);
+ * every `.agentic-qe` path is protected with or without it.
  */
 export function judge(tool: string, input: unknown, scope?: GuardScope): Refusal | undefined {
-  if (tool === 'Bash' || tool === 'Monitor') return judgeBash(field(input, 'command'), scope)
-  if (tool === 'PowerShell') return judgePwsh(field(input, 'command'), scope)
-  if (tool === 'Write' || tool === 'Edit' || tool === 'MultiEdit') return judgeFileTool(field(input, 'file_path'), scope)
-  if (tool === 'NotebookEdit') return judgeFileTool(field(input, 'notebook_path'), scope)
+  if (tool === 'Bash' || tool === 'Monitor' || tool === 'PowerShell') {
+    const command = field(input, 'command')
+    // Past this size the reader's cost is no longer small and bounded: refuse rather than judge.
+    if (command.length > MAX_COMMAND) return refuse(`a ${Math.round(command.length / 1024)} KiB command is too long for the guard to read`)
+    return tool === 'PowerShell' ? judgePwsh(command, scope) : judgeBash(command, scope)
+  }
+  if (tool === 'Write' || tool === 'Edit' || tool === 'MultiEdit') return judgeFileTool(field(input, 'file_path'))
+  if (tool === 'NotebookEdit') return judgeFileTool(field(input, 'notebook_path'))
   return undefined
 }
 
 /** The refusal the `.catch` handler gives when the guard's own check throws. */
 export const GUARD_FAILED = 'aqe-mod: the learning-data guard failed on this call, so it was refused.'
 
+/** Why the `tool.call` hook's `.catch` handler was asked (the engine's `next.error.kind`). */
+export type FailureKind = 'throw' | 'timeout' | 're-entry'
+
 /**
  * The `tool.call` hook's `.catch` decision, or undefined to run `next(e)`.
- * Where `next` already ran (`called`), its settled result is replayed. Otherwise
- * (the hook threw, overran its budget, or the call re-entered beneath the
- * guard's own `$` call) enforce mode judges the call again, and refuses it
- * outright when that judgement itself throws: fail closed.
+ * - `next` already ran (`called`): its settled result is replayed.
+ * - The hook threw or overran its budget before deciding: in enforce mode the
+ *   call is refused outright. The judge is not run again: whatever made it
+ *   throw or run slow would do so twice.
+ * - A re-entry (the call rose beneath the guard's own `$` call, so the hook did
+ *   not run): enforce mode judges it once, and refuses it when that throws.
+ * notify and off never refuse here.
  */
-export function fallbackVerdict(mode: GuardMode, tool: string, input: unknown, called: boolean, scope?: GuardScope): { readonly deny: string } | undefined {
+export function fallbackVerdict(
+  mode: GuardMode,
+  tool: string,
+  input: unknown,
+  called: boolean,
+  kind: FailureKind,
+  scope?: GuardScope,
+): { readonly deny: string } | undefined {
   if (called || mode !== 'enforce' || !isGuarded(tool)) return undefined
+  if (kind !== 're-entry') return { deny: GUARD_FAILED }
   try {
     const refusal = judge(tool, input, scope)
     return refusal === undefined ? undefined : { deny: refusal.reason }

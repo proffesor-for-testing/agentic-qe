@@ -81,9 +81,9 @@ export const register: Register = (on, options) => {
     await flush($, s)
     return next(e)
   }).catch(($, e, next) => {
-    // A guard that failed (threw, overran, or was re-entered beneath its own `$` call) refuses
-    // what its own pure check refuses, and refuses outright when that check throws.
-    const verdict = fallbackVerdict(s.mode, e.tool, e, next.called, { root: s.root })
+    // Fail closed: a guard that threw or overran refuses the call; a re-entry beneath its own
+    // `$` call is judged once (see fallbackVerdict).
+    const verdict = fallbackVerdict(s.mode, e.tool, e, next.called, next.error.kind, { root: s.root })
     return verdict ?? next(e)
   })
 

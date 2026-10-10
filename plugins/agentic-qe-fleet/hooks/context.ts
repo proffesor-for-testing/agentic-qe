@@ -3,10 +3,10 @@
  * changed into, the variables it has set, the project root, and how to judge a
  * nested shell command. Pure: no `$`.
  */
-import { outsideProjectTemp, protectedKind, type ProtectedKind } from './paths'
+import { protectedKind, type ProtectedKind } from './paths'
 import { expandBraces, type Segment } from './shell'
 
-/** Where the guard is judging: the project root, when the session knows it. */
+/** Where the guard is judging: the project root, when the session knows it (so `find /abs/root ...` is read as from above `.agentic-qe`). */
 export type GuardScope = { readonly root?: string }
 
 export type Ctx = {
@@ -24,10 +24,7 @@ export type Ctx = {
 }
 
 /** How a word touches learning data under this context, or undefined. */
-export function kindOf(word: string, ctx: Ctx): ProtectedKind | undefined {
-  if (outsideProjectTemp(word, ctx.root)) return undefined
-  return protectedKind(word, ctx.inAqe)
-}
+export const kindOf = (word: string, ctx: Ctx): ProtectedKind | undefined => protectedKind(word, ctx.inAqe)
 
 export const isData = (w: string, ctx: Ctx): boolean => kindOf(w, ctx) !== undefined
 
@@ -52,6 +49,7 @@ function expandVars(word: string, vars: ReadonlyMap<string, readonly string[]>, 
 
 /** A segment's words as the shell expands them: known variables, then braces in unquoted words. */
 export function expandWords(seg: Segment, ctx: Ctx): string[] {
+  if (ctx.vars.size === 0 && !seg.words.some(w => w.includes('{'))) return [...seg.words]
   return seg.words.flatMap((w, i) => {
     const vs = ctx.vars.size === 0 ? [w] : expandVars(w, ctx.vars)
     return seg.quoted[i] === true ? vs : vs.flatMap(v => expandBraces(v))
