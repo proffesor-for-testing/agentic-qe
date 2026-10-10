@@ -192,6 +192,21 @@ describe('published tarball availability probe (real npm, local HTTP registry)',
 });
 
 describe('canary workflow evidence and reporting', () => {
+  it('executes the pinned source only after a successful release from this repository', () => {
+    const condition = String(workflow.jobs.canary.if).replace(/^\s*\$\{\{|\}\}\s*$/g, '');
+    const evaluate = new Function('github', `return Boolean(${condition});`) as (github: unknown) => boolean;
+    const context = (conclusion = 'success', event = 'release', repository = 'proffesor-for-testing/agentic-qe') => ({
+      repository: 'proffesor-for-testing/agentic-qe',
+      event: { workflow_run: { conclusion, event, head_repository: { full_name: repository } } },
+    });
+    expect(evaluate(context())).toBe(true);
+    expect(evaluate(context('success', 'release', 'other-owner/agentic-qe'))).toBe(false);
+    expect(evaluate(context('failure'))).toBe(false);
+    expect(evaluate(context('cancelled'))).toBe(false);
+    expect(evaluate(context('success', 'workflow_dispatch'))).toBe(false);
+    expect(evaluate(context('success', 'pull_request'))).toBe(false);
+  });
+
   it('pins the published source and uploads probe diagnostics even on failure', () => {
     expect(steps.find((step) => step.id === 'checkout')?.with?.ref)
       .toBe('${{ github.event.workflow_run.head_sha }}');

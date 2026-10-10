@@ -35,9 +35,12 @@ jobs:
     # version, time out polling for it, and open a P0 issue against every
     # dry run the maintainer does. Caught by issue #401 devils-advocate
     # review.
+    # The pinned SHA is only trusted for a release published from this repo.
+    # Never execute another repository's workflow_run code with issue access.
     if: >-
       ${{ github.event.workflow_run.conclusion == 'success'
-          && github.event.workflow_run.event == 'release' }}
+          && github.event.workflow_run.event == 'release'
+          && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
