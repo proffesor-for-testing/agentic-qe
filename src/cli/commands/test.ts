@@ -26,7 +26,7 @@ export function createTestCommand(
     .option('-t, --type <type>', 'Test type (unit|integration|e2e)', 'unit')
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
-    .option('--no-save', 'generate action: do not write generated test files to disk (#925); output is printed only')
+    .option('--no-save', 'generate action: print the generated test code instead of writing test files beside the source (#925)')
     .option('--git-ref <ref>', 'Git ref for schedule action (e.g., main, HEAD~3)')
     .option('--no-git-aware', 'Disable git-aware test selection (schedule action)')
     .option('--no-flaky', 'Disable flaky test tracking (schedule action)')
@@ -112,16 +112,23 @@ export function createTestCommand(
               // Default text output
               console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
               console.log(chalk.cyan('  Tests:'));
-              for (const test of generated.tests.slice(0, 10)) {
+              // #925: with --no-save the printed code is the only output, so
+              // show every test instead of the first 10.
+              const noSave = options.save === false;
+              const shown = noSave ? generated.tests : generated.tests.slice(0, 10);
+              for (const test of shown) {
                 console.log(`    ${chalk.white(test.name)}`);
                 console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
                 console.log(chalk.gray(`      Assertions: ${test.assertions}`));
                 if (test.testCode) {
-                  console.log(chalk.gray(`      Test File: ${test.testFile}`));
-                  if (options.save === false) {
-                    console.log(chalk.gray(`      Not written (--no-save)`));
+                  if (noSave) {
+                    console.log(chalk.gray(`      Would be written to: ${test.testFile} (not written, --no-save)`));
+                    console.log(`      ----- ${path.basename(test.testFile)} -----`);
+                    console.log(test.testCode);
+                    console.log(`      ----- end ${path.basename(test.testFile)} -----`);
                     continue;
                   }
+                  console.log(chalk.gray(`      Test File: ${test.testFile}`));
 
                   // Bug #295 fix: Write generated test code to disk
                   const fs = await import('fs');
@@ -131,7 +138,7 @@ export function createTestCommand(
                   console.log(chalk.green(`      Written to: ${test.testFile}`));
                 }
               }
-              if (generated.tests.length > 10) {
+              if (!noSave && generated.tests.length > 10) {
                 console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
               }
               console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);

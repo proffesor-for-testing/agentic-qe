@@ -21,7 +21,8 @@ export const RESULTS_DIR = '.agentic-qe/results/';
 export function readSaveResultsOption(params: unknown): boolean {
   if (params === null || typeof params !== 'object') return true;
   const value = (params as { saveResults?: unknown }).saveResults;
-  if (value === undefined) return true;
+  // Some clients send null for an omitted optional; treat it as unset.
+  if (value === undefined || value === null) return true;
   if (typeof value !== 'boolean') {
     throw new Error(
       `saveResults must be a boolean (true or false), got ${typeof value}.`

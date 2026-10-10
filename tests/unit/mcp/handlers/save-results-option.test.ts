@@ -35,6 +35,10 @@ describe('readSaveResultsOption', () => {
     expect(readSaveResultsOption(undefined)).toBe(true);
   });
 
+  it('treats null as unset, since some clients send null for omitted optionals', () => {
+    expect(readSaveResultsOption({ saveResults: null })).toBe(true);
+  });
+
   it('returns the boolean the caller passed', () => {
     expect(readSaveResultsOption({ saveResults: true })).toBe(true);
     expect(readSaveResultsOption({ saveResults: false })).toBe(false);

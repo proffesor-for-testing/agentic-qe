@@ -154,14 +154,22 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
       await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([...args, '--no-save'], { from: 'user' });
       expect(readdirSync(directory).sort()).toEqual(['add.js', 'examples.json']);
       const noSaveOutput = log.mock.calls.flat().join(' ');
-      expect(noSaveOutput).toContain('Not written (--no-save)');
+      expect(noSaveOutput).toContain('not written, --no-save');
       expect(noSaveOutput).toContain('no generated test files were written');
+      // The generated code is the only output, so it must reach stdout
+      // (compared verbatim against the JSON run below).
+      expect(noSaveOutput).toContain("import assert from 'node:assert/strict'");
+      expect(noSaveOutput).not.toContain('Test File:');
 
       // An explicit --output is a separate request and is still honored.
       const report = join(directory, 'report.json');
       await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(
         [...args, '--no-save', '--format', 'json', '--output', report], { from: 'user' });
       expect(readdirSync(directory).sort()).toEqual(['add.js', 'examples.json', 'report.json']);
+      const { readFileSync } = await import('node:fs');
+      const generatedCode: string = JSON.parse(readFileSync(report, 'utf8')).tests[0].testCode;
+      expect(generatedCode.length).toBeGreaterThan(0);
+      expect(noSaveOutput).toContain(generatedCode);
       rmSync(report);
 
       log.mockClear();
