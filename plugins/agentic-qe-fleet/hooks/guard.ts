@@ -62,15 +62,18 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
   if (!ctx.mentionsData)
     ctx.mentionsData = segs.some(s => s.words.some(w => isData(w, ctx)) || s.redirects.some(r => isData(r.target, ctx)) || (s.stdin !== '' && textNamesData(s.stdin, ctx)))
   // `done < <(find ...)`: what the process substitution prints is what `read` receives, earlier on the line.
+  // `done <<< "$(find ...)"` or `done <<< "$dbs"`: a here-string feeds `read` the same way. The line's
+  // earlier assignments (`dbs=$(find ...)`) are not bound yet here, so they are replayed, once, on a copy.
+  const replay = segs.some(s => (s.hereStrings ?? []).length > 0) ? new Map(ctx.vars) : undefined
   for (const s of segs) {
-    // `done <<< "$(find ...)"`: a here-string feeds `read` the same way.
-    for (const w of s.hereStrings ?? []) {
-      const named = expandVars(w, ctx.vars, WORD_BUDGET, inner => ctx.subst(inner, ctx)).filter(v => isData(v, ctx))
+    for (const w of replay === undefined ? [] : (s.hereStrings ?? [])) {
+      const named = expandVars(w, replay as Map<string, readonly string[]>, WORD_BUDGET, inner => ctx.subst(inner, ctx)).filter(v => isData(v, ctx))
       if (named.length > 0) {
         ctx.readFed = [...new Set([...(ctx.readFed ?? []), ...named, '*'])]
         ctx.mentionsData = true
       }
     }
+    if (replay !== undefined) for (const w of s.words) assignOn(replay, w, ctx)
     for (const r of s.redirects) {
       if (r.op !== '<' || !r.target.startsWith('<(')) continue
       const alts = ctx.subst(r.target.slice(2, r.target.endsWith(')') ? -1 : undefined), ctx)
@@ -91,6 +94,12 @@ function bashWhat(command: string, ctx: Ctx): string | undefined {
     if (what !== undefined) return what
   }
   return undefined
+}
+
+/** Applies one `NAME=value` word to a variable map (the here-string replay). */
+function assignOn(vars: Map<string, readonly string[]>, word: string, ctx: Ctx): void {
+  const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s.exec(word)
+  if (m !== null) vars.set(m[1] as string, expandVars(m[2] as string, vars, WORD_BUDGET, inner => ctx.subst(inner, ctx)))
 }
 
 const newCtx = (scope: GuardScope | undefined): Ctx => ({

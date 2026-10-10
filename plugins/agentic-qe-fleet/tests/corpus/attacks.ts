@@ -429,6 +429,12 @@ export const ATTACKS: readonly Case[] = [
   { name: 'PowerShell multi-line hashtable splat', tool: 'PowerShell', input: { command: "$params = @{\n  Path = '.agentic-qe'\n  Recurse = $true\n}\nRemove-Item @params" } },
   // pinned by the round-6 mutation check
   { name: 'PowerShell += keeps what the variable held', tool: 'PowerShell', input: { command: "$x = @('.agentic-qe'); $x += 'build.log'; Remove-Item $x -Recurse" } },
+  // seventh review (ed6f5afc): a Where-Object filter narrows only as a pure positive conjunction
+  { name: 'PowerShell Where-Object -or with .db', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Extension -eq '.tmp' -or $_.Extension -eq '.db' } | Remove-Item" } },
+  { name: 'PowerShell Where-Object -like -or *.db', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Name -like '*.tmp' -or $_.Name -like '*.db' } | Remove-Item" } },
+  { name: 'PowerShell Where-Object -not', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { -not ($_.Extension -eq '.ts') } | Remove-Item" } },
+  { name: 'PowerShell Where-Object -or Length', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Extension -eq '.tmp' -or $_.Length -eq 0 } | Remove-Item" } },
+  bash('while read <<< "$dbs"', "dbs=$(find . -name '*.db'); while read -r f; do rm -f \"$f\"; done <<< \"$dbs\""),
   // file tools
   { name: 'Write the store', tool: 'Write', input: { file_path: '.agentic-qe/memory.db', content: '' } },
   { name: 'Write the store, absolute', tool: 'Write', input: { file_path: '/home/dev/p/.agentic-qe/memory.db', content: '' } },

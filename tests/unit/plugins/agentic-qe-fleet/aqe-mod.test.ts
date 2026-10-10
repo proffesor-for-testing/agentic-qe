@@ -220,6 +220,8 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     // fourth review: a value that doubles 28 times, and substitutions classified on every word
     ['a value doubled 28 times', `X0=ab; ${Array.from({ length: 28 }, (_, i) => `X${i + 1}="$X${i}$X${i}"`).join('; ')}; rm -rf $X28`, 'either'],
     ['1000 words each a $(find ...)', `rm ${"$(find . -name '*.tmp') ".repeat(1000)}`, 'allowed'],
+    // seventh review: here-strings replay the line's assignments once, not per segment
+    ['10k here-strings after assignments', 'd=x; read -r f <<< "$d"; '.repeat(10_000), 'allowed'],
   ]
 
   // The median of 5 runs under 250 ms: one slow run, or two suites sharing the CPU, does not fail the test; a real bomb

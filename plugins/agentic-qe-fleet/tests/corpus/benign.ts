@@ -139,8 +139,12 @@ export const BENIGN: readonly Case[] = [
   bash('echo a list | xargs rm', "echo a.tmp b.tmp | xargs rm -f"),
   { name: 'PowerShell Where-Object Extension -eq .tmp', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object Extension -eq '.tmp' | Remove-Item" } },
   { name: 'PowerShell Where-Object Name -like *.log', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object Name -like '*.log' | Remove-Item" } },
-  { name: 'PowerShell ? { $_.Extension -match tmp }', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | ? { $_.Extension -match '^\\.tmp$' } | Remove-Item" } },
   { name: 'PowerShell $x += logs then Remove-Item', tool: 'PowerShell', input: { command: "$x = @(); $x += 'build.log'; Remove-Item $x" } },
+  // seventh review: pure positive conjunctions stay narrowed
+  { name: 'PowerShell Where-Object { Extension -eq .tmp }', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Extension -eq '.tmp' } | Remove-Item" } },
+  { name: 'PowerShell Where-Object -eq .tmp -and Length', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Extension -eq '.tmp' -and $_.Length -gt 0 } | Remove-Item" } },
+  { name: 'PowerShell Where Extension -eq .tmp', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where Extension -eq '.tmp' | Remove-Item" } },
+  { name: 'PowerShell Where-Object narrowing on a later conjunct', tool: 'PowerShell', input: { command: "Get-ChildItem -Recurse | Where-Object { $_.Name -like '*' -and $_.Extension -eq '.tmp' } | Remove-Item" } },
   // file tools
   { name: 'Write source', tool: 'Write', input: { file_path: 'src/index.ts', content: 'x' } },
   { name: 'Edit aqe config', tool: 'Edit', input: { file_path: '.agentic-qe/config.yaml', old_string: 'a', new_string: 'b' } },

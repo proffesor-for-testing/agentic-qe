@@ -36,25 +36,23 @@ const GROUP = /[@$]?\(((?:[^()]|\([^()]*\))*)\)/g
 const METHOD_ON_VAR = /\$\{?([A-Za-z_]\w*)\}?\.(delete|moveto)\s*\(/gi
 
 /**
- * Whether a stage is a Where-Object filter on Name or Extension, by `-eq`, `-like` or `-match`
- * against a literal that cannot match a store file or the directory (`Where-Object Extension -eq '.tmp'`).
+ * Whether a stage is a Where-Object filter that cannot pass a store file: a pure conjunction
+ * (no `-or`, `-xor`, `-not`, `!`, `-ne`, `-notlike`, `-notmatch`) with at least one positive
+ * literal `-eq`/`-like` on Name or Extension that cannot match a store file or `.agentic-qe`
+ * (`Where-Object Extension -eq '.tmp'`, `{ $_.Extension -eq '.tmp' -and $_.Length -gt 0 }`).
  */
 function narrowsAwayFromStore(stage: string): boolean {
   if (!/^\s*(where-object|where|\?)(\s|\{|$)/i.test(stage)) return false
+  if (/-[ic]?(or|xor|not|ne|notlike|notmatch)\b|!/i.test(stage)) return false
   // A literal: single-quoted (where `$` is literal), or double-quoted without `$` (no expansion).
-  const m = /(?:\$_\.)?\b(name|extension)\s+-[ic]?(eq|like|match)\s+(?:'([^']*)'|"([^"$]*)")/i.exec(stage)
-  if (m === null) return false
-  const candidates = (m[1] as string).toLowerCase() === 'name' ? STORE_NAMES : STORE_EXTENSIONS
-  const literal = (m[3] ?? m[4]) as string
-  const op = (m[2] as string).toLowerCase()
-  if (op === 'eq') return candidates.every(c => c.toLowerCase() !== literal.toLowerCase())
-  if (op === 'like') return candidates.every(c => !globMatches(literal, c))
-  try {
-    const re = new RegExp(literal, 'i')
-    return candidates.every(c => !re.test(c))
-  } catch {
-    return false
+  const tests = /(?:\$_\.)?\b(name|extension)\s+-[ic]?(eq|like)\s+(?:'([^']*)'|"([^"$]*)")/gi
+  for (const m of stage.matchAll(tests)) {
+    const candidates = (m[1] as string).toLowerCase() === 'name' ? STORE_NAMES : STORE_EXTENSIONS
+    const literal = (m[3] ?? m[4]) as string
+    const misses = (m[2] as string).toLowerCase() === 'eq' ? candidates.every(c => c.toLowerCase() !== literal.toLowerCase()) : candidates.every(c => !globMatches(literal, c))
+    if (misses) return true
   }
+  return false
 }
 
 /** How deep `iex`, `& { }` and `Start-Process` text is followed before naming the store at all is refused. */
