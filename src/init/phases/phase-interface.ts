@@ -158,7 +158,11 @@ export interface InitOptions {
   noClaude?: boolean;
   /** Skip AQE's Claude Code status line and remove a previously AQE-owned one. */
   noStatusLine?: boolean;
-  /** @deprecated Use default behavior instead — MCP is now enabled by default */
+  /**
+   * Force the project `.mcp.json` `agentic-qe` entry even when the
+   * `agentic-qe-fleet` Claude Code plugin is enabled (that plugin already
+   * provides the AQE MCP server, so init skips the entry by default — #922).
+   */
   withMcp?: boolean;
   /**
    * Memory backend for this install. 'memory' => database-free: the SQLite
