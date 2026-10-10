@@ -14,8 +14,10 @@
  */
 
 import { execSync, spawnSync } from 'child_process';
-import { existsSync, readFileSync, readdirSync } from 'fs';
-import { join, extname } from 'path';
+import { createRequire } from 'module';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
+import { tmpdir } from 'os';
+import { join, extname, resolve } from 'path';
 import {
   TestMetrics,
   TestSource,
@@ -193,31 +195,68 @@ export function checkTestRunners(projectPath: string): ToolAvailability[] {
 
 /**
  * Count tests using Vitest
- * Uses `vitest list` for accurate test discovery WITHOUT execution.
+ * Uses `vitest list` for accurate test discovery without executing test callbacks.
  *
  * IMPORTANT: We use `vitest list` (not `vitest --run`) because:
  * - `vitest --run` EXECUTES tests, causing OOM in test-of-tests scenarios
- * - `vitest list` only enumerates tests without running them
+ * - Collection imports test modules but does not run test callbacks
  */
 function countVitestTests(
   projectPath: string,
   config: MetricCollectorConfig
 ): TestMetrics {
+  let listingDirectory: string | undefined;
   try {
-    // Use vitest list for safe enumeration (NO execution). --json emits one
-    // entry per discovered test in Vitest 4 and 5; --reporter=json does not.
-    const output = execSync(
-      'npx vitest list --json',
+    // Static parsing cannot expand parameterized or computed tests. Collect
+    // them without executing callbacks, including projects that opt into static
+    // parsing. Vitest 4.0 does not support the flag, so resolve the installed
+    // runner rather than guessing from the declared dependency range.
+    let collectionFlag = '';
+    try {
+      const projectRequire = createRequire(resolve(projectPath, 'package.json'));
+      const pkg = safeJsonParse(readFileSync(projectRequire.resolve('vitest/package.json'), 'utf-8'));
+      const [major, minor] = String(pkg.version).split('.').map(Number);
+      if (major > 4 || (major === 4 && minor >= 1)) {
+        collectionFlag = ' --no-static-parse';
+      }
+    } catch {
+      // Keep the existing listing fallback when no installed version resolves.
+    }
+    // Imports may write directly to stdout, so keep discovery JSON separate
+    // from project output. Expand the owned path as one shell argument rather
+    // than interpolating TMPDIR (which may contain shell syntax) into a command.
+    listingDirectory = mkdtempSync(join(tmpdir(), 'aqe-vitest-list-'));
+    const listingFile = join(listingDirectory, 'tests.json');
+    const listingArgument = process.platform === 'win32'
+      ? '"%AQE_VITEST_LIST_JSON%"'
+      : '"$AQE_VITEST_LIST_JSON"';
+    const listTests = (flag: string) => execSync(
+      `npx vitest list --json=${listingArgument}${flag}`,
       {
         cwd: projectPath,
         encoding: 'utf-8',
         timeout: Math.min(config.timeout, 30000), // Cap at 30s for listing
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced from 50MB)
+        env: { ...process.env, AQE_VITEST_LIST_JSON: listingFile },
       }
     );
-
     try {
-      const data = safeJsonParse(output);
+      listTests(collectionFlag);
+    } catch (error) {
+      if (!collectionFlag) throw error;
+      // Collection imports project test modules (and their side effects). If
+      // those imports fail or exceed the listing cap, retain native discovery
+      // through static parsing before degrading to file-pattern estimates.
+      rmSync(listingFile, { force: true });
+      listTests(' --static-parse');
+    }
+
+    // Preserve the listing size cap when the runner writes an artifact.
+    if (statSync(listingFile).size > 10 * 1024 * 1024) {
+      return countTestsByFilePattern(projectPath, config);
+    }
+    try {
+      const data = safeJsonParse(readFileSync(listingFile, 'utf-8'));
 
       // Vitest list --json returns a flat array of { name, file, location? }.
       if (Array.isArray(data) && data.every(test =>
@@ -231,27 +270,22 @@ function countVitestTests(
         return classifyTests(data.numTotalTests, 'vitest', projectPath);
       }
     } catch {
-      // JSON parse failed, try line counting
+      // Missing or invalid discovery JSON is not authoritative test output.
     }
 
-    // Fallback: count test entries from text output
-    // vitest list outputs lines like "✓ test name" or "○ test name"
-    const lines = output.split('\n');
-    const testLines = lines.filter(line =>
-      line.trim().startsWith('✓') ||
-      line.trim().startsWith('○') ||
-      line.includes(' > ') // nested test format: "describe > test name"
-    );
-
-    if (testLines.length > 0) {
-      return classifyTests(testLines.length, 'vitest', projectPath);
-    }
-
-    // If vitest list produced no usable output, fall back to file pattern
+    // Raw project stdout must never be mistaken for discovered tests.
     return countTestsByFilePattern(projectPath, config);
   } catch {
     // vitest list failed (not installed, timeout, etc.) - fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
+  } finally {
+    if (listingDirectory) {
+      try {
+        rmSync(listingDirectory, { recursive: true, force: true });
+      } catch {
+        // Cleanup failure must not change an otherwise valid count.
+      }
+    }
   }
 }
 
