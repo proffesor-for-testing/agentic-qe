@@ -15,7 +15,8 @@
 # Every npm call runs under `timeout`, with an isolated HOME, cache and empty
 # npmrc, so a hung connection or a user config cannot extend the deadline.
 # Diagnostics live outside the temporary caches so failure artifacts survive.
-# Exit codes: 0 ok, 1 download failed, 2 bad configuration, 3 not available.
+# Exit codes: 0 ok, 1 download failed, 2 bad configuration, 3 not available,
+# 4 local npm unusable (stage=setup).
 set -euo pipefail
 
 : "${PACKAGE_VERSION:?PACKAGE_VERSION must be set}"
@@ -38,8 +39,9 @@ config_error() { echo "ERROR: $*" >&2; exit 2; }
   || config_error "PACKAGE_VERSION '$PACKAGE_VERSION' is not a semver version"
 # Ceiling 45 min: the workflow's probe step and job timeouts are sized for it.
 in_range "$wait_seconds" 1 2700 || config_error 'AQE_NPM_WAIT_SECONDS must be 1-2700'
-in_range "$poll_initial" 0 60 || config_error 'AQE_NPM_POLL_INITIAL_SECONDS must be 0-60'
-in_range "$poll_max" 0 120 || config_error 'AQE_NPM_POLL_MAX_SECONDS must be 0-120'
+# A minimum of 1 s between polls: 0 would busy-poll the registry.
+in_range "$poll_initial" 1 60 || config_error 'AQE_NPM_POLL_INITIAL_SECONDS must be 1-60'
+in_range "$poll_max" 1 120 || config_error 'AQE_NPM_POLL_MAX_SECONDS must be 1-120'
 in_range "$view_timeout" 1 60 || config_error 'AQE_NPM_VIEW_TIMEOUT_SECONDS must be 1-60'
 in_range "$pack_seconds" 1 600 || config_error 'AQE_NPM_PACK_SECONDS must be 1-600'
 in_range "$pack_timeout" 1 120 || config_error 'AQE_NPM_PACK_TIMEOUT_SECONDS must be 1-120'
@@ -74,16 +76,6 @@ npm_common=(
   --fetch-retries=0
 )
 
-{
-  node --version
-  timeout -k 5 30 npm --version
-  printf 'Package: %s\nRegistry: %s\n' "$spec" "$registry"
-  printf 'Availability deadline: %ss (poll %s-%ss, view timeout %ss)\n' \
-    "$wait_seconds" "$poll_initial" "$poll_max" "$view_timeout"
-  printf 'Download deadline: %ss (%s attempts, pack timeout %ss)\n' \
-    "$pack_seconds" "$attempts" "$pack_timeout"
-} > "$log_dir/environment.txt"
-
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 log() { printf '%s %s\n' "$(now)" "$*" | tee -a "$summary" >&2; }
 min() { if (( $1 < $2 )); then echo "$1"; else echo "$2"; fi; }
@@ -92,6 +84,23 @@ result() {
   printf 'stage=%s\nwait_seconds=%s\nwait_limit_seconds=%s\n' "$1" "$2" "$wait_seconds" \
     | tee "$log_dir/result.txt" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
+
+npm_version=''
+if ! npm_version="$(timeout -k 5 30 npm --version 2> "$log_dir/npm-version.stderr")"; then
+  result setup 0
+  log "ERROR: local npm is unusable (npm --version failed); see $log_dir/npm-version.stderr"
+  exit 4
+fi
+{
+  node --version
+  printf '%s\n' "$npm_version"
+  printf 'Package: %s\nRegistry: %s\n' "$spec" "$registry"
+  printf 'Availability deadline: %ss (poll %s-%ss, view timeout %ss)\n' \
+    "$wait_seconds" "$poll_initial" "$poll_max" "$view_timeout"
+  printf 'Download deadline: %ss (%s attempts, pack timeout %ss)\n' \
+    "$pack_seconds" "$attempts" "$pack_timeout"
+} > "$log_dir/environment.txt"
+
 # Run npm under a hard wall-clock cap; SIGKILL follows 5 s after SIGTERM.
 npm_capped() {
   local secs="$1"; shift
@@ -131,7 +140,7 @@ while :; do
   remaining=$(( wait_deadline - SECONDS ))
   (( remaining > 0 )) || break
   sleep "$(min "$delay" "$remaining")"
-  delay=$(min $(( delay * 2 > 0 ? delay * 2 : 0 )) "$poll_max")
+  delay=$(min $(( delay * 2 )) "$poll_max")
 done
 waited=$(( SECONDS - wait_start ))
 

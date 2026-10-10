@@ -47,11 +47,18 @@ jobs:
           && github.event.workflow_run.event == 'release'
           && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
-    # Budget: probe step <= 35 min (25 min availability wait + 5 min download
-    # + slack, enforced inside the script), audit + corpus + init ~5 min,
-    # plus margin. The probe's own deadlines expire first, so the failure
-    # issue step still runs instead of the whole job being cancelled.
-    timeout-minutes: 50
+    # Every step has its own timeout-minutes so a hung step fails (and the
+    # failure issue still opens) instead of the job being cancelled. Budget,
+    # sum of step caps in order (minutes):
+    #   checkout 2 + checkout_tools 1 + node 2 + version 1          =  6
+    #   probe 32 (script: 25 wait + 5 download + kill slack ~1)     = 32
+    #   upload_probe 2 + audit 5 + upload_audit 2                   =  9
+    #   corpus_cache 2 + corpus_setup 3 + init 12 + upload_canary 2 = 19
+    #   summary 1 + audit_issue 2 + failure issue 2                 =  5
+    #   total                                                         71
+    # 32 + 5 + 3 + 12 alone exceeds 50, so the job cap is 75 (>= 71 + 4 margin).
+    # Normal runs take ~10-25 min; the cap only matters when steps hang.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code (for the corpus scripts)
@@ -61,10 +68,13 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           # Later steps install third-party packages; keep the token out of .git/config.
           persist-credentials: false
+        timeout-minutes: 2
 
       # The probe comes from the same commit as this workflow file (the default
-      # branch), not from the release commit. Re-running the canary for a tag
-      # published before the probe existed therefore still works.
+      # branch), not from the release commit, so a new publish event whose
+      # release commit predates the probe still has it. This does NOT help
+      # GitHub's "Re-run jobs" on an old run: a re-run reuses the original
+      # workflow file, which predates this probe.
       - name: Checkout probe script (workflow revision)
         id: checkout_tools
         uses: actions/checkout@v7
@@ -74,16 +84,19 @@ jobs:
           sparse-checkout: scripts/probe-npm-tarball.sh
           sparse-checkout-cone-mode: false
           persist-credentials: false
+        timeout-minutes: 1
 
       - name: Setup Node.js
         id: node
         uses: actions/setup-node@v7
+        timeout-minutes: 2
         with:
           node-version: '24.13.0'
           cache: 'npm'
 
       - name: Read published version from package.json
         id: version
+        timeout-minutes: 1
         run: |
           # Checkout is pinned to the triggering publish SHA, so moving main
           # cannot change the version or corpus used by this canary.
@@ -93,8 +106,9 @@ jobs:
 
       - name: Wait for npm availability and fetch published tarball
         id: probe
-        # Backstop only: the script's own deadlines (25 + 5 min) expire first.
-        timeout-minutes: 35
+        # Backstop only: the script's own deadlines (25 + 5 min, plus <= 5 s
+        # kill slack per phase) expire first.
+        timeout-minutes: 32
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           AQE_NPM_PROBE_LOG_DIR: ${{ github.workspace }}/probe-logs
@@ -105,6 +119,7 @@ jobs:
       - name: Upload npm probe diagnostics (always)
         id: upload_probe
         if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: canary-probe-${{ steps.version.outputs.version }}
@@ -121,6 +136,7 @@ jobs:
       - name: Consumer-side audit on published tarball
         id: audit
         continue-on-error: true
+        timeout-minutes: 5
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -144,6 +160,7 @@ jobs:
       - name: Upload audit artifacts
         id: upload_audit
         if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: canary-audit-${{ steps.version.outputs.version }}
@@ -153,16 +170,19 @@ jobs:
       - name: Cache corpus tarballs
         id: corpus_cache
         uses: actions/cache@v6
+        timeout-minutes: 2
         with:
           path: tests/fixtures/init-corpus/.cache
           key: init-corpus-${{ hashFiles('tests/fixtures/init-corpus/MANIFEST.json') }}
 
       - name: Download + extract fixture corpus
         id: corpus_setup
+        timeout-minutes: 3
         run: ./tests/fixtures/init-corpus/setup.sh
 
       - name: Run init gate against PUBLISHED npm version
         id: init
+        timeout-minutes: 12
         env:
           AQE_FROM_NPM: '1'
           AQE_NPM_VERSION: ${{ steps.version.outputs.version }}
@@ -171,6 +191,7 @@ jobs:
       - name: Upload canary logs (always)
         id: upload_canary
         if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: canary-logs-${{ steps.version.outputs.version }}
@@ -180,6 +201,7 @@ jobs:
       - name: Append canary summary
         id: summary
         if: always()
+        timeout-minutes: 1
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           PROBE_OUTCOME: ${{ steps.probe.outcome }}
@@ -226,17 +248,19 @@ jobs:
       - name: Open P1 issue on consumer-audit findings
         id: audit_issue
         if: steps.audit.outputs.audit_status == 'vulnerable'
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
           INIT_OUTCOME: ${{ steps.init.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           SUMMARY="(audit.json not produced)"
           if [ -f audit-logs/audit.json ]; then
             SUMMARY=$(jq '.metadata.vulnerabilities // {}' audit-logs/audit.json 2>/dev/null || echo "(unparseable)")
           fi
-          cat > /tmp/audit-body.md <<EOF
+          BODY_FILE="${RUNNER_TEMP}/audit-body.md"
+          cat > "$BODY_FILE" <<EOF
           ## Consumer-side audit findings
 
           A fresh \`npm install agentic-qe@${PACKAGE_VERSION}\`
@@ -273,13 +297,15 @@ jobs:
           \`.github/workflows/post-publish-canary.yml\`.
           Init corpus outcome: \`${INIT_OUTCOME:-not run}\`.
           EOF
+          # No labels: none of P1/release/canary/security exist in this repo, and
+          # gh fails the whole create on an unknown label. Severity is in the title.
           gh issue create \
-            --title "[P1] Consumer-side CVEs in agentic-qe@${PACKAGE_VERSION}" \
-            --label "P1,release,canary,security" \
-            --body-file /tmp/audit-body.md
+            --title "[P1][security] Consumer-side high/critical CVEs in agentic-qe@${PACKAGE_VERSION}" \
+            --body-file "$BODY_FILE"
 
       - name: Open issue on canary failure
         if: failure()
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
@@ -289,13 +315,20 @@ jobs:
           PROBE_WAIT_SECONDS: ${{ steps.probe.outputs.wait_seconds }}
           PROBE_WAIT_LIMIT_SECONDS: ${{ steps.probe.outputs.wait_limit_seconds }}
         run: |
-          FAILED_STEPS=$(jq -r '[to_entries[] | select(.value.outcome == "failure") | .key] | join(", ")' <<< "$STEP_OUTCOMES")
-          FAILED_STAGE=$(jq -r '[to_entries[] | select(.value.outcome == "failure") | .key][0] // "unknown"' <<< "$STEP_OUTCOMES")
-          OUTCOMES=$(jq -r 'to_entries[] | "| \(.key) | \(.value.outcome) |"' <<< "$STEP_OUTCOMES")
-          WAITED="${PROBE_WAIT_SECONDS:-unknown}"
-          [ "$WAITED" = "unknown" ] || WAITED="${WAITED}s"
+          # Use conclusion, not outcome: the continue-on-error audit step has
+          # outcome "failure" but conclusion "success" and did not fail the job.
+          FAILED_STEPS=$(jq -r '[to_entries[] | select(.value.conclusion == "failure") | .key] | join(", ")' <<< "$STEP_OUTCOMES")
+          FAILED_STAGE=$(jq -r '[to_entries[] | select(.value.conclusion == "failure") | .key][0] // "unknown"' <<< "$STEP_OUTCOMES")
+          OUTCOMES=$(jq -r 'to_entries[] | "| \(.key) | \(.value.outcome) | \(.value.conclusion) |"' <<< "$STEP_OUTCOMES")
+          # Step outputs are untrusted strings here; only digits reach arithmetic.
+          WAITED="unknown"
+          if [[ "${PROBE_WAIT_SECONDS:-}" =~ ^[0-9]+$ ]]; then WAITED="${PROBE_WAIT_SECONDS}s"; fi
+          LIMIT_MIN="?"
+          if [[ "${PROBE_WAIT_LIMIT_SECONDS:-}" =~ ^[0-9]+$ ]]; then LIMIT_MIN=$(( PROBE_WAIT_LIMIT_SECONDS / 60 )); fi
           if [ "$PROBE_STAGE" = "availability" ]; then
-            HEADLINE="npm did not make v${PACKAGE_VERSION} available within $(( ${PROBE_WAIT_LIMIT_SECONDS:-0} / 60 )) min (waited ${WAITED}). The publish may still be processing; this is not evidence of a broken package."
+            HEADLINE="npm did not make v${PACKAGE_VERSION} available within ${LIMIT_MIN} min (waited ${WAITED}). The publish may still be processing; this is not evidence of a broken package."
+          elif [ "$PROBE_STAGE" = "setup" ]; then
+            HEADLINE="The canary runner's npm was unusable before any registry check (probe stage: setup)."
           elif [ "$FAILED_STAGE" = "probe" ] && [ "$PROBE_STAGE" = "pack" ]; then
             HEADLINE="npm listed v${PACKAGE_VERSION} after ${WAITED}, but downloading the tarball failed."
           else
@@ -322,8 +355,8 @@ jobs:
 
           **${HEADLINE}**
 
-          | Step | Outcome |
-          | --- | --- |
+          | Step | Outcome | Conclusion |
+          | --- | --- | --- |
           ${OUTCOMES}
 
           ### Per-fixture summary

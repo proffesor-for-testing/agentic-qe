@@ -25,6 +25,8 @@ interface NpmCall {
   args: string[];
   /** Probe pack directories that exist while this npm process starts. */
   live: string[];
+  /** Epoch seconds when this npm process started. */
+  time: number;
 }
 
 const root = resolve(import.meta.dirname, '../../..');
@@ -91,6 +93,7 @@ function npmShim(directory: string) {
   writeFileSync(join(bin, 'npm'), `#!/bin/sh
 {
   printf 'PARENT %s\\n' "$(ps -o comm= -p "$PPID" 2>/dev/null)"
+  printf 'TIME %s\\n' "$(date +%s)"
   for dir in "$TMPDIR"/aqe-npm-probe.*/pack-*; do [ -e "$dir" ] && printf 'LIVE %s\\n' "$dir"; done
   env | grep -iE '^(npm_config_[a-z_]+|home|no_update_notifier)=' | sed 's/^/ENV /'
   for arg in "$@"; do printf 'ARG %s\\n' "$arg"; done
@@ -101,9 +104,10 @@ exec "$AQE_TEST_REAL_NPM" "$@"
   const calls = (): NpmCall[] => {
     if (!existsSync(log)) return [];
     return readFileSync(log, 'utf8').split('END\n').filter((chunk) => chunk.trim()).map((chunk) => {
-      const call: NpmCall = { parent: '', env: {}, args: [], live: [] };
+      const call: NpmCall = { parent: '', env: {}, args: [], live: [], time: 0 };
       for (const line of chunk.split('\n')) {
         if (line.startsWith('PARENT ')) call.parent = line.slice(7).trim();
+        else if (line.startsWith('TIME ')) call.time = Number(line.slice(5));
         else if (line.startsWith('ENV ')) {
           const [key, ...value] = line.slice(4).split('=');
           call.env[key.toLowerCase()] = value.join('=');
@@ -119,13 +123,15 @@ exec "$AQE_TEST_REAL_NPM" "$@"
 interface RegistryOptions {
   /** Packument responses that omit 3.15.1 (npm still processing the publish). */
   hiddenPackuments?: number;
+  /** Packument responses whose 3.15.1 entry reports version 3.15.10 (a near-miss). */
+  wrongVersionPackuments?: number;
   missingTarballs?: number;
   corrupt?: boolean;
   hangTarball?: boolean;
 }
 
 async function registry(directory: string, options: RegistryOptions = {}) {
-  const { hiddenPackuments = 0, missingTarballs = 0, corrupt = false, hangTarball = false } = options;
+  const { hiddenPackuments = 0, wrongVersionPackuments = 0, missingTarballs = 0, corrupt = false, hangTarball = false } = options;
   const packageDir = join(directory, 'package');
   mkdirSync(packageDir);
   const manifest = { name: 'agentic-qe', version: '3.15.1' };
@@ -149,7 +155,10 @@ async function registry(directory: string, options: RegistryOptions = {}) {
       });
       const previous = { name: 'agentic-qe', version: '3.15.0', dist: dist('3.15.0') };
       const versions: Record<string, unknown> = { '3.15.0': previous };
-      if (packumentRequests > hiddenPackuments) versions['3.15.1'] = { ...manifest, dist: dist('3.15.1') };
+      if (packumentRequests > hiddenPackuments) {
+        const reported = packumentRequests <= hiddenPackuments + wrongVersionPackuments ? '3.15.10' : '3.15.1';
+        versions['3.15.1'] = { ...manifest, version: reported, dist: dist('3.15.1') };
+      }
       response.setHeader('content-type', 'application/json');
       response.end(JSON.stringify({
         name: 'agentic-qe',
@@ -204,7 +213,7 @@ async function runProbe(registryUrl: string, directory: string, env: Record<stri
     AQE_TEST_REAL_NPM: realNpm,
     PACKAGE_VERSION: '3.15.1',
     AQE_NPM_WAIT_SECONDS: '30',
-    AQE_NPM_POLL_INITIAL_SECONDS: '0',
+    AQE_NPM_POLL_INITIAL_SECONDS: '1',
     AQE_NPM_POLL_MAX_SECONDS: '1',
     AQE_NPM_PROBE_DELAY_SECONDS: '0',
     AQE_NPM_PROBE_LOG_DIR: logs,
@@ -270,6 +279,23 @@ function expectBoundedIsolatedNpm(calls: NpmCall[]) {
   return packs;
 }
 
+/**
+ * Each npm call's --fetch-timeout must fit in the time left before its phase
+ * deadline (timestamps are whole seconds, hence +1).
+ */
+function expectClippedToDeadline(calls: NpmCall[], cmd: string, deadlineSeconds: number) {
+  const phase = calls.filter((call) => command(call) === cmd);
+  expect(phase.length).toBeGreaterThan(0);
+  const start = phase[0].time;
+  for (const call of phase) {
+    const remaining = deadlineSeconds - (call.time - start) + 1;
+    const timeouts = flag(call, '--fetch-timeout').map(Number);
+    expect(timeouts.length).toBeGreaterThan(0);
+    for (const ms of timeouts) expect(ms / 1000, `${cmd} at +${call.time - start}s`).toBeLessThanOrEqual(remaining);
+  }
+  return phase;
+}
+
 const POLL_LINE = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ poll \d+ \(\+\d+s\): /m;
 
 describe('published tarball probe: phase 1, waiting for npm async processing', () => {
@@ -290,13 +316,34 @@ describe('published tarball probe: phase 1, waiting for npm async processing', (
     expectBoundedIsolatedNpm(result.calls);
   }, TEST_TIMEOUT);
 
+  it('requires the exact version: an exit-0 view reporting 3.15.10 is not 3.15.1', async () => {
+    const result = await probeLocal({ wrongVersionPackuments: 2 });
+    expect(result.code, result.stderr).toBe(0);
+    const nearMisses = result.summary.match(/poll \d+ \(\+\d+s\): not available \(exit 0, got 3\.15\.10\)/g) ?? [];
+    expect(nearMisses.length, result.summary).toBeGreaterThanOrEqual(1);
+    expect(result.summary).toMatch(/poll 1 \(\+\d+s\): not available \(exit 0, got 3\.15\.10\)/);
+    expect(result.summary).toMatch(/poll \d+ \(\+\d+s\): available \(3\.15\.1\)/);
+    const views = result.calls.filter((call) => command(call) === 'view');
+    expect(views.length).toBe(nearMisses.length + 1);
+  }, TEST_TIMEOUT);
+
   it('fails at the deadline with a distinct "not available" error when the version never appears', async () => {
-    const result = await probeLocal({ hiddenPackuments: Number.POSITIVE_INFINITY }, { AQE_NPM_WAIT_SECONDS: '4' });
+    const result = await probeLocal({ hiddenPackuments: Number.POSITIVE_INFINITY }, {
+      AQE_NPM_WAIT_SECONDS: '10', AQE_NPM_POLL_INITIAL_SECONDS: '1', AQE_NPM_POLL_MAX_SECONDS: '4',
+    });
     expect(result.code, result.stderr).toBe(3);
-    expect(result.stderr).toContain('npm did not make agentic-qe@3.15.1 available within 0m4s');
-    expect(result.outcome).toMatchObject({ stage: 'availability', wait_limit_seconds: '4' });
-    expect(Number(result.outcome.wait_seconds)).toBeGreaterThanOrEqual(4);
-    expect(result.seconds).toBeLessThan(4 + SLACK_SECONDS);
+    expect(result.stderr).toContain('npm did not make agentic-qe@3.15.1 available within 0m10s');
+    expect(result.outcome).toMatchObject({ stage: 'availability', wait_limit_seconds: '10' });
+    expect(Number(result.outcome.wait_seconds)).toBeGreaterThanOrEqual(10);
+    expect(result.seconds).toBeLessThan(10 + SLACK_SECONDS);
+    // Backoff 1 -> 2 -> 4 s: polls near +0, +1, +3, +7. A fixed 1 s delay would poll 6+ times.
+    const views = result.calls.filter((call) => command(call) === 'view');
+    expect(views.length, result.summary).toBeGreaterThanOrEqual(3);
+    expect(views.length, result.summary).toBeLessThanOrEqual(5);
+    const gaps = views.slice(1).map((call, index) => call.time - views[index].time);
+    expect(Math.max(...gaps), JSON.stringify(gaps)).toBeGreaterThanOrEqual(3);
+    // No poll may start with more time than the deadline leaves (default view cap is 30 s).
+    expectClippedToDeadline(result.calls, 'view', 10);
     expect(result.service.tarballRequests).toBe(0);
     expect(existsSync(join(result.logs, 'attempt-1'))).toBe(false);
     expect(result.calls.some((call) => command(call) === 'pack')).toBe(false);
@@ -310,15 +357,17 @@ describe('published tarball probe: phase 1, waiting for npm async processing', (
     const directory = cleanroom();
     const url = target === 'silent' ? await silentRegistry() : target;
     const result = await runProbe(url, directory, {
-      AQE_NPM_WAIT_SECONDS: '6',
+      AQE_NPM_WAIT_SECONDS: '8',
       AQE_NPM_VIEW_TIMEOUT_SECONDS: '5',
       AQE_NPM_POLL_INITIAL_SECONDS: '1',
     });
     expect(result.code, result.stderr).toBe(3);
-    expect(result.seconds).toBeLessThan(6 + SLACK_SECONDS);
-    expect(result.stderr).toContain('npm did not make agentic-qe@3.15.1 available within 0m6s');
+    expect(result.seconds).toBeLessThan(8 + SLACK_SECONDS);
+    expect(result.stderr).toContain('npm did not make agentic-qe@3.15.1 available within 0m8s');
     if (target === 'silent') expect(result.summary).toContain('npm view timed out');
     expectBoundedIsolatedNpm(result.calls);
+    // Poll 1 uses the full 5 s cap; poll 2 at ~+6 s may only use the ~2 s left.
+    if (target === 'silent') expect(expectClippedToDeadline(result.calls, 'view', 8).length).toBeGreaterThanOrEqual(2);
   }, TEST_TIMEOUT);
 
   it('rejects out-of-range deadlines and malformed versions before touching the network', async () => {
@@ -327,6 +376,7 @@ describe('published tarball probe: phase 1, waiting for npm async processing', (
       { AQE_NPM_WAIT_SECONDS: '99999' },
       { AQE_NPM_WAIT_SECONDS: '0' },
       { AQE_NPM_PACK_TIMEOUT_SECONDS: '0' },
+      { AQE_NPM_POLL_INITIAL_SECONDS: '0' },
       { PACKAGE_VERSION: '3.15.1; touch pwned' },
     ]) {
       const result = await runProbe('http://127.0.0.1:9/', directory, env);
@@ -334,6 +384,15 @@ describe('published tarball probe: phase 1, waiting for npm async processing', (
       expect(result.calls).toEqual([]);
     }
     expect(existsSync(join(directory, 'pwned'))).toBe(false);
+  }, TEST_TIMEOUT);
+
+  it('reports stage=setup (exit 4) when the local npm cannot even print its version', async () => {
+    const directory = cleanroom();
+    const result = await runProbe('http://127.0.0.1:9/', directory, { AQE_TEST_REAL_NPM: '/bin/false' });
+    expect(result.code, result.stderr).toBe(4);
+    expect(result.outcome).toMatchObject({ stage: 'setup', wait_seconds: '0' });
+    expect(result.stderr).toContain('local npm is unusable');
+    expect(result.calls).toHaveLength(1);
   }, TEST_TIMEOUT);
 });
 
@@ -385,7 +444,7 @@ describe('published tarball probe: phase 2, bounded download (real npm, local HT
   it('bounds a stalled tarball download by the download deadline', async () => {
     const result = await probeLocal({ hangTarball: true }, {
       AQE_NPM_PACK_SECONDS: '6',
-      AQE_NPM_PACK_TIMEOUT_SECONDS: '3',
+      AQE_NPM_PACK_TIMEOUT_SECONDS: '4',
       AQE_NPM_PROBE_ATTEMPTS: '10',
     });
     expect(result.code, result.stderr).toBe(1);
@@ -393,6 +452,8 @@ describe('published tarball probe: phase 2, bounded download (real npm, local HT
     expect(result.summary).toContain('npm pack timed out (attempt 1)');
     expect(result.outcome).toMatchObject({ stage: 'pack' });
     expectBoundedIsolatedNpm(result.calls);
+    // Attempt 1 uses the full 4 s cap; attempt 2 at ~+4 s may only use the ~2 s left.
+    expect(expectClippedToDeadline(result.calls, 'pack', 6).length).toBeGreaterThanOrEqual(2);
   }, TEST_TIMEOUT);
 
   it('fails corrupt tarball bytes instead of accepting a successful HTTP response', async () => {
@@ -444,9 +505,17 @@ describe('canary workflow evidence and reporting', () => {
     // Longest measured publish-to-availability delay (3.14.5) was 16m14s.
     expect(waitSeconds).toBeGreaterThanOrEqual(974 + 300);
     const probeBudgetMinutes = (waitSeconds + packSeconds) / 60;
-    expect(probeStep['timeout-minutes']).toBeGreaterThanOrEqual(probeBudgetMinutes + 3);
-    // Leave room after the probe step's backstop for audit, corpus, init, and the issue step.
-    expect(workflow.jobs.canary['timeout-minutes']).toBeGreaterThanOrEqual(probeStep['timeout-minutes']! + 10);
+    // The script's deadlines (plus <= 5 s kill slack per phase) must expire before the step backstop.
+    expect(probeStep['timeout-minutes']).toBeGreaterThanOrEqual(probeBudgetMinutes + 1);
+    // Every step is capped, and the caps of all steps (including the issue steps) fit in the job,
+    // so a hung step fails instead of cancelling the job before the failure issue opens.
+    for (const step of steps) expect(step['timeout-minutes'], step.name).toBeGreaterThan(0);
+    const cap = (id: string) => steps.find((step) => step.id === id)?.['timeout-minutes'];
+    expect(cap('audit')).toBeLessThanOrEqual(5);
+    expect(cap('corpus_setup')).toBeLessThanOrEqual(3);
+    expect(cap('init')).toBeLessThanOrEqual(12);
+    const total = steps.reduce((sum, step) => sum + step['timeout-minutes']!, 0);
+    expect(total).toBeLessThanOrEqual(workflow.jobs.canary['timeout-minutes']);
     expect(script).not.toMatch(/^\s*npm install --dry-run/m);
   });
 
@@ -476,6 +545,13 @@ describe('canary workflow evidence and reporting', () => {
     ['init', { PROBE_STAGE: 'ok', PROBE_WAIT_SECONDS: '0', PROBE_WAIT_LIMIT_SECONDS: '1500' }, (body) => {
       expect(body).toContain('**Failed stage: init (availability awaited 0s).**');
     }],
+    ['probe', { PROBE_STAGE: 'setup', PROBE_WAIT_SECONDS: '0', PROBE_WAIT_LIMIT_SECONDS: '1500' }, (body) => {
+      expect(body).toContain("**The canary runner's npm was unusable before any registry check (probe stage: setup).**");
+    }],
+    // Untrusted, non-numeric outputs never reach shell arithmetic.
+    ['probe', { PROBE_STAGE: 'availability', PROBE_WAIT_SECONDS: '$(touch pwned)', PROBE_WAIT_LIMIT_SECONDS: 'a[$(touch pwned)]' }, (body) => {
+      expect(body).toContain('**npm did not make v3.15.1 available within ? min (waited unknown).');
+    }],
   ];
 
   it.each(failureCases)('reports a %s failure (%o) with its stage and wait, without labels', async (stage, probeEnv, check) => {
@@ -496,11 +572,12 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 `, { mode: 0o755 });
+    const state = (outcome: string) => ({ outcome, conclusion: outcome });
     const outcomes = {
-      probe: { outcome: stage === 'probe' ? 'failure' : 'success' },
-      audit: { outcome: stage === 'probe' ? 'skipped' : 'success' },
-      corpus_setup: { outcome: stage === 'corpus_setup' ? 'failure' : stage === 'probe' ? 'skipped' : 'success' },
-      init: { outcome: stage === 'init' ? 'failure' : 'skipped' },
+      probe: state(stage === 'probe' ? 'failure' : 'success'),
+      audit: state(stage === 'probe' ? 'skipped' : 'success'),
+      corpus_setup: state(stage === 'corpus_setup' ? 'failure' : stage === 'probe' ? 'skipped' : 'success'),
+      init: state(stage === 'init' ? 'failure' : 'skipped'),
     };
     const result = await run('/bin/bash', ['-e', '-c', step!.run!], directory, {
       ...cleanEnv(directory),
@@ -517,11 +594,84 @@ done
     const body = readFileSync(bodyFile, 'utf8');
     expect(body).toContain(`Failed steps: ${stage}`);
     expect(body).toContain(`Failed stage: ${stage}`);
-    expect(body).toContain(`availability awaited: ${probeEnv.PROBE_WAIT_SECONDS}s`);
-    expect(body).toContain(`| init | ${outcomes.init.outcome} |`);
+    const waited = /^[0-9]+$/.test(probeEnv.PROBE_WAIT_SECONDS) ? `${probeEnv.PROBE_WAIT_SECONDS}s` : 'unknown';
+    expect(body).toContain(`availability awaited: ${waited}`);
+    expect(body).toContain(`| init | ${outcomes.init.outcome} | ${outcomes.init.conclusion} |`);
+    expect(existsSync(join(directory, 'pwned'))).toBe(false);
     expect(body).toContain('canary-probe-3.15.1');
     expect(body).not.toContain('init corpus gate failed');
     check(body);
     expect(readFileSync(argsFile, 'utf8')).not.toContain('--label');
+  });
+
+  function ghStub(directory: string) {
+    writeFileSync(join(directory, 'gh'), `#!/bin/sh
+printf '%s\\n' "$@" > "$AQE_TEST_ARGS"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --label) echo "could not add label: not found" >&2; exit 42 ;;
+    --body-file) shift; cp "$1" "$AQE_TEST_BODY" ;;
+  esac
+  shift
+done
+`, { mode: 0o755 });
+    return { args: join(directory, 'gh-args.txt'), body: join(directory, 'captured-body.md') };
+  }
+
+  it('blames init, not the continue-on-error audit step, when init fails after an audit failure', async () => {
+    const step = steps.find((entry) => entry.name === 'Open issue on canary failure')!;
+    const directory = cleanroom();
+    const gh = ghStub(directory);
+    // Exact toJSON(steps) shape: continue-on-error gives outcome failure, conclusion success.
+    const stepsJson = {
+      checkout: { outputs: {}, outcome: 'success', conclusion: 'success' },
+      probe: { outputs: { stage: 'ok', wait_seconds: '726', wait_limit_seconds: '1500' }, outcome: 'success', conclusion: 'success' },
+      audit: { outputs: {}, outcome: 'failure', conclusion: 'success' },
+      corpus_setup: { outputs: {}, outcome: 'success', conclusion: 'success' },
+      init: { outputs: {}, outcome: 'failure', conclusion: 'failure' },
+      upload_canary: { outputs: {}, outcome: 'success', conclusion: 'success' },
+    };
+    const result = await run('/bin/bash', ['-e', '-c', step.run!], directory, {
+      ...cleanEnv(directory),
+      PATH: `${directory}:${process.env.PATH}`,
+      RUNNER_TEMP: directory,
+      PACKAGE_VERSION: '3.15.2',
+      RUN_URL: 'https://example.test/run/123',
+      STEP_OUTCOMES: JSON.stringify(stepsJson),
+      PROBE_STAGE: 'ok', PROBE_WAIT_SECONDS: '726', PROBE_WAIT_LIMIT_SECONDS: '1500',
+      AQE_TEST_ARGS: gh.args, AQE_TEST_BODY: gh.body,
+    });
+    expect(result.code, result.stderr).toBe(0);
+    const body = readFileSync(gh.body, 'utf8');
+    expect(body).toContain('Failed steps: init\n');
+    expect(body).toContain('Failed stage: init\n');
+    expect(body).toContain('**Failed stage: init (availability awaited 726s).**');
+    expect(body).toContain('| audit | failure | success |');
+  });
+
+  it('opens the consumer-audit security issue without nonexistent labels', async () => {
+    const step = steps.find((entry) => entry.id === 'audit_issue')!;
+    expect(step.run).not.toContain('--label');
+    expect(step.run).not.toContain('${{');
+    const directory = cleanroom();
+    const gh = ghStub(directory);
+    mkdirSync(join(directory, 'audit-logs'));
+    writeFileSync(join(directory, 'audit-logs/audit.json'), JSON.stringify({ metadata: { vulnerabilities: { high: 2, critical: 1 } } }));
+    const result = await run('/bin/bash', ['-e', '-c', step.run!], directory, {
+      ...cleanEnv(directory),
+      PATH: `${directory}:${process.env.PATH}`,
+      RUNNER_TEMP: directory,
+      PACKAGE_VERSION: '3.15.2',
+      INIT_OUTCOME: 'success',
+      RUN_URL: 'https://example.test/run/123',
+      AQE_TEST_ARGS: gh.args, AQE_TEST_BODY: gh.body,
+    });
+    expect(result.code, result.stderr).toBe(0);
+    const args = readFileSync(gh.args, 'utf8');
+    expect(args).not.toContain('--label');
+    expect(args).toContain('[P1][security] Consumer-side high/critical CVEs in agentic-qe@3.15.2');
+    const body = readFileSync(gh.body, 'utf8');
+    expect(body).toContain('"critical": 1');
+    expect(body).toContain('[Workflow run](https://example.test/run/123)');
   });
 });
