@@ -1,105 +1,125 @@
 /**
  * Which paths are AQE's irreplaceable learning data.
  *
- * Pure: no `$`, no imports. Shared by the guard (hooks/guard.ts), the
- * `/aqe-mod fleet` verb and the tests.
+ * Pure: no `$`. Shared by the guard (hooks/guard.ts), the `/aqe-mod fleet`
+ * verb and the tests.
  *
  * Protected, case-insensitively, anywhere in a path:
- * - the `.agentic-qe` directory itself (deleting or moving it loses everything);
+ * - the `.agentic-qe` directory itself (deleting or moving it loses everything),
+ *   including a glob component that could match it (`.agentic*`, `.[a]gentic-qe`, `.*`);
  * - a direct child of `.agentic-qe/` named `*.db`, `*.db-wal`, `*.db-shm`,
  *   `*.db-journal` or `*.rvf` (memory.db and its WAL/SHM, brain/pattern stores);
  * - a glob directly under `.agentic-qe/` that could match one of those.
  *
- * Not protected: backups (`memory.db.bak-<ts>` does not end in `.db`),
+ * Not protected: backups (`memory.db.bak-<ts>` does not end in `.db`, and a
+ * name containing `backup` or a `.bak`/`-bak` part is a copy, not the store),
  * subdirectories (`.agentic-qe/agents/`), config, logs.
+ *
+ * Every `.agentic-qe` is protected wherever it lives, `/tmp/...` included: a
+ * pure check cannot resolve globs, `$`-expansions or symlinks, so it cannot
+ * tell a throwaway fixture from a project that lives under a temp directory.
  */
+import { globMatch } from './glob'
 
 /** A learning-data file's name: what the CLAUDE.md Data Protection rule guards. */
 export const DATA_FILE = /\.(db(-wal|-shm|-journal)?|rvf)$/i
 
+/** A backup's name (`memory-backup-20261009.db`, `memory.bak.db`, `x-bak-1.db`): a copy the guard lets tools write and remove. */
+export const BACKUP_NAME = /backup|(^|[._-])bak([._-]|\d|$)/i
+
 /** Names a glob is tried against to decide whether it could reach learning data. */
 const SAMPLES = ['memory.db', 'memory.db-wal', 'memory.db-shm', 'memory.db-journal', 'brain.rvf', 'patterns.rvf', 'x.db']
 
-/** `.agentic-qe` as a path component, preceded by start, `/`, `=` or `:` (so `--db=.agentic-qe/x.db` counts). */
-const COMPONENT = /(^|[/=:])\.agentic-qe(\/|$)/i
+const AQE = '.agentic-qe'
 
 export type ProtectedKind = 'dir' | 'file' | 'glob'
 
-/** Collapses `//`, `/./` and `a/../` so `.agentic-qe/./memory.db` and `x/../.agentic-qe/memory.db` read plainly. */
+/** The longest word read as a path; a longer one is judged by whether it mentions the store at all. */
+export const MAX_PATH = 4096
+
+/**
+ * Collapses `\`, `//`, `/./`, `a/../` and a leading `./`, so `.agentic-qe/./memory.db`,
+ * `x/../.agentic-qe/memory.db` and `./memory.db` read plainly. `./` alone reads as `.`.
+ */
 export function normalisePath(raw: string): string {
-  let p = raw.replace(/\\/g, '/').replace(/\/{2,}/g, '/')
+  const p = raw.replace(/\\/g, '/').replace(/\/{2,}/g, '/')
   const parts: string[] = []
   for (const part of p.split('/')) {
     if (part === '.' && parts.length > 0) continue
-    if (part === '..' && parts.length > 0 && parts[parts.length - 1] !== '..' && parts[parts.length - 1] !== '') {
+    if (part === '..' && parts.length > 0 && parts[parts.length - 1] !== '..' && parts[parts.length - 1] !== '' && parts[parts.length - 1] !== '.') {
       parts.pop()
       continue
     }
     parts.push(part)
   }
-  p = parts.join('/')
-  return p
+  while (parts.length > 1 && parts[0] === '.') parts.shift()
+  const out = parts.join('/')
+  return out === '' && p.startsWith('.') ? '.' : out
 }
 
-const hasGlob = (s: string) => /[*?[]/.test(s)
+export const hasGlob = (s: string): boolean => /[*?[]/.test(s)
 
-/** A shell glob as an anchored regex (`*`, `?`, `[...]`; braces are taken literally). */
-export function globToRegex(glob: string): RegExp {
-  let out = ''
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i] as string
-    if (c === '*') out += '[^/]*'
-    else if (c === '?') out += '[^/]'
-    else if (c === '[') {
-      const end = glob.indexOf(']', i + 1)
-      if (end === -1) out += '\\['
-      else {
-        out += `[${glob.slice(i + 1, end).replace(/^!/, '^').replace(/\\/g, '\\\\')}]`
-        i = end
-      }
-    } else out += c.replace(/[.+^${}()|\\]/g, '\\$&')
-  }
-  return new RegExp(`^${out}$`, 'i')
-}
+/** Whether a glob matches a name (linear; see glob.ts). */
+export const globMatches = (glob: string, name: string): boolean => globMatch(glob, name)
 
 /** Whether a glob (a file-name pattern, no directory part) could match a learning-data file. */
-export const globReachesData = (glob: string): boolean => {
-  try {
-    const re = globToRegex(glob)
-    return SAMPLES.some(name => re.test(name))
-  } catch {
-    return true
-  }
+export const globReachesData = (glob: string): boolean => SAMPLES.some(name => globMatches(glob, name))
+
+/**
+ * Whether one path component names the `.agentic-qe` directory: literally (after
+ * a `--db=` or `file:` style prefix), or as a glob the shell would expand to it.
+ * A glob only reaches a dot-directory when it starts with `.` or a bracket.
+ */
+function namesAqe(component: string, dotglob: boolean): boolean {
+  // A `--db=` or `file:` prefix, never one reaching into a glob (`.agentic-q[[:alpha:]]`).
+  const c = component.replace(/^[^*?[]*[=:]/, '')
+  if (c.toLowerCase() === AQE) return true
+  // Leading `*`s are often an unknown expansion that may be empty (`"$X.agentic-qe"`, `$(true).agentic-qe`).
+  if (/^\*+\./.test(c) && globMatches(c.replace(/^\*+/, ''), AQE)) return true
+  return hasGlob(c) && (dotglob || c.startsWith('.') || c.startsWith('[')) && globMatches(c, AQE)
 }
+
+/** The index of the first component naming `.agentic-qe`, or -1. */
+const aqeIndex = (parts: readonly string[], dotglob = false): number => parts.findIndex(p => namesAqe(p, dotglob))
 
 /**
  * How a path touches learning data, or undefined when it does not.
  * `inAqe`: the command already changed into `.agentic-qe`, so a bare `memory.db` is the store.
+ * `dotglob`: the line may have set `shopt -s dotglob`/`GLOBIGNORE`, so `*` also matches dot names.
  */
-export function protectedKind(raw: string, inAqe = false): ProtectedKind | undefined {
-  const path = normalisePath(raw.trim())
+export function protectedKind(raw: string, inAqe = false, dotglob = false): ProtectedKind | undefined {
+  // Outside `.agentic-qe`, a path can only reach it by naming it or by a glob: a cheap exit for every other word.
+  if (!inAqe && !/agentic|[*?[]/i.test(raw)) return undefined
+  // No real path is this long: read it as a glob that may reach the store when it could name it.
+  if (raw.length > MAX_PATH) return inAqe || /agentic/i.test(raw) ? 'glob' : undefined
+  const path = normalisePath(stripUri(raw.trim()))
   if (path === '') return undefined
-  const m = COMPONENT.exec(path)
+  const parts = path.split('/')
+  const at = aqeIndex(parts, dotglob)
   let rest: string
-  if (m === null) {
+  if (at === -1) {
     if (!inAqe || path.includes('/')) return undefined
     rest = path
   } else {
-    rest = path.slice(m.index + m[0].length)
+    rest = parts.slice(at + 1).join('/')
   }
   if (rest === '' || rest === '.') return 'dir'
   // Only direct children are the stores; `.agentic-qe/agents/x.db` is someone's fixture.
   if (rest.includes('/')) return undefined
   if (hasGlob(rest)) return globReachesData(rest) ? 'glob' : undefined
-  return DATA_FILE.test(rest) ? 'file' : undefined
+  return DATA_FILE.test(rest) && !BACKUP_NAME.test(rest) ? 'file' : undefined
 }
+
+/** A `file:` URI's path without its `?query`/`#fragment` (`file:.agentic-qe/memory.db?mode=rw`). */
+export const stripUri = (raw: string): string => (/^file:/i.test(raw) ? raw.replace(/[?#].*$/s, '') : raw)
 
 /** The last path component. */
 export const baseName = (p: string): string => {
+  if (!/[\\/]/.test(p)) return p
   const parts = normalisePath(p).split('/').filter(s => s !== '')
   return parts[parts.length - 1] ?? ''
 }
 
 /** True when a path names something under `.agentic-qe` at any depth (for `find` roots and `rsync --delete`). */
 export const underAqe = (raw: string, inAqe = false): boolean =>
-  COMPONENT.test(normalisePath(raw.trim())) || (inAqe && (raw === '.' || raw === './' || !raw.startsWith('/')))
+  aqeIndex(normalisePath(raw.trim()).split('/')) !== -1 || (inAqe && (raw === '.' || raw === './' || !raw.startsWith('/')))

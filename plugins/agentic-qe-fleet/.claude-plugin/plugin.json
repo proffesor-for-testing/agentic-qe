@@ -52,7 +52,7 @@
     "guardMode": {
       "type": "string",
       "title": "AQE learning-data guard",
-      "description": "enforce (default): refuse Bash/Write/Edit calls that delete, move, overwrite or truncate .agentic-qe/*.db (-wal, -shm, *.rvf) or run DROP/DELETE FROM/TRUNCATE against them. notify: allow, but toast and count. off: no checks.",
+      "description": "enforce (default): refuse Bash/Monitor/PowerShell/Write/Edit calls that delete, move, overwrite or truncate .agentic-qe/*.db (-wal, -shm, *.rvf) or run DROP/DELETE FROM/TRUNCATE/ALTER ... DROP against them. notify: allow, but toast and count. off: no checks.",
       "required": false,
       "default": "enforce",
       "options": [

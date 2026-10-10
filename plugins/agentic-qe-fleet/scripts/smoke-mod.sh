@@ -36,7 +36,7 @@ else
 fi
 
 # 2. Module files exist and are small.
-for f in register.ts guard.ts paths.ts status.ts options.ts command.ts; do
+for f in register.ts guard.ts paths.ts glob.ts shell.ts braces.ts context.ts commands.ts find.ts producers.ts verbs.ts writers.ts scripts.ts powershell.ts psvars.ts status.ts options.ts command.ts; do
   if [ -f "$HOOKS_DIR/$f" ]; then
     lines=$(wc -l < "$HOOKS_DIR/$f")
     if [ "$lines" -lt 500 ]; then pass "hooks/$f exists ($lines lines)"; else err "hooks/$f is $lines lines (limit 500)"; fi
