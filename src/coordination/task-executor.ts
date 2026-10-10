@@ -605,9 +605,11 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       // ADR-051: Record successful outcome
       this.recordOutcome(task, routingTier, true, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
 
-      // Save results to files if enabled
+      // Save results to files if enabled. A task can opt out per call with
+      // payload.saveResults === false (#925); the executor-wide config still
+      // acts as the global switch.
       let savedFiles: string[] | undefined;
-      if (this._config.saveResults) {
+      if (this._config.saveResults && payload?.saveResults !== false) {
         try {
           const saveOptions: SaveOptions = {
             language: payload?.language as string || this._config.defaultLanguage,

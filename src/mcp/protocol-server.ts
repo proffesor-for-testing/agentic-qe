@@ -1071,7 +1071,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_generate_enhanced',
-        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
+        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
         category: 'domain',
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
@@ -1083,6 +1083,7 @@ export class MCPProtocolServer {
           { name: 'behaviorExamples', type: 'array', description: 'Trusted specification fixtures: [{functionName: "add", args: [2,3], expected: 5}]. Named JS/TS functions with required simple parameters; unit vitest/jest/node-test. No source-derived oracle. Omit for scaffolding.', items: BEHAVIOR_EXAMPLE_ITEM_SCHEMA },
           { name: 'aiEnhancement', type: 'boolean', description: 'Enable AI-powered enhancement', default: true },
           { name: 'detectAntiPatterns', type: 'boolean', description: 'Detect and report anti-patterns', default: false },
+          { name: 'saveResults', type: 'boolean', description: 'Save a manifest and report under .agentic-qe/results/tests/ (default true). Set false to generate without writing any files under .agentic-qe/results/. The server state store (.agentic-qe/memory.db) is updated either way.', default: true },
         ],
       },
       handler: (params) => handleTestGenerate(params as unknown as Parameters<typeof handleTestGenerate>[0]),

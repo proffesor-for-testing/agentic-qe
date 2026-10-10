@@ -710,6 +710,19 @@ describe('DomainTaskExecutor', () => {
       expect(result.savedFiles).toBeUndefined();
     });
 
+    it('#925: should skip saving when the task payload sets saveResults: false', async () => {
+      const task = createTestTask('generate-tests', {
+        sourceCode: 'export function triple(x: number): number { return x * 3; }',
+        saveResults: false,
+      });
+
+      const result = await executor.execute(task);
+
+      expect(result.success).toBe(true);
+      expect(result.savedFiles).toBeUndefined();
+      expect(existsSync(path.join(TEST_RESULTS_DIR, 'results'))).toBe(false);
+    });
+
     it('should save results when enabled', async () => {
       const task = createTestTask('generate-tests', {
         sourceCode: 'export function compute(x: number): number { return x * 2; }',
