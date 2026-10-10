@@ -427,6 +427,8 @@ export const ATTACKS: readonly Case[] = [
   { name: 'PowerShell -OutVariable then Remove-Item', tool: 'PowerShell', input: { command: 'Get-ChildItem -Path .agentic-qe -Filter *.db -OutVariable dbs | Out-Null; Remove-Item $dbs' } },
   { name: 'PowerShell -ov then pipe', tool: 'PowerShell', input: { command: 'gci -r -Filter *.db -ov dbs; $dbs | Remove-Item' } },
   { name: 'PowerShell multi-line hashtable splat', tool: 'PowerShell', input: { command: "$params = @{\n  Path = '.agentic-qe'\n  Recurse = $true\n}\nRemove-Item @params" } },
+  // pinned by the round-6 mutation check
+  { name: 'PowerShell += keeps what the variable held', tool: 'PowerShell', input: { command: "$x = @('.agentic-qe'); $x += 'build.log'; Remove-Item $x -Recurse" } },
   // file tools
   { name: 'Write the store', tool: 'Write', input: { file_path: '.agentic-qe/memory.db', content: '' } },
   { name: 'Write the store, absolute', tool: 'Write', input: { file_path: '/home/dev/p/.agentic-qe/memory.db', content: '' } },
