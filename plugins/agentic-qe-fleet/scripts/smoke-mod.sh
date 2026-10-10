@@ -36,7 +36,7 @@ else
 fi
 
 # 2. Module files exist and are small.
-for f in register.ts guard.ts paths.ts glob.ts shell.ts braces.ts context.ts commands.ts find.ts producers.ts verbs.ts writers.ts scripts.ts powershell.ts psvars.ts status.ts options.ts command.ts; do
+for f in register.ts guard.ts paths.ts glob.ts shell.ts braces.ts context.ts commands.ts find.ts producers.ts verbs.ts writers.ts scripts.ts powershell.ts psvars.ts status.ts version.ts options.ts command.ts; do
   if [ -f "$HOOKS_DIR/$f" ]; then
     lines=$(wc -l < "$HOOKS_DIR/$f")
     if [ "$lines" -lt 500 ]; then pass "hooks/$f exists ($lines lines)"; else err "hooks/$f is $lines lines (limit 500)"; fi
@@ -58,6 +58,9 @@ if [ -z "$non_type_cc" ]; then pass "'claude-code' is imported for types only"; 
 status_dir=$(grep -oE "MOD_NAME = '[^']+'" "$HOOKS_DIR/status.ts" | sed -E "s/MOD_NAME = '([^']+)'/\1/")
 if [[ "$status_dir" =~ ^[a-z0-9][a-z0-9-]{0,40}-mod$ ]]; then pass "status dir .claude-flow/$status_dir matches the console rule"; else err "status dir '$status_dir' does not match ^[a-z0-9][a-z0-9-]{0,40}-mod\$"; fi
 grep -q "version: 1" "$HOOKS_DIR/status.ts" && pass "status payload is version 1" || err "status payload must carry version: 1"
+mod_version=$(grep -oE "MOD_VERSION = '[^']+'" "$HOOKS_DIR/version.ts" 2>/dev/null | sed -E "s/MOD_VERSION = '([^']+)'/\1/")
+plugin_version=$(jq -r '.version' "$PLUGIN_DIR/.claude-plugin/plugin.json" 2>/dev/null)
+if [ -n "$mod_version" ] && [ "$mod_version" = "$plugin_version" ]; then pass "hooks/version.ts MOD_VERSION == plugin.json version ($plugin_version)"; else err "hooks/version.ts MOD_VERSION '${mod_version:-<none>}' != plugin.json version '$plugin_version' (run: node scripts/sync-plugin-versions.cjs)"; fi
 grep -q "\.catch(" "$HOOKS_DIR/register.ts" && pass "tool.call guard has a .catch handler" || err "tool.call guard must register a .catch handler"
 
 # 5. Tests and corpus ship with the guard.

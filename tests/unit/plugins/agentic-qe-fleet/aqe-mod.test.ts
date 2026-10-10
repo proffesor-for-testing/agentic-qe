@@ -15,6 +15,7 @@ import { expandVars } from '../../../../plugins/agentic-qe-fleet/hooks/context'
 import { BRACE_MAX_DEPTH, BRACE_MAX_LENGTH, expandBraces, parse, readAnsiC } from '../../../../plugins/agentic-qe-fleet/hooks/shell'
 import {
   MOD_NAME,
+  MOD_VERSION,
   newStats,
   segmentText,
   STATUS_DIR_RULE,
@@ -316,7 +317,7 @@ describe('aqe-mod status file: console contract', () => {
     const p = statusPayload(stats, 'enforce', 2000)
     expect(p).toEqual({
       version: 1,
-      modVersion: '0.1.0',
+      modVersion: MOD_VERSION,
       summary: SUMMARY,
       guard: true,
       mode: 'enforce',
@@ -326,6 +327,7 @@ describe('aqe-mod status file: console contract', () => {
       lastDenied: 'destructive',
       startedMs: 1000,
       updatedMs: 2000,
+      totals: { calls: 3, blocked: 1, flagged: 0, since: 1000 },
     })
     expect(CONSOLE.version.test(p.modVersion)).toBe(true)
     expect(p.summary.length).toBeLessThanOrEqual(CONSOLE.summaryMax)
@@ -341,7 +343,7 @@ describe('aqe-mod status file: console contract', () => {
     expect('startedMs' in parsed).toBe(false)
   })
 
-  it('should never put a command, path or reason text in the file', () => {
+  it('should never put a command, path or reason text in the file when nothing was refused with a reason', () => {
     const text = statusText({ ...newStats(), blocked: 1, lastDenied: 'destructive' }, 'enforce', 1)
     expect(text).not.toMatch(/rm |memory\.db"|refused/)
   })

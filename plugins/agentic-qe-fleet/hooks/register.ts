@@ -1,20 +1,40 @@
 import type { Hook, Register } from 'claude-code'
 
 import { answer, type DataFile } from './command'
-import { fallbackVerdict, isGuarded, judge } from './guard'
+import { fallbackVerdict, isGuarded, judge, SUFFIX } from './guard'
 import { readOptions, type GuardMode } from './options'
-import { MOD_NAME, newStats, segmentText, STATUS_PATH, statusText, type Stats } from './status'
+import { cleanReason, type Counts, countsOf, mergeSaved, MOD_NAME, newStats, noSaved, parseSaved, type Saved, segmentText, STATUS_PATH, statusText, type Stats, toolName, ZERO } from './status'
 
 type Dollar = Parameters<Hook<'session.start'>>[0]
 
-/** One session of the mod: its mode, its counters, the project root, the segment last drawn. */
-type Session = { readonly mode: GuardMode; readonly stats: Stats; root?: string; segment?: string }
+/**
+ * One session of the mod: its mode, its counters, the project root, the segment last drawn,
+ * the cross-session totals as last written (`saved`) and the session counts already in them (`written`).
+ */
+type Session = { readonly mode: GuardMode; readonly stats: Stats; root?: string; segment?: string; saved: Saved; written: Counts }
 
-/** Writes the console's status file; a failure only costs the console a row. */
+/** What the status file carries across sessions now, or null when it is missing or unreadable. */
+async function readSaved($: Dollar, path: string): Promise<Saved | null> {
+  try {
+    return parseSaved(await $.fs.read(path))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Writes the console's status file; a failure only costs the console a row. The totals are
+ * re-read first, so sessions running side by side add to them rather than overwrite each other;
+ * a missing or corrupt file falls back to what this session last wrote (zero at the start).
+ */
 async function flush($: Dollar, s: Session): Promise<void> {
   if (s.root === undefined) return
   try {
-    await $.fs.write(`${s.root}/${STATUS_PATH}`, statusText(s.stats, s.mode, await $.clock.now()))
+    const path = `${s.root}/${STATUS_PATH}`
+    const saved = mergeSaved((await readSaved($, path)) ?? s.saved, s.stats, s.written)
+    await $.fs.write(path, statusText(s.stats, s.mode, await $.clock.now(), saved))
+    s.saved = saved
+    s.written = countsOf(s.stats)
   } catch {
     /* the status file is a courtesy */
   }
@@ -41,7 +61,7 @@ async function aqeDir($: Dollar, root: string | undefined): Promise<readonly Dat
  * Everything goes through `$`; no network, no process, no MCP calls.
  */
 export const register: Register = (on, options) => {
-  const s: Session = { mode: readOptions(options).mode, stats: newStats() }
+  const s: Session = { mode: readOptions(options).mode, stats: newStats(), saved: noSaved(), written: { ...ZERO } }
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -67,6 +87,13 @@ export const register: Register = (on, options) => {
     const refusal = judge(e.tool, e, { root: s.root })
     if (refusal === undefined) return next(e)
     s.stats.lastDenied = refusal.cls
+    try {
+      // The reason, cut short and without its fixed advice; never the command (#924).
+      const outcome = s.mode === 'enforce' ? 'blocked' : 'flagged'
+      s.stats.lastRefusal = { atMs: await $.clock.now(), tool: toolName(e.tool), outcome, reason: cleanReason(refusal.reason, SUFFIX) }
+    } catch {
+      /* no clock: the counters still move */
+    }
     if (s.mode === 'enforce') {
       s.stats.blocked++
       await flush($, s)
@@ -96,14 +123,15 @@ export const register: Register = (on, options) => {
   /** `/aqe-mod`, answered here: read-only verbs, no model turn. */
   on('command.run', { command: 'aqe-mod' }, async ($, e) => {
     const args = typeof e.args === 'string' ? e.args : ''
+    await flush($, s)
     const text = await answer(args, {
       mode: s.mode,
       stats: s.stats,
+      saved: mergeSaved(s.saved, s.stats, s.written),
       tools: async () => (await $.tool.list()).map(t => t.name),
       aqeDir: () => aqeDir($, s.root),
       root: s.root,
     })
-    await flush($, s)
     return { text }
   })
 }

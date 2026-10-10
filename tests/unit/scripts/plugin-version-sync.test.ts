@@ -1,6 +1,7 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../../..');
@@ -47,5 +48,45 @@ describe('Claude Code plugin version sync', () => {
     expect(out).toContain(`in sync with package.json (${version})`);
     const scripts = readJson<{ scripts: Record<string, string> }>('package.json').scripts;
     expect(scripts.version).toContain('sync-plugin-versions.cjs');
+  });
+
+  it('aqe-mod MOD_VERSION (hooks/version.ts) equals the plugin version (#923)', () => {
+    const manifest = readJson<{ version: string }>('plugins/agentic-qe-fleet/.claude-plugin/plugin.json');
+    const source = readFileSync(resolve(root, 'plugins/agentic-qe-fleet/hooks/version.ts'), 'utf8');
+    expect(source).toContain(`export const MOD_VERSION = '${manifest.version}'`);
+    expect(source).not.toContain("'0.1.0'");
+  });
+
+  it('--check fails on a drifted MOD_VERSION and the write mode repairs it (#923)', () => {
+    const tmp = mkdtempSync(resolve(tmpdir(), 'aqe-sync-'));
+    try {
+      const files = [
+        'scripts/sync-plugin-versions.cjs',
+        'package.json',
+        '.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.claude-plugin/plugin.json',
+        'plugins/agentic-qe-fleet/.mcp.json',
+        'plugins/agentic-qe-fleet/hooks/version.ts',
+      ];
+      for (const f of files) {
+        mkdirSync(dirname(resolve(tmp, f)), { recursive: true });
+        cpSync(resolve(root, f), resolve(tmp, f));
+      }
+      const modFile = resolve(tmp, 'plugins/agentic-qe-fleet/hooks/version.ts');
+      writeFileSync(modFile, "export const MOD_VERSION = '0.1.0'\n");
+      const script = resolve(tmp, 'scripts/sync-plugin-versions.cjs');
+
+      const drift = spawnSync('node', [script, '--check'], { encoding: 'utf8' });
+      expect(drift.status).toBe(1);
+      expect(drift.stderr).toContain(`hooks/version.ts: MOD_VERSION "0.1.0" != ${version}`);
+      expect(readFileSync(modFile, 'utf8')).toContain("'0.1.0'");
+
+      const write = spawnSync('node', [script], { encoding: 'utf8' });
+      expect(write.status).toBe(0);
+      expect(readFileSync(modFile, 'utf8')).toBe(readFileSync(resolve(root, 'plugins/agentic-qe-fleet/hooks/version.ts'), 'utf8'));
+      expect(spawnSync('node', [script, '--check'], { encoding: 'utf8' }).status).toBe(0);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   });
 });
