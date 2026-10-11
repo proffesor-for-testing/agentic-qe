@@ -244,9 +244,12 @@ describe('Init wizard pipeline - full orchestration over a temp project', () => 
     // Act
     const result = await orchestrator.initialize();
 
-    // Assert
+    // Assert: the failing step itself is recorded as an error, not just the
+    // outer 'Initialization Failed' entry.
     expect(result.success).toBe(false);
-    expect(result.steps.some((s) => s.status === 'error')).toBe(true);
+    const skillsStep = result.steps.find((s) => s.step === 'Skills Installation');
+    expect(skillsStep).toMatchObject({ status: 'error', message: 'skills unavailable' });
+    expect(result.steps.at(-1)).toMatchObject({ step: 'Initialization Failed', status: 'error' });
   });
 
   // --------------------------------------------------------------------------
