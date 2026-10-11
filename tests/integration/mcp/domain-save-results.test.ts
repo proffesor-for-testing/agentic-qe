@@ -139,6 +139,8 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP domain saveResults 
       const list = await request('tools/list', {});
       const tool = list.result.tools.find((t:{name:string})=>t.name===name);
       expect(tool.description).toContain('.agentic-qe/results/');
+      expect(tool.description.length).toBeLessThanOrEqual(200);
+      expect(tool.description).toContain('saveResults:false');
       expect(tool.inputSchema.properties.saveResults).toMatchObject({type:'boolean',default:true});
     },60000);
     it(`${name} supports no-save with an explicit report`, async () => {

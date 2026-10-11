@@ -17,3 +17,20 @@ A built MCP server is exercised over stdio in an owned temporary project. All te
 ## Limits and consequences
 
 The accessibility and chaos backends currently return guidance; these tests verify their protocol and artifact behavior, not a browser audit or injected fault. Other backend capabilities are unchanged. The additive report fields follow the existing test-generation contract. The default repository test command still encounters independently reproduced task-handler failures; passing protocol tests do not imply a green whole-repository suite.
+
+## OpenCode description compatibility
+
+The first published revision expanded ten tool descriptions to 277–397 characters,
+causing the existing OpenCode registry smoke check to fail (72/91 descriptions
+within 200 characters, below 80%). Keep all ten saving contracts concise (151–199
+characters), preserving the default directory, saveResults:false behavior and
+resultsSaved/savedFiles/resultsNote fields. Security completion still means the
+required scope ran, not absence of vulnerabilities. The real stdio tools/list
+checks enforce the 200-character budget for every affected tool. This updates
+the existing contract PR and changes no execution or artifact-saving behavior.
+
+The revised registry/save-option checks pass 16 cases; freshly built real MCP
+stdio passes 36 domain/test-generate cases. Build, typecheck and scoped source lint
+pass. Literal full regression exits 1 after 2 original task-handler failures and
+27 passes; exact failure identities match the retained base comparison, so this
+is not a full-corpus green claim.

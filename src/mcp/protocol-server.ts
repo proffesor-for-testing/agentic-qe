@@ -1093,7 +1093,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_execute_parallel',
-        description: 'Execute test files in parallel with automatic retry on flaky failures. Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Run parallel tests with flaky-failure retry. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         parameters: [
           { name: 'saveResults', type: 'boolean', description: 'Save result artifacts to .agentic-qe/results/; false disables file writes without disabling server state updates', default: true },
@@ -1108,7 +1108,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'coverage_analyze_sublinear',
-        description: 'Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Analyze coverage and detect gaps. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
@@ -1124,7 +1124,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'quality_assess',
-        description: 'Assess code quality metrics and optionally run a pass/fail quality gate. Example: quality_assess({ runGate: true }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Assess quality metrics and optional pass/fail gates. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
@@ -1139,7 +1139,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'security_scan_comprehensive',
-        description: 'Run security scans with execution evidence and explicit coverage limitations. Complete means the declared required scope ran, not that all vulnerabilities are absent. Example: security_scan_comprehensive({ target: "src/", sast: true }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Scan security; complete means required scope ran, not absence of vulnerabilities. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         parameters: [
           { name: 'saveResults', type: 'boolean', description: 'Save result artifacts to .agentic-qe/results/; false disables file writes without disabling server state updates', default: true },
@@ -1156,7 +1156,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'contract_validate',
-        description: 'Validate API contracts for breaking changes against consumers. Example: contract_validate({ contractPath: "api/openapi.yaml" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Check API contracts for consumer-breaking changes. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         parameters: [
           { name: 'saveResults', type: 'boolean', description: 'Save result artifacts to .agentic-qe/results/; false disables file writes without disabling server state updates', default: true },
@@ -1170,7 +1170,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: 'Test accessibility against WCAG 2.1/2.2 and Section 508 standards. Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Test WCAG 2.1/2.2 and Section 508 accessibility. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         parameters: [
           { name: 'saveResults', type: 'boolean', description: 'Save result artifacts to .agentic-qe/results/; false disables file writes without disabling server state updates', default: true },
@@ -1185,7 +1185,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'chaos_test',
-        description: 'Inject faults (latency, errors, CPU) for chaos engineering resilience testing. Example: chaos_test({ faultType: "latency", target: "api-service" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Inject faults to test resilience. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         parameters: [
           { name: 'saveResults', type: 'boolean', description: 'Save result artifacts to .agentic-qe/results/; false disables file writes without disabling server state updates', default: true },
@@ -1200,7 +1200,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'defect_predict',
-        description: 'Predict potential defects using AI analysis of code complexity and change history. Example: defect_predict({ target: "src/auth/" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Predict defects from code complexity and changes. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
@@ -1215,7 +1215,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'requirements_validate',
-        description: 'Validate requirements for completeness and generate BDD scenarios. Example: requirements_validate({ requirementsPath: "docs/requirements.md" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Validate requirements and generate BDD scenarios. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
@@ -1230,7 +1230,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'code_index',
-        description: 'Index source code into the knowledge graph for dependency and impact analysis. Example: code_index({ target: "src/" }) Results are saved to .agentic-qe/results/ by default; pass saveResults: false to disable file writes. Responses report resultsSaved, savedFiles, and resultsNote.',
+        description: 'Index code for dependency and impact analysis. Saves .agentic-qe/results/ by default; saveResults:false skips writes. Returns resultsSaved, savedFiles, resultsNote.',
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
