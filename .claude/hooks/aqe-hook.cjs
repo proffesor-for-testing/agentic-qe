@@ -16,7 +16,8 @@
  * Contract:
  *   * resolve a PROJECT-LOCAL AQE bundle and run it via THIS node (no shell),
  *     or invoke an already-installed `aqe` binary without package-manager or
- *     network resolution;
+ *     network resolution (on Windows: the global install's bundle, never the
+ *     `aqe.cmd` shim — see resolveAqeInvocation, #872);
  *   * if nothing resolves, no-op (a hook must never block a turn);
  *   * keep stderr OUT of the transcript, but tee fatal native-init markers
  *     (e.g. better-sqlite3 `invalid ELF header`) to a throttled, durable
@@ -37,39 +38,128 @@
 
 'use strict';
 
-const { spawnSync } = require('node:child_process');
+const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const PROJECT = process.env.CLAUDE_PROJECT_DIR || '.';
 const args = process.argv.slice(2); // hook subcommand + its args
 
-// Resolve how to run `<runner> hooks <args>`, in priority order:
-//   1. installed dependency bundle  (a user's project: node_modules/agentic-qe)
-//   2. local source build           (this repo: ./dist)
-//   -> run either directly via process.execPath (this node): no shell, no
-//      node_modules/.bin/aqe(.cmd) wrapper, fully cross-platform.
-//   3. installed `aqe` binary        (global/managed installs without a local
-//      bundle). AQE_HOOK_BIN is a test/managed-install seam; no package manager
-//      is ever invoked from a lifecycle hook.
-const candidates = [
-  process.env.AQE_HOOK_BUNDLE,
-  path.join(PROJECT, 'node_modules', 'agentic-qe', 'dist', 'cli', 'bundle.js'),
-  path.join(PROJECT, 'dist', 'cli', 'bundle.js'),
-].filter(Boolean);
+const BUNDLE_IN_PACKAGE = ['node_modules', 'agentic-qe', 'dist', 'cli', 'bundle.js'];
+const CMD_SHIM = /\.(cmd|bat)$/i;
 
-let cmd;
-let cmdArgs;
-let bundle;
-for (const p of candidates) {
-  try { if (fs.existsSync(p)) { bundle = p; break; } } catch { /* ignore */ }
+function existsSafe(p) { try { return fs.existsSync(p); } catch { return false; } }
+function readSafe(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
+
+/** Env lookup that is case-insensitive on Windows (PATH is usually `Path`). */
+function envGet(env, name, platform) {
+  if (platform !== 'win32') return env[name];
+  const key = Object.keys(env).find((k) => k.toUpperCase() === name.toUpperCase());
+  return key === undefined ? undefined : env[key];
 }
-if (bundle) {
-  cmd = process.execPath;
-  cmdArgs = [bundle, 'hooks', ...args];
-} else {
-  cmd = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
-  cmdArgs = ['hooks', ...args];
+
+/**
+ * The JS entry a package-manager `.cmd` shim launches. npm's cmd-shim writes
+ *   "%_prog%"  "%dp0%\node_modules\agentic-qe\dist\cli\bundle.js" %*
+ * and pnpm/yarn use `"%~dp0\..."`; both are relative to the shim's directory.
+ */
+function parseCmdShimTarget(shimPath, content, p) {
+  const m = /"%~?dp0%?\\([^"%]+\.[cm]?js)"/i.exec(content || '');
+  return m ? p.join(p.dirname(shimPath), ...m[1].split(/[\\/]+/)) : null;
+}
+
+/** `npm prefix -g` via the npm CLI bundled next to node.exe: no shell, no .cmd. */
+function npmGlobalPrefix(execPath, p, exists) {
+  const npmCli = p.join(p.dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (!exists(npmCli)) return null;
+  try {
+    const r = childProcess.spawnSync(execPath, [npmCli, 'prefix', '-g'], {
+      encoding: 'utf8', timeout: 1500, stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true,
+    });
+    return r && r.status === 0 && r.stdout ? r.stdout.trim() || null : null;
+  } catch { return null; }
+}
+
+/**
+ * Resolve how to run `<runner> hooks <args>`, in priority order:
+ *   1. AQE_HOOK_BUNDLE, the installed dependency bundle (node_modules/agentic-qe)
+ *      or a local source build (./dist), run via process.execPath (this node):
+ *      no shell, no node_modules/.bin/aqe(.cmd) wrapper.
+ *   2. POSIX: the installed `aqe` binary (AQE_HOOK_BIN is a test/managed-install
+ *      seam). No package manager is ever invoked from a lifecycle hook.
+ *   3. Windows (#872): NEVER spawn `aqe.cmd`. Since the CVE-2024-27980 fix Node
+ *      refuses to start .cmd/.bat without `shell: true` (EINVAL), and a shell
+ *      would expose Claude Code-supplied arguments (--command, prompt text) to
+ *      cmd.exe metacharacter injection. Instead find the bundle the global shim
+ *      would have launched and run it via process.execPath: parse `aqe.cmd` on
+ *      PATH, then npm's global layouts, then `npm prefix -g` (bundled npm CLI).
+ *   4. Nothing resolved: { cmd: null, reason }. The caller logs it and no-ops.
+ *
+ * Returns { cmd, args, source }; `args` are the runner args that precede
+ * `hooks <subcommand ...>`. Every input is injectable for tests.
+ */
+function resolveAqeInvocation(opts) {
+  const o = opts || {};
+  const platform = o.platform || process.platform;
+  const env = o.env || process.env;
+  const execPath = o.execPath || process.execPath;
+  const exists = o.exists || existsSafe;
+  const readFile = o.readFile || readSafe;
+  const npmPrefix = o.npmPrefix || npmGlobalPrefix;
+  // Host path module (=== path.win32 on real Windows); injectable for tests.
+  const p = o.path || path;
+  const project = o.project || env.CLAUDE_PROJECT_DIR || '.';
+  const viaNode = (bundle, source) => ({ cmd: execPath, args: [bundle], source });
+
+  const local = [
+    env.AQE_HOOK_BUNDLE,
+    p.join(project, ...BUNDLE_IN_PACKAGE),
+    p.join(project, 'dist', 'cli', 'bundle.js'),
+  ].filter(Boolean);
+  for (const b of local) if (exists(b)) return viaNode(b, 'project-bundle');
+
+  const bin = env.AQE_HOOK_BIN;
+  if (platform !== 'win32') return { cmd: bin || 'aqe', args: [], source: 'bin' };
+  // A real executable (aqe.exe, a test stub) can be spawned without a shell.
+  if (bin && !CMD_SHIM.test(bin)) return { cmd: bin, args: [], source: 'bin' };
+
+  const shims = bin ? [bin] : [];
+  for (const dir of (envGet(env, 'PATH', platform) || '').split(';')) {
+    const d = dir.trim().replace(/^"(.*)"$/, '$1');
+    if (d) shims.push(p.join(d, 'aqe.cmd'));
+  }
+  for (const shim of shims) {
+    if (!exists(shim)) continue;
+    const fromShim = parseCmdShimTarget(shim, readFile(shim), p);
+    for (const b of [fromShim, p.join(p.dirname(shim), ...BUNDLE_IN_PACKAGE)]) {
+      if (b && exists(b)) return viaNode(b, `global-shim:${shim}`);
+    }
+  }
+
+  const appData = envGet(env, 'APPDATA', platform);
+  const prefixes = [
+    envGet(env, 'npm_config_prefix', platform),
+    appData && p.join(appData, 'npm'), // npm's default global prefix on Windows
+    p.dirname(execPath),               // nvm-windows: prefix = node install dir
+  ].filter(Boolean);
+  for (const prefix of prefixes) {
+    const b = p.join(prefix, ...BUNDLE_IN_PACKAGE);
+    if (exists(b)) return viaNode(b, `global-prefix:${prefix}`);
+  }
+  const queried = npmPrefix(execPath, p, exists);
+  if (queried && exists(p.join(queried, ...BUNDLE_IN_PACKAGE))) {
+    return viaNode(p.join(queried, ...BUNDLE_IN_PACKAGE), `npm-prefix:${queried}`);
+  }
+
+  return {
+    cmd: null,
+    args: [],
+    source: 'none',
+    reason: 'no agentic-qe bundle found (Windows cannot spawn aqe.cmd without a shell '
+      + 'since CVE-2024-27980, and a shell is unsafe for hook arguments). Fix: '
+      + '`npm install -D agentic-qe`, or set AQE_HOOK_BUNDLE to '
+      + '<npm global prefix>\\node_modules\\agentic-qe\\dist\\cli\\bundle.js',
+  };
 }
 
 // Fatal init markers that mean the hook ran but its persistence layer is dead
@@ -109,9 +199,27 @@ function recordHookHealth(line) {
   } catch { /* health logging must never block a turn */ }
 }
 
-let out = '';
-try {
-  const res = spawnSync(cmd, cmdArgs, {
+/** Spawn the resolved runner; returns its stdout ('' on any failure). */
+function runHook() {
+  const ts = () => new Date().toISOString();
+  const subcmd = args[0] || 'unknown';
+  const inv = resolveAqeInvocation();
+  if (!inv.cmd) {
+    recordHookHealth(`[${ts()}] SPAWN-FAILED hook could not start `
+      + `(cmd=${subcmd}): ${inv.reason}. Learning for this invocation was NOT captured.\n`);
+    return '';
+  }
+  let out = '';
+  try {
+    out = superviseSpawn(inv.cmd, [...inv.args, 'hooks', ...args], subcmd, ts);
+  } catch { /* never block a turn */ }
+  return out;
+}
+
+function superviseSpawn(cmd, cmdArgs, subcmd, ts) {
+  // shell is deliberately NOT set: arguments go to CreateProcess/execve verbatim.
+  const res = childProcess.spawnSync(cmd, cmdArgs, {
+    windowsHide: true,
     // Claude Code delivers hook event data (prompt, tool_input, etc.) as JSON
     // on stdin — `$PROMPT`/`$TOOL_INPUT_*` env-var substitution is NOT
     // reliable on every hook surface (see hooks-shared.ts:readStdinJsonEvent's
@@ -123,11 +231,9 @@ try {
     maxBuffer: 16 * 1024 * 1024,
     timeout: SPAWN_TIMEOUT_MS,
   });
-  out = (res && res.stdout) || '';
-  const subcmd = args[0] || 'unknown';
+  const out = (res && res.stdout) || '';
   const stderr = (res && res.stderr) || '';
   const hit = FATAL_MARKERS.find((m) => stderr.includes(m));
-  const ts = () => new Date().toISOString();
   if (hit) {
     // The fix depends on WHICH failure hit. A native-binary marker (invalid ELF
     // header / ERR_DLOPEN_FAILED / wrong Node version) is a real rebuild case.
@@ -183,20 +289,29 @@ try {
     recordHookHealth(`[${ts()}] EMPTY-RESULT hook exited status=${res.status} `
       + `with no JSON output (cmd=${subcmd}). stderr: ${stderr.slice(0, 300)}\n`);
   }
-} catch { /* never block a turn */ }
-
-// Emit only the top-level JSON object: the first line beginning with '{' through
-// the first line beginning with '}' (pretty-printed JSON closes at column 0;
-// nested closes are indented). Drops leading init-noise lines AND any async log
-// lines printed after the JSON.
-const lines = out.split('\n');
-const start = lines.findIndex((l) => l.startsWith('{'));
-if (start !== -1) {
-  let end = lines.length - 1;
-  for (let i = start; i < lines.length; i++) {
-    if (lines[i].startsWith('}')) { end = i; break; }
-  }
-  process.stdout.write(lines.slice(start, end + 1).join('\n') + '\n');
+  return out;
 }
 
-process.exit(0);
+function main() {
+  const out = runHook();
+  // Emit only the top-level JSON object: the first line beginning with '{' through
+  // the first line beginning with '}' (pretty-printed JSON closes at column 0;
+  // nested closes are indented). Drops leading init-noise lines AND any async log
+  // lines printed after the JSON.
+  const lines = out.split('\n');
+  const start = lines.findIndex((l) => l.startsWith('{'));
+  if (start !== -1) {
+    let end = lines.length - 1;
+    for (let i = start; i < lines.length; i++) {
+      if (lines[i].startsWith('}')) { end = i; break; }
+    }
+    process.stdout.write(lines.slice(start, end + 1).join('\n') + '\n');
+  }
+  process.exit(0);
+}
+
+// Exported so brain-checkpoint.cjs and unit tests can reuse the resolver;
+// requiring this file never spawns anything.
+module.exports = { resolveAqeInvocation, parseCmdShimTarget };
+
+if (require.main === module) main();

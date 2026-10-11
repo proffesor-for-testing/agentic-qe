@@ -17,7 +17,20 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
-const AQE_BIN = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
+/**
+ * How to run `aqe`. POSIX: the `aqe` binary. Windows (#872): never execFile
+ * `aqe.cmd` (EINVAL without a shell since CVE-2024-27980, and a shell is unsafe);
+ * reuse the hook shim's resolver, which finds the bundle and runs it via node.
+ */
+function aqeInvocation() {
+  if (process.platform !== 'win32') return { cmd: process.env.AQE_HOOK_BIN || 'aqe', args: [] };
+  try {
+    const shim = require(path.join(__dirname, '..', 'hooks', 'aqe-hook.cjs'));
+    return shim.resolveAqeInvocation({ project: PROJECT_ROOT });
+  } catch {
+    return { cmd: null, args: [], reason: '.claude/hooks/aqe-hook.cjs missing; re-run `aqe init`' };
+  }
+}
 
 // Mount-local kill switch. `brain export` (below) spawns a native RVF writer
 // that, on a macOS Docker virtiofs bind mount, deadlocks in a futex and IGNORES
@@ -33,13 +46,15 @@ function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\n'); }
 
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
+  const aqe = aqeInvocation();
+  if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
   try {
     if (fs.existsSync(RVF_PATH)) fs.unlinkSync(RVF_PATH);
     const idmap = RVF_PATH + '.idmap.json';
     if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
     const result = execFileSync(
-      AQE_BIN, ['brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8' }
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
     );
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';

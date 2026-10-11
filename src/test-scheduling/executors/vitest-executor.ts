@@ -17,6 +17,7 @@ import { safeJsonParse } from '../../shared/safe-json.js';
 import { getTestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { runnerFilePath } from '../../shared/test-runner-args.js';
+import { npmCliInvocation } from '../../shared/npm-cli-invocation.js';
 
 // ============================================================================
 // Types
@@ -262,10 +263,19 @@ export class VitestPhaseExecutor implements PhaseExecutor {
       return Promise.reject(new Error('Test executor already has an active process'));
     }
 
-    // shell: false prevents argument injection. A fresh POSIX process group
-    // lets cancellation reach npx, Vitest, and the workers it started.
-    const executable = process.platform === 'win32' && command === 'npx' ? 'npx.cmd' : command;
-    const child = spawn(executable, args, {
+    // shell: false prevents argument injection. On Windows `npx` is npx.cmd,
+    // which Node refuses to start without a shell (EINVAL, CVE-2024-27980), so
+    // run the npx CLI bundled next to node.exe instead (#872).
+    const invocation = command === 'npx' ? npmCliInvocation('npx') : [command, []] as [string, string[]];
+    if (!invocation) {
+      return Promise.reject(new Error(
+        'Cannot run npx on Windows without a shell: node_modules\\npm\\bin\\npx-cli.js was not '
+        + 'found next to node.exe. Set vitestPath to a vitest executable or JS entry.'));
+    }
+    const [executable, leadingArgs] = invocation;
+    // A fresh POSIX process group lets cancellation reach npx, Vitest, and the
+    // workers it started.
+    const child = spawn(executable, [...leadingArgs, ...args], {
       cwd: this.config.cwd || process.cwd(),
       env: { ...process.env, ...this.config.env },
       shell: false,

@@ -149,7 +149,7 @@ export class WorkersPhase extends BasePhase<WorkersResult> {
 // Starts the MCP server with background workers enabled
 
 const { existsSync, readFileSync, writeFileSync, appendFileSync } = require('fs');
-const { join } = require('path');
+const { join, dirname } = require('path');
 const { spawn } = require('child_process');
 
 const projectRoot = join(__dirname, '..', '..');
@@ -200,8 +200,18 @@ if (binCandidate && binCandidate.endsWith('bundle.js')) {
   mcpCmd = binCandidate;
   mcpArgs = [];
 } else {
-  mcpCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  mcpArgs = ['--yes', 'agentic-qe', 'mcp'];
+  // Windows (#872): npx is npx.cmd, which spawn() refuses to start without a
+  // shell (EINVAL since CVE-2024-27980). Run npm's bundled npx CLI via node.
+  const npxCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
+  if (process.platform === 'win32' && !existsSync(npxCli)) {
+    appendFileSync(logFile, '[' + ts + '] ERROR: no AQE MCP bundle found and npx-cli.js is missing next to node.exe; install agentic-qe locally (npm install -D agentic-qe).\\n');
+    console.error('AQE v3 Worker Daemon not started: agentic-qe MCP bundle not found (see ' + logFile + ')');
+    process.exit(1);
+  }
+  mcpCmd = process.platform === 'win32' ? process.execPath : 'npx';
+  mcpArgs = process.platform === 'win32'
+    ? [npxCli, '--yes', 'agentic-qe', 'mcp']
+    : ['--yes', 'agentic-qe', 'mcp'];
   appendFileSync(logFile, '[' + ts + '] WARNING: using npx fallback — daemon.pid will point at the npx wrapper, not the MCP server. \`aqe daemon status\` may misreport liveness after the wrapper exits.\\n');
 }
 

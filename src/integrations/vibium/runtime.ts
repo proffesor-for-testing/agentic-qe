@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { npmCliInvocation } from '../../shared/npm-cli-invocation.js';
 
 export const VIBIUM_SETUP = 'aqe init --browser-engine (or npm install vibium@^26.8.21)';
 type Runtime = typeof import('vibium');
@@ -19,11 +20,7 @@ export function npmInvocation(
   execPath: string = process.execPath,
   exists: (path: string) => boolean = existsSync,
 ): [string, string[]] {
-  if (platform === 'win32') {
-    const npmCli = join(dirname(execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-    if (exists(npmCli)) return [execPath, [npmCli]];
-  }
-  return ['npm', []];
+  return npmCliInvocation('npm', platform, execPath, exists) ?? ['npm', []];
 }
 
 /** Never install or download anything while probing availability. */
