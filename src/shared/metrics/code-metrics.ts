@@ -350,7 +350,7 @@ export class CodeMetricsAnalyzer {
       const trimmed = line.trim();
 
       // Increase nesting
-      if (/\bif\s*\(/.test(trimmed)) {
+      if (/\bif\s*\(/.test(trimmed) && !/\belse\s+if\s*\(/.test(trimmed)) {
         complexity += 1 + nestingLevel;
         nestingLevel++;
       }
