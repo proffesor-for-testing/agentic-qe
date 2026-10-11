@@ -7,6 +7,7 @@ import { TypeScriptParser, FunctionInfo, MethodInfo } from '../parsers';
 import { FileReader } from '../io';
 import { treeSitterRegistry } from '../parsers/multi-language-parser.js';
 import { getLanguageFromExtension } from '../types/test-frameworks.js';
+import { calculateCognitiveComplexity } from './cognitive-complexity.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -341,55 +342,9 @@ export class CodeMetricsAnalyzer {
     return complexity;
   }
 
+  /** SonarSource cognitive complexity heuristic; see ./cognitive-complexity.ts (#907). */
   private calculateCognitiveComplexity(code: string): number {
-    let complexity = 0;
-    let nestingLevel = 0;
-    const lines = code.split('\n');
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // Increase nesting
-      if (/\bif\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\belse\s+if\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-      }
-      if (/\belse\s*{/.test(trimmed)) {
-        complexity += 1;
-      }
-      if (/\bfor\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bwhile\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bswitch\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bcatch\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\?\s*[^:]/.test(trimmed)) {
-        complexity += 1 + nestingLevel; // Ternary
-      }
-      if (/&&|\|\|/.test(trimmed)) {
-        complexity += 1; // Boolean operators
-      }
-
-      // Track nesting via braces (simplified)
-      const openBraces = (trimmed.match(/{/g) || []).length;
-      const closeBraces = (trimmed.match(/}/g) || []).length;
-      nestingLevel = Math.max(0, nestingLevel + openBraces - closeBraces);
-    }
-
-    return complexity;
+    return calculateCognitiveComplexity(code);
   }
 
   private estimateCyclomaticComplexity(code: string): number {
