@@ -25,17 +25,17 @@ export class EmbeddingCache {
   /**
    * Generate SHA-256 hash of content for cache key
    */
-  private hashContent(content: string, model: string): string {
+  private hashContent(content: string, model: string, namespace?: string): string {
     return createHash('sha256')
-      .update(JSON.stringify([model, content]))
+      .update(JSON.stringify(namespace === undefined ? [model, content] : [model, namespace, content]))
       .digest('hex');
   }
 
   /**
    * Get cached embedding if available
    */
-  get(content: string, model: string): number[] | null {
-    const key = this.hashContent(content, model);
+  get(content: string, model: string, namespace?: string): number[] | null {
+    const key = this.hashContent(content, model, namespace);
     const entry = this.cache.get(key);
 
     if (entry) {
@@ -53,8 +53,8 @@ export class EmbeddingCache {
   /**
    * Store embedding in cache
    */
-  set(content: string, model: string, embedding: number[]): void {
-    const key = this.hashContent(content, model);
+  set(content: string, model: string, embedding: number[], namespace?: string): void {
+    const key = this.hashContent(content, model, namespace);
 
     // Evict oldest entry if cache is full (LRU)
     if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
@@ -76,8 +76,8 @@ export class EmbeddingCache {
   /**
    * Check if embedding exists in cache
    */
-  has(content: string, model: string): boolean {
-    const key = this.hashContent(content, model);
+  has(content: string, model: string, namespace?: string): boolean {
+    const key = this.hashContent(content, model, namespace);
     return this.cache.has(key);
   }
 
