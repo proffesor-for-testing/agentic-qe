@@ -27,7 +27,7 @@ v3/src/adapters/ag-ui/
 ├── event-types.ts       (489 lines) - All 19 AG-UI event type definitions
 ├── event-adapter.ts     (920 lines) - AQE→AG-UI event mapping + EventBatcher integration
 ├── event-batcher.ts     (285 lines) - Event batching for reduced network overhead
-├── json-patch-utils.ts  (507 lines) - RFC 6902 JSON Patch
+├── json-patch.ts        (981 lines) - RFC 6902 JSON Patch (fast-json-patch wrapper)
 ├── state-manager.ts     (520 lines) - State sync + StateDeltaCache integration
 ├── state-delta-cache.ts (245 lines) - LRU cache for pre-computed JSON Patch deltas
 ├── stream-controller.ts (415 lines) - Stream lifecycle management
@@ -83,7 +83,7 @@ interface ToolResult<T = unknown> {
 | TOOL_CALL_END | ✅ Implemented | `event-adapter.ts:emitToolCallEnd()` |
 | TOOL_CALL_RESULT | ✅ Implemented | `event-adapter.ts:emitToolCallResult()` |
 | STATE_SNAPSHOT | ✅ Implemented | `state-manager.ts:getSnapshot()` |
-| STATE_DELTA | ✅ Implemented | `state-manager.ts + json-patch-utils.ts` |
+| STATE_DELTA | ✅ Implemented | `state-manager.ts + json-patch.ts` |
 | MESSAGES_SNAPSHOT | ✅ Implemented | `event-adapter.ts:emitMessagesSnapshot()` |
 | SSE Endpoint | ✅ Implemented | `POST /agent/stream` in http-server.ts |
 | Bidirectional | ✅ Implemented | A2A task submission + AG-UI streaming |
@@ -302,7 +302,7 @@ class AGUIStreamController {
 **Phase 3: State Sync (Week 3)** ✅ COMPLETE
 - ✅ Implemented StateManager with JSON Patch (`state-manager.ts`)
 - ✅ STATE_SNAPSHOT for reconnection
-- ✅ STATE_DELTA for incremental updates (`json-patch-utils.ts`)
+- ✅ STATE_DELTA for incremental updates (`json-patch.ts`)
 - ✅ RFC 6902 compliant patch operations
 
 **Phase 4: Production (Week 4)** ✅ COMPLETE
@@ -316,7 +316,7 @@ class AGUIStreamController {
 - [x] 19 AG-UI event types implemented (see `AGUIEventType` enum)
 - [x] SSE endpoint functional at `/agent/stream` (via http-server.ts)
 - [x] Latency p95 <311ms (integration test verified) - improved from 500ms baseline
-- [x] State synchronization via JSON Patch working (StateManager + json-patch-utils)
+- [x] State synchronization via JSON Patch working (StateManager + json-patch)
 - [x] Backpressure handling prevents client overwhelm (BackpressureHandler)
 - [x] Client cancellation properly terminates runs (StreamController + AbortController)
 - [x] Backward compatible with existing WebSocket clients (stdio transport preserved)
@@ -359,7 +359,7 @@ All three latency optimizations have been implemented and integrated:
 
 | Dependency | Status | Notes |
 |------------|--------|-------|
-| `fast-json-patch` | ✅ Integrated | RFC 6902 compliant, used in `json-patch-utils.ts` |
+| `fast-json-patch` | ✅ Integrated | RFC 6902 compliant, used in `json-patch.ts` |
 | `@ag-ui/core` | 🔜 Pending | Will add when officially published |
 
 ### Production Hardening (Future Work)

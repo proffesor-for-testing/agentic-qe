@@ -605,7 +605,7 @@ describe('Performance Comparison', () => {
 });
 
 describe('Backward Compatibility', () => {
-  it('should maintain same interface as json-patch-utils.ts', () => {
+  it('should expose the full JSON Patch utility interface (formerly duplicated in json-patch-utils.ts, #908)', () => {
     expect(typeof escapePathToken).toBe('function');
     expect(typeof unescapePathToken).toBe('function');
     expect(typeof parsePath).toBe('function');
