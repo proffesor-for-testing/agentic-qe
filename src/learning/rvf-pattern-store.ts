@@ -39,7 +39,10 @@ import type {
 } from './pattern-store.js';
 import { DEFAULT_PATTERN_STORE_CONFIG, blendFtsScore } from './pattern-store.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
-import { verifyOrCreateEmbeddingSpaceManifest } from './embedding-space.js';
+import {
+  reportEmbeddingRuntimeUnavailable,
+  verifyOrCreateEmbeddingSpaceManifest,
+} from './embedding-space.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
 // ============================================================================
@@ -128,20 +131,33 @@ export class RvfPatternStore implements IPatternStore {
       if (!this.embeddingSpaceId && !getActiveEmbeddingSpaceIdentity()) {
         await ensureEndpointEmbeddingSpaceIdentity();
       }
-      this.adapter = this.createAdapter(
-        this.rvfPath,
-        this.config.embeddingDimension,
-      );
       const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId ?? null;
-      verifyOrCreateEmbeddingSpaceManifest(
-        this.rvfPath,
-        activeSpaceId,
-        this.adapter.status()?.totalVectors ?? 0,
-      );
-      this.initialized = true;
-      console.log(
-        `[RvfPatternStore] Initialized: ${this.rvfPath} (dim=${this.config.embeddingDimension})`,
-      );
+      if (!activeSpaceId) {
+        // #852: no embedder is configured (the normal state of a fresh
+        // project). The index stays closed — nothing could prove its vector
+        // space — but this is not a failure, so report it once at warn level
+        // and do not open or create the .rvf file. rvfInitError keeps
+        // embedding writes fail-closed (COMMITTED_PENDING_INDEX).
+        this.rvfInitError =
+          'VECTOR_SPACE_UNVERIFIED: no embedding runtime is configured; RVF index not opened';
+        this.adapter = null;
+        this.initialized = true;
+        reportEmbeddingRuntimeUnavailable();
+      } else {
+        this.adapter = this.createAdapter(
+          this.rvfPath,
+          this.config.embeddingDimension,
+        );
+        verifyOrCreateEmbeddingSpaceManifest(
+          this.rvfPath,
+          activeSpaceId,
+          this.adapter.status()?.totalVectors ?? 0,
+        );
+        this.initialized = true;
+        console.log(
+          `[RvfPatternStore] Initialized: ${this.rvfPath} (dim=${this.config.embeddingDimension})`,
+        );
+      }
     } catch (error) {
       // Do NOT silently swallow — the user chose useRVFPatternStore=true,
       // so they need to know RVF is not working. Log a clear error, set

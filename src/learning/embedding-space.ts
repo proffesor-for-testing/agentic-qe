@@ -140,6 +140,35 @@ export function inspectEmbeddingSpaceRows(
   };
 }
 
+/**
+ * #852: a project with no embedding runtime (no AQE_EMBEDDER_ENDPOINT, no
+ * injected embedder) has nothing that could prove which vector space an ANN
+ * index belongs to. That is the normal state of a freshly initialised
+ * project, not a fault: index binders must stay closed (the #633 guard), but
+ * they should say so once, at warn level, instead of reporting an ERROR.
+ */
+// The literal "WARN" is load-bearing: the MCP stdio entry only forwards
+// stderr lines containing it (or ERROR/[MCP]/...), so without it MCP users
+// would never see the notice the CLI prints.
+export const EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE =
+  '[VectorSearch] WARN: semantic vector search is not enabled: no embedding runtime is configured, ' +
+  'so the ANN indexes (patterns.rvf, brain.rvf) stay closed and pattern search uses SQLite text matching. ' +
+  'To enable it, set AQE_EMBEDDER_ENDPOINT to an OpenAI-compatible /v1/embeddings service.';
+
+let embeddingRuntimeNoticeShown = false;
+
+/** Log the no-embedder notice at most once per process. */
+export function reportEmbeddingRuntimeUnavailable(): void {
+  if (embeddingRuntimeNoticeShown) return;
+  embeddingRuntimeNoticeShown = true;
+  console.warn(EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE);
+}
+
+/** @internal test-only seam */
+export function __resetEmbeddingRuntimeNoticeForTests(): void {
+  embeddingRuntimeNoticeShown = false;
+}
+
 /** Sidecar path used to bind a persistent ANN index to one embedding space. */
 export function embeddingSpaceManifestPath(indexPath: string): string {
   return `${indexPath}.space.json`;
