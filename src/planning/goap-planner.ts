@@ -30,6 +30,9 @@ import type {
 import { DEFAULT_MAX_PLAN_STEPS, validateMaxSteps } from './types.js';
 import { getAllQEActions, QE_GOALS } from './actions/qe-action-library.js';
 
+/** Conservative budget fallback for actions without a declared estimate. */
+const DEFAULT_ACTION_DURATION_MS = 1000;
+
 // ============================================================================
 // MinHeap for A* Open Set (O(log n) insert/extract vs O(n log n) sort+shift)
 // ============================================================================
@@ -308,23 +311,28 @@ export class GOAPPlanner {
 
   /** Restore missing estimates only for unchanged legacy library definitions. */
   private backfillActionDurationEstimates(): void {
-    const update = this.ensureDb().prepare(`
+    const db = this.ensureDb();
+    const missing = db.prepare('SELECT 1 FROM goap_actions WHERE estimated_duration_ms IS NULL LIMIT 1').get();
+    if (!missing) return;
+    const update = db.prepare(`
       UPDATE goap_actions SET estimated_duration_ms = ?
       WHERE estimated_duration_ms IS NULL AND name = ?
         AND agent_type IS ? AND category = ? AND qe_domain IS ?
         AND preconditions = ? AND effects = ?
         AND method IS ? AND params IS ? AND implemented = ?
     `);
-    for (const action of getAllQEActions()) {
-      if (action.estimatedDurationMs === undefined) continue;
-      update.run(
-        action.estimatedDurationMs, action.name, action.agentType ?? null,
-        action.category, action.qeDomain ?? null,
-        JSON.stringify(action.preconditions), JSON.stringify(action.effects),
-        action.method ?? null, action.params ? JSON.stringify(action.params) : null,
-        action.implemented ? 1 : 0
-      );
-    }
+    db.transaction(() => {
+      for (const action of getAllQEActions()) {
+        if (action.estimatedDurationMs === undefined) continue;
+        update.run(
+          action.estimatedDurationMs, action.name, action.agentType ?? null,
+          action.category, action.qeDomain ?? null,
+          JSON.stringify(action.preconditions), JSON.stringify(action.effects),
+          action.method ?? null, action.params ? JSON.stringify(action.params) : null,
+          action.implemented ? 1 : 0
+        );
+      }
+    })();
   }
 
   // ==========================================================================
@@ -368,7 +376,7 @@ export class GOAPPlanner {
         const clonedPlan: GOAPPlan = {
           ...reusedPlan,
           estimatedDurationMs: reusedPlan.actions.reduce(
-            (sum, action) => sum + (action.estimatedDurationMs ?? 0), 0
+            (sum, action) => sum + (action.estimatedDurationMs ?? DEFAULT_ACTION_DURATION_MS), 0
           ),
           id: `plan-${Date.now()}-${randomUUID().slice(0, 8)}`,
           initialState: this.cloneState(currentState),
@@ -406,7 +414,7 @@ export class GOAPPlanner {
       actions: actionSequence,
       totalCost: actionSequence.reduce((sum, a) => sum + a.cost, 0),
       estimatedDurationMs: actionSequence.reduce(
-        (sum, a) => sum + (a.estimatedDurationMs ?? 0),
+        (sum, a) => sum + (a.estimatedDurationMs ?? DEFAULT_ACTION_DURATION_MS),
         0
       ),
       status: 'pending',
@@ -554,7 +562,7 @@ export class GOAPPlanner {
 
         // Check duration constraints
         const estimatedDuration =
-          current.estimatedDurationMs + (action.estimatedDurationMs ?? 0);
+          current.estimatedDurationMs + (action.estimatedDurationMs ?? DEFAULT_ACTION_DURATION_MS);
         if (estimatedDuration > maxDuration) {
           continue;
         }
@@ -1378,7 +1386,7 @@ export class GOAPPlanner {
 
     if (
       constraints?.maxDurationMs !== undefined &&
-      plan.actions.reduce((sum, action) => sum + (action.estimatedDurationMs ?? 0), 0)
+      plan.actions.reduce((sum, action) => sum + (action.estimatedDurationMs ?? DEFAULT_ACTION_DURATION_MS), 0)
         > constraints.maxDurationMs
     ) {
       return false;
