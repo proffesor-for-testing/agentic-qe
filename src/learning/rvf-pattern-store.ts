@@ -40,6 +40,7 @@ import type {
 import { DEFAULT_PATTERN_STORE_CONFIG, blendFtsScore } from './pattern-store.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
 import {
+  EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE,
   reportEmbeddingRuntimeUnavailable,
   verifyOrCreateEmbeddingSpaceManifest,
 } from './embedding-space.js';
@@ -133,13 +134,13 @@ export class RvfPatternStore implements IPatternStore {
       }
       const activeSpaceId = getActiveEmbeddingSpaceIdentity()?.spaceId ?? this.embeddingSpaceId ?? null;
       if (!activeSpaceId) {
-        // #852: no embedder is configured (the normal state of a fresh
-        // project). The index stays closed — nothing could prove its vector
-        // space — but this is not a failure, so report it once at warn level
+        // #852: no embedding runtime was available when the index was opened
+        // (the normal state of a fresh project). The index stays closed —
+        // nothing could prove its vector space; any vectors in it are kept —
+        // but this is not a failure, so report it once at warn level
         // and do not open or create the .rvf file. rvfInitError keeps
         // embedding writes fail-closed (COMMITTED_PENDING_INDEX).
-        this.rvfInitError =
-          'VECTOR_SPACE_UNVERIFIED: no embedding runtime is configured; RVF index not opened';
+        this.rvfInitError = EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE;
         this.adapter = null;
         this.initialized = true;
         reportEmbeddingRuntimeUnavailable();

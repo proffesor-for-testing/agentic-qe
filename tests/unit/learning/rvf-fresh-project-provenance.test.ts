@@ -32,6 +32,7 @@ import { createSQLitePatternStore } from '../../../src/learning/sqlite-persisten
 import { getActiveEmbeddingSpaceIdentity } from '../../../src/learning/real-embeddings.js';
 import {
   EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE,
+  EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE,
   __resetEmbeddingRuntimeNoticeForTests,
   embeddingSpaceManifestPath,
 } from '../../../src/learning/embedding-space.js';
@@ -149,9 +150,40 @@ describe('#852 fresh project without an embedder', () => {
     expect(warnSpy.mock.calls.some((c) => String(c[0]).includes('Dual-writer disabled'))).toBe(false);
   });
 
+  it('words the notice and stored cause as a bind-time state, never as missing config or data loss', () => {
+    // Reached also by a user whose AQE_EMBEDDER_ENDPOINT went missing (index
+    // has vectors) or whose in-process embedder loads lazily (review of #979).
+    for (const text of [EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE, EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE]) {
+      expect(text).toMatch(/no embedding runtime was available when the (ANN|RVF) index(es)? (was|were) opened/);
+      expect(text).not.toMatch(/is configured|DISABLED|ERROR/);
+      expect(text).toMatch(/existing vectors .*kept/);
+    }
+    // MCP's stdio entry forwards only stderr lines containing WARN/ERROR/[MCP].
+    expect(EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE).toContain('WARN');
+    expect(EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE).toContain('AQE_EMBEDDER_ENDPOINT');
+    expect(EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE).toContain('@huggingface/transformers');
+  });
+
+  it('leaves an existing populated index untouched when the embedder is missing', async () => {
+    const rvfPath = path.join(tmpDir, 'patterns.rvf');
+    fs.writeFileSync(rvfPath, Buffer.from('existing-index-bytes'));
+    fs.writeFileSync(embeddingSpaceManifestPath(rvfPath), JSON.stringify({ version: 1, spaceId: ACTIVE_SPACE }));
+    const before = fs.readFileSync(rvfPath);
+    const createAdapter = vi.fn(() => mockNativeAdapter(20));
+
+    const store = await newPatternStore(createAdapter, rvfPath);
+
+    expect(createAdapter).not.toHaveBeenCalled();
+    expect(fs.readFileSync(rvfPath).equals(before)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(embeddingSpaceManifestPath(rvfPath), 'utf8')).spaceId).toBe(ACTIVE_SPACE);
+    expect(rvfErrorLines(errorSpy)).toEqual([]);
+    await store.dispose();
+  });
+
   it('keeps embedding writes fail-closed while the index is unbound', async () => {
     const store = await newPatternStore(vi.fn(() => mockNativeAdapter()), path.join(tmpDir, 'patterns.rvf'));
     const stats = await store.getStats();
+    expect(stats.hnswStats.rvfInitError).toBe(EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE);
     expect(stats.hnswStats.rvfInitError).toMatch(/VECTOR_SPACE_UNVERIFIED/);
 
     const result = await store.store({

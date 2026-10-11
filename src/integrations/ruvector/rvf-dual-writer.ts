@@ -203,8 +203,9 @@ export class RvfDualWriter {
         await ensureEndpointEmbeddingSpaceIdentity();
       }
       if (!this.activeSpaceId()) {
-        // #852: no embedder configured (fresh project). brain.rvf cannot be
-        // bound to a vector space, so leave it unopened (and uncreated) and
+        // #852: no embedding runtime available (fresh project, or a missing
+        // endpoint). brain.rvf cannot be bound to a vector space, so leave it
+        // unopened (uncreated if absent; existing vectors are kept) and
         // report the expected state once instead of a per-store failure.
         this.rvfAvailable = false;
         reportEmbeddingRuntimeUnavailable();

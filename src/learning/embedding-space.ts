@@ -146,14 +146,24 @@ export function inspectEmbeddingSpaceRows(
  * index belongs to. That is the normal state of a freshly initialised
  * project, not a fault: index binders must stay closed (the #633 guard), but
  * they should say so once, at warn level, instead of reporting an ERROR.
+ *
+ * The wording must not imply data loss: the same state is reached by a user
+ * whose AQE_EMBEDDER_ENDPOINT went missing (an index with vectors) or whose
+ * in-process embedder only loads lazily, after the index was opened.
  */
 // The literal "WARN" is load-bearing: the MCP stdio entry only forwards
 // stderr lines containing it (or ERROR/[MCP]/...), so without it MCP users
 // would never see the notice the CLI prints.
 export const EMBEDDING_RUNTIME_UNAVAILABLE_NOTICE =
-  '[VectorSearch] WARN: semantic vector search is not enabled: no embedding runtime is configured, ' +
-  'so the ANN indexes (patterns.rvf, brain.rvf) stay closed and pattern search uses SQLite text matching. ' +
-  'To enable it, set AQE_EMBEDDER_ENDPOINT to an OpenAI-compatible /v1/embeddings service.';
+  '[VectorSearch] WARN: semantic vector search is not active: no embedding runtime was available ' +
+  'when the ANN indexes were opened (set AQE_EMBEDDER_ENDPOINT, or install @huggingface/transformers). ' +
+  'Any existing vectors in patterns.rvf and brain.rvf are kept and will be used once an embedder is available; ' +
+  'until then pattern search uses SQLite text matching.';
+
+/** Stored as the RVF init cause, so COMMITTED_PENDING_INDEX errors read correctly later. */
+export const EMBEDDING_RUNTIME_UNAVAILABLE_CAUSE =
+  'VECTOR_SPACE_UNVERIFIED: no embedding runtime was available when the RVF index was opened; ' +
+  'index left unbound (existing vectors are kept)';
 
 let embeddingRuntimeNoticeShown = false;
 
