@@ -51,14 +51,16 @@ describe('consumer dependency surface (#565)', () => {
   });
 
   it('leaves the transformers/onnx/adm-zip chain dev-only in the lockfile', () => {
-    for (const path of [
-      'node_modules/@huggingface/transformers',
-      'node_modules/onnxruntime-node',
-      'node_modules/adm-zip',
-    ]) {
-      const entry = lock.packages[path];
-      expect(entry, `${path} missing from lockfile`).toBeDefined();
-      expect(entry.dev, `${path} is reachable by consumers`).toBe(true);
+    // Match every install location: npm hoists or nests a package depending on
+    // which other dependents need it, so a fixed top-level path is not stable.
+    for (const name of ['@huggingface/transformers', 'onnxruntime-node', 'adm-zip']) {
+      const paths = Object.keys(lock.packages).filter(
+        (p) => p === `node_modules/${name}` || p.endsWith(`/node_modules/${name}`)
+      );
+      expect(paths, `${name} missing from lockfile`).not.toHaveLength(0);
+      for (const path of paths) {
+        expect(lock.packages[path].dev, `${path} is reachable by consumers`).toBe(true);
+      }
     }
   });
 
