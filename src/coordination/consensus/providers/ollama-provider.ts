@@ -17,6 +17,7 @@ import { BaseModelProvider } from '../model-provider';
 import { CONSENSUS_CONSTANTS, OLLAMA_CONSTANTS } from '../../constants.js';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { resolveOllamaBaseUrl } from '../../../shared/llm/ollama-url.js';
+import { fetchWithResponseDeadline } from '../../../shared/llm/providers/response-deadline.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -252,15 +253,14 @@ export class OllamaModelProvider extends BaseModelProvider {
    */
   async listModels(): Promise<string[]> {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), CONSENSUS_CONSTANTS.OLLAMA_CONNECTION_TEST_TIMEOUT_MS);
-
-      const response = await fetch(`${this.config.baseUrl}/api/tags`, {
-        method: 'GET',
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      // The deadline stays armed until the body is read (issue #961).
+      const timeoutMs = CONSENSUS_CONSTANTS.OLLAMA_CONNECTION_TEST_TIMEOUT_MS;
+      const response = await fetchWithResponseDeadline(
+        `${this.config.baseUrl}/api/tags`,
+        { method: 'GET' },
+        timeoutMs,
+        () => new Error(`Ollama list models timed out after ${timeoutMs}ms`),
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to list models: ${response.status}`);
@@ -413,30 +413,26 @@ export class OllamaModelProvider extends BaseModelProvider {
     request: OllamaChatRequest,
     timeout: number
   ): Promise<OllamaChatResponse> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(`${this.config.baseUrl}/api/chat`, {
+    // One deadline covers headers and the whole body, error bodies included (issue #961).
+    const response = await fetchWithResponseDeadline(
+      `${this.config.baseUrl}/api/chat`,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request),
-        signal: controller.signal,
-      });
+      },
+      timeout,
+      () => new Error(`Ollama request timed out after ${timeout}ms`),
+    );
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Ollama API error: ${response.status} - ${errorBody}`);
-      }
-
-      return (await response.json()) as OllamaChatResponse;
-    } finally {
-      clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Ollama API error: ${response.status} - ${errorBody}`);
     }
+
+    return (await response.json()) as OllamaChatResponse;
   }
 
   /**
