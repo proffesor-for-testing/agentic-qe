@@ -25,6 +25,10 @@ import {
 } from './types';
 
 const PSEUDO_EMBEDDING_MODEL = 'pseudo-embedding';
+// Unversioned real-model entries may predate fallback provenance separation.
+const VERIFIED_MODEL_CACHE_NAMESPACE = 'verified-backend-v1';
+const cacheNamespace = (model: string): string | undefined =>
+  model === EMBEDDING_CONFIG.MODEL ? VERIFIED_MODEL_CACHE_NAMESPACE : undefined;
 
 /**
  * Configuration for NomicEmbedder
@@ -82,10 +86,10 @@ export class NomicEmbedder implements IEmbeddingProvider {
   async embed(text: string): Promise<number[]> {
     // Prefer genuine cached vectors, then select the active backend before a
     // single counted lookup so alternate namespaces do not inflate misses.
-    let model: string = this.cache.has(text, EMBEDDING_CONFIG.MODEL) ||
+    let model: string = this.cache.has(text, EMBEDDING_CONFIG.MODEL, VERIFIED_MODEL_CACHE_NAMESPACE) ||
       await this.isOllamaAvailable() || !this.enableFallback
       ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
-    const cached = this.cache.get(text, model);
+    const cached = this.cache.get(text, model, cacheNamespace(model));
     if (cached) {
       return cached;
     }
@@ -106,7 +110,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
     }
 
     // Cache result
-    this.cache.set(text, model, embedding);
+    this.cache.set(text, model, embedding, cacheNamespace(model));
 
     return embedding;
   }
@@ -248,9 +252,9 @@ export class NomicEmbedder implements IEmbeddingProvider {
       const chunkStartTime = Date.now();
 
       // Check cache
-      const cachedModel = useOllama || this.cache.has(formattedText, EMBEDDING_CONFIG.MODEL)
+      const cachedModel = useOllama || this.cache.has(formattedText, EMBEDDING_CONFIG.MODEL, VERIFIED_MODEL_CACHE_NAMESPACE)
         ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
-      const cachedEmbedding = this.cache.get(formattedText, cachedModel);
+      const cachedEmbedding = this.cache.get(formattedText, cachedModel, cacheNamespace(cachedModel));
 
       if (cachedEmbedding) {
         return {
@@ -274,7 +278,7 @@ export class NomicEmbedder implements IEmbeddingProvider {
 
         // Cache the result
         const model = useOllama ? EMBEDDING_CONFIG.MODEL : PSEUDO_EMBEDDING_MODEL;
-        this.cache.set(formattedText, model, embedding);
+        this.cache.set(formattedText, model, embedding, cacheNamespace(model));
 
         return {
           chunkId: chunk.id,
