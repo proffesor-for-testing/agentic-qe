@@ -34,6 +34,26 @@ describe('legacy persisted cron compatibility', () => {
     expect(readFileSync(file, 'utf8')).toBe(original);
   });
 
+  it.each([5, { legacy: true }, 0, false, null, ''])('disables a non-string cron value %j without deleting the schedule file', async (cron) => {
+    const good = schedule('valid-control', '0 * * * *');
+    const bad = { ...schedule('typed-bad', 'ignored'), schedule: cron };
+    const original = JSON.stringify({ version: '1.0.0', schedules: [good, bad] });
+    writeFileSync(file, original);
+    const scheduler = new PersistentScheduler({ schedulesPath: file });
+    const loaded = await scheduler.getSchedules();
+    expect(readFileSync(file, 'utf8')).toBe(original);
+    expect(loaded).toHaveLength(2);
+    expect(loaded[0]).toEqual(good);
+    expect(loaded[1]).toMatchObject({ id: 'typed-bad', enabled: false,
+      disabledReason: expect.stringContaining('Invalid cron expression') });
+    expect((await scheduler.getDueSchedules()).map(value => value.id)).toEqual(['valid-control']);
+    await scheduler.saveSchedule(schedule('added-control', '*/5 * * * *'));
+    const stored = JSON.parse(readFileSync(file, 'utf8')).schedules;
+    expect(stored).toHaveLength(3);
+    expect(stored[0]).toEqual(good);
+    expect(stored[1]).toMatchObject({ schedule: cron, enabled: false });
+  });
+
   it('normalizes legacy entries in locked loads without discarding unrelated schedules', async () => {
     const scheduler = new PersistentScheduler({ schedulesPath: file });
     await scheduler.saveSchedule(schedule('added-control', '*/5 * * * *'));

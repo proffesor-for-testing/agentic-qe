@@ -395,11 +395,11 @@ export class PersistentScheduler {
 
     // Validate each schedule has required fields
     for (const schedule of data.schedules) {
-      if (!schedule.id || !schedule.workflowId || !schedule.schedule) {
+      if (!schedule.id || !schedule.workflowId || !Object.prototype.hasOwnProperty.call(schedule, 'schedule')) {
         throw new Error(`Invalid schedule entry: missing required fields`);
       }
 
-      if (!isValidCronExpression(schedule.schedule)) {
+      if (typeof schedule.schedule !== 'string' || !isValidCronExpression(schedule.schedule)) {
         schedule.disabledReason = `Invalid cron expression: ${schedule.schedule}`;
         if (schedule.enabled) {
           console.warn(`[PersistentScheduler] Disabled schedule ${schedule.id}: ${schedule.disabledReason}`);
