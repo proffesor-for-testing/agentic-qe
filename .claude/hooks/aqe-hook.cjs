@@ -48,8 +48,10 @@ const args = process.argv.slice(2); // hook subcommand + its args
 const BUNDLE_IN_PACKAGE = ['node_modules', 'agentic-qe', 'dist', 'cli', 'bundle.js'];
 // Script shims that Node cannot start without a shell (.ps1 is never directly
 // executable at all). They are only ever READ to find the JS entry behind them.
-const SCRIPT_SHIM = /\.(cmd|bat|ps1)$/i;
+// Windows ignores trailing dots/spaces in file names, so `aqe.cmd.` IS aqe.cmd.
+const SCRIPT_SHIM = /\.(cmd|bat|ps1)[. ]*$/i;
 const PREFIX_CACHE_TTL_MS = 5 * 60 * 1000;
+const PREFIX_CACHE_MAX_BYTES = 4096;
 
 function existsSafe(p) { try { return fs.existsSync(p); } catch { return false; } }
 function readSafe(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
@@ -99,17 +101,34 @@ function shimBundle(shim, p, exists, readFile, hops) {
 function cachedNpmPrefix(lookup, execPath, p, exists, cacheFile, now) {
   if (!cacheFile) return lookup(execPath, p, exists);
   try {
-    const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-    if (c && c.execPath === execPath && now - c.at >= 0 && now - c.at < PREFIX_CACHE_TTL_MS) {
-      return typeof c.prefix === 'string' ? c.prefix : null;
+    // Never follow a symlink/junction or read something huge: regular file only.
+    const st = fs.lstatSync(cacheFile);
+    if (st.isFile() && st.size <= PREFIX_CACHE_MAX_BYTES) {
+      const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      if (c && c.execPath === execPath && now - c.at >= 0 && now - c.at < PREFIX_CACHE_TTL_MS) {
+        return typeof c.prefix === 'string' ? c.prefix : null;
+      }
     }
   } catch { /* no or unreadable cache: look it up */ }
   const prefix = lookup(execPath, p, exists) || null;
-  try {
-    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
-    fs.writeFileSync(cacheFile, JSON.stringify({ execPath, prefix, at: now }));
-  } catch { /* caching is best-effort */ }
+  writeFileAtomic(cacheFile, JSON.stringify({ execPath, prefix, at: now }));
   return prefix;
+}
+
+/**
+ * Write via a fresh temp file (O_EXCL: never opens an existing path or follows
+ * a planted link) + rename. rename REPLACES a symlink at the destination rather
+ * than writing through it, and readers never see a torn file. Best-effort.
+ */
+function writeFileAtomic(file, data) {
+  const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(tmp, data, { flag: 'wx' });
+    fs.renameSync(tmp, file);
+  } catch {
+    try { fs.unlinkSync(tmp); } catch { /* nothing to clean up */ }
+  }
 }
 
 /** `npm prefix -g` via the npm CLI bundled next to node.exe: no shell, no .cmd. */
@@ -156,7 +175,9 @@ function resolveAqeInvocation(opts) {
   // Host path module (=== path.win32 on real Windows); injectable for tests.
   const p = o.path || path;
   const project = o.project || env.CLAUDE_PROJECT_DIR || '.';
-  const viaNode = (bundle, source) => ({ cmd: execPath, args: [bundle], source });
+  // Always hand node an ABSOLUTE path: a relative one such as `--require=./x.js`
+  // would be parsed by node as an option, not as the script to run.
+  const viaNode = (bundle, source) => ({ cmd: execPath, args: [p.resolve(bundle)], source });
 
   const local = [
     env.AQE_HOOK_BUNDLE,
@@ -173,7 +194,9 @@ function resolveAqeInvocation(opts) {
   const shims = bin ? [bin] : [];
   for (const dir of (envGet(env, 'PATH', platform) || '').split(';')) {
     const d = dir.trim().replace(/^"(.*)"$/, '$1');
-    if (d) shims.push(p.join(d, 'aqe.cmd'));
+    // Relative PATH entries (`.`, `--require=.`) resolve against an arbitrary
+    // cwd; Windows itself never searches them for a hook-launched process here.
+    if (d && p.isAbsolute(d)) shims.push(p.join(d, 'aqe.cmd'));
   }
   for (const shim of shims) {
     const b = shimBundle(shim, p, exists, readFile, 1);

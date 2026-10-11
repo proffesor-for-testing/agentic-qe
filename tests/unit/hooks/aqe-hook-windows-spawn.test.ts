@@ -9,7 +9,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import {
+  mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, symlinkSync, lstatSync, readdirSync,
+} from 'node:fs';
 import { join, resolve, win32 } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -171,6 +173,74 @@ describe('aqe-hook.cjs npm-prefix lookup cache (#872 review)', () => {
     run(t0 + 5 * 60 * 1000 + 1, 'D:\\other\\node.exe'); // different node binary
     expect(lookups).toBe(3);
   });
+
+  function unresolved(prefixCacheFile: string, npmPrefix: () => string | null) {
+    return resolveAqeInvocation({
+      platform: 'win32', path: win32, execPath: NODE, project: 'C:\\p', env: {},
+      exists: () => false, readFile: () => '', npmPrefix, prefixCacheFile, now: 1_000_000,
+    });
+  }
+
+  it('should_neverWriteThroughASymlinkedCacheFile_and_leaveTheVictimUnchanged', () => {
+    tmp = mkdtempSync(join(tmpdir(), 'aqe-872-symlink-'));
+    mkdirSync(join(tmp, '.agentic-qe'));
+    const victim = join(tmp, 'victim.txt');
+    // Victim holds a VALID, fresh cache record: following the link would trust it.
+    const victimBytes = JSON.stringify({ execPath: NODE, prefix: 'C:\\evil', at: 1_000_000 });
+    writeFileSync(victim, victimBytes);
+    const cacheFile = join(tmp, '.agentic-qe', 'hook-npm-prefix.json');
+    symlinkSync(victim, cacheFile);
+    let lookups = 0;
+
+    const inv = unresolved(cacheFile, () => { lookups++; return null; });
+
+    expect(inv.cmd).toBeNull();
+    expect(lookups).toBe(1);                                  // the link was not trusted
+    expect(readFileSync(victim, 'utf-8')).toBe(victimBytes);  // victim bytes unchanged
+    expect(lstatSync(cacheFile).isSymbolicLink()).toBe(false); // link replaced by a regular file
+    expect(JSON.parse(readFileSync(cacheFile, 'utf-8'))).toEqual({ execPath: NODE, prefix: null, at: 1_000_000 });
+    expect(readdirSync(join(tmp, '.agentic-qe'))).toEqual(['hook-npm-prefix.json']); // no temp left behind
+  });
+
+  it('should_ignoreAnOversizedCacheFile', () => {
+    tmp = mkdtempSync(join(tmpdir(), 'aqe-872-big-'));
+    const cacheFile = join(tmp, 'hook-npm-prefix.json');
+    writeFileSync(cacheFile, JSON.stringify({ execPath: NODE, prefix: null, at: 1_000_000, pad: 'x'.repeat(8192) }));
+    let lookups = 0;
+
+    unresolved(cacheFile, () => { lookups++; return null; });
+
+    expect(lookups).toBe(1);
+  });
+});
+
+describe('aqe-hook.cjs argv hardening (#970 re-review)', () => {
+  it('should_skipRelativePathEntries_soNoBundleCanBeParsedAsANodeFlag', () => {
+    const planted = '--require=.\\aqe.cmd';
+    const inv = resolveWin({ PATH: `--require=.;.;relative\\dir` }, {
+      [planted]: NPM_CMD_SHIM, '--require=.\\node_modules\\agentic-qe\\dist\\cli\\bundle.js': '',
+      '.\\aqe.cmd': NPM_CMD_SHIM, 'node_modules\\agentic-qe\\dist\\cli\\bundle.js': '',
+    });
+    expect(inv.cmd).toBeNull();
+  });
+
+  it('should_passAnAbsoluteBundlePath_when_aqeHookBundleIsRelative', () => {
+    const inv = resolveAqeInvocation({
+      platform: 'linux', env: { AQE_HOOK_BUNDLE: '--require=./x.js' }, project: '/nope',
+      exists: (f: string) => f === '--require=./x.js',
+    });
+    expect(inv.args).toEqual([resolve('--require=./x.js')]);
+    expect(inv.args[0].startsWith('/')).toBe(true);
+  });
+
+  it.each(['C:\\npm\\aqe.cmd.', 'C:\\npm\\aqe.CMD ', 'C:\\npm\\aqe.bat. .', 'C:\\npm\\aqe.ps1.'])(
+    'should_neverSpawnAqeHookBinDirectly_when_scriptExtensionHasTrailingDotsOrSpaces %s',
+    (bin) => {
+      const inv = resolveWin({ AQE_HOOK_BIN: bin }, {});
+      expect(inv.cmd).toBeNull();
+      expect(inv.reason).toContain('is a .cmd/.bat/.ps1 script');
+    },
+  );
 });
 
 /**

@@ -272,6 +272,11 @@ tests/safety/behavioral/results/*
 # Local recovery artifacts (macOS native binary backups from container fixes)
 .agentic-qe/native-binary-backups/
 
+# Hook shim local state (#872): health log + cached `npm prefix -g` (and its atomic-write temp files)
+.agentic-qe/hooks-health.log
+.agentic-qe/hook-npm-prefix.json
+.agentic-qe/hook-npm-prefix.json.*.tmp
+
 # WAL monitor (option C) local artifacts
 .agentic-qe/wal-monitor.log
 .agentic-qe/wal-monitor.ALERT
