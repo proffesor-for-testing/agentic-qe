@@ -9,8 +9,48 @@
  * @module mcp/handlers/save-results-option
  */
 
+import type { ToolParameter } from '../types';
+
 /** Directory (relative to the project) that ResultSaver writes under. */
 export const RESULTS_DIR = '.agentic-qe/results/';
+
+/**
+ * Every MCP tool whose handler is built by createDomainHandler, and so writes
+ * through ResultSaver (#933): what it saves, and the verb for "Set false to
+ * <verb> without writing...". Subdirectories match ResultSaver.save().
+ */
+export const RESULT_SAVING_TOOLS = {
+  test_generate_enhanced: { saves: 'a manifest and report under .agentic-qe/results/tests/', verb: 'generate' },
+  test_execute_parallel: { saves: 'the run results under .agentic-qe/results/other/', verb: 'run the tests' },
+  coverage_analyze_sublinear: { saves: 'coverage results and a report under .agentic-qe/results/coverage/', verb: 'analyze' },
+  quality_assess: { saves: 'an assessment and report under .agentic-qe/results/quality/', verb: 'assess' },
+  security_scan_comprehensive: { saves: 'scan results and a report under .agentic-qe/results/security/', verb: 'scan' },
+  contract_validate: { saves: 'the validation results under .agentic-qe/results/contracts/', verb: 'validate' },
+  accessibility_test: { saves: 'the test results under .agentic-qe/results/accessibility/', verb: 'test' },
+  chaos_test: { saves: 'the chaos run results under .agentic-qe/results/chaos/', verb: 'run' },
+  defect_predict: { saves: 'the prediction under .agentic-qe/results/defects/', verb: 'predict' },
+  requirements_validate: { saves: 'the validation results under .agentic-qe/results/other/', verb: 'validate' },
+  code_index: { saves: 'the index results under .agentic-qe/results/code-index/', verb: 'index' },
+} as const satisfies Record<string, { saves: string; verb: string }>;
+
+export type ResultSavingTool = keyof typeof RESULT_SAVING_TOOLS;
+
+/** Sentence each result-saving tool adds to its description. */
+export function saveResultsDescription(tool: ResultSavingTool): string {
+  const { saves, verb } = RESULT_SAVING_TOOLS[tool];
+  return `By default saves ${saves} (paths returned in savedFiles); pass saveResults: false to ${verb} without writing any result files.`;
+}
+
+/** The `saveResults` input parameter, worded the same for every tool. */
+export function saveResultsParameter(tool: ResultSavingTool): ToolParameter {
+  const { saves, verb } = RESULT_SAVING_TOOLS[tool];
+  return {
+    name: 'saveResults',
+    type: 'boolean',
+    description: `Save ${saves} (default true). Set false to ${verb} without writing any files under ${RESULTS_DIR}. The server state store (.agentic-qe/memory.db) is updated either way.`,
+    default: true,
+  };
+}
 
 /**
  * Read and validate the optional `saveResults` parameter.

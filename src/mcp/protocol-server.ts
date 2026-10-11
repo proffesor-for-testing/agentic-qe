@@ -129,6 +129,7 @@ import {
 import { ToolCallSignatureTracker } from '../kernel/anti-drift-middleware.js';
 import { formatErrorForLog } from '../logging/redaction.js';
 import { BEHAVIOR_EXAMPLE_ITEM_SCHEMA } from '../domains/test-generation/services/behavior-example-validation.js';
+import { saveResultsDescription, saveResultsParameter } from './handlers/save-results-option';
 import { requestOwnedShutdown } from '../kernel/process-lifecycle.js';
 
 import { createRequire } from 'module';
@@ -1071,7 +1072,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_generate_enhanced',
-        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
+        description: `Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. ${saveResultsDescription('test_generate_enhanced')} Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })`,
         category: 'domain',
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
@@ -1083,7 +1084,7 @@ export class MCPProtocolServer {
           { name: 'behaviorExamples', type: 'array', description: 'Trusted specification fixtures: [{functionName: "add", args: [2,3], expected: 5}]. Named JS/TS functions with required simple parameters; unit vitest/jest/node-test. No source-derived oracle. Omit for scaffolding.', items: BEHAVIOR_EXAMPLE_ITEM_SCHEMA },
           { name: 'aiEnhancement', type: 'boolean', description: 'Enable AI-powered enhancement', default: true },
           { name: 'detectAntiPatterns', type: 'boolean', description: 'Detect and report anti-patterns', default: false },
-          { name: 'saveResults', type: 'boolean', description: 'Save a manifest and report under .agentic-qe/results/tests/ (default true). Set false to generate without writing any files under .agentic-qe/results/. The server state store (.agentic-qe/memory.db) is updated either way.', default: true },
+          saveResultsParameter('test_generate_enhanced'),
         ],
       },
       handler: (params) => handleTestGenerate(params as unknown as Parameters<typeof handleTestGenerate>[0]),
@@ -1093,11 +1094,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_execute_parallel',
-        description: 'Execute test files in parallel with automatic retry on flaky failures. Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })',
+        description: `Execute test files in parallel with automatic retry on flaky failures. ${saveResultsDescription('test_execute_parallel')} Example: test_execute_parallel({ testFiles: ["tests/auth.test.ts"], parallel: true })`,
         category: 'domain',
         parameters: [
           { name: 'testFiles', type: 'array', description: 'Nonempty list of concrete test file paths (relative to the project working directory or absolute). Expand glob patterns before calling; glob patterns are rejected.' },
           { name: 'parallel', type: 'boolean', description: 'Enable parallel execution', default: true },
+          saveResultsParameter('test_execute_parallel'),
         ],
       },
       handler: (params) => handleTestExecute(params as unknown as Parameters<typeof handleTestExecute>[0]),
@@ -1107,12 +1109,13 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'coverage_analyze_sublinear',
-        description: 'Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true })',
+        description: `Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. ${saveResultsDescription('coverage_analyze_sublinear')} Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path to analyze', required: true },
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
+          saveResultsParameter('coverage_analyze_sublinear'),
         ],
       },
       handler: (params) => handleCoverageAnalyze(params as unknown as Parameters<typeof handleCoverageAnalyze>[0]),
@@ -1122,11 +1125,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'quality_assess',
-        description: 'Assess code quality metrics and optionally run a pass/fail quality gate. Example: quality_assess({ runGate: true })',
+        description: `Assess code quality metrics and optionally run a pass/fail quality gate. ${saveResultsDescription('quality_assess')} Example: quality_assess({ runGate: true })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
           { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score.', default: false },
+          saveResultsParameter('quality_assess'),
         ],
       },
       handler: (params) => handleQualityAssess(params as unknown as Parameters<typeof handleQualityAssess>[0]),
@@ -1136,13 +1140,14 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'security_scan_comprehensive',
-        description: 'Run security scans with execution evidence and explicit coverage limitations. Complete means the declared required scope ran, not that all vulnerabilities are absent. Example: security_scan_comprehensive({ target: "src/", sast: true })',
+        description: `Run security scans with execution evidence and explicit coverage limitations. Complete means the declared required scope ran, not that all vulnerabilities are absent. ${saveResultsDescription('security_scan_comprehensive')} Example: security_scan_comprehensive({ target: "src/", sast: true })`,
         category: 'domain',
         parameters: [
           { name: 'sast', type: 'boolean', description: 'Run SAST scan', default: true },
           { name: 'dast', type: 'boolean', description: 'Run DAST scan', default: false },
           { name: 'target', type: 'string', description: 'Source file or directory for SAST' },
           { name: 'targetUrl', type: 'string', description: 'URL for a requested DAST scan' },
+          saveResultsParameter('security_scan_comprehensive'),
         ],
       },
       handler: (params) => handleSecurityScan(params as unknown as Parameters<typeof handleSecurityScan>[0]),
@@ -1152,10 +1157,11 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'contract_validate',
-        description: 'Validate API contracts for breaking changes against consumers. Example: contract_validate({ contractPath: "api/openapi.yaml" })',
+        description: `Validate API contracts for breaking changes against consumers. ${saveResultsDescription('contract_validate')} Example: contract_validate({ contractPath: "api/openapi.yaml" })`,
         category: 'domain',
         parameters: [
           { name: 'contractPath', type: 'string', description: 'Path to contract file' },
+          saveResultsParameter('contract_validate'),
         ],
       },
       handler: (params) => handleContractValidate(params as unknown as Parameters<typeof handleContractValidate>[0]),
@@ -1165,11 +1171,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'accessibility_test',
-        description: 'Test accessibility against WCAG 2.1/2.2 and Section 508 standards. Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })',
+        description: `Test accessibility against WCAG 2.1/2.2 and Section 508 standards. ${saveResultsDescription('accessibility_test')} Example: accessibility_test({ url: "http://localhost:3000", standard: "wcag21-aa" })`,
         category: 'domain',
         parameters: [
           { name: 'url', type: 'string', description: 'URL to test', required: true },
           { name: 'standard', type: 'string', description: 'Accessibility standard' },
+          saveResultsParameter('accessibility_test'),
         ],
       },
       handler: (params) => handleAccessibilityTest(params as unknown as Parameters<typeof handleAccessibilityTest>[0]),
@@ -1179,11 +1186,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'chaos_test',
-        description: 'Inject faults (latency, errors, CPU) for chaos engineering resilience testing. Example: chaos_test({ faultType: "latency", target: "api-service" })',
+        description: `Inject faults (latency, errors, CPU) for chaos engineering resilience testing. ${saveResultsDescription('chaos_test')} Example: chaos_test({ faultType: "latency", target: "api-service" })`,
         category: 'domain',
         parameters: [
           { name: 'faultType', type: 'string', description: 'Type of fault to inject' },
           { name: 'target', type: 'string', description: 'Target service' },
+          saveResultsParameter('chaos_test'),
         ],
       },
       handler: (params) => handleChaosTest(params as unknown as Parameters<typeof handleChaosTest>[0]),
@@ -1193,11 +1201,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'defect_predict',
-        description: 'Predict potential defects using AI analysis of code complexity and change history. Example: defect_predict({ target: "src/auth/" })',
+        description: `Predict potential defects using AI analysis of code complexity and change history. ${saveResultsDescription('defect_predict')} Example: defect_predict({ target: "src/auth/" })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path', required: true },
+          saveResultsParameter('defect_predict'),
         ],
       },
       handler: (params) => handleDefectPredict(params as unknown as Parameters<typeof handleDefectPredict>[0]),
@@ -1207,11 +1216,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'requirements_validate',
-        description: 'Validate requirements for completeness and generate BDD scenarios. Example: requirements_validate({ requirementsPath: "docs/requirements.md" })',
+        description: `Validate requirements for completeness and generate BDD scenarios. ${saveResultsDescription('requirements_validate')} Example: requirements_validate({ requirementsPath: "docs/requirements.md" })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
           { name: 'requirementsPath', type: 'string', description: 'Path to requirements' },
+          saveResultsParameter('requirements_validate'),
         ],
       },
       handler: (params) => handleRequirementsValidate(params as unknown as Parameters<typeof handleRequirementsValidate>[0]),
@@ -1221,11 +1231,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'code_index',
-        description: 'Index source code into the knowledge graph for dependency and impact analysis. Example: code_index({ target: "src/" })',
+        description: `Index source code into the knowledge graph for dependency and impact analysis. ${saveResultsDescription('code_index')} Example: code_index({ target: "src/" })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path', required: true },
+          saveResultsParameter('code_index'),
         ],
       },
       handler: (params) => handleCodeIndex(params as unknown as Parameters<typeof handleCodeIndex>[0]),

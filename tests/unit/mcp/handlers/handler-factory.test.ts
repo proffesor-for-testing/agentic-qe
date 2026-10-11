@@ -316,6 +316,9 @@ describe('Handler Factory', () => {
         savedFiles: ['output.json'],
         processedValue: 'processed-value',
         optionalResult: 99,
+        // #933: added by the factory for every domain tool.
+        resultsSaved: true,
+        resultsNote: 'Saved 1 result file(s) under .agentic-qe/results/; see savedFiles. Pass saveResults: false to skip.',
       });
     });
 
