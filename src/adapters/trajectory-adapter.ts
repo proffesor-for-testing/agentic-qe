@@ -32,6 +32,7 @@ import type { Trajectory } from '../integrations/agentic-flow/reasoning-bank/tra
 import { getUnifiedMemory } from '../kernel/unified-memory.js';
 import { safeJsonParse } from '../shared/safe-json.js';
 import { toError } from '../shared/error-utils.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 // ============================================================================
 // Browser Trajectory Types (@claude-flow/browser)
@@ -619,10 +620,11 @@ export class TrajectoryAdapter {
   }
 
   private summarizeActions(steps: BrowserTrajectoryStep[]): string {
+    // Step actions are free-form strings, so the buckets must not inherit (#914).
     const actionCounts = steps.reduce((acc, step) => {
       acc[step.action] = (acc[step.action] ?? 0) + 1;
       return acc;
-    }, {} as Record<string, number>);
+    }, createSafeRecord<number>());
 
     const summary = Object.entries(actionCounts)
       .map(([action, count]) => `${action}(${count})`)

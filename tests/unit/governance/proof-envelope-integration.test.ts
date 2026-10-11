@@ -426,6 +426,18 @@ describe('ProofEnvelopeIntegration', () => {
       expect(stats.actionCounts['action2']).toBe(1);
       expect(stats.chainValid).toBe(true);
     });
+
+    it('should count actions named after Object.prototype members as numbers (#914)', () => {
+      for (const action of ['constructor', 'toString', 'constructor', '__proto__']) {
+        pei.appendToChain(pei.createSignedEnvelope('agent-1', action, 'data'));
+      }
+
+      const stats = pei.getProofStats();
+      expect(stats.actionCounts.constructor).toBe(2);
+      expect(stats.actionCounts.toString).toBe(1);
+      expect(Object.hasOwn(stats.actionCounts, '__proto__')).toBe(true);
+      expect(Object.values(stats.actionCounts).reduce((sum, count) => sum + count, 0)).toBe(4);
+    });
   });
 
   // ============================================================================

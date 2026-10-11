@@ -27,6 +27,7 @@ import {
   governanceFlags,
   type GovernanceFeatureFlags,
 } from './feature-flags.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 /**
  * Lazily loaded ProofChain from @claude-flow/guidance.
@@ -708,7 +709,8 @@ export class ProofEnvelopeIntegration {
    * Get chain statistics
    */
   getProofStats(): ProofStats {
-    const actionCounts: Record<string, number> = {};
+    // Action names are data, so the buckets must not inherit from Object.prototype (#914).
+    const actionCounts = createSafeRecord<number>();
     const agents = new Set<string>();
 
     for (const envelope of this.chain) {

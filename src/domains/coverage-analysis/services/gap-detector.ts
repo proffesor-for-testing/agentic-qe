@@ -20,6 +20,7 @@ import {
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { createSafeRecord } from '../../../shared/utils/safe-record.js';
 
 // ============================================================================
 // Service Interface
@@ -331,7 +332,8 @@ Return JSON in this exact format:
    * Calculate effort breakdown by file
    */
   private calculateEffortBreakdown(gaps: CoverageGap[]): Record<string, number> {
-    const breakdown: Record<string, number> = {};
+    // File paths are data, so the buckets must not inherit from Object.prototype (#914).
+    const breakdown = createSafeRecord<number>();
     for (const gap of gaps) {
       const effort = Math.ceil(gap.lines.length / 15);
       breakdown[gap.file] = (breakdown[gap.file] || 0) + effort;

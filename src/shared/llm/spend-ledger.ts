@@ -20,6 +20,7 @@
 
 import type { Database as DatabaseType } from 'better-sqlite3';
 import type { CostSource } from './interfaces';
+import { createSafeRecord } from '../utils/safe-record';
 
 /** A single persisted charge. */
 export interface SpendEntry {
@@ -171,7 +172,7 @@ export class SqliteSpendLedger implements SpendLedger {
              FROM llm_spend WHERE ts >= ? GROUP BY COALESCE(agent_type, ?)`
         )
         .all(UNATTRIBUTED_AGENT, nowMs - windowMs, UNATTRIBUTED_AGENT) as Array<{ agent: string; total: number }>;
-      const out: Record<string, number> = {};
+      const out = createSafeRecord<number>();
       for (const r of rows) out[r.agent] = r.total;
       return out;
     } catch {
@@ -202,7 +203,7 @@ export class InMemorySpendLedger implements SpendLedger {
 
   spentByAgentSince(windowMs: number, nowMs: number = Date.now()): Record<string, number> {
     const cutoff = nowMs - windowMs;
-    const out: Record<string, number> = {};
+    const out = createSafeRecord<number>();
     for (const e of this.entries) {
       if (e.ts >= cutoff) out[e.agent] = (out[e.agent] ?? 0) + e.costUsd;
     }

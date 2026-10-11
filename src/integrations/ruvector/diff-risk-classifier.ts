@@ -775,12 +775,13 @@ export class RuVectorDiffRiskClassifier implements DiffRiskClassifier {
    * Compute cache key for context
    */
   private computeCacheKey(context: DiffContext): string {
+    // JSON tuples keep delimiters in a commit hash or file path from colliding
+    // (#914). Persisted keys in the old format never match, so they age out.
     const fileKeys = context.files
-      .map((f) => `${f.filePath}:${f.status}:${f.additions}:${f.deletions}`)
-      .sort()
-      .join('|');
+      .map((f) => JSON.stringify([f.filePath, f.status, f.additions, f.deletions]))
+      .sort();
 
-    return `${context.commitHash || 'unknown'}:${fileKeys}`;
+    return JSON.stringify([context.commitHash || 'unknown', fileKeys]);
   }
 }
 
