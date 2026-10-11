@@ -16,7 +16,10 @@ import type {
   RvfStatus as NativeRvfStatus,
 } from './rvf-native-adapter.js';
 import { ensureEndpointEmbeddingSpaceIdentity, getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
-import { verifyOrCreateEmbeddingSpaceManifest } from '../../learning/embedding-space.js';
+import {
+  reportEmbeddingRuntimeUnavailable,
+  verifyOrCreateEmbeddingSpaceManifest,
+} from '../../learning/embedding-space.js';
 
 // ============================================================================
 // Types
@@ -198,6 +201,15 @@ export class RvfDualWriter {
       // initialized the (lazy) endpoint runtime; resolve its identity first.
       if (!this.activeSpaceId()) {
         await ensureEndpointEmbeddingSpaceIdentity();
+      }
+      if (!this.activeSpaceId()) {
+        // #852: no embedding runtime available (fresh project, or a missing
+        // endpoint). brain.rvf cannot be bound to a vector space, so leave it
+        // unopened (uncreated if absent; existing vectors are kept) and
+        // report the expected state once instead of a per-store failure.
+        this.rvfAvailable = false;
+        reportEmbeddingRuntimeUnavailable();
+        return;
       }
 
       const { isRvfLockHeldError, removeStaleRvfLock, quarantineUnusableStore } =
