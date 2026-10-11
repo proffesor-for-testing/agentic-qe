@@ -27,7 +27,8 @@ describe('literal retry names', () => {
     const command = service.buildTestCommand(runner, 'sample.test.ts', name);
     try {
       const flag = runner === 'mocha' ? '--grep' : '-t';
-      const pattern = new RegExp(command.args[command.args.indexOf(flag) + 1]);
+      const inline = command.args.find(arg => arg.startsWith(runner === 'mocha' ? '--grep=' : '--testNamePattern='));
+      const pattern = new RegExp(inline ? inline.slice(inline.indexOf('=') + 1) : command.args[command.args.indexOf(flag) + 1]);
       expect(pattern.test(name)).toBe(true);
       expect(pattern.test(`suite ${name} suffix`)).toBe(true);
       expect(pattern.test('case.i aab x 2')).toBe(false);
@@ -44,6 +45,7 @@ describe('literal retry names', () => {
       try {
         expect(command.args).not.toContain('-t');
         expect(command.args).not.toContain('--grep');
+        expect(command.args.some(arg => arg.startsWith('--grep=') || arg.startsWith('--testNamePattern='))).toBe(false);
       } finally {
         command.report?.cleanup();
       }
@@ -51,14 +53,16 @@ describe('literal retry names', () => {
   });
 
   it.each([
-    { name: 'case.[id]', passesOnRetry: false },
-    { name: 'case.[id]', passesOnRetry: true },
-    { name: 'ordinary case', passesOnRetry: true },
-  ])('reruns the actual assertion for $name (passesOnRetry=$passesOnRetry)', async ({ name, passesOnRetry }) => {
+    { name: 'case.[id]', passesOnRetry: false, fileName: 'sample.test.mjs' },
+    { name: 'case.[id]', passesOnRetry: true, fileName: 'sample.test.mjs' },
+    { name: 'ordinary case', passesOnRetry: true, fileName: 'sample.test.mjs' },
+    { name: '--dangerous-case', passesOnRetry: true, fileName: 'sample.test.mjs' },
+    { name: 'ordinary case', passesOnRetry: true, fileName: '--target.test.mjs' },
+  ])('reruns the actual assertion for $name (passesOnRetry=$passesOnRetry)', async ({ name, passesOnRetry, fileName }) => {
     const runner = resolve('node_modules/vitest/vitest.mjs');
     const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-retry-literal-')));
     fixtures.push(fixture);
-    const file = join(fixture, 'sample.test.mjs');
+    const file = join(fixture, fileName);
     const count = join(fixture, 'count');
     const executed = join(fixture, 'executed');
     const config = join(fixture, 'vitest.config.mjs');
@@ -90,14 +94,18 @@ describe('literal retry names', () => {
     internals.buildTestCommand = (testRunner, testFile, testName) => {
       const command = original(testRunner, testFile, testName);
       return { ...command, command: process.execPath,
-        args: [runner, ...command.args.slice(1), '--config', config, '--root', fixture] };
+        args: [runner, 'run', '--config', config, '--root', fixture, ...command.args.slice(2)] };
     };
-    const result = await service.executeWithRetry({
+    const originalCwd = process.cwd();
+    const result = await (async () => {
+      process.chdir(fixture);
+      try { return await service.executeWithRetry({
       runId: 'literal-name-proof',
-      failedTests: [{ testId: 'actual-failure', testName: name, file,
+      failedTests: [{ testId: 'actual-failure', testName: name, file: fileName.startsWith('--') ? fileName : file,
         error: 'AssertionError from the initial native run', duration: 1 }],
       maxRetries: 1, backoff: 'constant', baseDelay: 0,
-    });
+      }); } finally { process.chdir(originalCwd); }
+    })();
     expect(result.success, result.success ? undefined : result.error.message).toBe(true);
     if (result.success) {
       expect(result.value.nowPassing).toBe(passesOnRetry ? 1 : 0);

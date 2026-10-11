@@ -29,7 +29,7 @@ describe('retry selection evidence', () => {
     internals.buildTestCommand = (testRunner, testFile, name) => {
       const command = original(testRunner, testFile, name);
       return { ...command, command: process.execPath,
-        args: [runner, ...command.args.slice(1), '--config', config, '--root', fixture] };
+        args: [runner, 'run', '--config', config, '--root', fixture, ...command.args.slice(2)] };
     };
 
     const result = await handler.executeWithRetry({

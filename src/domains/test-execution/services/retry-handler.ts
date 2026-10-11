@@ -541,30 +541,33 @@ export class RetryHandlerService implements IRetryHandler {
 
     switch (runner) {
       case 'vitest':
-        // vitest run --reporter=json testFile -t "testName"
+        // Keep filter values attached to their flags and positional files after --.
         // --outputFile: Vitest 5 no longer prints the JSON report to stdout.
         { const report = createVitestJsonReport();
-        const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
+        const vitestArgs = ['vitest', 'run', '--reporter=json'];
         if (testName && testName !== testFile) {
-          vitestArgs.push('-t', namePattern);
+          vitestArgs.push(`--testNamePattern=${namePattern}`);
         }
         vitestArgs.push(...report.args);
+        vitestArgs.push('--', testFile);
         return { command: npx, args: vitestArgs, report }; }
 
       case 'jest':
-        // jest --json testFile -t "testName"
-        { const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
+        // Use Jest's literal-file API instead of interpreting paths as regex.
+        { const jestArgs = ['jest', '--json', '--runTestsByPath'];
         if (testName && testName !== testFile) {
-          jestArgs.push('-t', namePattern);
+          jestArgs.push(`--testNamePattern=${namePattern}`);
         }
+        jestArgs.push('--', testFile);
         return { command: npx, args: jestArgs }; }
 
       case 'mocha':
-        // mocha --reporter json testFile --grep "testName"
-        { const mochaArgs = ['mocha', '--reporter', 'json', testFile];
+        // Inline grep values also protect names beginning with a dash.
+        { const mochaArgs = ['mocha', '--reporter', 'json'];
         if (testName && testName !== testFile) {
-          mochaArgs.push('--grep', namePattern);
+          mochaArgs.push(`--grep=${namePattern}`);
         }
+        mochaArgs.push('--', testFile);
         return { command: npx, args: mochaArgs }; }
 
       default:
