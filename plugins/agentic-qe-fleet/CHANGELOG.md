@@ -2,6 +2,9 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.4 — 2026-10-12
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.4` (CRDT, caching, GOAP, test-count and schedule fixes; see the root CHANGELOG). Guard timing tests now have CI headroom (#990); the guard itself is unchanged.
+
 ## 3.15.3 — 2026-10-11
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.3`, which brings the package fixes listed in the root CHANGELOG (Windows hooks, timeouts on stalled servers, crash-safe session journal and more). No other plugin changes.
 

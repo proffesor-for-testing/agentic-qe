@@ -5,6 +5,75 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.4] - 2026-10-12
+
+Correctness fixes for AQE's CRDT memory sync, LLM response caching, embedding
+caches, GOAP planning, Vitest test counting and legacy schedules, mostly
+contributed by Rudy Celekli. Also includes new
+regression tests and a quieter session journal on a full disk.
+
+### Fixed
+
+- **Expanded Vitest test counts.** Code-intelligence test counting now
+  includes each case of `it.each`/`test.each` on small and medium suites.
+  Collection runs in its own process group with a timeout, and large suites
+  keep the fast static count. Interrupting the caller (Ctrl-C) or hitting the
+  timeout no longer leaves Vitest running or temp folders behind ([#890]).
+- **Legacy cron schedules no longer break `workflow list`.** Invalid entries in
+  `~/.aqe/schedules.json`, including ones whose `schedule` isn't a string, are
+  disabled with a reason instead of making the whole file unreadable. Valid
+  schedules are kept exactly ([#951]).
+- **CRDT replicas converge reliably** ([ADR-133]):
+  - LWW registers now order concurrent writes the same way on every
+    replica, using code-unit comparison and treating version 0 as
+    "unwritten" ([#943]);
+  - OR-sets resume their tag counters after a restore, so new adds can't
+    reuse an old tag and vanish ([#945]);
+  - convergence fingerprints are unambiguous (structured SHA-256) ([#949]);
+  - a peer whose checkpoint is older than the retained delta history gets the
+    full state instead of missing changes ([#952]).
+- **Content-filter refusals aren't cached** by `generate()`, so a retry isn't
+  served a cached empty answer ([#946]). `complete()` caching of refusals is
+  tracked in #912.
+- **Nomic embeddings:** verified cache entries are namespaced, so unversioned
+  legacy entries are recomputed once instead of being reused ([#948]).
+- **GOAP planning:** actions without a duration estimate count as 1000 ms
+  against `maxDurationMs`, and the duration backfill runs in a single
+  transaction ([#953], [ADR-134]).
+- **Session journal:** a full disk no longer logs `[AQE] FATAL` on every
+  flush tick. Entries stay buffered and one warning is shown ([#983]).
+
+### Changed
+
+- Schedules saved by older versions with cron strings the current parser
+  rejects (for example `@daily` or six-field expressions) now show as disabled,
+  with the reason in `workflow list` ([#951]).
+- Guard timing tests have CI headroom sized from measurements, and they still
+  catch quadratic slowdowns ([#990]).
+- **Rolling upgrades of CRDT memory sync:** until every node runs 3.15.4,
+  old and new nodes can pick different winners for writes with exactly equal
+  timestamps (for example, owner ids `a` vs `B`). This settles once all nodes
+  are upgraded ([#943]).
+- GOAP plan totals now include the 1000 ms fallback, so tight
+  `maxDurationMs` budgets may reject plans that used to pass ([#953]).
+- New regression tests for `saveResults` on all 10 domain tools, session
+  journal partial writes and init orchestration, ported from Rudy's PRs ([#985]).
+
+[ADR-133]: docs/implementation/adrs/ADR-133-crdt-correctness-hardening.md
+[ADR-134]: docs/implementation/adrs/ADR-134-goap-unestimated-action-duration-fallback.md
+[#890]: https://github.com/proffesor-for-testing/agentic-qe/pull/890
+[#951]: https://github.com/proffesor-for-testing/agentic-qe/pull/951
+[#990]: https://github.com/proffesor-for-testing/agentic-qe/pull/990
+[#943]: https://github.com/proffesor-for-testing/agentic-qe/pull/943
+[#945]: https://github.com/proffesor-for-testing/agentic-qe/pull/945
+[#946]: https://github.com/proffesor-for-testing/agentic-qe/pull/946
+[#948]: https://github.com/proffesor-for-testing/agentic-qe/pull/948
+[#949]: https://github.com/proffesor-for-testing/agentic-qe/pull/949
+[#952]: https://github.com/proffesor-for-testing/agentic-qe/pull/952
+[#953]: https://github.com/proffesor-for-testing/agentic-qe/pull/953
+[#983]: https://github.com/proffesor-for-testing/agentic-qe/issues/983
+[#985]: https://github.com/proffesor-for-testing/agentic-qe/pull/985
+
 ## [3.15.3] - 2026-10-11
 
 A bug-fix release. AQE hooks work on Windows again. Several hangs, data-safety
