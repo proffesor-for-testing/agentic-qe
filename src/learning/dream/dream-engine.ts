@@ -17,6 +17,7 @@
 
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { PatternMutationError } from '../pattern-mutation-error.js';
 import { LoggerFactory } from '../../logging/index.js';
 
 const dreamLogger = LoggerFactory.create('dream-engine');
@@ -137,6 +138,11 @@ export interface DreamCycleResult {
 export interface ApplyInsightResult {
   success: boolean;
   patternId?: string;
+  /**
+   * The pattern row committed to SQLite but its vector index is pending
+   * (COMMITTED_PENDING_INDEX, e.g. the RVF index is unbound or locked).
+   */
+  indexPending?: boolean;
   error?: string;
 }
 
@@ -805,7 +811,18 @@ export class DreamEngine {
         },
       });
 
-      if (!patternResult.success) {
+      // COMMITTED_PENDING_INDEX proves the authoritative SQLite row exists;
+      // only the derived vector index is pending (unbound or locked RVF).
+      // The pattern is real, so the insight is applied — re-applying would
+      // just hit the same row. Any other failure stays retryable.
+      const pendingIndex =
+        !patternResult.success &&
+        patternResult.error instanceof PatternMutationError &&
+        patternResult.error.disposition === 'COMMITTED_PENDING_INDEX'
+          ? patternResult.error
+          : null;
+
+      if (!patternResult.success && !pendingIndex) {
         // Do NOT mark applied — leave it retryable rather than silently
         // swallowing a real pattern-creation failure behind a fake success.
         return {
@@ -814,7 +831,14 @@ export class DreamEngine {
         };
       }
 
-      const patternId = patternResult.value.id;
+      const patternId = patternResult.success ? patternResult.value.id : pendingIndex!.patternId;
+      if (pendingIndex) {
+        dreamLogger.warn('Insight applied; pattern committed with vector index pending', {
+          insightId,
+          patternId,
+          cause: toErrorMessage(pendingIndex.cause),
+        });
+      }
 
       // Mark insight as applied — pattern_id now points at the REAL row.
       const stmt = this.db!.prepare(`
@@ -824,7 +848,7 @@ export class DreamEngine {
       `);
       stmt.run(patternId, insightId);
 
-      return { success: true, patternId };
+      return pendingIndex ? { success: true, patternId, indexPending: true } : { success: true, patternId };
     } catch (error) {
       return {
         success: false,

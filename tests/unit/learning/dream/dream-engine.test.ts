@@ -29,6 +29,7 @@ import {
 } from '../../../../src/learning/dream/index.js';
 import { resetUnifiedPersistence, initializeUnifiedPersistence, getUnifiedPersistence } from '../../../../src/kernel/unified-persistence.js';
 import { vi } from 'vitest';
+import { PatternMutationError } from '../../../../src/learning/pattern-mutation-error.js';
 
 // A8: applyInsight creates a real ReasoningBank pattern. getSharedMemoryBackend
 // resolves via findProjectRoot() to the REAL project's .agentic-qe/memory.db —
@@ -396,6 +397,59 @@ describe('DreamEngine', () => {
         { applied: number; pattern_id: string | null };
       expect(row.applied).toBe(0);
       expect(row.pattern_id).toBeNull();
+    });
+
+    // #852 / PR #979 CI: with the RVF index unbound (no embedder) or locked by
+    // another store, storePattern commits the SQLite row and reports
+    // COMMITTED_PENDING_INDEX. The pattern is real, so apply must succeed.
+    it('applies the insight when the pattern committed with its vector index pending', async () => {
+      storePatternMock.mockResolvedValue({
+        success: false,
+        error: new PatternMutationError('committed-row-id', 'COMMITTED_PENDING_INDEX', new Error('RVF error 0x0300: LockHeld')),
+      });
+      const insightId = await insertTestInsight();
+
+      const result = await engine.applyInsight(insightId);
+
+      expect(result).toEqual({ success: true, patternId: 'committed-row-id', indexPending: true });
+      const db = getUnifiedPersistence().getDatabase();
+      const row = db.prepare('SELECT applied, pattern_id FROM dream_insights WHERE id = ?').get(insightId) as
+        { applied: number; pattern_id: string };
+      expect(row.applied).toBe(1);
+      expect(row.pattern_id).toBe('committed-row-id');
+    });
+
+    it('keeps the insight retryable when the pattern mutation FAILED before commit', async () => {
+      storePatternMock.mockResolvedValue({
+        success: false,
+        error: new PatternMutationError('never-committed', 'FAILED', new Error('disk I/O error')),
+      });
+      const insightId = await insertTestInsight();
+
+      const result = await engine.applyInsight(insightId);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('FAILED');
+      const db = getUnifiedPersistence().getDatabase();
+      const row = db.prepare('SELECT applied, pattern_id FROM dream_insights WHERE id = ?').get(insightId) as
+        { applied: number; pattern_id: string | null };
+      expect(row.applied).toBe(0);
+      expect(row.pattern_id).toBeNull();
+    });
+
+    it('does not trust a lookalike pending-index error that is not a PatternMutationError', async () => {
+      storePatternMock.mockResolvedValue({
+        success: false,
+        error: { message: 'x', disposition: 'COMMITTED_PENDING_INDEX', patternId: 'spoofed' },
+      });
+      const insightId = await insertTestInsight();
+
+      const result = await engine.applyInsight(insightId);
+
+      expect(result.success).toBe(false);
+      const db = getUnifiedPersistence().getDatabase();
+      const row = db.prepare('SELECT applied FROM dream_insights WHERE id = ?').get(insightId) as { applied: number };
+      expect(row.applied).toBe(0);
     });
 
     it('rejects a non-actionable insight without creating a pattern', async () => {
