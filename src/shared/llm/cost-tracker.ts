@@ -153,7 +153,7 @@ export const MODEL_PRICING: Record<
  * as a free/local model.
  */
 export function resolveModelPricing(model: string): { input: number; output: number } | undefined {
-  const pricing = MODEL_PRICING[model];
+  const pricing = Object.hasOwn(MODEL_PRICING, model) ? MODEL_PRICING[model] : undefined;
   if (pricing) {
     return { input: pricing.input, output: pricing.output };
   }
@@ -286,7 +286,7 @@ export class CostTracker {
       (r) => r.timestamp >= periodStart && r.timestamp <= periodEnd
     );
 
-    const byProvider: Record<LLMProviderType, number> = {
+    const byProvider: Record<LLMProviderType, number> = Object.assign(Object.create(null), {
       claude: 0,
       'claude-code': 0,
       codex: 0,
@@ -297,9 +297,9 @@ export class CostTracker {
       'azure-openai': 0,
       gemini: 0,
       cognitum: 0,
-    };
+    });
 
-    const byModel: Record<string, number> = {};
+    const byModel: Record<string, number> = Object.create(null);
 
     let totalCost = 0;
     let totalTokens = 0;
@@ -356,7 +356,7 @@ export class CostTracker {
       (r) => r.provider === provider && r.timestamp >= periodStart
     );
 
-    const models: Record<string, { cost: number; tokens: number; requests: number }> = {};
+    const models: Record<string, { cost: number; tokens: number; requests: number }> = Object.create(null);
 
     let totalCost = 0;
     let totalTokens = 0;
