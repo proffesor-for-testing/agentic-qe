@@ -183,3 +183,90 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
     }
   });
 });
+
+
+describe('#936 saving generated files beyond the display limit', () => {
+  it('writes every real generated test while limiting the text preview', async () => {
+    vi.restoreAllMocks();
+    const { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-936-'));
+    for (let index = 0; index < 12; index++) {
+      writeFileSync(join(directory, `module${index}.js`), `export function value${index}() { return ${index}; }`);
+    }
+    const memory = { set: vi.fn(), search: vi.fn(async () => []), vectorSearch: vi.fn(async () => []), get: vi.fn() };
+    const { createServer } = await import('node:http');
+    const { ProviderManager } = await import('../../../src/shared/llm/provider-manager.js');
+    const { HybridRouter } = await import('../../../src/shared/llm/router/hybrid-router.js');
+    const { createTestGeneratorServiceWithDependencies } = await import('../../../src/domains/test-generation/services/test-generator.js');
+    let chats = 0;
+    const server = createServer(async (request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      if (request.url === '/api/tags') {
+        response.end(JSON.stringify({ models: [{ name: 'fixture-model' }] }));
+        return;
+      }
+      let body = '';
+      for await (const chunk of request) body += chunk;
+      const payload = JSON.parse(body);
+      const prompt = JSON.stringify(payload.messages ?? payload.prompt);
+      const match = prompt.match(/module(\d+)\.js/);
+      if (!match) { response.statusCode = 400; response.end('{}'); return; }
+      chats++;
+      const index = match[1];
+      const content = `import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { value${index} } from ${JSON.stringify(join(directory, `module${index}.js`))};\ntest('value type', () => { assert.equal(typeof value${index}(), 'number'); });`;
+      response.end(JSON.stringify({ model: 'fixture-model', message: { role: 'assistant', content }, done: true, prompt_eval_count: 1, eval_count: 1 }));
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address() as import('node:net').AddressInfo;
+    const manager = new ProviderManager({ primary: 'ollama', fallbacks: [], providers: { ollama: { baseUrl: `http://127.0.0.1:${address.port}`, model: 'fixture-model', enableCache: false } } });
+    const router = new HybridRouter(manager, { defaultProvider: 'ollama', defaultModel: 'fixture-model', fallbackChain: { id: 'local-fixture', entries: [{ provider: 'ollama', models: ['fixture-model'], enabled: true, priority: 1 }], maxRetries: 0, retryDelayMs: 0, backoffMultiplier: 1, maxDelayMs: 0 }, mode: 'manual' });
+    try {
+      await router.initialize();
+    } catch (error) {
+      await manager.dispose();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+      rmSync(directory, { recursive: true, force: true });
+      throw error;
+    }
+    const generator = createTestGeneratorServiceWithDependencies({ memory: memory as never, llmRouter: router });
+    const generateTests = vi.spyOn(generator, 'generateTests');
+    const context = { kernel: { getDomainAPIAsync: vi.fn(async () => generator), memory } } as unknown as CLIContext;
+    const exit = vi.fn(async (code: number) => { if (code !== 0) throw Object.assign(new Error('exit'), { exitCode: code }); }) as unknown as (code: number) => Promise<never>;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([
+        'generate', directory, '--framework', 'node-test',
+      ], { from: 'user' }).catch(error => { if (error.exitCode !== 0) throw error; });
+      const generated = await generateTests.mock.results[0].value;
+      expect(generated.success).toBe(true);
+      if (!generated.success) throw generated.error;
+      expect(generated.value.tests).toHaveLength(12);
+      expect(chats).toBe(12);
+      expect(generated.value.tests.every(test => test.qualityGateResult?.passed)).toBe(true);
+      for (const test of generated.value.tests) {
+        expect(existsSync(test.testFile), test.testFile).toBe(true);
+        expect(readFileSync(test.testFile, 'utf8')).toBe(test.testCode);
+      }
+      expect(log.mock.calls.flat().join(' ')).toContain('and 2 more');
+      expect(log.mock.calls.flat().filter(value => typeof value === 'string' && value.includes('Written to:'))).toHaveLength(10);
+      for (const test of generated.value.tests) rmSync(test.testFile);
+      log.mockClear();
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([
+        'generate', directory, '--framework', 'node-test', '--no-save',
+      ], { from: 'user' });
+      for (const test of generated.value.tests) {
+        expect(existsSync(test.testFile)).toBe(false);
+        expect(log.mock.calls.flat().join(' ')).toContain(test.testCode);
+      }
+      expect(log.mock.calls.flat().join(' ')).not.toContain('and 2 more');
+      expect(exit).not.toHaveBeenCalledWith(1);
+    } finally {
+      log.mockRestore();
+      await manager.dispose();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});

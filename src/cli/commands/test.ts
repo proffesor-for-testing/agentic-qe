@@ -115,6 +115,15 @@ export function createTestCommand(
               // #925: with --no-save the printed code is the only output, so
               // show every test instead of the first 10.
               const noSave = options.save === false;
+              // Saving is independent of the text preview limit (#936).
+              if (!noSave) {
+                const fs = await import('fs');
+                for (const test of generated.tests) {
+                  if (!test.testCode) continue;
+                  fs.mkdirSync(path.dirname(test.testFile), { recursive: true });
+                  fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
+                }
+              }
               const shown = noSave ? generated.tests : generated.tests.slice(0, 10);
               for (const test of shown) {
                 console.log(`    ${chalk.white(test.name)}`);
@@ -130,11 +139,6 @@ export function createTestCommand(
                   }
                   console.log(chalk.gray(`      Test File: ${test.testFile}`));
 
-                  // Bug #295 fix: Write generated test code to disk
-                  const fs = await import('fs');
-                  const testDir = path.dirname(test.testFile);
-                  fs.mkdirSync(testDir, { recursive: true });
-                  fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
                   console.log(chalk.green(`      Written to: ${test.testFile}`));
                 }
               }
