@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rmSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { RetryHandlerService } from '../../../../src/domains/test-execution/services/retry-handler.js';
 
@@ -22,7 +23,8 @@ describe('TestExecutorService runner command', () => {
       expect(command.args).toEqual([
         'vitest',
         'run',
-        'tests/unit/example.test.ts',
+        // #909: absolute, so a path that starts with '-' cannot be read as a flag.
+        resolve('tests/unit/example.test.ts'),
         '--reporter=json',
         '--no-color',
         // Vitest 5 writes the JSON report to a file, not stdout (#700).
@@ -61,8 +63,42 @@ describe('TestExecutorService runner command', () => {
 
     expect(command).toEqual({
       command: process.execPath,
-      args: ['--test', 'one.test.cjs', 'two.test.cjs'],
+      args: ['--test', resolve('one.test.cjs'), resolve('two.test.cjs')],
     });
+  });
+
+  // #909: a file name that starts with '-' or holds regex metacharacters must
+  // select exactly that file and never be parsed as a runner flag.
+  it.each(['vitest', 'jest', 'mocha', 'node'])('never passes %s a file argument that starts with "-"', framework => {
+    const executor = new TestExecutorService({ memory: {} as never });
+    const command = (executor as unknown as {
+      buildTestCommand(files: string[], framework: string): {
+        args: string[]; report?: { cleanup(): void }; coverageDirectory?: string;
+      };
+    }).buildTestCommand(['-dash.test.ts'], framework);
+    try {
+      const fileArg = command.args.find(arg => arg.includes('dash'));
+      expect(fileArg).toBeDefined();
+      expect(fileArg!.startsWith('-')).toBe(false);
+    } finally {
+      command.report?.cleanup();
+      if (command.coverageDirectory) rmSync(command.coverageDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('passes Jest an escaped, anchored pattern per file', () => {
+    const executor = new TestExecutorService({ memory: {} as never });
+    const command = (executor as unknown as {
+      buildTestCommand(files: string[], framework: string): { args: string[]; coverageDirectory: string };
+    }).buildTestCommand(['app/route[id](group)+v1.test.ts'], 'jest');
+    try {
+      const pattern = new RegExp(command.args[1]);
+      expect(pattern.test(resolve('app/route[id](group)+v1.test.ts'))).toBe(true);
+      expect(pattern.test(resolve('app/routeigroupv1xtest.ts'))).toBe(false);
+      expect(pattern.test(resolve('app/route[id](group)+v1.test.tsx'))).toBe(false);
+    } finally {
+      rmSync(command.coverageDirectory, { recursive: true, force: true });
+    }
   });
 
   it('runs each worker shard as one bounded runner batch', async () => {
@@ -149,7 +185,7 @@ describe('RetryHandlerService runner command', () => {
         'vitest',
         'run',
         '--reporter=json',
-        'tests/unit/example.test.ts',
+        resolve('tests/unit/example.test.ts'),
         `--outputFile=${command.report?.path}`,
       ]);
       expect(command.args).not.toContain('-t');

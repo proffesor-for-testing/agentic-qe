@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
 import { registerTestExecutionHandlers } from '../../../../src/coordination/handlers/test-execution-handlers.js';
 import type { InstanceTaskHandler, TaskHandlerContext } from '../../../../src/coordination/handlers/handler-types.js';
@@ -135,11 +135,26 @@ describe('Vitest report process boundaries', () => {
         reportPath(args);
         return { status: 1, signal: null, stdout: '', stderr: 'Vitest unavailable' };
       }
-      expect(args).toEqual(['jest', file, '--json']);
+      // #909: Jest gets an escaped, anchored pattern for exactly this file.
+      expect(args).toEqual(['jest', expect.stringMatching(/^\^.*\$$/), '--json']);
+      expect(new RegExp(args[1]).test(realpathSync(file))).toBe(true);
+      expect(new RegExp(args[1]).test(`${realpathSync(file)}x`)).toBe(false);
       return { status: 0, signal: null, stdout: validReport, stderr: '' };
     });
     expect((await handler({ payload: { testFiles: [file] } } as QueenTask)).success).toBe(true);
     expect(spawnSync).toHaveBeenCalledTimes(2);
     expect(existsSync(dirname(reportPaths[0]))).toBe(false);
+  });
+
+  it('never passes an allowed "-" entry to Vitest as a flag (#909)', async () => {
+    const seen: string[][] = [];
+    spawnSync.mockImplementation((_command, args) => {
+      seen.push(args);
+      if (args[0] === 'vitest') reportPath(args);
+      return { status: 1, signal: null, stdout: '', stderr: 'no tests' };
+    });
+    await handler({ payload: { testFiles: ['--watch', '-dash.test.js'] } } as QueenTask);
+    expect(seen[0].slice(2, 4)).toEqual([resolve('--watch'), resolve('-dash.test.js')]);
+    expect(seen.flat().filter(arg => arg === '--watch' || arg === '-dash.test.js')).toEqual([]);
   });
 });

@@ -6,6 +6,7 @@
 import { LoggerFactory } from '../../../logging/index.js';
 import { spawn } from 'node:child_process';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
+import { jestExactPathPattern, nameFilterArg, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
@@ -458,7 +459,7 @@ export class RetryHandlerService implements IRetryHandler {
     }
 
     // Build command based on runner
-    const { command, args, report } = this.buildTestCommand(runner, testFile, testName);
+    const { command, args, report } = this.buildTestCommand(runner, testFile, testName, cwd);
 
     // Execute the test
     return this.spawnTestProcess(command, args, cwd, report);
@@ -532,39 +533,39 @@ export class RetryHandlerService implements IRetryHandler {
   private buildTestCommand(
     runner: TestRunner,
     testFile: string,
-    testName?: string
+    testName?: string,
+    cwd: string = this.config.cwd ?? process.cwd()
   ): { command: string; args: string[]; report?: VitestJsonReport } {
     const npx = this.config.npxPath;
-    // These runners interpret name filters as regular expressions, but a
-    // FailedTest contains the literal assertion name from the previous run.
-    const namePattern = testName?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') ?? '';
+    // A FailedTest holds the literal assertion name and path from the previous
+    // run. Name filters are regex-escaped and passed as --flag=value; file
+    // filters are absolute (Jest: escaped and anchored), so neither can be
+    // misread as a regex or as a flag when it starts with '-' (#886, #909).
+    const filterByName = Boolean(testName) && testName !== testFile;
 
     switch (runner) {
       case 'vitest':
-        // vitest run --reporter=json testFile -t "testName"
+        // vitest run --reporter=json <abs file> --testNamePattern=<name>
         // --outputFile: Vitest 5 no longer prints the JSON report to stdout.
         { const report = createVitestJsonReport();
-        const vitestArgs = ['vitest', 'run', '--reporter=json', testFile];
-        if (testName && testName !== testFile) {
-          vitestArgs.push('-t', namePattern);
-        }
+        const vitestArgs = ['vitest', 'run', '--reporter=json', runnerFilePath(testFile, cwd)];
+        if (filterByName) vitestArgs.push(nameFilterArg('vitest', testName!));
         vitestArgs.push(...report.args);
         return { command: npx, args: vitestArgs, report }; }
 
       case 'jest':
-        // jest --json testFile -t "testName"
-        { const jestArgs = ['jest', '--json', '--testPathPattern', testFile];
-        if (testName && testName !== testFile) {
-          jestArgs.push('-t', namePattern);
-        }
+        // jest --json --testNamePattern=<name> ^<escaped abs file>$
+        // Positional TestPathPatterns work on Jest 29 and 30 (Jest 30 rejects
+        // the old --testPathPattern flag).
+        { const jestArgs = ['jest', '--json'];
+        if (filterByName) jestArgs.push(nameFilterArg('jest', testName!));
+        jestArgs.push(jestExactPathPattern(testFile, cwd));
         return { command: npx, args: jestArgs }; }
 
       case 'mocha':
-        // mocha --reporter json testFile --grep "testName"
-        { const mochaArgs = ['mocha', '--reporter', 'json', testFile];
-        if (testName && testName !== testFile) {
-          mochaArgs.push('--grep', namePattern);
-        }
+        // mocha --reporter json <abs file> --grep=<name>
+        { const mochaArgs = ['mocha', '--reporter', 'json', runnerFilePath(testFile, cwd)];
+        if (filterByName) mochaArgs.push(nameFilterArg('mocha', testName!));
         return { command: npx, args: mochaArgs }; }
 
       default:

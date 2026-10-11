@@ -26,8 +26,11 @@ describe('literal retry names', () => {
     const name = 'case.[id] (a+b)? ^x$ {2}|\\';
     const command = service.buildTestCommand(runner, 'sample.test.ts', name);
     try {
-      const flag = runner === 'mocha' ? '--grep' : '-t';
-      const pattern = new RegExp(command.args[command.args.indexOf(flag) + 1]);
+      // #909: name filters use the --flag=value form.
+      const flag = runner === 'mocha' ? '--grep=' : '--testNamePattern=';
+      const arg = command.args.find(a => a.startsWith(flag));
+      expect(arg).toBeDefined();
+      const pattern = new RegExp(arg!.slice(flag.length));
       expect(pattern.test(name)).toBe(true);
       expect(pattern.test(`suite ${name} suffix`)).toBe(true);
       expect(pattern.test('case.i aab x 2')).toBe(false);
@@ -44,6 +47,7 @@ describe('literal retry names', () => {
       try {
         expect(command.args).not.toContain('-t');
         expect(command.args).not.toContain('--grep');
+        expect(command.args.some(a => a.startsWith('--testNamePattern=') || a.startsWith('--grep='))).toBe(false);
       } finally {
         command.report?.cleanup();
       }
