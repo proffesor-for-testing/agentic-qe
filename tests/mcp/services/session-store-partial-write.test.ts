@@ -284,3 +284,79 @@ describe('SessionStore write buffer bound (#910)', () => {
     expect(() => new SessionStore(directory, { maxBufferedBytes: Number.NaN })).toThrow(RangeError);
   });
 });
+
+// #983 item 1 (found by Rudy Celekli's #959): the 100 ms batch timer called
+// flush() unguarded. On a disk that stays full, every timer tick threw out of
+// the callback into process 'uncaughtException', which the MCP entry logs as
+// "[AQE] FATAL" each time. A timer flush failure is now absorbed: the entries
+// stay buffered, the one-time buffer WARN is the only report, and an explicit
+// flush() still throws so a caller that asked for durability learns about it.
+describe('SessionStore batch timer on a disk that stays full (#983)', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Append `count` entries one batch window apart, letting each timer fire. */
+  function appendThroughTimer(value: SessionStore, count: number): string[] {
+    const ids: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      ids.push(value.append(entry(i, `payload-${i}`)));
+      // fake-timers rethrows a callback's exception from the tick; on a real
+      // event loop that exception is an uncaughtException.
+      vi.advanceTimersByTime(100);
+    }
+    return ids;
+  }
+
+  it('raises no uncaught exception and at most one warning under persistent ENOSPC', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const value = open({ maxBufferedEntries: 20 });
+    const firstId = value.append(entry(0));
+    disk.budget = 0; // ENOSPC on every write from now on
+
+    let ids: string[] = [];
+    expect(() => { ids = appendThroughTimer(value, 60); }).not.toThrow();
+    expect(vi.getTimerCount()).toBe(0);
+
+    // The cap was hit, so the buffer WARN fired, and only once.
+    const warnings = warn.mock.calls.filter(call => String(call[0]).includes('session journal'));
+    expect(warnings).toHaveLength(1);
+    expect(String(warnings[0][0])).toMatch(/^\[AQE\] WARN /);
+    expect(warn.mock.calls.some(call => String(call[0]).includes('FATAL'))).toBe(false);
+
+    // An explicit flush still reports the failure to its caller.
+    expect(() => value.flush()).toThrow(/ENOSPC/);
+
+    // Nothing accepted was lost beyond the counted gap, and the disk recovering
+    // lets the next flush complete a resumable transcript.
+    disk.budget = null;
+    value.flush();
+    const written = rows(value);
+    expect(written[0].uuid).toBe(firstId);
+    expect(written.at(-1)!.uuid).toBe(ids.at(-1));
+    expect(resume(value).disposition).toBe('LEGACY_UNVERIFIED');
+  });
+
+  it('stays silent below the cap and keeps every entry for the next flush', () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const value = open();
+    const firstId = value.append(entry(0));
+    disk.budget = 0;
+
+    let ids: string[] = [];
+    expect(() => { ids = appendThroughTimer(value, 25); }).not.toThrow();
+    expect(warn).not.toHaveBeenCalled();
+    expect(value.getWriteBufferStats()).toMatchObject({ bufferedEntries: 25, droppedEntries: 0 });
+
+    disk.budget = null;
+    vi.advanceTimersByTime(100); // no pending timer: the next append or flush writes
+    value.append(entry(26));
+    vi.advanceTimersByTime(100);
+    const written = rows(value);
+    expect(written.map(row => row.uuid).slice(0, 26)).toEqual([firstId, ...ids]);
+    expect(written).toHaveLength(27);
+    expect(value.getWriteBufferStats().bufferedEntries).toBe(0);
+  });
+});

@@ -253,6 +253,8 @@ export interface TestExecuteParams {
   timeout?: number;
   collectCoverage?: boolean;
   reportFormat?: 'json' | 'junit' | 'html' | 'markdown';
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -264,6 +266,8 @@ export interface CoverageAnalyzeParams {
   detectGaps?: boolean;
   mlPowered?: boolean;
   prioritization?: 'complexity' | 'criticality' | 'change-frequency' | 'ml-confidence';
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -273,6 +277,8 @@ export interface QualityAssessParams {
   runGate?: boolean;
   threshold?: number;
   metrics?: string[];
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -285,6 +291,8 @@ export interface SecurityScanParams {
   target?: string;
   /** URL for explicitly requested dynamic scanning. */
   targetUrl?: string;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -295,6 +303,8 @@ export interface ContractValidateParams {
   providerUrl?: string;
   consumerName?: string;
   checkBreakingChanges?: boolean;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -304,6 +314,8 @@ export interface AccessibilityTestParams {
   url?: string;
   standard?: 'wcag21-aa' | 'wcag21-aaa' | 'wcag22-aa' | 'section508';
   includeScreenReader?: boolean;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 /**
@@ -315,6 +327,8 @@ export interface ChaosTestParams {
   duration?: number;
   intensity?: number;
   dryRun?: boolean;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 // ============================================================================
@@ -628,6 +642,10 @@ export interface CoverageAnalyzeResult {
   gaps?: CoverageGap[];
   riskScore?: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
   // V2-compatible fields (optional, flexible typing)
   /** #569: `null` when no figure was produced — see `lineCoverage`. */
   statementCoverage?: number | null;

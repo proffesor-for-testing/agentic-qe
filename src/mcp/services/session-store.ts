@@ -300,7 +300,16 @@ export class SessionStore {
     if (this.flushTimer === null) {
       this.flushTimer = setTimeout(() => {
         this.flushTimer = null;
-        this.flush();
+        try {
+          this.flush();
+        } catch {
+          // #983: a throw here has no caller and reaches 'uncaughtException',
+          // which the MCP entry logs as "[AQE] FATAL" on every tick while the
+          // disk stays full. The unwritten entries stay buffered for the next
+          // append or flush(), and the buffer's one-time WARN reports a
+          // persistent failure once it reaches its cap. An explicit flush() or
+          // close() still throws to its caller.
+        }
       }, BATCH_FLUSH_MS);
     }
   }
