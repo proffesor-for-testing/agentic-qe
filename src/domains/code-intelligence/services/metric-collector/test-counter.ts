@@ -321,12 +321,12 @@ function countCargoTests(
     const testLines = output.split('\n').filter(line => line.endsWith(': test'));
     const total = testLines.length;
 
-    // Classify by test path patterns
-    const unit = testLines.filter(t =>
-      !t.includes('integration') && !t.includes('e2e')
-    ).length;
-    const integration = testLines.filter(t => t.includes('integration')).length;
+    // Disjoint categories, e2e before integration: `tests::integration::e2e_x` counts once.
     const e2e = testLines.filter(t => t.includes('e2e')).length;
+    const integration = testLines.filter(t =>
+      !t.includes('e2e') && t.includes('integration')
+    ).length;
+    const unit = total - integration - e2e;
 
     return {
       total,

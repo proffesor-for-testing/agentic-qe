@@ -51,17 +51,30 @@ afterAll(() => {
 describe.skipIf(process.platform === 'win32' || !cargo || !rustc || !rustdoc)('native Cargo test discovery', () => {
   let populated: string;
   let empty: string;
+  let overlapping: string;
   beforeAll(() => {
     populated = fixture(`#[test]
       fn first() { std::fs::write("executed", "bad").unwrap(); panic!("must not execute"); }
       #[test]
       fn second() { panic!("must not execute"); }`);
     empty = fixture('pub fn library_function() {}');
+    // #906: `tests::integration::e2e_login` names both categories.
+    overlapping = fixture(`#[cfg(test)]
+      mod tests {
+        #[test] fn parses() { panic!("must not execute"); }
+        mod integration {
+          #[test] fn api_roundtrip() { panic!("must not execute"); }
+          #[test] fn e2e_login() { panic!("must not execute"); }
+        }
+        mod e2e {
+          #[test] fn checkout() { panic!("must not execute"); }
+        }
+      }`);
     // Compilation is fixture setup, not the listing assertion. Cold Rust
     // compiler startup can exceed the owner's 10s listing limit in CI.
     // The combined setup stays within the existing 60s production budget.
     const deadline = Date.now() + 60000;
-    for (const root of [populated, empty]) {
+    for (const root of [populated, empty, overlapping]) {
       const build = spawnSync(join(root, 'bin', 'cargo'), ['test', '--no-run'], {
         cwd: root, encoding: 'utf-8', timeout: Math.max(1, deadline - Date.now()),
       });
@@ -81,5 +94,12 @@ describe.skipIf(process.platform === 'win32' || !cargo || !rustc || !rustdoc)('n
     process.env.PATH = join(empty, 'bin') + ':' + (initialPath || '');
     const metrics = await countTests(empty);
     expect(metrics).toMatchObject({ source: 'cargo', total: 0, unit: 0, integration: 0, e2e: 0 });
+  });
+
+  it('keeps integration and e2e disjoint, with e2e taking precedence (#906)', async () => {
+    process.env.PATH = join(overlapping, 'bin') + ':' + (initialPath || '');
+    const metrics = await countTests(overlapping);
+    expect(metrics).toMatchObject({ source: 'cargo', total: 4, unit: 1, integration: 1, e2e: 2 });
+    expect(metrics.unit + metrics.integration + metrics.e2e).toBe(metrics.total);
   });
 });
