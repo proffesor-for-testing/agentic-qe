@@ -40,7 +40,7 @@ function winFs(files: Record<string, string>) {
 function resolveWin(env: Record<string, string>, files: Record<string, string>, extra: object = {}) {
   return resolveAqeInvocation({
     platform: 'win32', path: win32, execPath: NODE, project: 'C:\\work\\my app',
-    env, npmPrefix: () => null, ...winFs(files), ...extra,
+    env, npmPrefix: () => null, prefixCacheFile: null, ...winFs(files), ...extra,
   });
 }
 
@@ -107,6 +107,69 @@ describe('aqe-hook.cjs Windows resolution (#872)', () => {
 
   it('parseCmdShimTarget returns null for a shim with no JS target', () => {
     expect(parseCmdShimTarget('C:\\x\\aqe.cmd', '@echo off\r\nfoo.exe %*', win32)).toBeNull();
+  });
+
+  it('should_followOneCmdHop_when_yarnV1GlobalShimDelegatesToAnotherCmd', () => {
+    const yarnBin = 'C:\\Users\\dev\\AppData\\Local\\Yarn\\bin';
+    const inner = 'C:\\Users\\dev\\AppData\\Local\\Yarn\\Data\\global\\node_modules\\.bin\\aqe.cmd';
+    const bundle = 'C:\\Users\\dev\\AppData\\Local\\Yarn\\Data\\global\\node_modules\\agentic-qe\\dist\\cli\\bundle.js';
+    const inv = resolveWin({ PATH: yarnBin }, {
+      [`${yarnBin}\\aqe.cmd`]: '@"%~dp0\\..\\Data\\global\\node_modules\\.bin\\aqe.cmd"   %*',
+      [inner]: NPM_CMD_SHIM.replace('node_modules\\agentic-qe', '..\\agentic-qe'),
+      [bundle]: '',
+    });
+    expect(inv).toMatchObject({ cmd: NODE, args: [bundle] });
+  });
+
+  it('should_notLoopForever_when_cmdShimsDelegateToEachOther', () => {
+    const a = 'C:\\a\\aqe.cmd';
+    const inv = resolveWin({ PATH: 'C:\\a' }, { [a]: '@"%~dp0\\..\\b\\aqe.cmd" %*', 'C:\\b\\aqe.cmd': '@"%~dp0\\..\\a\\aqe.cmd" %*' });
+    expect(inv.cmd).toBeNull();
+  });
+
+  it('should_failWithVoltaAndAqeHookBundleGuidance_when_shimIsVolta', () => {
+    const volta = 'C:\\Users\\dev\\AppData\\Local\\Volta\\bin';
+    const inv = resolveWin({ PATH: volta }, { [`${volta}\\aqe.cmd`]: '@echo off\r\nvolta run %~n0 %*' });
+    expect(inv.cmd).toBeNull();
+    expect(inv.reason).toMatch(/Volta/);
+    expect(inv.reason).toMatch(/AQE_HOOK_BUNDLE/);
+  });
+
+  it('should_resolveBehindAqeHookBinPs1_and_neverSpawnIt', () => {
+    const ps1 = `${NPM_PREFIX}\\aqe.ps1`;
+    expect(resolveWin({ AQE_HOOK_BIN: ps1 }, { [ps1]: '& node "$basedir/x.js" $args', [GLOBAL_BUNDLE]: '' }))
+      .toMatchObject({ cmd: NODE, args: [GLOBAL_BUNDLE] });
+    const none = resolveWin({ AQE_HOOK_BIN: ps1 }, { [ps1]: '' });
+    expect(none.cmd).toBeNull();
+    expect(none.reason).toContain(`AQE_HOOK_BIN=${ps1} is a .cmd/.bat/.ps1 script`);
+  });
+});
+
+describe('aqe-hook.cjs npm-prefix lookup cache (#872 review)', () => {
+  let tmp: string;
+  afterEach(() => { if (tmp) rmSync(tmp, { recursive: true, force: true }); });
+
+  it('should_spawnNpmPrefixAtMostOncePerTtl_when_nothingResolves', () => {
+    tmp = mkdtempSync(join(tmpdir(), 'aqe-872-cache-'));
+    const prefixCacheFile = join(tmp, '.agentic-qe', 'hook-npm-prefix.json');
+    let lookups = 0;
+    const npmPrefix = () => { lookups++; return null; };
+    const run = (now: number, execPath = NODE) => resolveAqeInvocation({
+      platform: 'win32', path: win32, execPath, project: 'C:\\p', env: {},
+      exists: () => false, readFile: () => '', npmPrefix, prefixCacheFile, now,
+    });
+
+    const t0 = 1_000_000;
+    expect(run(t0).cmd).toBeNull();
+    run(t0 + 1_000);
+    run(t0 + 4 * 60 * 1000);
+    expect(lookups).toBe(1);                       // negative result cached
+    expect(JSON.parse(readFileSync(prefixCacheFile, 'utf-8'))).toEqual({ execPath: NODE, prefix: null, at: t0 });
+
+    run(t0 + 5 * 60 * 1000);                       // TTL expired
+    expect(lookups).toBe(2);
+    run(t0 + 5 * 60 * 1000 + 1, 'D:\\other\\node.exe'); // different node binary
+    expect(lookups).toBe(3);
   });
 });
 
@@ -185,5 +248,30 @@ describe('aqe-hook.cjs under simulated win32 (end-to-end)', () => {
     expect(spawned.cmd).toBe(process.execPath);
     expect(spawned.args[0]).toBe(bundle);
     expect(spawned.shell).toBe(false);
+  });
+
+  it('brain-checkpoint does NOT require a pre-#872 hook (its main would spawn + exit) and reports why', () => {
+    const { preload, npmDir, project, argvLog } = setup();
+    mkdirSync(join(project, '.claude', 'helpers'), { recursive: true });
+    mkdirSync(join(project, '.claude', 'hooks'), { recursive: true });
+    mkdirSync(join(project, '.agentic-qe'));
+    writeFileSync(join(project, '.claude', 'helpers', 'brain-checkpoint.cjs'), readFileSync(BRAIN));
+    // Shape of the pre-#872 shim: top-level spawn + process.exit(0), no exports.
+    writeFileSync(join(project, '.claude', 'hooks', 'aqe-hook.cjs'), `
+      const { spawnSync } = require('node:child_process');
+      spawnSync(process.platform === 'win32' ? 'aqe.cmd' : 'aqe', ['hooks', ...process.argv.slice(2)]);
+      process.exit(0);
+    `);
+    writeFileSync(join(project, '.agentic-qe', 'memory.db'), ''); // placeholder in a tmp dir only
+
+    const stdout = execFileSync(process.execPath,
+      ['-r', preload, join(project, '.claude', 'helpers', 'brain-checkpoint.cjs'), 'export', '--json'], {
+        env: { PATH: npmDir, ARGV_LOG: argvLog }, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+    const result = JSON.parse(stdout);
+    expect(result.exported).toBe(false);
+    expect(result.reason).toMatch(/predates #872; re-run `aqe init`/);
+    expect(existsSync(argvLog)).toBe(false); // nothing was spawned at all
   });
 });

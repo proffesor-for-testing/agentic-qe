@@ -265,12 +265,18 @@ export class VitestPhaseExecutor implements PhaseExecutor {
 
     // shell: false prevents argument injection. On Windows `npx` is npx.cmd,
     // which Node refuses to start without a shell (EINVAL, CVE-2024-27980), so
-    // run the npx CLI bundled next to node.exe instead (#872).
-    const invocation = command === 'npx' ? npmCliInvocation('npx') : [command, []] as [string, string[]];
+    // run the npx CLI bundled next to node.exe instead (#872). A JS vitestPath
+    // is not executable on Windows either, so it always runs via this node.
+    const invocation = command === 'npx'
+      ? npmCliInvocation('npx')
+      : /\.[cm]?js$/i.test(command)
+        ? [process.execPath, [command]] as [string, string[]]
+        : [command, []] as [string, string[]];
     if (!invocation) {
       return Promise.reject(new Error(
         'Cannot run npx on Windows without a shell: node_modules\\npm\\bin\\npx-cli.js was not '
-        + 'found next to node.exe. Set vitestPath to a vitest executable or JS entry.'));
+        + 'found next to node.exe. Set vitestPath to Vitest\'s JS entry '
+        + '(node_modules/vitest/vitest.mjs), which is run with node.'));
     }
     const [executable, leadingArgs] = invocation;
     // A fresh POSIX process group lets cancellation reach npx, Vitest, and the

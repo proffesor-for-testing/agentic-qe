@@ -24,11 +24,18 @@ const MAX_AGE_HOURS = 24;
  */
 function aqeInvocation() {
   if (process.platform !== 'win32') return { cmd: process.env.AQE_HOOK_BIN || 'aqe', args: [] };
+  const shimPath = path.join(__dirname, '..', 'hooks', 'aqe-hook.cjs');
+  let src = '';
+  try { src = fs.readFileSync(shimPath, 'utf8'); } catch { /* missing: handled below */ }
+  // Only a #872+ shim may be required: an older one runs its hook main at load
+  // time (spawn + process.exit(0)), which would kill this export silently.
+  if (!src.includes('resolveAqeInvocation') || !src.includes('require.main === module')) {
+    return { cmd: null, args: [], reason: '.claude/hooks/aqe-hook.cjs is missing or predates #872; re-run `aqe init`' };
+  }
   try {
-    const shim = require(path.join(__dirname, '..', 'hooks', 'aqe-hook.cjs'));
-    return shim.resolveAqeInvocation({ project: PROJECT_ROOT });
-  } catch {
-    return { cmd: null, args: [], reason: '.claude/hooks/aqe-hook.cjs missing; re-run `aqe init`' };
+    return require(shimPath).resolveAqeInvocation({ project: PROJECT_ROOT });
+  } catch (e) {
+    return { cmd: null, args: [], reason: 'aqe-hook.cjs failed to load: ' + e.message };
   }
 }
 

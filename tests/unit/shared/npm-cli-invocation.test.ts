@@ -90,4 +90,22 @@ describe('VitestPhaseExecutor npx spawn on Windows (#872)', () => {
     expect(ready).toBe(false);
     expect(seam.spawn).not.toHaveBeenCalled();
   });
+
+  it.each(['vitest.mjs', 'vitest.js', 'vitest.cjs'])(
+    'should_runJsVitestPathViaNode_notDirectly_when_vitestPathIs %s',
+    async (entry) => {
+      simulateWindows(false);
+      seam.spawn.mockImplementation(fakeChild);
+      const vitestPath = join('C:\\proj\\node_modules\\vitest', entry);
+
+      const result = await new VitestPhaseExecutor({ vitestPath, cwd: tmp })
+        .execute({ id: 'p', name: 'p', testPatterns: [], timeoutMs: 5000 } as never);
+
+      const [cmd, args, opts] = seam.spawn.mock.calls[0];
+      expect(cmd).toBe(process.execPath);
+      expect(args[0]).toBe(vitestPath);
+      expect(opts.shell).toBe(false);
+      expect(result).toBeDefined();
+    },
+  );
 });

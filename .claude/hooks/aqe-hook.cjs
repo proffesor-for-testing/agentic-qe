@@ -46,7 +46,10 @@ const PROJECT = process.env.CLAUDE_PROJECT_DIR || '.';
 const args = process.argv.slice(2); // hook subcommand + its args
 
 const BUNDLE_IN_PACKAGE = ['node_modules', 'agentic-qe', 'dist', 'cli', 'bundle.js'];
-const CMD_SHIM = /\.(cmd|bat)$/i;
+// Script shims that Node cannot start without a shell (.ps1 is never directly
+// executable at all). They are only ever READ to find the JS entry behind them.
+const SCRIPT_SHIM = /\.(cmd|bat|ps1)$/i;
+const PREFIX_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function existsSafe(p) { try { return fs.existsSync(p); } catch { return false; } }
 function readSafe(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
@@ -59,13 +62,54 @@ function envGet(env, name, platform) {
 }
 
 /**
- * The JS entry a package-manager `.cmd` shim launches. npm's cmd-shim writes
- *   "%_prog%"  "%dp0%\node_modules\agentic-qe\dist\cli\bundle.js" %*
- * and pnpm/yarn use `"%~dp0\..."`; both are relative to the shim's directory.
+ * The target a package-manager `.cmd` shim launches, relative to its directory:
+ *   npm:     "%_prog%"  "%dp0%\node_modules\agentic-qe\dist\cli\bundle.js" %*
+ *   pnpm:    "%~dp0\global\5\node_modules\agentic-qe\dist\cli\bundle.js" %*
+ *   yarn v1: @"%~dp0\..\Data\global\node_modules\.bin\aqe.cmd"   %*  (another .cmd)
+ * Volta's `volta run %~n0 %*` names no file, so it yields null.
  */
 function parseCmdShimTarget(shimPath, content, p) {
-  const m = /"%~?dp0%?\\([^"%]+\.[cm]?js)"/i.exec(content || '');
+  const m = /"%~?dp0%?\\([^"%]+\.(?:[cm]?js|cmd|bat))"/i.exec(content || '');
   return m ? p.join(p.dirname(shimPath), ...m[1].split(/[\\/]+/)) : null;
+}
+
+/**
+ * The JS bundle behind a shim: its parsed JS target, else npm's layout beside
+ * it, else (yarn v1) ONE hop through the `.cmd` it delegates to. Files are only
+ * read; the result is always run via node, never as a script.
+ */
+function shimBundle(shim, p, exists, readFile, hops) {
+  if (!exists(shim)) return null;
+  const target = parseCmdShimTarget(shim, readFile(shim), p);
+  const direct = [target && /\.[cm]?js$/i.test(target) ? target : null,
+    p.join(p.dirname(shim), ...BUNDLE_IN_PACKAGE)];
+  for (const b of direct) if (b && exists(b)) return b;
+  if (hops > 0 && target && /\.(cmd|bat)$/i.test(target)) {
+    return shimBundle(target, p, exists, readFile, hops - 1);
+  }
+  return null;
+}
+
+/**
+ * `npm prefix -g` costs a node spawn (up to 1.5s) and only runs when nothing
+ * else resolved, i.e. on EVERY hook while AQE is unresolvable. Cache the answer
+ * (including "none") per node binary for a few minutes in the project's
+ * .agentic-qe/ (not a shared temp dir another user could pre-seed).
+ */
+function cachedNpmPrefix(lookup, execPath, p, exists, cacheFile, now) {
+  if (!cacheFile) return lookup(execPath, p, exists);
+  try {
+    const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+    if (c && c.execPath === execPath && now - c.at >= 0 && now - c.at < PREFIX_CACHE_TTL_MS) {
+      return typeof c.prefix === 'string' ? c.prefix : null;
+    }
+  } catch { /* no or unreadable cache: look it up */ }
+  const prefix = lookup(execPath, p, exists) || null;
+  try {
+    fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+    fs.writeFileSync(cacheFile, JSON.stringify({ execPath, prefix, at: now }));
+  } catch { /* caching is best-effort */ }
+  return prefix;
 }
 
 /** `npm prefix -g` via the npm CLI bundled next to node.exe: no shell, no .cmd. */
@@ -92,11 +136,14 @@ function npmGlobalPrefix(execPath, p, exists) {
  *      would expose Claude Code-supplied arguments (--command, prompt text) to
  *      cmd.exe metacharacter injection. Instead find the bundle the global shim
  *      would have launched and run it via process.execPath: parse `aqe.cmd` on
- *      PATH, then npm's global layouts, then `npm prefix -g` (bundled npm CLI).
- *   4. Nothing resolved: { cmd: null, reason }. The caller logs it and no-ops.
+ *      PATH (npm, pnpm, yarn v1), then npm's global layouts, then a cached
+ *      `npm prefix -g` (bundled npm CLI). An AQE_HOOK_BIN naming a .cmd/.bat/
+ *      .ps1 is resolved the same way, never spawned.
+ *   4. Nothing resolved (e.g. Volta): { cmd: null, reason }. The caller logs it.
  *
  * Returns { cmd, args, source }; `args` are the runner args that precede
- * `hooks <subcommand ...>`. Every input is injectable for tests.
+ * `hooks <subcommand ...>`. Every input is injectable for tests
+ * (`prefixCacheFile: null` disables the npm-prefix cache).
  */
 function resolveAqeInvocation(opts) {
   const o = opts || {};
@@ -121,7 +168,7 @@ function resolveAqeInvocation(opts) {
   const bin = env.AQE_HOOK_BIN;
   if (platform !== 'win32') return { cmd: bin || 'aqe', args: [], source: 'bin' };
   // A real executable (aqe.exe, a test stub) can be spawned without a shell.
-  if (bin && !CMD_SHIM.test(bin)) return { cmd: bin, args: [], source: 'bin' };
+  if (bin && !SCRIPT_SHIM.test(bin)) return { cmd: bin, args: [], source: 'bin' };
 
   const shims = bin ? [bin] : [];
   for (const dir of (envGet(env, 'PATH', platform) || '').split(';')) {
@@ -129,11 +176,8 @@ function resolveAqeInvocation(opts) {
     if (d) shims.push(p.join(d, 'aqe.cmd'));
   }
   for (const shim of shims) {
-    if (!exists(shim)) continue;
-    const fromShim = parseCmdShimTarget(shim, readFile(shim), p);
-    for (const b of [fromShim, p.join(p.dirname(shim), ...BUNDLE_IN_PACKAGE)]) {
-      if (b && exists(b)) return viaNode(b, `global-shim:${shim}`);
-    }
+    const b = shimBundle(shim, p, exists, readFile, 1);
+    if (b) return viaNode(b, `global-shim:${shim}`);
   }
 
   const appData = envGet(env, 'APPDATA', platform);
@@ -146,19 +190,26 @@ function resolveAqeInvocation(opts) {
     const b = p.join(prefix, ...BUNDLE_IN_PACKAGE);
     if (exists(b)) return viaNode(b, `global-prefix:${prefix}`);
   }
-  const queried = npmPrefix(execPath, p, exists);
+  const cacheFile = o.prefixCacheFile === undefined
+    ? p.join(project, '.agentic-qe', 'hook-npm-prefix.json') : o.prefixCacheFile;
+  const queried = cachedNpmPrefix(npmPrefix, execPath, p, exists, cacheFile, o.now || Date.now());
   if (queried && exists(p.join(queried, ...BUNDLE_IN_PACKAGE))) {
     return viaNode(p.join(queried, ...BUNDLE_IN_PACKAGE), `npm-prefix:${queried}`);
   }
 
+  const binNote = bin
+    ? `AQE_HOOK_BIN=${bin} is a .cmd/.bat/.ps1 script, which is never started without `
+      + 'a shell, and no agentic-qe bundle was found behind it; ' : '';
   return {
     cmd: null,
     args: [],
     source: 'none',
-    reason: 'no agentic-qe bundle found (Windows cannot spawn aqe.cmd without a shell '
-      + 'since CVE-2024-27980, and a shell is unsafe for hook arguments). Fix: '
-      + '`npm install -D agentic-qe`, or set AQE_HOOK_BUNDLE to '
-      + '<npm global prefix>\\node_modules\\agentic-qe\\dist\\cli\\bundle.js',
+    reason: `${binNote}no agentic-qe bundle found (Windows cannot spawn aqe.cmd without a shell `
+      + 'since CVE-2024-27980, and a shell is unsafe for hook arguments). Volta and other '
+      + 'non-npm/pnpm/yarn-v1 shims cannot be followed. Fix: `npm install -D agentic-qe`, '
+      + 'or set AQE_HOOK_BUNDLE to the global bundle, e.g. '
+      + '<npm global prefix>\\node_modules\\agentic-qe\\dist\\cli\\bundle.js '
+      + '(Volta: the agentic-qe dist\\cli\\bundle.js inside your Volta tools image directory)',
   };
 }
 
@@ -312,6 +363,8 @@ function main() {
 
 // Exported so brain-checkpoint.cjs and unit tests can reuse the resolver;
 // requiring this file never spawns anything.
+// brain-checkpoint.cjs checks for this export (and the require.main guard
+// below) before requiring this file; keep both.
 module.exports = { resolveAqeInvocation, parseCmdShimTarget };
 
 if (require.main === module) main();
