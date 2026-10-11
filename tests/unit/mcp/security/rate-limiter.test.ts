@@ -146,6 +146,50 @@ describe('RateLimiter', () => {
   });
 
   describe('async wait', () => {
+    it('rejects a wait that exceeds the default bucket capacity instead of retrying forever', async () => {
+      let outcome: unknown = 'pending';
+      const waiting = limiter.wait('client1', undefined, 21).then(
+        () => { outcome = 'allowed'; },
+        error => { outcome = error; },
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(outcome).toBeInstanceOf(RangeError);
+      await waiting;
+    });
+
+    it('uses the matching endpoint capacity when rejecting an impossible wait', async () => {
+      limiter.addEndpointLimit({ pattern: /^\/small$/, tokensPerSecond: 5, maxBurst: 3 });
+      let outcome: unknown = 'pending';
+      const waiting = limiter.wait('client1', '/small', 4).then(
+        () => { outcome = 'allowed'; },
+        error => { outcome = error; },
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(outcome).toBeInstanceOf(RangeError);
+      await waiting;
+    });
+
+    it('allows exact capacity, zero cost, and an unmatched endpoint using the default bucket', async () => {
+      limiter.addEndpointLimit({ pattern: /^\/small$/, tokensPerSecond: 5, maxBurst: 3 });
+      expect((await limiter.wait('endpoint-client', '/small', 3)).allowed).toBe(true);
+      expect((await limiter.wait('default-client', '/other', 20)).allowed).toBe(true);
+      expect((await limiter.wait('default-client', '/other', 0)).allowed).toBe(true);
+    });
+
+    it('honors an endpoint burst larger than the default and refills an exhausted exact-capacity wait', async () => {
+      limiter.addEndpointLimit({ pattern: /^\/large$/, tokensPerSecond: 10, maxBurst: 30 });
+      expect((await limiter.wait('client1', '/large', 30)).allowed).toBe(true);
+      const waiting = limiter.wait('client1', '/large', 30);
+      await vi.advanceTimersByTimeAsync(3000);
+      expect((await waiting).allowed).toBe(true);
+    });
+
+    it('preserves invalid token-cost rejection', async () => {
+      for (const cost of [-1, NaN, Infinity]) {
+        await expect(limiter.wait('client1', undefined, cost)).rejects.toBeInstanceOf(RangeError);
+      }
+    });
+
     it('should wait for tokens to become available', async () => {
       // Exhaust tokens
       for (let i = 0; i < 20; i++) {

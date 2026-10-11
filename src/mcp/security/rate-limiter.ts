@@ -226,8 +226,13 @@ export class RateLimiter {
 
   /**
    * Wait until tokens are available (async)
+   * @throws RangeError when the cost exceeds the resolved bucket capacity.
    */
   async wait(clientId?: string, endpoint?: string, tokens = 1): Promise<RateLimitResult> {
+    const { maxBurst } = this.getConfig(endpoint);
+    if (tokens > maxBurst) {
+      throw new RangeError(`Token cost (${tokens}) exceeds bucket capacity (${maxBurst})`);
+    }
     let result = this.consume(clientId, endpoint, tokens);
 
     while (!result.allowed && result.retryAfter) {
