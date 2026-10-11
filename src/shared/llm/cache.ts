@@ -353,7 +353,7 @@ export class LLMResponseCache {
     options?: CacheKeyOptions,
     ttlMs?: number
   ): void {
-    if (!this.config.cacheGenerations) {
+    if (!this.config.cacheGenerations || response.finishReason === 'content_filter') {
       return;
     }
     const key = LLMCache.generateKey('generation', input, options);
