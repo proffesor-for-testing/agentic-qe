@@ -98,7 +98,13 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP domain tools advert
       expect(tool, name).toBeDefined();
       expect(tool.inputSchema.properties.saveResults, name).toMatchObject({ type: 'boolean', default: true });
       expect(tool.inputSchema.properties.saveResults.description, name).toContain('Set false to');
-      expect(tool.description, name).toContain('pass saveResults: false');
+      expect(tool.inputSchema.properties.saveResults.description, name).toContain('.agentic-qe/results/');
+      // Descriptions stay short for OpenCode; security_scan_comprehensive was
+      // already over 200 characters and is left unchanged.
+      if (name !== 'security_scan_comprehensive') expect(tool.description, name).toContain('saveResults');
+      if (!['security_scan_comprehensive', 'test_generate_enhanced'].includes(name)) {
+        expect(tool.description.length, name).toBeLessThanOrEqual(200);
+      }
     }
   }, 60000);
 

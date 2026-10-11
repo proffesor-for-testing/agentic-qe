@@ -35,11 +35,13 @@ export const RESULT_SAVING_TOOLS = {
 
 export type ResultSavingTool = keyof typeof RESULT_SAVING_TOOLS;
 
-/** Sentence each result-saving tool adds to its description. */
-export function saveResultsDescription(tool: ResultSavingTool): string {
-  const { saves, verb } = RESULT_SAVING_TOOLS[tool];
-  return `By default saves ${saves} (paths returned in savedFiles); pass saveResults: false to ${verb} without writing any result files.`;
-}
+/**
+ * Short hint a result-saving tool adds to its top-level description. Tool
+ * descriptions are kept short for clients that truncate them (OpenCode shows
+ * about 200 characters), so the full explanation lives in the `saveResults`
+ * parameter description instead.
+ */
+export const SAVE_RESULTS_HINT = 'Saves results (saveResults).';
 
 /** The `saveResults` input parameter, worded the same for every tool. */
 export function saveResultsParameter(tool: ResultSavingTool): ToolParameter {
