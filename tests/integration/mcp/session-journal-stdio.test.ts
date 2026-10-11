@@ -1,14 +1,14 @@
 /** Actual built MCP stdio requests write a resumable owned transcript. */
 import { describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { resumeSession } from '../../../src/mcp/services/session-resume';
 
 it.each([false, true])('preserves built stdio lifecycle rows with owned partial-write injection=%s', async inject => {
-  const root = mkdtempSync(join(tmpdir(), 'aqe-journal-stdio-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-journal-stdio-')));
   const env: NodeJS.ProcessEnv = { ...process.env, AQE_JOURNAL_FAULT_ROOT: root, AQE_PROJECT_ROOT: root, AQE_HTTP_PORT: '0', AQE_SESSION_CACHE: 'off',
     AQE_LOOP_DETECTION_ENABLED: 'false', AQE_LLM_ROUTER_DISABLED: '1', AQE_SESSION_DURABILITY: 'true' };
   delete env.AQE_MEMORY_BACKEND;
