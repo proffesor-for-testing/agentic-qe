@@ -73,6 +73,14 @@ function isValidEntry(value: unknown): value is SessionEntry {
     ));
 }
 
+/** Entries a session-store gap marker stands for (#910), or 0 for an ordinary entry. */
+function gapSize(entry: SessionEntry): number {
+  if (entry.type !== 'state_change' || !entry.result || typeof entry.result !== 'object') return 0;
+  const gap = (entry.result as { journalGap?: { droppedEntries?: unknown } }).journalGap;
+  const dropped = gap?.droppedEntries;
+  return typeof dropped === 'number' && Number.isSafeInteger(dropped) && dropped > 0 ? dropped : 0;
+}
+
 function resolveLimit(value: number | undefined, defaultValue: number): number | undefined {
   const limit = value ?? defaultValue;
   return Number.isSafeInteger(limit) && limit > 0 && limit <= defaultValue ? limit : undefined;
@@ -203,6 +211,7 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
     const entries: SessionEntry[] = [];
     const seen = new Set<string>();
     let previous: SessionEntry | undefined;
+    let droppedInGaps = 0;
 
     for (const rawLine of lines) {
       if (!rawLine.trim()) continue;
@@ -227,6 +236,7 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
         return emptyResult(filePath, 'INVALID', ['first entry has a forged parentUuid']);
       }
       seen.add(parsed.uuid);
+      droppedInGaps += gapSize(parsed);
       entries.push(parsed);
       previous = parsed;
     }
@@ -238,6 +248,7 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
     const diagnostics = [
       'legacy JSONL has no durable commit marker',
       ...(hasTornTail ? ['discarded an incomplete final record'] : []),
+      ...(droppedInGaps > 0 ? [`journal gap: ${droppedInGaps} entries dropped while the disk was failing`] : []),
     ];
     return {
       metadata: {

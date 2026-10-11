@@ -185,6 +185,31 @@ describe('SessionStore partial-append recovery (#910)', () => {
 });
 
 describe('SessionStore write buffer bound (#910)', () => {
+  it('keeps the transcript resumable after the cap drops entries (review repro)', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const value = open({ maxBufferedEntries: 3 });
+    const first = value.append(entry(0));
+    disk.budget = 0;
+    const ids: string[] = [];
+    for (let i = 1; i <= 7; i++) {
+      ids.push(value.append(entry(i, `p-${i}`)));
+      expect(() => value.flush()).toThrow(/ENOSPC/);
+    }
+    disk.budget = null;
+    value.flush();
+
+    const resumed = resume(value);
+    expect(resumed.disposition).toBe('LEGACY_UNVERIFIED');
+    expect(resumed.diagnostics).not.toContain('broken parentUuid lineage');
+    expect(resumed.diagnostics).toContain('journal gap: 5 entries dropped while the disk was failing');
+    expect(value.getWriteBufferStats().droppedEntries).toBe(5);
+    const written = rows(value);
+    expect(written[0].uuid).toBe(first);
+    expect(written.slice(-2).map(row => row.uuid)).toEqual(ids.slice(-2));
+    expect(written[1]).toMatchObject({ type: 'state_change', uuid: ids[4], parentUuid: first,
+      result: { journalGap: { droppedEntries: 5 } } });
+  });
+
   it('caps the buffer, drops the oldest entries, counts them and warns once', () => {
     const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const value = open({ maxBufferedEntries: 50 });
@@ -199,7 +224,8 @@ describe('SessionStore write buffer bound (#910)', () => {
       expect(value.getWriteBufferStats().bufferedEntries).toBeLessThanOrEqual(50);
     }
 
-    expect(value.getWriteBufferStats()).toMatchObject({ bufferedEntries: 50, droppedEntries: 450 });
+    // 49 real entries plus one gap marker standing for the 451 dropped ones.
+    expect(value.getWriteBufferStats()).toMatchObject({ bufferedEntries: 50, droppedEntries: 451 });
     expect(value.getMetadata().entryCount).toBe(501);
     const warnings = warn.mock.calls.filter(call => String(call[0]).includes('session journal'));
     expect(warnings).toHaveLength(1);
@@ -208,10 +234,15 @@ describe('SessionStore write buffer bound (#910)', () => {
     disk.budget = null;
     value.flush();
     const written = rows(value);
+    // The marker reuses the last dropped uuid, so the chain on disk stays intact.
     expect(written.map(row => row.uuid)).toEqual([firstId, ...ids.slice(-50)]);
-    expect(value.getWriteBufferStats()).toMatchObject({ bufferedEntries: 0, bufferedBytes: 0, droppedEntries: 450 });
-    // The gap is visible to recovery, which fails closed instead of inventing a chain.
-    expect(resume(value).diagnostics).toContain('broken parentUuid lineage');
+    expect(written[1]).toMatchObject({ type: 'state_change', parentUuid: firstId,
+      result: { journalGap: { droppedEntries: 451 } } });
+    expect(value.getWriteBufferStats()).toMatchObject({ bufferedEntries: 0, bufferedBytes: 0, droppedEntries: 451 });
+    const resumed = resume(value);
+    expect(resumed.disposition).toBe('LEGACY_UNVERIFIED');
+    expect(resumed.metadata.entryCount).toBe(51);
+    expect(resumed.diagnostics).toContain('journal gap: 451 entries dropped while the disk was failing');
   });
 
   it('caps by bytes as well as by entry count', () => {
@@ -223,7 +254,11 @@ describe('SessionStore write buffer bound (#910)', () => {
     const stats = value.getWriteBufferStats();
     expect(stats.bufferedBytes).toBeLessThanOrEqual(4096);
     expect(stats.droppedEntries).toBeGreaterThan(0);
-    expect(stats.bufferedEntries + stats.droppedEntries).toBe(100);
+    // Buffered lines are the surviving entries plus one gap marker.
+    expect(stats.bufferedEntries - 1 + stats.droppedEntries).toBe(100);
+    disk.budget = null;
+    value.flush();
+    expect(resume(value).disposition).toBe('LEGACY_UNVERIFIED');
   });
 
   it('never drops a partially written line, which would corrupt the next record', () => {
@@ -238,7 +273,10 @@ describe('SessionStore write buffer bound (#910)', () => {
     for (let i = 2; i <= 10; i++) later.push(value.append(entry(i)));
     disk.budget = null;
     value.flush();
-    expect(rows(value).map(row => row.uuid)).toEqual([firstId, head, ...later.slice(-2)]);
+    const written = rows(value);
+    expect(written.map(row => row.uuid)).toEqual([firstId, head, ...later.slice(-2)]);
+    expect(written[2]).toMatchObject({ type: 'state_change', result: { journalGap: { droppedEntries: 8 } } });
+    expect(resume(value).disposition).toBe('LEGACY_UNVERIFIED');
   });
 
   it('rejects invalid caps', () => {
