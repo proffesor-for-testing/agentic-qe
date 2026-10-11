@@ -325,7 +325,9 @@ function countCargoTests(
     const unit = testLines.filter(t =>
       !t.includes('integration') && !t.includes('e2e')
     ).length;
-    const integration = testLines.filter(t => t.includes('integration')).length;
+    const integration = testLines.filter(t =>
+      t.includes('integration') && !t.includes('e2e')
+    ).length;
     const e2e = testLines.filter(t => t.includes('e2e')).length;
 
     return {
