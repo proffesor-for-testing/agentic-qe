@@ -304,7 +304,13 @@ export class EmbeddingGenerator {
    * Generate cache key from text and config
    */
   private getCacheKey(text: string): string {
-    return `${this.config.model}:${this.config.hyperbolic}:${text}`;
+    return JSON.stringify([
+      this.config.model,
+      this.config.normalize,
+      this.config.hyperbolic,
+      this.config.hyperbolic ? this.config.curvature : null,
+      text
+    ]);
   }
 
   /**
