@@ -31,6 +31,7 @@ import { CostTracker } from '../cost-tracker';
 import { TokenMetricsCollector } from '../../../learning/token-tracker.js';
 import { toError } from '../../error-utils.js';
 import { backoffDelay } from '../retry.js';
+import { fetchWithResponseDeadline } from './response-deadline.js';
 import { applyAnthropicParams } from '../anthropic-params';
 
 // ============================================================================
@@ -763,26 +764,12 @@ export class BedrockProvider implements LLMProvider {
     options: RequestInit,
     timeoutMs: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw createLLMError('Request timed out', 'TIMEOUT', {
-          provider: 'bedrock',
-          retryable: true,
-        });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return fetchWithResponseDeadline(url, options, timeoutMs, () =>
+      createLLMError('Request timed out', 'TIMEOUT', {
+        provider: 'bedrock',
+        retryable: true,
+      })
+    );
   }
 
   /**
