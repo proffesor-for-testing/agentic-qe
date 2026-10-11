@@ -170,6 +170,8 @@ QX-*.md
 # Visual test artifacts
 .visual-tests/
 .mcp.json
+# ...except a plugin's own MCP registration, which must ship with the plugin
+!plugins/*/.mcp.json
 claude-flow.config.json
 .swarm/
 .hive-mind/

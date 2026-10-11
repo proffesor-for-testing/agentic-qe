@@ -13,7 +13,7 @@
  * @see docs/plans/AQE_V3_IMPROVEMENTS_PLAN.md - Phase 5, RM-003
  */
 
-import { execSync, spawnSync } from 'child_process';
+import { execSync, spawn, spawnSync } from 'child_process';
 import { createRequire } from 'module';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
@@ -201,90 +201,115 @@ export function checkTestRunners(projectPath: string): ToolAvailability[] {
  * - `vitest --run` EXECUTES tests, causing OOM in test-of-tests scenarios
  * - Collection imports test modules but does not run test callbacks
  */
-function countVitestTests(
+async function countVitestTests(
   projectPath: string,
   config: MetricCollectorConfig
-): TestMetrics {
+): Promise<TestMetrics> {
   let listingDirectory: string | undefined;
   try {
-    // Static parsing cannot expand parameterized or computed tests. Collect
-    // them without executing callbacks, including projects that opt into static
-    // parsing. Vitest 4.0 does not support the flag, so resolve the installed
-    // runner rather than guessing from the declared dependency range.
-    let collectionFlag = '';
+    let supportsStaticParse = false;
     try {
       const projectRequire = createRequire(resolve(projectPath, 'package.json'));
       const pkg = safeJsonParse(readFileSync(projectRequire.resolve('vitest/package.json'), 'utf-8'));
       const [major, minor] = String(pkg.version).split('.').map(Number);
-      if (major > 4 || (major === 4 && minor >= 1)) {
-        collectionFlag = ' --no-static-parse';
-      }
+      supportsStaticParse = major > 4 || (major === 4 && minor >= 1);
     } catch {
-      // Keep the existing listing fallback when no installed version resolves.
+      // Retain native listing without new flags for unresolved/older runners.
     }
-    // Imports may write directly to stdout, so keep discovery JSON separate
-    // from project output. Expand the owned path as one shell argument rather
-    // than interpolating TMPDIR (which may contain shell syntax) into a command.
     listingDirectory = mkdtempSync(join(tmpdir(), 'aqe-vitest-list-'));
-    const listingFile = join(listingDirectory, 'tests.json');
-    const listingArgument = process.platform === 'win32'
-      ? '"%AQE_VITEST_LIST_JSON%"'
-      : '"$AQE_VITEST_LIST_JSON"';
-    const listTests = (flag: string) => execSync(
-      `npx vitest list --json=${listingArgument}${flag}`,
-      {
-        cwd: projectPath,
-        encoding: 'utf-8',
-        timeout: Math.min(config.timeout, 30000), // Cap at 30s for listing
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced from 50MB)
-        env: { ...process.env, AQE_VITEST_LIST_JSON: listingFile },
-      }
-    );
-    try {
-      listTests(collectionFlag);
-    } catch (error) {
-      if (!collectionFlag) throw error;
-      // Collection imports project test modules (and their side effects). If
-      // those imports fail or exceed the listing cap, retain native discovery
-      // through static parsing before degrading to file-pattern estimates.
-      rmSync(listingFile, { force: true });
-      listTests(' --static-parse');
+    const readListing = (file: string): number | undefined => {
+      try {
+        if (statSync(file).size > 10 * 1024 * 1024) return undefined;
+        const data = safeJsonParse(readFileSync(file, 'utf-8'));
+        if (Array.isArray(data) && data.every(test =>
+          test && typeof test.name === 'string' && typeof test.file === 'string'
+        )) return data.length;
+        if (data && typeof data.numTotalTests === 'number') return data.numTotalTests;
+      } catch { /* Missing/invalid artifacts are not authoritative counts. */ }
+      return undefined;
+    };
+    const listTests = async (mode: 'static' | 'collection' | 'legacy'): Promise<number | undefined> => {
+      // Separate artifacts prevent a failed attempt from contaminating recovery.
+      const file = join(listingDirectory!, `${mode}.json`);
+      const args = ['vitest', 'list', `--json=${file}`];
+      if (mode !== 'legacy') args.push(mode === 'static' ? '--static-parse' : '--no-static-parse');
+      const succeeded = await new Promise<boolean>((resolveAttempt) => {
+        const windows = process.platform === 'win32';
+        // Keep Windows artifact paths in a quoted environment expansion;
+        // interpolating a caller-controlled temporary path into cmd is unsafe.
+        const flag = mode === 'legacy' ? ''
+          : mode === 'static' ? ' --static-parse' : ' --no-static-parse';
+        const command = windows ? `npx vitest list --json="%AQE_VITEST_LIST_JSON%"${flag}` : 'npx';
+        const child = spawn(command, windows ? [] : args, {
+          cwd: projectPath, detached: !windows, shell: windows,
+          env: { ...process.env, AQE_VITEST_LIST_JSON: file },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let stopped = false;
+        let bytes = 0;
+        const stopTree = () => {
+          if (!child.pid) return;
+          try {
+            if (windows) {
+              // Windows has no POSIX process groups; terminate this owned tree.
+              spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], {
+                stdio: 'ignore', timeout: 5000,
+              });
+            } else {
+              process.kill(-child.pid, 'SIGKILL');
+            }
+          } catch { /* The process group may already have exited. */ }
+        };
+        const timer = setTimeout(() => { stopped = true; stopTree(); }, Math.min(config.timeout, 30000));
+        const consume = (chunk: Buffer) => {
+          bytes += chunk.length;
+          if (bytes > 10 * 1024 * 1024) { stopped = true; stopTree(); }
+        };
+        child.stdout?.on('data', consume);
+        child.stderr?.on('data', consume);
+        child.once('error', () => { clearTimeout(timer); stopTree(); resolveAttempt(false); });
+        child.once('close', (code) => {
+          clearTimeout(timer);
+          // A wrapper may exit while its descendants are still importing modules.
+          stopTree();
+          resolveAttempt(!stopped && code === 0);
+        });
+      });
+      return succeeded ? readListing(file) : undefined;
+    };
+    if (!supportsStaticParse) {
+      const total = await listTests('legacy');
+      return total === undefined ? countTestsByFilePattern(projectPath, config)
+        : classifyTests(total, 'vitest', projectPath);
     }
-
-    // Preserve the listing size cap when the runner writes an artifact.
-    if (statSync(listingFile).size > 10 * 1024 * 1024) {
-      return countTestsByFilePattern(projectPath, config);
-    }
-    try {
-      const data = safeJsonParse(readFileSync(listingFile, 'utf-8'));
-
-      // Vitest list --json returns a flat array of { name, file, location? }.
-      if (Array.isArray(data) && data.every(test =>
-        test && typeof test.name === 'string' && typeof test.file === 'string'
-      )) {
-        return classifyTests(data.length, 'vitest', projectPath);
+    // Inspect cheap static discovery before importing project test modules.
+    // Above 1,000 static declarations or 100 files, retain the native static
+    // count instead of paying the collection timeout for every metrics call.
+    const staticTotal = await listTests('static');
+    const staticFile = join(listingDirectory, 'static.json');
+    let staticFiles = 0;
+    if (staticTotal !== undefined) {
+      try {
+        const data = safeJsonParse(readFileSync(staticFile, 'utf-8'));
+        if (Array.isArray(data)) staticFiles = new Set(data.map(test => test.file)).size;
+      } catch { /* The validated count remains usable. */ }
+      if (staticTotal > 1000 || staticFiles > 100) {
+        return classifyTests(staticTotal, 'vitest', projectPath);
       }
-
-      // Preserve compatibility with older structured runner output.
-      if (data && typeof data.numTotalTests === 'number') {
-        return classifyTests(data.numTotalTests, 'vitest', projectPath);
-      }
-    } catch {
-      // Missing or invalid discovery JSON is not authoritative test output.
     }
-
-    // Raw project stdout must never be mistaken for discovered tests.
-    return countTestsByFilePattern(projectPath, config);
+    // Collection expands parameterized/computed declarations but imports every
+    // test module (with setup/describe side effects). One throwing import loses
+    // expansion for the whole suite; preserve its static count when available.
+    const collectedTotal = await listTests('collection');
+    const total = collectedTotal ?? staticTotal;
+    return total === undefined ? countTestsByFilePattern(projectPath, config)
+      : classifyTests(total, 'vitest', projectPath);
   } catch {
-    // vitest list failed (not installed, timeout, etc.) - fall back to file pattern
     return countTestsByFilePattern(projectPath, config);
   } finally {
     if (listingDirectory) {
-      try {
-        rmSync(listingDirectory, { recursive: true, force: true });
-      } catch {
-        // Cleanup failure must not change an otherwise valid count.
-      }
+      try { rmSync(listingDirectory, { recursive: true, force: true }); }
+      catch { /* Cleanup failure must not change an otherwise valid count. */ }
     }
   }
 }

@@ -1,12 +1,39 @@
 # agentic-qe-fleet
 
-PACTS-based agentic quality engineering fleet for Claude Code — a slim starter bundle of the AQE platform with 11 specialized QE agents, 9 core skills, 9 slash commands, and the `agentic-qe` MCP server.
+PACTS-based agentic quality engineering fleet for Claude Code. This is a slim starter bundle of the AQE platform. It has 11 specialized QE agents, 9 core skills, 9 slash commands, and the `agentic-qe` MCP server, pinned to the plugin version.
 
-## What's bundled
+## Install
+
+In one step (Claude Code 2.1.275 or later):
+
+```
+/plugin install agentic-qe-fleet --marketplace proffesor-for-testing/agentic-qe
+```
+
+Or add the marketplace first:
+
+```
+/plugin marketplace add proffesor-for-testing/agentic-qe
+/plugin install agentic-qe-fleet@agentic-qe
+```
+
+The install registers the MCP server `plugin:agentic-qe-fleet:agentic-qe`, which runs `npx -y agentic-qe@<plugin version> mcp`. You don't need to run `claude mcp add`. Check it with `claude mcp list`.
+
+### Options (`userConfig`)
+
+Set these with `/plugin configure agentic-qe-fleet@agentic-qe`, or pass `--config KEY=VALUE` to `claude plugin install`. Every option has a default, so the server starts even if you leave them unset.
+
+| Option | Sets | Default | Effect |
+|---|---|---|---|
+| `llm_provider` | `AQE_LLM_PROVIDER` | empty (auto) | Pins the LLM provider, e.g. `claude-code`, `claude`, `openrouter` or `ollama`. If it's empty, the provider comes from `llm-config.json` or env auto-detection. |
+| `max_budget_usd` | `AQE_MAX_BUDGET_USD` | `0` (no cap) | Per-run spend cap for metered providers. |
+| `memory_backend` | `AQE_MEMORY_BACKEND` | `hybrid` | `hybrid` saves learning to `.agentic-qe/memory.db`. `memory` is database-free mode: same features, but nothing is written under `.agentic-qe/`. |
+
+## What's Included
 
 ### Agents (11)
 
-Routed by cognitive load — heavy reasoning agents on Opus, focused execution on Sonnet.
+Agents are routed by cognitive load: heavy reasoning runs on Opus, focused execution on Sonnet.
 
 | Agent | Model | Purpose |
 |---|---|---|
@@ -24,27 +51,54 @@ Routed by cognitive load — heavy reasoning agents on Opus, focused execution o
 
 ### Skills (9)
 
-Each skill ships with a scoped `allowed-tools` list and a trust tier. Tier 3 = full eval infrastructure (eval YAML + JSON schema + validator); tier 2 = tested without eval. The bundle excludes tier-1 (untested) skills per AQE trust-tier policy.
+Each skill has a trust tier and a scoped `allowed-tools` list with no wildcards.
+- **Tier 3:** full eval infrastructure (eval YAML, JSON schema and validator).
+- **Tier 2:** tested, but without an eval.
 
-| Skill | Trust tier | Notes |
+The bundle leaves out tier-1 (untested) skills, per AQE trust-tier policy.
+
+| Skill | Trust tier | MCP tools |
 |---|---|---|
-| `qe-test-generation` | 3 | Includes `mcp__agentic-qe__test_generate_enhanced` |
-| `qe-coverage-analysis` | 3 | Includes `coverage_analyze_sublinear`, `qe_coverage_gaps` |
-| `qe-test-execution` | 3 | Includes `test_execute_parallel` |
-| `qe-chaos-resilience` | 3 | Includes `chaos_test` |
-| `qe-quality-assessment` | 3 | Includes `quality_assess` |
-| `chaos-engineering-resilience` | 3 | Methodology guide |
-| `mutation-testing` | 3 | Stryker integration |
-| `risk-based-testing` | 3 | Read-only analysis |
-| `tdd-london-chicago` | 2 | TDD school comparison |
+| `qe-test-generation` | 3 | `test_generate_enhanced` |
+| `qe-coverage-analysis` | 3 | `coverage_analyze_sublinear`, `qe_coverage_gaps` |
+| `qe-test-execution` | 3 | `test_execute_parallel` |
+| `qe-chaos-resilience` | 3 | `chaos_test` |
+| `qe-quality-assessment` | 3 | `quality_assess` |
+| `chaos-engineering-resilience` | 3 | — (methodology guide) |
+| `mutation-testing` | 3 | — (Stryker integration) |
+| `risk-based-testing` | 3 | — (read-only analysis) |
+| `tdd-london-chicago` | 2 | — (TDD school comparison) |
+
+**MCP tool names.** A server that comes from this plugin exposes its tools as `mcp__plugin_agentic-qe-fleet_agentic-qe__<tool>`. A project set up with `aqe init` registers the server under the name `agentic-qe`, which gives `mcp__agentic-qe__<tool>`. Each skill lists both forms in `allowed-tools`, so it works with either setup. See [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md).
 
 ### Commands (9)
 
 `/aqe-analyze`, `/aqe-benchmark`, `/aqe-chaos`, `/aqe-costs`, `/aqe-execute`, `/aqe-fleet-status`, `/aqe-generate`, `/aqe-optimize`, `/aqe-report`
 
-### MCP server
+## Requires
 
-The plugin auto-registers the `agentic-qe` MCP server (via `npx -y agentic-qe@latest mcp`) when loaded — no separate `claude mcp add` needed.
+- Node.js >= 22.13.0, with `npx` on `PATH`. The MCP server runs through `npx`.
+- Network access the first time the server starts, so `npx` can fetch the pinned `agentic-qe` package. After that it uses the npm cache.
+- No other plugin. The plugin ships its own MCP server.
+
+## Compatibility
+
+- **Versioning:** the plugin version always equals the `agentic-qe` npm package version, and `.mcp.json` pins the server to that exact version (`agentic-qe@<version>`, never `@latest`). The release flow bumps all of these together: `npm version` runs `scripts/sync-plugin-versions.cjs`.
+- **Coexisting with `aqe init`:** a project that has both the plugin and `aqe init` runs two `agentic-qe` server processes, one under each name. Both work. To keep only one, disable the plugin in that project or remove `agentic-qe` from the project `.mcp.json`.
+- **Verification:** `bash plugins/agentic-qe-fleet/scripts/smoke.sh` is the contract.
+
+## Namespace coordination
+
+The fleet uses the AQE memory namespaces below. They are database identifiers, not filesystem paths, and other plugins MUST NOT shadow them.
+
+- `aqe/v3/domains/<domain>/*`: per-domain data, for example:
+  - `aqe/v3/domains/test-generation/patterns/`
+  - `aqe/v3/domains/coverage-analysis/metrics/`
+  - `aqe/v3/domains/test-execution/flaky/`
+  - `aqe/v3/domains/security-compliance/scans/`
+- `aqe/v3/queen/*`: fleet coordination (`aqe/v3/queen/fleet/`, `aqe/v3/queen/tasks/`).
+
+With `memory_backend=hybrid`, they persist to `.agentic-qe/memory.db` in the project. With `memory_backend=memory`, they last only for the server process.
 
 ## Test locally
 
@@ -52,17 +106,65 @@ The plugin auto-registers the `agentic-qe` MCP server (via `npx -y agentic-qe@la
 claude --plugin-dir ./plugins/agentic-qe-fleet
 ```
 
-Then invoke an agent or skill, for example:
+Then run, for example, `/aqe-fleet-status`.
 
-```
-/aqe-fleet-status
-```
-
-## Install from a marketplace
-
-Once published, users install with:
+## Verification
 
 ```bash
-/plugin marketplace add <org>/<repo>
-/plugin install agentic-qe-fleet
+claude plugin validate plugins/agentic-qe-fleet
+bash plugins/agentic-qe-fleet/scripts/smoke.sh     # or: npm run plugin:smoke
+# Expected: "PASS: agentic-qe-fleet contract holds"
+node scripts/sync-plugin-versions.cjs --check      # plugin versions == package.json
 ```
+
+## Architecture Decisions
+
+- [`ADR-0001` — agentic-qe-fleet plugin contract (bundled pinned MCP server, version tracking, tool naming, userConfig, smoke as contract)](./docs/adrs/0001-agentic-qe-fleet-contract.md)
+
+## As a mod (Claude Code >= 2.1.287)
+
+The plugin ships a hooks module, `aqe-mod` (`hooks/hooks.json` -> `hooks/register.ts`), which loads with the plugin by default.
+
+- **Learning-data guard (on by default).** It refuses Bash, Monitor, PowerShell, Write, Edit and NotebookEdit calls that would destroy AQE's learning data:
+  - `rm`, `mv`, `cp`/`install`/`ln` over, `truncate`, `shred`, `dd`, `tee`, `gzip`, `sed -i` or a `>` redirect on `.agentic-qe/*.db` (and `-wal`, `-shm`, `*.rvf`)
+  - `rm -rf .agentic-qe` (also as `.agentic*`), `find ... -delete/-exec` that can reach it, `git clean -x`
+  - `sqlite3` with `DROP`, `DELETE FROM`, `TRUNCATE`, `ALTER TABLE ... DROP` or `.restore` on a store, and `.backup`/`.save`/`.output`/`.once` onto one
+  - `node -e`, `python3 -c`, `perl`, `ruby` and similar scripts that name the data and delete, move or overwrite it
+  - PowerShell `Remove-Item`, `Move-Item`, `Set-Content`, `Out-File` and similar on those files
+  - Write/Edit on those files
+
+  The guard reads commands the way the shell does. It follows `bash -c`/`-lc`, `eval`, heredocs, pipes (`find ... | xargs rm`), `$(...)`, keywords (`then`, `do`, `!`, `coproc`), brace expansion (`memory.db{,-wal}`), ANSI-C quoting (`$'\x2eagentic-qe'`), variables, `cd .agentic-qe` and `git -C`. It also refuses `find` that deletes `.agentic-qe` by name or path (unless `-prune`d or negated), and a directory copy that lands in it (`cp -r backup/.agentic-qe ./`, `rsync -a backup/ .agentic-qe/`). SQL is checked only in a `sqlite3` command, and code only in an interpreter command, so `grep -rn "DROP TABLE" src` next to `ls .agentic-qe` passes.
+
+  These pass: reads and backups (`cp .agentic-qe/memory.db .agentic-qe/memory.db.bak-$(date +%s)`, `cp ... .agentic-qe/memory-backup-20261009.db`, `SELECT`, `PRAGMA integrity_check`, `.backup /tmp/x.db`, `sqlite3 -readonly`, `file:...?mode=ro`), copies *from* the store in scripts (`shutil.copy('.agentic-qe/memory.db', '/tmp/x.db')`: the destination decides), and `rm -rf .agentic-qe/tmp` or `rm .agentic-qe/*.log`. The guard only refuses and never loosens anything. Set the plugin option `guardMode` to `enforce` (default), `notify` or `off`.
+
+  **When it cannot tell, it refuses.** The guard does not run the shell, so anything it cannot resolve counts as possibly the store:
+  - An unset or unknown `$NAME`, `${...}` or `$@` in a path reads as `*` (`rm -f .agentic-qe/$DB_FILE` is refused). `${X:-word}` reads as `word` or `*`.
+  - A `$(...)` or backtick reads as what its command may print. Naming the store (`rm "$(printf .agentic-qe)/memory.db"`) yields those paths. Listing files that may include it (`$(find . -name '*.db')`, `$(ls -A)`, `$(git ls-files -o)`), or printing something the guard cannot know (`$(cat list)`, `$(... | base64 -d)`), yields the store itself. Only known-harmless output (`$(date +%s)`, `$(pwd)`, `$(find . -name '*.tmp')`, `$(which tool)`, `$(npm config get cache)`) reads as plain `*`. `$(git status ...)` and `$(< file)` may print the store. A find is judged on everything it prints, every `-o` branch included. The same holds for `DB=$(...)`, arrays (`arr=($(...))`, `arr+=("$f")`, `"${arr[@]}"`, slices `"${arr[@]:1}"`), `mapfile`/`readarray`, `for f in $(...)`, `... | xargs rm`, `echo "$dbs" | xargs rm`, here-strings (`xargs rm <<< "$dbs"`, `done <<< "$(find ...)"`) and `while read f; ... done < <(...)`. A prefix assignment is an environment binding the nested shell sees (`D=.agentic-qe bash -c 'rm -rf $D'`). An unknown prefix may be empty, so `"$X.agentic-qe"` and `$(true).agentic-qe` name the store. `bash -c` or `eval` of a script that is wholly an unknown expansion (`bash -c "$(... | base64 -d)"`, `eval "$CMD"`) is refused; `eval "$(ssh-agent -s)"` and similar shell-setup generators pass.
+  - A glob may match anything it could match: bracket expressions with POSIX classes (`[[:alpha:]]`) match any character, an extglob group (`@(qe)`) reads as `*`, and after `shopt`/`GLOBIGNORE` on the line, `*` also matches dot names.
+  - `find` that deletes from `.`, `..`, `~`, `$HOME` or any unresolved root is refused when it can reach a data file. An exclusion counts only in two forms, never with `-depth`: a branch that is exactly `-name .agentic-qe -prune` or `-path ./.agentic-qe[/*] -prune`, followed by `-o` and an `-exec` (never `-delete`: BSD find reads `-delete` as `-d`, which turns `-prune` off), or `-not -path './.agentic-qe/*'` as a condition of the deleting branch itself. A positive `-path` narrows only when it is literal: `-path '*proj*'` may match a store at any depth. Every `-exec` is read past wrappers (`-exec sudo rm`, `-exec git rm`). A shell's `-c` text is judged as if it ran on the store, a SQLite client on its SQL, and a copy only when the found file is its destination, so `-exec grep -l rm {} \;` and `-exec cp {} /tmp/backup/ \;` pass.
+  - Past its read limits, text that names `.agentic-qe` is refused: brace expansion beyond 256 results, words over 2 KiB, or braces nested over 32 deep (each brace group reads as `*`); 256 expansions of one word; `$(...)` or `bash -c` nested deeper than the guard follows; scripts with more string literals than it reads.
+
+  Decisions and limits:
+  - **Refused in enforce mode on purpose:** the CLAUDE.md restore flow (`cp memory.db.bak-X .agentic-qe/memory.db`, then removing `-wal`/`-shm`). To restore, ask the user to run it, or set `guardMode` to `notify` or `off` for that step.
+  - **Every `.agentic-qe` is protected, fixtures included:** `rm -rf /tmp/fixture/.agentic-qe` is refused in enforce mode. A hook cannot resolve globs (`/tmp/*/.agentic-qe`), `$`-expansions or symlinks (`/tmp/link` pointing at the project), so it cannot tell a throwaway fixture from a project that lives under a temp directory. To clean fixtures, set `guardMode` to `notify` or `off` for that step, or ask the user.
+  - **Size and nesting limits:** a shell command over 256 KiB is refused unread, and text nested more than 8 `$(...)` deep is refused when it names `.agentic-qe`. If the guard itself fails or runs out of time on a call, that call is refused (enforce mode).
+  - **SQL:** `DROP`, `DELETE FROM`, `TRUNCATE`, `ALTER ... DROP` and `UPDATE` (which can overwrite every row: `UPDATE ... SET content = NULL`) are refused against a store. `INSERT` passes. SQL the guard cannot read is refused too: `.read file`, `sqlite3 db < file.sql`, or a heredoc whose end is not in the command. `VACUUM INTO` a store, `sqlite-utils` commands that change a store, `litecli` without `-e`, and destructive SQL handed to any other client are refused. `sqlite3 -readonly` and `file:...?mode=ro` pass.
+  - **Backup names:** a file whose name contains `backup` or a `.bak`/`-bak` part (`memory-backup-1.db`, `memory.bak.db`) is a copy, not the store. Tools may write and remove it.
+  - **`git clean -x -e`:** an exclude passes only if it keeps every data file (`-e .agentic-qe`, or `-e '*.db*' -e '*.rvf'`). `-e '*.db'` alone still lets git delete `-wal`/`-shm`/`*.rvf`, so it is refused.
+  - **PowerShell:** a pipeline whose earlier stage names the store or lists recursively from where it may be (`gci .agentic-qe *.db | ri`, `Get-ChildItem -Recurse -Filter *.db | Remove-Item`) is refused at the destroying stage. `Invoke-Expression`/`iex`, `& { ... }` script blocks, `Start-Process ... -ArgumentList` (comma lists included), `pwsh -c`/`powershell -Command` (from either tool) and `wsl <cmd>` are read like the command they run, and `New-Item -Force` over a store is refused. Variables and splats are followed (`$p = '.agentic-qe'; Remove-Item $p`, `$a = @{Path='.agentic-qe'}; Remove-Item @a`, `foreach ($d in $dbs)`); an unknown `$var` reads as `*`, and `iex` or a .NET delete on one is refused. A `-Force`/`-Hidden` listing feeds a recursive Remove-Item, and any listing after `sl .agentic-qe` feeds a delete. `$x += ...` appends, a `(...)`/`@(...)`/`$(...)` argument is read as a stage of its own (`Remove-Item (gci -r -Filter *.db)`), `$db.Delete()`/`.MoveTo()` on a variable that holds the store is refused, and `-OutVariable` binds the stage's output. A `Where-Object` filter narrows what is fed on only when it is a pure conjunction (no `-or`, `-xor`, `-not`, `!`, `-ne`, `-notlike`, `-notmatch`) with a positive literal `-eq`/`-like` on Name or Extension that cannot match a store file (`Where-Object Extension -eq '.tmp'`, `{ $_.Extension -eq '.tmp' -and $_.Length -gt 0 }`).
+  - **What the guard cannot see:** a script file it is not shown (`python3 cleanup.py`, `make clean`, `npm run clean`), paths assembled at run time (`'.agentic' + '-qe'`), and symlinks pointing into `.agentic-qe`. `tar -x -C .agentic-qe` and `unzip -d .agentic-qe` are refused, but an archive extracted elsewhere that happens to contain `.agentic-qe` is not. It is a guard against mistakes, not a sandbox.
+- **`/aqe-mod`**: `status`, `check <command>` (a dry run of the guard's verdict), `fleet` (the learning-data files present and the AQE MCP tools connected), `gate`. Anything only the AQE MCP server knows is reported as unknown, never estimated. `status` prints a `this session:` line, an `all sessions:` line (with the time counting began) and the last refusal (when, which tool, blocked or flagged, and the guard's reason).
+- **Console status.** Writes `.claude-flow/aqe-mod/status.json` for the ruflo console's Mods section. When ruflo-mods is loaded, it also adds an `aqe` segment to ruflo's status bar. The file is `version: 1`:
+  - `modVersion` is the plugin version. `hooks/version.ts` is generated by `scripts/sync-plugin-versions.cjs` (the npm `version` hook), and `--check` fails if it drifts.
+  - `calls`, `blocked`, `flagged` and `startedMs` count this session only, as before.
+  - `totals: {calls, blocked, flagged, since}` count every session in the project. A new session loads them from the file it finds, and every write re-reads the file first, so sessions running side by side add to the totals instead of overwriting each other. If the file is missing or corrupt, the totals start from zero. Status-file I/O never blocks or allows a tool call. A file written by 3.15.1 or earlier has no `totals`, so its counters seed them.
+  - `lastRefusal: {atMs, tool, outcome, reason}` is the most recent refusal from any session. `outcome` is `blocked`, or `flagged` in notify mode. `reason` is the guard's reason with its fixed back-up advice dropped, control and bidi characters removed, and operands redacted, then cut to 200 characters. A path keeps only its `.agentic-qe/...` part, or becomes `<path>`. A backticked expression becomes `` `<expr>` ``. The verb stays, for example `` aqe-mod refused this: `rm` on .agentic-qe/memory.db. ``. The command itself is never stored.
+  - Read back from the file, a time later than now plus one day is dropped. So is a `lastRefusal` whose reason does not start with `aqe-mod refused this: `.
+  - `lastDenied` (the console's refusal class) is set once any session has refused something.
+  - The ruflo console reads the top-level fields. `totals` and `lastRefusal` are additive, and today's console ignores them.
+
+  - The mod never reads or writes the status file through a symbolic link. Before every read and write it checks `.claude-flow`, `.claude-flow/aqe-mod` and `status.json` with `$.fs.stat`. If any of them is a link, or is not a folder or a regular file where one is expected, it skips the file and leaves the link as it is. `/aqe-mod status` then says `status file: not written: ...`. `$.fs` has no write that refuses to follow a link and no rename, so a link swapped in between the check and the write is not caught.
+
+  To reset the totals, delete `status.json` between sessions.
+
+Tests: `claude plugin test plugins/agentic-qe-fleet` and `bash plugins/agentic-qe-fleet/scripts/smoke-mod.sh`.

@@ -19,6 +19,7 @@ import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../serv
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { readSaveResultsOption } from './save-results-option';
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
 import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
 
@@ -838,6 +839,9 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
     let routingResult: TaskRoutingResult | null = null;
 
     try {
+      // #925: per-call opt-out of result files, validated before any work.
+      const saveResults = readSaveResultsOption(params);
+
       // Step 2: Route task to optimal model tier (ADR-051).
       // Bounded by ROUTE_ADVISORY_TIMEOUT_MS — routing is an advisory hint and
       // must never block the tool; on timeout we proceed with null routing
@@ -852,6 +856,7 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
 
       // Step 3: Build payload and submit task
       const payload = mapToPayload(params, routingResult);
+      if (!saveResults) payload.saveResults = false;
       const timeout = calculateTimeout?.(params) ?? defaultTimeout;
 
       const submitResult = await queen!.submitTask({

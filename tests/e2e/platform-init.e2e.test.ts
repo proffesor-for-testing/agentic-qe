@@ -195,7 +195,7 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
     // Assert
     expect(result.success).toBe(true);
     expect(configureHooks).toHaveBeenCalled();
-    expect(configureMCP).toHaveBeenCalledWith(projectRoot);
+    expect(configureMCP).toHaveBeenCalledWith(projectRoot, { force: undefined });
     expect(generateCLAUDEmd).toHaveBeenCalled();
   });
 

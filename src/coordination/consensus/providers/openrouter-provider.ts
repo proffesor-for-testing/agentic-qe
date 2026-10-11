@@ -16,6 +16,7 @@ import {
 import { BaseModelProvider } from '../model-provider';
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { resolveModelPricing } from '../../../shared/llm/cost-tracker.js';
+import { fetchWithResponseDeadline } from '../../../shared/llm/providers/response-deadline.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -471,35 +472,27 @@ export class OpenRouterModelProvider extends BaseModelProvider {
     request: OpenRouterCompletionRequest,
     timeout: number
   ): Promise<OpenRouterCompletionResponse> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.config.apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': this.config.siteUrl || 'https://github.com/agentic-qe',
+      'X-Title': this.config.appName || 'Agentic QE',
+    };
 
-    try {
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${this.config.apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': this.config.siteUrl || 'https://github.com/agentic-qe',
-        'X-Title': this.config.appName || 'Agentic QE',
-      };
+    // One deadline covers headers and the whole body, error bodies included (issue #961).
+    const response = await fetchWithResponseDeadline(
+      'https://openrouter.ai/api/v1/chat/completions',
+      { method: 'POST', headers, body: JSON.stringify(request) },
+      timeout,
+      () => new Error(`OpenRouter request timed out after ${timeout}ms`),
+    );
 
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(request),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${errorBody}`);
-      }
-
-      return (await response.json()) as OpenRouterCompletionResponse;
-    } finally {
-      clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorBody}`);
     }
+
+    return (await response.json()) as OpenRouterCompletionResponse;
   }
 
   /**

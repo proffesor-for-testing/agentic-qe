@@ -16,6 +16,11 @@ import { existsSync, readFileSync } from 'fs';
 import { writeFileIfChanged } from '../idempotent-write.js';
 import { join } from 'path';
 import { safeJsonParse } from '../../shared/safe-json.js';
+import {
+  aqePluginMcpSkipMessage,
+  detectAqeFleetPlugin,
+  type PluginDetectionResult,
+} from '../claude-plugin-detection.js';
 
 import {
   BasePhase,
@@ -26,7 +31,12 @@ export interface MCPResult {
   configured: boolean;
   mcpPath: string;
   serverName: string;
+  /** Set when the entry was skipped because the agentic-qe-fleet plugin provides it (#922). */
+  skippedForPlugin?: string;
 }
+
+/** Plugin detector signature — injectable for tests. */
+export type FleetPluginDetector = (projectRoot: string) => PluginDetectionResult;
 
 /**
  * MCP phase - configures MCP server
@@ -37,6 +47,10 @@ export class MCPPhase extends BasePhase<MCPResult> {
   readonly order = 80;
   readonly critical = false;
   readonly requiresPhases = ['configuration', 'database'] as const;
+
+  constructor(private readonly detectPlugin: FleetPluginDetector = (root) => detectAqeFleetPlugin(root)) {
+    super();
+  }
 
   protected async run(context: InitContext): Promise<MCPResult> {
     const { projectRoot } = context;
@@ -56,6 +70,23 @@ export class MCPPhase extends BasePhase<MCPResult> {
         mcpPath: '',
         serverName: '',
       };
+    }
+
+    // #922: the agentic-qe-fleet Claude Code plugin bundles the AQE MCP
+    // server. Adding a project entry too registers AQE twice, so skip it
+    // unless --with-mcp forces it. An existing entry is left untouched (and
+    // reported as a duplicate, with how to remove it).
+    if (!context.options.withMcp) {
+      const plugin = this.detectPlugin(projectRoot);
+      if (plugin.enabled) {
+        context.services.log(aqePluginMcpSkipMessage(projectRoot));
+        return {
+          configured: false,
+          mcpPath: '',
+          serverName: '',
+          skippedForPlugin: plugin.pluginKey,
+        };
+      }
     }
 
     // AQE MCP server configuration

@@ -1,15 +1,21 @@
 name: Post-publish canary
 
-# Runs ~5 min after npm-publish.yml succeeds. Installs the freshly-published
+# Runs after a real npm-publish.yml publication. Installs the freshly-published
 # agentic-qe@VERSION from the public npm registry (NOT from the build
 # artifact) and runs the same init corpus gate against it. Catches the rare
 # case where what's on npm differs from what we tested in pre-publish-gate
-# (e.g. registry CDN delay, provenance attestation issue, missing dist file
-# in published package).
+# (e.g. provenance attestation issue, missing dist file in published package).
 #
-# If any fixture fails, this workflow opens a P0 issue and pings the release
-# author. It does NOT auto-unpublish — npm's unpublish window is fragile
-# and the safer human-in-the-loop is to read the P0 issue and decide.
+# Since 3.14.3 npm processes each publish asynchronously ("Your package is
+# being processed and may take a few minutes to become available"); until it
+# finishes the version is absent from the packument and npm reports ETARGET.
+# Measured delays reached 16 minutes, so scripts/probe-npm-tarball.sh first
+# waits (up to 25 minutes, with backoff) for the version to appear, then
+# downloads it. An availability timeout is reported distinctly in the issue.
+#
+# If verification fails, this workflow opens an issue naming the failed steps.
+# It does NOT auto-unpublish — npm's unpublish window is fragile
+# and the safer human-in-the-loop is to read the issue and decide.
 #
 # Issue #401: this is item 5 of the proposed release-process improvements.
 
@@ -22,7 +28,6 @@ on:
 permissions:
   contents: read
   issues: write
-  actions: read
 
 jobs:
   canary:
@@ -32,67 +37,94 @@ jobs:
     # runs (especially `dry_run=true` for debugging the publish pipeline)
     # also report `conclusion: success`, but they don't actually publish a
     # version. Without this filter the canary would `npm view` a non-existent
-    # version, time out polling for it, and open a P0 issue against every
-    # dry run the maintainer does. Caught by issue #401 devils-advocate
+    # version, time out polling for it, and open a failure issue against
+    # every dry run the maintainer does. Caught by issue #401 devils-advocate
     # review.
+    # The pinned SHA is only trusted for a release published from this repo.
+    # Never execute another repository's workflow_run code with issue access.
     if: >-
       ${{ github.event.workflow_run.conclusion == 'success'
-          && github.event.workflow_run.event == 'release' }}
+          && github.event.workflow_run.event == 'release'
+          && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Every step has its own timeout-minutes so a hung step fails (and the
+    # failure issue still opens) instead of the job being cancelled. Budget,
+    # sum of step caps in order (minutes):
+    #   checkout 2 + checkout_tools 1 + node 2 + version 1          =  6
+    #   probe 32 (script: 25 wait + 5 download + kill slack ~1)     = 32
+    #   upload_probe 2 + audit 5 + upload_audit 2                   =  9
+    #   corpus_cache 2 + corpus_setup 3 + init 12 + upload_canary 2 = 19
+    #   summary 1 + audit_issue 2 + failure issue 2                 =  5
+    #   total                                                         71
+    # 32 + 5 + 3 + 12 alone exceeds 50, so the job cap is 75 (>= 71 + 4 margin).
+    # Normal runs take ~10-25 min; the cap only matters when steps hang.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code (for the corpus scripts)
+        id: checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          # Later steps install third-party packages; keep the token out of .git/config.
+          persist-credentials: false
+        timeout-minutes: 2
+
+      # The probe comes from the same commit as this workflow file (the default
+      # branch), not from the release commit, so a new publish event whose
+      # release commit predates the probe still has it. This does NOT help
+      # GitHub's "Re-run jobs" on an old run: a re-run reuses the original
+      # workflow file, which predates this probe.
+      - name: Checkout probe script (workflow revision)
+        id: checkout_tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .canary-tools
+          sparse-checkout: scripts/probe-npm-tarball.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+        timeout-minutes: 1
 
       - name: Setup Node.js
+        id: node
         uses: actions/setup-node@v7
+        timeout-minutes: 2
         with:
           node-version: '24.13.0'
           cache: 'npm'
 
       - name: Read published version from package.json
         id: version
+        timeout-minutes: 1
         run: |
-          # The publish workflow runs from the same SHA as this workflow_run
-          # trigger, so package.json here is authoritative for the version
-          # that was just published.
+          # Checkout is pinned to the triggering publish SHA, so moving main
+          # cannot change the version or corpus used by this canary.
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           echo "version=${PACKAGE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "Published version: ${PACKAGE_VERSION}"
 
-      - name: Wait for npm CDN to actually serve the tarball
-        run: |
-          # We must verify the CDN has the tarball, not just that the
-          # registry API knows about the version. `npm view` hits the
-          # registry API, which can show a version up to 60 seconds
-          # before the CDN edge has the actual tarball — race window
-          # caught by issue #401 devils-advocate review.
-          #
-          # `npm install --dry-run` actually fetches metadata + tarball
-          # from the CDN edge the runner is colocated with, so a success
-          # here means a real `npm install` will work for the next 5
-          # minutes everywhere.
-          PACKAGE_VERSION="${{ steps.version.outputs.version }}"
-          DRY_DIR=$(mktemp -d)
-          pushd "${DRY_DIR}" >/dev/null
-          echo '{"name":"canary-probe","version":"0.0.0","private":true}' > package.json
+      - name: Wait for npm availability and fetch published tarball
+        id: probe
+        # Backstop only: the script's own deadlines (25 + 5 min, plus <= 5 s
+        # kill slack per phase) expire first.
+        timeout-minutes: 32
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          AQE_NPM_PROBE_LOG_DIR: ${{ github.workspace }}/probe-logs
+          AQE_NPM_WAIT_SECONDS: '1500'
+          NPM_CONFIG_REGISTRY: 'https://registry.npmjs.org/'
+        run: bash .canary-tools/scripts/probe-npm-tarball.sh
 
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if npm install --dry-run --no-audit --no-fund \
-                "agentic-qe@${PACKAGE_VERSION}" >/dev/null 2>&1; then
-              echo "agentic-qe@${PACKAGE_VERSION} is live on the npm CDN (attempt ${attempt})"
-              popd >/dev/null
-              rm -rf "${DRY_DIR}"
-              exit 0
-            fi
-            echo "agentic-qe@${PACKAGE_VERSION} not yet on CDN (attempt ${attempt}/10) — waiting 30s"
-            sleep 30
-          done
-          echo "ERROR: agentic-qe@${PACKAGE_VERSION} did not appear on npm CDN after 5 min" >&2
-          popd >/dev/null
-          rm -rf "${DRY_DIR}"
-          exit 1
+      - name: Upload npm probe diagnostics (always)
+        id: upload_probe
+        if: always()
+        timeout-minutes: 2
+        uses: actions/upload-artifact@v7
+        with:
+          name: canary-probe-${{ steps.version.outputs.version }}
+          path: probe-logs/
+          retention-days: 30
 
       # Consumer-side audit on the freshly-published tarball. This complements
       # the consumer-audit gate in npm-publish.yml: that one runs against the
@@ -104,13 +136,15 @@ jobs:
       - name: Consumer-side audit on published tarball
         id: audit
         continue-on-error: true
+        timeout-minutes: 5
         env:
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           AUDIT_DIR=$(mktemp -d)
           pushd "${AUDIT_DIR}" >/dev/null
           echo '{"name":"canary-audit","version":"0.0.0","private":true}' > package.json
-          npm install --no-audit --no-fund "agentic-qe@${PACKAGE_VERSION}" 2>&1 | tee install.log
+          # Audit only needs the resolved tree; never run dependency scripts here.
+          npm install --ignore-scripts --no-audit --no-fund "agentic-qe@${PACKAGE_VERSION}" 2>&1 | tee install.log
           # Capture the audit JSON for downstream issue-body construction.
           if npm audit --audit-level=high --json > audit.json 2>&1; then
             echo "audit_status=clean" >> "$GITHUB_OUTPUT"
@@ -124,7 +158,9 @@ jobs:
           popd >/dev/null
 
       - name: Upload audit artifacts
+        id: upload_audit
         if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: canary-audit-${{ steps.version.outputs.version }}
@@ -132,22 +168,30 @@ jobs:
           retention-days: 30
 
       - name: Cache corpus tarballs
+        id: corpus_cache
         uses: actions/cache@v6
+        timeout-minutes: 2
         with:
           path: tests/fixtures/init-corpus/.cache
           key: init-corpus-${{ hashFiles('tests/fixtures/init-corpus/MANIFEST.json') }}
 
       - name: Download + extract fixture corpus
+        id: corpus_setup
+        timeout-minutes: 3
         run: ./tests/fixtures/init-corpus/setup.sh
 
       - name: Run init gate against PUBLISHED npm version
+        id: init
+        timeout-minutes: 12
         env:
           AQE_FROM_NPM: '1'
           AQE_NPM_VERSION: ${{ steps.version.outputs.version }}
         run: ./tests/fixtures/init-corpus/run-gate.sh
 
       - name: Upload canary logs (always)
+        id: upload_canary
         if: always()
+        timeout-minutes: 2
         uses: actions/upload-artifact@v7
         with:
           name: canary-logs-${{ steps.version.outputs.version }}
@@ -155,49 +199,71 @@ jobs:
           retention-days: 30
 
       - name: Append canary summary
+        id: summary
         if: always()
+        timeout-minutes: 1
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+          PROBE_STAGE: ${{ steps.probe.outputs.stage }}
+          PROBE_WAIT_SECONDS: ${{ steps.probe.outputs.wait_seconds }}
+          AUDIT_OUTCOME: ${{ steps.audit.outcome }}
+          AUDIT_STATUS: ${{ steps.audit.outputs.audit_status }}
+          INIT_OUTCOME: ${{ steps.init.outcome }}
         run: |
-          echo "## Post-publish canary — agentic-qe@${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Consumer audit" >> $GITHUB_STEP_SUMMARY
-          AUDIT_STATUS="${{ steps.audit.outputs.audit_status }}"
-          if [ "${AUDIT_STATUS}" = "clean" ]; then
-            echo "0 high/critical CVEs in consumer install" >> $GITHUB_STEP_SUMMARY
-          elif [ "${AUDIT_STATUS}" = "vulnerable" ]; then
-            echo "**High/critical CVEs detected in consumer install.**" >> $GITHUB_STEP_SUMMARY
-            echo "Download the \`canary-audit-${{ steps.version.outputs.version }}\` artifact for the full \`audit.json\`." >> $GITHUB_STEP_SUMMARY
-            if [ -f audit-logs/audit.json ]; then
-              echo '```json' >> $GITHUB_STEP_SUMMARY
-              jq '.metadata.vulnerabilities // {}' audit-logs/audit.json >> $GITHUB_STEP_SUMMARY || true
-              echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Post-publish canary — agentic-qe@${PACKAGE_VERSION}"
+            echo ""
+            echo "### Availability wait + tarball fetch: ${PROBE_OUTCOME:-not run}"
+            echo "Probe stage: ${PROBE_STAGE:-unknown}; availability awaited ${PROBE_WAIT_SECONDS:-?}s"
+            if [ -f probe-logs/summary.txt ]; then
+              echo '```'
+              cat probe-logs/summary.txt
+              echo '```'
             fi
-          else
-            echo "audit step did not run (status: \`${AUDIT_STATUS:-missing}\`)" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Init corpus" >> $GITHUB_STEP_SUMMARY
-          if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat tests/fixtures/init-corpus/run-logs/summary.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          fi
+            echo ""
+            echo "### Consumer audit: ${AUDIT_OUTCOME:-not run}"
+            if [ "${AUDIT_STATUS}" = "clean" ]; then
+              echo "0 high/critical CVEs in consumer install"
+            elif [ "${AUDIT_STATUS}" = "vulnerable" ]; then
+              echo "**High/critical CVEs detected in consumer install.**"
+              echo "Download the \`canary-audit-${PACKAGE_VERSION}\` artifact for the full \`audit.json\`."
+              if [ -f audit-logs/audit.json ]; then
+                echo '```json'
+                jq '.metadata.vulnerabilities // {}' audit-logs/audit.json || true
+                echo '```'
+              fi
+            else
+              echo "Audit result unavailable (step: ${AUDIT_OUTCOME:-not run})."
+            fi
+            echo ""
+            echo "### Init corpus: ${INIT_OUTCOME:-not run}"
+            if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
+              echo '```'
+              cat tests/fixtures/init-corpus/run-logs/summary.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open P1 issue on consumer-audit findings
+        id: audit_issue
         if: steps.audit.outputs.audit_status == 'vulnerable'
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          INIT_OUTCOME: ${{ steps.init.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           SUMMARY="(audit.json not produced)"
           if [ -f audit-logs/audit.json ]; then
             SUMMARY=$(jq '.metadata.vulnerabilities // {}' audit-logs/audit.json 2>/dev/null || echo "(unparseable)")
           fi
-          cat > /tmp/audit-body.md <<EOF
+          BODY_FILE="${RUNNER_TEMP}/audit-body.md"
+          cat > "$BODY_FILE" <<EOF
           ## Consumer-side audit findings
 
-          \`agentic-qe@${PACKAGE_VERSION}\` shipped successfully (init corpus
-          passed), but a fresh \`npm install agentic-qe@${PACKAGE_VERSION}\`
+          A fresh \`npm install agentic-qe@${PACKAGE_VERSION}\`
           into a clean project reports high/critical advisories that our own
           in-repo \`npm audit\` does not see — typically because the
           top-level \`overrides\` block in our package.json masks them when
@@ -229,21 +295,46 @@ jobs:
 
           This issue was opened automatically by
           \`.github/workflows/post-publish-canary.yml\`.
+          Init corpus outcome: \`${INIT_OUTCOME:-not run}\`.
           EOF
+          # No labels: none of P1/release/canary/security exist in this repo, and
+          # gh fails the whole create on an unknown label. Severity is in the title.
           gh issue create \
-            --title "[P1] Consumer-side CVEs in agentic-qe@${PACKAGE_VERSION}" \
-            --label "P1,release,canary,security" \
-            --body-file /tmp/audit-body.md
+            --title "[P1][security] Consumer-side high/critical CVEs in agentic-qe@${PACKAGE_VERSION}" \
+            --body-file "$BODY_FILE"
 
-      - name: Open P0 issue on canary failure
+      - name: Open issue on canary failure
         if: failure()
+        timeout-minutes: 2
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STEP_OUTCOMES: ${{ toJSON(steps) }}
+          PROBE_STAGE: ${{ steps.probe.outputs.stage }}
+          PROBE_WAIT_SECONDS: ${{ steps.probe.outputs.wait_seconds }}
+          PROBE_WAIT_LIMIT_SECONDS: ${{ steps.probe.outputs.wait_limit_seconds }}
         run: |
-          PACKAGE_VERSION="${{ steps.version.outputs.version }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          SUMMARY="(no summary file produced)"
+          # Use conclusion, not outcome: the continue-on-error audit step has
+          # outcome "failure" but conclusion "success" and did not fail the job.
+          FAILED_STEPS=$(jq -r '[to_entries[] | select(.value.conclusion == "failure") | .key] | join(", ")' <<< "$STEP_OUTCOMES")
+          FAILED_STAGE=$(jq -r '[to_entries[] | select(.value.conclusion == "failure") | .key][0] // "unknown"' <<< "$STEP_OUTCOMES")
+          OUTCOMES=$(jq -r 'to_entries[] | "| \(.key) | \(.value.outcome) | \(.value.conclusion) |"' <<< "$STEP_OUTCOMES")
+          # Step outputs are untrusted strings here; only digits reach arithmetic.
+          WAITED="unknown"
+          if [[ "${PROBE_WAIT_SECONDS:-}" =~ ^[0-9]+$ ]]; then WAITED="${PROBE_WAIT_SECONDS}s"; fi
+          LIMIT_MIN="?"
+          if [[ "${PROBE_WAIT_LIMIT_SECONDS:-}" =~ ^[0-9]+$ ]]; then LIMIT_MIN=$(( PROBE_WAIT_LIMIT_SECONDS / 60 )); fi
+          if [ "$PROBE_STAGE" = "availability" ]; then
+            HEADLINE="npm did not make v${PACKAGE_VERSION} available within ${LIMIT_MIN} min (waited ${WAITED}). The publish may still be processing; this is not evidence of a broken package."
+          elif [ "$PROBE_STAGE" = "setup" ]; then
+            HEADLINE="The canary runner's npm was unusable before any registry check (probe stage: setup)."
+          elif [ "$FAILED_STAGE" = "probe" ] && [ "$PROBE_STAGE" = "pack" ]; then
+            HEADLINE="npm listed v${PACKAGE_VERSION} after ${WAITED}, but downloading the tarball failed."
+          else
+            HEADLINE="Failed stage: ${FAILED_STAGE} (availability awaited ${WAITED})."
+          fi
+          SUMMARY="(init corpus produced no summary)"
           if [ -f tests/fixtures/init-corpus/run-logs/summary.txt ]; then
             SUMMARY=$(cat tests/fixtures/init-corpus/run-logs/summary.txt)
           fi
@@ -253,14 +344,20 @@ jobs:
           # breaks the `run: |` literal block scalar — every body line
           # would need to be indented inside the YAML, which is fragile.
           # Heredoc-into-tmpfile + --body-file is the robust pattern.
-          cat > /tmp/canary-body.md <<EOF
-          ## Canary failure
+          BODY_FILE="${RUNNER_TEMP}/canary-body.md"
+          cat > "$BODY_FILE" <<EOF
+          ## Post-publish verification failure
 
-          \`agentic-qe@${PACKAGE_VERSION}\` was published to npm but the init
-          corpus gate failed when running against the freshly-published
-          package. This is a real-user-facing issue: anyone who runs
-          \`npm install agentic-qe@${PACKAGE_VERSION}\` and then
-          \`aqe init --auto\` may hit the same failure.
+          Package: \`agentic-qe@${PACKAGE_VERSION:-unknown}\`.
+          Failed steps: ${FAILED_STEPS:-job setup or an untracked step}
+          Failed stage: ${FAILED_STAGE}
+          Probe stage: ${PROBE_STAGE:-not reported}; availability awaited: ${WAITED}
+
+          **${HEADLINE}**
+
+          | Step | Outcome | Conclusion |
+          | --- | --- | --- |
+          ${OUTCOMES}
 
           ### Per-fixture summary
 
@@ -270,25 +367,27 @@ jobs:
 
           ### Logs
 
-          [Workflow run](${RUN_URL}) — see the
-          \`canary-logs-${PACKAGE_VERSION}\` artifact for full per-fixture
-          init logs.
+          [Workflow run](${RUN_URL}). The \`canary-probe-${PACKAGE_VERSION}\`
+          artifact retains every timestamped availability poll, each fetch
+          attempt's stdout, stderr, exit code, and npm debug logs. Consumer audit and init diagnostics are in
+          \`canary-audit-${PACKAGE_VERSION}\` and \`canary-logs-${PACKAGE_VERSION}\`
+          when those steps ran.
 
           ### Recommended next steps
 
-          1. Read the per-fixture logs in the workflow artifact to identify which fixture(s) failed and where.
-          2. Reproduce locally:
+          1. Read the failed step and its retained diagnostics before attributing a cause.
+          2. For an availability or fetch failure, re-check with a longer deadline (up to 45 min):
+             \`AQE_NPM_WAIT_SECONDS=2700 PACKAGE_VERSION=${PACKAGE_VERSION} bash scripts/probe-npm-tarball.sh\`.
+          3. For an init failure, reproduce locally:
              \`\`\`
              ./tests/fixtures/init-corpus/setup.sh
              AQE_FROM_NPM=1 AQE_NPM_VERSION=${PACKAGE_VERSION} ./tests/fixtures/init-corpus/run-gate.sh
              \`\`\`
-          3. Decide whether to ship a hotfix release (preferred) or unpublish (only available within 72h of publish, and only if no downstream depends on this version yet).
-          4. Open a tracking issue if the failure mode is novel (i.e. not already covered by a regression in MANIFEST.json).
+          4. Decide on remediation based on the failed stage and evidence.
 
           This issue was opened automatically by \`.github/workflows/post-publish-canary.yml\`. See [#401](https://github.com/proffesor-for-testing/agentic-qe/issues/401) for the canary's history.
           EOF
 
           gh issue create \
-            --title "[P0] Post-publish canary failed for agentic-qe@${PACKAGE_VERSION}" \
-            --label "P0,release,canary" \
-            --body-file /tmp/canary-body.md
+            --title "[Canary] Post-publish verification failed for agentic-qe@${PACKAGE_VERSION:-unknown}" \
+            --body-file "$BODY_FILE"

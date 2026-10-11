@@ -7,6 +7,7 @@ allowed-tools:
   - Bash
   - Grep
   - Glob
+  - mcp__plugin_agentic-qe-fleet_agentic-qe__test_execute_parallel
   - mcp__agentic-qe__test_execute_parallel
 validation:
   schema_path: schemas/output.json

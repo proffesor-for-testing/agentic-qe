@@ -7,7 +7,9 @@ allowed-tools:
   - Bash
   - Grep
   - Glob
+  - mcp__plugin_agentic-qe-fleet_agentic-qe__coverage_analyze_sublinear
   - mcp__agentic-qe__coverage_analyze_sublinear
+  - mcp__plugin_agentic-qe-fleet_agentic-qe__qe_coverage_gaps
   - mcp__agentic-qe__qe_coverage_gaps
 validation:
   schema_path: schemas/output.json

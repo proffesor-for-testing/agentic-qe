@@ -1,6 +1,6 @@
 {
   "name": "agentic-qe",
-  "version": "3.14.8",
+  "version": "3.15.2",
   "description": "Agentic Quality Engineering V3 - Domain-Driven Design Architecture with 13 Bounded Contexts, O(log n) coverage analysis, ReasoningBank learning, 60 specialized QE agents, mathematical Coherence verification, deep Claude Flow integration",
   "type": "module",
   "main": "./dist/index.js",
@@ -120,6 +120,8 @@
     "benchmark:self-learning": "tsx scripts/benchmark-self-learning.ts",
     "benchmark:rabitq": "tsx scripts/benchmark-rabitq.ts",
     "plugin:smoke": "bash plugins/agentic-qe-fleet/scripts/smoke.sh",
+    "plugin:sync-version": "node scripts/sync-plugin-versions.cjs",
+    "version": "node scripts/sync-plugin-versions.cjs",
     "pretrain:history": "tsx scripts/pretrain-from-history.ts",
     "dev": "node dist/cli/bundle.js",
     "start": "node dist/cli/bundle.js",

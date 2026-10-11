@@ -9,6 +9,7 @@ allowed-tools:
   - Bash
   - Grep
   - Glob
+  - mcp__plugin_agentic-qe-fleet_agentic-qe__test_generate_enhanced
   - mcp__agentic-qe__test_generate_enhanced
 validation:
   schema_path: schemas/output.json

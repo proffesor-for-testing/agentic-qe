@@ -133,3 +133,53 @@ describe('#787 CLI behavior examples', () => {
     }
   });
 });
+
+describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
+  it('generates without writing test files, and writes them by default', async () => {
+    const { mkdtempSync, writeFileSync, readdirSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-925-'));
+    const source = join(directory, 'add.js');
+    const fixtures = join(directory, 'examples.json');
+    writeFileSync(source, 'export function add(a,b) { return a+b; }');
+    writeFileSync(fixtures, JSON.stringify([{ functionName: 'add', args: [2,3], expected: 5 }]));
+    const memory = { set: vi.fn(), search: vi.fn(async () => []), vectorSearch: vi.fn(async () => []), get: vi.fn() };
+    const generator = createTestGeneratorService(memory as never);
+    const context = { kernel: { getDomainAPIAsync: vi.fn(async () => generator), memory } } as unknown as CLIContext;
+    const exit = vi.fn() as unknown as (code: number) => Promise<never>;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const args = ['generate', source, '--behavior-examples', fixtures, '--framework', 'node-test'];
+    try {
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync([...args, '--no-save'], { from: 'user' });
+      expect(readdirSync(directory).sort()).toEqual(['add.js', 'examples.json']);
+      const noSaveOutput = log.mock.calls.flat().join(' ');
+      expect(noSaveOutput).toContain('not written, --no-save');
+      expect(noSaveOutput).toContain('no generated test files were written');
+      // The generated code is the only output, so it must reach stdout
+      // (compared verbatim against the JSON run below).
+      expect(noSaveOutput).toContain("import assert from 'node:assert/strict'");
+      expect(noSaveOutput).not.toContain('Test File:');
+
+      // An explicit --output is a separate request and is still honored.
+      const report = join(directory, 'report.json');
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(
+        [...args, '--no-save', '--format', 'json', '--output', report], { from: 'user' });
+      expect(readdirSync(directory).sort()).toEqual(['add.js', 'examples.json', 'report.json']);
+      const { readFileSync } = await import('node:fs');
+      const generatedCode: string = JSON.parse(readFileSync(report, 'utf8')).tests[0].testCode;
+      expect(generatedCode.length).toBeGreaterThan(0);
+      expect(noSaveOutput).toContain(generatedCode);
+      rmSync(report);
+
+      log.mockClear();
+      await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(args, { from: 'user' });
+      expect(readdirSync(directory).length).toBeGreaterThan(2);
+      expect(log.mock.calls.flat().join(' ')).toContain('Written to:');
+      expect(exit).not.toHaveBeenCalledWith(1);
+    } finally {
+      log.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});

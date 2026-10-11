@@ -231,6 +231,11 @@ export interface TestGenerateParams {
   behaviorExamples?: import('../domains/test-generation/interfaces').BehaviorExample[];
   aiEnhancement?: boolean;
   detectAntiPatterns?: boolean;
+  /**
+   * #925: write a manifest and report under .agentic-qe/results/tests/
+   * (default true). false generates without writing any result files.
+   */
+  saveResults?: boolean;
 }
 
 /**
@@ -575,6 +580,10 @@ export interface TestGenerateResult {
   antiPatternsDetected?: number;
   suggestions?: string[];
   savedFiles?: string[];
+  /** #925: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #925: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
   patternsUsed?: string[];
   /**
    * #567: true when the ADR-051 LLM branch actually ran. When false the tests

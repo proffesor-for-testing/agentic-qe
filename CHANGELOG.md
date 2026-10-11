@@ -5,6 +5,238 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.2] - 2026-10-10
+
+This hardening patch fixes problems found by installing the
+`agentic-qe-fleet` plugin from the marketplace into a fresh project and
+using it end to end.
+
+### Fixed
+
+- **No duplicate AQE MCP server.** When the `agentic-qe-fleet` plugin is
+  enabled, `aqe init` no longer also adds its own `agentic-qe` server to the
+  project's `.mcp.json`, so AQE is registered only once. If your project
+  already has that entry, init keeps it and tells you how to remove it. Use
+  `aqe init --with-mcp` to add the project entry anyway ([#922]).
+- **`aqe init --no-mcp` and `--no-governance` now work.** Both flags were
+  ignored before: init still wrote the MCP entry and the governance files.
+  Combining `--no-mcp` with `--with-mcp` now stops with a clear error
+  ([#931], [#935]).
+- **aqe-mod reports its real version.** The status file and the ruflo
+  console now show the plugin version instead of `0.1.0` ([#923]).
+- **aqe-mod remembers past refusals.** `/aqe-mod status` now shows totals
+  across sessions and the most recent refusal, not just the current
+  session's counts. The command text is never stored ([#924]).
+- **aqe-mod status file handling is hardened.** The mod no longer follows
+  symbolic links when reading or writing its status file, and it validates
+  what it reads back ([#930]).
+- **Test generation can skip saving results.** `test_generate_enhanced` (and
+  the other MCP tools that save results) accept `saveResults: false` to skip
+  writing reports under `.agentic-qe/results/`. The tool description now says
+  results are saved by default. `aqe test generate --no-save` prints the
+  generated tests instead of writing files ([#925]).
+- **No broken `ruflo` plugin entry in this repository.** The vendored `ruflo`
+  skill is now just its `SKILL.md`, so Claude Code no longer lists a broken
+  skills-directory plugin when you work in this repo ([#926]).
+
+[#922]: https://github.com/proffesor-for-testing/agentic-qe/issues/922
+[#923]: https://github.com/proffesor-for-testing/agentic-qe/issues/923
+[#924]: https://github.com/proffesor-for-testing/agentic-qe/issues/924
+[#925]: https://github.com/proffesor-for-testing/agentic-qe/issues/925
+[#926]: https://github.com/proffesor-for-testing/agentic-qe/issues/926
+[#930]: https://github.com/proffesor-for-testing/agentic-qe/pull/930
+[#931]: https://github.com/proffesor-for-testing/agentic-qe/issues/931
+[#935]: https://github.com/proffesor-for-testing/agentic-qe/issues/935
+
+## [3.15.1] - 2026-10-10
+
+This patch hardens the aqe-mod guard that ships with the `agentic-qe-fleet`
+plugin. After 3.15.0, adversarial reviews found many ordinary shell and
+PowerShell commands that the guard let through, and that would delete or
+overwrite your AQE learning data. The guard now refuses whenever it cannot
+prove the learning store is untouched, and everyday dev commands still pass.
+
+### Fixed
+
+- **The aqe-mod guard protects your learning data much more reliably.** It
+  now refuses commands that reach `.agentic-qe/*.db` indirectly, including:
+  - `rm` fed by `$(find …)`, `$(ls -A …)`, `$(git status …)`, variables,
+    arrays, `mapfile`, `while read` loops, here-strings or `xargs`;
+  - `find … -delete` and `find -exec`, unless an exclusion really protects
+    the store;
+  - `bash -c`/`sh -c`, `eval` and interpreter one-liners (Node, Python, Perl,
+    Ruby and others) that delete or overwrite the store;
+  - destructive SQL against the store (`DROP`, `DELETE`, `TRUNCATE`,
+    `UPDATE`, `ALTER … DROP`), SQL it cannot read, and other SQLite clients;
+  - PowerShell pipelines, variables, splatting, `foreach`, `.Delete()`,
+    `Invoke-Expression`, `Start-Process` and `pwsh -c`;
+  - more delete tools: `rimraf`, `shx rm`, `trash`, `sponge`,
+    `awk -i inplace`, and archives extracted into `.agentic-qe` ([#920]).
+- **Everyday commands keep working.** For example, these pass:
+  - `rm -rf dist build`, `rm -rf "$OUT_DIR"`, `rm -rf "$(mktemp -d)"` and
+    `rm -rf "$(npm config get cache)"`;
+  - `git clean -fdx dist/`, `npm ci`, `aqe init --auto`, `sqlite3 -readonly`
+    and `find . -name '*.tmp' -delete`;
+  - `Get-ChildItem -Recurse | Where-Object Extension -eq '.tmp' | Remove-Item`,
+    and backups made with `cp` ([#920]).
+- **The guard can't be made to hang.** Pathological inputs, such as huge
+  brace or variable expansions, many globs or very long pipelines, are judged
+  quickly or refused. Realistic commands take under 5 ms to judge ([#920]).
+
+### Known limitations
+
+- The guard reads commands as text, so it cannot catch everything.
+  Obfuscated or computed commands, shell functions, aliases and `make`/`npm run`
+  scripts are not judged. These are tracked in [#917].
+
+[#917]: https://github.com/proffesor-for-testing/agentic-qe/issues/917
+[#920]: https://github.com/proffesor-for-testing/agentic-qe/pull/920
+
+## [3.15.0] - 2026-10-09
+
+This release makes the `agentic-qe-fleet` Claude Code plugin ready for the
+ruflo marketplace and console. Installing the plugin now connects the AQE MCP
+server. The plugin also ships a mod that shows AQE's status in the ruflo
+console and refuses commands that would destroy your learning data. The
+release also bundles about forty reliability fixes: test counting, workflow
+schedules, LLM providers, caches, rate limiting, git analysis and planning.
+
+### Added
+
+- **aqe-mod for Claude Code 2.1.287 and later.** The fleet plugin now includes
+  a function-hook mod that:
+  - writes `.claude-flow/aqe-mod/status.json`, so AQE appears in the ruflo
+    console's Mods section;
+  - adds an `/aqe-mod` command (`status`, `check <cmd>`, `fleet`, `gate`);
+  - turns on, by default, a guard that refuses to delete, overwrite, move or
+    `DROP`/`DELETE`/`TRUNCATE` the learning databases in `.agentic-qe/`.
+    Backups, `SELECT` and `PRAGMA integrity_check` still work. The guard mode
+    is `enforce`, `notify` or `off` ([#916]).
+- **Plugin settings.** The plugin can now be configured with the LLM provider,
+  budget cap, memory backend and guard mode ([#916]).
+
+### Fixed
+
+**Plugin**
+
+- Installing `agentic-qe-fleet` from the marketplace now registers the AQE MCP
+  server. Before, the skills and agents were installed without the tools they
+  call ([#916]).
+- The plugin's MCP server is pinned to the matching `agentic-qe` release
+  instead of `@latest`, and `npm version` keeps the plugin versions in step
+  ([#916]).
+- The repository's plugin manifest now passes `claude plugin validate`
+  ([#916]).
+
+**Workflows and planning**
+
+- Workflow schedules honour all five cron fields. Steps, lists, ranges,
+  weekdays and months work, and `daily`/`weekly`/`hourly`/`minutely` resolve
+  correctly. Invalid expressions are rejected instead of becoming "every day"
+  ([#903]).
+- GOAP duration limits use the plan's total estimated time ([#895]). Malformed
+  saved plans no longer break plan listings ([#896]). Unknown status filters
+  are rejected ([#894]).
+- A/B benchmark promotion requires significant evidence over the runner-up
+  ([#901]).
+
+**Test execution and metrics**
+
+- Vitest phase runs use the supported `--maxWorkers` flag ([#898]) and read
+  current coverage from the JSON report ([#899]).
+- Cargo tests are listed correctly ([#893]). Python async tests are counted
+  once ([#892]). pytest and Go test categories no longer overlap ([#891]).
+- Retrying a test whose name contains regex characters runs exactly that test
+  ([#886]).
+- Cyclomatic complexity counts `else if` once ([#880]), and process CPU usage
+  is measured against the right baseline ([#883]).
+- The session journal keeps accepted entries when a disk write fails ([#900]).
+
+**LLM providers, embeddings and caches**
+
+- Gemini prompts blocked by its safety filter are reported as filtered
+  instead of as a network error ([#887]). SSE streams with `data:` and no
+  space are parsed ([#884]).
+- Cached LLM responses are kept separate by stop sequences, effort and
+  preferred provider ([#879]). Empty cache keys are evicted correctly
+  ([#867]). Costs are totalled for every registered provider type ([#878]).
+- Ollama readiness requires the exact configured model ([#881]). Fallback
+  vectors are never served as real embeddings ([#882]). Model and content can
+  no longer collide in embedding cache keys ([#863]).
+
+**Network, git and protocol layers**
+
+- The HTTP client classifies native fetch errors correctly ([#876]) and lets
+  only one probe through while a circuit recovers ([#877]).
+- Git analysis keeps filenames that contain brackets, spaces or Unicode
+  ([#873]), and uses the exact change-detection cutoff time ([#875]).
+- MCP rate limits:
+  - endpoint patterns with the `g`/`y` flags no longer skip limits ([#859]);
+  - invalid token costs are rejected ([#860]);
+  - resetting a client clears all of its buckets ([#861]).
+- AG-UI state deltas:
+  - nested fields are part of the cache identity ([#857]);
+  - JSON Pointers are decoded and array indices validated ([#862], [#869]);
+  - cached patches can't be changed by callers ([#864]);
+  - capacity is validated ([#868]);
+  - refreshing an entry keeps unrelated ones ([#870]).
+- A2A queued deliveries survive replacement at capacity ([#865]). Caller-input
+  errors are no longer retried ([#866]). File depth limits are measured from
+  the checkout root ([#856]).
+
+### Changed
+
+- **Breaking for `agentic-qe/governance` users:** `WinnerResult.confidence` is
+  renamed to `heuristicScore` ([#901]).
+- `aqe workflow schedule` exits with an error for an invalid cron expression
+  ([#903]).
+- A blocked Gemini prompt no longer fails over to another provider. See
+  [#912] for whether such responses should be cached.
+- Onboarding docs and the quality-evidence presentation were redesigned
+  ([#904]).
+
+[#856]: https://github.com/proffesor-for-testing/agentic-qe/pull/856
+[#857]: https://github.com/proffesor-for-testing/agentic-qe/pull/857
+[#859]: https://github.com/proffesor-for-testing/agentic-qe/pull/859
+[#860]: https://github.com/proffesor-for-testing/agentic-qe/pull/860
+[#861]: https://github.com/proffesor-for-testing/agentic-qe/pull/861
+[#862]: https://github.com/proffesor-for-testing/agentic-qe/pull/862
+[#863]: https://github.com/proffesor-for-testing/agentic-qe/pull/863
+[#864]: https://github.com/proffesor-for-testing/agentic-qe/pull/864
+[#865]: https://github.com/proffesor-for-testing/agentic-qe/pull/865
+[#866]: https://github.com/proffesor-for-testing/agentic-qe/pull/866
+[#867]: https://github.com/proffesor-for-testing/agentic-qe/pull/867
+[#868]: https://github.com/proffesor-for-testing/agentic-qe/pull/868
+[#869]: https://github.com/proffesor-for-testing/agentic-qe/pull/869
+[#870]: https://github.com/proffesor-for-testing/agentic-qe/pull/870
+[#873]: https://github.com/proffesor-for-testing/agentic-qe/pull/873
+[#875]: https://github.com/proffesor-for-testing/agentic-qe/pull/875
+[#876]: https://github.com/proffesor-for-testing/agentic-qe/pull/876
+[#877]: https://github.com/proffesor-for-testing/agentic-qe/pull/877
+[#878]: https://github.com/proffesor-for-testing/agentic-qe/pull/878
+[#879]: https://github.com/proffesor-for-testing/agentic-qe/pull/879
+[#880]: https://github.com/proffesor-for-testing/agentic-qe/pull/880
+[#881]: https://github.com/proffesor-for-testing/agentic-qe/pull/881
+[#882]: https://github.com/proffesor-for-testing/agentic-qe/pull/882
+[#883]: https://github.com/proffesor-for-testing/agentic-qe/pull/883
+[#884]: https://github.com/proffesor-for-testing/agentic-qe/pull/884
+[#886]: https://github.com/proffesor-for-testing/agentic-qe/pull/886
+[#887]: https://github.com/proffesor-for-testing/agentic-qe/pull/887
+[#891]: https://github.com/proffesor-for-testing/agentic-qe/pull/891
+[#892]: https://github.com/proffesor-for-testing/agentic-qe/pull/892
+[#893]: https://github.com/proffesor-for-testing/agentic-qe/pull/893
+[#894]: https://github.com/proffesor-for-testing/agentic-qe/pull/894
+[#895]: https://github.com/proffesor-for-testing/agentic-qe/pull/895
+[#896]: https://github.com/proffesor-for-testing/agentic-qe/pull/896
+[#898]: https://github.com/proffesor-for-testing/agentic-qe/pull/898
+[#899]: https://github.com/proffesor-for-testing/agentic-qe/pull/899
+[#900]: https://github.com/proffesor-for-testing/agentic-qe/pull/900
+[#901]: https://github.com/proffesor-for-testing/agentic-qe/pull/901
+[#903]: https://github.com/proffesor-for-testing/agentic-qe/pull/903
+[#904]: https://github.com/proffesor-for-testing/agentic-qe/pull/904
+[#912]: https://github.com/proffesor-for-testing/agentic-qe/issues/912
+[#916]: https://github.com/proffesor-for-testing/agentic-qe/pull/916
+
 ## [3.14.8] - 2026-10-04
 
 This patch removes a high-severity dependency advisory from the installed

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync, realpathSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { createRequire } from 'node:module';
@@ -155,4 +155,51 @@ describe.skipIf(process.platform === 'win32')('native Vitest collection recovery
     expect(metrics.total).toBe(2);
   }, 10000);
 
+});
+
+
+describe.skipIf(process.platform === 'win32')('native listing resource ownership', () => {
+  it('uses static discovery for large suites without importing modules', async () => {
+    const cases = Array.from({ length: 1001 }, (_, i) => `it('case ${i}', () => { throw new Error('must not execute'); });`).join('\n');
+    const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs'; writeFileSync('imported', 'bad');\n${cases}`);
+    const metrics = await countTests(root);
+    expect(metrics).toMatchObject({ source: 'vitest', total: 1001 });
+    expect(existsSync(join(root, 'imported'))).toBe(false);
+  }, 15000);
+
+  it('terminates timed-out collection descendants and leaves no listing directory', async () => {
+    const root = fixture(`import { it } from 'vitest'; import { writeFileSync } from 'node:fs';
+      writeFileSync('collector.pid', String(process.pid));
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3500);
+      writeFileSync('late-import-effect', 'bad');
+      it('first static case', () => { throw new Error('must not execute'); });
+      it('second static case', () => { throw new Error('must not execute'); });`, true);
+    process.env.TMPDIR = join(root, 'tmp');
+    const metrics = await countTests(root, { timeout: 1500 });
+    expect(metrics).toMatchObject({ source: 'vitest', total: 2 });
+    expect(existsSync(join(root, 'collector.pid'))).toBe(true);
+    const pid = Number(readFileSync(join(root, 'collector.pid'), 'utf8'));
+    try {
+      const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
+      await new Promise(resolve => setTimeout(resolve, 100));
+      expect(alive()).toBe(false);
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      expect(existsSync(join(root, 'late-import-effect'))).toBe(false);
+      expect(readdirSync(join(root, 'tmp')).filter(name => name.startsWith('aqe-vitest-list-'))).toEqual([]);
+    } finally {
+      try { process.kill(pid, 'SIGKILL'); } catch { /* original-source control cleanup */ }
+    }
+  }, 15000);
+
+  it('gives static and collection attempts distinct JSON output paths', async () => {
+    const root = fixture(`import { it } from 'vitest'; throw new Error('import refused'); it('static case', () => {});`, true);
+    const shim = join(root, 'bin', 'npx');
+    const existing = readFileSync(shim, 'utf8');
+    writeFileSync(shim, existing.replace('shift\n', `shift\nprintf '%s\n' "$@" >> '${join(root, 'attempt-args')}'\n`), { mode: 0o755 });
+    const metrics = await countTests(root);
+    expect(metrics).toMatchObject({ source: 'vitest', total: 1 });
+    const outputs = readFileSync(join(root, 'attempt-args'), 'utf8').split('\n').filter(line => line.startsWith('--json='));
+    expect(outputs).toHaveLength(2);
+    expect(new Set(outputs).size).toBe(2);
+  }, 10000);
 });

@@ -137,6 +137,10 @@ export interface InitOrchestratorOptions {
   wizardAnswers?: Record<string, unknown>;
   /** Install n8n workflow testing agents and skills */
   withN8n?: boolean;
+  /** Write the .mcp.json entry even when the agentic-qe-fleet plugin is enabled (#922) */
+  withMcp?: boolean;
+  /** Skip the .mcp.json entry entirely (--no-mcp, #931) */
+  noMcp?: boolean;
   /** N8n API configuration */
   n8nApiConfig?: {
     baseUrl?: string;
@@ -213,7 +217,8 @@ export class InitOrchestrator {
 
       // Step 6: Configure MCP server
       const mcpConfigured = await this.runStep('MCP Configuration', async () => {
-        return await configureMCP(this.projectRoot);
+        if (this.options.noMcp) return false;
+        return await configureMCP(this.projectRoot, { force: this.options.withMcp });
       });
 
       // Step 7: Generate CLAUDE.md

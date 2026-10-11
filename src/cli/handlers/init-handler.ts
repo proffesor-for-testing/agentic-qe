@@ -16,6 +16,7 @@ import type { VisualAccessibilityAPI } from '../../domains/visual-accessibility/
 import type { RequirementsValidationExtendedAPI } from '../../domains/requirements-validation/plugin.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
+import { resolveInitFlags } from './init-flags.js';
 
 // ============================================================================
 // Init Handler
@@ -72,8 +73,9 @@ export class InitHandler implements ICommandHandler {
       .option('--with-ruflo', 'Add optional Ruflo guidance and lifecycle hooks to the Codex setup')
       .option('--with-windsurf', 'Include Windsurf MCP config and rules')
       .option('--with-continuedev', 'Include Continue.dev MCP config and rules')
-      .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default)')
-      .option('--with-mcp', 'Enable MCP server config (default — kept for backward compatibility)')
+      .option('--no-mcp', 'Skip MCP server config (MCP is enabled by default). Cannot be combined with --with-mcp')
+      .addOption(new Option('--with-mcp', 'Write the project .mcp.json agentic-qe entry even when the agentic-qe-fleet Claude Code plugin already provides the AQE MCP server (#922). Cannot be combined with --no-mcp')
+        .conflicts('mcp'))
       .option('--with-all-platforms', 'Include all coding agent platform configurations')
       .option('--auto-migrate', 'Automatically migrate from v2 if detected')
       .option('--with-claude-flow', 'Force Claude Flow integration setup')
@@ -146,13 +148,14 @@ export class InitHandler implements ICommandHandler {
         options.withKilocode || options.withRoocode || options.withCodex ||
         options.withWindsurf || options.withContinuedev || options.withAllPlatforms
       );
-      const databaseFree = options.database === false || options.memory === 'memory';
+      const flags = resolveInitFlags(options);
+      const databaseFree = flags.noDatabase || options.memory === 'memory';
       // #532: `--no-claude` (commander negatable → options.claude === false) is
       // only honored by the modular orchestrator. Route there too, or the flag
       // silently falls through to runStandardInit and installs the full Claude
       // surface it was meant to suppress.
-      const noClaudeRequested = options.claude === false;
-      const noStatusLineRequested = options.statusline === false;
+      const noClaudeRequested = flags.noClaude;
+      const noStatusLineRequested = flags.noStatusLine;
 
       if (options.browserEngine || options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
@@ -170,11 +173,13 @@ export class InitHandler implements ICommandHandler {
 
   private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
     const isJsonMode = options.json === true;
+    // #931/#935: commander maps --no-<name> to options.<name> === false.
+    const flags = resolveInitFlags(options);
 
     // Database-free mode: `--no-database` or `--memory memory`. Skips the SQLite
     // database phase and configures any MCP server to run in-memory. Export the
     // backend env up-front so every subsystem spawned during init honors it.
-    const memoryOnly = options.database === false || options.memory === 'memory';
+    const memoryOnly = flags.noDatabase || options.memory === 'memory';
     if (memoryOnly) {
       process.env.AQE_MEMORY_BACKEND = 'memory';
       if (!isJsonMode) {
@@ -186,7 +191,7 @@ export class InitHandler implements ICommandHandler {
     // `--with-<platform>` flags become the only targets. Commander maps the
     // negatable flag to `options.claude === false`. Warn if it would produce an
     // empty install (no platform selected) so the user isn't surprised.
-    const noClaude = options.claude === false;
+    const noClaude = flags.noClaude;
     if (noClaude) {
       const anyPlatform = Boolean(
         options.withOpencode || options.withN8n || options.withKiro ||
@@ -221,10 +226,11 @@ export class InitHandler implements ICommandHandler {
       codexGuidance: options.codexGuidance,
       withWindsurf: options.withWindsurf,
       withContinueDev: options.withContinuedev,
-      noMcp: options.noMcp && !options.withMcp,
-      noGovernance: options.noGovernance,
+      noMcp: flags.noMcp,
+      withMcp: flags.withMcp,
+      noGovernance: flags.noGovernance,
       noClaude,
-      noStatusLine: options.statusline === false,
+      noStatusLine: flags.noStatusLine,
       memoryBackend: memoryOnly ? 'memory' : undefined,
     });
 
@@ -340,6 +346,7 @@ export class InitHandler implements ICommandHandler {
   }
 
   private async runLegacyWizard(options: InitOptions, _context: CLIContext): Promise<void> {
+    const flags = resolveInitFlags(options);
     const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
       projectRoot: process.cwd(),
@@ -348,6 +355,8 @@ export class InitHandler implements ICommandHandler {
       browserEngine: options.browserEngine,
       skipPatterns: options.skipPatterns,
       withN8n: options.withN8n,
+      noMcp: flags.noMcp,
+      withMcp: flags.withMcp,
     };
 
     const orchestrator = new InitOrchestrator(orchestratorOptions);
@@ -551,6 +560,8 @@ Options:
   --with-claude-flow         Force Claude Flow integration setup
   --skip-claude-flow         Skip Claude Flow integration
   --no-mcp                   Skip MCP server config (MCP is enabled by default)
+  --with-mcp                 Add the .mcp.json entry even if the agentic-qe-fleet plugin is enabled
+                             (--no-mcp and --with-mcp cannot be combined)
   --no-governance            Skip governance configuration (ADR-058)
   --modular                  Use new modular init system
 
@@ -558,6 +569,9 @@ MCP Server:
   MCP server configuration is ENABLED BY DEFAULT. It writes .mcp.json
   at the project root so Claude Code auto-discovers the AQE MCP server.
   Use --no-mcp to skip if you only want CLI commands.
+  If the agentic-qe-fleet Claude Code plugin is enabled (user, project or
+  local settings), init skips the entry because the plugin already provides
+  the AQE MCP server. Use --with-mcp to add the project entry anyway.
 
 Governance:
   Governance is ENABLED BY DEFAULT. It installs .claude/guidance/ with:
@@ -668,10 +682,16 @@ interface InitOptions {
   withWindsurf?: boolean;
   withContinuedev?: boolean;
   withAllPlatforms?: boolean;
+  /** commander negatable flag: `--no-mcp` sets this to false (#931). */
+  mcp?: boolean;
+  /** Programmatic alias for `--no-mcp`. */
   noMcp?: boolean;
   withMcp?: boolean;
   withClaudeFlow?: boolean;
   skipClaudeFlow?: boolean;
+  /** commander negatable flag: `--no-governance` sets this to false (#935). */
+  governance?: boolean;
+  /** Programmatic alias for `--no-governance`. */
   noGovernance?: boolean;
   /** commander negatable flag: `--no-claude` sets this to false (#532). */
   claude?: boolean;

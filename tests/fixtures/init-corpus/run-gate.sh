@@ -135,6 +135,31 @@ fi
 
 echo "[gate] aqe version: $("${AQE_BINARY}" --version 2>&1 | tail -1)"
 
+# ---------------------------------------------------------------------------
+# Hermetic user config for `aqe init`
+#
+# init reads the user's Claude Code settings (enabledPlugins in
+# ~/.claude/settings.json, or $CLAUDE_CONFIG_DIR/settings.json) and changes
+# its output accordingly: with the agentic-qe-fleet plugin enabled it skips
+# the .mcp.json entry (#922), which would fail A17 on a maintainer machine.
+# Every init below runs with HOME and CLAUDE_CONFIG_DIR pointing at an empty,
+# per-fixture temp dir, so local plugin state can't affect the gate.
+# ---------------------------------------------------------------------------
+
+GATE_HOME_ROOT="$(mktemp -d -t aqe-gate-home-XXXXXX)"
+if [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" != "1" ]]; then
+  trap 'rm -rf "${GATE_HOME_ROOT}"' EXIT
+fi
+echo "[gate] isolated HOME root: ${GATE_HOME_ROOT}"
+
+# Run a command with an empty HOME and CLAUDE_CONFIG_DIR for fixture $1.
+run_aqe_isolated() {
+  local fixture_home="${GATE_HOME_ROOT}/$1"
+  shift
+  mkdir -p "${fixture_home}/.claude"
+  HOME="${fixture_home}" CLAUDE_CONFIG_DIR="${fixture_home}/.claude" "$@"
+}
+
 fixture_count=$(jq '.fixtures | length' "${MANIFEST}")
 filter="${AQE_CORPUS_FILTER:-}"
 
@@ -295,9 +320,9 @@ run_one() {
   local start_ts
   start_ts=$(date +%s)
 
-  echo "[gate]   running: timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json" | tee -a "${log}"
+  echo "[gate]   running: timeout ${timeout_sec}s ${AQE_BINARY} init --auto --json (isolated HOME + CLAUDE_CONFIG_DIR)" | tee -a "${log}"
   local init_exit=0
-  timeout --signal=KILL "${timeout_sec}" \
+  run_aqe_isolated "${id}" timeout --signal=KILL "${timeout_sec}" \
     "${AQE_BINARY}" init --auto --json \
     >"${json}" 2>>"${log}" || init_exit=$?
 
@@ -589,7 +614,7 @@ run_one() {
     local start2_ts
     start2_ts=$(date +%s)
     local init2_exit=0
-    timeout --signal=KILL "${timeout_sec}" \
+    run_aqe_isolated "${id}" timeout --signal=KILL "${timeout_sec}" \
       "${AQE_BINARY}" init --auto --json \
       >"${json2}" 2>>"${log}" || init2_exit=$?
     local elapsed2=$(( $(date +%s) - start2_ts ))
