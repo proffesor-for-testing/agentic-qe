@@ -26,6 +26,7 @@ import {
   DEFAULT_METRIC_CONFIG,
 } from './interfaces.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import { ownListingProcess } from './listing-process-owner.js';
 
 // ============================================================================
 // Main Test Counting Function
@@ -260,6 +261,7 @@ async function countVitestTests(
             }
           } catch { /* The process group may already have exited. */ }
         };
+        const releaseOwnership = ownListingProcess(listingDirectory!, stopTree);
         const timer = setTimeout(() => { stopped = true; stopTree(); }, Math.min(config.timeout, 30000));
         const consume = (chunk: Buffer) => {
           bytes += chunk.length;
@@ -267,11 +269,12 @@ async function countVitestTests(
         };
         child.stdout?.on('data', consume);
         child.stderr?.on('data', consume);
-        child.once('error', () => { clearTimeout(timer); stopTree(); resolveAttempt(false); });
+        child.once('error', () => { clearTimeout(timer); stopTree(); releaseOwnership(); resolveAttempt(false); });
         child.once('close', (code) => {
           clearTimeout(timer);
           // A wrapper may exit while its descendants are still importing modules.
           stopTree();
+          releaseOwnership();
           resolveAttempt(!stopped && code === 0);
         });
       });

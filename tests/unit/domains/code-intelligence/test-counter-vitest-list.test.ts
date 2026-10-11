@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, existsSync,
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
+import { buildSync } from 'esbuild';
 import { countTests } from '../../../../src/domains/code-intelligence/services/metric-collector/test-counter.js';
 
 const require = createRequire(import.meta.url);
@@ -202,4 +204,53 @@ describe.skipIf(process.platform === 'win32')('native listing resource ownership
     expect(outputs).toHaveLength(2);
     expect(new Set(outputs).size).toBe(2);
   }, 10000);
+});
+
+
+describe.skipIf(process.platform === 'win32')('caller termination ownership', () => {
+  it('releases process listeners after successful collection', async () => {
+    const root = fixture("import { it } from 'vitest'; it('case', () => {});");
+    const names = ['exit', 'SIGINT', 'SIGTERM', 'SIGHUP'];
+    const before = names.map(name => process.listenerCount(name));
+    expect((await countTests(root)).total).toBe(1);
+    expect(names.map(name => process.listenerCount(name))).toEqual(before);
+  });
+  it.each(['SIGINT', 'SIGTERM', 'SIGHUP', 'exit'])('reaps collection descendants and artifacts when the caller receives %s', async (signal) => {
+    const root = fixture(`import { it } from 'vitest'; import { spawn } from 'node:child_process'; import { writeFileSync } from 'node:fs';
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+      writeFileSync('collector.pid', String(process.pid)); writeFileSync('descendant.pid', String(child.pid));
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);
+      writeFileSync('late-import-effect', 'bad');
+      it('ordinary static declaration', () => { throw new Error('must not execute'); });`, true);
+    const bundle = join(root, 'counter-bundle.mjs');
+    buildSync({ entryPoints: [join(process.cwd(), 'src/domains/code-intelligence/services/metric-collector/test-counter.ts')],
+      bundle: true, platform: 'node', format: 'esm', outfile: bundle,
+      alias: { '@shared': join(process.cwd(), 'src/shared') } });
+    writeFileSync(join(root, 'caller.mjs'), `import { countTests } from './counter-bundle.mjs'; process.on('message', () => process.exit(23)); await countTests(${JSON.stringify(root)}, { timeout: 25000 });`);
+    const caller = spawn(process.execPath, [join(root, 'caller.mjs')], {
+      cwd: root, detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+      env: { ...process.env, PATH: process.env.PATH, TMPDIR: join(root, 'tmp') },
+    });
+    const closed = new Promise(resolve => caller.once('close', (code, actualSignal) => resolve({ code, signal: actualSignal })));
+    const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    let pids = [];
+    try {
+      const deadline = Date.now() + 10000;
+      while (!existsSync(join(root, 'descendant.pid')) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+      expect(existsSync(join(root, 'descendant.pid'))).toBe(true);
+      pids = ['collector.pid', 'descendant.pid'].map(name => Number(readFileSync(join(root, name), 'utf8')));
+      expect(pids.every(alive)).toBe(true);
+      if (signal === 'exit') caller.send({ exit: true });
+      else process.kill(-caller.pid!, signal);
+      expect(await closed).toEqual(signal === 'exit' ? { code: 23, signal: null } : { code: null, signal });
+      const reapedBy = Date.now() + 2000;
+      while (pids.some(alive) && Date.now() < reapedBy) await new Promise(resolve => setTimeout(resolve, 25));
+      expect(pids.some(alive)).toBe(false);
+      expect(existsSync(join(root, 'late-import-effect'))).toBe(false);
+      expect(readdirSync(join(root, 'tmp')).filter(name => name.startsWith('aqe-vitest-list-'))).toEqual([]);
+    } finally {
+      try { process.kill(-caller.pid!, 'SIGKILL'); } catch { /* owned caller already ended */ }
+      for (const pid of pids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already reaped */ } }
+    }
+  }, 15000);
 });
