@@ -3,6 +3,11 @@ import { createTestGeneratorService } from '../../../src/domains/test-generation
 import { createTestCommand } from '../../../src/cli/commands/test.js';
 import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
 
+// Tests below stub AQE_PROJECT_ROOT to their temp project; never leak it.
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('test command', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -140,6 +145,8 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-925-'));
+    // Generated files may only be written inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', directory);
     const source = join(directory, 'add.js');
     const fixtures = join(directory, 'examples.json');
     writeFileSync(source, 'export function add(a,b) { return a+b; }');
@@ -190,6 +197,8 @@ describe('#936 CLI writes every generated test file', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-936-'));
+    // Generated files may only be written inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', directory);
     const source = join(directory, 'mod1.js');
     writeFileSync(source, 'export const x = 1;');
     const tests = Array.from({ length: 12 }, (_, i) => ({

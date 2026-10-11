@@ -11,6 +11,8 @@ import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-disc
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
 import { writeQualityEvidence } from '../../domains/quality-assessment/quality-evidence.js';
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
+import { findProjectRoot } from '../../kernel/project-root.js';
+import { writeGeneratedTestFile } from '../utils/generated-test-writer.js';
 
 export function createTestCommand(
   context: CLIContext,
@@ -27,6 +29,7 @@ export function createTestCommand(
     .option('-F, --format <format>', 'Output format (text|json|junit|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
     .option('--no-save', 'generate action: print the generated test code instead of writing test files beside the source (#925)')
+    .option('--force', 'generate action: overwrite existing test files instead of skipping them')
     .option('--git-ref <ref>', 'Git ref for schedule action (e.g., main, HEAD~3)')
     .option('--no-git-aware', 'Disable git-aware test selection (schedule action)')
     .option('--no-flaky', 'Disable flaky test tracking (schedule action)')
@@ -116,7 +119,11 @@ export function createTestCommand(
               // --no-save. A cap here used to drop tests past the 10th
               // without writing or printing them.
               const noSave = options.save === false;
+              // Files may only be written inside the project that owns the target.
+              const fs = await import('fs');
+              const projectRoot = findProjectRoot(fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath));
               let written = 0;
+              let skipped = 0;
               for (const test of generated.tests) {
                 console.log(`    ${chalk.white(test.name)}`);
                 console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
@@ -131,17 +138,24 @@ export function createTestCommand(
                   }
                   console.log(chalk.gray(`      Test File: ${test.testFile}`));
 
-                  // Bug #295 fix: Write generated test code to disk
-                  const fs = await import('fs');
-                  const testDir = path.dirname(test.testFile);
-                  fs.mkdirSync(testDir, { recursive: true });
-                  fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
-                  console.log(chalk.green(`      Written to: ${test.testFile}`));
-                  written++;
+                  // Bug #295 fix: Write generated test code to disk, but never
+                  // outside the project or over an existing file without --force.
+                  const outcome = writeGeneratedTestFile(test.testFile, test.testCode, { projectRoot, force: options.force === true });
+                  if (outcome.status === 'written') {
+                    console.log(chalk.green(`      Written to: ${outcome.path}`));
+                    written++;
+                  } else if (outcome.status === 'exists') {
+                    console.log(chalk.yellow(`      ${outcome.path} exists, skipped (use --force to overwrite)`));
+                    skipped++;
+                  } else {
+                    console.log(chalk.red(`      ${outcome.path} is outside the project root ${projectRoot}, skipped (not written)`));
+                    skipped++;
+                  }
                 }
               }
               if (!noSave) {
-                console.log(chalk.gray(`\n  Wrote ${written} of ${generated.tests.length} generated test files.`));
+                const skippedNote = skipped > 0 ? ` (${skipped} skipped)` : '';
+                console.log(chalk.gray(`\n  Wrote ${written} of ${generated.tests.length} generated test files${skippedNote}.`));
               }
               console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);
               if (generated.patternsUsed.length > 0) {
