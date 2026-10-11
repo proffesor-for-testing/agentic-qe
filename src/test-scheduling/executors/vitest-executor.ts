@@ -16,6 +16,7 @@ import type { FlakyTestTracker } from '../flaky-tracking/flaky-tracker';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { getTestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
+import { runnerFilePath } from '../../shared/test-runner-args.js';
 
 // ============================================================================
 // Types
@@ -147,7 +148,9 @@ export class VitestPhaseExecutor implements PhaseExecutor {
 
     // Add test patterns or specific files
     if (testFiles && testFiles.length > 0) {
-      args.push(...testFiles);
+      // #909: absolute paths cannot be read as flags when a name starts with '-'.
+      const cwd = this.config.cwd || process.cwd();
+      args.push(...testFiles.map(file => runnerFilePath(file, cwd)));
     } else {
       // Use phase patterns
       for (const pattern of phase.testPatterns) {

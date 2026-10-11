@@ -20,6 +20,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getTestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, needsVitestJsonReportFile } from '../../../shared/vitest-json-report.js';
+import { isJestCommand, jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 
 // ============================================================================
@@ -476,14 +477,19 @@ export class FlakyDetectorService implements IFlakyTestDetector {
     const startTime = Date.now();
 
     return new Promise((resolve, reject) => {
-      const baseArgs = [...this.config.testRunnerArgs, file];
+      const cwd = this.config.cwd ?? process.cwd();
+      // #909: pass an absolute path (never read as a flag); Jest reads it as a
+      // regex, so escape and anchor it to select exactly this file.
+      const fileArg = isJestCommand([this.config.testRunner, ...this.config.testRunnerArgs])
+        ? jestExactPathPattern(file, cwd)
+        : runnerFilePath(file, cwd);
+      const baseArgs = [...this.config.testRunnerArgs, fileArg];
       // Vitest 5 writes --reporter=json output to a file, not stdout. Detect
       // Vitest from the runner command too (testRunner: 'vitest', args: ['run', ...]).
       const report = needsVitestJsonReportFile([this.config.testRunner, ...baseArgs])
         ? createVitestJsonReport()
         : undefined;
       const args = report ? [...baseArgs, ...report.args] : baseArgs;
-      const cwd = this.config.cwd ?? process.cwd();
 
       const child = spawn(this.config.testRunner, args, {
         cwd,

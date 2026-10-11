@@ -12,6 +12,7 @@ import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../shared/test-runner-verdict.js';
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
+import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -228,7 +229,8 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       let execution;
       let output: string;
       try {
-        execution = spawnSync('npx', ['vitest', 'run', ...testFiles, '--reporter=json', ...report.args], options);
+        // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
+        execution = spawnSync('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
         output = execution.error || execution.signal
           ? ''
           : report.read(execution.stdout || '') ?? '';
@@ -238,7 +240,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // Preserve the existing Jest fallback when Vitest cannot produce a report.
       if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
         runner = 'jest';
-        execution = spawnSync('npx', ['jest', ...testFiles, '--json'], options);
+        execution = spawnSync('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
         output = execution.stdout || '';
       }
       const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');

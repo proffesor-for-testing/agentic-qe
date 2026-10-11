@@ -26,6 +26,7 @@ import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-rand
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
+import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
 
@@ -628,7 +629,9 @@ Provide:
     fileOrFiles: string | string[],
     framework: string
   ): { command: string; args: string[]; report?: VitestJsonReport; coverageDirectory?: string } {
-    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+    // #909: absolute paths never start with '-', so a file cannot be read as a
+    // flag; Jest's positional patterns are regexes, so escape and anchor them.
+    const files = (Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]).map(file => runnerFilePath(file));
     const createCoverageDirectory = (): string => mkdtempSync(join(tmpdir(), 'aqe-test-coverage-'));
     switch (framework.toLowerCase()) {
       case 'vitest': {
@@ -651,7 +654,7 @@ Provide:
         const coverageDirectory = createCoverageDirectory();
         return {
           command: 'npx',
-          args: ['jest', ...files, '--json', '--no-colors', '--testLocationInResults', `--coverageDirectory=${coverageDirectory}`],
+          args: ['jest', ...files.map(file => jestExactPathPattern(file)), '--json', '--no-colors', '--testLocationInResults', `--coverageDirectory=${coverageDirectory}`],
           coverageDirectory,
         };
       }
