@@ -288,6 +288,9 @@ export function createWorkflowCommand(
                 console.log(chalk.gray(`     Last run: ${sched.lastRun}`));
               }
               console.log(chalk.gray(`     Status: ${sched.enabled ? chalk.green('enabled') : chalk.yellow('disabled')}`));
+              if (sched.disabledReason) {
+                console.log(chalk.yellow(`     Reason: ${sched.disabledReason}`));
+              }
               console.log('');
             }
           }
