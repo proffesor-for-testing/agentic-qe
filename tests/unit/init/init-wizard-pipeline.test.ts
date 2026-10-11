@@ -40,6 +40,8 @@ vi.mock('../../../src/init/init-wizard-steps.js', () => ({
 import { InitOrchestrator } from '../../../src/init/init-wizard';
 import { configureHooks, configureMCP, generateCLAUDEmd } from '../../../src/init/init-wizard-hooks.js';
 import {
+  initializePersistenceDatabase,
+  runCodeIntelligenceScan,
   installSkills,
   installAgents,
   saveConfig,
@@ -250,6 +252,50 @@ describe('Init wizard pipeline - full orchestration over a temp project', () => 
     const skillsStep = result.steps.find((s) => s.step === 'Skills Installation');
     expect(skillsStep).toMatchObject({ status: 'error', message: 'skills unavailable' });
     expect(result.steps.at(-1)).toMatchObject({ step: 'Initialization Failed', status: 'error' });
+  });
+
+  // --------------------------------------------------------------------------
+  // 7c. --no-mcp skips only MCP configuration (ported from #958, Rudy Celekli)
+  // --------------------------------------------------------------------------
+  it('should still configure hooks and save config when noMcp is set', async () => {
+    // Arrange
+    const orchestrator = new InitOrchestrator({ projectRoot, autoMode: true, noMcp: true });
+
+    // Act
+    const result = await orchestrator.initialize();
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(result.summary.mcpConfigured).toBe(false);
+    expect(configureMCP).not.toHaveBeenCalled();
+    expect(configureHooks).toHaveBeenCalled();
+    expect(saveConfig).toHaveBeenCalled();
+    expect(writeVersionToDb).toHaveBeenCalled();
+  });
+
+  // --------------------------------------------------------------------------
+  // 7d. Persistence is required: its failure stops every downstream step
+  //     (ported from #958, Rudy Celekli)
+  // --------------------------------------------------------------------------
+  it('should run no downstream step when persistence setup fails', async () => {
+    // Arrange
+    vi.mocked(initializePersistenceDatabase).mockRejectedValueOnce(new Error('fixture persistence unavailable'));
+    const orchestrator = new InitOrchestrator({ projectRoot, autoMode: true });
+
+    // Act
+    const result = await orchestrator.initialize();
+
+    // Assert
+    expect(result.success).toBe(false);
+    expect(result.steps.find((s) => s.step === 'Persistence Database Setup')).toMatchObject({
+      status: 'error', message: 'fixture persistence unavailable',
+    });
+    expect(runCodeIntelligenceScan).not.toHaveBeenCalled();
+    expect(configureHooks).not.toHaveBeenCalled();
+    expect(configureMCP).not.toHaveBeenCalled();
+    expect(installAgents).not.toHaveBeenCalled();
+    expect(saveConfig).not.toHaveBeenCalled();
+    expect(writeVersionToDb).not.toHaveBeenCalled();
   });
 
   // --------------------------------------------------------------------------

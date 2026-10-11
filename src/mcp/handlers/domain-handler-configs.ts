@@ -93,6 +93,10 @@ export interface TestExecuteResult {
   summary?: Record<string, unknown>;
   learning?: Record<string, unknown>;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface QualityAssessResult {
@@ -107,6 +111,10 @@ export interface QualityAssessResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
   /** ADR-103: versioned, schema-validated gate verdict (additive) */
   riskDecision?: RiskDecision;
 }
@@ -124,6 +132,10 @@ export interface SecurityScanResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
   informational?: number;
   evidence?: SecurityScanEvidence;
   limitations?: readonly string[];
@@ -145,6 +157,10 @@ export interface ContractValidateResult {
   warnings: string[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface AccessibilityTestResult {
@@ -156,6 +172,10 @@ export interface AccessibilityTestResult {
   warnings: unknown[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface ChaosTestResult {
@@ -169,12 +189,18 @@ export interface ChaosTestResult {
   };
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface DefectPredictParams {
   target?: string;
   lookback?: number;
   minConfidence?: number;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 export interface DefectPredictResult {
@@ -189,12 +215,18 @@ export interface DefectPredictResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface RequirementsValidateParams {
   requirementsPath?: string;
   testPath?: string;
   generateBDD?: boolean;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 export interface RequirementsValidateResult {
@@ -206,12 +238,18 @@ export interface RequirementsValidateResult {
   bddScenarios: string[];
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 export interface CodeIndexParams {
   target?: string;
   incremental?: boolean;
   gitSince?: string;
+  /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
+  saveResults?: boolean;
 }
 
 export interface CodeIndexResult {
@@ -222,6 +260,10 @@ export interface CodeIndexResult {
   relationsFound: number;
   duration: number;
   savedFiles?: string[];
+  /** #933: true when result files were written; see savedFiles for their paths. */
+  resultsSaved?: boolean;
+  /** #933: plain statement of what was (or was not) written to disk. */
+  resultsNote?: string;
 }
 
 // ============================================================================
