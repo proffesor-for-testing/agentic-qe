@@ -1,10 +1,12 @@
 /**
- * E2E Test: Platform Initialization Flow
- * TQ-004: Tests the init wizard orchestration pipeline end-to-end
+ * Init wizard pipeline: InitOrchestrator end to end over a real temp project.
+ * TQ-004, ported from tests/e2e/platform-init.e2e.test.ts (#932). That file
+ * mocked the removed init-wizard-migration.js, so it could not load, and the
+ * *.e2e.test.ts exclude kept the failure out of every run.
  *
- * Covers: project analysis -> phase execution -> config generation
- * Mocks: filesystem operations, external services
- * Real: full orchestration pipeline, configuration logic, step sequencing
+ * Covers: project analysis -> step execution -> config generation -> summary
+ * Mocks: the side-effecting step modules (init-wizard-hooks, init-wizard-steps)
+ * Real: InitOrchestrator, ProjectAnalyzer, SelfConfigurator, step sequencing
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -14,24 +16,13 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 
 // Mock filesystem-heavy sub-modules BEFORE importing InitOrchestrator
 // so the wizard runs through its steps without touching real disk.
-vi.mock('../../src/init/init-wizard-migration.js', () => ({
-  detectV2Installation: vi.fn(async () => ({
-    detected: false,
-    hasMemoryDb: false,
-    hasConfig: false,
-    hasAgents: false,
-  })),
-  runV2Migration: vi.fn(async () => {}),
-  writeVersionToDb: vi.fn(async () => {}),
-}));
-
-vi.mock('../../src/init/init-wizard-hooks.js', () => ({
+vi.mock('../../../src/init/init-wizard-hooks.js', () => ({
   configureHooks: vi.fn(async () => true),
   configureMCP: vi.fn(async () => true),
   generateCLAUDEmd: vi.fn(async () => true),
 }));
 
-vi.mock('../../src/init/init-wizard-steps.js', () => ({
+vi.mock('../../../src/init/init-wizard-steps.js', () => ({
   initializePersistenceDatabase: vi.fn(async () => ({ success: true })),
   checkCodeIntelligenceIndex: vi.fn(async () => false),
   runCodeIntelligenceScan: vi.fn(async () => ({ status: 'new', entries: 42 })),
@@ -42,24 +33,24 @@ vi.mock('../../src/init/init-wizard-steps.js', () => ({
   installAgents: vi.fn(async () => 4),
   installN8n: vi.fn(async () => ({ agents: 2, skills: 3 })),
   saveConfig: vi.fn(async () => {}),
+  // Moved here from the removed init-wizard-migration.js (c0989110).
+  writeVersionToDb: vi.fn(async () => true),
 }));
 
-import { InitOrchestrator } from '../../src/init/init-wizard';
-import { configureHooks, configureMCP, generateCLAUDEmd } from '../../src/init/init-wizard-hooks.js';
-import { detectV2Installation } from '../../src/init/init-wizard-migration.js';
+import { InitOrchestrator } from '../../../src/init/init-wizard';
+import { configureHooks, configureMCP, generateCLAUDEmd } from '../../../src/init/init-wizard-hooks.js';
 import {
-  initializePersistenceDatabase,
   installSkills,
   installAgents,
-  startWorkers,
   saveConfig,
-} from '../../src/init/init-wizard-steps.js';
+  writeVersionToDb,
+} from '../../../src/init/init-wizard-steps.js';
 
 // ============================================================================
 // Test Suite
 // ============================================================================
 
-describe('Platform Init E2E - Full Orchestration Pipeline', () => {
+describe('Init wizard pipeline - full orchestration over a temp project', () => {
   let projectRoot: string;
 
   beforeEach(() => {
@@ -221,21 +212,33 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 7. V2 detection blocks init when not auto-migrating
+  // 7. No v2 migration step remains; the version marker is written instead
   // --------------------------------------------------------------------------
-  it('should fail when v2 installation detected without auto-migrate', async () => {
+  it('should write the version marker and run no v2 detection step', async () => {
     // Arrange
-    vi.mocked(detectV2Installation).mockResolvedValueOnce({
-      detected: true,
-      hasMemoryDb: true,
-      hasConfig: true,
-      hasAgents: false,
-    });
-
     const orchestrator = new InitOrchestrator({
       projectRoot,
       autoMode: true,
-      autoMigrate: false,
+    });
+
+    // Act
+    const result = await orchestrator.initialize();
+
+    // Assert
+    expect(result.success).toBe(true);
+    expect(writeVersionToDb).toHaveBeenCalledWith(projectRoot, expect.any(String));
+    expect(result.steps.some((s) => /v2/i.test(s.step))).toBe(false);
+  });
+
+  // --------------------------------------------------------------------------
+  // 7b. A failing step marks the run as failed and records the error
+  // --------------------------------------------------------------------------
+  it('should report failure when a pipeline step throws', async () => {
+    // Arrange
+    vi.mocked(installSkills).mockRejectedValueOnce(new Error('skills unavailable'));
+    const orchestrator = new InitOrchestrator({
+      projectRoot,
+      autoMode: true,
     });
 
     // Act
@@ -243,7 +246,7 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
 
     // Assert
     expect(result.success).toBe(false);
-    expect(result.steps.some((s) => s.step === 'V2 Detection')).toBe(true);
+    expect(result.steps.some((s) => s.status === 'error')).toBe(true);
   });
 
   // --------------------------------------------------------------------------
