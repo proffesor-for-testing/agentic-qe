@@ -46,6 +46,16 @@ export type SessionEntryInput = Omit<SessionEntry, 'uuid' | 'parentUuid'>;
 
 const DEFAULT_SESSION_DIR = '.agentic-qe/sessions';
 const BATCH_FLUSH_MS = 100;
+const MAX_BUFFERED_ENTRIES = 1024;
+const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
+
+/** Admission failed; no UUID, chain, or accepted metadata was advanced. */
+export class SessionBufferLimitError extends Error {
+  constructor() {
+    super('Session journal buffer limit reached; transcript incomplete until storage recovers');
+    this.name = 'SessionBufferLimitError';
+  }
+}
 
 export class SessionStore {
   private readonly sessionDir: string;
@@ -58,6 +68,11 @@ export class SessionStore {
   private lastActivityAt = 0;
   private currentState: 'idle' | 'running' | 'requires_action' = 'idle';
   private writeBuffer: string[] = [];
+  private bufferedBytes = 0;
+  private backpressured = false;
+  private rejectedEntries = 0;
+  private rejectedToolResults = 0;
+  private rejectedToolCalls = 0;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
 
@@ -90,6 +105,11 @@ export class SessionStore {
     this.lastActivityAt = this.createdAt;
     this.currentState = 'idle';
     this.writeBuffer = [];
+    this.bufferedBytes = 0;
+    this.backpressured = false;
+    this.rejectedEntries = 0;
+    this.rejectedToolResults = 0;
+    this.rejectedToolCalls = 0;
     this.flushTimer = null;
     this.closed = false;
 
@@ -111,6 +131,10 @@ export class SessionStore {
       throw new Error('No active session. Call startSession() first.');
     }
 
+    if (!this.persistDisabled && this.backpressured) {
+      try { this.flush(); } catch { this.rejectEntry(entry); }
+    }
+
     const uuid = randomUUID();
     const fullEntry: SessionEntry = {
       ...entry,
@@ -120,7 +144,15 @@ export class SessionStore {
 
     // Database-free mode keeps bookkeeping without serialization or disk I/O.
     if (!this.persistDisabled) {
-      const line = JSON.stringify(fullEntry) + '\n';
+      let line = JSON.stringify(fullEntry) + '\n';
+      if (this.fileCreated && (this.writeBuffer.length >= MAX_BUFFERED_ENTRIES ||
+          this.bufferedBytes + Buffer.byteLength(line, 'utf8') > MAX_BUFFERED_BYTES)) {
+        try { this.flush(); } catch { this.rejectEntry(entry); }
+        // Recovery may have appended a gap marker, which becomes this entry's parent.
+        fullEntry.parentUuid = this.lastUuid;
+        line = JSON.stringify(fullEntry) + '\n';
+        if (Buffer.byteLength(line, 'utf8') > MAX_BUFFERED_BYTES) this.rejectEntry(entry);
+      }
 
       if (!this.fileCreated) {
         // First write: synchronous for write-ahead guarantee
@@ -130,6 +162,7 @@ export class SessionStore {
       } else {
         // Subsequent writes: buffer and batch
         this.writeBuffer.push(line);
+        this.bufferedBytes += Buffer.byteLength(line, 'utf8');
         this.scheduleBatchFlush();
       }
     }
@@ -156,7 +189,30 @@ export class SessionStore {
       const batch = this.writeBuffer.join('');
       fs.appendFileSync(this.filePath, batch, 'utf-8');
       this.writeBuffer = [];
+      this.bufferedBytes = 0;
     }
+
+    if (this.rejectedEntries > 0 && this.filePath && this.fileCreated) {
+      // A bounded marker records the omission without inventing missing tool results.
+      const marker: SessionEntry = {
+        uuid: randomUUID(), parentUuid: this.lastUuid, timestamp: this.lastActivityAt,
+        type: 'error', state: 'requires_action',
+        result: { code: 'SESSION_TRANSCRIPT_GAP', rejectedEntries: this.rejectedEntries,
+          rejectedToolResults: this.rejectedToolResults, rejectedToolCalls: this.rejectedToolCalls },
+      };
+      const line = JSON.stringify(marker) + '\n';
+      this.writeBuffer.push(line);
+      this.bufferedBytes = Buffer.byteLength(line, 'utf8');
+      this.lastUuid = marker.uuid;
+      this.entryCount++;
+      this.currentState = marker.state;
+      this.rejectedEntries = this.rejectedToolResults = this.rejectedToolCalls = 0;
+      // Reuse ordinary batch flushing so its write-progress guarantees also cover
+      // the marker. Counters are cleared, so recursion is bounded to one level.
+      this.flush();
+      return;
+    }
+    this.backpressured = false;
   }
 
   /**
@@ -204,6 +260,14 @@ export class SessionStore {
   // Private helpers
   // --------------------------------------------------------------------------
 
+  private rejectEntry(entry: SessionEntryInput): never {
+    this.backpressured = true;
+    this.rejectedEntries = Math.min(Number.MAX_SAFE_INTEGER, this.rejectedEntries + 1);
+    if (entry.type === 'tool_result') this.rejectedToolResults = Math.min(Number.MAX_SAFE_INTEGER, this.rejectedToolResults + 1);
+    if (entry.type === 'tool_call') this.rejectedToolCalls = Math.min(Number.MAX_SAFE_INTEGER, this.rejectedToolCalls + 1);
+    throw new SessionBufferLimitError();
+  }
+
   private ensureDirectory(): void {
     const dir = path.dirname(this.filePath!);
     if (!fs.existsSync(dir)) {
@@ -215,7 +279,10 @@ export class SessionStore {
     if (this.flushTimer === null) {
       this.flushTimer = setTimeout(() => {
         this.flushTimer = null;
-        this.flush();
+        try { this.flush(); } catch (error) {
+          // Accepted rows remain queued. Admission enforces the bound on later calls.
+          console.warn(`[MCP] [SessionStore] Journal flush failed: ${String(error)}`);
+        }
       }, BATCH_FLUSH_MS);
     }
   }

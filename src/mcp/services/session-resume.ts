@@ -238,6 +238,10 @@ export function resumeSession(filePath: string, options: SessionResumeOptions): 
     const diagnostics = [
       'legacy JSONL has no durable commit marker',
       ...(hasTornTail ? ['discarded an incomplete final record'] : []),
+      ...(entries.some(entry => entry.type === 'error' && entry.result !== null &&
+        typeof entry.result === 'object' && 'code' in entry.result &&
+        entry.result.code === 'SESSION_TRANSCRIPT_GAP')
+        ? ['journal reports missing lifecycle entries after buffer backpressure'] : []),
     ];
     return {
       metadata: {

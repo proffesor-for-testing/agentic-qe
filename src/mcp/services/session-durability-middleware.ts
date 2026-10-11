@@ -10,7 +10,7 @@
  */
 
 import type { ToolMiddleware, ToolCallContext } from '../middleware/middleware-chain';
-import type { SessionStore } from './session-store';
+import { SessionBufferLimitError, type SessionStore } from './session-store';
 
 // ============================================================================
 // Middleware Factory
@@ -45,13 +45,16 @@ export function createSessionDurabilityMiddleware(store: SessionStore): ToolMidd
 
     async postToolResult(context: ToolCallContext, result: unknown): Promise<unknown> {
       if (disabled) return result;
-      store.append({
-        timestamp: Date.now(),
-        type: 'tool_result',
-        toolName: context.toolName,
-        result,
-        state: 'idle',
-      });
+      try {
+        store.append({
+          timestamp: Date.now(), type: 'tool_result', toolName: context.toolName,
+          result, state: 'idle',
+        });
+      } catch (error) {
+        if (!(error instanceof SessionBufferLimitError)) throw error;
+        // Execution already completed. Returning a false tool failure could repeat side effects.
+        console.warn('[MCP] [SessionDurability] transcript incomplete: completed tool result was not journaled; subsequent calls are blocked until storage recovers');
+      }
       return result;
     },
 
