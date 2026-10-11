@@ -149,10 +149,12 @@ describe('RetryHandlerService runner command', () => {
         'vitest',
         'run',
         '--reporter=json',
-        'tests/unit/example.test.ts',
         `--outputFile=${command.report?.path}`,
+        '--',
+        'tests/unit/example.test.ts',
       ]);
       expect(command.args).not.toContain('-t');
+      expect(command.args.some((arg) => arg.startsWith('--testNamePattern='))).toBe(false);
     } finally {
       command.report?.cleanup();
     }
