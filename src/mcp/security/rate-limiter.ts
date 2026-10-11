@@ -225,13 +225,27 @@ export class RateLimiter {
   }
 
   /**
-   * Wait until tokens are available (async)
+   * Wait until tokens are available (async).
+   *
+   * Rejects with a RangeError instead of waiting forever when the request can
+   * never be admitted: the cost exceeds the resolved bucket's maxBurst, or the
+   * bucket cannot refill (tokensPerSecond <= 0). See issue #905.
    */
   async wait(clientId?: string, endpoint?: string, tokens = 1): Promise<RateLimitResult> {
+    this.assertAdmissible(endpoint, tokens);
     let result = this.consume(clientId, endpoint, tokens);
 
-    while (!result.allowed && result.retryAfter) {
-      await this.sleep(result.retryAfter);
+    while (!result.allowed) {
+      const delay = result.retryAfter;
+      if (delay === undefined || !Number.isFinite(delay) || delay <= 0) {
+        throw new RangeError(
+          `Rate limit bucket for ${endpoint ?? 'default'} cannot refill (retryAfter=${delay}); ` +
+          'wait() would never settle'
+        );
+      }
+      await this.sleep(delay);
+      // Endpoint limits may change while sleeping; re-check before retrying.
+      this.assertAdmissible(endpoint, tokens);
       result = this.consume(clientId, endpoint, tokens);
     }
 
@@ -314,6 +328,17 @@ export class RateLimiter {
   // ============================================================================
   // Private Methods
   // ============================================================================
+
+  /** Throw if `tokens` can never fit in the bucket resolved for `endpoint`. */
+  private assertAdmissible(endpoint: string | undefined, tokens: number): void {
+    const { maxBurst } = this.getConfig(endpoint);
+    if (tokens > maxBurst) {
+      throw new RangeError(
+        `Token cost ${tokens} exceeds maxBurst ${maxBurst} for ${endpoint ?? 'default'} bucket; ` +
+        'wait() can never admit it'
+      );
+    }
+  }
 
   private createBucket(): TokenBucket {
     const now = Date.now();
