@@ -3,6 +3,11 @@ import { createTestGeneratorService } from '../../../src/domains/test-generation
 import { createTestCommand } from '../../../src/cli/commands/test.js';
 import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
 
+// Tests below stub AQE_PROJECT_ROOT to their temp project; never leak it.
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('test command', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -140,6 +145,8 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
     const { tmpdir } = await import('node:os');
     const { join } = await import('node:path');
     const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-925-'));
+    // Generated files may only be written inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', directory);
     const source = join(directory, 'add.js');
     const fixtures = join(directory, 'examples.json');
     writeFileSync(source, 'export function add(a,b) { return a+b; }');
@@ -176,6 +183,59 @@ describe('#925 CLI --no-save (parity with MCP saveResults:false)', () => {
       await createTestCommand(context, exit, vi.fn(async () => true)).parseAsync(args, { from: 'user' });
       expect(readdirSync(directory).length).toBeGreaterThan(2);
       expect(log.mock.calls.flat().join(' ')).toContain('Written to:');
+      expect(exit).not.toHaveBeenCalledWith(1);
+    } finally {
+      log.mockRestore();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('#936 CLI writes every generated test file', () => {
+  it('writes all 12 generated files in text mode and prints all 12 with --no-save', async () => {
+    const { mkdtempSync, readdirSync, rmSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const directory = mkdtempSync(join(tmpdir(), 'aqe-cli-936-'));
+    // Generated files may only be written inside the project root.
+    vi.stubEnv('AQE_PROJECT_ROOT', directory);
+    const source = join(directory, 'mod1.js');
+    writeFileSync(source, 'export const x = 1;');
+    const tests = Array.from({ length: 12 }, (_, i) => ({
+      name: `mod${i + 1} tests`,
+      sourceFile: join(directory, `mod${i + 1}.js`),
+      testFile: join(directory, 'out', `mod${i + 1}.test.js`),
+      testCode: `// generated test ${i + 1}\n`,
+      assertions: 1,
+      qualityGateResult: { passed: true, score: 100 },
+    }));
+    // The write loop only consumes the domain result, so the domain API is
+    // stubbed to return more than 10 tests.
+    const generateTests = vi.fn(async () => ({
+      success: true,
+      value: { tests, coverageEstimate: null, patternsUsed: [] },
+    }));
+    const context = { kernel: { getDomainAPIAsync: vi.fn(async () => ({ generateTests })) } } as unknown as CLIContext;
+    const exit = vi.fn() as unknown as (code: number) => Promise<never>;
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await createTestCommand(context, exit, vi.fn(async () => true))
+        .parseAsync(['generate', source, '--no-save'], { from: 'user' });
+      const noSaveOutput = log.mock.calls.flat().join('\n');
+      expect(readdirSync(directory)).toEqual(['mod1.js']);
+      for (const test of tests) expect(noSaveOutput).toContain(test.testCode);
+      expect(noSaveOutput).not.toMatch(/and \d+ more/);
+
+      log.mockClear();
+      await createTestCommand(context, exit, vi.fn(async () => true))
+        .parseAsync(['generate', source], { from: 'user' });
+      const written = readdirSync(join(directory, 'out')).sort();
+      expect(written).toEqual(tests.map(t => `${t.name.split(' ')[0]}.test.js`).sort());
+      expect(written).toHaveLength(12);
+      const output = log.mock.calls.flat().join('\n');
+      expect(output.match(/Written to:/g)).toHaveLength(12);
+      expect(output).toContain('Wrote 12 of 12 generated test files.');
+      expect(output).not.toMatch(/and \d+ more/);
       expect(exit).not.toHaveBeenCalledWith(1);
     } finally {
       log.mockRestore();

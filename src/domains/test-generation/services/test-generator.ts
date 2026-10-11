@@ -1277,8 +1277,11 @@ Return a JSON array of test suggestions, each with: { "name": "test name", "desc
       return resolveTestFilePath(sourceFile, lang);
     }
 
-    const ext = sourceFile.split('.').pop() || 'ts';
-    const base = sourceFile.replace(`.${ext}`, '');
+    // #936 follow-up: strip only the trailing extension. A first-match
+    // replace turned /home/u/my.ts-app/src/a.ts into /home/u/my-app/src/a.ts,
+    // pointing the test file at a sibling directory outside the project.
+    const ext = fileExt ? fileExt.slice(1) : 'ts';
+    const base = fileExt ? sourceFile.slice(0, -fileExt.length) : sourceFile;
 
     if (framework === 'pytest') {
       return `test_${base.split('/').pop()}.py`;
