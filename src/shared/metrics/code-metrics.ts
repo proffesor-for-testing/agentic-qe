@@ -341,52 +341,49 @@ export class CodeMetricsAnalyzer {
     return complexity;
   }
 
+  /**
+   * Line-based approximation of SonarSource cognitive complexity (#907):
+   * `if`, loops, `switch`, `catch` and ternaries score +1 plus the nesting level;
+   * `else if` and `else` score a flat +1 (an `else if` is not also an `if`).
+   * Nesting rises only inside the braces of those structures, so a function
+   * body, try block or object literal adds no nesting bonus.
+   */
   private calculateCognitiveComplexity(code: string): number {
+    const count = (text: string, pattern: RegExp) => (text.match(pattern) || []).length;
     let complexity = 0;
-    let nestingLevel = 0;
-    const lines = code.split('\n');
+    const braces: boolean[] = []; // one entry per open `{`: true when it opens a nesting structure
+    let pendingNest = false; // nesting structure whose `{` has not been seen yet
 
-    for (const line of lines) {
-      const trimmed = line.trim();
+    for (const line of code.split('\n')) {
+      let rest = line.trim();
+      // `} else {` / `} catch (e) {`: the previous block closes before this structure is scored.
+      while (rest.startsWith('}')) {
+        braces.pop();
+        rest = rest.slice(1).trimStart();
+      }
+      const nesting = braces.filter(Boolean).length;
 
-      // Increase nesting
-      if (/\bif\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
+      const flat = count(rest, /\belse\s+if\s*\(/g) + count(rest, /\belse\b(?!\s+if\b)/g);
+      const nested = count(rest, /(?<!\belse\s+)\bif\s*\(/g) + count(rest, /\b(?:for|while|switch|catch)\s*\(/g);
+      complexity += flat + nested * (1 + nesting);
+      if (/\?\s*[^:]/.test(rest)) {
+        complexity += 1 + nesting; // Ternary
       }
-      if (/\belse\s+if\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-      }
-      if (/\belse\s*{/.test(trimmed)) {
-        complexity += 1;
-      }
-      if (/\bfor\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bwhile\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bswitch\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\bcatch\s*\(/.test(trimmed)) {
-        complexity += 1 + nestingLevel;
-        nestingLevel++;
-      }
-      if (/\?\s*[^:]/.test(trimmed)) {
-        complexity += 1 + nestingLevel; // Ternary
-      }
-      if (/&&|\|\|/.test(trimmed)) {
+      if (/&&|\|\|/.test(rest)) {
         complexity += 1; // Boolean operators
       }
 
-      // Track nesting via braces (simplified)
-      const openBraces = (trimmed.match(/{/g) || []).length;
-      const closeBraces = (trimmed.match(/}/g) || []).length;
-      nestingLevel = Math.max(0, nestingLevel + openBraces - closeBraces);
+      pendingNest ||= flat + nested > 0 || /\bdo\b/.test(rest);
+      for (const ch of rest.match(/[{}]/g) || []) {
+        if (ch === '{') {
+          braces.push(pendingNest);
+          pendingNest = false;
+        } else {
+          braces.pop();
+        }
+      }
+      // A brace-less body (`if (x) return;`) ends the structure without nesting anything.
+      if (rest.endsWith(';')) pendingNest = false;
     }
 
     return complexity;
