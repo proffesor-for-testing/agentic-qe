@@ -12,6 +12,7 @@ import { promisify } from 'util';
 import { resolve, join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import type { PriorityQueue, GitCommitPayload, QueueItem, DaemonTaskPayload } from './priority-queue';
+import { getGitRefError } from '../../shared/git/ref-validation';
 
 const execFileAsync = promisify(execFile);
 
@@ -186,6 +187,10 @@ export class GitWatcher {
     branch: string,
     commitHash: string
   ): Promise<void> {
+    // The hash is read from a ref file; never let an option-shaped value
+    // (e.g. `--output=<path>`) reach `git diff-tree` (issue #960).
+    if (getGitRefError(commitHash, 'commit hash')) return;
+
     let changedFiles: string[] = [];
     try {
       const { stdout } = await execFileAsync('git', [
