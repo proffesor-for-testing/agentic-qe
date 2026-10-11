@@ -7,6 +7,7 @@ import { TypeScriptParser, FunctionInfo, MethodInfo } from '../parsers';
 import { FileReader } from '../io';
 import { treeSitterRegistry } from '../parsers/multi-language-parser.js';
 import { getLanguageFromExtension } from '../types/test-frameworks.js';
+import { calculateCognitiveComplexity } from './cognitive-complexity.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -341,52 +342,9 @@ export class CodeMetricsAnalyzer {
     return complexity;
   }
 
-  /**
-   * Line-based approximation of SonarSource cognitive complexity (#907):
-   * `if`, loops, `switch`, `catch` and ternaries score +1 plus the nesting level;
-   * `else if` and `else` score a flat +1 (an `else if` is not also an `if`).
-   * Nesting rises only inside the braces of those structures, so a function
-   * body, try block or object literal adds no nesting bonus.
-   */
+  /** SonarSource cognitive complexity heuristic; see ./cognitive-complexity.ts (#907). */
   private calculateCognitiveComplexity(code: string): number {
-    const count = (text: string, pattern: RegExp) => (text.match(pattern) || []).length;
-    let complexity = 0;
-    const braces: boolean[] = []; // one entry per open `{`: true when it opens a nesting structure
-    let pendingNest = false; // nesting structure whose `{` has not been seen yet
-
-    for (const line of code.split('\n')) {
-      let rest = line.trim();
-      // `} else {` / `} catch (e) {`: the previous block closes before this structure is scored.
-      while (rest.startsWith('}')) {
-        braces.pop();
-        rest = rest.slice(1).trimStart();
-      }
-      const nesting = braces.filter(Boolean).length;
-
-      const flat = count(rest, /\belse\s+if\s*\(/g) + count(rest, /\belse\b(?!\s+if\b)/g);
-      const nested = count(rest, /(?<!\belse\s+)\bif\s*\(/g) + count(rest, /\b(?:for|while|switch|catch)\s*\(/g);
-      complexity += flat + nested * (1 + nesting);
-      if (/\?\s*[^:]/.test(rest)) {
-        complexity += 1 + nesting; // Ternary
-      }
-      if (/&&|\|\|/.test(rest)) {
-        complexity += 1; // Boolean operators
-      }
-
-      pendingNest ||= flat + nested > 0 || /\bdo\b/.test(rest);
-      for (const ch of rest.match(/[{}]/g) || []) {
-        if (ch === '{') {
-          braces.push(pendingNest);
-          pendingNest = false;
-        } else {
-          braces.pop();
-        }
-      }
-      // A brace-less body (`if (x) return;`) ends the structure without nesting anything.
-      if (rest.endsWith(';')) pendingNest = false;
-    }
-
-    return complexity;
+    return calculateCognitiveComplexity(code);
   }
 
   private estimateCyclomaticComplexity(code: string): number {

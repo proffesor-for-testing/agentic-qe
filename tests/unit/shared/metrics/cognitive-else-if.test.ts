@@ -124,6 +124,40 @@ const examples: ReadonlyArray<readonly [string, number, string]> = [
   }
   return 3;
 }`],
+  ['else / if words in comments and strings score nothing', 1, `export function note(a: boolean) {
+  // do it or else; if (this) were code it would count
+  /* else if (x) {
+     for (;;) { */
+  const msg = 'or else if (x) {';
+  const tpl = \`while (y) { else
+  }\`;
+  if (a) {
+    return msg + tpl;
+  }
+  return '';
+}`],
+  ['braces in strings and regexes do not unbalance nesting', 3, `export function nested(a: boolean, b: boolean, s: string) {
+  if (a) {
+    const close = '}';
+    const re = /\\}+/g;
+    const tpl = \`}}\`;
+    if (b) {
+      return s.replace(re, close + tpl);
+    }
+  }
+  return s;
+}`],
+  ['a lone "or else" comment scores 0', 0, `export function plain() {
+  // do it or else
+  return 1;
+}`],
+  ['division is not mistaken for a regex', 3, `export function ratio(a: number, b: number, ok: boolean) {
+  if (ok) {
+    const s = "it's \\"quoted\\" }";
+    const r = a / b; if (r > 1) { return r + s.length; }
+  }
+  return 0;
+}`],
   ['single-line else-if', 2,
     'export function choose(x: number) { if (x > 0) { return 1; } else if (x < 0) { return -1; } return 0; }'],
 ];
