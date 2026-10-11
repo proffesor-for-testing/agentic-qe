@@ -58,6 +58,7 @@ export class SessionStore {
   private lastActivityAt = 0;
   private currentState: 'idle' | 'running' | 'requires_action' = 'idle';
   private writeBuffer: string[] = [];
+  private flushedBytes = 0;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private closed = false;
 
@@ -90,6 +91,7 @@ export class SessionStore {
     this.lastActivityAt = this.createdAt;
     this.currentState = 'idle';
     this.writeBuffer = [];
+    this.flushedBytes = 0;
     this.flushTimer = null;
     this.closed = false;
 
@@ -101,7 +103,7 @@ export class SessionStore {
    * Assigns a uuid, links parentUuid to the previous entry,
    * and writes a JSON line to the file.
    *
-   * First write uses appendFileSync for write-ahead guarantee.
+   * First write publishes a complete row before metadata acceptance.
    * Subsequent writes are batched for up to 100ms before flushing.
    *
    * Returns the assigned uuid.
@@ -125,7 +127,7 @@ export class SessionStore {
       if (!this.fileCreated) {
         // First write: synchronous for write-ahead guarantee
         this.ensureDirectory();
-        fs.appendFileSync(this.filePath!, line, 'utf-8');
+        this.writeFirstEntry(line);
         this.fileCreated = true;
       } else {
         // Subsequent writes: buffer and batch
@@ -153,9 +155,20 @@ export class SessionStore {
     }
 
     if (this.writeBuffer.length > 0 && this.filePath && this.fileCreated) {
-      const batch = this.writeBuffer.join('');
-      fs.appendFileSync(this.filePath, batch, 'utf-8');
-      this.writeBuffer = [];
+      const batch = Buffer.from(this.writeBuffer.join(''), 'utf-8');
+      const fd = fs.openSync(this.filePath, 'a');
+      try {
+        while (this.flushedBytes < batch.length) {
+          const written = fs.writeSync(fd, batch, this.flushedBytes, batch.length - this.flushedBytes);
+          if (written <= 0) throw new Error('Session journal write made no progress');
+          this.flushedBytes += written;
+        }
+        // Retire completed bytes before close: a close error must not replay them.
+        this.writeBuffer = [];
+        this.flushedBytes = 0;
+      } finally {
+        fs.closeSync(fd);
+      }
     }
   }
 
@@ -203,6 +216,40 @@ export class SessionStore {
   // --------------------------------------------------------------------------
   // Private helpers
   // --------------------------------------------------------------------------
+
+  private writeFirstEntry(line: string): void {
+    const temporaryPath = `${this.filePath!}.pending`;
+    let fd: number | null = null;
+    let ownsTemporary = false;
+    try {
+      fd = fs.openSync(temporaryPath, 'wx');
+      ownsTemporary = true;
+      const bytes = Buffer.from(line, 'utf-8');
+      let offset = 0;
+      while (offset < bytes.length) {
+        const written = fs.writeSync(fd, bytes, offset, bytes.length - offset);
+        if (written <= 0) throw new Error('Session journal write made no progress');
+        offset += written;
+      }
+      const closing = fd;
+      fd = null;
+      fs.closeSync(closing);
+      fs.renameSync(temporaryPath, this.filePath!);
+      ownsTemporary = false;
+    } catch (error) {
+      if (fd !== null) {
+        try { fs.closeSync(fd); } catch (closeError) {
+          console.warn('[SessionStore] Failed to close first-entry staging file:', closeError);
+        }
+      }
+      if (ownsTemporary) {
+        try { fs.unlinkSync(temporaryPath); } catch (cleanupError) {
+          console.warn('[SessionStore] Failed to remove first-entry staging file:', cleanupError);
+        }
+      }
+      throw error;
+    }
+  }
 
   private ensureDirectory(): void {
     const dir = path.dirname(this.filePath!);
