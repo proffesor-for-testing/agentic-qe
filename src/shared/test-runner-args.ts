@@ -16,8 +16,8 @@
  *   select exactly one file, and the leading `^` cannot be read as a flag.
  */
 
-import { realpathSync } from 'node:fs';
-import { basename, dirname, resolve, sep } from 'node:path';
+import { realpathSync, statSync } from 'node:fs';
+import { basename, dirname, extname, resolve, sep } from 'node:path';
 
 /** Runners whose test-name filter is a regular expression. */
 export type NameFilterRunner = 'vitest' | 'jest' | 'mocha';
@@ -42,12 +42,28 @@ export function runnerFilePath(file: string, cwd: string = process.cwd()): strin
 }
 
 /**
- * Jest positional TestPathPattern that matches exactly `file`. Separators are
- * normalised to `/`, which Jest maps to the platform separator.
+ * True when `absolutePath` names a directory. A path that does not exist is
+ * treated as a directory when it has no file extension.
+ */
+function isDirectoryTarget(absolutePath: string): boolean {
+  try {
+    return statSync(absolutePath).isDirectory();
+  } catch {
+    return extname(absolutePath) === '';
+  }
+}
+
+/**
+ * Jest positional TestPathPattern for `file`. A file matches exactly; a
+ * directory matches every path beneath it but not a sibling that shares its
+ * prefix (`app` vs `app-other`). Separators are normalised to `/`, which Jest
+ * maps to the platform separator.
  */
 export function jestExactPathPattern(file: string, cwd: string = process.cwd()): string {
-  const normalized = runnerFilePath(file, cwd).split(sep).join('/');
-  return `^${escapeRegExpLiteral(normalized)}$`;
+  const absolute = runnerFilePath(file, cwd);
+  const normalized = absolute.split(sep).join('/');
+  const end = isDirectoryTarget(absolute) ? '(?:/|$)' : '$';
+  return `^${escapeRegExpLiteral(normalized)}${end}`;
 }
 
 /**
