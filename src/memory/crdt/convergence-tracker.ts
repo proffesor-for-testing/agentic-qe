@@ -8,6 +8,8 @@
  * @module memory/crdt/convergence-tracker
  */
 
+import { createHash } from 'node:crypto';
+
 import type {
   ConvergenceTracker,
   ConvergenceTrackerConfig,
@@ -35,7 +37,7 @@ const DEFAULT_CONFIG: Required<ConvergenceTrackerConfig> = {
  * not the internal representations, so that stores with equivalent data produce
  * the same hash regardless of how they arrived at that state.
  *
- * Not cryptographic - just for detecting differences.
+ * Fingerprints structured semantic entries; this is not authentication.
  */
 function hashState(state: CRDTStoreState): string {
   const parts: string[] = [];
@@ -44,7 +46,7 @@ function hashState(state: CRDTStoreState): string {
   // compare the result - if both have same winner, they have same value)
   for (const [key, reg] of Object.entries(state.registers)) {
     // Include value, timestamp, and nodeId - these together determine the LWW winner
-    parts.push(`r:${key}:${JSON.stringify(reg.value)}:${reg.timestamp}:${reg.nodeId}`);
+    parts.push(JSON.stringify(['r', key, JSON.stringify(reg.value), reg.timestamp, reg.nodeId]));
   }
 
   // Hash G-Counters by their TOTAL value (not per-node breakdown)
@@ -55,10 +57,9 @@ function hashState(state: CRDTStoreState): string {
     // Also include non-zero counts to detect semantic differences
     const nonZeroCounts = Object.entries(counter.counts)
       .filter(([_, count]) => count > 0)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([nodeId, count]) => `${nodeId}=${count}`)
-      .join(',');
-    parts.push(`g:${key}:${total}:{${nonZeroCounts}}`);
+      .sort(([a], [b]) => a === b ? 0 : a < b ? -1 : 1)
+      .map(([nodeId, count]) => [nodeId, count]);
+    parts.push(JSON.stringify(['g', key, total, nonZeroCounts]));
   }
 
   // Hash PN-Counters by their NET value (positive - negative)
@@ -70,15 +71,13 @@ function hashState(state: CRDTStoreState): string {
     // Include non-zero contributions for semantic comparison
     const nonZeroPos = Object.entries(counter.positive.counts)
       .filter(([_, count]) => count > 0)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([nodeId, count]) => `${nodeId}=+${count}`)
-      .join(',');
+      .sort(([a], [b]) => a === b ? 0 : a < b ? -1 : 1)
+      .map(([nodeId, count]) => [nodeId, count]);
     const nonZeroNeg = Object.entries(counter.negative.counts)
       .filter(([_, count]) => count > 0)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([nodeId, count]) => `${nodeId}=-${count}`)
-      .join(',');
-    parts.push(`p:${key}:${netValue}:{${nonZeroPos}|${nonZeroNeg}}`);
+      .sort(([a], [b]) => a === b ? 0 : a < b ? -1 : 1)
+      .map(([nodeId, count]) => [nodeId, count]);
+    parts.push(JSON.stringify(['p', key, netValue, nonZeroPos, nonZeroNeg]));
   }
 
   // Hash OR-Sets by their active elements (elements with at least one non-tombstoned tag)
@@ -93,23 +92,14 @@ function hashState(state: CRDTStoreState): string {
       }
     }
     activeElements.sort();
-    parts.push(`s:${key}:[${activeElements.join(',')}]`);
+    parts.push(JSON.stringify(['s', key, activeElements]));
   }
 
   // Sort for consistency
   parts.sort();
 
-  // Simple hash: join and get a fingerprint
-  const joined = parts.join('|');
-  let hash = 0;
-  for (let i = 0; i < joined.length; i++) {
-    const char = joined.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-
-  // Return hash without version - version is per-node and shouldn't affect convergence check
-  return hash.toString(16);
+  // Version is per-node and does not affect semantic convergence.
+  return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
 }
 
 // =============================================================================
