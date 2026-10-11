@@ -167,7 +167,10 @@ export class ContextCompiler {
   }
 
   private buildCacheKey(request: ContextRequest): string {
-    return `${request.agentType}:${request.targetFiles.sort().join(',')}:${request.taskDescription.slice(0, 100)}`;
+    // JSON tuple: a ',' or ':' in a file name or agent type cannot shift fields (#914).
+    // Sort a copy so the caller's targetFiles array is not reordered.
+    const files = [...request.targetFiles].sort();
+    return JSON.stringify([request.agentType, files, request.taskDescription.slice(0, 100)]);
   }
 
   private generateSummary(

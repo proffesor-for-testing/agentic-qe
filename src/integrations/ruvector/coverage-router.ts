@@ -607,15 +607,16 @@ export class RuVectorCoverageRouter implements CoverageRouter {
   }
 
   /**
-   * Compute cache key
+   * Compute cache key. JSON tuples keep a ':' or '|' in a file path from merging
+   * entries (#914). Keys from older releases that were persisted to KV never
+   * match the new format, so they only miss and age out under the TTL.
    */
   private computeCacheKey(coverageData: FileCoverage[], targetCoverage: number): string {
-    const dataKey = coverageData
-      .map((c) => `${c.filePath}:${c.lineCoverage}:${c.branchCoverage}`)
-      .sort()
-      .join('|');
+    const entries = coverageData
+      .map((c) => JSON.stringify([c.filePath, c.lineCoverage, c.branchCoverage]))
+      .sort();
 
-    return `${targetCoverage}:${dataKey}`;
+    return JSON.stringify([targetCoverage, entries]);
   }
 }
 

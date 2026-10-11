@@ -64,6 +64,35 @@ describe('ComplianceReporter', () => {
   // Violation Recording
   // ============================================================================
 
+  describe('prototype-named gates and agents (#914)', () => {
+    it('counts gates and agents named after Object.prototype members as numbers', () => {
+      for (const agentId of ['constructor', 'constructor', '__proto__']) {
+        reporter.recordViolation({
+          type: 'loop_detected', severity: 'low', gate: 'toString', description: 'proto', agentId,
+        });
+      }
+
+      const stats = reporter.getComplianceStats();
+      expect(stats.byGate.toString).toBe(3);
+      expect(stats.byAgent.constructor).toBe(2);
+      expect(Object.hasOwn(stats.byAgent, '__proto__')).toBe(true);
+      expect(Object.values(stats.byAgent).reduce((sum, count) => sum + count, 0)).toBe(3);
+    });
+
+    it('scores gates and agents named after Object.prototype members instead of throwing', () => {
+      for (const agentId of ['constructor', 'toString']) {
+        reporter.recordViolation({
+          type: 'loop_detected', severity: 'low', gate: 'constructor', description: 'proto', agentId,
+        });
+      }
+
+      const score = reporter.calculateScore();
+      expect(typeof score.byGate.constructor).toBe('number');
+      expect(typeof score.byAgent.constructor).toBe('number');
+      expect(typeof score.byAgent.toString).toBe('number');
+    });
+  });
+
   describe('recordViolation', () => {
     it('should record a violation and return an id', () => {
       const id = reporter.recordViolation({

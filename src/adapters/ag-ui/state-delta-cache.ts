@@ -164,6 +164,16 @@ const TOOL_STATUS_TRANSITIONS: Array<[ToolStatus, ToolStatus]> = [
 // ============================================================================
 
 /**
+ * AG-UI state is JSON. States are hashed (#857), diffed and cloned with the
+ * same JSON round trip, so a function, Date or undefined behaves as it does
+ * over the wire, and the cached delta always matches its key (#914). Values JSON
+ * cannot represent (BigInt, cycles) throw a TypeError.
+ */
+function toJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/**
  * LRU Cache for pre-computed state deltas
  *
  * Reduces latency by caching common state transitions and using
@@ -218,12 +228,12 @@ export class StateDeltaCache {
       // Move to end for LRU (delete and re-add)
       this.cache.delete(key);
       this.cache.set(key, cached);
-      return structuredClone(cached.delta);
+      return toJson(cached.delta);
     }
 
     // Cache miss - compute delta
     this.misses++;
-    const delta = computeDiff(fromState, toState, this.config.diffConfig);
+    const delta = computeDiff(toJson(fromState), toJson(toState), this.config.diffConfig);
 
     // Store in cache
     this.setDelta(key, delta);
@@ -251,7 +261,7 @@ export class StateDeltaCache {
     toState: Record<string, unknown>
   ): JsonPatchOperation[] {
     const key = this.computeCacheKey(fromState, toState);
-    const delta = computeDiff(fromState, toState, this.config.diffConfig);
+    const delta = computeDiff(toJson(fromState), toJson(toState), this.config.diffConfig);
     this.setDelta(key, delta);
     this.preComputedKeys.add(key);
     return delta;
@@ -519,7 +529,7 @@ export class StateDeltaCache {
   private hashState(state: Record<string, unknown>): string {
     // A JSON replacer key list applies at every depth and drops nested fields.
     // Normalize JSON values first, then sort each object without filtering keys.
-    const normalized: unknown = JSON.parse(JSON.stringify(state));
+    const normalized: unknown = toJson(state);
     const encode = (value: unknown): string => {
       if (value === null || typeof value !== 'object') return JSON.stringify(value);
       if (Array.isArray(value)) return `[${value.map(encode).join(',')}]`;
@@ -541,7 +551,7 @@ export class StateDeltaCache {
 
     const now = Date.now();
     this.cache.set(key, {
-      delta: structuredClone(delta),
+      delta: toJson(delta),
       createdAt: now,
       lastAccessedAt: now,
       accessCount: 0,

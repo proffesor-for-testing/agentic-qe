@@ -551,6 +551,31 @@ describe('DefectInvestigationProtocol', () => {
         expect.any(Object)
       );
     });
+
+    it.each(['constructor', 'toString', '__proto__'])(
+      'counts a root cause named %s as a number (#914)',
+      async (rootCause) => {
+        const result = {
+          investigationId: 'inv-proto',
+          testFailure: createTestFailure(),
+          isFlaky: false,
+          rootCause: {
+            defectId: 'def-proto', rootCause, confidence: 0.8, contributingFactors: [],
+            relatedFiles: [], recommendations: [], timeline: [],
+          },
+          relatedFailures: [], recommendations: [], confidence: 0.7, duration: 10,
+        } as DefectInvestigationResult;
+
+        await protocol.updateDefectPatterns(result);
+        await protocol.updateDefectPatterns(result);
+
+        const statsCalls = vi.mocked(mockMemory.set).mock.calls.filter(([key]) => String(key).includes('pattern-stats'));
+        const stats = statsCalls[statsCalls.length - 1][1] as { patterns: Record<string, number>; totalInvestigations: number };
+        expect(Object.hasOwn(stats.patterns, rootCause)).toBe(true);
+        expect(stats.patterns[rootCause]).toBe(2);
+        expect(stats.totalInvestigations).toBe(2);
+      },
+    );
   });
 
   describe('early flaky return', () => {

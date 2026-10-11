@@ -25,6 +25,7 @@ import type {
 import type { ImpactAnalysis } from '../../domains/code-intelligence/interfaces';
 import { toError } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
+import { addToCount } from '../../shared/utils/safe-record.js';
 
 const logger = LoggerFactory.create('defect-investigation');
 
@@ -654,7 +655,9 @@ export class DefectInvestigationProtocol {
           };
 
         const pattern = result.rootCause.rootCause;
-        stats.patterns[pattern] = (stats.patterns[pattern] ?? 0) + 1;
+        // Root causes are free text and stats come back from storage as plain
+        // objects, so read and write own properties only (#914).
+        addToCount(stats.patterns, pattern);
         stats.totalInvestigations += 1;
 
         await this.memory.set(patternKey, stats, {

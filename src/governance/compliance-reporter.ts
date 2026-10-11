@@ -27,6 +27,7 @@ import {
 } from './proof-envelope-integration.js';
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
+import { createSafeRecord } from '../shared/utils/safe-record.js';
 
 // ============================================================================
 // Types
@@ -558,15 +559,15 @@ export class ComplianceReporter {
     // Calculate overall score
     const overall = this.calculateOverallScore(violations);
 
-    // Calculate score by gate
-    const byGate: Record<string, number> = {};
+    // Calculate score by gate. Gate and agent names are data (#914).
+    const byGate = createSafeRecord<number>();
     const gateViolations = this.groupBy(violations, 'gate');
     for (const [gate, gateViols] of Object.entries(gateViolations)) {
       byGate[gate] = this.calculateOverallScore(gateViols);
     }
 
     // Calculate score by agent
-    const byAgent: Record<string, number> = {};
+    const byAgent = createSafeRecord<number>();
     const agentViolations = this.groupBy(violations, 'agentId');
     for (const [agentId, agentViols] of Object.entries(agentViolations)) {
       if (agentId !== 'undefined') {
@@ -896,14 +897,14 @@ export class ComplianceReporter {
       bySeverity[v.severity]++;
     }
 
-    // Count by gate
-    const byGate: Record<string, number> = {};
+    // Count by gate. Gate and agent names are data (#914).
+    const byGate = createSafeRecord<number>();
     for (const v of allViolations) {
       byGate[v.gate] = (byGate[v.gate] || 0) + 1;
     }
 
     // Count by agent
-    const byAgent: Record<string, number> = {};
+    const byAgent = createSafeRecord<number>();
     for (const v of allViolations) {
       if (v.agentId) {
         byAgent[v.agentId] = (byAgent[v.agentId] || 0) + 1;
@@ -1382,7 +1383,7 @@ export class ComplianceReporter {
     violations: ComplianceViolation[],
     field: keyof ComplianceViolation
   ): Record<string, ComplianceViolation[]> {
-    const groups: Record<string, ComplianceViolation[]> = {};
+    const groups = createSafeRecord<ComplianceViolation[]>();
     for (const v of violations) {
       const key = String(v[field]);
       if (!groups[key]) {

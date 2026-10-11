@@ -35,6 +35,7 @@ import {
   type QEFlashAttentionMetrics,
 } from '../../../integrations/ruvector/wrappers.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { createSafeRecord } from '../../../shared/utils/safe-record.js';
 
 /**
  * Configuration for the learning coordinator
@@ -1249,8 +1250,9 @@ Provide:
   }
 
   private calculateCentroid(experiences: Experience[]): StateSnapshot {
-    const avgMetrics: Record<string, number> = {};
-    const metricCounts: Record<string, number> = {};
+    // Metric names come from stored experiences (#914).
+    const avgMetrics = createSafeRecord<number>();
+    const metricCounts = createSafeRecord<number>();
 
     for (const exp of experiences) {
       for (const [key, value] of Object.entries(exp.state.metrics)) {

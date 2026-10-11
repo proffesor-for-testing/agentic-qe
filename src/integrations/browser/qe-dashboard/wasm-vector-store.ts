@@ -328,7 +328,8 @@ export class WasmVectorStore {
    * @returns StoreStats with counts, dimensions, memory usage, etc.
    */
   getStats(): StoreStats {
-    const namespaceSizes: Record<string, number> = {};
+    // Namespaces are caller-supplied: no prototype, so `constructor` is just a name (#914).
+    const namespaceSizes: Record<string, number> = Object.create(null);
     let memoryBytes = 0;
 
     for (const [, entry] of this.vectors) {

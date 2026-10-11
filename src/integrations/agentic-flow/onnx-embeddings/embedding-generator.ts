@@ -301,10 +301,14 @@ export class EmbeddingGenerator {
   }
 
   /**
-   * Generate cache key from text and config
+   * Generate cache key from text and every config field that changes the vector.
+   * A JSON tuple keeps field boundaries intact when the model or text contains
+   * ':' (#914, as #863 did for the shared embedding cache). The cache is
+   * in-memory only, so no persisted keys need migrating.
    */
   private getCacheKey(text: string): string {
-    return `${this.config.model}:${this.config.hyperbolic}:${text}`;
+    const { model, hyperbolic, normalize, curvature } = this.config;
+    return JSON.stringify([model, hyperbolic, normalize, curvature, text]);
   }
 
   /**

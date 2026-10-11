@@ -16,6 +16,7 @@ import {
   CostAlert,
 } from './interfaces';
 import { getModelCost } from './model-registry';
+import { addToCount, createSafeRecord } from '../utils/safe-record';
 
 /**
  * Token pricing per model (cost per 1M tokens in USD).
@@ -153,7 +154,8 @@ export const MODEL_PRICING: Record<
  * as a free/local model.
  */
 export function resolveModelPricing(model: string): { input: number; output: number } | undefined {
-  const pricing = MODEL_PRICING[model];
+  // Own keys only: a model named `toString` must not resolve to the inherited method (#914).
+  const pricing = Object.hasOwn(MODEL_PRICING, model) ? MODEL_PRICING[model] : undefined;
   if (pricing) {
     return { input: pricing.input, output: pricing.output };
   }
@@ -299,7 +301,8 @@ export class CostTracker {
       cognitum: 0,
     };
 
-    const byModel: Record<string, number> = {};
+    // Model and provider names are data, so buckets must not inherit from Object.prototype (#914).
+    const byModel = createSafeRecord<number>();
 
     let totalCost = 0;
     let totalTokens = 0;
@@ -307,9 +310,8 @@ export class CostTracker {
     for (const record of relevantRecords) {
       totalCost += record.cost.totalCost;
       totalTokens += record.usage.totalTokens;
-      const providerCost = Object.hasOwn(byProvider, record.provider) ? byProvider[record.provider] : 0;
-      byProvider[record.provider] = providerCost + record.cost.totalCost;
-      byModel[record.model] = (byModel[record.model] || 0) + record.cost.totalCost;
+      addToCount(byProvider, record.provider, record.cost.totalCost);
+      addToCount(byModel, record.model, record.cost.totalCost);
     }
 
     return {
@@ -356,7 +358,7 @@ export class CostTracker {
       (r) => r.provider === provider && r.timestamp >= periodStart
     );
 
-    const models: Record<string, { cost: number; tokens: number; requests: number }> = {};
+    const models = createSafeRecord<{ cost: number; tokens: number; requests: number }>();
 
     let totalCost = 0;
     let totalTokens = 0;

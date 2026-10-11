@@ -9,6 +9,7 @@
  */
 
 import type { GCounter, GCounterState } from './types.js';
+import { addToCount, createSafeRecord, getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 // =============================================================================
 // G-Counter Implementation
@@ -31,13 +32,14 @@ import type { GCounter, GCounterState } from './types.js';
 export function createGCounter(nodeId: string): GCounter {
   // Internal state: per-node counts
   const state: GCounterState = {
-    counts: {},
+    // Node ids are data: keep them off Object.prototype (#914).
+    counts: createSafeRecord<number>(),
     version: 0,
     lastUpdated: Date.now(),
   };
 
   // Initialize this node's count
-  state.counts[nodeId] = 0;
+  setOwn(state.counts, nodeId, 0);
 
   return {
     get(): number {
@@ -53,7 +55,7 @@ export function createGCounter(nodeId: string): GCounter {
         return;
       }
 
-      state.counts[nodeId] = (state.counts[nodeId] || 0) + n;
+      addToCount(state.counts, nodeId, n);
       state.version++;
       state.lastUpdated = Date.now();
     },
@@ -66,7 +68,7 @@ export function createGCounter(nodeId: string): GCounter {
     getState(): GCounterState {
       // Return a deep copy to prevent external mutation
       return {
-        counts: { ...state.counts },
+        counts: Object.assign(createSafeRecord<number>(), state.counts),
         version: state.version,
         lastUpdated: state.lastUpdated,
       };
@@ -77,9 +79,9 @@ export function createGCounter(nodeId: string): GCounter {
 
       // Merge counts: take max for each node
       for (const [incomingNodeId, incomingCount] of Object.entries(incoming.counts)) {
-        const currentCount = state.counts[incomingNodeId] || 0;
+        const currentCount = getOwn(state.counts, incomingNodeId) ?? 0;
         if (incomingCount > currentCount) {
-          state.counts[incomingNodeId] = incomingCount;
+          setOwn(state.counts, incomingNodeId, incomingCount);
           changed = true;
         }
       }
@@ -95,7 +97,7 @@ export function createGCounter(nodeId: string): GCounter {
     },
 
     getLocalCount(): number {
-      return state.counts[nodeId] || 0;
+      return getOwn(state.counts, nodeId) ?? 0;
     },
   };
 }
@@ -153,7 +155,7 @@ export function getNodeCountFromState(
   state: GCounterState,
   nodeId: string
 ): number {
-  return state.counts[nodeId] || 0;
+  return getOwn(state.counts, nodeId) ?? 0;
 }
 
 /**
