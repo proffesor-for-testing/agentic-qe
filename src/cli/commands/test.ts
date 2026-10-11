@@ -112,11 +112,12 @@ export function createTestCommand(
               // Default text output
               console.log(chalk.green(`Generated ${generated.tests.length} tests\n`));
               console.log(chalk.cyan('  Tests:'));
-              // #925: with --no-save the printed code is the only output, so
-              // show every test instead of the first 10.
+              // #925/#936: every generated test is handled, with or without
+              // --no-save. A cap here used to drop tests past the 10th
+              // without writing or printing them.
               const noSave = options.save === false;
-              const shown = noSave ? generated.tests : generated.tests.slice(0, 10);
-              for (const test of shown) {
+              let written = 0;
+              for (const test of generated.tests) {
                 console.log(`    ${chalk.white(test.name)}`);
                 console.log(chalk.gray(`      Source: ${path.basename(test.sourceFile)}`));
                 console.log(chalk.gray(`      Assertions: ${test.assertions}`));
@@ -136,10 +137,11 @@ export function createTestCommand(
                   fs.mkdirSync(testDir, { recursive: true });
                   fs.writeFileSync(test.testFile, test.testCode, 'utf-8');
                   console.log(chalk.green(`      Written to: ${test.testFile}`));
+                  written++;
                 }
               }
-              if (!noSave && generated.tests.length > 10) {
-                console.log(chalk.gray(`    ... and ${generated.tests.length - 10} more`));
+              if (!noSave) {
+                console.log(chalk.gray(`\n  Wrote ${written} of ${generated.tests.length} generated test files.`));
               }
               console.log(`\n  Coverage Estimate: ${chalk.yellow(generated.coverageEstimate == null ? 'Unmeasured' : generated.coverageEstimate + '%')}`);
               if (generated.patternsUsed.length > 0) {
