@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GitAnalyzer } from '../../../src/shared/git/git-analyzer.js';
+import { CodeIntelligenceIndexProtocol } from '../../../src/coordination/protocols/code-intelligence-index.js';
 
 describe('GitAnalyzer.getCommitFiles rejects option-shaped refs (#960)', () => {
   let root: string;
@@ -67,5 +68,21 @@ describe('GitAnalyzer.getCommitFiles rejects option-shaped refs (#960)', () => {
 
   it('still returns [] for a well-formed but unknown ref', async () => {
     expect(await analyzer.getCommitFiles('no-such-branch')).toEqual([]);
+  });
+
+  it('rejects the ref through the public code-intelligence index protocol', async () => {
+    const kernel = {
+      eventBus: { publish: async () => undefined },
+      memory: { get: async () => undefined, set: async () => undefined, search: async () => [] },
+      getDomainAPI: () => undefined,
+    };
+    const protocol = new CodeIntelligenceIndexProtocol(kernel as never, { analyzeImpact: false });
+    const target = join(scratch, 'written-via-protocol');
+
+    const result = await protocol.execute({ type: 'git-commit', commitHash: `--output=${target}` });
+
+    expect(result.success).toBe(false);
+    expect(result.success ? '' : result.error.message).toMatch(/Invalid commit hash .*must not start with "-"/);
+    expect(existsSync(target)).toBe(false);
   });
 });
