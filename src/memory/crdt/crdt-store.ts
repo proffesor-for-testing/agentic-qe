@@ -450,6 +450,22 @@ export function createCRDTStore(config: CRDTStoreConfig): CRDTStore {
         return null;
       }
 
+      // A retained suffix cannot cover an older checkpoint. Send complete CRDT
+      // state (including OR-set tombstones) through the existing delta merge API.
+      if (sinceVersion < deltaHistory[0].fromVersion) {
+        const snapshot = store.getState();
+        return {
+          fromVersion: sinceVersion,
+          toVersion: version,
+          timestamp: Date.now(),
+          nodeId,
+          registers: snapshot.registers,
+          gCounters: snapshot.gCounters,
+          pnCounters: snapshot.pnCounters,
+          sets: snapshot.sets,
+        };
+      }
+
       // Find deltas that contain changes after the requested version
       // A delta is relevant if its toVersion > sinceVersion
       const relevantDeltas = deltaHistory.filter((d) => d.toVersion > sinceVersion);
