@@ -131,6 +131,20 @@ describe('GitWatcher', () => {
     expect(queue.size).toBe(2);
   });
 
+  it('never passes an option-shaped commit hash to git diff-tree (issue #960)', async () => {
+    setupGitMock([{ name: 'main', hash: 'aaa111' }]);
+    await watcher.poll(); // baseline
+
+    setupGitMock([{ name: 'main', hash: '--output=/tmp/aqe-960-pwned' }]);
+    await watcher.poll();
+
+    const diffTreeCalls = mockExecFile.mock.calls.filter(
+      ([, args]) => (args as string[]).includes('diff-tree'),
+    );
+    expect(diffTreeCalls).toEqual([]);
+    expect(queue.isEmpty).toBe(true);
+  });
+
   it('poll does not enqueue when hash is unchanged', async () => {
     setupGitMock([{ name: 'main', hash: 'aaa111' }]);
     await watcher.poll();

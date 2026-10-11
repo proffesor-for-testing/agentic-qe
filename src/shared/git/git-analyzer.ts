@@ -11,6 +11,7 @@
 
 import { execFileSync } from 'child_process';
 import * as path from 'path';
+import { assertSafeGitRef } from './ref-validation';
 
 /**
  * Sanitize a string for safe use in git arguments
@@ -518,20 +519,24 @@ export class GitAnalyzer {
 
   /**
    * Get files changed in a specific commit
-   * @param commitHash - Git commit hash (default: HEAD)
+   * @param commitHash - Git revision (SHA, `HEAD~3`, `origin/main`, tag; default: HEAD)
    * @returns Array of changed file paths relative to repo root
+   * @throws Error when `commitHash` is option-shaped (starts with "-") or otherwise
+   *   not a safe revision argument; git would otherwise parse it as an option
+   *   (e.g. `--output=<path>` writes an arbitrary file). See issue #960.
    */
   async getCommitFiles(commitHash: string = 'HEAD'): Promise<string[]> {
+    // Validate before touching git: execFileSync has no shell, so stripping
+    // metacharacters does not help, but a leading "-" is still parsed as an option.
+    assertSafeGitRef(commitHash, 'commit hash');
+
     if (!(await this.isGitRepository())) {
       return [];
     }
 
     try {
-      // Sanitize commit hash to prevent injection
-      const sanitizedHash = sanitizeGitArg(commitHash);
-
       const output = execFileSync('git', [
-        'diff-tree', '--root', '--no-commit-id', '--name-only', '-z', '-r', sanitizedHash
+        'diff-tree', '--root', '--no-commit-id', '--name-only', '-z', '-r', commitHash
       ], {
         cwd: this.config.repoRoot,
         encoding: 'utf-8',
