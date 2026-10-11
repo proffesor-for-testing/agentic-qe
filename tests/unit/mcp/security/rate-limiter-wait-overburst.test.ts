@@ -77,6 +77,16 @@ describe('RateLimiter.wait() over-burst (#905)', () => {
     expect(r.elapsed).toBeGreaterThanOrEqual(10); // genuinely waited for refill
   });
 
+  it('rejects after sleeping if an endpoint limit lowers maxBurst below the cost', async () => {
+    limiter = new RateLimiter({ tokensPerSecond: 50, maxBurst: 5 });
+    expect(limiter.consume('client', 'x', 5).allowed).toBe(true);
+    const pending = limiter.wait('client', 'x', 3); // must sleep ~60ms for refill
+    limiter.addEndpointLimit({ pattern: /^x$/, tokensPerSecond: 50, maxBurst: 2 });
+    const r = await settleWithin(pending, 1000);
+    expect(r.status).toBe('rejected');
+    expect((r.value as Error).message).toMatch(/exceeds maxBurst 2/);
+  });
+
   it('keeps rejecting invalid costs with RangeError', async () => {
     limiter = new RateLimiter({ tokensPerSecond: 10, maxBurst: 5 });
     await expect(limiter.wait('client', undefined, Number.NaN)).rejects.toBeInstanceOf(RangeError);
