@@ -19,7 +19,7 @@ import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../serv
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { readSaveResultsOption } from './save-results-option';
+import { describeSavedResults, readSaveResultsOption } from './save-results-option';
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
 import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
 
@@ -903,6 +903,8 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         result.savedFiles,
         params
       );
+      // #933: every result-saving tool reports what it wrote, the same way.
+      Object.assign(mappedResult, describeSavedResults(saveResults, result.savedFiles));
 
       // Step 5b: Record pattern usage on success (Phase 5.3 — fire-and-forget)
       recordPatternUsageAsync(

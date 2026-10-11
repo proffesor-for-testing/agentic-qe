@@ -11,7 +11,7 @@ import {
   RESULTS_DIR,
 } from '../../../../src/mcp/handlers/save-results-option';
 import { createDomainHandler, resetTaskExecutor } from '../../../../src/mcp/handlers/handler-factory';
-import { testGenerateConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
+import { testGenerateConfig, domainHandlerConfigs } from '../../../../src/mcp/handlers/domain-handler-configs';
 import * as coreHandlers from '../../../../src/mcp/handlers/core-handlers';
 import * as taskRouter from '../../../../src/mcp/services/task-router';
 import { createTaskExecutor } from '../../../../src/coordination/task-executor';
@@ -125,5 +125,58 @@ describe('test_generate_enhanced handler with saveResults', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('saveResults must be a boolean');
     expect(queen.submitTask).not.toHaveBeenCalled();
+  });
+});
+
+describe('#933 every handler-factory domain tool reports resultsSaved/resultsNote', () => {
+  const queen = { submitTask: vi.fn(), getTaskStatus: vi.fn() };
+  const executor = { execute: vi.fn() };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTaskExecutor();
+    vi.mocked(coreHandlers.isFleetInitialized).mockReturnValue(true);
+    vi.mocked(coreHandlers.getFleetState).mockReturnValue(
+      { queen, kernel: { id: 'k' } } as unknown as ReturnType<typeof coreHandlers.getFleetState>
+    );
+    vi.mocked(taskRouter.getTaskRouter).mockResolvedValue(
+      { routeTask: vi.fn().mockResolvedValue(null) } as unknown as Awaited<ReturnType<typeof taskRouter.getTaskRouter>>
+    );
+    vi.mocked(createTaskExecutor).mockReturnValue(executor as unknown as ReturnType<typeof createTaskExecutor>);
+    queen.submitTask.mockResolvedValue({ success: true, value: 'task-933' });
+    queen.getTaskStatus.mockReturnValue({ task: { id: 'task-933', type: 'x' } });
+  });
+
+  const configs = Object.entries(domainHandlerConfigs).filter(([name]) => name !== 'testGenerate');
+  const SAVED_933 = ['.agentic-qe/results/other/2026-10-11T00-00-00_x.json'];
+
+  it('covers the other 10 domain configs', () => {
+    expect(configs).toHaveLength(10);
+  });
+
+  it.each(configs)('%s: saveResults:false reaches the payload and the response says nothing was written', async (_name, config) => {
+    executor.execute.mockResolvedValue({ success: true, data: {}, duration: 5 });
+
+    const handler = createDomainHandler(config as Parameters<typeof createDomainHandler>[0]);
+    const result = await handler({ target: 'src/', saveResults: false });
+
+    expect(queen.submitTask.mock.calls[0][0].payload.saveResults).toBe(false);
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    expect(result.data).toMatchObject({
+      resultsSaved: false,
+      savedFiles: [],
+      resultsNote: `saveResults was false: no files were written under ${RESULTS_DIR}.`,
+    });
+  });
+
+  it.each(configs)('%s: the default returns the saved paths', async (_name, config) => {
+    executor.execute.mockResolvedValue({ success: true, data: {}, duration: 5, savedFiles: SAVED_933 });
+
+    const handler = createDomainHandler(config as Parameters<typeof createDomainHandler>[0]);
+    const result = await handler({ target: 'src/' });
+
+    expect(queen.submitTask.mock.calls[0][0].payload).not.toHaveProperty('saveResults');
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    expect(result.data).toMatchObject({ resultsSaved: true, savedFiles: SAVED_933 });
   });
 });
