@@ -18,6 +18,11 @@ import { createHash } from 'crypto';
 import type { JsonPatchOperation } from './event-types.js';
 import { computeDiff, deepEqual, parsePath, type DiffConfig } from './json-patch.js';
 
+/** Match AG-UI wire values and cache-key JSON normalization. */
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -207,7 +212,9 @@ export class StateDeltaCache {
     fromState: Record<string, unknown>,
     toState: Record<string, unknown>
   ): JsonPatchOperation[] {
-    const key = this.computeCacheKey(fromState, toState);
+    const fromJson = cloneJson(fromState);
+    const toJson = cloneJson(toState);
+    const key = this.computeCacheKey(fromJson, toJson);
 
     // Check cache
     const cached = this.cache.get(key);
@@ -218,12 +225,12 @@ export class StateDeltaCache {
       // Move to end for LRU (delete and re-add)
       this.cache.delete(key);
       this.cache.set(key, cached);
-      return structuredClone(cached.delta);
+      return cloneJson(cached.delta);
     }
 
     // Cache miss - compute delta
     this.misses++;
-    const delta = computeDiff(fromState, toState, this.config.diffConfig);
+    const delta = computeDiff(fromJson, toJson, this.config.diffConfig);
 
     // Store in cache
     this.setDelta(key, delta);
@@ -250,8 +257,10 @@ export class StateDeltaCache {
     fromState: Record<string, unknown>,
     toState: Record<string, unknown>
   ): JsonPatchOperation[] {
-    const key = this.computeCacheKey(fromState, toState);
-    const delta = computeDiff(fromState, toState, this.config.diffConfig);
+    const fromJson = cloneJson(fromState);
+    const toJson = cloneJson(toState);
+    const key = this.computeCacheKey(fromJson, toJson);
+    const delta = computeDiff(fromJson, toJson, this.config.diffConfig);
     this.setDelta(key, delta);
     this.preComputedKeys.add(key);
     return delta;
@@ -541,7 +550,7 @@ export class StateDeltaCache {
 
     const now = Date.now();
     this.cache.set(key, {
-      delta: structuredClone(delta),
+      delta: cloneJson(delta),
       createdAt: now,
       lastAccessedAt: now,
       accessCount: 0,
