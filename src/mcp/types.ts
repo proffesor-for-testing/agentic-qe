@@ -242,6 +242,8 @@ export interface TestGenerateParams {
  * Test execution parameters
  */
 export interface TestExecuteParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   /** Concrete test file paths for test_execute_parallel; provide a nonempty list.
    * Expand glob patterns before calling. The task handler does not expand them.
    */
@@ -259,6 +261,8 @@ export interface TestExecuteParams {
  * Coverage analysis parameters
  */
 export interface CoverageAnalyzeParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   target?: string;
   includeRisk?: boolean;
   detectGaps?: boolean;
@@ -270,6 +274,8 @@ export interface CoverageAnalyzeParams {
  * Quality assessment parameters
  */
 export interface QualityAssessParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   runGate?: boolean;
   threshold?: number;
   metrics?: string[];
@@ -279,6 +285,8 @@ export interface QualityAssessParams {
  * Security scan parameters
  */
 export interface SecurityScanParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   sast?: boolean;
   dast?: boolean;
   compliance?: string[];
@@ -291,6 +299,8 @@ export interface SecurityScanParams {
  * Contract validation parameters
  */
 export interface ContractValidateParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   contractPath?: string;
   providerUrl?: string;
   consumerName?: string;
@@ -301,6 +311,8 @@ export interface ContractValidateParams {
  * Accessibility test parameters
  */
 export interface AccessibilityTestParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   url?: string;
   standard?: 'wcag21-aa' | 'wcag21-aaa' | 'wcag22-aa' | 'section508';
   includeScreenReader?: boolean;
@@ -310,6 +322,8 @@ export interface AccessibilityTestParams {
  * Chaos test parameters
  */
 export interface ChaosTestParams {
+  /** Save result artifacts by default; false disables file writes. */
+  saveResults?: boolean;
   faultType?: 'latency' | 'error' | 'timeout' | 'cpu' | 'memory' | 'network';
   target?: string;
   duration?: number;
@@ -628,6 +642,8 @@ export interface CoverageAnalyzeResult {
   gaps?: CoverageGap[];
   riskScore?: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
   // V2-compatible fields (optional, flexible typing)
   /** #569: `null` when no figure was produced — see `lineCoverage`. */
   statementCoverage?: number | null;

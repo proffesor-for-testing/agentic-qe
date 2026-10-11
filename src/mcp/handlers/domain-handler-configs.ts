@@ -93,6 +93,8 @@ export interface TestExecuteResult {
   summary?: Record<string, unknown>;
   learning?: Record<string, unknown>;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface QualityAssessResult {
@@ -107,6 +109,8 @@ export interface QualityAssessResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
   /** ADR-103: versioned, schema-validated gate verdict (additive) */
   riskDecision?: RiskDecision;
 }
@@ -124,6 +128,8 @@ export interface SecurityScanResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
   informational?: number;
   evidence?: SecurityScanEvidence;
   limitations?: readonly string[];
@@ -145,6 +151,8 @@ export interface ContractValidateResult {
   warnings: string[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface AccessibilityTestResult {
@@ -156,6 +164,8 @@ export interface AccessibilityTestResult {
   warnings: unknown[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface ChaosTestResult {
@@ -169,9 +179,12 @@ export interface ChaosTestResult {
   };
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface DefectPredictParams {
+  saveResults?: boolean;
   target?: string;
   lookback?: number;
   minConfidence?: number;
@@ -189,9 +202,12 @@ export interface DefectPredictResult {
   recommendations: string[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface RequirementsValidateParams {
+  saveResults?: boolean;
   requirementsPath?: string;
   testPath?: string;
   generateBDD?: boolean;
@@ -206,9 +222,12 @@ export interface RequirementsValidateResult {
   bddScenarios: string[];
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 export interface CodeIndexParams {
+  saveResults?: boolean;
   target?: string;
   incremental?: boolean;
   gitSince?: string;
@@ -222,6 +241,8 @@ export interface CodeIndexResult {
   relationsFound: number;
   duration: number;
   savedFiles?: string[];
+  resultsSaved?: boolean;
+  resultsNote?: string;
 }
 
 // ============================================================================
@@ -462,7 +483,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
       failed,
       duration,
       coverage,
-      savedFiles,
+      ...describeSavedResults(params?.saveResults !== false, savedFiles),
     };
   },
 };
@@ -491,7 +512,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => {
+  mapToResult: (taskId, data, duration, savedFiles, params) => {
     // The domain returns CoverageReport { summary: { line, branch, function, statement, files }, ... }
     // Map from both nested (domain) and flat (legacy) field shapes.
     const summary = data.summary as { line?: number; branch?: number; function?: number; statement?: number; files?: number } | undefined;
@@ -625,7 +646,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       totalFiles,
       gaps: detailedGaps,
       duration,
-      savedFiles,
+      ...describeSavedResults(params?.saveResults !== false, savedFiles),
       // #569: provenance travels with the numbers so a caller can never mistake
       // a static estimate for a measurement.
       estimated,
@@ -665,7 +686,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     };
   },
 
-  mapToResult: (taskId, data, duration, savedFiles) => {
+  mapToResult: (taskId, data, duration, savedFiles, params) => {
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
     // boundary (additive — existing fields unchanged). Omit rather than
     // emit an invalid envelope.
@@ -683,7 +704,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       metrics: (data.metrics as Record<string, number>) || {},
       recommendations: (data.recommendations as string[]) || [],
       duration,
-      savedFiles,
+      ...describeSavedResults(params?.saveResults !== false, savedFiles),
       ...(validateRiskDecision(riskDecision).valid ? { riskDecision } : {}),
     };
   },
@@ -724,7 +745,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     };
   },
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     // Legacy task results without receipts cannot establish scan completeness.
     status: (data.evidence as SecurityScanEvidence | undefined)?.completeness === 'complete' ? 'completed'
@@ -752,7 +773,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     scanTypes: data.scanTypes as { sast: boolean; dast: boolean } | undefined,
     note: data.note as string | undefined,
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -779,14 +800,14 @@ export const contractValidateConfig: DomainHandlerConfig<ContractValidateParams,
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     valid: (data.valid as boolean) || false,
     breakingChanges: (data.breakingChanges as string[]) || [],
     warnings: (data.warnings as string[]) || [],
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -812,7 +833,7 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     passed: (data.passed as boolean) || false,
@@ -820,7 +841,7 @@ export const accessibilityTestConfig: DomainHandlerConfig<AccessibilityTestParam
     violations: (data.violations as unknown[]) || [],
     warnings: (data.warnings as unknown[]) || [],
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -850,7 +871,7 @@ export const chaosTestConfig: DomainHandlerConfig<ChaosTestParams, ChaosTestResu
 
   calculateTimeout: (params) => (params.duration || 30000) + 60000,
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     faultType: (data.faultType as string) || 'latency',
@@ -860,7 +881,7 @@ export const chaosTestConfig: DomainHandlerConfig<ChaosTestParams, ChaosTestResu
       dataLoss: false,
     },
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -886,14 +907,14 @@ export const defectPredictConfig: DomainHandlerConfig<DefectPredictParams, Defec
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     predictedDefects: (data.predictedDefects as Array<{ file: string; probability: number; reason: string }>) || [],
     riskScore: (data.riskScore as number) || 0,
     recommendations: (data.recommendations as string[]) || [],
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -919,7 +940,7 @@ export const requirementsValidateConfig: DomainHandlerConfig<RequirementsValidat
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     requirementsAnalyzed: (data.requirementsAnalyzed as number) || 0,
@@ -927,7 +948,7 @@ export const requirementsValidateConfig: DomainHandlerConfig<RequirementsValidat
     coverage: (data.coverage as number) || 0,
     bddScenarios: (data.bddScenarios as string[]) || [],
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
@@ -953,14 +974,14 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     compiledContext: routingResult?.compiledContext,
   }),
 
-  mapToResult: (taskId, data, duration, savedFiles) => ({
+  mapToResult: (taskId, data, duration, savedFiles, params) => ({
     taskId,
     status: 'completed',
     filesIndexed: (data.filesIndexed as number) || 0,
     symbolsExtracted: (data.symbolsExtracted as number) || 0,
     relationsFound: (data.relationsFound as number) || 0,
     duration,
-    savedFiles,
+    ...describeSavedResults(params?.saveResults !== false, savedFiles),
   }),
 };
 
