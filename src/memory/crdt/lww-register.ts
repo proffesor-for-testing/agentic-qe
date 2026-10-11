@@ -57,7 +57,7 @@ export function createLWWRegister<T>(
       return timestampA - timestampB;
     }
     // Tiebreaker: lexicographic comparison of node IDs
-    return nodeIdA.localeCompare(nodeIdB);
+    return nodeIdA === nodeIdB ? 0 : nodeIdA > nodeIdB ? 1 : -1;
   }
 
   return {
@@ -70,7 +70,7 @@ export function createLWWRegister<T>(
 
       // Only update if new timestamp wins
       if (
-        state.timestamp === 0 ||
+        state.version === 0 ||
         compareTimestamps(ts, nodeId, state.timestamp, state.nodeId) > 0
       ) {
         state = {
@@ -102,7 +102,7 @@ export function createLWWRegister<T>(
     applyState(incoming: LWWRegisterState<T>): void {
       // Only update if incoming timestamp wins
       if (
-        state.timestamp === 0 ||
+        state.version === 0 ||
         compareTimestamps(
           incoming.timestamp,
           incoming.nodeId,
