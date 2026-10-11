@@ -11,6 +11,9 @@
 
 import { createSafeRegex } from './validators/regex-safety-validator.js';
 
+/** Largest delay setTimeout honours; larger values are clamped to 1 ms. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
+
 // ============================================================================
 // Types and Interfaces
 // ============================================================================
@@ -229,7 +232,8 @@ export class RateLimiter {
    *
    * Rejects with a RangeError instead of waiting forever when the request can
    * never be admitted: the cost exceeds the resolved bucket's maxBurst, or the
-   * bucket cannot refill (tokensPerSecond <= 0). See issue #905.
+   * bucket cannot refill (tokensPerSecond <= 0), or the refill delay exceeds
+   * what setTimeout can represent (it would clamp to 1 ms and spin). See #905.
    */
   async wait(clientId?: string, endpoint?: string, tokens = 1): Promise<RateLimitResult> {
     this.assertAdmissible(endpoint, tokens);
@@ -241,6 +245,12 @@ export class RateLimiter {
         throw new RangeError(
           `Rate limit bucket for ${endpoint ?? 'default'} cannot refill (retryAfter=${delay}); ` +
           'wait() would never settle'
+        );
+      }
+      if (delay > MAX_TIMER_DELAY_MS) {
+        throw new RangeError(
+          `Rate limit retryAfter ${delay}ms for ${endpoint ?? 'default'} bucket exceeds the ` +
+          `${MAX_TIMER_DELAY_MS}ms setTimeout maximum; wait() would spin instead of sleeping`
         );
       }
       await this.sleep(delay);
@@ -436,7 +446,9 @@ export class RateLimiter {
     maxBurst: number,
     now: number
   ): void {
-    const elapsed = (now - bucket.lastUpdate) / 1000;
+    // A bucket created after `now` was read (or a clock step back) must not
+    // remove tokens, so negative elapsed time counts as zero.
+    const elapsed = Math.max(0, now - bucket.lastUpdate) / 1000;
     const newTokens = elapsed * tokensPerSecond;
 
     bucket.tokens = Math.min(maxBurst, bucket.tokens + newTokens);

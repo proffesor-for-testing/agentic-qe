@@ -3,7 +3,7 @@
  * never be admitted (tokens > maxBurst, or a bucket that never refills).
  * Uses real timers so a hang shows up as a real timeout, not a mocked clock.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { RateLimiter } from '../../../../src/mcp/security/rate-limiter.js';
 
 const SETTLE_BUDGET_MS = 250;
@@ -85,6 +85,39 @@ describe('RateLimiter.wait() over-burst (#905)', () => {
     const r = await settleWithin(pending, 1000);
     expect(r.status).toBe('rejected');
     expect((r.value as Error).message).toMatch(/exceeds maxBurst 2/);
+  });
+
+  it('rejects instead of spinning when retryAfter exceeds the setTimeout maximum', async () => {
+    // 1 token per 10^7 s: retryAfter is ~1e10 ms, which setTimeout would clamp to 1 ms.
+    limiter = new RateLimiter({ tokensPerSecond: 1000, maxBurst: 100 });
+    limiter.addEndpointLimit({ pattern: /^slow$/, tokensPerSecond: 1e-7, maxBurst: 1 });
+    expect(limiter.consume('client', 'slow').allowed).toBe(true);
+    const warnings: string[] = [];
+    const onWarning = (w: Error) => { warnings.push(w.name); };
+    process.on('warning', onWarning);
+    try {
+      const r = await settleWithin(limiter.wait('client', 'slow', 1), SETTLE_BUDGET_MS);
+      expect(r.status).toBe('rejected');
+      expect(r.value).toBeInstanceOf(RangeError);
+      expect((r.value as Error).message).toMatch(/2147483647/);
+      expect(r.elapsed).toBeLessThan(SETTLE_BUDGET_MS);
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(warnings).not.toContain('TimeoutOverflowWarning');
+    } finally {
+      process.off('warning', onWarning);
+    }
+  });
+
+  it('does not drain a new bucket when the clock ticks between reading now and creating it', () => {
+    limiter = new RateLimiter({ tokensPerSecond: 1000, maxBurst: 1 });
+    // consume() reads `now` (t) before getBucket() stamps the new bucket (t + 1).
+    const t = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValueOnce(t).mockReturnValue(t + 1);
+    try {
+      expect(limiter.consume('client').allowed).toBe(true);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('keeps rejecting invalid costs with RangeError', async () => {
