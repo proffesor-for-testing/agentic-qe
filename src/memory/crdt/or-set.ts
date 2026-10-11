@@ -95,6 +95,23 @@ export function createORSet<T>(nodeId: string): ORSet<T> {
   let lastUpdated = Date.now();
   let tagCounter = 0;
 
+  /** Continue this owner's allocation sequence after importing a checkpoint. */
+  function observeOwnedTag(tag: string): void {
+    const prefix = `${nodeId}:`;
+    if (!tag.startsWith(prefix)) return;
+    const suffix = tag.slice(prefix.length);
+    const match = /^(-?\d+):(\d+)$/.exec(suffix);
+    if (!match) return;
+    const timestamp = Number(match[1]);
+    const counter = Number(match[2]);
+    if (
+      Number.isSafeInteger(timestamp) && Number.isSafeInteger(counter) &&
+      counter < Number.MAX_SAFE_INTEGER
+    ) {
+      tagCounter = Math.max(tagCounter, counter + 1);
+    }
+  }
+
   /**
    * Check if an element has any active (non-tombstoned) tags
    */
@@ -241,6 +258,7 @@ export function createORSet<T>(nodeId: string): ORSet<T> {
 
         const localTags = elements.get(serialized)!;
         for (const tag of incomingTags) {
+          observeOwnedTag(tag);
           if (!localTags.has(tag)) {
             localTags.add(tag);
             changed = true;
@@ -258,6 +276,7 @@ export function createORSet<T>(nodeId: string): ORSet<T> {
 
         const localTombstones = tombstones.get(serialized)!;
         for (const tag of incomingTombstones) {
+          observeOwnedTag(tag);
           if (!localTombstones.has(tag)) {
             localTombstones.add(tag);
             changed = true;
