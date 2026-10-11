@@ -12,7 +12,7 @@ import * as path from 'path';
 import { SessionStore, type SessionEntry, type SessionEntryInput } from '../../../src/mcp/services/session-store';
 import { resumeSession } from '../../../src/mcp/services/session-resume';
 
-const disk = vi.hoisted(() => ({ budget: null as number | null }));
+const disk = vi.hoisted(() => ({ budget: null as number | null, zeroWrites: false, closeFails: false }));
 
 function enospc(): NodeJS.ErrnoException {
   const error: NodeJS.ErrnoException = new Error('ENOSPC: no space left on device, write');
@@ -37,12 +37,17 @@ vi.mock('fs', async (importOriginal) => {
       throw enospc();
     },
     writeSync: (fd: number, buffer: NodeJS.ArrayBufferView, offset?: number, length?: number, position?: number | null) => {
+      if (disk.zeroWrites) return 0;
       if (disk.budget === null) return actual.writeSync(fd, buffer, offset, length, position);
       if (disk.budget === 0) throw enospc();
       const requested = length ?? buffer.byteLength - (offset ?? 0);
       const count = Math.min(requested, disk.budget);
       disk.budget -= count;
       return actual.writeSync(fd, buffer, offset, count, position);
+    },
+    closeSync: (fd: number) => {
+      actual.closeSync(fd);
+      if (disk.closeFails) throw Object.assign(new Error('EIO: i/o error, close'), { code: 'EIO' });
     },
   };
 });
@@ -72,11 +77,15 @@ function resume(value: SessionStore) {
 beforeEach(() => {
   delete process.env.AQE_MEMORY_BACKEND;
   disk.budget = null;
+  disk.zeroWrites = false;
+  disk.closeFails = false;
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'session-partial-write-'));
   stores = [];
 });
 afterEach(() => {
   disk.budget = null;
+  disk.zeroWrites = false;
+  disk.closeFails = false;
   for (const value of stores) { try { value.close(); } catch { /* cleanup only */ } }
   fs.rmSync(directory, { recursive: true, force: true });
   vi.restoreAllMocks();
@@ -139,6 +148,29 @@ describe('SessionStore partial-append recovery (#910)', () => {
     expect(written).toHaveLength(2);
     expect(written[1]).toMatchObject({ uuid: second, parentUuid: written[0].uuid });
     expect(resume(value).disposition).toBe('LEGACY_UNVERIFIED');
+  });
+
+  it('fails instead of spinning when a write reports zero bytes, then recovers', () => {
+    const value = open();
+    const first = value.append(entry(1));
+    const second = value.append(entry(2));
+    disk.zeroWrites = true;
+    expect(() => value.flush()).toThrow(/made no progress/);
+    disk.zeroWrites = false;
+    value.flush();
+    expect(rows(value).map(row => row.uuid)).toEqual([first, second]);
+  });
+
+  it('treats a close error after complete writes as written, without re-appending', () => {
+    const value = open();
+    const first = value.append(entry(1));
+    const second = value.append(entry(2));
+    disk.closeFails = true;
+    expect(() => value.flush()).not.toThrow();
+    disk.closeFails = false;
+    value.flush();
+    expect(rows(value).map(row => row.uuid)).toEqual([first, second]);
+    expect(value.getWriteBufferStats().bufferedEntries).toBe(0);
   });
 
   it('rejects a first write that put nothing on disk, leaving the chain unchanged', () => {
