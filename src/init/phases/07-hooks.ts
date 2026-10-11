@@ -496,6 +496,11 @@ function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
+  // Never write through a committed symlink: .agentic-qe must be a real dir, and
+  // unlink (not existsSync) drops a planted aqe.rvf link, even a dangling one.
+  let st; try { st = fs.lstatSync(AQE_DIR); } catch { /* missing */ }
+  if (!st || !st.isDirectory()) { log('Export skipped: .agentic-qe is a symlink'); return { exported: false }; }
+  for (const f of [RVF_PATH, RVF_PATH + '.idmap.json']) { try { fs.unlinkSync(f); } catch { /* absent */ } }
   try {
     const result = execFileSync(
       aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],

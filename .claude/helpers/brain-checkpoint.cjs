@@ -51,14 +51,32 @@ const CHECKPOINT_DISABLED =
 
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\n'); }
 
+/** A repository can commit `.agentic-qe` as a symlink: only write into a REAL dir. */
+function isRealDir(dir) {
+  try { const st = fs.lstatSync(dir); return st.isDirectory() && !st.isSymbolicLink(); } catch { return false; }
+}
+
+/**
+ * Remove whatever sits at `p` WITHOUT following it: unlink drops a planted
+ * symlink itself (even a dangling one, which existsSync reports as absent),
+ * so the exporter below creates a fresh regular file instead of writing
+ * through the link.
+ */
+function removeEntry(p) {
+  try { fs.unlinkSync(p); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
+  if (!isRealDir(AQE_DIR)) {
+    const reason = '.agentic-qe is a symlink; refusing to write through it';
+    log('Export skipped: ' + reason); return { exported: false, reason };
+  }
   const aqe = aqeInvocation();
   if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
   try {
-    if (fs.existsSync(RVF_PATH)) fs.unlinkSync(RVF_PATH);
-    const idmap = RVF_PATH + '.idmap.json';
-    if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
+    removeEntry(RVF_PATH);
+    removeEntry(RVF_PATH + '.idmap.json');
     const result = execFileSync(
       aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
       { timeout: 60000, encoding: 'utf-8', windowsHide: true }

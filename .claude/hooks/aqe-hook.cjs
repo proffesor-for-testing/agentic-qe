@@ -116,14 +116,52 @@ function cachedNpmPrefix(lookup, execPath, p, exists, cacheFile, now) {
 }
 
 /**
+ * A repository can commit `.agentic-qe` (or a file in it) as a symlink. Every
+ * write this hook makes therefore goes only into a REAL directory (created if
+ * missing; a symlink/junction is refused, never followed) ...
+ */
+function ensureRealDir(dir) {
+  try {
+    let st;
+    try { st = fs.lstatSync(dir); } catch (e) {
+      if (!e || e.code !== 'ENOENT') return false;
+      fs.mkdirSync(dir, { recursive: true });
+      st = fs.lstatSync(dir);
+    }
+    return st.isDirectory() && !st.isSymbolicLink();
+  } catch { return false; }
+}
+
+/**
+ * ... and appends only to a regular file: lstat refuses an existing link or
+ * non-file, and O_NOFOLLOW (POSIX; undefined on Windows, where the lstat check
+ * stands alone) closes the race. Returns false when it declined to write.
+ */
+function appendFileSafe(file, text) {
+  if (!ensureRealDir(path.dirname(file))) return false;
+  try {
+    if (!fs.lstatSync(file).isFile()) return false; // lstat: a symlink is never isFile()
+  } catch (e) { if (!e || e.code !== 'ENOENT') return false; }
+  const c = fs.constants;
+  let fd;
+  try {
+    fd = fs.openSync(file, c.O_APPEND | c.O_CREAT | c.O_WRONLY | (c.O_NOFOLLOW || 0), 0o644);
+    fs.writeSync(fd, text);
+    return true;
+  } catch { return false; } finally {
+    if (fd !== undefined) { try { fs.closeSync(fd); } catch { /* ignore */ } }
+  }
+}
+
+/**
  * Write via a fresh temp file (O_EXCL: never opens an existing path or follows
  * a planted link) + rename. rename REPLACES a symlink at the destination rather
  * than writing through it, and readers never see a torn file. Best-effort.
  */
 function writeFileAtomic(file, data) {
+  if (!ensureRealDir(path.dirname(file))) return;
   const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(tmp, data, { flag: 'wx' });
     fs.renameSync(tmp, file);
   } catch {
@@ -264,12 +302,12 @@ function recordHookHealth(line) {
   try {
     const logPath = path.join(PROJECT, '.agentic-qe', 'hooks-health.log');
     // Throttle: skip if we logged within the last 5 min (avoid a line/turn).
+    // lstat, so a planted symlink's TARGET mtime never decides anything.
     try {
-      const st = fs.statSync(logPath);
-      if (Date.now() - st.mtimeMs < 5 * 60 * 1000) return;
+      const st = fs.lstatSync(logPath);
+      if (st.isFile() && Date.now() - st.mtimeMs < 5 * 60 * 1000) return;
     } catch { /* no log yet — fall through and create it */ }
-    fs.mkdirSync(path.dirname(logPath), { recursive: true });
-    fs.appendFileSync(logPath, line);
+    appendFileSafe(logPath, line); // never through a symlinked log or .agentic-qe
   } catch { /* health logging must never block a turn */ }
 }
 
