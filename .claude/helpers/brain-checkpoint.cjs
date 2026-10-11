@@ -17,7 +17,27 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
-const AQE_BIN = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
+/**
+ * How to run `aqe`. POSIX: the `aqe` binary. Windows (#872): never execFile
+ * `aqe.cmd` (EINVAL without a shell since CVE-2024-27980, and a shell is unsafe);
+ * reuse the hook shim's resolver, which finds the bundle and runs it via node.
+ */
+function aqeInvocation() {
+  if (process.platform !== 'win32') return { cmd: process.env.AQE_HOOK_BIN || 'aqe', args: [] };
+  const shimPath = path.join(__dirname, '..', 'hooks', 'aqe-hook.cjs');
+  let src = '';
+  try { src = fs.readFileSync(shimPath, 'utf8'); } catch { /* missing: handled below */ }
+  // Only a #872+ shim may be required: an older one runs its hook main at load
+  // time (spawn + process.exit(0)), which would kill this export silently.
+  if (!src.includes('resolveAqeInvocation') || !src.includes('require.main === module')) {
+    return { cmd: null, args: [], reason: '.claude/hooks/aqe-hook.cjs is missing or predates #872; re-run `aqe init`' };
+  }
+  try {
+    return require(shimPath).resolveAqeInvocation({ project: PROJECT_ROOT });
+  } catch (e) {
+    return { cmd: null, args: [], reason: 'aqe-hook.cjs failed to load: ' + e.message };
+  }
+}
 
 // Mount-local kill switch. `brain export` (below) spawns a native RVF writer
 // that, on a macOS Docker virtiofs bind mount, deadlocks in a futex and IGNORES
@@ -31,15 +51,35 @@ const CHECKPOINT_DISABLED =
 
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\n'); }
 
+/** A repository can commit `.agentic-qe` as a symlink: only write into a REAL dir. */
+function isRealDir(dir) {
+  try { const st = fs.lstatSync(dir); return st.isDirectory() && !st.isSymbolicLink(); } catch { return false; }
+}
+
+/**
+ * Remove whatever sits at `p` WITHOUT following it: unlink drops a planted
+ * symlink itself (even a dangling one, which existsSync reports as absent),
+ * so the exporter below creates a fresh regular file instead of writing
+ * through the link.
+ */
+function removeEntry(p) {
+  try { fs.unlinkSync(p); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
+}
+
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
+  if (!isRealDir(AQE_DIR)) {
+    const reason = '.agentic-qe is a symlink; refusing to write through it';
+    log('Export skipped: ' + reason); return { exported: false, reason };
+  }
+  const aqe = aqeInvocation();
+  if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
   try {
-    if (fs.existsSync(RVF_PATH)) fs.unlinkSync(RVF_PATH);
-    const idmap = RVF_PATH + '.idmap.json';
-    if (fs.existsSync(idmap)) fs.unlinkSync(idmap);
+    removeEntry(RVF_PATH);
+    removeEntry(RVF_PATH + '.idmap.json');
     const result = execFileSync(
-      AQE_BIN, ['brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8' }
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
     );
     const m = result.match(/Patterns:\s+(\d+)/);
     const p = m ? m[1] : '0';

@@ -313,10 +313,13 @@ export class HooksPhase extends BasePhase<HooksResult> {
 
     const destPath = join(helpersDir, 'brain-checkpoint.cjs');
 
-    // Try to copy from our own installation first
+    // Try to copy from our own installation first. The last candidate is this
+    // package's own copy (relative to the compiled init module), so a GLOBAL
+    // install also refreshes an existing project's helper on re-init (#872).
     const sourcePaths = [
       join(projectRoot, '.claude', 'helpers', 'brain-checkpoint.cjs'),
       join(projectRoot, 'node_modules', 'agentic-qe', '.claude', 'helpers', 'brain-checkpoint.cjs'),
+      join(__dirname, '..', '..', '..', '.claude', 'helpers', 'brain-checkpoint.cjs'),
     ];
 
     for (const src of sourcePaths) {
@@ -469,16 +472,39 @@ const AQE_DIR = path.join(PROJECT_ROOT, '.agentic-qe');
 const RVF_PATH = path.join(AQE_DIR, 'aqe.rvf');
 const DB_PATH = path.join(AQE_DIR, 'memory.db');
 const MAX_AGE_HOURS = 24;
-const AQE_BIN = process.env.AQE_HOOK_BIN || (process.platform === 'win32' ? 'aqe.cmd' : 'aqe');
+// Windows (#872): never execFile aqe.cmd (EINVAL without a shell); reuse the
+// hook shim's resolver, which runs the AQE bundle via node instead.
+function aqeInvocation() {
+  if (process.platform !== 'win32') return { cmd: process.env.AQE_HOOK_BIN || 'aqe', args: [] };
+  const shimPath = path.join(__dirname, '..', 'hooks', 'aqe-hook.cjs');
+  let src = '';
+  try { src = fs.readFileSync(shimPath, 'utf8'); } catch { /* missing */ }
+  // An older shim runs its hook main (spawn + exit) when required.
+  if (!src.includes('resolveAqeInvocation') || !src.includes('require.main === module')) {
+    return { cmd: null, args: [], reason: '.claude/hooks/aqe-hook.cjs is missing or predates #872; re-run aqe init' };
+  }
+  try {
+    return require(shimPath).resolveAqeInvocation({ project: PROJECT_ROOT });
+  } catch (e) {
+    return { cmd: null, args: [], reason: 'aqe-hook.cjs failed to load: ' + e.message };
+  }
+}
 
 function log(msg) { process.stderr.write('[brain-checkpoint] ' + msg + '\\n'); }
 
 function exportBrain() {
   if (!fs.existsSync(DB_PATH)) { log('No memory.db, skipping'); return { exported: false }; }
+  const aqe = aqeInvocation();
+  if (!aqe.cmd) { log('Export skipped: ' + aqe.reason); return { exported: false, reason: aqe.reason }; }
+  // Never write through a committed symlink: .agentic-qe must be a real dir, and
+  // unlink (not existsSync) drops a planted aqe.rvf link, even a dangling one.
+  let st; try { st = fs.lstatSync(AQE_DIR); } catch { /* missing */ }
+  if (!st || !st.isDirectory()) { log('Export skipped: .agentic-qe is a symlink'); return { exported: false }; }
+  for (const f of [RVF_PATH, RVF_PATH + '.idmap.json']) { try { fs.unlinkSync(f); } catch { /* absent */ } }
   try {
     const result = execFileSync(
-      AQE_BIN, ['brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
-      { timeout: 60000, encoding: 'utf-8' }
+      aqe.cmd, [...aqe.args, 'brain', 'export', '-o', RVF_PATH, '--format', 'rvf'],
+      { timeout: 60000, encoding: 'utf-8', windowsHide: true }
     );
     const m = result.match(/Patterns:\\s+(\\d+)/);
     const p = m ? m[1] : '0';

@@ -70,4 +70,11 @@ describe('start-daemon.cjs generator (#488 B.1)', () => {
     expect(binCandidateIdx).toBeGreaterThan(requireResolveIdx);
     expect(npxFallbackIdx).toBeGreaterThan(binCandidateIdx);
   });
+
+  it('#872: the Windows npx fallback runs npx-cli.js via node, never npx.cmd without a shell', () => {
+    // spawn('npx.cmd', ..., { shell: false }) is EINVAL since CVE-2024-27980.
+    expect(source).not.toContain("'npx.cmd'");
+    expect(source).toContain("'node_modules', 'npm', 'bin', 'npx-cli.js'");
+    expect(source).toMatch(/mcpCmd = process\.platform === 'win32' \? process\.execPath : 'npx'/);
+  });
 });
