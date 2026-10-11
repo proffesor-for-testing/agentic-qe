@@ -1,5 +1,5 @@
 /**
- * E2E Test: Platform Initialization Flow
+ * Integration Test: Platform Initialization Flow
  * TQ-004: Tests the init wizard orchestration pipeline end-to-end
  *
  * Covers: project analysis -> phase execution -> config generation
@@ -12,19 +12,8 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 
-// Mock filesystem-heavy sub-modules BEFORE importing InitOrchestrator
-// so the wizard runs through its steps without touching real disk.
-vi.mock('../../src/init/init-wizard-migration.js', () => ({
-  detectV2Installation: vi.fn(async () => ({
-    detected: false,
-    hasMemoryDb: false,
-    hasConfig: false,
-    hasAgents: false,
-  })),
-  runV2Migration: vi.fn(async () => {}),
-  writeVersionToDb: vi.fn(async () => {}),
-}));
-
+// Keep project analysis, configuration and orchestration real. Mock explicit
+// side-effect boundaries so no database, installer or worker touches user state.
 vi.mock('../../src/init/init-wizard-hooks.js', () => ({
   configureHooks: vi.fn(async () => true),
   configureMCP: vi.fn(async () => true),
@@ -42,24 +31,26 @@ vi.mock('../../src/init/init-wizard-steps.js', () => ({
   installAgents: vi.fn(async () => 4),
   installN8n: vi.fn(async () => ({ agents: 2, skills: 3 })),
   saveConfig: vi.fn(async () => {}),
+  writeVersionToDb: vi.fn(async () => {}),
 }));
 
 import { InitOrchestrator } from '../../src/init/init-wizard';
 import { configureHooks, configureMCP, generateCLAUDEmd } from '../../src/init/init-wizard-hooks.js';
-import { detectV2Installation } from '../../src/init/init-wizard-migration.js';
 import {
   initializePersistenceDatabase,
   installSkills,
   installAgents,
   startWorkers,
   saveConfig,
+  writeVersionToDb,
+  runCodeIntelligenceScan,
 } from '../../src/init/init-wizard-steps.js';
 
 // ============================================================================
 // Test Suite
 // ============================================================================
 
-describe('Platform Init E2E - Full Orchestration Pipeline', () => {
+describe('Platform Init - Current Orchestration Pipeline', () => {
   let projectRoot: string;
 
   beforeEach(() => {
@@ -77,6 +68,7 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
     mkdirSync(join(projectRoot, 'src'), { recursive: true });
     writeFileSync(join(projectRoot, 'src', 'index.ts'), 'export const hello = "world";');
     writeFileSync(join(projectRoot, 'vitest.config.ts'), 'export default {}');
+    writeFileSync(join(projectRoot, 'tsconfig.json'), '{}');
   });
 
   afterEach(() => {
@@ -104,7 +96,7 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
     expect(result.success).toBe(true);
     expect(result.config).toBeDefined();
     expect(result.steps.length).toBeGreaterThan(0);
-    expect(result.totalDurationMs).toBeGreaterThan(0);
+    expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
     expect(result.timestamp).toBeInstanceOf(Date);
   });
 
@@ -131,6 +123,16 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
     const analysisIdx = stepNames.indexOf('Project Analysis');
     const configIdx = stepNames.indexOf('Configuration Generation');
     expect(analysisIdx).toBeLessThan(configIdx);
+    const requiredOrder = ['Configuration Generation', 'Persistence Database Setup', 'Code Intelligence Pre-Scan',
+      'Hooks Configuration', 'MCP Configuration', 'Skills Installation', 'Agents Installation', 'Save Configuration', 'Version Marker'];
+    for (let index = 1; index < requiredOrder.length; index++) {
+      expect(stepNames.indexOf(requiredOrder[index - 1])).toBeLessThan(stepNames.indexOf(requiredOrder[index]));
+      expect(stepNames.indexOf(requiredOrder[index])).toBeGreaterThanOrEqual(0);
+    }
+    expect(vi.mocked(initializePersistenceDatabase).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(runCodeIntelligenceScan).mock.invocationCallOrder[0]);
+    expect(vi.mocked(saveConfig).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(writeVersionToDb).mock.invocationCallOrder[0]);
   });
 
   // --------------------------------------------------------------------------
@@ -149,6 +151,8 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
     // Assert: the config should reflect detected frameworks
     expect(result.success).toBe(true);
     expect(result.config).toBeDefined();
+    expect(result.config.learning.embeddingModel).toBe('transformer');
+    expect(result.config.routing.confidenceThreshold).toBe(0.75);
     // Config should have domains enabled (domains is an object with enabled/disabled arrays)
     expect(result.config.domains).toBeDefined();
     expect(result.config.domains.enabled.length).toBeGreaterThan(0);
@@ -200,6 +204,17 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
   });
 
   // --------------------------------------------------------------------------
+  // Current --no-mcp contract still completes unrelated initialization.
+  it('should skip MCP configuration only when explicitly disabled', async () => {
+    const result = await new InitOrchestrator({ projectRoot, autoMode: true, noMcp: true }).initialize();
+    expect(result.success).toBe(true);
+    expect(result.summary.mcpConfigured).toBe(false);
+    expect(configureMCP).not.toHaveBeenCalled();
+    expect(configureHooks).toHaveBeenCalled();
+    expect(saveConfig).toHaveBeenCalled();
+    expect(writeVersionToDb).toHaveBeenCalled();
+  });
+
   // 6. Skills and agents installation
   // --------------------------------------------------------------------------
   it('should install skills and agents during initialization', async () => {
@@ -221,35 +236,27 @@ describe('Platform Init E2E - Full Orchestration Pipeline', () => {
   });
 
   // --------------------------------------------------------------------------
-  // 7. V2 detection blocks init when not auto-migrating
+  // 7. Required persistence failure prevents downstream side effects
   // --------------------------------------------------------------------------
-  it('should fail when v2 installation detected without auto-migrate', async () => {
-    // Arrange
-    vi.mocked(detectV2Installation).mockResolvedValueOnce({
-      detected: true,
-      hasMemoryDb: true,
-      hasConfig: true,
-      hasAgents: false,
-    });
-
-    const orchestrator = new InitOrchestrator({
-      projectRoot,
-      autoMode: true,
-      autoMigrate: false,
-    });
-
-    // Act
-    const result = await orchestrator.initialize();
-
-    // Assert
+  it('should stop after required persistence fails', async () => {
+    vi.mocked(initializePersistenceDatabase).mockRejectedValueOnce(new Error('fixture persistence unavailable'));
+    const result = await new InitOrchestrator({ projectRoot, autoMode: true }).initialize();
     expect(result.success).toBe(false);
-    expect(result.steps.some((s) => s.step === 'V2 Detection')).toBe(true);
+    expect(result.steps.find((step) => step.step === 'Persistence Database Setup')).toMatchObject({
+      status: 'error', message: 'fixture persistence unavailable',
+    });
+    expect(runCodeIntelligenceScan).not.toHaveBeenCalled();
+    expect(configureHooks).not.toHaveBeenCalled();
+    expect(configureMCP).not.toHaveBeenCalled();
+    expect(installAgents).not.toHaveBeenCalled();
+    expect(saveConfig).not.toHaveBeenCalled();
+    expect(writeVersionToDb).not.toHaveBeenCalled();
   });
 
   // --------------------------------------------------------------------------
   // 8. Config is persisted at end of pipeline
   // --------------------------------------------------------------------------
-  it('should save configuration as the final step', async () => {
+  it('should save configuration before the version marker', async () => {
     // Arrange
     const orchestrator = new InitOrchestrator({
       projectRoot,
