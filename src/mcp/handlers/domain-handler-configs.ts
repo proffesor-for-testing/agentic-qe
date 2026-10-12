@@ -675,6 +675,8 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       coverageMethod: (data.coverageMethod as string) ?? 'unknown',
       branchDataCollected,
       functionDataCollected,
+      // #995: the target has no measurement at all — distinct from a measured 0%.
+      ...(data.unmeasured === true ? { unmeasured: true } : {}),
       ...(data.warning ? { warning: data.warning as string } : {}),
     };
   },

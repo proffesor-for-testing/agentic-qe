@@ -34,6 +34,11 @@ export interface CoverageData {
   };
   /** True if data came from real instrumented coverage (V8/istanbul) */
   instrumented: boolean;
+  /**
+   * Source files the instrumented report has no entry for (#995). These are
+   * UNMEASURED — excluded from the figures rather than counted as 0%.
+   */
+  unmeasuredFiles?: string[];
 }
 
 // ============================================================================
@@ -230,6 +235,22 @@ function estimateFileCoverage(filePath: string, content: string): FileCoverage {
 // Public API
 // ============================================================================
 
+/** Aggregate per-file coverage into whole-number percentages. */
+export function summarizeCoverage(files: FileCoverage[]): CoverageData['summary'] {
+  const sum = (pick: (f: FileCoverage) => number) => files.reduce((acc, f) => acc + pick(f), 0);
+  const safeDiv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
+  const totalLines = sum(f => f.lines.total);
+  const coveredLines = sum(f => f.lines.covered);
+
+  return {
+    line: safeDiv(coveredLines, totalLines),
+    branch: safeDiv(sum(f => f.branches.covered), sum(f => f.branches.total)),
+    function: safeDiv(sum(f => f.functions.covered), sum(f => f.functions.total)),
+    statement: safeDiv(coveredLines, totalLines),
+    files: files.length,
+  };
+}
+
 /**
  * Build coverage data for the given source files.
  *
@@ -245,6 +266,7 @@ export function buildCoverageData(sourceFiles: string[], projectRoot?: string): 
   const instrumentedData = readInstrumentedCoverage(root);
 
   const files: FileCoverage[] = [];
+  const unmeasuredFiles: string[] = [];
   let isInstrumented = false;
 
   if (instrumentedData && instrumentedData.size > 0) {
@@ -260,18 +282,10 @@ export function buildCoverageData(sourceFiles: string[], projectRoot?: string): 
       if (match) {
         files.push({ ...match, path: filePath });
       } else {
-        // File exists in source but has no coverage data — 0% coverage
-        const content = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : '';
-        const totalLines = content.split('\n').length;
-        files.push({
-          path: filePath,
-          lines: { covered: 0, total: totalLines },
-          branches: { covered: 0, total: 1 },
-          functions: { covered: 0, total: 1 },
-          statements: { covered: 0, total: totalLines },
-          uncoveredLines: Array.from({ length: totalLines }, (_, i) => i + 1),
-          uncoveredBranches: [],
-        });
+        // #995: the report has no entry for this file — the coverage run did
+        // not measure it. That is "unmeasured", not 0%: counting it as fully
+        // uncovered invented a figure nobody measured.
+        unmeasuredFiles.push(filePath);
       }
     }
   } else {
@@ -282,25 +296,10 @@ export function buildCoverageData(sourceFiles: string[], projectRoot?: string): 
     }
   }
 
-  // Compute summary
-  const totalLines = files.reduce((sum, f) => sum + f.lines.total, 0);
-  const coveredLines = files.reduce((sum, f) => sum + f.lines.covered, 0);
-  const totalBranches = files.reduce((sum, f) => sum + f.branches.total, 0);
-  const coveredBranches = files.reduce((sum, f) => sum + f.branches.covered, 0);
-  const totalFunctions = files.reduce((sum, f) => sum + f.functions.total, 0);
-  const coveredFunctions = files.reduce((sum, f) => sum + f.functions.covered, 0);
-
-  const safeDiv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
-
   return {
     files,
-    summary: {
-      line: safeDiv(coveredLines, totalLines),
-      branch: safeDiv(coveredBranches, totalBranches),
-      function: safeDiv(coveredFunctions, totalFunctions),
-      statement: safeDiv(coveredLines, totalLines),
-      files: files.length,
-    },
+    summary: summarizeCoverage(files),
     instrumented: isInstrumented,
+    ...(unmeasuredFiles.length > 0 ? { unmeasuredFiles } : {}),
   };
 }

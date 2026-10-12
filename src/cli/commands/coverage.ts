@@ -10,7 +10,46 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { runCoverageAnalysisWizard, type CoverageWizardResult } from '../wizards/coverage-wizard.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, type CoverageResult, writeOutput, toJSON, coverageToMarkdown } from '../utils/ci-output.js';
-import { buildCoverageData } from '../utils/coverage-data.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import { buildCoverageData, summarizeCoverage, type CoverageData } from '../utils/coverage-data.js';
+import {
+  findCoverageProjectRoot,
+  hasExecutedCode,
+  isCoverageReportFile,
+  loadCoverageReportFile,
+} from '../../coordination/handlers/coverage-target.js';
+import { isTestPath } from '../../coordination/handlers/coverage-collection.js';
+
+/**
+ * Resolve the coverage data for a CLI target (#995).
+ *
+ * - A coverage report file (lcov.info, coverage-final.json, ...) is parsed
+ *   directly.
+ * - A directory or source file is matched against the instrumented report of
+ *   its PROJECT ROOT (nearest package.json/.git above it), not the current
+ *   working directory, so `aqe coverage /path/to/proj/src` works from anywhere.
+ *
+ * Returns null when there is nothing to analyse.
+ */
+async function resolveCliCoverageData(targetPath: string): Promise<CoverageData | null> {
+  let isFile = false;
+  try { isFile = fs.statSync(targetPath).isFile(); } catch { /* missing */ }
+
+  if (isFile && isCoverageReportFile(targetPath)) {
+    const reportDir = path.dirname(targetPath);
+    const root = findCoverageProjectRoot(reportDir)
+      ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
+    const report = await loadCoverageReportFile(targetPath);
+    const files = (report?.files ?? []).filter(f => !isTestPath(f.path, root));
+    return { files, summary: summarizeCoverage(files), instrumented: true };
+  }
+
+  const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
+  if (sourceFiles.length === 0) return null;
+  console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
+  return buildCoverageData(sourceFiles, findCoverageProjectRoot(targetPath) ?? process.cwd());
+}
 
 function getColorForPercent(percent: number): (str: string) => string {
   if (percent >= 80) return chalk.green;
@@ -84,24 +123,37 @@ export function createCoverageCommand(
           return;
         }
 
-        const path = await import('path');
         const targetPath = path.resolve(analyzeTarget);
 
-        // Fix #280: Use shared file discovery supporting all languages
-        const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
+        // Fix #280: shared file discovery supporting all languages.
+        // #995: coverage files as targets; reports resolved from the project root.
+        const coverageData = await resolveCliCoverageData(targetPath);
 
-        if (sourceFiles.length === 0) {
+        if (!coverageData) {
           console.log(chalk.yellow('No source files found'));
           return;
         }
 
-        console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
-
-        // Build coverage data from real V8/istanbul output or deterministic estimation
-        const coverageData = buildCoverageData(sourceFiles);
+        // #995(d): an instrumented report that has no entry for the target, or in
+        // which nothing executed, measured nothing. Say so instead of "0%".
+        if (coverageData.instrumented &&
+            (coverageData.files.length === 0 || !hasExecutedCode(coverageData.files))) {
+          const message = `Target is UNMEASURED: the coverage data has no executed entries for ${analyzeTarget}. ` +
+            'This is not 0% coverage. Run your tests with coverage from the project root and re-run.';
+          if ((options.format as OutputFormat) === 'json') {
+            writeOutput(toJSON({ unmeasured: true, measured: false, target: targetPath, warning: message }), options.output);
+          } else {
+            console.log(chalk.yellow(`  ${message}\n`));
+          }
+          await cleanupAndExit(1);
+          return;
+        }
 
         if (coverageData.instrumented) {
           console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));
+          if (coverageData.unmeasuredFiles?.length) {
+            console.log(chalk.yellow(`  ${coverageData.unmeasuredFiles.length} file(s) not in the coverage report — UNMEASURED, excluded from the figures\n`));
+          }
         } else {
           console.log(chalk.yellow('  No instrumented coverage found — using heuristic estimation'));
           console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));

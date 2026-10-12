@@ -132,6 +132,26 @@ describe('#569 — mapToResult must not launder missing provenance into numbers'
   });
 });
 
+describe('#995 — an unmeasured target reaches the MCP caller as unmeasured', () => {
+  it('passes the unmeasured flag and keeps every figure null', () => {
+    const result = map({
+      lineCoverage: null, branchCoverage: null, functionCoverage: null, statementCoverage: null,
+      totalFiles: 0, coverageByFile: [], gaps: [],
+      estimated: false, measured: false, coverageMethod: 'none', unmeasured: true,
+      warning: 'Target is UNMEASURED',
+    });
+    expect(result.unmeasured).toBe(true);
+    expect(result.measured).toBe(false);
+    expect(result.lineCoverage).toBeNull();
+    expect(result.warning).toMatch(/UNMEASURED/);
+  });
+
+  it('omits the flag for an ordinary measured result', () => {
+    const result = map({ lineCoverage: 50, measured: true, branchDataCollected: true, totalFiles: 1 });
+    expect(result.unmeasured).toBeUndefined();
+  });
+});
+
 
 describe('#787 generation coverage remains unknown without execution', () => {
   it.each([null, undefined])('preserves %s as unknown even when LLM enhancement succeeded', coverageEstimate => {

@@ -669,6 +669,12 @@ export interface CoverageAnalyzeResult {
   branchDataCollected?: boolean;
   /** Whether function-level data was actually collected. */
   functionDataCollected?: boolean;
+  /**
+   * #995: true when coverage data exists for the project but none of it covers
+   * the requested target (or the run executed no code). The figures are null —
+   * this is "no measurement", never 0%.
+   */
+  unmeasured?: boolean;
   /** Caveats the caller should surface (e.g. "no instrumentation ran"). */
   warning?: string;
 }
