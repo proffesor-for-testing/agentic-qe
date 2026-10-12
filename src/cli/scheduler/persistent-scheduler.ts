@@ -17,7 +17,7 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { calculateNextRun } from '../utils/workflow-parser.js';
+import { calculateNextRun, isValidCronExpression } from '../utils/workflow-parser.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 
@@ -45,6 +45,8 @@ export interface PersistedSchedule {
   lastRun?: string;
   /** Whether the schedule is active */
   enabled: boolean;
+  /** Derived load diagnostic for a disabled legacy cron expression. */
+  disabledReason?: string;
   /** ISO date string when schedule was created */
   createdAt: string;
 }
@@ -393,8 +395,18 @@ export class PersistentScheduler {
 
     // Validate each schedule has required fields
     for (const schedule of data.schedules) {
-      if (!schedule.id || !schedule.workflowId || !schedule.schedule) {
+      if (!schedule.id || !schedule.workflowId || !Object.prototype.hasOwnProperty.call(schedule, 'schedule')) {
         throw new Error(`Invalid schedule entry: missing required fields`);
+      }
+
+      if (typeof schedule.schedule !== 'string' || !isValidCronExpression(schedule.schedule)) {
+        schedule.disabledReason = `Invalid cron expression: ${schedule.schedule}`;
+        if (schedule.enabled) {
+          console.warn(`[PersistentScheduler] Disabled schedule ${schedule.id}: ${schedule.disabledReason}`);
+        }
+        schedule.enabled = false;
+      } else {
+        delete schedule.disabledReason;
       }
     }
 
