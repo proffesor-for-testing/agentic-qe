@@ -308,16 +308,14 @@ function mapDomainSpecificEvent(
         payload: basePayload,
       });
 
+    // #1008: a coverage-analysis experience row is a record that the tool
+    // ran, not a coverage report or a gap. It carries no line/branch figures
+    // and no gap file, so it must not masquerade as `CoverageReportCreated`
+    // (quality-assessment stores that as `coverage:latest`) or as
+    // `CoverageGapDetected` (test generation/execution act on its file).
+    // Learning still receives the row via `learning.ExperienceCaptured`.
     case 'coverage-analysis':
-      return buildEvent({
-        type: row.success === 1
-          ? 'coverage-analysis.CoverageReportCreated'
-          : 'coverage-analysis.CoverageGapDetected',
-        source: 'coverage-analysis',
-        correlationId,
-        timestamp,
-        payload: basePayload,
-      });
+      return null;
 
     case 'code-intelligence':
       return buildEvent({

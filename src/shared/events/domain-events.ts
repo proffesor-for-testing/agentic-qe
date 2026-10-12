@@ -99,6 +99,8 @@ export interface CoverageReportPayload {
   function: number;
   statement: number;
   files: number;
+  /** False for a static estimate; consumers must not store it as coverage (#1008). */
+  measured?: boolean;
 }
 
 export interface CoverageGapPayload {

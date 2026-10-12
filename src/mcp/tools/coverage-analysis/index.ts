@@ -286,6 +286,7 @@ export class CoverageAnalyzeTool extends MCPToolBase<CoverageAnalyzeParams, Cove
         coverageData: { files: domainFiles, summary: calculateSummary(domainFiles) },
         threshold: thresholds.lines || 80,
         includeFileDetails: true,
+        measured: true, // parsed from a real report (no estimation fallback here)
       });
 
       if (!analyzeResult.success) {

@@ -256,10 +256,13 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const { data: coverageData, provenance } = collected;
 
       // Analyze coverage using the real CoverageAnalyzerService
+      // #1008: the analyzer persists only measured coverage; a static estimate
+      // is returned below, labelled, but never stored as evidence.
       const analysisResult = await analyzer.analyze({
         coverageData,
         threshold,
         includeFileDetails: payload.detectGaps,
+        measured: !provenance.estimated,
       });
 
       if (!analysisResult.success) {

@@ -291,6 +291,36 @@ describe('CoverageAnalysisCoordinator', () => {
   // Disposal Tests
   // ===========================================================================
 
+  // ===========================================================================
+  // #1008: an estimate never reaches CoverageReportCreated subscribers
+  // ===========================================================================
+
+  describe('analyze() provenance (#1008)', () => {
+    const coverageData: AnalyzeCoverageRequest['coverageData'] = {
+      files: [{
+        path: 'src/a.ts',
+        lines: { covered: 9, total: 10 }, branches: { covered: 1, total: 2 },
+        functions: { covered: 1, total: 1 }, statements: { covered: 9, total: 10 },
+        uncoveredLines: [10], uncoveredBranches: [],
+      }],
+      summary: { line: 90, branch: 50, function: 100, statement: 90, files: 1 },
+    };
+
+    it('does not publish CoverageReportCreated for an unmeasured estimate', async () => {
+      await coordinator.initialize();
+      const result = await coordinator.analyze({ coverageData, measured: false });
+      expect(result.success).toBe(true);
+      expect(ctx.eventBus.getEventsByType(CoverageAnalysisEvents.CoverageReportCreated)).toHaveLength(0);
+    });
+
+    it('publishes CoverageReportCreated, marked measured, for instrumented coverage', async () => {
+      await coordinator.initialize();
+      const result = await coordinator.analyze({ coverageData, measured: true });
+      expect(result.success).toBe(true);
+      expectEventPublished(ctx.eventBus, CoverageAnalysisEvents.CoverageReportCreated, { measured: true });
+    });
+  });
+
   describe('Disposal', () => {
     it('should dispose without errors', async () => {
       await coordinator.initialize();
