@@ -359,6 +359,18 @@ describe('QualityAssessmentPlugin', () => {
       expect(stored).toBeDefined();
     });
 
+    it('ignores a coverage report event marked as an unmeasured estimate (#1008)', async () => {
+      const event = createMockEvent(
+        'coverage-analysis.CoverageReportCreated',
+        'coverage-analysis',
+        { reportId: 'report_est', line: 85, branch: 80, function: 90, statement: 87, measured: false }
+      );
+
+      await plugin.handleEvent(event);
+
+      expect((await memory.get('coverage:latest')) ?? null).toBeNull();
+    });
+
     it('should handle defect prediction events for high probability', async () => {
       const event = createMockEvent(
         'defect-intelligence.DefectPredicted',

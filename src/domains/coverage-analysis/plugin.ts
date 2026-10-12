@@ -82,6 +82,8 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
             coverageData,
             threshold: payload.threshold as number | undefined,
             includeFileDetails: payload.includeFileDetails as boolean | undefined,
+            // #1008: forward provenance so an estimate is never persisted.
+            ...(typeof payload.measured === 'boolean' ? { measured: payload.measured } : {}),
           });
         } finally {
           this._activeAnalyses--;

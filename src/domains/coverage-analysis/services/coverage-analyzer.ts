@@ -26,6 +26,16 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
+/**
+ * Whether an analyze request carries instrumented (measured) coverage (#1008).
+ * An explicit `request.measured` wins, then `coverageData.instrumented`;
+ * with neither, the data is a parsed report from a legacy caller → measured.
+ */
+export function isMeasuredCoverage(request: AnalyzeCoverageRequest): boolean {
+  if (typeof request.measured === 'boolean') return request.measured;
+  return request.coverageData.instrumented !== false;
+}
+
 // ============================================================================
 // Service Interface
 // ============================================================================
@@ -170,19 +180,27 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
       const overallCoverage = this.calculateOverallCoverage(summary);
       const meetsThreshold = overallCoverage >= threshold;
 
+      // #1008: only instrumented coverage is evidence. A static estimate is
+      // analyzed and returned to the caller, but never compared against or
+      // written over a measurement, and never stored where a quality gate,
+      // quality_assess or another reader would take it as measured.
+      const measured = isMeasuredCoverage(request);
+
       // Calculate delta from previous coverage (if stored)
-      const delta = await this.calculateDelta(summary);
+      const delta = measured ? await this.calculateDelta(summary) : undefined;
 
       // Generate recommendations based on analysis
       const recommendations = this.generateRecommendations(coverageData, summary, threshold);
 
-      // Store current coverage for future delta calculations
-      await this.storeCoverageSnapshot(summary);
+      if (measured) {
+        // Store current coverage for future delta calculations
+        await this.storeCoverageSnapshot(summary);
 
-      // Store coverage vectors for similarity search + KV for quality-analyzer
-      if (request.includeFileDetails) {
-        await this.indexFileCoverageVectors(coverageData.files);
-        await this.storeFileCoverageKV(coverageData.files);
+        // Store coverage vectors for similarity search + KV for quality-analyzer
+        if (request.includeFileDetails) {
+          await this.indexFileCoverageVectors(coverageData.files);
+          await this.storeFileCoverageKV(coverageData.files);
+        }
       }
 
       return ok({
@@ -190,6 +208,7 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
         meetsThreshold,
         delta,
         recommendations,
+        measured,
       });
     } catch (error) {
       return err(toError(error));

@@ -1231,7 +1231,11 @@ export class QualityAssessmentCoordinator
       reportId: string;
       line: number;
       branch: number;
+      measured?: boolean;
     };
+
+    // #1008: an estimate is not coverage evidence.
+    if (payload.measured === false) return;
 
     // Store under the canonical coverage key so quality-analyzer can read it
     await this.memory.set('coverage:latest', {

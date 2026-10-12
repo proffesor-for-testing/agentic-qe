@@ -273,6 +273,53 @@ describe('registered quality_assess measured gate', () => {
     expect(result.data).toBeUndefined();
   });
 
+  it('#1008: a static coverage estimate never becomes measured coverage evidence (MCP and CLI)', async () => {
+    // No report in the project and test execution disabled → static estimate.
+    vi.stubEnv('AQE_COVERAGE_NO_EXEC', '1');
+    try {
+      const { coverage: _coverage, ...allButCoverage } = passing;
+      await evidence.writeQualityEvidence(memory, allButCoverage, {
+        measuredAt: new Date().toISOString(), source: 'regression-fixture',
+      });
+      await memory.delete('coverage:latest');
+      const unmeasured = 'No measured quality evidence found for coverage.';
+
+      // MCP: the tool returns the estimate, labelled...
+      const coverage = await callTool<Record<string, unknown>>('coverage_analyze_sublinear', {
+        target: process.cwd(), detectGaps: true,
+      });
+      expect(coverage.success).toBe(true);
+      expect(coverage.data).toMatchObject({ estimated: true, measured: false });
+      // ...but persists nothing a gate or quality_assess reads.
+      expect(await memory.get('coverage:latest')).toBeFalsy();
+      const gate = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
+      expect(gate.success).toBe(false);
+      expect(gate.error).toBe(unmeasured);
+      // #996 parity: analysis-only lists coverage as unmeasured — never "measured at 0" or a 14% block.
+      const analysis = await callTool<QualityAssessResult>('quality_assess', {});
+      expect(analysis.success).toBe(true);
+      expect(analysis.data).toMatchObject({
+        status: 'insufficient-evidence', unmeasured: ['coverage'], metrics: { coverage: -1 },
+      });
+      expect(analysis.data?.riskDecision?.decision).not.toBe('block');
+      expect(JSON.stringify(analysis.data?.recommendations)).not.toMatch(/coverage (is )?measured at|Current coverage is/i);
+
+      // CLI parity: `aqe coverage` shows its heuristic estimate, stores nothing.
+      const { createCoverageCommand } = await import('../../src/cli/commands/coverage.js');
+      const cleanup = vi.fn(async (_code: number) => undefined);
+      const command = createCoverageCommand(
+        { kernel: core.getFleetState().kernel } as CLIContext,
+        cleanup as unknown as (code: number) => Promise<never>,
+        async () => true,
+      );
+      await command.parseAsync([process.cwd(), '--format', 'json', '--output', join(process.cwd(), 'cov.json')], { from: 'user' });
+      expect(await memory.get('coverage:latest')).toBeFalsy();
+      await expect(cli.loadQualityEvidence(memory)).rejects.toThrow(unmeasured);
+    } finally {
+      vi.stubEnv('AQE_COVERAGE_NO_EXEC', '');
+    }
+  }, 60000);
+
   // #996: an analysis-only request with unmeasured coverage must not approve.
   it('reports insufficient evidence, not approve, when coverage is unmeasured', async () => {
     const result = await callTool<QualityAssessResult>('quality_assess', {});

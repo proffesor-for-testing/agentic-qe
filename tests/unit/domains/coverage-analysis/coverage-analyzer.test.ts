@@ -345,6 +345,63 @@ describe('CoverageAnalyzerService', () => {
   });
 
   // =========================================================================
+  // #1008: a static estimate is never persisted as measured evidence
+  // =========================================================================
+
+  describe('analyze — estimate vs measured provenance (#1008)', () => {
+    const writtenKeys = () => memory.set.mock.calls.map(call => call[0] as string);
+
+    it.each([
+      ['request.measured=false', { measured: false }],
+      ['coverageData.instrumented=false', { coverageData: { ...createCoverageData(), instrumented: false } }],
+    ])('does not write coverage:latest, history, per-file KV, vectors or quality evidence for %s', async (_label, extra) => {
+      const result = await service.analyze({
+        coverageData: createCoverageData(),
+        includeFileDetails: true,
+        ...extra,
+      } as AnalyzeCoverageRequest);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.measured).toBe(false);
+        // An estimate compared against a stored measurement is not a trend.
+        expect(result.value.delta).toBeUndefined();
+      }
+      expect(writtenKeys()).toEqual([]);
+      expect(memory.storeVector).not.toHaveBeenCalled();
+      expect(memory.get).not.toHaveBeenCalledWith('coverage:latest');
+    });
+
+    it('lets the explicit request flag win over coverageData.instrumented', async () => {
+      await service.analyze({
+        coverageData: { ...createCoverageData(), instrumented: true },
+        measured: false,
+      });
+      expect(writtenKeys()).toEqual([]);
+    });
+
+    it.each([
+      ['request.measured=true', { measured: true }],
+      ['no provenance (legacy callers with parsed reports)', {}],
+    ])('persists coverage:latest and coverage quality evidence for %s', async (_label, extra) => {
+      const result = await service.analyze({ coverageData: createCoverageData(), ...extra });
+
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.value.measured).toBe(true);
+      expect(memory.set).toHaveBeenCalledWith(
+        'coverage:latest',
+        expect.objectContaining({ line: expect.any(Number) }),
+        expect.objectContaining({ persist: true }),
+      );
+      expect(memory.set).toHaveBeenCalledWith(
+        'quality-evidence:coverage:latest',
+        expect.objectContaining({ metric: 'coverage', source: 'coverage-analysis' }),
+        expect.objectContaining({ namespace: 'quality-assessment', persist: true }),
+      );
+    });
+  });
+
+  // =========================================================================
   // findGaps
   // =========================================================================
 

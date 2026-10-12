@@ -159,7 +159,7 @@ Exit codes:
         console.log(chalk.blue(`\n  Analyzing coverage for ${analyzeTarget}...\n`));
 
         const coverageAPI = await context.kernel!.getDomainAPIAsync!<{
-          analyze(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; threshold?: number; includeFileDetails?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          analyze(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; threshold?: number; includeFileDetails?: boolean; measured?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           detectGaps(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; minCoverage?: number; prioritize?: string }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           calculateRisk(request: { file: string; uncoveredLines: number[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           analyzeGhostCoverage(existingTests: string[], codeContext: string): Promise<{ success: boolean; value?: { gaps: Array<{ id: string; category: string; description: string; confidence: number; severity: string; suggestedTest: string }>; totalGhostScore: number; coverageCompleteness: number; computedAt: Date }; error?: Error }>;
@@ -216,10 +216,12 @@ Exit codes:
           console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));
         }
 
+        // #1008: a heuristic estimate is shown, never persisted as coverage evidence.
         const result = await coverageAPI.analyze({
           coverageData,
           threshold,
           includeFileDetails: true,
+          measured: coverageData.instrumented,
         });
 
         const format = options.format as OutputFormat;

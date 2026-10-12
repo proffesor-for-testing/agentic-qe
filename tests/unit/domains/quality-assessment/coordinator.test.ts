@@ -358,6 +358,26 @@ describe('QualityAssessmentCoordinator', () => {
   // Disposal Tests
   // ===========================================================================
 
+  // ===========================================================================
+  // #1008: a coverage estimate is never stored as coverage:latest
+  // ===========================================================================
+
+  describe('CoverageReportCreated provenance (#1008)', () => {
+    it.each([
+      ['an unmeasured estimate', { measured: false }, false],
+      ['a measured report', { measured: true }, true],
+      ['a legacy report without provenance', {}, true],
+    ])('stores coverage:latest only for measured coverage — %s', async (_label, extra, stored) => {
+      await coordinator.initialize();
+      await ctx.eventBus.simulateEvent('coverage-analysis.CoverageReportCreated', 'coverage-analysis', {
+        reportId: 'r-1008', line: 85, branch: 80, ...extra,
+      });
+      await flushPromises();
+      const latest = await ctx.memory.get('coverage:latest');
+      expect(latest != null).toBe(stored);
+    });
+  });
+
   describe('Disposal', () => {
     it('should dispose without errors', async () => {
       await coordinator.initialize();

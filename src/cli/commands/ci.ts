@@ -117,7 +117,10 @@ async function executePhase(
         const { findCoverageProjectRoot } = await import('../../coordination/handlers/coverage-target.js');
         const coverageData = buildCoverageData(sourceFiles, findCoverageProjectRoot(targetPath) ?? process.cwd());
 
-        const result = await coverageAPI.analyze({ coverageData, threshold, includeFileDetails: true });
+        // #1008: a heuristic estimate is reported, never persisted as coverage evidence.
+        const result = await coverageAPI.analyze({
+          coverageData, threshold, includeFileDetails: true, measured: coverageData.instrumented,
+        });
         if (result.success && result.value) {
           const report = result.value as { summary: { line: number; branch: number }; meetsThreshold: boolean };
           details = { ...report.summary, meetsThreshold: report.meetsThreshold, threshold };

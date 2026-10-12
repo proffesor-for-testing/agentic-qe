@@ -536,7 +536,9 @@ export class CoverageAnalysisCoordinator
 
       const result = await this.coverageAnalyzer.analyze(request);
 
-      if (result.success) {
+      // #1008: subscribers (quality-assessment) store the report as
+      // `coverage:latest`. A static estimate must never reach them.
+      if (result.success && result.value.measured !== false) {
         // Publish coverage report event
         await this.publishCoverageReport(result.value);
       }
@@ -846,6 +848,7 @@ export class CoverageAnalysisCoordinator
       function: report.summary.function,
       statement: report.summary.statement,
       files: report.summary.files,
+      measured: true,
     };
 
     const event = createEvent(

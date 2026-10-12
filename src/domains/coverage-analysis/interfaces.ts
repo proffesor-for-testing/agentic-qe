@@ -34,11 +34,21 @@ export interface AnalyzeCoverageRequest {
   coverageData: CoverageData;
   threshold?: number;
   includeFileDetails?: boolean;
+  /**
+   * Whether `coverageData` came from instrumentation (#1008). `false` marks a
+   * static estimate: it is analyzed and returned, but never persisted as
+   * `coverage:latest`, history, per-file coverage or quality evidence.
+   * Takes precedence over `coverageData.instrumented`; when both are absent
+   * the data is treated as measured (callers that pass parsed reports).
+   */
+  measured?: boolean;
 }
 
 export interface CoverageData {
   files: FileCoverage[];
   summary: CoverageSummary;
+  /** Set by producers that know their provenance; `false` = static estimate (#1008). */
+  instrumented?: boolean;
 }
 
 export interface FileCoverage {
@@ -64,6 +74,11 @@ export interface CoverageReport {
   meetsThreshold: boolean;
   delta?: CoverageDelta;
   recommendations: string[];
+  /**
+   * False when the report was computed from a static estimate (#1008). Such a
+   * report was not persisted and must not be published or stored as evidence.
+   */
+  measured?: boolean;
 }
 
 export interface CoverageDelta {
