@@ -9,6 +9,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { buildCoverageData, summarizeCoverage } from '../../../src/cli/utils/coverage-data';
 import { EXIT_UNMEASURED, resolveCliCoverageData } from '../../../src/cli/commands/coverage';
+import { coverageToMarkdown } from '../../../src/cli/utils/ci-output';
 
 function istanbulEntry(file: string, total: number, covered: number): Record<string, unknown> {
   const statementMap: Record<string, unknown> = {};
@@ -115,5 +116,19 @@ describe('#995 review B2 — CLI uses the same verdict as MCP', () => {
 
   it('documents the UNMEASURED exit code as 3', () => {
     expect(EXIT_UNMEASURED).toBe(3);
+  });
+});
+
+describe('#995 review NB-A — markdown renders an uncollected metric as n/a', () => {
+  it('prints "n/a (not collected)" with no pass/fail mark instead of "null%" and a cross', () => {
+    const md = coverageToMarkdown({
+      summary: { line: 90, branch: null, function: null, statement: 90 },
+      meetsThreshold: true, threshold: 80,
+    });
+    expect(md).toContain('| Lines | 90% | \u2705 |');
+    expect(md).toContain('| Branches | n/a (not collected) | \u2014 |');
+    expect(md).toContain('| Functions | n/a (not collected) | \u2014 |');
+    expect(md).not.toContain('null%');
+    expect(md).toContain('\u2705 Met');
   });
 });

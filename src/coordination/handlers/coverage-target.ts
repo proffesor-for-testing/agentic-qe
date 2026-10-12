@@ -304,6 +304,33 @@ export function thresholdVerdict(
   return { overall, meetsThreshold: overall >= threshold };
 }
 
+const SHORTFALL_RE = /^Coverage is [\d.]+% below threshold/i;
+
+/**
+ * Make the analyzer's recommendations agree with `thresholdVerdict`
+ * (#995 review NB-A). The analyzer computes its "Coverage is X% below
+ * threshold" line from a 4-metric average that counts an uncollected metric as
+ * 0 — so a line-only report at 90% got "Met" next to "35.0% below threshold".
+ * Here the shortfall line is recomputed from the collected-metrics verdict,
+ * and advice about a metric that was never collected is dropped.
+ */
+export function reconcileRecommendations(
+  recommendations: string[],
+  verdict: { overall: number; meetsThreshold: boolean },
+  threshold: number,
+  collected: { branch: boolean; function: boolean }
+): string[] {
+  const kept = recommendations.filter(rec =>
+    !SHORTFALL_RE.test(rec) &&
+    (collected.branch || !/branch coverage/i.test(rec)) &&
+    (collected.function || !/function coverage/i.test(rec)));
+  if (verdict.meetsThreshold) return kept;
+  return [
+    `Coverage is ${(threshold - verdict.overall).toFixed(1)}% below threshold. Focus on high-risk files first.`,
+    ...kept,
+  ];
+}
+
 /** Is this verdict "no measurement exists" (as opposed to an error or test-only report)? */
 export function isUnmeasured(reason: NoDataReason): boolean {
   return reason === 'target-not-covered' || reason === 'no-tests-ran';

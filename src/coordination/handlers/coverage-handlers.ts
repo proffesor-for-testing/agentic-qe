@@ -23,6 +23,7 @@ import {
   isUnmeasured,
   resolveExistingCoverage,
   scopeCoverageToTarget,
+  reconcileRecommendations,
   thresholdVerdict,
   type CoverageEvaluation,
   type NoDataReason,
@@ -303,11 +304,11 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       // significantly lower than line coverage", "Function coverage is below
       // 70%") is a statement about a metric nobody measured. Drop it rather
       // than send a developer to fix a number that doesn't exist.
-      const recommendations = report.recommendations.filter(rec => {
-        if (!provenance.branchDataCollected && /branch coverage/i.test(rec)) return false;
-        if (!provenance.functionDataCollected && /function coverage/i.test(rec)) return false;
-        return true;
-      });
+      // #995 NB5/NB-A: the verdict and the shortfall advice come from the same
+      // collected-metrics computation (shared with the CLI), so they can't disagree.
+      const metricsCollected = { branch: provenance.branchDataCollected, function: provenance.functionDataCollected };
+      const verdict = thresholdVerdict(report.summary, threshold, metricsCollected);
+      const recommendations = reconcileRecommendations(report.recommendations, verdict, threshold, metricsCollected);
 
       return ok({
         lineCoverage: round(report.summary.line),
@@ -325,9 +326,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         })),
         gaps,
         // NB5: judged only on the metrics that were collected (shared with the CLI).
-        meetsThreshold: thresholdVerdict(report.summary, threshold, {
-          branch: provenance.branchDataCollected, function: provenance.functionDataCollected,
-        }).meetsThreshold,
+        meetsThreshold: verdict.meetsThreshold,
         delta: report.delta,
         recommendations,
         algorithm: 'sublinear-O(log n)',

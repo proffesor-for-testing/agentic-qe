@@ -83,6 +83,29 @@ describe('#995 review — aqe coverage -F json', () => {
     expect(doc.meetsThreshold).toBe(true);
     expect(run.status, run.stderr).toBe(0);
     expect(run.stderr).toMatch(/Analyzing coverage/);
+    // NB-A: no "X% below threshold" next to a "met" verdict.
+    expect(((doc as unknown as { recommendations?: string[] }).recommendations ?? [])
+      .some(r => /below threshold/i.test(r))).toBe(false);
+  }, 120_000);
+
+  it('line-only lcov at 90% with threshold 80: met, exit 0, no shortfall advice; markdown shows n/a (NB-A)', () => {
+    const project = makeProject();
+    const lcov = join(project, 'coverage', 'lcov.info');
+    const da = Array.from({ length: 10 }, (_, i) => `DA:${i + 1},${i < 9 ? 1 : 0}`).join('\n');
+    writeFileSync(lcov, `TN:\nSF:src/a.ts\n${da}\nLF:10\nLH:9\nend_of_record\n`);
+
+    const json = coverageCli(project, [lcov, '-F', 'json', '--threshold', '80']);
+    const doc = JSON.parse(json.stdout) as { summary: Record<string, number | null>; meetsThreshold: boolean; recommendations: string[] };
+    expect(doc.summary).toMatchObject({ line: 90, branch: null, function: null, statement: 90 });
+    expect(doc.meetsThreshold).toBe(true);
+    expect(doc.recommendations.some(r => /below threshold/i.test(r))).toBe(false);
+    expect(json.status, json.stderr).toBe(0);
+
+    const md = coverageCli(project, [lcov, '-F', 'markdown', '--threshold', '80']);
+    expect(md.stdout).toContain('| Branches | n/a (not collected) |');
+    expect(md.stdout).not.toContain('null%');
+    expect(md.stdout).not.toMatch(/below threshold/i);
+    expect(md.status, md.stderr).toBe(0);
   }, 120_000);
 
   it('exits 3 for an UNMEASURED target, with the same JSON shape on stdout', () => {

@@ -14,6 +14,7 @@ import * as path from 'path';
 import {
   buildJsCoverageInvocation,
   findPackageBin,
+  summarizeStderr,
   runJsCoverage,
   runProcessTree,
 } from '../../../../src/coordination/handlers/coverage-runner';
@@ -103,6 +104,17 @@ describe.skipIf(isWindows)('#995 review B1 — process-tree timeout', () => {
     await new Promise(r => setTimeout(r, 400));
     expect(fs.readdirSync(tmp)).toEqual([]);
   }, 20000);
+
+  it('keeps the FIRST error line when a long stack would push it out of the tail (NB-C)', async () => {
+    const script = 'echo "[PARSE_ERROR] Unexpected token in vitest.config.ts:3:7" >&2; ' +
+      'i=0; while [ $i -lt 200 ]; do echo "    at frame$i (/very/long/path/to/node_modules/vite/dist/chunk-$i.js:1:1)" >&2; i=$((i+1)); done; exit 1';
+    const result = await runProcessTree('sh', ['-c', script], { cwd: dir, timeoutMs: 10000 });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderrTail).toMatch(/^\[PARSE_ERROR\] Unexpected token in vitest\.config\.ts:3:7/);
+    expect(result.stderrTail).toMatch(/frame199/);
+    expect(result.stderrTail.length).toBeLessThan(3000);
+  });
 
   it('captures the tail of stderr from a crashing runner', async () => {
     const result = await runProcessTree('sh', ['-c', 'echo "Error: boom" >&2; exit 3'], { cwd: dir, timeoutMs: 5000 });
@@ -244,5 +256,23 @@ describe('#995 review — runner invocation', () => {
     const pkg = path.join(project, 'packages', 'a');
     fs.mkdirSync(pkg, { recursive: true });
     expect(findPackageBin(pkg, 'vitest')).toBe(path.join(project, 'node_modules', 'vitest', 'vitest.mjs'));
+  });
+});
+
+describe('#995 review NB-C — summarizeStderr', () => {
+  it('returns short stderr unchanged', () => {
+    expect(summarizeStderr('Error: boom\n', 'Error: boom\n', 12)).toBe('Error: boom');
+  });
+
+  it('falls back to the first 512 bytes when no line looks like an error', () => {
+    const head = 'x'.repeat(4096);
+    const out = summarizeStderr(head, 'tail-end', 10_000);
+    expect(out.startsWith('x'.repeat(512) + '\n…\n')).toBe(true);
+    expect(out.endsWith('tail-end')).toBe(true);
+  });
+
+  it('does not repeat the error line when the tail already contains it', () => {
+    const out = summarizeStderr('Error: boom\nmore', 'Error: boom\nmore', 5000);
+    expect(out).toBe('Error: boom\nmore');
   });
 });

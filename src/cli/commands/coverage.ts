@@ -16,6 +16,7 @@ import {
   describeNoData,
   isUnmeasured,
   resolveExistingCoverage,
+  reconcileRecommendations,
   thresholdVerdict,
   type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
@@ -96,6 +97,10 @@ export function createCoverageCommand(
 Target: a directory, a source file, or an existing coverage report
 (lcov.info, coverage-final.json, coverage-summary.json, Cobertura XML).
 Reports are read from the target's project root (nearest package.json / .git).
+
+Threshold: judged on the metrics the report actually collected. A metric with
+no data (e.g. a report without branch data) is shown as n/a and is excluded
+from the threshold, not counted as 0%.
 
 Exit codes:
   0  coverage meets the threshold (by more than 5%)
@@ -233,9 +238,8 @@ Exit codes:
             branch: collected.branch ? report.summary.branch : null,
             function: collected.function ? report.summary.function : null,
           };
-          const recommendations = report.recommendations.filter(rec =>
-            (collected.branch || !/branch coverage/i.test(rec)) &&
-            (collected.function || !/function coverage/i.test(rec)));
+          // NB-A: the shortfall advice comes from the same verdict (shared with MCP).
+          const recommendations = reconcileRecommendations(report.recommendations, verdict, threshold, collected);
           overallCoverage = verdict.overall;
 
           // For non-text formats, collect all data and output at end

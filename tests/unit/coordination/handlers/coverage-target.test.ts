@@ -25,6 +25,8 @@ import {
   loadCoverageReportFile,
   scopeCoverageToTarget,
   evaluateCoverageForTarget,
+  reconcileRecommendations,
+  thresholdVerdict,
 } from '../../../../src/coordination/handlers/coverage-target';
 import { createTaskExecutor } from '../../../../src/coordination/task-executor';
 import type { QueenTask } from '../../../../src/coordination/queen-coordinator';
@@ -240,6 +242,36 @@ describe('#995 — scopeCoverageToTarget', () => {
     expect(scopeCoverageToTarget(data, root, root)).toHaveLength(4);
   });
 
+});
+
+describe('#995 review NB-A — verdict and shortfall advice agree', () => {
+  const analyzerShortfall = 'Coverage is 35.0% below threshold. Focus on high-risk files first.';
+
+  it('drops the analyzer shortfall line for a line-only report that MEETS the threshold', () => {
+    // lcov with line data only: line=statement=90, branch=function=0 (uncollected).
+    const collected = { branch: false, function: false };
+    const verdict = thresholdVerdict({ line: 90, branch: 0, function: 0, statement: 90 }, 80, collected);
+    expect(verdict.meetsThreshold).toBe(true);
+    const recs = reconcileRecommendations(
+      [analyzerShortfall, 'Branch coverage is significantly lower than line coverage.', 'Add tests for src/a.ts'],
+      verdict, 80, collected);
+    expect(recs).toEqual(['Add tests for src/a.ts']);
+  });
+
+  it('drops the shortfall line for an istanbul report with no branches that MEETS the threshold', () => {
+    const collected = { branch: false, function: true };
+    const verdict = thresholdVerdict({ line: 90, branch: 0, function: 100, statement: 90 }, 80, collected);
+    expect(verdict.meetsThreshold).toBe(true);
+    expect(reconcileRecommendations(['Coverage is 5.0% below threshold. Focus on high-risk files first.'], verdict, 80, collected))
+      .toEqual([]);
+  });
+
+  it('recomputes the shortfall from the collected metrics when the threshold is NOT met', () => {
+    const collected = { branch: false, function: false };
+    const verdict = thresholdVerdict({ line: 60, branch: 0, function: 0, statement: 60 }, 80, collected);
+    expect(reconcileRecommendations([analyzerShortfall], verdict, 80, collected))
+      .toEqual(['Coverage is 20.0% below threshold. Focus on high-risk files first.']);
+  });
 });
 
 describe('#995 review — evaluateCoverageForTarget (the one verdict MCP and CLI share)', () => {
@@ -622,6 +654,21 @@ if (results) {
     }
     expect(fs.existsSync(npxMarker)).toBe(false);
     expect(fs.existsSync(cwdMarker)).toBe(false);
+  }, 60000);
+
+  it('MCP: a line-only lcov at 90% meets an 80% threshold with no contradicting advice (NB-A)', async () => {
+    fs.mkdirSync(path.join(root, 'coverage'));
+    const lcov = path.join(root, 'coverage', 'lcov.info');
+    const da = Array.from({ length: 10 }, (_, i) => `DA:${i + 1},${i < 9 ? 1 : 0}`).join('\n');
+    fs.writeFileSync(lcov, `TN:\nSF:src/math.ts\n${da}\nLF:10\nLH:9\nend_of_record\n`);
+
+    const data = await analyze(lcov, root);
+
+    expect(data.lineCoverage).toBe(90);
+    expect(data.branchCoverage).toBeNull();
+    expect(data.functionCoverage).toBeNull();
+    expect(data.meetsThreshold).toBe(true);
+    expect((data.recommendations as string[]).some(r => /below threshold/i.test(r))).toBe(false);
   }, 60000);
 
   it('reads an existing root report for a subfolder target instead of re-running', async () => {
