@@ -26,6 +26,13 @@ import {
 
 // Side-effect import: registers the coverage-analysis domain service factory.
 import '../../../../src/domains/coverage-analysis';
+import { runJsCoverage, type JsCoverageRun } from '../../../../src/coordination/handlers/coverage-runner';
+
+// The runner is real unless a test scripts its outcome (not installed, timeout, crash, ...).
+vi.mock('../../../../src/coordination/handlers/coverage-runner', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../src/coordination/handlers/coverage-runner')>();
+  return { ...actual, runJsCoverage: vi.fn(actual.runJsCoverage) };
+});
 
 function createKernel() {
   const store = new Map<string, unknown>();
@@ -163,5 +170,103 @@ describe('#1008 — a static estimate is never persisted as coverage evidence', 
       metric: 'coverage', value: 75, source: 'coverage-analysis',
     });
     await expect(loadQualityEvidence(kernel.memory as never)).resolves.toMatchObject({ coverage: 75 });
+  }, 60000);
+});
+
+describe('#1008 — every non-measured outcome leaves coverage evidence untouched', () => {
+  let dir: string;
+  const originalNoExec = process.env.AQE_COVERAGE_NO_EXEC;
+  const run = (over: Partial<JsCoverageRun>): JsCoverageRun => ({
+    runner: 'vitest', missing: false, exitCode: 1, exitedCleanly: false, timedOut: false,
+    timeoutMs: 120000, data: null, numTotalTests: null, stderrTail: '', ...over,
+  });
+  const measuredFile = (file: string) => ({
+    path: file,
+    lines: { covered: 3, total: 4 }, branches: { covered: 0, total: 0 },
+    functions: { covered: 1, total: 1 }, statements: { covered: 3, total: 4 },
+    uncoveredLines: [3], uncoveredBranches: [],
+  });
+
+  beforeEach(() => {
+    delete process.env.AQE_COVERAGE_NO_EXEC;
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1008-outcomes-'));
+    fs.mkdirSync(path.join(dir, '.git'));
+    fs.mkdirSync(path.join(dir, 'src'));
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'fixture-1008', version: '1.0.0' }));
+    fs.writeFileSync(path.join(dir, 'src', 'math.ts'), 'export function add(a: number, b: number) {\n  return a + b;\n}\n');
+  });
+
+  afterEach(() => {
+    vi.mocked(runJsCoverage).mockReset();
+    if (originalNoExec === undefined) delete process.env.AQE_COVERAGE_NO_EXEC;
+    else process.env.AQE_COVERAGE_NO_EXEC = originalNoExec;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function expectNothingPersisted(kernel: Kernel): Promise<void> {
+    expect(kernel.store.has('coverage:latest')).toBe(false);
+    expect(kernel.store.has(coverageEvidenceKey)).toBe(false);
+    await expect(loadQualityEvidence(kernel.memory as never))
+      .rejects.toThrow('No measured quality evidence found for coverage.');
+  }
+
+  it.each([
+    ['runner not installed (nothing ran)', run({ missing: true, exitCode: null }), /not installed.*nothing was run/],
+    ['runner timed out', run({ timedOut: true, exitCode: null }), /timed out/],
+    ['runner crashed', run({ exitCode: 1, stderrTail: 'SyntaxError: boom' }), /boom|exited/i],
+  ])('%s → labelled estimate, nothing persisted', async (_label, outcome, warning) => {
+    vi.mocked(runJsCoverage).mockResolvedValue(outcome);
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, path.join(dir, 'src'));
+
+    // Never a "measured 0": the figure is a labelled static estimate.
+    expect(data).toMatchObject({ estimated: true, measured: false, coverageMethod: 'static-estimation' });
+    expect(String(data.warning)).toMatch(warning);
+    expect(String(data.warning)).toMatch(/STATIC ESTIMATE/);
+    await expectNothingPersisted(kernel);
+  }, 60000);
+
+  it.each([
+    ['no tests ran', run({ exitCode: 0, exitedCleanly: true, numTotalTests: 0, data: { files: [], summary: { line: 0, branch: 0, function: 0, statement: 0, files: 0 } } })],
+    ['target not covered by the run', run({ exitCode: 0, exitedCleanly: true, numTotalTests: 3, data: { files: [measuredFile('lib/other.ts')], summary: { line: 75, branch: 0, function: 100, statement: 75, files: 1 } } })],
+  ])('%s → unmeasured (null figures), nothing persisted', async (_label, outcome) => {
+    vi.mocked(runJsCoverage).mockResolvedValue(outcome);
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, path.join(dir, 'src'));
+
+    expect(data).toMatchObject({ lineCoverage: null, measured: false, unmeasured: true, coverageMethod: 'none' });
+    await expectNothingPersisted(kernel);
+  }, 60000);
+
+  it('unreadable report → no figures, nothing persisted', async () => {
+    const lcov = path.join(dir, 'coverage', 'lcov.info');
+    fs.mkdirSync(path.dirname(lcov));
+    fs.writeFileSync(lcov, 'this is not an lcov report');
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, lcov);
+
+    expect(data).toMatchObject({ lineCoverage: null, measured: false, coverageMethod: 'none' });
+    expect(runJsCoverage).not.toHaveBeenCalled();
+    await expectNothingPersisted(kernel);
+  }, 60000);
+
+  it('instrumented run that covers the target → measured and persisted', async () => {
+    vi.mocked(runJsCoverage).mockResolvedValue(run({
+      exitCode: 0, exitedCleanly: true, numTotalTests: 2,
+      data: { files: [measuredFile(path.join(dir, 'src', 'math.ts'))], summary: { line: 75, branch: 0, function: 100, statement: 75, files: 1 } },
+    }));
+    const kernel = createKernel();
+    await seedAllButCoverage(kernel);
+
+    const data = await analyze(kernel, path.join(dir, 'src'));
+
+    expect(data).toMatchObject({ measured: true, estimated: false, lineCoverage: 75 });
+    expect(kernel.store.get(coverageEvidenceKey)).toMatchObject({ metric: 'coverage', value: 75 });
   }, 60000);
 });
