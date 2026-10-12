@@ -20,6 +20,7 @@ import {
   describeMeasuredFailure,
   findMeasuredFailures,
   isMeasuredMetricValue,
+  resolveCoverageOverride,
   validateRequestedMetrics,
 } from '../../domains/quality-assessment/evidence-sufficiency.js';
 
@@ -43,12 +44,49 @@ function requestedMetricsFrom(metrics: unknown): string[] {
   }
 }
 
+/**
+ * #996: the user-configured gate coverage threshold (`quality_gate.thresholds.coverage`
+ * in .aqe-ci.yml), found the same way `aqe ci` finds its config. Undefined when
+ * there is no readable config.
+ */
+async function configuredCoverageThreshold(startDir: string): Promise<number | undefined> {
+  try {
+    const { findCIConfigFile, parseCIConfigFile } = await import('../../cli/utils/ci-config.js');
+    const configPath = findCIConfigFile(startDir);
+    if (!configPath) return undefined;
+    const parsed = parseCIConfigFile(configPath);
+    return parsed.success ? parsed.config?.qualityGate.thresholds.coverage : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * #996: coverage limit for measured failures — the request's threshold, else
+ * the configured gate threshold, else the canonical default (undefined).
+ */
+async function coverageOverrideFor(
+  payload: { threshold?: unknown; thresholdSource?: unknown },
+): Promise<number | undefined> {
+  const requested = payload.thresholdSource === 'default' ? undefined : payload.threshold;
+  if (requested !== undefined && (typeof requested !== 'number' || !Number.isFinite(requested)
+    || requested < 0 || requested > 100)) {
+    throw new CallerInputError('threshold must be a finite number between 0 and 100.');
+  }
+  return resolveCoverageOverride(
+    requested as number | undefined,
+    requested === undefined ? await configuredCoverageThreshold(process.cwd()) : undefined,
+  );
+}
+
 export function registerQualityHandlers(ctx: TaskHandlerContext): void {
   // Register quality assessment handler - REAL IMPLEMENTATION
   ctx.registerHandler('assess-quality', async (task) => {
     const payload = task.payload as {
       runGate: boolean;
       threshold: number;
+      /** 'default' when the MCP caller did not supply `threshold`. */
+      thresholdSource?: 'request' | 'default';
       metrics?: unknown;
       sourceFiles?: string[];
       target?: string;
@@ -71,6 +109,7 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       }
 
       const requestedMetrics = requestedMetricsFrom(payload.metrics);
+      const coverageOverride = await coverageOverrideFor(payload);
       const analyzer = ctx.getQualityAnalyzer();
       const threshold = payload.threshold || 80;
 
@@ -139,7 +178,7 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       // requested metric (e.g. coverage = -1) is not evidence of quality, and
       // a measured metric that fails its own limit blocks regardless (N2).
       const sufficiency = assessEvidenceSufficiency(requestedMetrics, metrics);
-      const measuredFailures = findMeasuredFailures(sufficiency.measured, metrics);
+      const measuredFailures = findMeasuredFailures(sufficiency.measured, metrics, { coverage: coverageOverride });
       const insufficient = sufficiency.evidenceStatus !== 'measured';
       const passed = !insufficient && measuredFailures.length === 0 && report.score.overall >= threshold;
       const recommendations = report.recommendations.map(r => `[${r.type}] ${r.title}: ${r.description}`);

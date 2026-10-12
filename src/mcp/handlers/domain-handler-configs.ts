@@ -729,6 +729,9 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     return {
       runGate: params.runGate ?? false,
       threshold: params.threshold || 80,
+      // #996: only a caller-supplied threshold overrides the configured/default
+      // per-metric limits; the 80 fallback above must not.
+      thresholdSource: params.threshold === undefined ? 'default' : 'request',
       metrics,
       routingTier: routingResult?.decision.tier,
       useAgentBooster: routingResult?.useAgentBooster,

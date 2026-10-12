@@ -6,7 +6,12 @@
  * support a verdict: a pass computed without them is a pass on missing data.
  */
 
-import { DEFAULT_QUALITY_THRESHOLDS, INSUFFICIENT_EVIDENCE } from './quality-evidence.js';
+import {
+  INSUFFICIENT_EVIDENCE,
+  resolveQualityThresholds,
+  type QualityMetricName,
+  type QualityThresholdOverrides,
+} from './quality-evidence.js';
 
 /** `measured`: every requested metric has data. Otherwise no verdict may approve. */
 export type StaticEvidenceStatus = 'measured' | typeof INSUFFICIENT_EVIDENCE;
@@ -17,13 +22,26 @@ export const STATIC_QUALITY_METRICS = [
 ] as const;
 
 /**
- * Per-metric limits a measured static value can fail on its own, taken from the
- * canonical gate thresholds so the two paths agree (coverage >= 80, duplication <= 5).
+ * Static metrics that a measured value can fail on its own, mapped to the
+ * canonical gate metric whose effective threshold applies (by default
+ * coverage >= 80, duplication <= 5; see resolveQualityThresholds).
  */
-const STATIC_METRIC_LIMITS: Record<string, { direction: 'min' | 'max'; value: number }> = {
-  coverage: { direction: 'min', value: DEFAULT_QUALITY_THRESHOLDS.coverage.value },
-  duplication: { direction: 'max', value: DEFAULT_QUALITY_THRESHOLDS.duplications.value },
+const STATIC_TO_GATE_METRIC: Record<string, QualityMetricName> = {
+  coverage: 'coverage',
+  duplication: 'duplications',
 };
+
+/**
+ * #996: the coverage threshold that applies to a static assessment — the
+ * request's threshold, else the user-configured gate threshold, else the
+ * canonical default (undefined = use the default).
+ */
+export function resolveCoverageOverride(
+  requested: number | undefined,
+  configured: number | undefined,
+): number | undefined {
+  return requested ?? configured;
+}
 
 export interface MeasuredFailure {
   metric: string;
@@ -99,10 +117,13 @@ export function assessEvidenceSufficiency(
 export function findMeasuredFailures(
   measured: readonly string[],
   values: Readonly<Record<string, number | undefined>>,
+  overrides: QualityThresholdOverrides = {},
 ): MeasuredFailure[] {
+  const thresholds = resolveQualityThresholds(overrides);
   const failures: MeasuredFailure[] = [];
   for (const metric of measured) {
-    const limit = STATIC_METRIC_LIMITS[metric];
+    const gateMetric = STATIC_TO_GATE_METRIC[metric];
+    const limit = gateMetric ? thresholds[gateMetric] : undefined;
     const value = values[metric];
     if (!limit || !isMeasuredMetricValue(value)) continue;
     const fails = limit.direction === 'min' ? value < limit.value : value > limit.value;

@@ -84,6 +84,13 @@ describe('qualityAssessConfig.mapToResult evidence fields (#996)', () => {
       .toThrow(/metrics must be a non-empty array of metric names/);
   });
 
+  it('marks whether the threshold came from the request (round 2b)', () => {
+    expect(qualityAssessConfig.mapToPayload({ threshold: 10 }, null))
+      .toMatchObject({ threshold: 10, thresholdSource: 'request' });
+    expect(qualityAssessConfig.mapToPayload({}, null))
+      .toMatchObject({ threshold: 80, thresholdSource: 'default' });
+  });
+
   it('passes a valid metrics list through mapToPayload', () => {
     expect(qualityAssessConfig.mapToPayload({ metrics: ['complexity'] }, null))
       .toMatchObject({ metrics: ['complexity'] });

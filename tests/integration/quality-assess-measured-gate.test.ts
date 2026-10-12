@@ -338,6 +338,25 @@ describe('registered quality_assess measured gate', () => {
     });
   });
 
+  it('does not block coverage 50 when the request threshold is 10 (round 2b)', async () => {
+    await seedStaticCoverage(50);
+    const result = await callTool<QualityAssessResult>('quality_assess', { threshold: 10 });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: true, measuredFailures: [], riskDecision: { decision: 'approve' },
+    });
+  });
+
+  it('blocks coverage 50 against the default threshold (round 2b)', async () => {
+    await seedStaticCoverage(50);
+    const result = await callTool<QualityAssessResult>('quality_assess', {});
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: false, measuredFailures: [{ metric: 'coverage', value: 50, threshold: 80 }],
+      riskDecision: { decision: 'block' },
+    });
+  });
+
   it.each([
     ['a bare string', 'coverage'],
     ['an unknown name', ['coverage', 'vibes']],

@@ -230,19 +230,39 @@ export async function loadQualityEvidence(
   return values as QualityEvidenceValues;
 }
 
-export function evaluateQualityEvidence(
-  values: QualityEvidenceValues,
-  thresholds: { coverage?: number } = {},
-): { passed: boolean; checks: EvaluatedQualityCheck[]; recommendations: string[] } {
-  if (thresholds.coverage !== undefined && (
-    !Number.isFinite(thresholds.coverage) || thresholds.coverage < 0 || thresholds.coverage > 100
+/** Threshold overrides a caller or user configuration may apply to the canonical defaults. */
+export interface QualityThresholdOverrides {
+  coverage?: number;
+}
+
+/**
+ * The single source of effective quality thresholds: canonical defaults with
+ * any override applied. Used by the measured gate and by static analysis
+ * (#996) so the two never disagree.
+ */
+export function resolveQualityThresholds(
+  overrides: QualityThresholdOverrides = {},
+): Record<QualityMetricName, QualityThreshold> {
+  if (overrides.coverage !== undefined && (
+    !Number.isFinite(overrides.coverage) || overrides.coverage < 0 || overrides.coverage > 100
   )) {
     throw new Error('Coverage quality threshold must be a finite number between 0 and 100.');
   }
+  return {
+    ...DEFAULT_QUALITY_THRESHOLDS,
+    ...(overrides.coverage !== undefined
+      ? { coverage: { ...DEFAULT_QUALITY_THRESHOLDS.coverage, value: overrides.coverage } }
+      : {}),
+  };
+}
+
+export function evaluateQualityEvidence(
+  values: QualityEvidenceValues,
+  thresholds: QualityThresholdOverrides = {},
+): { passed: boolean; checks: EvaluatedQualityCheck[]; recommendations: string[] } {
+  const effective = resolveQualityThresholds(thresholds);
   const checks = QUALITY_METRICS.map((name) => {
-    const threshold = name === 'coverage' && thresholds.coverage !== undefined
-      ? { ...DEFAULT_QUALITY_THRESHOLDS[name], value: thresholds.coverage }
-      : DEFAULT_QUALITY_THRESHOLDS[name];
+    const threshold = effective[name];
     const value = values[name];
     return {
       name,

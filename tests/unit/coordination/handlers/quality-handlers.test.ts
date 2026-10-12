@@ -3,7 +3,10 @@
  * are unmeasured (coverage -1 sentinel), and must say plainly that the
  * static-analysis path evaluates no quality gate.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ok } from '../../../../src/shared/types/index.js';
 import { registerQualityHandlers } from '../../../../src/coordination/handlers/quality-handlers.js';
 import type {
@@ -40,6 +43,78 @@ function setup(analysis: ReturnType<typeof report>, memoryGet = vi.fn(async () =
 type Data = Record<string, unknown> & {
   passed: boolean; unmeasured: string[]; recommendations: string[]; metrics: Record<string, number>;
 };
+
+describe('assess-quality measured-failure thresholds (#996 round 2b)', () => {
+  const coverage50 = () => report([
+    { name: 'coverage', value: 50 }, { name: 'complexity', value: 1 }, { name: 'maintainability', value: 80 },
+  ], 75, 50);
+  const metrics = ['coverage', 'complexity', 'maintainability'];
+  let dir: string;
+  let cwd: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(async () => {
+    // A directory with no .aqe-ci.yml anywhere above it would be ideal; a fresh
+    // temp dir plus an explicit config file (where needed) keeps the test hermetic.
+    dir = await mkdtemp(join(tmpdir(), 'aqe-996-thresholds-'));
+    cwd = vi.spyOn(process, 'cwd').mockReturnValue(dir);
+  });
+  afterEach(() => cwd.mockRestore());
+
+  it('does not block coverage 50 when the request threshold is 10', async () => {
+    const { run } = setup(coverage50());
+
+    const result = await run({ runGate: false, threshold: 10, thresholdSource: 'request',
+      sourceFiles: ['src/a.ts'], metrics });
+
+    expect((result as { value: Data }).value).toMatchObject({ passed: true, measuredFailures: [] });
+  });
+
+  it('blocks coverage 50 against the default 80 when no threshold was given', async () => {
+    const { run } = setup(coverage50());
+
+    const result = await run({ runGate: false, threshold: 80, thresholdSource: 'default',
+      sourceFiles: ['src/a.ts'], metrics });
+
+    expect((result as { value: Data }).value).toMatchObject({
+      passed: false, measuredFailures: [{ metric: 'coverage', value: 50, threshold: 80 }],
+    });
+  });
+
+  it('uses the user-configured gate coverage threshold when the request gives none', async () => {
+    await writeFile(join(dir, '.aqe-ci.yml'), 'version: "1"\nquality_gate:\n  thresholds:\n    coverage: 40\n');
+    const { run } = setup(coverage50());
+
+    const result = await run({ runGate: false, threshold: 80, thresholdSource: 'default',
+      sourceFiles: ['src/a.ts'], metrics });
+
+    expect((result as { value: Data }).value).toMatchObject({ measuredFailures: [] });
+  });
+
+  it('lets the request threshold win over the configured one', async () => {
+    await writeFile(join(dir, '.aqe-ci.yml'), 'version: "1"\nquality_gate:\n  thresholds:\n    coverage: 40\n');
+    const { run } = setup(coverage50());
+
+    const result = await run({ runGate: false, threshold: 60, thresholdSource: 'request',
+      sourceFiles: ['src/a.ts'], metrics });
+
+    expect((result as { value: Data }).value).toMatchObject({
+      passed: false, measuredFailures: [{ metric: 'coverage', threshold: 60 }],
+    });
+  });
+
+  it.each([150, -1, Number.NaN])('rejects request threshold %s as caller input', async (threshold) => {
+    const { run, analyzeQuality } = setup(coverage50());
+
+    const result = await run({ runGate: false, threshold, thresholdSource: 'request',
+      sourceFiles: ['src/a.ts'], metrics });
+
+    expect(result.success).toBe(false);
+    expect((result as { error: Error & { callerError?: boolean } }).error).toMatchObject({
+      message: 'threshold must be a finite number between 0 and 100.', callerError: true,
+    });
+    expect(analyzeQuality).not.toHaveBeenCalled();
+  });
+});
 
 describe('assess-quality handler evidence sufficiency (#996)', () => {
   it('does not pass when coverage is -1 (unmeasured), even with a high static score', async () => {

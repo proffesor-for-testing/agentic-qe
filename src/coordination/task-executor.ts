@@ -16,6 +16,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName, Result } from '../shared/types';
 import { isCallerInputError, toErrorMessage } from '../shared/error-utils.js';
+import { InsufficientQualityEvidenceError } from '../domains/quality-assessment/quality-evidence.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
@@ -138,18 +139,15 @@ export interface TaskResult {
   /** Files saved by result saver */
   savedFiles?: string[];
   /**
-   * #996: structured context for a failure (e.g. which quality metrics were
-   * unmeasured), from an error exposing `toDetails()`. Absent on success.
+   * #996: structured context for a failure (which quality metrics were
+   * unmeasured). Only set for InsufficientQualityEvidenceError; absent otherwise.
    */
   errorDetails?: Record<string, unknown>;
 }
 
-/** #996: structured details carried by an error that provides `toDetails()`. */
+/** #996: structured details, only from the one error type that is known to carry them. */
 function errorDetailsOf(error: unknown): Record<string, unknown> | undefined {
-  const toDetails = (error as { toDetails?: unknown } | null)?.toDetails;
-  if (typeof toDetails !== 'function') return undefined;
-  const details = toDetails.call(error);
-  return details && typeof details === 'object' ? details as Record<string, unknown> : undefined;
+  return error instanceof InsufficientQualityEvidenceError ? { ...error.toDetails() } : undefined;
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;

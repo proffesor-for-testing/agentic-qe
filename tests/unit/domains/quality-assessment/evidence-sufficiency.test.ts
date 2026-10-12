@@ -8,6 +8,7 @@ import {
   describeMeasuredFailure,
   findMeasuredFailures,
   isMeasuredMetricValue,
+  resolveCoverageOverride,
   validateRequestedMetrics,
 } from '../../../../src/domains/quality-assessment/evidence-sufficiency.js';
 
@@ -115,6 +116,14 @@ describe('validateRequestedMetrics (#996 N3)', () => {
   });
 });
 
+describe('resolveCoverageOverride (round 2b)', () => {
+  it('prefers the request, then the configured gate threshold, then the default', () => {
+    expect(resolveCoverageOverride(10, 60)).toBe(10);
+    expect(resolveCoverageOverride(undefined, 60)).toBe(60);
+    expect(resolveCoverageOverride(undefined, undefined)).toBeUndefined();
+  });
+});
+
 describe('findMeasuredFailures (#996 N2)', () => {
   it('reports measured coverage below the canonical 80% floor', () => {
     expect(findMeasuredFailures(['coverage', 'complexity'], { coverage: 0, complexity: 2 })).toEqual([
@@ -130,6 +139,18 @@ describe('findMeasuredFailures (#996 N2)', () => {
 
   it('ignores unmeasured metrics and metrics without their own limit', () => {
     expect(findMeasuredFailures(['coverage', 'maintainability'], { coverage: -1, maintainability: 10 })).toEqual([]);
+  });
+
+  it('uses an overridden coverage threshold instead of the default 80 (round 2b)', () => {
+    expect(findMeasuredFailures(['coverage'], { coverage: 50 }, { coverage: 10 })).toEqual([]);
+    expect(findMeasuredFailures(['coverage'], { coverage: 5 }, { coverage: 10 })).toEqual([
+      { metric: 'coverage', value: 5, threshold: 10, direction: 'min' },
+    ]);
+  });
+
+  it('rejects an out-of-range coverage override like the measured gate does', () => {
+    expect(() => findMeasuredFailures(['coverage'], { coverage: 50 }, { coverage: 150 }))
+      .toThrow('Coverage quality threshold must be a finite number between 0 and 100.');
   });
 
   it('describes a failure in plain words', () => {
