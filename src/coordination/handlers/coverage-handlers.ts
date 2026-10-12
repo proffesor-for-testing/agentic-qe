@@ -5,15 +5,9 @@
  * Covers: analyze-coverage
  */
 
-import * as fs from 'fs/promises';
-import { mkdtempSync, rmSync, statSync } from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
-import { safeJsonParse } from '../../shared/safe-json.js';
 import type { TaskHandlerContext } from './handler-types';
-import { loadCoverageData } from './handler-utils';
 import type { CoverageData } from '../../domains/coverage-analysis/interfaces';
 import {
   buildEstimatedCoverage,
@@ -21,187 +15,76 @@ import {
   findCargoRoot,
   isCoverageExecDisabled,
   isRustProject,
-  isTestPath,
   type CollectedCoverage,
 } from './coverage-collection';
 import {
-  findCoverageProjectRoot,
-  hasExecutedCode,
-  isCoverageReportFile,
-  loadCoverageReportFile,
+  describeNoData,
+  evaluateCoverageForTarget,
+  isUnmeasured,
+  resolveExistingCoverage,
   scopeCoverageToTarget,
+  type CoverageEvaluation,
+  type NoDataReason,
 } from './coverage-target';
+import { runJsCoverage } from './coverage-runner';
 
 /**
- * Pick the coverage command for a JS/TS project, writing the report into
- * `reportDir` instead of the project tree.
- *
- * #995: the report goes to a private temp directory, never `<root>/coverage`
- * and never the target subfolder. Analysing coverage must not leave artifacts
- * in the user's source tree (the original bug wrote `src/coverage/`).
+ * How long the project's test runner may take before its process tree is
+ * killed. `AQE_COVERAGE_TIMEOUT_MS` overrides the 120s default.
  */
-async function buildJsCoverageCommand(projectRoot: string, reportDir: string): Promise<string> {
-  const dir = JSON.stringify(reportDir);
-  // vitest is the default — covers vitest, @vitest/coverage-v8, etc.
-  let coverageCmd =
-    `npx vitest run --coverage --coverage.reportsDirectory=${dir} --coverage.reporter=json --reporter=json`;
-  try {
-    const pkgContent = await fs.readFile(path.join(projectRoot, 'package.json'), 'utf-8');
-    const pkg = safeJsonParse<Record<string, unknown>>(pkgContent);
-    const deps = {
-      ...(pkg.devDependencies as Record<string, string> || {}),
-      ...(pkg.dependencies as Record<string, string> || {}),
-    };
-    if (deps['jest'] || deps['@jest/core']) {
-      coverageCmd = `npx jest --coverage --coverageDirectory=${dir} --coverageReporters=json --json`;
-    } else if (deps['mocha'] || deps['nyc']) {
-      const tempDir = JSON.stringify(path.join(reportDir, '.nyc_output'));
-      coverageCmd = `npx nyc --report-dir=${dir} --temp-dir=${tempDir} --reporter=json mocha`;
-    }
-  } catch {
-    // No package.json — use default vitest
-  }
-  return coverageCmd;
+function coverageTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number.parseInt(env.AQE_COVERAGE_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 120000;
 }
 
-/**
- * Run the project's test runner with coverage, from the PROJECT ROOT.
- *
- * #995: this used to run from whatever directory the caller passed. For
- * `target: "src/"` vitest started in `src/`, found no tests, and reported a
- * "measured" 0%. The runner must start where its config and tests live; the
- * caller scopes the result to the target afterwards.
- *
- * `ranTests` is true when the runner exited cleanly or produced a report. A
- * failing test run still writes coverage, so the report is checked either way.
- */
-async function runJsCoverage(
-  projectRoot: string
-): Promise<{ ranTests: boolean; data: CoverageData | null }> {
-  // Running the project's test suite executes code from the analyzed repository
-  // (the tests themselves, plus npm lifecycle scripts via npx). Honor the
-  // opt-out before doing that.
-  if (isCoverageExecDisabled()) return { ranTests: false, data: null };
-
-  const reportDir = mkdtempSync(path.join(os.tmpdir(), 'aqe-js-cov-'));
-  try {
-    const { execSync } = await import('child_process');
-    const coverageCmd = await buildJsCoverageCommand(projectRoot, reportDir);
-
-    let exitedCleanly = false;
-    try {
-      execSync(coverageCmd, {
-        cwd: projectRoot,
-        timeout: 120000,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        maxBuffer: 64 * 1024 * 1024,
-      });
-      exitedCleanly = true;
-    } catch {
-      // Test runner failed, timed out, or is not available. A failing suite
-      // still writes coverage — check the report below.
-    }
-
-    const data = await loadCoverageReportFile(path.join(reportDir, 'coverage-final.json'));
-    return { ranTests: exitedCleanly || data !== null, data };
-  } finally {
-    try { rmSync(reportDir, { recursive: true, force: true }); } catch { /* best-effort */ }
-  }
-}
-
-/**
- * Narrow an instrumented report to production files only, recomputing the
- * aggregate from what survives.
- *
- * Returns `null` when the report contains no production files at all — the
- * caller must NOT fall back to the unfiltered set, because that reports the test
- * files' own coverage as the project's (#569's third contradiction).
- */
-function productionOnly(
-  report: { files: CoverageData['files']; summary: CoverageData['summary'] },
-  targetPath: string
-): CollectedCoverage | null {
-  const files = report.files.filter(f => !isTestPath(f.path, targetPath));
-  if (files.length === 0) return null;
-
-  // Recompute rather than carrying the original summary: it was computed over
-  // the unfiltered set, so keeping it would blend test-file coverage into the
-  // production headline figure.
+/** Aggregate a file list into whole-number percentages. */
+function recomputeSummary(files: CoverageData['files']): CoverageData['summary'] {
   const sum = (pick: (f: CoverageData['files'][number]) => number) =>
     files.reduce((acc, f) => acc + pick(f), 0);
-  const pct = (covered: number, total: number) =>
-    total > 0 ? Math.round((covered / total) * 100) : 0;
-
+  const pct = (covered: number, total: number) => (total > 0 ? Math.round((covered / total) * 100) : 0);
   const totalLines = sum(f => f.lines.total);
   const coveredLines = sum(f => f.lines.covered);
-  const branchDataCollected = files.some(f => f.branches.total > 0);
-  const functionDataCollected = files.some(f => f.functions.total > 0);
-
   return {
-    data: {
-      files,
-      summary: {
-        line: pct(coveredLines, totalLines),
-        branch: pct(sum(f => f.branches.covered), sum(f => f.branches.total)),
-        function: pct(sum(f => f.functions.covered), sum(f => f.functions.total)),
-        statement: pct(coveredLines, totalLines),
-        files: files.length,
-      },
-    },
+    line: pct(coveredLines, totalLines),
+    branch: pct(sum(f => f.branches.covered), sum(f => f.branches.total)),
+    function: pct(sum(f => f.functions.covered), sum(f => f.functions.total)),
+    statement: pct(coveredLines, totalLines),
+    files: files.length,
+  };
+}
+
+/** An instrumented verdict as a collected result with honest provenance. */
+function instrumented(files: CoverageData['files']): CollectedCoverage {
+  return {
+    data: { files, summary: recomputeSummary(files) },
     provenance: {
       method: 'instrumented-report',
       estimated: false,
-      branchDataCollected,
-      functionDataCollected,
+      branchDataCollected: files.some(f => f.branches.total > 0),
+      functionDataCollected: files.some(f => f.functions.total > 0),
       notes: [],
     },
   };
 }
-
-/** Why a result carries no coverage figures. */
-type NoDataReason =
-  /** The report lists only test files. */
-  | 'test-only-report'
-  /** The report/run has no entries for the target (#995). */
-  | 'target-not-covered'
-  /** The run executed no code at all — nothing was measured (#995). */
-  | 'nothing-executed'
-  /** A coverage report file was given as the target but could not be parsed. */
-  | 'unreadable-report';
 
 interface CollectResult {
   collected: CollectedCoverage | null;
   ranTests: boolean;
   noData?: NoDataReason;
   /** The directory coverage tooling runs from and report paths resolve against. */
-  projectRoot: string;
+  projectRoot: string | null;
+  /** Extra caveats (e.g. the runner timed out). */
+  notes?: string[];
 }
 
-/**
- * Turn a project-wide instrumented report into the result for `target`:
- * production files only, scoped to the target, and never a fake 0%.
- */
-function fromInstrumentedReport(
-  report: CoverageData,
-  projectRoot: string,
-  target: string
-): Pick<CollectResult, 'collected' | 'noData'> {
-  // #995(d): a report in which nothing executed is not a 0% measurement.
-  if (!hasExecutedCode(report.files)) return { collected: null, noData: 'nothing-executed' };
-
-  // #995(a): a project-wide report answers for the whole project; the caller
-  // asked about `target`. A report with no entries under it did not measure it.
-  const scoped = scopeCoverageToTarget(report, projectRoot, target);
-  if (scoped.length === 0) return { collected: null, noData: 'target-not-covered' };
-
-  // A report whose only entries are test files yields NO production coverage.
-  // Falling back to the unfiltered set here would report the test files'
-  // own coverage as the project's — recreating #569's third contradiction
-  // (`tests/verifier_matrix.rs` analysed at 79.2% as if it were a target).
-  const production = productionOnly({ files: scoped, summary: report.summary }, projectRoot);
-  if (!production) return { collected: null, noData: 'test-only-report' };
-  return { collected: production };
+function fromEvaluation(
+  evaluation: CoverageEvaluation,
+  ranTests: boolean,
+  projectRoot: string
+): CollectResult {
+  return evaluation.status === 'measured'
+    ? { collected: instrumented(evaluation.files), ranTests, projectRoot }
+    : { collected: null, ranTests, noData: evaluation.reason, projectRoot };
 }
 
 /**
@@ -210,8 +93,9 @@ function fromInstrumentedReport(
  *
  * The target may be the project root, a subfolder or file inside it, or an
  * existing coverage report (#995). Tooling always runs from the project root
- * (the nearest package.json / pyproject / Cargo.toml / .git above the target)
- * and the result is scoped back down to the target.
+ * and the result is scoped back down to the target. The decision about what
+ * a report says for a target is shared with the CLI (`resolveExistingCoverage`
+ * / `evaluateCoverageForTarget`).
  *
  * Cascade:
  *   0. the target IS a coverage report — parse it, run nothing
@@ -221,31 +105,18 @@ function fromInstrumentedReport(
  *   3. static estimation, explicitly labelled `estimated: true`
  */
 async function collectCoverage(targetPath: string): Promise<CollectResult> {
-  const target = path.resolve(targetPath);
-  let targetIsFile = false;
-  try { targetIsFile = statSync(target).isFile(); } catch { /* missing — handled below */ }
-
-  // #995(c): an existing coverage report passed as the target.
-  if (targetIsFile && isCoverageReportFile(target)) {
-    const reportDir = path.dirname(target);
-    const projectRoot = findCoverageProjectRoot(reportDir)
-      ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
-    const report = await loadCoverageReportFile(target);
-    if (!report) return { collected: null, ranTests: false, noData: 'unreadable-report', projectRoot };
-    // The report itself is the subject: analyse all of it, relative to its project.
-    return { ...fromInstrumentedReport(report, projectRoot, projectRoot), ranTests: false, projectRoot };
+  const existing = await resolveExistingCoverage(targetPath);
+  if (existing.status === 'target-missing') {
+    return { collected: null, ranTests: false, noData: 'target-missing', projectRoot: null };
+  }
+  if (existing.status === 'evaluated') {
+    return fromEvaluation(existing.evaluation, false, existing.projectRoot);
   }
 
-  const projectRoot = findCoverageProjectRoot(target) ?? target;
-
-  const existing = await loadCoverageData(projectRoot);
-  if (existing) {
-    return { ...fromInstrumentedReport(existing, projectRoot, target), ranTests: false, projectRoot };
-  }
+  const { target, projectRoot } = existing;
 
   // #569 work item 1: delegate to real instrumentation where available.
-  const rustProject = isRustProject(target);
-  if (rustProject) {
+  if (isRustProject(target)) {
     const rust = await collectRustCoverage(target);
     if (rust) {
       // cargo ran from the crate root; scope its crate-wide output to the target.
@@ -268,27 +139,25 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
   }
 
-  const run = await runJsCoverage(projectRoot);
-  if (run.data) {
-    return { ...fromInstrumentedReport(run.data, projectRoot, target), ranTests: run.ranTests, projectRoot };
+  // Running the project's test suite executes code from the analyzed repository
+  // (the tests themselves, plus npm lifecycle scripts via npx). Honor the
+  // opt-out before doing that.
+  if (isCoverageExecDisabled()) {
+    return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
   }
 
-  return { collected: buildEstimatedCoverage(target), ranTests: run.ranTests, projectRoot };
-}
+  const run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
+  if (run.data || run.numTotalTests === 0) {
+    const evaluation = run.data
+      ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests })
+      : { status: 'no-data' as const, reason: 'no-tests-ran' as const };
+    return fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
+  }
 
-function recomputeSummary(files: CoverageData['files']): CoverageData['summary'] {
-  const sum = (pick: (f: CoverageData['files'][number]) => number) =>
-    files.reduce((acc, f) => acc + pick(f), 0);
-  const pct = (covered: number, total: number) => (total > 0 ? Math.round((covered / total) * 100) : 0);
-  const totalLines = sum(f => f.lines.total);
-  const coveredLines = sum(f => f.lines.covered);
-  return {
-    line: pct(coveredLines, totalLines),
-    branch: pct(sum(f => f.branches.covered), sum(f => f.branches.total)),
-    function: pct(sum(f => f.functions.covered), sum(f => f.functions.total)),
-    statement: pct(coveredLines, totalLines),
-    files: files.length,
-  };
+  const notes = run.timedOut
+    ? ['The coverage run timed out and was stopped (the whole process tree was terminated).']
+    : [];
+  return { collected: buildEstimatedCoverage(target), ranTests: run.exitedCleanly, projectRoot, notes };
 }
 
 /** Caller-facing explanation for a result with no coverage figures. */
@@ -296,29 +165,12 @@ function noDataWarning(
   reason: NoDataReason | undefined,
   ranTests: boolean,
   targetPath: string,
-  projectRoot: string
+  projectRoot: string | null
 ): string {
-  switch (reason) {
-    case 'test-only-report':
-      return 'The coverage report contains only test files, so there is no production ' +
-        'coverage to report. Coverage OF a test file is not a meaningful metric. ' +
-        'Check that your coverage tool is instrumenting your source directory.';
-    case 'target-not-covered':
-      return `Target is UNMEASURED: the coverage data for project ${projectRoot} did not cover ` +
-        `any production file under ${targetPath}. This is not 0% coverage — no measurement ` +
-        "exists for it. Check your coverage tool's include/exclude settings, or regenerate the report.";
-    case 'nothing-executed':
-      return 'Target is UNMEASURED: the coverage run executed no code (no tests were found or ' +
-        `none ran from ${projectRoot}). This is not 0% coverage. Check that your tests run ` +
-        'from the project root.';
-    case 'unreadable-report':
-      return `The coverage report ${targetPath} could not be parsed or lists no files. Supported: ` +
-        'lcov.info, coverage-final.json, coverage-summary.json, Cobertura XML.';
-    default:
-      return ranTests
-        ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
-        : 'No coverage data found and could not run tests automatically. ' + estimationGuidance(targetPath);
-  }
+  if (reason) return describeNoData(reason, targetPath, projectRoot);
+  return ranTests
+    ? 'Tests ran but no coverage output was generated. Ensure a coverage provider is configured (e.g., @vitest/coverage-v8, istanbul).'
+    : 'No coverage data found and could not run tests automatically. ' + estimationGuidance(targetPath);
 }
 
 /**
@@ -355,10 +207,15 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests, noData, projectRoot } = await collectCoverage(targetPath);
+      const { collected, ranTests, noData, projectRoot, notes } = await collectCoverage(targetPath);
+
+      // #995 review N5: say so plainly instead of "no coverage data found".
+      if (noData === 'target-missing') {
+        return err(new Error(describeNoData('target-missing', targetPath, null)));
+      }
 
       if (!collected) {
-        const unmeasured = noData === 'target-not-covered' || noData === 'nothing-executed';
+        const unmeasured = noData !== undefined && isUnmeasured(noData);
         return ok({
           lineCoverage: null,
           branchCoverage: null,
@@ -419,7 +276,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const pct = (covered: number, total: number) =>
         total > 0 ? Math.round((covered / total) * 1000) / 10 : null;
 
-      const warnings = [...provenance.notes];
+      const warnings = [...provenance.notes, ...(notes ?? [])];
       if (provenance.estimated) warnings.push(estimationGuidance(targetPath));
 
       // #569: the analyzer generates recommendations from the summary numbers.

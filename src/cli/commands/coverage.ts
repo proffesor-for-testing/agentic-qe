@@ -10,45 +10,54 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { runCoverageAnalysisWizard, type CoverageWizardResult } from '../wizards/coverage-wizard.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, type CoverageResult, writeOutput, toJSON, coverageToMarkdown } from '../utils/ci-output.js';
-import * as fs from 'fs';
 import * as path from 'path';
 import { buildCoverageData, summarizeCoverage, type CoverageData } from '../utils/coverage-data.js';
 import {
-  findCoverageProjectRoot,
-  hasExecutedCode,
-  isCoverageReportFile,
-  loadCoverageReportFile,
+  describeNoData,
+  isUnmeasured,
+  resolveExistingCoverage,
+  type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
-import { isTestPath } from '../../coordination/handlers/coverage-collection.js';
+
+/** `aqe coverage` exit code when the target has no coverage measurement (#995). */
+export const EXIT_UNMEASURED = 3;
+
+export type CliCoverage =
+  | { kind: 'data'; data: CoverageData }
+  | { kind: 'no-data'; reason: NoDataReason; message: string }
+  | { kind: 'no-sources' };
 
 /**
  * Resolve the coverage data for a CLI target (#995).
  *
- * - A coverage report file (lcov.info, coverage-final.json, ...) is parsed
- *   directly.
- * - A directory or source file is matched against the instrumented report of
- *   its PROJECT ROOT (nearest package.json/.git above it), not the current
- *   working directory, so `aqe coverage /path/to/proj/src` works from anywhere.
- *
- * Returns null when there is nothing to analyse.
+ * Uses the SAME resolution and verdict as the MCP `coverage_analyze_sublinear`
+ * handler (`resolveExistingCoverage`), so CLI and MCP cannot disagree about
+ * what a report says for a target:
+ *   - a coverage report file (lcov.info, coverage-final.json, ...) is parsed
+ *     directly;
+ *   - a directory or source file is scoped against the instrumented report of
+ *     its PROJECT ROOT (nearest package.json/.git above it), not the cwd;
+ *   - with no report at the project root, the CLI falls back to its labelled
+ *     heuristic estimate (the CLI never runs the test suite).
  */
-async function resolveCliCoverageData(targetPath: string): Promise<CoverageData | null> {
-  let isFile = false;
-  try { isFile = fs.statSync(targetPath).isFile(); } catch { /* missing */ }
-
-  if (isFile && isCoverageReportFile(targetPath)) {
-    const reportDir = path.dirname(targetPath);
-    const root = findCoverageProjectRoot(reportDir)
-      ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
-    const report = await loadCoverageReportFile(targetPath);
-    const files = (report?.files ?? []).filter(f => !isTestPath(f.path, root));
-    return { files, summary: summarizeCoverage(files), instrumented: true };
+export async function resolveCliCoverageData(targetPath: string): Promise<CliCoverage> {
+  const existing = await resolveExistingCoverage(targetPath);
+  if (existing.status === 'target-missing') {
+    return { kind: 'no-data', reason: 'target-missing', message: describeNoData('target-missing', targetPath, null) };
+  }
+  if (existing.status === 'evaluated') {
+    const { evaluation, projectRoot } = existing;
+    if (evaluation.status === 'measured') {
+      const files = evaluation.files;
+      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true } };
+    }
+    return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
   }
 
-  const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
-  if (sourceFiles.length === 0) return null;
+  const sourceFiles = walkSourceFiles(existing.target, { includeTests: false });
+  if (sourceFiles.length === 0) return { kind: 'no-sources' };
   console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
-  return buildCoverageData(sourceFiles, findCoverageProjectRoot(targetPath) ?? process.cwd());
+  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot) };
 }
 
 function getColorForPercent(percent: number): (str: string) => string {
@@ -73,6 +82,17 @@ export function createCoverageCommand(
     .option('--ghost', 'Include ghost intent coverage analysis (detect untested behavioral intents)')
     .option('-F, --format <format>', 'Output format (text|json|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .addHelpText('after', `
+Target: a directory, a source file, or an existing coverage report
+(lcov.info, coverage-final.json, coverage-summary.json, Cobertura XML).
+Reports are read from the target's project root (nearest package.json / .git).
+
+Exit codes:
+  0  coverage meets the threshold (by more than 5%)
+  1  coverage below the threshold, or an error (missing target, unreadable report)
+  2  coverage within 5% above the threshold
+  ${EXIT_UNMEASURED}  UNMEASURED: no coverage measurement exists for the target
+     (not in the report, the runner ran 0 tests, or only test files were reported)`)
     .action(async (target: string, options) => {
       let analyzeTarget = target;
       let includeRisk = options.risk;
@@ -127,27 +147,37 @@ export function createCoverageCommand(
 
         // Fix #280: shared file discovery supporting all languages.
         // #995: coverage files as targets; reports resolved from the project root.
-        const coverageData = await resolveCliCoverageData(targetPath);
+        const resolved = await resolveCliCoverageData(targetPath);
 
-        if (!coverageData) {
+        if (resolved.kind === 'no-sources') {
           console.log(chalk.yellow('No source files found'));
           return;
         }
 
-        // #995(d): an instrumented report that has no entry for the target, or in
-        // which nothing executed, measured nothing. Say so instead of "0%".
-        if (coverageData.instrumented &&
-            (coverageData.files.length === 0 || !hasExecutedCode(coverageData.files))) {
-          const message = `Target is UNMEASURED: the coverage data has no executed entries for ${analyzeTarget}. ` +
-            'This is not 0% coverage. Run your tests with coverage from the project root and re-run.';
+        if (resolved.kind === 'no-data') {
+          // Errors (missing target, unreadable report) exit 1. Everything else
+          // means "no measurement exists" — distinct exit code, never "0%".
+          const isError = resolved.reason === 'target-missing' || resolved.reason === 'unreadable-report';
           if ((options.format as OutputFormat) === 'json') {
-            writeOutput(toJSON({ unmeasured: true, measured: false, target: targetPath, warning: message }), options.output);
+            // Same shape as a normal result, with nulls (#995 review N4).
+            writeOutput(toJSON({
+              summary: { line: null, branch: null, function: null, statement: null },
+              meetsThreshold: null,
+              threshold,
+              measured: false,
+              unmeasured: isUnmeasured(resolved.reason),
+              reason: resolved.reason,
+              target: targetPath,
+              warning: resolved.message,
+            }), options.output);
           } else {
-            console.log(chalk.yellow(`  ${message}\n`));
+            console.log((isError ? chalk.red : chalk.yellow)(`  ${resolved.message}\n`));
           }
-          await cleanupAndExit(1);
+          await cleanupAndExit(isError ? 1 : EXIT_UNMEASURED);
           return;
         }
+
+        const coverageData = resolved.data;
 
         if (coverageData.instrumented) {
           console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));

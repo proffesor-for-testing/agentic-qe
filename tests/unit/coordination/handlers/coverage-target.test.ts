@@ -24,7 +24,7 @@ import {
   isCoverageReportFile,
   loadCoverageReportFile,
   scopeCoverageToTarget,
-  hasExecutedCode,
+  evaluateCoverageForTarget,
 } from '../../../../src/coordination/handlers/coverage-target';
 import { createTaskExecutor } from '../../../../src/coordination/task-executor';
 import type { QueenTask } from '../../../../src/coordination/queen-coordinator';
@@ -240,9 +240,65 @@ describe('#995 — scopeCoverageToTarget', () => {
     expect(scopeCoverageToTarget(data, root, root)).toHaveLength(4);
   });
 
-  it('hasExecutedCode is false only when no line or function was hit anywhere', () => {
-    expect(hasExecutedCode(data.files)).toBe(true);
-    expect(hasExecutedCode([file('/proj/src/a.ts', 0)])).toBe(false);
+});
+
+describe('#995 review — evaluateCoverageForTarget (the one verdict MCP and CLI share)', () => {
+  const root = '/proj';
+  const file = (p: string, covered: number) => ({
+    path: p,
+    lines: { covered, total: 4 }, branches: { covered: 0, total: 0 },
+    functions: { covered: 0, total: 0 }, statements: { covered, total: 4 },
+    uncoveredLines: [], uncoveredBranches: [],
+  });
+  const report = (files: ReturnType<typeof file>[]): CoverageData => ({
+    files, summary: { line: 0, branch: 0, function: 0, statement: 0, files: files.length },
+  });
+
+  it('a file listed with 0 hits is a MEASURED 0%, not unmeasured (B2/B3)', () => {
+    const verdict = evaluateCoverageForTarget(
+      report([file('/proj/src/zero.ts', 0), file('/proj/lib/hit.ts', 4)]), root, '/proj/src/zero.ts'
+    );
+    expect(verdict).toEqual({ status: 'measured', files: [file('/proj/src/zero.ts', 0)] });
+  });
+
+  it('an all-zero report is still a measurement when the runner says tests ran', () => {
+    const verdict = evaluateCoverageForTarget(report([file('/proj/src/a.ts', 0)]), root, '/proj/src', { numTotalTests: 3 });
+    expect(verdict.status).toBe('measured');
+  });
+
+  it('is unmeasured when the runner itself reports 0 tests', () => {
+    const verdict = evaluateCoverageForTarget(report([file('/proj/src/a.ts', 0)]), root, '/proj/src', { numTotalTests: 0 });
+    expect(verdict).toEqual({ status: 'no-data', reason: 'no-tests-ran' });
+  });
+
+  it('is unmeasured when the report has no entry under the target', () => {
+    const verdict = evaluateCoverageForTarget(report([file('/proj/lib/hit.ts', 4)]), root, '/proj/src');
+    expect(verdict).toEqual({ status: 'no-data', reason: 'target-not-covered' });
+  });
+
+  it('reports a test-only scope as test-only, never as the test files\' coverage', () => {
+    const verdict = evaluateCoverageForTarget(report([file('/proj/tests/a.test.ts', 4)]), root, root);
+    expect(verdict).toEqual({ status: 'no-data', reason: 'test-only-report' });
+  });
+});
+
+describe('#995 review N5 — unreadable reports', () => {
+  let dir: string;
+  beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-995-n5-')); });
+  afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+
+  it('rejects raw V8 output instead of inventing a file called "result"', async () => {
+    const file = path.join(dir, 'coverage-final.json');
+    fs.writeFileSync(file, JSON.stringify({ result: [{ scriptId: '1', url: 'file:///a.js', functions: [] }] }));
+    expect(await loadCoverageReportFile(file)).toBeNull();
+  });
+
+  it('rejects malformed JSON and arbitrary objects', async () => {
+    const bad = path.join(dir, 'coverage-final.json');
+    fs.writeFileSync(bad, '{ not json');
+    expect(await loadCoverageReportFile(bad)).toBeNull();
+    fs.writeFileSync(bad, JSON.stringify({ hello: 'world' }));
+    expect(await loadCoverageReportFile(bad)).toBeNull();
   });
 });
 
@@ -306,6 +362,7 @@ describe('#995 — analyze-coverage on subfolder and coverage-file targets', () 
   let binDir: string;
   let cwdMarker: string;
   let cannedReport: string;
+  let numTestsFile: string;
   const originalPath = process.env.PATH;
 
   /**
@@ -316,13 +373,19 @@ describe('#995 — analyze-coverage on subfolder and coverage-file targets', () 
     fs.writeFileSync(path.join(binDir, 'npx'), `#!/bin/sh
 pwd >> ${JSON.stringify(cwdMarker)}
 out="coverage"
+results=""
 for a in "$@"; do
   case "$a" in
     --coverage.reportsDirectory=*) out="\${a#--coverage.reportsDirectory=}" ;;
+    --outputFile.json=*) results="\${a#--outputFile.json=}" ;;
   esac
 done
 mkdir -p "$out"
 cp ${JSON.stringify(cannedReport)} "$out/coverage-final.json"
+if [ -n "$results" ]; then
+  n=$(cat ${JSON.stringify(numTestsFile)} 2>/dev/null || echo 1)
+  printf '{"numTotalTests":%s,"success":true}' "$n" > "$results"
+fi
 exit 0
 `);
     fs.chmodSync(path.join(binDir, 'npx'), 0o755);
@@ -339,6 +402,7 @@ exit 0
     binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-995-bin-'));
     cwdMarker = path.join(binDir, 'cwd.log');
     cannedReport = path.join(binDir, 'canned.json');
+    numTestsFile = path.join(binDir, 'num-tests');
     const mathPath = path.join(root, 'src', 'math.ts');
     writeCannedReport({ [mathPath]: istanbulEntry(mathPath, 6, 3) });
     installFakeNpx();
@@ -435,17 +499,82 @@ exit 0
     expect(String(data.warning)).toMatch(/unmeasured|did not cover/i);
   }, 60000);
 
-  it('reports a run in which no code executed as unmeasured, not a measured 0%', async () => {
-    // What vitest produces when it finds no tests (e.g. run from the wrong
-    // directory): every file listed with zero hits.
+  it('reports a zero-hit file from a run that DID run tests as a measured 0% (review B3)', async () => {
+    // A passing test that never imports src/: vitest lists math.ts at 0%.
     const mathPath = path.join(root, 'src', 'math.ts');
     writeCannedReport({ [mathPath]: istanbulEntry(mathPath, 6, 0) });
+    fs.writeFileSync(numTestsFile, '1');
+
+    const data = await analyze(path.join(root, 'src'), root);
+
+    expect(data.measured).toBe(true);
+    expect(data.lineCoverage).toBe(0);
+    expect(data.unmeasured).toBeUndefined();
+  }, 60000);
+
+  it('reports unmeasured when the runner itself says it ran 0 tests', async () => {
+    const mathPath = path.join(root, 'src', 'math.ts');
+    writeCannedReport({ [mathPath]: istanbulEntry(mathPath, 6, 0) });
+    fs.writeFileSync(numTestsFile, '0');
 
     const data = await analyze(path.join(root, 'src'), root);
 
     expect(data.lineCoverage).toBeNull();
-    expect(data.measured).toBe(false);
     expect(data.unmeasured).toBe(true);
+    expect(String(data.warning)).toMatch(/0 tests/);
+  }, 60000);
+
+  it('treats an all-zero lcov.info passed as the target as a measured 0% (review B3)', async () => {
+    fs.mkdirSync(path.join(root, 'coverage'));
+    const lcov = path.join(root, 'coverage', 'lcov.info');
+    fs.writeFileSync(lcov, lcovRecord('src/math.ts', 6, 0));
+
+    const data = await analyze(lcov, root);
+
+    expect(data.measured).toBe(true);
+    expect(data.lineCoverage).toBe(0);
+  }, 60000);
+
+  it('says "unreadable coverage report" for a raw V8 report target (review N5)', async () => {
+    fs.mkdirSync(path.join(root, 'coverage'));
+    const v8 = path.join(root, 'coverage', 'coverage-final.json');
+    fs.writeFileSync(v8, JSON.stringify({ result: [{ scriptId: '1', url: 'file:///x.js', functions: [] }] }));
+
+    const data = await analyze(v8, root);
+
+    expect(data.measured).toBe(false);
+    expect(String(data.warning)).toMatch(/Unreadable coverage report/);
+  }, 60000);
+
+  it('fails with "target does not exist" for a missing target (review N5)', async () => {
+    const executor = createTaskExecutor(createKernel() as never, {
+      saveResults: false, resultsDir: root, defaultLanguage: 'typescript', defaultFramework: 'vitest',
+    });
+    const result = await executor.execute({
+      id: 'task-995-missing', type: 'analyze-coverage', priority: 'p1', targetDomains: [],
+      payload: { target: path.join(root, 'no-such-dir'), detectGaps: true }, timeout: 60000, createdAt: new Date(),
+    } as unknown as QueenTask);
+
+    expect(result.success).toBe(false);
+    expect(String(result.error)).toMatch(/Target does not exist/);
+    expect(fs.existsSync(cwdMarker)).toBe(false);
+  }, 60000);
+
+  it('passes a $(...) in TMPDIR to the runner as data, never to a shell (review N3)', async () => {
+    const hostileTmp = path.join(binDir, 'tmp-$(touch pwned)');
+    fs.mkdirSync(hostileTmp);
+    const originalTmp = process.env.TMPDIR;
+    process.env.TMPDIR = hostileTmp;
+    try {
+      const data = await analyze(path.join(root, 'src'), root);
+      expect(data.measured).toBe(true);
+    } finally {
+      process.env.TMPDIR = originalTmp;
+    }
+    expect(fs.existsSync(path.join(root, 'pwned'))).toBe(false);
+    expect(fs.existsSync(path.join(root, 'src', 'pwned'))).toBe(false);
+    // ...and the private report dir was removed.
+    expect(fs.readdirSync(hostileTmp)).toEqual([]);
   }, 60000);
 
   it('reads an existing root report for a subfolder target instead of re-running', async () => {

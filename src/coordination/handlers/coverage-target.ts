@@ -23,7 +23,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
-import { parseCoberturaXml, parseCoverageJson, parseCoverageSummaryJson, parseLcovInfo } from './handler-utils';
+import {
+  loadCoverageData,
+  parseCoberturaXml,
+  parseCoverageJson,
+  parseCoverageSummaryJson,
+  parseLcovInfo,
+} from './handler-utils';
+import { isTestPath } from './coverage-collection';
 
 // ============================================================================
 // Project root
@@ -121,7 +128,12 @@ export async function loadCoverageReportFile(filePath: string): Promise<Coverage
     if (base.endsWith('.json')) {
       const parsed = JSON.parse(content) as Record<string, unknown>;
       // coverage-summary.json carries a `total` entry with per-metric totals.
-      data = isSummaryShape(parsed) ? parseCoverageSummaryJson(content) : parseCoverageJson(content);
+      if (isSummaryShape(parsed)) data = parseCoverageSummaryJson(content);
+      // Anything else must be istanbul's per-file map. Raw V8 output
+      // (`{ result: [...] }`) and arbitrary JSON are rejected, not parsed into
+      // a phantom file called "result" with 0/0 coverage.
+      else if (isIstanbulShape(parsed)) data = parseCoverageJson(content);
+      else return null;
     } else if (base.endsWith('.xml')) {
       data = parseCoberturaXml(content);
     } else {
@@ -131,6 +143,15 @@ export async function loadCoverageReportFile(filePath: string): Promise<Coverage
   } catch {
     return null;
   }
+}
+
+function isIstanbulShape(parsed: Record<string, unknown>): boolean {
+  const entries = Object.values(parsed);
+  return entries.length > 0 && entries.every(e =>
+    typeof e === 'object' && e !== null && !Array.isArray(e) &&
+    typeof (e as Record<string, unknown>).s === 'object' &&
+    typeof (e as Record<string, unknown>).statementMap === 'object'
+  );
 }
 
 function isSummaryShape(parsed: Record<string, unknown>): boolean {
@@ -172,16 +193,124 @@ export function scopeCoverageToTarget(data: CoverageData, root: string, target: 
   });
 }
 
+// ============================================================================
+// One verdict for MCP and CLI
+// ============================================================================
+
+/** Why there are no coverage figures for a target. */
+export type NoDataReason =
+  /** The target path does not exist. */
+  | 'target-missing'
+  /** A coverage report was given but cannot be parsed (malformed, raw V8, empty). */
+  | 'unreadable-report'
+  /** The report lists only test files. */
+  | 'test-only-report'
+  /** The report has no entries under the target — it did not measure it. */
+  | 'target-not-covered'
+  /** The test runner itself reports running zero tests. */
+  | 'no-tests-ran';
+
+export type CoverageEvaluation =
+  | { status: 'measured'; files: FileCoverage[] }
+  | { status: 'no-data'; reason: NoDataReason };
+
 /**
- * Did the run execute any code at all?
+ * Decide what a report says about `target`. Shared by the MCP handler and the
+ * CLI so the two cannot disagree (#995 review B2).
  *
- * A report in which every line and function has zero hits is what a coverage
- * tool writes when it found no tests (e.g. vitest run from the wrong
- * directory): every file listed, nothing executed. That is evidence that
- * nothing was measured, not a measurement of 0%.
+ * "Unmeasured" is decided ONLY from evidence that nothing was measured:
+ *   - the runner's own result says it ran 0 tests (`numTotalTests === 0`), or
+ *   - the report has no entry under the target.
+ * Hit counts are never used: a file listed with 0 hits is a measured 0%,
+ * whether the report came from our run or from the user (#995 review B3).
  */
-export function hasExecutedCode(files: FileCoverage[]): boolean {
-  return files.some(f =>
-    f.lines.covered > 0 || f.statements.covered > 0 || f.functions.covered > 0
-  );
+export function evaluateCoverageForTarget(
+  report: CoverageData,
+  projectRoot: string,
+  target: string,
+  options: { numTotalTests?: number | null } = {}
+): CoverageEvaluation {
+  if (options.numTotalTests === 0) return { status: 'no-data', reason: 'no-tests-ran' };
+
+  const scoped = scopeCoverageToTarget(report, projectRoot, target);
+  if (scoped.length === 0) return { status: 'no-data', reason: 'target-not-covered' };
+
+  // Coverage OF a test file is not production coverage (#569). A report with
+  // only test entries yields no production figure — never the unfiltered set.
+  const production = scoped.filter(f => !isTestPath(f.path, projectRoot));
+  if (production.length === 0) return { status: 'no-data', reason: 'test-only-report' };
+
+  return { status: 'measured', files: production };
+}
+
+export type ExistingCoverage =
+  | { status: 'target-missing'; target: string }
+  | { status: 'no-report'; target: string; projectRoot: string }
+  | {
+      status: 'evaluated';
+      target: string;
+      projectRoot: string;
+      source: 'report-file' | 'project-report';
+      evaluation: CoverageEvaluation;
+    };
+
+/**
+ * Resolve a target to coverage that already exists on disk, without running
+ * anything:
+ *   - a coverage report passed as the target is parsed and analysed whole;
+ *   - otherwise the PROJECT ROOT's report (not the cwd's, not the subfolder's)
+ *     is scoped to the target;
+ *   - `no-report` tells the caller it may run tooling from `projectRoot`.
+ */
+export async function resolveExistingCoverage(targetPath: string): Promise<ExistingCoverage> {
+  const target = path.resolve(targetPath);
+  let stat: fs.Stats;
+  try { stat = fs.statSync(target); } catch { return { status: 'target-missing', target }; }
+
+  if (stat.isFile() && isCoverageReportFile(target)) {
+    const reportDir = path.dirname(target);
+    const projectRoot = findCoverageProjectRoot(reportDir)
+      ?? (path.basename(reportDir) === 'coverage' ? path.dirname(reportDir) : reportDir);
+    const report = await loadCoverageReportFile(target);
+    const evaluation: CoverageEvaluation = report
+      ? evaluateCoverageForTarget(report, projectRoot, projectRoot)
+      : { status: 'no-data', reason: 'unreadable-report' };
+    return { status: 'evaluated', target, projectRoot, source: 'report-file', evaluation };
+  }
+
+  const projectRoot = findCoverageProjectRoot(target) ?? (stat.isDirectory() ? target : path.dirname(target));
+  const existing = await loadCoverageData(projectRoot);
+  if (!existing) return { status: 'no-report', target, projectRoot };
+  return {
+    status: 'evaluated', target, projectRoot, source: 'project-report',
+    evaluation: evaluateCoverageForTarget(existing, projectRoot, target),
+  };
+}
+
+/** Is this verdict "no measurement exists" (as opposed to an error or test-only report)? */
+export function isUnmeasured(reason: NoDataReason): boolean {
+  return reason === 'target-not-covered' || reason === 'no-tests-ran';
+}
+
+/** Caller-facing explanation of a no-data verdict. Shared by MCP and CLI. */
+export function describeNoData(reason: NoDataReason, target: string, projectRoot: string | null): string {
+  switch (reason) {
+    case 'target-missing':
+      return `Target does not exist: ${target}`;
+    case 'unreadable-report':
+      return `Unreadable coverage report: ${target}. It could not be parsed or lists no files. ` +
+        'Supported: lcov.info, istanbul coverage-final.json / coverage-summary.json, Cobertura XML. ' +
+        "Raw V8 output is not supported — convert it with c8 or your runner's istanbul reporter.";
+    case 'test-only-report':
+      return 'The coverage report contains only test files, so there is no production ' +
+        'coverage to report. Coverage OF a test file is not a meaningful metric. ' +
+        'Check that your coverage tool is instrumenting your source directory.';
+    case 'target-not-covered':
+      return `Target is UNMEASURED: the coverage data for project ${projectRoot ?? '?'} has no entry ` +
+        `for any production file under ${target}. This is not 0% coverage — no measurement exists ` +
+        "for it. Check your coverage tool's include/exclude settings, or regenerate the report.";
+    case 'no-tests-ran':
+      return `Target is UNMEASURED: the test runner reported running 0 tests from ${projectRoot ?? '?'}. ` +
+        'This is not 0% coverage.';
+  }
 }

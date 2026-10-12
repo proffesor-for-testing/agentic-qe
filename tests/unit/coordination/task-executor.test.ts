@@ -303,6 +303,20 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('coverage analysis execution', () => {
+    // #995: `target: 'src/'` resolves to THIS repository's root, so a real
+    // coverage run would execute the whole agentic-qe suite — including this
+    // file — from inside a unit test. Keep these tests hermetic: no test runner
+    // is spawned; the handler reads an existing report or labels an estimate.
+    let originalNoExec: string | undefined;
+    beforeEach(() => {
+      originalNoExec = process.env.AQE_COVERAGE_NO_EXEC;
+      process.env.AQE_COVERAGE_NO_EXEC = '1';
+    });
+    afterEach(() => {
+      if (originalNoExec === undefined) delete process.env.AQE_COVERAGE_NO_EXEC;
+      else process.env.AQE_COVERAGE_NO_EXEC = originalNoExec;
+    });
+
     it('should execute coverage analysis task', async () => {
       const task = createTestTask('analyze-coverage', {
         target: 'src/',
