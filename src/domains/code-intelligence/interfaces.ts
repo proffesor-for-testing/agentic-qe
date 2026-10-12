@@ -32,6 +32,11 @@ export interface CodeIntelligenceAPI {
 
 export interface IndexRequest {
   paths: string[];
+  /**
+   * The directory or file the caller asked to index, before it was expanded
+   * into `paths`. Used to resolve the project root for metrics (#994).
+   */
+  target?: string;
   incremental?: boolean;
   includeTests?: boolean;
   languages?: string[];

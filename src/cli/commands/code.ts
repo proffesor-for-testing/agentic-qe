@@ -45,7 +45,7 @@ Examples:
 
       try {
         const codeAPI = await context.kernel!.getDomainAPIAsync!<{
-          index(request: { paths: string[]; incremental?: boolean; includeTests?: boolean; languages?: string[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          index(request: { paths: string[]; target?: string; incremental?: boolean; includeTests?: boolean; languages?: string[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           search(request: { query: string; type: string; limit?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           analyzeImpact(request: { changedFiles: string[]; depth?: number; includeTests?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           mapDependencies(request: { files: string[]; direction: string; depth?: number }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
@@ -115,6 +115,7 @@ Examples:
 
           const result = await codeAPI.index({
             paths,
+            target: targetPath,
             incremental,
             includeTests: options.includeTests || false,
           });

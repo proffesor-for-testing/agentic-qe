@@ -564,10 +564,12 @@ export class CodeIntelligenceCoordinator
 
         // V3: Collect real project metrics using actual tooling (Phase 5)
         if (this.config.enableMetricCollector && this.metricCollector && request.paths.length > 0) {
-          // Determine project root from first path
-          const projectPath = this.getProjectRootFromPaths(request.paths);
+          // Determine project root from the caller's target (or the indexed paths)
+          const projectPath = this.getProjectRootFromPaths(request.paths, request.target);
           if (projectPath) {
             await this.collectProjectMetrics(projectPath);
+          } else {
+            logger.debug('Skipping project metrics: no project root resolved (filesystem root or no paths)');
           }
         }
 
@@ -1431,8 +1433,8 @@ export class CodeIntelligenceCoordinator
    * Determine project root from indexed paths (nearest marker, bottom-up; #994).
    * Relative paths resolve against the process cwd, matching the CLI/MCP callers.
    */
-  private getProjectRootFromPaths(paths: string[]): string | null {
-    return resolveProjectRootFromPaths(paths);
+  private getProjectRootFromPaths(paths: string[], target?: string): string | null {
+    return resolveProjectRootFromPaths(paths, { target });
   }
 
   // ============================================================================

@@ -188,6 +188,102 @@ describe('resolveProjectRootFromPaths (#994)', () => {
     });
   });
 
+  describe('explicit target (review B1)', () => {
+    const makeMonorepo = (): { mono: string; pkgA: string; files: string[] } => {
+      const mono = path.join(tmp, 'mono');
+      touch(path.join(mono, 'package.json'), '{}');
+      const pkgA = path.join(mono, 'packages', 'a');
+      touch(path.join(pkgA, 'package.json'), '{}');
+      const files = [touch(path.join(pkgA, 'src', 'add.ts')), touch(path.join(pkgA, 'tests', 'add.test.ts'))];
+      return { mono, pkgA, files };
+    };
+
+    it('returns the target directory itself when it holds a marker', () => {
+      const { mono, files } = makeMonorepo();
+
+      expect(resolveProjectRootFromPaths(files, { target: mono })).toBe(mono);
+    });
+
+    it('returns the package when the package is the target', () => {
+      const { pkgA, files } = makeMonorepo();
+
+      expect(resolveProjectRootFromPaths(files, { target: pkgA })).toBe(pkgA);
+    });
+
+    it('walks up from a target without a marker (tests dir) to the nearest marker', () => {
+      const { pkgA, files } = makeMonorepo();
+
+      expect(resolveProjectRootFromPaths(files, { target: path.join(pkgA, 'tests') })).toBe(pkgA);
+    });
+
+    it("uses a file target's directory as the starting point", () => {
+      const { pkgA, files } = makeMonorepo();
+
+      expect(resolveProjectRootFromPaths([files[0]], { target: files[0] })).toBe(pkgA);
+    });
+
+    it('resolves a relative target against cwd', () => {
+      const { mono, files } = makeMonorepo();
+
+      expect(resolveProjectRootFromPaths(files, { target: '.', cwd: mono })).toBe(mono);
+    });
+
+    it('falls back to the target directory when no marker exists', () => {
+      const target = path.join(tmp, 'nomarker', 'target');
+      const files = [touch(path.join(target, 'deep', 'x.ts'))];
+      const exists = (p: string): boolean => p.startsWith(tmp) && fs.existsSync(p);
+
+      expect(resolveProjectRootFromPaths(files, { target, exists })).toBe(target);
+    });
+  });
+
+  describe('filesystem root is never returned (review N1)', () => {
+    it('returns null when the no-marker fallback would be "/"', () => {
+      const result = resolveProjectRootFromPaths(['/a.ts', '/b.ts'], {
+        pathImpl: path.posix,
+        cwd: '/',
+        exists: () => false,
+        isDirectory: () => false,
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null for files on different top-level dirs with no marker', () => {
+      const result = resolveProjectRootFromPaths(['/srv/a.ts', '/opt/b.ts'], {
+        pathImpl: path.posix,
+        cwd: '/',
+        exists: () => false,
+        isDirectory: () => false,
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null when "/" is the target and holds the only marker', () => {
+      const result = resolveProjectRootFromPaths(['/srv/a.ts'], {
+        pathImpl: path.posix,
+        cwd: '/',
+        target: '/',
+        exists: (p) => p === '/.git',
+        isDirectory: (p) => p === '/',
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('returns null for a Windows drive root fallback', () => {
+      const result = resolveProjectRootFromPaths(['C:\\a.ts'], {
+        pathImpl: path.win32,
+        cwd: 'C:\\',
+        exists: () => false,
+        isDirectory: () => false,
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
   it('never returns a relative path', () => {
     const proj = path.join(tmp, 'proj');
     touch(path.join(proj, 'package.json'), '{}');

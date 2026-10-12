@@ -162,6 +162,7 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
         return this.coordinator.index({
           paths,
           languages,
+          target: typeof payload.target === 'string' ? payload.target : undefined,
         });
       }],
 

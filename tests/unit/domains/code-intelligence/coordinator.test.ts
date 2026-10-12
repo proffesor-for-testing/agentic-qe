@@ -259,13 +259,47 @@ describe('CodeIntelligenceCoordinator', () => {
       fs.rmSync(tmp, { recursive: true, force: true });
     });
 
-    const indexAndCaptureRoot = async (paths: string[]): Promise<string | undefined> => {
+    const indexAndCaptureRoot = async (
+      paths: string[],
+      target?: string,
+    ): Promise<string | undefined> => {
       const spy = vi
         .spyOn(metricsCoordinator, 'collectProjectMetrics')
         .mockResolvedValue({ success: false, error: new Error('stubbed') } as never);
-      await metricsCoordinator.index({ paths });
+      await metricsCoordinator.index({ paths, target });
       return spy.mock.calls[0]?.[0] as string | undefined;
     };
+
+    const makeMonorepo = (): { mono: string; pkgA: string; files: string[] } => {
+      const mono = path.join(tmp, 'mono');
+      touch(path.join(mono, 'package.json'), '{"workspaces":["packages/*"]}');
+      const pkgA = path.join(mono, 'packages', 'a');
+      touch(path.join(pkgA, 'package.json'), '{}');
+      const files = [
+        touch(path.join(pkgA, 'src', 'add.ts')),
+        touch(path.join(pkgA, 'tests', 'add.test.ts')),
+      ];
+      return { mono, pkgA, files };
+    };
+
+    it('measures the monorepo root for a "." target whose source all lives in one package', async () => {
+      const { mono, files } = makeMonorepo();
+
+      expect(await indexAndCaptureRoot(files, mono)).toBe(mono);
+    });
+
+    it('skips metric collection when the resolved root would be the filesystem root', async () => {
+      const file = touch(path.join(tmp, 'loose', 'a.ts'));
+      const fsRoot = path.parse(tmp).root;
+
+      expect(await indexAndCaptureRoot([file], fsRoot)).toBeUndefined();
+    });
+
+    it('measures the package when the package directory is the target', async () => {
+      const { pkgA, files } = makeMonorepo();
+
+      expect(await indexAndCaptureRoot(files, pkgA)).toBe(pkgA);
+    });
 
     it('measures the project root for files of a "." target, not .agentic-qe/workers', async () => {
       const proj = path.join(tmp, 'proj');
