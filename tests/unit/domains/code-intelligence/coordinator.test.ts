@@ -17,6 +17,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   CodeIntelligenceCoordinator,
   type CoordinatorConfig,
@@ -223,6 +226,108 @@ describe('CodeIntelligenceCoordinator', () => {
       await coordinator.initialize();
       await coordinator.dispose();
       expect(coordinator.getActiveWorkflows()).toHaveLength(0);
+    });
+  });
+
+  // ===========================================================================
+  // Issue #994: project root for metric collection during index()
+  // ===========================================================================
+
+  describe('index() metric project root (#994)', () => {
+    let tmp: string;
+    let metricsCoordinator: CodeIntelligenceCoordinator;
+
+    const touch = (file: string, content = 'export const x = 1;\n'): string => {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, content);
+      return file;
+    };
+
+    beforeEach(async () => {
+      tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-994-coord-')));
+      metricsCoordinator = new CodeIntelligenceCoordinator(
+        ctx.eventBus,
+        ctx.memory,
+        ctx.agentCoordinator,
+        { ...defaultConfig, enableMetricCollector: true, enableGNN: false },
+      );
+      await metricsCoordinator.initialize();
+    });
+
+    afterEach(async () => {
+      await metricsCoordinator.dispose();
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    const indexAndCaptureRoot = async (
+      paths: string[],
+      target?: string,
+    ): Promise<string | undefined> => {
+      const spy = vi
+        .spyOn(metricsCoordinator, 'collectProjectMetrics')
+        .mockResolvedValue({ success: false, error: new Error('stubbed') } as never);
+      await metricsCoordinator.index({ paths, target });
+      return spy.mock.calls[0]?.[0] as string | undefined;
+    };
+
+    const makeMonorepo = (): { mono: string; pkgA: string; files: string[] } => {
+      const mono = path.join(tmp, 'mono');
+      touch(path.join(mono, 'package.json'), '{"workspaces":["packages/*"]}');
+      const pkgA = path.join(mono, 'packages', 'a');
+      touch(path.join(pkgA, 'package.json'), '{}');
+      const files = [
+        touch(path.join(pkgA, 'src', 'add.ts')),
+        touch(path.join(pkgA, 'tests', 'add.test.ts')),
+      ];
+      return { mono, pkgA, files };
+    };
+
+    it('measures the monorepo root for a "." target whose source all lives in one package', async () => {
+      const { mono, files } = makeMonorepo();
+
+      expect(await indexAndCaptureRoot(files, mono)).toBe(mono);
+    });
+
+    it('skips metric collection when the resolved root would be the filesystem root', async () => {
+      const file = touch(path.join(tmp, 'loose', 'a.ts'));
+      const fsRoot = path.parse(tmp).root;
+
+      expect(await indexAndCaptureRoot([file], fsRoot)).toBeUndefined();
+    });
+
+    it('measures the package when the package directory is the target', async () => {
+      const { pkgA, files } = makeMonorepo();
+
+      expect(await indexAndCaptureRoot(files, pkgA)).toBe(pkgA);
+    });
+
+    it('measures the project root for files of a "." target, not .agentic-qe/workers', async () => {
+      const proj = path.join(tmp, 'proj');
+      touch(path.join(proj, 'package.json'), '{}');
+      const files = [
+        touch(path.join(proj, '.agentic-qe', 'workers', 'worker.js')),
+        touch(path.join(proj, 'src', 'math.ts')),
+      ];
+
+      expect(await indexAndCaptureRoot(files)).toBe(proj);
+    });
+
+    it('measures the project root for files of a "tests" target, not proj/tests', async () => {
+      const proj = path.join(tmp, 'proj');
+      touch(path.join(proj, 'package.json'), '{}');
+      const files = [touch(path.join(proj, 'tests', 'math.test.ts'))];
+
+      expect(await indexAndCaptureRoot(files)).toBe(proj);
+    });
+
+    it('measures the nearest project inside an outer git repo', async () => {
+      const outer = path.join(tmp, 'outer');
+      fs.mkdirSync(path.join(outer, '.git'), { recursive: true });
+      const inner = path.join(outer, 'nested');
+      touch(path.join(inner, 'package.json'), '{}');
+      const files = [touch(path.join(inner, 'src', 'a.ts'))];
+
+      expect(await indexAndCaptureRoot(files)).toBe(inner);
     });
   });
 });

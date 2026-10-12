@@ -7,7 +7,7 @@
  * - QESONA: Learns and adapts code patterns for improved intelligence
  */
 
-import { existsSync } from 'node:fs';
+import { resolveProjectRootFromPaths } from './project-root-resolver.js';
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, DomainEvent } from '../../shared/types';
@@ -564,10 +564,12 @@ export class CodeIntelligenceCoordinator
 
         // V3: Collect real project metrics using actual tooling (Phase 5)
         if (this.config.enableMetricCollector && this.metricCollector && request.paths.length > 0) {
-          // Determine project root from first path
-          const projectPath = this.getProjectRootFromPaths(request.paths);
+          // Determine project root from the caller's target (or the indexed paths)
+          const projectPath = this.getProjectRootFromPaths(request.paths, request.target);
           if (projectPath) {
             await this.collectProjectMetrics(projectPath);
+          } else {
+            logger.debug('Skipping project metrics: no project root resolved (filesystem root or no paths)');
           }
         }
 
@@ -1428,39 +1430,11 @@ export class CodeIntelligenceCoordinator
   }
 
   /**
-   * Determine project root from indexed paths
+   * Determine project root from indexed paths (nearest marker, bottom-up; #994).
+   * Relative paths resolve against the process cwd, matching the CLI/MCP callers.
    */
-  private getProjectRootFromPaths(paths: string[]): string | null {
-    if (paths.length === 0) return null;
-
-    // Get the first path and find the project root
-    const firstPath = paths[0];
-
-    // Walk up the path to find package.json, Cargo.toml, go.mod, etc.
-    const parts = firstPath.split('/');
-    let currentPath = '';
-
-    for (const part of parts) {
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      // Check for common project markers
-      const markers = ['package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', '.git'];
-      for (const marker of markers) {
-        try {
-          const markerPath = `${currentPath}/${marker}`;
-          // Synchronous existence check (we're in an async context anyway).
-          if (existsSync(markerPath)) {
-            return currentPath;
-          }
-        } catch {
-          // Continue checking
-        }
-      }
-    }
-
-    // If no marker found, return the parent directory of the first path
-    const lastSlash = firstPath.lastIndexOf('/');
-    return lastSlash > 0 ? firstPath.substring(0, lastSlash) : firstPath;
+  private getProjectRootFromPaths(paths: string[], target?: string): string | null {
+    return resolveProjectRootFromPaths(paths, { target });
   }
 
   // ============================================================================

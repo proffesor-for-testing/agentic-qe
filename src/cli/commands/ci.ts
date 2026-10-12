@@ -213,7 +213,7 @@ async function executePhase(
         const targetPath = path.resolve(target);
         const paths = walkSourceFiles(targetPath, { includeTests: false });
 
-        const result = await codeAPI.index({ paths, incremental: true });
+        const result = await codeAPI.index({ paths, target: targetPath, incremental: true });
         if (result.success && result.value) {
           const idx = result.value as { filesIndexed: number; nodesCreated: number };
           details = idx;
