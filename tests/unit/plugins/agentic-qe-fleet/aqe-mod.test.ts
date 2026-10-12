@@ -193,7 +193,16 @@ describe('aqe-mod guard: .catch handler decision (fail closed)', () => {
 describe('aqe-mod guard: bounded cost (review B5)', () => {
   const stars = (n: number) => '*'.repeat(n)
   const deepSubst = (n: number) => `${'echo $('.repeat(n)}rm .agentic-qe/memory.db${')'.repeat(n)}`
-  const cases: Array<[string, string, 'refused' | 'allowed' | 'either']> = [
+  // Bounds sized from measurements (median and max of 20 runs, unloaded and with 2 concurrent copies): every case
+  // judges in under 5 ms locally except five long lines (6-15 ms) and the 10k here-strings (~60 ms; CI saw a
+  // 304 ms median). A loaded CI runner runs ~5x slower than a dev machine; a real bomb (exponential, or the quadratic
+  // per-command replay of round 7) takes seconds on every run. FAST: >= 50x local headroom; LINE: the long lines,
+  // >= 50x local and ~10x CI headroom; HERE: ~25x local and ~5x the CI median, still under a third of the
+  // regression's 5-8 s.
+  const FAST = 250
+  const LINE = 750
+  const HERE = 1500
+  const cases: Array<[string, string, 'refused' | 'allowed' | 'either', number?]> = [
     ['rm with 20 stars', `rm .agentic-qe/${stars(20)}x`, 'either'],
     ['rm with 200 stars', `rm .agentic-qe/${stars(200)}x`, 'either'],
     ['find -name with 20 stars', `find . -name "${stars(20)}x" -delete`, 'either'],
@@ -202,9 +211,9 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     ['git clean -e with 200 stars', `git clean -fdx -e "${stars(200)}x"`, 'either'],
     ['200 nested $(', deepSubst(200), 'refused'],
     ['2000 nested $(', deepSubst(2000), 'refused'],
-    ['10k true;', 'true; '.repeat(10_000), 'allowed'],
-    ['10k-stage pipeline', `${'cat x | '.repeat(10_000)}cat`, 'allowed'],
-    ['10k redirects', 'echo x 2>/dev/null '.repeat(10_000), 'allowed'],
+    ['10k true;', 'true; '.repeat(10_000), 'allowed', LINE],
+    ['10k-stage pipeline', `${'cat x | '.repeat(10_000)}cat`, 'allowed', LINE],
+    ['10k redirects', 'echo x 2>/dev/null '.repeat(10_000), 'allowed', LINE],
     ['long open( with many quotes', `node -e "open(${"'a',".repeat(5000)} .agentic-qe/memory.db"`, 'either'],
     // third review (6c8d8187) P1-P3 and other bombs
     ['P1 for over 32 words, 5 x $V', `for V in ${Array.from({ length: 32 }, (_, i) => `w${i}`).join(' ')}; do rm ${'$V'.repeat(5)}; done`, 'either'],
@@ -213,21 +222,23 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
     ['P2 20000 nested braces', `rm x${'{'.repeat(20_000)}a,b${'}'.repeat(20_000)}`, 'either'],
     ['P2 60000 nested braces', `rm x${'{'.repeat(60_000)}a,b${'}'.repeat(60_000)}`, 'either'],
     ['P2 60000 nested braces under the directory', `rm .agentic-qe/${'{'.repeat(60_000)}a,b${'}'.repeat(60_000)}`, 'refused'],
-    ['P3 80000 escaped quotes in a literal', `python3 -c "os.system('.agentic-qe/' ${"'\\\\".repeat(80_000)}"`, 'either'],
+    ['P3 80000 escaped quotes in a literal', `python3 -c "os.system('.agentic-qe/' ${"'\\\\".repeat(80_000)}"`, 'either', LINE],
     ['10000 nested ${a:-', `rm ${'${a:-'.repeat(10_000)}x${'}'.repeat(10_000)}`, 'either'],
     ['100000 open brackets', `rm .agentic-qe/${'['.repeat(100_000)}`, 'either'],
     ['extglob with 50000 alternatives', `rm .agentic-@(${'a|'.repeat(50_000)}qe)`, 'refused'],
     ['POSIX classes x 20000', `rm .agentic-qe/${'[[:alpha:]]'.repeat(20_000)}`, 'either'],
     // fourth review: a value that doubles 28 times, and substitutions classified on every word
     ['a value doubled 28 times', `X0=ab; ${Array.from({ length: 28 }, (_, i) => `X${i + 1}="$X${i}$X${i}"`).join('; ')}; rm -rf $X28`, 'either'],
-    ['1000 words each a $(find ...)', `rm ${"$(find . -name '*.tmp') ".repeat(1000)}`, 'allowed'],
+    ['1000 words each a $(find ...)', `rm ${"$(find . -name '*.tmp') ".repeat(1000)}`, 'allowed', LINE],
     // seventh review: here-strings replay the line's assignments once, not per segment
-    ['10k here-strings after assignments', 'd=x; read -r f <<< "$d"; '.repeat(10_000), 'allowed'],
+    ['10k here-strings after assignments', 'd=x; read -r f <<< "$d"; '.repeat(10_000), 'allowed', HERE],
   ]
 
-  // The median of 5 runs under 250 ms: one slow run, or two suites sharing the CPU, does not fail the test; a real bomb
-  // (exponential or quadratic) takes seconds on every run.
-  it.each(cases)('should judge %s in under 250 ms (median of 5)', (_name, command, expected) => {
+  // The median of 5 runs under the case's bound: one slow run, or two suites sharing the CPU, does not fail the test; a
+  // real bomb (exponential or quadratic) takes seconds on every run. Wall time, not process.cpuUsage(): the latter
+  // counts V8's parallel GC threads (measured up to 2x wall here) and does not make a slow runner any faster.
+  const rows = cases.map(([name, command, expected, bound]) => [name, bound ?? FAST, command, expected] as const)
+  it.each(rows)('should judge %s in under %i ms (median of 5)', (_name, bound, command, expected) => {
     judge('Bash', { command: 'ls' })
     const times: number[] = []
     let r: ReturnType<typeof judge>
@@ -236,7 +247,7 @@ describe('aqe-mod guard: bounded cost (review B5)', () => {
       r = judge('Bash', { command })
       times.push(performance.now() - t0)
     }
-    expect(times.sort((a, b) => a - b)[2]).toBeLessThan(250)
+    expect(times.sort((a, b) => a - b)[2]).toBeLessThan(bound)
     if (expected === 'refused') expect(r?.cls).toBe('destructive')
     if (expected === 'allowed') expect(r).toBeUndefined()
   })
