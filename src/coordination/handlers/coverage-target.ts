@@ -68,10 +68,12 @@ export function findCoverageProjectRoot(target: string, maxDepth = 12): string |
   let home: string | null = null;
   try { home = fs.realpathSync(os.homedir()); } catch { home = null; }
 
+  const start = dir;
   for (let depth = 0; depth <= maxDepth; depth++) {
-    if (PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
     // A stray manifest in $HOME must not claim every directory beneath it.
-    if (home !== null && dir === home) return null;
+    // $HOME is still a valid root when it is the target itself.
+    if (home !== null && dir === home && dir !== start) return null;
+    if (PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;

@@ -123,6 +123,25 @@ describe('#995 — findCoverageProjectRoot', () => {
   it('returns null for a target that does not exist', () => {
     expect(findCoverageProjectRoot(path.join(root, 'no-such-dir'))).toBeNull();
   });
+
+  it('does not let a stray package.json in $HOME claim a directory beneath it', () => {
+    // os.homedir() honours $HOME, so a temp dir stands in for the real home.
+    const fakeHome = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-995-home-')));
+    const originalHome = process.env.HOME;
+    try {
+      fs.writeFileSync(path.join(fakeHome, 'package.json'), '{"name":"stray"}');
+      const loose = path.join(fakeHome, 'scratch', 'notes');
+      fs.mkdirSync(loose, { recursive: true });
+      process.env.HOME = fakeHome;
+
+      expect(findCoverageProjectRoot(loose)).toBeNull();
+      // ...while $HOME itself, when targeted directly, is still its own root.
+      expect(findCoverageProjectRoot(fakeHome)).toBe(fakeHome);
+    } finally {
+      process.env.HOME = originalHome;
+      fs.rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
