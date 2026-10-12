@@ -143,6 +143,51 @@ describe('resolveProjectRootFromPaths (#994)', () => {
     expect(resolveProjectRootFromPaths(['.'], { cwd: path.join(proj, 'src') })).toBe(proj);
   });
 
+  it('uses the outer repo when the target has no marker of its own', () => {
+    const outer = path.join(tmp, 'outer');
+    fs.mkdirSync(path.join(outer, '.git'), { recursive: true });
+    const file = touch(path.join(outer, 'scripts', 'tool.ts'));
+
+    expect(resolveProjectRootFromPaths([file])).toBe(outer);
+  });
+
+  describe('Windows paths (path.win32)', () => {
+    const win = path.win32;
+
+    it('walks bottom-up from a drive-letter path to the nearest marker', () => {
+      const markers = new Set(['C:\\Users\\me\\.git', 'C:\\Users\\me\\work\\proj\\package.json']);
+      const result = resolveProjectRootFromPaths(['C:\\Users\\me\\work\\proj\\tests\\a.test.ts'], {
+        pathImpl: win,
+        cwd: 'C:\\',
+        exists: (p) => markers.has(p),
+        isDirectory: () => false,
+      });
+
+      expect(result).toBe('C:\\Users\\me\\work\\proj');
+    });
+
+    it('stops at the drive root and falls back to the common directory', () => {
+      const result = resolveProjectRootFromPaths(
+        ['D:\\code\\lib\\a\\x.ts', 'D:\\code\\lib\\b\\y.ts'],
+        { pathImpl: win, cwd: 'D:\\', exists: () => false, isDirectory: () => false },
+      );
+
+      expect(result).toBe('D:\\code\\lib');
+    });
+
+    it('uses the first path when inputs are on different drives', () => {
+      const markers = new Set(['C:\\proj\\package.json', 'D:\\other\\package.json']);
+      const result = resolveProjectRootFromPaths(['C:\\proj\\src\\a.ts', 'D:\\other\\b.ts'], {
+        pathImpl: win,
+        cwd: 'C:\\',
+        exists: (p) => markers.has(p),
+        isDirectory: () => false,
+      });
+
+      expect(result).toBe('C:\\proj');
+    });
+  });
+
   it('never returns a relative path', () => {
     const proj = path.join(tmp, 'proj');
     touch(path.join(proj, 'package.json'), '{}');

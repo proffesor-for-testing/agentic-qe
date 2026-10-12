@@ -40,6 +40,8 @@ export interface ResolveProjectRootOptions {
   exists?: (p: string) => boolean;
   /** Directory check, injectable for tests. Defaults to `fs.statSync(...).isDirectory()`. */
   isDirectory?: (p: string) => boolean;
+  /** Path implementation. Defaults to the platform `path`; tests pass `path.win32`. */
+  pathImpl?: path.PlatformPath;
 }
 
 function defaultIsDirectory(p: string): boolean {
@@ -50,26 +52,21 @@ function defaultIsDirectory(p: string): boolean {
   }
 }
 
-/** Directory a path contributes: the path itself if it is a directory, else its parent. */
-function startDirFor(absPath: string, isDirectory: (p: string) => boolean): string {
-  return isDirectory(absPath) ? absPath : path.dirname(absPath);
-}
-
 /** True when `child` is `parent` or lies inside it. */
-function isWithin(child: string, parent: string): boolean {
-  const rel = path.relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+function isWithin(p: path.PlatformPath, child: string, parent: string): boolean {
+  const rel = p.relative(parent, child);
+  return rel === '' || (!rel.startsWith('..') && !p.isAbsolute(rel));
 }
 
 /**
  * Deepest directory containing every input directory, or null when the inputs
  * share no ancestor (for example different Windows drives).
  */
-function commonAncestor(dirs: string[]): string | null {
+function commonAncestor(p: path.PlatformPath, dirs: string[]): string | null {
   let common = dirs[0];
   for (const dir of dirs.slice(1)) {
-    while (!isWithin(dir, common)) {
-      const parent = path.dirname(common);
+    while (!isWithin(p, dir, common)) {
+      const parent = p.dirname(common);
       if (parent === common) return null;
       common = parent;
     }
@@ -78,17 +75,21 @@ function commonAncestor(dirs: string[]): string | null {
 }
 
 /** Walk from `startDir` up to the filesystem root; return the nearest marker directory. */
-function findNearestMarkerDir(startDir: string, exists: (p: string) => boolean): string | null {
+function findNearestMarkerDir(
+  p: path.PlatformPath,
+  startDir: string,
+  exists: (candidate: string) => boolean,
+): string | null {
   let current = startDir;
   for (;;) {
     for (const marker of PROJECT_ROOT_MARKERS) {
       try {
-        if (exists(path.join(current, marker))) return current;
+        if (exists(p.join(current, marker))) return current;
       } catch {
         // Unreadable entry: keep checking the remaining markers.
       }
     }
-    const parent = path.dirname(current);
+    const parent = p.dirname(current);
     if (parent === current) return null;
     current = parent;
   }
@@ -107,13 +108,18 @@ export function resolveProjectRootFromPaths(
   const usable = paths.filter((p) => typeof p === 'string' && p.length > 0);
   if (usable.length === 0) return null;
 
+  const p = options.pathImpl ?? path;
   const cwd = options.cwd ?? process.cwd();
   const exists = options.exists ?? existsSync;
   const isDirectory = options.isDirectory ?? defaultIsDirectory;
 
-  const dirs = usable.map((p) => startDirFor(path.resolve(cwd, p), isDirectory));
-  // Inputs on different roots: fall back to the first path's directory.
-  const start = commonAncestor(dirs) ?? dirs[0];
+  // A directory contributes itself; a file contributes its parent directory.
+  const dirs = usable.map((input) => {
+    const abs = p.resolve(cwd, input);
+    return isDirectory(abs) ? abs : p.dirname(abs);
+  });
+  // Inputs on different roots (Windows drives): use the first path's directory.
+  const start = commonAncestor(p, dirs) ?? dirs[0];
 
-  return findNearestMarkerDir(start, exists) ?? start;
+  return findNearestMarkerDir(p, start, exists) ?? start;
 }
