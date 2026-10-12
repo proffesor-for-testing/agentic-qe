@@ -137,6 +137,19 @@ export interface TaskResult {
   domain: DomainName;
   /** Files saved by result saver */
   savedFiles?: string[];
+  /**
+   * #996: structured context for a failure (e.g. which quality metrics were
+   * unmeasured), from an error exposing `toDetails()`. Absent on success.
+   */
+  errorDetails?: Record<string, unknown>;
+}
+
+/** #996: structured details carried by an error that provides `toDetails()`. */
+function errorDetailsOf(error: unknown): Record<string, unknown> | undefined {
+  const toDetails = (error as { toDetails?: unknown } | null)?.toDetails;
+  if (typeof toDetails !== 'function') return undefined;
+  const details = toDetails.call(error);
+  return details && typeof details === 'object' ? details as Record<string, unknown> : undefined;
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;
@@ -591,12 +604,14 @@ export class DomainTaskExecutor implements TaskHandlerContext {
         await this.publishTaskFailed(task.id, errorMsg, domain, 'error' in result && isCallerInputError(result.error));
         // ADR-051: Record failed outcome
         this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+        const errorDetails = 'error' in result ? errorDetailsOf(result.error) : undefined;
         return {
           taskId: task.id,
           success: false,
           error: errorMsg,
           duration: Date.now() - startTime,
           domain,
+          ...(errorDetails ? { errorDetails } : {}),
         };
       }
 

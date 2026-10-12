@@ -92,10 +92,46 @@ describe('quality command with unmeasured evidence (#996)', () => {
       unmeasured: ['coverage', 'codeSmells', 'securityVulnerabilities', 'technicalDebt', 'duplications'],
       error: 'No measured quality evidence found for coverage.',
     });
-    expect(getMeasuredQualityExitCode(result)).toBe(1);
+    // N9: insufficient evidence has its own exit code, distinct from a measured failure.
+    expect(getMeasuredQualityExitCode(result)).toBe(3);
+    // N6: one specific recommendation per missing metric.
+    expect(result.recommendations).toContain(
+      'Insufficient evidence: securityVulnerabilities not measured — a measured vulnerability count is required; '
+        + 'no MCP tool or CLI command records it yet, so supply it from your own measurement.',
+    );
   });
 
-  it('emits structured JSON and exits 1 instead of a stack trace', async () => {
+  it('names stale and malformed metrics in unmeasured, not only absent ones (N5)', async () => {
+    const fresh = now();
+    const stale = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const memory = {
+      get: async (key: string) => {
+        const metric = key.split(':')[1];
+        if (metric === 'coverage') return { schemaVersion: 1, metric, value: 90, measuredAt: stale, source: 'test' };
+        if (metric === 'testsPassing') return { schemaVersion: 1, metric, value: 100, source: 'test' };
+        return { schemaVersion: 1, metric, value: 0, measuredAt: fresh, source: 'test' };
+      },
+    };
+
+    const error = await loadQualityEvidence(memory as never).catch((e: Error) => e);
+    const result = await describeUnavailableQualityEvidence(memory as never, error);
+
+    expect(result.unmeasured).toEqual(['coverage', 'testsPassing']);
+    expect(result.error).toMatch(/stale/i);
+    expect(getMeasuredQualityExitCode(result)).toBe(3);
+  });
+
+  it('rethrows errors that are not about evidence', async () => {
+    const memory = partialMemory({
+      coverage: 90, testsPassing: 100, criticalBugs: 0, codeSmells: 1,
+      securityVulnerabilities: 0, technicalDebt: 1, duplications: 1,
+    });
+    const boom = new Error('database is locked');
+
+    await expect(describeUnavailableQualityEvidence(memory as never, boom)).rejects.toBe(boom);
+  });
+
+  it('emits structured JSON and exits 3 instead of a stack trace', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'aqe-996-cli-'));
     const output = join(dir, 'quality.json');
     const exit = vi.fn(async (_code: number) => undefined);
@@ -107,7 +143,7 @@ describe('quality command with unmeasured evidence (#996)', () => {
 
     await command.parseAsync(['--format', 'json', '--output', output], { from: 'user' });
 
-    expect(exit).toHaveBeenCalledWith(1);
+    expect(exit).toHaveBeenCalledWith(3);
     const written = JSON.parse(await readFile(output, 'utf8'));
     expect(written).toMatchObject({
       passed: false, status: 'insufficient-evidence', gateEvaluated: false,

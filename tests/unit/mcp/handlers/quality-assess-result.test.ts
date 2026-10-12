@@ -55,9 +55,38 @@ describe('qualityAssessConfig.mapToResult evidence fields (#996)', () => {
 
     expect(result).toMatchObject({
       status: 'completed', passed: true, evidenceStatus: 'measured', unmeasured: [],
-      gateEvaluated: false, riskDecision: { decision: 'approve' },
+      gateEvaluated: false, riskDecision: { decision: 'approve', confidence: 0.7 },
     });
     expect(result.riskDecision!.rationale).toMatch(/no quality gate was evaluated/i);
+  });
+
+  it('blocks a measured failure while still listing unmeasured metrics (N2)', () => {
+    const result = map({
+      qualityScore: 60, passed: false, metrics: { coverage: 0, security: -1 }, recommendations: [],
+      evidenceStatus: 'insufficient-evidence', unmeasured: ['security'], gateEvaluated: false,
+      measuredFailures: [{ metric: 'coverage', value: 0, threshold: 80, direction: 'min' }],
+      confidence: 0.5,
+    });
+
+    expect(result).toMatchObject({
+      passed: false, unmeasured: ['security'],
+      measuredFailures: [{ metric: 'coverage' }],
+      riskDecision: { decision: 'block', confidence: 0.9 },
+    });
+  });
+
+  it.each([
+    ['a bare string', 'coverage'],
+    ['an unknown name', ['coverage', 'vibes']],
+    ['an empty array', []],
+  ])('rejects %s as metrics in mapToPayload (N3)', (_label, metrics) => {
+    expect(() => qualityAssessConfig.mapToPayload({ metrics } as never, null))
+      .toThrow(/metrics must be a non-empty array of metric names/);
+  });
+
+  it('passes a valid metrics list through mapToPayload', () => {
+    expect(qualityAssessConfig.mapToPayload({ metrics: ['complexity'] }, null))
+      .toMatchObject({ metrics: ['complexity'] });
   });
 
   it('leaves measured gate results unchanged apart from the additive fields', () => {

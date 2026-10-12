@@ -191,16 +191,33 @@ describe('registered quality_assess measured gate', () => {
       }
       const expected = await cli.loadQualityEvidence(memory).catch((error: Error) => error);
       expect(expected).toBeInstanceOf(Error);
+      // N5: absent, stale, future-dated and malformed records are all named.
+      const unmeasured = {
+        missing: Object.keys(passing),
+        partial: ['technicalDebt'],
+        stale: Object.keys(passing),
+        malformed: ['coverage'],
+        future: ['coverage'],
+      }[mode];
       const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
       expect(result.success).toBe(false);
       expect(result.error).toBe((expected as Error).message);
-      expect(result.data).toBeUndefined();
+      // N4: the failure carries the shared insufficient-evidence shape.
+      expect(result.data).toMatchObject({
+        passed: false, status: 'insufficient-evidence', evidenceStatus: 'insufficient-evidence',
+        gateEvaluated: false, unmeasured,
+      });
+      const cliResult = await cli.describeUnavailableQualityEvidence(memory, expected);
+      expect(cliResult).toMatchObject({ status: 'insufficient-evidence', unmeasured });
+      expect(cli.getMeasuredQualityExitCode(cliResult)).toBe(3);
       const pipeline = await runCIGate();
       expect(pipeline.exitCode).toBe(1);
       expect(pipeline.report.qualityGatePassed).toBe(false);
       expect(pipeline.report.phases[0].summary).toContain((expected as Error).message);
       const artifact = JSON.parse(await readFile(pipeline.report.phases[0].artifacts[0], 'utf8'));
-      expect(artifact).toMatchObject({ passed: false, evidenceStatus: 'unavailable' });
+      expect(artifact).toMatchObject({
+        passed: false, status: 'insufficient-evidence', evidenceStatus: 'insufficient-evidence', unmeasured,
+      });
     },
   );
 
@@ -274,7 +291,7 @@ describe('registered quality_assess measured gate', () => {
     expect(result.data?.confidence).toBeLessThan(1);
     expect(result.data?.riskDecision?.confidence).toBeLessThan(0.5);
     expect(result.data?.note).toMatch(/no quality gate was evaluated/i);
-    expect(result.data?.recommendations[0]).toMatch(/insufficient evidence.*coverage/i);
+    expect(result.data?.recommendations[0]).toMatch(/insufficient evidence: coverage not measured — run the tests with coverage/i);
     expect(result.data).not.toHaveProperty('checks');
     const report = result.data?.savedFiles?.find(file => file.endsWith('_report.md'));
     expect(report).toBeDefined();
@@ -291,7 +308,8 @@ describe('registered quality_assess measured gate', () => {
     expect(result.data).toMatchObject({
       status: 'completed', passed: true, evidenceStatus: 'measured', unmeasured: [],
       gateEvaluated: false, confidence: 1, metrics: { coverage: 92 },
-      riskDecision: { decision: 'approve' },
+      // N1: an ungated static approval is capped below a gate pass.
+      riskDecision: { decision: 'approve', confidence: 0.7 },
     });
     expect(result.data?.riskDecision?.rationale).toMatch(/no quality gate was evaluated/i);
   });
@@ -303,6 +321,30 @@ describe('registered quality_assess measured gate', () => {
     const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
     expect(result.success).toBe(false);
     expect(result.error).toBe('No measured quality evidence found for coverage.');
+    expect(result.data).toMatchObject({ passed: false, status: 'insufficient-evidence', unmeasured: ['coverage'] });
+    expect(result.data).not.toHaveProperty('riskDecision');
+  });
+
+  it('blocks a measured coverage failure even when security is unmeasured (N2)', async () => {
+    await seedStaticCoverage(0);
+    const result = await callTool<QualityAssessResult>('quality_assess', {
+      metrics: ['coverage', 'complexity', 'security'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: false, unmeasured: ['security'],
+      measuredFailures: [{ metric: 'coverage', value: 0, threshold: 80 }],
+      riskDecision: { decision: 'block' },
+    });
+  });
+
+  it.each([
+    ['a bare string', 'coverage'],
+    ['an unknown name', ['coverage', 'vibes']],
+  ])('rejects %s as metrics with a validation error (N3)', async (_label, metrics) => {
+    const result = await callTool<QualityAssessResult>('quality_assess', { metrics });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/metrics/);
     expect(result.data).toBeUndefined();
   });
 });

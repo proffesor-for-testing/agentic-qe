@@ -23,6 +23,7 @@ import {
 import { writeOutput, toJSON } from '../utils/ci-output.js';
 import { buildCoverageData } from '../utils/coverage-data.js';
 import {
+  InsufficientQualityEvidenceError,
   evaluateQualityEvidence,
   loadQualityEvidence,
 } from '../../domains/quality-assessment/quality-evidence.js';
@@ -190,7 +191,10 @@ async function executePhase(
         } catch (error) {
           status = 'failed';
           summary = `Quality gate: ${error instanceof Error ? error.message : String(error)}`;
-          details = { passed: false, evidenceStatus: 'unavailable', error: summary, checks: [] };
+          // #996: same vocabulary as `aqe quality` and MCP quality_assess.
+          details = error instanceof InsufficientQualityEvidenceError
+            ? { ...error.toDetails(), error: summary, checks: [] }
+            : { passed: false, evidenceStatus: 'unavailable', error: summary, checks: [] };
         }
 
         // Each gate owns its evidence. A later passing gate must not overwrite

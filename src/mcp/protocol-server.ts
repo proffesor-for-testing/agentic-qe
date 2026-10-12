@@ -1125,11 +1125,12 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'quality_assess',
-        description: `Assess code quality metrics and optionally run a pass/fail quality gate. Without runGate this is static analysis only (gateEvaluated: false); if a requested metric such as coverage is unmeasured it returns status "insufficient-evidence", passed: false and lists it in unmeasured. ${SAVE_RESULTS_HINT} Example: quality_assess({ runGate: true })`,
+        description: `Assess code quality metrics and optionally run a pass/fail quality gate. Unmeasured metrics never pass. ${SAVE_RESULTS_HINT} Example: quality_assess({ runGate: true })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [
-          { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score.', default: false },
+          { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score. Missing, stale or malformed evidence fails with status "insufficient-evidence" and lists the metrics in unmeasured. When false, only static analysis runs (gateEvaluated: false).', default: false },
+          { name: 'metrics', type: 'array', description: 'Static-analysis metrics to assess (default coverage, complexity, maintainability). Known: coverage, complexity, maintainability, duplication, testability, security. Any requested metric without measured data gives status "insufficient-evidence", passed: false, and lists it in unmeasured; a measured metric failing its threshold blocks.', items: { type: 'string' } },
           saveResultsParameter('quality_assess'),
         ],
       },

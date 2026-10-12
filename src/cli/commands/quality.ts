@@ -11,8 +11,9 @@ import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { type OutputFormat, type QualityGateResult, writeOutput, toJSON, qualityGateToMarkdown } from '../utils/ci-output.js';
 import {
+  InsufficientQualityEvidenceError,
   evaluateQualityEvidence,
-  findUnmeasuredQualityMetrics,
+  inspectQualityEvidence,
   loadQualityEvidence as loadCanonicalQualityEvidence,
   type QualityEvidenceValues,
 } from '../../domains/quality-assessment/quality-evidence.js';
@@ -33,27 +34,34 @@ export function evaluateMeasuredQualityEvidence(measured: QualityEvidenceValues)
 
 /**
  * #996: when measured evidence is missing, stale or malformed the gate cannot
- * be evaluated. Report that as a structured, non-passing insufficient-evidence
- * result naming the unmeasured metrics (MCP quality_assess parity).
+ * be evaluated. Report it as a structured, non-passing result with the same
+ * `status: 'insufficient-evidence'` and `unmeasured` list that MCP
+ * `quality_assess({ runGate: true })` returns alongside its error. Errors that
+ * are not about evidence (e.g. the store itself failing) are rethrown.
  */
 export async function describeUnavailableQualityEvidence(
   memory: MemoryBackend,
   error: unknown,
 ): Promise<QualityGateResult> {
+  const insufficient = error instanceof InsufficientQualityEvidenceError
+    ? error
+    : await inspectQualityEvidence(memory).then(({ problems }) =>
+      problems.length > 0 ? new InsufficientQualityEvidenceError(problems) : undefined);
+  if (!insufficient) throw error;
   const reason = error instanceof Error ? error.message : String(error);
-  const unmeasured = await findUnmeasuredQualityMetrics(memory);
+  const details = insufficient.toDetails();
   return {
     passed: false,
     score: 'N/A',
     checks: [],
-    status: 'insufficient-evidence',
-    evidenceStatus: 'insufficient-evidence',
-    unmeasured,
+    status: details.status,
+    evidenceStatus: details.evidenceStatus,
+    unmeasured: details.unmeasured,
     gateEvaluated: false,
     error: reason,
     recommendations: [
-      `Insufficient evidence: quality gate not evaluated. ${reason}`,
-      ...(unmeasured.length > 0 ? [`Measure the missing metrics: ${unmeasured.join(', ')}.`] : []),
+      `Quality gate not evaluated: ${reason}`,
+      ...details.recommendations,
     ],
   };
 }
@@ -63,8 +71,13 @@ export async function describeUnavailableQualityEvidence(
  * 0 = passed with more than five percentage points of headroom
  * 1 = one or more measured checks failed
  * 2 = passed, but at least one measured check has less than five points of headroom
+ * 3 = insufficient evidence (#996): a metric is absent, stale or malformed, so
+ *     the gate was not evaluated (UNMEASURED — neither a pass nor a measured failure)
  */
-export function getMeasuredQualityExitCode(result: QualityGateResult): 0 | 1 | 2 {
+export const INSUFFICIENT_EVIDENCE_EXIT_CODE = 3;
+
+export function getMeasuredQualityExitCode(result: QualityGateResult): 0 | 1 | 2 | 3 {
+  if (result.evidenceStatus === 'insufficient-evidence') return INSUFFICIENT_EVIDENCE_EXIT_CODE;
   if (!result.passed) return 1;
   return result.checks.some(check => (
     (check as typeof check & { direction?: string }).direction !== 'max'

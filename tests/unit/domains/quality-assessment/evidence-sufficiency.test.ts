@@ -5,7 +5,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   assessEvidenceSufficiency,
+  describeMeasuredFailure,
+  findMeasuredFailures,
   isMeasuredMetricValue,
+  validateRequestedMetrics,
 } from '../../../../src/domains/quality-assessment/evidence-sufficiency.js';
 
 describe('isMeasuredMetricValue', () => {
@@ -89,5 +92,48 @@ describe('assessEvidenceSufficiency', () => {
 
     expect(result.evidenceStatus).toBe('measured');
     expect(result.measured).toEqual(['complexity']);
+  });
+});
+
+describe('validateRequestedMetrics (#996 N3)', () => {
+  it('accepts and de-duplicates known metric names', () => {
+    expect(validateRequestedMetrics(['coverage', 'complexity', 'coverage'])).toEqual(['coverage', 'complexity']);
+  });
+
+  it.each([
+    ['a bare string', 'coverage'],
+    ['an empty array', []],
+    ['a non-string entry', ['coverage', 3]],
+    ['an unknown name', ['coverage', 'vibes']],
+    ['null', null],
+  ])('rejects %s instead of spreading it into characters', (_label, metrics) => {
+    expect(() => validateRequestedMetrics(metrics)).toThrow(/metrics must be a non-empty array of metric names/);
+  });
+
+  it('names the unknown entries', () => {
+    expect(() => validateRequestedMetrics(['vibes'])).toThrow(/Unknown: "vibes"/);
+  });
+});
+
+describe('findMeasuredFailures (#996 N2)', () => {
+  it('reports measured coverage below the canonical 80% floor', () => {
+    expect(findMeasuredFailures(['coverage', 'complexity'], { coverage: 0, complexity: 2 })).toEqual([
+      { metric: 'coverage', value: 0, threshold: 80, direction: 'min' },
+    ]);
+  });
+
+  it('reports measured duplication above the canonical 5% ceiling', () => {
+    expect(findMeasuredFailures(['duplication'], { duplication: 9 })[0]).toMatchObject({
+      metric: 'duplication', direction: 'max', threshold: 5,
+    });
+  });
+
+  it('ignores unmeasured metrics and metrics without their own limit', () => {
+    expect(findMeasuredFailures(['coverage', 'maintainability'], { coverage: -1, maintainability: 10 })).toEqual([]);
+  });
+
+  it('describes a failure in plain words', () => {
+    expect(describeMeasuredFailure({ metric: 'coverage', value: 0, threshold: 80, direction: 'min' }))
+      .toBe('coverage measured at 0 fails its threshold (at least 80).');
   });
 });

@@ -45,7 +45,14 @@ import {
   type RiskDecision,
 } from '../../contracts/verdicts.js';
 
-import type { EvaluatedQualityCheck } from '../../domains/quality-assessment/quality-evidence.js';
+import {
+  INSUFFICIENT_EVIDENCE,
+  type EvaluatedQualityCheck,
+} from '../../domains/quality-assessment/quality-evidence.js';
+import {
+  validateRequestedMetrics,
+  type MeasuredFailure,
+} from '../../domains/quality-assessment/evidence-sufficiency.js';
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 
 const SUPPORTED_LANGUAGES = Object.keys(DEFAULT_FRAMEWORKS) as SupportedLanguage[];
@@ -125,6 +132,8 @@ export interface QualityAssessResult {
   evidenceStatus?: 'measured' | 'insufficient-evidence';
   /** #996: requested metrics with no measured data (reported as -1 in `metrics`). */
   unmeasured?: string[];
+  /** #996: measured metrics that fail their own limit; any entry blocks. */
+  measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
   gateEvaluated?: boolean;
   /** #996: share of requested metrics that were measured, in [0, 1]. */
@@ -713,10 +722,14 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     if (params.runGate !== undefined && typeof params.runGate !== 'boolean') {
       throw new Error('runGate must be a boolean.');
     }
+    // #996 (N3): a string or unknown name is a caller error, not a metric list.
+    const metrics = params.metrics === undefined
+      ? ['coverage', 'complexity', 'maintainability']
+      : validateRequestedMetrics(params.metrics);
     return {
       runGate: params.runGate ?? false,
       threshold: params.threshold || 80,
-      metrics: params.metrics || ['coverage', 'complexity', 'maintainability'],
+      metrics,
       routingTier: routingResult?.decision.tier,
       useAgentBooster: routingResult?.useAgentBooster,
       compiledContext: routingResult?.compiledContext,
@@ -729,33 +742,41 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     const unmeasured = Array.isArray(data.unmeasured)
       ? (data.unmeasured as unknown[]).filter((m): m is string => typeof m === 'string')
       : undefined;
-    const insufficient = (unmeasured?.length ?? 0) > 0 || data.evidenceStatus === 'insufficient-evidence';
+    const insufficient = (unmeasured?.length ?? 0) > 0 || data.evidenceStatus === INSUFFICIENT_EVIDENCE;
     const gateEvaluated = typeof data.gateEvaluated === 'boolean' ? data.gateEvaluated : undefined;
     const confidence = typeof data.confidence === 'number' ? data.confidence : undefined;
-    const passed = !insufficient && data.passed === true;
+    const measuredFailures = Array.isArray(data.measuredFailures)
+      ? (data.measuredFailures as MeasuredFailure[])
+      : undefined;
+    const failedMetrics = (measuredFailures ?? []).map((f) => f.metric);
+    const passed = !insufficient && failedMetrics.length === 0 && data.passed === true;
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
     // boundary (additive — existing fields unchanged). Omit rather than
     // emit an invalid envelope.
     const riskDecision = buildRiskDecisionFromQualityGate({
-      passed: insufficient ? false : typeof data.passed === 'boolean' ? data.passed : undefined,
+      passed: insufficient || failedMetrics.length > 0
+        ? false
+        : typeof data.passed === 'boolean' ? data.passed : undefined,
       qualityScore: data.qualityScore as number | undefined,
       recommendations: (data.recommendations as string[]) || [],
       unmeasured: insufficient ? (unmeasured?.length ? unmeasured : ['unknown']) : [],
+      failedMetrics,
       evidenceConfidence: confidence,
       gateEvaluated,
     });
     return {
       taskId,
-      status: insufficient ? 'insufficient-evidence' : 'completed',
+      status: insufficient ? INSUFFICIENT_EVIDENCE : 'completed',
       ...(typeof data.qualityScore === 'number' ? { qualityScore: data.qualityScore } : {}),
       ...(Array.isArray(data.checks) ? { checks: data.checks as EvaluatedQualityCheck[] } : {}),
       passed,
       metrics: (data.metrics as Record<string, number>) || {},
       recommendations: (data.recommendations as string[]) || [],
       ...(data.evidenceStatus === 'measured' || insufficient
-        ? { evidenceStatus: insufficient ? 'insufficient-evidence' as const : 'measured' as const }
+        ? { evidenceStatus: insufficient ? INSUFFICIENT_EVIDENCE : 'measured' as const }
         : {}),
       ...(unmeasured ? { unmeasured } : {}),
+      ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
       ...(confidence !== undefined ? { confidence } : {}),
       ...(typeof data.note === 'string' ? { note: data.note } : {}),

@@ -9,7 +9,16 @@ All seven records must be present, valid, and no more than 24 hours old. Missing
 partial, malformed, future-dated, or stale evidence fails the phase. Failed
 checks retain their measured values and thresholds in the reports. CI uses
 exit 0 for a passing pipeline and 1 for a failing pipeline; the standalone
-`quality` command retains its separate near-threshold exit-2 convention.
+`quality` command retains its separate near-threshold exit-2 convention, and
+exits 3 when evidence is insufficient (a metric is absent, stale or malformed,
+so the gate was not evaluated).
+
+When evidence is insufficient, every surface reports the same shape:
+`status`/`evidenceStatus` `insufficient-evidence`, `passed: false`,
+`gateEvaluated: false`, and `unmeasured` naming each unusable metric. MCP
+`quality_assess({ runGate: true })` returns this as `data` alongside
+`success: false` and the loader's error message; the CI phase artifact carries
+the same fields.
 
 ## Enforcement and partial runs
 

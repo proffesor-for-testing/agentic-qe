@@ -62,7 +62,42 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
     });
     expect(data.metrics.coverage).toBe(-1);
     expect(data.note).toMatch(/no quality gate was evaluated/i);
-    expect(data.recommendations[0]).toMatch(/insufficient evidence.*coverage/i);
+    // N6: the recommendation names what to run for the missing metric.
+    expect(data.recommendations[0]).toMatch(/insufficient evidence: coverage not measured — run the tests with coverage/i);
+  });
+
+  it('blocks on a measured failing metric even when another is unmeasured (N2)', async () => {
+    const { run } = setup(report(
+      [{ name: 'coverage', value: 0 }, { name: 'complexity', value: 1 }, { name: 'maintainability', value: 80 }],
+      60, 0,
+    ));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['coverage', 'complexity', 'security'] });
+
+    const data = (result as { value: Data }).value;
+    expect(data).toMatchObject({
+      passed: false,
+      unmeasured: ['security'],
+      measuredFailures: [{ metric: 'coverage', value: 0, threshold: 80, direction: 'min' }],
+    });
+    expect(data.recommendations[0]).toBe('coverage measured at 0 fails its threshold (at least 80).');
+    expect(data.recommendations[1]).toMatch(/security not measured — static analysis never measures security/);
+  });
+
+  it.each([
+    ['a bare string', 'coverage'],
+    ['an unknown name', ['coverage', 'vibes']],
+  ])('rejects %s as metrics with a caller validation error (N3)', async (_label, metrics) => {
+    const { run, analyzeQuality } = setup(report([], 0));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics });
+
+    expect(result.success).toBe(false);
+    const error = (result as { error: Error & { callerError?: boolean } }).error;
+    expect(error.message).toMatch(/metrics must be a non-empty array of metric names/);
+    expect(error.callerError).toBe(true);
+    expect(analyzeQuality).not.toHaveBeenCalled();
   });
 
   it('keeps the verdict unchanged when every requested metric is measured', async () => {
@@ -136,7 +171,16 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
     const result = await run({ runGate: true, threshold: 80, metrics: ['coverage'] });
 
     expect(result.success).toBe(false);
-    expect((result as { error: Error }).error.message).toMatch(/no measured quality evidence found for coverage/i);
+    const error = (result as { error: Error & { unmeasured?: string[]; toDetails?: () => unknown } }).error;
+    expect(error.message).toMatch(/no measured quality evidence found for coverage/i);
+    // N4/N5: the failure carries the shared insufficient-evidence details.
+    expect(error.unmeasured).toEqual([
+      'coverage', 'testsPassing', 'criticalBugs', 'codeSmells',
+      'securityVulnerabilities', 'technicalDebt', 'duplications',
+    ]);
+    expect(error.toDetails?.()).toMatchObject({
+      passed: false, status: 'insufficient-evidence', gateEvaluated: false,
+    });
     // A static score must never stand in for the missing gate evidence.
     expect(analyzeQuality).not.toHaveBeenCalled();
   });
