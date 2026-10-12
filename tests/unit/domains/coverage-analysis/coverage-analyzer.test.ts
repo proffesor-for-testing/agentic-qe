@@ -272,7 +272,7 @@ describe('CoverageAnalyzerService', () => {
 
     it('should store coverage snapshot after analysis', async () => {
       // Arrange
-      const request: AnalyzeCoverageRequest = { coverageData: createCoverageData() };
+      const request: AnalyzeCoverageRequest = { coverageData: createCoverageData(), measured: true };
 
       // Act
       await service.analyze(request);
@@ -280,7 +280,7 @@ describe('CoverageAnalyzerService', () => {
       // Assert
       expect(memory.set).toHaveBeenCalledWith(
         'coverage:latest',
-        expect.any(Object),
+        expect.objectContaining({ measured: true }),
         expect.objectContaining({ persist: true }),
       );
     });
@@ -297,6 +297,7 @@ describe('CoverageAnalyzerService', () => {
             statements: { covered: 85, total: 100 },
           }),
         ]),
+        measured: true,
       };
 
       // Act
@@ -315,6 +316,7 @@ describe('CoverageAnalyzerService', () => {
       const request: AnalyzeCoverageRequest = {
         coverageData: createCoverageData(),
         includeFileDetails: true,
+        measured: true,
       };
 
       // Act
@@ -380,9 +382,17 @@ describe('CoverageAnalyzerService', () => {
       expect(writtenKeys()).toEqual([]);
     });
 
+    it('fails closed: no provenance at all is NOT persisted (review B2)', async () => {
+      const result = await service.analyze({ coverageData: createCoverageData(), includeFileDetails: true });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.value.measured).toBe(false);
+      expect(writtenKeys()).toEqual([]);
+      expect(memory.storeVector).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['request.measured=true', { measured: true }],
-      ['no provenance (legacy callers with parsed reports)', {}],
+      ['coverageData.instrumented=true', { coverageData: { ...createCoverageData(), instrumented: true } }],
     ])('persists coverage:latest and coverage quality evidence for %s', async (_label, extra) => {
       const result = await service.analyze({ coverageData: createCoverageData(), ...extra });
 

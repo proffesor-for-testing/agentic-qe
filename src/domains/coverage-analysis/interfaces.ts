@@ -38,8 +38,8 @@ export interface AnalyzeCoverageRequest {
    * Whether `coverageData` came from instrumentation (#1008). `false` marks a
    * static estimate: it is analyzed and returned, but never persisted as
    * `coverage:latest`, history, per-file coverage or quality evidence.
-   * Takes precedence over `coverageData.instrumented`; when both are absent
-   * the data is treated as measured (callers that pass parsed reports).
+   * Takes precedence over `coverageData.instrumented`. Fail-closed: when both
+   * are absent the data is treated as UNMEASURED and nothing is persisted.
    */
   measured?: boolean;
 }

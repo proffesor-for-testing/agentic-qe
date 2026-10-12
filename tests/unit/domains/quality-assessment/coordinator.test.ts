@@ -363,18 +363,30 @@ describe('QualityAssessmentCoordinator', () => {
   // ===========================================================================
 
   describe('CoverageReportCreated provenance (#1008)', () => {
+    const figures = { line: 85, branch: 80, function: 90, statement: 86, files: 3 };
+
     it.each([
-      ['an unmeasured estimate', { measured: false }, false],
-      ['a measured report', { measured: true }, true],
-      ['a legacy report without provenance', {}, true],
-    ])('stores coverage:latest only for measured coverage — %s', async (_label, extra, stored) => {
+      ['an unmeasured estimate', { ...figures, measured: false }],
+      ['a legacy report without provenance (fail-closed)', { ...figures }],
+      // The captured-experience bridge used to republish experience rows as
+      // this event with no coverage figures at all (#1008 review B1).
+      ['a bridged experience with no figures', { experienceId: 'x', agent: 'a', quality: 0.8, measured: true }],
+    ])('does not store coverage:latest for %s', async (_label, payload) => {
       await coordinator.initialize();
       await ctx.eventBus.simulateEvent('coverage-analysis.CoverageReportCreated', 'coverage-analysis', {
-        reportId: 'r-1008', line: 85, branch: 80, ...extra,
+        reportId: 'r-1008', ...payload,
       });
       await flushPromises();
-      const latest = await ctx.memory.get('coverage:latest');
-      expect(latest != null).toBe(stored);
+      expect((await ctx.memory.get('coverage:latest')) ?? null).toBeNull();
+    });
+
+    it('stores the FULL measured summary, not zeros for function/statement/files (review N4)', async () => {
+      await coordinator.initialize();
+      await ctx.eventBus.simulateEvent('coverage-analysis.CoverageReportCreated', 'coverage-analysis', {
+        reportId: 'r-1008', ...figures, measured: true,
+      });
+      await flushPromises();
+      expect(await ctx.memory.get('coverage:latest')).toEqual({ ...figures, measured: true });
     });
   });
 

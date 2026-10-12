@@ -350,13 +350,27 @@ describe('QualityAssessmentPlugin', () => {
           branch: 80,
           function: 90,
           statement: 87,
+          files: 4,
+          measured: true,
         }
       );
 
       await plugin.handleEvent(event);
 
       const stored = await memory.get('coverage:latest');
-      expect(stored).toBeDefined();
+      expect(stored).toEqual({ line: 85, branch: 80, function: 90, statement: 87, files: 4, measured: true });
+    });
+
+    it('ignores a coverage report event without measured provenance (#1008, fail-closed)', async () => {
+      const event = createMockEvent(
+        'coverage-analysis.CoverageReportCreated',
+        'coverage-analysis',
+        { reportId: 'report_legacy', line: 85, branch: 80, function: 90, statement: 87, files: 4 }
+      );
+
+      await plugin.handleEvent(event);
+
+      expect((await memory.get('coverage:latest')) ?? null).toBeNull();
     });
 
     it('ignores a coverage report event marked as an unmeasured estimate (#1008)', async () => {

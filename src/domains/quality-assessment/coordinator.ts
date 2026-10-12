@@ -100,6 +100,7 @@ import type { QueenMinCutBridge } from '../../coordination/mincut/queen-integrat
 
 // V3 Integration: Consensus Verification (CONSENSUS-MIXIN-001)
 import type { ConsensusStats } from '../../coordination/consensus';
+import { measuredCoverageSummary } from './coverage-report-event.js';
 
 // CQ-002: Base domain coordinator
 import {
@@ -1227,24 +1228,14 @@ export class QualityAssessmentCoordinator
 
   private async handleCoverageReportCreated(event: DomainEvent): Promise<void> {
     // Store coverage data for quality assessment
-    const payload = event.payload as {
-      reportId: string;
-      line: number;
-      branch: number;
-      measured?: boolean;
-    };
-
-    // #1008: an estimate is not coverage evidence.
-    if (payload.measured === false) return;
+    // #1008: only a report explicitly marked measured is coverage evidence.
+    // Estimates and look-alike events with no coverage figures (e.g. bridged
+    // captured experiences) must never touch `coverage:latest`.
+    const summary = measuredCoverageSummary(event.payload);
+    if (!summary) return;
 
     // Store under the canonical coverage key so quality-analyzer can read it
-    await this.memory.set('coverage:latest', {
-      line: payload.line,
-      branch: payload.branch,
-      function: 0,
-      statement: 0,
-      files: 0,
-    }, { persist: true });
+    await this.memory.set('coverage:latest', summary, { persist: true });
   }
 
   private async handleSecurityAuditCompleted(event: DomainEvent): Promise<void> {

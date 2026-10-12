@@ -18,6 +18,8 @@ import {
   getUnifiedMemory,
 } from '../../../src/kernel/unified-memory';
 import type { DomainEvent } from '../../../src/shared/types/index';
+import { QualityAssessmentPlugin } from '../../../src/domains/quality-assessment/plugin';
+import { MockAgentCoordinator } from '../domains/plugin-test-utils';
 
 function freshDbPath(): string {
   return path.join(
@@ -105,8 +107,10 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
     bridge = new CapturedExperienceBridge(eventBus, memory);
     const published = await bridge.drainOnce();
 
-    // 3 rows × (1 universal + 1 domain-specific each) = 6 events.
-    expect(published).toBe(6);
+    // 3 rows × 1 universal + 1 domain-specific for test-execution and
+    // test-generation = 5 events. A coverage-analysis row has no
+    // domain-specific event (#1008): it is not a coverage report or a gap.
+    expect(published).toBe(5);
     expect(learningEvents).toHaveLength(3);
     expect(learningEvents[0].source).toBe('learning-optimization');
   });
@@ -168,8 +172,34 @@ describe('Issue #479 — CapturedExperienceBridge', () => {
 
     expect(seen).toContain('test-generation.TestGenerated');
     expect(seen).toContain('test-execution.TestRunCompleted');
-    expect(seen).toContain('coverage-analysis.CoverageReportCreated');
-    expect(seen).toContain('coverage-analysis.CoverageGapDetected');
+    // #1008: a coverage experience row is neither a coverage report nor a gap.
+    expect(seen).not.toContain('coverage-analysis.CoverageReportCreated');
+    expect(seen).not.toContain('coverage-analysis.CoverageGapDetected');
+  });
+
+  it('#1008: a bridged coverage experience never overwrites measured coverage:latest', async () => {
+    // A real quality-assessment plugin listens on the same bus the bridge publishes to.
+    const plugin = new QualityAssessmentPlugin(eventBus, memory, new MockAgentCoordinator() as never);
+    await plugin.initialize();
+    const measured = { line: 71.4, branch: 50, function: 50, statement: 71.4, files: 1, measured: true };
+    await memory.set('coverage:latest', measured, { persist: true });
+
+    // The MCP handler records a captured experience for every coverage run,
+    // successful or not; the bridge's poll then drains it.
+    insertRow({ id: 'cov-run-ok', domain: 'coverage-analysis', success: true });
+    insertRow({ id: 'cov-run-bad', domain: 'coverage-analysis', success: false });
+    const learning: string[] = [];
+    eventBus.subscribe('learning.ExperienceCaptured', async (e) => { learning.push(e.type); });
+
+    bridge = new CapturedExperienceBridge(eventBus, memory);
+    expect(await bridge.drainOnce()).toBe(2);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(await memory.get('coverage:latest')).toEqual(measured);
+    expect((await memory.get('coverage:previous')) ?? null).toBeNull();
+    // Learning still sees both rows.
+    expect(learning).toHaveLength(2);
+    await plugin.dispose();
   });
 
   // Parametrized regression — Jordi's #484 suggestion. Catches the

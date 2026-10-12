@@ -78,12 +78,16 @@ export class CoverageAnalysisPlugin extends BaseDomainPlugin {
         this.updateAgentMetrics();
 
         try {
+          // #1008: coverage numbers supplied in a task payload (e.g. MCP
+          // `task_submit`) are caller claims, not an instrumented run. Never
+          // trust a caller-supplied `measured`/`instrumented` flag: analyze
+          // and return the data, but do not persist it as coverage evidence.
+          const { instrumented: _claimed, ...callerData } = coverageData;
           return await this.coordinator.analyze({
-            coverageData,
+            coverageData: callerData,
             threshold: payload.threshold as number | undefined,
             includeFileDetails: payload.includeFileDetails as boolean | undefined,
-            // #1008: forward provenance so an estimate is never persisted.
-            ...(typeof payload.measured === 'boolean' ? { measured: payload.measured } : {}),
+            measured: false,
           });
         } finally {
           this._activeAnalyses--;

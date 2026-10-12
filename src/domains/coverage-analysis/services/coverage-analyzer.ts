@@ -28,12 +28,13 @@ import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
  * Whether an analyze request carries instrumented (measured) coverage (#1008).
- * An explicit `request.measured` wins, then `coverageData.instrumented`;
- * with neither, the data is a parsed report from a legacy caller → measured.
+ * Fail-closed: an explicit `request.measured` wins; otherwise only data a
+ * producer marked `instrumented: true` is measured. Anything without
+ * provenance is analyzed and returned, but never persisted as evidence.
  */
 export function isMeasuredCoverage(request: AnalyzeCoverageRequest): boolean {
   if (typeof request.measured === 'boolean') return request.measured;
-  return request.coverageData.instrumented !== false;
+  return request.coverageData.instrumented === true;
 }
 
 // ============================================================================
@@ -621,8 +622,9 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
         await this.memory.set('coverage:previous', existing, { persist: true });
       }
 
-      // Store latest snapshot
-      await this.memory.set('coverage:latest', summary, { persist: true });
+      // Store latest snapshot, stamped with its provenance (#1008). Only
+      // measured coverage reaches this method.
+      await this.memory.set('coverage:latest', { ...summary, measured: true }, { persist: true });
       await writeQualityEvidence(this.memory, { coverage: summary.line }, {
         measuredAt: new Date().toISOString(),
         source: 'coverage-analysis',

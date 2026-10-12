@@ -40,6 +40,7 @@ import {
   QualityAnalyzerConfig,
 } from './services/quality-analyzer';
 import { toError } from '../../shared/error-utils.js';
+import { measuredCoverageSummary } from './coverage-report-event.js';
 import {
   DeploymentAdvisorService,
   IDeploymentAdvisorService,
@@ -455,26 +456,14 @@ export class QualityAssessmentPlugin extends BaseDomainPlugin {
   }
 
   private async handleCoverageReport(event: DomainEvent): Promise<void> {
-    const payload = event.payload as {
-      reportId: string;
-      line: number;
-      branch: number;
-      function: number;
-      statement: number;
-      measured?: boolean;
-    };
-
-    // #1008: an estimate is not coverage evidence.
-    if (payload.measured === false) return;
+    // #1008: only a report explicitly marked measured is coverage evidence.
+    // Estimates and look-alike events with no coverage figures (e.g. bridged
+    // captured experiences) must never touch `coverage:latest`.
+    const summary = measuredCoverageSummary(event.payload);
+    if (!summary) return;
 
     // Store under the canonical coverage key so quality-analyzer can read it
-    await this.memory.set('coverage:latest', {
-      line: payload.line,
-      branch: payload.branch,
-      function: payload.function,
-      statement: payload.statement,
-      files: 0,
-    }, { persist: true });
+    await this.memory.set('coverage:latest', summary, { persist: true });
   }
 
   private async handleDefectPrediction(event: DomainEvent): Promise<void> {

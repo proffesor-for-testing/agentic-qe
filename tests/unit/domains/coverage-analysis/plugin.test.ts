@@ -188,6 +188,36 @@ describe('CoverageAnalysisPlugin', () => {
       expectSuccess(acceptResult);
     });
 
+    it.each([
+      ['no provenance', {}],
+      ['a caller-claimed measured:true', { measured: true }],
+      ['caller-claimed coverageData.instrumented:true', { instrumented: true }],
+    ])('#1008 B2: task-submitted coverageData with %s is analyzed but never persisted', async (_label, claim) => {
+      const { instrumented, ...rest } = claim as { instrumented?: boolean; measured?: boolean };
+      const request = createMockTaskRequest('analyze-coverage', {
+        coverageData: {
+          files: [{
+            path: 'src/a.ts', lines: { covered: 99, total: 100 }, branches: { covered: 9, total: 10 },
+            functions: { covered: 10, total: 10 }, statements: { covered: 99, total: 100 },
+            uncoveredLines: [7], uncoveredBranches: [],
+          }],
+          summary: { line: 99, branch: 90, function: 100, statement: 99, files: 1 },
+          ...(instrumented ? { instrumented } : {}),
+        },
+        includeFileDetails: true,
+        ...rest,
+      });
+      const { callback, waitForResult } = createMockCallback();
+
+      expectSuccess(await plugin.executeTask(request, callback));
+      const result = await waitForResult();
+
+      expect(result.success).toBe(true);
+      expect((result.data as { measured?: boolean }).measured).toBe(false);
+      expect((await memory.get('coverage:latest')) ?? null).toBeNull();
+      expect((await memory.get('quality-evidence:coverage:latest', { namespace: 'quality-assessment' })) ?? null).toBeNull();
+    });
+
     it('should return error for unknown task type', async () => {
       const request = createMockTaskRequest('unknown-task', {});
       const { callback } = createMockCallback();
