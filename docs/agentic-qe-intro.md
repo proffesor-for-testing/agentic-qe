@@ -234,7 +234,7 @@ aqe security --compliance gdpr,hipaa,soc2  # Compliance checks
 aqe security --url-validate https://example.com  # URL + PII exposure validation
 
 # Quality gates
-aqe quality --gate               # Measured coverage/tests: exit 0 pass, 1 fail, 2 near threshold
+aqe quality --gate               # Measured coverage/tests: exit 0 pass, 1 fail, 2 near threshold, 3 insufficient evidence (gate not evaluated)
 
 # Code intelligence
 aqe code index src/                  # Index codebase into knowledge graph
@@ -305,7 +305,7 @@ aqe hooks stats                  # Hook execution statistics
 aqe hooks route --task "generate tests"  # Test hook routing
 ```
 
-All commands support `--format json|markdown` and `--output <file>` for CI/CD integration. Exit codes follow conventions: 0 = pass, 1 = fail, 2 = warning.
+All commands support `--format json|markdown` and `--output <file>` for CI/CD integration. Exit codes follow conventions: 0 = pass, 1 = fail, 2 = warning; `aqe quality` also exits 3 when evidence is insufficient (a metric is absent, stale or malformed, so the gate was not evaluated).
 
 ### 4. MCP Server — For Tool-Based Integration
 

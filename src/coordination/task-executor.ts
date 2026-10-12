@@ -16,6 +16,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DomainName, Result } from '../shared/types';
 import { isCallerInputError, toErrorMessage } from '../shared/error-utils.js';
+import { InsufficientQualityEvidenceError } from '../domains/quality-assessment/quality-evidence.js';
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
@@ -137,6 +138,16 @@ export interface TaskResult {
   domain: DomainName;
   /** Files saved by result saver */
   savedFiles?: string[];
+  /**
+   * #996: structured context for a failure (which quality metrics were
+   * unmeasured). Only set for InsufficientQualityEvidenceError; absent otherwise.
+   */
+  errorDetails?: Record<string, unknown>;
+}
+
+/** #996: structured details, only from the one error type that is known to carry them. */
+function errorDetailsOf(error: unknown): Record<string, unknown> | undefined {
+  return error instanceof InsufficientQualityEvidenceError ? { ...error.toDetails() } : undefined;
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;
@@ -591,12 +602,14 @@ export class DomainTaskExecutor implements TaskHandlerContext {
         await this.publishTaskFailed(task.id, errorMsg, domain, 'error' in result && isCallerInputError(result.error));
         // ADR-051: Record failed outcome
         this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
+        const errorDetails = 'error' in result ? errorDetailsOf(result.error) : undefined;
         return {
           taskId: task.id,
           success: false,
           error: errorMsg,
           duration: Date.now() - startTime,
           domain,
+          ...(errorDetails ? { errorDetails } : {}),
         };
       }
 

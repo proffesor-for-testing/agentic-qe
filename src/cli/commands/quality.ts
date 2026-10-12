@@ -11,7 +11,9 @@ import type { MemoryBackend } from '../../kernel/interfaces.js';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { type OutputFormat, type QualityGateResult, writeOutput, toJSON, qualityGateToMarkdown } from '../utils/ci-output.js';
 import {
+  InsufficientQualityEvidenceError,
   evaluateQualityEvidence,
+  inspectQualityEvidence,
   loadQualityEvidence as loadCanonicalQualityEvidence,
   type QualityEvidenceValues,
 } from '../../domains/quality-assessment/quality-evidence.js';
@@ -31,12 +33,51 @@ export function evaluateMeasuredQualityEvidence(measured: QualityEvidenceValues)
 }
 
 /**
+ * #996: when measured evidence is missing, stale or malformed the gate cannot
+ * be evaluated. Report it as a structured, non-passing result with the same
+ * `status: 'insufficient-evidence'` and `unmeasured` list that MCP
+ * `quality_assess({ runGate: true })` returns alongside its error. Errors that
+ * are not about evidence (e.g. the store itself failing) are rethrown.
+ */
+export async function describeUnavailableQualityEvidence(
+  memory: MemoryBackend,
+  error: unknown,
+): Promise<QualityGateResult> {
+  const insufficient = error instanceof InsufficientQualityEvidenceError
+    ? error
+    : await inspectQualityEvidence(memory).then(({ problems }) =>
+      problems.length > 0 ? new InsufficientQualityEvidenceError(problems) : undefined);
+  if (!insufficient) throw error;
+  const reason = error instanceof Error ? error.message : String(error);
+  const details = insufficient.toDetails();
+  return {
+    passed: false,
+    score: 'N/A',
+    checks: [],
+    status: details.status,
+    evidenceStatus: details.evidenceStatus,
+    unmeasured: details.unmeasured,
+    gateEvaluated: false,
+    error: reason,
+    recommendations: [
+      `Quality gate not evaluated: ${reason}`,
+      ...details.recommendations,
+    ],
+  };
+}
+
+/**
  * Published quality command exit contract:
  * 0 = passed with more than five percentage points of headroom
  * 1 = one or more measured checks failed
  * 2 = passed, but at least one measured check has less than five points of headroom
+ * 3 = insufficient evidence (#996): a metric is absent, stale or malformed, so
+ *     the gate was not evaluated (UNMEASURED — neither a pass nor a measured failure)
  */
-export function getMeasuredQualityExitCode(result: QualityGateResult): 0 | 1 | 2 {
+export const INSUFFICIENT_EVIDENCE_EXIT_CODE = 3;
+
+export function getMeasuredQualityExitCode(result: QualityGateResult): 0 | 1 | 2 | 3 {
+  if (result.evidenceStatus === 'insufficient-evidence') return INSUFFICIENT_EVIDENCE_EXIT_CODE;
   if (!result.passed) return 1;
   return result.checks.some(check => (
     (check as typeof check & { direction?: string }).direction !== 'max'
@@ -71,13 +112,24 @@ export function createQualityCommand(
             console.log(chalk.blue(`\n Running quality gate evaluation...\n`));
           }
 
-          const measured = await loadQualityEvidence(context.kernel!.memory);
-          const gateResult = evaluateMeasuredQualityEvidence(measured);
+          const memory = context.kernel!.memory;
+          let gateResult: QualityGateResult;
+          try {
+            gateResult = evaluateMeasuredQualityEvidence(await loadQualityEvidence(memory));
+          } catch (error) {
+            gateResult = await describeUnavailableQualityEvidence(memory, error);
+          }
 
           if (format === 'json') {
             writeOutput(toJSON(gateResult), options.output);
           } else if (format === 'markdown') {
             writeOutput(qualityGateToMarkdown(gateResult), options.output);
+          } else if (gateResult.evidenceStatus === 'insufficient-evidence') {
+            console.log(`  Quality Gate: ${chalk.yellow('⚠ INSUFFICIENT EVIDENCE (not evaluated)')}`);
+            if (gateResult.unmeasured?.length) {
+              console.log(`  Unmeasured: ${gateResult.unmeasured.join(', ')}`);
+            }
+            console.log(chalk.gray(`  ${gateResult.error ?? ''}\n`));
           } else {
             const statusIcon = gateResult.passed ? chalk.green('✓ PASSED') : chalk.red('✗ FAILED');
             console.log(`  Quality Gate: ${statusIcon}`);

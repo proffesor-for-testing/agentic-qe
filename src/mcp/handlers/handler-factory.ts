@@ -891,6 +891,9 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
         return {
           success: false,
           error: result.error || 'Task execution failed',
+          // #996: structured failure context (e.g. status + unmeasured metrics),
+          // only when the failing handler provided it. success stays false.
+          ...(result.errorDetails ? { data: result.errorDetails as unknown as TResult } : {}),
         };
       }
 

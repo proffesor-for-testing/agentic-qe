@@ -132,6 +132,15 @@ export interface QualityGateResult {
     threshold: number | string;
   }>;
   recommendations?: string[];
+  /** #996 (additive): 'insufficient-evidence' when the gate could not be evaluated. */
+  status?: 'insufficient-evidence';
+  evidenceStatus?: 'measured' | 'insufficient-evidence';
+  /** #996: canonical metrics with no measured evidence. */
+  unmeasured?: string[];
+  /** #996: false when missing evidence prevented the gate from running. */
+  gateEvaluated?: boolean;
+  /** #996: why the gate could not be evaluated. */
+  error?: string;
 }
 
 // ============================================================================
@@ -363,6 +372,18 @@ export function coverageToMarkdown(result: CoverageResult): string {
 
 export function qualityGateToMarkdown(result: QualityGateResult): string {
   let md = `# Quality Gate Report\n\n`;
+  if (result.evidenceStatus === 'insufficient-evidence') {
+    // #996: a gate that could not run is neither a pass nor a measured failure.
+    md += `**Result:** \u26A0\uFE0F INSUFFICIENT EVIDENCE \u2014 quality gate not evaluated\n`;
+    if (result.unmeasured && result.unmeasured.length > 0) {
+      md += `**Unmeasured:** ${result.unmeasured.join(', ')}\n`;
+    }
+    if (result.error) md += `**Reason:** ${result.error}\n`;
+    if (result.recommendations && result.recommendations.length > 0) {
+      md += `\n## Recommendations\n\n${result.recommendations.map(rec => `- ${rec}`).join('\n')}\n`;
+    }
+    return md;
+  }
   md += `**Result:** ${result.passed ? '\u2705 PASSED' : '\u274C FAILED'}\n`;
   md += `**Score:** ${result.score}\n\n`;
   md += `## Checks\n\n`;

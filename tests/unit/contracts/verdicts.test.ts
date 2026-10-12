@@ -333,4 +333,48 @@ describe('buildRiskDecisionFromQualityGate', () => {
     expect(decision.confidence).toBe(0.5);
     expect(validateRiskDecision(decision).valid).toBe(true);
   });
+
+  // #996: never approve on missing data, even if a caller reports passed=true.
+  it('should escalate with lowered confidence when key metrics are unmeasured', () => {
+    const decision = buildRiskDecisionFromQualityGate({
+      passed: true,
+      qualityScore: 88,
+      unmeasured: ['coverage'],
+      evidenceConfidence: 0.67,
+      gateEvaluated: false,
+    });
+
+    expect(decision.decision).toBe('escalate');
+    expect(decision.confidence).toBeLessThan(0.5);
+    expect(decision.riskFactors).toContain('unmeasured: coverage');
+    expect(decision.rationale).toMatch(/insufficient evidence/i);
+    expect(decision.rationale).toContain('coverage');
+    expect(decision.rationale).toMatch(/no quality gate was evaluated/i);
+    expect(validateRiskDecision(decision).valid).toBe(true);
+  });
+
+  it('should block on a measured failure even when other metrics are unmeasured (N2)', () => {
+    const decision = buildRiskDecisionFromQualityGate({
+      passed: false, qualityScore: 70, unmeasured: ['security'], failedMetrics: ['coverage'],
+      evidenceConfidence: 0.5, gateEvaluated: false,
+    });
+
+    expect(decision.decision).toBe('block');
+    expect(decision.confidence).toBe(0.9);
+    expect(decision.riskFactors.slice(0, 2)).toEqual(['failed: coverage', 'unmeasured: security']);
+    expect(decision.rationale).toMatch(/measured coverage failed its threshold; also unmeasured: security/i);
+    expect(validateRiskDecision(decision).valid).toBe(true);
+  });
+
+  it('should keep a fully measured static pass as approve, capped at 0.7 confidence, and say no gate ran (N1)', () => {
+    const decision = buildRiskDecisionFromQualityGate({
+      passed: true, qualityScore: 88, unmeasured: [], gateEvaluated: false,
+    });
+
+    expect(decision.decision).toBe('approve');
+    expect(decision.confidence).toBe(0.7);
+    expect(decision.rationale).toMatch(/static analysis passed with score 88/i);
+    expect(decision.rationale).toMatch(/no quality gate was evaluated/i);
+    expect(validateRiskDecision(decision).valid).toBe(true);
+  });
 });

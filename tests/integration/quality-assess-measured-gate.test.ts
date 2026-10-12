@@ -118,7 +118,13 @@ describe('registered quality_assess measured gate', () => {
     for (const metric of Object.keys(passing)) {
       await memory.delete(`quality-evidence:${metric}:latest`, { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
     }
+    await memory.delete('coverage:latest');
   });
+
+  /** Measured coverage the static analyzer reads (written by coverage analysis). */
+  async function seedStaticCoverage(line = 90): Promise<void> {
+    await memory.set('coverage:latest', { line, branch: line, function: line, statement: line, files: 1 });
+  }
 
   afterAll(async () => {
     resetCache?.();
@@ -154,8 +160,9 @@ describe('registered quality_assess measured gate', () => {
 
   it.each(failures)('blocks measured %s failure even when static code analysis passes', async (metric, value) => {
     await seed({ ...passing, [metric]: value });
+    await seedStaticCoverage();
     const analysis = await callTool<QualityAssessResult>('quality_assess', { runGate: false });
-    expect(analysis.data?.passed).toBe(true);
+    expect(analysis.data).toMatchObject({ passed: true, evidenceStatus: 'measured', gateEvaluated: false });
     const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
     const expected = cli.evaluateMeasuredQualityEvidence(await cli.loadQualityEvidence(memory));
     expect(result.success).toBe(true);
@@ -184,16 +191,33 @@ describe('registered quality_assess measured gate', () => {
       }
       const expected = await cli.loadQualityEvidence(memory).catch((error: Error) => error);
       expect(expected).toBeInstanceOf(Error);
+      // N5: absent, stale, future-dated and malformed records are all named.
+      const unmeasured = {
+        missing: Object.keys(passing),
+        partial: ['technicalDebt'],
+        stale: Object.keys(passing),
+        malformed: ['coverage'],
+        future: ['coverage'],
+      }[mode];
       const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
       expect(result.success).toBe(false);
       expect(result.error).toBe((expected as Error).message);
-      expect(result.data).toBeUndefined();
+      // N4: the failure carries the shared insufficient-evidence shape.
+      expect(result.data).toMatchObject({
+        passed: false, status: 'insufficient-evidence', evidenceStatus: 'insufficient-evidence',
+        gateEvaluated: false, unmeasured,
+      });
+      const cliResult = await cli.describeUnavailableQualityEvidence(memory, expected);
+      expect(cliResult).toMatchObject({ status: 'insufficient-evidence', unmeasured });
+      expect(cli.getMeasuredQualityExitCode(cliResult)).toBe(3);
       const pipeline = await runCIGate();
       expect(pipeline.exitCode).toBe(1);
       expect(pipeline.report.qualityGatePassed).toBe(false);
       expect(pipeline.report.phases[0].summary).toContain((expected as Error).message);
       const artifact = JSON.parse(await readFile(pipeline.report.phases[0].artifacts[0], 'utf8'));
-      expect(artifact).toMatchObject({ passed: false, evidenceStatus: 'unavailable' });
+      expect(artifact).toMatchObject({
+        passed: false, status: 'insufficient-evidence', evidenceStatus: 'insufficient-evidence', unmeasured,
+      });
     },
   );
 
@@ -249,11 +273,97 @@ describe('registered quality_assess measured gate', () => {
     expect(result.data).toBeUndefined();
   });
 
-  it('preserves analysis-only requests without measured evidence', async () => {
+  // #996: an analysis-only request with unmeasured coverage must not approve.
+  it('reports insufficient evidence, not approve, when coverage is unmeasured', async () => {
     const result = await callTool<QualityAssessResult>('quality_assess', {});
     expect(result.success).toBe(true);
-    expect(result.data?.passed).toBe(true);
+    expect(result.data).toMatchObject({
+      status: 'insufficient-evidence',
+      passed: false,
+      evidenceStatus: 'insufficient-evidence',
+      unmeasured: ['coverage'],
+      gateEvaluated: false,
+      metrics: { coverage: -1 },
+      riskDecision: { decision: 'escalate' },
+    });
+    // The static score is still reported, but it is not a verdict.
     expect(result.data?.qualityScore).toBeGreaterThan(80);
+    expect(result.data?.confidence).toBeLessThan(1);
+    expect(result.data?.riskDecision?.confidence).toBeLessThan(0.5);
+    expect(result.data?.note).toMatch(/no quality gate was evaluated/i);
+    expect(result.data?.recommendations[0]).toMatch(/insufficient evidence: coverage not measured — run the tests with coverage/i);
     expect(result.data).not.toHaveProperty('checks');
+    const report = result.data?.savedFiles?.find(file => file.endsWith('_report.md'));
+    expect(report).toBeDefined();
+    const markdown = await readFile(report!, 'utf8');
+    expect(markdown).toContain('INSUFFICIENT EVIDENCE');
+    expect(markdown).toContain('| coverage | not measured |');
+    expect(markdown).not.toContain('all quality gates passed');
+  });
+
+  it('keeps the static verdict when every requested metric is measured', async () => {
+    await seedStaticCoverage(92);
+    const result = await callTool<QualityAssessResult>('quality_assess', {});
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      status: 'completed', passed: true, evidenceStatus: 'measured', unmeasured: [],
+      gateEvaluated: false, confidence: 1, metrics: { coverage: 92 },
+      // N1: an ungated static approval is capped below a gate pass.
+      riskDecision: { decision: 'approve', confidence: 0.7 },
+    });
+    expect(result.data?.riskDecision?.rationale).toMatch(/no quality gate was evaluated/i);
+  });
+
+  it('fails closed with runGate true when measured coverage is missing', async () => {
+    await seed();
+    await memory.delete('quality-evidence:coverage:latest', { namespace: evidence.QUALITY_EVIDENCE_NAMESPACE });
+    await seedStaticCoverage();
+    const result = await callTool<QualityAssessResult>('quality_assess', { runGate: true });
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('No measured quality evidence found for coverage.');
+    expect(result.data).toMatchObject({ passed: false, status: 'insufficient-evidence', unmeasured: ['coverage'] });
+    expect(result.data).not.toHaveProperty('riskDecision');
+  });
+
+  it('blocks a measured coverage failure even when security is unmeasured (N2)', async () => {
+    await seedStaticCoverage(0);
+    const result = await callTool<QualityAssessResult>('quality_assess', {
+      metrics: ['coverage', 'complexity', 'security'],
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: false, unmeasured: ['security'],
+      measuredFailures: [{ metric: 'coverage', value: 0, threshold: 80 }],
+      riskDecision: { decision: 'block' },
+    });
+  });
+
+  it('does not block coverage 50 when the request threshold is 10 (round 2b)', async () => {
+    await seedStaticCoverage(50);
+    const result = await callTool<QualityAssessResult>('quality_assess', { threshold: 10 });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: true, measuredFailures: [], riskDecision: { decision: 'approve' },
+    });
+  });
+
+  it('blocks coverage 50 against the default threshold (round 2b)', async () => {
+    await seedStaticCoverage(50);
+    const result = await callTool<QualityAssessResult>('quality_assess', {});
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      passed: false, measuredFailures: [{ metric: 'coverage', value: 50, threshold: 80 }],
+      riskDecision: { decision: 'block' },
+    });
+  });
+
+  it.each([
+    ['a bare string', 'coverage'],
+    ['an unknown name', ['coverage', 'vibes']],
+  ])('rejects %s as metrics with a validation error (N3)', async (_label, metrics) => {
+    const result = await callTool<QualityAssessResult>('quality_assess', { metrics });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/metrics/);
+    expect(result.data).toBeUndefined();
   });
 });

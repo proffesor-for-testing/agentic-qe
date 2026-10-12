@@ -124,37 +124,145 @@ export async function writeQualityEvidence(
   }
 }
 
-export async function loadQualityEvidence(
+/** #996: the single status word for "a verdict cannot be reached on this evidence". */
+export const INSUFFICIENT_EVIDENCE = 'insufficient-evidence' as const;
+
+/** #996: what to run to measure a metric that has no usable evidence. */
+// Advice names only producers a user can actually run. Metrics with no
+// exposed producer say so instead of pointing at an unreachable tool.
+const NO_EXPOSED_PRODUCER = 'no MCP tool or CLI command records it yet, so supply it from your own measurement';
+const MISSING_METRIC_ADVICE: Record<string, string> = {
+  coverage: 'run the tests with coverage instrumentation enabled so measured line coverage is recorded '
+    + '(a static estimate is not measured coverage)',
+  testsPassing: 'run the test suite (test_execute_parallel, or `aqe test execute`)',
+  // The static analyzer has no security measurement; a scan reports findings separately.
+  security: 'static analysis never measures security; drop it from metrics and use '
+    + 'security_scan_comprehensive (or `aqe security`) for findings',
+  securityVulnerabilities: `a measured vulnerability count is required; ${NO_EXPOSED_PRODUCER}`,
+  criticalBugs: `a measured critical-bug count is required; ${NO_EXPOSED_PRODUCER}`,
+  codeSmells: `a measured code-smell count is required; ${NO_EXPOSED_PRODUCER}`,
+  technicalDebt: `a measured technical-debt ratio is required; ${NO_EXPOSED_PRODUCER}`,
+  duplications: `a measured duplication percentage is required; ${NO_EXPOSED_PRODUCER}`,
+  complexity: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
+  maintainability: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
+  testability: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
+  duplication: 'make sure the target contains readable TypeScript/JavaScript source the analyzer can parse',
+};
+
+/** #996: one recommendation per unmeasured metric, naming what to run. */
+export function describeMissingMetrics(unmeasured: readonly string[]): string[] {
+  return unmeasured.map((metric) =>
+    `Insufficient evidence: ${metric} not measured — ${MISSING_METRIC_ADVICE[metric] ?? 'measure it'}.`);
+}
+
+/** Why a canonical metric has no usable evidence. */
+export interface UnusableQualityEvidence {
+  metric: QualityMetricName;
+  reason: string;
+}
+
+/**
+ * #996: thrown when the measured gate cannot be evaluated. The message is the
+ * first problem found (unchanged wording); `unmeasured` names every metric
+ * whose record is absent, stale, future-dated or malformed.
+ */
+export class InsufficientQualityEvidenceError extends Error {
+  readonly status = INSUFFICIENT_EVIDENCE;
+  readonly unmeasured: QualityMetricName[];
+  readonly problems: UnusableQualityEvidence[];
+
+  constructor(problems: UnusableQualityEvidence[]) {
+    super(problems[0]?.reason ?? 'Measured quality evidence is unavailable.');
+    this.name = 'InsufficientQualityEvidenceError';
+    this.problems = problems;
+    this.unmeasured = problems.map((p) => p.metric);
+  }
+
+  /** Structured, non-passing description of the gate that could not run. */
+  toDetails(): {
+    passed: false; status: typeof INSUFFICIENT_EVIDENCE; evidenceStatus: typeof INSUFFICIENT_EVIDENCE;
+    unmeasured: QualityMetricName[]; gateEvaluated: false; recommendations: string[];
+  } {
+    return {
+      passed: false,
+      status: INSUFFICIENT_EVIDENCE,
+      evidenceStatus: INSUFFICIENT_EVIDENCE,
+      unmeasured: this.unmeasured,
+      gateEvaluated: false,
+      recommendations: describeMissingMetrics(this.unmeasured),
+    };
+  }
+}
+
+/**
+ * Inspect every canonical metric with the same validation, collecting each
+ * absent, stale, future-dated or malformed record instead of stopping at the first.
+ */
+export async function inspectQualityEvidence(
   memory: MemoryBackend,
   options: { now?: number; maxAgeMs?: number } = {},
-): Promise<QualityEvidenceValues> {
+): Promise<{ values: Partial<QualityEvidenceValues>; problems: UnusableQualityEvidence[] }> {
   const now = options.now ?? Date.now();
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS;
-  const values = {} as QualityEvidenceValues;
+  const values: Partial<QualityEvidenceValues> = {};
+  const problems: UnusableQualityEvidence[] = [];
 
   for (const metric of QUALITY_METRICS) {
     const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
       namespace: QUALITY_EVIDENCE_NAMESPACE,
     });
-    validateRecord(record, metric, now, maxAgeMs);
-    values[metric] = record.value;
+    try {
+      validateRecord(record, metric, now, maxAgeMs);
+      values[metric] = record.value;
+    } catch (error) {
+      problems.push({ metric, reason: error instanceof Error ? error.message : String(error) });
+    }
   }
-  return values;
+  return { values, problems };
+}
+
+export async function loadQualityEvidence(
+  memory: MemoryBackend,
+  options: { now?: number; maxAgeMs?: number } = {},
+): Promise<QualityEvidenceValues> {
+  const { values, problems } = await inspectQualityEvidence(memory, options);
+  if (problems.length > 0) throw new InsufficientQualityEvidenceError(problems);
+  return values as QualityEvidenceValues;
+}
+
+/** Threshold overrides a caller or user configuration may apply to the canonical defaults. */
+export interface QualityThresholdOverrides {
+  coverage?: number;
+}
+
+/**
+ * The single source of effective quality thresholds: canonical defaults with
+ * any override applied. Used by the measured gate and by static analysis
+ * (#996) so the two never disagree.
+ */
+export function resolveQualityThresholds(
+  overrides: QualityThresholdOverrides = {},
+): Record<QualityMetricName, QualityThreshold> {
+  if (overrides.coverage !== undefined && (
+    !Number.isFinite(overrides.coverage) || overrides.coverage < 0 || overrides.coverage > 100
+  )) {
+    throw new Error('Coverage quality threshold must be a finite number between 0 and 100.');
+  }
+  return {
+    ...DEFAULT_QUALITY_THRESHOLDS,
+    ...(overrides.coverage !== undefined
+      ? { coverage: { ...DEFAULT_QUALITY_THRESHOLDS.coverage, value: overrides.coverage } }
+      : {}),
+  };
 }
 
 export function evaluateQualityEvidence(
   values: QualityEvidenceValues,
-  thresholds: { coverage?: number } = {},
+  thresholds: QualityThresholdOverrides = {},
 ): { passed: boolean; checks: EvaluatedQualityCheck[]; recommendations: string[] } {
-  if (thresholds.coverage !== undefined && (
-    !Number.isFinite(thresholds.coverage) || thresholds.coverage < 0 || thresholds.coverage > 100
-  )) {
-    throw new Error('Coverage quality threshold must be a finite number between 0 and 100.');
-  }
+  const effective = resolveQualityThresholds(thresholds);
   const checks = QUALITY_METRICS.map((name) => {
-    const threshold = name === 'coverage' && thresholds.coverage !== undefined
-      ? { ...DEFAULT_QUALITY_THRESHOLDS[name], value: thresholds.coverage }
-      : DEFAULT_QUALITY_THRESHOLDS[name];
+    const threshold = effective[name];
     const value = values[name];
     return {
       name,

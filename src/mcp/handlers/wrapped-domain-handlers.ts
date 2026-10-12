@@ -116,7 +116,13 @@ function createWrappedHandler<TParams, TResult>(
     if (result.success) {
       return { success: true, data: result.data as TResult };
     }
-    return { success: false, error: result.error || 'Unknown error' };
+    // #996: keep structured failure context (e.g. insufficient-evidence details)
+    // when the domain handler provided it; success stays false.
+    return {
+      success: false,
+      error: result.error || 'Unknown error',
+      ...(result.data !== undefined ? { data: result.data as TResult } : {}),
+    };
   };
 }
 

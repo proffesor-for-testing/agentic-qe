@@ -245,29 +245,82 @@ export function validateCoverageGap(value: unknown): ValidationResult {
 // Builders — derive contract envelopes at MCP boundaries
 // ============================================================================
 
+/** #996: confidence cap for an approve that rests on static analysis alone (no gate). */
+export const STATIC_APPROVAL_CONFIDENCE = 0.7;
+
 /**
  * Derive a RiskDecision from a quality-gate outcome (quality_assess boundary).
  * Indeterminate gates (passed undefined) escalate rather than guess.
+ *
+ * #996: when key metrics are unmeasured the decision escalates with lowered
+ * confidence, whatever `passed` says — never approve on missing data. When
+ * `gateEvaluated` is false the rationale says plainly that no gate ran.
  */
 export function buildRiskDecisionFromQualityGate(input: {
   passed?: boolean;
   qualityScore?: number;
   recommendations?: string[];
+  /** Requested metrics that had no measured data. */
+  unmeasured?: string[];
+  /** Share of requested metrics that were measured, in [0, 1]. */
+  evidenceConfidence?: number;
+  /** False for static analysis: no quality gate was evaluated. */
+  gateEvaluated?: boolean;
+  /** Measured metrics that fail their own limit — conclusive, so the decision blocks. */
+  failedMetrics?: string[];
 }): RiskDecision {
-  const { passed, qualityScore, recommendations = [] } = input;
+  const {
+    passed, qualityScore, recommendations = [], unmeasured = [], failedMetrics = [], gateEvaluated,
+  } = input;
+  const noGate = gateEvaluated === false ? ' (no quality gate was evaluated)' : '';
+  const score = typeof qualityScore === 'number' ? ` with score ${qualityScore}` : '';
+
+  // A measured failure cannot be rescued by metrics that were never measured.
+  if (failedMetrics.length > 0) {
+    const missing = unmeasured.length > 0 ? `; also unmeasured: ${unmeasured.join(', ')}` : '';
+    return {
+      contract: 'risk-decision@1',
+      decision: 'block',
+      riskFactors: [
+        `failed: ${failedMetrics.join(', ')}`,
+        ...(unmeasured.length > 0 ? [`unmeasured: ${unmeasured.join(', ')}`] : []),
+        ...recommendations,
+      ].slice(0, 10),
+      confidence: 0.9,
+      rationale: `Measured ${failedMetrics.join(', ')} failed its threshold${missing}${noGate}`,
+    };
+  }
+
+  if (unmeasured.length > 0) {
+    const share = typeof input.evidenceConfidence === 'number' && Number.isFinite(input.evidenceConfidence)
+      ? Math.min(1, Math.max(0, input.evidenceConfidence))
+      : 0;
+    return {
+      contract: 'risk-decision@1',
+      decision: 'escalate',
+      riskFactors: [`unmeasured: ${unmeasured.join(', ')}`, ...recommendations].slice(0, 10),
+      confidence: Math.round(0.5 * share * 100) / 100,
+      rationale: `Insufficient evidence: ${unmeasured.join(', ')} not measured${noGate} — `
+        + 'measure the missing metrics or run the measured quality gate before deciding',
+    };
+  }
+
   const decision: RiskDecisionOutcome =
     passed === true ? 'approve' : passed === false ? 'block' : 'escalate';
+  const subject = gateEvaluated === false ? 'Static analysis' : 'Quality gate';
+  // #996 (N1): an approval no gate evaluated is weaker evidence than a gate pass.
+  const confidence = decision === 'escalate'
+    ? 0.5
+    : decision === 'approve' && gateEvaluated === false ? STATIC_APPROVAL_CONFIDENCE : 0.9;
   return {
     contract: 'risk-decision@1',
     decision,
     riskFactors: recommendations.slice(0, 10),
-    confidence: decision === 'escalate' ? 0.5 : 0.9,
+    confidence,
     rationale:
       decision === 'escalate'
         ? 'Quality gate outcome indeterminate — manual review required'
-        : `Quality gate ${passed ? 'passed' : 'failed'}${
-            typeof qualityScore === 'number' ? ` with score ${qualityScore}` : ''
-          }`,
+        : `${subject} ${passed ? 'passed' : 'failed'}${score}${noGate}`,
   };
 }
 
