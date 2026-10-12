@@ -233,11 +233,13 @@ Focus on:
     }
     prompt += `\n`;
 
+    // #996: -1 means "not measured"; never present it to the model as a value.
+    const show = (value: number, unit = ''): string => (value >= 0 ? `${value}${unit}` : 'not measured');
     prompt += `### Score Breakdown:\n`;
-    prompt += `- Coverage: ${score.coverage}%\n`;
-    prompt += `- Complexity: ${score.complexity}\n`;
-    prompt += `- Maintainability: ${score.maintainability}\n`;
-    prompt += `- Security: ${score.security}\n\n`;
+    prompt += `- Coverage: ${show(score.coverage, '%')}\n`;
+    prompt += `- Complexity: ${show(score.complexity)}\n`;
+    prompt += `- Maintainability: ${show(score.maintainability)}\n`;
+    prompt += `- Security: ${show(score.security)}\n\n`;
 
     if (codeContext) {
       prompt += `### Code Context:\n\`\`\`\n${codeContext.slice(0, 2000)}\n\`\`\`\n\n`;
@@ -642,13 +644,15 @@ Focus on:
     const overall = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
     // Use -1 to signal "no data available" rather than 0 which implies "0% coverage"
-    const coverageMetric = metrics.find((m) => m.name === 'coverage');
+    // (#996: the same holds for every score field — never fabricate a value).
+    const valueOf = (name: string): number => metrics.find((m) => m.name === name)?.value ?? -1;
     return {
       overall,
-      coverage: coverageMetric ? coverageMetric.value : -1,
-      complexity: metrics.find((m) => m.name === 'complexity')?.value || 0,
-      maintainability: metrics.find((m) => m.name === 'maintainability')?.value || 0,
-      security: 85, // Placeholder - would come from security analysis
+      coverage: valueOf('coverage'),
+      complexity: valueOf('complexity'),
+      maintainability: valueOf('maintainability'),
+      // No security analysis runs here; -1 = not measured (was a fixed 85 placeholder).
+      security: -1,
     };
   }
 

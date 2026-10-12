@@ -117,6 +117,20 @@ export interface QualityAssessResult {
   resultsNote?: string;
   /** ADR-103: versioned, schema-validated gate verdict (additive) */
   riskDecision?: RiskDecision;
+  /**
+   * #996 (additive): 'measured' when every requested metric had data;
+   * 'insufficient-evidence' when any did not — `passed` is then false and
+   * `status` is 'insufficient-evidence'.
+   */
+  evidenceStatus?: 'measured' | 'insufficient-evidence';
+  /** #996: requested metrics with no measured data (reported as -1 in `metrics`). */
+  unmeasured?: string[];
+  /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
+  gateEvaluated?: boolean;
+  /** #996: share of requested metrics that were measured, in [0, 1]. */
+  confidence?: number;
+  /** #996: plain statement of what was (and was not) evaluated. */
+  note?: string;
 }
 
 export interface SecurityScanResult {
@@ -710,22 +724,41 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
   },
 
   mapToResult: (taskId, data, duration, savedFiles) => {
+    // #996: never approve on missing data. Any unmeasured requested metric
+    // forces passed=false and an explicit insufficient-evidence status.
+    const unmeasured = Array.isArray(data.unmeasured)
+      ? (data.unmeasured as unknown[]).filter((m): m is string => typeof m === 'string')
+      : undefined;
+    const insufficient = (unmeasured?.length ?? 0) > 0 || data.evidenceStatus === 'insufficient-evidence';
+    const gateEvaluated = typeof data.gateEvaluated === 'boolean' ? data.gateEvaluated : undefined;
+    const confidence = typeof data.confidence === 'number' ? data.confidence : undefined;
+    const passed = !insufficient && data.passed === true;
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
     // boundary (additive — existing fields unchanged). Omit rather than
     // emit an invalid envelope.
     const riskDecision = buildRiskDecisionFromQualityGate({
-      passed: typeof data.passed === 'boolean' ? data.passed : undefined,
+      passed: insufficient ? false : typeof data.passed === 'boolean' ? data.passed : undefined,
       qualityScore: data.qualityScore as number | undefined,
       recommendations: (data.recommendations as string[]) || [],
+      unmeasured: insufficient ? (unmeasured?.length ? unmeasured : ['unknown']) : [],
+      evidenceConfidence: confidence,
+      gateEvaluated,
     });
     return {
       taskId,
-      status: 'completed',
+      status: insufficient ? 'insufficient-evidence' : 'completed',
       ...(typeof data.qualityScore === 'number' ? { qualityScore: data.qualityScore } : {}),
       ...(Array.isArray(data.checks) ? { checks: data.checks as EvaluatedQualityCheck[] } : {}),
-      passed: (data.passed as boolean) || false,
+      passed,
       metrics: (data.metrics as Record<string, number>) || {},
       recommendations: (data.recommendations as string[]) || [],
+      ...(data.evidenceStatus === 'measured' || insufficient
+        ? { evidenceStatus: insufficient ? 'insufficient-evidence' as const : 'measured' as const }
+        : {}),
+      ...(unmeasured ? { unmeasured } : {}),
+      ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
+      ...(confidence !== undefined ? { confidence } : {}),
+      ...(typeof data.note === 'string' ? { note: data.note } : {}),
       duration,
       savedFiles,
       ...(validateRiskDecision(riskDecision).valid ? { riskDecision } : {}),

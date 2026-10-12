@@ -161,7 +161,8 @@ describe('QualityAnalyzerService', () => {
         expect(result.value.score.coverage).toBeGreaterThanOrEqual(-1);
         expect(result.value.score.complexity).toBeGreaterThanOrEqual(0);
         expect(result.value.score.maintainability).toBeGreaterThanOrEqual(0);
-        expect(result.value.score.security).toBeGreaterThanOrEqual(0);
+        // #996: no security analysis runs here — -1 (not measured), never a placeholder
+        expect(result.value.score.security).toBe(-1);
       }
     });
 

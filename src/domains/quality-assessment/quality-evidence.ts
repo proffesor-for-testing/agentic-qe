@@ -142,6 +142,28 @@ export async function loadQualityEvidence(
   return values;
 }
 
+/**
+ * #996: name the canonical metrics that have no evidence record at all, so a
+ * gate that cannot run can say which measurements are missing. Never throws;
+ * stale or malformed records are reported by loadQualityEvidence instead.
+ */
+export async function findUnmeasuredQualityMetrics(
+  memory: MemoryBackend,
+): Promise<QualityMetricName[]> {
+  const unmeasured: QualityMetricName[] = [];
+  for (const metric of QUALITY_METRICS) {
+    try {
+      const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
+        namespace: QUALITY_EVIDENCE_NAMESPACE,
+      });
+      if (record === undefined || record === null) unmeasured.push(metric);
+    } catch {
+      unmeasured.push(metric);
+    }
+  }
+  return unmeasured;
+}
+
 export function evaluateQualityEvidence(
   values: QualityEvidenceValues,
   thresholds: { coverage?: number } = {},

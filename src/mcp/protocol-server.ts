@@ -1125,7 +1125,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'quality_assess',
-        description: `Assess code quality metrics and optionally run a pass/fail quality gate. ${SAVE_RESULTS_HINT} Example: quality_assess({ runGate: true })`,
+        description: `Assess code quality metrics and optionally run a pass/fail quality gate. Without runGate this is static analysis only (gateEvaluated: false); if a requested metric such as coverage is unmeasured it returns status "insufficient-evidence", passed: false and lists it in unmeasured. ${SAVE_RESULTS_HINT} Example: quality_assess({ runGate: true })`,
         category: 'domain',
         isConcurrencySafe: true,
         parameters: [

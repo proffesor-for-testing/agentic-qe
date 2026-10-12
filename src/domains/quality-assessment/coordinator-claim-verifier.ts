@@ -132,7 +132,8 @@ export function convertToQEReport(report: QualityReport, type: string): QEReport
     });
   }
 
-  if (report.score.coverage < 80) {
+  // #996: -1 means coverage was not measured; it is not a "-1%" coverage claim.
+  if (report.score.coverage >= 0 && report.score.coverage < 80) {
     claims.push({
       id: `coverage-${Date.now()}`,
       type: 'coverage-claim' as ClaimType,

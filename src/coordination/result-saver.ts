@@ -46,6 +46,19 @@ function securityReportExecution(data: SecurityReportData): string {
     : data.evidence ? 'unavailable' : 'unverified';
 }
 
+/** Shape of an assess-quality result as persisted to the quality report. */
+interface QualityReportData {
+  qualityScore?: number;
+  passed: boolean;
+  metrics: Record<string, number>;
+  recommendations: string[];
+  /** #996: 'insufficient-evidence' when a requested metric was unmeasured. */
+  evidenceStatus?: string;
+  unmeasured?: string[];
+  /** #996: false when only static analysis ran (no quality gate). */
+  gateEvaluated?: boolean;
+}
+
 export interface SaveOptions {
   /** Target language for test generation */
   language?: string;
@@ -388,12 +401,7 @@ export class ResultSaver {
     _options: SaveOptions
   ): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
-    const data = result as {
-      qualityScore?: number;
-      passed: boolean;
-      metrics: Record<string, number>;
-      recommendations: string[];
-    };
+    const data = result as QualityReportData;
 
     const qualityDir = path.join(this.resultsDir, 'quality');
 
@@ -705,16 +713,24 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 `;
   }
 
-  private generateQualityReport(data: {
-    qualityScore?: number;
-    passed: boolean;
-    metrics: Record<string, number>;
-    recommendations: string[];
-  }): string {
+  private generateQualityReport(data: QualityReportData): string {
+    // #996: unmeasured metrics (-1 sentinel) are not scores, and a static
+    // analysis run is not a gate — say both plainly.
+    const insufficient = (data.unmeasured?.length ?? 0) > 0 || data.evidenceStatus === 'insufficient-evidence';
+    const status = insufficient ? 'INSUFFICIENT EVIDENCE (not passed)' : data.passed ? 'PASSED' : 'FAILED';
+    const gateLine = data.gateEvaluated === false
+      ? '\n**Quality gate:** Not evaluated (static analysis only)'
+      : '';
+    const unmeasuredLine = insufficient && data.unmeasured?.length
+      ? `\n**Unmeasured:** ${data.unmeasured.join(', ')}`
+      : '';
+    const noRecommendations = data.gateEvaluated === false
+      ? 'No recommendations.'
+      : 'No recommendations - all quality gates passed.';
     return `# Quality Assessment Report
 
 **Generated:** ${new Date().toISOString()}
-**Status:** ${data.passed ? 'PASSED' : 'FAILED'}
+**Status:** ${status}${gateLine}${unmeasuredLine}
 
 ## Quality Score
 
@@ -724,11 +740,11 @@ ${typeof data.qualityScore === 'number' ? `**${data.qualityScore.toFixed(1)}** /
 
 | Metric | Score |
 |--------|-------|
-${Object.entries(data.metrics).map(([k, v]) => `| ${k} | ${v.toFixed(1)} |`).join('\n')}
+${Object.entries(data.metrics).map(([k, v]) => `| ${k} | ${Number.isFinite(v) && v >= 0 ? v.toFixed(1) : 'not measured'} |`).join('\n')}
 
 ## Recommendations
 
-${data.recommendations.length === 0 ? 'No recommendations - all quality gates passed.' : data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
+${data.recommendations.length === 0 ? noRecommendations : data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 `;
   }
 
@@ -797,6 +813,7 @@ ${data.recommendations.length === 0 ? 'No recommendations - all quality gates pa
         return {
           qualityScore: data.qualityScore,
           passed: data.passed,
+          ...(data.evidenceStatus !== undefined ? { evidenceStatus: data.evidenceStatus } : {}),
         };
       case 'generate-tests':
         return {
