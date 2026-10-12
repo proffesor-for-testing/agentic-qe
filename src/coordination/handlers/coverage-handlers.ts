@@ -23,10 +23,11 @@ import {
   isUnmeasured,
   resolveExistingCoverage,
   scopeCoverageToTarget,
+  thresholdVerdict,
   type CoverageEvaluation,
   type NoDataReason,
 } from './coverage-target';
-import { runJsCoverage } from './coverage-runner';
+import { describeRunFailure, runJsCoverage } from './coverage-runner';
 
 /**
  * How long the project's test runner may take before its process tree is
@@ -147,17 +148,34 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
   }
 
   const run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
-  if (run.data || run.numTotalTests === 0) {
+  // An EMPTY report (`{}`) from a run that reported its tests means "the run
+  // instrumented nothing under the target" → unmeasured, never an estimate
+  // (#995 review BL2). An empty report from a run that crashed before
+  // reporting any tests is a crash, handled below.
+  const crashedEmpty = run.data !== null && run.data.files.length === 0 &&
+    run.numTotalTests === null && !run.exitedCleanly;
+  if ((run.data && !crashedEmpty) || run.numTotalTests === 0) {
     const evaluation = run.data
       ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests })
       : { status: 'no-data' as const, reason: 'no-tests-ran' as const };
     return fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
   }
 
-  const notes = run.timedOut
-    ? ['The coverage run timed out and was stopped (the whole process tree was terminated).']
-    : [];
-  return { collected: buildEstimatedCoverage(target), ranTests: run.exitedCleanly, projectRoot, notes };
+  // No report at all: say exactly what happened to the run (not installed,
+  // timed out, crashed with stderr), then fall back to a labelled estimate.
+  const estimate = buildEstimatedCoverage(target);
+  const runNote = describeRunFailure(run, projectRoot);
+  if (estimate) {
+    estimate.provenance.notes = [
+      `${runNote} These numbers are a STATIC ESTIMATE derived from source shape — ` +
+        'not measured coverage, and must not be reported as such.',
+      ...estimate.provenance.notes.filter(n => !/^No instrumentation ran/.test(n)),
+    ];
+  }
+  return {
+    collected: estimate, ranTests: run.exitedCleanly, projectRoot,
+    notes: estimate ? [] : [runNote],
+  };
 }
 
 /** Caller-facing explanation for a result with no coverage figures. */
@@ -230,7 +248,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
           // #995(d): "no measurement exists for this target", distinct from 0%.
           ...(unmeasured ? { unmeasured: true } : {}),
           algorithm: 'sublinear-O(log n)',
-          warning: noDataWarning(noData, ranTests, targetPath, projectRoot),
+          warning: notes?.length ? notes.join(' ') : noDataWarning(noData, ranTests, targetPath, projectRoot),
         });
       }
 
@@ -306,7 +324,10 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
           functionCoverage: provenance.functionDataCollected ? pct(f.functions.covered, f.functions.total) : null,
         })),
         gaps,
-        meetsThreshold: report.meetsThreshold,
+        // NB5: judged only on the metrics that were collected (shared with the CLI).
+        meetsThreshold: thresholdVerdict(report.summary, threshold, {
+          branch: provenance.branchDataCollected, function: provenance.functionDataCollected,
+        }).meetsThreshold,
         delta: report.delta,
         recommendations,
         algorithm: 'sublinear-O(log n)',

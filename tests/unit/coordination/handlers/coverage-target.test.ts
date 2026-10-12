@@ -8,7 +8,7 @@
  *                              (despite saveResults:false), reported 0%;
  *   - target = `coverage/lcov.info` → 'no data'.
  *
- * The handler tests below put a fake `npx` first on PATH. It records the
+ * The handler tests below install a fake vitest in the fixture's node_modules. It records the
  * directory it was run from and writes a canned istanbul report into whatever
  * `--coverage.reportsDirectory` it was given (or `./coverage` when none) — the
  * same thing vitest does — so each assertion is about where the tool ran and
@@ -363,33 +363,39 @@ describe('#995 — analyze-coverage on subfolder and coverage-file targets', () 
   let cwdMarker: string;
   let cannedReport: string;
   let numTestsFile: string;
-  const originalPath = process.env.PATH;
-
+  let behaviourFile: string;
   /**
-   * Fake `npx`: records its cwd, then writes the canned report where vitest
-   * would — `--coverage.reportsDirectory=<dir>` when given, else `./coverage`.
+   * Fake vitest installed in the fixture's node_modules (the runner resolves
+   * `node_modules/vitest` and starts its bin with `process.execPath` — no npx,
+   * no shell). It records its cwd, then writes the canned report and a
+   * runner result where it was told to: `--coverage.reportsDirectory=` and
+   * `--outputFile=`. `behaviour` lets a test make it crash or hang.
    */
-  function installFakeNpx(): void {
-    fs.writeFileSync(path.join(binDir, 'npx'), `#!/bin/sh
-pwd >> ${JSON.stringify(cwdMarker)}
-out="coverage"
-results=""
-for a in "$@"; do
-  case "$a" in
-    --coverage.reportsDirectory=*) out="\${a#--coverage.reportsDirectory=}" ;;
-    --outputFile.json=*) results="\${a#--outputFile.json=}" ;;
-  esac
-done
-mkdir -p "$out"
-cp ${JSON.stringify(cannedReport)} "$out/coverage-final.json"
-if [ -n "$results" ]; then
-  n=$(cat ${JSON.stringify(numTestsFile)} 2>/dev/null || echo 1)
-  printf '{"numTotalTests":%s,"success":true}' "$n" > "$results"
-fi
-exit 0
+  function installFakeVitest(): void {
+    const pkgDir = path.join(root, 'node_modules', 'vitest');
+    fs.mkdirSync(pkgDir, { recursive: true });
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({ name: 'vitest', bin: { vitest: './vitest.mjs' } }));
+    fs.writeFileSync(path.join(pkgDir, 'vitest.mjs'), `import fs from 'node:fs';
+import path from 'node:path';
+fs.appendFileSync(${JSON.stringify(cwdMarker)}, process.cwd() + '\\n');
+const behaviour = fs.existsSync(${JSON.stringify(behaviourFile)}) ? fs.readFileSync(${JSON.stringify(behaviourFile)}, 'utf-8').trim() : 'ok';
+if (behaviour === 'crash') { process.stderr.write('Error: Cannot find module ./setup.ts\\n'); process.exit(1); }
+let out = 'coverage';
+let results = '';
+for (const a of process.argv.slice(2)) {
+  const eq = a.indexOf('=');
+  if (eq === -1) continue;
+  const key = a.slice(0, eq);
+  if (key === '--coverage.reportsDirectory') out = a.slice(eq + 1);
+  else if (key === '--outputFile') results = a.slice(eq + 1);
+}
+fs.mkdirSync(out, { recursive: true });
+fs.copyFileSync(${JSON.stringify(cannedReport)}, path.join(out, 'coverage-final.json'));
+if (results) {
+  const n = fs.existsSync(${JSON.stringify(numTestsFile)}) ? Number(fs.readFileSync(${JSON.stringify(numTestsFile)}, 'utf-8')) : 1;
+  fs.writeFileSync(results, JSON.stringify({ numTotalTests: n, success: true }));
+}
 `);
-    fs.chmodSync(path.join(binDir, 'npx'), 0o755);
-    process.env.PATH = `${binDir}:${originalPath}`;
   }
 
   function writeCannedReport(entries: Record<string, unknown>): void {
@@ -403,14 +409,14 @@ exit 0
     cwdMarker = path.join(binDir, 'cwd.log');
     cannedReport = path.join(binDir, 'canned.json');
     numTestsFile = path.join(binDir, 'num-tests');
+    behaviourFile = path.join(binDir, 'behaviour');
     const mathPath = path.join(root, 'src', 'math.ts');
     writeCannedReport({ [mathPath]: istanbulEntry(mathPath, 6, 3) });
-    installFakeNpx();
+    installFakeVitest();
     delete process.env.AQE_COVERAGE_NO_EXEC;
   });
 
   afterEach(() => {
-    process.env.PATH = originalPath;
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(binDir, { recursive: true, force: true });
   });
@@ -575,6 +581,47 @@ exit 0
     expect(fs.existsSync(path.join(root, 'src', 'pwned'))).toBe(false);
     // ...and the private report dir was removed.
     expect(fs.readdirSync(hostileTmp)).toEqual([]);
+  }, 60000);
+
+  it('reports an EMPTY report from a run that ran tests as UNMEASURED, not an estimate (review BL2)', async () => {
+    // vitest default config, tests that import no src: coverage-final.json is {}.
+    writeCannedReport({});
+    fs.writeFileSync(numTestsFile, '1');
+
+    const data = await analyze(path.join(root, 'src'), root);
+
+    expect(data.estimated).toBe(false);
+    expect(data.coverageMethod).toBe('none');
+    expect(data.unmeasured).toBe(true);
+    expect(String(data.warning)).not.toMatch(/No instrumentation ran/);
+  }, 60000);
+
+  it('names the crash and its stderr instead of "No instrumentation ran" (review NB4)', async () => {
+    fs.writeFileSync(behaviourFile, 'crash');
+
+    const data = await analyze(path.join(root, 'src'), root);
+
+    expect(data.estimated).toBe(true);
+    expect(String(data.warning)).toMatch(/exited with code 1.*Cannot find module \.\/setup\.ts/);
+    expect(String(data.warning)).not.toMatch(/No instrumentation ran/);
+  }, 60000);
+
+  it('reports a runner that is not installed and never downloads one (review NB6)', async () => {
+    fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
+    // An npx on PATH would download vitest; it must not be called at all.
+    const npxMarker = path.join(binDir, 'npx-called');
+    fs.writeFileSync(path.join(binDir, 'npx'), `#!/bin/sh\necho called > ${JSON.stringify(npxMarker)}\n`);
+    fs.chmodSync(path.join(binDir, 'npx'), 0o755);
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${originalPath}`;
+    try {
+      const data = await analyze(path.join(root, 'src'), root);
+      expect(String(data.warning)).toMatch(/vitest is not installed/);
+    } finally {
+      process.env.PATH = originalPath;
+    }
+    expect(fs.existsSync(npxMarker)).toBe(false);
+    expect(fs.existsSync(cwdMarker)).toBe(false);
   }, 60000);
 
   it('reads an existing root report for a subfolder target instead of re-running', async () => {

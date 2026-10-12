@@ -287,6 +287,23 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
   };
 }
 
+/**
+ * Threshold verdict over the metrics that were actually collected. Shared by
+ * MCP and CLI (#995 review NB5): an uncollected metric (no branch data in the
+ * report) is null, and a null must not drag the average down as a fake 0.
+ */
+export function thresholdVerdict(
+  summary: { line: number; branch: number; function: number; statement: number },
+  threshold: number,
+  collected: { branch: boolean; function: boolean }
+): { overall: number; meetsThreshold: boolean } {
+  const metrics = [summary.line, summary.statement];
+  if (collected.branch) metrics.push(summary.branch);
+  if (collected.function) metrics.push(summary.function);
+  const overall = metrics.reduce((a, b) => a + b, 0) / metrics.length;
+  return { overall, meetsThreshold: overall >= threshold };
+}
+
 /** Is this verdict "no measurement exists" (as opposed to an error or test-only report)? */
 export function isUnmeasured(reason: NoDataReason): boolean {
   return reason === 'target-not-covered' || reason === 'no-tests-ran';

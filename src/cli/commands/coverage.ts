@@ -16,8 +16,18 @@ import {
   describeNoData,
   isUnmeasured,
   resolveExistingCoverage,
+  thresholdVerdict,
   type NoDataReason,
 } from '../../coordination/handlers/coverage-target.js';
+
+/** Which optional metrics an instrumented report actually carries. */
+function metricsCollected(data: CoverageData): { branch: boolean; function: boolean } {
+  if (!data.instrumented) return { branch: true, function: true }; // labelled heuristic estimate
+  return {
+    branch: data.files.some(f => f.branches.total > 0),
+    function: data.files.some(f => f.functions.total > 0),
+  };
+}
 
 /** `aqe coverage` exit code when the target has no coverage measurement (#995). */
 export const EXIT_UNMEASURED = 3;
@@ -126,6 +136,18 @@ Exit codes:
         }
       }
 
+      // #995 review NB3: with a machine-readable format, stdout carries ONLY the
+      // document. Progress lines (ours, and anything printed while the fleet
+      // initializes) go to stderr; the real console.log is restored to emit.
+      const machineFormat = (options.format as OutputFormat) !== 'text';
+      const stdoutLog = console.log;
+      if (machineFormat) console.log = (...args: unknown[]) => console.error(...args);
+      const emit = (content: string): void => {
+        console.log = stdoutLog;
+        writeOutput(content, options.output);
+      };
+
+      try {
       if (!await ensureInitialized()) return;
 
       try {
@@ -160,7 +182,7 @@ Exit codes:
           const isError = resolved.reason === 'target-missing' || resolved.reason === 'unreadable-report';
           if ((options.format as OutputFormat) === 'json') {
             // Same shape as a normal result, with nulls (#995 review N4).
-            writeOutput(toJSON({
+            emit(toJSON({
               summary: { line: null, branch: null, function: null, statement: null },
               meetsThreshold: null,
               threshold,
@@ -169,7 +191,7 @@ Exit codes:
               reason: resolved.reason,
               target: targetPath,
               warning: resolved.message,
-            }), options.output);
+            }));
           } else {
             console.log((isError ? chalk.red : chalk.yellow)(`  ${resolved.message}\n`));
           }
@@ -197,30 +219,46 @@ Exit codes:
 
         const format = options.format as OutputFormat;
         let coverageResult: CoverageResult | undefined;
+        let overallCoverage = 0;
 
         if (result.success && result.value) {
           const report = result.value as { summary: { line: number; branch: number; function: number; statement: number }; meetsThreshold: boolean; recommendations: string[] };
 
+          // #995 review NB5: a metric the report never collected is null — not
+          // 0 — and is left out of the threshold verdict (same rule as MCP).
+          const collected = metricsCollected(coverageData);
+          const verdict = thresholdVerdict(report.summary, threshold, collected);
+          const summary = {
+            ...report.summary,
+            branch: collected.branch ? report.summary.branch : null,
+            function: collected.function ? report.summary.function : null,
+          };
+          const recommendations = report.recommendations.filter(rec =>
+            (collected.branch || !/branch coverage/i.test(rec)) &&
+            (collected.function || !/function coverage/i.test(rec)));
+          overallCoverage = verdict.overall;
+
           // For non-text formats, collect all data and output at end
           coverageResult = {
-            summary: report.summary,
-            meetsThreshold: report.meetsThreshold,
+            summary: summary as CoverageResult['summary'],
+            meetsThreshold: verdict.meetsThreshold,
             threshold,
-            recommendations: report.recommendations,
+            recommendations,
           };
 
           if (format === 'text') {
-            const fmt = (v: number) => typeof v === 'number' ? v.toFixed(1) : v;
+            const fmt = (v: number | null) => v === null ? 'n/a (not collected)' : v.toFixed(1) + '%';
+            const color = (v: number | null) => v === null ? chalk.gray : getColorForPercent(v);
             console.log(chalk.cyan('  Coverage Summary:'));
-            console.log(`    Lines:      ${getColorForPercent(report.summary.line)(fmt(report.summary.line) + '%')}`);
-            console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(fmt(report.summary.branch) + '%')}`);
-            console.log(`    Functions:  ${getColorForPercent(report.summary.function)(fmt(report.summary.function) + '%')}`);
-            console.log(`    Statements: ${getColorForPercent(report.summary.statement)(fmt(report.summary.statement) + '%')}`);
-            console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
+            console.log(`    Lines:      ${color(summary.line)(fmt(summary.line))}`);
+            console.log(`    Branches:   ${color(summary.branch)(fmt(summary.branch))}`);
+            console.log(`    Functions:  ${color(summary.function)(fmt(summary.function))}`);
+            console.log(`    Statements: ${color(summary.statement)(fmt(summary.statement))}`);
+            console.log(`\n    Threshold: ${verdict.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
 
-            if (report.recommendations.length > 0) {
+            if (recommendations.length > 0) {
               console.log(chalk.cyan('\n  Recommendations:'));
-              for (const rec of report.recommendations) {
+              for (const rec of recommendations) {
                 console.log(chalk.gray(`    - ${rec}`));
               }
             }
@@ -319,9 +357,9 @@ Exit codes:
 
         // Non-text format output (collected all data)
         if (coverageResult && format === 'json') {
-          writeOutput(toJSON(coverageResult), options.output);
+          emit(toJSON(coverageResult));
         } else if (coverageResult && format === 'markdown') {
-          writeOutput(coverageToMarkdown(coverageResult), options.output);
+          emit(coverageToMarkdown(coverageResult));
         } else if (format === 'text') {
           console.log(chalk.green('\n Coverage analysis complete\n'));
         }
@@ -331,8 +369,7 @@ Exit codes:
           await cleanupAndExit(1);
         }
         if (coverageResult) {
-          const avg = (coverageResult.summary.line + coverageResult.summary.branch +
-            coverageResult.summary.function + coverageResult.summary.statement) / 4;
+          const avg = overallCoverage;
           if (avg < threshold + 5 && avg >= threshold) {
             await cleanupAndExit(2);
           }
@@ -342,6 +379,9 @@ Exit codes:
       } catch (error) {
         console.error(chalk.red('\nFailed:'), error);
         await cleanupAndExit(1);
+      }
+      } finally {
+        console.log = stdoutLog;
       }
     });
 
