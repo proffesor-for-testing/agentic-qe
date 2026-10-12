@@ -140,7 +140,7 @@ describe('#995 — findCoverageProjectRoot', () => {
       // ...while $HOME itself, when targeted directly, is still its own root.
       expect(findCoverageProjectRoot(fakeHome)).toBe(fakeHome);
     } finally {
-      process.env.HOME = originalHome;
+      if (originalHome === undefined) delete process.env.HOME; else process.env.HOME = originalHome;
       fs.rmSync(fakeHome, { recursive: true, force: true });
     }
   });
@@ -607,7 +607,7 @@ if (results) {
       const data = await analyze(path.join(root, 'src'), root);
       expect(data.measured).toBe(true);
     } finally {
-      process.env.TMPDIR = originalTmp;
+      if (originalTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = originalTmp;
     }
     expect(fs.existsSync(path.join(root, 'pwned'))).toBe(false);
     expect(fs.existsSync(path.join(root, 'src', 'pwned'))).toBe(false);

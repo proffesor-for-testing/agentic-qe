@@ -67,7 +67,8 @@ describe.skipIf(isWindows)('#995 review B1 — process-tree timeout', () => {
   });
 
   afterEach(() => {
-    process.env.TMPDIR = originalTmp;
+    // Assigning undefined to process.env stores the STRING "undefined" (CI has no TMPDIR).
+    if (originalTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = originalTmp;
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
