@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.5](v3.15.5.md) | 2026-10-12 | Honest coverage/quality: no fake 0%, no evidence-free approval, code index root. |
 | [v3.15.4](v3.15.4.md) | 2026-10-12 | CRDT convergence, refusal caching, GOAP budgets, Vitest counts, schedules. |
 | [v3.15.3](v3.15.3.md) | 2026-10-11 | Windows hooks, no hangs on stalled servers, crash-safe journal, ~20 fixes. |
 | [v3.15.2](v3.15.2.md) | 2026-10-10 | Plugin hardening: no duplicate MCP server, init flags, aqe-mod status. |
