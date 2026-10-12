@@ -111,8 +111,10 @@ async function executePhase(
         const targetPath = path.resolve(target);
         const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
 
-        // Build coverage data from real V8/istanbul output or deterministic estimation
-        const coverageData = buildCoverageData(sourceFiles);
+        // Build coverage data from real V8/istanbul output or deterministic estimation.
+        // #995: read the report of the target's project root, not the cwd's.
+        const { findCoverageProjectRoot } = await import('../../coordination/handlers/coverage-target.js');
+        const coverageData = buildCoverageData(sourceFiles, findCoverageProjectRoot(targetPath) ?? process.cwd());
 
         const result = await coverageAPI.analyze({ coverageData, threshold, includeFileDetails: true });
         if (result.success && result.value) {

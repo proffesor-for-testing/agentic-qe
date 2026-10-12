@@ -10,7 +10,66 @@ import type { CLIContext } from '../handlers/interfaces.js';
 import { runCoverageAnalysisWizard, type CoverageWizardResult } from '../wizards/coverage-wizard.js';
 import { walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, type CoverageResult, writeOutput, toJSON, coverageToMarkdown } from '../utils/ci-output.js';
-import { buildCoverageData } from '../utils/coverage-data.js';
+import * as path from 'path';
+import { buildCoverageData, summarizeCoverage, type CoverageData } from '../utils/coverage-data.js';
+import {
+  describeNoData,
+  isUnmeasured,
+  resolveExistingCoverage,
+  reconcileRecommendations,
+  thresholdVerdict,
+  type NoDataReason,
+} from '../../coordination/handlers/coverage-target.js';
+
+/** Which optional metrics an instrumented report actually carries. */
+function metricsCollected(data: CoverageData): { branch: boolean; function: boolean } {
+  if (!data.instrumented) return { branch: true, function: true }; // labelled heuristic estimate
+  return {
+    branch: data.files.some(f => f.branches.total > 0),
+    function: data.files.some(f => f.functions.total > 0),
+  };
+}
+
+/** `aqe coverage` exit code when the target has no coverage measurement (#995). */
+export const EXIT_UNMEASURED = 3;
+
+export type CliCoverage =
+  | { kind: 'data'; data: CoverageData }
+  | { kind: 'no-data'; reason: NoDataReason; message: string }
+  | { kind: 'no-sources' };
+
+/**
+ * Resolve the coverage data for a CLI target (#995).
+ *
+ * Uses the SAME resolution and verdict as the MCP `coverage_analyze_sublinear`
+ * handler (`resolveExistingCoverage`), so CLI and MCP cannot disagree about
+ * what a report says for a target:
+ *   - a coverage report file (lcov.info, coverage-final.json, ...) is parsed
+ *     directly;
+ *   - a directory or source file is scoped against the instrumented report of
+ *     its PROJECT ROOT (nearest package.json/.git above it), not the cwd;
+ *   - with no report at the project root, the CLI falls back to its labelled
+ *     heuristic estimate (the CLI never runs the test suite).
+ */
+export async function resolveCliCoverageData(targetPath: string): Promise<CliCoverage> {
+  const existing = await resolveExistingCoverage(targetPath);
+  if (existing.status === 'target-missing') {
+    return { kind: 'no-data', reason: 'target-missing', message: describeNoData('target-missing', targetPath, null) };
+  }
+  if (existing.status === 'evaluated') {
+    const { evaluation, projectRoot } = existing;
+    if (evaluation.status === 'measured') {
+      const files = evaluation.files;
+      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true } };
+    }
+    return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
+  }
+
+  const sourceFiles = walkSourceFiles(existing.target, { includeTests: false });
+  if (sourceFiles.length === 0) return { kind: 'no-sources' };
+  console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
+  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot) };
+}
 
 function getColorForPercent(percent: number): (str: string) => string {
   if (percent >= 80) return chalk.green;
@@ -34,6 +93,21 @@ export function createCoverageCommand(
     .option('--ghost', 'Include ghost intent coverage analysis (detect untested behavioral intents)')
     .option('-F, --format <format>', 'Output format (text|json|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .addHelpText('after', `
+Target: a directory, a source file, or an existing coverage report
+(lcov.info, coverage-final.json, coverage-summary.json, Cobertura XML).
+Reports are read from the target's project root (nearest package.json / .git).
+
+Threshold: judged on the metrics the report actually collected. A metric with
+no data (e.g. a report without branch data) is shown as n/a and is excluded
+from the threshold, not counted as 0%.
+
+Exit codes:
+  0  coverage meets the threshold (by more than 5%)
+  1  coverage below the threshold, or an error (missing target, unreadable report)
+  2  coverage within 5% above the threshold
+  ${EXIT_UNMEASURED}  UNMEASURED: no coverage measurement exists for the target
+     (not in the report, the runner ran 0 tests, or only test files were reported)`)
     .action(async (target: string, options) => {
       let analyzeTarget = target;
       let includeRisk = options.risk;
@@ -67,6 +141,18 @@ export function createCoverageCommand(
         }
       }
 
+      // #995 review NB3: with a machine-readable format, stdout carries ONLY the
+      // document. Progress lines (ours, and anything printed while the fleet
+      // initializes) go to stderr; the real console.log is restored to emit.
+      const machineFormat = (options.format as OutputFormat) !== 'text';
+      const stdoutLog = console.log;
+      if (machineFormat) console.log = (...args: unknown[]) => console.error(...args);
+      const emit = (content: string): void => {
+        console.log = stdoutLog;
+        writeOutput(content, options.output);
+      };
+
+      try {
       if (!await ensureInitialized()) return;
 
       try {
@@ -84,24 +170,47 @@ export function createCoverageCommand(
           return;
         }
 
-        const path = await import('path');
         const targetPath = path.resolve(analyzeTarget);
 
-        // Fix #280: Use shared file discovery supporting all languages
-        const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
+        // Fix #280: shared file discovery supporting all languages.
+        // #995: coverage files as targets; reports resolved from the project root.
+        const resolved = await resolveCliCoverageData(targetPath);
 
-        if (sourceFiles.length === 0) {
+        if (resolved.kind === 'no-sources') {
           console.log(chalk.yellow('No source files found'));
           return;
         }
 
-        console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
+        if (resolved.kind === 'no-data') {
+          // Errors (missing target, unreadable report) exit 1. Everything else
+          // means "no measurement exists" — distinct exit code, never "0%".
+          const isError = resolved.reason === 'target-missing' || resolved.reason === 'unreadable-report';
+          if ((options.format as OutputFormat) === 'json') {
+            // Same shape as a normal result, with nulls (#995 review N4).
+            emit(toJSON({
+              summary: { line: null, branch: null, function: null, statement: null },
+              meetsThreshold: null,
+              threshold,
+              measured: false,
+              unmeasured: isUnmeasured(resolved.reason),
+              reason: resolved.reason,
+              target: targetPath,
+              warning: resolved.message,
+            }));
+          } else {
+            console.log((isError ? chalk.red : chalk.yellow)(`  ${resolved.message}\n`));
+          }
+          await cleanupAndExit(isError ? 1 : EXIT_UNMEASURED);
+          return;
+        }
 
-        // Build coverage data from real V8/istanbul output or deterministic estimation
-        const coverageData = buildCoverageData(sourceFiles);
+        const coverageData = resolved.data;
 
         if (coverageData.instrumented) {
           console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));
+          if (coverageData.unmeasuredFiles?.length) {
+            console.log(chalk.yellow(`  ${coverageData.unmeasuredFiles.length} file(s) not in the coverage report — UNMEASURED, excluded from the figures\n`));
+          }
         } else {
           console.log(chalk.yellow('  No instrumented coverage found — using heuristic estimation'));
           console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));
@@ -115,30 +224,45 @@ export function createCoverageCommand(
 
         const format = options.format as OutputFormat;
         let coverageResult: CoverageResult | undefined;
+        let overallCoverage = 0;
 
         if (result.success && result.value) {
           const report = result.value as { summary: { line: number; branch: number; function: number; statement: number }; meetsThreshold: boolean; recommendations: string[] };
 
+          // #995 review NB5: a metric the report never collected is null — not
+          // 0 — and is left out of the threshold verdict (same rule as MCP).
+          const collected = metricsCollected(coverageData);
+          const verdict = thresholdVerdict(report.summary, threshold, collected);
+          const summary = {
+            ...report.summary,
+            branch: collected.branch ? report.summary.branch : null,
+            function: collected.function ? report.summary.function : null,
+          };
+          // NB-A: the shortfall advice comes from the same verdict (shared with MCP).
+          const recommendations = reconcileRecommendations(report.recommendations, verdict, threshold, collected);
+          overallCoverage = verdict.overall;
+
           // For non-text formats, collect all data and output at end
           coverageResult = {
-            summary: report.summary,
-            meetsThreshold: report.meetsThreshold,
+            summary: summary as CoverageResult['summary'],
+            meetsThreshold: verdict.meetsThreshold,
             threshold,
-            recommendations: report.recommendations,
+            recommendations,
           };
 
           if (format === 'text') {
-            const fmt = (v: number) => typeof v === 'number' ? v.toFixed(1) : v;
+            const fmt = (v: number | null) => v === null ? 'n/a (not collected)' : v.toFixed(1) + '%';
+            const color = (v: number | null) => v === null ? chalk.gray : getColorForPercent(v);
             console.log(chalk.cyan('  Coverage Summary:'));
-            console.log(`    Lines:      ${getColorForPercent(report.summary.line)(fmt(report.summary.line) + '%')}`);
-            console.log(`    Branches:   ${getColorForPercent(report.summary.branch)(fmt(report.summary.branch) + '%')}`);
-            console.log(`    Functions:  ${getColorForPercent(report.summary.function)(fmt(report.summary.function) + '%')}`);
-            console.log(`    Statements: ${getColorForPercent(report.summary.statement)(fmt(report.summary.statement) + '%')}`);
-            console.log(`\n    Threshold: ${report.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
+            console.log(`    Lines:      ${color(summary.line)(fmt(summary.line))}`);
+            console.log(`    Branches:   ${color(summary.branch)(fmt(summary.branch))}`);
+            console.log(`    Functions:  ${color(summary.function)(fmt(summary.function))}`);
+            console.log(`    Statements: ${color(summary.statement)(fmt(summary.statement))}`);
+            console.log(`\n    Threshold: ${verdict.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
 
-            if (report.recommendations.length > 0) {
+            if (recommendations.length > 0) {
               console.log(chalk.cyan('\n  Recommendations:'));
-              for (const rec of report.recommendations) {
+              for (const rec of recommendations) {
                 console.log(chalk.gray(`    - ${rec}`));
               }
             }
@@ -237,9 +361,9 @@ export function createCoverageCommand(
 
         // Non-text format output (collected all data)
         if (coverageResult && format === 'json') {
-          writeOutput(toJSON(coverageResult), options.output);
+          emit(toJSON(coverageResult));
         } else if (coverageResult && format === 'markdown') {
-          writeOutput(coverageToMarkdown(coverageResult), options.output);
+          emit(coverageToMarkdown(coverageResult));
         } else if (format === 'text') {
           console.log(chalk.green('\n Coverage analysis complete\n'));
         }
@@ -249,8 +373,7 @@ export function createCoverageCommand(
           await cleanupAndExit(1);
         }
         if (coverageResult) {
-          const avg = (coverageResult.summary.line + coverageResult.summary.branch +
-            coverageResult.summary.function + coverageResult.summary.statement) / 4;
+          const avg = overallCoverage;
           if (avg < threshold + 5 && avg >= threshold) {
             await cleanupAndExit(2);
           }
@@ -260,6 +383,9 @@ export function createCoverageCommand(
       } catch (error) {
         console.error(chalk.red('\nFailed:'), error);
         await cleanupAndExit(1);
+      }
+      } finally {
+        console.log = stdoutLog;
       }
     });
 

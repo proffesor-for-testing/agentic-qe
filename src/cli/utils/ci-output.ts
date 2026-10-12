@@ -98,11 +98,12 @@ export interface TestRunSummary {
 }
 
 export interface CoverageResult {
+  /** `null` = the report never collected that metric (#995); not 0%. */
   summary: {
-    line: number;
-    branch: number;
-    function: number;
-    statement: number;
+    line: number | null;
+    branch: number | null;
+    function: number | null;
+    statement: number | null;
   };
   meetsThreshold: boolean;
   threshold: number;
@@ -331,10 +332,14 @@ export function coverageToMarkdown(result: CoverageResult): string {
   let md = `# Coverage Report\n\n`;
   md += `| Metric | Value | Status |\n`;
   md += `|--------|-------|--------|\n`;
-  md += `| Lines | ${result.summary.line}% | ${result.summary.line >= result.threshold ? '\u2705' : '\u274C'} |\n`;
-  md += `| Branches | ${result.summary.branch}% | ${result.summary.branch >= result.threshold ? '\u2705' : '\u274C'} |\n`;
-  md += `| Functions | ${result.summary.function}% | ${result.summary.function >= result.threshold ? '\u2705' : '\u274C'} |\n`;
-  md += `| Statements | ${result.summary.statement}% | ${result.summary.statement >= result.threshold ? '\u2705' : '\u274C'} |\n`;
+  // #995: an uncollected metric is "n/a", with no pass/fail mark — it is not 0%.
+  const row = (label: string, v: number | null): string => v === null
+    ? `| ${label} | n/a (not collected) | \u2014 |\n`
+    : `| ${label} | ${v}% | ${v >= result.threshold ? '\u2705' : '\u274C'} |\n`;
+  md += row('Lines', result.summary.line);
+  md += row('Branches', result.summary.branch);
+  md += row('Functions', result.summary.function);
+  md += row('Statements', result.summary.statement);
   md += `\n**Threshold:** ${result.threshold}% \u2014 ${result.meetsThreshold ? '\u2705 Met' : '\u274C Not met'}\n`;
 
   if (result.gaps && result.gaps.length > 0) {

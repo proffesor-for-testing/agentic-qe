@@ -65,6 +65,8 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
     path.join(targetPath, 'coverage', 'lcov.info'),
     path.join(targetPath, '.nyc_output', 'coverage-final.json'),
     path.join(targetPath, 'coverage-final.json'),
+    // Summary-only (per-file totals, no line detail) — last JS resort (#995)
+    path.join(targetPath, 'coverage', 'coverage-summary.json'),
     // Python (pytest-cov, coverage.py)
     path.join(targetPath, 'coverage.xml'),
     path.join(targetPath, 'htmlcov', 'status.json'),
@@ -76,7 +78,9 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
     try {
       const content = await fs.readFile(coveragePath, 'utf-8');
 
-      if (coveragePath.endsWith('.json')) {
+      if (coveragePath.endsWith('coverage-summary.json')) {
+        return parseCoverageSummaryJson(content);
+      } else if (coveragePath.endsWith('.json')) {
         return parseCoverageJson(content);
       } else if (coveragePath.endsWith('.info')) {
         return parseLcovInfo(content);
@@ -170,6 +174,50 @@ export function parseCoverageJson(content: string): CoverageData {
       branch: totalBranches > 0 ? (coveredBranches / totalBranches) * 100 : 0,
       function: totalFunctions > 0 ? (coveredFunctions / totalFunctions) * 100 : 0,
       statement: totalStatements > 0 ? (coveredStatements / totalStatements) * 100 : 0,
+      files: files.length,
+    },
+  };
+}
+
+/**
+ * Parse istanbul `coverage-summary.json` (the `json-summary` reporter).
+ *
+ * Shape: `{ total: {...}, "<file>": { lines, statements, functions, branches } }`
+ * where each metric is `{ total, covered, skipped, pct }`. There is no
+ * per-line detail, so `uncoveredLines` is empty — a summary can report a
+ * figure but cannot locate a gap (#995).
+ */
+export function parseCoverageSummaryJson(content: string): CoverageData {
+  type Metric = { total?: number; covered?: number };
+  type Entry = { lines?: Metric; statements?: Metric; functions?: Metric; branches?: Metric };
+  const data: Record<string, Entry> = safeJsonParse(content);
+  const pick = (m: Metric | undefined) => ({ covered: Number(m?.covered) || 0, total: Number(m?.total) || 0 });
+
+  const files: FileCoverage[] = [];
+  for (const [filePath, entry] of Object.entries(data)) {
+    if (filePath === 'total' || typeof entry !== 'object' || entry === null || !entry.lines) continue;
+    files.push({
+      path: filePath,
+      lines: pick(entry.lines),
+      branches: pick(entry.branches),
+      functions: pick(entry.functions),
+      statements: pick(entry.statements ?? entry.lines),
+      uncoveredLines: [],
+      uncoveredBranches: [],
+    });
+  }
+
+  const sum = (get: (f: FileCoverage) => { covered: number; total: number }) =>
+    files.reduce((acc, f) => ({ covered: acc.covered + get(f).covered, total: acc.total + get(f).total }), { covered: 0, total: 0 });
+  const pct = (m: { covered: number; total: number }) => (m.total > 0 ? (m.covered / m.total) * 100 : 0);
+
+  return {
+    files,
+    summary: {
+      line: pct(sum(f => f.lines)),
+      branch: pct(sum(f => f.branches)),
+      function: pct(sum(f => f.functions)),
+      statement: pct(sum(f => f.statements)),
       files: files.length,
     },
   };
