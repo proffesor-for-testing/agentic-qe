@@ -38,6 +38,8 @@ export interface AssetsResult {
   codexGuidance?: { policy: 'full' | 'compact' | 'none'; ownedBytes: number };
   /** #1017: retired shipped files removed from the project (exact path + shipped hash). */
   retiredAssetsRemoved?: string[];
+  /** #1017: retired files left in place (edited, symlinked, or outside the project). */
+  retiredAssetsKept?: string[];
   codexComponents?: {
     hooks: { status: string; error?: string };
     skills: { status: string; error?: string };
@@ -77,6 +79,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let codexGuidance: AssetsResult['codexGuidance'];
     let codexComponents: AssetsResult['codexComponents'];
     let retiredAssetsRemoved: string[] = [];
+    let retiredAssetsKept: string[] = [];
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -106,17 +109,27 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     // only --upgrade: plain `init --auto` on an existing install skips skills
     // that are already present, so without this the stale copies would never
     // leave. It is safe on every run because only an exact path whose content
-    // still equals a shipped version is deleted; edited copies are kept.
+    // still equals a shipped version is deleted (edited copies keep their whole
+    // group), and the renamed replacements are installed so the skill keeps
+    // working without --upgrade.
     if (!options.noClaude) {
-      const retired = retireShippedAssets(projectRoot);
+      const retired = retireShippedAssets(projectRoot, {
+        sourceSkillsDir: createSkillsInstaller({ projectRoot }).getSourceSkillsDir(),
+      });
       retiredAssetsRemoved = retired.removed;
+      retiredAssetsKept = retired.kept.flatMap((k) => k.files);
       for (const relPath of retired.removed) {
         context.services.log(`  Removed retired asset: ${relPath}`);
       }
+      for (const relPath of [...retired.installed, ...retired.refreshed]) {
+        context.services.log(`  Updated skill file: ${relPath}`);
+      }
       for (const kept of retired.kept) {
+        context.services.warn(`Kept ${kept.files.join(', ')}: ${kept.why}. ${kept.advice}.`);
+      }
+      if (retired.missingReplacements.length > 0) {
         context.services.warn(
-          `Kept ${kept.relPath} (${kept.reason}). Its name matches test-runner globs, ` +
-          'so your test runner may collect it; delete or rename it if you do not need it.',
+          `Could not install ${retired.missingReplacements.join(', ')}; run "aqe init --upgrade" to refresh the skills.`,
         );
       }
     }
@@ -419,6 +432,7 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       codexGuidance,
       codexComponents,
       retiredAssetsRemoved,
+      retiredAssetsKept,
     };
   }
 

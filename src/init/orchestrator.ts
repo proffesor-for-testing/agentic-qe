@@ -199,6 +199,8 @@ export class ModularInitOrchestrator {
           ownedBytes: number;
         } } | undefined)?.codexGuidance,
         codexComponents: (assetsResult?.data as { codexComponents?: InitResult['summary']['codexComponents'] } | undefined)?.codexComponents,
+        retiredAssetsRemoved: (assetsResult?.data as { retiredAssetsRemoved?: string[] } | undefined)?.retiredAssetsRemoved,
+        retiredAssetsKept: (assetsResult?.data as { retiredAssetsKept?: string[] } | undefined)?.retiredAssetsKept,
       },
       totalDurationMs: Date.now() - startTime,
       timestamp: new Date(),

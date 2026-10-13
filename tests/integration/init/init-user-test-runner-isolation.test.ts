@@ -12,7 +12,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { globSync } from 'glob';
 import { createSkillsInstaller } from '../../../src/init/skills-installer.js';
 import { createAgentsInstaller } from '../../../src/init/agents-installer.js';
@@ -108,6 +108,8 @@ describe('#1017 init cleans the pre-3.15.6 fixtures out of an existing install',
     await createAgentsInstaller({ projectRoot: root }).install();
     for (const [rel, source] of Object.entries(RETIRED)) {
       writeFileSync(join(root, rel), readFileSync(join(REPO, source)));
+      // 3.15.5 did not have the renamed files yet.
+      rmSync(join(root, dirname(rel), source.split('/').pop()!), { force: true });
     }
     mkdirSync(join(root, '.agentic-qe'), { recursive: true });
     writeFileSync(join(root, '.agentic-qe', 'config.yaml'), 'version: "3.15.6"\n'); // same version: no auto-upgrade
@@ -141,6 +143,11 @@ describe('#1017 init cleans the pre-3.15.6 fixtures out of an existing install',
 
     for (const rel of Object.keys(RETIRED)) expect(existsSync(join(root, rel))).toBe(false);
     expect(existsSync(join(root, QE_COURT, 'README.md'))).toBe(true);
+    // Round 2b item 1: the skill is left working: the renamed replacements are installed.
+    for (const [rel, source] of Object.entries(RETIRED)) {
+      const replacement = join(root, dirname(rel), source.split('/').pop()!);
+      expect(readFileSync(replacement)).toEqual(readFileSync(join(REPO, source)));
+    }
     expect(vitestList(root)).toHaveLength(3);
     expect(jestDefaultTestFiles(root)).toEqual(['src/a.test.ts']);
     expect(warnings.filter((w) => /retired/i.test(w))).toEqual([]);
@@ -156,7 +163,9 @@ describe('#1017 init cleans the pre-3.15.6 fixtures out of an existing install',
     await new AssetsPhase().execute(assetsContext(root, {}, warnings));
 
     expect(existsSync(edited)).toBe(true);
-    expect(existsSync(join(root, QE_COURT, 'budget.ts'))).toBe(false);
+    // Round 2b item 2: the pair is kept together (no dangling './budget' import).
+    expect(existsSync(join(root, QE_COURT, 'budget.ts'))).toBe(true);
+    expect(existsSync(join(root, '.claude/skills/testability-scoring/resources/templates/testability-scoring.spec.template.js'))).toBe(false);
     expect(warnings.join('\n')).toMatch(/budget\.test\.ts.*modified/);
   }, 240_000);
 });

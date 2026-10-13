@@ -216,6 +216,11 @@ export class SkillsInstaller {
     return possiblePaths[0];
   }
 
+  /** The package skills directory skills are copied from (assets/skills). */
+  getSourceSkillsDir(): string {
+    return this.sourceSkillsDir;
+  }
+
   /**
    * Install skills to the project
    */
