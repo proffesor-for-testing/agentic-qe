@@ -173,7 +173,7 @@ describe('static quality analysis never invents values (#1011, #1002)', () => {
     });
 
     it('measures every requested metric for well-formed source', async () => {
-      const result = await service(memoryStub({ 'coverage:latest': { line: 91 } })).analyzeQuality({
+      const result = await service(memoryStub({ 'coverage:latest': { line: 91, measured: true } })).analyzeQuality({
         sourceFiles: [join(dir, 'good.ts')],
         includeMetrics: [],
       });
