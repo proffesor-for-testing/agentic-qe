@@ -8,7 +8,7 @@
  * Resolves Finding 2: CLI daemon previously used throwaway in-memory Map.
  */
 
-import type { WorkerMemory } from '../interfaces';
+import type { WorkerMemory, WorkerMemoryReadOptions } from '../interfaces';
 
 /**
  * Interface matching the subset of UnifiedMemoryManager we need,
@@ -29,8 +29,8 @@ const NAMESPACE = 'quality-daemon';
 export class PersistentWorkerMemory implements WorkerMemory {
   constructor(private readonly backend: KVBackend) {}
 
-  async get<T>(key: string): Promise<T | undefined> {
-    return this.backend.kvGet<T>(key, NAMESPACE);
+  async get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined> {
+    return this.backend.kvGet<T>(key, options?.namespace ?? NAMESPACE);
   }
 
   async set<T>(key: string, value: T): Promise<void> {

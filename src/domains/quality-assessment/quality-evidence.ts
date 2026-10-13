@@ -294,6 +294,28 @@ export async function inspectQualityEvidence(
   return { values, problems };
 }
 
+/**
+ * #1028: the latest record of ONE metric when it is usable evidence — the same
+ * validation (schema, metric, finite value, source, fresh measuredAt) the gate
+ * applies — or `null`. Unlike {@link inspectQualityEvidence} it returns the
+ * record, so a reader can follow its `runId` to the run it came from.
+ */
+export async function readQualityEvidenceRecord(
+  memory: Pick<MemoryBackend, 'get'>,
+  metric: QualityMetricName,
+  options: { now?: number; maxAgeMs?: number } = {},
+): Promise<QualityEvidenceRecord | null> {
+  const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
+    namespace: QUALITY_EVIDENCE_NAMESPACE,
+  });
+  try {
+    validateRecord(record, metric, options.now ?? Date.now(), options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS);
+    return record;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadQualityEvidence(
   memory: MemoryBackend,
   options: { now?: number; maxAgeMs?: number } = {},

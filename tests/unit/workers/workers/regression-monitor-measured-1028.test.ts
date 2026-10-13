@@ -176,7 +176,11 @@ describe('#1028 — regression-monitor baseline from measured evidence only', ()
     const result = await worker.execute(contextFor(store.memory));
 
     expect(regressionFindings(result.findings)).toEqual([]);
-    expect(store.read('regression:baseline')).toEqual(before);
+    // Same measured figures (only the snapshot timestamp may move).
+    const after = store.read('regression:baseline') as Record<string, unknown>;
+    const { timestamp: _b, ...figuresBefore } = before as Record<string, unknown>;
+    const { timestamp: _a, ...figuresAfter } = after;
+    expect(figuresAfter).toEqual(figuresBefore);
     expect(JSON.stringify(result.metrics.domainMetrics)).not.toMatch(/12%|3%/);
   });
 
