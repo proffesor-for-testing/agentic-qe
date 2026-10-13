@@ -59,6 +59,10 @@ export interface GateResult {
   checks: GateCheck[];
   overallScore: number;
   failedChecks: string[];
+  /** Gate service evidence state; absent for other gate implementations. */
+  evidenceStatus?: 'measured' | 'insufficient-evidence';
+  /** Configured checks whose input was missing, negative, or non-finite. */
+  unmeasured?: string[];
 }
 
 export interface GateCheck {
