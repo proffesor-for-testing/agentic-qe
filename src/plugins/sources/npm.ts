@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import { execFileSync } from 'child_process';
 import { parseManifest, type QEPluginManifest } from '../manifest';
 import type { PluginSource } from './local';
+import { getProjectStorePath } from '../../kernel/project-root';
 
 // ============================================================================
 // Input Validation
@@ -39,7 +40,7 @@ export class NpmPluginSource implements PluginSource {
   private readonly cacheDir: string;
 
   constructor(cacheDir?: string) {
-    this.cacheDir = cacheDir ?? path.join(process.cwd(), '.agentic-qe', 'plugins-cache', 'npm');
+    this.cacheDir = cacheDir ?? getProjectStorePath('plugins-cache', 'npm');
   }
 
   async resolve(location: string): Promise<QEPluginManifest> {

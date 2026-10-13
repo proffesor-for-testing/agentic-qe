@@ -8,6 +8,7 @@ import * as path from 'path';
 import { createHash, randomBytes } from 'crypto';
 import { TaskType } from './queen-coordinator';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { getProjectStorePath } from '../kernel/project-root.js';
 import type { SecurityScanEvidence } from '../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../domains/security-compliance/interfaces.js';
 
@@ -180,7 +181,12 @@ export class ResultSaver {
   private readonly baseDir: string;
   private readonly resultsDir: string;
 
-  constructor(baseDir: string = '.agentic-qe') {
+  /**
+   * @param baseDir Store directory. Defaults to the resolved project's
+   * `.agentic-qe` (review of #1026 N2: a cwd-relative default wrote
+   * `<tmp>/.agentic-qe/results` when run from a shared dir).
+   */
+  constructor(baseDir: string = getProjectStorePath()) {
     this.baseDir = baseDir;
     this.resultsDir = path.join(baseDir, 'results');
   }

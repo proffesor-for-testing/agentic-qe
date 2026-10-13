@@ -20,6 +20,7 @@ import { InsufficientQualityEvidenceError } from '../domains/quality-assessment/
 import { EventBus, QEKernel, MemoryBackend } from '../kernel/interfaces';
 import { TaskType, QueenTask } from './queen-coordinator';
 import { ResultSaver, createResultSaver, SaveOptions } from './result-saver';
+import { getProjectStorePath } from '../kernel/project-root.js';
 import { createLogger } from '../logging/logger-factory.js';
 import { getClaudeModelForTier } from '../shared/llm/model-registry.js';
 
@@ -253,7 +254,8 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       maxRetries: config?.maxRetries ?? 3,
       enableCaching: config?.enableCaching ?? true,
       saveResults: config?.saveResults ?? true,
-      resultsDir: config?.resultsDir ?? '.agentic-qe',
+      // Review of #1026 N2: resolve the project store, not a cwd-relative one.
+      resultsDir: config?.resultsDir ?? getProjectStorePath(),
       defaultLanguage: config?.defaultLanguage ?? 'typescript',
       defaultFramework: config?.defaultFramework ?? 'vitest',
     };

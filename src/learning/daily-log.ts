@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { getProjectStorePath } from '../kernel/project-root.js';
 
 export interface DailyLogEntry {
   timestamp: Date;
@@ -40,7 +41,7 @@ export class DailyLogger {
 
   constructor(config?: DailyLogConfig) {
     this.config = {
-      logDir: config?.logDir ?? path.join(process.cwd(), '.agentic-qe', 'logs'),
+      logDir: config?.logDir ?? getProjectStorePath('logs'),
       enabled: config?.enabled ?? true,
       maxEntriesPerDay: config?.maxEntriesPerDay ?? 500,
     };
