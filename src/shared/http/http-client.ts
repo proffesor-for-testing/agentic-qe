@@ -5,6 +5,7 @@
 
 import { Result, ok, err } from '../types';
 import { toError } from '../error-utils.js';
+import { fetchWithResponseDeadline } from '../llm/providers/response-deadline.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -349,18 +350,17 @@ export class HttpClient {
     options: RequestInit,
     timeout: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    // #980 bug class: the timer used to be cleared as soon as headers arrived,
+    // so callers reading the body of a peer that stalls mid-body hung forever.
+    // The deadline now also covers the body, as an idle deadline (reset on
+    // every chunk) so slow but progressing downloads keep working.
+    return fetchWithResponseDeadline(
+      url,
+      options,
+      timeout,
+      () => Object.assign(new Error(`Request timeout after ${timeout}ms: ${url}`), { name: 'TimeoutError' }),
+      'idle',
+    );
   }
 
   /**
@@ -378,7 +378,7 @@ export class HttpClient {
     while (typeof current === 'object' && current !== null && !visited.has(current)) {
       visited.add(current);
       const detail = current as { name?: unknown; message?: unknown; code?: unknown; cause?: unknown };
-      if (detail.name === 'AbortError') return 'TIMEOUT';
+      if (detail.name === 'AbortError' || detail.name === 'TimeoutError') return 'TIMEOUT';
       const message = typeof detail.message === 'string' ? detail.message : '';
       if (detail.code === 'ECONNREFUSED' || message.includes('ECONNREFUSED')) return 'CONNECTION_REFUSED';
       if (detail.code === 'ENOTFOUND' || message.includes('ENOTFOUND')) return 'DNS_ERROR';

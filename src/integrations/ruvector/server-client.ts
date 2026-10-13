@@ -61,6 +61,7 @@ import { spawn, type ChildProcess } from 'child_process';
 import type { QESONAPattern } from './sona-wrapper.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
+import { fetchWithResponseDeadline } from '../../shared/llm/providers/response-deadline.js';
 
 const logger = LoggerFactory.create('ruvector-server-client');
 
@@ -859,18 +860,14 @@ export class RuVectorServerClient {
     options: RequestInit,
     timeoutMs: number
   ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal,
-      });
-      return response;
-    } finally {
-      clearTimeout(timeout);
-    }
+    // #980 bug class: keep the deadline armed until the body is read, so a
+    // server that sends headers and stalls cannot hang health/stats calls.
+    return fetchWithResponseDeadline(
+      url,
+      options,
+      timeoutMs,
+      () => new Error(`RuVector server request timeout after ${timeoutMs}ms: ${url}`),
+    );
   }
 }
 
