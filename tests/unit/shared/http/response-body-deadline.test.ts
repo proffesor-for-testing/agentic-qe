@@ -16,6 +16,8 @@ import { RuVectorServerClient } from '../../../../src/integrations/ruvector/serv
 
 let server: http.Server;
 let port: number;
+let trickleServer: http.Server;
+let trickle: number;
 
 beforeAll(async () => {
   server = http.createServer((_req, res) => {
@@ -24,11 +26,22 @@ beforeAll(async () => {
   });
   await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve));
   port = (server.address() as AddressInfo).port;
+
+  // Never idle, never done: one byte every 200 ms.
+  trickleServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    const t = setInterval(() => res.write('x'), 200);
+    res.on('close', () => clearInterval(t));
+  });
+  await new Promise<void>((resolve) => trickleServer.listen(0, 'localhost', resolve));
+  trickle = (trickleServer.address() as AddressInfo).port;
 });
 
 afterAll(async () => {
   server.closeAllConnections();
+  trickleServer.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));
+  await new Promise<void>((resolve) => trickleServer.close(() => resolve()));
 });
 
 const HUNG = Symbol('hung');
@@ -47,6 +60,30 @@ describe('response bodies stay under the request deadline (#980 class)', () => {
     expect(outcome).not.toBe(HUNG);
     expect(outcome).toMatch(/^rejected: .*tim/i);
   }, 10_000);
+
+  it('#980 review N6: HttpClient caps a slow trickle (never idle) with maxDurationMs', async () => {
+    const client = new HttpClient();
+    const res = await client.get(`http://localhost:${trickle}/`, {
+      timeout: 500, maxDurationMs: 1500, retries: 0, circuitBreaker: false,
+    });
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    const started = Date.now();
+    const outcome = await within(res.value.text().then(() => 'read', (e: Error) => `rejected: ${e.message}`), 6000);
+    expect(outcome).not.toBe(HUNG);
+    expect(outcome).toMatch(/^rejected: .*1500ms/);
+    expect(Date.now() - started).toBeLessThan(3000);
+  }, 10_000);
+
+  it('#980 review N6: the absolute cap defaults to a multiple of the request timeout', async () => {
+    const client = new HttpClient();
+    const res = await client.get(`http://localhost:${trickle}/`, { timeout: 400, retries: 0, circuitBreaker: false });
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    const outcome = await within(res.value.text().then(() => 'read', (e: Error) => `rejected: ${e.message}`), 8000);
+    expect(outcome).not.toBe(HUNG);
+    expect(outcome).toMatch(/^rejected: /);
+  }, 12_000);
 
   it('RuVectorServerClient.healthCheck completes when /health stalls its body', async () => {
     const client = new RuVectorServerClient({ httpPort: port, autoStart: false, healthCheckRetryDelay: 500 });

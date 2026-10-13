@@ -18,11 +18,13 @@ import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 let server: http.Server;
 let base: string;
 let stalledBodies = 0;
+let closedResponses = 0;
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/') {
       stalledBodies++;
+      if (req.headers.authorization) res.on('close', () => { closedResponses++; });
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.write('<html><body><a href="/next">next</a>'); // headers + partial body, then silence
       return;
@@ -73,5 +75,23 @@ describe('DAST scanner bounds the response body, not just the headers (#980)', (
     if (scan.success) {
       expect(scan.value.vulnerabilities.map((v) => v.title)).toContain('Connection Timeout');
     }
+  }, 15_000);
+
+  it('#980 review N8: the authenticated scan finishes and releases the stalled connection', async () => {
+    const scanner = new DASTScanner(config, memory);
+    const closedBefore = closedResponses; // authenticated requests only
+    const started = Date.now();
+
+    const result = await Promise.race([
+      scanner.scanAuthenticated(base, { type: 'bearer', token: 'test-token' }, { timeout: 1000, activeScanning: false, maxDepth: 1 }),
+      new Promise<'HUNG'>((resolve) => setTimeout(() => resolve('HUNG'), 8000).unref()),
+    ]);
+
+    expect(result).not.toBe('HUNG');
+    expect(Date.now() - started).toBeLessThan(8000);
+    // The scanner must not leave the target's half-sent body (and socket) open
+    // after it has what it needs: the server sees the response closed.
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(closedResponses).toBeGreaterThan(closedBefore);
   }, 15_000);
 });

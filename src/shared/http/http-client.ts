@@ -13,6 +13,12 @@ import { fetchWithResponseDeadline } from '../llm/providers/response-deadline.js
 
 export interface RequestOptions {
   timeout?: number;
+  /**
+   * Absolute cap on the whole request including the body read (#980 review N6).
+   * `timeout` is an idle deadline for the body, so this bounds a peer that trickles
+   * bytes just often enough to reset it. Default: MAX_DURATION_TIMEOUT_MULTIPLE × timeout.
+   */
+  maxDurationMs?: number;
   retries?: number;
   retryDelay?: number;
   headers?: Record<string, string>;
@@ -45,6 +51,8 @@ export interface CircuitBreakerState {
 // ============================================================================
 
 const DEFAULT_TIMEOUT = 30000;
+/** Default absolute request cap as a multiple of the idle timeout (#980 review N6). */
+const MAX_DURATION_TIMEOUT_MULTIPLE = 4;
 const DEFAULT_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 1000;
 const CIRCUIT_BREAKER_THRESHOLD = 5;
@@ -265,6 +273,7 @@ export class HttpClient {
     options?: RequestOptions
   ): Promise<Result<Response, HttpError>> {
     const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
+    const maxDurationMs = options?.maxDurationMs ?? timeout * MAX_DURATION_TIMEOUT_MULTIPLE;
     const maxRetries = options?.retries ?? DEFAULT_RETRIES;
     const baseRetryDelay = options?.retryDelay ?? DEFAULT_RETRY_DELAY;
     const useCircuitBreaker = options?.circuitBreaker ?? true;
@@ -302,7 +311,8 @@ export class HttpClient {
         const response = await this.fetchWithTimeout(
           url,
           { ...fetchOptions, headers },
-          timeout
+          timeout,
+          maxDurationMs
         );
 
         timing.endTime = Date.now();
@@ -348,18 +358,24 @@ export class HttpClient {
   private async fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeout: number
+    timeout: number,
+    maxDurationMs: number
   ): Promise<Response> {
     // #980 bug class: the timer used to be cleared as soon as headers arrived,
     // so callers reading the body of a peer that stalls mid-body hung forever.
     // The deadline now also covers the body, as an idle deadline (reset on
-    // every chunk) so slow but progressing downloads keep working.
+    // every chunk) so slow but progressing downloads keep working, plus an
+    // absolute cap (maxDurationMs) so a trickling peer cannot hold it forever.
     return fetchWithResponseDeadline(
       url,
       options,
       timeout,
-      () => Object.assign(new Error(`Request timeout after ${timeout}ms: ${url}`), { name: 'TimeoutError' }),
+      () => Object.assign(
+        new Error(`Request timeout (idle ${timeout}ms, cap ${maxDurationMs}ms): ${url}`),
+        { name: 'TimeoutError' },
+      ),
       'idle',
+      maxDurationMs,
     );
   }
 

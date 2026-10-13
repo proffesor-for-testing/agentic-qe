@@ -327,22 +327,28 @@ export class DASTScanner {
       const timeout = options.timeout ?? this.config.timeout;
       const maxDepth = options.maxDepth ?? this.config.dastMaxDepth;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), Math.min(timeout, 30000));
+      // #980 review N8: same deadline treatment as the unauthenticated scan.
+      // This path reads headers only; the unread body is cancelled below so
+      // a target that stalls it cannot hold the connection open.
+      const deadlineMs = Math.min(timeout, 30000);
 
       try {
-        const response = await fetch(targetUrl, {
-          method: 'GET',
-          headers: {
-            'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            ...authHeaders,
+        const response = await fetchWithResponseDeadline(
+          targetUrl,
+          {
+            method: 'GET',
+            headers: {
+              'User-Agent': 'AgenticQE-DAST-Scanner/3.0',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              ...authHeaders,
+            },
+            redirect: 'follow',
           },
-          signal: controller.signal,
-          redirect: 'follow',
-        });
+          deadlineMs,
+          () => new Error(`DAST request timeout after ${deadlineMs}ms: ${targetUrl}`),
+        );
+        await response.body?.cancel().catch(() => undefined);
 
-        clearTimeout(timeoutId);
         crawledUrls++;
 
         // Check if authentication was successful
@@ -368,7 +374,6 @@ export class DASTScanner {
         analyzeCookieSecurity(response.headers, targetUrl, vulnerabilities, true);
 
       } catch (fetchError) {
-        clearTimeout(timeoutId);
         handleFetchError(fetchError, targetUrl, vulnerabilities);
       }
 
