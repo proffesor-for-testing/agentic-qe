@@ -32,6 +32,7 @@ import { backupLearningDatabase, restoreLearningDatabase } from './learning-snap
 import { createSQLitePatternStore } from '../../learning/sqlite-persistence.js';
 import { getActiveEmbeddingSpaceIdentity } from '../../learning/real-embeddings.js';
 import { inspectEmbeddingSpaceRows } from '../../learning/embedding-space.js';
+import { committedPendingIndexPatternId } from '../../learning/pattern-mutation-error.js';
 
 // Extracted helpers
 import {
@@ -470,6 +471,7 @@ function registerImportCommand(learning: Command): void {
         const reasoningBank = await initializeLearningSystem();
         let imported = 0;
         let skipped = 0;
+        let pendingIndex = 0;
         const errors: string[] = [];
 
         if (!options.dryRun) {
@@ -479,13 +481,16 @@ function registerImportCommand(learning: Command): void {
                 patternType: pattern.patternType, name: pattern.name,
                 description: pattern.description, template: pattern.template, context: pattern.context,
               });
-              if (result.success) imported++; else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
+              if (result.success) imported++;
+              // #981: the row committed; only its vector index is pending.
+              else if (committedPendingIndexPatternId(result.error)) { imported++; pendingIndex++; }
+              else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
             } catch (e) { skipped++; errors.push(`${pattern.name}: ${e instanceof Error ? e.message : 'unknown'}`); }
           }
         }
 
         if (options.json) {
-          printJson({ dryRun: options.dryRun || false, totalPatterns: importData.patterns.length, imported, skipped, errors });
+          printJson({ dryRun: options.dryRun || false, totalPatterns: importData.patterns.length, imported, skipped, pendingIndex, errors });
         } else {
           console.log(chalk.bold('\n📥 Pattern Import\n'));
           console.log(`  Source: ${inputPath}`);
@@ -495,6 +500,7 @@ function registerImportCommand(learning: Command): void {
             console.log(`  Would import: ${importData.patterns.length} patterns`);
           } else {
             console.log(chalk.green(`\n  Imported: ${imported}`));
+            if (pendingIndex > 0) console.log(chalk.yellow(`  Vector index pending: ${pendingIndex} (run "aqe learning backfill-embeddings" once an embedder is available)`));
             if (skipped > 0) console.log(chalk.yellow(`  Skipped: ${skipped}`));
           }
           console.log('');
@@ -653,7 +659,9 @@ function registerExtractCommand(learning: Command): void {
                   template: { type: 'code', content: templateContent, variables: [{ name: 'implementation', type: 'code', required: true, description: 'Implementation code for this pattern' }] },
                   context: { tags: [p.domain, p.patternType, `sources:${p.sourceCount}`, `reward:${p.avgReward.toFixed(2)}`] },
                 });
-                if (result.success) stored++; else errors.push(`${p.name}: ${result.error.message}`);
+                // #981: a committed row with a pending vector index is stored.
+                if (result.success || committedPendingIndexPatternId(result.error)) stored++;
+                else errors.push(`${p.name}: ${result.error.message}`);
               } catch (e) { errors.push(`${p.name}: ${e instanceof Error ? e.message : 'unknown'}`); }
             }
 
@@ -1011,7 +1019,8 @@ function registerImportMergeCommand(learning: Command): void {
             if (isDuplicate && options.skipDuplicates) { skipped++; continue; }
             try {
               const result = await reasoningBank.storePattern({ patternType: pattern.patternType as QEPatternType, name: pattern.name, description: pattern.description, template: pattern.template as Omit<QEPatternTemplate, 'example'>, context: pattern.context as Partial<QEPatternContext> });
-              if (result.success) { if (isDuplicate) updated++; else imported++; }
+              // #981: a committed row with a pending vector index is imported.
+              if (result.success || committedPendingIndexPatternId(result.error)) { if (isDuplicate) updated++; else imported++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }
             } catch (e) { skipped++; errors.push(`${pattern.name}: ${e instanceof Error ? e.message : 'unknown'}`); }
           }
@@ -1163,10 +1172,14 @@ function registerDreamCommand(learning: Command): void {
             context: { tags: ['dream-generated', insight.type, ...insight.sourceConcepts.slice(0, 3)], complexity: 'medium' },
           });
 
+          // #981: a committed row with a pending vector index is a created pattern.
+          const createdPatternId = patternResult.success
+            ? patternResult.value.id
+            : committedPendingIndexPatternId(patternResult.error);
           if (options.json) {
-            printJson({ insightId: insight.id, applied: result.success, patternId: patternResult.success ? patternResult.value.id : null, error: result.error || (patternResult.success ? null : patternResult.error?.message) });
+            printJson({ insightId: insight.id, applied: result.success, patternId: createdPatternId, error: result.error || (createdPatternId ? null : patternResult.success ? null : patternResult.error?.message) });
           } else {
-            if (result.success) { printSuccess(`Applied insight ${insight.id.slice(0, 8)}`); if (patternResult.success) printSuccess(`Created pattern ${patternResult.value.id} in ReasoningBank`); }
+            if (result.success) { printSuccess(`Applied insight ${insight.id.slice(0, 8)}`); if (createdPatternId) printSuccess(`Created pattern ${createdPatternId} in ReasoningBank`); }
             else printError(`Failed to apply insight: ${result.error}`);
           }
           await engine.close();

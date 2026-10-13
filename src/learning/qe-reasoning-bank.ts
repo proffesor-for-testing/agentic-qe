@@ -347,7 +347,18 @@ export class QEReasoningBank implements IQEReasoningBank {
       const embedding = await this.embed(
         `${options.name} ${options.description} ${options.context?.tags?.join(' ') || ''}`
       );
-      options = { ...options, embedding };
+      // #981: with no embedding runtime, embed() returns a hash-fallback vector
+      // that has no embedding-space provenance, and the pattern store refuses
+      // to persist it (VECTOR_SPACE_UNVERIFIED), losing the pattern. Store it
+      // text-only instead, as search already does for such vectors; the vector
+      // is filled later by `aqe learning backfill-embeddings`.
+      const hasProvenance = this.embeddingProvenance.has(embedding)
+        || Boolean(getActiveEmbeddingSpaceIdentity()?.spaceId);
+      if (hasProvenance) {
+        options = { ...options, embedding };
+      } else {
+        logger.debug('No embedding runtime provenance; storing pattern without a vector', { name: options.name });
+      }
     }
 
     const result = await this.patternStore.create(options);

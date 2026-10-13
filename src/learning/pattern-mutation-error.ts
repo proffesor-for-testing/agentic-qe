@@ -14,3 +14,16 @@ export class PatternMutationError extends Error {
     this.cause = cause;
   }
 }
+
+/**
+ * The pattern id when `error` proves the authoritative SQLite row committed and
+ * only the derived vector index (HNSW/RVF) is pending, e.g. no embedding runtime
+ * was available (#981). Callers treat that as a stored pattern whose vector can
+ * be filled later by `aqe learning backfill-embeddings`. Any other error,
+ * including a `FAILED` disposition, returns null.
+ */
+export function committedPendingIndexPatternId(error: unknown): string | null {
+  return error instanceof PatternMutationError && error.disposition === 'COMMITTED_PENDING_INDEX'
+    ? error.patternId
+    : null;
+}

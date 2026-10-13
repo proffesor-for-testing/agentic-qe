@@ -10,6 +10,7 @@ import chalk from 'chalk';
 import { QE_HOOK_EVENTS } from '../../../learning/qe-hooks.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { committedPendingIndexPatternId } from '../../../learning/pattern-mutation-error.js';
 import {
   getHooksSystem,
   printJson,
@@ -187,11 +188,35 @@ export function registerStatsHooks(hooks: Command): void {
           },
         });
 
+        // #981: COMMITTED_PENDING_INDEX means the authoritative SQLite row was
+        // written and only the derived vector index is unavailable (e.g. no
+        // embedding runtime). That is a stored pattern, not a failure.
+        let pattern = result.success ? result.value : null;
+        let pendingReason: string | undefined;
         if (!result.success) {
-          throw new Error(result.error.message);
+          const committedId = committedPendingIndexPatternId(result.error);
+          if (!committedId) {
+            throw new Error(result.error.message);
+          }
+          pattern = await reasoningBank.getPattern(committedId);
+          if (!pattern) {
+            throw new Error(result.error.message);
+          }
+          const cause = (result.error as { cause?: unknown }).cause;
+          pendingReason = cause instanceof Error ? cause.message : 'the vector index is unavailable';
         }
-
-        const pattern = result.value;
+        if (!pattern) {
+          throw new Error('learn failed: no pattern returned');
+        }
+        // A pattern stored text-only (no embedding runtime) has no vector yet either.
+        if (!pendingReason && !(pattern.embedding && pattern.embedding.length > 0)) {
+          pendingReason = 'no embedding runtime is available';
+        }
+        const pendingWarning = pendingReason
+          ? `Pattern stored in SQLite; its vector index is pending (${pendingReason}). ` +
+            'Text search finds it now. Set AQE_EMBEDDER_ENDPOINT or install @huggingface/transformers, then run ' +
+            '`aqe learning backfill-embeddings` to enable semantic search for it.'
+          : undefined;
 
         if (options.json) {
           printJson({
@@ -202,12 +227,17 @@ export function registerStatsHooks(hooks: Command): void {
               type: pattern.patternType,
               domain: pattern.qeDomain,
             },
+            vectorIndex: pendingReason ? 'pending' : 'indexed',
+            ...(pendingWarning ? { warning: pendingWarning } : {}),
           });
         } else {
           printSuccess(`Pattern stored: ${pattern.name}`);
           console.log(chalk.dim(`  ID: ${pattern.id}`));
           console.log(chalk.dim(`  Domain: ${pattern.qeDomain}`));
           console.log(chalk.dim(`  Tier: ${pattern.tier}`));
+          if (pendingWarning) {
+            console.log(chalk.yellow(`  Vector index pending: ${pendingWarning}`));
+          }
         }
       } catch (error) {
         printError(`learn failed: ${error instanceof Error ? error.message : 'unknown'}`);
