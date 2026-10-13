@@ -277,13 +277,18 @@ export function createWorkflowCommand(
           if (scheduled.length === 0) {
             console.log(chalk.gray('  No scheduled workflows\n'));
           } else {
+            // #991: entries loaded from a hand-edited or legacy file may lack
+            // fields; show "(missing)" rather than "undefined".
+            const show = (value: unknown): string =>
+              value === undefined || value === null || value === '' ? '(missing)' : String(value);
             for (const sched of scheduled) {
               const statusIcon = sched.enabled ? chalk.green('*') : chalk.gray('o');
-              console.log(`  ${statusIcon} ${chalk.white(sched.workflowId)}`);
-              console.log(chalk.gray(`     ID: ${sched.id}`));
-              console.log(chalk.gray(`     Schedule: ${sched.schedule} (${sched.scheduleDescription})`));
-              console.log(chalk.gray(`     File: ${sched.pipelinePath}`));
-              console.log(chalk.gray(`     Next run: ${sched.nextRun}`));
+              console.log(`  ${statusIcon} ${chalk.white(show(sched.workflowId))}`);
+              console.log(chalk.gray(`     ID: ${show(sched.id)}`));
+              const description = sched.scheduleDescription ? ` (${sched.scheduleDescription})` : '';
+              console.log(chalk.gray(`     Schedule: ${show(sched.schedule)}${description}`));
+              console.log(chalk.gray(`     File: ${show(sched.pipelinePath)}`));
+              console.log(chalk.gray(`     Next run: ${show(sched.nextRun)}`));
               if (sched.lastRun) {
                 console.log(chalk.gray(`     Last run: ${sched.lastRun}`));
               }

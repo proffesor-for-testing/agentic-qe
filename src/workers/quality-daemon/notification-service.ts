@@ -9,7 +9,8 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, readFileSync, unlinkSync } from 'fs';
-import { join, resolve } from 'path';
+import { join } from 'path';
+import { getProjectStorePath } from '../../kernel/project-root.js';
 
 export type NotificationType =
   | 'gate_failure'
@@ -42,7 +43,6 @@ export interface NotificationServiceOptions {
 }
 
 const DEFAULTS = {
-  notificationsDir: resolve(process.cwd(), '.agentic-qe', 'notifications'),
   maxNotifications: 200,
 };
 
@@ -54,7 +54,7 @@ export class NotificationService {
   private _sentCount = 0;
 
   constructor(options?: NotificationServiceOptions) {
-    this.notificationsDir = options?.notificationsDir ?? DEFAULTS.notificationsDir;
+    this.notificationsDir = options?.notificationsDir ?? getProjectStorePath('notifications');
     this.maxNotifications = options?.maxNotifications ?? DEFAULTS.maxNotifications;
     this.webhookUrl = options?.webhookUrl;
     this.urlValidator = options?.urlValidator;

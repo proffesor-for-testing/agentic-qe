@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { QEPluginManifest } from './manifest';
 import { validVersion, newestVersionFirst } from './version-policy';
+import { getProjectStorePath } from '../kernel/project-root';
 
 // ============================================================================
 // Types
@@ -38,7 +39,7 @@ export class PluginCache {
 
   constructor(options: PluginCacheOptions = {}) {
     this.cacheDir = options.cacheDir
-      ?? path.join(process.cwd(), '.agentic-qe', 'plugins');
+      ?? getProjectStorePath('plugins');
     this.keepVersions = options.keepVersions ?? 2;
   }
 

@@ -61,6 +61,17 @@ interface SchedulesFile {
 }
 
 /**
+ * Result of parsing schedules.json. Entries that cannot be addressed (not an
+ * object, no string id, or a duplicate id) are `skipped` rather than failing
+ * the whole file (#991); they are quarantined to a side file before a write
+ * drops them.
+ */
+interface ParsedSchedules {
+  file: SchedulesFile;
+  skipped: unknown[];
+}
+
+/**
  * Configuration for the PersistentScheduler
  */
 export interface PersistentSchedulerConfig {
@@ -181,11 +192,18 @@ export class PersistentScheduler {
 
     try {
       const content = fs.readFileSync(this.schedulesPath, 'utf-8');
-      const data = this.parseSchedulesFile(content);
+      const { file: data, skipped } = this.parseSchedulesFile(content);
+      if (skipped.length > 0) {
+        console.warn(
+          `[PersistentScheduler] Skipped ${skipped.length} malformed schedule ` +
+          `entries in ${this.schedulesPath} (not an object, no id, or duplicate id)`,
+        );
+      }
       this.log(`Loaded ${data.schedules.length} schedules`);
       return data.schedules;
     } catch (error) {
-      // Handle corrupt file - backup and recreate
+      // Only a genuinely unparseable file gets here (bad JSON, no schedules
+      // array, oversize); malformed entries are disabled or skipped (#991).
       await this.handleCorruptFile(error);
       return [];
     }
@@ -197,7 +215,7 @@ export class PersistentScheduler {
   async saveSchedule(schedule: PersistedSchedule): Promise<void> {
     await this.initialize();
     await this.withFileLock(async () => {
-      const schedules = await this.loadSchedulesUnsafe();
+      const { schedules, skipped } = this.loadForWrite();
       const existingIndex = schedules.findIndex(s => s.id === schedule.id);
 
       if (existingIndex >= 0) {
@@ -208,7 +226,7 @@ export class PersistentScheduler {
         this.log(`Added schedule: ${schedule.id}`);
       }
 
-      await this.writeSchedules(schedules);
+      await this.writeSchedules(schedules, skipped);
     });
   }
 
@@ -218,7 +236,7 @@ export class PersistentScheduler {
   async removeSchedule(id: string): Promise<void> {
     await this.initialize();
     await this.withFileLock(async () => {
-      const schedules = await this.loadSchedulesUnsafe();
+      const { schedules, skipped } = this.loadForWrite();
       const newSchedules = schedules.filter(s => s.id !== id);
 
       if (newSchedules.length === schedules.length) {
@@ -226,7 +244,7 @@ export class PersistentScheduler {
         return;
       }
 
-      await this.writeSchedules(newSchedules);
+      await this.writeSchedules(newSchedules, skipped);
       this.log(`Removed schedule: ${id}`);
     });
   }
@@ -266,7 +284,7 @@ export class PersistentScheduler {
   async markExecuted(id: string): Promise<void> {
     await this.initialize();
     await this.withFileLock(async () => {
-      const schedules = await this.loadSchedulesUnsafe();
+      const { schedules, skipped } = this.loadForWrite();
       const schedule = schedules.find(s => s.id === id);
 
       if (!schedule) {
@@ -275,9 +293,14 @@ export class PersistentScheduler {
 
       const now = new Date();
       schedule.lastRun = now.toISOString();
-      schedule.nextRun = calculateNextRun(schedule.schedule, now).toISOString();
+      // #913: an entry disabled on load (legacy/invalid cron, missing fields)
+      // has no computable next run. Record the run and keep it disabled
+      // instead of throwing from calculateNextRun.
+      if (!schedule.disabledReason) {
+        schedule.nextRun = calculateNextRun(schedule.schedule, now).toISOString();
+      }
 
-      await this.writeSchedules(schedules);
+      await this.writeSchedules(schedules, skipped);
       this.log(`Marked executed: ${id}, next run: ${schedule.nextRun}`);
     });
   }
@@ -288,11 +311,17 @@ export class PersistentScheduler {
   async setEnabled(id: string, enabled: boolean): Promise<void> {
     await this.initialize();
     await this.withFileLock(async () => {
-      const schedules = await this.loadSchedulesUnsafe();
+      const { schedules, skipped } = this.loadForWrite();
       const schedule = schedules.find(s => s.id === id);
 
       if (!schedule) {
         throw new Error(`Schedule not found: ${id}`);
+      }
+
+      // #913/#991: an entry disabled on load cannot run; say why instead of
+      // failing inside calculateNextRun (or with no cron at all).
+      if (enabled && schedule.disabledReason) {
+        throw new Error(`Cannot enable schedule ${id}: ${schedule.disabledReason}`);
       }
 
       schedule.enabled = enabled;
@@ -302,7 +331,7 @@ export class PersistentScheduler {
         schedule.nextRun = calculateNextRun(schedule.schedule, new Date()).toISOString();
       }
 
-      await this.writeSchedules(schedules);
+      await this.writeSchedules(schedules, skipped);
       this.log(`Set enabled=${enabled}: ${id}`);
     });
   }
@@ -329,7 +358,8 @@ export class PersistentScheduler {
   async clearAll(): Promise<void> {
     await this.initialize();
     await this.withFileLock(async () => {
-      await this.writeSchedules([]);
+      const { skipped } = this.loadForWrite();
+      await this.writeSchedules([], skipped);
       this.log('Cleared all schedules');
     });
   }
@@ -359,19 +389,22 @@ export class PersistentScheduler {
   // ============================================================================
 
   /**
-   * Load schedules without acquiring lock (for use within locked context)
+   * Load schedules for a locked read-modify-write. A genuinely unparseable
+   * file is backed up (not removed) first, so the write that follows cannot
+   * silently replace it with fewer schedules.
    */
-  private async loadSchedulesUnsafe(): Promise<PersistedSchedule[]> {
+  private loadForWrite(): { schedules: PersistedSchedule[]; skipped: unknown[] } {
     if (!fs.existsSync(this.schedulesPath)) {
-      return [];
+      return { schedules: [], skipped: [] };
     }
 
     try {
       const content = fs.readFileSync(this.schedulesPath, 'utf-8');
-      const data = this.parseSchedulesFile(content);
-      return data.schedules;
-    } catch {
-      return [];
+      const { file, skipped } = this.parseSchedulesFile(content);
+      return { schedules: file.schedules, skipped };
+    } catch (error) {
+      this.backupCorruptFile(error);
+      return { schedules: [], skipped: [] };
     }
   }
 
@@ -379,7 +412,7 @@ export class PersistentScheduler {
    * Parse schedules file content with validation
    * Security: Checks file size before parsing to prevent DoS
    */
-  private parseSchedulesFile(content: string): SchedulesFile {
+  private parseSchedulesFile(content: string): ParsedSchedules {
     // Security: Check file size limit before parsing
     const contentSize = Buffer.byteLength(content, 'utf-8');
     if (contentSize > MAX_SCHEDULES_FILE_SIZE) {
@@ -388,35 +421,58 @@ export class PersistentScheduler {
 
     const data = safeJsonParse<SchedulesFile>(content);
 
-    // Validate structure
-    if (!data.schedules || !Array.isArray(data.schedules)) {
+    // Validate structure: only a missing schedules array makes the file corrupt.
+    if (!isPlainObject(data) || !Array.isArray(data.schedules)) {
       throw new Error('Invalid schedules file: missing schedules array');
     }
 
-    // Validate each schedule has required fields
-    for (const schedule of data.schedules) {
-      if (!schedule.id || !schedule.workflowId || !Object.prototype.hasOwnProperty.call(schedule, 'schedule')) {
-        throw new Error(`Invalid schedule entry: missing required fields`);
+    // #991: validate each entry on its own. A malformed entry is disabled
+    // (when it can still be addressed by id) or skipped; it never makes the
+    // whole file "corrupt", which used to back up and REMOVE schedules.json.
+    const schedules: PersistedSchedule[] = [];
+    const skipped: unknown[] = [];
+    const seen = new Set<string>();
+    for (const entry of data.schedules as unknown[]) {
+      if (!isPlainObject(entry) || typeof entry.id !== 'string' || entry.id.length === 0 || seen.has(entry.id)) {
+        skipped.push(entry);
+        continue;
       }
-
-      if (typeof schedule.schedule !== 'string' || !isValidCronExpression(schedule.schedule)) {
-        schedule.disabledReason = `Invalid cron expression: ${schedule.schedule}`;
+      const schedule = entry as unknown as PersistedSchedule;
+      seen.add(schedule.id);
+      const reason = scheduleDisabledReason(entry);
+      if (reason) {
+        schedule.disabledReason = reason;
         if (schedule.enabled) {
-          console.warn(`[PersistentScheduler] Disabled schedule ${schedule.id}: ${schedule.disabledReason}`);
+          console.warn(`[PersistentScheduler] Disabled schedule ${schedule.id}: ${reason}`);
         }
         schedule.enabled = false;
       } else {
         delete schedule.disabledReason;
       }
+      schedules.push(schedule);
     }
 
-    return data;
+    return { file: { ...data, schedules }, skipped };
   }
 
   /**
    * Write schedules to disk
    */
-  private async writeSchedules(schedules: PersistedSchedule[]): Promise<void> {
+  private async writeSchedules(schedules: PersistedSchedule[], skipped: unknown[] = []): Promise<void> {
+    // #991: entries skipped on load are not written back; keep a copy next to
+    // the file first so nothing a user stored is lost silently.
+    if (skipped.length > 0) {
+      const quarantinePath = `${this.schedulesPath}.quarantine.${Date.now()}.json`;
+      fs.writeFileSync(quarantinePath, JSON.stringify({
+        quarantinedAt: new Date().toISOString(),
+        reason: 'Malformed schedule entries (not an object, no id, or duplicate id)',
+        entries: skipped,
+      }, null, 2), { encoding: 'utf-8', flag: 'wx' });
+      console.warn(
+        `[PersistentScheduler] Moved ${skipped.length} malformed schedule entries to ${quarantinePath}`,
+      );
+    }
+
     const data: SchedulesFile = {
       version: FILE_VERSION,
       updatedAt: new Date().toISOString(),
@@ -435,16 +491,7 @@ export class PersistentScheduler {
     const errorMsg = toErrorMessage(error);
     this.log(`Corrupt schedules file detected: ${errorMsg}`);
 
-    // Create backup of corrupt file
-    const backupPath = `${this.schedulesPath}.corrupt.${Date.now()}`;
-    try {
-      if (fs.existsSync(this.schedulesPath)) {
-        fs.copyFileSync(this.schedulesPath, backupPath);
-        this.log(`Backed up corrupt file to: ${backupPath}`);
-      }
-    } catch (backupError) {
-      this.log(`Failed to backup corrupt file: ${backupError}`);
-    }
+    this.backupCorruptFile(error);
 
     // Remove corrupt file
     try {
@@ -454,6 +501,20 @@ export class PersistentScheduler {
       }
     } catch (removeError) {
       this.log(`Failed to remove corrupt file: ${removeError}`);
+    }
+  }
+
+  /** Copy an unparseable schedules file to `.corrupt.<ts>` (left in place). */
+  private backupCorruptFile(error: unknown): void {
+    this.log(`Corrupt schedules file detected: ${toErrorMessage(error)}`);
+    const backupPath = `${this.schedulesPath}.corrupt.${Date.now()}`;
+    try {
+      if (fs.existsSync(this.schedulesPath)) {
+        fs.copyFileSync(this.schedulesPath, backupPath, fs.constants.COPYFILE_EXCL);
+        this.log(`Backed up corrupt file to: ${backupPath}`);
+      }
+    } catch (backupError) {
+      this.log(`Failed to backup corrupt file: ${backupError}`);
     }
   }
 
@@ -541,6 +602,31 @@ export class PersistentScheduler {
       console.log(`[PersistentScheduler] ${message}`);
     }
   }
+}
+
+// ============================================================================
+// Entry validation (#991)
+// ============================================================================
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Why a persisted entry cannot run, or undefined when it is valid. Such
+ * entries are kept (disabled) so `workflow list` shows them with the reason.
+ */
+function scheduleDisabledReason(entry: Record<string, unknown>): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(entry, 'schedule')) {
+    return 'Missing cron expression (no schedule field)';
+  }
+  if (typeof entry.schedule !== 'string' || !isValidCronExpression(entry.schedule)) {
+    return `Invalid cron expression: ${String(entry.schedule)}`;
+  }
+  if (typeof entry.workflowId !== 'string' || entry.workflowId.length === 0) {
+    return 'Missing workflowId';
+  }
+  return undefined;
 }
 
 // ============================================================================

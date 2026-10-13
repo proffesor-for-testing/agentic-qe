@@ -9,6 +9,7 @@ import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { parseManifest, type QEPluginManifest } from '../manifest';
 import type { PluginSource } from './local';
+import { getProjectStorePath } from '../../kernel/project-root';
 
 // ============================================================================
 // Input Validation
@@ -37,7 +38,7 @@ export class GitHubPluginSource implements PluginSource {
   private readonly cacheDir: string;
 
   constructor(cacheDir?: string) {
-    this.cacheDir = cacheDir ?? path.join(process.cwd(), '.agentic-qe', 'plugins-cache');
+    this.cacheDir = cacheDir ?? getProjectStorePath('plugins-cache');
   }
 
   async resolve(location: string): Promise<QEPluginManifest> {
