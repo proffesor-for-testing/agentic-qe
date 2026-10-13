@@ -351,14 +351,16 @@ export function coverageToMarkdown(result: CoverageResult): string {
     md += `> **STATIC ESTIMATE — not measured.** ${result.warning ?? ''}\n\n`;
   }
   const evaluated = result.meetsThreshold !== null && !result.estimated;
+  // #1027 N7: one decimal, never `~33.33333333333333%`.
+  const fmt = (v: number) => String(Math.round(v * 10) / 10);
   md += `| Metric | Value | Status |\n`;
   md += `|--------|-------|--------|\n`;
   // #995: an uncollected metric is "n/a", with no pass/fail mark — it is not 0%.
   const row = (label: string, v: number | null): string => v === null
     ? `| ${label} | n/a (not collected) | \u2014 |\n`
     : evaluated
-      ? `| ${label} | ${v}% | ${v >= result.threshold ? '\u2705' : '\u274C'} |\n`
-      : `| ${label} | ~${v}% (estimate) | \u2014 |\n`;
+      ? `| ${label} | ${fmt(v)}% | ${v >= result.threshold ? '\u2705' : '\u274C'} |\n`
+      : `| ${label} | ~${fmt(v)}% (estimate) | \u2014 |\n`;
   md += row('Lines', result.summary.line);
   md += row('Branches', result.summary.branch);
   md += row('Functions', result.summary.function);

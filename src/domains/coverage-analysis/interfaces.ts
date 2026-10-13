@@ -42,6 +42,18 @@ export interface AnalyzeCoverageRequest {
    * are absent the data is treated as UNMEASURED and nothing is persisted.
    */
   measured?: boolean;
+  /**
+   * Outcome of the test run that produced `coverageData`, when one ran
+   * (#1027 N4). Coverage from a run whose tests failed is still a
+   * measurement: it is persisted, stamped `runStatus: 'failed'`; the failure
+   * itself is carried by testsPassing.
+   */
+  runStatus?: 'passed' | 'failed';
+  /**
+   * Project root that relative report paths (lcov `SF:src/a.ts`) resolve
+   * against, so per-file records use ONE key form: the absolute path (#1027 N7).
+   */
+  projectRoot?: string;
 }
 
 export interface CoverageData {
@@ -79,6 +91,14 @@ export interface CoverageReport {
    * report was not persisted and must not be published or stored as evidence.
    */
   measured?: boolean;
+  /**
+   * Which optional metrics the report collected (#1027 B2). `summary` holds 0
+   * for an uncollected metric by construction; consumers must report and
+   * persist it as null.
+   */
+  collected?: { branch: boolean; function: boolean; statement: boolean };
+  /** Outcome of the test run behind the report, when known (#1027 N4). */
+  runStatus?: 'passed' | 'failed';
 }
 
 export interface CoverageDelta {

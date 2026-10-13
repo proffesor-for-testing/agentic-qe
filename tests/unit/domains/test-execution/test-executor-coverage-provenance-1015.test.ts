@@ -42,22 +42,35 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
     const { store, internals } = service();
     await internals.storeResults('r1', run({}));
 
-    expect(store.get('coverage:latest')).toMatchObject({ line: 75, branch: 50, function: 100, statement: 70, files: 1, measured: true });
+    expect(store.get('coverage:latest')).toMatchObject({ line: 75, branch: 50, function: 100, statement: 70, files: 1, measured: true, runStatus: 'passed' });
     expect(store.get('coverage:file:/p/src/a.ts')).toMatchObject({ line: 75, measured: true });
     expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
   });
 
-  it.each([
-    ['failed', { status: 'failed', failed: 1, passed: 1 }],
-    ['error', { status: 'error' }],
-  ])('a %s run persists no coverage and no coverage evidence (the test-run record is kept)', async (_label, overrides) => {
+  it('a runner ERROR persists no coverage and no coverage evidence (the test-run record is kept)', async () => {
     const { store, internals } = service();
-    await internals.storeResults('r1', run(overrides));
+    await internals.storeResults('r1', run({ status: 'error' }));
 
     expect(store.has('test-run:r1')).toBe(true);
     expect(store.has('coverage:latest')).toBe(false);
     expect(store.has('coverage:file:/p/src/a.ts')).toBe(false);
     expect(store.has('quality-evidence:coverage:latest')).toBe(false);
+  });
+
+  it('#1027 N4: a run whose tests FAILED still measured coverage — persisted, stamped runStatus:"failed"', async () => {
+    const { store, internals } = service();
+    await internals.storeResults('r1', run({ status: 'failed', failed: 1, passed: 1 }));
+
+    expect(store.get('coverage:latest')).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
+    expect(store.get('coverage:file:/p/src/a.ts')).toMatchObject({ line: 75, measured: true, runStatus: 'failed' });
+    expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
+  });
+
+  it('#1027 N7: per-file keys are absolute, whatever form the runner reported', async () => {
+    const { store, internals } = service();
+    await internals.storeResults('r1', run({ fileCoverages: [{ path: 'src/rel.ts', line: 50, branch: null, function: null, statement: 50 }] }));
+    expect(store.has(`coverage:file:${process.cwd()}/src/rel.ts`)).toBe(true);
+    expect(store.has('coverage:file:src/rel.ts')).toBe(false);
   });
 
   it('keeps an uncollected metric null in coverage:latest instead of inventing a figure', async () => {

@@ -399,13 +399,12 @@ export class QualityDaemon {
       try {
         const snapshot = await this.coverageDelta.buildSnapshot(memory);
         if (snapshot) {
-          this._coverageHealth = Math.round(
-            (snapshot.overall.line +
-              snapshot.overall.branch +
-              snapshot.overall.function +
-              snapshot.overall.statement) /
-              4
-          );
+          // #1027 B2: average the metrics that were collected; an uncollected
+          // one (null) is left out rather than dragging health down as 0.
+          const collected = [snapshot.overall.line, snapshot.overall.branch,
+            snapshot.overall.function, snapshot.overall.statement]
+            .filter((v): v is number => typeof v === 'number');
+          this._coverageHealth = Math.round(collected.reduce((a, v) => a + v, 0) / collected.length);
           this._lastCoverageCheck = now;
         }
       } catch {

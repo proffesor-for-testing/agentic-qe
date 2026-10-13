@@ -222,8 +222,10 @@ export function buildJsCoverageInvocation(projectRoot: string, reportDir: string
     // vitest is the default — covers vitest, @vitest/coverage-v8, etc.
     // Plain `--outputFile=` (not `.json=`): it overrides a string, object, or
     // absent `outputFile` in the user's config alike.
+    // #1027 N4: vitest writes no coverage when a test fails unless asked;
+    // coverage from a failing suite is still a measurement (runStatus 'failed').
     runnerArgs = ['run', '--coverage', `--coverage.reportsDirectory=${reportDir}`,
-      '--coverage.reporter=json', '--reporter=json', `--outputFile=${resultsFile}`];
+      '--coverage.reporter=json', '--coverage.reportOnFailure=true', '--reporter=json', `--outputFile=${resultsFile}`];
   }
 
   const bin = findPackageBin(projectRoot, runner === 'jest' ? 'jest' : runner);

@@ -96,7 +96,8 @@ describe('#995 review — aqe coverage -F json', () => {
 
     const json = coverageCli(project, [lcov, '-F', 'json', '--threshold', '80']);
     const doc = JSON.parse(json.stdout) as { summary: Record<string, number | null>; meetsThreshold: boolean; recommendations: string[] };
-    expect(doc.summary).toMatchObject({ line: 90, branch: null, function: null, statement: 90 });
+    // #1027 N7: lcov has no statement data — n/a, not a copy of the line figure.
+    expect(doc.summary).toMatchObject({ line: 90, branch: null, function: null, statement: null });
     expect(doc.meetsThreshold).toBe(true);
     expect(doc.recommendations.some(r => /below threshold/i.test(r))).toBe(false);
     expect(json.status, json.stderr).toBe(0);

@@ -95,10 +95,15 @@ export const TestExecutionEvents = {
 export interface CoverageReportPayload {
   reportId: string;
   line: number;
-  branch: number;
-  function: number;
-  statement: number;
+  /** `null` = the report collected no branch data (not 0%, #1027). */
+  branch: number | null;
+  /** `null` = the report collected no function data (not 0%, #1027). */
+  function: number | null;
+  /** `null` = the report collected no statement data (lcov, Cobertura). */
+  statement: number | null;
   files: number;
+  /** Outcome of the test run behind the report, when known (#1027 N4). */
+  runStatus?: 'passed' | 'failed';
   /** False for a static estimate; consumers must not store it as coverage (#1008). */
   measured?: boolean;
 }

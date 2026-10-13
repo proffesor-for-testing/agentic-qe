@@ -38,7 +38,8 @@ interface CoverageMetrics {
   branch: number | null;
   /** `null` = not collected (no function data in the measurement). */
   function: number | null;
-  statement: number;
+  /** `null` = not collected (lcov / Cobertura carry no statement data). */
+  statement: number | null;
   timestamp: Date;
   /** Provenance stamp: only measured coverage is ever stored (#1018). */
   measured: true;

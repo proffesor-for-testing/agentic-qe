@@ -36,7 +36,7 @@ export const MEASURED_METHOD = 'instrumented-report';
 export const ESTIMATE_METHOD = 'static-estimation';
 
 export type CliCoverage =
-  | { kind: 'data'; data: CoverageData }
+  | { kind: 'data'; data: CoverageData; projectRoot?: string }
   | { kind: 'no-data'; reason: NoDataReason; message: string }
   | { kind: 'no-sources' };
 
@@ -65,7 +65,7 @@ export async function resolveCliCoverageData(
     const { evaluation, projectRoot } = existing;
     if (evaluation.status === 'measured') {
       const files = evaluation.files;
-      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true } };
+      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true }, projectRoot };
     }
     return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
   }
@@ -73,14 +73,16 @@ export async function resolveCliCoverageData(
   const sourceFiles = walkSourceFiles(existing.target, { includeTests: false });
   if (sourceFiles.length === 0) return { kind: 'no-sources' };
   log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
-  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot) };
+  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot), projectRoot: existing.projectRoot };
 }
 
 /** Which optional metrics an instrumented report actually carries. */
-export function metricsCollected(data: CoverageData): { branch: boolean; function: boolean } {
+export function metricsCollected(data: CoverageData): { branch: boolean; function: boolean; statement: boolean } {
   return {
     branch: data.files.some(f => f.branches.total > 0),
     function: data.files.some(f => f.functions.total > 0),
+    // #1027 N7: lcov / Cobertura carry no statement detail.
+    statement: data.files.some(f => f.statements.total > 0),
   };
 }
 
@@ -91,6 +93,7 @@ export interface CoverageAnalyzeAPI {
     threshold?: number;
     includeFileDetails?: boolean;
     measured?: boolean;
+    projectRoot?: string;
   }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
 }
 
@@ -118,7 +121,7 @@ export type CliCoverageOutcome =
       kind: 'measured';
       data: CoverageData;
       summary: NullableSummary & { files: number };
-      collected: { branch: boolean; function: boolean };
+      collected: { branch: boolean; function: boolean; statement: boolean };
       verdict: { overall: number; meetsThreshold: boolean };
       recommendations: string[];
     };
@@ -155,7 +158,10 @@ export async function evaluateCliCoverage(
   const data = resolved.data;
   const measured = data.instrumented;
   // #1008: a heuristic estimate is shown, never persisted as coverage evidence.
-  const result = await api.analyze({ coverageData: data, threshold, includeFileDetails: true, measured });
+  const result = await api.analyze({
+    coverageData: data, threshold, includeFileDetails: true, measured,
+    ...(resolved.projectRoot ? { projectRoot: resolved.projectRoot } : {}),
+  });
   if (!result.success || !result.value) {
     return { kind: 'analysis-failed', message: result.error?.message || 'Coverage analysis failed' };
   }
@@ -181,6 +187,7 @@ export async function evaluateCliCoverage(
       ...report.summary,
       branch: collected.branch ? report.summary.branch : null,
       function: collected.function ? report.summary.function : null,
+      statement: collected.statement ? report.summary.statement : null,
     },
     // NB-A: the shortfall advice comes from the same verdict (shared with MCP).
     recommendations: reconcileRecommendations(report.recommendations ?? [], verdict, threshold, collected),
@@ -223,6 +230,7 @@ export function coverageJson(outcome: CliCoverageOutcome, threshold: number, tar
         coverageMethod: MEASURED_METHOD,
         branchDataCollected: outcome.collected.branch,
         functionDataCollected: outcome.collected.function,
+        statementDataCollected: outcome.collected.statement,
         ...(outcome.data.unmeasuredFiles?.length ? { unmeasuredFiles: outcome.data.unmeasuredFiles } : {}),
       };
     case 'estimate':

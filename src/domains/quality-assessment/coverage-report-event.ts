@@ -20,10 +20,13 @@ export interface MeasuredCoverageSummary {
   branch: number | null;
   /** `null` = the report collected no function data (not 0%, #1015). */
   function: number | null;
-  statement: number;
+  /** `null` = the report collected no statement data (lcov, Cobertura; #1027). */
+  statement: number | null;
   files: number;
   /** Provenance stamp: this record came from instrumented coverage. */
   measured: true;
+  /** Outcome of the test run behind the record, when known (#1027 N4). */
+  runStatus?: 'passed' | 'failed';
 }
 
 /** A per-file `coverage:file:<path>` record written from measured coverage. */
@@ -49,7 +52,7 @@ export function measuredCoverageSummary(payload: unknown): MeasuredCoverageSumma
   if (!payload || typeof payload !== 'object') return null;
   const p = payload as Record<string, unknown>;
   if (p.measured !== true) return null;
-  if (!isPercent(p.line) || !isPercent(p.statement) || !isPercentOrNull(p.branch) || !isPercentOrNull(p.function)) {
+  if (!isPercent(p.line) || !isPercentOrNull(p.statement) || !isPercentOrNull(p.branch) || !isPercentOrNull(p.function)) {
     return null;
   }
   const files = typeof p.files === 'number' && Number.isInteger(p.files) && p.files >= 0 ? p.files : null;
@@ -61,6 +64,7 @@ export function measuredCoverageSummary(payload: unknown): MeasuredCoverageSumma
     statement: p.statement,
     files,
     measured: true,
+    ...(p.runStatus === 'passed' || p.runStatus === 'failed' ? { runStatus: p.runStatus } : {}),
   };
 }
 

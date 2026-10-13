@@ -17,6 +17,7 @@ import {
   evaluateCliCoverage,
   type CoverageAnalyzeAPI,
 } from '../../../src/cli/utils/coverage-verdict';
+import { coverageToMarkdown } from '../../../src/cli/utils/ci-output';
 
 function istanbulEntry(file: string, total: number, covered: number, branches = false): Record<string, unknown> {
   const statementMap: Record<string, unknown> = {};
@@ -122,6 +123,31 @@ describe('#1012.2 / #1010 — shared CLI coverage verdict', () => {
     const outcome = await evaluateCliCoverage(fakeAnalyzer(), path.join(root, 'src'), 80);
     expect(outcome.kind).toBe('measured');
     expect(coverageExitCode(outcome, 80)).toBe(1);
+  });
+
+  it('#1027 N7: an lcov report has no statement data — statement is null and out of the verdict', async () => {
+    fs.mkdirSync(path.join(root, 'coverage'), { recursive: true });
+    const da = Array.from({ length: 10 }, (_, i) => `DA:${i + 1},${i < 9 ? 1 : 0}`).join('\n');
+    fs.writeFileSync(path.join(root, 'coverage', 'lcov.info'), `TN:\nSF:src/a.ts\n${da}\nLF:10\nLH:9\nend_of_record\n`);
+
+    const api = fakeAnalyzer();
+    const outcome = await evaluateCliCoverage(api, path.join(root, 'src'), 85);
+    expect(outcome.kind).toBe('measured');
+    if (outcome.kind !== 'measured') return;
+    expect(outcome.summary).toMatchObject({ line: 90, branch: null, function: null, statement: null });
+    // Judged on line alone (90 >= 85); an uncollected statement 0 would drag it to 45.
+    expect(outcome.verdict).toMatchObject({ overall: 90, meetsThreshold: true });
+    // Per-file records resolve the report's relative paths against the project root.
+    expect(api.analyze).toHaveBeenCalledWith(expect.objectContaining({ projectRoot: root }));
+  });
+
+  it('#1027 N7: markdown rounds figures to one decimal', () => {
+    const md = coverageToMarkdown({
+      summary: { line: 33.33333333333333, branch: null, function: 66.66666666666667, statement: 33.33333333333333 },
+      meetsThreshold: null, threshold: 80, estimated: true, warning: 'est',
+    });
+    expect(md).toContain('~33.3% (estimate)');
+    expect(md).not.toMatch(/33\.333/);
   });
 
   it('a missing target is an error (exit 1)', async () => {

@@ -858,7 +858,7 @@ export class QualityGateProtocol implements IQualityGateProtocol {
         // An uncollected metric has no evidence: 0 fails its check closed.
         branch: latestCoverage.branch ?? 0,
         function: latestCoverage.function ?? 0,
-        statement: latestCoverage.statement,
+        statement: latestCoverage.statement ?? 0,
         trend,
       };
     } catch {

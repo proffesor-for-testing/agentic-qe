@@ -852,11 +852,13 @@ export class CoverageAnalysisCoordinator
     const payload: CoverageReportPayload = {
       reportId: crypto.randomUUID(),
       line: report.summary.line,
-      branch: report.summary.branch,
-      function: report.summary.function,
-      statement: report.summary.statement,
+      // #1027 B2: an uncollected metric travels as null, never as its 0.
+      branch: report.collected && !report.collected.branch ? null : report.summary.branch,
+      function: report.collected && !report.collected.function ? null : report.summary.function,
+      statement: report.collected && !report.collected.statement ? null : report.summary.statement,
       files: report.summary.files,
       measured: true,
+      ...(report.runStatus ? { runStatus: report.runStatus } : {}),
     };
 
     const event = createEvent(

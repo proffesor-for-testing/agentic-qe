@@ -295,9 +295,11 @@ export async function resolveExistingCoverage(targetPath: string): Promise<Exist
 export function thresholdVerdict(
   summary: { line: number; branch: number; function: number; statement: number },
   threshold: number,
-  collected: { branch: boolean; function: boolean }
+  collected: { branch: boolean; function: boolean; statement?: boolean }
 ): { overall: number; meetsThreshold: boolean } {
-  const metrics = [summary.line, summary.statement];
+  // #1027 N7: lcov / Cobertura carry no statement data; it is left out too.
+  const metrics = [summary.line];
+  if (collected.statement !== false) metrics.push(summary.statement);
   if (collected.branch) metrics.push(summary.branch);
   if (collected.function) metrics.push(summary.function);
   const overall = metrics.reduce((a, b) => a + b, 0) / metrics.length;

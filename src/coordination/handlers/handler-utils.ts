@@ -285,7 +285,8 @@ export function parseLcovInfo(content: string): CoverageData {
         lines: { covered: linesCovered, total: linesTotal },
         branches: { covered: branchesCovered, total: branchesTotal },
         functions: { covered: functionsCovered, total: functionsTotal },
-        statements: { covered: linesCovered, total: linesTotal },
+        // #1027 N7: lcov has no statement detail — not collected, not a copy of lines.
+        statements: { covered: 0, total: 0 },
         uncoveredLines: Array.from(new Set(uncoveredLines)),
         uncoveredBranches: Array.from(new Set(uncoveredBranches)),
       });
@@ -434,7 +435,8 @@ export function parseCoberturaXml(content: string): CoverageData {
       lines: { covered: linesCovered, total: linesTotal },
       branches: { covered: branchesCovered, total: branchesTotal },
       functions: { covered: functionsCovered, total: functionsTotal },
-      statements: { covered: linesCovered, total: linesTotal },
+      // #1027 N7: Cobertura has no statement detail — not collected.
+      statements: { covered: 0, total: 0 },
       uncoveredLines,
       uncoveredBranches,
     });

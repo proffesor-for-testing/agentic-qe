@@ -57,7 +57,13 @@ Exit codes:
   1  coverage below the threshold, or an error (missing target, unreadable report)
   2  coverage within 5% above the threshold
   ${EXIT_UNMEASURED}  UNMEASURED: no coverage measurement exists for the target
-     (not in the report, the runner ran 0 tests, or only test files were reported)`)
+     (not in the report, the runner ran 0 tests, or only test files were reported),
+     or NO coverage report exists, so only a labelled static estimate was shown
+     (-F json: measured:false, estimated:true; no threshold verdict)
+
+In \`aqe ci\`, an UNMEASURED coverage phase is a warning (phase exit code 3); it
+does not fail the pipeline by itself. An enforced quality gate fails on
+missing coverage evidence.`)
     .action(async (target: string, options) => {
       let analyzeTarget = target;
       let includeRisk = options.risk;

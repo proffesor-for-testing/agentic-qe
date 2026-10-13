@@ -29,6 +29,7 @@ import {
   type NoDataReason,
 } from './coverage-target';
 import { describeRunFailure, runJsCoverage } from './coverage-runner';
+import { collectedMetrics } from '../../domains/coverage-analysis/collected-metrics.js';
 
 /**
  * How long the project's test runner may take before its process tree is
@@ -81,6 +82,11 @@ interface CollectResult {
   projectRoot: string | null;
   /** Extra caveats (e.g. the runner timed out). */
   notes?: string[];
+  /**
+   * Outcome of the test run we started, when one ran and reported tests
+   * (#1027 N4): coverage from a failing suite is still measured.
+   */
+  runStatus?: 'passed' | 'failed';
 }
 
 function fromEvaluation(
@@ -163,7 +169,10 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     const evaluation = run.data
       ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests })
       : { status: 'no-data' as const, reason: 'no-tests-ran' as const };
-    return fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
+    const result = fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
+    // #1027 N4: a run that wrote a report but exited non-zero had failing tests.
+    if (result.collected) result.runStatus = run.exitedCleanly ? 'passed' : 'failed';
+    return result;
   }
 
   // No report at all: say exactly what happened to the run (not installed,
@@ -230,7 +239,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests, noData, projectRoot, notes } = await collectCoverage(targetPath);
+      const { collected, ranTests, noData, projectRoot, notes, runStatus } = await collectCoverage(targetPath);
 
       // #995 review N5: say so plainly instead of "no coverage data found".
       if (noData === 'target-missing') {
@@ -267,6 +276,9 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         threshold,
         includeFileDetails: payload.detectGaps,
         measured: !provenance.estimated,
+        // #1027 N7: per-file records use absolute keys; N4: failing-suite coverage is labelled.
+        ...(projectRoot ? { projectRoot } : {}),
+        ...(runStatus && !provenance.estimated ? { runStatus } : {}),
       });
 
       if (!analysisResult.success) {
@@ -313,7 +325,11 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       // than send a developer to fix a number that doesn't exist.
       // #995 NB5/NB-A: the verdict and the shortfall advice come from the same
       // collected-metrics computation (shared with the CLI), so they can't disagree.
-      const metricsCollected = { branch: provenance.branchDataCollected, function: provenance.functionDataCollected };
+      // #1027 N7: lcov / Cobertura carry no statement data — n/a, out of the verdict.
+      const statementCollected = provenance.estimated || collectedMetrics(coverageData.files).statement;
+      const metricsCollected = {
+        branch: provenance.branchDataCollected, function: provenance.functionDataCollected, statement: statementCollected,
+      };
       const verdict = thresholdVerdict(report.summary, threshold, metricsCollected);
       const recommendations = reconcileRecommendations(report.recommendations, verdict, threshold, metricsCollected);
 
@@ -323,7 +339,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         // 100% — when no branch data was collected.
         branchCoverage: provenance.branchDataCollected ? round(report.summary.branch) : null,
         functionCoverage: provenance.functionDataCollected ? round(report.summary.function) : null,
-        statementCoverage: round(report.summary.statement),
+        statementCoverage: statementCollected ? round(report.summary.statement) : null,
         totalFiles: report.summary.files,
         coverageByFile: coverageData.files.map(f => ({
           file: f.path,
@@ -343,6 +359,8 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         coverageMethod: provenance.method,
         branchDataCollected: provenance.branchDataCollected,
         functionDataCollected: provenance.functionDataCollected,
+        statementDataCollected: statementCollected,
+        ...(runStatus && !provenance.estimated ? { runStatus } : {}),
         ...(warnings.length > 0 ? { warning: warnings.join(' ') } : {}),
       });
     } catch (error) {

@@ -25,6 +25,7 @@ import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
+import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
@@ -1326,8 +1327,10 @@ Provide:
           for (const [key, value] of Object.entries(json)) {
             if (key === 'total') continue;
             // Normalize path: strip cwd prefix, reject traversal sequences
-            const normalizedPath = key.replace(process.cwd() + '/', '').replace(process.cwd() + '\\', '');
-            if (normalizedPath.includes('..')) continue;
+            // Reject traversal; keep the key absolute (#1027 N7: one key form).
+            const relative = key.replace(process.cwd() + '/', '').replace(process.cwd() + '\\', '');
+            if (relative.includes('..')) continue;
+            const normalizedPath = fileCoverageKey(key);
             const entry = value as Record<string, SummaryMetric | undefined>;
             const line = summaryPct(entry?.lines);
             if (line !== null) {
@@ -1377,9 +1380,12 @@ Provide:
     // Store coverage data so quality-assess and quality-gate can read it.
     // Note: coverage:previous rotation is owned by coverage-analyzer (the
     // canonical coverage service) to avoid double-rotation race conditions.
-    // #1015: only a run that PASSED is evidence. A failed or errored run
-    // (MCP returns success:false) persists no coverage or quality evidence.
-    if (result.status !== 'passed' || !result.coverage || !Number.isFinite(result.coverage.line)) return;
+    // #1015 / #1027 N4: a run whose tests FAILED still measured coverage: it
+    // is persisted, stamped runStatus:'failed' (testsPassing carries the
+    // failure) — the same report coverage_analyze_sublinear would persist.
+    // A runner ERROR has no trustworthy coverage and persists nothing.
+    if (result.status === 'error' || !result.coverage || !Number.isFinite(result.coverage.line)) return;
+    const runStatus: 'passed' | 'failed' = result.status === 'passed' ? 'passed' : 'failed';
     try {
       // Same CoverageSummary shape as coverage-analyzer, stamped with its
       // provenance (#1008/#1015) so readers can trust it. An uncollected
@@ -1388,9 +1394,10 @@ Provide:
         line: result.coverage.line,
         branch: result.coverage.branch ?? null,
         function: result.coverage.function ?? null,
-        statement: result.coverage.statement ?? result.coverage.line,
+        statement: result.coverage.statement ?? null,
         files: result.fileCoverages?.length ?? 0,
         measured: true,
+        runStatus,
       }, { persist: true });
       await writeQualityEvidence(this.memory, {
         coverage: result.coverage.line,
@@ -1403,12 +1410,14 @@ Provide:
       // quality-analyzer's getStoredCoverage() can read it with memory.get()
       for (const fc of result.fileCoverages ?? []) {
         if (!Number.isFinite(fc.line)) continue;
-        await this.memory.set(`coverage:file:${fc.path}`, {
+        // #1027 N7: one key form — the absolute path.
+        await this.memory.set(`coverage:file:${fileCoverageKey(fc.path)}`, {
           line: fc.line,
           branch: fc.branch ?? null,
           function: fc.function ?? null,
           statement: fc.statement ?? null,
           measured: true,
+          runStatus,
         }, { persist: true });
       }
     } catch {

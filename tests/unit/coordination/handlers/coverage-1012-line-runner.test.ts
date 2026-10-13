@@ -68,6 +68,18 @@ describe('#1012.1 — istanbul line coverage is per line, not per statement', ()
   });
 });
 
+describe('#1027 N4 — the auto-run asks vitest for coverage even when tests fail', () => {
+  it('passes --coverage.reportOnFailure so a failing suite still yields its (measured) report', () => {
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1027-n4-')));
+    try {
+      fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'n4', devDependencies: { vitest: '^5' } }));
+      expect(buildJsCoverageInvocation(root, '/tmp/r').args).toContain('--coverage.reportOnFailure=true');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('#1012.3 — runner detection in monorepos', () => {
   let ws: string;
   let pkg: string;
