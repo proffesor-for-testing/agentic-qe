@@ -117,6 +117,27 @@ describe('#995 — findCoverageProjectRoot', () => {
     expect(findCoverageProjectRoot(path.join(pkg, 'src'))).toBe(pkg);
   });
 
+  it('uses the workspace runner config when a nested package has no config', () => {
+    const pkg = path.join(root, 'packages', 'core');
+    fs.mkdirSync(path.join(pkg, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{"name":"core"}');
+    fs.writeFileSync(path.join(root, 'package.json'), '{"name":"workspace","workspaces":["packages/*"]}');
+    fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+
+    expect(findCoverageProjectRoot(path.join(pkg, 'src'))).toBe(root);
+  });
+
+  it('keeps a nested package with its own runner config', () => {
+    const pkg = path.join(root, 'packages', 'core');
+    fs.mkdirSync(path.join(pkg, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{"name":"core"}');
+    fs.writeFileSync(path.join(pkg, 'vitest.config.ts'), 'export default {}');
+    fs.writeFileSync(path.join(root, 'package.json'), '{"name":"workspace","workspaces":["packages/*"]}');
+    fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+
+    expect(findCoverageProjectRoot(path.join(pkg, 'src'))).toBe(pkg);
+  });
+
   it('stops at a .git boundary when there is no package.json', () => {
     fs.rmSync(path.join(root, 'package.json'));
     expect(findCoverageProjectRoot(path.join(root, 'src'))).toBe(root);
@@ -461,6 +482,42 @@ if (results) {
     expect(data.lineCoverage).toBe(50);
     expect((data.coverageByFile as Array<{ file: string }>).map(f => f.file))
       .toEqual([path.join(root, 'src', 'math.ts')]);
+  }, 60000);
+
+  it('runs from a root-only workspace config for a nested package target', async () => {
+    const pkg = path.join(root, 'packages', 'core');
+    const source = path.join(pkg, 'src', 'math.ts');
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(source, MATH_TS);
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{"name":"core"}');
+    fs.writeFileSync(path.join(root, 'package.json'), '{"name":"workspace","workspaces":["packages/*"]}');
+    fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+    writeCannedReport({ [source]: istanbulEntry(source, 6, 4) });
+
+    const data = await analyze(path.join(pkg, 'src'), root);
+
+    expect(fs.readFileSync(cwdMarker, 'utf-8').trim()).toBe(root);
+    expect(data.measured).toBe(true);
+    expect(data.lineCoverage).toBeCloseTo(66.67, 1);
+  }, 60000);
+
+  it('reads an existing workspace report for a nested package target', async () => {
+    const pkg = path.join(root, 'packages', 'core');
+    const source = path.join(pkg, 'src', 'math.ts');
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(source, MATH_TS);
+    fs.writeFileSync(path.join(pkg, 'package.json'), '{"name":"core"}');
+    fs.writeFileSync(path.join(root, 'package.json'), '{"name":"workspace","workspaces":["packages/*"]}');
+    fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+    fs.mkdirSync(path.join(root, 'coverage'));
+    fs.writeFileSync(path.join(root, 'coverage', 'lcov.info'),
+      lcovRecord('packages/core/src/math.ts', 6, 4));
+
+    const data = await analyze(path.join(pkg, 'src'), root);
+
+    expect(fs.existsSync(cwdMarker), 'existing workspace report should avoid a test run').toBe(false);
+    expect(data.measured).toBe(true);
+    expect(data.lineCoverage).toBeCloseTo(66.67, 1);
   }, 60000);
 
   it('writes nothing into the source tree — no src/coverage, no root coverage/', async () => {

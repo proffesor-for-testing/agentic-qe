@@ -49,12 +49,39 @@ const PROJECT_ROOT_MARKERS = [
   '.git',
 ];
 
+const JS_RUNNER_CONFIGS = [
+  'vitest.config.ts', 'vitest.config.js', 'vitest.config.mts', 'vitest.config.mjs',
+  'vitest.config.cts', 'vitest.config.cjs',
+  'vitest.workspace.ts', 'vitest.workspace.js', 'vitest.workspace.mts',
+  'vitest.workspace.mjs', 'vitest.workspace.json',
+  'vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs',
+  'jest.config.ts', 'jest.config.js', 'jest.config.mts', 'jest.config.mjs',
+  'jest.config.cts', 'jest.config.cjs', 'jest.config.json',
+];
+
+function hasJsRunnerConfig(dir: string): boolean {
+  return JS_RUNNER_CONFIGS.some(name => fs.existsSync(path.join(dir, name)));
+}
+
+function isJsWorkspaceRoot(dir: string): boolean {
+  if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return true;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8')) as Record<string, unknown>;
+    return Array.isArray(pkg.workspaces)
+      || (typeof pkg.workspaces === 'object' && pkg.workspaces !== null);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Walk up from a target to the nearest directory that holds a project marker.
  *
- * NEAREST rather than topmost: in a monorepo, `packages/core/src` belongs to
- * `packages/core` (its own package.json and test config), not the workspace
- * root. This intentionally differs from `kernel/findProjectRoot`, which locates
+ * Normally NEAREST rather than topmost: in a monorepo, `packages/core/src`
+ * belongs to `packages/core` when it has its own runner config. When only the
+ * enclosing workspace has a runner config, use that workspace so test execution
+ * and existing coverage reports use the same configured root (#1005). This
+ * intentionally differs from `kernel/findProjectRoot`, which locates
  * the AQE data root (honouring AQE_PROJECT_ROOT and `.agentic-qe`).
  *
  * Returns `null` when the target does not exist (a typo must not silently
@@ -76,16 +103,28 @@ export function findCoverageProjectRoot(target: string, maxDepth = 12): string |
   try { home = fs.realpathSync(os.homedir()); } catch { home = null; }
 
   const start = dir;
+  let nearestRoot: string | null = null;
   for (let depth = 0; depth <= maxDepth; depth++) {
     // A stray manifest in $HOME must not claim every directory beneath it.
     // $HOME is still a valid root when it is the target itself.
-    if (home !== null && dir === home && dir !== start) return null;
-    if (PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) return dir;
+    if (home !== null && dir === home && dir !== start) return nearestRoot;
+    if (!nearestRoot && PROJECT_ROOT_MARKERS.some(m => fs.existsSync(path.join(dir, m)))) {
+      nearestRoot = dir;
+      if (hasJsRunnerConfig(dir)) return dir;
+      // Only a nested JS package can inherit the workspace's runner config.
+      // Other project types keep the nearest-marker semantics.
+      if (!fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    } else if (nearestRoot && isJsWorkspaceRoot(dir)) {
+      if (hasJsRunnerConfig(dir)) return dir;
+      return nearestRoot;
+    }
+    // Do not adopt configuration from a different repository.
+    if (nearestRoot && fs.existsSync(path.join(dir, '.git'))) return nearestRoot;
     const parent = path.dirname(dir);
-    if (parent === dir) return null;
+    if (parent === dir) return nearestRoot;
     dir = parent;
   }
-  return null;
+  return nearestRoot;
 }
 
 // ============================================================================
