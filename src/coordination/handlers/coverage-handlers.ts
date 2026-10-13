@@ -46,11 +46,15 @@ function recomputeSummary(files: CoverageData['files']): CoverageData['summary']
   const pct = (covered: number, total: number) => (total > 0 ? Math.round((covered / total) * 100) : 0);
   const totalLines = sum(f => f.lines.total);
   const coveredLines = sum(f => f.lines.covered);
+  // #1012: statements are statements (lcov carries its line figures there).
+  const totalStatements = sum(f => f.statements.total);
   return {
     line: pct(coveredLines, totalLines),
     branch: pct(sum(f => f.branches.covered), sum(f => f.branches.total)),
     function: pct(sum(f => f.functions.covered), sum(f => f.functions.total)),
-    statement: pct(coveredLines, totalLines),
+    statement: totalStatements > 0
+      ? pct(sum(f => f.statements.covered), totalStatements)
+      : pct(coveredLines, totalLines),
     files: files.length,
   };
 }

@@ -134,13 +134,76 @@ function readDeps(projectRoot: string): Record<string, string> {
   }
 }
 
+const RUNNER_DEPS = ['jest', '@jest/core', 'mocha', 'nyc', 'vitest'];
+
+/**
+ * The project and its ancestors up to the repository / workspace root: the
+ * project itself, then each parent, stopping after the directory holding
+ * `.git` (or a `workspaces` manifest), at $HOME, or after `maxDepth` levels.
+ */
+function projectAndAncestors(projectRoot: string, maxDepth = 10): string[] {
+  const dirs: string[] = [];
+  let home: string | null = null;
+  try { home = fs.realpathSync(os.homedir()); } catch { home = null; }
+  let dir = path.resolve(projectRoot);
+  for (let i = 0; i <= maxDepth; i++) {
+    if (i > 0 && home !== null && dir === home) break;
+    dirs.push(dir);
+    if (fs.existsSync(path.join(dir, '.git')) || isWorkspaceRoot(dir)) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return dirs;
+}
+
+function isWorkspaceRoot(dir: string): boolean {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8')) as Record<string, unknown>;
+    return pkg.workspaces !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Dependencies that decide the runner (#1012): the package's own when it
+ * declares a test runner, otherwise those of the nearest ancestor (workspace
+ * root) that does. A package of a monorepo whose jest is declared only at the
+ * root runs jest, not the vitest default.
+ */
+function readRunnerDeps(projectRoot: string): Record<string, string> {
+  for (const dir of projectAndAncestors(projectRoot)) {
+    const deps = readDeps(dir);
+    if (RUNNER_DEPS.some(d => deps[d])) return deps;
+  }
+  return {};
+}
+
+/**
+ * Every `node_modules/.bin` from the project up to the workspace root,
+ * nearest first. Runners that shell out to sibling tools (nyc → mocha) need
+ * the hoisted ones too (#1012).
+ */
+export function runnerBinDirs(projectRoot: string): string[] {
+  return projectAndAncestors(projectRoot)
+    .map(dir => path.join(dir, 'node_modules', '.bin'))
+    .filter(dir => fs.existsSync(dir));
+}
+
+/** Is the project installed with Yarn Plug'n'Play (no node_modules to resolve from)? */
+function usesPlugNPlay(projectRoot: string): boolean {
+  return projectAndAncestors(projectRoot).some(dir =>
+    fs.existsSync(path.join(dir, '.pnp.cjs')) || fs.existsSync(path.join(dir, '.pnp.js')));
+}
+
 /**
  * Pick the runner and its argv. No shell is involved: `command` is the Node
  * binary and `args[0]` the runner's JS entry, so paths are passed verbatim.
  */
 export function buildJsCoverageInvocation(projectRoot: string, reportDir: string): JsCoverageInvocation {
   const resultsFile = path.join(reportDir, RESULTS_FILE);
-  const deps = readDeps(projectRoot);
+  const deps = readRunnerDeps(projectRoot);
 
   let runner: JsRunnerName = 'vitest';
   let runnerArgs: string[];
@@ -364,15 +427,16 @@ export async function runJsCoverage(
       };
     }
 
-    // Runners that shell out to sibling tools (nyc → mocha) find them here.
-    const binDir = path.join(projectRoot, 'node_modules', '.bin');
+    // Runners that shell out to sibling tools (nyc → mocha) find them here,
+    // including hoisted workspace-root installs (#1012).
+    const binDirs = runnerBinDirs(projectRoot);
     // The runner's own temp files (vite's SSR cache, etc.) go inside reportDir
     // too, so a killed run leaves nothing behind in the system temp dir.
     const runnerTmp = path.join(reportDir, 'tmp');
     fs.mkdirSync(runnerTmp);
     const env = {
       ...process.env,
-      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      PATH: [...binDirs, process.env.PATH ?? ''].join(path.delimiter),
       TMPDIR: runnerTmp, TMP: runnerTmp, TEMP: runnerTmp,
     };
 
@@ -402,6 +466,12 @@ export async function runJsCoverage(
  * Never "No instrumentation ran" when the runner did run and failed.
  */
 export function describeRunFailure(run: JsCoverageRun, projectRoot: string): string {
+  if (run.missing && usesPlugNPlay(projectRoot)) {
+    return `${run.runner} could not be resolved for ${projectRoot}: this project uses Yarn Plug'n'Play, ` +
+      'and agentic-qe resolves test runners only from node_modules. Nothing was run and nothing was downloaded. ' +
+      `Generate a coverage report (e.g. \`yarn ${run.runner} --coverage\`) and pass it as the target, ` +
+      'or use the node-modules linker.';
+  }
   if (run.missing) {
     return `${run.runner} is not installed in ${projectRoot} (no node_modules/${run.runner} found); ` +
       'nothing was run and nothing was downloaded. Install it, or generate a coverage report and pass it as the target.';

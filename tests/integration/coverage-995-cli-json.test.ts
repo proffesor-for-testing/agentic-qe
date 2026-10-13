@@ -120,3 +120,39 @@ describe('#995 review — aqe coverage -F json', () => {
     expect(run.status, run.stderr).toBe(3);
   }, 120_000);
 });
+
+describe('#1012.2 — aqe coverage -F json on the heuristic estimate path', () => {
+  function noReportProject(): string {
+    const project = makeProject();
+    rmSync(join(project, 'coverage'), { recursive: true, force: true });
+    return project;
+  }
+
+  it('labels the estimate (measured:false, estimated:true, coverageMethod), gives no verdict, exits 3', () => {
+    const project = noReportProject();
+    const run = coverageCli(project, [join(project, 'src'), '-F', 'json', '--threshold', '80']);
+
+    const doc = JSON.parse(run.stdout) as Record<string, unknown>;
+    expect(doc).toMatchObject({
+      measured: false, estimated: true, unmeasured: true, coverageMethod: 'static-estimation',
+      meetsThreshold: null, threshold: 80, reason: 'no-coverage-report',
+    });
+    expect((doc.summary as Record<string, unknown>).line).toEqual(expect.any(Number));
+    expect(run.status, run.stderr).toBe(3);
+  }, 120_000);
+
+  it('a folder no report can measure (scripts) is UNMEASURED with exit 3, never 0% with exit 1', () => {
+    const project = noReportProject();
+    const run = coverageCli(project, [join(project, 'scripts'), '-F', 'json']);
+
+    const doc = JSON.parse(run.stdout) as Record<string, unknown>;
+    expect(doc).toMatchObject({ measured: false, estimated: true, unmeasured: true, meetsThreshold: null });
+    expect(run.status, run.stderr).toBe(3);
+  }, 120_000);
+
+  it('a measured result is labelled measured too (same vocabulary as MCP)', () => {
+    const project = makeProject();
+    const run = coverageCli(project, [join(project, 'src'), '-F', 'json']);
+    expect(JSON.parse(run.stdout)).toMatchObject({ measured: true, estimated: false, coverageMethod: 'instrumented-report' });
+  }, 120_000);
+});

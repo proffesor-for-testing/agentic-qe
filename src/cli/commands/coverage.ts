@@ -8,68 +8,18 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { runCoverageAnalysisWizard, type CoverageWizardResult } from '../wizards/coverage-wizard.js';
-import { walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, type CoverageResult, writeOutput, toJSON, coverageToMarkdown } from '../utils/ci-output.js';
 import * as path from 'path';
-import { buildCoverageData, summarizeCoverage, type CoverageData } from '../utils/coverage-data.js';
 import {
-  describeNoData,
-  isUnmeasured,
-  resolveExistingCoverage,
-  reconcileRecommendations,
-  thresholdVerdict,
-  type NoDataReason,
-} from '../../coordination/handlers/coverage-target.js';
+  EXIT_UNMEASURED,
+  coverageExitCode,
+  coverageJson,
+  evaluateCliCoverage,
+} from '../utils/coverage-verdict.js';
 
-/** Which optional metrics an instrumented report actually carries. */
-function metricsCollected(data: CoverageData): { branch: boolean; function: boolean } {
-  if (!data.instrumented) return { branch: true, function: true }; // labelled heuristic estimate
-  return {
-    branch: data.files.some(f => f.branches.total > 0),
-    function: data.files.some(f => f.functions.total > 0),
-  };
-}
-
-/** `aqe coverage` exit code when the target has no coverage measurement (#995). */
-export const EXIT_UNMEASURED = 3;
-
-export type CliCoverage =
-  | { kind: 'data'; data: CoverageData }
-  | { kind: 'no-data'; reason: NoDataReason; message: string }
-  | { kind: 'no-sources' };
-
-/**
- * Resolve the coverage data for a CLI target (#995).
- *
- * Uses the SAME resolution and verdict as the MCP `coverage_analyze_sublinear`
- * handler (`resolveExistingCoverage`), so CLI and MCP cannot disagree about
- * what a report says for a target:
- *   - a coverage report file (lcov.info, coverage-final.json, ...) is parsed
- *     directly;
- *   - a directory or source file is scoped against the instrumented report of
- *     its PROJECT ROOT (nearest package.json/.git above it), not the cwd;
- *   - with no report at the project root, the CLI falls back to its labelled
- *     heuristic estimate (the CLI never runs the test suite).
- */
-export async function resolveCliCoverageData(targetPath: string): Promise<CliCoverage> {
-  const existing = await resolveExistingCoverage(targetPath);
-  if (existing.status === 'target-missing') {
-    return { kind: 'no-data', reason: 'target-missing', message: describeNoData('target-missing', targetPath, null) };
-  }
-  if (existing.status === 'evaluated') {
-    const { evaluation, projectRoot } = existing;
-    if (evaluation.status === 'measured') {
-      const files = evaluation.files;
-      return { kind: 'data', data: { files, summary: summarizeCoverage(files), instrumented: true } };
-    }
-    return { kind: 'no-data', reason: evaluation.reason, message: describeNoData(evaluation.reason, targetPath, projectRoot) };
-  }
-
-  const sourceFiles = walkSourceFiles(existing.target, { includeTests: false });
-  if (sourceFiles.length === 0) return { kind: 'no-sources' };
-  console.log(chalk.gray(`  Analyzing ${sourceFiles.length} files...\n`));
-  return { kind: 'data', data: buildCoverageData(sourceFiles, existing.projectRoot) };
-}
+// #1012 / #1010: resolution and verdict are shared with `aqe ci` (and built on
+// the same functions as MCP); re-exported here for existing importers.
+export { EXIT_UNMEASURED, resolveCliCoverageData, type CliCoverage } from '../utils/coverage-verdict.js';
 
 function getColorForPercent(percent: number): (str: string) => string {
   if (percent >= 80) return chalk.green;
@@ -174,99 +124,66 @@ Exit codes:
 
         // Fix #280: shared file discovery supporting all languages.
         // #995: coverage files as targets; reports resolved from the project root.
-        const resolved = await resolveCliCoverageData(targetPath);
+        // #1012: one shared verdict (measured / unmeasured / labelled estimate).
+        const outcome = await evaluateCliCoverage(coverageAPI, targetPath, threshold);
+        const format = options.format as OutputFormat;
 
-        if (resolved.kind === 'no-sources') {
+        if (outcome.kind === 'no-sources') {
           console.log(chalk.yellow('No source files found'));
           return;
         }
 
-        if (resolved.kind === 'no-data') {
-          // Errors (missing target, unreadable report) exit 1. Everything else
-          // means "no measurement exists" — distinct exit code, never "0%".
-          const isError = resolved.reason === 'target-missing' || resolved.reason === 'unreadable-report';
-          if ((options.format as OutputFormat) === 'json') {
+        if (outcome.kind === 'error' || outcome.kind === 'unmeasured' || outcome.kind === 'analysis-failed') {
+          // Errors (missing target, unreadable report) exit 1. "No measurement
+          // exists" has its own exit code — never "0%".
+          if (format === 'json') {
             // Same shape as a normal result, with nulls (#995 review N4).
-            emit(toJSON({
-              summary: { line: null, branch: null, function: null, statement: null },
-              meetsThreshold: null,
-              threshold,
-              measured: false,
-              unmeasured: isUnmeasured(resolved.reason),
-              reason: resolved.reason,
-              target: targetPath,
-              warning: resolved.message,
-            }));
+            emit(toJSON(coverageJson(outcome, threshold, targetPath)));
           } else {
-            console.log((isError ? chalk.red : chalk.yellow)(`  ${resolved.message}\n`));
+            console.log((outcome.kind === 'unmeasured' ? chalk.yellow : chalk.red)(`  ${outcome.message}\n`));
           }
-          await cleanupAndExit(isError ? 1 : EXIT_UNMEASURED);
+          await cleanupAndExit(coverageExitCode(outcome, threshold));
           return;
         }
 
-        const coverageData = resolved.data;
+        const coverageData = outcome.data;
+        const isEstimate = outcome.kind === 'estimate';
 
-        if (coverageData.instrumented) {
+        if (!isEstimate) {
           console.log(chalk.green('  Using instrumented coverage data (V8/istanbul)\n'));
           if (coverageData.unmeasuredFiles?.length) {
             console.log(chalk.yellow(`  ${coverageData.unmeasuredFiles.length} file(s) not in the coverage report — UNMEASURED, excluded from the figures\n`));
           }
         } else {
-          console.log(chalk.yellow('  No instrumented coverage found — using heuristic estimation'));
+          console.log(chalk.yellow('  No coverage report found — showing a heuristic STATIC ESTIMATE (UNMEASURED)'));
           console.log(chalk.gray('  Run tests with coverage first: npm test -- --coverage\n'));
         }
 
-        // #1008: a heuristic estimate is shown, never persisted as coverage evidence.
-        const result = await coverageAPI.analyze({
-          coverageData,
-          threshold,
-          includeFileDetails: true,
-          measured: coverageData.instrumented,
-        });
+        // #1012: the JSON carries its provenance (measured / estimated /
+        // coverageMethod) exactly as MCP does; an estimate has no verdict.
+        const coverageResult = coverageJson(outcome, threshold, targetPath) as unknown as CoverageResult;
+        const summary = outcome.summary;
 
-        const format = options.format as OutputFormat;
-        let coverageResult: CoverageResult | undefined;
-        let overallCoverage = 0;
+        if (format === 'text') {
+          const fmt = (v: number | null) => v === null ? 'n/a (not collected)' : (isEstimate ? '~' : '') + v.toFixed(1) + '%';
+          const color = (v: number | null) => v === null || isEstimate ? chalk.gray : getColorForPercent(v);
+          console.log(chalk.cyan(isEstimate ? '  Coverage Summary (STATIC ESTIMATE — not measured):' : '  Coverage Summary:'));
+          console.log(`    Lines:      ${color(summary.line)(fmt(summary.line))}`);
+          console.log(`    Branches:   ${color(summary.branch)(fmt(summary.branch))}`);
+          console.log(`    Functions:  ${color(summary.function)(fmt(summary.function))}`);
+          console.log(`    Statements: ${color(summary.statement)(fmt(summary.statement))}`);
+          if (outcome.kind === 'measured') {
+            console.log(`\n    Threshold: ${outcome.verdict.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
+          } else {
+            console.log(`\n    Threshold: ${chalk.yellow(`not evaluated (${threshold}%) — UNMEASURED, estimate only`)}`);
+            console.log(chalk.gray(`    ${outcome.message}`));
+          }
 
-        if (result.success && result.value) {
-          const report = result.value as { summary: { line: number; branch: number; function: number; statement: number }; meetsThreshold: boolean; recommendations: string[] };
-
-          // #995 review NB5: a metric the report never collected is null — not
-          // 0 — and is left out of the threshold verdict (same rule as MCP).
-          const collected = metricsCollected(coverageData);
-          const verdict = thresholdVerdict(report.summary, threshold, collected);
-          const summary = {
-            ...report.summary,
-            branch: collected.branch ? report.summary.branch : null,
-            function: collected.function ? report.summary.function : null,
-          };
-          // NB-A: the shortfall advice comes from the same verdict (shared with MCP).
-          const recommendations = reconcileRecommendations(report.recommendations, verdict, threshold, collected);
-          overallCoverage = verdict.overall;
-
-          // For non-text formats, collect all data and output at end
-          coverageResult = {
-            summary: summary as CoverageResult['summary'],
-            meetsThreshold: verdict.meetsThreshold,
-            threshold,
-            recommendations,
-          };
-
-          if (format === 'text') {
-            const fmt = (v: number | null) => v === null ? 'n/a (not collected)' : v.toFixed(1) + '%';
-            const color = (v: number | null) => v === null ? chalk.gray : getColorForPercent(v);
-            console.log(chalk.cyan('  Coverage Summary:'));
-            console.log(`    Lines:      ${color(summary.line)(fmt(summary.line))}`);
-            console.log(`    Branches:   ${color(summary.branch)(fmt(summary.branch))}`);
-            console.log(`    Functions:  ${color(summary.function)(fmt(summary.function))}`);
-            console.log(`    Statements: ${color(summary.statement)(fmt(summary.statement))}`);
-            console.log(`\n    Threshold: ${verdict.meetsThreshold ? chalk.green(`Met (${threshold}%)`) : chalk.red(`Not met (${threshold}%)`)}`);
-
-            if (recommendations.length > 0) {
-              console.log(chalk.cyan('\n  Recommendations:'));
-              for (const rec of recommendations) {
-                console.log(chalk.gray(`    - ${rec}`));
-              }
+          const recommendations = outcome.kind === 'measured' ? outcome.recommendations : [];
+          if (recommendations.length > 0) {
+            console.log(chalk.cyan('\n  Recommendations:'));
+            for (const rec of recommendations) {
+              console.log(chalk.gray(`    - ${rec}`));
             }
           }
         }
@@ -284,7 +201,7 @@ Exit codes:
           if (gapResult.success && gapResult.value) {
             const gaps = gapResult.value as { gaps: Array<{ file: string; lines: number[]; riskScore: number; severity: string; recommendation: string }>; totalUncoveredLines: number; estimatedEffort: number };
 
-            if (coverageResult) coverageResult.gaps = gaps.gaps.map(g => ({
+            coverageResult.gaps = gaps.gaps.map(g => ({
               file: g.file.replace(process.cwd() + '/', ''),
               lines: g.lines,
               riskScore: g.riskScore,
@@ -362,25 +279,17 @@ Exit codes:
         }
 
         // Non-text format output (collected all data)
-        if (coverageResult && format === 'json') {
+        if (format === 'json') {
           emit(toJSON(coverageResult));
-        } else if (coverageResult && format === 'markdown') {
+        } else if (format === 'markdown') {
           emit(coverageToMarkdown(coverageResult));
         } else if (format === 'text') {
           console.log(chalk.green('\n Coverage analysis complete\n'));
         }
 
-        // Exit codes: 1 = below threshold, 2 = within 5% of threshold, 0 = above threshold
-        if (coverageResult && !coverageResult.meetsThreshold) {
-          await cleanupAndExit(1);
-        }
-        if (coverageResult) {
-          const avg = overallCoverage;
-          if (avg < threshold + 5 && avg >= threshold) {
-            await cleanupAndExit(2);
-          }
-        }
-        await cleanupAndExit(0);
+        // Exit codes: 1 = below threshold, 2 = within 5% of threshold,
+        // 0 = above threshold, 3 = UNMEASURED (estimate only) — shared with `aqe ci`.
+        await cleanupAndExit(coverageExitCode(outcome, threshold));
 
       } catch (error) {
         console.error(chalk.red('\nFailed:'), error);

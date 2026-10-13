@@ -105,8 +105,15 @@ export interface CoverageResult {
     function: number | null;
     statement: number | null;
   };
-  meetsThreshold: boolean;
+  /** `null` = no verdict: nothing was measured (UNMEASURED or estimate only, #1012). */
+  meetsThreshold: boolean | null;
   threshold: number;
+  /** Provenance, the same vocabulary as MCP `coverage_analyze_sublinear` (#1012). */
+  measured?: boolean;
+  estimated?: boolean;
+  unmeasured?: boolean;
+  coverageMethod?: string;
+  warning?: string;
   files?: Array<{
     path: string;
     lineCoverage: number;
@@ -339,17 +346,26 @@ export function toJUnit(summary: TestRunSummary): string {
 
 export function coverageToMarkdown(result: CoverageResult): string {
   let md = `# Coverage Report\n\n`;
+  // #1012: an estimate is labelled and carries no verdict.
+  if (result.estimated) {
+    md += `> **STATIC ESTIMATE — not measured.** ${result.warning ?? ''}\n\n`;
+  }
+  const evaluated = result.meetsThreshold !== null && !result.estimated;
   md += `| Metric | Value | Status |\n`;
   md += `|--------|-------|--------|\n`;
   // #995: an uncollected metric is "n/a", with no pass/fail mark — it is not 0%.
   const row = (label: string, v: number | null): string => v === null
     ? `| ${label} | n/a (not collected) | \u2014 |\n`
-    : `| ${label} | ${v}% | ${v >= result.threshold ? '\u2705' : '\u274C'} |\n`;
+    : evaluated
+      ? `| ${label} | ${v}% | ${v >= result.threshold ? '\u2705' : '\u274C'} |\n`
+      : `| ${label} | ~${v}% (estimate) | \u2014 |\n`;
   md += row('Lines', result.summary.line);
   md += row('Branches', result.summary.branch);
   md += row('Functions', result.summary.function);
   md += row('Statements', result.summary.statement);
-  md += `\n**Threshold:** ${result.threshold}% \u2014 ${result.meetsThreshold ? '\u2705 Met' : '\u274C Not met'}\n`;
+  md += evaluated
+    ? `\n**Threshold:** ${result.threshold}% \u2014 ${result.meetsThreshold ? '\u2705 Met' : '\u274C Not met'}\n`
+    : `\n**Threshold:** ${result.threshold}% \u2014 not evaluated (UNMEASURED)\n`;
 
   if (result.gaps && result.gaps.length > 0) {
     md += `\n## Coverage Gaps\n\n`;

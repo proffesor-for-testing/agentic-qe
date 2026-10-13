@@ -12,6 +12,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { parseCoverageJson } from '../../coordination/handlers/handler-utils.js';
 
 export interface FileCoverage {
   path: string;
@@ -53,22 +54,11 @@ const COVERAGE_JSON_PATHS = [
 ];
 
 /**
- * Istanbul/V8 coverage-final.json entry shape.
- * Each key is an absolute file path mapping to its coverage data.
- */
-interface IstanbulFileCoverage {
-  path: string;
-  statementMap: Record<string, { start: { line: number }; end: { line: number } }>;
-  s: Record<string, number>;
-  branchMap: Record<string, { loc: { start: { line: number }; end: { line: number } } }>;
-  b: Record<string, number[]>;
-  fnMap: Record<string, { loc: { start: { line: number }; end: { line: number } } }>;
-  f: Record<string, number>;
-}
-
-/**
  * Try to read real coverage data from a coverage-final.json file.
  * Returns null if no instrumented coverage is available.
+ *
+ * #1012: per-file figures come from the shared istanbul parser, so the CLI
+ * and MCP compute "line" coverage the same way (source lines, not statements).
  */
 export function readInstrumentedCoverage(projectRoot: string): Map<string, FileCoverage> | null {
   for (const relPath of COVERAGE_JSON_PATHS) {
@@ -76,7 +66,8 @@ export function readInstrumentedCoverage(projectRoot: string): Map<string, FileC
     if (!fs.existsSync(fullPath)) continue;
 
     try {
-      const raw = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      const raw = JSON.parse(content);
 
       // coverage-summary.json has a different shape
       if (raw.total && raw.total.lines) {
@@ -85,48 +76,9 @@ export function readInstrumentedCoverage(projectRoot: string): Map<string, FileC
 
       // coverage-final.json: Record<filepath, IstanbulFileCoverage>
       const coverageMap = new Map<string, FileCoverage>();
-
-      for (const [filePath, entry] of Object.entries(raw)) {
-        const cov = entry as IstanbulFileCoverage;
-        const stmtKeys = Object.keys(cov.s);
-        const stmtCovered = stmtKeys.filter(k => cov.s[k] > 0).length;
-
-        const branchKeys = Object.keys(cov.b);
-        let branchTotal = 0;
-        let branchCovered = 0;
-        for (const k of branchKeys) {
-          for (const count of cov.b[k]) {
-            branchTotal++;
-            if (count > 0) branchCovered++;
-          }
-        }
-
-        const fnKeys = Object.keys(cov.f);
-        const fnCovered = fnKeys.filter(k => cov.f[k] > 0).length;
-
-        // Compute uncovered lines from statement map
-        const coveredLineSet = new Set<number>();
-        const allLineSet = new Set<number>();
-        for (const stmtKey of stmtKeys) {
-          const stmt = cov.statementMap[stmtKey];
-          for (let line = stmt.start.line; line <= stmt.end.line; line++) {
-            allLineSet.add(line);
-            if (cov.s[stmtKey] > 0) coveredLineSet.add(line);
-          }
-        }
-        const uncoveredLines = [...allLineSet].filter(l => !coveredLineSet.has(l)).sort((a, b) => a - b);
-
-        coverageMap.set(filePath, {
-          path: filePath,
-          lines: { covered: coveredLineSet.size, total: allLineSet.size },
-          branches: { covered: branchCovered, total: branchTotal },
-          functions: { covered: fnCovered, total: fnKeys.length },
-          statements: { covered: stmtCovered, total: stmtKeys.length },
-          uncoveredLines,
-          uncoveredBranches: uncoveredLines.slice(0, Math.floor(uncoveredLines.length / 2)),
-        });
+      for (const file of parseCoverageJson(content).files) {
+        coverageMap.set(file.path, file);
       }
-
       return coverageMap.size > 0 ? coverageMap : null;
     } catch {
       // Invalid JSON or unexpected shape — skip
@@ -241,12 +193,17 @@ export function summarizeCoverage(files: FileCoverage[]): CoverageData['summary'
   const safeDiv = (a: number, b: number) => b > 0 ? Math.round((a / b) * 100) : 0;
   const totalLines = sum(f => f.lines.total);
   const coveredLines = sum(f => f.lines.covered);
+  // #1012: statements are statements. A report without statement detail
+  // (lcov) carries its line figures in `statements`, so this falls back alike.
+  const totalStatements = sum(f => f.statements.total);
 
   return {
     line: safeDiv(coveredLines, totalLines),
     branch: safeDiv(sum(f => f.branches.covered), sum(f => f.branches.total)),
     function: safeDiv(sum(f => f.functions.covered), sum(f => f.functions.total)),
-    statement: safeDiv(coveredLines, totalLines),
+    statement: totalStatements > 0
+      ? safeDiv(sum(f => f.statements.covered), totalStatements)
+      : safeDiv(coveredLines, totalLines),
     files: files.length,
   };
 }

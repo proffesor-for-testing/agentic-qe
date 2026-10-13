@@ -97,7 +97,31 @@ export async function loadCoverageData(targetPath: string): Promise<CoverageData
 }
 
 /**
- * Parse Istanbul/nyc coverage-final.json format
+ * Per-line hit counts of one istanbul file entry, computed the way istanbul's
+ * own `FileCoverage#getLineCoverage` (and therefore coverage-summary.json
+ * `lines` and lcov.info `DA:` records) does: each statement counts on its
+ * START line, and a line's count is the highest count of the statements that
+ * start on it. A line is covered when any statement on it ran (#1012).
+ */
+export function istanbulLineHits(fd: Pick<IstanbulFileCoverage, 'statementMap' | 's'>): Map<number, number> {
+  const lineHits = new Map<number, number>();
+  const statementMap = fd.statementMap || {};
+  for (const [id, count] of Object.entries(fd.s || {})) {
+    const line = statementMap[id]?.start?.line;
+    if (typeof line !== 'number') continue;
+    const prev = lineHits.get(line);
+    if (prev === undefined || prev < count) lineHits.set(line, count);
+  }
+  return lineHits;
+}
+
+/**
+ * Parse Istanbul/nyc coverage-final.json format.
+ *
+ * #1012: `lines` are SOURCE LINES (derived from `statementMap` start lines,
+ * as istanbul's own summary does), not statements. Before, statement counts
+ * were reported as "line", so one project had two different line figures
+ * depending on whether coverage-final.json or lcov.info was read.
  */
 export function parseCoverageJson(content: string): CoverageData {
   const data: Record<string, IstanbulFileCoverage> = safeJsonParse(content);
@@ -109,33 +133,23 @@ export function parseCoverageJson(content: string): CoverageData {
 
   for (const [filePath, fileData] of Object.entries(data)) {
     const fd = fileData;
-
-    // Calculate file-level metrics
-    const lineMap = fd.statementMap || {};
-    const lineCounts = fd.s || {};
+    const statementCounts = fd.s || {};
     const branchMap = fd.branchMap || {};
     const branchCounts = fd.b || {};
     const fnCounts = fd.f || {};
 
-    const fileLines = Object.keys(lineCounts).length;
-    const fileCoveredLines = Object.values(lineCounts).filter((v) => v > 0).length;
+    const lineHits = istanbulLineHits(fd);
+    const fileLines = lineHits.size;
+    const fileCoveredLines = [...lineHits.values()].filter(v => v > 0).length;
     const fileBranches = Object.values(branchCounts).flat().length;
     const fileCoveredBranches = Object.values(branchCounts).flat().filter((v) => v > 0).length;
     const fileFunctions = Object.keys(fnCounts).length;
     const fileCoveredFunctions = Object.values(fnCounts).filter((v) => v > 0).length;
-    const fileStatements = Object.keys(lineMap).length;
-    const fileCoveredStatements = Object.values(lineCounts).filter((v) => v > 0).length;
+    const fileStatements = Object.keys(statementCounts).length;
+    const fileCoveredStatements = Object.values(statementCounts).filter((v) => v > 0).length;
 
-    // Find uncovered lines
-    const uncoveredLines: number[] = [];
-    for (const [key, count] of Object.entries(lineCounts)) {
-      if (count === 0) {
-        const stmtInfo = lineMap[key];
-        if (stmtInfo?.start?.line) {
-          uncoveredLines.push(stmtInfo.start.line);
-        }
-      }
-    }
+    // Uncovered lines: lines no statement on which ran.
+    const uncoveredLines = [...lineHits.entries()].filter(([, hits]) => hits === 0).map(([line]) => line);
 
     // Find uncovered branches
     const uncoveredBranches: number[] = [];
@@ -154,7 +168,7 @@ export function parseCoverageJson(content: string): CoverageData {
       branches: { covered: fileCoveredBranches, total: fileBranches },
       functions: { covered: fileCoveredFunctions, total: fileFunctions },
       statements: { covered: fileCoveredStatements, total: fileStatements },
-      uncoveredLines: Array.from(new Set(uncoveredLines)).sort((a, b) => a - b),
+      uncoveredLines: uncoveredLines.sort((a, b) => a - b),
       uncoveredBranches: Array.from(new Set(uncoveredBranches)).sort((a, b) => a - b),
     });
 
