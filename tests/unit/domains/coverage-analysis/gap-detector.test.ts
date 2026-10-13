@@ -229,6 +229,7 @@ describe('GapDetectorService', () => {
             statements: { covered: 20, total: 100 },
           }),
         ]),
+        measured: true, // #1014: only gaps in measured coverage are learned
       };
 
       // Act

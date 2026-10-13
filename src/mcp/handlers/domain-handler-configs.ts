@@ -95,7 +95,8 @@ export interface TestExecuteResult {
   passed: number;
   failed: number;
   duration: number;
-  coverage?: number;
+  /** Measured line coverage of the run, or null when none was collected (#1027 N5). */
+  coverage?: number | null;
   workerStats?: Record<string, unknown>;
   retryStats?: Record<string, unknown>;
   results?: unknown[];
@@ -507,7 +508,8 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     const total = (data.total as number) || 0;
     const passed = (data.passed as number) || 0;
     const failed = (data.failed as number) || 0;
-    const coverage = data.coverage as number | undefined;
+    // #1027 N5: no measured coverage → null, never a hardcoded 0.
+    const coverage = typeof data.coverage === 'number' && Number.isFinite(data.coverage) ? data.coverage : null;
 
     const parallelism = params?.parallelism || 4;
     const realRetryStats = MetricsCollector.getRetryStats();
@@ -627,7 +629,8 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
     const rawLine = summary?.line ?? (data.lineCoverage as number | null | undefined);
     const lineCoverage = rawLine ?? null;
     const rawStatement = summary?.statement ?? (data.statementCoverage as number | null | undefined);
-    const statementCoverage = rawStatement ?? lineCoverage;
+    // #1027 N7: an explicit null (no statement data, e.g. lcov) stays null.
+    const statementCoverage = rawStatement === undefined ? lineCoverage : rawStatement;
 
     const learning = generateV2LearningFeedback('coverage-analyzer');
 
@@ -728,6 +731,7 @@ export const coverageAnalyzeConfig: DomainHandlerConfig<CoverageAnalyzeParams, C
       coverageMethod: (data.coverageMethod as string) ?? 'unknown',
       branchDataCollected,
       functionDataCollected,
+      ...(data.runStatus === 'passed' || data.runStatus === 'failed' ? { runStatus: data.runStatus as 'passed' | 'failed' } : {}),
       // #995: the target has no measurement at all — distinct from a measured 0%.
       ...(data.unmeasured === true ? { unmeasured: true } : {}),
       ...(data.warning ? { warning: data.warning as string } : {}),

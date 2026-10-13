@@ -11,6 +11,7 @@
 
 import type { WorkerMemory } from '../interfaces';
 import type { PriorityQueue, CoverageDeltaPayload, QueueItem, DaemonTaskPayload } from './priority-queue';
+import { measuredCoverageSummary } from '../../domains/quality-assessment/coverage-report-event.js';
 
 export interface CoverageSnapshot {
   readonly timestamp: number;
@@ -20,9 +21,15 @@ export interface CoverageSnapshot {
 
 export interface CoverageMetrics {
   readonly line: number;
-  readonly branch: number;
-  readonly function: number;
-  readonly statement: number;
+  /** `null` = not collected in that snapshot (#1027 B2) — never a fake 0. */
+  readonly branch: number | null;
+  readonly function: number | null;
+  readonly statement: number | null;
+}
+
+/** Delta of a metric; 0 when either side did not collect it (#1027 B2). */
+function metricDelta(now: number | null, before: number | null): number {
+  return now === null || before === null ? 0 : now - before;
 }
 
 export interface FileCoverage {
@@ -107,14 +114,14 @@ export class CoverageDeltaAnalyzer {
 
     const overallDelta: CoverageMetrics = {
       line: current.overall.line - previous.overall.line,
-      branch: current.overall.branch - previous.overall.branch,
-      function: current.overall.function - previous.overall.function,
-      statement: current.overall.statement - previous.overall.statement,
+      branch: metricDelta(current.overall.branch, previous.overall.branch ?? null),
+      function: metricDelta(current.overall.function, previous.overall.function ?? null),
+      statement: metricDelta(current.overall.statement, previous.overall.statement ?? null),
     };
 
     const regressionDetected =
       overallDelta.line < -this.options.regressionThreshold ||
-      overallDelta.branch < -this.options.regressionThreshold;
+      (overallDelta.branch ?? 0) < -this.options.regressionThreshold;
 
     // Compute per-file deltas
     const filesToCheck = changedFiles ?? Object.keys(current.files);
@@ -170,14 +177,9 @@ export class CoverageDeltaAnalyzer {
    * Build a CoverageSnapshot from raw lcov/istanbul data stored in memory.
    */
   async buildSnapshot(memory: WorkerMemory): Promise<CoverageSnapshot | undefined> {
-    const latest = await memory.get<{
-      line: number;
-      branch: number;
-      function: number;
-      statement: number;
-      files?: Record<string, FileCoverage>;
-    }>('coverage:latest');
-
+    const raw = await memory.get<{ files?: Record<string, FileCoverage> | number }>('coverage:latest');
+    // #1014: only a measured record is a snapshot; legacy/estimated records are not.
+    const latest = measuredCoverageSummary(raw);
     if (!latest) return undefined;
 
     return {
@@ -188,7 +190,7 @@ export class CoverageDeltaAnalyzer {
         function: latest.function,
         statement: latest.statement,
       },
-      files: latest.files ?? {},
+      files: raw && typeof raw.files === 'object' ? raw.files : {},
     };
   }
 

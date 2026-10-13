@@ -13,12 +13,14 @@
  *         and nothing is written into the project.
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runJsCoverage } from '../../src/coordination/handlers/coverage-runner';
 import { evaluateCoverageForTarget } from '../../src/coordination/handlers/coverage-target';
+import { parseLcovInfo } from '../../src/coordination/handlers/handler-utils';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const fixtures: string[] = [];
@@ -103,4 +105,43 @@ describe('#995 review BL3 — our --outputFile wins over every user outputFile s
       root, join(root, 'src'), { numTotalTests: r.numTotalTests });
     expect(verdict).toEqual({ status: 'no-data', reason: 'no-tests-ran' });
   }, 120_000);
+});
+
+describe('#1012 — the auto-run path reports LINE coverage, the same figure as lcov.info and the summary', () => {
+  // Several statements per line, so istanbul statements != lines.
+  const MULTI = [
+    'export function add(a: number, b: number): number { const s = a + b; return s; }',
+    'export function unused(x: number): number { const y = x * 2; const z = y + 1; const w = z - 3; return w; }',
+    'export function unused2(x: number): number { const y = x * 3; const z = y + 1; const w = z - 3; return w; }',
+    '',
+  ].join('\n');
+
+  it('runJsCoverage line % equals coverage-summary.json lines and lcov.info of the same project', async () => {
+    const root = project({
+      config: "export default { test: { coverage: { include: ['src/**'] } } };\n",
+      test: "import { it, expect } from 'vitest';\nimport { add } from '../src/math';\nit('adds', () => { expect(add(1, 2)).toBe(3); });\n",
+    });
+    writeFileSync(join(root, 'src', 'math.ts'), MULTI);
+
+    const r = await run(root);
+    expect(r.data).not.toBeNull();
+    const auto = evaluateCoverageForTarget(r.data!, root, join(root, 'src'), { numTotalTests: r.numTotalTests });
+    expect(auto.status).toBe('measured');
+    if (auto.status !== 'measured') return;
+    const [file] = auto.files;
+
+    // The same project, reported by vitest itself as summary + lcov.
+    const out = join(root, '.ref-coverage');
+    const ref = spawnSync(process.execPath, [join(repo, 'node_modules', 'vitest', 'vitest.mjs'), 'run', '--coverage',
+      `--coverage.reportsDirectory=${out}`, '--coverage.reporter=json-summary', '--coverage.reporter=lcov'],
+      { cwd: root, encoding: 'utf8', timeout: 90_000 });
+    expect(ref.status, ref.stderr).toBe(0);
+    const summary = JSON.parse(readFileSync(join(out, 'coverage-summary.json'), 'utf8')).total;
+    const lcov = parseLcovInfo(readFileSync(join(out, 'lcov.info'), 'utf8'));
+
+    expect(summary.lines.pct).not.toBe(summary.statements.pct); // the fixture distinguishes them
+    expect(file.lines).toEqual({ covered: summary.lines.covered, total: summary.lines.total });
+    expect(file.statements).toEqual({ covered: summary.statements.covered, total: summary.statements.total });
+    expect(file.lines).toEqual(lcov.files[0].lines);
+  }, 180_000);
 });

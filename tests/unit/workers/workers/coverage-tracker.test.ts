@@ -17,6 +17,7 @@ function createMockContext(overrides: Partial<{
     function: number;
     statement: number;
     timestamp: Date;
+    measured?: true;
   } | undefined;
 }> = {}): WorkerContext {
   const { previousCoverage } = overrides;
@@ -31,7 +32,8 @@ function createMockContext(overrides: Partial<{
           return Promise.resolve(previousCoverage);
         }
         if (key === 'coverage:latest') {
-          return Promise.resolve({ line: 78.5, branch: 65.2, function: 82.1, statement: 79.3, files: 5 });
+          // #1018: only a measured record is coverage.
+          return Promise.resolve({ line: 78.5, branch: 65.2, function: 82.1, statement: 79.3, files: 5, measured: true });
         }
         // Return gap data for gap-pattern:* keys (used by identifyCoverageGaps)
         if (key === 'gap-pattern:1') {
@@ -218,6 +220,7 @@ describe('CoverageTrackerWorker', () => {
           function: 90,
           statement: 85,
           timestamp: new Date(Date.now() - 3600000),
+          measured: true,
         },
       });
 

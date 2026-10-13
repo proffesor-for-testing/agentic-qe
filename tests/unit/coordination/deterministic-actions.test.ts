@@ -212,9 +212,31 @@ describe('coverage-threshold action', () => {
 
     expect(result.success).toBe(true);
     const data = result.value;
-    expect(data.currentCoverage).toBe(0); // no DB available → 0
+    // #1027 N6: no measured session → unmeasured (null), never 0%; still fails.
+    expect(data.currentCoverage).toBeNull();
+    expect(data.unmeasured).toBe(true);
+    expect(data.gap).toBeNull();
     expect(data.passed).toBe(false);
     expect(data.source).toBe('database');
+  });
+
+  it('#1027 N6: no measured coverage_sessions row → unmeasured, not 0%', async () => {
+    mockUnifiedMemory({ coverage: undefined });
+    const action = findDeterministicAction('coverage-analysis', 'threshold-check')!;
+    const result = await action.execute({}, makeContext());
+    expect(result.success).toBe(true);
+    expect(result.value).toMatchObject({ currentCoverage: null, unmeasured: true, passed: false, source: 'database' });
+    vi.doUnmock('../../../src/kernel/unified-memory.js');
+  });
+
+  it('#1027 N6: gate-check reports unmeasured coverage as null and fails that check', async () => {
+    mockUnifiedMemory({ coverage: undefined, testOutcomes: { total: 10, passed: 10 }, bugs: { bugs: 0 } });
+    const action = findDeterministicAction('quality-assessment', 'gate-check')!;
+    const result = await action.execute({}, makeContext());
+    expect(result.success).toBe(true);
+    expect(result.value.details.coverage).toMatchObject({ current: null, passed: false, unmeasured: true });
+    expect(result.value.passed).toBe(false);
+    vi.doUnmock('../../../src/kernel/unified-memory.js');
   });
 });
 

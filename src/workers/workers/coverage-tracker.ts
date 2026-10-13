@@ -17,6 +17,7 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { measuredCoverageSummary } from '../../domains/quality-assessment/coverage-report-event.js';
 
 const CONFIG: WorkerConfig = {
   id: 'coverage-tracker',
@@ -33,10 +34,15 @@ const CONFIG: WorkerConfig = {
 
 interface CoverageMetrics {
   line: number;
-  branch: number;
-  function: number;
-  statement: number;
+  /** `null` = not collected (no branch data in the measurement). */
+  branch: number | null;
+  /** `null` = not collected (no function data in the measurement). */
+  function: number | null;
+  /** `null` = not collected (lcov / Cobertura carry no statement data). */
+  statement: number | null;
   timestamp: Date;
+  /** Provenance stamp: only measured coverage is ever stored (#1018). */
+  measured: true;
 }
 
 interface CoverageGap {
@@ -48,7 +54,8 @@ interface CoverageGap {
 }
 
 interface CoverageTrend {
-  current: CoverageMetrics;
+  /** `null` = no measured coverage exists: nothing to track (#1018). */
+  current: CoverageMetrics | null;
   previous?: CoverageMetrics;
   weeklyAverage?: CoverageMetrics;
 }
@@ -69,39 +76,51 @@ export class CoverageTrackerWorker extends BaseWorker {
     const trend = await this.collectCoverageTrend(context);
     const gaps = await this.identifyCoverageGaps(context);
 
-    // Analyze coverage thresholds
-    this.analyzeCoverageThresholds(trend.current, findings, recommendations);
-
     // Analyze coverage gaps
     this.analyzeCoverageGaps(gaps, findings, recommendations);
 
-    // Analyze trends
-    this.analyzeCoverageTrends(trend, findings, recommendations);
-
-    // Store current metrics
-    await context.memory.set('coverage:current', trend.current);
+    // #1018: with no measured coverage there is nothing to compare, nothing
+    // to store, and no figure to report — never a fake 0% record.
+    const current = trend.current;
+    if (current) {
+      this.analyzeCoverageThresholds(current, findings, recommendations);
+      this.analyzeCoverageTrends({ ...trend, current }, findings, recommendations);
+      await context.memory.set('coverage:current', current);
+    } else {
+      findings.push({
+        type: 'coverage-unmeasured',
+        severity: 'info',
+        domain: 'coverage-analysis',
+        title: 'Coverage Unmeasured',
+        description: 'No measured coverage exists yet (no instrumented coverage:latest). Nothing was ' +
+          'tracked; this is not 0% coverage. Run tests with coverage or coverage_analyze_sublinear.',
+      });
+    }
     await context.memory.set('coverage:gaps', gaps);
 
-    const healthScore = this.calculateHealthScore(trend.current, gaps);
+    const healthScore = this.calculateHealthScore(current, gaps);
 
     context.logger.info('Coverage tracking complete', {
       healthScore,
+      measured: current !== null,
       findingsCount: findings.length,
       gapsFound: gaps.length,
     });
 
+    const pct = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `${v}%`);
     return this.createResult(
       Date.now() - startTime,
       {
-        itemsAnalyzed: gaps.length + 4, // 4 coverage types + gaps
-        issuesFound: findings.length,
+        itemsAnalyzed: gaps.length + (current ? 4 : 0), // 4 coverage types + gaps
+        issuesFound: findings.filter(f => f.severity !== 'info').length,
         healthScore,
-        trend: this.determineTrend(trend),
+        trend: current ? this.determineTrend({ ...trend, current }) : 'stable',
         domainMetrics: {
-          lineCoverage: `${trend.current.line}%`,
-          branchCoverage: `${trend.current.branch}%`,
-          functionCoverage: `${trend.current.function}%`,
-          statementCoverage: `${trend.current.statement}%`,
+          coverageMeasured: current ? 'true' : 'false',
+          lineCoverage: current ? pct(current.line) : 'unmeasured',
+          branchCoverage: current ? pct(current.branch) : 'unmeasured',
+          functionCoverage: current ? pct(current.function) : 'unmeasured',
+          statementCoverage: current ? pct(current.statement) : 'unmeasured',
           gapsCount: gaps.length,
         },
       },
@@ -111,20 +130,25 @@ export class CoverageTrackerWorker extends BaseWorker {
   }
 
   private async collectCoverageTrend(context: WorkerContext): Promise<CoverageTrend> {
-    const previous = await context.memory.get<CoverageMetrics>('coverage:current');
+    // A previous record is a baseline only if it was measured (#1018): older
+    // versions wrote an all-zero coverage:current when nothing was measured.
+    const stored = await context.memory.get<CoverageMetrics>('coverage:current');
+    const previous = stored && stored.measured === true && Number.isFinite(stored.line) ? stored : undefined;
 
-    // Read real coverage data from coverage:latest (written by coverage-analyzer
-    // and test-executor). Fall back to zeros when no data is available.
-    const latest = await context.memory.get<{
-      line: number; branch: number; function: number; statement: number;
-    }>('coverage:latest');
+    // Real coverage comes from coverage:latest (written by coverage-analyzer,
+    // test-executor and the quality-assessment listener). Only a record
+    // stamped measured:true with finite figures counts (#1008/#1018); a
+    // missing, legacy or estimated record means "unmeasured" — never zeros.
+    const latest = measuredCoverageSummary(await context.memory.get<unknown>('coverage:latest'));
+    if (!latest) return { current: null, previous };
 
     const current: CoverageMetrics = {
-      line: latest?.line ?? 0,
-      branch: latest?.branch ?? 0,
-      function: latest?.function ?? 0,
-      statement: latest?.statement ?? 0,
+      line: latest.line,
+      branch: latest.branch,
+      function: latest.function,
+      statement: latest.statement,
       timestamp: new Date(),
+      measured: true,
     };
 
     return { current, previous };
@@ -174,7 +198,7 @@ export class CoverageTrackerWorker extends BaseWorker {
       });
     }
 
-    if (coverage.branch < thresholds.branch) {
+    if (coverage.branch !== null && coverage.branch < thresholds.branch) {
       findings.push({
         type: 'low-branch-coverage',
         severity: coverage.branch < 50 ? 'high' : 'medium',
@@ -195,7 +219,7 @@ export class CoverageTrackerWorker extends BaseWorker {
       });
     }
 
-    if (coverage.function < thresholds.function) {
+    if (coverage.function !== null && coverage.function < thresholds.function) {
       findings.push({
         type: 'low-function-coverage',
         severity: 'medium',
@@ -266,14 +290,15 @@ export class CoverageTrackerWorker extends BaseWorker {
   }
 
   private analyzeCoverageTrends(
-    trend: CoverageTrend,
+    trend: CoverageTrend & { current: CoverageMetrics },
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
     if (!trend.previous) return;
 
     const lineChange = trend.current.line - trend.previous.line;
-    const branchChange = trend.current.branch - trend.previous.branch;
+    const branchChange = trend.current.branch !== null && trend.previous.branch !== null
+      ? trend.current.branch - trend.previous.branch : 0;
 
     if (lineChange < -2) {
       findings.push({
@@ -316,25 +341,36 @@ export class CoverageTrackerWorker extends BaseWorker {
     }
   }
 
-  private calculateHealthScore(coverage: CoverageMetrics, gaps: CoverageGap[]): number {
-    // Weight: line 25%, branch 25%, function 20%, statement 20%, gaps 10%
-    const lineScore = (coverage.line / 100) * 25;
-    const branchScore = (coverage.branch / 100) * 25;
-    const functionScore = (coverage.function / 100) * 20;
-    const statementScore = (coverage.statement / 100) * 20;
-
+  private calculateHealthScore(coverage: CoverageMetrics | null, gaps: CoverageGap[]): number {
     // Gaps penalty
     const highRiskGaps = gaps.filter((g) => g.riskScore > 0.8).length;
     const gapsScore = Math.max(0, 10 - highRiskGaps * 2);
 
-    return Math.round(lineScore + branchScore + functionScore + statementScore + gapsScore);
+    // #1018: with no measurement, only the gap component is known; it is
+    // scaled to 0-100 rather than mixed with invented 0% coverage.
+    if (!coverage) return gapsScore * 10;
+
+    // Weight: line 25%, branch 25%, function 20%, statement 20%, gaps 10%.
+    // An uncollected metric is left out and the rest are re-weighted.
+    const parts: Array<[number | null, number]> = [
+      [coverage.line, 25], [coverage.branch, 25], [coverage.function, 20], [coverage.statement, 20],
+    ];
+    const present = parts.filter((p): p is [number, number] => p[0] !== null);
+    const weight = present.reduce((a, [, w]) => a + w, 0);
+    const coverageScore = present.reduce((a, [v, w]) => a + (v / 100) * w, 0) * (90 / weight);
+
+    return Math.round(coverageScore + gapsScore);
   }
 
-  private determineTrend(trend: CoverageTrend): 'improving' | 'stable' | 'degrading' {
+  private determineTrend(trend: CoverageTrend & { current: CoverageMetrics }): 'improving' | 'stable' | 'degrading' {
     if (!trend.previous) return 'stable';
 
-    const avgCurrent = (trend.current.line + trend.current.branch + trend.current.function + trend.current.statement) / 4;
-    const avgPrevious = (trend.previous.line + trend.previous.branch + trend.previous.function + trend.previous.statement) / 4;
+    const avg = (c: CoverageMetrics) => {
+      const values = [c.line, c.branch, c.function, c.statement].filter((v): v is number => v !== null);
+      return values.reduce((a, v) => a + v, 0) / values.length;
+    };
+    const avgCurrent = avg(trend.current);
+    const avgPrevious = avg(trend.previous);
 
     if (avgCurrent > avgPrevious + 1) return 'improving';
     if (avgCurrent < avgPrevious - 1) return 'degrading';

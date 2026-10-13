@@ -135,6 +135,7 @@ import {
 } from './services/coherence-gate-service.js';
 
 import type { ICoherenceService } from '../../integrations/coherence/coherence-service.js';
+import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Interface for the test generation coordinator
@@ -1267,6 +1268,8 @@ export class TestGenerationCoordinator
   }
 
   private async handleCoverageGapDetected(event: DomainEvent): Promise<void> {
+    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
+    if (!isMeasuredGapPayload(event.payload)) return;
     // Auto-generate tests for detected coverage gaps
     const payload = event.payload as {
       file: string;

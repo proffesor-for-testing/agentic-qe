@@ -195,9 +195,11 @@ export interface ITestRunResult {
 export interface IFileCoverageData {
   path: string;
   line: number;
-  branch: number;
-  function: number;
-  statement: number;
+  /** `null` = no branches in the file (istanbul 0/0): not collected, not 100% (#1015). */
+  branch: number | null;
+  /** `null` = no functions in the file (istanbul 0/0): not collected, not 100% (#1015). */
+  function: number | null;
+  statement: number | null;
 }
 
 export interface IFailedTest {
@@ -211,9 +213,11 @@ export interface IFailedTest {
 
 export interface ICoverageData {
   line: number;
-  branch: number;
-  function: number;
-  statement: number;
+  /** `null` = not collected (no branches anywhere), never a fake 0 or 100 (#1015). */
+  branch: number | null;
+  /** `null` = not collected (no functions anywhere), never a fake 0 or 100 (#1015). */
+  function: number | null;
+  statement: number | null;
 }
 
 export interface IFlakyDetectionRequest {

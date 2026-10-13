@@ -87,6 +87,7 @@ import {
 // CQ-004: Extracted modules
 import * as LearningHelpers from './coordinator-helpers.js';
 import * as ConsensusHelpers from './coordinator-consensus.js';
+import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Workflow status tracking
@@ -1338,8 +1339,10 @@ export class LearningOptimizationCoordinator
   }
 
   private async handleCoverageGap(event: {
-    payload: { gapId: string; file: string; riskScore: number };
+    payload: { gapId: string; file: string; riskScore: number; measured?: boolean };
   }): Promise<void> {
+    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
+    if (!isMeasuredGapPayload(event.payload)) return;
     // Record as experience for learning
     const { gapId, file, riskScore } = event.payload;
 

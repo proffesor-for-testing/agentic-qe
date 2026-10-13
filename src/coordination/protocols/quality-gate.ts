@@ -22,6 +22,7 @@ import {
 } from '../../kernel/interfaces';
 import { createEvent } from '../../shared/events/domain-events';
 import { toErrorMessage, toError } from '../../shared/error-utils.js';
+import { measuredCoverageSummary } from '../../domains/quality-assessment/coverage-report-event.js';
 
 // ============================================================================
 // Protocol Events
@@ -834,21 +835,16 @@ export class QualityGateProtocol implements IQualityGateProtocol {
   ): Promise<AggregatedMetrics['coverage'] | null> {
     try {
       // Try to get latest coverage data from memory
-      const latestCoverage = await this.memory.get<{
-        line: number;
-        branch: number;
-        function: number;
-        statement: number;
-      }>('coverage:latest');
+      // #1014: only a measured record is coverage evidence; a legacy
+      // unstamped or estimated record is "no data" (the gate fails closed).
+      const latestCoverage = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
 
       if (!latestCoverage) {
         return null;
       }
 
-      // Get previous coverage for trend
-      const previousCoverage = await this.memory.get<{
-        line: number;
-      }>('coverage:previous');
+      // Get previous coverage for trend (measured baselines only, #1015)
+      const previousCoverage = measuredCoverageSummary(await this.memory.get<unknown>('coverage:previous'));
 
       let trend: 'improving' | 'declining' | 'stable' = 'stable';
       if (previousCoverage) {
@@ -859,9 +855,10 @@ export class QualityGateProtocol implements IQualityGateProtocol {
 
       return {
         line: latestCoverage.line,
-        branch: latestCoverage.branch,
-        function: latestCoverage.function,
-        statement: latestCoverage.statement,
+        // An uncollected metric has no evidence: 0 fails its check closed.
+        branch: latestCoverage.branch ?? 0,
+        function: latestCoverage.function ?? 0,
+        statement: latestCoverage.statement ?? 0,
         trend,
       };
     } catch {

@@ -361,6 +361,7 @@ describe('DefectIntelligencePlugin', () => {
           file: 'src/critical.ts',
           uncoveredLines: [10, 11, 12, 13],
           riskScore: 0.9,
+          measured: true,
         }
       );
 
@@ -368,6 +369,18 @@ describe('DefectIntelligencePlugin', () => {
 
       const stored = await memory.get('defect-intelligence:coverage-gap:gap_123');
       expect(stored).toBeDefined();
+    });
+
+    it('ignores a coverage gap event without measured provenance (#1014)', async () => {
+      const event = createMockEvent(
+        'coverage-analysis.CoverageGapDetected',
+        'coverage-analysis',
+        { gapId: 'gap_est', file: 'src/critical.ts', uncoveredLines: [10], riskScore: 0.9 }
+      );
+
+      await plugin.handleEvent(event);
+
+      expect(await memory.get('defect-intelligence:coverage-gap:gap_est')).toBeUndefined();
     });
 
     it('should not store low-risk coverage gaps', async () => {

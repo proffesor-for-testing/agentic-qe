@@ -65,8 +65,30 @@ export interface JsCoverageRun {
    * not be read — "unknown", which callers must not treat as 0.
    */
   numTotalTests: number | null;
+  /**
+   * Per-outcome counts from the runner's JSON result (#1027 NB1/NB2), null
+   * when unknown. A failing suite is decided from these, not the exit code:
+   * vitest also exits non-zero for a coverage-threshold failure.
+   */
+  numPassedTests?: number | null;
+  numFailedTests?: number | null;
+  numPendingTests?: number | null;
+  numFailedTestSuites?: number | null;
   /** The runner's first error line plus the last ~2 KB of its stderr, for diagnosing a crash. */
   stderrTail: string;
+}
+
+/**
+ * Outcome of a coverage run's tests (#1027 NB2): 'failed' when the runner's
+ * own result reports a failed test or test suite, 'passed' when it reports
+ * none — whatever the exit code (a coverage-threshold failure exits 1 with
+ * every test passing). Without counts (nyc), the exit code decides.
+ */
+export function testRunStatus(run: JsCoverageRun): 'passed' | 'failed' {
+  if (typeof run.numFailedTests === 'number' || typeof run.numFailedTestSuites === 'number') {
+    return (run.numFailedTests ?? 0) > 0 || (run.numFailedTestSuites ?? 0) > 0 ? 'failed' : 'passed';
+  }
+  return run.exitedCleanly ? 'passed' : 'failed';
 }
 
 const RESULTS_FILE = 'test-results.json';
@@ -134,13 +156,76 @@ function readDeps(projectRoot: string): Record<string, string> {
   }
 }
 
+const RUNNER_DEPS = ['jest', '@jest/core', 'mocha', 'nyc', 'vitest'];
+
+/**
+ * The project and its ancestors up to the repository / workspace root: the
+ * project itself, then each parent, stopping after the directory holding
+ * `.git` (or a `workspaces` manifest), at $HOME, or after `maxDepth` levels.
+ */
+function projectAndAncestors(projectRoot: string, maxDepth = 10): string[] {
+  const dirs: string[] = [];
+  let home: string | null = null;
+  try { home = fs.realpathSync(os.homedir()); } catch { home = null; }
+  let dir = path.resolve(projectRoot);
+  for (let i = 0; i <= maxDepth; i++) {
+    if (i > 0 && home !== null && dir === home) break;
+    dirs.push(dir);
+    if (fs.existsSync(path.join(dir, '.git')) || isWorkspaceRoot(dir)) break;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return dirs;
+}
+
+function isWorkspaceRoot(dir: string): boolean {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8')) as Record<string, unknown>;
+    return pkg.workspaces !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Dependencies that decide the runner (#1012): the package's own when it
+ * declares a test runner, otherwise those of the nearest ancestor (workspace
+ * root) that does. A package of a monorepo whose jest is declared only at the
+ * root runs jest, not the vitest default.
+ */
+function readRunnerDeps(projectRoot: string): Record<string, string> {
+  for (const dir of projectAndAncestors(projectRoot)) {
+    const deps = readDeps(dir);
+    if (RUNNER_DEPS.some(d => deps[d])) return deps;
+  }
+  return {};
+}
+
+/**
+ * Every `node_modules/.bin` from the project up to the workspace root,
+ * nearest first. Runners that shell out to sibling tools (nyc → mocha) need
+ * the hoisted ones too (#1012).
+ */
+export function runnerBinDirs(projectRoot: string): string[] {
+  return projectAndAncestors(projectRoot)
+    .map(dir => path.join(dir, 'node_modules', '.bin'))
+    .filter(dir => fs.existsSync(dir));
+}
+
+/** Is the project installed with Yarn Plug'n'Play (no node_modules to resolve from)? */
+function usesPlugNPlay(projectRoot: string): boolean {
+  return projectAndAncestors(projectRoot).some(dir =>
+    fs.existsSync(path.join(dir, '.pnp.cjs')) || fs.existsSync(path.join(dir, '.pnp.js')));
+}
+
 /**
  * Pick the runner and its argv. No shell is involved: `command` is the Node
  * binary and `args[0]` the runner's JS entry, so paths are passed verbatim.
  */
 export function buildJsCoverageInvocation(projectRoot: string, reportDir: string): JsCoverageInvocation {
   const resultsFile = path.join(reportDir, RESULTS_FILE);
-  const deps = readDeps(projectRoot);
+  const deps = readRunnerDeps(projectRoot);
 
   let runner: JsRunnerName = 'vitest';
   let runnerArgs: string[];
@@ -159,8 +244,10 @@ export function buildJsCoverageInvocation(projectRoot: string, reportDir: string
     // vitest is the default — covers vitest, @vitest/coverage-v8, etc.
     // Plain `--outputFile=` (not `.json=`): it overrides a string, object, or
     // absent `outputFile` in the user's config alike.
+    // #1027 N4: vitest writes no coverage when a test fails unless asked;
+    // coverage from a failing suite is still a measurement (runStatus 'failed').
     runnerArgs = ['run', '--coverage', `--coverage.reportsDirectory=${reportDir}`,
-      '--coverage.reporter=json', '--reporter=json', `--outputFile=${resultsFile}`];
+      '--coverage.reporter=json', '--coverage.reportOnFailure=true', '--reporter=json', `--outputFile=${resultsFile}`];
   }
 
   const bin = findPackageBin(projectRoot, runner === 'jest' ? 'jest' : runner);
@@ -172,13 +259,30 @@ export function buildJsCoverageInvocation(projectRoot: string, reportDir: string
   };
 }
 
-function readNumTotalTests(resultsFile: string | null): number | null {
-  if (!resultsFile) return null;
+interface RunCounts {
+  numTotalTests: number | null;
+  numPassedTests: number | null;
+  numFailedTests: number | null;
+  numPendingTests: number | null;
+  numFailedTestSuites: number | null;
+}
+
+const NO_COUNTS: RunCounts = {
+  numTotalTests: null, numPassedTests: null, numFailedTests: null, numPendingTests: null, numFailedTestSuites: null,
+};
+
+/** Test counts from the runner's own JSON result (vitest/jest share the shape). */
+function readRunCounts(resultsFile: string | null): RunCounts {
+  if (!resultsFile) return NO_COUNTS;
   try {
-    const parsed = JSON.parse(fs.readFileSync(resultsFile, 'utf-8')) as { numTotalTests?: unknown };
-    return typeof parsed.numTotalTests === 'number' ? parsed.numTotalTests : null;
+    const parsed = JSON.parse(fs.readFileSync(resultsFile, 'utf-8')) as Record<string, unknown>;
+    const n = (k: string) => (typeof parsed[k] === 'number' ? parsed[k] as number : null);
+    return {
+      numTotalTests: n('numTotalTests'), numPassedTests: n('numPassedTests'), numFailedTests: n('numFailedTests'),
+      numPendingTests: n('numPendingTests'), numFailedTestSuites: n('numFailedTestSuites'),
+    };
   } catch {
-    return null;
+    return NO_COUNTS;
   }
 }
 
@@ -364,15 +468,16 @@ export async function runJsCoverage(
       };
     }
 
-    // Runners that shell out to sibling tools (nyc → mocha) find them here.
-    const binDir = path.join(projectRoot, 'node_modules', '.bin');
+    // Runners that shell out to sibling tools (nyc → mocha) find them here,
+    // including hoisted workspace-root installs (#1012).
+    const binDirs = runnerBinDirs(projectRoot);
     // The runner's own temp files (vite's SSR cache, etc.) go inside reportDir
     // too, so a killed run leaves nothing behind in the system temp dir.
     const runnerTmp = path.join(reportDir, 'tmp');
     fs.mkdirSync(runnerTmp);
     const env = {
       ...process.env,
-      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+      PATH: [...binDirs, process.env.PATH ?? ''].join(path.delimiter),
       TMPDIR: runnerTmp, TMP: runnerTmp, TEMP: runnerTmp,
     };
 
@@ -389,7 +494,7 @@ export async function runJsCoverage(
       timedOut: run.timedOut,
       timeoutMs,
       data,
-      numTotalTests: run.timedOut ? null : readNumTotalTests(inv.resultsFile),
+      ...(run.timedOut ? NO_COUNTS : readRunCounts(inv.resultsFile)),
       stderrTail: run.stderrTail,
     };
   } finally {
@@ -402,6 +507,12 @@ export async function runJsCoverage(
  * Never "No instrumentation ran" when the runner did run and failed.
  */
 export function describeRunFailure(run: JsCoverageRun, projectRoot: string): string {
+  if (run.missing && usesPlugNPlay(projectRoot)) {
+    return `${run.runner} could not be resolved for ${projectRoot}: this project uses Yarn Plug'n'Play, ` +
+      'and agentic-qe resolves test runners only from node_modules. Nothing was run and nothing was downloaded. ' +
+      `Generate a coverage report (e.g. \`yarn ${run.runner} --coverage\`) and pass it as the target, ` +
+      'or use the node-modules linker.';
+  }
   if (run.missing) {
     return `${run.runner} is not installed in ${projectRoot} (no node_modules/${run.runner} found); ` +
       'nothing was run and nothing was downloaded. Install it, or generate a coverage report and pass it as the target.';

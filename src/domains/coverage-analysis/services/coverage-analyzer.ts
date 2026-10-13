@@ -23,8 +23,10 @@ import {
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
-import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { writeQualityEvidence, writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
+import { measuredCoverageSummary } from '../../quality-assessment/coverage-report-event.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { collectedMetrics, collectedSummary, fileCoverageKey, type CollectedSummary } from '../collected-metrics.js';
 
 /**
  * Whether an analyze request carries instrumented (measured) coverage (#1008).
@@ -36,6 +38,7 @@ export function isMeasuredCoverage(request: AnalyzeCoverageRequest): boolean {
   if (typeof request.measured === 'boolean') return request.measured;
   return request.coverageData.instrumented === true;
 }
+
 
 // ============================================================================
 // Service Interface
@@ -187,20 +190,25 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
       // quality_assess or another reader would take it as measured.
       const measured = isMeasuredCoverage(request);
 
+      // #1027 B2: a metric the report never collected is null wherever it is
+      // persisted or compared — never the 0 calculateMetrics yields for it.
+      const collected = collectedMetrics(coverageData.files);
+      const stored = collectedSummary(summary, collected);
+
       // Calculate delta from previous coverage (if stored)
-      const delta = measured ? await this.calculateDelta(summary) : undefined;
+      const delta = measured ? await this.calculateDelta(stored) : undefined;
 
       // Generate recommendations based on analysis
       const recommendations = this.generateRecommendations(coverageData, summary, threshold);
 
       if (measured) {
         // Store current coverage for future delta calculations
-        await this.storeCoverageSnapshot(summary);
+        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun);
 
         // Store coverage vectors for similarity search + KV for quality-analyzer
         if (request.includeFileDetails) {
-          await this.indexFileCoverageVectors(coverageData.files);
-          await this.storeFileCoverageKV(coverageData.files);
+          await this.indexFileCoverageVectors(coverageData.files, request.projectRoot);
+          await this.storeFileCoverageKV(coverageData.files, request.projectRoot, request.runStatus);
         }
       }
 
@@ -210,6 +218,8 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
         delta,
         recommendations,
         measured,
+        collected,
+        ...(request.runStatus ? { runStatus: request.runStatus } : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -578,18 +588,25 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
     return 'low';
   }
 
-  private async calculateDelta(current: CoverageSummary): Promise<CoverageDelta | undefined> {
+  private async calculateDelta(current: CollectedSummary): Promise<CoverageDelta | undefined> {
     try {
-      const previous = await this.memory.get<CoverageSummary>('coverage:latest');
+      // #1015: only a measured baseline with finite figures is a baseline. A
+      // legacy unstamped record (e.g. the `{"files":0}` bridge echo removed in
+      // #1013) gave a NaN delta that was reported as "stable".
+      const previous = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
 
       if (!previous) {
         return undefined;
       }
 
+      // A metric not collected on EITHER side has no delta (0 — never NaN,
+      // never a fake swing against an uncollected 0, #1027 B2).
+      const diff = (now: number | null, before: number | null) =>
+        (now === null || before === null ? 0 : now - before);
       const lineDelta = current.line - previous.line;
-      const branchDelta = current.branch - previous.branch;
-      const functionDelta = current.function - previous.function;
-      const statementDelta = current.statement - previous.statement;
+      const branchDelta = diff(current.branch, previous.branch);
+      const functionDelta = diff(current.function, previous.function);
+      const statementDelta = diff(current.statement, previous.statement);
 
       const avgDelta = (lineDelta + branchDelta + functionDelta + statementDelta) / 4;
 
@@ -614,25 +631,41 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
     }
   }
 
-  private async storeCoverageSnapshot(summary: CoverageSummary): Promise<void> {
+  private async storeCoverageSnapshot(
+    summary: CollectedSummary,
+    runStatus?: 'passed' | 'failed',
+    testRun?: AnalyzeCoverageRequest['testRun']
+  ): Promise<void> {
     try {
-      // Rotate: copy current coverage:latest → coverage:previous before overwriting
-      const existing = await this.memory.get<CoverageSummary>('coverage:latest');
+      // Rotate: copy current coverage:latest → coverage:previous before
+      // overwriting — only a measured record (#1015): legacy junk is dropped,
+      // never promoted to the baseline.
+      const existing = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
       if (existing) {
         await this.memory.set('coverage:previous', existing, { persist: true });
       }
 
       // Store latest snapshot, stamped with its provenance (#1008). Only
       // measured coverage reaches this method.
-      await this.memory.set('coverage:latest', { ...summary, measured: true }, { persist: true });
-      await writeQualityEvidence(this.memory, { coverage: summary.line }, {
-        measuredAt: new Date().toISOString(),
-        source: 'coverage-analysis',
-      });
+      // #1027: uncollected metrics are null; runStatus says if tests failed (N4).
+      const record = { ...summary, measured: true, ...(runStatus ? { runStatus } : {}) };
+      await this.memory.set('coverage:latest', record, { persist: true });
+      if (testRun) {
+        // #1027 NB1: the run's testsPassing and coverage, under one runId.
+        await writeTestRunEvidence(this.memory, testRun, { source: 'coverage-analysis', coverage: summary.line });
+      } else {
+        // No counts: a failing run's coverage carries runStatus but no runId,
+        // so the gate will not pair it with any testsPassing (fail-closed).
+        await writeQualityEvidence(this.memory, { coverage: summary.line }, {
+          measuredAt: new Date().toISOString(),
+          source: 'coverage-analysis',
+          ...(runStatus ? { runStatus } : {}),
+        });
+      }
 
       // Store historical snapshot
       const timestamp = Date.now();
-      await this.memory.set(`coverage:history:${timestamp}`, summary, {
+      await this.memory.set(`coverage:history:${timestamp}`, record, {
         persist: true,
         namespace: 'coverage-history',
       });
@@ -646,23 +679,27 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
    * and defect-predictor can read it with memory.get().
    * (The vector index via storeVector is kept for similarity search.)
    */
-  private async storeFileCoverageKV(files: FileCoverage[]): Promise<void> {
+  private async storeFileCoverageKV(
+    files: FileCoverage[],
+    projectRoot?: string,
+    runStatus?: 'passed' | 'failed'
+  ): Promise<void> {
     for (const file of files) {
       try {
-        const linePct = file.lines.total > 0
-          ? Math.round((file.lines.covered / file.lines.total) * 10000) / 100 : 0;
-        const branchPct = file.branches.total > 0
-          ? Math.round((file.branches.covered / file.branches.total) * 10000) / 100 : 0;
-        const fnPct = file.functions.total > 0
-          ? Math.round((file.functions.covered / file.functions.total) * 10000) / 100 : 0;
-        const stmtPct = file.statements.total > 0
-          ? Math.round((file.statements.covered / file.statements.total) * 10000) / 100 : 0;
+        // #1014: a metric with no data is null (not collected), never 0%.
+        const pct = (m: { covered: number; total: number }) =>
+          m.total > 0 ? Math.round((m.covered / m.total) * 10000) / 100 : null;
+        if (file.lines.total === 0) continue;
 
-        await this.memory.set(`coverage:file:${file.path}`, {
-          line: linePct,
-          branch: branchPct,
-          function: fnPct,
-          statement: stmtPct,
+        // #1014: stamped, so readers can tell it from legacy unstamped
+        // estimate records written by <= 3.15.4.
+        await this.memory.set(`coverage:file:${fileCoverageKey(file.path, projectRoot)}`, {
+          line: pct(file.lines),
+          branch: pct(file.branches),
+          function: pct(file.functions),
+          statement: pct(file.statements),
+          measured: true,
+          ...(runStatus ? { runStatus } : {}),
         }, { persist: true });
       } catch {
         // Non-critical, continue
@@ -670,12 +707,12 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
     }
   }
 
-  private async indexFileCoverageVectors(files: FileCoverage[]): Promise<void> {
+  private async indexFileCoverageVectors(files: FileCoverage[], projectRoot?: string): Promise<void> {
     for (const file of files) {
       try {
         // Create a vector representation of the file coverage
         const embedding = this.createCoverageEmbedding(file);
-        await this.memory.storeVector(`coverage:file:${file.path}`, embedding, {
+        await this.memory.storeVector(`coverage:file:${fileCoverageKey(file.path, projectRoot)}`, embedding, {
           path: file.path,
           lineCoverage: file.lines.covered / (file.lines.total || 1),
           branchCoverage: file.branches.covered / (file.branches.total || 1),

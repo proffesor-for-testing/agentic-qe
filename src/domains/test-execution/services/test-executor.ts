@@ -23,7 +23,9 @@ import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constant
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
-import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
+import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
+import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../../shared/test-runner-args.js';
@@ -422,8 +424,8 @@ Provide:
     const { testFiles, framework, timeout = 30000 } = request;
 
     const failedTests: FailedTest[] = [];
-    const coverages: Array<{ line: number; branch: number; function: number; statement: number }> = [];
-    const allFileCoverages: Array<{ path: string; line: number; branch: number; function: number; statement: number }> = [];
+    const coverages: CoverageFigures[] = [];
+    const allFileCoverages: FileCoverageFigures[] = [];
     let passed = 0;
     let failed = 0;
     let skipped = 0;
@@ -1190,31 +1192,26 @@ Provide:
    * (bypassing this method), so the unweighted average only applies when
    * individual file JSON outputs each report their own summary.
    */
-  private aggregateCoverage(coverages: Array<{
-    line: number;
-    branch: number;
-    function: number;
-    statement: number;
-  }>): { line: number; branch: number; function: number; statement: number } | undefined {
+  private aggregateCoverage(coverages: CoverageFigures[]): CoverageFigures | undefined {
     if (coverages.length === 0) {
       return undefined;
     }
 
-    const sum = coverages.reduce(
-      (acc, cov) => ({
-        line: acc.line + cov.line,
-        branch: acc.branch + cov.branch,
-        function: acc.function + cov.function,
-        statement: acc.statement + cov.statement,
-      }),
-      { line: 0, branch: 0, function: 0, statement: 0 }
-    );
-
+    // #1015: average each metric over the entries that collected it; a
+    // metric nobody collected stays null.
+    const mean = (values: Array<number | null>): number | null => {
+      const present = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+      return present.length > 0
+        ? Math.round((present.reduce((a, v) => a + v, 0) / present.length) * 100) / 100
+        : null;
+    };
+    const line = mean(coverages.map(c => c.line));
+    if (line === null) return undefined;
     return {
-      line: Math.round((sum.line / coverages.length) * 100) / 100,
-      branch: Math.round((sum.branch / coverages.length) * 100) / 100,
-      function: Math.round((sum.function / coverages.length) * 100) / 100,
-      statement: Math.round((sum.statement / coverages.length) * 100) / 100,
+      line,
+      branch: mean(coverages.map(c => c.branch)),
+      function: mean(coverages.map(c => c.function)),
+      statement: mean(coverages.map(c => c.statement)),
     };
   }
 
@@ -1231,71 +1228,69 @@ Provide:
   private extractCoverageFromJson(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     json: any
-  ): { summary?: { line: number; branch: number; function: number; statement: number }; perFile: Array<{ path: string; line: number; branch: number; function: number; statement: number }> } {
-    const perFile: Array<{ path: string; line: number; branch: number; function: number; statement: number }> = [];
+  ): { summary?: CoverageFigures; perFile: FileCoverageFigures[] } {
+    const perFile: FileCoverageFigures[] = [];
     try {
       // Jest shape: { coverageSummary: { total: { lines: { pct }, branches: { pct }, ... } } }
       const total = json?.coverageSummary?.total ?? json?.coverageMap?.total;
       if (total?.lines?.pct !== undefined) {
+        const line = summaryPct(total.lines);
         return {
-          summary: {
-            line: typeof total.lines?.pct === 'number' ? total.lines.pct : 0,
-            branch: typeof total.branches?.pct === 'number' ? total.branches.pct : 0,
-            function: typeof total.functions?.pct === 'number' ? total.functions.pct : 0,
-            statement: typeof total.statements?.pct === 'number' ? total.statements.pct : 0,
+          summary: line === null ? undefined : {
+            line,
+            branch: summaryPct(total.branches),
+            function: summaryPct(total.functions),
+            statement: summaryPct(total.statements),
           },
           perFile,
         };
       }
 
-      // Vitest v8 shape: coverageMap is keyed by file path
+      // Vitest v8 shape: coverageMap is keyed by file path (istanbul entries)
       const coverageMap = json?.coverageMap;
       if (coverageMap && typeof coverageMap === 'object') {
         const files = Object.keys(coverageMap).filter(k => k !== 'total');
-        if (files.length > 0) {
-          let lines = 0, branches = 0, functions = 0, statements = 0;
-          let count = 0;
-          for (const filePath of files) {
-            const entry = coverageMap[filePath];
-            const s = entry?.s ?? {};
-            const f = entry?.f ?? {};
-            const b = entry?.b ?? {};
+        const totals = { line: [0, 0], branch: [0, 0], function: [0, 0], statement: [0, 0] };
+        for (const filePath of files) {
+          const entry = coverageMap[filePath];
+          const s: Record<string, number> = entry?.s ?? {};
+          const f: Record<string, number> = entry?.f ?? {};
+          const b: Record<string, number[] | number> = entry?.b ?? {};
 
-            const stmtTotal = Object.keys(s).length;
-            const stmtCovered = Object.values(s).filter((v: unknown) => (v as number) > 0).length;
-            const fnTotal = Object.keys(f).length;
-            const fnCovered = Object.values(f).filter((v: unknown) => (v as number) > 0).length;
-            const brTotal = Object.keys(b).length;
-            const brCovered = Object.values(b).filter((v: unknown) =>
-              Array.isArray(v) ? (v as number[]).every(c => c > 0) : (v as number) > 0
-            ).length;
+          // #1012: line coverage per SOURCE LINE (istanbul's own rule), not per statement.
+          const lineHits = istanbulLineHits({ statementMap: entry?.statementMap ?? {}, s });
+          const lines = [[...lineHits.values()].filter(v => v > 0).length, lineHits.size];
+          const statements = [Object.values(s).filter(v => v > 0).length, Object.keys(s).length];
+          const fns = [Object.values(f).filter(v => v > 0).length, Object.keys(f).length];
+          const branchCounts = Object.values(b).flatMap(v => (Array.isArray(v) ? v : [v]));
+          const branches = [branchCounts.filter(c => c > 0).length, branchCounts.length];
+          if (lines[1] === 0) continue;
 
-            if (stmtTotal > 0) {
-              const fileLine = Math.round((stmtCovered / stmtTotal) * 10000) / 100;
-              const fileFn = fnTotal > 0 ? Math.round((fnCovered / fnTotal) * 10000) / 100 : 100;
-              const fileBr = brTotal > 0 ? Math.round((brCovered / brTotal) * 10000) / 100 : 100;
-              const fileStmt = fileLine;
-
-              perFile.push({ path: filePath, line: fileLine, branch: fileBr, function: fileFn, statement: fileStmt });
-              statements += fileStmt;
-              lines += fileLine;
-              functions += fileFn;
-              branches += fileBr;
-              count++;
-            }
+          // #1015: istanbul's 0/0 (no branches / no functions) is "not
+          // collected" — null — not 100%.
+          perFile.push({
+            path: filePath,
+            line: ratio(lines)!,
+            branch: ratio(branches),
+            function: ratio(fns),
+            statement: ratio(statements),
+          });
+          for (const [key, [covered, count]] of [['line', lines], ['branch', branches], ['function', fns], ['statement', statements]] as const) {
+            totals[key][0] += covered;
+            totals[key][1] += count;
           }
+        }
 
-          if (count > 0) {
-            return {
-              summary: {
-                line: Math.round((lines / count) * 100) / 100,
-                branch: Math.round((branches / count) * 100) / 100,
-                function: Math.round((functions / count) * 100) / 100,
-                statement: Math.round((statements / count) * 100) / 100,
-              },
-              perFile,
-            };
-          }
+        if (perFile.length > 0) {
+          return {
+            summary: {
+              line: ratio(totals.line)!,
+              branch: ratio(totals.branch),
+              function: ratio(totals.function),
+              statement: ratio(totals.statement),
+            },
+            perFile,
+          };
         }
       }
     } catch {
@@ -1310,8 +1305,8 @@ Provide:
    * still decides whether coverage is collected.
    */
   private readCoverageFromDisk(coverageDirectory: string): {
-    summary: { line: number; branch: number; function: number; statement: number };
-    perFile: Array<{ path: string; line: number; branch: number; function: number; statement: number }>;
+    summary: CoverageFigures;
+    perFile: FileCoverageFigures[];
   } | undefined {
     try {
       // Check common coverage output paths
@@ -1328,29 +1323,35 @@ Provide:
 
         // coverage-summary.json shape: { total: { lines: { pct }, ... }, "/path": { lines: { pct }, ... } }
         if (json?.total?.lines?.pct !== undefined) {
-          const perFile: Array<{ path: string; line: number; branch: number; function: number; statement: number }> = [];
+          const perFile: FileCoverageFigures[] = [];
           for (const [key, value] of Object.entries(json)) {
             if (key === 'total') continue;
             // Normalize path: strip cwd prefix, reject traversal sequences
-            const normalizedPath = key.replace(process.cwd() + '/', '').replace(process.cwd() + '\\', '');
-            if (normalizedPath.includes('..')) continue;
-            const entry = value as { lines?: { pct: number }; branches?: { pct: number }; functions?: { pct: number }; statements?: { pct: number } };
-            if (entry?.lines?.pct !== undefined) {
+            // Reject traversal; keep the key absolute (#1027 N7: one key form).
+            const relative = key.replace(process.cwd() + '/', '').replace(process.cwd() + '\\', '');
+            if (relative.includes('..')) continue;
+            const normalizedPath = fileCoverageKey(key);
+            const entry = value as Record<string, SummaryMetric | undefined>;
+            const line = summaryPct(entry?.lines);
+            if (line !== null) {
+              // #1015: a metric with total 0 is not collected (null), not its 100 pct.
               perFile.push({
                 path: normalizedPath,
-                line: entry.lines.pct,
-                branch: entry.branches?.pct ?? 0,
-                function: entry.functions?.pct ?? 0,
-                statement: entry.statements?.pct ?? 0,
+                line,
+                branch: summaryPct(entry.branches),
+                function: summaryPct(entry.functions),
+                statement: summaryPct(entry.statements),
               });
             }
           }
+          const line = summaryPct(json.total.lines);
+          if (line === null) continue;
           return {
             summary: {
-              line: json.total.lines.pct,
-              branch: json.total.branches?.pct ?? 0,
-              function: json.total.functions?.pct ?? 0,
-              statement: json.total.statements?.pct ?? 0,
+              line,
+              branch: summaryPct(json.total.branches),
+              function: summaryPct(json.total.functions),
+              statement: summaryPct(json.total.statements),
             },
             perFile,
           };
@@ -1376,44 +1377,58 @@ Provide:
       persist: true,
     });
 
+    // A runner ERROR has no trustworthy result: it persists no evidence.
+    if (result.status === 'error') return;
+    const runStatus: 'passed' | 'failed' = result.failed > 0 || result.status !== 'passed' ? 'failed' : 'passed';
+    const coverage = result.coverage && Number.isFinite(result.coverage.line) ? result.coverage : undefined;
+
+    try {
+      // #1027 NB1: this run's testsPassing and (when measured) its coverage,
+      // written together under this runId — the same writer as
+      // `aqe test execute`. Coverage from a run whose tests FAILED (N4) is
+      // then never read next to a stale testsPassing from an earlier run.
+      await writeTestRunEvidence(this.memory, {
+        runId, passed: result.passed, failed: result.failed, skipped: result.skipped,
+      }, { source: 'test-execution', ...(coverage ? { coverage: coverage.line } : {}) });
+    } catch {
+      // Non-critical — don't break test storage if evidence storage fails
+    }
+
     // Store coverage data so quality-assess and quality-gate can read it.
     // Note: coverage:previous rotation is owned by coverage-analyzer (the
     // canonical coverage service) to avoid double-rotation race conditions.
-    if (result.coverage) {
-      try {
-        // Write project-level summary using the same CoverageSummary shape
-        // as coverage-analyzer to avoid type mismatches
-        await this.memory.set('coverage:latest', {
-          line: result.coverage.line ?? 0,
-          branch: result.coverage.branch ?? 0,
-          function: result.coverage.function ?? 0,
-          statement: result.coverage.statement ?? 0,
-          files: result.fileCoverages?.length ?? 0,
-        }, { persist: true });
-        if (Number.isFinite(result.coverage.line)) {
-          await writeQualityEvidence(this.memory, {
-            coverage: result.coverage.line,
-          }, {
-            measuredAt: new Date().toISOString(),
-            source: 'test-execution coverage',
-          });
-        }
+    if (!coverage) return;
+    try {
+      // Same CoverageSummary shape as coverage-analyzer, stamped with its
+      // provenance (#1008/#1015) so readers can trust it. An uncollected
+      // metric stays null — never 0, never istanbul's 0/0 = 100%.
+      await this.memory.set('coverage:latest', {
+        line: coverage.line,
+        branch: coverage.branch ?? null,
+        function: coverage.function ?? null,
+        statement: coverage.statement ?? null,
+        files: result.fileCoverages?.length ?? 0,
+        measured: true,
+        runStatus,
+        runId,
+      }, { persist: true });
 
-        // Store per-file coverage via memory.set() (not storeVector) so that
-        // quality-analyzer's getStoredCoverage() can read it with memory.get()
-        if (result.fileCoverages) {
-          for (const fc of result.fileCoverages) {
-            await this.memory.set(`coverage:file:${fc.path}`, {
-              line: fc.line,
-              branch: fc.branch,
-              function: fc.function,
-              statement: fc.statement,
-            }, { persist: true });
-          }
-        }
-      } catch {
-        // Non-critical — don't break test storage if coverage store fails
+      // Store per-file coverage via memory.set() (not storeVector) so that
+      // quality-analyzer's getStoredCoverage() can read it with memory.get()
+      for (const fc of result.fileCoverages ?? []) {
+        if (!Number.isFinite(fc.line)) continue;
+        // #1027 N7: one key form — the absolute path.
+        await this.memory.set(`coverage:file:${fileCoverageKey(fc.path)}`, {
+          line: fc.line,
+          branch: fc.branch ?? null,
+          function: fc.function ?? null,
+          statement: fc.statement ?? null,
+          measured: true,
+          runStatus,
+        }, { persist: true });
       }
+    } catch {
+      // Non-critical — don't break test storage if coverage store fails
     }
   }
 }
@@ -1436,24 +1451,42 @@ export function createTestExecutorService(
 // Internal Types
 // ============================================================================
 
+/** Coverage percentages; `null` = metric not collected (#1015). */
+interface CoverageFigures {
+  line: number;
+  branch: number | null;
+  function: number | null;
+  statement: number | null;
+}
+
+interface FileCoverageFigures extends CoverageFigures {
+  path: string;
+}
+
+interface SummaryMetric { total?: number; covered?: number; pct?: number }
+
+/** covered/total as a 2-decimal percentage, or null when there is nothing to cover. */
+function ratio([covered, total]: readonly number[]): number | null {
+  return total > 0 ? Math.round((covered / total) * 10000) / 100 : null;
+}
+
+/**
+ * A coverage-summary metric's percentage. istanbul writes `pct: 100` for a
+ * metric with `total: 0`; that is "not collected" — null (#1015).
+ */
+function summaryPct(metric: SummaryMetric | undefined): number | null {
+  if (!metric || typeof metric.pct !== 'number' || !Number.isFinite(metric.pct)) return null;
+  if (typeof metric.total === 'number' && metric.total === 0) return null;
+  return metric.pct;
+}
+
 interface TestExecutionResult {
   total: number;
   passed: number;
   failed: number;
   skipped: number;
   failedTests: FailedTest[];
-  coverage?: {
-    line: number;
-    branch: number;
-    function: number;
-    statement: number;
-  };
+  coverage?: CoverageFigures;
   /** Per-file coverage entries for granular storage */
-  fileCoverages?: Array<{
-    path: string;
-    line: number;
-    branch: number;
-    function: number;
-    statement: number;
-  }>;
+  fileCoverages?: FileCoverageFigures[];
 }

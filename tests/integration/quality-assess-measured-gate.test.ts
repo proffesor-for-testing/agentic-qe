@@ -123,7 +123,8 @@ describe('registered quality_assess measured gate', () => {
 
   /** Measured coverage the static analyzer reads (written by coverage analysis). */
   async function seedStaticCoverage(line = 90): Promise<void> {
-    await memory.set('coverage:latest', { line, branch: line, function: line, statement: line, files: 1 });
+    // #1014: measured records carry the provenance stamp; unstamped ones are legacy.
+    await memory.set('coverage:latest', { line, branch: line, function: line, statement: line, files: 1, measured: true });
   }
 
   afterAll(async () => {

@@ -307,6 +307,19 @@ aqe hooks route --task "generate tests"  # Test hook routing
 
 All commands support `--format json|markdown` and `--output <file>` for CI/CD integration. Exit codes follow conventions: 0 = pass, 1 = fail, 2 = warning; `aqe quality` also exits 3 when evidence is insufficient (a metric is absent, stale or malformed, so the gate was not evaluated).
 
+`aqe coverage` exit codes:
+
+| Exit | Meaning |
+|------|---------|
+| 0 | Measured coverage meets the threshold (by more than 5%) |
+| 1 | Measured coverage below the threshold, or an error (missing target, unreadable report) |
+| 2 | Measured coverage within 5% above the threshold |
+| 3 | UNMEASURED: the report has no entry for the target, the runner ran 0 tests, only test files were reported, **or no coverage report exists** — then only a labelled static estimate is shown (`-F json`: `measured: false, estimated: true, coverageMethod: "static-estimation"`, `meetsThreshold: null`) |
+
+Metrics a report does not collect (no branch/function data; lcov and Cobertura have no statement data) are shown as n/a (`null` in JSON) and left out of the threshold.
+
+In `aqe ci run`, the coverage phase uses the same verdict. An UNMEASURED result (target not in the report, or estimate only) is a **warning** with phase exit code 3 — it does **not** fail the pipeline on its own. With an enforced quality gate (`quality_gate.enforced: true`), missing coverage evidence fails the gate, and so the pipeline.
+
 ### 4. MCP Server — For Tool-Based Integration
 
 AQE exposes 60+ tools via the Model Context Protocol. Any AI coding tool that supports MCP can call these tools programmatically.

@@ -287,7 +287,8 @@ describe('CoverageAnalyzerService', () => {
 
     it('should calculate delta when previous coverage exists', async () => {
       // Arrange
-      memory.get.mockResolvedValueOnce({ line: 70, branch: 65, function: 80, statement: 75 });
+      // #1015: only a measured baseline with finite figures is a baseline.
+      memory.get.mockResolvedValueOnce({ line: 70, branch: 65, function: 80, statement: 75, files: 1, measured: true });
       const request: AnalyzeCoverageRequest = {
         coverageData: createCoverageData([
           createFileCoverage({

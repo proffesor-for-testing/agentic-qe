@@ -22,6 +22,21 @@ export interface QualityEvidenceRecord {
   value: number;
   measuredAt: string;
   source: string;
+  /**
+   * The test run this figure came from, when it came from one (#1027 NB1).
+   * Coverage and testsPassing written from one run share the runId.
+   */
+  runId?: string;
+  /** Whether that run's tests passed (#1027 NB1). */
+  runStatus?: 'passed' | 'failed';
+}
+
+/** Metadata of an evidence write; `runId`/`runStatus` scope it to one test run. */
+export interface QualityEvidenceMetadata {
+  measuredAt: string;
+  source: string;
+  runId?: string;
+  runStatus?: 'passed' | 'failed';
 }
 
 export interface QualityThreshold {
@@ -96,7 +111,7 @@ function validateRecord(
 export async function writeQualityEvidence(
   memory: MemoryBackend,
   values: Partial<QualityEvidenceValues>,
-  metadata: { measuredAt: string; source: string },
+  metadata: QualityEvidenceMetadata,
 ): Promise<void> {
   const now = Date.now();
   parseMeasuredAt(metadata.measuredAt, now, Number.POSITIVE_INFINITY);
@@ -116,12 +131,55 @@ export async function writeQualityEvidence(
       value,
       measuredAt: metadata.measuredAt,
       source: metadata.source,
+      ...(metadata.runId ? { runId: metadata.runId } : {}),
+      ...(metadata.runStatus ? { runStatus: metadata.runStatus } : {}),
     };
     await memory.set(evidenceKey(metric), record, {
       namespace: QUALITY_EVIDENCE_NAMESPACE,
       persist: true,
     });
   }
+}
+
+/** Test counts of one run. */
+export interface TestRunCounts {
+  passed: number;
+  failed: number;
+  skipped?: number;
+}
+
+/**
+ * testsPassing as `aqe test execute` has always computed it: passed over all
+ * tests, skipped included; a run with no tests is 0 (#1027 NB1: one formula).
+ */
+export function testsPassingPercent(run: TestRunCounts): number {
+  const total = run.passed + run.failed + (run.skipped ?? 0);
+  return total > 0 ? (run.passed / total) * 100 : 0;
+}
+
+/**
+ * Record the evidence of ONE test run (#1027 NB1): its testsPassing and, when
+ * it measured coverage, its coverage — both stamped with the same runId and
+ * runStatus. The single writer for `aqe test execute`, test_execute_parallel
+ * (TestExecutorService) and the coverage auto-run, so coverage from a failing
+ * run can never sit next to a stale testsPassing from an earlier run.
+ */
+export async function writeTestRunEvidence(
+  memory: MemoryBackend,
+  run: TestRunCounts & { runId: string },
+  options: { source: string; coverage?: number; measuredAt?: string },
+): Promise<void> {
+  const runStatus: 'passed' | 'failed' = run.failed > 0 ? 'failed' : 'passed';
+  const metadata: QualityEvidenceMetadata = {
+    measuredAt: options.measuredAt ?? new Date().toISOString(),
+    source: options.source,
+    runId: run.runId,
+    runStatus,
+  };
+  await writeQualityEvidence(memory, {
+    testsPassing: testsPassingPercent(run),
+    ...(typeof options.coverage === 'number' && Number.isFinite(options.coverage) ? { coverage: options.coverage } : {}),
+  }, metadata);
 }
 
 /** #996: the single status word for "a verdict cannot be reached on this evidence". */
@@ -206,6 +264,7 @@ export async function inspectQualityEvidence(
   const maxAgeMs = options.maxAgeMs ?? DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS;
   const values: Partial<QualityEvidenceValues> = {};
   const problems: UnusableQualityEvidence[] = [];
+  const valid: Partial<Record<QualityMetricName, QualityEvidenceRecord>> = {};
 
   for (const metric of QUALITY_METRICS) {
     const record = await memory.get<QualityEvidenceRecord>(evidenceKey(metric), {
@@ -214,9 +273,23 @@ export async function inspectQualityEvidence(
     try {
       validateRecord(record, metric, now, maxAgeMs);
       values[metric] = record.value;
+      valid[metric] = record;
     } catch (error) {
       problems.push({ metric, reason: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  // #1027 NB1: coverage measured in a run whose tests FAILED is evidence only
+  // next to the testsPassing of that same run — never next to a stale figure
+  // from an earlier (passing) run, which would let the gate pass.
+  const coverage = valid.coverage;
+  if (coverage?.runStatus === 'failed' && (!coverage.runId || valid.testsPassing?.runId !== coverage.runId)) {
+    delete values.coverage;
+    problems.push({
+      metric: 'coverage',
+      reason: 'Measured coverage comes from a run with failing tests, but no testsPassing evidence '
+        + 'from that same run was recorded. Re-run the test suite.',
+    });
   }
   return { values, problems };
 }

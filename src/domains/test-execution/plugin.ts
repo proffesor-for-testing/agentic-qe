@@ -10,6 +10,7 @@ import { TestExecutionAPI, IExecuteTestsRequest, ISimpleTestRequest } from './in
 import { TestExecutionCoordinator, createTestExecutionCoordinator } from './coordinator';
 import { getGlobalInfraHealing } from '../../strange-loop/infra-healing/global-instance.js';
 import type { HybridRouter } from '../../shared/llm/router/hybrid-router.js';
+import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 // ============================================================================
 // Plugin Implementation
@@ -272,6 +273,8 @@ export class TestExecutionPlugin extends BaseDomainPlugin {
   }
 
   private async handleCoverageGapDetected(event: DomainEvent): Promise<void> {
+    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
+    if (!isMeasuredGapPayload(event.payload)) return;
     const payload = event.payload as {
       gapId: string;
       file: string;

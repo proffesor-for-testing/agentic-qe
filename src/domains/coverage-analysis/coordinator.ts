@@ -33,6 +33,7 @@ import {
   CoverageQLPrediction,
   QLPrioritizedTests,
   PrioritizedTest,
+  isMeasuredGapRequest,
 } from './interfaces';
 import {
   CoverageAnalyzerService,
@@ -586,8 +587,12 @@ export class CoverageAnalysisCoordinator
           verifiedGaps.push(gap);
         }
 
-        // Publish gap detection events for verified high-risk gaps
-        await this.publishGapEvents(verifiedGaps);
+        // Publish gap detection events for verified high-risk gaps — only for
+        // MEASURED coverage (#1014). Consumers learn from these events
+        // (learning-optimization experiences, code/defect-intel KV).
+        if (isMeasuredGapRequest(request)) {
+          await this.publishGapEvents(verifiedGaps);
+        }
 
         // Return result with verified gaps
         return ok({
@@ -681,9 +686,12 @@ export class CoverageAnalysisCoordinator
             function: number;
             statement: number;
             files: number;
+            measured?: boolean;
           }>(key);
 
-          if (summary) {
+          // #1014: only measured snapshots are trend points. Unstamped legacy
+          // snapshots (estimates were written here up to 3.15.4) are skipped.
+          if (summary && summary.measured === true && Number.isFinite(summary.line)) {
             dataPoints.push({ date, coverage: summary });
           }
         }
@@ -844,11 +852,13 @@ export class CoverageAnalysisCoordinator
     const payload: CoverageReportPayload = {
       reportId: crypto.randomUUID(),
       line: report.summary.line,
-      branch: report.summary.branch,
-      function: report.summary.function,
-      statement: report.summary.statement,
+      // #1027 B2: an uncollected metric travels as null, never as its 0.
+      branch: report.collected && !report.collected.branch ? null : report.summary.branch,
+      function: report.collected && !report.collected.function ? null : report.summary.function,
+      statement: report.collected && !report.collected.statement ? null : report.summary.statement,
       files: report.summary.files,
       measured: true,
+      ...(report.runStatus ? { runStatus: report.runStatus } : {}),
     };
 
     const event = createEvent(
@@ -873,6 +883,9 @@ export class CoverageAnalysisCoordinator
         uncoveredLines: gap.lines,
         uncoveredBranches: gap.branches,
         riskScore: gap.riskScore,
+        // #1014: provenance — only measured gaps are ever published.
+        measured: true,
+        coverageMethod: 'instrumented-report',
       };
 
       const event = createEvent(

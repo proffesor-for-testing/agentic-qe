@@ -95,10 +95,15 @@ export const TestExecutionEvents = {
 export interface CoverageReportPayload {
   reportId: string;
   line: number;
-  branch: number;
-  function: number;
-  statement: number;
+  /** `null` = the report collected no branch data (not 0%, #1027). */
+  branch: number | null;
+  /** `null` = the report collected no function data (not 0%, #1027). */
+  function: number | null;
+  /** `null` = the report collected no statement data (lcov, Cobertura). */
+  statement: number | null;
   files: number;
+  /** Outcome of the test run behind the report, when known (#1027 N4). */
+  runStatus?: 'passed' | 'failed';
   /** False for a static estimate; consumers must not store it as coverage (#1008). */
   measured?: boolean;
 }
@@ -109,6 +114,19 @@ export interface CoverageGapPayload {
   uncoveredLines: number[];
   uncoveredBranches: number[];
   riskScore: number;
+  /**
+   * Provenance (#1014): true only for a gap found in MEASURED coverage. Gaps
+   * from a static estimate are never published; consumers must ignore any
+   * event without `measured: true` (legacy or foreign publishers).
+   */
+  measured: boolean;
+  /** How the underlying coverage was obtained, e.g. 'instrumented-report'. */
+  coverageMethod?: string;
+}
+
+/** Is this CoverageGapDetected payload a gap in measured coverage? (#1014, fail-closed) */
+export function isMeasuredGapPayload(payload: unknown): boolean {
+  return !!payload && typeof payload === 'object' && (payload as Record<string, unknown>).measured === true;
 }
 
 export const CoverageAnalysisEvents = {

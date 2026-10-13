@@ -45,6 +45,7 @@ import {
   IRootCauseAnalyzerService,
   RootCauseAnalyzerConfig,
 } from './services/root-cause-analyzer';
+import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Plugin configuration options
@@ -478,6 +479,8 @@ export class DefectIntelligencePlugin extends BaseDomainPlugin {
   }
 
   private async handleCoverageGap(event: DomainEvent): Promise<void> {
+    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
+    if (!isMeasuredGapPayload(event.payload)) return;
     // Coverage gap detected - assess defect risk
     const payload = event.payload as {
       gapId: string;

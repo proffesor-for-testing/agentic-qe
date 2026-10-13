@@ -17,6 +17,7 @@ import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-m
 import type { QEDomain } from './qe-patterns.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { createLogger } from '../logging/logger-factory.js';
+import { isLearnableResult } from './learnable-result.js';
 
 const ecLogger = createLogger('ExperienceCapture');
 
@@ -345,16 +346,17 @@ export function recordExperienceStep(
  * carries no verdict, so it is neither a success nor a failure to learn from.
  * #1014: likewise a successful coverage-analysis result that is not a
  * measurement (static estimate, unmeasured target, or no provenance).
- * Same semantics as the shared `isLearnableResult` (#1014); dedupe on merge.
+ * Implemented by the shared `isLearnableResult` (#1014 / #1021 dedupe, #1027 B1).
  */
 export function isInsufficientEvidenceResult(
   result: { success: boolean; data?: unknown },
   domain?: string,
 ): boolean {
-  const data = result.data as { status?: unknown; evidenceStatus?: unknown; measured?: unknown } | null | undefined;
-  if (domain === 'coverage-analysis' && result.success && data?.measured !== true) return true;
-  if (!data || typeof data !== 'object') return false;
-  return data.status === 'insufficient-evidence' || data.evidenceStatus === 'insufficient-evidence';
+  // Delegates to the shared predicate (#1014/#1021 dedupe). A FAILED
+  // coverage-analysis call is still a real failure record, so only the
+  // insufficient-evidence status applies to it.
+  if (domain === 'coverage-analysis' && !result.success) return !isLearnableResult('', result.data);
+  return !isLearnableResult(domain ?? '', result.data);
 }
 
 /**

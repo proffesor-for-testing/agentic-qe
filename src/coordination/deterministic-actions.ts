@@ -12,6 +12,7 @@
 
 import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
+import { MEASURED_COVERAGE_SESSION_SQL } from '../feedback/coverage-session-provenance.js';
 
 // ============================================================================
 // Types
@@ -79,10 +80,12 @@ const qualityGateCheck: DeterministicAction = {
         try {
           // Latest coverage from coverage_sessions
           if (currentCoverage === null) {
+            // #1014: skip legacy estimate/unmeasured rows without provenance.
             const row = db.prepare(
-              `SELECT after_lines FROM coverage_sessions ORDER BY created_at DESC LIMIT 1`,
+              `SELECT after_lines FROM coverage_sessions WHERE ${MEASURED_COVERAGE_SESSION_SQL} ORDER BY created_at DESC LIMIT 1`,
             ).get() as { after_lines: number } | undefined;
-            currentCoverage = row?.after_lines ?? 0;
+            // #1027 N6: no measured session → unmeasured (null), never 0%.
+            currentCoverage = typeof row?.after_lines === 'number' ? row.after_lines : null;
           }
 
           // Test pass rate from recent test_outcomes
@@ -112,18 +115,19 @@ const qualityGateCheck: DeterministicAction = {
       }
     }
 
-    // Apply defaults for anything still null
-    currentCoverage = currentCoverage ?? 0;
+    // Apply defaults for anything still null — except coverage (#1027 N6):
+    // unmeasured coverage stays null and fails its check (no evidence ≠ 0%).
+    const coverageMeasured = currentCoverage !== null;
     currentTestsPassingRate = currentTestsPassingRate ?? 0;
     currentBugs = currentBugs ?? 0;
 
-    const coveragePassed = currentCoverage >= coverageMin;
+    const coveragePassed = currentCoverage !== null && currentCoverage >= coverageMin;
     const testsPassed = currentTestsPassingRate >= testsPassingMin;
     const bugsPassed = currentBugs <= maxBugs;
     const passed = coveragePassed && testsPassed && bugsPassed;
 
     // Score is a normalized 0-1 value
-    const coverageScore = Math.min(currentCoverage / coverageMin, 1);
+    const coverageScore = currentCoverage === null ? 0 : Math.min(currentCoverage / coverageMin, 1);
     const testsScore = Math.min(currentTestsPassingRate / testsPassingMin, 1);
     const bugsScore = maxBugs > 0 ? Math.max(0, 1 - currentBugs / maxBugs) : (currentBugs === 0 ? 1 : 0);
     const score = (coverageScore + testsScore + bugsScore) / 3;
@@ -133,7 +137,10 @@ const qualityGateCheck: DeterministicAction = {
       score: Math.round(score * 100) / 100,
       source: typeof input.currentCoverage === 'number' ? 'input' : 'database',
       details: {
-        coverage: { current: currentCoverage, threshold: coverageMin, passed: coveragePassed },
+        coverage: {
+          current: currentCoverage, threshold: coverageMin, passed: coveragePassed,
+          ...(coverageMeasured ? {} : { unmeasured: true }),
+        },
         testsPassing: { current: currentTestsPassingRate, threshold: testsPassingMin, passed: testsPassed },
         bugs: { current: currentBugs, threshold: maxBugs, passed: bugsPassed },
       },
@@ -161,20 +168,23 @@ const coverageThresholdCheck: DeterministicAction = {
       const db = tryGetDb();
       if (db) {
         try {
+          // #1014: skip legacy estimate/unmeasured rows without provenance.
           const row = db.prepare(
-            `SELECT after_lines FROM coverage_sessions ORDER BY created_at DESC LIMIT 1`,
+            `SELECT after_lines FROM coverage_sessions WHERE ${MEASURED_COVERAGE_SESSION_SQL} ORDER BY created_at DESC LIMIT 1`,
           ).get() as { after_lines: number } | undefined;
-          currentCoverage = row?.after_lines ?? 0;
+          // #1027 N6: no measured session → unmeasured (null), never 0%.
+          currentCoverage = typeof row?.after_lines === 'number' ? row.after_lines : null;
         } catch {
-          currentCoverage = 0;
+          currentCoverage = null;
         }
       } else {
-        currentCoverage = 0;
+        currentCoverage = null;
       }
     }
 
-    const passed = currentCoverage >= minCoverage;
-    const gap = passed ? 0 : Math.round((minCoverage - currentCoverage) * 100) / 100;
+    // Unmeasured coverage fails the check (no evidence), with no fake gap.
+    const passed = currentCoverage !== null && currentCoverage >= minCoverage;
+    const gap = currentCoverage === null ? null : passed ? 0 : Math.round((minCoverage - currentCoverage) * 100) / 100;
 
     return ok({
       currentCoverage,
@@ -182,6 +192,7 @@ const coverageThresholdCheck: DeterministicAction = {
       gap,
       minCoverage,
       source,
+      ...(currentCoverage === null ? { unmeasured: true } : {}),
     });
   },
 };

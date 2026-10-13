@@ -17,6 +17,7 @@ import type { RealQEReasoningBank } from '../learning/real-qe-reasoning-bank.js'
 import { getUnifiedMemory, type UnifiedMemoryManager } from '../kernel/unified-memory.js';
 import { toErrorMessage } from '../shared/error-utils.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { MEASURED_COVERAGE_SESSION_SQL } from './coverage-session-provenance.js';
 
 // ============================================================================
 // Database Row Types
@@ -152,8 +153,10 @@ export class CoverageLearner {
   private async loadFromDb(): Promise<void> {
     if (!this.db) return;
     const database = this.db.getDatabase();
+    // #1014: legacy MCP rows without provenance (estimates, 0.0 for
+    // unmeasured runs) are not loaded as sessions or learned as strategies.
     const rows = database.prepare(`
-      SELECT * FROM coverage_sessions ORDER BY created_at DESC LIMIT ?
+      SELECT * FROM coverage_sessions WHERE ${MEASURED_COVERAGE_SESSION_SQL} ORDER BY created_at DESC LIMIT ?
     `).all(this.config.maxOutcomesInMemory) as CoverageSessionRow[];
 
     for (const row of rows.reverse()) {
