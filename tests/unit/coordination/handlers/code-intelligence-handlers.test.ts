@@ -59,3 +59,82 @@ describe('index-code handler (#511 MCP parity)', () => {
     expect(data.relationsFound).toBe(3);
   });
 });
+
+describe('index-code handler collects project metrics (#999 MCP-CLI parity)', () => {
+  let tmpDir: string;
+  const metrics = {
+    loc: { total: 3, byLanguage: { TypeScript: 3 }, source: 'node-native', excludedDirs: [] },
+    tests: { total: 1, byType: { unit: 1, integration: 0, e2e: 0 }, source: 'vitest' },
+    toolsUsed: ['node-native', 'vitest'],
+  };
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(__dirname, 'tmp-idx999-'));
+    await fs.writeFile(path.join(tmpDir, 'package.json'), '{"name":"p"}\n');
+    await fs.mkdir(path.join(tmpDir, 'src'));
+    await fs.writeFile(path.join(tmpDir, 'src', 'app.ts'), 'export const x = 1;\n');
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  function setup(coordinator: unknown) {
+    let handler: InstanceTaskHandler | undefined;
+    const ctx = {
+      registerHandler: (type: string, h: InstanceTaskHandler) => {
+        if (type === 'index-code') handler = h;
+      },
+      getKnowledgeGraph: () => ({
+        index: vi.fn().mockResolvedValue(ok({ filesIndexed: 1, nodesCreated: 2, edgesCreated: 1, duration: 0, errors: [] })),
+      }),
+      getCodeIntelligenceCoordinator: vi.fn(async () => coordinator),
+    } as unknown as TaskHandlerContext;
+    registerCodeIntelligenceHandlers(ctx);
+    return handler!;
+  }
+
+  it('runs the coordinator metric step rooted at the target, like the CLI', async () => {
+    const collectProjectMetrics = vi.fn().mockResolvedValue(ok(metrics));
+    const handler = setup({ collectProjectMetrics });
+
+    const result = await handler({ payload: { target: path.join(tmpDir, 'src'), incremental: false } } as unknown as QueenTask);
+
+    expect(result.success).toBe(true);
+    // target src/ has no marker → nearest marker up (#997 resolver), never a filesystem root
+    expect(collectProjectMetrics).toHaveBeenCalledWith(tmpDir);
+    const data = (result as { value: Record<string, unknown> }).value;
+    expect(data.projectMetrics).toEqual({
+      root: tmpDir,
+      loc: 3,
+      locByLanguage: { TypeScript: 3 },
+      tests: 1,
+      toolsUsed: ['node-native', 'vitest'],
+    });
+  });
+
+  it('a relative target resolves against the working directory', async () => {
+    const collectProjectMetrics = vi.fn().mockResolvedValue(ok(metrics));
+    const handler = setup({ collectProjectMetrics });
+    const cwd = process.cwd();
+    try {
+      process.chdir(tmpDir);
+      await handler({ payload: { target: '.', incremental: false } } as unknown as QueenTask);
+    } finally {
+      process.chdir(cwd);
+    }
+    expect(collectProjectMetrics).toHaveBeenCalledWith(await fs.realpath(tmpDir));
+  });
+
+  it('indexing still succeeds when metric collection fails or the domain is unavailable', async () => {
+    const failing = setup({ collectProjectMetrics: vi.fn().mockRejectedValue(new Error('cloc crashed')) });
+    const r1 = await failing({ payload: { target: tmpDir, incremental: false } } as unknown as QueenTask);
+    expect(r1.success).toBe(true);
+    expect((r1 as { value: Record<string, unknown> }).value.projectMetrics).toBeUndefined();
+
+    const noDomain = setup(undefined);
+    const r2 = await noDomain({ payload: { target: tmpDir, incremental: false } } as unknown as QueenTask);
+    expect(r2.success).toBe(true);
+    expect((r2 as { value: Record<string, unknown> }).value.filesIndexed).toBe(1);
+  });
+});

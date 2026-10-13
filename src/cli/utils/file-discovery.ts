@@ -46,6 +46,8 @@ const SKIP_DIRS = new Set([
   '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache',
   'target', '.gradle', 'vendor', '.bundle',
   '.next', '.nuxt', '.output',
+  // AQE state and the assets `aqe init` writes are not project source (#999)
+  '.agentic-qe', '.claude',
 ]);
 
 // ============================================================================

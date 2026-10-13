@@ -169,7 +169,8 @@ export async function walkDirectory(
 
   const {
     extensions = ['.ts'],
-    exclude = ['node_modules', 'dist'],
+    // #999: never walk VCS metadata, AQE state, or init-written assets
+    exclude = ['node_modules', 'dist', '.git', '.agentic-qe', '.claude'],
     maxDepth = 4,
     includeTests = false,
   } = options;

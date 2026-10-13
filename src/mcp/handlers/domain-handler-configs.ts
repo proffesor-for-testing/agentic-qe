@@ -300,6 +300,18 @@ export interface CodeIndexResult {
   symbolsExtracted: number;
   relationsFound: number;
   duration: number;
+  /**
+   * #999 MCP-CLI parity: project metrics collected by the code-intelligence
+   * coordinator, rooted at the target (as `aqe code index` does). Absent when
+   * no project root resolves or the metric step is unavailable.
+   */
+  projectMetrics?: {
+    root: string;
+    loc: number;
+    locByLanguage: Record<string, number>;
+    tests: number;
+    toolsUsed: string[];
+  };
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
   resultsSaved?: boolean;
@@ -1107,6 +1119,7 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     filesIndexed: (data.filesIndexed as number) || 0,
     symbolsExtracted: (data.symbolsExtracted as number) || 0,
     relationsFound: (data.relationsFound as number) || 0,
+    ...(data.projectMetrics ? { projectMetrics: data.projectMetrics as CodeIndexResult['projectMetrics'] } : {}),
     duration,
     savedFiles,
   }),

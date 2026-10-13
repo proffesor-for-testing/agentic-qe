@@ -92,6 +92,16 @@ export function checkLOCTools(): ToolAvailability[] {
   return tools;
 }
 
+/**
+ * cloc `--not-match-f` regex matching any of `names` exactly (basename), or
+ * null when there is nothing to exclude.
+ */
+export function excludedFileNamesRegex(names: readonly string[] | undefined): string | null {
+  if (!names || names.length === 0) return null;
+  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return `^(${escaped.join('|')})$`;
+}
+
 // ============================================================================
 // Tool-Specific Implementations
 // ============================================================================
@@ -104,7 +114,10 @@ async function tryClocCount(
   config: MetricCollectorConfig
 ): Promise<LOCMetrics | null> {
   try {
-    const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`, projectPath];
+    const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`];
+    const notMatch = excludedFileNamesRegex(config.excludeFiles);
+    if (notMatch) args.push(`--not-match-f=${notMatch}`);
+    args.push(projectPath);
 
     const result = spawnSync('cloc', args, {
       encoding: 'utf-8',
@@ -166,6 +179,10 @@ async function tryTokeiCount(
     const args = ['--output', 'json'];
     for (const dir of config.excludeDirs) {
       args.push('-e', dir);
+    }
+    // #999: lockfiles are generated, not code (tokei -e takes gitignore-style names)
+    for (const file of config.excludeFiles ?? []) {
+      args.push('-e', file);
     }
     args.push(projectPath);
 
@@ -287,6 +304,7 @@ function manualLOCCount(
   const byLanguage: Record<string, number> = {};
   let total = 0;
   const excludeSet = new Set(config.excludeDirs);
+  const excludeFileSet = new Set(config.excludeFiles ?? []);
 
   // Max file size to read (2MB) — skip minified bundles, generated files
   const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -314,6 +332,8 @@ function manualLOCCount(
         }
         walkDirectory(fullPath, depth + 1);
       } else if (entry.isFile()) {
+        // #999: skip lockfiles and other generated files by exact name
+        if (excludeFileSet.has(entry.name)) continue;
         const ext = extname(entry.name);
         const language = getLanguageForExtension(ext);
 

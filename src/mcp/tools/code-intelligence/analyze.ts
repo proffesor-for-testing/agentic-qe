@@ -571,7 +571,7 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   private async findSourceFiles(dir: string): Promise<string[]> {
     const files: string[] = [];
     const extensions = ['.ts', '.tsx', '.js', '.jsx'];
-    const ignoreDirs = ['node_modules', '.git', 'dist', 'build', 'coverage'];
+    const ignoreDirs = ['node_modules', '.git', 'dist', 'build', 'coverage', '.agentic-qe', '.claude'];
 
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });

@@ -154,6 +154,8 @@ export interface MetricCollectorConfig {
   timeout: number;
   /** Directories to exclude from LOC counting */
   excludeDirs: string[];
+  /** File names (exact match) to exclude from LOC counting, e.g. lockfiles (#999) */
+  excludeFiles: string[];
   /** File patterns to include for test counting */
   testPatterns: string[];
   /** Enable caching of metrics (default: true) */
@@ -161,6 +163,22 @@ export interface MetricCollectorConfig {
   /** Cache TTL in milliseconds (default: 300000 = 5 minutes) */
   cacheTTL: number;
 }
+
+/**
+ * Generated dependency lockfiles. They are machine-written, often thousands of
+ * lines, and are not project code, so LOC counting skips them (#999: a 3-line
+ * project reported 1662 LOC from package-lock.json).
+ */
+export const LOC_EXCLUDED_FILE_NAMES: readonly string[] = Object.freeze([
+  // JS/TS
+  'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock',
+  'deno.lock',
+  // Python
+  'poetry.lock', 'Pipfile.lock', 'uv.lock', 'pdm.lock',
+  // Rust / Go / Ruby / PHP / Elixir / Dart / .NET / Swift / Nix / Gradle
+  'Cargo.lock', 'go.sum', 'Gemfile.lock', 'composer.lock', 'mix.lock', 'pubspec.lock',
+  'packages.lock.json', 'Package.resolved', 'flake.lock', 'gradle.lockfile',
+]);
 
 /**
  * Default configuration values
@@ -176,7 +194,10 @@ export const DEFAULT_METRIC_CONFIG: MetricCollectorConfig = {
     'target', '.gradle', 'vendor', '.bundle',
     // General
     '.git', '.svn', '.hg',
+    // AQE state and the assets `aqe init` writes (#999) — not project code
+    '.agentic-qe', '.claude',
   ],
+  excludeFiles: [...LOC_EXCLUDED_FILE_NAMES],
   testPatterns: ['**/*.test.ts', '**/*.spec.ts', '**/*.test.js', '**/*.spec.js'],
   enableCache: true,
   cacheTTL: 300000,
