@@ -66,6 +66,30 @@ describe('experience capture skips insufficient-evidence results (#1002)', () =>
     expect((await getCaptureStats()).activeExperiences).toBe(0);
   });
 
+  // #1014: a coverage estimate or unmeasured target is not a measurement either.
+  it.each([
+    ['a static estimate', { measured: false, estimated: true, lineCoverage: 10 }],
+    ['an unmeasured target', { measured: false, unmeasured: true }],
+    ['a result without provenance', { lineCoverage: 80 }],
+  ])('records no coverage-analysis experience for %s', async (_label, data) => {
+    const handler = vi.fn(async () => ({ success: true, data }));
+    const wrapped = wrapWithExperienceCapture(handler, 'coverage-analysis', 'qe-coverage-specialist');
+
+    await wrapped({});
+
+    expect(inserts()).toEqual([]);
+    expect((await getCaptureStats()).activeExperiences).toBe(0);
+  });
+
+  it('still records measured coverage', async () => {
+    const handler = vi.fn(async () => ({ success: true, data: { measured: true, lineCoverage: 82 } }));
+    const wrapped = wrapWithExperienceCapture(handler, 'coverage-analysis', 'qe-coverage-specialist');
+
+    await wrapped({});
+
+    expect(inserts().length).toBeGreaterThan(0);
+  });
+
   it('still records a measured run', async () => {
     const handler = vi.fn(async () => ({ success: true, data: { status: 'completed', evidenceStatus: 'measured' } }));
     const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');

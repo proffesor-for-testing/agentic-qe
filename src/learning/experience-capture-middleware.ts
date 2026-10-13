@@ -343,9 +343,16 @@ export function recordExperienceStep(
 /**
  * #1002: a result whose status or evidenceStatus is "insufficient-evidence"
  * carries no verdict, so it is neither a success nor a failure to learn from.
+ * #1014: likewise a successful coverage-analysis result that is not a
+ * measurement (static estimate, unmeasured target, or no provenance).
+ * Same semantics as the shared `isLearnableResult` (#1014); dedupe on merge.
  */
-export function isInsufficientEvidenceResult(result: { success: boolean; data?: unknown }): boolean {
-  const data = result.data as { status?: unknown; evidenceStatus?: unknown } | null | undefined;
+export function isInsufficientEvidenceResult(
+  result: { success: boolean; data?: unknown },
+  domain?: string,
+): boolean {
+  const data = result.data as { status?: unknown; evidenceStatus?: unknown; measured?: unknown } | null | undefined;
+  if (domain === 'coverage-analysis' && result.success && data?.measured !== true) return true;
   if (!data || typeof data !== 'object') return false;
   return data.status === 'insufficient-evidence' || data.evidenceStatus === 'insufficient-evidence';
 }
@@ -576,8 +583,8 @@ export function wrapWithExperienceCapture<TParams, TResult>(
       const result = await handler(params);
       const durationMs = Date.now() - startTime;
 
-      // #1002: an insufficient-evidence run is not recorded as success or failure.
-      if (isInsufficientEvidenceResult(result)) {
+      // #1002/#1014: a run with no measured verdict is not recorded as success or failure.
+      if (isInsufficientEvidenceResult(result, domain)) {
         abandonExperience(expId);
         ecLogger.debug('Skipped capture: insufficient evidence carries no verdict', { domain, agent });
         return result;
