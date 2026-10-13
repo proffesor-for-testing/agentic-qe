@@ -14,6 +14,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RegressionMonitorWorker } from '../../../../src/workers/workers/regression-monitor';
 import type { WorkerContext } from '../../../../src/workers/interfaces';
+import { WorkerManagerImpl } from '../../../../src/workers/worker-manager';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import { writeTestRunEvidence } from '../../../../src/domains/quality-assessment/quality-evidence';
 
@@ -250,5 +251,47 @@ describe('#1028 — regression-monitor baseline from measured evidence only', ()
     expect(result.findings.some((f) => (f.context as any)?.metric === 'testPassRate')).toBe(true);
     expect(result.findings.some((f) => f.type === 'coverage-regression')).toBe(false);
     expect(store.read('regression:baseline')).toMatchObject({ coverage: null, tests: { passRate: 50 } });
+  });
+
+  it('per-test duration from the recorded runs: a >20% slowdown is a performance regression', async () => {
+    const store = namespacedStore();
+    const worker = new RegressionMonitorWorker();
+    await measuredRun(store, { runId: 'run-1', passed: 10, failed: 0, duration: 1000 });
+    await worker.execute(contextFor(store.memory));
+    await measuredRun(store, { runId: 'run-2', passed: 10, failed: 0, duration: 2000 });
+
+    const result = await worker.execute(contextFor(store.memory));
+
+    const perf = result.findings.find((f) => f.type === 'performance-regression');
+    expect(perf?.context).toMatchObject({ metric: 'avgTestDuration', previousValue: 100, currentValue: 200 });
+  });
+
+  it('testsPassing without its recorded run result: pass rate compared, failures and duration not', async () => {
+    const store = namespacedStore();
+    const worker = new RegressionMonitorWorker();
+    await writeTestRunEvidence(store.memory as unknown as MemoryBackend, { runId: 'r1', passed: 10, failed: 0 },
+      { source: 'aqe test execute' });
+    await worker.execute(contextFor(store.memory));
+    await writeTestRunEvidence(store.memory as unknown as MemoryBackend, { runId: 'r2', passed: 10, failed: 0 },
+      { source: 'aqe test execute' });
+
+    const result = await worker.execute(contextFor(store.memory));
+
+    expect(regressionFindings(result.findings)).toEqual([]);
+    expect(store.read('regression:baseline')).toMatchObject({
+      tests: { passRate: 100, runId: 'r2', failedTests: null, avgTestDurationMs: null },
+    });
+    expect(result.metrics.domainMetrics).toMatchObject({ avgTestDuration: 'unmeasured' });
+  });
+
+  it('through the daemon worker manager before fleet_init wiring (in-memory worker memory): unmeasured, nothing stored', async () => {
+    const manager = new WorkerManagerImpl();
+    manager.register(new RegressionMonitorWorker());
+
+    const result = await manager.runNow('regression-monitor');
+
+    expect(result.success).toBe(true);
+    expect(result.metrics.domainMetrics).toMatchObject({ baselineStatus: 'none', testPassRate: 'unmeasured' });
+    expect(result.findings).toContainEqual(expect.objectContaining({ type: 'regression-unmeasured' }));
   });
 });
