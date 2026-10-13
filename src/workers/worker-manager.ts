@@ -14,6 +14,7 @@ import {
   WorkerContext,
   WorkerEventBus,
   WorkerMemory,
+  WorkerMemoryReadOptions,
   WorkerLogger,
   WorkerDomainAccess,
   WorkerEvent,
@@ -69,7 +70,10 @@ class InMemoryWorkerEventBus implements WorkerEventBus {
 class InMemoryWorkerMemory implements WorkerMemory {
   private store = new Map<string, unknown>();
 
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined> {
+    // This process-local store holds only worker keys: no other domain's
+    // namespace (e.g. quality evidence) lives here.
+    if (options?.namespace) return undefined;
     return this.store.get(key) as T | undefined;
   }
 

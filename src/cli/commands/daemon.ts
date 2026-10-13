@@ -14,7 +14,7 @@ import chalk from 'chalk';
 import { QualityDaemon, type QualityDaemonConfig } from '../../workers/quality-daemon';
 import { PersistentWorkerMemory } from '../../workers/quality-daemon/persistent-memory';
 import { isPrivateIp } from '../../hooks/security/ssrf-guard';
-import type { WorkerMemory } from '../../workers/interfaces';
+import type { WorkerMemory, WorkerMemoryReadOptions } from '../../workers/interfaces';
 import { activateForegroundCommand } from '../foreground-command';
 
 // In-process daemon instance (non-detached mode)
@@ -76,7 +76,12 @@ Examples:
         // Fallback for environments where kernel isn't available
         const store = new Map<string, unknown>();
         memory = {
-          async get<T>(key: string): Promise<T | undefined> { return store.get(key) as T | undefined; },
+          // Like InMemoryWorkerMemory (#1028 N4): this process-local store holds
+          // only daemon keys, so a read of another namespace finds nothing.
+          async get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined> {
+            if (options?.namespace) return undefined;
+            return store.get(key) as T | undefined;
+          },
           async set<T>(key: string, value: T): Promise<void> { store.set(key, value); },
           async search(pattern: string): Promise<string[]> {
             const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');

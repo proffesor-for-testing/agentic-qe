@@ -237,8 +237,17 @@ export interface WorkerEvent {
   readonly payload: unknown;
 }
 
+/** Read options; `namespace` reads another domain's records (e.g. quality evidence). */
+export interface WorkerMemoryReadOptions {
+  namespace?: string;
+}
+
 export interface WorkerMemory {
-  get<T>(key: string): Promise<T | undefined>;
+  /**
+   * Read a key. Without `namespace` the worker's own namespace is used; a
+   * backend without namespaces ignores it.
+   */
+  get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
   search(pattern: string): Promise<string[]>;
 }

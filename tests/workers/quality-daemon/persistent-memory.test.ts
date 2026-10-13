@@ -63,6 +63,14 @@ describe('PersistentWorkerMemory', () => {
     expect(results).not.toContain('suggestions:list');
   });
 
+  it('reads another namespace when asked, e.g. quality evidence (#1028)', async () => {
+    await backend.kvSet('quality-evidence:testsPassing:latest', { value: 100 }, 'quality-assessment');
+
+    expect(await memory.get('quality-evidence:testsPassing:latest', { namespace: 'quality-assessment' }))
+      .toEqual({ value: 100 });
+    expect(await memory.get('quality-evidence:testsPassing:latest')).toBeUndefined();
+  });
+
   it('overwrites existing values', async () => {
     await memory.set('counter', 1);
     await memory.set('counter', 2);
