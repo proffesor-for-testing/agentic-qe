@@ -5,8 +5,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import {
-  isHardStopDir, normalizeForCompare, samePath, scratchRootPath, userScratchBase,
+  ensureScratchRoot, isHardStopDir, normalizeForCompare, samePath, scratchRootPath, userScratchBase,
   type PlatformContext,
 } from '../../../src/kernel/shared-dirs';
 
@@ -51,6 +53,52 @@ describe('Windows temp-dir matching (N5)', () => {
   it('puts scratch roots under %LOCALAPPDATA%', () => {
     expect(userScratchBase(win32())).toBe('C:\\Users\\runneradmin\\AppData\\Local\\agentic-qe\\scratch');
     expect(scratchRootPath(SHORT_TEMP, win32())).toBe(scratchRootPath(LONG_TEMP.toUpperCase(), win32()));
+  });
+});
+
+describe('private scratch fallback (#1031 NB2)', () => {
+  it('uses a private, stable temp fallback when only the cache is unavailable', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-scratch-fallback-'));
+    try {
+      const blockedCache = path.join(base, 'blocked-cache');
+      fs.writeFileSync(blockedCache, 'file, not a directory');
+      const ctx: PlatformContext = {
+        platform: process.platform,
+        tmpdir: base,
+        homedir: blockedCache,
+        env: { XDG_CACHE_HOME: blockedCache, LOCALAPPDATA: blockedCache },
+        realpath: p => p,
+      };
+      const first = ensureScratchRoot(base, ctx);
+      expect(ensureScratchRoot(base, ctx)).toBe(first);
+      if (process.platform !== 'win32') expect(fs.statSync(first).mode & 0o077).toBe(0);
+      expect(fs.existsSync(path.join(base, '.agentic-qe'))).toBe(false);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it('reports both unavailable roots with an actionable error', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-scratch-fallback-'));
+    try {
+      const blockedCache = path.join(base, 'blocked-cache');
+      fs.writeFileSync(blockedCache, 'file, not a directory');
+      const uid = typeof process.getuid === 'function' ? String(process.getuid()) : 'user';
+      fs.writeFileSync(path.join(base, `agentic-qe-scratch-${uid}`), 'file, not a directory');
+      const ctx: PlatformContext = {
+        platform: process.platform,
+        tmpdir: base,
+        homedir: blockedCache,
+        env: { XDG_CACHE_HOME: blockedCache, LOCALAPPDATA: blockedCache },
+        realpath: p => p,
+      };
+
+      expect(() => ensureScratchRoot(base, ctx)).toThrow(/Cannot create a private AQE scratch root/);
+      expect(() => ensureScratchRoot(base, ctx)).toThrow(/Set AQE_PROJECT_ROOT to a project directory/);
+      expect(fs.existsSync(path.join(base, '.agentic-qe'))).toBe(false);
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   });
 });
 

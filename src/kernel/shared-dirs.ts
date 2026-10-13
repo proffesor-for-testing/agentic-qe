@@ -150,14 +150,27 @@ export function ensureScratchRoot(dir: string, ctx: PlatformContext = currentPla
     ensurePrivateDir(preferred);
     writeOrigin(preferred, dir);
     return preferred;
-  } catch {
+  } catch (preferredError) {
     const uid = typeof process.getuid === 'function' ? String(process.getuid()) : 'user';
     const fallbackBase = path.join(ctx.tmpdir || os.tmpdir(), `agentic-qe-scratch-${uid}`);
     const fallback = path.join(fallbackBase, path.basename(preferred));
-    ensurePrivateDir(fallbackBase);
-    ensurePrivateDir(fallback);
-    writeOrigin(fallback, dir);
-    return fallback;
+    try {
+      ensurePrivateDir(fallbackBase);
+      ensurePrivateDir(fallback);
+      writeOrigin(fallback, dir);
+      return fallback;
+    } catch (fallbackError) {
+      // Never fall back to the shared directory itself: that would mix data
+      // from unrelated projects. Give callers a usable diagnosis instead of
+      // an opaque EEXIST/ENOTDIR from the final mkdir.
+      const reason = (error: unknown) => error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Cannot create a private AQE scratch root for "${dir}". ` +
+        `User cache "${preferred}" failed: ${reason(preferredError)}. ` +
+        `Temporary fallback "${fallback}" failed: ${reason(fallbackError)}. ` +
+        'Set AQE_PROJECT_ROOT to a project directory or make the user cache writable.'
+      );
+    }
   }
 }
 
