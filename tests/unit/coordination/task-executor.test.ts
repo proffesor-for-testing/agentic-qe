@@ -455,6 +455,9 @@ describe('DomainTaskExecutor', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/outside the project root/);
+      // #1021 round 2b: the caller-input marker travels with the failure, so
+      // learners do not record a caller mistake as a component failure.
+      expect(result.errorDetails).toEqual({ callerError: true });
     });
 
     it('should execute analysis-only quality assessment task', async () => {
@@ -466,10 +469,10 @@ describe('DomainTaskExecutor', () => {
         metrics: ['coverage', 'complexity', 'maintainability'],
       });
 
-      // #1021: the target must exist and lie inside the project root (cwd).
+      // #1021: the target must exist and lie inside the AQE project root.
       await fs.mkdir(TEST_RESULTS_DIR, { recursive: true });
-      const cwd = vi.spyOn(process, 'cwd').mockReturnValue(TEST_RESULTS_DIR);
-      const result = await executor.execute(task).finally(() => cwd.mockRestore());
+      vi.stubEnv('AQE_PROJECT_ROOT', TEST_RESULTS_DIR);
+      const result = await executor.execute(task).finally(() => vi.unstubAllEnvs());
 
       expect(result.success).toBe(true);
       expect(result.domain).toBe('quality-assessment');
@@ -933,14 +936,14 @@ describe('TaskExecutor integration', () => {
     ];
 
     for (const task of testTasks) {
-      // #1021: an assess-quality target must lie inside the project root
-      // (cwd); make TEST_DIR the root for that task.
-      const cwd = task.type === 'assess-quality' ? vi.spyOn(process, 'cwd').mockReturnValue(TEST_DIR) : undefined;
+      // #1021: an assess-quality target must lie inside the AQE project
+      // root; make TEST_DIR the root for that task.
+      if (task.type === 'assess-quality') vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
       try {
         const result = await executor.execute(task);
         expect(result.success).toBe(true);
       } finally {
-        cwd?.mockRestore();
+        vi.unstubAllEnvs();
       }
     }
 

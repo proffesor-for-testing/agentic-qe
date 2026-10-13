@@ -124,8 +124,11 @@ describe('quality_assess scope and partial evidence at the MCP boundary (#1021)'
     ['a non-string target', { target: 7 }],
     ['an empty sourceFiles list', { sourceFiles: [] }],
     ['a non-string source file', { sourceFiles: ['a.ts', 3] }],
-  ])('rejects %s', (_label, params) => {
+  ])('rejects %s as caller input', (_label, params) => {
     expect(() => payload(params)).toThrow(/target must be|sourceFiles must be/);
+    try { payload(params); } catch (error) {
+      expect((error as { callerError?: boolean }).callerError).toBe(true);
+    }
   });
 
   it('passes through partial metrics, excluded files and the analysed scope', () => {
@@ -141,6 +144,15 @@ describe('quality_assess scope and partial evidence at the MCP boundary (#1021)'
     });
 
     expect(result).toMatchObject({ partialMetrics, excludedFiles, excludedCount: 1, scope: '/repo/src', passed: true });
+  });
+
+  it('passes through scoreBasis for a subset score (round 2b)', () => {
+    const result = map({
+      qualityScore: 100, passed: false, metrics: { complexity: -1, duplication: 0 }, recommendations: [],
+      evidenceStatus: 'insufficient-evidence', unmeasured: ['complexity'], scoreBasis: ['duplication'],
+    });
+
+    expect(result).toMatchObject({ qualityScore: 100, scoreBasis: ['duplication'], status: 'insufficient-evidence' });
   });
 });
 

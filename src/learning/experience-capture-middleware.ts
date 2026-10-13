@@ -357,6 +357,16 @@ export function isInsufficientEvidenceResult(
   return data.status === 'insufficient-evidence' || data.evidenceStatus === 'insufficient-evidence';
 }
 
+/**
+ * #1021 round 2b: a failure caused by the caller's input (marked
+ * `callerError: true`, e.g. a target outside the project root) says nothing
+ * about the component, so it is not recorded as a failure experience.
+ */
+export function isCallerInputFailure(result: { success: boolean; data?: unknown }): boolean {
+  const data = result.data as { callerError?: unknown } | null | undefined;
+  return !result.success && !!data && typeof data === 'object' && data.callerError === true;
+}
+
 /** Drop an active experience without persisting it (no verdict to record). */
 export function abandonExperience(experienceId: string): boolean {
   return activeExperiences.delete(experienceId);
@@ -584,7 +594,7 @@ export function wrapWithExperienceCapture<TParams, TResult>(
       const durationMs = Date.now() - startTime;
 
       // #1002/#1014: a run with no measured verdict is not recorded as success or failure.
-      if (isInsufficientEvidenceResult(result, domain)) {
+      if (isInsufficientEvidenceResult(result, domain) || isCallerInputFailure(result)) {
         abandonExperience(expId);
         ecLogger.debug('Skipped capture: insufficient evidence carries no verdict', { domain, agent });
         return result;

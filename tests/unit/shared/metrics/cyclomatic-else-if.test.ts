@@ -1,12 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { CodeMetricsAnalyzer } from '../../../../src/shared/metrics/code-metrics';
 
 let directory: string;
-beforeEach(async () => { directory = await mkdtemp(join(process.cwd(), 'aqe-metrics-')); });
-afterEach(async () => { await rm(directory, { recursive: true, force: true }); });
+// #1021: CodeMetricsAnalyzer reads inside the AQE project root; make the fixture dir that root.
+beforeEach(async () => {
+  directory = await mkdtemp(join(process.cwd(), 'aqe-metrics-'));
+  vi.stubEnv('AQE_PROJECT_ROOT', directory);
+});
+afterEach(async () => { vi.unstubAllEnvs(); await rm(directory, { recursive: true, force: true }); });
 
 const examples = [
   ['straight-line', 'export function choose(x: number) { return x; }', 1],

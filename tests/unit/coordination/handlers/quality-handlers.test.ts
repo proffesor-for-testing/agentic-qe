@@ -283,7 +283,6 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
 describe('assess-quality scopes analysis to target / sourceFiles inside the project root (#1021 B2)', () => {
   let root: string;
   let outside: string;
-  let cwd: ReturnType<typeof vi.spyOn>;
   const measured = () => report([{ name: 'complexity', value: 2 }], 90);
 
   beforeEach(async () => {
@@ -295,10 +294,10 @@ describe('assess-quality scopes analysis to target / sourceFiles inside the proj
     await writeFile(join(root, 'src', 'pages', '[...slug].tsx'), 'export default function P() { return null; }\n');
     await writeFile(join(root, 'lib', 'b.ts'), 'export const b = 2;\n');
     await writeFile(join(outside, 'secret.ts'), 'export const s = 1;\n');
-    cwd = vi.spyOn(process, 'cwd').mockReturnValue(root);
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
   });
   afterEach(async () => {
-    cwd.mockRestore();
+    vi.unstubAllEnvs();
     await rm(root, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
   });
@@ -313,6 +312,19 @@ describe('assess-quality scopes analysis to target / sourceFiles inside the proj
 
     expect(callArgs(analyzeQuality).sourceFiles).toEqual([join(root, 'lib', 'b.ts')]);
     expect(callArgs(analyzeQuality).explicitFiles).toEqual([]);
+  });
+
+  it('resolves against AQE_PROJECT_ROOT, not the process cwd (#1021 round 2b)', async () => {
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(outside);
+    try {
+      const { run, analyzeQuality } = setup(measured());
+
+      await run({ runGate: false, threshold: 80, target: 'lib', metrics: ['complexity'] });
+
+      expect(callArgs(analyzeQuality).sourceFiles).toEqual([join(root, 'lib', 'b.ts')]);
+    } finally {
+      cwd.mockRestore();
+    }
   });
 
   it('treats a file target as an explicit file', async () => {
@@ -392,6 +404,42 @@ describe('assess-quality scopes analysis to target / sourceFiles inside the proj
       excludedFiles: analysis.excluded, excludedCount: 1,
     });
     expect(data.recommendations.some((r) => /complexity measured over 19 of 20 file\(s\) \(95%\)/.test(r))).toBe(true);
+    expect(data.recommendations.some((r) => r.includes('not analysed: src/broken.ts could not be parsed'))).toBe(true);
+  });
+});
+
+describe('assess-quality labels a subset score (#1021 round 2b)', () => {
+  type Basis = Data & { scoreBasis?: string[] };
+
+  it('names the metrics behind the score when evidence is insufficient', async () => {
+    const { run } = setup(report([{ name: 'duplication', value: 0 }], 100));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['complexity', 'duplication'] });
+
+    expect((result as { value: Basis }).value).toMatchObject({
+      evidenceStatus: 'insufficient-evidence', qualityScore: 100, scoreBasis: ['duplication'],
+    });
+  });
+
+  it('names the metrics behind the score when a metric is partial', async () => {
+    const analysis = {
+      ...report([{ name: 'complexity', value: 2 }], 90),
+      partial: [{ metric: 'complexity', analysedFiles: 19, totalFiles: 20, coverageOfScope: 0.95, failed: [] }],
+    };
+    const { run } = setup(analysis as ReturnType<typeof report>);
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics: ['complexity'] });
+
+    expect((result as { value: Basis }).value.scoreBasis).toEqual(['complexity']);
+  });
+
+  it('omits scoreBasis for a fully measured run', async () => {
+    const { run } = setup(report([{ name: 'complexity', value: 2 }], 90));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics: ['complexity'] });
+
+    expect((result as { value: Basis }).value).not.toHaveProperty('scoreBasis');
   });
 });
 

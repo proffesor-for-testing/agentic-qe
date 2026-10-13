@@ -33,6 +33,7 @@ import { MetricsCollector } from '../metrics';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
+import { CallerInputError } from '../../shared/error-utils.js';
 
 import {
   DEFAULT_FRAMEWORKS,
@@ -143,6 +144,12 @@ export interface QualityAssessResult {
   excludedCount?: number;
   /** #1021: the directory, file, or 'sourceFiles' that was analysed. */
   scope?: string;
+  /**
+   * #1021 round 2b: the metrics `qualityScore` was computed from, present when
+   * the score covers only part of the request (insufficient evidence) or of the
+   * files (partial metrics). Such a score is not a verdict.
+   */
+  scoreBasis?: string[];
   /** #996: measured metrics that fail their own limit; any entry blocks. */
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
@@ -739,12 +746,13 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       : validateRequestedMetrics(params.metrics);
     // #1021: scope the analysis instead of silently analysing <cwd>/src.
     // Containment in the project root is enforced by the handler.
+    // CallerInputError: a caller mistake, never a component failure (round 2b).
     if (params.target !== undefined && (typeof params.target !== 'string' || params.target.trim() === '')) {
-      throw new Error('target must be a non-empty string path.');
+      throw new CallerInputError('target must be a non-empty string path.');
     }
     if (params.sourceFiles !== undefined && (!Array.isArray(params.sourceFiles) || params.sourceFiles.length === 0
       || params.sourceFiles.some((f) => typeof f !== 'string' || f.trim() === ''))) {
-      throw new Error('sourceFiles must be a non-empty array of file paths.');
+      throw new CallerInputError('sourceFiles must be a non-empty array of file paths.');
     }
     return {
       runGate: params.runGate ?? false,
@@ -816,6 +824,8 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       ...(Array.isArray(data.excludedFiles) ? { excludedFiles: data.excludedFiles as ExcludedQualityFile[] } : {}),
       ...(typeof data.excludedCount === 'number' ? { excludedCount: data.excludedCount } : {}),
       ...(typeof data.scope === 'string' ? { scope: data.scope } : {}),
+      ...(Array.isArray(data.scoreBasis) && data.scoreBasis.every((m) => typeof m === 'string')
+        ? { scoreBasis: data.scoreBasis as string[] } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
       ...(confidence !== undefined ? { confidence } : {}),

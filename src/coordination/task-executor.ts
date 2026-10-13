@@ -145,9 +145,14 @@ export interface TaskResult {
   errorDetails?: Record<string, unknown>;
 }
 
-/** #996: structured details, only from the one error type that is known to carry them. */
+/**
+ * #996: structured details, only from error types known to carry them.
+ * #1021 round 2b: a caller-input error is marked so learners do not record
+ * the caller's mistake as a component failure.
+ */
 function errorDetailsOf(error: unknown): Record<string, unknown> | undefined {
-  return error instanceof InsufficientQualityEvidenceError ? { ...error.toDetails() } : undefined;
+  if (error instanceof InsufficientQualityEvidenceError) return { ...error.toDetails() };
+  return isCallerInputError(error) ? { callerError: true } : undefined;
 }
 
 type TaskHandler = (task: QueenTask, kernel: QEKernel) => Promise<Result<unknown, Error>>;
@@ -659,12 +664,14 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       // ADR-051: Record failed outcome
       this.recordOutcome(task, routingTier, false, Date.now() - startTime).catch((e) => { logger.warn('recordOutcome failed', { error: e instanceof Error ? e.message : String(e), taskId: task.id }); });
 
+      const errorDetails = errorDetailsOf(error);
       return {
         taskId: task.id,
         success: false,
         error: errorMessage,
         duration: Date.now() - startTime,
         domain,
+        ...(errorDetails ? { errorDetails } : {}),
       };
     }
   }

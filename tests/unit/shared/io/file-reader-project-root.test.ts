@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import { FileReader, PathTraversalError } from '../../../../src/shared/io/file-reader';
 
 describe('FileReader projectRoot containment', () => {
@@ -130,6 +131,76 @@ describe('FileReader projectRoot containment', () => {
     } finally {
       rmSync(homeRoot, { recursive: true, force: true });
     }
+  });
+
+  describe('TOCTOU: concurrent symlink swaps (bounded race, #1021 round 2b)', () => {
+    /**
+     * Run `script` in a child process (it swaps paths as fast as it can for
+     * 3 s) while reading `target` in a loop for `ms`. Returns the read tallies.
+     */
+    async function race(script: string, args: string[], target: string, ms = 1500) {
+      const swapper = spawn(process.execPath, ['-e', script, ...args], { stdio: 'ignore' });
+      const exited = new Promise((resolve) => swapper.on('exit', resolve));
+      const r = reader();
+      const tally = { outside: 0, inside: 0, refused: 0 };
+      const deadline = Date.now() + ms;
+      try {
+        while (Date.now() < deadline) {
+          const result = await r.readFile(target);
+          if (!result.success) tally.refused++;
+          else if (result.value.includes('OUTSIDE')) tally.outside++;
+          else tally.inside++;
+        }
+      } finally {
+        swapper.kill();
+        await exited;
+      }
+      return tally;
+    }
+
+    it('never reads outside when the final symlink is swapped', async () => {
+      writeFileSync(join(root, 'inside.ts'), 'INSIDE');
+      writeFileSync(join(outside, 'secret.txt'), 'OUTSIDE-SECRET');
+      symlinkSync(join(root, 'inside.ts'), join(root, 'link.ts'));
+      const tally = await race(`
+        const fs = require('fs'); const path = require('path');
+        const [root, inside, secret] = process.argv.slice(1);
+        const end = Date.now() + 3000; let i = 0;
+        while (Date.now() < end) {
+          const tmp = path.join(root, 'link.tmp');
+          try { fs.unlinkSync(tmp); } catch {}
+          fs.symlinkSync(i++ % 2 ? secret : inside, tmp);
+          fs.renameSync(tmp, path.join(root, 'link.ts'));
+        }
+      `, [root, join(root, 'inside.ts'), join(outside, 'secret.txt')], join(root, 'link.ts'));
+
+      expect(tally.outside).toBe(0);
+      expect(tally.inside + tally.refused).toBeGreaterThan(0);
+    }, 15000);
+
+    it('never reads outside when a directory component is swapped for a symlink', async () => {
+      // realpath can see sub/ as a real in-root directory, then sub becomes a
+      // symlink to an outside directory before the file is opened by name.
+      mkdirSync(join(root, 'sub'));
+      writeFileSync(join(root, 'sub', 'f.ts'), 'INSIDE');
+      writeFileSync(join(outside, 'f.ts'), 'OUTSIDE-SECRET');
+      symlinkSync(outside, join(root, 'sub.link'));
+      const tally = await race(`
+        const fs = require('fs'); const path = require('path');
+        const [root] = process.argv.slice(1);
+        const sub = path.join(root, 'sub'), parked = path.join(root, 'sub.real'), link = path.join(root, 'sub.link');
+        const end = Date.now() + 3000;
+        while (Date.now() < end) {
+          try {
+            fs.renameSync(sub, parked); fs.renameSync(link, sub);   // sub -> outside
+            fs.renameSync(sub, link); fs.renameSync(parked, sub);   // sub -> real dir
+          } catch {}
+        }
+      `, [root], join(root, 'sub', 'f.ts'));
+
+      expect(tally.outside).toBe(0);
+      expect(tally.inside + tally.refused).toBeGreaterThan(0);
+    }, 15000);
   });
 
   describe('readers without projectRoot are unchanged', () => {

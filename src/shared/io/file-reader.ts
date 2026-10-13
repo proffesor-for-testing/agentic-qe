@@ -87,6 +87,46 @@ export class PathTraversalError extends Error {
   }
 }
 
+/** Map a filesystem error to the reader's FileReadError. */
+function readError(error: unknown, absolutePath: string): FileReadError {
+  const nodeError = error as NodeJS.ErrnoException;
+  let message: string;
+
+  switch (nodeError.code) {
+    case 'ENOENT':
+      message = 'File not found: ' + absolutePath;
+      break;
+    case 'EACCES':
+      message = 'Permission denied: ' + absolutePath;
+      break;
+    case 'EISDIR':
+      message = 'Path is a directory: ' + absolutePath;
+      break;
+    default:
+      message = 'Failed to read file: ' + absolutePath;
+  }
+
+  return new FileReadError(message, absolutePath, nodeError.code, nodeError);
+}
+
+/**
+ * #1021 round 2b: where an OPEN descriptor really points. On Linux,
+ * /proc/self/fd/N resolves to the opened file itself. Elsewhere, re-resolve
+ * the path and accept it only if it is the same inode as the descriptor, so
+ * a swap after the open is detected. Returns null when it cannot be proven.
+ */
+async function openedLocation(fd: number, lexical: string, opened: import('node:fs').Stats): Promise<string | null> {
+  const sameFile = async (candidate: string): Promise<boolean> => {
+    const st = await fs.stat(candidate).catch(() => null);
+    return st !== null && st.dev === opened.dev && st.ino === opened.ino;
+  };
+  const viaProc = await fs.realpath(`/proc/self/fd/${fd}`).catch(() => null);
+  if (viaProc && path.isAbsolute(viaProc) && await sameFile(viaProc)) return viaProc;
+  const real = await fs.realpath(lexical).catch(() => null);
+  if (real && await sameFile(real)) return real;
+  return null;
+}
+
 /** True when `candidate` is `root` or lies beneath it (both absolute). */
 function isWithin(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
@@ -356,12 +396,11 @@ export class FileReader {
   }
 
   /**
-   * #1021: resolve a path that lies inside `projectRoot` by realpath
-   * containment. Returns undefined when the path is not lexically inside the
-   * root (or no root is configured), so the caller applies the legacy checks.
-   * Throws PathTraversalError when an in-root path resolves outside the root.
+   * #1021: decide whether a path is handled by in-root containment. Returns
+   * undefined when the path is not lexically inside the root (or no root is
+   * configured), so the caller applies the legacy checks.
    */
-  private async resolveInProjectRoot(filePath: string): Promise<string | undefined> {
+  private async inProjectRoot(filePath: string): Promise<{ lexical: string; rootReal: string } | undefined> {
     if (!this.projectRoot) return undefined;
     if (filePath.includes('\0')) {
       throw new PathTraversalError(filePath, ['Null byte in path'], 'critical');
@@ -376,19 +415,44 @@ export class FileReader {
     this.projectRootReal ??= fs.realpath(this.projectRoot).catch(() => null);
     const rootReal = await this.projectRootReal;
     if (!rootReal) return undefined;
+    return { lexical, rootReal };
+  }
 
-    let real: string;
+  /**
+   * #1021 round 2b: read an in-root path without a check-then-use race.
+   * The file is OPENED first and the open descriptor is verified — its real
+   * location (/proc/self/fd/N on Linux; otherwise the re-resolved realpath,
+   * which must be the same inode) must lie inside the root — and the content
+   * is read from that same descriptor. Swapping a symlink (file or directory
+   * component) between the check and the read can no longer redirect it.
+   */
+  private async readContained(
+    filePath: string,
+    lexical: string,
+    rootReal: string,
+  ): Promise<Result<string, FileReadError | PathTraversalError>> {
+    this.stats.totalReads++;
+    let handle: fs.FileHandle;
     try {
-      real = await fs.realpath(lexical);
-    } catch {
-      // Does not exist (or is unreadable): nothing to escape through; the read
-      // reports the real error for the in-root path.
-      return lexical;
+      handle = await fs.open(lexical, 'r');
+    } catch (error) {
+      return err(readError(error, lexical));
     }
-    if (!isWithin(rootReal, real)) {
-      throw new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical');
+    try {
+      const opened = await handle.stat();
+      const location = await openedLocation(handle.fd, lexical, opened);
+      if (!location || !isWithin(rootReal, location)) {
+        return err(new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical'));
+      }
+      if (!opened.isFile()) {
+        return err(new FileReadError('Path is a directory: ' + lexical, lexical, 'EISDIR'));
+      }
+      return ok(await handle.readFile('utf-8'));
+    } catch (error) {
+      return err(readError(error, lexical));
+    } finally {
+      await handle.close().catch(() => undefined);
     }
-    return real;
   }
 
   /**
@@ -400,7 +464,9 @@ export class FileReader {
 
     // SEC-004: Handle path traversal errors from resolvePath
     try {
-      absolutePath = (await this.resolveInProjectRoot(filePath)) ?? this.resolvePath(filePath);
+      const contained = await this.inProjectRoot(filePath);
+      if (contained) return this.readContained(filePath, contained.lexical, contained.rootReal);
+      absolutePath = this.resolvePath(filePath);
     } catch (error) {
       if (error instanceof PathTraversalError) {
         return err(error);
@@ -432,24 +498,7 @@ export class FileReader {
 
       return ok(content);
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      let message: string;
-
-      switch (nodeError.code) {
-        case 'ENOENT':
-          message = 'File not found: ' + absolutePath;
-          break;
-        case 'EACCES':
-          message = 'Permission denied: ' + absolutePath;
-          break;
-        case 'EISDIR':
-          message = 'Path is a directory: ' + absolutePath;
-          break;
-        default:
-          message = 'Failed to read file: ' + absolutePath;
-      }
-
-      return err(new FileReadError(message, absolutePath, nodeError.code, nodeError));
+      return err(readError(error, absolutePath));
     }
   }
 

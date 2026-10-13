@@ -11,6 +11,7 @@ import { ok, err } from '../../shared/types';
 import { CallerInputError, toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
+import { findProjectRoot } from '../../kernel/project-root.js';
 import {
   INSUFFICIENT_EVIDENCE,
   describeMissingMetrics,
@@ -93,7 +94,9 @@ async function resolveContained(input: string, root: string, label: string): Pro
 async function resolveAnalysisScope(
   payload: { sourceFiles?: unknown; target?: unknown },
 ): Promise<{ sourceFiles: string[]; explicitFiles: string[]; scope: string }> {
-  const root = process.cwd();
+  // #1021 round 2b: the AQE project root (AQE_PROJECT_ROOT, else detected),
+  // not the process cwd — an MCP server may run from another directory.
+  const root = findProjectRoot();
   if (Array.isArray(payload.sourceFiles) && payload.sourceFiles.length > 0) {
     const files: string[] = [];
     for (const file of payload.sourceFiles) {
@@ -125,7 +128,7 @@ function describePartialMetrics(
 ): string[] {
   return (partial ?? []).map((p) => `Partial evidence: ${p.metric} measured over ${p.analysedFiles} of ${p.totalFiles} `
     // coverageOfScope is already rounded down to 3 decimals; round only float noise here.
-    + `file(s) (${Math.round(p.coverageOfScope * 1000) / 10}%); not analysed:`
+    + `file(s) (${Math.round(p.coverageOfScope * 1000) / 10}%); not analysed: `
     + p.failed.slice(0, 3).map((f) => f.reason).join('; ')
     + (p.failed.length > 3 ? `; and ${p.failed.length - 3} more` : '') + '.');
 }
@@ -284,6 +287,11 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
           ...metrics,
         },
         unmeasuredReasons: unmeasuredReasons(sufficiency.unmeasured, report.unmeasured),
+        // #1021 round 2b: a score over a subset of the requested metrics (or over
+        // part of the files) names what it is based on — it is not a verdict.
+        ...(insufficient || (report.partial?.length ?? 0) > 0
+          ? { scoreBasis: report.metrics.map((m) => m.name) }
+          : {}),
         recommendations: [
           ...measuredFailures.map(describeMeasuredFailure),
           ...describeMissingMetrics(sufficiency.unmeasured),

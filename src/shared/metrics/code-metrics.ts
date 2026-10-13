@@ -8,6 +8,7 @@ import { FileReader, PathTraversalError } from '../io';
 import { treeSitterRegistry } from '../parsers/multi-language-parser.js';
 import { getLanguageFromExtension } from '../types/test-frameworks.js';
 import { calculateCognitiveComplexity } from './cognitive-complexity.js';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -69,9 +70,38 @@ export interface FileAnalysisOutcome {
 
 /** git-style binary sniff: a NUL within the first 8 KB. */
 const BINARY_SNIFF_CHARS = 8192;
-/** Generated-file markers looked for near the top of a file. */
-const GENERATED_HEADER = /@generated\b|\bDO NOT EDIT\b/;
+/** How far into a file the generated-file conventions are looked for. */
 const GENERATED_SNIFF_CHARS = 1024;
+/** Go's convention (golang.org/s/generatedcode), one full line. */
+const GO_GENERATED_LINE = /^\/\/ Code generated .* DO NOT EDIT\.$/m;
+/** `@generated` used as a tag (not part of a word, e.g. not `@generatedAt`). */
+const GENERATED_TAG = /(?:^|[\s*/])@generated(?![\w-])/;
+
+/** The file's first comment block: a leading block comment or run of line comments. */
+function firstCommentBlock(content: string): string {
+  const text = content.replace(/^\uFEFF/, '').replace(/^#![^\n]*\n/, '').trimStart();
+  if (text.startsWith('/*')) {
+    const close = text.indexOf('*/');
+    return close >= 0 ? text.slice(0, close + 2) : text;
+  }
+  const lines: string[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trimStart().startsWith('//')) break;
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * #1021 round 2b: generated only by convention — Go's
+ * "// Code generated … DO NOT EDIT." line near the top, or an `@generated`
+ * tag in the first comment block. Prose such as "DO NOT EDIT the retry
+ * constants", or `@generated` mentioned later in the file, is handwritten.
+ */
+function isGeneratedSource(content: string): boolean {
+  const head = content.slice(0, GENERATED_SNIFF_CHARS).replace(/\r\n/g, '\n');
+  return GO_GENERATED_LINE.test(head) || GENERATED_TAG.test(firstCommentBlock(head));
+}
 
 /** Exclusion decided from the file name alone. */
 function excludedByName(filePath: string): string | undefined {
@@ -97,10 +127,11 @@ export class CodeMetricsAnalyzer {
 
   constructor() {
     this.parser = new TypeScriptParser();
-    // #1021: reads inside the working directory are contained by realpath, so
-    // in-root names like `[...slug].tsx`, dot-dirs and deep paths are readable;
-    // anything outside keeps the legacy path validation.
-    this.fileReader = new FileReader({ projectRoot: process.cwd() });
+    // #1021: reads inside the AQE project root (AQE_PROJECT_ROOT, else the
+    // detected root — not merely the process cwd) are contained by realpath,
+    // so in-root names like `[...slug].tsx`, dot-dirs and deep paths are
+    // readable; anything outside keeps the legacy path validation.
+    this.fileReader = new FileReader({ projectRoot: findProjectRoot() });
   }
 
   /**
@@ -132,7 +163,7 @@ export class CodeMetricsAnalyzer {
     if (content !== undefined && !sourceDespiteNul && content.slice(0, BINARY_SNIFF_CHARS).includes('\u0000')) {
       return { status: 'excluded', metrics: null, reason: `${filePath} has binary content` };
     }
-    if (content !== undefined && GENERATED_HEADER.test(content.slice(0, GENERATED_SNIFF_CHARS))) {
+    if (content !== undefined && isGeneratedSource(content)) {
       return { status: 'excluded', metrics: null, reason: `${filePath} is a generated file` };
     }
     if (parseFailure) return { status: 'failed', metrics, reason: `${filePath} could not be parsed (${parseFailure})` };

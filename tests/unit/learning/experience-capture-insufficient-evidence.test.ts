@@ -90,6 +90,28 @@ describe('experience capture skips insufficient-evidence results (#1002)', () =>
     expect(inserts().length).toBeGreaterThan(0);
   });
 
+  it('records no failure experience for a caller-input error (#1021 round 2b)', async () => {
+    const handler = vi.fn(async () => ({
+      success: false, error: 'target "../" is outside the project root (/p).', data: { callerError: true },
+    }));
+    const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');
+
+    const result = await wrapped({});
+
+    expect(result.success).toBe(false);
+    expect(inserts()).toEqual([]);
+    expect((await getCaptureStats()).activeExperiences).toBe(0);
+  });
+
+  it('still records a genuine handler failure', async () => {
+    const handler = vi.fn(async () => ({ success: false, error: 'analyzer crashed' }));
+    const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');
+
+    await wrapped({});
+
+    expect(inserts().length).toBeGreaterThan(0);
+  });
+
   it('still records a measured run', async () => {
     const handler = vi.fn(async () => ({ success: true, data: { status: 'completed', evidenceStatus: 'measured' } }));
     const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');
