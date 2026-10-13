@@ -13,13 +13,14 @@ import * as path from 'path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { findProjectRoot, clearProjectRootCache } from '../../../src/kernel/unified-memory';
-import { isSharedSystemDir } from '../../../src/kernel/project-root';
+import { isSharedSystemDir, scratchRootPath } from '../../../src/kernel/project-root';
 
 describe('findProjectRoot (Issue #516)', () => {
   let tmpRoot: string;
   let fakeTmp: string;
   let savedEnv: string | undefined;
   let savedTmpdir: string | undefined;
+  let savedCacheEnv: Record<string, string | undefined>;
 
   beforeEach(() => {
     // Hermetic (#1006): every walk starts below a test-owned fake OS temp dir.
@@ -32,6 +33,15 @@ describe('findProjectRoot (Issue #516)', () => {
     tmpRoot = fs.realpathSync(fs.mkdtempSync(path.join(fakeTmp, 'aqe-fpr-')));
     savedEnv = process.env.AQE_PROJECT_ROOT;
     delete process.env.AQE_PROJECT_ROOT;
+    // Scratch roots (#1006 N1) go to the per-user cache dir; keep them in the fixture.
+    savedCacheEnv = {
+      XDG_CACHE_HOME: process.env.XDG_CACHE_HOME,
+      LOCALAPPDATA: process.env.LOCALAPPDATA,
+      HOME: process.env.HOME,
+    };
+    process.env.XDG_CACHE_HOME = path.join(tmpRoot, 'user-cache');
+    process.env.LOCALAPPDATA = path.join(tmpRoot, 'user-cache');
+    process.env.HOME = path.join(tmpRoot, 'user-home');
     clearProjectRootCache();
   });
 
@@ -40,6 +50,10 @@ describe('findProjectRoot (Issue #516)', () => {
     else process.env.AQE_PROJECT_ROOT = savedEnv;
     if (savedTmpdir === undefined) delete process.env.TMPDIR;
     else process.env.TMPDIR = savedTmpdir;
+    for (const [key, value] of Object.entries(savedCacheEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     clearProjectRootCache();
     fs.rmSync(fakeTmp, { recursive: true, force: true });
   });
@@ -204,7 +218,7 @@ describe('findProjectRoot (Issue #516)', () => {
       expect(findProjectRoot(project)).toBe(project);
     });
 
-    it('does not adopt a store in a world-writable directory', () => {
+    it('does not adopt a stray store in a sticky world-writable dir without .git', () => {
       if (process.platform === 'win32') return;
       const shared = path.join(tmpRoot, 'shared');
       const project = path.join(shared, 'proj');
@@ -212,6 +226,40 @@ describe('findProjectRoot (Issue #516)', () => {
       fs.chmodSync(shared, 0o1777);
 
       expect(findProjectRoot(project)).toBe(project);
+    });
+
+    // N4 (review of #1026): the sticky check must not hide a real repo root.
+    it('resolves a git repo whose root dir is sticky world-writable (1777)', () => {
+      if (process.platform === 'win32') return;
+      const repo = path.join(tmpRoot, 'repo');
+      const nested = path.join(repo, 'src');
+      mkdirs(path.join(repo, '.git'), nested);
+      fs.chmodSync(repo, 0o1777);
+
+      expect(findProjectRoot(nested)).toBe(repo);
+      clearProjectRootCache();
+      expect(findProjectRoot(repo)).toBe(repo);
+    });
+
+    it('resolves repo/tmp(1777)/sub to the repo', () => {
+      if (process.platform === 'win32') return;
+      const repo = path.join(tmpRoot, 'repo');
+      const stickyTmp = path.join(repo, 'tmp');
+      const sub = path.join(stickyTmp, 'sub');
+      mkdirs(path.join(repo, '.git'), sub);
+      fs.chmodSync(stickyTmp, 0o1777);
+
+      expect(findProjectRoot(sub)).toBe(repo);
+    });
+
+    it('keeps a repo store in a sticky repo root', () => {
+      if (process.platform === 'win32') return;
+      const repo = path.join(tmpRoot, 'repo');
+      const nested = path.join(repo, 'src');
+      mkdirs(path.join(repo, '.git'), path.join(repo, '.agentic-qe'), nested);
+      fs.chmodSync(repo, 0o1777);
+
+      expect(findProjectRoot(nested)).toBe(repo);
     });
 
     it('still adopts a project store in a chmod-777 (non-sticky) workspace', () => {
@@ -234,6 +282,42 @@ describe('findProjectRoot (Issue #516)', () => {
       if (process.platform !== 'win32') {
         expect(fs.statSync(root).mode & 0o077).toBe(0);
       }
+    });
+
+    // N1 (review of #1026): one stable scratch root per user and directory.
+    it('uses a stable per-user scratch root under the user cache dir', () => {
+      const first = findProjectRoot(fakeTmp);
+      clearProjectRootCache();
+      const second = findProjectRoot(fakeTmp);
+
+      expect(second).toBe(first);
+      expect(first).toBe(scratchRootPath(fakeTmp));
+      expect(first.startsWith(path.join(tmpRoot, 'user-cache', 'agentic-qe', 'scratch') + path.sep)
+        || process.platform === 'darwin').toBe(true);
+      expect(fs.readdirSync(fakeTmp).filter(n => n.startsWith('aqe-scratch'))).toEqual([]);
+    });
+
+    it('gives different shared dirs different scratch roots', () => {
+      if (process.platform === 'win32') return;
+      expect(scratchRootPath('/tmp')).not.toBe(scratchRootPath('/var/tmp'));
+    });
+
+    it('reuses the same scratch root across processes and creates no new dirs per run', () => {
+      const moduleUrl = pathToFileURL(path.resolve('src/kernel/project-root.ts')).href;
+      const run = () => execFileSync(process.execPath, [
+        '--import', path.resolve('node_modules/tsx/dist/loader.mjs'), '--input-type=module', '-e',
+        `import { findProjectRoot } from ${JSON.stringify(moduleUrl)}; console.log(findProjectRoot('.'));`,
+      ], { cwd: fakeTmp, env: { ...process.env, AQE_PROJECT_ROOT: '' }, timeout: 5000, encoding: 'utf8' }).trim();
+
+      const first = run();
+      const base = path.dirname(first);
+      const entriesAfterFirst = fs.readdirSync(base).sort();
+      const tmpEntriesAfterFirst = fs.readdirSync(fakeTmp).sort();
+      const second = run();
+
+      expect(second).toBe(first);
+      expect(fs.readdirSync(base).sort()).toEqual(entriesAfterFirst);
+      expect(fs.readdirSync(fakeTmp).sort()).toEqual(tmpEntriesAfterFirst);
     });
 
     it('does not adopt an existing store in the OS temp dir when run from it', () => {

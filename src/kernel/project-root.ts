@@ -15,6 +15,9 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import {
+  ensureScratchRoot, isHardStopDir, isSharedSystemDir, isStickyWorldWritable,
+} from './shared-dirs.js';
 
 /** Module-level cache for findProjectRoot result. */
 let _cachedProjectRoot: string | null = null;
@@ -29,70 +32,38 @@ export function clearProjectRootCache(): void {
   _cachedStartDir = null;
 }
 
-/**
- * Fixed system directories that are never a project root. A `.agentic-qe`,
- * `.git` or `package.json` found in one of these is a stray left by some other
- * run, not a project marker (#1006).
- */
-const POSIX_SYSTEM_DIRS = [
-  '/', '/tmp', '/var/tmp', '/usr/tmp', '/dev/shm', '/run/shm',
-  '/private', '/private/tmp', '/private/var', '/private/var/tmp',
-  '/var', '/usr', '/etc', '/opt', '/srv', '/mnt', '/media', '/run',
-  '/home', '/Users', '/Volumes',
-];
+export { isSharedSystemDir, scratchRootPath } from './shared-dirs.js';
 
-function safeRealpath(p: string): string {
-  try { return fs.realpathSync(p); } catch { return path.resolve(p); }
-}
+/** Scratch roots already announced in this process (one notice per directory). */
+const announcedScratchRoots = new Set<string>();
 
 /**
- * True when `dir` is a shared temp or system directory: the OS temp dir,
- * `/tmp`, `/var/tmp`, a top-level system dir, or a sticky world-writable
- * directory (mode 1777-style, the shape of a shared temp dir). A plain o+w
- * directory without the sticky bit is not treated as shared, since container
- * workspaces are often chmod 777 and are real projects. AQE must never adopt or create
- * a learning store in such a directory, because every unrelated run below it
- * would then share and pollute one store (#1006).
+ * Stable private root used when AQE runs with no project marker from a shared
+ * temp/system directory itself. Using that directory would create
+ * `<tmp>/.agentic-qe`, which every marker-less run below it would adopt
+ * (#1006). The root lives in the per-user cache dir, keyed by the directory,
+ * so memory persists across runs and no directory is minted per process.
  */
-export function isSharedSystemDir(dir: string): boolean {
-  const resolved = path.resolve(dir);
-  const real = safeRealpath(resolved);
-  const candidates = new Set<string>();
-  const add = (p: string): void => {
-    candidates.add(path.resolve(p));
-    candidates.add(safeRealpath(p));
-  };
-  try { add(os.tmpdir()); } catch { /* no temp dir configured */ }
-  if (process.platform === 'win32') {
-    if (resolved === path.parse(resolved).root) return true;
-  } else {
-    for (const sys of POSIX_SYSTEM_DIRS) add(sys);
+function scratchRootFor(sharedDir: string): string {
+  const scratch = ensureScratchRoot(sharedDir);
+  if (!announcedScratchRoots.has(scratch)) {
+    announcedScratchRoots.add(scratch);
+    console.error(
+      `[AQE] No project marker found and "${sharedDir}" is a shared temp/system ` +
+      `directory; using the private scratch root "${scratch}" instead of creating ` +
+      `a shared .agentic-qe store there. Set AQE_PROJECT_ROOT to choose a root.`,
+    );
   }
-  if (candidates.has(resolved) || candidates.has(real)) return true;
-  if (process.platform === 'win32') return false;
-  try {
-    const mode = fs.statSync(resolved).mode;
-    return (mode & 0o1002) === 0o1002;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Private, per-process fallback root used when AQE runs with no project marker
- * from a shared temp/system directory itself. Using that directory as the root
- * would create `<tmp>/.agentic-qe`, which every marker-less run below it would
- * then adopt (#1006). The fallback is created with mode 0700 by mkdtemp and is
- * a sibling of every other temp project, so no other walk can reach it.
- */
-function createScratchRoot(sharedDir: string): string {
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-scratch-root-'));
-  console.error(
-    `[AQE] No project marker found and "${sharedDir}" is a shared temp/system ` +
-    `directory; using a private scratch root "${scratch}" instead of creating ` +
-    `a shared .agentic-qe store there. Set AQE_PROJECT_ROOT to choose a root.`,
-  );
   return scratch;
+}
+
+/**
+ * Path of a file or directory inside the current project's `.agentic-qe`
+ * store. Writers use this instead of a cwd-relative `.agentic-qe`, so a run
+ * from a subdirectory or a shared temp dir writes to the resolved store.
+ */
+export function getProjectStorePath(...segments: string[]): string {
+  return path.join(findProjectRoot(), '.agentic-qe', ...segments);
 }
 
 /** True when `dir` is `parent` or inside it. */
@@ -111,10 +82,15 @@ function isWithin(dir: string, parent: string): boolean {
  * 4. Walk up looking for package.json WITHOUT node_modules sibling (monorepo root)
  * 5. Fallback to current working directory
  *
- * The walk stops at a shared temp or system directory (`isSharedSystemDir`):
- * markers at or above the OS temp dir, `/tmp`, `/var/tmp`, a top-level system
- * dir or any world-writable dir are never adopted, and such a directory is
- * never returned as the root — a private scratch root is used instead (#1006).
+ * Shared directories (#1006):
+ * - The walk stops at a hard-stop directory (the OS temp dir, a fixed system
+ *   dir such as `/tmp`, `/`, `/home`, or a Windows drive root); markers in or
+ *   above it are never adopted.
+ * - In a sticky world-writable dir (mode 1777) markers are still read, so a
+ *   repo whose root is 1777 keeps its root, but a `.agentic-qe` store there
+ *   is adopted only when the same dir has `.git`.
+ * - A shared dir is never returned as the root itself: a stable per-user
+ *   scratch root is used instead (`ensureScratchRoot`).
  *
  * Optimized: single upward walk checks all markers in one pass,
  * and the result is cached at module level for subsequent calls.
@@ -142,10 +118,14 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   let topmostPackageJson: string | null = null;
 
   while (checkDir !== root) {
-    // #1006: a marker in a shared temp/system dir belongs to no project, and
-    // nothing above one is this project's either. Stop before adopting
-    // `/tmp/.agentic-qe`, `/tmp/.git` or a store above the temp dir.
-    if (isSharedSystemDir(checkDir)) break;
+    // #1006: a marker in the OS temp dir or a fixed system dir belongs to no
+    // project, and nothing above one is this project's either. Stop before
+    // adopting `/tmp/.agentic-qe`, `/tmp/.git` or a store above the temp dir.
+    if (isHardStopDir(checkDir)) break;
+    const hasGit = fs.existsSync(path.join(checkDir, '.git'));
+    // A sticky world-writable dir is shared scratch space unless it is itself
+    // a repo root; only then may a store in it be adopted (#1006, N4).
+    const strayStoreDir = !hasGit && isStickyWorldWritable(checkDir);
 
     // Issue #516: prefer the NEAREST (lowest) .agentic-qe, mirroring the
     // .git logic below. Keeping the topmost match let an ancestor store
@@ -155,12 +135,13 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
     // has not been initialized with AQE yet.
     const isHomeStoreAboveStart = checkDir === home && checkDir !== dir
       && !isWithin(dir, path.join(checkDir, '.agentic-qe'));
-    if (lowestGitDir === null && !isHomeStoreAboveStart && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
+    if (lowestGitDir === null && !isHomeStoreAboveStart && !strayStoreDir
+      && fs.existsSync(path.join(checkDir, '.agentic-qe'))) {
       if (nearestAqeDir === null) {
         nearestAqeDir = checkDir;
       }
     }
-    if (fs.existsSync(path.join(checkDir, '.git'))) {
+    if (hasGit) {
       if (lowestGitDir === null) {
         lowestGitDir = checkDir;
       }
@@ -178,7 +159,7 @@ export function findProjectRoot(startDir: string = process.cwd()): string {
   } else if (topmostPackageJson) {
     _cachedProjectRoot = topmostPackageJson;
   } else if (isSharedSystemDir(dir)) {
-    _cachedProjectRoot = createScratchRoot(dir);
+    _cachedProjectRoot = scratchRootFor(dir);
   } else {
     _cachedProjectRoot = dir;
   }
