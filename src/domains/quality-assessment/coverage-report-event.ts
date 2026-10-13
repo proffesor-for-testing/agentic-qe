@@ -1,26 +1,45 @@
 /**
- * Validation of `coverage-analysis.CoverageReportCreated` payloads before the
- * quality-assessment domain stores them as `coverage:latest` (#1008).
+ * Validation of measured coverage records (#1008, #1014, #1015).
  *
- * Only a report its producer explicitly marked `measured: true`, carrying
+ * Used for `coverage-analysis.CoverageReportCreated` payloads before the
+ * quality-assessment domain stores them as `coverage:latest`, and by every
+ * reader of the stored records (`coverage:latest`, `coverage:previous`,
+ * `coverage:file:*`).
+ *
+ * Only a record its producer explicitly marked `measured: true`, carrying
  * finite coverage figures, is coverage evidence. Anything else — a static
- * estimate, a legacy event without provenance, or a look-alike event with no
- * coverage figures at all — is ignored rather than written as zeros.
+ * estimate, a legacy record without provenance (written by <= 3.15.4, or the
+ * `{"files":0}` bridge echo removed in #1013), or a look-alike with no coverage
+ * figures at all — is ignored rather than read as a measurement or as zeros.
  */
 
 /** The `coverage:latest` record written from a measured coverage report. */
 export interface MeasuredCoverageSummary {
   line: number;
-  branch: number;
-  function: number;
+  /** `null` = the report collected no branch data (not 0%, #1015). */
+  branch: number | null;
+  /** `null` = the report collected no function data (not 0%, #1015). */
+  function: number | null;
   statement: number;
   files: number;
   /** Provenance stamp: this record came from instrumented coverage. */
   measured: true;
 }
 
+/** A per-file `coverage:file:<path>` record written from measured coverage. */
+export interface MeasuredFileCoverage {
+  line: number;
+  branch: number | null;
+  function: number | null;
+  statement: number | null;
+  measured: true;
+}
+
 const isPercent = (v: unknown): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100;
+
+/** A percentage, or `null` for a metric that was not collected. */
+const isPercentOrNull = (v: unknown): v is number | null => v === null || isPercent(v);
 
 /**
  * Return the measured summary to store, or `null` when the payload is not
@@ -30,7 +49,7 @@ export function measuredCoverageSummary(payload: unknown): MeasuredCoverageSumma
   if (!payload || typeof payload !== 'object') return null;
   const p = payload as Record<string, unknown>;
   if (p.measured !== true) return null;
-  if (!isPercent(p.line) || !isPercent(p.branch) || !isPercent(p.function) || !isPercent(p.statement)) {
+  if (!isPercent(p.line) || !isPercent(p.statement) || !isPercentOrNull(p.branch) || !isPercentOrNull(p.function)) {
     return null;
   }
   const files = typeof p.files === 'number' && Number.isInteger(p.files) && p.files >= 0 ? p.files : null;
@@ -43,4 +62,17 @@ export function measuredCoverageSummary(payload: unknown): MeasuredCoverageSumma
     files,
     measured: true,
   };
+}
+
+/**
+ * Return a stored per-file coverage record when it is measured evidence, or
+ * `null` (#1014): legacy unstamped `coverage:file:*` records — static
+ * estimates written by <= 3.15.4 never expire — must not be read as coverage.
+ */
+export function measuredFileCoverage(record: unknown): MeasuredFileCoverage | null {
+  if (!record || typeof record !== 'object') return null;
+  const r = record as Record<string, unknown>;
+  if (r.measured !== true || !isPercent(r.line)) return null;
+  const opt = (v: unknown): number | null => (isPercent(v) ? v : null);
+  return { line: r.line, branch: opt(r.branch), function: opt(r.function), statement: opt(r.statement), measured: true };
 }

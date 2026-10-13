@@ -24,6 +24,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { measuredCoverageSummary } from '../../quality-assessment/coverage-report-event.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 
 /**
@@ -580,15 +581,20 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
   private async calculateDelta(current: CoverageSummary): Promise<CoverageDelta | undefined> {
     try {
-      const previous = await this.memory.get<CoverageSummary>('coverage:latest');
+      // #1015: only a measured baseline with finite figures is a baseline. A
+      // legacy unstamped record (e.g. the `{"files":0}` bridge echo removed in
+      // #1013) gave a NaN delta that was reported as "stable".
+      const previous = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
 
       if (!previous) {
         return undefined;
       }
 
+      // A metric the baseline did not collect has no delta (0, not NaN).
+      const diff = (now: number, before: number | null) => (before === null ? 0 : now - before);
       const lineDelta = current.line - previous.line;
-      const branchDelta = current.branch - previous.branch;
-      const functionDelta = current.function - previous.function;
+      const branchDelta = diff(current.branch, previous.branch);
+      const functionDelta = diff(current.function, previous.function);
       const statementDelta = current.statement - previous.statement;
 
       const avgDelta = (lineDelta + branchDelta + functionDelta + statementDelta) / 4;
@@ -616,8 +622,10 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
   private async storeCoverageSnapshot(summary: CoverageSummary): Promise<void> {
     try {
-      // Rotate: copy current coverage:latest → coverage:previous before overwriting
-      const existing = await this.memory.get<CoverageSummary>('coverage:latest');
+      // Rotate: copy current coverage:latest → coverage:previous before
+      // overwriting — only a measured record (#1015): legacy junk is dropped,
+      // never promoted to the baseline.
+      const existing = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
       if (existing) {
         await this.memory.set('coverage:previous', existing, { persist: true });
       }
@@ -632,7 +640,7 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
 
       // Store historical snapshot
       const timestamp = Date.now();
-      await this.memory.set(`coverage:history:${timestamp}`, summary, {
+      await this.memory.set(`coverage:history:${timestamp}`, { ...summary, measured: true }, {
         persist: true,
         namespace: 'coverage-history',
       });
@@ -649,20 +657,19 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
   private async storeFileCoverageKV(files: FileCoverage[]): Promise<void> {
     for (const file of files) {
       try {
-        const linePct = file.lines.total > 0
-          ? Math.round((file.lines.covered / file.lines.total) * 10000) / 100 : 0;
-        const branchPct = file.branches.total > 0
-          ? Math.round((file.branches.covered / file.branches.total) * 10000) / 100 : 0;
-        const fnPct = file.functions.total > 0
-          ? Math.round((file.functions.covered / file.functions.total) * 10000) / 100 : 0;
-        const stmtPct = file.statements.total > 0
-          ? Math.round((file.statements.covered / file.statements.total) * 10000) / 100 : 0;
+        // #1014: a metric with no data is null (not collected), never 0%.
+        const pct = (m: { covered: number; total: number }) =>
+          m.total > 0 ? Math.round((m.covered / m.total) * 10000) / 100 : null;
+        if (file.lines.total === 0) continue;
 
+        // #1014: stamped, so readers can tell it from legacy unstamped
+        // estimate records written by <= 3.15.4.
         await this.memory.set(`coverage:file:${file.path}`, {
-          line: linePct,
-          branch: branchPct,
-          function: fnPct,
-          statement: stmtPct,
+          line: pct(file.lines),
+          branch: pct(file.branches),
+          function: pct(file.functions),
+          statement: pct(file.statements),
+          measured: true,
         }, { persist: true });
       } catch {
         // Non-critical, continue
