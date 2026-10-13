@@ -30,6 +30,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { measuredCoverageSummary, measuredFileCoverage } from '../coverage-report-event.js';
 
 /**
  * Interface for the quality analyzer service
@@ -660,18 +661,20 @@ Focus on:
   private async getStoredCoverage(file: string): Promise<number | null> {
     try {
       // 1. Try per-file coverage stored by test executor
-      const fileCoverage = await this.memory.get<{ line: number }>(
+      // #1014: only measured records count. Legacy unstamped estimate
+      // records (written by <= 3.15.4, never expiring) are ignored.
+      const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(
         `coverage:file:${file}`
-      );
-      if (fileCoverage && typeof fileCoverage.line === 'number') {
+      ));
+      if (fileCoverage) {
         return fileCoverage.line;
       }
 
       // 2. Fall back to project-wide summary from coverage-analyzer
-      const summary = await this.memory.get<{ line: number }>(
+      const summary = measuredCoverageSummary(await this.memory.get<unknown>(
         'coverage:latest'
-      );
-      if (summary && typeof summary.line === 'number') {
+      ));
+      if (summary) {
         return summary.line;
       }
 

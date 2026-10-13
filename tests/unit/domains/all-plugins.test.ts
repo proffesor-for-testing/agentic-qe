@@ -535,6 +535,7 @@ describe('All Domain Plugins (Consolidated)', () => {
           file: 'src/service.ts',
           uncoveredLines: [10, 11, 12],
           riskScore: 0.8,
+          measured: true, // #1014: only gaps in measured coverage are acted on
         },
         memoryKey: 'test-generation:pending-gaps:gap_123',
       },

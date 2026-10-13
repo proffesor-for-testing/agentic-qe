@@ -11,6 +11,7 @@
 
 import type { WorkerMemory } from '../interfaces';
 import type { PriorityQueue, CoverageDeltaPayload, QueueItem, DaemonTaskPayload } from './priority-queue';
+import { measuredCoverageSummary } from '../../domains/quality-assessment/coverage-report-event.js';
 
 export interface CoverageSnapshot {
   readonly timestamp: number;
@@ -170,25 +171,20 @@ export class CoverageDeltaAnalyzer {
    * Build a CoverageSnapshot from raw lcov/istanbul data stored in memory.
    */
   async buildSnapshot(memory: WorkerMemory): Promise<CoverageSnapshot | undefined> {
-    const latest = await memory.get<{
-      line: number;
-      branch: number;
-      function: number;
-      statement: number;
-      files?: Record<string, FileCoverage>;
-    }>('coverage:latest');
-
+    const raw = await memory.get<{ files?: Record<string, FileCoverage> | number }>('coverage:latest');
+    // #1014: only a measured record is a snapshot; legacy/estimated records are not.
+    const latest = measuredCoverageSummary(raw);
     if (!latest) return undefined;
 
     return {
       timestamp: Date.now(),
       overall: {
         line: latest.line,
-        branch: latest.branch,
-        function: latest.function,
+        branch: latest.branch ?? 0,
+        function: latest.function ?? 0,
         statement: latest.statement,
       },
-      files: latest.files ?? {},
+      files: raw && typeof raw.files === 'object' ? raw.files : {},
     };
   }
 

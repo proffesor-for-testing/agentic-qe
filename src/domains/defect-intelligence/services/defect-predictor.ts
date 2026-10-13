@@ -29,6 +29,7 @@ import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
+import { measuredCoverageSummary, measuredFileCoverage } from '../../quality-assessment/coverage-report-event.js';
 
 /**
  * Interface for the defect prediction service
@@ -809,17 +810,18 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
   private async getTestCoverage(file: string): Promise<number> {
     try {
       // Try per-file coverage (written by coverage-analyzer and test-executor)
-      const fileCoverage = await this.memory.get<{ line: number }>(
+      // #1014: only measured records; legacy unstamped estimates are ignored.
+      const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(
         `coverage:file:${file}`
-      );
-      if (fileCoverage && typeof fileCoverage.line === 'number') {
+      ));
+      if (fileCoverage) {
         // Invert: low coverage = high defect risk
         return 1 - fileCoverage.line / 100;
       }
 
       // Fall back to project-wide coverage
-      const summary = await this.memory.get<{ line: number }>('coverage:latest');
-      if (summary && typeof summary.line === 'number') {
+      const summary = measuredCoverageSummary(await this.memory.get<unknown>('coverage:latest'));
+      if (summary) {
         return 1 - summary.line / 100;
       }
     } catch {

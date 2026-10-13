@@ -219,10 +219,17 @@ describe('CoverageDeltaAnalyzer', () => {
       branch: 75,
       function: 90,
       statement: 88,
+      files: 3,
+      measured: true,
     });
 
     const result = await analyzer.buildSnapshot(memory);
     expect(result).toBeDefined();
     expect(result!.overall.line).toBe(85);
+  });
+
+  it('buildSnapshot ignores a legacy unstamped coverage:latest (#1014)', async () => {
+    await memory.set('coverage:latest', { line: 10, branch: 0, function: 0, statement: 10, files: 3 });
+    expect(await analyzer.buildSnapshot(memory)).toBeUndefined();
   });
 });

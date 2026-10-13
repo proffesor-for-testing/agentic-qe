@@ -26,6 +26,7 @@ import type { ImpactAnalysis } from '../../domains/code-intelligence/interfaces'
 import { toError } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
 import { addToCount } from '../../shared/utils/safe-record.js';
+import { measuredFileCoverage } from '../../domains/quality-assessment/coverage-report-event.js';
 
 const logger = LoggerFactory.create('defect-investigation');
 
@@ -987,25 +988,22 @@ export class DefectInvestigationProtocol {
   ): Promise<CoverageContext | null> {
     try {
       // Try per-file coverage (written by coverage-analyzer and test-executor)
-      const coverage = await this.memory.get<{
-        line: number;
-        branch: number;
-        function: number;
-        statement: number;
-      }>(`coverage:file:${file}`);
+      // #1014: only measured records; legacy unstamped estimates are ignored.
+      const coverage = measuredFileCoverage(await this.memory.get<unknown>(`coverage:file:${file}`));
 
       if (!coverage) {
         return null;
       }
 
-      // Calculate risk based on coverage
-      const avgCoverage = (coverage.line + coverage.branch) / 2;
+      // Calculate risk based on coverage (an uncollected branch metric is
+      // left out, not counted as 0%).
+      const avgCoverage = coverage.branch === null ? coverage.line : (coverage.line + coverage.branch) / 2;
       const riskScore = 1 - avgCoverage / 100;
 
       return {
         file,
         lineCoverage: coverage.line,
-        branchCoverage: coverage.branch,
+        branchCoverage: coverage.branch ?? coverage.line,
         uncoveredLines: [], // per-file KV store doesn't track individual lines
         riskScore,
       };

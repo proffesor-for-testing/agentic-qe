@@ -14,6 +14,7 @@ import {
   CoverageGaps,
   CoverageGap,
   FileCoverage,
+  isMeasuredGapRequest,
 } from '../interfaces';
 
 // ADR-051: LLM Router for AI-enhanced gap analysis
@@ -367,8 +368,12 @@ Return JSON in this exact format:
       // Calculate estimated effort
       const estimatedEffort = this.calculateTotalEffort(prioritizedGaps);
 
-      // Store gap patterns for learning
-      await this.storeGapPatterns(prioritizedGaps);
+      // Store gap patterns for learning — only gaps in MEASURED coverage
+      // (#1014). A gap from a static estimate is a hypothesis: returned to the
+      // caller, never persisted as a gap-pattern vector.
+      if (isMeasuredGapRequest(request)) {
+        await this.storeGapPatterns(prioritizedGaps);
+      }
 
       return ok({
         gaps: prioritizedGaps,

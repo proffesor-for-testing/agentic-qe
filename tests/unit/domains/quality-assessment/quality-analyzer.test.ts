@@ -110,7 +110,7 @@ describe('QualityAnalyzerService', () => {
     it('should include only requested metrics when specified', async () => {
       // Pre-populate coverage data so the metric is included
       await mockMemory.set('coverage:latest', {
-        line: 80, branch: 70, function: 85, statement: 78, files: 1,
+        line: 80, branch: 70, function: 85, statement: 78, files: 1, measured: true, // #1014: stamped
       });
 
       const request: QualityAnalysisRequest = {
@@ -176,7 +176,7 @@ describe('QualityAnalyzerService', () => {
     it('should assign proper ratings (A-E) based on metric values', async () => {
       // Pre-populate coverage data so the metric appears
       await mockMemory.set('coverage:latest', {
-        line: 80, branch: 70, function: 85, statement: 78, files: 1,
+        line: 80, branch: 70, function: 85, statement: 78, files: 1, measured: true, // #1014: stamped
       });
 
       const request: QualityAnalysisRequest = {

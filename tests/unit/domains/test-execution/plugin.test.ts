@@ -344,6 +344,7 @@ describe('TestExecutionPlugin', () => {
           file: 'src/critical.ts',
           uncoveredLines: [10, 11, 12],
           riskScore: 0.9,
+          measured: true,
         }
       );
 

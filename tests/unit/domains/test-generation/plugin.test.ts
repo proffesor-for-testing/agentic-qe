@@ -306,6 +306,7 @@ describe('TestGenerationPlugin', () => {
           file: 'src/service.ts',
           uncoveredLines: [10, 11, 12],
           riskScore: 0.8,
+          measured: true,
         }
       );
 

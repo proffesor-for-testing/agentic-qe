@@ -22,6 +22,7 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 import { describeSavedResults, readSaveResultsOption } from './save-results-option';
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
 import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
+import { isLearnableResult } from '../../learning/learnable-result.js';
 
 // ============================================================================
 // Types
@@ -301,7 +302,10 @@ async function recordDomainFeedback(
     }
   }
 
-  if (domain === 'coverage-analysis' && data) {
+  // #1014: only MEASURED coverage becomes a coverage_sessions row. An
+  // estimate or an UNMEASURED target wrote after_lines = the estimate / 0.0,
+  // which gate-check, threshold-check and the coverage-learner then read.
+  if (domain === 'coverage-analysis' && data && isLearnableResult(domain, data)) {
     // Extract coverage session data and record for learning
     const session: CoverageSession = {
       id: randomUUID(),
@@ -333,6 +337,14 @@ async function recordDomainFeedback(
       durationMs,
       startedAt: new Date(Date.now() - durationMs),
       completedAt: new Date(),
+      // #1014: provenance stamp — readers ignore legacy rows of this agent
+      // without it (see feedback/coverage-session-provenance.ts).
+      context: {
+        measured: true,
+        coverageMethod: data.coverageMethod ?? 'instrumented-report',
+        branchDataCollected: data.branchCoverage !== null && data.branchCoverage !== undefined,
+        functionDataCollected: data.functionCoverage !== null && data.functionCoverage !== undefined,
+      },
     };
     await loop.recordCoverageSession(session);
   }
@@ -909,28 +921,35 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
       // #933: every result-saving tool reports what it wrote, the same way.
       Object.assign(mappedResult, describeSavedResults(saveResults, result.savedFiles));
 
-      // Step 5b: Record pattern usage on success (Phase 5.3 — fire-and-forget)
-      recordPatternUsageAsync(
-        routingResult?.patternHints,
-        true,
-        domain,
-        result.duration
-      );
+      // #1014: a run without evidence (a coverage estimate, an UNMEASURED
+      // target, an insufficient-evidence gate) still succeeds as a tool call,
+      // but is not recorded as successful learning anywhere below.
+      const learnable = isLearnableResult(domain, data) && isLearnableResult('', mappedResult);
 
-      // Step 5c: Capture real execution learning (fire-and-forget)
-      captureExecutionLearning(
-        `qe-${domain}`,
-        taskType,
-        params as Record<string, unknown>,
-        data,
-        result.duration
-      ).catch(() => {}); // Swallow errors — learning is non-critical
+      if (learnable) {
+        // Step 5b: Record pattern usage on success (Phase 5.3 — fire-and-forget)
+        recordPatternUsageAsync(
+          routingResult?.patternHints,
+          true,
+          domain,
+          result.duration
+        );
 
-      // Step 5d: Record feedback for test_outcomes / coverage_sessions
-      try {
-        await recordDomainFeedback(domain, data, result.duration, params as Record<string, unknown>);
-      } catch {
-        // Non-critical — don't fail handler if feedback recording fails
+        // Step 5c: Capture real execution learning (fire-and-forget)
+        captureExecutionLearning(
+          `qe-${domain}`,
+          taskType,
+          params as Record<string, unknown>,
+          data,
+          result.duration
+        ).catch(() => {}); // Swallow errors — learning is non-critical
+
+        // Step 5d: Record feedback for test_outcomes / coverage_sessions
+        try {
+          await recordDomainFeedback(domain, data, result.duration, params as Record<string, unknown>);
+        } catch {
+          // Non-critical — don't fail handler if feedback recording fails
+        }
       }
 
       return {

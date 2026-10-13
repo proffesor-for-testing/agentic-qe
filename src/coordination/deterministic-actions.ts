@@ -12,6 +12,7 @@
 
 import { Result, ok, DomainName } from '../shared/types/index.js';
 import type { WorkflowContext } from './workflow-types.js';
+import { MEASURED_COVERAGE_SESSION_SQL } from '../feedback/coverage-session-provenance.js';
 
 // ============================================================================
 // Types
@@ -79,8 +80,9 @@ const qualityGateCheck: DeterministicAction = {
         try {
           // Latest coverage from coverage_sessions
           if (currentCoverage === null) {
+            // #1014: skip legacy estimate/unmeasured rows without provenance.
             const row = db.prepare(
-              `SELECT after_lines FROM coverage_sessions ORDER BY created_at DESC LIMIT 1`,
+              `SELECT after_lines FROM coverage_sessions WHERE ${MEASURED_COVERAGE_SESSION_SQL} ORDER BY created_at DESC LIMIT 1`,
             ).get() as { after_lines: number } | undefined;
             currentCoverage = row?.after_lines ?? 0;
           }
@@ -161,8 +163,9 @@ const coverageThresholdCheck: DeterministicAction = {
       const db = tryGetDb();
       if (db) {
         try {
+          // #1014: skip legacy estimate/unmeasured rows without provenance.
           const row = db.prepare(
-            `SELECT after_lines FROM coverage_sessions ORDER BY created_at DESC LIMIT 1`,
+            `SELECT after_lines FROM coverage_sessions WHERE ${MEASURED_COVERAGE_SESSION_SQL} ORDER BY created_at DESC LIMIT 1`,
           ).get() as { after_lines: number } | undefined;
           currentCoverage = row?.after_lines ?? 0;
         } catch {

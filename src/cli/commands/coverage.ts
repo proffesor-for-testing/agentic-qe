@@ -110,7 +110,7 @@ Exit codes:
 
         const coverageAPI = await context.kernel!.getDomainAPIAsync!<{
           analyze(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; threshold?: number; includeFileDetails?: boolean; measured?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
-          detectGaps(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; minCoverage?: number; prioritize?: string }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
+          detectGaps(request: { coverageData: { files: Array<{ path: string; lines: { covered: number; total: number }; branches: { covered: number; total: number }; functions: { covered: number; total: number }; statements: { covered: number; total: number }; uncoveredLines: number[]; uncoveredBranches: number[] }>; summary: { line: number; branch: number; function: number; statement: number; files: number } }; minCoverage?: number; prioritize?: string; measured?: boolean }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           calculateRisk(request: { file: string; uncoveredLines: number[] }): Promise<{ success: boolean; value?: unknown; error?: Error }>;
           analyzeGhostCoverage(existingTests: string[], codeContext: string): Promise<{ success: boolean; value?: { gaps: Array<{ id: string; category: string; description: string; confidence: number; severity: string; suggestedTest: string }>; totalGhostScore: number; coverageCompleteness: number; computedAt: Date }; error?: Error }>;
         }>('coverage-analysis');
@@ -196,6 +196,8 @@ Exit codes:
             coverageData,
             minCoverage: threshold,
             prioritize: includeRisk ? 'risk' : 'size',
+            // #1014: gaps in an estimate are shown, never learned or published.
+            measured: !isEstimate,
           });
 
           if (gapResult.success && gapResult.value) {

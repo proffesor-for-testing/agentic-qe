@@ -45,6 +45,7 @@ import {
   IImpactAnalyzerService,
   ImpactAnalyzerConfig,
 } from './services/impact-analyzer';
+import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Plugin configuration options
@@ -452,6 +453,8 @@ export class CodeIntelligencePlugin extends BaseDomainPlugin {
   }
 
   private async handleCoverageGap(event: DomainEvent): Promise<void> {
+    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
+    if (!isMeasuredGapPayload(event.payload)) return;
     // Coverage gap detected - update risk scores in knowledge graph
     const payload = event.payload as {
       gapId: string;

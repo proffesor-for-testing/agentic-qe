@@ -93,6 +93,19 @@ export interface GapDetectionRequest {
   coverageData: CoverageData;
   minCoverage?: number;
   prioritize?: 'risk' | 'size' | 'recent-changes';
+  /**
+   * Provenance of `coverageData` (#1014), as for AnalyzeCoverageRequest.
+   * Takes precedence over `coverageData.instrumented`. Fail-closed: gaps from
+   * data that is not explicitly measured are returned but never learned from
+   * (no gap-pattern vectors) nor published as CoverageGapDetected.
+   */
+  measured?: boolean;
+}
+
+/** Whether a gap-detection request carries measured coverage (#1014, fail-closed). */
+export function isMeasuredGapRequest(request: GapDetectionRequest): boolean {
+  if (typeof request.measured === 'boolean') return request.measured;
+  return request.coverageData.instrumented === true;
 }
 
 export interface CoverageGaps {
