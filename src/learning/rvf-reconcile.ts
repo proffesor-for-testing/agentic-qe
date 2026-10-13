@@ -12,8 +12,8 @@
 import type { RvfNativeAdapter } from '../integrations/ruvector/rvf-native-adapter.js';
 
 export interface RvfReconcileSource {
-  /** Pattern ids with a stored vector in `spaceId`. */
-  getEmbeddingIdsInSpace(spaceId: string): string[];
+  /** Pattern ids with a stored vector in `spaceId`; `ordered`: most recently used first. */
+  getEmbeddingIdsInSpace(spaceId: string, options?: { ordered?: boolean }): string[];
   /** Stored vectors for `ids`. */
   getEmbeddingsByIds(ids: string[]): Array<{ patternId: string; embedding: number[] }>;
 }
@@ -44,10 +44,17 @@ export function reconcileRvfWithSqlite(
   const none: RvfReconcileResult = { missing: 0, ingested: 0, rejected: 0, capped: false };
   if (typeof adapter.has !== 'function') return none;
 
-  const missingIds = sqlite.getEmbeddingIdsInSpace(activeSpaceId).filter((id) => !adapter.has!(id));
+  // Cheap no-op path first: an unordered id scan + has() per id. The ordered
+  // (join + sort) query runs only when one pass cannot ingest everything and
+  // the most recently used vectors should go first.
+  const missing = (ids: string[]) => ids.filter((id) => !adapter.has!(id));
+  let missingIds = missing(sqlite.getEmbeddingIdsInSpace(activeSpaceId));
   if (missingIds.length === 0) return none;
 
   const cap = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1000;
+  if (missingIds.length > cap) {
+    missingIds = missing(sqlite.getEmbeddingIdsInSpace(activeSpaceId, { ordered: true }));
+  }
   const batchIds = missingIds.slice(0, cap);
   const vectors = sqlite
     .getEmbeddingsByIds(batchIds)

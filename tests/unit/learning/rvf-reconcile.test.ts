@@ -21,7 +21,7 @@ const vec = (seed: number, dim = 8) => Array.from({ length: dim }, (_, i) => Mat
 
 function fakeSqlite(rows: Array<{ patternId: string; spaceId: string | null; embedding: number[] }>) {
   return {
-    getEmbeddingIdsInSpace: vi.fn((space: string) => rows.filter((r) => r.spaceId === space).map((r) => r.patternId)),
+    getEmbeddingIdsInSpace: vi.fn((space: string, _options?: { ordered?: boolean }) => rows.filter((r) => r.spaceId === space).map((r) => r.patternId)),
     getEmbeddingsByIds: vi.fn((ids: string[]) =>
       rows.filter((r) => ids.includes(r.patternId)).map(({ patternId, embedding }) => ({ patternId, embedding })),
     ),
@@ -50,18 +50,25 @@ describe('reconcileRvfWithSqlite (#981 review B2)', () => {
     expect(ingested[0].vector).toBeInstanceOf(Float32Array);
   });
 
-  it('is a no-op when the index already holds every vector (idempotent)', () => {
+  it('is a no-op when the index already holds every vector (idempotent), using only the cheap unordered scan', () => {
     const adapter = { has: () => true, ingest: vi.fn() };
     const sqlite = fakeSqlite([{ patternId: 'a', spaceId: 's', embedding: vec(1) }]);
     expect(reconcileRvfWithSqlite(adapter, sqlite, 's', 1000)).toEqual({ missing: 0, ingested: 0, rejected: 0, capped: false });
     expect(adapter.ingest).not.toHaveBeenCalled();
+    // round 2b: the join + ORDER BY query is not run on the per-open no-op path
+    expect(sqlite.getEmbeddingIdsInSpace).toHaveBeenCalledTimes(1);
+    expect(sqlite.getEmbeddingIdsInSpace.mock.calls[0][1]).toBeUndefined();
+    expect(sqlite.getEmbeddingsByIds).not.toHaveBeenCalled();
   });
 
   it('caps one pass to `limit` vectors', () => {
     const adapter = { has: () => false, ingest: vi.fn((e: unknown[]) => ({ accepted: e.length, rejected: 0 })) };
     const rows = Array.from({ length: 5 }, (_, i) => ({ patternId: `p${i}`, spaceId: 's', embedding: vec(i) }));
-    const result = reconcileRvfWithSqlite(adapter, fakeSqlite(rows), 's', 2);
+    const sqlite = fakeSqlite(rows);
+    const result = reconcileRvfWithSqlite(adapter, sqlite, 's', 2);
     expect(result).toEqual({ missing: 5, ingested: 2, rejected: 0, capped: true });
+    // Only when a pass is capped does it ask for most-recently-used order.
+    expect(sqlite.getEmbeddingIdsInSpace).toHaveBeenLastCalledWith('s', { ordered: true });
   });
 
   it('does nothing without a has() probe (cannot tell what the index holds)', () => {

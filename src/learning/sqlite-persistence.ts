@@ -748,25 +748,21 @@ export class SQLitePatternStore {
   }
 
   /**
-   * Get up to `limit` embeddings, most-recently-used first.
-   *
-   * Used by the RVF backfill path so an operator-truncated patterns.rvf does
-   * not trigger an unbounded re-ingest of every historical embedding (which
-   * is what reproduces the "regrew to 59 GB" pathology after `: > patterns.rvf`).
+   * Pattern ids that have a stored vector in `spaceId` (#981 review B2: find
+   * vectors the RVF index is missing). Unordered by default, which is a plain
+   * indexed scan; `ordered` returns most recently used first (join + sort),
+   * which the reconcile only needs when more ids are missing than one pass ingests.
    */
-  /**
-   * Pattern ids that have a stored vector in `spaceId`, most recently used
-   * first (#981 review B2: find vectors the RVF index is missing).
-   */
-  getEmbeddingIdsInSpace(spaceId: string): string[] {
+  getEmbeddingIdsInSpace(spaceId: string, options: { ordered?: boolean } = {}): string[] {
     if (!this.db) throw new Error('Database not initialized');
-    const rows = this.db.prepare(`
-      SELECT e.pattern_id
-        FROM qe_pattern_embeddings e
-        LEFT JOIN qe_patterns p ON p.id = e.pattern_id
-       WHERE e.space_id = ?
-       ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC
-    `).all(spaceId) as Array<{ pattern_id: string }>;
+    const sql = options.ordered
+      ? `SELECT e.pattern_id
+           FROM qe_pattern_embeddings e
+           LEFT JOIN qe_patterns p ON p.id = e.pattern_id
+          WHERE e.space_id = ?
+          ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC`
+      : 'SELECT pattern_id FROM qe_pattern_embeddings WHERE space_id = ?';
+    const rows = this.db.prepare(sql).all(spaceId) as Array<{ pattern_id: string }>;
     return rows.map(row => row.pattern_id);
   }
 
@@ -788,6 +784,13 @@ export class SQLitePatternStore {
     return out;
   }
 
+  /**
+   * Get up to `limit` embeddings, most-recently-used first.
+   *
+   * Used by the RVF backfill path so an operator-truncated patterns.rvf does
+   * not trigger an unbounded re-ingest of every historical embedding (which
+   * is what reproduces the "regrew to 59 GB" pathology after `: > patterns.rvf`).
+   */
   getRecentEmbeddings(limit: number): Array<{ patternId: string; embedding: number[]; spaceId: string | null }> {
     if (!this.db) throw new Error('Database not initialized');
     const cap = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1000;
