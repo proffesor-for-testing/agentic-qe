@@ -14,6 +14,8 @@
  */
 
 import { createHash } from 'crypto';
+import * as path from 'path';
+import { findProjectRoot } from '../kernel/project-root.js';
 
 /**
  * Build identity mixed into every cache fingerprint so persisted entries never
@@ -42,6 +44,20 @@ export interface CachedOperation {
   cachedAt: number;
   hitCount: number;
   lastHitAt: number;
+}
+
+/**
+ * Where a cached operation ran (#998). Arguments alone do not identify a
+ * result: the same relative `target: "."` means a different tree in another
+ * project, and a file argument means different content after an edit.
+ */
+export interface CacheScope {
+  /** Resolved project root. Defaults to `findProjectRoot()`. */
+  projectRoot?: string;
+  /** Working directory relative arguments resolve against. Defaults to `process.cwd()`. */
+  cwd?: string;
+  /** Fingerprints of the inputs the operation reads (absolute path, mtime, size). */
+  inputs?: Record<string, unknown>;
 }
 
 export interface SessionCacheConfig {
@@ -92,6 +108,22 @@ function canonicalStringify(value: unknown): string {
   return encode(normalized);
 }
 
+function resolveScope(scope?: CacheScope): Required<CacheScope> {
+  let projectRoot = scope?.projectRoot;
+  if (!projectRoot) {
+    try { projectRoot = findProjectRoot(); } catch { projectRoot = ''; }
+  }
+  let cwd = scope?.cwd;
+  if (!cwd) {
+    try { cwd = process.cwd(); } catch { cwd = ''; }
+  }
+  return {
+    projectRoot: projectRoot ? path.resolve(projectRoot) : '',
+    cwd: cwd ? path.resolve(cwd) : '',
+    inputs: scope?.inputs ?? {},
+  };
+}
+
 // ============================================================================
 // Implementation
 // ============================================================================
@@ -122,9 +154,21 @@ export class SessionOperationCache {
    *
    * Including the version means an upgrade misses cleanly rather than serving
    * stale answers; entries from the old build simply age out.
+   *
+   * The scope (project root, working directory and input fingerprints) is part
+   * of the key too (#998): without it a relative target returned another
+   * project's cached result. When no scope is passed, the current project root
+   * and working directory are used, so every caller is project-scoped.
    */
-  computeFingerprint(domain: string, action: string, input: Record<string, unknown>): string {
-    const canonical = canonicalStringify({ action, build: getBuildIdentity(), domain, input });
+  computeFingerprint(
+    domain: string,
+    action: string,
+    input: Record<string, unknown>,
+    scope?: CacheScope,
+  ): string {
+    const canonical = canonicalStringify({
+      action, build: getBuildIdentity(), domain, input, scope: resolveScope(scope),
+    });
     return createHash('sha256').update(canonical).digest('hex').slice(0, 16);
   }
 

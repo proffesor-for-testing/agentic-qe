@@ -680,9 +680,16 @@ export class MCPProtocolServer {
           const { getSessionCache } = await import('../optimization/session-cache.js');
           const cache = getSessionCache();
           const { domain, action } = parseToolDomainAction(name);
+          // #998: key on the project root, working directory and a fingerprint
+          // of every path argument, not on the raw arguments alone. A call that
+          // reads a directory tree is neither served from nor stored in cache.
+          const { buildToolCacheScope } = await import('./tool-cache-scope.js');
+          const { scope, reusable } = buildToolCacheScope(name, processedCtx.params);
           cacheGeneration = cache.getGeneration();
-          cacheFingerprint = cache.computeFingerprint(domain, action, processedCtx.params || {});
-          const hit = cache.get(cacheFingerprint);
+          cacheFingerprint = reusable
+            ? cache.computeFingerprint(domain, action, processedCtx.params || {}, scope)
+            : null;
+          const hit = cacheFingerprint ? cache.get(cacheFingerprint) : null;
           if (hit) {
             // Cache hit — return the stored result without running the handler.
             const cachedText = JSON.stringify(hit.result, null, 2);
@@ -1112,6 +1119,10 @@ export class MCPProtocolServer {
         description: `Analyze code coverage with O(log n) sublinear algorithm and ML-powered gap detection. ${SAVE_RESULTS_HINT} Example: coverage_analyze_sublinear({ target: "src/", detectGaps: true })`,
         category: 'domain',
         isConcurrencySafe: true,
+        // #998: never replay from the session cache. The result measures
+        // mutable project state (source tree, test runs, reports on disk), so a
+        // cached answer goes stale as soon as those inputs change.
+        isCacheable: false,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path to analyze', required: true },
           { name: 'detectGaps', type: 'boolean', description: 'Detect coverage gaps', default: true },
@@ -1128,6 +1139,10 @@ export class MCPProtocolServer {
         description: `Assess code quality metrics and optionally run a pass/fail quality gate. Unmeasured metrics never pass. ${SAVE_RESULTS_HINT} Example: quality_assess({ runGate: true })`,
         category: 'domain',
         isConcurrencySafe: true,
+        // #998: never replay from the session cache. The result measures
+        // mutable project state (source tree, test runs, reports on disk), so a
+        // cached answer goes stale as soon as those inputs change.
+        isCacheable: false,
         parameters: [
           { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score. Missing, stale or malformed evidence fails with status "insufficient-evidence" and lists the metrics in unmeasured. When false, only static analysis runs (gateEvaluated: false).', default: false },
           { name: 'metrics', type: 'array', description: 'Static-analysis metrics to assess (default coverage, complexity, maintainability). Known: coverage, complexity, maintainability, duplication, testability, security. Any requested metric without measured data gives status "insufficient-evidence", passed: false, and lists it in unmeasured; a measured metric failing its threshold blocks.', items: { type: 'string' } },
@@ -1207,6 +1222,10 @@ export class MCPProtocolServer {
         description: `Predict potential defects using AI analysis of code complexity and change history. ${SAVE_RESULTS_HINT} Example: defect_predict({ target: "src/auth/" })`,
         category: 'domain',
         isConcurrencySafe: true,
+        // #998: never replay from the session cache. The result measures
+        // mutable project state (source tree, test runs, reports on disk), so a
+        // cached answer goes stale as soon as those inputs change.
+        isCacheable: false,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path', required: true },
           saveResultsParameter('defect_predict'),
@@ -1237,6 +1256,10 @@ export class MCPProtocolServer {
         description: `Index source code into the knowledge graph for dependency and impact analysis. ${SAVE_RESULTS_HINT} Example: code_index({ target: "src/" })`,
         category: 'domain',
         isConcurrencySafe: true,
+        // #998: never replay from the session cache. The result measures
+        // mutable project state (source tree, test runs, reports on disk), so a
+        // cached answer goes stale as soon as those inputs change.
+        isCacheable: false,
         parameters: [
           { name: 'target', type: 'string', description: 'Target path', required: true },
           saveResultsParameter('code_index'),
