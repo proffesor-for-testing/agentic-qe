@@ -127,6 +127,9 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       for (const kept of retired.kept) {
         context.services.warn(`Kept ${kept.files.join(', ')}: ${kept.why}. ${kept.advice}.`);
       }
+      for (const note of retired.replacementWarnings) {
+        context.services.warn(`Skill file kept: ${note}.`);
+      }
       if (retired.missingReplacements.length > 0) {
         context.services.warn(
           `Could not install ${retired.missingReplacements.join(', ')}; run "aqe init --upgrade" to refresh the skills.`,

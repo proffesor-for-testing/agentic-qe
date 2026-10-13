@@ -24,7 +24,7 @@
 
 import { createHash } from 'crypto';
 import {
-  copyFileSync, existsSync, lstatSync, readFileSync, realpathSync, unlinkSync,
+  constants as fsConstants, copyFileSync, existsSync, lstatSync, readFileSync, realpathSync, unlinkSync,
 } from 'fs';
 import { dirname, join, sep } from 'path';
 
@@ -137,6 +137,8 @@ export interface RetireResult {
   kept: Array<{ group: string; files: string[]; why: string; advice: string }>;
   /** Replacements that could not be installed (missing package source or unsafe target). */
   missingReplacements: string[];
+  /** Why a replacement target was left alone (symlink or other non-file in the way). */
+  replacementWarnings: string[];
 }
 
 export function sha256Hex(content: Buffer): string {
@@ -180,7 +182,9 @@ function probe(rootReal: string, full: string, name: string, shippedSha256: read
 /** Remove retired assets AQE shipped unmodified, install replacements; keep anything else. */
 export function retireShippedAssets(projectRoot: string, options: RetireOptions = {}): RetireResult {
   const groups = options.groups ?? RETIRED_ASSET_GROUPS;
-  const result: RetireResult = { removed: [], installed: [], refreshed: [], kept: [], missingReplacements: [] };
+  const result: RetireResult = {
+    removed: [], installed: [], refreshed: [], kept: [], missingReplacements: [], replacementWarnings: [],
+  };
   let rootReal: string;
   try {
     rootReal = realpathSync(projectRoot);
@@ -225,7 +229,16 @@ export function retireShippedAssets(projectRoot: string, options: RetireOptions 
     for (const replacement of group.replacements) {
       const target = abs(replacement.relPath);
       const source = options.sourceSkillsDir ? join(options.sourceSkillsDir, ...replacement.source.split('/')) : undefined;
-      if (existsSync(target)) continue; // never overwrite
+      // Never overwrite. lstat (not existsSync) so a dangling symlink counts as
+      // present: it must not be written through.
+      let present: ReturnType<typeof lstatSync> | undefined;
+      try { present = lstatSync(target); } catch { present = undefined; }
+      if (present?.isFile()) continue;
+      if (present) {
+        result.missingReplacements.push(replacement.relPath);
+        result.replacementWarnings.push(`${replacement.relPath} exists and is not a regular file (e.g. a symlink); not replaced`);
+        continue;
+      }
       if (!source || !existsSync(source)) {
         result.missingReplacements.push(replacement.relPath);
         continue;
@@ -237,10 +250,15 @@ export function retireShippedAssets(projectRoot: string, options: RetireOptions 
           result.missingReplacements.push(replacement.relPath);
           continue;
         }
-        copyFileSync(source, target);
+        // COPYFILE_EXCL = O_CREAT|O_EXCL: refuses ANY existing path, including a
+        // dangling symlink created after the check above (no write-through).
+        copyFileSync(source, target, fsConstants.COPYFILE_EXCL);
         result.installed.push(replacement.relPath);
-      } catch {
+      } catch (error) {
         result.missingReplacements.push(replacement.relPath);
+        if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') {
+          result.replacementWarnings.push(`${replacement.relPath} appeared during install; not replaced`);
+        }
       }
     }
 

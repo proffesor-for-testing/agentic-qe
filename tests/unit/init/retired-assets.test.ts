@@ -142,6 +142,20 @@ describe('retired shipped assets (#1017)', () => {
     expect(result.kept[0]).toMatchObject({ why: expect.stringMatching(/outside the project/) });
   });
 
+  it('never writes a replacement through a dangling symlink that points outside the project', () => {
+    seedAll();
+    const escape = join(outside, 'escaped.ts');
+    symlinkSync(escape, join(root, QC, 'budget.ts.fixture')); // dangling: target does not exist
+
+    const result = retire();
+
+    expect(existsSync(escape)).toBe(false); // nothing written outside the project
+    expect(result.missingReplacements).toContain(`${QC}/budget.ts.fixture`);
+    expect(result.installed).not.toContain(`${QC}/budget.ts.fixture`);
+    expect(result.installed).toContain(`${QC}/budget-tests.ts.fixture`);
+    expect(result.replacementWarnings.join('\n')).toMatch(/budget\.ts\.fixture.*not a regular file/);
+  });
+
   it('warning text names the real reason per group (budget.ts is not called a test-glob match)', () => {
     const qc = RETIRED_ASSET_GROUPS.find((g) => g.id === 'qe-court-seeded-mutant')!;
     expect(qc.advice).toMatch(/budget\.test\.ts matches test-runner globs/);
@@ -156,6 +170,6 @@ describe('retired shipped assets (#1017)', () => {
   });
 
   it('does nothing when no retired file is present', () => {
-    expect(retire()).toEqual({ removed: [], installed: [], refreshed: [], kept: [], missingReplacements: [] });
+    expect(retire()).toEqual({ removed: [], installed: [], refreshed: [], kept: [], missingReplacements: [], replacementWarnings: [] });
   });
 });
