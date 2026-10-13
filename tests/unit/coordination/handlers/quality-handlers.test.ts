@@ -279,3 +279,39 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
     });
   });
 });
+
+describe('assess-quality reports why metrics were not measured (#1011)', () => {
+  const garbage = '1 of 2 file(s) could not be analysed: src/garbage.ts has binary content';
+
+  it('reports -1 for every requested unmeasured metric and names the reason', async () => {
+    const analysis = {
+      ...report([{ name: 'coverage', value: 90 }], -1, 90),
+      unmeasured: ['complexity', 'testability', 'duplication']
+        .map((metric) => ({ metric, reason: garbage, files: ['src/garbage.ts'] })),
+    };
+    const { run } = setup(analysis as ReturnType<typeof report>);
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['coverage', 'complexity', 'testability', 'duplication'] });
+
+    const data = (result as { value: Data & { unmeasuredReasons: Record<string, string> } }).value;
+    expect(data).toMatchObject({
+      passed: false, evidenceStatus: 'insufficient-evidence',
+      unmeasured: ['complexity', 'testability', 'duplication'],
+      qualityScore: -1,
+    });
+    expect(data.metrics).toMatchObject({ coverage: 90, complexity: -1, testability: -1, duplication: -1 });
+    expect(data.unmeasuredReasons.complexity).toBe(garbage);
+    expect(data.unmeasuredReasons.duplication).toBe(garbage);
+  });
+
+  it('explains that security is never measured statically', async () => {
+    const { run } = setup(report([{ name: 'complexity', value: 1 }], 88));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['complexity', 'security'] });
+
+    const data = (result as { value: Data & { unmeasuredReasons: Record<string, string> } }).value;
+    expect(data.unmeasuredReasons.security).toMatch(/static analysis never measures security/i);
+  });
+});

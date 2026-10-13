@@ -27,6 +27,46 @@ import type {
   QualityMetrics,
 } from './interfaces';
 import type { DreamCycleCompletedPayload } from '../../shared/events/domain-events';
+import type { QualityScore } from '../../shared/types';
+import { isMeasuredMetricValue } from './evidence-sufficiency.js';
+
+// ============================================================================
+// #1002: unmeasured values never reach a learner as numbers
+// ============================================================================
+
+/** Score fields in the fixed order every quality feature vector uses. */
+const SCORE_FIELDS = ['overall', 'coverage', 'complexity', 'maintainability', 'security'] as const;
+
+/**
+ * Score features with unmeasured (-1) fields masked to 0, followed by one
+ * presence flag per field (1 = measured, 0 = not), so a learner can tell
+ * "unmeasured" apart from a measured 0.
+ */
+export function maskedScoreFeatures(score: QualityScore, scale = 1): number[] {
+  const values = SCORE_FIELDS.map((field) => score[field]);
+  return [
+    ...values.map((value) => (isMeasuredMetricValue(value) ? value / scale : 0)),
+    ...values.map((value) => (isMeasuredMetricValue(value) ? 1 : 0)),
+  ];
+}
+
+/** Score fields carrying the unmeasured sentinel. */
+function unmeasuredScoreFields(score: QualityScore): string[] {
+  return SCORE_FIELDS.filter((field) => !isMeasuredMetricValue(score[field]));
+}
+
+/**
+ * True when an analysis report has no verdict to learn from: a requested
+ * metric was not measured, or nothing was measured at all.
+ */
+export function isInsufficientQualityReport(report: QualityReport): boolean {
+  return (report.unmeasured?.length ?? 0) > 0 || !isMeasuredMetricValue(report.score.overall);
+}
+
+/** True when a gate request carries any unmeasured (negative or non-finite) metric. */
+export function hasUnmeasuredGateMetrics(metrics: QualityMetrics): boolean {
+  return Object.values(metrics).some((value) => !isMeasuredMetricValue(value));
+}
 
 /**
  * RL-trained thresholds result
@@ -119,6 +159,8 @@ export async function tuneThresholdsWithRL(
   actorCritic: ActorCriticAlgorithm,
   metrics: QualityMetrics
 ): Promise<RLThresholdResult | null> {
+  // #1002: never predict from unmeasured inputs; keep the canonical thresholds.
+  if (hasUnmeasuredGateMetrics(metrics)) return null;
   try {
     const state: RLState = {
       id: `quality-state-${Date.now()}`,
@@ -190,6 +232,8 @@ export async function trainActorCritic(
   request: GateEvaluationRequest,
   result: GateResult
 ): Promise<void> {
+  // #1002: an experience built from unmeasured inputs teaches the critic fake data.
+  if (hasUnmeasuredGateMetrics(request.metrics)) return;
   try {
     const state: RLState = {
       id: `quality-state-${Date.now()}`,
@@ -247,6 +291,8 @@ export async function storeQualityPattern(
   result: GateResult,
   domainName: DomainName
 ): Promise<void> {
+  // #1002: no gate pattern from unmeasured inputs.
+  if (hasUnmeasuredGateMetrics(request.metrics)) return;
   try {
     const state: RLState = {
       id: `quality-state-${Date.now()}`,
@@ -296,14 +342,14 @@ export async function storeQualityAnalysisPattern(
   report: QualityReport,
   domainName: DomainName
 ): Promise<void> {
+  // #1002: an insufficient-evidence run has no verdict — neither a success
+  // nor a failure pattern may be recorded from it.
+  if (isInsufficientQualityReport(report)) return;
   try {
     const state: RLState = {
       id: `quality-analysis-${Date.now()}`,
       features: [
-        report.score.overall,
-        report.score.coverage,
-        report.score.complexity,
-        report.score.maintainability,
+        ...maskedScoreFeatures(report.score),
         report.metrics.length,
         request.sourceFiles.length,
       ],
@@ -327,6 +373,8 @@ export async function storeQualityAnalysisPattern(
       {
         sourceFileCount: request.sourceFiles.length,
         recommendationCount: report.recommendations.length,
+        // Score fields outside the requested scope, masked to 0 in features.
+        unmeasuredScoreFields: unmeasuredScoreFields(report.score),
       }
     );
   } catch (error) {
@@ -346,12 +394,8 @@ export async function enhanceWithSimilarityPatterns(
   try {
     const state: RLState = {
       id: `similarity-search-${Date.now()}`,
-      features: [
-        report.score.overall,
-        report.score.coverage,
-        report.score.complexity,
-        report.score.maintainability,
-      ],
+      // #1002: -1 (unmeasured) is masked, never matched as a value.
+      features: maskedScoreFeatures(report.score),
     };
 
     const adaptation = await qesona.adaptPattern(
@@ -397,13 +441,10 @@ export async function enhanceWithSimilarityPatterns(
  * Create embedding from quality metrics for similarity search
  */
 export function createMetricsEmbedding(report: QualityReport): Float32Array {
+  // #1002: unmeasured score fields are masked (was security -1 / 100 = -0.01).
   const features = [
-    report.score.overall / 100,
-    report.score.coverage / 100,
-    report.score.complexity / 100,
-    report.score.maintainability / 100,
-    report.score.security / 100,
-    ...report.metrics.map(m => m.value / 100),
+    ...maskedScoreFeatures(report.score, 100),
+    ...report.metrics.map(m => (isMeasuredMetricValue(m.value) ? m.value / 100 : 0)),
   ];
 
   while (features.length < 384) {

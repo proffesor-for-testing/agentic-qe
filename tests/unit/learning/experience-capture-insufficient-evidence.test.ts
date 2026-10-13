@@ -1,0 +1,77 @@
+/**
+ * #1002: a tool result with status "insufficient-evidence" carries no verdict.
+ * The capture middleware must not persist it as a success (or failure)
+ * experience, nor promote it into sona_patterns.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const prepared: string[] = [];
+vi.mock('../../../src/kernel/unified-memory.js', () => {
+  const mockDb = {
+    exec: vi.fn(),
+    prepare: vi.fn((sql: string) => {
+      prepared.push(sql);
+      return { run: vi.fn(), get: vi.fn(() => ({ count: 0, avg: 0 })), all: vi.fn(() => []) };
+    }),
+    pragma: vi.fn(),
+  };
+  return {
+    getUnifiedMemory: vi.fn(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getDatabase: vi.fn(() => mockDb),
+    })),
+  };
+});
+
+import {
+  getCaptureStats,
+  initializeExperienceCapture,
+  isInsufficientEvidenceResult,
+  stopCleanupTimer,
+  wrapWithExperienceCapture,
+} from '../../../src/learning/experience-capture-middleware.js';
+
+const inserts = () => prepared.filter((sql) => /INSERT[\s\S]*INTO\s+(captured_experiences|sona_patterns)/i.test(sql));
+
+describe('experience capture skips insufficient-evidence results (#1002)', () => {
+  beforeEach(async () => {
+    await initializeExperienceCapture();
+    prepared.length = 0;
+  });
+  afterEach(() => stopCleanupTimer());
+
+  it.each([
+    [{ status: 'insufficient-evidence' }],
+    [{ evidenceStatus: 'insufficient-evidence' }],
+  ])('recognises %o as insufficient evidence', (data) => {
+    expect(isInsufficientEvidenceResult({ success: true, data })).toBe(true);
+  });
+
+  it('does not treat a measured result as insufficient', () => {
+    expect(isInsufficientEvidenceResult({ success: true, data: { status: 'completed', evidenceStatus: 'measured' } }))
+      .toBe(false);
+  });
+
+  it('records no experience or pattern for an insufficient-evidence run', async () => {
+    const handler = vi.fn(async () => ({
+      success: true,
+      data: { status: 'insufficient-evidence', passed: false, unmeasured: ['complexity'] },
+    }));
+    const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');
+
+    const result = await wrapped({});
+
+    expect(result.success).toBe(true);
+    expect(inserts()).toEqual([]);
+    expect((await getCaptureStats()).activeExperiences).toBe(0);
+  });
+
+  it('still records a measured run', async () => {
+    const handler = vi.fn(async () => ({ success: true, data: { status: 'completed', evidenceStatus: 'measured' } }));
+    const wrapped = wrapWithExperienceCapture(handler, 'quality-assessment', 'qe-quality-gate');
+
+    await wrapped({});
+
+    expect(inserts().length).toBeGreaterThan(0);
+  });
+});

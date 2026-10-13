@@ -50,6 +50,17 @@ export interface DuplicationResult {
   duplicates: DuplicateBlock[];
 }
 
+/**
+ * #1011: the result of analysing one file, with the reason when its numbers
+ * are not a measurement (unreadable, binary content, unparseable source).
+ */
+export interface FileAnalysisOutcome {
+  /** Metrics computed from the file; null when it could not be read. */
+  metrics: FileMetrics | null;
+  /** Set when the metrics must be treated as unmeasured. */
+  unmeasuredReason?: string;
+}
+
 export interface DuplicateBlock {
   lines: number;
   occurrences: number;
@@ -73,12 +84,24 @@ export class CodeMetricsAnalyzer {
    * Analyze a single file for all metrics
    */
   async analyzeFile(filePath: string): Promise<FileMetrics | null> {
+    return (await this.analyzeFileDetailed(filePath)).metrics;
+  }
+
+  /**
+   * #1011: analyse a file and say whether its metrics are a measurement.
+   * Unreadable files, binary content, and source the parser rejects give an
+   * `unmeasuredReason`; callers must not treat such numbers as evidence.
+   */
+  async analyzeFileDetailed(filePath: string): Promise<FileAnalysisOutcome> {
     const contentResult = await this.fileReader.readFile(filePath);
     if (!contentResult.success) {
-      return null;
+      return { metrics: null, unmeasuredReason: `${filePath} could not be read (${contentResult.error.message})` };
     }
 
     const content = contentResult.value;
+    let unmeasuredReason: string | undefined = content.includes('\u0000')
+      ? `${filePath} has binary content and is not parseable source`
+      : undefined;
     const lines = content.split('\n');
 
     // Count different types of lines
@@ -98,6 +121,10 @@ export class CodeMetricsAnalyzer {
     if (['ts', 'tsx', 'js', 'jsx'].includes(ext)) {
       try {
         const ast = this.parser.parseFile(fileName, content);
+        const syntaxErrors = (ast as typeof ast & { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length ?? 0;
+        if (syntaxErrors > 0 && !unmeasuredReason) {
+          unmeasuredReason = `${filePath} could not be parsed (${syntaxErrors} syntax error${syntaxErrors === 1 ? '' : 's'})`;
+        }
 
         // Extract functions and calculate complexity
         const functions = this.parser.extractFunctions(ast);
@@ -122,8 +149,9 @@ export class CodeMetricsAnalyzer {
             cognitiveComplexity += funcMetrics.cognitiveComplexity;
           }
         }
-      } catch {
-        // If parsing fails, use heuristic analysis
+      } catch (error) {
+        // If parsing fails, use heuristic analysis — an estimate, not a measurement (#1011)
+        unmeasuredReason ??= `${filePath} could not be parsed (${error instanceof Error ? error.message : String(error)})`;
         cyclomaticComplexity = this.estimateCyclomaticComplexity(content);
         cognitiveComplexity = this.estimateCognitiveComplexity(content);
       }
@@ -163,7 +191,7 @@ export class CodeMetricsAnalyzer {
       codeLines
     );
 
-    return {
+    const metrics: FileMetrics = {
       path: filePath,
       linesOfCode: codeLines,
       linesOfComments: commentLines,
@@ -176,6 +204,7 @@ export class CodeMetricsAnalyzer {
       classCount,
       maxNestingDepth,
     };
+    return unmeasuredReason ? { metrics, unmeasuredReason } : { metrics };
   }
 
   /**

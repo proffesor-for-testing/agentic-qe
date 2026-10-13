@@ -132,6 +132,8 @@ export interface QualityAssessResult {
   evidenceStatus?: 'measured' | 'insufficient-evidence';
   /** #996: requested metrics with no measured data (reported as -1 in `metrics`). */
   unmeasured?: string[];
+  /** #1011: why each unmeasured metric has no value (e.g. a file could not be parsed). */
+  unmeasuredReasons?: Record<string, string>;
   /** #996: measured metrics that fail their own limit; any entry blocks. */
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
@@ -752,6 +754,15 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       ? (data.measuredFailures as MeasuredFailure[])
       : undefined;
     const failedMetrics = (measuredFailures ?? []).map((f) => f.metric);
+    // #1011: reasons travel only as a string-to-string map.
+    const unmeasuredReasons = data.unmeasuredReasons && typeof data.unmeasuredReasons === 'object'
+      && Object.values(data.unmeasuredReasons as Record<string, unknown>).every((r) => typeof r === 'string')
+      ? data.unmeasuredReasons as Record<string, string>
+      : undefined;
+    // -1 = no measured score; never quote it as a score.
+    const measuredScore = typeof data.qualityScore === 'number' && data.qualityScore >= 0
+      ? data.qualityScore
+      : undefined;
     const passed = !insufficient && failedMetrics.length === 0 && data.passed === true;
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
     // boundary (additive — existing fields unchanged). Omit rather than
@@ -760,7 +771,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       passed: insufficient || failedMetrics.length > 0
         ? false
         : typeof data.passed === 'boolean' ? data.passed : undefined,
-      qualityScore: data.qualityScore as number | undefined,
+      qualityScore: measuredScore,
       recommendations: (data.recommendations as string[]) || [],
       unmeasured: insufficient ? (unmeasured?.length ? unmeasured : ['unknown']) : [],
       failedMetrics,
@@ -779,6 +790,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
         ? { evidenceStatus: insufficient ? INSUFFICIENT_EVIDENCE : 'measured' as const }
         : {}),
       ...(unmeasured ? { unmeasured } : {}),
+      ...(unmeasuredReasons ? { unmeasuredReasons } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
       ...(confidence !== undefined ? { confidence } : {}),

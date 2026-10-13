@@ -6,6 +6,7 @@
 export { CodeMetricsAnalyzer, getCodeMetricsAnalyzer } from './code-metrics';
 export type {
   FileMetrics,
+  FileAnalysisOutcome,
   FunctionMetrics,
   HalsteadMetrics,
   DuplicationResult,

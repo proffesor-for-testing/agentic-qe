@@ -429,8 +429,10 @@ export class QualityAssessmentCoordinator
       // Success path
       this.completeWorkflow(workflowId);
 
-      // Three-loop protocol: instantAdapt must precede recordOutcome
-      if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+      // Three-loop protocol: instantAdapt must precede recordOutcome.
+      // #1002: unmeasured (-1) gate inputs are never fed to the learner.
+      if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()
+        && !RLIntegration.hasUnmeasuredGateMetrics(effectiveRequest.metrics)) {
         const m = effectiveRequest.metrics;
         this.qesona.instantAdapt([
           m.coverage / 100,
@@ -602,8 +604,11 @@ export class QualityAssessmentCoordinator
         }
       }
 
+      // #1002: an insufficient-evidence run has no verdict to learn from.
+      const learnable = !RLIntegration.isInsufficientQualityReport(result.value);
+
       // Three-loop protocol: instantAdapt must precede recordOutcome
-      if (isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
+      if (learnable && isSONAThreeLoopEnabled() && this.qesona?.isThreeLoopEnabled()) {
         const score = result.value.score;
         this.qesona.instantAdapt([
           score.overall / 100,
@@ -621,13 +626,13 @@ export class QualityAssessmentCoordinator
         } catch { /* must not break main flow */ }
       }
 
-      // Store quality pattern in SONA
+      // Store quality pattern in SONA (skipped inside for insufficient evidence)
       if (this.config.enableSONAPatternLearning && this.qesona) {
         await this.storeQualityAnalysisPattern(request, result.value);
       }
 
-      // Auto-trigger gate evaluation if enabled
-      if (this.config.enableAutoGating && result.value.score.overall < 70) {
+      // Auto-trigger gate evaluation if enabled (-1 = not measured, not a low score)
+      if (this.config.enableAutoGating && result.value.score.overall >= 0 && result.value.score.overall < 70) {
         // Store for downstream consumption
         await this.memory.set(
           `quality-assessment:auto-gate:${workflowId}`,

@@ -341,6 +341,21 @@ export function recordExperienceStep(
 }
 
 /**
+ * #1002: a result whose status or evidenceStatus is "insufficient-evidence"
+ * carries no verdict, so it is neither a success nor a failure to learn from.
+ */
+export function isInsufficientEvidenceResult(result: { success: boolean; data?: unknown }): boolean {
+  const data = result.data as { status?: unknown; evidenceStatus?: unknown } | null | undefined;
+  if (!data || typeof data !== 'object') return false;
+  return data.status === 'insufficient-evidence' || data.evidenceStatus === 'insufficient-evidence';
+}
+
+/** Drop an active experience without persisting it (no verdict to record). */
+export function abandonExperience(experienceId: string): boolean {
+  return activeExperiences.delete(experienceId);
+}
+
+/**
  * Complete an experience and persist to database
  */
 export async function completeExperience(
@@ -560,6 +575,13 @@ export function wrapWithExperienceCapture<TParams, TResult>(
       // Execute the handler
       const result = await handler(params);
       const durationMs = Date.now() - startTime;
+
+      // #1002: an insufficient-evidence run is not recorded as success or failure.
+      if (isInsufficientEvidenceResult(result)) {
+        abandonExperience(expId);
+        ecLogger.debug('Skipped capture: insufficient evidence carries no verdict', { domain, agent });
+        return result;
+      }
 
       // Record execution step
       recordExperienceStep(expId, {

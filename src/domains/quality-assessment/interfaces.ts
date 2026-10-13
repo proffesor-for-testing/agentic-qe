@@ -82,6 +82,19 @@ export interface QualityReport {
   recommendations: Recommendation[];
   /** ADR-051: Optional LLM-generated insights (when enableLLMInsights is true) */
   llmInsights?: LLMQualityInsights;
+  /**
+   * #1011: requested metrics that were NOT measured, with the reason. They are
+   * absent from `metrics` and -1 in `score`; never a fixed fallback value.
+   */
+  unmeasured?: UnmeasuredQualityMetric[];
+}
+
+/** #1011: a requested metric the static analysis could not measure. */
+export interface UnmeasuredQualityMetric {
+  metric: string;
+  reason: string;
+  /** Files that could not be analysed, when the cause is file-specific. */
+  files?: string[];
 }
 
 /**
@@ -152,14 +165,18 @@ export interface ComplexityReport {
   hotspots: ComplexityHotspot[];
 }
 
+/** Values are -1 when not measured (not requested, or the file could not be analysed). */
 export interface FileComplexity {
   path: string;
   cyclomatic: number;
   cognitive: number;
   maintainability: number;
   linesOfCode: number;
+  /** #1011: why this file's metrics are unmeasured (unreadable, binary, unparseable). */
+  unmeasuredReason?: string;
 }
 
+/** Averages over measured files only; -1 when no file was measured for that metric. */
 export interface ComplexitySummary {
   averageCyclomatic: number;
   averageCognitive: number;

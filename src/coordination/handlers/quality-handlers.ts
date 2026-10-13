@@ -34,6 +34,23 @@ function sentinel(value: number | undefined): number {
   return isMeasuredMetricValue(value) ? value : UNMEASURED;
 }
 
+/**
+ * #1011: why each unmeasured metric has no value — the analyzer's reason
+ * (unreadable or unparseable file, failed detection, no stored coverage).
+ */
+function unmeasuredReasons(
+  unmeasured: readonly string[],
+  reported: ReadonlyArray<{ metric: string; reason: string }> | undefined,
+): Record<string, string> {
+  const byMetric = new Map((reported ?? []).map((u) => [u.metric, u.reason]));
+  return Object.fromEntries(unmeasured.map((metric) => [
+    metric,
+    byMetric.get(metric) ?? (metric === 'security'
+      ? 'static analysis never measures security'
+      : 'the static analyzer produced no measured value'),
+  ]));
+}
+
 /** #996 (N3): reject a malformed `metrics` list instead of spreading a string into characters. */
 function requestedMetricsFrom(metrics: unknown): string[] {
   if (metrics === undefined) return DEFAULT_STATIC_METRICS;
@@ -132,7 +149,8 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       if (sourceFiles.length === 0) {
         // Nothing was analyzed: every requested metric is unmeasured (#996).
         return ok({
-          qualityScore: 0,
+          // #1011: nothing was analysed, so there is no score (-1), not a score of 0.
+          qualityScore: UNMEASURED,
           passed: false,
           threshold,
           metrics: {
@@ -148,6 +166,7 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
           warning: 'No source files found',
           evidenceStatus: INSUFFICIENT_EVIDENCE,
           unmeasured: requestedMetrics,
+          unmeasuredReasons: Object.fromEntries(requestedMetrics.map((m) => [m, 'no source files found to analyse'])),
           measuredFailures: [],
           gateEvaluated: false,
           confidence: 0,
@@ -193,8 +212,11 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
           maintainability: sentinel(metrics.maintainability),
           // The analyzer has no security measurement; never report a placeholder.
           security: sentinel(metrics.security),
+          // #1011: every requested metric appears, -1 when unmeasured.
+          ...Object.fromEntries(requestedMetrics.map((name) => [name, sentinel(metrics[name])])),
           ...metrics,
         },
+        unmeasuredReasons: unmeasuredReasons(sufficiency.unmeasured, report.unmeasured),
         recommendations: [
           ...measuredFailures.map(describeMeasuredFailure),
           ...describeMissingMetrics(sufficiency.unmeasured),

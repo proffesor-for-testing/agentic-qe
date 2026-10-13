@@ -20,6 +20,7 @@ import {
   ComplexitySummary,
   ComplexityHotspot,
   LLMQualityInsights,
+  UnmeasuredQualityMetric,
 } from '../interfaces';
 
 // ADR-051: LLM Router for AI-enhanced quality insights
@@ -64,6 +65,21 @@ export interface QualityAnalyzerDependencies {
   memory: MemoryBackend;
   /** ADR-051: Optional LLM router for AI-enhanced quality insights */
   llmRouter?: HybridRouter;
+  /** Code metrics analyzer (defaults to the shared instance). */
+  metricsAnalyzer?: CodeMetricsAnalyzer;
+}
+
+/** Metrics the static analyzer produces when the caller asks for all of them. */
+const ANALYZER_METRICS = ['coverage', 'complexity', 'maintainability', 'duplication', 'testability'] as const;
+/** Metrics computed from parsing each source file. */
+const PARSED_METRICS = new Set(['complexity', 'maintainability', 'testability', 'duplication']);
+/** #1011: the sentinel for "not measured" in score and complexity fields. */
+const UNMEASURED = -1;
+
+/** Per-file metric values plus the requested metrics that could not be measured. */
+interface CollectedMetrics {
+  fileMetrics: Map<string, Record<string, number>>;
+  unmeasured: UnmeasuredQualityMetric[];
 }
 
 const DEFAULT_CONFIG: QualityAnalyzerConfig = {
@@ -116,14 +132,15 @@ export class QualityAnalyzerService implements IQualityAnalyzerService {
     config: Partial<QualityAnalyzerConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    this.metricsAnalyzer = getCodeMetricsAnalyzer();
 
     // Support both old and new constructor signatures
     if ('memory' in memoryOrDependencies) {
       // New signature: dependencies object
       this.memory = memoryOrDependencies.memory;
       this.llmRouter = memoryOrDependencies.llmRouter;
+      this.metricsAnalyzer = memoryOrDependencies.metricsAnalyzer ?? getCodeMetricsAnalyzer();
     } else {
+      this.metricsAnalyzer = getCodeMetricsAnalyzer();
       // Old signature: direct MemoryBackend
       this.memory = memoryOrDependencies;
       this.llmRouter = undefined;
@@ -155,12 +172,13 @@ export class QualityAnalyzerService implements IQualityAnalyzerService {
   async generateQualityInsightsWithLLM(
     metrics: QualityMetricDetail[],
     score: QualityScore,
-    codeContext?: string
+    codeContext?: string,
+    unmeasured: UnmeasuredQualityMetric[] = []
   ): Promise<LLMQualityInsights | null> {
     if (!this.llmRouter) return null;
 
     try {
-      const prompt = this.buildQualityInsightsPrompt(metrics, score, codeContext);
+      const prompt = this.buildQualityInsightsPrompt(metrics, score, codeContext, unmeasured);
       const modelId = this.getModelForTier(this.config.llmModelTier ?? 2);
 
       const response: ChatResponse = await this.llmRouter.chat({
@@ -222,14 +240,20 @@ Focus on:
   private buildQualityInsightsPrompt(
     metrics: QualityMetricDetail[],
     score: QualityScore,
-    codeContext?: string
+    codeContext?: string,
+    unmeasured: UnmeasuredQualityMetric[] = []
   ): string {
     let prompt = `## Quality Analysis Results\n\n`;
-    prompt += `### Overall Score: ${score.overall}/100\n\n`;
+    prompt += score.overall >= 0
+      ? `### Overall Score: ${score.overall}/100\n\n`
+      : `### Overall Score: not measured\n\n`;
 
     prompt += `### Detailed Metrics:\n`;
     for (const metric of metrics) {
       prompt += `- **${metric.name}**: ${metric.value} (Rating: ${metric.rating}, Trend: ${metric.trend})\n`;
+    }
+    for (const missing of unmeasured) {
+      prompt += `- **${missing.metric}**: not measured (${missing.reason})\n`;
     }
     prompt += `\n`;
 
@@ -336,8 +360,8 @@ Focus on:
         return err(new Error('No source files provided for analysis'));
       }
 
-      // Analyze metrics for each file
-      const fileMetrics = await this.collectFileMetrics(sourceFiles, includeMetrics);
+      // Analyze metrics for each file; failures become unmeasured (#1011)
+      const { fileMetrics, unmeasured } = await this.collectFileMetrics(sourceFiles, includeMetrics);
 
       // Calculate aggregated metrics
       const metricDetails = this.aggregateMetrics(fileMetrics);
@@ -356,7 +380,7 @@ Focus on:
       // ADR-051: Generate LLM insights if enabled
       let llmInsights: LLMQualityInsights | undefined;
       if (this.isLLMInsightsAvailable()) {
-        const insights = await this.generateQualityInsightsWithLLM(metricDetails, score);
+        const insights = await this.generateQualityInsightsWithLLM(metricDetails, score, undefined, unmeasured);
         if (insights) {
           llmInsights = insights;
         }
@@ -368,6 +392,7 @@ Focus on:
         trends,
         recommendations,
         llmInsights,
+        unmeasured,
       };
 
       // Store the report
@@ -479,84 +504,81 @@ Focus on:
   // Private Helper Methods
   // ============================================================================
 
+  /**
+   * Collect per-file metric values. #1011: a file that cannot be read or parsed,
+   * a failed duplication detection, or missing coverage data makes the affected
+   * metric UNMEASURED (omitted, with a reason) — never a fixed fallback value.
+   * A parsed metric is measured only when every file in scope was analysed.
+   */
   private async collectFileMetrics(
     files: string[],
     includeMetrics: string[]
-  ): Promise<Map<string, Record<string, number>>> {
+  ): Promise<CollectedMetrics> {
+    const requested: string[] = includeMetrics.length === 0 ? [...ANALYZER_METRICS] : includeMetrics;
+    const wants = (metric: string): boolean => requested.includes(metric);
     const fileMetrics = new Map<string, Record<string, number>>();
-    const includeAll = includeMetrics.length === 0;
-
-    // Collect duplication across all files if requested
-    let duplicationPercentage = 0;
-    if (includeAll || includeMetrics.includes('duplication')) {
-      try {
-        const duplicationResult = await this.metricsAnalyzer.detectDuplication(files);
-        duplicationPercentage = duplicationResult.percentage;
-      } catch {
-        duplicationPercentage = 0;
-      }
-    }
+    const unmeasured: UnmeasuredQualityMetric[] = [];
+    const failures: Array<{ file: string; reason: string }> = [];
+    const missingCoverage: string[] = [];
 
     for (const file of files) {
       const metrics: Record<string, number> = {};
+      fileMetrics.set(file, metrics);
 
-      // Analyze the file using CodeMetricsAnalyzer
-      const fileAnalysis = await this.metricsAnalyzer.analyzeFile(file);
-
-      if (fileAnalysis) {
-        // Real metrics from analysis
-        if (includeAll || includeMetrics.includes('complexity')) {
-          metrics.complexity = fileAnalysis.cyclomaticComplexity;
-        }
-        if (includeAll || includeMetrics.includes('maintainability')) {
-          metrics.maintainability = fileAnalysis.maintainabilityIndex;
-        }
-        if (includeAll || includeMetrics.includes('duplication')) {
-          metrics.duplication = duplicationPercentage;
-        }
-        if (includeAll || includeMetrics.includes('testability')) {
-          // Testability is derived from complexity and maintainability
-          // Lower complexity and higher maintainability = higher testability
-          const complexityFactor = Math.max(0, 100 - fileAnalysis.cyclomaticComplexity * 3);
-          const maintainabilityFactor = fileAnalysis.maintainabilityIndex;
-          metrics.testability = Math.round((complexityFactor * 0.4 + maintainabilityFactor * 0.6) * 100) / 100;
-        }
-        if (includeAll || includeMetrics.includes('coverage')) {
-          // Coverage requires external data (from test runners)
-          // Only use real stored coverage — never fabricate a number
-          const storedCoverage = await this.getStoredCoverage(file);
-          if (storedCoverage !== null) {
-            metrics.coverage = storedCoverage;
-          }
-          // If no coverage data exists, omit the metric rather than guessing
-        }
-      } else {
-        // Fallback for files that couldn't be analyzed
-        if (includeAll || includeMetrics.includes('coverage')) {
-          // Only use real stored coverage — never fabricate a number
-          const storedCoverage = await this.getStoredCoverage(file);
-          if (storedCoverage !== null) {
-            metrics.coverage = storedCoverage;
-          }
-        }
-        if (includeAll || includeMetrics.includes('complexity')) {
-          metrics.complexity = 10;
-        }
-        if (includeAll || includeMetrics.includes('maintainability')) {
-          metrics.maintainability = 70;
-        }
-        if (includeAll || includeMetrics.includes('duplication')) {
-          metrics.duplication = duplicationPercentage;
-        }
-        if (includeAll || includeMetrics.includes('testability')) {
-          metrics.testability = 70;
+      if (wants('coverage')) {
+        // Coverage requires external data (from test runners) — never fabricate a number
+        const storedCoverage = await this.getStoredCoverage(file);
+        if (storedCoverage !== null) {
+          metrics.coverage = storedCoverage;
+        } else {
+          missingCoverage.push(file);
         }
       }
 
-      fileMetrics.set(file, metrics);
+      if (!requested.some((m) => PARSED_METRICS.has(m))) continue;
+      const { metrics: analysis, unmeasuredReason } = await this.metricsAnalyzer.analyzeFileDetailed(file);
+      if (!analysis || unmeasuredReason) {
+        failures.push({ file, reason: unmeasuredReason ?? `${file} could not be analysed` });
+        continue;
+      }
+      if (wants('complexity')) metrics.complexity = analysis.cyclomaticComplexity;
+      if (wants('maintainability')) metrics.maintainability = analysis.maintainabilityIndex;
+      if (wants('testability')) {
+        // Testability is derived from complexity and maintainability
+        // Lower complexity and higher maintainability = higher testability
+        const complexityFactor = Math.max(0, 100 - analysis.cyclomaticComplexity * 3);
+        const maintainabilityFactor = analysis.maintainabilityIndex;
+        metrics.testability = Math.round((complexityFactor * 0.4 + maintainabilityFactor * 0.6) * 100) / 100;
+      }
     }
 
-    return fileMetrics;
+    if (missingCoverage.length > 0) {
+      for (const metrics of fileMetrics.values()) delete metrics.coverage;
+      unmeasured.push({
+        metric: 'coverage',
+        reason: `no measured coverage recorded for ${missingCoverage.length} of ${files.length} file(s)`,
+      });
+    }
+
+    if (failures.length > 0) {
+      // A partial average would claim to describe files it never saw.
+      const reason = `${failures.length} of ${files.length} file(s) could not be analysed: `
+        + failures.slice(0, 3).map((f) => f.reason).join('; ')
+        + (failures.length > 3 ? `; and ${failures.length - 3} more` : '');
+      for (const metric of requested.filter((m) => PARSED_METRICS.has(m))) {
+        for (const metrics of fileMetrics.values()) delete metrics[metric];
+        unmeasured.push({ metric, reason, files: failures.map((f) => f.file) });
+      }
+    } else if (wants('duplication')) {
+      try {
+        const { percentage } = await this.metricsAnalyzer.detectDuplication(files);
+        for (const metrics of fileMetrics.values()) metrics.duplication = percentage;
+      } catch (error) {
+        unmeasured.push({ metric: 'duplication', reason: `duplication detection failed: ${toError(error).message}` });
+      }
+    }
+
+    return { fileMetrics, unmeasured };
   }
 
   private async getStoredCoverage(file: string): Promise<number | null> {
@@ -641,18 +663,19 @@ Focus on:
       totalWeight += weight;
     }
 
-    const overall = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
+    // #1011: no measured metric means no score — -1, never 0.
+    const overall = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : UNMEASURED;
 
     // Use -1 to signal "no data available" rather than 0 which implies "0% coverage"
     // (#996: the same holds for every score field — never fabricate a value).
-    const valueOf = (name: string): number => metrics.find((m) => m.name === name)?.value ?? -1;
+    const valueOf = (name: string): number => metrics.find((m) => m.name === name)?.value ?? UNMEASURED;
     return {
       overall,
       coverage: valueOf('coverage'),
       complexity: valueOf('complexity'),
       maintainability: valueOf('maintainability'),
       // No security analysis runs here; -1 = not measured (was a fixed 85 placeholder).
-      security: -1,
+      security: UNMEASURED,
     };
   }
 
@@ -736,7 +759,7 @@ Focus on:
     }
 
     // Overall score recommendation
-    if (score.overall < 70) {
+    if (score.overall >= 0 && score.overall < 70) {
       recommendations.push({
         type: 'critical',
         title: 'Overall Quality Improvement Needed',
@@ -757,56 +780,48 @@ Focus on:
     requestedMetrics: ComplexityRequest['metrics']
   ): Promise<FileComplexity> {
     const includesAll = requestedMetrics.length === 0;
+    const wants = (metric: ComplexityRequest['metrics'][number]): boolean =>
+      includesAll || requestedMetrics.includes(metric);
 
     // Use real CodeMetricsAnalyzer for file analysis
-    const fileAnalysis = await this.metricsAnalyzer.analyzeFile(file);
+    const { metrics: analysis, unmeasuredReason } = await this.metricsAnalyzer.analyzeFileDetailed(file);
 
-    if (fileAnalysis) {
+    if (!analysis || unmeasuredReason) {
+      // #1011: never invent values for a file that could not be analysed
       return {
         path: file,
-        cyclomatic: includesAll || requestedMetrics.includes('cyclomatic')
-          ? fileAnalysis.cyclomaticComplexity
-          : 0,
-        cognitive: includesAll || requestedMetrics.includes('cognitive')
-          ? fileAnalysis.cognitiveComplexity
-          : 0,
-        maintainability: includesAll || requestedMetrics.includes('maintainability')
-          ? fileAnalysis.maintainabilityIndex
-          : 0,
-        linesOfCode: fileAnalysis.linesOfCode,
+        cyclomatic: UNMEASURED,
+        cognitive: UNMEASURED,
+        maintainability: UNMEASURED,
+        linesOfCode: UNMEASURED,
+        unmeasuredReason: unmeasuredReason ?? `${file} could not be analysed`,
       };
     }
 
-    // Fallback for files that couldn't be analyzed
+    // A metric that was not requested is not measured (-1), not 0 — a 0
+    // maintainability would otherwise be reported as a critical hotspot.
     return {
       path: file,
-      cyclomatic: includesAll || requestedMetrics.includes('cyclomatic') ? 5 : 0,
-      cognitive: includesAll || requestedMetrics.includes('cognitive') ? 8 : 0,
-      maintainability: includesAll || requestedMetrics.includes('maintainability') ? 70 : 0,
-      linesOfCode: 100,
+      cyclomatic: wants('cyclomatic') ? analysis.cyclomaticComplexity : UNMEASURED,
+      cognitive: wants('cognitive') ? analysis.cognitiveComplexity : UNMEASURED,
+      maintainability: wants('maintainability') ? analysis.maintainabilityIndex : UNMEASURED,
+      linesOfCode: analysis.linesOfCode,
     };
   }
 
   private calculateComplexitySummary(files: FileComplexity[]): ComplexitySummary {
-    if (files.length === 0) {
-      return {
-        averageCyclomatic: 0,
-        averageCognitive: 0,
-        averageMaintainability: 0,
-        totalLinesOfCode: 0,
-      };
-    }
-
-    const sumCyclomatic = files.reduce((sum, f) => sum + f.cyclomatic, 0);
-    const sumCognitive = files.reduce((sum, f) => sum + f.cognitive, 0);
-    const sumMaintainability = files.reduce((sum, f) => sum + f.maintainability, 0);
-    const totalLOC = files.reduce((sum, f) => sum + f.linesOfCode, 0);
+    // #1011: average measured values only; -1 when nothing was measured.
+    const average = (values: number[]): number => {
+      const measured = values.filter((v) => v >= 0);
+      if (measured.length === 0) return UNMEASURED;
+      return Math.round((measured.reduce((sum, v) => sum + v, 0) / measured.length) * 100) / 100;
+    };
 
     return {
-      averageCyclomatic: Math.round((sumCyclomatic / files.length) * 100) / 100,
-      averageCognitive: Math.round((sumCognitive / files.length) * 100) / 100,
-      averageMaintainability: Math.round((sumMaintainability / files.length) * 100) / 100,
-      totalLinesOfCode: totalLOC,
+      averageCyclomatic: average(files.map((f) => f.cyclomatic)),
+      averageCognitive: average(files.map((f) => f.cognitive)),
+      averageMaintainability: average(files.map((f) => f.maintainability)),
+      totalLinesOfCode: files.reduce((sum, f) => sum + Math.max(0, f.linesOfCode), 0),
     };
   }
 
@@ -839,8 +854,8 @@ Focus on:
         });
       }
 
-      // Check maintainability (lower is worse)
-      if (file.maintainability <= thresholds.maintainability.warning) {
+      // Check maintainability (lower is worse); -1 = not measured, never a hotspot
+      if (file.maintainability >= 0 && file.maintainability <= thresholds.maintainability.warning) {
         hotspots.push({
           file: file.path,
           function: 'unknown',

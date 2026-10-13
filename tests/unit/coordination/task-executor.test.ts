@@ -465,9 +465,18 @@ describe('DomainTaskExecutor', () => {
         passed: boolean;
         metrics: Record<string, number>;
         warning?: string;
+        evidenceStatus?: string;
       };
-      // When no files found, qualityScore may be 0 with warning
-      expect(data.qualityScore).toBeGreaterThanOrEqual(0);
+      // #1011: with no analysable source (or no stored coverage) nothing is
+      // measured — the score is -1 (unmeasured), never a made-up 0, and the
+      // verdict is insufficient evidence rather than a pass.
+      if (data.warning === 'No source files found') {
+        expect(data.qualityScore).toBe(-1);
+      } else {
+        expect(data.qualityScore).toBeGreaterThanOrEqual(-1);
+      }
+      expect(data.passed).toBe(false);
+      expect(data.evidenceStatus).toBe('insufficient-evidence');
       expect(data.metrics).toBeDefined();
     }, 15000); // Extended timeout for quality assessment
   });

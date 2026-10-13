@@ -108,3 +108,25 @@ describe('qualityAssessConfig.mapToResult evidence fields (#996)', () => {
     expect(result.riskDecision!.rationale).toBe('Quality gate passed');
   });
 });
+
+describe('qualityAssessConfig.mapToResult unmeasured reasons (#1011)', () => {
+  it('passes through why each metric was not measured', () => {
+    const reasons = { complexity: '1 of 2 file(s) could not be analysed: src/garbage.ts has binary content' };
+    const result = map({
+      qualityScore: -1, passed: false, metrics: { complexity: -1 }, recommendations: [],
+      evidenceStatus: 'insufficient-evidence', unmeasured: ['complexity'], unmeasuredReasons: reasons,
+      gateEvaluated: false,
+    });
+
+    expect(result.unmeasuredReasons).toEqual(reasons);
+  });
+
+  it('drops a malformed unmeasuredReasons value', () => {
+    const result = map({
+      passed: false, metrics: {}, recommendations: [], unmeasured: ['complexity'],
+      unmeasuredReasons: { complexity: 7 },
+    });
+
+    expect(result.unmeasuredReasons).toBeUndefined();
+  });
+});

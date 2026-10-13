@@ -113,6 +113,7 @@ export type {
   GateResult,
   GateCheck,
   QualityReport,
+  UnmeasuredQualityMetric,
   QualityMetricDetail,
   QualityTrend,
   Recommendation,
