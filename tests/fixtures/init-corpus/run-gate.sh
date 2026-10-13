@@ -160,6 +160,17 @@ run_aqe_isolated() {
   HOME="${fixture_home}" CLAUDE_CONFIG_DIR="${fixture_home}/.claude" "$@"
 }
 
+# List (sorted, relative to cwd) the files a user's test runner collects with
+# its default config: vitest/jest/playwright `*.test.*` / `*.spec.*`, jest
+# `__tests__/`, pytest `test_*.py` / `*_test.py`, and go `*_test.go`.
+# node_modules and .git are pruned as every runner does. Used by A24 (#1017).
+list_test_glob_files() {
+  find . \( -name node_modules -o -name .git \) -prune -o -type f \( \
+      -name '*.test.*' -o -name '*.spec.*' -o -path '*/__tests__/*' \
+      -o -name 'test_*.py' -o -name '*_test.py' -o -name '*_test.go' \
+    \) -print 2>/dev/null | LC_ALL=C sort
+}
+
 fixture_count=$(jq '.fixtures | length' "${MANIFEST}")
 filter="${AQE_CORPUS_FILTER:-}"
 
@@ -209,6 +220,9 @@ skipped=0
 #       its domain" failure lives in the daemon-startup seam, not in
 #       init. Opt-in per fixture; default false so existing fixtures
 #       keep their ~5s budget.
+#   A24 init added no file the user's test runner collects by default
+#       (`*.test.*`, `*.spec.*`, `__tests__/`, pytest/go test names).
+#       Compares the set before and after the first init (#1017).
 #
 # Each assertion writes its verdict to the summary line for the fixture.
 # ---------------------------------------------------------------------------
@@ -310,6 +324,10 @@ run_one() {
   fi
 
   pushd "${tmpdir}" >/dev/null
+
+  # Snapshot the user's test-runner inventory before init touches the tree (A24).
+  local test_globs_before
+  test_globs_before=$(list_test_glob_files)
 
   # A5 + A6 are no longer per-fixture work: agentic-qe was installed once
   # into HOST_DIR at the top of the script. We just use the shared binary.
@@ -596,6 +614,24 @@ run_one() {
     [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
     return 1
   fi
+
+  # ----- A24: init adds nothing the user's test runner would collect --
+  # #1017: 3.15.5 copied qe-court's `budget.test.ts` into .claude/skills/,
+  # so the user's `vitest list` grew from 3 to 5. The cleanroom has no
+  # node_modules to run vitest/jest with, so compare the file set their
+  # default globs collect (see list_test_glob_files) before and after init.
+  local test_globs_after added_test_files
+  test_globs_after=$(list_test_glob_files)
+  added_test_files=$(comm -13 <(printf '%s\n' "${test_globs_before}") <(printf '%s\n' "${test_globs_after}") | sed '/^$/d')
+  if [[ -n "${added_test_files}" ]]; then
+    echo "[gate]   FAIL A24: init added files the user's test runner would collect:" | tee -a "${log}"
+    printf '%s\n' "${added_test_files}" | sed 's/^/      + /' | tee -a "${log}"
+    echo "${id} FAIL A24-test-glob-files-added ($(printf '%s\n' "${added_test_files}" | wc -l))" >> "${SUMMARY}"
+    popd >/dev/null
+    [[ "${AQE_GATE_KEEP_TMPDIRS:-0}" == "1" ]] || rm -rf "${tmpdir}"
+    return 1
+  fi
+  echo "[gate]   A24 test-runner inventory unchanged ($(printf '%s\n' "${test_globs_after}" | sed '/^$/d' | wc -l) test-glob files)" | tee -a "${log}"
 
   # ----- A22: double init exercises the delta-scan path ---------------
   # The first init in any cleanroom always runs phase 06 with
