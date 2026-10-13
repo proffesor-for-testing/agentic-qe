@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -103,7 +103,7 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP test_generate_enhan
     expect(existsSync(resultsDir())).toBe(false);
   }, 120000);
 
-  it('the default still writes the manifest and report and returns their paths', async () => {
+  it('the default writes generated test code alongside the manifest and report', async () => {
     const result = await call('test_generate_enhanced', { sourceCode: SOURCE, filePath: 'math.ts' });
 
     expect(result.success, JSON.stringify(result)).toBe(true);
@@ -111,6 +111,9 @@ describe.skipIf(!existsSync(bundle) && !process.env.CI)('MCP test_generate_enhan
     const saved: string[] = result.data.savedFiles;
     expect(saved.some(f => f.endsWith('_manifest.json'))).toBe(true);
     expect(saved.some(f => f.endsWith('_report.md'))).toBe(true);
+    const generated = saved.filter(f => f.endsWith('.test.ts'));
+    expect(generated.length).toBeGreaterThan(0);
+    expect(readFileSync(resolve(root, generated[0]), 'utf8')).toBe(result.data.tests[0].testCode);
     for (const file of saved) expect(existsSync(resolve(root, file)), file).toBe(true);
     expect(testResults()).toHaveLength(2);
   }, 120000);

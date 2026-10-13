@@ -279,7 +279,7 @@ export class ResultSaver {
     const files: SavedFile[] = [];
     const data = result as {
       testsGenerated: number;
-      tests: Array<{ name: string; file: string; type: string; code?: string }>;
+      tests: Array<{ name: string; file: string; type: string; testCode?: string; code?: string }>;
       coverageEstimate: number | null;
       patternsUsed: string[];
     };
@@ -303,14 +303,17 @@ export class ResultSaver {
     // Save individual test files if code is provided
     if (data.tests) {
       for (const test of data.tests) {
-        if (test.code) {
+        // The test-generation domain returns `testCode`; retain `code` for
+        // older callers of ResultSaver that already use that field.
+        const code = test.testCode ?? test.code;
+        if (code) {
           const ext = this.getTestExtension(options.language || 'typescript', options.framework || 'vitest');
           const testFilename = this.sanitizeFilename(test.name) + ext;
           const testPath = path.join(testDir, testFilename);
           // Review of #1026 N7: a generated test keeps one file per test name
           // (replaced atomically), unlike reports, so numbered copies never
           // pile up for a test runner to collect.
-          files.push(await this.replaceFile(testPath, test.code, 'source'));
+          files.push(await this.replaceFile(testPath, code, 'source'));
         }
       }
     }
@@ -756,7 +759,7 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
   // Utilities
   // ==========================================================================
 
-  private async ensureDirectories(taskType: TaskType): Promise<void> {
+  private async ensureDirectories(_taskType: TaskType): Promise<void> {
     const dirs = [
       this.resultsDir,
       path.join(this.resultsDir, 'security'),

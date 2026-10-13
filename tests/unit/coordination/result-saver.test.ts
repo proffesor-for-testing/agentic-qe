@@ -202,6 +202,20 @@ describe('ResultSaver', () => {
       });
     });
 
+    it('writes testCode from the test-generation domain as a source file', async () => {
+      const testCode = 'import { test, expect } from "vitest";\ntest("generated", () => expect(2 + 2).toBe(4));';
+      const result = await saver.save('generated-domain-test', 'generate-tests', {
+        ...TEST_GENERATION_RESULT,
+        testsGenerated: 1,
+        tests: [{ name: 'generated', file: 'src/math.ts', type: 'unit', testCode }],
+      });
+
+      const sourceFiles = result.files.filter(f => f.format === 'source');
+      expect(sourceFiles).toHaveLength(1);
+      expect(sourceFiles[0].path).toMatch(/generated\.test\.ts$/);
+      expect(await fs.readFile(sourceFiles[0].path, 'utf8')).toBe(testCode);
+    });
+
     it('should use correct test extension for different languages/frameworks', async () => {
       const testCases: Array<{ language: string; framework: string; expectedExt: string }> = [
         { language: 'typescript', framework: 'jest', expectedExt: '.test.ts' },
