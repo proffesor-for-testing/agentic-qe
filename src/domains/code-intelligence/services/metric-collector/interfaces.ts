@@ -154,6 +154,15 @@ export interface MetricCollectorConfig {
   timeout: number;
   /** Directories to exclude from LOC counting */
   excludeDirs: string[];
+  /** File names (exact match) to exclude from LOC counting, e.g. lockfiles (#999) */
+  excludeFiles: string[];
+  /**
+   * Directories excluded directly under the project root, and nested only when
+   * they sit next to a `.agentic-qe/` (a nested `aqe init`): the assets init
+   * writes. Any other directory of the same name (e.g. a plugin's own
+   * `.claude/hooks` source) is still counted (#999 review N4 / round 2b).
+   */
+  excludeRootDirs: string[];
   /** File patterns to include for test counting */
   testPatterns: string[];
   /** Enable caching of metrics (default: true) */
@@ -161,6 +170,29 @@ export interface MetricCollectorConfig {
   /** Cache TTL in milliseconds (default: 300000 = 5 minutes) */
   cacheTTL: number;
 }
+
+/**
+ * Generated dependency lockfiles. They are machine-written, often thousands of
+ * lines, and are not project code, so LOC counting skips them (#999: a 3-line
+ * project reported 1662 LOC from package-lock.json).
+ */
+export const LOC_EXCLUDED_FILE_NAMES: readonly string[] = Object.freeze([
+  // JS/TS
+  'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'bun.lock',
+  'deno.lock',
+  // Python
+  'poetry.lock', 'Pipfile.lock', 'uv.lock', 'pdm.lock',
+  // Rust / Go / Ruby / PHP / Elixir / Dart / .NET / Swift / Nix / Gradle
+  'Cargo.lock', 'go.sum', 'Gemfile.lock', 'composer.lock', 'mix.lock', 'pubspec.lock',
+  'packages.lock.json', 'Package.resolved', 'flake.lock', 'gradle.lockfile',
+]);
+
+/**
+ * Init-written assets: excluded at the project root, and nested only next to a
+ * `.agentic-qe/` (a nested `aqe init`). `.agentic-qe` itself is in excludeDirs
+ * (state, never source, at any depth). #999 review N4 / round 2b.
+ */
+export const PROJECT_ROOT_EXCLUDED_DIRS: readonly string[] = Object.freeze(['.claude']);
 
 /**
  * Default configuration values
@@ -176,7 +208,11 @@ export const DEFAULT_METRIC_CONFIG: MetricCollectorConfig = {
     'target', '.gradle', 'vendor', '.bundle',
     // General
     '.git', '.svn', '.hg',
+    // AQE runtime state: never source, at any depth (#999)
+    '.agentic-qe',
   ],
+  excludeFiles: [...LOC_EXCLUDED_FILE_NAMES],
+  excludeRootDirs: [...PROJECT_ROOT_EXCLUDED_DIRS],
   testPatterns: ['**/*.test.ts', '**/*.spec.ts', '**/*.test.js', '**/*.spec.js'],
   enableCache: true,
   cacheTTL: 300000,

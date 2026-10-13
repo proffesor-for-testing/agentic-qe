@@ -1,10 +1,16 @@
-/** Bound headers and bodies; streaming callers may use an idle body deadline. */
+/**
+ * Bound headers and bodies; streaming callers may use an idle body deadline.
+ * `maxDurationMs` adds an absolute cap from the start of the request, so an
+ * idle deadline cannot be held open forever by a peer that trickles bytes
+ * just often enough to reset it (#980 review N6).
+ */
 export async function fetchWithResponseDeadline(
   url: string,
   options: RequestInit,
   timeoutMs: number,
   timeoutError: () => Error,
   bodyDeadline: 'absolute' | 'idle' = 'absolute',
+  maxDurationMs?: number,
 ): Promise<Response> {
   const abort = new AbortController();
   let expired = false;
@@ -16,6 +22,12 @@ export async function fetchWithResponseDeadline(
     abort.abort(error);
   };
   let timer = setTimeout(expire, timeoutMs);
+  const capTimer = maxDurationMs !== undefined && maxDurationMs > 0 ? setTimeout(expire, maxDurationMs) : undefined;
+  capTimer?.unref?.();
+  const clearTimers = () => {
+    clearTimeout(timer);
+    if (capTimer) clearTimeout(capTimer);
+  };
   const resetIdleDeadline = () => {
     if (bodyDeadline !== 'idle') return;
     clearTimeout(timer);
@@ -28,7 +40,7 @@ export async function fetchWithResponseDeadline(
   try {
     const response = await fetch(url, { ...options, signal: abort.signal });
     if (!response.body) {
-      clearTimeout(timer);
+      clearTimers();
       return response;
     }
 
@@ -37,7 +49,7 @@ export async function fetchWithResponseDeadline(
     let finished = false;
     const finish = () => {
       finished = true;
-      clearTimeout(timer);
+      clearTimers();
     };
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -89,7 +101,7 @@ export async function fetchWithResponseDeadline(
     }
     return bounded;
   } catch (error) {
-    clearTimeout(timer);
+    clearTimers();
     if (expired || (error instanceof Error && error.name === 'AbortError')) {
       throw timeoutError();
     }

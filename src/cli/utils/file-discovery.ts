@@ -9,6 +9,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
+import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 
 // ============================================================================
 // Source File Extensions by Language
@@ -47,6 +48,7 @@ const SKIP_DIRS = new Set([
   'target', '.gradle', 'vendor', '.bundle',
   '.next', '.nuxt', '.output',
 ]);
+
 
 // ============================================================================
 // Public API
@@ -107,6 +109,9 @@ export function walkSourceFiles(targetPath: string, options: WalkOptions = {}): 
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
+        // #999: AQE state/assets are not source (.agentic-qe anywhere; .claude
+        // at the root or next to a nested .agentic-qe)
+        if (isAqeManagedDir(dir, entry.name, depth === 0)) continue;
         walk(join(dir, entry.name), depth + 1);
       } else if (entry.isFile()) {
         const ext = extname(entry.name).toLowerCase();

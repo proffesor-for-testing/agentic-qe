@@ -13,7 +13,11 @@ import type { CoverageAnalyzerService } from '../../domains/coverage-analysis';
 import type { SecurityScannerService } from '../../domains/security-compliance';
 import type { TestGeneratorService } from '../../domains/test-generation';
 import type { KnowledgeGraphService } from '../../domains/code-intelligence';
+import type { ICodeIntelligenceCoordinator } from '../../domains/code-intelligence/coordinator';
 import type { QualityAnalyzerService } from '../../domains/quality-assessment';
+
+/** The coordinator surface the MCP index-code handler needs (#999). */
+export type ProjectMetricsCollector = Pick<ICodeIntelligenceCoordinator, 'collectProjectMetrics'>;
 
 /** Signature of a single task handler */
 export type InstanceTaskHandler = (task: QueenTask) => Promise<Result<unknown, Error>>;
@@ -39,6 +43,12 @@ export interface TaskHandlerContext {
    */
   getTestGenerator(useLLM?: boolean): Promise<TestGeneratorService>;
   getKnowledgeGraph(): KnowledgeGraphService;
+  /**
+   * #999 MCP-CLI parity: the code-intelligence coordinator, whose
+   * collectProjectMetrics step `aqe code index` runs. Resolves to undefined when
+   * the domain is unavailable. Optional so lightweight contexts can omit it.
+   */
+  getCodeIntelligenceCoordinator?(): Promise<ProjectMetricsCollector | undefined>;
   getQualityAnalyzer(): QualityAnalyzerService;
 
   /** Executor configuration */

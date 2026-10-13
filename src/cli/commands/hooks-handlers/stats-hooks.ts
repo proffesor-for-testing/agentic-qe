@@ -10,12 +10,48 @@ import chalk from 'chalk';
 import { QE_HOOK_EVENTS } from '../../../learning/qe-hooks.js';
 import type { QEDomain } from '../../../learning/qe-patterns.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { committedPendingIndexPatternId } from '../../../learning/pattern-mutation-error.js';
 import {
   getHooksSystem,
   printJson,
   printSuccess,
   printError,
 } from './hooks-shared.js';
+
+/**
+ * How a learned pattern reached vector search, by cause (#981, review N1).
+ * - `indexed`: stored with its vector in the active index.
+ * - `sqlite`: an embedder produced the vector and SQLite holds it (vector
+ *   search uses it now); only the ANN index (patterns.rvf) was not open in
+ *   this process. It is ingested automatically the next time the index opens.
+ * - `pending`: no vector (no embedding runtime); text search only until an
+ *   embedder is configured and `aqe learning backfill-embeddings` runs.
+ */
+export function describeVectorIndexState(
+  pattern: { embedding?: ArrayLike<number> },
+  indexUnavailableCause?: string,
+): { vectorIndex: 'indexed' | 'sqlite' | 'pending'; notice?: string } {
+  const hasVector = Boolean(pattern.embedding && pattern.embedding.length > 0);
+  if (!hasVector) {
+    return {
+      vectorIndex: 'pending',
+      notice:
+        'Pattern stored in SQLite without a vector (no embedding runtime is available). ' +
+        'Text search finds it now. Set AQE_EMBEDDER_ENDPOINT or install @huggingface/transformers, then run ' +
+        '`aqe learning backfill-embeddings` to enable semantic search for it.',
+    };
+  }
+  if (indexUnavailableCause) {
+    return {
+      vectorIndex: 'sqlite',
+      notice:
+        'Pattern stored; its vector is stored in SQLite and vector search can use it now. ' +
+        `The ANN index (patterns.rvf) was not open in this process (${indexUnavailableCause}); ` +
+        'the vector is added to it automatically the next time the index opens.',
+    };
+  }
+  return { vectorIndex: 'indexed' };
+}
 
 /**
  * Register stats, list, emit, learn, and search subcommands on the hooks command.
@@ -187,11 +223,27 @@ export function registerStatsHooks(hooks: Command): void {
           },
         });
 
+        // #981: COMMITTED_PENDING_INDEX means the authoritative SQLite row was
+        // written and only the derived vector index is unavailable (e.g. no
+        // embedding runtime). That is a stored pattern, not a failure.
+        let pattern = result.success ? result.value : null;
+        let indexCause: string | undefined;
         if (!result.success) {
-          throw new Error(result.error.message);
+          const committedId = committedPendingIndexPatternId(result.error);
+          if (!committedId) {
+            throw new Error(result.error.message);
+          }
+          pattern = await reasoningBank.getPattern(committedId);
+          if (!pattern) {
+            throw new Error(result.error.message);
+          }
+          const cause = (result.error as { cause?: unknown }).cause;
+          indexCause = cause instanceof Error ? cause.message : 'the vector index is unavailable';
         }
-
-        const pattern = result.value;
+        if (!pattern) {
+          throw new Error('learn failed: no pattern returned');
+        }
+        const { vectorIndex, notice: pendingWarning } = describeVectorIndexState(pattern, indexCause);
 
         if (options.json) {
           printJson({
@@ -202,12 +254,17 @@ export function registerStatsHooks(hooks: Command): void {
               type: pattern.patternType,
               domain: pattern.qeDomain,
             },
+            vectorIndex,
+            ...(pendingWarning ? { warning: pendingWarning } : {}),
           });
         } else {
           printSuccess(`Pattern stored: ${pattern.name}`);
           console.log(chalk.dim(`  ID: ${pattern.id}`));
           console.log(chalk.dim(`  Domain: ${pattern.qeDomain}`));
           console.log(chalk.dim(`  Tier: ${pattern.tier}`));
+          if (pendingWarning) {
+            console.log(chalk.yellow(`  ${vectorIndex === 'pending' ? 'Vector index pending' : 'Vector index'}: ${pendingWarning}`));
+          }
         }
       } catch (error) {
         printError(`learn failed: ${error instanceof Error ? error.message : 'unknown'}`);

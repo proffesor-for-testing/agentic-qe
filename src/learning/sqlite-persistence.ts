@@ -748,6 +748,43 @@ export class SQLitePatternStore {
   }
 
   /**
+   * Pattern ids that have a stored vector in `spaceId` (#981 review B2: find
+   * vectors the RVF index is missing). Unordered by default, which is a plain
+   * indexed scan; `ordered` returns most recently used first (join + sort),
+   * which the reconcile only needs when more ids are missing than one pass ingests.
+   */
+  getEmbeddingIdsInSpace(spaceId: string, options: { ordered?: boolean } = {}): string[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const sql = options.ordered
+      ? `SELECT e.pattern_id
+           FROM qe_pattern_embeddings e
+           LEFT JOIN qe_patterns p ON p.id = e.pattern_id
+          WHERE e.space_id = ?
+          ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC`
+      : 'SELECT pattern_id FROM qe_pattern_embeddings WHERE space_id = ?';
+    const rows = this.db.prepare(sql).all(spaceId) as Array<{ pattern_id: string }>;
+    return rows.map(row => row.pattern_id);
+  }
+
+  /** Stored vectors for the given pattern ids (#981 review B2). */
+  getEmbeddingsByIds(ids: string[]): Array<{ patternId: string; embedding: number[] }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const out: Array<{ patternId: string; embedding: number[] }> = [];
+    const stmt = this.db.prepare(
+      'SELECT pattern_id, embedding, dimension, space_id FROM qe_pattern_embeddings WHERE pattern_id = ?',
+    );
+    for (const id of ids) {
+      const row = stmt.get(id) as EmbeddingRow | undefined;
+      if (!row) continue;
+      out.push({
+        patternId: row.pattern_id,
+        embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
+      });
+    }
+    return out;
+  }
+
+  /**
    * Get up to `limit` embeddings, most-recently-used first.
    *
    * Used by the RVF backfill path so an operator-truncated patterns.rvf does

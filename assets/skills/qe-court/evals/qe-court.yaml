@@ -7,8 +7,9 @@ description: >
   `aqe-court-referee` executable and
   asserts it passes. Each oracle passes on correct referee logic and FAILS on a
   seeded regression, so a green run is genuine tier-3 evidence — not a self-report.
-  The seeded-mutant is mirrored in fixtures/seeded-mutant-delivery/ (canSpend
-  `<=` vs `<`) and abstracted as MUTANT_CHARGE in the referee suite.
+  The seeded-mutant is mirrored in fixtures/seeded-mutant-delivery/
+  (budget.ts.fixture: canSpend `<=` vs `<`; `.fixture` names keep it out of
+  the user's test runner, #1017) and abstracted as MUTANT_CHARGE in the referee suite.
 
 test_cases:
   - id: overturn-catches-mutant

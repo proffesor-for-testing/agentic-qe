@@ -52,6 +52,7 @@ import {
 import { getWitnessChain } from '../audit/witness-chain.js';
 import type { RvfDualWriter } from '../integrations/ruvector/rvf-dual-writer.js';
 import { getActiveEmbeddingSpaceIdentity } from './real-embeddings.js';
+import { reconcileRvfWithSqlite, type RvfReconcileResult } from './rvf-reconcile.js';
 import { PatternMutationError } from './pattern-mutation-error.js';
 
 // Import extracted modules
@@ -234,6 +235,37 @@ export class QEReasoningBank implements IQEReasoningBank {
     logger.info('Initialized');
   }
 
+  /** Result of the last RVF↔SQLite vector reconcile (#981 review B2). */
+  private lastVectorReconcile: RvfReconcileResult | null = null;
+
+  getLastVectorReconcile(): RvfReconcileResult | null {
+    return this.lastVectorReconcile;
+  }
+
+  /**
+   * Ingest SQLite vectors of the active embedding space that the RVF index
+   * does not hold yet (#981 review B2). Idempotent and capped per pass by
+   * AQE_RVF_BACKFILL_LIMIT (default 1000). Non-fatal.
+   */
+  reconcileVectorIndex(): RvfReconcileResult | null {
+    const adapter = this.patternStore.getAdapter?.();
+    const spaceId = getActiveEmbeddingSpaceIdentity()?.spaceId;
+    if (!adapter || !spaceId) return null;
+    try {
+      const env = Number(process.env.AQE_RVF_BACKFILL_LIMIT);
+      const limit = Number.isFinite(env) && env > 0 ? Math.floor(env) : 1000;
+      const result = reconcileRvfWithSqlite(adapter, this.getSqliteStore(), spaceId, limit);
+      if (result.missing > 0) {
+        logger.info('Reconciled RVF index with SQLite vectors', { ...result });
+      }
+      this.lastVectorReconcile = result;
+      return result;
+    } catch (err) {
+      logger.warn('RVF reconcile failed (non-fatal)', { error: toErrorMessage(err) });
+      return null;
+    }
+  }
+
   /**
    * Load pre-trained patterns for common QE scenarios
    */
@@ -288,6 +320,11 @@ export class QEReasoningBank implements IQEReasoningBank {
         } catch (err) {
           logger.warn('RVF backfill failed (non-fatal)', { error: toErrorMessage(err) });
         }
+      } else if (adapter) {
+        // #981 review B2: a non-empty index can still lag SQLite, e.g. after
+        // `aqe learning backfill-embeddings` filled vectors for patterns that
+        // were learned text-only. Ingest exactly the missing active-space ids.
+        this.reconcileVectorIndex();
       }
       return;
     }
@@ -347,7 +384,18 @@ export class QEReasoningBank implements IQEReasoningBank {
       const embedding = await this.embed(
         `${options.name} ${options.description} ${options.context?.tags?.join(' ') || ''}`
       );
-      options = { ...options, embedding };
+      // #981: with no embedding runtime, embed() returns a hash-fallback vector
+      // that has no embedding-space provenance, and the pattern store refuses
+      // to persist it (VECTOR_SPACE_UNVERIFIED), losing the pattern. Store it
+      // text-only instead, as search already does for such vectors; the vector
+      // is filled later by `aqe learning backfill-embeddings`.
+      const hasProvenance = this.embeddingProvenance.has(embedding)
+        || Boolean(getActiveEmbeddingSpaceIdentity()?.spaceId);
+      if (hasProvenance) {
+        options = { ...options, embedding };
+      } else {
+        logger.debug('No embedding runtime provenance; storing pattern without a vector', { name: options.name });
+      }
     }
 
     const result = await this.patternStore.create(options);

@@ -15,6 +15,7 @@
 import { spawnSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, extname } from 'path';
+import { AQE_CLAUDE_DIR, AQE_STATE_DIR, findAqeClaudeDirs } from '../../../../shared/aqe-managed-dirs.js';
 import {
   LOCMetrics,
   ToolAvailability,
@@ -92,6 +93,44 @@ export function checkLOCTools(): ToolAvailability[] {
   return tools;
 }
 
+/**
+ * cloc `--not-match-f` regex matching any of `names` exactly (basename), or
+ * null when there is nothing to exclude.
+ */
+export function excludedFileNamesRegex(names: readonly string[] | undefined): string | null {
+  if (!names || names.length === 0) return null;
+  // Matches a bare name and, under cloc --fullpath, a full path ending in it
+  // (either separator, so Windows paths match too).
+  return `(^|[\\\\/])(${names.map(escapeRegex).join('|')})$`;
+}
+
+/**
+ * cloc `--not-match-d` regex (with --fullpath) matching the given
+ * project-relative directories ('/'-separated) and everything below them, but
+ * no other directory of the same name (#999 review N4 / round 2b). Either
+ * path separator matches. Null when there are none.
+ */
+export function rootAnchoredDirsRegex(projectPath: string, relDirs: readonly string[] | undefined): string | null {
+  if (!relDirs || relDirs.length === 0) return null;
+  const SEP = '[\\\\/]';
+  const toPattern = (path: string) => path.split(/[\\/]+/).filter(Boolean).map(escapeRegex).join(SEP);
+  const root = toPattern(projectPath);
+  const rootPrefix = /^[\\/]/.test(projectPath) ? SEP : '';
+  return `^${rootPrefix}${root}${SEP}(${relDirs.map(toPattern).join('|')})(${SEP}|$)`;
+}
+
+/** Project-relative AQE-managed `.claude` dirs to exclude, if `.claude` is a root exclude. */
+function aqeClaudeDirsToExclude(projectPath: string, config: MetricCollectorConfig): string[] {
+  const rootDirs = config.excludeRootDirs ?? [];
+  if (!rootDirs.includes(AQE_CLAUDE_DIR)) return rootDirs.filter((d) => existsSync(join(projectPath, d)));
+  const others = rootDirs.filter((d) => d !== AQE_CLAUDE_DIR && existsSync(join(projectPath, d)));
+  return [...findAqeClaudeDirs(projectPath, config.excludeDirs), ...others];
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // ============================================================================
 // Tool-Specific Implementations
 // ============================================================================
@@ -104,7 +143,15 @@ async function tryClocCount(
   config: MetricCollectorConfig
 ): Promise<LOCMetrics | null> {
   try {
-    const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`, projectPath];
+    const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`];
+    const notMatchDir = rootAnchoredDirsRegex(projectPath, aqeClaudeDirsToExclude(projectPath, config));
+    // --fullpath makes --not-match-d/-f see full paths, so the AQE-managed
+    // .claude dirs (root, or next to a nested .agentic-qe) are excluded
+    // without dropping other same-named dirs (#999 review N4 / round 2b).
+    if (notMatchDir) args.push('--fullpath', `--not-match-d=${notMatchDir}`);
+    const notMatch = excludedFileNamesRegex(config.excludeFiles);
+    if (notMatch) args.push(`--not-match-f=${notMatch}`);
+    args.push(projectPath);
 
     const result = spawnSync('cloc', args, {
       encoding: 'utf-8',
@@ -167,9 +214,20 @@ async function tryTokeiCount(
     for (const dir of config.excludeDirs) {
       args.push('-e', dir);
     }
-    args.push(projectPath);
+    // #999: lockfiles are generated, not code (tokei -e takes gitignore-style names)
+    for (const file of config.excludeFiles ?? []) {
+      args.push('-e', file);
+    }
+    // A leading '/' anchors a tokei (gitignore-style) exclude at the directory
+    // tokei walks, so run it IN the project on '.' (round 2b: with an absolute
+    // path argument the anchored patterns matched nothing).
+    for (const rel of aqeClaudeDirsToExclude(projectPath, config)) {
+      args.push('-e', `/${rel}`);
+    }
+    args.push('.');
 
     const result = spawnSync('tokei', args, {
+      cwd: projectPath,
       encoding: 'utf-8',
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
@@ -287,6 +345,8 @@ function manualLOCCount(
   const byLanguage: Record<string, number> = {};
   let total = 0;
   const excludeSet = new Set(config.excludeDirs);
+  const excludeFileSet = new Set(config.excludeFiles ?? []);
+  const rootExcludeSet = new Set(config.excludeRootDirs ?? []);
 
   // Max file size to read (2MB) — skip minified bundles, generated files
   const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -309,11 +369,15 @@ function manualLOCCount(
 
       if (entry.isDirectory()) {
         // Skip excluded directories (exact match or glob-like suffix match)
-        if (excludeSet.has(entry.name) || entry.name.startsWith('.')) {
+        if (excludeSet.has(entry.name) || entry.name.startsWith('.') ||
+            (rootExcludeSet.has(entry.name) &&
+              (dirPath === projectPath || existsSync(join(dirPath, AQE_STATE_DIR))))) {
           continue;
         }
         walkDirectory(fullPath, depth + 1);
       } else if (entry.isFile()) {
+        // #999: skip lockfiles and other generated files by exact name
+        if (excludeFileSet.has(entry.name)) continue;
         const ext = extname(entry.name);
         const language = getLanguageForExtension(ext);
 

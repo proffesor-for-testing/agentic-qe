@@ -64,6 +64,8 @@ type CoverageAnalyzerService = import('../domains/coverage-analysis').CoverageAn
 type SecurityScannerService = import('../domains/security-compliance').SecurityScannerService;
 type KnowledgeGraphService = import('../domains/code-intelligence').KnowledgeGraphService;
 type QualityAnalyzerService = import('../domains/quality-assessment').QualityAnalyzerService;
+type CodeIntelligenceExtendedAPI = import('../domains/code-intelligence/plugin').CodeIntelligenceExtendedAPI;
+type ProjectMetricsCollector = import('./handlers/handler-types').ProjectMetricsCollector;
 
 const logger = createLogger('TaskExecutor');
 
@@ -362,6 +364,25 @@ export class DomainTaskExecutor implements TaskHandlerContext {
       this.knowledgeGraph = resolveKnowledgeGraphService(this.kernel.memory);
     }
     return this.knowledgeGraph;
+  }
+
+  /**
+   * #999: the code-intelligence coordinator, so the MCP index-code handler can
+   * run the same project-metric step as `aqe code index`. Loads the domain
+   * lazily; undefined when it is disabled or fails to load.
+   */
+  async getCodeIntelligenceCoordinator(): Promise<ProjectMetricsCollector | undefined> {
+    try {
+      const api = this.kernel.getDomainAPIAsync
+        ? await this.kernel.getDomainAPIAsync<CodeIntelligenceExtendedAPI>('code-intelligence')
+        : this.kernel.getDomainAPI<CodeIntelligenceExtendedAPI>('code-intelligence');
+      return typeof api?.getCoordinator === 'function' ? api.getCoordinator() : undefined;
+    } catch (error) {
+      logger.debug('code-intelligence coordinator unavailable for project metrics', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return undefined;
+    }
   }
 
   getQualityAnalyzer(): QualityAnalyzerService {

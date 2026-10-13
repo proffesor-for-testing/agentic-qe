@@ -98,6 +98,8 @@ export interface RvfCompactionResult {
 
 export interface RvfNativeAdapter {
   ingest(entries: RvfIngestEntry[]): { accepted: number; rejected: number };
+  /** True when the index holds a vector for `id` (#981 review B2: reconcile with SQLite). */
+  has?(id: string): boolean;
   search(query: Float32Array | number[], k: number): RvfSearchResult[];
   delete(ids: string[]): number;
   fork(childPath: string): RvfNativeAdapter;
@@ -267,6 +269,13 @@ class RvfNativeAdapterImpl implements RvfNativeAdapter {
     }
     this.persistIdMap();
     return { accepted: result.accepted, rejected: result.rejected };
+  }
+
+  // -- has ------------------------------------------------------------------
+
+  has(id: string): boolean {
+    this.ensureOpen();
+    return this.strToNum.has(id);
   }
 
   // -- search ---------------------------------------------------------------

@@ -281,6 +281,9 @@ export interface InitResult {
       hooks: { status: string; error?: string };
       skills: { status: string; error?: string };
     };
+    /** #1017: pre-3.15.6 test-named skill files removed / kept by init. */
+    retiredAssetsRemoved?: string[];
+    retiredAssetsKept?: string[];
   };
 
   totalDurationMs: number;

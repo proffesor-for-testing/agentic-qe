@@ -11,6 +11,51 @@ import { ok, err } from '../../shared/types';
 import { toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
+import { resolveProjectRootFromPaths } from '../../domains/code-intelligence/project-root-resolver.js';
+import { createLogger } from '../../logging/logger-factory.js';
+
+const logger = createLogger('CodeIntelligenceHandlers');
+
+/** Project metric summary returned by the MCP index-code handler (#999). */
+export interface IndexProjectMetricsSummary {
+  root: string;
+  loc: number;
+  locByLanguage: Record<string, number>;
+  tests: number;
+  toolsUsed: string[];
+}
+
+async function collectProjectMetricsForTarget(
+  ctx: TaskHandlerContext,
+  targetPath: string,
+  indexedFiles: string[],
+): Promise<IndexProjectMetricsSummary | undefined> {
+  if (!ctx.getCodeIntelligenceCoordinator) return undefined;
+  const root = resolveProjectRootFromPaths(indexedFiles, { target: path.resolve(targetPath) });
+  if (!root) {
+    logger.debug('Skipping project metrics: no project root resolved (filesystem root or no paths)');
+    return undefined;
+  }
+  try {
+    const coordinator = await ctx.getCodeIntelligenceCoordinator();
+    if (!coordinator) return undefined;
+    const metrics = await coordinator.collectProjectMetrics(root);
+    if (!metrics.success) {
+      logger.debug(`Project metrics unavailable: ${metrics.error.message}`);
+      return undefined;
+    }
+    return {
+      root,
+      loc: metrics.value.loc.total,
+      locByLanguage: metrics.value.loc.byLanguage,
+      tests: metrics.value.tests.total,
+      toolsUsed: metrics.value.toolsUsed,
+    };
+  } catch (error) {
+    logger.debug(`Project metrics unavailable: ${toError(error).message}`);
+    return undefined;
+  }
+}
 
 export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void {
   // Register code indexing handler - REAL IMPLEMENTATION
@@ -60,6 +105,12 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
 
       const indexResult = result.value;
 
+      // #999 MCP-CLI parity: `aqe code index` runs the coordinator's project
+      // metric step (LOC, tests, tools); run the same step here, rooted at the
+      // caller's target the way #997 resolves it. Best-effort: indexing has
+      // already succeeded, so a metric failure only omits projectMetrics.
+      const projectMetrics = await collectProjectMetricsForTarget(ctx, targetPath, filesToIndex);
+
       // Detect languages from files
       const detectedLanguages = new Set<string>();
       const extToLang: Record<string, string> = {
@@ -93,6 +144,7 @@ export function registerCodeIntelligenceHandlers(ctx: TaskHandlerContext): void 
         duration: indexResult.duration,
         errors: indexResult.errors,
         warnings: indexResult.warnings,
+        ...(projectMetrics ? { projectMetrics } : {}),
       });
     } catch (error) {
       return err(toError(error));

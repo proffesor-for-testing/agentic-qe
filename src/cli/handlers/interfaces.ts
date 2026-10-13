@@ -7,6 +7,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 import type { QEKernel } from '../../kernel/interfaces.js';
 import type { QueenCoordinator } from '../../coordination/queen-coordinator.js';
 import type { CrossDomainEventRouter } from '../../coordination/cross-domain-router.js';
@@ -169,7 +170,7 @@ export async function walkDirectory(
 
   const {
     extensions = ['.ts'],
-    exclude = ['node_modules', 'dist'],
+    exclude = ['node_modules', 'dist', '.git'],
     maxDepth = 4,
     includeTests = false,
   } = options;
@@ -188,6 +189,8 @@ export async function walkDirectory(
 
     for (const item of items) {
       if (exclude.includes(item)) continue;
+      // #999: AQE state/assets (.agentic-qe anywhere; .claude at the root or next to .agentic-qe)
+      if (isAqeManagedDir(currentDir, item, depth === 0)) continue;
       if (!includeTests && (item === 'tests' || item.includes('.test.') || item.includes('.spec.'))) continue;
 
       const fullPath = path.join(currentDir, item);

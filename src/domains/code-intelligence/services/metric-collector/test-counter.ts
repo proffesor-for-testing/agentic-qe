@@ -18,6 +18,7 @@ import { createRequire } from 'module';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, extname, resolve } from 'path';
+import { AQE_STATE_DIR } from '../../../../shared/aqe-managed-dirs.js';
 import {
   TestMetrics,
   TestSource,
@@ -536,7 +537,9 @@ function countTestsByFilePattern(
 
       if (entry.isDirectory()) {
         // Skip excluded directories
-        if (config.excludeDirs.includes(entry.name)) {
+        if (config.excludeDirs.includes(entry.name) ||
+            ((config.excludeRootDirs ?? []).includes(entry.name) &&
+              (dirPath === projectPath || existsSync(join(dirPath, AQE_STATE_DIR))))) {
           continue;
         }
         walkDirectory(fullPath);

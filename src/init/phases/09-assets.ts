@@ -12,6 +12,7 @@ import {
 import { createSkillsInstaller } from '../skills-installer.js';
 import { createAgentsInstaller } from '../agents-installer.js';
 import { createN8nInstaller } from '../n8n-installer.js';
+import { retireShippedAssets } from '../retired-assets.js';
 import {
   installBrowserEngine,
   detectBrowserEngine,
@@ -35,6 +36,10 @@ export interface AssetsResult {
   platformsConfigured: string[];
   browserEngine?: BrowserEngineInstallResult;
   codexGuidance?: { policy: 'full' | 'compact' | 'none'; ownedBytes: number };
+  /** #1017: retired shipped files removed from the project (exact path + shipped hash). */
+  retiredAssetsRemoved?: string[];
+  /** #1017: retired files left in place (edited, symlinked, or outside the project). */
+  retiredAssetsKept?: string[];
   codexComponents?: {
     hooks: { status: string; error?: string };
     skills: { status: string; error?: string };
@@ -73,6 +78,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
     let kiroHooks = 0;
     let codexGuidance: AssetsResult['codexGuidance'];
     let codexComponents: AssetsResult['codexComponents'];
+    let retiredAssetsRemoved: string[] = [];
+    let retiredAssetsKept: string[] = [];
 
     if (options.upgrade) {
       context.services.log(`  Upgrade mode: overwriting existing files`);
@@ -94,6 +101,39 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
 
       if (skillsResult.errors.length > 0) {
         context.services.warn(`Skills warnings: ${skillsResult.errors.join(', ')}`);
+      }
+    }
+
+    // #1017: remove files earlier releases shipped under names the user's test
+    // runner collects. Runs on EVERY init that manages the Claude skills, not
+    // only --upgrade: plain `init --auto` on an existing install skips skills
+    // that are already present, so without this the stale copies would never
+    // leave. It is safe on every run because only an exact path whose content
+    // still equals a shipped version is deleted (edited copies keep their whole
+    // group), and the renamed replacements are installed so the skill keeps
+    // working without --upgrade.
+    if (!options.noClaude) {
+      const retired = retireShippedAssets(projectRoot, {
+        sourceSkillsDir: createSkillsInstaller({ projectRoot }).getSourceSkillsDir(),
+      });
+      retiredAssetsRemoved = retired.removed;
+      retiredAssetsKept = retired.kept.flatMap((k) => k.files);
+      for (const relPath of retired.removed) {
+        context.services.log(`  Removed retired asset: ${relPath}`);
+      }
+      for (const relPath of [...retired.installed, ...retired.refreshed]) {
+        context.services.log(`  Updated skill file: ${relPath}`);
+      }
+      for (const kept of retired.kept) {
+        context.services.warn(`Kept ${kept.files.join(', ')}: ${kept.why}. ${kept.advice}.`);
+      }
+      for (const note of retired.replacementWarnings) {
+        context.services.warn(`Skill file kept: ${note}.`);
+      }
+      if (retired.missingReplacements.length > 0) {
+        context.services.warn(
+          `Could not install ${retired.missingReplacements.join(', ')}; run "aqe init --upgrade" to refresh the skills.`,
+        );
       }
     }
 
@@ -394,6 +434,8 @@ export class AssetsPhase extends BasePhase<AssetsResult> {
       browserEngine,
       codexGuidance,
       codexComponents,
+      retiredAssetsRemoved,
+      retiredAssetsKept,
     };
   }
 
