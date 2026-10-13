@@ -160,6 +160,8 @@ export async function walkDirectory(
   options: {
     extensions?: string[];
     exclude?: string[];
+    /** Directory names skipped only directly under `dir` (default: .agentic-qe, .claude). */
+    rootExclude?: string[];
     maxDepth?: number;
     includeTests?: boolean;
   } = {}
@@ -169,8 +171,9 @@ export async function walkDirectory(
 
   const {
     extensions = ['.ts'],
-    // #999: never walk VCS metadata, AQE state, or init-written assets
-    exclude = ['node_modules', 'dist', '.git', '.agentic-qe', '.claude'],
+    exclude = ['node_modules', 'dist', '.git'],
+    // #999 (review N4): AQE state and init-written assets, skipped only directly under `dir`
+    rootExclude = ['.agentic-qe', '.claude'],
     maxDepth = 4,
     includeTests = false,
   } = options;
@@ -189,6 +192,7 @@ export async function walkDirectory(
 
     for (const item of items) {
       if (exclude.includes(item)) continue;
+      if (depth === 0 && rootExclude.includes(item)) continue;
       if (!includeTests && (item === 'tests' || item.includes('.test.') || item.includes('.spec.'))) continue;
 
       const fullPath = path.join(currentDir, item);

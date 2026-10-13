@@ -284,8 +284,9 @@ export class MetricCollectorService implements IMetricCollectorService {
     let totalConsole = 0;
 
     const patterns = this.getPatternsForLanguage(language);
-    // #999: same exclusions as LOC/test counting (incl. .agentic-qe, .claude)
+    // #999: same exclusions as LOC/test counting; .agentic-qe/.claude only at the root (N4)
     const excludeDirs = new Set(this.config.excludeDirs);
+    const rootExcludeDirs = new Set(this.config.excludeRootDirs ?? []);
 
     function walkDirectory(dirPath: string): void {
       if (!existsSync(dirPath)) return;
@@ -298,6 +299,7 @@ export class MetricCollectorService implements IMetricCollectorService {
         if (entry.isDirectory()) {
           // Skip excluded directories
           if (excludeDirs.has(entry.name)) continue;
+          if (dirPath === projectPath && rootExcludeDirs.has(entry.name)) continue;
           walkDirectory(fullPath);
         } else if (entry.isFile()) {
           const ext = extname(entry.name).toLowerCase();

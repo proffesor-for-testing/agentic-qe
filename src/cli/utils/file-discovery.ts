@@ -46,9 +46,14 @@ const SKIP_DIRS = new Set([
   '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache',
   'target', '.gradle', 'vendor', '.bundle',
   '.next', '.nuxt', '.output',
-  // AQE state and the assets `aqe init` writes are not project source (#999)
-  '.agentic-qe', '.claude',
 ]);
+
+/**
+ * AQE state and the assets `aqe init` writes are not project source (#999), but
+ * only directly under the walked root: a nested package's own `.claude/` (or
+ * `.agentic-qe/`) directory is still source (#999 review N4).
+ */
+const ROOT_SKIP_DIRS = new Set(['.agentic-qe', '.claude']);
 
 // ============================================================================
 // Public API
@@ -109,6 +114,7 @@ export function walkSourceFiles(targetPath: string, options: WalkOptions = {}): 
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
+        if (depth === 0 && ROOT_SKIP_DIRS.has(entry.name)) continue;
         walk(join(dir, entry.name), depth + 1);
       } else if (entry.isFile()) {
         const ext = extname(entry.name).toLowerCase();

@@ -512,11 +512,14 @@ export async function discoverSourceFiles(
           if (['node_modules', '.git', 'dist', 'build', 'coverage', '.nyc_output',
              '__pycache__', '.venv', 'venv', '.tox', '.mypy_cache', 'target',
              '.gradle', 'vendor', '.bundle',
-             '.agentic-qe', '.claude', '.cache', '.npm', '.yarn',
+             '.cache', '.npm', '.yarn',
              '.next', '.nuxt', '.svelte-kit', 'out', '.turbo',
              'tmp', 'temp', '.tmp'].includes(entry.name)) {
             continue;
           }
+          // #999 review N4: AQE state and init-written assets only at the root;
+          // a nested package's own .claude/ or .agentic-qe/ source is kept.
+          if (dir === targetPath && (entry.name === '.agentic-qe' || entry.name === '.claude')) continue;
           if (files.length >= maxFiles) return; // Cap reached
           await walkDir(fullPath);
         } else if (entry.isFile()) {

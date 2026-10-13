@@ -568,10 +568,12 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
   /**
    * Find source files in a directory
    */
-  private async findSourceFiles(dir: string): Promise<string[]> {
+  private async findSourceFiles(dir: string, isRoot = true): Promise<string[]> {
     const files: string[] = [];
     const extensions = ['.ts', '.tsx', '.js', '.jsx'];
-    const ignoreDirs = ['node_modules', '.git', 'dist', 'build', 'coverage', '.agentic-qe', '.claude'];
+    const ignoreDirs = ['node_modules', '.git', 'dist', 'build', 'coverage'];
+    // #999 (review N4): AQE state and init-written assets, skipped only at the root
+    const rootIgnoreDirs = ['.agentic-qe', '.claude'];
 
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -580,8 +582,8 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
         const fullPath = path.join(dir, entry.name);
 
         if (entry.isDirectory()) {
-          if (!ignoreDirs.includes(entry.name)) {
-            const subFiles = await this.findSourceFiles(fullPath);
+          if (!ignoreDirs.includes(entry.name) && !(isRoot && rootIgnoreDirs.includes(entry.name))) {
+            const subFiles = await this.findSourceFiles(fullPath, false);
             files.push(...subFiles);
           }
         } else if (entry.isFile()) {

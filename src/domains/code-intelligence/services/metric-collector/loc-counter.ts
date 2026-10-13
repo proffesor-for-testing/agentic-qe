@@ -98,8 +98,23 @@ export function checkLOCTools(): ToolAvailability[] {
  */
 export function excludedFileNamesRegex(names: readonly string[] | undefined): string | null {
   if (!names || names.length === 0) return null;
-  const escaped = names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  return `^(${escaped.join('|')})$`;
+  // Matches a bare name and, under cloc --fullpath, a full path ending in it.
+  return `(^|/)(${names.map(escapeRegex).join('|')})$`;
+}
+
+/**
+ * cloc `--not-match-d` regex (with --fullpath) matching the project-root
+ * directories in `dirs` and everything below them, but not same-named
+ * directories nested deeper (#999 review N4). Null when there are none.
+ */
+export function rootAnchoredDirsRegex(projectPath: string, dirs: readonly string[] | undefined): string | null {
+  if (!dirs || dirs.length === 0) return null;
+  const root = projectPath.replace(/[\\/]+$/, '');
+  return `^${escapeRegex(root)}/(${dirs.map(escapeRegex).join('|')})(/|$)`;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // ============================================================================
@@ -115,6 +130,10 @@ async function tryClocCount(
 ): Promise<LOCMetrics | null> {
   try {
     const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`];
+    const notMatchDir = rootAnchoredDirsRegex(projectPath, config.excludeRootDirs);
+    // --fullpath makes --not-match-d/-f see full paths, so root-only
+    // excludes can be anchored at projectPath (#999 review N4).
+    if (notMatchDir) args.push('--fullpath', `--not-match-d=${notMatchDir}`);
     const notMatch = excludedFileNamesRegex(config.excludeFiles);
     if (notMatch) args.push(`--not-match-f=${notMatch}`);
     args.push(projectPath);
@@ -183,6 +202,10 @@ async function tryTokeiCount(
     // #999: lockfiles are generated, not code (tokei -e takes gitignore-style names)
     for (const file of config.excludeFiles ?? []) {
       args.push('-e', file);
+    }
+    // A leading '/' anchors a tokei (gitignore-style) exclude at the root.
+    for (const dir of config.excludeRootDirs ?? []) {
+      args.push('-e', `/${dir}`);
     }
     args.push(projectPath);
 
@@ -305,6 +328,7 @@ function manualLOCCount(
   let total = 0;
   const excludeSet = new Set(config.excludeDirs);
   const excludeFileSet = new Set(config.excludeFiles ?? []);
+  const rootExcludeSet = new Set(config.excludeRootDirs ?? []);
 
   // Max file size to read (2MB) — skip minified bundles, generated files
   const MAX_FILE_SIZE = 2 * 1024 * 1024;
@@ -327,7 +351,8 @@ function manualLOCCount(
 
       if (entry.isDirectory()) {
         // Skip excluded directories (exact match or glob-like suffix match)
-        if (excludeSet.has(entry.name) || entry.name.startsWith('.')) {
+        if (excludeSet.has(entry.name) || entry.name.startsWith('.') ||
+            (dirPath === projectPath && rootExcludeSet.has(entry.name))) {
           continue;
         }
         walkDirectory(fullPath, depth + 1);

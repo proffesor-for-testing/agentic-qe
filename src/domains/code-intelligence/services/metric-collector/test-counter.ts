@@ -536,7 +536,8 @@ function countTestsByFilePattern(
 
       if (entry.isDirectory()) {
         // Skip excluded directories
-        if (config.excludeDirs.includes(entry.name)) {
+        if (config.excludeDirs.includes(entry.name) ||
+            (dirPath === projectPath && (config.excludeRootDirs ?? []).includes(entry.name))) {
           continue;
         }
         walkDirectory(fullPath);
