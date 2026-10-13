@@ -5,10 +5,13 @@
  * Covers: assess-quality
  */
 
+import * as nodePath from 'node:path';
+import { existsSync, promises as fsp } from 'node:fs';
 import { ok, err } from '../../shared/types';
 import { CallerInputError, toError } from '../../shared/error-utils.js';
 import type { TaskHandlerContext } from './handler-types';
 import { discoverSourceFiles } from './handler-utils';
+import { findProjectRoot } from '../../kernel/project-root.js';
 import {
   INSUFFICIENT_EVIDENCE,
   describeMissingMetrics,
@@ -32,6 +35,102 @@ const STATIC_ONLY_NOTE = 'Static analysis only; no quality gate was evaluated. '
 /** #996: report the -1 sentinel instead of a fabricated number for unmeasured values. */
 function sentinel(value: number | undefined): number {
   return isMeasuredMetricValue(value) ? value : UNMEASURED;
+}
+
+/**
+ * #1011: why each unmeasured metric has no value — the analyzer's reason
+ * (unreadable or unparseable file, failed detection, no stored coverage).
+ */
+function unmeasuredReasons(
+  unmeasured: readonly string[],
+  reported: ReadonlyArray<{ metric: string; reason: string }> | undefined,
+): Record<string, string> {
+  const byMetric = new Map((reported ?? []).map((u) => [u.metric, u.reason]));
+  return Object.fromEntries(unmeasured.map((metric) => [
+    metric,
+    byMetric.get(metric) ?? (metric === 'security'
+      ? 'static analysis never measures security'
+      : 'the static analyzer produced no measured value'),
+  ]));
+}
+
+/** Cap on excluded files echoed back in the result (the count is always exact). */
+const MAX_EXCLUDED_LISTED = 50;
+
+/** True when `candidate` is `root` or lies beneath it. */
+function isWithin(root: string, candidate: string): boolean {
+  const relative = nodePath.relative(root, candidate);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${nodePath.sep}`) && !nodePath.isAbsolute(relative));
+}
+
+/**
+ * #1021 (B2): resolve a caller path against the project root and require it to
+ * stay inside — lexically, and by realpath when it exists (so a symlink cannot
+ * lead outside). A path that does not exist is returned as resolved; the
+ * analyzer reports it as unreadable.
+ */
+async function resolveContained(input: string, root: string, label: string): Promise<string> {
+  const resolved = nodePath.resolve(root, input);
+  if (input.includes('\0') || !isWithin(root, resolved)) {
+    throw new CallerInputError(`${label} ${JSON.stringify(input)} is outside the project root (${root}).`);
+  }
+  let real: string;
+  try {
+    real = await fsp.realpath(resolved);
+  } catch {
+    return resolved;
+  }
+  const rootReal = await fsp.realpath(root).catch(() => root);
+  if (!isWithin(rootReal, real)) {
+    throw new CallerInputError(`${label} ${JSON.stringify(input)} resolves outside the project root (${root}).`);
+  }
+  return resolved;
+}
+
+/**
+ * #1021 (B2): the files to analyse and which of them the caller named. Explicit
+ * sourceFiles win over target; with neither, src/ (else the root) is analysed.
+ */
+async function resolveAnalysisScope(
+  payload: { sourceFiles?: unknown; target?: unknown },
+): Promise<{ sourceFiles: string[]; explicitFiles: string[]; scope: string }> {
+  // #1021 round 2b: the AQE project root (AQE_PROJECT_ROOT, else detected),
+  // not the process cwd — an MCP server may run from another directory.
+  const root = findProjectRoot();
+  if (Array.isArray(payload.sourceFiles) && payload.sourceFiles.length > 0) {
+    const files: string[] = [];
+    for (const file of payload.sourceFiles) {
+      if (typeof file !== 'string' || file.trim() === '') {
+        throw new CallerInputError('sourceFiles must be a non-empty array of file paths.');
+      }
+      files.push(await resolveContained(file, root, 'sourceFile'));
+    }
+    return { sourceFiles: files, explicitFiles: files, scope: 'sourceFiles' };
+  }
+  if (typeof payload.target === 'string' && payload.target.trim() !== '') {
+    const target = await resolveContained(payload.target, root, 'target');
+    const stat = await fsp.stat(target).catch(() => null);
+    if (!stat) throw new CallerInputError(`target ${JSON.stringify(payload.target)} does not exist.`);
+    if (stat.isFile()) return { sourceFiles: [target], explicitFiles: [target], scope: target };
+    return { sourceFiles: await discoverSourceFiles(target, { includeTests: false }), explicitFiles: [], scope: target };
+  }
+  // Default to src/ — scanning the entire project root is too slow
+  // (node_modules, dist, .git, etc. make it hang on large projects)
+  const srcDir = nodePath.join(root, 'src');
+  const targetDir = existsSync(srcDir) ? srcDir : root;
+  return { sourceFiles: await discoverSourceFiles(targetDir, { includeTests: false }), explicitFiles: [], scope: targetDir };
+}
+
+/** #1021: one line per partially measured metric, naming the gap. */
+function describePartialMetrics(
+  partial: ReadonlyArray<{ metric: string; analysedFiles: number; totalFiles: number; coverageOfScope: number;
+    failed: ReadonlyArray<{ reason: string }> }> | undefined,
+): string[] {
+  return (partial ?? []).map((p) => `Partial evidence: ${p.metric} measured over ${p.analysedFiles} of ${p.totalFiles} `
+    // coverageOfScope is already rounded down to 3 decimals; round only float noise here.
+    + `file(s) (${Math.round(p.coverageOfScope * 1000) / 10}%); not analysed: `
+    + p.failed.slice(0, 3).map((f) => f.reason).join('; ')
+    + (p.failed.length > 3 ? `; and ${p.failed.length - 3} more` : '') + '.');
 }
 
 /** #996 (N3): reject a malformed `metrics` list instead of spreading a string into characters. */
@@ -113,26 +212,14 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       const analyzer = ctx.getQualityAnalyzer();
       const threshold = payload.threshold || 80;
 
-      // Determine source files to analyze
-      let sourceFiles: string[] = [];
-      if (payload.sourceFiles && payload.sourceFiles.length > 0) {
-        sourceFiles = payload.sourceFiles;
-      } else if (payload.target) {
-        sourceFiles = await discoverSourceFiles(payload.target, { includeTests: false });
-      } else {
-        // Default to src/ — scanning the entire project root is too slow
-        // (node_modules, dist, .git, etc. make it hang on large projects)
-        const path = await import('path');
-        const fs = await import('fs');
-        const srcDir = path.join(process.cwd(), 'src');
-        const targetDir = fs.existsSync(srcDir) ? srcDir : process.cwd();
-        sourceFiles = await discoverSourceFiles(targetDir, { includeTests: false });
-      }
+      // #1021 (B2): analyse what the caller scoped, contained in the project root.
+      const { sourceFiles, explicitFiles, scope } = await resolveAnalysisScope(payload);
 
       if (sourceFiles.length === 0) {
         // Nothing was analyzed: every requested metric is unmeasured (#996).
         return ok({
-          qualityScore: 0,
+          // #1011: nothing was analysed, so there is no score (-1), not a score of 0.
+          qualityScore: UNMEASURED,
           passed: false,
           threshold,
           metrics: {
@@ -148,6 +235,7 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
           warning: 'No source files found',
           evidenceStatus: INSUFFICIENT_EVIDENCE,
           unmeasured: requestedMetrics,
+          unmeasuredReasons: Object.fromEntries(requestedMetrics.map((m) => [m, 'no source files found to analyse'])),
           measuredFailures: [],
           gateEvaluated: false,
           confidence: 0,
@@ -159,6 +247,7 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
       const result = await analyzer.analyzeQuality({
         sourceFiles,
         includeMetrics: requestedMetrics,
+        explicitFiles,
       });
 
       if (!result.success) {
@@ -193,13 +282,27 @@ export function registerQualityHandlers(ctx: TaskHandlerContext): void {
           maintainability: sentinel(metrics.maintainability),
           // The analyzer has no security measurement; never report a placeholder.
           security: sentinel(metrics.security),
+          // #1011: every requested metric appears, -1 when unmeasured.
+          ...Object.fromEntries(requestedMetrics.map((name) => [name, sentinel(metrics[name])])),
           ...metrics,
         },
+        unmeasuredReasons: unmeasuredReasons(sufficiency.unmeasured, report.unmeasured),
+        // #1021 round 2b: a score over a subset of the requested metrics (or over
+        // part of the files) names what it is based on — it is not a verdict.
+        ...(insufficient || (report.partial?.length ?? 0) > 0
+          ? { scoreBasis: report.metrics.map((m) => m.name) }
+          : {}),
         recommendations: [
           ...measuredFailures.map(describeMeasuredFailure),
           ...describeMissingMetrics(sufficiency.unmeasured),
+          ...describePartialMetrics(report.partial),
           ...recommendations,
         ],
+        ...(report.partial && report.partial.length > 0 ? { partialMetrics: report.partial } : {}),
+        ...(report.excluded && report.excluded.length > 0
+          ? { excludedFiles: report.excluded.slice(0, MAX_EXCLUDED_LISTED), excludedCount: report.excluded.length }
+          : {}),
+        scope,
         evidenceStatus: sufficiency.evidenceStatus,
         unmeasured: sufficiency.unmeasured,
         measuredFailures,

@@ -4,10 +4,11 @@
  */
 
 import { TypeScriptParser, FunctionInfo, MethodInfo } from '../parsers';
-import { FileReader } from '../io';
+import { FileReader, PathTraversalError } from '../io';
 import { treeSitterRegistry } from '../parsers/multi-language-parser.js';
 import { getLanguageFromExtension } from '../types/test-frameworks.js';
 import { calculateCognitiveComplexity } from './cognitive-complexity.js';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 // ============================================================================
 // Types and Interfaces
@@ -50,6 +51,66 @@ export interface DuplicationResult {
   duplicates: DuplicateBlock[];
 }
 
+/**
+ * #1011 / #1021: how one file's analysis counts as evidence.
+ * - `measured`: real metrics.
+ * - `excluded`: not source to judge (binary, generated, minified, type
+ *   declarations, or refused by the reader's path policy) — leave it out.
+ * - `failed`: source that could not be read or parsed — a gap in the scope.
+ */
+export type FileAnalysisStatus = 'measured' | 'excluded' | 'failed';
+
+export interface FileAnalysisOutcome {
+  status: FileAnalysisStatus;
+  /** Metrics computed from the file; null when excluded or unreadable. */
+  metrics: FileMetrics | null;
+  /** Why the file is excluded or failed. */
+  reason?: string;
+}
+
+/** git-style binary sniff: a NUL within the first 8 KB. */
+const BINARY_SNIFF_CHARS = 8192;
+/** How far into a file the generated-file conventions are looked for. */
+const GENERATED_SNIFF_CHARS = 1024;
+/** Go's convention (golang.org/s/generatedcode), one full line. */
+const GO_GENERATED_LINE = /^\/\/ Code generated .* DO NOT EDIT\.$/m;
+/** `@generated` used as a tag (not part of a word, e.g. not `@generatedAt`). */
+const GENERATED_TAG = /(?:^|[\s*/])@generated(?![\w-])/;
+
+/** The file's first comment block: a leading block comment or run of line comments. */
+function firstCommentBlock(content: string): string {
+  const text = content.replace(/^\uFEFF/, '').replace(/^#![^\n]*\n/, '').trimStart();
+  if (text.startsWith('/*')) {
+    const close = text.indexOf('*/');
+    return close >= 0 ? text.slice(0, close + 2) : text;
+  }
+  const lines: string[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trimStart().startsWith('//')) break;
+    lines.push(line);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * #1021 round 2b: generated only by convention — Go's
+ * "// Code generated … DO NOT EDIT." line near the top, or an `@generated`
+ * tag in the first comment block. Prose such as "DO NOT EDIT the retry
+ * constants", or `@generated` mentioned later in the file, is handwritten.
+ */
+function isGeneratedSource(content: string): boolean {
+  const head = content.slice(0, GENERATED_SNIFF_CHARS).replace(/\r\n/g, '\n');
+  return GO_GENERATED_LINE.test(head) || GENERATED_TAG.test(firstCommentBlock(head));
+}
+
+/** Exclusion decided from the file name alone. */
+function excludedByName(filePath: string): string | undefined {
+  const name = filePath.split(/[\\/]/).pop() ?? filePath;
+  if (/\.d\.(ts|mts|cts)$/i.test(name)) return 'type declaration file';
+  if (/\.min\.(js|mjs|cjs)$/i.test(name)) return 'minified bundle';
+  return undefined;
+}
+
 export interface DuplicateBlock {
   lines: number;
   occurrences: number;
@@ -66,19 +127,62 @@ export class CodeMetricsAnalyzer {
 
   constructor() {
     this.parser = new TypeScriptParser();
-    this.fileReader = new FileReader();
+    // #1021: reads inside the AQE project root (AQE_PROJECT_ROOT, else the
+    // detected root — not merely the process cwd) are contained by realpath,
+    // so in-root names like `[...slug].tsx`, dot-dirs and deep paths are
+    // readable; anything outside keeps the legacy path validation.
+    this.fileReader = new FileReader({ projectRoot: findProjectRoot() });
   }
 
   /**
    * Analyze a single file for all metrics
    */
   async analyzeFile(filePath: string): Promise<FileMetrics | null> {
+    return (await this.analyzeWithDiagnostics(filePath)).metrics;
+  }
+
+  /**
+   * #1011 / #1021: analyse a file and say whether its metrics are evidence.
+   * Binary, generated, minified and declaration files — and files the reader
+   * refuses by policy — are `excluded`; unreadable or unparseable source is
+   * `failed`. Callers must not treat either as a measurement.
+   */
+  async analyzeFileDetailed(filePath: string): Promise<FileAnalysisOutcome> {
+    const byName = excludedByName(filePath);
+    if (byName) return { status: 'excluded', metrics: null, reason: `${filePath}: ${byName}` };
+
+    const { metrics, content, readError, parseFailure, parsedAsSource } = await this.analyzeWithDiagnostics(filePath);
+    if (readError) {
+      return readError instanceof PathTraversalError
+        ? { status: 'excluded', metrics: null, reason: `${filePath} was refused by the file reader (${readError.message})` }
+        : { status: 'failed', metrics: null, reason: `${filePath} could not be read (${readError.message})` };
+    }
+    // git-style sniff, except that TS/JS which parses cleanly is source even
+    // with a raw NUL inside a string literal (seen in real repos).
+    const sourceDespiteNul = parsedAsSource && !parseFailure;
+    if (content !== undefined && !sourceDespiteNul && content.slice(0, BINARY_SNIFF_CHARS).includes('\u0000')) {
+      return { status: 'excluded', metrics: null, reason: `${filePath} has binary content` };
+    }
+    if (content !== undefined && isGeneratedSource(content)) {
+      return { status: 'excluded', metrics: null, reason: `${filePath} is a generated file` };
+    }
+    if (parseFailure) return { status: 'failed', metrics, reason: `${filePath} could not be parsed (${parseFailure})` };
+    return { status: 'measured', metrics };
+  }
+
+  /** Compute metrics, reporting read errors and parse failures separately. */
+  private async analyzeWithDiagnostics(filePath: string): Promise<{
+    metrics: FileMetrics | null; content?: string; readError?: Error; parseFailure?: string;
+    /** true when the file was parsed as TypeScript/JavaScript (not estimated by heuristics). */
+    parsedAsSource?: boolean;
+  }> {
     const contentResult = await this.fileReader.readFile(filePath);
     if (!contentResult.success) {
-      return null;
+      return { metrics: null, readError: contentResult.error };
     }
 
     const content = contentResult.value;
+    let parseFailure: string | undefined;
     const lines = content.split('\n');
 
     // Count different types of lines
@@ -98,6 +202,10 @@ export class CodeMetricsAnalyzer {
     if (['ts', 'tsx', 'js', 'jsx'].includes(ext)) {
       try {
         const ast = this.parser.parseFile(fileName, content);
+        const syntaxErrors = (ast as typeof ast & { parseDiagnostics?: readonly unknown[] }).parseDiagnostics?.length ?? 0;
+        if (syntaxErrors > 0) {
+          parseFailure = `${syntaxErrors} syntax error${syntaxErrors === 1 ? '' : 's'}`;
+        }
 
         // Extract functions and calculate complexity
         const functions = this.parser.extractFunctions(ast);
@@ -122,8 +230,9 @@ export class CodeMetricsAnalyzer {
             cognitiveComplexity += funcMetrics.cognitiveComplexity;
           }
         }
-      } catch {
-        // If parsing fails, use heuristic analysis
+      } catch (error) {
+        // If parsing fails, use heuristic analysis — an estimate, not a measurement (#1011)
+        parseFailure ??= error instanceof Error ? error.message : String(error);
         cyclomaticComplexity = this.estimateCyclomaticComplexity(content);
         cognitiveComplexity = this.estimateCognitiveComplexity(content);
       }
@@ -163,7 +272,7 @@ export class CodeMetricsAnalyzer {
       codeLines
     );
 
-    return {
+    const metrics: FileMetrics = {
       path: filePath,
       linesOfCode: codeLines,
       linesOfComments: commentLines,
@@ -176,6 +285,7 @@ export class CodeMetricsAnalyzer {
       classCount,
       maxNestingDepth,
     };
+    return { metrics, content, parseFailure, parsedAsSource: ['ts', 'tsx', 'js', 'jsx'].includes(ext) };
   }
 
   /**

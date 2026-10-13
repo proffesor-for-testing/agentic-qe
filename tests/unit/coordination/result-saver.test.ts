@@ -392,6 +392,50 @@ describe('ResultSaver', () => {
       expect(content).toContain('Increase test coverage');
       expect(content).toContain('Reduce complexity');
     });
+
+    it('reports an unmeasured score (-1) as not measured, never "-1.0 / 100" (#1021 N4)', async () => {
+      const unmeasured = {
+        ...QUALITY_RESULT,
+        qualityScore: -1,
+        passed: false,
+        evidenceStatus: 'insufficient-evidence',
+        unmeasured: ['complexity'],
+        metrics: { complexity: -1 },
+      };
+
+      const result = await saver.save('task_qual_004', 'assess-quality', unmeasured);
+      const content = await fs.readFile(result.files.find(f => f.format === 'markdown')!.path, 'utf-8');
+      const index = JSON.parse(await fs.readFile(path.join(TEST_BASE_DIR, 'results', 'index.json'), 'utf-8'));
+      const entry = index.results.find((r: { id: string }) => r.id === 'task_qual_004');
+
+      expect(content).not.toContain('-1.0');
+      expect(content).toMatch(/## Quality Score\n\nNot measured/);
+      expect(result.summary).not.toHaveProperty('qualityScore');
+      expect(JSON.stringify(entry)).not.toContain('"qualityScore":-1');
+    });
+
+    it('labels a subset score under insufficient evidence and keeps it out of the index (#1021 round 2b)', async () => {
+      const subset = {
+        ...QUALITY_RESULT,
+        qualityScore: 100,
+        passed: false,
+        evidenceStatus: 'insufficient-evidence',
+        unmeasured: ['complexity'],
+        scoreBasis: ['duplication'],
+        metrics: { complexity: -1, duplication: 0 },
+      };
+
+      const result = await saver.save('task_qual_005', 'assess-quality', subset);
+      const content = await fs.readFile(result.files.find(f => f.format === 'markdown')!.path, 'utf-8');
+      const index = JSON.parse(await fs.readFile(path.join(TEST_BASE_DIR, 'results', 'index.json'), 'utf-8'));
+      const entry = index.results.find((r: { id: string }) => r.id === 'task_qual_005');
+
+      expect(content).not.toContain('100.0** / 100');
+      expect(content).toContain('Subset score over measured metrics: 100.0 (not a verdict)');
+      expect(content).toContain('Based on: duplication');
+      expect(result.summary).not.toHaveProperty('qualityScore');
+      expect(entry.summary).not.toHaveProperty('qualityScore');
+    });
   });
 
   describe('code indexing results', () => {

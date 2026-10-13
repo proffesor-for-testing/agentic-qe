@@ -54,6 +54,13 @@ class MockMemoryBackend implements MemoryBackend {
   }
 }
 
+// #1011: these tests used to name files that do not exist (src/app.ts, ...) and
+// passed only because the analyzer invented 10/70/70 (and 5/8/70/100 LOC) for
+// unreadable files. They now analyse real, parseable fixture source.
+const FIXTURE_INDEX = 'tests/fixtures/sample-project/src/index.ts';
+const FIXTURE_UTILS = 'tests/fixtures/sample-project/src/utils.ts';
+const FIXTURE_TEST = 'tests/fixtures/sample-project/tests/utils.test.ts';
+
 describe('QualityAnalyzerService', () => {
   let service: QualityAnalyzerService;
   let mockMemory: MockMemoryBackend;
@@ -70,7 +77,7 @@ describe('QualityAnalyzerService', () => {
   describe('analyzeQuality', () => {
     it('should analyze quality for provided source files', async () => {
       const request: QualityAnalysisRequest = {
-        sourceFiles: ['src/app.ts', 'src/utils.ts'],
+        sourceFiles: [FIXTURE_INDEX, FIXTURE_UTILS],
         includeMetrics: [],
       };
 
@@ -107,7 +114,7 @@ describe('QualityAnalyzerService', () => {
       });
 
       const request: QualityAnalysisRequest = {
-        sourceFiles: ['src/app.ts'],
+        sourceFiles: [FIXTURE_INDEX],
         includeMetrics: ['coverage', 'complexity'],
       };
 
@@ -149,7 +156,7 @@ describe('QualityAnalyzerService', () => {
 
     it('should calculate quality score with proper weighting', async () => {
       const request: QualityAnalysisRequest = {
-        sourceFiles: ['src/file1.ts', 'src/file2.ts'],
+        sourceFiles: [FIXTURE_INDEX, FIXTURE_UTILS],
         includeMetrics: [],
       };
 
@@ -248,7 +255,7 @@ describe('QualityAnalyzerService', () => {
 
     it('should calculate complexity summary correctly', async () => {
       const request: ComplexityRequest = {
-        sourceFiles: ['src/file1.ts', 'src/file2.ts', 'src/file3.ts'],
+        sourceFiles: [FIXTURE_INDEX, FIXTURE_UTILS, FIXTURE_TEST],
         metrics: ['cyclomatic', 'cognitive', 'maintainability'],
       };
 
@@ -280,7 +287,7 @@ describe('QualityAnalyzerService', () => {
 
     it('should include only requested complexity metrics', async () => {
       const request: ComplexityRequest = {
-        sourceFiles: ['src/app.ts'],
+        sourceFiles: [FIXTURE_INDEX],
         metrics: ['cyclomatic'],
       };
 
@@ -289,6 +296,9 @@ describe('QualityAnalyzerService', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.value.files[0].cyclomatic).toBeGreaterThan(0);
+        // #1011: a metric that was not requested is unmeasured (-1), not 0
+        expect(result.value.files[0].cognitive).toBe(-1);
+        expect(result.value.files[0].maintainability).toBe(-1);
       }
     });
 

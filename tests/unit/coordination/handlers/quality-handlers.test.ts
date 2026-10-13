@@ -4,7 +4,7 @@
  * static-analysis path evaluates no quality gate.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ok } from '../../../../src/shared/types/index.js';
@@ -277,5 +277,204 @@ describe('assess-quality handler evidence sufficiency (#996)', () => {
     expect((result as { value: Data }).value).toMatchObject({
       passed: true, gateEvaluated: true, evidenceStatus: 'measured', unmeasured: [],
     });
+  });
+});
+
+describe('assess-quality scopes analysis to target / sourceFiles inside the project root (#1021 B2)', () => {
+  let root: string;
+  let outside: string;
+  const measured = () => report([{ name: 'complexity', value: 2 }], 90);
+
+  beforeEach(async () => {
+    root = await realpath(await mkdtemp(join(tmpdir(), 'aqe-1021-root-')));
+    outside = await realpath(await mkdtemp(join(tmpdir(), 'aqe-1021-outside-')));
+    await mkdir(join(root, 'src', 'pages'), { recursive: true });
+    await mkdir(join(root, 'lib'), { recursive: true });
+    await writeFile(join(root, 'src', 'a.ts'), 'export const a = 1;\n');
+    await writeFile(join(root, 'src', 'pages', '[...slug].tsx'), 'export default function P() { return null; }\n');
+    await writeFile(join(root, 'lib', 'b.ts'), 'export const b = 2;\n');
+    await writeFile(join(outside, 'secret.ts'), 'export const s = 1;\n');
+    vi.stubEnv('AQE_PROJECT_ROOT', root);
+  });
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  const callArgs = (analyzeQuality: ReturnType<typeof vi.fn>) =>
+    analyzeQuality.mock.calls[0][0] as { sourceFiles: string[]; explicitFiles?: string[] };
+
+  it('analyses only the target directory', async () => {
+    const { run, analyzeQuality } = setup(measured());
+
+    await run({ runGate: false, threshold: 80, target: 'lib', metrics: ['complexity'] });
+
+    expect(callArgs(analyzeQuality).sourceFiles).toEqual([join(root, 'lib', 'b.ts')]);
+    expect(callArgs(analyzeQuality).explicitFiles).toEqual([]);
+  });
+
+  it('resolves against AQE_PROJECT_ROOT, not the process cwd (#1021 round 2b)', async () => {
+    const cwd = vi.spyOn(process, 'cwd').mockReturnValue(outside);
+    try {
+      const { run, analyzeQuality } = setup(measured());
+
+      await run({ runGate: false, threshold: 80, target: 'lib', metrics: ['complexity'] });
+
+      expect(callArgs(analyzeQuality).sourceFiles).toEqual([join(root, 'lib', 'b.ts')]);
+    } finally {
+      cwd.mockRestore();
+    }
+  });
+
+  it('treats a file target as an explicit file', async () => {
+    const { run, analyzeQuality } = setup(measured());
+
+    await run({ runGate: false, threshold: 80, target: 'src/pages/[...slug].tsx', metrics: ['complexity'] });
+
+    const file = join(root, 'src', 'pages', '[...slug].tsx');
+    expect(callArgs(analyzeQuality)).toMatchObject({ sourceFiles: [file], explicitFiles: [file] });
+  });
+
+  it('resolves sourceFiles against the root and marks them explicit', async () => {
+    const { run, analyzeQuality } = setup(measured());
+
+    await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics: ['complexity'] });
+
+    const file = join(root, 'src', 'a.ts');
+    expect(callArgs(analyzeQuality)).toMatchObject({ sourceFiles: [file], explicitFiles: [file] });
+  });
+
+  it.each([
+    ['a ../ target', { target: '../' }],
+    ['an absolute target outside the root', { target: '/etc' }],
+    ['a sourceFile outside the root', { sourceFiles: ['src/a.ts', '/etc/passwd'] }],
+  ])('rejects %s as caller input', async (_label, scope) => {
+    const { run, analyzeQuality } = setup(measured());
+
+    const result = await run({ runGate: false, threshold: 80, metrics: ['complexity'], ...scope });
+
+    expect(result.success).toBe(false);
+    expect((result as { error: Error & { callerError?: boolean } }).error).toMatchObject({
+      message: expect.stringMatching(/outside the project root/), callerError: true,
+    });
+    expect(analyzeQuality).not.toHaveBeenCalled();
+  });
+
+  it('rejects a target symlink that escapes the root', async () => {
+    await symlink(outside, join(root, 'escape'));
+    const { run, analyzeQuality } = setup(measured());
+
+    const result = await run({ runGate: false, threshold: 80, target: 'escape', metrics: ['complexity'] });
+
+    expect(result.success).toBe(false);
+    expect((result as { error: Error }).error.message).toMatch(/outside the project root/);
+    expect(analyzeQuality).not.toHaveBeenCalled();
+  });
+
+  it('rejects a target that does not exist', async () => {
+    const { run, analyzeQuality } = setup(measured());
+
+    const result = await run({ runGate: false, threshold: 80, target: 'nope', metrics: ['complexity'] });
+
+    expect(result.success).toBe(false);
+    expect((result as { error: Error & { callerError?: boolean } }).error).toMatchObject({
+      message: expect.stringMatching(/does not exist/), callerError: true,
+    });
+    expect(analyzeQuality).not.toHaveBeenCalled();
+  });
+
+  it('reports partial metrics and excluded files without blocking a measured verdict', async () => {
+    const analysis = {
+      ...report([{ name: 'complexity', value: 2 }], 90),
+      excluded: [{ file: 'src/types.d.ts', reason: 'src/types.d.ts: type declaration file' }],
+      partial: [{
+        metric: 'complexity', analysedFiles: 19, totalFiles: 20, coverageOfScope: 0.95,
+        failed: [{ file: 'src/broken.ts', reason: 'src/broken.ts could not be parsed (3 syntax errors)' }],
+      }],
+    };
+    const { run } = setup(analysis as ReturnType<typeof report>);
+
+    const result = await run({ runGate: false, threshold: 80, target: 'src', metrics: ['complexity'] });
+
+    const data = (result as { value: Data & Record<string, unknown> }).value;
+    expect(data).toMatchObject({
+      passed: true, evidenceStatus: 'measured',
+      partialMetrics: analysis.partial,
+      excludedFiles: analysis.excluded, excludedCount: 1,
+    });
+    expect(data.recommendations.some((r) => /complexity measured over 19 of 20 file\(s\) \(95%\)/.test(r))).toBe(true);
+    expect(data.recommendations.some((r) => r.includes('not analysed: src/broken.ts could not be parsed'))).toBe(true);
+  });
+});
+
+describe('assess-quality labels a subset score (#1021 round 2b)', () => {
+  type Basis = Data & { scoreBasis?: string[] };
+
+  it('names the metrics behind the score when evidence is insufficient', async () => {
+    const { run } = setup(report([{ name: 'duplication', value: 0 }], 100));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['complexity', 'duplication'] });
+
+    expect((result as { value: Basis }).value).toMatchObject({
+      evidenceStatus: 'insufficient-evidence', qualityScore: 100, scoreBasis: ['duplication'],
+    });
+  });
+
+  it('names the metrics behind the score when a metric is partial', async () => {
+    const analysis = {
+      ...report([{ name: 'complexity', value: 2 }], 90),
+      partial: [{ metric: 'complexity', analysedFiles: 19, totalFiles: 20, coverageOfScope: 0.95, failed: [] }],
+    };
+    const { run } = setup(analysis as ReturnType<typeof report>);
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics: ['complexity'] });
+
+    expect((result as { value: Basis }).value.scoreBasis).toEqual(['complexity']);
+  });
+
+  it('omits scoreBasis for a fully measured run', async () => {
+    const { run } = setup(report([{ name: 'complexity', value: 2 }], 90));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'], metrics: ['complexity'] });
+
+    expect((result as { value: Basis }).value).not.toHaveProperty('scoreBasis');
+  });
+});
+
+describe('assess-quality reports why metrics were not measured (#1011)', () => {
+  const garbage = '1 of 2 file(s) could not be analysed: src/garbage.ts has binary content';
+
+  it('reports -1 for every requested unmeasured metric and names the reason', async () => {
+    const analysis = {
+      ...report([{ name: 'coverage', value: 90 }], -1, 90),
+      unmeasured: ['complexity', 'testability', 'duplication']
+        .map((metric) => ({ metric, reason: garbage, files: ['src/garbage.ts'] })),
+    };
+    const { run } = setup(analysis as ReturnType<typeof report>);
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['coverage', 'complexity', 'testability', 'duplication'] });
+
+    const data = (result as { value: Data & { unmeasuredReasons: Record<string, string> } }).value;
+    expect(data).toMatchObject({
+      passed: false, evidenceStatus: 'insufficient-evidence',
+      unmeasured: ['complexity', 'testability', 'duplication'],
+      qualityScore: -1,
+    });
+    expect(data.metrics).toMatchObject({ coverage: 90, complexity: -1, testability: -1, duplication: -1 });
+    expect(data.unmeasuredReasons.complexity).toBe(garbage);
+    expect(data.unmeasuredReasons.duplication).toBe(garbage);
+  });
+
+  it('explains that security is never measured statically', async () => {
+    const { run } = setup(report([{ name: 'complexity', value: 1 }], 88));
+
+    const result = await run({ runGate: false, threshold: 80, sourceFiles: ['src/a.ts'],
+      metrics: ['complexity', 'security'] });
+
+    const data = (result as { value: Data & { unmeasuredReasons: Record<string, string> } }).value;
+    expect(data.unmeasuredReasons.security).toMatch(/static analysis never measures security/i);
   });
 });

@@ -22,7 +22,19 @@ export interface FileReaderOptions {
   cacheTtlMs?: number;
   /** Whether to enable caching (default: true) */
   enableCache?: boolean;
+  /**
+   * Opt-in in-root containment for `readFile` (#1021). A path that resolves
+   * inside this directory is accepted when its realpath stays inside the
+   * root's realpath (a symlink escaping the root is rejected); the legacy
+   * name-pattern validator is not applied to it, so names such as
+   * `[...slug].tsx`, in-root dot-dirs and deep paths are readable. Paths
+   * outside the root keep every legacy check. Omit to keep legacy behaviour.
+   */
+  projectRoot?: string;
 }
+
+/** Extensions never read, inside or outside the project root. */
+const DENIED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'];
 
 export interface CacheEntry<T> {
   value: T;
@@ -73,6 +85,52 @@ export class PathTraversalError extends Error {
     super(`Path traversal detected: ${issues.join(', ')}`);
     this.name = 'PathTraversalError';
   }
+}
+
+/** Map a filesystem error to the reader's FileReadError. */
+function readError(error: unknown, absolutePath: string): FileReadError {
+  const nodeError = error as NodeJS.ErrnoException;
+  let message: string;
+
+  switch (nodeError.code) {
+    case 'ENOENT':
+      message = 'File not found: ' + absolutePath;
+      break;
+    case 'EACCES':
+      message = 'Permission denied: ' + absolutePath;
+      break;
+    case 'EISDIR':
+      message = 'Path is a directory: ' + absolutePath;
+      break;
+    default:
+      message = 'Failed to read file: ' + absolutePath;
+  }
+
+  return new FileReadError(message, absolutePath, nodeError.code, nodeError);
+}
+
+/**
+ * #1021 round 2b: where an OPEN descriptor really points. On Linux,
+ * /proc/self/fd/N resolves to the opened file itself. Elsewhere, re-resolve
+ * the path and accept it only if it is the same inode as the descriptor, so
+ * a swap after the open is detected. Returns null when it cannot be proven.
+ */
+async function openedLocation(fd: number, lexical: string, opened: import('node:fs').Stats): Promise<string | null> {
+  const sameFile = async (candidate: string): Promise<boolean> => {
+    const st = await fs.stat(candidate).catch(() => null);
+    return st !== null && st.dev === opened.dev && st.ino === opened.ino;
+  };
+  const viaProc = await fs.realpath(`/proc/self/fd/${fd}`).catch(() => null);
+  if (viaProc && path.isAbsolute(viaProc) && await sameFile(viaProc)) return viaProc;
+  const real = await fs.realpath(lexical).catch(() => null);
+  if (real && await sameFile(real)) return real;
+  return null;
+}
+
+/** True when `candidate` is `root` or lies beneath it (both absolute). */
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
 // ============================================================================
@@ -265,6 +323,8 @@ export class FileReader {
   private readonly basePath: string;
   private readonly cache: LRUCache<string>;
   private readonly enableCache: boolean;
+  private readonly projectRoot?: string;
+  private projectRootReal?: Promise<string | null>;
   private stats: FileReaderStats = {
     cacheHits: 0,
     cacheMisses: 0,
@@ -276,6 +336,7 @@ export class FileReader {
   constructor(options: FileReaderOptions = {}) {
     this.basePath = options.basePath ?? process.cwd();
     this.enableCache = options.enableCache ?? true;
+    this.projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
     this.cache = new LRUCache<string>(
       options.maxCacheSize ?? 100,
       options.cacheTtlMs ?? 5 * 60 * 1000 // 5 minutes default
@@ -309,7 +370,7 @@ export class FileReader {
       allowAbsolute: true,
       maxDepth: 10 + (isAbsolutePath ? baseDepth : 0),
       // Allow common development file extensions
-      deniedExtensions: ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'],
+      deniedExtensions: DENIED_EXTENSIONS,
     });
 
     if (!validation.valid) {
@@ -335,6 +396,66 @@ export class FileReader {
   }
 
   /**
+   * #1021: decide whether a path is handled by in-root containment. Returns
+   * undefined when the path is not lexically inside the root (or no root is
+   * configured), so the caller applies the legacy checks.
+   */
+  private async inProjectRoot(filePath: string): Promise<{ lexical: string; rootReal: string } | undefined> {
+    if (!this.projectRoot) return undefined;
+    if (filePath.includes('\0')) {
+      throw new PathTraversalError(filePath, ['Null byte in path'], 'critical');
+    }
+    const lexical = path.resolve(this.basePath, filePath);
+    if (!isWithin(this.projectRoot, lexical)) return undefined;
+
+    if (DENIED_EXTENSIONS.includes(path.extname(lexical).toLowerCase())) {
+      throw new PathTraversalError(filePath, [`File extension '${path.extname(lexical)}' is not allowed`], 'high');
+    }
+
+    this.projectRootReal ??= fs.realpath(this.projectRoot).catch(() => null);
+    const rootReal = await this.projectRootReal;
+    if (!rootReal) return undefined;
+    return { lexical, rootReal };
+  }
+
+  /**
+   * #1021 round 2b: read an in-root path without a check-then-use race.
+   * The file is OPENED first and the open descriptor is verified — its real
+   * location (/proc/self/fd/N on Linux; otherwise the re-resolved realpath,
+   * which must be the same inode) must lie inside the root — and the content
+   * is read from that same descriptor. Swapping a symlink (file or directory
+   * component) between the check and the read can no longer redirect it.
+   */
+  private async readContained(
+    filePath: string,
+    lexical: string,
+    rootReal: string,
+  ): Promise<Result<string, FileReadError | PathTraversalError>> {
+    this.stats.totalReads++;
+    let handle: fs.FileHandle;
+    try {
+      handle = await fs.open(lexical, 'r');
+    } catch (error) {
+      return err(readError(error, lexical));
+    }
+    try {
+      const opened = await handle.stat();
+      const location = await openedLocation(handle.fd, lexical, opened);
+      if (!location || !isWithin(rootReal, location)) {
+        return err(new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical'));
+      }
+      if (!opened.isFile()) {
+        return err(new FileReadError('Path is a directory: ' + lexical, lexical, 'EISDIR'));
+      }
+      return ok(await handle.readFile('utf-8'));
+    } catch (error) {
+      return err(readError(error, lexical));
+    } finally {
+      await handle.close().catch(() => undefined);
+    }
+  }
+
+  /**
    * Read file contents as a string
    * SEC-004: Now handles PathTraversalError from path validation
    */
@@ -343,6 +464,8 @@ export class FileReader {
 
     // SEC-004: Handle path traversal errors from resolvePath
     try {
+      const contained = await this.inProjectRoot(filePath);
+      if (contained) return this.readContained(filePath, contained.lexical, contained.rootReal);
       absolutePath = this.resolvePath(filePath);
     } catch (error) {
       if (error instanceof PathTraversalError) {
@@ -375,24 +498,7 @@ export class FileReader {
 
       return ok(content);
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      let message: string;
-
-      switch (nodeError.code) {
-        case 'ENOENT':
-          message = 'File not found: ' + absolutePath;
-          break;
-        case 'EACCES':
-          message = 'Permission denied: ' + absolutePath;
-          break;
-        case 'EISDIR':
-          message = 'Path is a directory: ' + absolutePath;
-          break;
-        default:
-          message = 'Failed to read file: ' + absolutePath;
-      }
-
-      return err(new FileReadError(message, absolutePath, nodeError.code, nodeError));
+      return err(readError(error, absolutePath));
     }
   }
 

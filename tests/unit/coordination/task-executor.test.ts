@@ -446,6 +446,20 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('quality assessment execution', () => {
+    it('rejects a target outside the project root (#1021)', async () => {
+      const task = createTestTask('assess-quality', {
+        target: TEST_RESULTS_DIR, runGate: false, threshold: 80, metrics: ['complexity'],
+      });
+
+      const result = await executor.execute(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/outside the project root/);
+      // #1021 round 2b: the caller-input marker travels with the failure, so
+      // learners do not record a caller mistake as a component failure.
+      expect(result.errorDetails).toEqual({ callerError: true });
+    });
+
     it('should execute analysis-only quality assessment task', async () => {
       const task = createTestTask('assess-quality', {
         // Use TEST_RESULTS_DIR (empty/small) to avoid slow file system walking
@@ -455,7 +469,10 @@ describe('DomainTaskExecutor', () => {
         metrics: ['coverage', 'complexity', 'maintainability'],
       });
 
-      const result = await executor.execute(task);
+      // #1021: the target must exist and lie inside the AQE project root.
+      await fs.mkdir(TEST_RESULTS_DIR, { recursive: true });
+      vi.stubEnv('AQE_PROJECT_ROOT', TEST_RESULTS_DIR);
+      const result = await executor.execute(task).finally(() => vi.unstubAllEnvs());
 
       expect(result.success).toBe(true);
       expect(result.domain).toBe('quality-assessment');
@@ -465,9 +482,18 @@ describe('DomainTaskExecutor', () => {
         passed: boolean;
         metrics: Record<string, number>;
         warning?: string;
+        evidenceStatus?: string;
       };
-      // When no files found, qualityScore may be 0 with warning
-      expect(data.qualityScore).toBeGreaterThanOrEqual(0);
+      // #1011: with no analysable source (or no stored coverage) nothing is
+      // measured — the score is -1 (unmeasured), never a made-up 0, and the
+      // verdict is insufficient evidence rather than a pass.
+      if (data.warning === 'No source files found') {
+        expect(data.qualityScore).toBe(-1);
+      } else {
+        expect(data.qualityScore).toBeGreaterThanOrEqual(-1);
+      }
+      expect(data.passed).toBe(false);
+      expect(data.evidenceStatus).toBe('insufficient-evidence');
       expect(data.metrics).toBeDefined();
     }, 15000); // Extended timeout for quality assessment
   });
@@ -910,8 +936,15 @@ describe('TaskExecutor integration', () => {
     ];
 
     for (const task of testTasks) {
-      const result = await executor.execute(task);
-      expect(result.success).toBe(true);
+      // #1021: an assess-quality target must lie inside the AQE project
+      // root; make TEST_DIR the root for that task.
+      if (task.type === 'assess-quality') vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
+      try {
+        const result = await executor.execute(task);
+        expect(result.success).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+      }
     }
 
     // All results should be in index

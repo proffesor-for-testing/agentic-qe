@@ -277,6 +277,10 @@ export interface QualityAssessParams {
   runGate?: boolean;
   threshold?: number;
   metrics?: string[];
+  /** #1021: file or directory to analyse, relative to (and contained in) the project root. Default: src/ (or the root). */
+  target?: string;
+  /** #1021: explicit files to analyse, each contained in the project root. Takes precedence over target. */
+  sourceFiles?: string[];
   /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
   saveResults?: boolean;
 }

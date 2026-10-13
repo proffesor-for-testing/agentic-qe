@@ -57,6 +57,8 @@ interface QualityReportData {
   unmeasured?: string[];
   /** #996: false when only static analysis ran (no quality gate). */
   gateEvaluated?: boolean;
+  /** #1021 round 2b: metrics a subset score was computed from. */
+  scoreBasis?: string[];
 }
 
 export interface SaveOptions {
@@ -734,7 +736,12 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 ## Quality Score
 
-${typeof data.qualityScore === 'number' ? `**${data.qualityScore.toFixed(1)}** / 100` : 'N/A — measured gate uses individual checks.'}
+${typeof data.qualityScore !== 'number' ? 'N/A — measured gate uses individual checks.'
+  : data.qualityScore < 0 ? 'Not measured — no requested metric had measured data (#1011).'
+  : data.evidenceStatus === 'insufficient-evidence'
+    ? `Subset score over measured metrics: ${data.qualityScore.toFixed(1)} (not a verdict)`
+      + (data.scoreBasis?.length ? `\nBased on: ${data.scoreBasis.join(', ')}` : '')
+  : `**${data.qualityScore.toFixed(1)}** / 100`}
 
 ## Metrics
 
@@ -811,7 +818,10 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
         };
       case 'assess-quality':
         return {
-          qualityScore: data.qualityScore,
+          // #1021: -1 means "not measured", and a subset score under insufficient
+          // evidence is not a verdict; keep both out of the index and trends.
+          ...(typeof data.qualityScore === 'number' && data.qualityScore >= 0
+            && data.evidenceStatus !== 'insufficient-evidence' ? { qualityScore: data.qualityScore } : {}),
           passed: data.passed,
           ...(data.evidenceStatus !== undefined ? { evidenceStatus: data.evidenceStatus } : {}),
         };

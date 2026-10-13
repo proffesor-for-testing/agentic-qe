@@ -201,12 +201,22 @@
     "scoreValue": {
       "type": "object",
       "required": ["value", "max"],
+      "if": { "properties": { "value": { "type": "null" } } },
+      "then": { "required": ["measured", "unmeasuredReason"], "properties": { "measured": { "const": false } } },
       "properties": {
         "value": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0,
           "maximum": 100,
-          "description": "Score value (0-100)"
+          "description": "Score value (0-100), or null when not measured. Never -1 or a placeholder number: the MCP quality_assess -1 sentinel maps to null here (#1011)."
+        },
+        "measured": {
+          "type": "boolean",
+          "description": "false when no measured data backs this score (value is null); omitted or true when measured"
+        },
+        "unmeasuredReason": {
+          "type": "string",
+          "description": "Why the score was not measured (e.g. a file could not be parsed, no coverage recorded)"
         },
         "max": {
           "type": "number",

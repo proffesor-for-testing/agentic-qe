@@ -32,6 +32,8 @@ import {
 import { MetricsCollector } from '../metrics';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
+import { CallerInputError } from '../../shared/error-utils.js';
 
 import {
   DEFAULT_FRAMEWORKS,
@@ -132,6 +134,22 @@ export interface QualityAssessResult {
   evidenceStatus?: 'measured' | 'insufficient-evidence';
   /** #996: requested metrics with no measured data (reported as -1 in `metrics`). */
   unmeasured?: string[];
+  /** #1011: why each unmeasured metric has no value (e.g. a file could not be parsed). */
+  unmeasuredReasons?: Record<string, string>;
+  /** #1021: metrics measured over part of the scope (files that failed to read or parse are listed). */
+  partialMetrics?: PartialQualityMetric[];
+  /** #1021: files left out of the analysis (binary, generated, minified, .d.ts, reader policy); first 50. */
+  excludedFiles?: ExcludedQualityFile[];
+  /** #1021: total number of excluded files. */
+  excludedCount?: number;
+  /** #1021: the directory, file, or 'sourceFiles' that was analysed. */
+  scope?: string;
+  /**
+   * #1021 round 2b: the metrics `qualityScore` was computed from, present when
+   * the score covers only part of the request (insufficient evidence) or of the
+   * files (partial metrics). Such a score is not a verdict.
+   */
+  scoreBasis?: string[];
   /** #996: measured metrics that fail their own limit; any entry blocks. */
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
@@ -726,8 +744,20 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     const metrics = params.metrics === undefined
       ? ['coverage', 'complexity', 'maintainability']
       : validateRequestedMetrics(params.metrics);
+    // #1021: scope the analysis instead of silently analysing <cwd>/src.
+    // Containment in the project root is enforced by the handler.
+    // CallerInputError: a caller mistake, never a component failure (round 2b).
+    if (params.target !== undefined && (typeof params.target !== 'string' || params.target.trim() === '')) {
+      throw new CallerInputError('target must be a non-empty string path.');
+    }
+    if (params.sourceFiles !== undefined && (!Array.isArray(params.sourceFiles) || params.sourceFiles.length === 0
+      || params.sourceFiles.some((f) => typeof f !== 'string' || f.trim() === ''))) {
+      throw new CallerInputError('sourceFiles must be a non-empty array of file paths.');
+    }
     return {
       runGate: params.runGate ?? false,
+      ...(params.target !== undefined ? { target: params.target } : {}),
+      ...(params.sourceFiles !== undefined ? { sourceFiles: params.sourceFiles } : {}),
       threshold: params.threshold || 80,
       // #996: only a caller-supplied threshold overrides the configured/default
       // per-metric limits; the 80 fallback above must not.
@@ -752,6 +782,15 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       ? (data.measuredFailures as MeasuredFailure[])
       : undefined;
     const failedMetrics = (measuredFailures ?? []).map((f) => f.metric);
+    // #1011: reasons travel only as a string-to-string map.
+    const unmeasuredReasons = data.unmeasuredReasons && typeof data.unmeasuredReasons === 'object'
+      && Object.values(data.unmeasuredReasons as Record<string, unknown>).every((r) => typeof r === 'string')
+      ? data.unmeasuredReasons as Record<string, string>
+      : undefined;
+    // -1 = no measured score; never quote it as a score.
+    const measuredScore = typeof data.qualityScore === 'number' && data.qualityScore >= 0
+      ? data.qualityScore
+      : undefined;
     const passed = !insufficient && failedMetrics.length === 0 && data.passed === true;
     // ADR-103: attach a schema-validated RiskDecision envelope at the MCP
     // boundary (additive — existing fields unchanged). Omit rather than
@@ -760,7 +799,7 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
       passed: insufficient || failedMetrics.length > 0
         ? false
         : typeof data.passed === 'boolean' ? data.passed : undefined,
-      qualityScore: data.qualityScore as number | undefined,
+      qualityScore: measuredScore,
       recommendations: (data.recommendations as string[]) || [],
       unmeasured: insufficient ? (unmeasured?.length ? unmeasured : ['unknown']) : [],
       failedMetrics,
@@ -779,6 +818,14 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
         ? { evidenceStatus: insufficient ? INSUFFICIENT_EVIDENCE : 'measured' as const }
         : {}),
       ...(unmeasured ? { unmeasured } : {}),
+      ...(unmeasuredReasons ? { unmeasuredReasons } : {}),
+      // #1021: partial evidence, exclusions and the analysed scope travel with the verdict.
+      ...(Array.isArray(data.partialMetrics) ? { partialMetrics: data.partialMetrics as PartialQualityMetric[] } : {}),
+      ...(Array.isArray(data.excludedFiles) ? { excludedFiles: data.excludedFiles as ExcludedQualityFile[] } : {}),
+      ...(typeof data.excludedCount === 'number' ? { excludedCount: data.excludedCount } : {}),
+      ...(typeof data.scope === 'string' ? { scope: data.scope } : {}),
+      ...(Array.isArray(data.scoreBasis) && data.scoreBasis.every((m) => typeof m === 'string')
+        ? { scoreBasis: data.scoreBasis as string[] } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
       ...(confidence !== undefined ? { confidence } : {}),

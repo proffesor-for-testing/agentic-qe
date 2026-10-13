@@ -341,6 +341,38 @@ export function recordExperienceStep(
 }
 
 /**
+ * #1002: a result whose status or evidenceStatus is "insufficient-evidence"
+ * carries no verdict, so it is neither a success nor a failure to learn from.
+ * #1014: likewise a successful coverage-analysis result that is not a
+ * measurement (static estimate, unmeasured target, or no provenance).
+ * Same semantics as the shared `isLearnableResult` (#1014); dedupe on merge.
+ */
+export function isInsufficientEvidenceResult(
+  result: { success: boolean; data?: unknown },
+  domain?: string,
+): boolean {
+  const data = result.data as { status?: unknown; evidenceStatus?: unknown; measured?: unknown } | null | undefined;
+  if (domain === 'coverage-analysis' && result.success && data?.measured !== true) return true;
+  if (!data || typeof data !== 'object') return false;
+  return data.status === 'insufficient-evidence' || data.evidenceStatus === 'insufficient-evidence';
+}
+
+/**
+ * #1021 round 2b: a failure caused by the caller's input (marked
+ * `callerError: true`, e.g. a target outside the project root) says nothing
+ * about the component, so it is not recorded as a failure experience.
+ */
+export function isCallerInputFailure(result: { success: boolean; data?: unknown }): boolean {
+  const data = result.data as { callerError?: unknown } | null | undefined;
+  return !result.success && !!data && typeof data === 'object' && data.callerError === true;
+}
+
+/** Drop an active experience without persisting it (no verdict to record). */
+export function abandonExperience(experienceId: string): boolean {
+  return activeExperiences.delete(experienceId);
+}
+
+/**
  * Complete an experience and persist to database
  */
 export async function completeExperience(
@@ -560,6 +592,13 @@ export function wrapWithExperienceCapture<TParams, TResult>(
       // Execute the handler
       const result = await handler(params);
       const durationMs = Date.now() - startTime;
+
+      // #1002/#1014: a run with no measured verdict is not recorded as success or failure.
+      if (isInsufficientEvidenceResult(result, domain) || isCallerInputFailure(result)) {
+        abandonExperience(expId);
+        ecLogger.debug('Skipped capture: insufficient evidence carries no verdict', { domain, agent });
+        return result;
+      }
 
       // Record execution step
       recordExperienceStep(expId, {
