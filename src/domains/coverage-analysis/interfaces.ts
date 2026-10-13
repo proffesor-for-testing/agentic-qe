@@ -50,6 +50,12 @@ export interface AnalyzeCoverageRequest {
    */
   runStatus?: 'passed' | 'failed';
   /**
+   * Counts of the test run behind `coverageData`, when one ran (#1027 NB1).
+   * Its testsPassing is recorded together with the coverage, under one runId,
+   * so failing-run coverage never pairs with a stale testsPassing.
+   */
+  testRun?: { runId: string; passed: number; failed: number; skipped?: number };
+  /**
    * Project root that relative report paths (lcov `SF:src/a.ts`) resolve
    * against, so per-file records use ONE key form: the absolute path (#1027 N7).
    */

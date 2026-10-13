@@ -346,7 +346,7 @@ export function recordExperienceStep(
  * carries no verdict, so it is neither a success nor a failure to learn from.
  * #1014: likewise a successful coverage-analysis result that is not a
  * measurement (static estimate, unmeasured target, or no provenance).
- * Same semantics as the shared `isLearnableResult` (#1014); dedupe on merge.
+ * Implemented by the shared `isLearnableResult` (#1014 / #1021 dedupe, #1027 B1).
  */
 export function isInsufficientEvidenceResult(
   result: { success: boolean; data?: unknown },

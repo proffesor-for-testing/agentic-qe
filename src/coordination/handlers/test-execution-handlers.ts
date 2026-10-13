@@ -260,7 +260,9 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
             const executionError = getTestRunnerExecutionError(runner, testFiles.join(', '),
               execution.status, { passed, failed, skipped }, diagnostics, json);
             if (executionError) return err(executionError);
-            // #1027 N5: this path collects no coverage — say so (null), never 0%.
+            // #1027 N5/NB5: this handler runs the tests without --coverage, so it has no
+            // coverage figure to return (null, never 0%). For test_execute_parallel the
+            // measured coverage + testsPassing are recorded by TestExecutorService.
             return ok({ total, passed, failed, skipped, duration: 0, coverage: null, failedTests: [] });
           }
         }

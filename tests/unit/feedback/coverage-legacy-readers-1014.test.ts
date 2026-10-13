@@ -18,6 +18,7 @@ import {
 } from '../../../src/feedback/coverage-session-provenance';
 import { QualityAnalyzerService } from '../../../src/domains/quality-assessment/services/quality-analyzer';
 import { DefectPredictorService } from '../../../src/domains/defect-intelligence/services/defect-predictor';
+import { DefectInvestigationProtocol } from '../../../src/coordination/protocols/defect-investigation';
 
 function sessionsDb() {
   const db = new Database(':memory:');
@@ -87,6 +88,14 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
     const analyzer = new QualityAnalyzerService(kv({ 'coverage:file:src/a.ts': { line: 64, branch: null, measured: true } }) as never);
     const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
     expect(await read('src/a.ts')).toBe(64);
+  });
+
+  it('#1027 NB4: defect-investigation reports an uncollected branch metric as null, not the line figure', async () => {
+    const protocol = new DefectInvestigationProtocol({ publish: vi.fn(), subscribe: vi.fn() } as never,
+      kv({ 'coverage:file:src/a.ts': { line: 64, branch: null, function: null, statement: null, measured: true } }) as never);
+    const ctx = await (protocol as unknown as { getCoverageContext(f: string): Promise<Record<string, unknown> | null> })
+      .getCoverageContext('src/a.ts');
+    expect(ctx).toMatchObject({ lineCoverage: 64, branchCoverage: null });
   });
 
   it('defect-predictor falls back to its neutral prior instead of the legacy record', async () => {

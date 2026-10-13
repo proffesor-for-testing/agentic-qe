@@ -93,7 +93,8 @@ export interface RelatedFailure {
 export interface CoverageContext {
   file: string;
   lineCoverage: number;
-  branchCoverage: number;
+  /** `null` = no branch data was collected (#1027 NB4) — never a borrowed figure. */
+  branchCoverage: number | null;
   uncoveredLines: number[];
   riskScore: number;
 }
@@ -1003,7 +1004,7 @@ export class DefectInvestigationProtocol {
       return {
         file,
         lineCoverage: coverage.line,
-        branchCoverage: coverage.branch ?? coverage.line,
+        branchCoverage: coverage.branch,
         uncoveredLines: [], // per-file KV store doesn't track individual lines
         riskScore,
       };

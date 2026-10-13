@@ -130,19 +130,32 @@ describe('#1027 review 2 — uncollected metrics are persisted as null', () => {
     const s = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, i < 6 ? 1 : 0]));
     fs.writeFileSync(report, JSON.stringify({ [a]: { path: a, statementMap, s, branchMap: {}, b: {}, fnMap: {}, f: {} } }));
     const { loadCoverageReportFile } = await import('../../../../src/coordination/handlers/coverage-target');
-    const run: JsCoverageRun = {
-      runner: 'vitest', missing: false, exitCode: 1, exitedCleanly: false, timedOut: false, timeoutMs: 1,
-      data: await loadCoverageReportFile(report), numTotalTests: 3, stderrTail: '1 test failed',
-    };
+    const data60 = await loadCoverageReportFile(report);
     fs.rmSync(report);
     fs.rmSync(path.join(dir, 'coverage'), { recursive: true });
-    vi.mocked(runJsCoverage).mockResolvedValueOnce(run);
+    const base: JsCoverageRun = {
+      runner: 'vitest', missing: false, exitCode: 1, exitedCleanly: false, timedOut: false, timeoutMs: 1,
+      data: data60, numTotalTests: 3, stderrTail: '',
+    };
 
+    // NB1: the run's own testsPassing is written next to its coverage, under one runId.
+    vi.mocked(runJsCoverage).mockResolvedValueOnce({ ...base, numPassedTests: 2, numFailedTests: 1, numFailedTestSuites: 1 });
     const kernel = createKernel();
     const data = await analyze(kernel, dir);
 
     expect(data).toMatchObject({ measured: true, lineCoverage: 60, runStatus: 'failed' });
     expect(kernel.store.get('coverage:latest')).toMatchObject({ line: 60, measured: true, runStatus: 'failed' });
+    const ev = (m: string) => kernel.store.get(`quality-assessment::quality-evidence:${m}:latest`) as Record<string, unknown>;
+    expect(ev('coverage')).toMatchObject({ value: 60, runStatus: 'failed' });
+    expect(ev('testsPassing')).toMatchObject({ runStatus: 'failed', runId: ev('coverage').runId });
+    expect(ev('testsPassing').value).toBeCloseTo(66.67, 1);
+
+    // NB2: a non-zero exit with NO failing test (e.g. a coverage-threshold
+    // failure) is not a failing suite.
+    vi.mocked(runJsCoverage).mockResolvedValueOnce({ ...base, numPassedTests: 3, numFailedTests: 0, numFailedTestSuites: 0 });
+    const kernel2 = createKernel();
+    expect(await analyze(kernel2, dir)).toMatchObject({ measured: true, runStatus: 'passed' });
+    expect(kernel2.store.get('quality-assessment::quality-evidence:testsPassing:latest')).toMatchObject({ value: 100, runStatus: 'passed' });
   });
 });
 

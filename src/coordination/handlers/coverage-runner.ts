@@ -65,8 +65,30 @@ export interface JsCoverageRun {
    * not be read — "unknown", which callers must not treat as 0.
    */
   numTotalTests: number | null;
+  /**
+   * Per-outcome counts from the runner's JSON result (#1027 NB1/NB2), null
+   * when unknown. A failing suite is decided from these, not the exit code:
+   * vitest also exits non-zero for a coverage-threshold failure.
+   */
+  numPassedTests?: number | null;
+  numFailedTests?: number | null;
+  numPendingTests?: number | null;
+  numFailedTestSuites?: number | null;
   /** The runner's first error line plus the last ~2 KB of its stderr, for diagnosing a crash. */
   stderrTail: string;
+}
+
+/**
+ * Outcome of a coverage run's tests (#1027 NB2): 'failed' when the runner's
+ * own result reports a failed test or test suite, 'passed' when it reports
+ * none — whatever the exit code (a coverage-threshold failure exits 1 with
+ * every test passing). Without counts (nyc), the exit code decides.
+ */
+export function testRunStatus(run: JsCoverageRun): 'passed' | 'failed' {
+  if (typeof run.numFailedTests === 'number' || typeof run.numFailedTestSuites === 'number') {
+    return (run.numFailedTests ?? 0) > 0 || (run.numFailedTestSuites ?? 0) > 0 ? 'failed' : 'passed';
+  }
+  return run.exitedCleanly ? 'passed' : 'failed';
 }
 
 const RESULTS_FILE = 'test-results.json';
@@ -237,13 +259,30 @@ export function buildJsCoverageInvocation(projectRoot: string, reportDir: string
   };
 }
 
-function readNumTotalTests(resultsFile: string | null): number | null {
-  if (!resultsFile) return null;
+interface RunCounts {
+  numTotalTests: number | null;
+  numPassedTests: number | null;
+  numFailedTests: number | null;
+  numPendingTests: number | null;
+  numFailedTestSuites: number | null;
+}
+
+const NO_COUNTS: RunCounts = {
+  numTotalTests: null, numPassedTests: null, numFailedTests: null, numPendingTests: null, numFailedTestSuites: null,
+};
+
+/** Test counts from the runner's own JSON result (vitest/jest share the shape). */
+function readRunCounts(resultsFile: string | null): RunCounts {
+  if (!resultsFile) return NO_COUNTS;
   try {
-    const parsed = JSON.parse(fs.readFileSync(resultsFile, 'utf-8')) as { numTotalTests?: unknown };
-    return typeof parsed.numTotalTests === 'number' ? parsed.numTotalTests : null;
+    const parsed = JSON.parse(fs.readFileSync(resultsFile, 'utf-8')) as Record<string, unknown>;
+    const n = (k: string) => (typeof parsed[k] === 'number' ? parsed[k] as number : null);
+    return {
+      numTotalTests: n('numTotalTests'), numPassedTests: n('numPassedTests'), numFailedTests: n('numFailedTests'),
+      numPendingTests: n('numPendingTests'), numFailedTestSuites: n('numFailedTestSuites'),
+    };
   } catch {
-    return null;
+    return NO_COUNTS;
   }
 }
 
@@ -455,7 +494,7 @@ export async function runJsCoverage(
       timedOut: run.timedOut,
       timeoutMs,
       data,
-      numTotalTests: run.timedOut ? null : readNumTotalTests(inv.resultsFile),
+      ...(run.timedOut ? NO_COUNTS : readRunCounts(inv.resultsFile)),
       stderrTail: run.stderrTail,
     };
   } finally {

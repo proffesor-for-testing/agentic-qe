@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import type { CLIContext } from '../handlers/interfaces.js';
 import { filterTestFilesForFramework, walkSourceFiles } from '../utils/file-discovery.js';
 import { type OutputFormat, writeOutput, toJSON, toJUnit, testRunToMarkdown, type TestRunSummary } from '../utils/ci-output.js';
-import { writeQualityEvidence } from '../../domains/quality-assessment/quality-evidence.js';
+import { writeTestRunEvidence } from '../../domains/quality-assessment/quality-evidence.js';
 import { validateBehaviorExamples } from '../../domains/test-generation/services/behavior-example-validation.js';
 import { findProjectRoot } from '../../kernel/project-root.js';
 import { writeGeneratedTestFile } from '../utils/generated-test-writer.js';
@@ -216,12 +216,11 @@ export function createTestCommand(
               duration: run.duration,
               measuredAt: new Date().toISOString(),
             }, { namespace: 'test-execution', persist: true });
-            await writeQualityEvidence(context.kernel!.memory, {
-              testsPassing: total > 0 ? (run.passed / total) * 100 : 0,
-            }, {
-              measuredAt: new Date().toISOString(),
-              source: 'aqe test execute',
-            });
+            // #1027 NB1: the shared run-scoped writer (same as test_execute_parallel),
+            // stamped with this run's id so it pairs with the run's own coverage.
+            await writeTestRunEvidence(context.kernel!.memory, {
+              runId: run.runId, passed: run.passed, failed: run.failed, skipped: run.skipped,
+            }, { source: 'aqe test execute' });
 
             if (format === 'json') {
               writeOutput(toJSON(run), options.output);

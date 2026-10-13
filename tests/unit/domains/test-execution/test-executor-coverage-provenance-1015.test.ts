@@ -66,6 +66,21 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
     expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75 });
   });
 
+  it('#1027 NB1: a failing run writes ITS testsPassing next to its coverage, under one runId', async () => {
+    const { store, internals } = service();
+    await internals.storeResults('r1', run({ status: 'failed', failed: 1, passed: 1 }));
+
+    expect(store.get('quality-evidence:testsPassing:latest')).toMatchObject({ value: 50, runId: 'r1', runStatus: 'failed' });
+    expect(store.get('quality-evidence:coverage:latest')).toMatchObject({ value: 75, runId: 'r1', runStatus: 'failed' });
+  });
+
+  it('#1027 NB1: testsPassing is recorded even when the run collected no coverage', async () => {
+    const { store, internals } = service();
+    await internals.storeResults('r2', run({ runId: 'r2', coverage: undefined, fileCoverages: undefined }));
+    expect(store.get('quality-evidence:testsPassing:latest')).toMatchObject({ value: 100, runId: 'r2', runStatus: 'passed' });
+    expect(store.has('coverage:latest')).toBe(false);
+  });
+
   it('#1027 N7: per-file keys are absolute, whatever form the runner reported', async () => {
     const { store, internals } = service();
     await internals.storeResults('r1', run({ fileCoverages: [{ path: 'src/rel.ts', line: 50, branch: null, function: null, statement: 50 }] }));

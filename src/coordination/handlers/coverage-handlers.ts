@@ -28,7 +28,8 @@ import {
   type CoverageEvaluation,
   type NoDataReason,
 } from './coverage-target';
-import { describeRunFailure, runJsCoverage } from './coverage-runner';
+import { randomUUID } from 'crypto';
+import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
 import { collectedMetrics } from '../../domains/coverage-analysis/collected-metrics.js';
 
 /**
@@ -87,6 +88,8 @@ interface CollectResult {
    * (#1027 N4): coverage from a failing suite is still measured.
    */
   runStatus?: 'passed' | 'failed';
+  /** The run's test counts, when the runner reported them (#1027 NB1). */
+  testRun?: { runId: string; passed: number; failed: number; skipped: number };
 }
 
 function fromEvaluation(
@@ -170,8 +173,17 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
       ? evaluateCoverageForTarget(run.data, projectRoot, target, { numTotalTests: run.numTotalTests })
       : { status: 'no-data' as const, reason: 'no-tests-ran' as const };
     const result = fromEvaluation(evaluation, run.exitedCleanly || run.data !== null, projectRoot);
-    // #1027 N4: a run that wrote a report but exited non-zero had failing tests.
-    if (result.collected) result.runStatus = run.exitedCleanly ? 'passed' : 'failed';
+    if (result.collected) {
+      // #1027 N4/NB2: a run with failing tests still measured coverage; the
+      // failure is decided from the runner's counts, not its exit code.
+      result.runStatus = testRunStatus(run);
+      // #1027 NB1: the run's own testsPassing is recorded with its coverage.
+      if (typeof run.numPassedTests === 'number' && typeof run.numFailedTests === 'number') {
+        result.testRun = {
+          runId: randomUUID(), passed: run.numPassedTests, failed: run.numFailedTests, skipped: run.numPendingTests ?? 0,
+        };
+      }
+    }
     return result;
   }
 
@@ -239,7 +251,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
       const targetPath = payload.target || process.cwd();
       const threshold = payload.threshold || 80;
 
-      const { collected, ranTests, noData, projectRoot, notes, runStatus } = await collectCoverage(targetPath);
+      const { collected, ranTests, noData, projectRoot, notes, runStatus, testRun } = await collectCoverage(targetPath);
 
       // #995 review N5: say so plainly instead of "no coverage data found".
       if (noData === 'target-missing') {
@@ -279,6 +291,7 @@ export function registerCoverageHandlers(ctx: TaskHandlerContext): void {
         // #1027 N7: per-file records use absolute keys; N4: failing-suite coverage is labelled.
         ...(projectRoot ? { projectRoot } : {}),
         ...(runStatus && !provenance.estimated ? { runStatus } : {}),
+        ...(testRun && !provenance.estimated ? { testRun } : {}),
       });
 
       if (!analysisResult.success) {

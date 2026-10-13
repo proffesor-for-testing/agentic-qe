@@ -23,7 +23,7 @@ import {
 import type { HybridRouter, ChatResponse } from '../../../shared/llm';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
-import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { writeQualityEvidence, writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { measuredCoverageSummary } from '../../quality-assessment/coverage-report-event.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { collectedMetrics, collectedSummary, fileCoverageKey, type CollectedSummary } from '../collected-metrics.js';
@@ -203,7 +203,7 @@ export class CoverageAnalyzerService implements ICoverageAnalysisService {
 
       if (measured) {
         // Store current coverage for future delta calculations
-        await this.storeCoverageSnapshot(stored, request.runStatus);
+        await this.storeCoverageSnapshot(stored, request.runStatus, request.testRun);
 
         // Store coverage vectors for similarity search + KV for quality-analyzer
         if (request.includeFileDetails) {
@@ -631,7 +631,11 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
     }
   }
 
-  private async storeCoverageSnapshot(summary: CollectedSummary, runStatus?: 'passed' | 'failed'): Promise<void> {
+  private async storeCoverageSnapshot(
+    summary: CollectedSummary,
+    runStatus?: 'passed' | 'failed',
+    testRun?: AnalyzeCoverageRequest['testRun']
+  ): Promise<void> {
     try {
       // Rotate: copy current coverage:latest → coverage:previous before
       // overwriting — only a measured record (#1015): legacy junk is dropped,
@@ -646,10 +650,18 @@ Provide thoughtful, specific analysis based on the coverage data. Do not include
       // #1027: uncollected metrics are null; runStatus says if tests failed (N4).
       const record = { ...summary, measured: true, ...(runStatus ? { runStatus } : {}) };
       await this.memory.set('coverage:latest', record, { persist: true });
-      await writeQualityEvidence(this.memory, { coverage: summary.line }, {
-        measuredAt: new Date().toISOString(),
-        source: 'coverage-analysis',
-      });
+      if (testRun) {
+        // #1027 NB1: the run's testsPassing and coverage, under one runId.
+        await writeTestRunEvidence(this.memory, testRun, { source: 'coverage-analysis', coverage: summary.line });
+      } else {
+        // No counts: a failing run's coverage carries runStatus but no runId,
+        // so the gate will not pair it with any testsPassing (fail-closed).
+        await writeQualityEvidence(this.memory, { coverage: summary.line }, {
+          measuredAt: new Date().toISOString(),
+          source: 'coverage-analysis',
+          ...(runStatus ? { runStatus } : {}),
+        });
+      }
 
       // Store historical snapshot
       const timestamp = Date.now();

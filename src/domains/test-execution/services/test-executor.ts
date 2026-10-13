@@ -23,7 +23,7 @@ import { TEST_EXECUTION_CONSTANTS, LLM_ANALYSIS_CONSTANTS } from '../../constant
 import { toErrorMessage, toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom, secureRandomInt } from '../../../shared/utils/crypto-random.js';
-import { writeQualityEvidence } from '../../quality-assessment/quality-evidence.js';
+import { writeTestRunEvidence } from '../../quality-assessment/quality-evidence.js';
 import { istanbulLineHits } from '../../../coordination/handlers/handler-utils.js';
 import { fileCoverageKey } from '../../coverage-analysis/collected-metrics.js';
 import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../../shared/test-runner-verdict.js';
@@ -1377,34 +1377,41 @@ Provide:
       persist: true,
     });
 
+    // A runner ERROR has no trustworthy result: it persists no evidence.
+    if (result.status === 'error') return;
+    const runStatus: 'passed' | 'failed' = result.failed > 0 || result.status !== 'passed' ? 'failed' : 'passed';
+    const coverage = result.coverage && Number.isFinite(result.coverage.line) ? result.coverage : undefined;
+
+    try {
+      // #1027 NB1: this run's testsPassing and (when measured) its coverage,
+      // written together under this runId — the same writer as
+      // `aqe test execute`. Coverage from a run whose tests FAILED (N4) is
+      // then never read next to a stale testsPassing from an earlier run.
+      await writeTestRunEvidence(this.memory, {
+        runId, passed: result.passed, failed: result.failed, skipped: result.skipped,
+      }, { source: 'test-execution', ...(coverage ? { coverage: coverage.line } : {}) });
+    } catch {
+      // Non-critical — don't break test storage if evidence storage fails
+    }
+
     // Store coverage data so quality-assess and quality-gate can read it.
     // Note: coverage:previous rotation is owned by coverage-analyzer (the
     // canonical coverage service) to avoid double-rotation race conditions.
-    // #1015 / #1027 N4: a run whose tests FAILED still measured coverage: it
-    // is persisted, stamped runStatus:'failed' (testsPassing carries the
-    // failure) — the same report coverage_analyze_sublinear would persist.
-    // A runner ERROR has no trustworthy coverage and persists nothing.
-    if (result.status === 'error' || !result.coverage || !Number.isFinite(result.coverage.line)) return;
-    const runStatus: 'passed' | 'failed' = result.status === 'passed' ? 'passed' : 'failed';
+    if (!coverage) return;
     try {
       // Same CoverageSummary shape as coverage-analyzer, stamped with its
       // provenance (#1008/#1015) so readers can trust it. An uncollected
       // metric stays null — never 0, never istanbul's 0/0 = 100%.
       await this.memory.set('coverage:latest', {
-        line: result.coverage.line,
-        branch: result.coverage.branch ?? null,
-        function: result.coverage.function ?? null,
-        statement: result.coverage.statement ?? null,
+        line: coverage.line,
+        branch: coverage.branch ?? null,
+        function: coverage.function ?? null,
+        statement: coverage.statement ?? null,
         files: result.fileCoverages?.length ?? 0,
         measured: true,
         runStatus,
+        runId,
       }, { persist: true });
-      await writeQualityEvidence(this.memory, {
-        coverage: result.coverage.line,
-      }, {
-        measuredAt: new Date().toISOString(),
-        source: 'test-execution coverage',
-      });
 
       // Store per-file coverage via memory.set() (not storeVector) so that
       // quality-analyzer's getStoredCoverage() can read it with memory.get()
