@@ -29,8 +29,8 @@ const NAMESPACE = 'quality-daemon';
 export class PersistentWorkerMemory implements WorkerMemory {
   constructor(private readonly backend: KVBackend) {}
 
-  async get<T>(key: string): Promise<T | undefined> {
-    return this.backend.kvGet<T>(key, NAMESPACE);
+  async get<T>(key: string, options?: { namespace?: string }): Promise<T | undefined> {
+    return this.backend.kvGet<T>(key, options?.namespace ?? NAMESPACE);
   }
 
   async set<T>(key: string, value: T): Promise<void> {

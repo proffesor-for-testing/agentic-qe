@@ -238,7 +238,7 @@ export interface WorkerEvent {
 }
 
 export interface WorkerMemory {
-  get<T>(key: string): Promise<T | undefined>;
+  get<T>(key: string, options?: { namespace?: string }): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
   search(pattern: string): Promise<string[]>;
 }

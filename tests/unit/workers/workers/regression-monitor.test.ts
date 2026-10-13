@@ -1,56 +1,24 @@
-/**
- * Agentic QE v3 - Regression Monitor Worker Unit Tests
- * ADR-014: Background Workers for QE Monitoring
- *
- * TDD Tests for RegressionMonitorWorker
- * Tests regression detection across test, performance, and coverage metrics
- */
-
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RegressionMonitorWorker } from '../../../../src/workers/workers/regression-monitor';
-import { WorkerContext } from '../../../../src/workers/interfaces';
+import type { WorkerContext } from '../../../../src/workers/interfaces';
 
-interface MetricSnapshot {
-  timestamp: Date;
-  testPassRate: number;
-  coverage: {
-    line: number;
-    branch: number;
-  };
-  avgTestDuration: number;
-  failedTests: string[];
-  qualityScore: number;
-}
+const coverage = (line: number, branch: number | null = null) => ({
+  line, branch, function: null, statement: null, files: 1, measured: true,
+});
+const tests = (value: number, measuredAt = new Date().toISOString()) => ({
+  schemaVersion: 1, metric: 'testsPassing', value, measuredAt, source: 'test-execution',
+});
 
-function createMockContext(overrides: Partial<{
-  baseline: MetricSnapshot | undefined;
-  regressionHistory: unknown[];
-}> = {}): WorkerContext {
-  const { baseline, regressionHistory = [] } = overrides;
-
+function context(records: Record<string, unknown> = {}): WorkerContext {
   return {
-    eventBus: {
-      publish: vi.fn().mockResolvedValue(undefined),
-    },
+    eventBus: { publish: vi.fn().mockResolvedValue(undefined) },
     memory: {
-      get: vi.fn().mockImplementation((key: string) => {
-        if (key === 'regression:baseline') {
-          return Promise.resolve(baseline);
-        }
-        if (key === 'regression:history') {
-          return Promise.resolve(regressionHistory);
-        }
-        return Promise.resolve(undefined);
-      }),
+      get: vi.fn().mockImplementation((key: string, options?: { namespace?: string }) =>
+        Promise.resolve(records[`${options?.namespace ?? 'default'}:${key}`])),
       set: vi.fn().mockResolvedValue(undefined),
       search: vi.fn().mockResolvedValue([]),
     },
-    logger: {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    },
+    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     domains: {
       getDomainAPI: vi.fn().mockReturnValue({}),
       getDomainHealth: vi.fn().mockReturnValue({ status: 'healthy', errors: [] }),
@@ -61,161 +29,96 @@ function createMockContext(overrides: Partial<{
 
 describe('RegressionMonitorWorker', () => {
   let worker: RegressionMonitorWorker;
+  beforeEach(() => { worker = new RegressionMonitorWorker(); });
 
-  beforeEach(() => {
-    worker = new RegressionMonitorWorker();
+  it('keeps its scheduled worker contract', () => {
+    expect(worker.config.id).toBe('regression-monitor');
+    expect(worker.config.intervalMs).toBe(10 * 60 * 1000);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('does not store a clean baseline when no measurements exist', async () => {
+    const ctx = context();
+    const result = await worker.execute(ctx);
+    expect(result.success).toBe(true);
+    expect(result.metrics.itemsAnalyzed).toBe(0);
+    expect(result.metrics.healthScore).toBe(0);
+    expect(result.metrics.domainMetrics.evidenceStatus).toBe('unmeasured');
+    expect(result.findings).toEqual([expect.objectContaining({
+      type: 'regression-evidence-unavailable', severity: 'info',
+    })]);
+    expect(ctx.memory.set).not.toHaveBeenCalled();
   });
 
-  describe('instantiation', () => {
-    it('should be instantiated with correct config', () => {
-      expect(worker.config.id).toBe('regression-monitor');
-      expect(worker.config.name).toBe('Regression Monitor');
-      expect(worker.config.priority).toBe('high');
-      expect(worker.config.targetDomains).toContain('test-execution');
-      expect(worker.config.targetDomains).toContain('coverage-analysis');
-      expect(worker.config.targetDomains).toContain('quality-assessment');
+  it('does not treat unstamped coverage or invalid test evidence as measured', async () => {
+    const ctx = context({
+      'default:coverage:latest': { line: 80, branch: 70 },
+      'quality-assessment:quality-evidence:testsPassing:latest': tests(101),
     });
-
-    it('should have 10 minute interval', () => {
-      expect(worker.config.intervalMs).toBe(10 * 60 * 1000);
-    });
-
-    it('should have correct timeout and retry settings', () => {
-      expect(worker.config.timeoutMs).toBe(120000);
-      expect(worker.config.retryCount).toBe(2);
-    });
-
-    it('should start in idle status', () => {
-      expect(worker.status).toBe('idle');
-    });
+    const result = await worker.execute(ctx);
+    expect(result.metrics.domainMetrics.evidenceStatus).toBe('unmeasured');
+    expect(ctx.memory.set).not.toHaveBeenCalled();
   });
 
-  describe('execute - successful monitoring', () => {
-    it('should execute successfully', async () => {
-      const context = createMockContext();
-
-      const result = await worker.execute(context);
-
-      expect(result.success).toBe(true);
-      expect(result.workerId).toBe('regression-monitor');
+  it('stores only measured test and coverage metrics in a versioned baseline', async () => {
+    const ctx = context({
+      'default:coverage:latest': coverage(78, 65),
+      'quality-assessment:quality-evidence:testsPassing:latest': tests(98),
     });
-
-    it('should return regression metrics', async () => {
-      const context = createMockContext();
-
-      const result = await worker.execute(context);
-
-      expect(result.metrics.domainMetrics).toHaveProperty('regressionsDetected');
+    const result = await worker.execute(ctx);
+    expect(result.metrics.domainMetrics.evidenceStatus).toBe('baseline-pending');
+    expect(ctx.memory.get).toHaveBeenCalledWith('quality-evidence:testsPassing:latest', {
+      namespace: 'quality-assessment',
     });
-
-    it('should store baseline in memory', async () => {
-      const context = createMockContext();
-
-      await worker.execute(context);
-
-      expect(context.memory.set).toHaveBeenCalledWith('regression:baseline', expect.any(Object));
-    });
-
-    it('should publish worker.executed event', async () => {
-      const context = createMockContext();
-
-      await worker.execute(context);
-
-      expect(context.eventBus.publish).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'worker.executed',
-          workerId: 'regression-monitor',
-        })
-      );
+    expect(ctx.memory.set).toHaveBeenCalledWith('regression:baseline', {
+      schemaVersion: 2, measured: true, timestamp: expect.any(String),
+      testPassRate: 98, coverage: { line: 78, branch: 65 },
     });
   });
 
-  describe('execute - regression detection', () => {
-    it('should detect regressions when baseline exists', async () => {
-      const baseline: MetricSnapshot = {
-        timestamp: new Date(Date.now() - 3600000),
-        testPassRate: 0.95,
-        coverage: { line: 85, branch: 75 },
-        avgTestDuration: 100,
-        failedTests: [],
-        qualityScore: 90,
-      };
-
-      const context = createMockContext({ baseline });
-
-      const result = await worker.execute(context);
-
-      expect(result.success).toBe(true);
-      // The comparison will be performed
-      expect(context.memory.get).toHaveBeenCalledWith('regression:baseline');
+  it('ignores an old fabricated baseline instead of reporting a regression', async () => {
+    const ctx = context({
+      'default:regression:baseline': {
+        timestamp: new Date(), testPassRate: 98.2,
+        coverage: { line: 78.5, branch: 65.2 },
+        avgTestDuration: 245, failedTests: ['fake'], qualityScore: 82,
+      },
+      'default:coverage:latest': coverage(50),
     });
-
-    it('should not detect regressions without baseline', async () => {
-      const context = createMockContext({ baseline: undefined });
-
-      const result = await worker.execute(context);
-
-      expect(result.success).toBe(true);
-      // No regressions since no baseline to compare
-      expect(result.metrics.domainMetrics.regressionsDetected).toBe(0);
-    });
+    const result = await worker.execute(ctx);
+    expect(result.metrics.issuesFound).toBe(0);
+    expect(result.metrics.domainMetrics.evidenceStatus).toBe('baseline-pending');
+    expect(result.metrics.domainMetrics.branchCoverage).toBe('unmeasured');
   });
 
-  describe('health score calculation', () => {
-    it('should calculate health score between 0 and 100', async () => {
-      const context = createMockContext();
-
-      const result = await worker.execute(context);
-
-      expect(result.metrics.healthScore).toBeGreaterThanOrEqual(0);
-      expect(result.metrics.healthScore).toBeLessThanOrEqual(100);
+  it('compares only metrics measured on both sides', async () => {
+    const ctx = context({
+      'default:regression:baseline': {
+        schemaVersion: 2, measured: true, timestamp: new Date(Date.now() - 60_000).toISOString(),
+        testPassRate: 99, coverage: { line: 85, branch: 75 },
+      },
+      'default:coverage:latest': coverage(78),
+      'quality-assessment:quality-evidence:testsPassing:latest': tests(90),
     });
-
-    it('should have high health score when no regressions', async () => {
-      const context = createMockContext();
-
-      const result = await worker.execute(context);
-
-      // No regressions = high health score
-      expect(result.metrics.healthScore).toBeGreaterThanOrEqual(80);
-    });
+    const result = await worker.execute(ctx);
+    expect(result.metrics.itemsAnalyzed).toBe(2);
+    expect(result.metrics.issuesFound).toBe(2);
+    expect(result.metrics.domainMetrics.evidenceStatus).toBe('compared');
+    expect(result.findings.map(f => f.title)).toEqual([
+      'Test Pass Rate Regression Detected', 'Line Coverage Regression Detected',
+    ]);
+    expect(result.findings[0]?.description).toContain('percentage points');
   });
 
-  describe('lifecycle methods', () => {
-    it('should initialize correctly', async () => {
-      await worker.initialize();
-      expect(worker.status).toBe('idle');
-      expect(worker.nextRunAt).toBeDefined();
+  it('rejects stale test evidence rather than inventing a pass rate', async () => {
+    const ctx = context({
+      'quality-assessment:quality-evidence:testsPassing:latest': tests(
+        98, new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+      ),
+      'default:coverage:latest': coverage(82),
     });
-
-    it('should pause and resume', () => {
-      worker.pause();
-      expect(worker.status).toBe('paused');
-
-      worker.resume();
-      expect(worker.status).toBe('idle');
-    });
-
-    it('should stop', async () => {
-      await worker.stop();
-      expect(worker.status).toBe('stopped');
-    });
-  });
-
-  describe('health tracking', () => {
-    it('should track health after successful execution', async () => {
-      const context = createMockContext();
-
-      await worker.execute(context);
-      const health = worker.getHealth();
-
-      expect(health.totalExecutions).toBe(1);
-      expect(health.successfulExecutions).toBe(1);
-      expect(health.failedExecutions).toBe(0);
-    });
+    const result = await worker.execute(ctx);
+    expect(result.metrics.domainMetrics.testPassRate).toBe('unmeasured');
+    expect(ctx.memory.set).toHaveBeenCalledWith('regression:baseline',
+      expect.not.objectContaining({ testPassRate: expect.any(Number) }));
   });
 });

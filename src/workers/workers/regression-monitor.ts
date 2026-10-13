@@ -2,11 +2,7 @@
  * Agentic QE v3 - Regression Monitor Worker
  * ADR-014: Background Workers for QE Monitoring
  *
- * Watches for regressions including:
- * - Test result regressions
- * - Performance regressions
- * - Coverage regressions
- * - Quality metric regressions
+ * Watches for measured test pass-rate and coverage regressions.
  */
 
 import { BaseWorker } from '../base-worker';
@@ -17,11 +13,17 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { measuredCoverageSummary } from '../../domains/quality-assessment/coverage-report-event.js';
+import {
+  DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS,
+  QUALITY_EVIDENCE_NAMESPACE,
+  type QualityEvidenceRecord,
+} from '../../domains/quality-assessment/quality-evidence.js';
 
 const CONFIG: WorkerConfig = {
   id: 'regression-monitor',
   name: 'Regression Monitor',
-  description: 'Monitors for regressions in test results, performance, coverage, and quality metrics',
+  description: 'Monitors measured test pass-rate and coverage for regressions',
   intervalMs: 10 * 60 * 1000, // 10 minutes
   priority: 'high',
   targetDomains: ['test-execution', 'coverage-analysis', 'quality-assessment'],
@@ -32,25 +34,37 @@ const CONFIG: WorkerConfig = {
 };
 
 interface MetricSnapshot {
-  timestamp: Date;
-  testPassRate: number;
-  coverage: {
-    line: number;
-    branch: number;
-  };
-  avgTestDuration: number;
-  failedTests: string[];
-  qualityScore: number;
+  schemaVersion: 2;
+  measured: true;
+  timestamp: string;
+  testPassRate?: number;
+  coverage?: { line: number; branch?: number };
 }
 
 interface RegressionResult {
-  type: 'test' | 'performance' | 'coverage' | 'quality';
+  type: 'test' | 'coverage';
   metric: string;
   previousValue: number;
   currentValue: number;
   changePercent: number;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  affectedTests?: string[];
+}
+
+const isPercent = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+
+function measuredBaseline(value: unknown): MetricSnapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const snapshot = value as Partial<MetricSnapshot>;
+  if (snapshot.schemaVersion !== 2 || snapshot.measured !== true
+    || typeof snapshot.timestamp !== 'string' || !Number.isFinite(Date.parse(snapshot.timestamp))) return null;
+  const testsValid = snapshot.testPassRate === undefined || isPercent(snapshot.testPassRate);
+  const coverageValid = snapshot.coverage === undefined || (
+    isPercent(snapshot.coverage.line)
+    && (snapshot.coverage.branch === undefined || isPercent(snapshot.coverage.branch))
+  );
+  return testsValid && coverageValid && (snapshot.testPassRate !== undefined || snapshot.coverage !== undefined)
+    ? snapshot as MetricSnapshot : null;
 }
 
 export class RegressionMonitorWorker extends BaseWorker {
@@ -65,20 +79,33 @@ export class RegressionMonitorWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Get current snapshot
     const currentSnapshot = await this.collectCurrentSnapshot(context);
+    if (!currentSnapshot) {
+      findings.push({
+        type: 'regression-evidence-unavailable',
+        severity: 'info',
+        domain: 'quality-assessment',
+        title: 'Regression monitoring has no measured data',
+        description: 'Run tests or collect instrumented coverage before evaluating regressions.',
+      });
+      return this.createResult(Date.now() - startTime, {
+        itemsAnalyzed: 0,
+        issuesFound: 0,
+        healthScore: 0,
+        trend: 'stable',
+        domainMetrics: { evidenceStatus: 'unmeasured', regressionsDetected: 0 },
+      }, findings, recommendations);
+    }
 
-    // Get baseline (previous snapshot)
-    const baseline = await context.memory.get<MetricSnapshot>('regression:baseline');
+    // Older versions persisted fabricated figures. Only compare measured v2 records.
+    const baseline = measuredBaseline(await context.memory.get<unknown>('regression:baseline'));
 
-    // Detect regressions
     let regressions: RegressionResult[] = [];
     if (baseline) {
       regressions = this.detectRegressions(baseline, currentSnapshot);
       this.analyzeRegressions(regressions, findings, recommendations);
     }
 
-    // Store current as new baseline
     await context.memory.set('regression:baseline', currentSnapshot);
 
     // Store regression history
@@ -90,7 +117,9 @@ export class RegressionMonitorWorker extends BaseWorker {
       await context.memory.set('regression:history', history);
     }
 
-    const healthScore = this.calculateHealthScore(regressions);
+    const comparableMetrics = baseline ? this.countComparableMetrics(baseline, currentSnapshot) : 0;
+    const healthScore = comparableMetrics > 0 ? this.calculateHealthScore(regressions) : 0;
+    const evidenceStatus = comparableMetrics > 0 ? 'compared' : 'baseline-pending';
 
     context.logger.info('Regression monitoring complete', {
       healthScore,
@@ -100,15 +129,15 @@ export class RegressionMonitorWorker extends BaseWorker {
     return this.createResult(
       Date.now() - startTime,
       {
-        itemsAnalyzed: 5, // Number of metrics checked
+        itemsAnalyzed: comparableMetrics,
         issuesFound: regressions.length,
         healthScore,
         trend: regressions.length > 0 ? 'degrading' : 'stable',
         domainMetrics: {
-          testPassRate: `${currentSnapshot.testPassRate}%`,
-          lineCoverage: `${currentSnapshot.coverage.line}%`,
-          avgTestDuration: `${currentSnapshot.avgTestDuration}ms`,
-          qualityScore: currentSnapshot.qualityScore,
+          evidenceStatus,
+          testPassRate: currentSnapshot.testPassRate === undefined ? 'unmeasured' : `${currentSnapshot.testPassRate}%`,
+          lineCoverage: currentSnapshot.coverage ? `${currentSnapshot.coverage.line}%` : 'unmeasured',
+          branchCoverage: currentSnapshot.coverage?.branch === undefined ? 'unmeasured' : `${currentSnapshot.coverage.branch}%`,
           regressionsDetected: regressions.length,
         },
       },
@@ -117,22 +146,39 @@ export class RegressionMonitorWorker extends BaseWorker {
     );
   }
 
-  private async collectCurrentSnapshot(_context: WorkerContext): Promise<MetricSnapshot> {
-    // In a real implementation, this would query actual metrics
+  private async collectCurrentSnapshot(context: WorkerContext): Promise<MetricSnapshot | null> {
+    const coverage = measuredCoverageSummary(await context.memory.get<unknown>('coverage:latest'));
+    const rawTests = await context.memory.get<unknown>('quality-evidence:testsPassing:latest', {
+      namespace: QUALITY_EVIDENCE_NAMESPACE,
+    });
+    const tests = rawTests && typeof rawTests === 'object' ? rawTests as Partial<QualityEvidenceRecord> : null;
+    const measuredAt = tests && typeof tests.measuredAt === 'string' ? Date.parse(tests.measuredAt) : NaN;
+    const now = Date.now();
+    const testPassRate = tests?.schemaVersion === 1 && tests.metric === 'testsPassing'
+      && isPercent(tests.value) && typeof tests.source === 'string' && tests.source.trim().length > 0
+      && Number.isFinite(measuredAt) && measuredAt <= now + 60_000
+      && now - measuredAt <= DEFAULT_QUALITY_EVIDENCE_MAX_AGE_MS
+      ? tests.value : undefined;
+
+    if (!coverage && testPassRate === undefined) return null;
     return {
-      timestamp: new Date(),
-      testPassRate: 98.2,
-      coverage: {
-        line: 78.5,
-        branch: 65.2,
-      },
-      avgTestDuration: 245,
-      failedTests: [
-        'test-execution/retry-handler.test.ts::should retry failed tests',
-        'coordination/workflow.test.ts::should handle concurrent workflows',
-      ],
-      qualityScore: 82,
+      schemaVersion: 2,
+      measured: true,
+      timestamp: new Date(now).toISOString(),
+      ...(testPassRate === undefined ? {} : { testPassRate }),
+      ...(coverage ? {
+        coverage: {
+          line: coverage.line,
+          ...(coverage.branch === null ? {} : { branch: coverage.branch }),
+        },
+      } : {}),
     };
+  }
+
+  private countComparableMetrics(baseline: MetricSnapshot, current: MetricSnapshot): number {
+    return Number(baseline.testPassRate !== undefined && current.testPassRate !== undefined)
+      + Number(baseline.coverage !== undefined && current.coverage !== undefined)
+      + Number(baseline.coverage?.branch !== undefined && current.coverage?.branch !== undefined);
   }
 
   private detectRegressions(
@@ -142,7 +188,8 @@ export class RegressionMonitorWorker extends BaseWorker {
     const regressions: RegressionResult[] = [];
 
     // Test pass rate regression
-    if (current.testPassRate < baseline.testPassRate - 1) {
+    if (current.testPassRate !== undefined && baseline.testPassRate !== undefined
+      && current.testPassRate < baseline.testPassRate - 1) {
       const change = current.testPassRate - baseline.testPassRate;
       regressions.push({
         type: 'test',
@@ -151,12 +198,11 @@ export class RegressionMonitorWorker extends BaseWorker {
         currentValue: current.testPassRate,
         changePercent: change,
         severity: change < -5 ? 'critical' : change < -2 ? 'high' : 'medium',
-        affectedTests: current.failedTests,
       });
     }
 
     // Coverage regression
-    if (current.coverage.line < baseline.coverage.line - 2) {
+    if (current.coverage && baseline.coverage && current.coverage.line < baseline.coverage.line - 2) {
       const change = current.coverage.line - baseline.coverage.line;
       regressions.push({
         type: 'coverage',
@@ -168,7 +214,8 @@ export class RegressionMonitorWorker extends BaseWorker {
       });
     }
 
-    if (current.coverage.branch < baseline.coverage.branch - 3) {
+    if (current.coverage?.branch !== undefined && baseline.coverage?.branch !== undefined
+      && current.coverage.branch < baseline.coverage.branch - 3) {
       const change = current.coverage.branch - baseline.coverage.branch;
       regressions.push({
         type: 'coverage',
@@ -177,46 +224,6 @@ export class RegressionMonitorWorker extends BaseWorker {
         currentValue: current.coverage.branch,
         changePercent: change,
         severity: change < -5 ? 'high' : 'medium',
-      });
-    }
-
-    // Performance regression
-    const durationChange = ((current.avgTestDuration - baseline.avgTestDuration) / baseline.avgTestDuration) * 100;
-    if (durationChange > 20) {
-      regressions.push({
-        type: 'performance',
-        metric: 'avgTestDuration',
-        previousValue: baseline.avgTestDuration,
-        currentValue: current.avgTestDuration,
-        changePercent: durationChange,
-        severity: durationChange > 50 ? 'high' : 'medium',
-      });
-    }
-
-    // Quality score regression
-    if (current.qualityScore < baseline.qualityScore - 5) {
-      const change = current.qualityScore - baseline.qualityScore;
-      regressions.push({
-        type: 'quality',
-        metric: 'qualityScore',
-        previousValue: baseline.qualityScore,
-        currentValue: current.qualityScore,
-        changePercent: change,
-        severity: change < -10 ? 'critical' : change < -5 ? 'high' : 'medium',
-      });
-    }
-
-    // New test failures
-    const newFailures = current.failedTests.filter(t => !baseline.failedTests.includes(t));
-    if (newFailures.length > 0) {
-      regressions.push({
-        type: 'test',
-        metric: 'newFailures',
-        previousValue: 0,
-        currentValue: newFailures.length,
-        changePercent: 100,
-        severity: newFailures.length > 5 ? 'critical' : newFailures.length > 2 ? 'high' : 'medium',
-        affectedTests: newFailures,
       });
     }
 
@@ -241,7 +248,6 @@ export class RegressionMonitorWorker extends BaseWorker {
           previousValue: regression.previousValue,
           currentValue: regression.currentValue,
           changePercent: regression.changePercent.toFixed(2),
-          affectedTests: regression.affectedTests,
         },
       });
     }
@@ -279,29 +285,14 @@ export class RegressionMonitorWorker extends BaseWorker {
       });
     }
 
-    const performanceRegressions = regressions.filter(r => r.type === 'performance');
-    if (performanceRegressions.length > 0) {
-      recommendations.push({
-        priority: 'p2',
-        domain: 'test-execution',
-        action: 'Investigate Performance Regression',
-        description: 'Test execution has slowed. Review for new slow tests or infrastructure issues.',
-        estimatedImpact: 'medium',
-        effort: 'low',
-        autoFixable: false,
-      });
-    }
   }
 
   private getDomainForType(type: string): 'test-execution' | 'coverage-analysis' | 'quality-assessment' {
     switch (type) {
       case 'test':
-      case 'performance':
         return 'test-execution';
       case 'coverage':
         return 'coverage-analysis';
-      case 'quality':
-        return 'quality-assessment';
       default:
         return 'quality-assessment';
     }
@@ -312,22 +303,13 @@ export class RegressionMonitorWorker extends BaseWorker {
       testPassRate: 'Test Pass Rate',
       lineCoverage: 'Line Coverage',
       branchCoverage: 'Branch Coverage',
-      avgTestDuration: 'Test Duration',
-      qualityScore: 'Quality Score',
-      newFailures: 'New Test Failures',
     };
     return names[metric] || metric;
   }
 
   private formatRegressionDescription(regression: RegressionResult): string {
-    if (regression.metric === 'newFailures') {
-      return `${regression.currentValue} new test failures detected since last check`;
-    }
-
     const direction = regression.changePercent > 0 ? 'increased' : 'decreased';
-    const unit = regression.type === 'performance' ? 'ms' : '%';
-
-    return `${this.formatMetricName(regression.metric)} ${direction} from ${regression.previousValue}${unit} to ${regression.currentValue}${unit} (${regression.changePercent > 0 ? '+' : ''}${regression.changePercent.toFixed(1)}%)`;
+    return `${this.formatMetricName(regression.metric)} ${direction} from ${regression.previousValue}% to ${regression.currentValue}% (${regression.changePercent > 0 ? '+' : ''}${regression.changePercent.toFixed(1)} percentage points)`;
   }
 
   private calculateHealthScore(regressions: RegressionResult[]): number {

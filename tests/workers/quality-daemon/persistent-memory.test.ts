@@ -52,6 +52,14 @@ describe('PersistentWorkerMemory', () => {
     expect(backend._store.has('quality-daemon:my-key')).toBe(true);
   });
 
+  it('can read canonical evidence from its explicit namespace', async () => {
+    backend._store.set('quality-assessment:quality-evidence:testsPassing:latest', { value: 94 });
+    expect(await memory.get('quality-evidence:testsPassing:latest', {
+      namespace: 'quality-assessment',
+    })).toEqual({ value: 94 });
+    expect(await memory.get('quality-evidence:testsPassing:latest')).toBeUndefined();
+  });
+
   it('search returns matching keys', async () => {
     await memory.set('coverage:snapshot', { line: 80 });
     await memory.set('coverage:delta', { drop: 5 });
