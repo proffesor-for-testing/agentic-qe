@@ -53,8 +53,13 @@ interface MeasuredTests {
   source: string;
   /** Names of that run's failing tests; `null` = the run's result was not recorded. */
   failedTests: string[] | null;
-  /** Mean duration per test of that run; `null` = not recorded. */
+  /** Mean duration per test of that run (wall time / tests); `null` = not recorded. */
   avgTestDurationMs: number | null;
+  /**
+   * The run's test set — its total and sorted test files — when recorded.
+   * Duration is compared only between runs of the same set (#1028 N1).
+   */
+  testSet: { total: number; files: string[] } | null;
 }
 
 /**
@@ -72,7 +77,7 @@ interface MeasuredSnapshot {
   tests: MeasuredTests | null;
 }
 
-type BaselineStatus = 'measured' | 'none' | 'legacy-ignored';
+type BaselineStatus = 'measured' | 'none' | 'legacy-ignored' | 'invalid-ignored';
 
 interface RegressionResult {
   type: 'test' | 'performance' | 'coverage';
@@ -123,6 +128,7 @@ function measuredTests(raw: unknown): MeasuredTests | null {
     ? (t.failedTests as string[]) : null;
   const avg = t.avgTestDurationMs;
   return {
+    testSet: parseTestSet(t.testSet),
     passRate: t.passRate,
     runId: typeof t.runId === 'string' ? t.runId : null,
     runStatus: t.runStatus === 'passed' || t.runStatus === 'failed' ? t.runStatus : null,
@@ -132,6 +138,26 @@ function measuredTests(raw: unknown): MeasuredTests | null {
     avgTestDurationMs: typeof avg === 'number' && Number.isFinite(avg) && avg >= 0 ? avg : null,
   };
 }
+
+/** A recorded test set `{ total, files }`, or `null`. */
+function parseTestSet(raw: unknown): MeasuredTests['testSet'] {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const { total } = r;
+  if (typeof total !== 'number' || !Number.isInteger(total) || total <= 0) return null;
+  const files = testFileList(r.files);
+  return files ? { total, files } : null;
+}
+
+/** A non-empty list of test file names, sorted and de-duplicated, or `null`. */
+function testFileList(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || raw.length === 0 || !raw.every((f) => typeof f === 'string')) return null;
+  return [...new Set(raw as string[])].sort();
+}
+
+const sameTestSet = (a: MeasuredTests['testSet'], b: MeasuredTests['testSet']): boolean =>
+  a !== null && b !== null && a.total === b.total
+  && a.files.length === b.files.length && a.files.every((f, i) => f === b.files[i]);
 
 export class RegressionMonitorWorker extends BaseWorker {
   constructor() {
@@ -152,9 +178,11 @@ export class RegressionMonitorWorker extends BaseWorker {
     // older versions stored is ignored (left in place, never compared).
     const storedBaseline = await context.memory.get<unknown>(BASELINE_KEY);
     const baseline = measuredBaseline(storedBaseline);
-    const baselineStatus: BaselineStatus = baseline ? 'measured' : storedBaseline ? 'legacy-ignored' : 'none';
+    const baselineStatus = this.baselineStatus(storedBaseline, baseline);
     if (baselineStatus === 'legacy-ignored') {
       context.logger.info('Ignoring a regression:baseline without the measured stamp (written by <= 3.15.5)');
+    } else if (baselineStatus === 'invalid-ignored') {
+      context.logger.warn('Ignoring a malformed measured regression:baseline');
     }
 
     let regressions: RegressionResult[] = [];
@@ -227,6 +255,14 @@ export class RegressionMonitorWorker extends BaseWorker {
     );
   }
 
+  /** Why a stored baseline is (not) used: absent, legacy (unstamped), stamped but malformed, or measured. */
+  private baselineStatus(stored: unknown, baseline: MeasuredSnapshot | null): BaselineStatus {
+    if (baseline) return 'measured';
+    if (stored === undefined || stored === null) return 'none';
+    const stamped = typeof stored === 'object' && (stored as Record<string, unknown>).measured === true;
+    return stamped ? 'invalid-ignored' : 'legacy-ignored';
+  }
+
   /**
    * #1028: the current snapshot from measured sources only — the stamped
    * `coverage:latest` (same validator as the coverage tracker and the quality
@@ -253,6 +289,7 @@ export class RegressionMonitorWorker extends BaseWorker {
 
     let failedTests: string[] | null = null;
     let avgTestDurationMs: number | null = null;
+    let testSet: MeasuredTests['testSet'] = null;
     if (evidence.runId) {
       const run = await context.memory.get<Record<string, unknown>>(`test-run:${evidence.runId}`, {
         namespace: 'test-execution',
@@ -267,6 +304,7 @@ export class RegressionMonitorWorker extends BaseWorker {
         if (typeof total === 'number' && total > 0 && typeof duration === 'number' && Number.isFinite(duration) && duration >= 0) {
           avgTestDurationMs = duration / total;
         }
+        testSet = parseTestSet({ total, files: run.testFiles });
       }
     }
 
@@ -278,6 +316,7 @@ export class RegressionMonitorWorker extends BaseWorker {
       source: evidence.source,
       failedTests,
       avgTestDurationMs,
+      testSet,
     };
   }
 
@@ -326,9 +365,13 @@ export class RegressionMonitorWorker extends BaseWorker {
         }
       }
 
+      // #1028 N1: the recorded duration is the run's wall time, runner start-up
+      // included, and the runner records no per-test durations for passing
+      // tests. Per-test time is comparable only between runs of the same test
+      // set; across different sets it mostly measures overhead.
       const prevAvg = prevTests.avgTestDurationMs;
       const curAvg = curTests.avgTestDurationMs;
-      if (prevAvg !== null && curAvg !== null && prevAvg > 0) {
+      if (prevAvg !== null && curAvg !== null && prevAvg > 0 && sameTestSet(prevTests.testSet, curTests.testSet)) {
         metricsCompared++;
         const durationChange = ((curAvg - prevAvg) / prevAvg) * 100;
         if (durationChange > 20) {

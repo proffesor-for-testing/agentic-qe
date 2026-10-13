@@ -165,7 +165,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       // Store results
       this.runResults.set(runId, runResult);
-      await this.storeResults(runId, runResult);
+      await this.storeResults(runId, runResult, request.testFiles);
 
       // Create and store stats
       const stats: ExecutionStats = {
@@ -234,7 +234,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       // Store results
       this.runResults.set(runId, runResult);
-      await this.storeResults(runId, runResult);
+      await this.storeResults(runId, runResult, request.testFiles);
 
       // Create and store stats
       const stats: ExecutionStats = {
@@ -1371,8 +1371,11 @@ Provide:
     return undefined;
   }
 
-  private async storeResults(runId: string, result: TestRunResult): Promise<void> {
-    await this.memory.set(`test-run:${runId}`, result, {
+  private async storeResults(runId: string, result: TestRunResult, testFiles?: readonly string[]): Promise<void> {
+    // #1028 N1: the record names the test files it ran, so per-test duration
+    // is compared only between runs of the same test set.
+    const files = testFiles && testFiles.length > 0 ? [...new Set(testFiles)].sort() : undefined;
+    await this.memory.set(`test-run:${runId}`, files ? { ...result, testFiles: files } : result, {
       namespace: 'test-execution',
       persist: true,
     });
