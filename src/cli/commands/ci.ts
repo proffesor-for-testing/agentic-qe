@@ -21,7 +21,12 @@ import {
   type CIRunResult,
 } from '../utils/ci-config.js';
 import { writeOutput, toJSON } from '../utils/ci-output.js';
-import { buildCoverageData } from '../utils/coverage-data.js';
+import {
+  coverageExitCode,
+  coverageJson,
+  evaluateCliCoverage,
+  type CoverageAnalyzeAPI,
+} from '../utils/coverage-verdict.js';
 import {
   InsufficientQualityEvidenceError,
   evaluateQualityEvidence,
@@ -58,6 +63,8 @@ async function executePhase(
     let details: Record<string, unknown> = {};
     let status: 'passed' | 'failed' | 'warning' = 'passed';
     let summary = '';
+    /** Phase-specific exit code (e.g. 3 = coverage UNMEASURED); defaults by status. */
+    let phaseExitCode: number | undefined;
 
     switch (phase.type) {
       case 'test': {
@@ -108,32 +115,55 @@ async function executePhase(
 
         const target = (phase.config.target as string) || '.';
         const threshold = (phase.config.threshold as number) || 80;
-        const { walkSourceFiles } = await import('../utils/file-discovery.js');
-        const targetPath = path.resolve(target);
-        const sourceFiles = walkSourceFiles(targetPath, { includeTests: false });
 
-        // Build coverage data from real V8/istanbul output or deterministic estimation.
-        // #995: read the report of the target's project root, not the cwd's.
-        const { findCoverageProjectRoot } = await import('../../coordination/handlers/coverage-target.js');
-        const coverageData = buildCoverageData(sourceFiles, findCoverageProjectRoot(targetPath) ?? process.cwd());
+        // #1010: the SAME resolution and verdict as `aqe coverage` and MCP
+        // (report file targets, lcov.info, project-root reports, scoping).
+        // Only a measured result is gated; a target the report does not cover
+        // is UNMEASURED (never 0%), an uncollected metric is left out of the
+        // threshold, and a no-report heuristic is a labelled estimate.
+        const outcome = await evaluateCliCoverage(
+          coverageAPI as unknown as CoverageAnalyzeAPI, path.resolve(target), threshold, () => undefined,
+        );
+        const doc = coverageJson(outcome, threshold, path.resolve(target));
+        const figures = (doc.summary ?? {}) as Record<string, number | null>;
+        details = { ...figures, ...doc, threshold };
+        delete (details as Record<string, unknown>).summary;
+        const pct = (v: number | null | undefined) => (v === null || v === undefined ? 'n/a' : `${Math.round(v * 10) / 10}%`);
 
-        // #1008: a heuristic estimate is reported, never persisted as coverage evidence.
-        const result = await coverageAPI.analyze({
-          coverageData, threshold, includeFileDetails: true, measured: coverageData.instrumented,
-        });
-        if (result.success && result.value) {
-          const report = result.value as { summary: { line: number; branch: number }; meetsThreshold: boolean };
-          details = { ...report.summary, meetsThreshold: report.meetsThreshold, threshold };
-          status = report.meetsThreshold ? 'passed' : 'warning';
-          summary = `Line: ${report.summary.line}%, Branch: ${report.summary.branch}% — ${report.meetsThreshold ? 'meets' : 'below'} ${threshold}% threshold`;
-
-          const artifactPath = path.join(outputDir, 'coverage.json');
-          fs.writeFileSync(artifactPath, toJSON(result.value), 'utf-8');
-          artifacts.push(artifactPath);
-        } else {
-          status = 'failed';
-          summary = result.error?.message || 'Coverage analysis failed';
+        switch (outcome.kind) {
+          case 'measured': {
+            status = outcome.verdict.meetsThreshold ? 'passed' : 'warning';
+            summary = `Line: ${pct(outcome.summary.line)}, Branch: ${pct(outcome.summary.branch)} — ` +
+              `${outcome.verdict.meetsThreshold ? 'meets' : 'below'} ${threshold}% threshold (measured)`;
+            break;
+          }
+          case 'estimate': {
+            status = 'warning';
+            phaseExitCode = coverageExitCode(outcome, threshold);
+            summary = `UNMEASURED — no coverage report; heuristic ESTIMATE only (line ~${pct(outcome.summary.line)}), ` +
+              'not gated. Run tests with coverage to measure.';
+            break;
+          }
+          case 'unmeasured': {
+            status = 'warning';
+            phaseExitCode = coverageExitCode(outcome, threshold);
+            summary = `UNMEASURED — ${outcome.message}`;
+            break;
+          }
+          case 'no-sources': {
+            status = 'warning';
+            summary = 'No source files found';
+            break;
+          }
+          default: {
+            status = 'failed';
+            summary = outcome.message;
+          }
         }
+
+        const artifactPath = path.join(outputDir, 'coverage.json');
+        fs.writeFileSync(artifactPath, toJSON(doc), 'utf-8');
+        artifacts.push(artifactPath);
         break;
       }
 
@@ -249,7 +279,7 @@ async function executePhase(
       type: phase.type,
       status,
       duration,
-      exitCode: status === 'failed' ? 1 : 0,
+      exitCode: phaseExitCode ?? (status === 'failed' ? 1 : 0),
       summary,
       artifacts,
       details,
