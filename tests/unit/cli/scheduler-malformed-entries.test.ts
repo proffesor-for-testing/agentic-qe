@@ -9,6 +9,8 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PersistentScheduler, type PersistedSchedule } from '../../../src/cli/scheduler/index.js';
+import { createWorkflowCommand } from '../../../src/cli/commands/workflow.js';
+import type { CLIContext } from '../../../src/cli/handlers/interfaces.js';
 
 let root: string;
 let file: string;
@@ -126,5 +128,20 @@ describe('malformed schedule entries (#991)', () => {
     expect(backups).toHaveLength(1);
     expect(readFileSync(join(root, backups[0]), 'utf8')).toBe('{ not json');
     expect(JSON.parse(readFileSync(file, 'utf8')).schedules.map((s: PersistedSchedule) => s.id)).toEqual(['added']);
+  });
+
+  it('workflow list prints (missing) instead of undefined for absent fields', async () => {
+    writeEntries([{ id: 'missing' }]);
+    const messages: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((...values) => { messages.push(values.join(' ')); });
+    const exit = vi.fn(async () => undefined) as unknown as (code: number) => Promise<never>;
+    const context = { persistentScheduler: new PersistentScheduler({ schedulesPath: file }) } as unknown as CLIContext;
+
+    await createWorkflowCommand(context, exit, async () => true).parseAsync(['list', '--scheduled'], { from: 'user' });
+
+    const output = messages.join('\n');
+    expect(output).not.toContain('undefined');
+    expect(output).toContain('(missing)');
+    expect(output).toContain('missing');
   });
 });
