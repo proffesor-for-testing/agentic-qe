@@ -1,5 +1,5 @@
 /**
- * Issue #991: a schedules.json entry with no `schedule` key, or a
+ * Issue #991 (+ #913): a schedules.json entry with no `schedule` key, or a
  * non-object entry, made parseSchedulesFile throw, so loadSchedules treated
  * the whole file as corrupt, backed it up and REMOVED it: every valid
  * schedule disappeared. Only genuinely unparseable JSON may take that path.
@@ -95,6 +95,16 @@ describe('malformed schedule entries (#991)', () => {
 
     await expect(scheduler.setEnabled('missing', true)).rejects.toThrow(/missing cron expression/i);
     expect((await scheduler.getSchedule('missing'))?.enabled).toBe(false);
+  });
+
+  it('does not throw from markExecuted for an entry disabled on load (#913)', async () => {
+    writeEntries([valid('keep-a'), { ...valid('legacy'), schedule: '0 22-27 * * *' }]);
+    const scheduler = new PersistentScheduler({ schedulesPath: file });
+
+    await expect(scheduler.markExecuted('legacy')).resolves.toBeUndefined();
+    const legacy = await scheduler.getSchedule('legacy');
+    expect(legacy?.enabled).toBe(false);
+    expect(legacy?.lastRun).toBeDefined();
   });
 
   it('still backs up and removes a genuinely unparseable file', async () => {

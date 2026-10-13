@@ -293,7 +293,12 @@ export class PersistentScheduler {
 
       const now = new Date();
       schedule.lastRun = now.toISOString();
-      schedule.nextRun = calculateNextRun(schedule.schedule, now).toISOString();
+      // #913: an entry disabled on load (legacy/invalid cron, missing fields)
+      // has no computable next run. Record the run and keep it disabled
+      // instead of throwing from calculateNextRun.
+      if (!schedule.disabledReason) {
+        schedule.nextRun = calculateNextRun(schedule.schedule, now).toISOString();
+      }
 
       await this.writeSchedules(schedules, skipped);
       this.log(`Marked executed: ${id}, next run: ${schedule.nextRun}`);
@@ -313,7 +318,7 @@ export class PersistentScheduler {
         throw new Error(`Schedule not found: ${id}`);
       }
 
-      // #991: an entry disabled on load cannot run; say why instead of
+      // #913/#991: an entry disabled on load cannot run; say why instead of
       // failing inside calculateNextRun (or with no cron at all).
       if (enabled && schedule.disabledReason) {
         throw new Error(`Cannot enable schedule ${id}: ${schedule.disabledReason}`);
