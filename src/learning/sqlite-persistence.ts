@@ -754,6 +754,40 @@ export class SQLitePatternStore {
    * not trigger an unbounded re-ingest of every historical embedding (which
    * is what reproduces the "regrew to 59 GB" pathology after `: > patterns.rvf`).
    */
+  /**
+   * Pattern ids that have a stored vector in `spaceId`, most recently used
+   * first (#981 review B2: find vectors the RVF index is missing).
+   */
+  getEmbeddingIdsInSpace(spaceId: string): string[] {
+    if (!this.db) throw new Error('Database not initialized');
+    const rows = this.db.prepare(`
+      SELECT e.pattern_id
+        FROM qe_pattern_embeddings e
+        LEFT JOIN qe_patterns p ON p.id = e.pattern_id
+       WHERE e.space_id = ?
+       ORDER BY COALESCE(p.last_used_at, p.created_at, e.created_at) DESC
+    `).all(spaceId) as Array<{ pattern_id: string }>;
+    return rows.map(row => row.pattern_id);
+  }
+
+  /** Stored vectors for the given pattern ids (#981 review B2). */
+  getEmbeddingsByIds(ids: string[]): Array<{ patternId: string; embedding: number[] }> {
+    if (!this.db) throw new Error('Database not initialized');
+    const out: Array<{ patternId: string; embedding: number[] }> = [];
+    const stmt = this.db.prepare(
+      'SELECT pattern_id, embedding, dimension, space_id FROM qe_pattern_embeddings WHERE pattern_id = ?',
+    );
+    for (const id of ids) {
+      const row = stmt.get(id) as EmbeddingRow | undefined;
+      if (!row) continue;
+      out.push({
+        patternId: row.pattern_id,
+        embedding: Array.from(new Float32Array(row.embedding.buffer, row.embedding.byteOffset, row.dimension)),
+      });
+    }
+    return out;
+  }
+
   getRecentEmbeddings(limit: number): Array<{ patternId: string; embedding: number[]; spaceId: string | null }> {
     if (!this.db) throw new Error('Database not initialized');
     const cap = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 1000;

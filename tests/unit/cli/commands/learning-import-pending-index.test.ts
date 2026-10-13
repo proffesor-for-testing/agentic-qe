@@ -59,6 +59,18 @@ describe('aqe learning import with no embedder (#981)', () => {
     }));
   });
 
+  it('#981 review N2: counts rows stored text-only (no vector) in pendingIndex', async () => {
+    const storePattern = vi.fn(async (o: { name: string }) => ({
+      success: true as const,
+      value: { id: o.name, name: o.name, embedding: o.name === 'p-0' ? [0.1, 0.2] : undefined },
+    }));
+    mocks.initializeLearningSystem.mockResolvedValue({ storePattern });
+
+    await createLearningCommand().exitOverride().parseAsync(['node', 'learning', 'import', '-i', exportFile(3), '--json']);
+
+    expect(mocks.printJson).toHaveBeenCalledWith(expect.objectContaining({ imported: 3, skipped: 0, pendingIndex: 2 }));
+  });
+
   it('still skips a FAILED write', async () => {
     const storePattern = vi.fn(async (o: { name: string }) => ({
       success: false as const,

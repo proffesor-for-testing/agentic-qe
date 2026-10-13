@@ -195,11 +195,29 @@ function registerBackfillEmbeddingsCommand(learning: Command): void {
 
         const result = await store.backfillEmbeddings(batchSize);
         const after = store.getGhostPatternCount();
+        // #981 review B2: backfill writes SQLite vectors only. Opening the
+        // reasoning bank reconciles the RVF index with them (ingesting just
+        // the ids it is missing), so backfilled patterns reach vector search
+        // even when patterns.rvf already held other vectors.
+        let rvfIndex: { ingested: number; missing: number; capped: boolean } | { skipped: string } =
+          { skipped: 'vector index unavailable' };
+        if (result.processed > 0) {
+          try {
+            const reasoningBank = await initializeLearningSystem();
+            const reconciled = reasoningBank.getLastVectorReconcile() ?? reasoningBank.reconcileVectorIndex();
+            if (reconciled) {
+              rvfIndex = { ingested: reconciled.ingested, missing: reconciled.missing, capped: reconciled.capped };
+            }
+          } catch (error) {
+            rvfIndex = { skipped: error instanceof Error ? error.message : String(error) };
+          }
+        }
         const output = {
           ...result,
           batchSize,
           missingBefore: before.withoutEmbeddings,
           missingAfter: after.withoutEmbeddings,
+          rvfIndex,
         };
 
         if (options.json) {
@@ -211,6 +229,9 @@ function registerBackfillEmbeddingsCommand(learning: Command): void {
           console.log(`  Errors: ${result.errors}`);
           console.log(`  Remaining missing: ${after.withoutEmbeddings}`);
           console.log(`  Method: ${result.method}`);
+          console.log('ingested' in rvfIndex
+            ? `  Vector index (RVF): ingested ${rvfIndex.ingested} of ${rvfIndex.missing} missing${rvfIndex.capped ? ' (capped; rerun to continue)' : ''}`
+            : `  Vector index (RVF): not updated (${rvfIndex.skipped})`);
           console.log('');
         }
       } catch (error) {
@@ -481,7 +502,11 @@ function registerImportCommand(learning: Command): void {
                 patternType: pattern.patternType, name: pattern.name,
                 description: pattern.description, template: pattern.template, context: pattern.context,
               });
-              if (result.success) imported++;
+              if (result.success) {
+                imported++;
+                // #981 review N2: stored text-only (no embedding runtime) → vector pending.
+                if (!(result.value.embedding && result.value.embedding.length > 0)) pendingIndex++;
+              }
               // #981: the row committed; only its vector index is pending.
               else if (committedPendingIndexPatternId(result.error)) { imported++; pendingIndex++; }
               else { skipped++; errors.push(`${pattern.name}: ${result.error.message}`); }

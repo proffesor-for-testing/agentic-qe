@@ -91,6 +91,33 @@ describe('aqe hooks learn — committed row with pending vector index (#981)', (
     expect(text).not.toMatch(/\n\s+at /);
   });
 
+  it('#981 review N1: with a working embedder the vector is stored, so no install/backfill advice is given', async () => {
+    shared.storePattern.mockResolvedValue({
+      success: false,
+      error: new PatternMutationError(PATTERN.id, 'COMMITTED_PENDING_INDEX',
+        new Error('RVF unavailable after authoritative pattern commit: VECTOR_SPACE_UNVERIFIED: no embedding runtime was available when the RVF index was opened')),
+    });
+    shared.getPattern.mockResolvedValue({ ...PATTERN, embedding: Array.from({ length: 384 }, () => 0.01) });
+
+    await runLearn(['--json']);
+
+    const json = JSON.parse(out.join('\n'));
+    expect(json.vectorIndex).toBe('sqlite');
+    expect(json.warning).toMatch(/vector is stored/i);
+    expect(json.warning).toMatch(/next time/i);
+    expect(json.warning).not.toMatch(/AQE_EMBEDDER_ENDPOINT|@huggingface|backfill-embeddings/);
+  });
+
+  it('a successful store with a vector reports it indexed and prints no notice', async () => {
+    shared.storePattern.mockResolvedValue({ success: true, value: { ...PATTERN, embedding: [0.1, 0.2] } });
+
+    await runLearn(['--json']);
+
+    const json = JSON.parse(out.join('\n'));
+    expect(json.vectorIndex).toBe('indexed');
+    expect(json).not.toHaveProperty('warning');
+  });
+
   it('a FAILED disposition is still a failure', async () => {
     shared.storePattern.mockResolvedValue({
       success: false,
