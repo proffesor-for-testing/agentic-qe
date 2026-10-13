@@ -287,7 +287,7 @@ describe('static quality analysis never invents values (#1011, #1002, #1021)', (
     });
 
     it('measures every requested metric for well-formed source', async () => {
-      const result = await service(memoryStub({ 'coverage:latest': { line: 91, measured: true } })).analyzeQuality({
+      const result = await service(memoryStub({ 'coverage:latest': { line: 91, branch: null, function: null, statement: 91, files: 1, measured: true } })).analyzeQuality({
         sourceFiles: goodFiles(2),
         includeMetrics: [],
       });
