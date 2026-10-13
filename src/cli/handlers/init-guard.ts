@@ -10,15 +10,21 @@
  */
 
 import { isSharedSystemDir } from '../../kernel/shared-dirs.js';
+import { resolve } from 'node:path';
 
-/** Error message when `cwd` must not be initialized, otherwise null. */
+/** The explicit root is also the destination for all init-generated files. */
+export function initProjectRoot(cwd: string = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
+  return resolve(cwd, env.AQE_PROJECT_ROOT || '.');
+}
+
+/** Error message when the selected root must not be initialized, otherwise null. */
 export function sharedDirInitError(cwd: string, env: NodeJS.ProcessEnv = process.env): string | null {
-  if (env.AQE_PROJECT_ROOT) return null;
-  if (!isSharedSystemDir(cwd)) return null;
+  const projectRoot = initProjectRoot(cwd, env);
+  if (!isSharedSystemDir(projectRoot)) return null;
   return (
-    `Refusing to initialize in "${cwd}": it is a shared temp/system directory, ` +
+    `Refusing to initialize in "${projectRoot}": it is a shared temp/system directory, ` +
     'so a store here would be shared by every unrelated project below it and ' +
     'later commands would not use it. Create a project directory first ' +
-    '(mkdir my-project && cd my-project) or set AQE_PROJECT_ROOT to choose a root.'
+    '(mkdir my-project && cd my-project) or set AQE_PROJECT_ROOT to a project directory.'
   );
 }

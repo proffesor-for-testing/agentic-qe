@@ -17,7 +17,7 @@ import type { RequirementsValidationExtendedAPI } from '../../domains/requiremen
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { resolveInitFlags } from './init-flags.js';
-import { sharedDirInitError } from './init-guard.js';
+import { initProjectRoot, sharedDirInitError } from './init-guard.js';
 
 // ============================================================================
 // Init Handler
@@ -105,6 +105,7 @@ export class InitHandler implements ICommandHandler {
     }
 
     try {
+      const projectRoot = initProjectRoot();
       // #1006 (review of #1026 N3): never initialize a store in a shared
       // temp/system dir; later commands would resolve elsewhere and ignore it.
       const sharedDirError = sharedDirInitError(process.cwd());
@@ -137,12 +138,12 @@ export class InitHandler implements ICommandHandler {
 
         // Use modular orchestrator for --auto or --modular
         if (options.auto || options.modular || options.browserEngine) {
-          await this.runModularInit(options, context);
+          await this.runModularInit(options, context, projectRoot);
           return;
         }
 
         // Legacy wizard mode using InitOrchestrator
-        await this.runLegacyWizard(options, context);
+        await this.runLegacyWizard(options, context, projectRoot);
         return;
       }
 
@@ -169,7 +170,7 @@ export class InitHandler implements ICommandHandler {
 
       if (options.browserEngine || options.modular || platformRequested || databaseFree || noClaudeRequested || noStatusLineRequested) {
         console.log(chalk.blue('\n  Agentic QE v3 Initialization\n'));
-        await this.runModularInit(options, context);
+        await this.runModularInit(options, context, projectRoot);
         return;
       }
 
@@ -181,7 +182,7 @@ export class InitHandler implements ICommandHandler {
     }
   }
 
-  private async runModularInit(options: InitOptions, _context: CLIContext): Promise<void> {
+  private async runModularInit(options: InitOptions, _context: CLIContext, projectRoot: string): Promise<void> {
     const isJsonMode = options.json === true;
     // #931/#935: commander maps --no-<name> to options.<name> === false.
     const flags = resolveInitFlags(options);
@@ -216,7 +217,7 @@ export class InitHandler implements ICommandHandler {
 
     const { createModularInitOrchestrator } = await import('../../init/orchestrator.js');
     const orchestrator = createModularInitOrchestrator({
-      projectRoot: process.cwd(),
+      projectRoot,
       autoMode: options.auto,
       upgrade: options.upgrade,
       minimal: options.minimal,
@@ -294,7 +295,7 @@ export class InitHandler implements ICommandHandler {
       try {
         const { setupClaudeFlowIntegration } = await import('../commands/claude-flow-setup.js');
         cfResult = await setupClaudeFlowIntegration({
-          projectRoot: process.cwd(),
+          projectRoot,
           force: options.withClaudeFlow,
         });
 
@@ -355,11 +356,11 @@ export class InitHandler implements ICommandHandler {
     await this.cleanupAndExit(0);
   }
 
-  private async runLegacyWizard(options: InitOptions, _context: CLIContext): Promise<void> {
+  private async runLegacyWizard(options: InitOptions, _context: CLIContext, projectRoot: string): Promise<void> {
     const flags = resolveInitFlags(options);
     const { InitOrchestrator } = await import('../../init/init-wizard.js');
     const orchestratorOptions: InitOrchestratorOptions = {
-      projectRoot: process.cwd(),
+      projectRoot,
       autoMode: options.auto,
       minimal: options.minimal,
       browserEngine: options.browserEngine,

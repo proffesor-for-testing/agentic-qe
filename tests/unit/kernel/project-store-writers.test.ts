@@ -15,7 +15,7 @@ import { NotificationService } from '../../../src/workers/quality-daemon/notific
 import { PluginCache } from '../../../src/plugins/cache';
 import { GitHubPluginSource } from '../../../src/plugins/sources/github';
 import { NpmPluginSource } from '../../../src/plugins/sources/npm';
-import { sharedDirInitError } from '../../../src/cli/handlers/init-guard';
+import { initProjectRoot, sharedDirInitError } from '../../../src/cli/handlers/init-guard';
 
 describe('store writers resolve the project store, not the cwd', () => {
   let base: string;
@@ -80,5 +80,16 @@ describe('aqe init in a shared directory (N3)', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('uses the explicit root as the init destination, even when cwd is shared', () => {
+    const project = path.join(os.tmpdir(), 'aqe-explicit-project');
+    expect(initProjectRoot(os.tmpdir(), { AQE_PROJECT_ROOT: project })).toBe(project);
+    expect(sharedDirInitError(os.tmpdir(), { AQE_PROJECT_ROOT: project })).toBeNull();
+  });
+
+  it('refuses an explicit root that is itself a shared directory', () => {
+    expect(sharedDirInitError('/some-project', { AQE_PROJECT_ROOT: os.tmpdir() }))
+      .toMatch(/shared temp\/system directory/);
   });
 });
