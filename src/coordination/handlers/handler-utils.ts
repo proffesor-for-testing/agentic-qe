@@ -7,6 +7,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { isAqeManagedDir } from '../../shared/aqe-managed-dirs.js';
 import { safeJsonParse } from '../../shared/safe-json.js';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis';
 
@@ -517,9 +518,10 @@ export async function discoverSourceFiles(
              'tmp', 'temp', '.tmp'].includes(entry.name)) {
             continue;
           }
-          // #999 review N4: AQE state and init-written assets only at the root;
-          // a nested package's own .claude/ or .agentic-qe/ source is kept.
-          if (dir === targetPath && (entry.name === '.agentic-qe' || entry.name === '.claude')) continue;
+          // #999: AQE state/assets are not source: .agentic-qe anywhere; .claude at
+          // the root or next to a nested .agentic-qe. A plugin's own .claude/hooks
+          // source (no AQE install beside it) is kept.
+          if (isAqeManagedDir(dir, entry.name, dir === targetPath)) continue;
           if (files.length >= maxFiles) return; // Cap reached
           await walkDir(fullPath);
         } else if (entry.isFile()) {

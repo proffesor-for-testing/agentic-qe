@@ -15,6 +15,7 @@
 
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
+import { AQE_STATE_DIR } from '../../../../shared/aqe-managed-dirs.js';
 import {
   MetricCollector,
   MetricCollectorConfig,
@@ -284,7 +285,8 @@ export class MetricCollectorService implements IMetricCollectorService {
     let totalConsole = 0;
 
     const patterns = this.getPatternsForLanguage(language);
-    // #999: same exclusions as LOC/test counting; .agentic-qe/.claude only at the root (N4)
+    // #999: same exclusions as LOC/test counting (.agentic-qe anywhere; .claude at
+    // the root or next to a nested .agentic-qe)
     const excludeDirs = new Set(this.config.excludeDirs);
     const rootExcludeDirs = new Set(this.config.excludeRootDirs ?? []);
 
@@ -299,7 +301,8 @@ export class MetricCollectorService implements IMetricCollectorService {
         if (entry.isDirectory()) {
           // Skip excluded directories
           if (excludeDirs.has(entry.name)) continue;
-          if (dirPath === projectPath && rootExcludeDirs.has(entry.name)) continue;
+          if (rootExcludeDirs.has(entry.name) &&
+              (dirPath === projectPath || existsSync(join(dirPath, AQE_STATE_DIR)))) continue;
           walkDirectory(fullPath);
         } else if (entry.isFile()) {
           const ext = extname(entry.name).toLowerCase();

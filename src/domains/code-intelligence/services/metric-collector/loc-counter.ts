@@ -15,6 +15,7 @@
 import { spawnSync } from 'child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { join, extname } from 'path';
+import { AQE_CLAUDE_DIR, AQE_STATE_DIR, findAqeClaudeDirs } from '../../../../shared/aqe-managed-dirs.js';
 import {
   LOCMetrics,
   ToolAvailability,
@@ -98,19 +99,32 @@ export function checkLOCTools(): ToolAvailability[] {
  */
 export function excludedFileNamesRegex(names: readonly string[] | undefined): string | null {
   if (!names || names.length === 0) return null;
-  // Matches a bare name and, under cloc --fullpath, a full path ending in it.
-  return `(^|/)(${names.map(escapeRegex).join('|')})$`;
+  // Matches a bare name and, under cloc --fullpath, a full path ending in it
+  // (either separator, so Windows paths match too).
+  return `(^|[\\\\/])(${names.map(escapeRegex).join('|')})$`;
 }
 
 /**
- * cloc `--not-match-d` regex (with --fullpath) matching the project-root
- * directories in `dirs` and everything below them, but not same-named
- * directories nested deeper (#999 review N4). Null when there are none.
+ * cloc `--not-match-d` regex (with --fullpath) matching the given
+ * project-relative directories ('/'-separated) and everything below them, but
+ * no other directory of the same name (#999 review N4 / round 2b). Either
+ * path separator matches. Null when there are none.
  */
-export function rootAnchoredDirsRegex(projectPath: string, dirs: readonly string[] | undefined): string | null {
-  if (!dirs || dirs.length === 0) return null;
-  const root = projectPath.replace(/[\\/]+$/, '');
-  return `^${escapeRegex(root)}/(${dirs.map(escapeRegex).join('|')})(/|$)`;
+export function rootAnchoredDirsRegex(projectPath: string, relDirs: readonly string[] | undefined): string | null {
+  if (!relDirs || relDirs.length === 0) return null;
+  const SEP = '[\\\\/]';
+  const toPattern = (path: string) => path.split(/[\\/]+/).filter(Boolean).map(escapeRegex).join(SEP);
+  const root = toPattern(projectPath);
+  const rootPrefix = /^[\\/]/.test(projectPath) ? SEP : '';
+  return `^${rootPrefix}${root}${SEP}(${relDirs.map(toPattern).join('|')})(${SEP}|$)`;
+}
+
+/** Project-relative AQE-managed `.claude` dirs to exclude, if `.claude` is a root exclude. */
+function aqeClaudeDirsToExclude(projectPath: string, config: MetricCollectorConfig): string[] {
+  const rootDirs = config.excludeRootDirs ?? [];
+  if (!rootDirs.includes(AQE_CLAUDE_DIR)) return rootDirs.filter((d) => existsSync(join(projectPath, d)));
+  const others = rootDirs.filter((d) => d !== AQE_CLAUDE_DIR && existsSync(join(projectPath, d)));
+  return [...findAqeClaudeDirs(projectPath, config.excludeDirs), ...others];
 }
 
 function escapeRegex(value: string): string {
@@ -130,9 +144,10 @@ async function tryClocCount(
 ): Promise<LOCMetrics | null> {
   try {
     const args = ['--json', `--exclude-dir=${config.excludeDirs.join(',')}`];
-    const notMatchDir = rootAnchoredDirsRegex(projectPath, config.excludeRootDirs);
-    // --fullpath makes --not-match-d/-f see full paths, so root-only
-    // excludes can be anchored at projectPath (#999 review N4).
+    const notMatchDir = rootAnchoredDirsRegex(projectPath, aqeClaudeDirsToExclude(projectPath, config));
+    // --fullpath makes --not-match-d/-f see full paths, so the AQE-managed
+    // .claude dirs (root, or next to a nested .agentic-qe) are excluded
+    // without dropping other same-named dirs (#999 review N4 / round 2b).
     if (notMatchDir) args.push('--fullpath', `--not-match-d=${notMatchDir}`);
     const notMatch = excludedFileNamesRegex(config.excludeFiles);
     if (notMatch) args.push(`--not-match-f=${notMatch}`);
@@ -203,13 +218,16 @@ async function tryTokeiCount(
     for (const file of config.excludeFiles ?? []) {
       args.push('-e', file);
     }
-    // A leading '/' anchors a tokei (gitignore-style) exclude at the root.
-    for (const dir of config.excludeRootDirs ?? []) {
-      args.push('-e', `/${dir}`);
+    // A leading '/' anchors a tokei (gitignore-style) exclude at the directory
+    // tokei walks, so run it IN the project on '.' (round 2b: with an absolute
+    // path argument the anchored patterns matched nothing).
+    for (const rel of aqeClaudeDirsToExclude(projectPath, config)) {
+      args.push('-e', `/${rel}`);
     }
-    args.push(projectPath);
+    args.push('.');
 
     const result = spawnSync('tokei', args, {
+      cwd: projectPath,
       encoding: 'utf-8',
       timeout: config.timeout,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer (reduced for memory safety)
@@ -352,7 +370,8 @@ function manualLOCCount(
       if (entry.isDirectory()) {
         // Skip excluded directories (exact match or glob-like suffix match)
         if (excludeSet.has(entry.name) || entry.name.startsWith('.') ||
-            (dirPath === projectPath && rootExcludeSet.has(entry.name))) {
+            (rootExcludeSet.has(entry.name) &&
+              (dirPath === projectPath || existsSync(join(dirPath, AQE_STATE_DIR))))) {
           continue;
         }
         walkDirectory(fullPath, depth + 1);

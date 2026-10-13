@@ -157,9 +157,10 @@ export interface MetricCollectorConfig {
   /** File names (exact match) to exclude from LOC counting, e.g. lockfiles (#999) */
   excludeFiles: string[];
   /**
-   * Directories excluded only directly under the project root (#999 review N4):
-   * AQE's own state and the assets `aqe init` writes. A nested directory of the
-   * same name (e.g. a package's own `.claude/hooks` source) is still counted.
+   * Directories excluded directly under the project root, and nested only when
+   * they sit next to a `.agentic-qe/` (a nested `aqe init`): the assets init
+   * writes. Any other directory of the same name (e.g. a plugin's own
+   * `.claude/hooks` source) is still counted (#999 review N4 / round 2b).
    */
   excludeRootDirs: string[];
   /** File patterns to include for test counting */
@@ -186,8 +187,12 @@ export const LOC_EXCLUDED_FILE_NAMES: readonly string[] = Object.freeze([
   'packages.lock.json', 'Package.resolved', 'flake.lock', 'gradle.lockfile',
 ]);
 
-/** AQE state and init-written assets: excluded at the project root only (#999). */
-export const PROJECT_ROOT_EXCLUDED_DIRS: readonly string[] = Object.freeze(['.agentic-qe', '.claude']);
+/**
+ * Init-written assets: excluded at the project root, and nested only next to a
+ * `.agentic-qe/` (a nested `aqe init`). `.agentic-qe` itself is in excludeDirs
+ * (state, never source, at any depth). #999 review N4 / round 2b.
+ */
+export const PROJECT_ROOT_EXCLUDED_DIRS: readonly string[] = Object.freeze(['.claude']);
 
 /**
  * Default configuration values
@@ -203,6 +208,8 @@ export const DEFAULT_METRIC_CONFIG: MetricCollectorConfig = {
     'target', '.gradle', 'vendor', '.bundle',
     // General
     '.git', '.svn', '.hg',
+    // AQE runtime state: never source, at any depth (#999)
+    '.agentic-qe',
   ],
   excludeFiles: [...LOC_EXCLUDED_FILE_NAMES],
   excludeRootDirs: [...PROJECT_ROOT_EXCLUDED_DIRS],

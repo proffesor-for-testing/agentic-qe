@@ -16,6 +16,7 @@ import { SemanticAnalyzerService } from '../../../domains/code-intelligence/serv
 import { ImpactAnalyzerService } from '../../../domains/code-intelligence/services/impact-analyzer';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isAqeManagedDir } from '../../../shared/aqe-managed-dirs.js';
 import { toErrorMessage } from '../../../shared/error-utils.js';
 
 // ============================================================================
@@ -572,8 +573,6 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
     const files: string[] = [];
     const extensions = ['.ts', '.tsx', '.js', '.jsx'];
     const ignoreDirs = ['node_modules', '.git', 'dist', 'build', 'coverage'];
-    // #999 (review N4): AQE state and init-written assets, skipped only at the root
-    const rootIgnoreDirs = ['.agentic-qe', '.claude'];
 
     try {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true });
@@ -582,7 +581,8 @@ export class CodeAnalyzeTool extends MCPToolBase<CodeAnalyzeParams, CodeAnalyzeR
         const fullPath = path.join(dir, entry.name);
 
         if (entry.isDirectory()) {
-          if (!ignoreDirs.includes(entry.name) && !(isRoot && rootIgnoreDirs.includes(entry.name))) {
+          // #999: AQE state/assets (.agentic-qe anywhere; .claude at the root or next to .agentic-qe)
+          if (!ignoreDirs.includes(entry.name) && !isAqeManagedDir(dir, entry.name, isRoot)) {
             const subFiles = await this.findSourceFiles(fullPath, false);
             files.push(...subFiles);
           }
