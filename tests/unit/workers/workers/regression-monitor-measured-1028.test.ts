@@ -53,6 +53,8 @@ async function measuredRun(
   run: {
     runId: string; passed: number; failed: number; skipped?: number; duration?: number;
     failedTests?: string[];
+    /** The test files the run executed, as test-execution records them (#1028 N1). */
+    testFiles?: string[];
     coverage?: { line: number; branch: number | null; function?: number | null; statement?: number | null };
   },
 ): Promise<void> {
@@ -62,6 +64,7 @@ async function measuredRun(
     status: run.failed > 0 ? 'failed' : 'passed',
     total, passed: run.passed, failed: run.failed, skipped: run.skipped ?? 0,
     duration: run.duration ?? total * 10,
+    ...(run.testFiles ? { testFiles: run.testFiles } : {}),
     failedTests: (run.failedTests ?? []).map((name, i) => ({
       testId: `t${i}`, testName: name, file: `tests/${name}.test.ts`, error: 'boom', duration: 5,
     })),
@@ -198,6 +201,18 @@ describe('#1028 — regression-monitor baseline from measured evidence only', ()
     expect(store.read('regression:baseline')).toMatchObject({ measured: true, coverage: { line: 50 } });
   });
 
+  it('a malformed stamped baseline is ignored and reported as invalid, not legacy (#1028 N2)', async () => {
+    const store = namespacedStore();
+    await store.memory.set('regression:baseline', { measured: true, schemaVersion: 2, coverage: { line: 'x' }, tests: null });
+    await measuredRun(store, { runId: 'run-1', passed: 5, failed: 0, coverage: { line: 10, branch: null } });
+
+    const result = await new RegressionMonitorWorker().execute(contextFor(store.memory));
+
+    expect(regressionFindings(result.findings)).toEqual([]);
+    expect(result.metrics.domainMetrics).toMatchObject({ baselineStatus: 'invalid-ignored' });
+    expect(store.read('regression:baseline')).toMatchObject({ measured: true, coverage: { line: 10 } });
+  });
+
   it('a legacy baseline with nothing measured is left in place, not compared and not overwritten', async () => {
     const store = namespacedStore();
     await store.memory.set('regression:baseline', LEGACY_INVENTED_BASELINE);
@@ -253,17 +268,58 @@ describe('#1028 — regression-monitor baseline from measured evidence only', ()
     expect(store.read('regression:baseline')).toMatchObject({ coverage: null, tests: { passRate: 50 } });
   });
 
-  it('per-test duration from the recorded runs: a >20% slowdown is a performance regression', async () => {
-    const store = namespacedStore();
-    const worker = new RegressionMonitorWorker();
-    await measuredRun(store, { runId: 'run-1', passed: 10, failed: 0, duration: 1000 });
-    await worker.execute(contextFor(store.memory));
-    await measuredRun(store, { runId: 'run-2', passed: 10, failed: 0, duration: 2000 });
+  describe('per-test duration (#1028 N1): compared only between runs of the same test set', () => {
+    const FILES_10 = Array.from({ length: 10 }, (_, i) => `tests/t${i}.test.ts`);
 
-    const result = await worker.execute(contextFor(store.memory));
+    it('the same test set 25% slower is a performance regression', async () => {
+      const store = namespacedStore();
+      const worker = new RegressionMonitorWorker();
+      await measuredRun(store, { runId: 'run-1', passed: 10, failed: 0, duration: 1000, testFiles: FILES_10 });
+      await worker.execute(contextFor(store.memory));
+      await measuredRun(store, { runId: 'run-2', passed: 10, failed: 0, duration: 1250, testFiles: [...FILES_10].reverse() });
 
-    const perf = result.findings.find((f) => f.type === 'performance-regression');
-    expect(perf?.context).toMatchObject({ metric: 'avgTestDuration', previousValue: 100, currentValue: 200 });
+      const result = await worker.execute(contextFor(store.memory));
+
+      const perf = result.findings.find((f) => f.type === 'performance-regression');
+      expect(perf?.context).toMatchObject({ metric: 'avgTestDuration', previousValue: 100, currentValue: 125 });
+    });
+
+    it('10 tests then 2 of them at the same per-test speed: wall-time overhead is not a regression', async () => {
+      const store = namespacedStore();
+      const worker = new RegressionMonitorWorker();
+      // Same per-test speed (50 ms) plus 500 ms runner start-up in both runs.
+      await measuredRun(store, { runId: 'run-1', passed: 10, failed: 0, duration: 1000, testFiles: FILES_10 });
+      await worker.execute(contextFor(store.memory));
+      await measuredRun(store, { runId: 'run-2', passed: 2, failed: 0, duration: 600, testFiles: FILES_10.slice(0, 2) });
+
+      const result = await worker.execute(contextFor(store.memory));
+
+      expect(result.findings.some((f) => f.type === 'performance-regression')).toBe(false);
+    });
+
+    it('same count but different test files: not compared', async () => {
+      const store = namespacedStore();
+      const worker = new RegressionMonitorWorker();
+      await measuredRun(store, { runId: 'run-1', passed: 2, failed: 0, duration: 100, testFiles: ['tests/a.test.ts'] });
+      await worker.execute(contextFor(store.memory));
+      await measuredRun(store, { runId: 'run-2', passed: 2, failed: 0, duration: 900, testFiles: ['tests/b.test.ts'] });
+
+      const result = await worker.execute(contextFor(store.memory));
+
+      expect(result.findings.some((f) => f.type === 'performance-regression')).toBe(false);
+    });
+
+    it('run records without their test files (older records): not compared', async () => {
+      const store = namespacedStore();
+      const worker = new RegressionMonitorWorker();
+      await measuredRun(store, { runId: 'run-1', passed: 10, failed: 0, duration: 1000 });
+      await worker.execute(contextFor(store.memory));
+      await measuredRun(store, { runId: 'run-2', passed: 10, failed: 0, duration: 3000 });
+
+      const result = await worker.execute(contextFor(store.memory));
+
+      expect(result.findings.some((f) => f.type === 'performance-regression')).toBe(false);
+    });
   });
 
   it('testsPassing without its recorded run result: pass rate compared, failures and duration not', async () => {
