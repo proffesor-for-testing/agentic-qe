@@ -32,6 +32,7 @@ import {
 import { MetricsCollector } from '../metrics';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
 
 import {
   DEFAULT_FRAMEWORKS,
@@ -134,6 +135,14 @@ export interface QualityAssessResult {
   unmeasured?: string[];
   /** #1011: why each unmeasured metric has no value (e.g. a file could not be parsed). */
   unmeasuredReasons?: Record<string, string>;
+  /** #1021: metrics measured over part of the scope (files that failed to read or parse are listed). */
+  partialMetrics?: PartialQualityMetric[];
+  /** #1021: files left out of the analysis (binary, generated, minified, .d.ts, reader policy); first 50. */
+  excludedFiles?: ExcludedQualityFile[];
+  /** #1021: total number of excluded files. */
+  excludedCount?: number;
+  /** #1021: the directory, file, or 'sourceFiles' that was analysed. */
+  scope?: string;
   /** #996: measured metrics that fail their own limit; any entry blocks. */
   measuredFailures?: MeasuredFailure[];
   /** #996: false for static analysis (runGate omitted/false) — no quality gate ran. */
@@ -728,8 +737,19 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
     const metrics = params.metrics === undefined
       ? ['coverage', 'complexity', 'maintainability']
       : validateRequestedMetrics(params.metrics);
+    // #1021: scope the analysis instead of silently analysing <cwd>/src.
+    // Containment in the project root is enforced by the handler.
+    if (params.target !== undefined && (typeof params.target !== 'string' || params.target.trim() === '')) {
+      throw new Error('target must be a non-empty string path.');
+    }
+    if (params.sourceFiles !== undefined && (!Array.isArray(params.sourceFiles) || params.sourceFiles.length === 0
+      || params.sourceFiles.some((f) => typeof f !== 'string' || f.trim() === ''))) {
+      throw new Error('sourceFiles must be a non-empty array of file paths.');
+    }
     return {
       runGate: params.runGate ?? false,
+      ...(params.target !== undefined ? { target: params.target } : {}),
+      ...(params.sourceFiles !== undefined ? { sourceFiles: params.sourceFiles } : {}),
       threshold: params.threshold || 80,
       // #996: only a caller-supplied threshold overrides the configured/default
       // per-metric limits; the 80 fallback above must not.
@@ -791,6 +811,11 @@ export const qualityAssessConfig: DomainHandlerConfig<QualityAssessParams, Quali
         : {}),
       ...(unmeasured ? { unmeasured } : {}),
       ...(unmeasuredReasons ? { unmeasuredReasons } : {}),
+      // #1021: partial evidence, exclusions and the analysed scope travel with the verdict.
+      ...(Array.isArray(data.partialMetrics) ? { partialMetrics: data.partialMetrics as PartialQualityMetric[] } : {}),
+      ...(Array.isArray(data.excludedFiles) ? { excludedFiles: data.excludedFiles as ExcludedQualityFile[] } : {}),
+      ...(typeof data.excludedCount === 'number' ? { excludedCount: data.excludedCount } : {}),
+      ...(typeof data.scope === 'string' ? { scope: data.scope } : {}),
       ...(measuredFailures ? { measuredFailures } : {}),
       ...(gateEvaluated !== undefined ? { gateEvaluated } : {}),
       ...(confidence !== undefined ? { confidence } : {}),

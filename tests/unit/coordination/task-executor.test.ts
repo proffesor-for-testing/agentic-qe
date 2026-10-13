@@ -446,6 +446,17 @@ describe('DomainTaskExecutor', () => {
   });
 
   describe('quality assessment execution', () => {
+    it('rejects a target outside the project root (#1021)', async () => {
+      const task = createTestTask('assess-quality', {
+        target: TEST_RESULTS_DIR, runGate: false, threshold: 80, metrics: ['complexity'],
+      });
+
+      const result = await executor.execute(task);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/outside the project root/);
+    });
+
     it('should execute analysis-only quality assessment task', async () => {
       const task = createTestTask('assess-quality', {
         // Use TEST_RESULTS_DIR (empty/small) to avoid slow file system walking
@@ -455,7 +466,10 @@ describe('DomainTaskExecutor', () => {
         metrics: ['coverage', 'complexity', 'maintainability'],
       });
 
-      const result = await executor.execute(task);
+      // #1021: the target must exist and lie inside the project root (cwd).
+      await fs.mkdir(TEST_RESULTS_DIR, { recursive: true });
+      const cwd = vi.spyOn(process, 'cwd').mockReturnValue(TEST_RESULTS_DIR);
+      const result = await executor.execute(task).finally(() => cwd.mockRestore());
 
       expect(result.success).toBe(true);
       expect(result.domain).toBe('quality-assessment');
@@ -919,8 +933,15 @@ describe('TaskExecutor integration', () => {
     ];
 
     for (const task of testTasks) {
-      const result = await executor.execute(task);
-      expect(result.success).toBe(true);
+      // #1021: an assess-quality target must lie inside the project root
+      // (cwd); make TEST_DIR the root for that task.
+      const cwd = task.type === 'assess-quality' ? vi.spyOn(process, 'cwd').mockReturnValue(TEST_DIR) : undefined;
+      try {
+        const result = await executor.execute(task);
+        expect(result.success).toBe(true);
+      } finally {
+        cwd?.mockRestore();
+      }
     }
 
     // All results should be in index

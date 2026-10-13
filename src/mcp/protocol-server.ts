@@ -1131,6 +1131,8 @@ export class MCPProtocolServer {
         parameters: [
           { name: 'runGate', type: 'boolean', description: 'Evaluate all seven canonical measured quality checks; requires complete, valid evidence from the last 24 hours. Returns individual checks, not a static aggregate score. Missing, stale or malformed evidence fails with status "insufficient-evidence" and lists the metrics in unmeasured. When false, only static analysis runs (gateEvaluated: false).', default: false },
           { name: 'metrics', type: 'array', description: 'Static-analysis metrics to assess (default coverage, complexity, maintainability). Known: coverage, complexity, maintainability, duplication, testability, security. Any requested metric without measured data gives status "insufficient-evidence", passed: false, and lists it in unmeasured; a measured metric failing its threshold blocks.', items: { type: 'string' } },
+          { name: 'target', type: 'string', description: 'File or directory to analyse, resolved against the project root and required to stay inside it (default: src/, else the root). Binary, generated, minified and .d.ts files are excluded and listed in excludedFiles; files that fail to parse are listed in partialMetrics.' },
+          { name: 'sourceFiles', type: 'array', description: 'Explicit files to analyse (each inside the project root); takes precedence over target. If a listed file cannot be read or parsed, the affected metrics are unmeasured.', items: { type: 'string' } },
           saveResultsParameter('quality_assess'),
         ],
       },

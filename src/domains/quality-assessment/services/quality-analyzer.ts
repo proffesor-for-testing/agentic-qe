@@ -21,6 +21,8 @@ import {
   ComplexityHotspot,
   LLMQualityInsights,
   UnmeasuredQualityMetric,
+  ExcludedQualityFile,
+  PartialQualityMetric,
 } from '../interfaces';
 
 // ADR-051: LLM Router for AI-enhanced quality insights
@@ -72,14 +74,30 @@ export interface QualityAnalyzerDependencies {
 /** Metrics the static analyzer produces when the caller asks for all of them. */
 const ANALYZER_METRICS = ['coverage', 'complexity', 'maintainability', 'duplication', 'testability'] as const;
 /** Metrics computed from parsing each source file. */
-const PARSED_METRICS = new Set(['complexity', 'maintainability', 'testability', 'duplication']);
+const PARSED_METRICS = new Set(['complexity', 'maintainability', 'testability']);
+/**
+ * #1021: a parsed metric with read/parse failures is still evidence when at
+ * least this share of the analysable files (in-scope minus excluded) was
+ * analysed. Below it, the unseen files are too large a blind spot for an
+ * average to describe the target, so the metric is unmeasured. 95% keeps one
+ * failure in a 20-file scope acceptable but not one in 10.
+ */
+export const MIN_ANALYSED_SHARE = 0.95;
 /** #1011: the sentinel for "not measured" in score and complexity fields. */
 const UNMEASURED = -1;
 
-/** Per-file metric values plus the requested metrics that could not be measured. */
+/** Per-file metric values plus how each requested metric counts as evidence. */
 interface CollectedMetrics {
   fileMetrics: Map<string, Record<string, number>>;
   unmeasured: UnmeasuredQualityMetric[];
+  excluded: ExcludedQualityFile[];
+  partial: PartialQualityMetric[];
+}
+
+/** First reasons of a failure list, for a one-line explanation. */
+function summariseFailures(failures: ExcludedQualityFile[]): string {
+  return failures.slice(0, 3).map((f) => f.reason).join('; ')
+    + (failures.length > 3 ? `; and ${failures.length - 3} more` : '');
 }
 
 const DEFAULT_CONFIG: QualityAnalyzerConfig = {
@@ -361,7 +379,8 @@ Focus on:
       }
 
       // Analyze metrics for each file; failures become unmeasured (#1011)
-      const { fileMetrics, unmeasured } = await this.collectFileMetrics(sourceFiles, includeMetrics);
+      const { fileMetrics, unmeasured, excluded, partial } = await this.collectFileMetrics(
+        sourceFiles, includeMetrics, request.explicitFiles ?? []);
 
       // Calculate aggregated metrics
       const metricDetails = this.aggregateMetrics(fileMetrics);
@@ -393,6 +412,8 @@ Focus on:
         recommendations,
         llmInsights,
         unmeasured,
+        excluded,
+        partial,
       };
 
       // Store the report
@@ -505,25 +526,59 @@ Focus on:
   // ============================================================================
 
   /**
-   * Collect per-file metric values. #1011: a file that cannot be read or parsed,
-   * a failed duplication detection, or missing coverage data makes the affected
-   * metric UNMEASURED (omitted, with a reason) — never a fixed fallback value.
-   * A parsed metric is measured only when every file in scope was analysed.
+   * Collect per-file metric values. #1011 / #1021:
+   * - excluded files (binary, generated, minified, declarations, refused by
+   *   reader policy) leave the scope with a reason;
+   * - failed files (unreadable, unparseable) make a parsed metric partial, or
+   *   unmeasured below MIN_ANALYSED_SHARE or when a failed file was named
+   *   explicitly;
+   * - failed duplication detection and missing coverage are unmeasured.
+   * Never a fixed fallback value.
    */
   private async collectFileMetrics(
     files: string[],
-    includeMetrics: string[]
+    includeMetrics: string[],
+    explicitFiles: string[]
   ): Promise<CollectedMetrics> {
     const requested: string[] = includeMetrics.length === 0 ? [...ANALYZER_METRICS] : includeMetrics;
     const wants = (metric: string): boolean => requested.includes(metric);
     const fileMetrics = new Map<string, Record<string, number>>();
     const unmeasured: UnmeasuredQualityMetric[] = [];
-    const failures: Array<{ file: string; reason: string }> = [];
+    const excluded: ExcludedQualityFile[] = [];
+    const partial: PartialQualityMetric[] = [];
+    const parseFailed: ExcludedQualityFile[] = [];
+    const unreadable: ExcludedQualityFile[] = [];
+    const readable: string[] = [];
     const missingCoverage: string[] = [];
+    const explicit = new Set(explicitFiles);
+    const needsAnalysis = requested.some((m) => PARSED_METRICS.has(m) || m === 'duplication');
 
     for (const file of files) {
       const metrics: Record<string, number> = {};
-      fileMetrics.set(file, metrics);
+
+      if (needsAnalysis) {
+        const outcome = await this.metricsAnalyzer.analyzeFileDetailed(file);
+        const reason = outcome.reason ?? `${file} could not be analysed`;
+        if (outcome.status === 'excluded') {
+          excluded.push({ file, reason });
+          continue;
+        }
+        if (outcome.metrics) readable.push(file);
+        if (outcome.status === 'failed') {
+          (outcome.metrics ? parseFailed : unreadable).push({ file, reason });
+        } else if (outcome.metrics) {
+          const analysis = outcome.metrics;
+          if (wants('complexity')) metrics.complexity = analysis.cyclomaticComplexity;
+          if (wants('maintainability')) metrics.maintainability = analysis.maintainabilityIndex;
+          if (wants('testability')) {
+            // Testability is derived from complexity and maintainability
+            // Lower complexity and higher maintainability = higher testability
+            const complexityFactor = Math.max(0, 100 - analysis.cyclomaticComplexity * 3);
+            const maintainabilityFactor = analysis.maintainabilityIndex;
+            metrics.testability = Math.round((complexityFactor * 0.4 + maintainabilityFactor * 0.6) * 100) / 100;
+          }
+        }
+      }
 
       if (wants('coverage')) {
         // Coverage requires external data (from test runners) — never fabricate a number
@@ -534,51 +589,72 @@ Focus on:
           missingCoverage.push(file);
         }
       }
-
-      if (!requested.some((m) => PARSED_METRICS.has(m))) continue;
-      const { metrics: analysis, unmeasuredReason } = await this.metricsAnalyzer.analyzeFileDetailed(file);
-      if (!analysis || unmeasuredReason) {
-        failures.push({ file, reason: unmeasuredReason ?? `${file} could not be analysed` });
-        continue;
-      }
-      if (wants('complexity')) metrics.complexity = analysis.cyclomaticComplexity;
-      if (wants('maintainability')) metrics.maintainability = analysis.maintainabilityIndex;
-      if (wants('testability')) {
-        // Testability is derived from complexity and maintainability
-        // Lower complexity and higher maintainability = higher testability
-        const complexityFactor = Math.max(0, 100 - analysis.cyclomaticComplexity * 3);
-        const maintainabilityFactor = analysis.maintainabilityIndex;
-        metrics.testability = Math.round((complexityFactor * 0.4 + maintainabilityFactor * 0.6) * 100) / 100;
-      }
+      fileMetrics.set(file, metrics);
     }
 
+    const total = fileMetrics.size;
     if (missingCoverage.length > 0) {
       for (const metrics of fileMetrics.values()) delete metrics.coverage;
       unmeasured.push({
         metric: 'coverage',
-        reason: `no measured coverage recorded for ${missingCoverage.length} of ${files.length} file(s)`,
+        reason: `no measured coverage recorded for ${missingCoverage.length} of ${total} file(s)`,
       });
     }
 
-    if (failures.length > 0) {
-      // A partial average would claim to describe files it never saw.
-      const reason = `${failures.length} of ${files.length} file(s) could not be analysed: `
-        + failures.slice(0, 3).map((f) => f.reason).join('; ')
-        + (failures.length > 3 ? `; and ${failures.length - 3} more` : '');
-      for (const metric of requested.filter((m) => PARSED_METRICS.has(m))) {
-        for (const metrics of fileMetrics.values()) delete metrics[metric];
-        unmeasured.push({ metric, reason, files: failures.map((f) => f.file) });
+    /** Decide whether a metric with these failures is measured, partial or unmeasured. */
+    const judge = (metric: string, failures: ExcludedQualityFile[]): boolean => {
+      const analysed = total - failures.length;
+      if (analysed === 0) {
+        unmeasured.push({
+          metric,
+          reason: total === 0
+            ? `no analysable files: ${excluded.length} file(s) excluded (${summariseFailures(excluded)})`
+            : `none of ${total} file(s) could be analysed: ${summariseFailures(failures)}`,
+          ...(failures.length > 0 ? { files: failures.map((f) => f.file) } : {}),
+        });
+        return false;
       }
-    } else if (wants('duplication')) {
+      if (failures.length === 0) return true;
+      const share = analysed / total;
+      // Round DOWN so a partial scope never reads as 1 / 100% (#1021).
+      const permille = Math.floor((analysed * 1000) / total);
+      const coverageOfScope = permille / 1000;
+      const explicitFailure = failures.find((f) => explicit.has(f.file));
+      if (explicitFailure || share < MIN_ANALYSED_SHARE) {
+        const why = explicitFailure
+          ? `explicit target ${explicitFailure.file} could not be analysed`
+          : `${analysed} of ${total} file(s) analysed (${permille / 10}%, below ${MIN_ANALYSED_SHARE * 100}%)`;
+        unmeasured.push({
+          metric,
+          reason: `${why}: ${summariseFailures(failures)}`,
+          files: failures.map((f) => f.file),
+        });
+        return false;
+      }
+      partial.push({ metric, analysedFiles: analysed, totalFiles: total, coverageOfScope, failed: failures });
+      return true;
+    };
+
+    const failedToParse = [...unreadable, ...parseFailed];
+    for (const metric of requested.filter((m) => PARSED_METRICS.has(m))) {
+      if (!judge(metric, failedToParse)) {
+        for (const metrics of fileMetrics.values()) delete metrics[metric];
+      }
+    }
+
+    // Duplication needs readable text, not a parse (#1021 N2).
+    if (wants('duplication') && judge('duplication', unreadable)) {
       try {
-        const { percentage } = await this.metricsAnalyzer.detectDuplication(files);
+        const { percentage } = await this.metricsAnalyzer.detectDuplication(readable);
         for (const metrics of fileMetrics.values()) metrics.duplication = percentage;
       } catch (error) {
+        const index = partial.findIndex((p) => p.metric === 'duplication');
+        if (index >= 0) partial.splice(index, 1);
         unmeasured.push({ metric: 'duplication', reason: `duplication detection failed: ${toError(error).message}` });
       }
     }
 
-    return { fileMetrics, unmeasured };
+    return { fileMetrics, unmeasured, excluded, partial };
   }
 
   private async getStoredCoverage(file: string): Promise<number | null> {
@@ -784,9 +860,9 @@ Focus on:
       includesAll || requestedMetrics.includes(metric);
 
     // Use real CodeMetricsAnalyzer for file analysis
-    const { metrics: analysis, unmeasuredReason } = await this.metricsAnalyzer.analyzeFileDetailed(file);
+    const { status, metrics: analysis, reason } = await this.metricsAnalyzer.analyzeFileDetailed(file);
 
-    if (!analysis || unmeasuredReason) {
+    if (status !== 'measured' || !analysis) {
       // #1011: never invent values for a file that could not be analysed
       return {
         path: file,
@@ -794,7 +870,7 @@ Focus on:
         cognitive: UNMEASURED,
         maintainability: UNMEASURED,
         linesOfCode: UNMEASURED,
-        unmeasuredReason: unmeasuredReason ?? `${file} could not be analysed`,
+        unmeasuredReason: reason ?? `${file} could not be analysed`,
       };
     }
 

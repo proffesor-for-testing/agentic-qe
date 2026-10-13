@@ -114,6 +114,8 @@ export type {
   GateCheck,
   QualityReport,
   UnmeasuredQualityMetric,
+  ExcludedQualityFile,
+  PartialQualityMetric,
   QualityMetricDetail,
   QualityTrend,
   Recommendation,

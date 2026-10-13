@@ -22,7 +22,19 @@ export interface FileReaderOptions {
   cacheTtlMs?: number;
   /** Whether to enable caching (default: true) */
   enableCache?: boolean;
+  /**
+   * Opt-in in-root containment for `readFile` (#1021). A path that resolves
+   * inside this directory is accepted when its realpath stays inside the
+   * root's realpath (a symlink escaping the root is rejected); the legacy
+   * name-pattern validator is not applied to it, so names such as
+   * `[...slug].tsx`, in-root dot-dirs and deep paths are readable. Paths
+   * outside the root keep every legacy check. Omit to keep legacy behaviour.
+   */
+  projectRoot?: string;
 }
+
+/** Extensions never read, inside or outside the project root. */
+const DENIED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'];
 
 export interface CacheEntry<T> {
   value: T;
@@ -73,6 +85,12 @@ export class PathTraversalError extends Error {
     super(`Path traversal detected: ${issues.join(', ')}`);
     this.name = 'PathTraversalError';
   }
+}
+
+/** True when `candidate` is `root` or lies beneath it (both absolute). */
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
 // ============================================================================
@@ -265,6 +283,8 @@ export class FileReader {
   private readonly basePath: string;
   private readonly cache: LRUCache<string>;
   private readonly enableCache: boolean;
+  private readonly projectRoot?: string;
+  private projectRootReal?: Promise<string | null>;
   private stats: FileReaderStats = {
     cacheHits: 0,
     cacheMisses: 0,
@@ -276,6 +296,7 @@ export class FileReader {
   constructor(options: FileReaderOptions = {}) {
     this.basePath = options.basePath ?? process.cwd();
     this.enableCache = options.enableCache ?? true;
+    this.projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
     this.cache = new LRUCache<string>(
       options.maxCacheSize ?? 100,
       options.cacheTtlMs ?? 5 * 60 * 1000 // 5 minutes default
@@ -309,7 +330,7 @@ export class FileReader {
       allowAbsolute: true,
       maxDepth: 10 + (isAbsolutePath ? baseDepth : 0),
       // Allow common development file extensions
-      deniedExtensions: ['.exe', '.bat', '.cmd', '.ps1', '.dll', '.so'],
+      deniedExtensions: DENIED_EXTENSIONS,
     });
 
     if (!validation.valid) {
@@ -335,6 +356,42 @@ export class FileReader {
   }
 
   /**
+   * #1021: resolve a path that lies inside `projectRoot` by realpath
+   * containment. Returns undefined when the path is not lexically inside the
+   * root (or no root is configured), so the caller applies the legacy checks.
+   * Throws PathTraversalError when an in-root path resolves outside the root.
+   */
+  private async resolveInProjectRoot(filePath: string): Promise<string | undefined> {
+    if (!this.projectRoot) return undefined;
+    if (filePath.includes('\0')) {
+      throw new PathTraversalError(filePath, ['Null byte in path'], 'critical');
+    }
+    const lexical = path.resolve(this.basePath, filePath);
+    if (!isWithin(this.projectRoot, lexical)) return undefined;
+
+    if (DENIED_EXTENSIONS.includes(path.extname(lexical).toLowerCase())) {
+      throw new PathTraversalError(filePath, [`File extension '${path.extname(lexical)}' is not allowed`], 'high');
+    }
+
+    this.projectRootReal ??= fs.realpath(this.projectRoot).catch(() => null);
+    const rootReal = await this.projectRootReal;
+    if (!rootReal) return undefined;
+
+    let real: string;
+    try {
+      real = await fs.realpath(lexical);
+    } catch {
+      // Does not exist (or is unreadable): nothing to escape through; the read
+      // reports the real error for the in-root path.
+      return lexical;
+    }
+    if (!isWithin(rootReal, real)) {
+      throw new PathTraversalError(filePath, ['Path resolves outside the project root'], 'critical');
+    }
+    return real;
+  }
+
+  /**
    * Read file contents as a string
    * SEC-004: Now handles PathTraversalError from path validation
    */
@@ -343,7 +400,7 @@ export class FileReader {
 
     // SEC-004: Handle path traversal errors from resolvePath
     try {
-      absolutePath = this.resolvePath(filePath);
+      absolutePath = (await this.resolveInProjectRoot(filePath)) ?? this.resolvePath(filePath);
     } catch (error) {
       if (error instanceof PathTraversalError) {
         return err(error);

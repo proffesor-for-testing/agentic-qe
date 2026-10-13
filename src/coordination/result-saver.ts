@@ -734,7 +734,9 @@ ${data.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
 ## Quality Score
 
-${typeof data.qualityScore === 'number' ? `**${data.qualityScore.toFixed(1)}** / 100` : 'N/A — measured gate uses individual checks.'}
+${typeof data.qualityScore !== 'number' ? 'N/A — measured gate uses individual checks.'
+  : data.qualityScore >= 0 ? `**${data.qualityScore.toFixed(1)}** / 100`
+  : 'Not measured — no requested metric had measured data (#1011).'}
 
 ## Metrics
 
@@ -811,7 +813,8 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
         };
       case 'assess-quality':
         return {
-          qualityScore: data.qualityScore,
+          // #1021 N4: -1 means "not measured"; keep it out of the index and trends.
+          ...(typeof data.qualityScore === 'number' && data.qualityScore >= 0 ? { qualityScore: data.qualityScore } : {}),
           passed: data.passed,
           ...(data.evidenceStatus !== undefined ? { evidenceStatus: data.evidenceStatus } : {}),
         };
