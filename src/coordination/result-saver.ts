@@ -5,7 +5,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { TaskType } from './queen-coordinator';
 import { safeJsonParse } from '../shared/safe-json.js';
 import type { SecurityScanEvidence } from '../domains/security-compliance/scan-evidence.js';
@@ -206,8 +206,12 @@ export class ResultSaver {
     await this.ensureDirectories(taskType);
 
     // Get timestamp string for filenames
+    // #1007: millisecond timestamp plus a per-save suffix. Names to the second
+    // let two saves in the same second overwrite each other. Every file is also
+    // created exclusively (see writeNewFile), so even a reused custom prefix
+    // never replaces an earlier result.
     const tsStr = this.formatTimestamp(timestamp);
-    const prefix = options.filenamePrefix || tsStr;
+    const prefix = options.filenamePrefix || `${tsStr}_${this.uniqueSuffix(taskId)}`;
 
     // Save based on task type
     switch (taskType) {
@@ -287,8 +291,7 @@ export class ResultSaver {
       framework: options.framework || 'vitest',
       tests: data.tests,
     }, null, 2);
-    await fs.writeFile(manifestPath, manifestContent);
-    files.push(await this.createFileEntry(manifestPath, 'json'));
+    files.push(await this.writeNewFile(manifestPath, manifestContent, 'json'));
 
     // Save individual test files if code is provided
     if (data.tests) {
@@ -297,8 +300,7 @@ export class ResultSaver {
           const ext = this.getTestExtension(options.language || 'typescript', options.framework || 'vitest');
           const testFilename = this.sanitizeFilename(test.name) + ext;
           const testPath = path.join(testDir, testFilename);
-          await fs.writeFile(testPath, test.code);
-          files.push(await this.createFileEntry(testPath, 'source'));
+          files.push(await this.writeNewFile(testPath, test.code, 'source'));
         }
       }
     }
@@ -306,8 +308,7 @@ export class ResultSaver {
     // Save markdown report
     const reportPath = path.join(this.resultsDir, 'tests', `${prefix}_report.md`);
     const reportContent = this.generateTestReport(data, options);
-    await fs.writeFile(reportPath, reportContent);
-    files.push(await this.createFileEntry(reportPath, 'markdown'));
+    files.push(await this.writeNewFile(reportPath, reportContent, 'markdown'));
 
     return files;
   }
@@ -338,8 +339,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(coverageDir, `${prefix}_coverage.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(data, null, 2), 'json'));
 
     // Save LCOV format — ONLY for genuinely measured coverage.
     //
@@ -352,15 +352,13 @@ export class ResultSaver {
     if (options.includeSecondary !== false && data.measured === true) {
       const lcovPath = path.join(coverageDir, `${prefix}_coverage.lcov`);
       const lcovContent = this.generateLcov(data);
-      await fs.writeFile(lcovPath, lcovContent);
-      files.push(await this.createFileEntry(lcovPath, 'lcov'));
+      files.push(await this.writeNewFile(lcovPath, lcovContent, 'lcov'));
     }
 
     // Save markdown report
     const reportPath = path.join(coverageDir, `${prefix}_report.md`);
     const reportContent = this.generateCoverageReport(data);
-    await fs.writeFile(reportPath, reportContent);
-    files.push(await this.createFileEntry(reportPath, 'markdown'));
+    files.push(await this.writeNewFile(reportPath, reportContent, 'markdown'));
 
     return files;
   }
@@ -377,22 +375,19 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(securityDir, `${prefix}_scan.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(data, null, 2), 'json'));
 
     // Save SARIF format
     if (options.includeSecondary !== false) {
       const sarifPath = path.join(securityDir, `${prefix}_scan.sarif`);
       const sarifContent = this.generateSarif(data);
-      await fs.writeFile(sarifPath, sarifContent);
-      files.push(await this.createFileEntry(sarifPath, 'sarif'));
+      files.push(await this.writeNewFile(sarifPath, sarifContent, 'sarif'));
     }
 
     // Save markdown report
     const reportPath = path.join(securityDir, `${prefix}_report.md`);
     const reportContent = this.generateSecurityReport(data);
-    await fs.writeFile(reportPath, reportContent);
-    files.push(await this.createFileEntry(reportPath, 'markdown'));
+    files.push(await this.writeNewFile(reportPath, reportContent, 'markdown'));
 
     return files;
   }
@@ -409,14 +404,12 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(qualityDir, `${prefix}_assessment.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(data, null, 2), 'json'));
 
     // Save markdown report
     const reportPath = path.join(qualityDir, `${prefix}_report.md`);
     const reportContent = this.generateQualityReport(data);
-    await fs.writeFile(reportPath, reportContent);
-    files.push(await this.createFileEntry(reportPath, 'markdown'));
+    files.push(await this.writeNewFile(reportPath, reportContent, 'markdown'));
 
     return files;
   }
@@ -439,8 +432,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(indexDir, `${prefix}_index.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(data, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(data, null, 2), 'json'));
 
     return files;
   }
@@ -456,8 +448,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(defectDir, `${prefix}_prediction.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(result, null, 2), 'json'));
 
     return files;
   }
@@ -473,8 +464,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(contractDir, `${prefix}_validation.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(result, null, 2), 'json'));
 
     return files;
   }
@@ -490,8 +480,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(a11yDir, `${prefix}_test.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(result, null, 2), 'json'));
 
     return files;
   }
@@ -507,8 +496,7 @@ export class ResultSaver {
 
     // Save JSON
     const jsonPath = path.join(chaosDir, `${prefix}_chaos.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(result, null, 2), 'json'));
 
     return files;
   }
@@ -523,8 +511,7 @@ export class ResultSaver {
     await fs.mkdir(genericDir, { recursive: true });
 
     const jsonPath = path.join(genericDir, `${prefix}_${taskType}.json`);
-    await fs.writeFile(jsonPath, JSON.stringify(result, null, 2));
-    files.push(await this.createFileEntry(jsonPath, 'json'));
+    files.push(await this.writeNewFile(jsonPath, JSON.stringify(result, null, 2), 'json'));
 
     return files;
   }
@@ -774,8 +761,38 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
     }
   }
 
+  /** `YYYY-MM-DDTHH-MM-SS-mmm` (#1007: milliseconds, not seconds). */
   private formatTimestamp(date: Date): string {
-    return date.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    return date.toISOString().replace(/[:.]/g, '-').slice(0, 23);
+  }
+
+  /** Short task-id fragment plus random hex, unique per save. */
+  private uniqueSuffix(taskId: string): string {
+    const idPart = this.sanitizeFilename(taskId).slice(-12) || 'task';
+    return `${idPart}-${randomBytes(3).toString('hex')}`;
+  }
+
+  /**
+   * Create `filePath` exclusively and record it. If the name is taken (a
+   * reused custom prefix, or a generated test with the same name), write to
+   * `name-1.ext`, `name-2.ext`, … instead of replacing the earlier file (#1007).
+   */
+  private async writeNewFile(filePath: string, content: string, format: string): Promise<SavedFile> {
+    const dir = path.dirname(filePath);
+    const base = path.basename(filePath);
+    const dot = base.indexOf('.', 1);
+    const stem = dot > 0 ? base.slice(0, dot) : base;
+    const ext = dot > 0 ? base.slice(dot) : '';
+    for (let attempt = 0; attempt < 1000; attempt++) {
+      const candidate = attempt === 0 ? filePath : path.join(dir, `${stem}-${attempt}${ext}`);
+      try {
+        await fs.writeFile(candidate, content, { flag: 'wx' });
+        return this.createFileEntry(candidate, format);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+    }
+    throw new Error(`ResultSaver: no free file name for ${filePath}`);
   }
 
   private sanitizeFilename(name: string): string {
@@ -835,14 +852,39 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
     }
   }
 
-  private async updateIndex(
+  /**
+   * Append to index.json. Concurrent saves read-modify-write the same file, so
+   * updates are serialized per index path in this process and the file is
+   * replaced atomically, otherwise one save's entry is lost (#1007).
+   */
+  private updateIndex(
     taskId: string,
     taskType: TaskType,
     timestamp: Date,
     files: SavedFile[],
     summary: Record<string, unknown>
   ): Promise<void> {
-    const indexPath = path.join(this.resultsDir, 'index.json');
+    const indexPath = path.resolve(this.resultsDir, 'index.json');
+    const previous = indexUpdateQueues.get(indexPath) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(() => this.writeIndexEntry(indexPath, taskId, taskType, timestamp, files, summary));
+    indexUpdateQueues.set(indexPath, next);
+    const settle = (): void => {
+      if (indexUpdateQueues.get(indexPath) === next) indexUpdateQueues.delete(indexPath);
+    };
+    next.then(settle, settle);
+    return next;
+  }
+
+  private async writeIndexEntry(
+    indexPath: string,
+    taskId: string,
+    taskType: TaskType,
+    timestamp: Date,
+    files: SavedFile[],
+    summary: Record<string, unknown>
+  ): Promise<void> {
     let index: ResultIndex;
 
     try {
@@ -875,9 +917,14 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
       index.results = index.results.slice(-100);
     }
 
-    await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
+    const tmpPath = `${indexPath}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(index, null, 2));
+    await fs.rename(tmpPath, indexPath);
   }
 }
+
+/** Pending index.json updates, keyed by absolute index path (#1007). */
+const indexUpdateQueues = new Map<string, Promise<void>>();
 
 // Factory function
 export function createResultSaver(baseDir?: string): ResultSaver {
