@@ -213,9 +213,10 @@ export class ResultSaver {
 
     // Get timestamp string for filenames
     // #1007: millisecond timestamp plus a per-save suffix. Names to the second
-    // let two saves in the same second overwrite each other. Every file is also
-    // created exclusively (see writeNewFile), so even a reused custom prefix
-    // never replaces an earlier result.
+    // let two saves in the same second overwrite each other. Report, manifest
+    // and data files are created exclusively (see writeNewFile), so even a
+    // reused custom prefix never replaces an earlier result. Generated test
+    // files are the exception: one file per test name (see replaceFile).
     const tsStr = this.formatTimestamp(timestamp);
     const prefix = options.filenamePrefix || `${tsStr}_${this.uniqueSuffix(taskId)}`;
 
@@ -306,7 +307,10 @@ export class ResultSaver {
           const ext = this.getTestExtension(options.language || 'typescript', options.framework || 'vitest');
           const testFilename = this.sanitizeFilename(test.name) + ext;
           const testPath = path.join(testDir, testFilename);
-          files.push(await this.writeNewFile(testPath, test.code, 'source'));
+          // Review of #1026 N7: a generated test keeps one file per test name
+          // (replaced atomically), unlike reports, so numbered copies never
+          // pile up for a test runner to collect.
+          files.push(await this.replaceFile(testPath, test.code, 'source'));
         }
       }
     }
@@ -778,9 +782,22 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
     return `${idPart}-${randomBytes(3).toString('hex')}`;
   }
 
+  /** Write `filePath` via a temp file and rename, replacing any previous version. */
+  private async replaceFile(filePath: string, content: string, format: string): Promise<SavedFile> {
+    const tmpPath = `${filePath}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+    try {
+      await fs.writeFile(tmpPath, content, { flag: 'wx' });
+      await fs.rename(tmpPath, filePath);
+    } catch (error) {
+      await fs.rm(tmpPath, { force: true });
+      throw error;
+    }
+    return this.createFileEntry(filePath, format);
+  }
+
   /**
    * Create `filePath` exclusively and record it. If the name is taken (a
-   * reused custom prefix, or a generated test with the same name), write to
+   * reused custom prefix), write to
    * `name-1.ext`, `name-2.ext`, … instead of replacing the earlier file (#1007).
    */
   private async writeNewFile(filePath: string, content: string, format: string): Promise<SavedFile> {

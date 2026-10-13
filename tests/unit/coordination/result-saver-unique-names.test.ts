@@ -57,13 +57,14 @@ describe('ResultSaver unique file names (#1007)', () => {
     const first = await saver.save('task-first', type, make(1));
     const second = await saver.save('task-second', type, make(2));
 
-    const firstPaths = first.files.map(f => f.path);
-    const secondPaths = second.files.map(f => f.path);
+    // Generated test files keep overwrite semantics (review N7); reports do not.
+    const firstPaths = first.files.filter(f => f.format !== 'source').map(f => f.path);
+    const secondPaths = second.files.filter(f => f.format !== 'source').map(f => f.path);
     for (const p of secondPaths) expect(firstPaths).not.toContain(p);
     for (const f of [...first.files, ...second.files]) {
       expect(fs.existsSync(f.path)).toBe(true);
     }
-    const firstJson = first.files.find(f => f.format === 'json' || f.format === 'source')!;
+    const firstJson = first.files.find(f => f.format === 'json')!;
     expect(fs.readFileSync(firstJson.path, 'utf8')).toMatch(/1/);
   });
 
@@ -94,5 +95,19 @@ describe('ResultSaver unique file names (#1007)', () => {
     expect(path.basename(second.files[0].path)).toContain('fixed');
     expect(JSON.parse(fs.readFileSync(first.files[0].path, 'utf8')).qualityScore).toBe(1);
     expect(JSON.parse(fs.readFileSync(second.files[0].path, 'utf8')).qualityScore).toBe(2);
+  });
+
+  // Review of #1026 N7: numbered copies (add_unit-1.test.ts, -2, ...) piled up
+  // in results/tests/generated/ and vitest's default include collected them.
+  it('overwrites a generated test file with the same name instead of numbering it', async () => {
+    const first = await saver.save('t1', 'generate-tests', RESULTS[3][1](1));
+    const second = await saver.save('t2', 'generate-tests', RESULTS[3][1](2));
+
+    const firstSource = first.files.find(f => f.format === 'source')!;
+    const secondSource = second.files.find(f => f.format === 'source')!;
+    expect(secondSource.path).toBe(firstSource.path);
+    expect(fs.readFileSync(secondSource.path, 'utf8')).toBe('// run 2');
+    const generated = fs.readdirSync(path.dirname(secondSource.path));
+    expect(generated).toEqual([path.basename(secondSource.path)]);
   });
 });
