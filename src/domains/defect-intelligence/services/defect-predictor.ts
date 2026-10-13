@@ -30,6 +30,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { measuredCoverageSummary, measuredFileCoverage } from '../../quality-assessment/coverage-report-event.js';
+import { fileCoverageLookupKeys } from '../../coverage-analysis/collected-metrics.js';
 
 /**
  * Interface for the defect prediction service
@@ -265,7 +266,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
       }
 
       return null;
-    } catch (error) {
+    } catch {
       logger.warn('LLM analysis failed, using heuristics only');
       return null;
     }
@@ -699,7 +700,7 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
           // Count complexity indicators in code
           const content = fileResult.value;
           const ifCount = (content.match(/\bif\s*\(/g) || []).length;
-          const loopCount = (content.match(/\b(for|while|do)\s*[\(\{]/g) || []).length;
+          const loopCount = (content.match(/\b(for|while|do)\s*[{(]/g) || []).length;
           const switchCount = (content.match(/\bswitch\s*\(/g) || []).length;
           const catchCount = (content.match(/\bcatch\s*\(/g) || []).length;
           const ternaryCount = (content.match(/\?[^?:]+:/g) || []).length;
@@ -811,12 +812,12 @@ Be specific and actionable. Focus on concrete issues, not generic advice.`,
     try {
       // Try per-file coverage (written by coverage-analyzer and test-executor)
       // #1014: only measured records; legacy unstamped estimates are ignored.
-      const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(
-        `coverage:file:${file}`
-      ));
-      if (fileCoverage) {
-        // Invert: low coverage = high defect risk
-        return 1 - fileCoverage.line / 100;
+      for (const key of fileCoverageLookupKeys(file)) {
+        const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(key));
+        if (fileCoverage) {
+          // Invert: low coverage = high defect risk
+          return 1 - fileCoverage.line / 100;
+        }
       }
 
       // Fall back to project-wide coverage
