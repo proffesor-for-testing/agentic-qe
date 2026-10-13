@@ -12,6 +12,7 @@ import { createDomainHandler, resetTaskExecutor, type BaseHandlerResult } from '
 import { isLearnableResult } from '../../../../src/learning/learnable-result';
 import * as coreHandlers from '../../../../src/mcp/handlers/core-handlers';
 import * as taskRouter from '../../../../src/mcp/services/task-router';
+import { CallerInputError } from '../../../../src/shared/error-utils';
 
 const loop = { recordCoverageSession: vi.fn(async () => undefined), recordTestOutcome: vi.fn(async () => undefined) };
 
@@ -75,6 +76,40 @@ describe('#1014 — handler-factory learning gates', () => {
       afterCoverage: expect.objectContaining({ lines: 57.1 }),
       context: expect.objectContaining({ measured: true, coverageMethod: 'instrumented-report', branchDataCollected: false }),
     }));
+  });
+});
+
+describe('caller-input errors before the task runs (#1021 follow-up)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTaskExecutor();
+    vi.mocked(coreHandlers.isFleetInitialized).mockReturnValue(true);
+    vi.mocked(coreHandlers.getFleetState).mockReturnValue({ queen, kernel: { id: 'k' } } as never);
+    vi.mocked(taskRouter.getTaskRouter).mockResolvedValue({ routeTask: vi.fn(async () => null) } as never);
+  });
+
+  function handlerThrowing(error: Error) {
+    return createDomainHandler<{ target: string }, CovResult>({
+      domain: 'quality-assessment',
+      taskType: 'assess-quality',
+      buildTaskDescription: () => 'Assess',
+      mapToPayload: () => { throw error; },
+      mapToResult: (taskId, d, duration) => ({ taskId, status: 'completed', duration, data: d }),
+    });
+  }
+
+  it('marks a CallerInputError from mapToPayload as a caller error (not learned as a failure)', async () => {
+    const result = await handlerThrowing(new CallerInputError('target is outside the project root'))({ target: '/etc' });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/outside the project root/);
+    expect(result.data).toEqual({ callerError: true });
+    expect(queen.submitTask).not.toHaveBeenCalled();
+  });
+
+  it('a genuine failure stays an unmarked failure', async () => {
+    const result = await handlerThrowing(new Error('boom'))({ target: 'src' });
+    expect(result.success).toBe(false);
+    expect(result.data).toBeUndefined();
   });
 });
 

@@ -18,7 +18,7 @@ import { createTaskExecutor, DomainTaskExecutor } from '../../coordination/task-
 import { getTaskRouter, type TaskRoutingResult, type PatternHint } from '../services/task-router';
 import { Priority } from '../../shared/types';
 import type { QEDomain as LearningDomain } from '../../learning/qe-patterns.js';
-import { toErrorMessage } from '../../shared/error-utils.js';
+import { isCallerInputError, toErrorMessage } from '../../shared/error-utils.js';
 import { describeSavedResults, readSaveResultsOption } from './save-results-option';
 import { createInitializedFeedbackLoop, getQualityFeedbackLoop } from '../../feedback/feedback-loop.js';
 import type { TestOutcome as FeedbackTestOutcome, CoverageSession } from '../../feedback/types.js';
@@ -959,18 +959,26 @@ export function createDomainHandler<TParams, TResult extends BaseHandlerResult>(
     } catch (error) {
       // Step 6: Error handling
       const errorMessage = toErrorMessage(error);
+      // A caller-input error thrown before the task runs (e.g. by
+      // mapToPayload's shape checks) is the caller's mistake, not a domain
+      // failure: it is marked for the experience middleware and not recorded
+      // as a pattern-usage failure.
+      const callerError = isCallerInputError(error);
 
-      // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
-      recordPatternUsageAsync(
-        routingResult?.patternHints,
-        false,
-        domain,
-        0
-      );
+      if (!callerError) {
+        // Record pattern usage on failure (Phase 5.3 — fire-and-forget)
+        recordPatternUsageAsync(
+          routingResult?.patternHints,
+          false,
+          domain,
+          0
+        );
+      }
 
       return {
         success: false,
         error: `Failed to ${taskType.replace(/-/g, ' ')}: ${errorMessage}`,
+        ...(callerError ? { data: { callerError: true } as unknown as TResult } : {}),
       };
     }
   };
