@@ -12,7 +12,9 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
-import { pnpmWorkspacePatterns, workspaceGlobToRegExp } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
+import { expandWorkspaces, pnpmWorkspacePatterns, workspaceGlobToRegExp } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
+import { readFileSync } from 'node:fs';
+import { parseLockfile } from '../../../../../src/domains/security-compliance/services/scanners/lockfile-versions';
 import { OSVClient } from '../../../../../src/shared/security/osv-client';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { SecurityScannerConfig, DependencyScanResult } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
@@ -293,5 +295,83 @@ describe('containment and walk-up bounds', () => {
     expect(value.lockfile).toBeNull();
     expect(value.uncheckedPackages).toEqual([expect.objectContaining({ name: 'lodash', reason: 'version range "^4.17.0", no lockfile resolution' })]);
     expect(queried).toEqual([]);
+  });
+});
+
+describe('round 6: bounded YAML, package-only symlinks, merge keys, dedup, limits', () => {
+  const web = { 'packages/web/package.json': { name: '@m/web', dependencies: { minimist: '1.2.5' } } };
+
+  it('B1: a 40k-key pnpm-workspace.yaml parses quickly and still yields packages', () => {
+    let text = "packages:\n  - 'packages/*'\n";
+    for (let i = 0; i < 40_000; i++) text += `k${i}: ${i}\n`;
+    const t0 = Date.now();
+    expect(pnpmWorkspacePatterns(text)).toEqual({ patterns: ['packages/*'] });
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+
+  it('B1: a duplicate packages key is an error; an oversized file is refused (scan incomplete)', async () => {
+    expect(pnpmWorkspacePatterns("packages: ['a/*']\npackages: ['b/*']\n")).toEqual({ error: expect.stringMatching(/more than one "packages" key/) });
+    expect(pnpmWorkspacePatterns(`packages: ['a/*']\n#${'x'.repeat(1024 * 1024)}\n`)).toEqual({ error: expect.stringMatching(/larger than/) });
+    const root = repo({ 'package.json': { name: 'mono', dependencies: { minimist: '1.2.5' } },
+      'pnpm-workspace.yaml': `packages:\n  - 'packages/*'\n#${'x'.repeat(1024 * 1024 + 10)}\n`, ...web });
+    const value = await scan(root);
+    expect(value.status).toBe('incomplete');
+    expect(value.resolutionErrors).toEqual([expect.stringMatching(/pnpm-workspace\.yaml is \d+ bytes \(limit 1048576\); not parsed/)]);
+  });
+
+  it('B2: a symlinked directory that is not a package (an asset dir) is not a member', async () => {
+    const root = repo({ 'package.json': { name: 'mono' }, 'pnpm-workspace.yaml': "packages:\n  - 'packages/**'\n", ...web, 'assets/img/logo.svg': '<svg/>' });
+    symlinkSync(path.join(root, 'assets', 'img'), path.join(root, 'packages', 'web', 'img'), 'dir');
+    const value = await scan(root);
+    expect(value).toMatchObject({ status: 'complete', workspaceMembers: ['packages/web'], resolutionErrors: [] });
+    expect(queried).toEqual(['minimist@1.2.5']);
+  });
+
+  it('B3: a YAML merge key (<<: *anchor) supplying packages finds the member', async () => {
+    expect(pnpmWorkspacePatterns("base: &b\n  packages: ['packages/*']\n<<: *b\n")).toEqual({ patterns: ['packages/*'] });
+    const root = repo({ 'package.json': { name: 'mono' }, 'pnpm-workspace.yaml': "base: &b\n  packages:\n    - 'packages/*'\n<<: *b\n", ...web });
+    const value = await scan(root);
+    expect(value.workspaceMembers).toEqual(['packages/web']);
+    expect(queried).toEqual(['minimist@1.2.5']);
+  });
+
+  it('the symlink walk reports its limit as an error instead of dropping members silently', async () => {
+    const root = repo({ 'package.json': { name: 'mono' }, 'a/b/c/package.json': { name: 'x' }, 'd/package.json': { name: 'd' } });
+    const byEntries = await expandWorkspaces(root, ['**'], [], { maxDepth: 12, maxEntries: 2 });
+    expect(byEntries.errors).toEqual([expect.stringMatching(/symlink search stopped after 2 entries/)]);
+    const byDepth = await expandWorkspaces(root, ['**'], [], { maxDepth: 1, maxEntries: 50_000 });
+    expect(byDepth.errors).toEqual([expect.stringMatching(/symlink search stopped at depth 1/)]);
+  });
+
+  it('a "dir/**" negation also excludes a symlinked dir', async () => {
+    const root = repo({ 'package.json': { name: 'mono', workspaces: ['packages/*', '!packages/x/**'] }, ...web, 'libs/x/package.json': { name: 'x', dependencies: { qs: '6.7.0' } } });
+    symlinkSync(path.join(root, 'libs', 'x'), path.join(root, 'packages', 'x'), 'dir');
+    const value = await scan(root);
+    expect(value.workspaceMembers).toEqual(['packages/web']);
+    expect(queried).toEqual(['minimist@1.2.5']);
+  });
+
+  it('a link to a sibling member is not scanned twice (dedup by real path); a link into node_modules is never a member', async () => {
+    const root = repo({ 'package.json': { name: 'mono', workspaces: ['packages/*'] }, ...web, 'node_modules/dep/package.json': { name: 'dep', dependencies: { qs: '6.7.0' } } });
+    symlinkSync(path.join(root, 'packages', 'web'), path.join(root, 'packages', 'web-alias'), 'dir');
+    symlinkSync(path.join(root, 'node_modules', 'dep'), path.join(root, 'packages', 'dep'), 'dir');
+    const value = await scan(root);
+    expect(value.workspaceMembers).toEqual(['packages/web']);
+    expect(queried).toEqual(['minimist@1.2.5']);
+    expect(value.packagesChecked).toBe(1);
+  });
+
+  it('pnpm-lock.yaml importers parse in linear time (8000 importers)', () => {
+    let lock = "lockfileVersion: '9.0'\n\nimporters:\n\n";
+    for (let i = 0; i < 8000; i++) lock += `  packages/p${i}:\n    dependencies:\n      a:\n        specifier: 1.0.0\n        version: 1.0.0\n\n`;
+    const t0 = Date.now();
+    expect(parseLockfile('pnpm-lock.yaml', lock).members()).toHaveLength(8000);
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it('the source holds no literal BOM character (the regex uses the \\uFEFF escape)', () => {
+    const src = readFileSync(path.join(__dirname, '../../../../../src/domains/security-compliance/services/scanners/workspace-members.ts'), 'utf-8');
+    expect(src.includes('﻿')).toBe(false);
+    expect(src).toContain('\\uFEFF');
   });
 });
