@@ -2,11 +2,15 @@
  * Agentic QE v3 - Quality Gate Worker
  * ADR-014: Background Workers for QE Monitoring
  *
- * Continuous quality gate evaluation including:
- * - Multi-criteria quality assessment
- * - Release readiness scoring
- * - Blocking issue detection
- * - Quality trend tracking
+ * Continuously evaluates the measured quality gate and tracks its verdict.
+ *
+ * #1043: the gate is the canonical measured gate — the same evidence
+ * validation (`inspectQualityEvidence`) and thresholds
+ * (`evaluateQualityEvidence` / `resolveQualityThresholds`) the quality_assess
+ * tool uses. When any metric lacks usable evidence (absent, stale, malformed)
+ * the gate is not evaluated: nothing is stored and an info finding names the
+ * unmeasured metrics. A status without the measured stamp (the invented one
+ * written by <= 3.15.6) is ignored and replaced by the next measured verdict.
  */
 
 import { BaseWorker } from '../base-worker';
@@ -17,6 +21,15 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import {
+  INSUFFICIENT_EVIDENCE,
+  QUALITY_METRICS,
+  describeMissingMetrics,
+  evaluateQualityEvidence,
+  inspectQualityEvidence,
+  type EvaluatedQualityCheck,
+  type QualityEvidenceValues,
+} from '../../domains/quality-assessment/quality-evidence.js';
 
 const CONFIG: WorkerConfig = {
   id: 'quality-gate',
@@ -31,26 +44,32 @@ const CONFIG: WorkerConfig = {
   retryDelayMs: 5000,
 };
 
-interface QualityGateRule {
-  id: string;
-  name: string;
-  category: 'coverage' | 'reliability' | 'security' | 'maintainability' | 'performance';
-  threshold: number;
-  operator: 'gte' | 'lte' | 'eq';
-  currentValue: number;
-  unit: string;
-  blocking: boolean;
+const CURRENT_KEY = 'quality-gate:current';
+const HISTORY_KEY = 'quality-gate:history';
+const SCHEMA_VERSION = 1;
+const MAX_HISTORY = 100;
+
+/** A gate verdict on measured evidence (#1043), stored with the stamp. */
+interface MeasuredGateStatus {
+  measured: true;
+  schemaVersion: typeof SCHEMA_VERSION;
+  evaluatedAt: string;
+  passed: boolean;
+  passedChecks: number;
+  failedChecks: number;
+  checks: EvaluatedQualityCheck[];
 }
 
-interface QualityGateStatus {
-  passed: boolean;
-  passedRules: number;
-  failedRules: number;
-  blockers: number;
-  warnings: number;
-  releaseReady: boolean;
-  rules: QualityGateRule[];
+/** The stored status when it is a measured verdict, else `null`. */
+function measuredStatus(raw: unknown): MeasuredGateStatus | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.measured !== true || r.schemaVersion !== SCHEMA_VERSION || typeof r.passed !== 'boolean'
+    || !Array.isArray(r.checks)) return null;
+  return r as unknown as MeasuredGateStatus;
 }
+
+const comparator = (check: EvaluatedQualityCheck) => (check.direction === 'min' ? '>=' : '<=');
 
 export class QualityGateWorker extends BaseWorker {
   constructor() {
@@ -64,51 +83,98 @@ export class QualityGateWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Evaluate all quality gates
-    const gateStatus = await this.evaluateQualityGates(context);
+    const { values, problems } = await inspectQualityEvidence(context.memory);
+    const measuredValues = Object.fromEntries(
+      QUALITY_METRICS.map((m) => [m, values[m] ?? 'unmeasured'])
+    ) as Record<string, number | string>;
 
-    // Analyze gate status
-    this.analyzeGateResults(gateStatus, findings, recommendations);
+    if (problems.length > 0) {
+      const unmeasured = problems.map((p) => p.metric);
+      findings.push({
+        type: 'quality-gate-insufficient-evidence',
+        severity: 'info',
+        domain: 'quality-assessment',
+        title: 'Quality Gate Not Evaluated: Insufficient Evidence',
+        description: `${unmeasured.length} of ${QUALITY_METRICS.length} gate metrics have no usable measured evidence ` +
+          `(${unmeasured.join(', ')}), so no verdict was reached and nothing was stored.`,
+        context: { status: INSUFFICIENT_EVIDENCE, unmeasured, problems },
+      });
+      for (const advice of describeMissingMetrics(unmeasured)) {
+        recommendations.push({
+          priority: 'p3',
+          domain: 'quality-assessment',
+          action: 'Record Measured Quality Evidence',
+          description: advice,
+          estimatedImpact: 'medium',
+          effort: 'low',
+          autoFixable: false,
+        });
+      }
+      context.logger.info('Quality gate evaluation complete', { status: INSUFFICIENT_EVIDENCE, unmeasured });
+      return this.createResult(
+        Date.now() - startTime,
+        {
+          itemsAnalyzed: 0,
+          issuesFound: 0,
+          healthScore: 100,
+          trend: 'stable',
+          domainMetrics: {
+            gateStatus: INSUFFICIENT_EVIDENCE,
+            gatePassed: 'unmeasured',
+            releaseReady: 'unmeasured',
+            unmeasuredMetrics: unmeasured.length,
+            ...measuredValues,
+          },
+        },
+        findings,
+        recommendations
+      );
+    }
 
-    // Check for blockers
-    this.checkBlockers(gateStatus, findings, recommendations);
+    const evaluation = evaluateQualityEvidence(values as QualityEvidenceValues);
+    const failed = evaluation.checks.filter((c) => !c.passed);
+    const status: MeasuredGateStatus = {
+      measured: true,
+      schemaVersion: SCHEMA_VERSION,
+      evaluatedAt: new Date().toISOString(),
+      passed: evaluation.passed,
+      passedChecks: evaluation.checks.length - failed.length,
+      failedChecks: failed.length,
+      checks: evaluation.checks,
+    };
 
-    // Compare to previous
-    await this.compareToHistory(context, gateStatus, findings);
+    this.analyzeGateResults(status, findings, recommendations);
+    await this.compareToPrevious(context, status, findings);
 
-    // Store current status
-    await context.memory.set('quality-gate:current', gateStatus);
-    await context.memory.set('quality-gate:lastCheck', new Date().toISOString());
+    await context.memory.set(CURRENT_KEY, status);
+    await context.memory.set('quality-gate:lastCheck', status.evaluatedAt);
+    const stored = await context.memory.get<unknown[]>(HISTORY_KEY);
+    const history: unknown[] = Array.isArray(stored) ? stored : [];
+    history.push(status);
+    while (history.length > MAX_HISTORY) history.shift();
+    await context.memory.set(HISTORY_KEY, history);
 
-    // Add to history
-    const history = await context.memory.get<QualityGateStatus[]>('quality-gate:history') || [];
-    history.push(gateStatus);
-    if (history.length > 100) history.shift();
-    await context.memory.set('quality-gate:history', history);
-
-    const healthScore = this.calculateHealthScore(gateStatus);
-
+    const healthScore = this.calculateHealthScore(status);
     context.logger.info('Quality gate evaluation complete', {
       healthScore,
-      passed: gateStatus.passed,
-      releaseReady: gateStatus.releaseReady,
-      blockers: gateStatus.blockers,
+      passed: status.passed,
+      failedChecks: status.failedChecks,
     });
 
     return this.createResult(
       Date.now() - startTime,
       {
-        itemsAnalyzed: gateStatus.rules.length,
-        issuesFound: gateStatus.failedRules,
+        itemsAnalyzed: status.checks.length,
+        issuesFound: status.failedChecks,
         healthScore,
         trend: 'stable',
         domainMetrics: {
-          gatePassed: gateStatus.passed ? 'YES' : 'NO',
-          releaseReady: gateStatus.releaseReady ? 'YES' : 'NO',
-          passedRules: gateStatus.passedRules,
-          failedRules: gateStatus.failedRules,
-          blockers: gateStatus.blockers,
-          warnings: gateStatus.warnings,
+          gateStatus: 'evaluated',
+          gatePassed: status.passed ? 'YES' : 'NO',
+          releaseReady: status.passed ? 'YES' : 'NO',
+          passedChecks: status.passedChecks,
+          failedChecks: status.failedChecks,
+          ...measuredValues,
         },
       },
       findings,
@@ -116,304 +182,85 @@ export class QualityGateWorker extends BaseWorker {
     );
   }
 
-  private async evaluateQualityGates(_context: WorkerContext): Promise<QualityGateStatus> {
-    // Define quality gate rules
-    const rules: QualityGateRule[] = [
-      // Coverage rules
-      {
-        id: 'coverage-line',
-        name: 'Line Coverage',
-        category: 'coverage',
-        threshold: 80,
-        operator: 'gte',
-        currentValue: 78.5,
-        unit: '%',
-        blocking: true,
-      },
-      {
-        id: 'coverage-branch',
-        name: 'Branch Coverage',
-        category: 'coverage',
-        threshold: 70,
-        operator: 'gte',
-        currentValue: 65.2,
-        unit: '%',
-        blocking: false,
-      },
-      // Reliability rules
-      {
-        id: 'reliability-test-pass-rate',
-        name: 'Test Pass Rate',
-        category: 'reliability',
-        threshold: 95,
-        operator: 'gte',
-        currentValue: 98.2,
-        unit: '%',
-        blocking: true,
-      },
-      {
-        id: 'reliability-flaky-tests',
-        name: 'Flaky Test Count',
-        category: 'reliability',
-        threshold: 5,
-        operator: 'lte',
-        currentValue: 3,
-        unit: 'tests',
-        blocking: false,
-      },
-      // Security rules
-      {
-        id: 'security-critical-vulns',
-        name: 'Critical Vulnerabilities',
-        category: 'security',
-        threshold: 0,
-        operator: 'eq',
-        currentValue: 1,
-        unit: 'issues',
-        blocking: true,
-      },
-      {
-        id: 'security-high-vulns',
-        name: 'High Vulnerabilities',
-        category: 'security',
-        threshold: 3,
-        operator: 'lte',
-        currentValue: 2,
-        unit: 'issues',
-        blocking: false,
-      },
-      // Maintainability rules
-      {
-        id: 'maintainability-complexity',
-        name: 'Average Complexity',
-        category: 'maintainability',
-        threshold: 15,
-        operator: 'lte',
-        currentValue: 12,
-        unit: 'score',
-        blocking: false,
-      },
-      {
-        id: 'maintainability-duplication',
-        name: 'Code Duplication',
-        category: 'maintainability',
-        threshold: 5,
-        operator: 'lte',
-        currentValue: 3.2,
-        unit: '%',
-        blocking: false,
-      },
-      // Performance rules
-      {
-        id: 'performance-test-duration',
-        name: 'Avg Test Duration',
-        category: 'performance',
-        threshold: 500,
-        operator: 'lte',
-        currentValue: 245,
-        unit: 'ms',
-        blocking: false,
-      },
-    ];
-
-    // Evaluate each rule
-    let passedRules = 0;
-    let failedRules = 0;
-    let blockers = 0;
-    let warnings = 0;
-
-    for (const rule of rules) {
-      const passed = this.evaluateRule(rule);
-      if (passed) {
-        passedRules++;
-      } else {
-        failedRules++;
-        if (rule.blocking) {
-          blockers++;
-        } else {
-          warnings++;
-        }
-      }
-    }
-
-    return {
-      passed: blockers === 0,
-      passedRules,
-      failedRules,
-      blockers,
-      warnings,
-      releaseReady: blockers === 0 && warnings <= 2,
-      rules,
-    };
-  }
-
-  private evaluateRule(rule: QualityGateRule): boolean {
-    switch (rule.operator) {
-      case 'gte':
-        return rule.currentValue >= rule.threshold;
-      case 'lte':
-        return rule.currentValue <= rule.threshold;
-      case 'eq':
-        return rule.currentValue === rule.threshold;
-      default:
-        return false;
-    }
-  }
-
   private analyzeGateResults(
-    status: QualityGateStatus,
+    status: MeasuredGateStatus,
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
-    // Report failed rules
-    for (const rule of status.rules) {
-      if (!this.evaluateRule(rule)) {
-        const severity = rule.blocking ? 'critical' : 'medium';
-        findings.push({
-          type: 'quality-gate-failure',
-          severity,
-          domain: 'quality-assessment',
-          title: `Quality Gate Failed: ${rule.name}`,
-          description: `${rule.name} is ${rule.currentValue}${rule.unit}, threshold is ${rule.operator === 'gte' ? '>=' : rule.operator === 'lte' ? '<=' : '='} ${rule.threshold}${rule.unit}`,
-          context: {
-            ruleId: rule.id,
-            category: rule.category,
-            currentValue: rule.currentValue,
-            threshold: rule.threshold,
-            blocking: rule.blocking,
-          },
-        });
-      }
-    }
-
-    // Category-specific recommendations
-    const coverageFailures = status.rules
-      .filter(r => r.category === 'coverage' && !this.evaluateRule(r));
-    if (coverageFailures.length > 0) {
-      recommendations.push({
-        priority: coverageFailures.some(r => r.blocking) ? 'p0' : 'p2',
-        domain: 'quality-assessment',
-        action: 'Improve Test Coverage',
-        description: `${coverageFailures.length} coverage gates are failing. Add tests to increase coverage.`,
-        estimatedImpact: 'high',
-        effort: 'medium',
-        autoFixable: true,
-      });
-    }
-
-    const securityFailures = status.rules
-      .filter(r => r.category === 'security' && !this.evaluateRule(r));
-    if (securityFailures.length > 0) {
-      recommendations.push({
-        priority: 'p0',
-        domain: 'quality-assessment',
-        action: 'Address Security Issues',
-        description: 'Security gates are failing. Resolve vulnerabilities before release.',
-        estimatedImpact: 'high',
-        effort: 'medium',
-        autoFixable: false,
-      });
-    }
-  }
-
-  private checkBlockers(
-    status: QualityGateStatus,
-    findings: WorkerFinding[],
-    recommendations: WorkerRecommendation[]
-  ): void {
-    if (status.blockers > 0) {
+    const failed = status.checks.filter((c) => !c.passed);
+    for (const check of failed) {
       findings.push({
-        type: 'release-blocked',
-        severity: 'critical',
+        type: 'quality-gate-failure',
+        severity: check.severity,
         domain: 'quality-assessment',
-        title: 'Release Blocked',
-        description: `${status.blockers} blocking issues prevent release`,
+        title: `Quality Gate Failed: ${check.name}`,
+        description: `Measured ${check.name} is ${check.value}, threshold is ${comparator(check)} ${check.threshold}`,
         context: {
-          blockers: status.blockers,
-          blockingRules: status.rules
-            .filter(r => r.blocking && !this.evaluateRule(r))
-            .map(r => r.name),
+          metric: check.name,
+          value: check.value,
+          threshold: check.threshold,
+          direction: check.direction,
         },
       });
+    }
 
+    if (failed.length > 0) {
+      findings.push({
+        type: 'release-blocked',
+        severity: failed.some((c) => c.severity === 'critical') ? 'critical' : 'high',
+        domain: 'quality-assessment',
+        title: 'Release Blocked',
+        description: `${failed.length} measured quality checks fail the gate`,
+        context: { failingMetrics: failed.map((c) => c.name) },
+      });
       recommendations.push({
         priority: 'p0',
         domain: 'quality-assessment',
-        action: 'Resolve Release Blockers',
-        description: 'Address all blocking quality gate failures before proceeding with release.',
+        action: 'Resolve Failing Quality Checks',
+        description: `Fix ${failed.map((c) => c.name).join(', ')} before proceeding with release.`,
         estimatedImpact: 'high',
         effort: 'medium',
         autoFixable: false,
       });
-    } else if (!status.releaseReady) {
-      findings.push({
-        type: 'release-warning',
-        severity: 'medium',
-        domain: 'quality-assessment',
-        title: 'Release Not Recommended',
-        description: `No blockers, but ${status.warnings} warnings suggest caution`,
-        context: { warnings: status.warnings },
-      });
     }
   }
 
-  private async compareToHistory(
+  /** Compare with the previous verdict — only a measured one (#1043). */
+  private async compareToPrevious(
     context: WorkerContext,
-    current: QualityGateStatus,
+    current: MeasuredGateStatus,
     findings: WorkerFinding[]
   ): Promise<void> {
-    const previous = await context.memory.get<QualityGateStatus>('quality-gate:current');
+    const previous = measuredStatus(await context.memory.get<unknown>(CURRENT_KEY));
     if (!previous) return;
 
-    // Check for regression
     if (previous.passed && !current.passed) {
       findings.push({
         type: 'quality-gate-regression',
         severity: 'high',
         domain: 'quality-assessment',
         title: 'Quality Gate Regression',
-        description: 'Quality gates were passing previously but are now failing',
-        context: {
-          previousBlockers: previous.blockers,
-          currentBlockers: current.blockers,
-        },
+        description: 'The measured quality gate was passing previously but is now failing',
+        context: { previousEvaluatedAt: previous.evaluatedAt, currentFailedChecks: current.failedChecks },
       });
     }
 
-    // Check for improvement
     if (!previous.passed && current.passed) {
       findings.push({
         type: 'quality-gate-improvement',
         severity: 'info',
         domain: 'quality-assessment',
-        title: 'Quality Gates Now Passing',
-        description: 'All quality gates are now passing after previous failures',
-        context: {
-          previousFailures: previous.failedRules,
-          currentFailures: current.failedRules,
-        },
+        title: 'Quality Gate Now Passing',
+        description: 'The measured quality gate is now passing after previous failures',
+        context: { previousEvaluatedAt: previous.evaluatedAt },
       });
     }
   }
 
-  private calculateHealthScore(status: QualityGateStatus): number {
-    if (status.rules.length === 0) return 100;
-
-    // Base score from pass rate
-    const passRate = status.passedRules / status.rules.length;
-    let score = passRate * 70;
-
-    // Penalty for blockers
-    score -= status.blockers * 15;
-
-    // Penalty for warnings
-    score -= status.warnings * 5;
-
-    // Bonus for release readiness
-    if (status.releaseReady) {
-      score += 10;
-    }
-
+  private calculateHealthScore(status: MeasuredGateStatus): number {
+    if (status.checks.length === 0) return 100;
+    let score = (status.passedChecks / status.checks.length) * 90;
+    if (status.passed) score += 10;
     return Math.max(0, Math.min(100, Math.round(score)));
   }
 }

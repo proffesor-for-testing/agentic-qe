@@ -37,7 +37,7 @@ export class PersistentWorkerMemory implements WorkerMemory {
     await this.backend.kvSet(key, value, NAMESPACE);
   }
 
-  async search(pattern: string): Promise<string[]> {
-    return this.backend.kvSearch(pattern, NAMESPACE);
+  async search(pattern: string, limit?: number, options?: WorkerMemoryReadOptions): Promise<string[]> {
+    return this.backend.kvSearch(pattern, options?.namespace ?? NAMESPACE, limit);
   }
 }

@@ -2,13 +2,22 @@
  * Agentic QE v3 - Defect Predictor Worker
  * ADR-014: Background Workers for QE Monitoring
  *
- * ML-based defect prediction including:
- * - Code change risk analysis
- * - Historical defect pattern matching
- * - Hotspot identification
- * - Predictive maintenance suggestions
+ * Surfaces the defect-intelligence domain's latest predictions:
+ * - High-risk files and their contributing factors
+ * - Targeted review / refactoring / coverage recommendations
+ *
+ * #1043: every prediction comes from a run of the defect-intelligence
+ * predictor (`defect-intelligence:predictor:prediction:<id>` in the
+ * `defect-intelligence` namespace, written by DefectPredictorService), and
+ * only files that exist in the project are kept. Code hotspots have no
+ * measured source and are reported unmeasured. Nothing predicted → nothing
+ * stored, an "unmeasured" info finding. A `defect:predictions` record without
+ * the measured stamp (the invented one written by <= 3.15.6) is ignored and
+ * replaced by the next measured run.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { BaseWorker } from '../base-worker';
 import {
   WorkerConfig,
@@ -17,6 +26,7 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 const CONFIG: WorkerConfig = {
   id: 'defect-predictor',
@@ -31,29 +41,67 @@ const CONFIG: WorkerConfig = {
   retryDelayMs: 15000,
 };
 
-interface DefectPrediction {
+const DEFECT_NAMESPACE = 'defect-intelligence';
+const PREDICTION_KEY_PATTERN = 'defect-intelligence:predictor:prediction:*';
+const PREDICTIONS_KEY = 'defect:predictions';
+const SCHEMA_VERSION = 1;
+/** The predictor keeps its records for 7 days; nothing older is current. */
+const MAX_PREDICTION_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_PREDICTION_RECORDS = 1000;
+
+type RiskLevel = 'critical' | 'high' | 'medium' | 'low' | 'info';
+const RISK_LEVELS: readonly RiskLevel[] = ['critical', 'high', 'medium', 'low', 'info'];
+
+/** One file prediction as the defect-intelligence predictor recorded it. */
+interface DomainFilePrediction {
   file: string;
   probability: number;
-  riskLevel: 'critical' | 'high' | 'medium' | 'low';
-  factors: DefectFactor[];
-  recentChanges: number;
-  historicalDefects: number;
-  complexity: number;
+  riskLevel: RiskLevel;
+  factors: { name: string; contribution: number }[];
+  recommendations: string[];
 }
 
-interface DefectFactor {
-  name: string;
-  weight: number;
-  description: string;
+/** The `defect:predictions` record: one real prediction run (#1043). */
+interface MeasuredDefectPredictions {
+  measured: true;
+  schemaVersion: typeof SCHEMA_VERSION;
+  source: 'defect-intelligence';
+  predictionId: string;
+  predictedAt: string;
+  evaluatedAt: string;
+  predictions: DomainFilePrediction[];
+  /** Predicted files that no longer exist in the project, left out. */
+  missingFilesSkipped: number;
 }
 
-interface CodeHotspot {
-  file: string;
-  changeFrequency: number;
-  defectDensity: number;
-  authors: number;
-  lastModified: Date;
-  score: number;
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+function parseFilePrediction(raw: unknown): DomainFilePrediction | null {
+  if (!isRecord(raw)) return null;
+  const { file, probability, riskLevel } = raw;
+  if (typeof file !== 'string' || file.length === 0) return null;
+  if (typeof probability !== 'number' || !Number.isFinite(probability) || probability < 0 || probability > 1) return null;
+  if (!RISK_LEVELS.includes(riskLevel as RiskLevel)) return null;
+  const factors = Array.isArray(raw.factors)
+    ? raw.factors.filter((f): f is { name: string; contribution: number } =>
+      isRecord(f) && typeof f.name === 'string' && typeof f.contribution === 'number' && Number.isFinite(f.contribution))
+    : [];
+  const recommendations = Array.isArray(raw.recommendations)
+    ? raw.recommendations.filter((r): r is string => typeof r === 'string')
+    : [];
+  return { file, probability, riskLevel: riskLevel as RiskLevel, factors, recommendations };
+}
+
+/** A recorded prediction run, or `null` when the record is not a usable one. */
+function parsePredictionRecord(raw: unknown, now: number):
+  { id: string; timestamp: string; predictions: DomainFilePrediction[] } | null {
+  if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.timestamp !== 'string') return null;
+  const t = Date.parse(raw.timestamp);
+  if (!Number.isFinite(t) || t > now + 60_000 || now - t > MAX_PREDICTION_AGE_MS) return null;
+  if (!Array.isArray(raw.predictions) || raw.predictions.length === 0) return null;
+  const predictions = raw.predictions.map(parseFilePrediction);
+  if (predictions.some((p) => p === null)) return null;
+  return { id: raw.id, timestamp: raw.timestamp, predictions: predictions as DomainFilePrediction[] };
 }
 
 export class DefectPredictorWorker extends BaseWorker {
@@ -68,29 +116,50 @@ export class DefectPredictorWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Analyze code for defect predictions
-    const predictions = await this.analyzeCodeForDefects(context);
+    const latest = await this.readLatestPrediction(context);
 
-    // Identify hotspots
-    const hotspots = await this.identifyHotspots(context);
+    if (!latest) {
+      findings.push({
+        type: 'defect-prediction-unmeasured',
+        severity: 'info',
+        domain: 'defect-intelligence',
+        title: 'Defect Prediction Unmeasured',
+        description: 'No defect prediction for files in this project has been recorded in the last 7 days, so no ' +
+          'risk is reported and nothing was stored. Run defect_predict on the files to assess.',
+      });
+      context.logger.info('Defect prediction complete', { measured: false });
+      return this.createResult(
+        Date.now() - startTime,
+        {
+          itemsAnalyzed: 0,
+          issuesFound: 0,
+          healthScore: 100,
+          trend: 'stable',
+          domainMetrics: {
+            filesAnalyzed: 0,
+            highRiskFiles: 0,
+            hotspots: 'unmeasured',
+            avgDefectProbability: 'unmeasured',
+          },
+        },
+        findings,
+        recommendations
+      );
+    }
 
-    // Generate findings from predictions
+    const { predictions } = latest;
     this.analyzeHighRiskPredictions(predictions, findings, recommendations);
 
-    // Analyze hotspots
-    this.analyzeHotspots(hotspots, findings, recommendations);
+    await context.memory.set(PREDICTIONS_KEY, latest);
+    await context.memory.set('defect:lastAnalysis', latest.evaluatedAt);
 
-    // Store predictions
-    await context.memory.set('defect:predictions', predictions);
-    await context.memory.set('defect:hotspots', hotspots);
-    await context.memory.set('defect:lastAnalysis', new Date().toISOString());
-
-    const healthScore = this.calculateHealthScore(predictions, hotspots);
-
+    const healthScore = this.calculateHealthScore(predictions);
+    const highRisk = predictions.filter(p => p.riskLevel === 'high' || p.riskLevel === 'critical').length;
     context.logger.info('Defect prediction complete', {
+      measured: true,
       healthScore,
+      predictionId: latest.predictionId,
       predictionsCount: predictions.length,
-      hotspotsCount: hotspots.length,
     });
 
     return this.createResult(
@@ -102,8 +171,9 @@ export class DefectPredictorWorker extends BaseWorker {
         trend: 'stable',
         domainMetrics: {
           filesAnalyzed: predictions.length,
-          highRiskFiles: predictions.filter(p => p.riskLevel === 'high' || p.riskLevel === 'critical').length,
-          hotspots: hotspots.length,
+          highRiskFiles: highRisk,
+          missingFilesSkipped: latest.missingFilesSkipped,
+          hotspots: 'unmeasured',
           avgDefectProbability: (predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length).toFixed(2),
         },
       },
@@ -112,264 +182,115 @@ export class DefectPredictorWorker extends BaseWorker {
     );
   }
 
-  private async analyzeCodeForDefects(_context: WorkerContext): Promise<DefectPrediction[]> {
-    // In a real implementation, this would:
-    // 1. Analyze git history for change patterns
-    // 2. Apply ML models for defect prediction
-    // 3. Consider code complexity metrics
-    // 4. Factor in historical defect data
+  /**
+   * #1043: the most recent prediction run the defect-intelligence predictor
+   * recorded, restricted to files that exist in the project. `null` when there
+   * is none or none of its files exist.
+   */
+  private async readLatestPrediction(context: WorkerContext): Promise<MeasuredDefectPredictions | null> {
+    const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
+    const now = Date.now();
+    let latest: ReturnType<typeof parsePredictionRecord> = null;
+    for (const key of keys) {
+      const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
+      if (parsed && (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp))) latest = parsed;
+    }
+    if (!latest) return null;
 
-    return [
-      {
-        file: 'src/coordination/workflow-orchestrator.ts',
-        probability: 0.78,
-        riskLevel: 'high',
-        factors: [
-          { name: 'complexity', weight: 0.3, description: 'High cyclomatic complexity (28)' },
-          { name: 'change-frequency', weight: 0.25, description: 'Changed 15 times in last 30 days' },
-          { name: 'size', weight: 0.2, description: 'Large file (1500+ lines)' },
-          { name: 'coupling', weight: 0.15, description: 'High coupling with 8 other modules' },
-        ],
-        recentChanges: 15,
-        historicalDefects: 3,
-        complexity: 28,
-      },
-      {
-        file: 'src/domains/security-compliance/services/security-scanner.ts',
-        probability: 0.65,
-        riskLevel: 'high',
-        factors: [
-          { name: 'complexity', weight: 0.35, description: 'High cyclomatic complexity (32)' },
-          { name: 'size', weight: 0.25, description: 'Very large file (1200+ lines)' },
-          { name: 'test-coverage', weight: 0.2, description: 'Low test coverage (45%)' },
-        ],
-        recentChanges: 8,
-        historicalDefects: 2,
-        complexity: 32,
-      },
-      {
-        file: 'src/kernel/memory-backend.ts',
-        probability: 0.45,
-        riskLevel: 'medium',
-        factors: [
-          { name: 'change-frequency', weight: 0.4, description: 'Changed 10 times in last 30 days' },
-          { name: 'authors', weight: 0.3, description: 'Multiple authors (4)' },
-        ],
-        recentChanges: 10,
-        historicalDefects: 1,
-        complexity: 15,
-      },
-      {
-        file: 'src/shared/http/http-client.ts',
-        probability: 0.25,
-        riskLevel: 'low',
-        factors: [
-          { name: 'stability', weight: 0.5, description: 'Stable code, few recent changes' },
-        ],
-        recentChanges: 2,
-        historicalDefects: 0,
-        complexity: 8,
-      },
-    ];
-  }
-
-  private async identifyHotspots(_context: WorkerContext): Promise<CodeHotspot[]> {
-    // In a real implementation, this would analyze git history
-
-    return [
-      {
-        file: 'src/coordination/workflow-orchestrator.ts',
-        changeFrequency: 15,
-        defectDensity: 0.02,
-        authors: 4,
-        lastModified: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        score: 0.85,
-      },
-      {
-        file: 'src/domains/test-generation/services/test-generator.ts',
-        changeFrequency: 12,
-        defectDensity: 0.015,
-        authors: 3,
-        lastModified: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        score: 0.72,
-      },
-      {
-        file: 'src/mcp/server.ts',
-        changeFrequency: 8,
-        defectDensity: 0.01,
-        authors: 2,
-        lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        score: 0.55,
-      },
-    ];
+    const root = findProjectRoot();
+    const existing = latest.predictions.filter((p) => {
+      try {
+        return fs.statSync(path.resolve(root, p.file)).isFile();
+      } catch {
+        return false;
+      }
+    });
+    if (existing.length === 0) {
+      context.logger.info('Latest defect prediction names no file that exists in the project', { predictionId: latest.id });
+      return null;
+    }
+    return {
+      measured: true,
+      schemaVersion: SCHEMA_VERSION,
+      source: 'defect-intelligence',
+      predictionId: latest.id,
+      predictedAt: latest.timestamp,
+      evaluatedAt: new Date().toISOString(),
+      predictions: existing,
+      missingFilesSkipped: latest.predictions.length - existing.length,
+    };
   }
 
   private analyzeHighRiskPredictions(
-    predictions: DefectPrediction[],
+    predictions: DomainFilePrediction[],
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
     const critical = predictions.filter(p => p.riskLevel === 'critical');
     const high = predictions.filter(p => p.riskLevel === 'high');
 
-    for (const prediction of critical) {
+    for (const prediction of [...critical, ...high]) {
+      const name = prediction.file.split(/[\\/]/).pop();
       findings.push({
-        type: 'critical-defect-risk',
-        severity: 'critical',
+        type: `${prediction.riskLevel}-defect-risk`,
+        severity: prediction.riskLevel as 'critical' | 'high',
         domain: 'defect-intelligence',
-        title: `Critical Defect Risk: ${prediction.file.split('/').pop()}`,
-        description: `${(prediction.probability * 100).toFixed(0)}% probability of defect based on code analysis`,
+        title: `${prediction.riskLevel === 'critical' ? 'Critical' : 'High'} Defect Risk: ${name}`,
+        description: `${(prediction.probability * 100).toFixed(0)}% predicted defect probability (defect-intelligence predictor)`,
         resource: prediction.file,
         context: {
           probability: prediction.probability,
           factors: prediction.factors,
-          recentChanges: prediction.recentChanges,
-          historicalDefects: prediction.historicalDefects,
+          recommendations: prediction.recommendations,
         },
       });
     }
 
-    for (const prediction of high) {
-      findings.push({
-        type: 'high-defect-risk',
-        severity: 'high',
-        domain: 'defect-intelligence',
-        title: `High Defect Risk: ${prediction.file.split('/').pop()}`,
-        description: `${(prediction.probability * 100).toFixed(0)}% probability of defect`,
-        resource: prediction.file,
-        context: {
-          probability: prediction.probability,
-          topFactors: prediction.factors.slice(0, 3),
-          complexity: prediction.complexity,
-        },
-      });
-    }
+    if (critical.length === 0 && high.length === 0) return;
 
-    if (critical.length > 0 || high.length > 0) {
+    recommendations.push({
+      priority: 'p0',
+      domain: 'defect-intelligence',
+      action: 'Prioritize Code Review for High-Risk Files',
+      description: `${critical.length + high.length} files have elevated predicted defect risk. Schedule focused code reviews.`,
+      estimatedImpact: 'high',
+      effort: 'medium',
+      autoFixable: false,
+    });
+
+    const risky = [...critical, ...high];
+    const complexity = risky.filter(p => p.factors.some(f => f.name === 'codeComplexity' && f.contribution > 0.1));
+    if (complexity.length > 0) {
       recommendations.push({
-        priority: 'p0',
+        priority: 'p1',
         domain: 'defect-intelligence',
-        action: 'Prioritize Code Review for High-Risk Files',
-        description: `${critical.length + high.length} files have elevated defect risk. Schedule focused code reviews.`,
+        action: 'Reduce Code Complexity',
+        description: `${complexity.length} high-risk files have code complexity as a major risk factor. Consider refactoring.`,
         estimatedImpact: 'high',
-        effort: 'medium',
-        autoFixable: false,
-      });
-
-      // Specific recommendations based on factors
-      const complexityIssues = predictions.filter(p =>
-        p.factors.some(f => f.name === 'complexity' && f.weight > 0.25)
-      );
-      if (complexityIssues.length > 0) {
-        recommendations.push({
-          priority: 'p1',
-          domain: 'defect-intelligence',
-          action: 'Reduce Code Complexity',
-          description: `${complexityIssues.length} files have high complexity as a defect risk factor. Consider refactoring.`,
-          estimatedImpact: 'high',
-          effort: 'high',
-          autoFixable: false,
-        });
-      }
-
-      const coverageIssues = predictions.filter(p =>
-        p.factors.some(f => f.name === 'test-coverage')
-      );
-      if (coverageIssues.length > 0) {
-        recommendations.push({
-          priority: 'p1',
-          domain: 'defect-intelligence',
-          action: 'Improve Test Coverage for Risky Files',
-          description: `${coverageIssues.length} high-risk files have low test coverage. Add targeted tests.`,
-          estimatedImpact: 'high',
-          effort: 'medium',
-          autoFixable: true,
-        });
-      }
-    }
-  }
-
-  private analyzeHotspots(
-    hotspots: CodeHotspot[],
-    findings: WorkerFinding[],
-    recommendations: WorkerRecommendation[]
-  ): void {
-    const criticalHotspots = hotspots.filter(h => h.score > 0.7);
-
-    if (criticalHotspots.length > 0) {
-      findings.push({
-        type: 'code-hotspots',
-        severity: 'medium',
-        domain: 'defect-intelligence',
-        title: `${criticalHotspots.length} Code Hotspots Detected`,
-        description: 'Files with high change frequency and defect density identified',
-        context: {
-          hotspots: criticalHotspots.map(h => ({
-            file: h.file,
-            changeFrequency: h.changeFrequency,
-            score: h.score.toFixed(2),
-          })),
-        },
-      });
-
-      recommendations.push({
-        priority: 'p2',
-        domain: 'defect-intelligence',
-        action: 'Address Code Hotspots',
-        description: 'Consider refactoring frequently-changed, defect-prone files to improve stability.',
-        estimatedImpact: 'medium',
         effort: 'high',
         autoFixable: false,
       });
     }
 
-    // Check for knowledge silos (files with single author and high change frequency)
-    const silos = hotspots.filter(h => h.authors === 1 && h.changeFrequency > 5);
-    if (silos.length > 0) {
-      findings.push({
-        type: 'knowledge-silo',
-        severity: 'medium',
-        domain: 'defect-intelligence',
-        title: 'Knowledge Silos Detected',
-        description: `${silos.length} frequently-changed files have only one author`,
-        context: {
-          files: silos.map(s => s.file),
-        },
-      });
-
+    const coverage = risky.filter(p => p.factors.some(f => f.name === 'testCoverage' && f.contribution > 0.1));
+    if (coverage.length > 0) {
       recommendations.push({
-        priority: 'p2',
+        priority: 'p1',
         domain: 'defect-intelligence',
-        action: 'Address Knowledge Silos',
-        description: 'Ensure knowledge sharing for files maintained by single developers.',
-        estimatedImpact: 'medium',
-        effort: 'low',
-        autoFixable: false,
+        action: 'Improve Test Coverage for Risky Files',
+        description: `${coverage.length} high-risk files have low test coverage as a major risk factor. Add targeted tests.`,
+        estimatedImpact: 'high',
+        effort: 'medium',
+        autoFixable: true,
       });
     }
   }
 
-  private calculateHealthScore(predictions: DefectPrediction[], hotspots: CodeHotspot[]): number {
+  private calculateHealthScore(predictions: DomainFilePrediction[]): number {
     if (predictions.length === 0) return 100;
-
-    // Base score from average defect probability (inverted)
     const avgProbability = predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length;
-    let score = (1 - avgProbability) * 60;
-
-    // Penalty for high-risk files
-    const highRiskCount = predictions.filter(p =>
-      p.riskLevel === 'critical' || p.riskLevel === 'high'
-    ).length;
-    score -= (highRiskCount / predictions.length) * 20;
-
-    // Penalty for hotspots
-    const criticalHotspots = hotspots.filter(h => h.score > 0.7).length;
-    score -= criticalHotspots * 3;
-
-    // Bonus for stable codebase
-    const lowRiskRatio = predictions.filter(p => p.riskLevel === 'low').length / predictions.length;
-    score += lowRiskRatio * 20;
-
+    const highRisk = predictions.filter(p => p.riskLevel === 'critical' || p.riskLevel === 'high').length;
+    const score = (1 - avgProbability) * 80 - (highRisk / predictions.length) * 20 + 20;
     return Math.max(0, Math.min(100, Math.round(score)));
   }
 }
