@@ -20,6 +20,13 @@ export function fileCoverageKey(filePath: string, projectRoot?: string): string 
   return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(projectRoot ?? process.cwd(), filePath);
 }
 
+/** Read the canonical key first, then a measured legacy relative key if present. */
+export function fileCoverageLookupKeys(filePath: string, projectRoot?: string): string[] {
+  const canonical = `coverage:file:${fileCoverageKey(filePath, projectRoot)}`;
+  const legacy = `coverage:file:${filePath}`;
+  return canonical === legacy ? [canonical] : [canonical, legacy];
+}
+
 export interface CollectedMetrics {
   branch: boolean;
   function: boolean;
