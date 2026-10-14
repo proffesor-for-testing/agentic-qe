@@ -24,7 +24,7 @@ import semver from 'semver';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { classifyNpmSpec, exactNpmVersion } from '@shared/security/osv-lookup.js';
 import { LOCKFILES, parseLockfile, type LockIndex, type LockfileName } from './lockfile-versions.js';
-import { expandWorkspaces, isInside, pnpmWorkspacePatterns, type WorkspaceExpansion } from './workspace-members.js';
+import { MAX_PNPM_WORKSPACE_BYTES, expandWorkspaces, isInside, pnpmWorkspacePatterns, type WorkspaceExpansion } from './workspace-members.js';
 
 export interface ResolvedDependency {
   /** Dependency name as declared (the alias name for `npm:` aliases). */
@@ -127,9 +127,17 @@ async function workspacePatterns(root: string, rootManifest: Manifest): Promise<
   let pnpm: string[] = [];
   let text: string | null = null;
   try {
-    text = await fs.readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf-8');
+    const file = path.join(root, 'pnpm-workspace.yaml');
+    // #1049 round 6: refuse an oversized file before reading or parsing it.
+    const { size } = await fs.stat(file);
+    if (size > MAX_PNPM_WORKSPACE_BYTES) {
+      errors.push(`pnpm-workspace.yaml is ${size} bytes (limit ${MAX_PNPM_WORKSPACE_BYTES}); not parsed, workspace members may be missing`);
+    } else {
+      text = await fs.readFile(file, 'utf-8');
+    }
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') errors.push(`pnpm-workspace.yaml could not be read (${(e as NodeJS.ErrnoException).code ?? 'error'})`);
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code && code !== 'ENOENT') errors.push(`pnpm-workspace.yaml could not be read (${(e as NodeJS.ErrnoException).code ?? 'error'})`);
   }
   if (text !== null) {
     // #1049 round 5: a real YAML parse; an unparsable file or a non-list `packages` is an error, never [].

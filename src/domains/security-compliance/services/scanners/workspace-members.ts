@@ -13,7 +13,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { glob } from 'tinyglobby';
-import { parse as parseYaml } from 'yaml';
+import { parseDocument, isMap, isScalar } from 'yaml';
 
 export interface WorkspaceExpansion {
   /** Member directories, relative to the root, '/'-separated, sorted. */
@@ -35,22 +35,38 @@ export function isInside(root: string, child: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/** pnpm-workspace.yaml files are tiny; a larger one is refused rather than parsed (#1049 round 6). */
+export const MAX_PNPM_WORKSPACE_BYTES = 1024 * 1024;
+
 /**
  * The `packages:` globs of a pnpm-workspace.yaml, parsed as YAML (block or
- * flow sequences, comments, any indentation). Anything else in the file is
- * ignored. A parse error or a `packages` value that is not a list of strings
- * is an error, never an empty list (#1049 round 5).
+ * flow sequences, comments, any indentation, `<<` merge keys). Anything else
+ * in the file is ignored. A parse error, an oversized file, a duplicate
+ * `packages` key or a `packages` value that is not a list of strings is an
+ * error, never an empty list.
  */
-export function pnpmWorkspacePatterns(text: string): { patterns: string[] } | { error: string } {
-  let doc: unknown;
+export function pnpmWorkspacePatterns(raw: string): { patterns: string[] } | { error: string } {
+  if (Buffer.byteLength(raw, 'utf-8') > MAX_PNPM_WORKSPACE_BYTES) {
+    return { error: `pnpm-workspace.yaml is larger than ${MAX_PNPM_WORKSPACE_BYTES} bytes; not parsed` };
+  }
+  const text = raw.replace(/^\uFEFF/, '');
+  let js: unknown;
   try {
-    doc = parseYaml(text.replace(/^﻿/, ''));
+    // uniqueKeys:false — the library's duplicate-key check is quadratic; duplicates
+    // of `packages` are detected below instead. merge:true resolves `<<: *anchor`.
+    const doc = parseDocument(text, { uniqueKeys: false, merge: true });
+    if (doc.errors.length > 0) throw doc.errors[0];
+    if (isMap(doc.contents)) {
+      const packagesKeys = doc.contents.items.filter((pair) => isScalar(pair.key) && pair.key.value === 'packages').length;
+      if (packagesKeys > 1) return { error: 'pnpm-workspace.yaml has more than one "packages" key' };
+    }
+    js = doc.toJS({ maxAliasCount: 100 });
   } catch (error) {
     return { error: `pnpm-workspace.yaml could not be parsed (${error instanceof Error ? error.message.split('\n')[0].slice(0, 120) : 'error'})` };
   }
-  if (doc === null || doc === undefined) return { patterns: [] };
-  if (typeof doc !== 'object' || Array.isArray(doc)) return { error: 'pnpm-workspace.yaml is not a YAML mapping' };
-  const packages = (doc as Record<string, unknown>).packages;
+  if (js === null || js === undefined) return { patterns: [] };
+  if (typeof js !== 'object' || Array.isArray(js)) return { error: 'pnpm-workspace.yaml is not a YAML mapping' };
+  const packages = (js as Record<string, unknown>).packages;
   if (packages === undefined || packages === null) return { patterns: [] };
   if (!Array.isArray(packages) || !packages.every((p) => typeof p === 'string')) {
     return { error: 'pnpm-workspace.yaml "packages" is not a list of strings' };
@@ -87,16 +103,22 @@ export function workspaceGlobToRegExp(pattern: string): RegExp {
   return new RegExp(`^${re}$`);
 }
 
+export const SYMLINK_WALK_LIMITS = { maxDepth: 12, maxEntries: 50_000 } as const;
+
 /**
  * Symlinks under `root` (relative paths), found by walking real directories
  * only — a link is reported, never descended into. node_modules and .git are
- * skipped; the walk is bounded.
+ * skipped. The walk is bounded; `truncated` says it stopped early, in which
+ * case symlinked members may be missing (the caller makes that an error).
  */
-async function listSymlinks(root: string, maxDepth = 12, maxEntries = 50_000): Promise<string[]> {
-  const out: string[] = [];
+async function listSymlinks(
+  root: string, limits: { maxDepth: number; maxEntries: number } = SYMLINK_WALK_LIMITS,
+): Promise<{ links: string[]; truncated: string | null }> {
+  const links: string[] = [];
   let seen = 0;
+  let truncated: string | null = null;
   const walk = async (rel: string, depth: number): Promise<void> => {
-    if (depth > maxDepth || seen > maxEntries) return;
+    if (truncated) return;
     let entries: import('fs').Dirent[];
     try {
       entries = await fs.readdir(path.join(root, rel), { withFileTypes: true });
@@ -104,15 +126,25 @@ async function listSymlinks(root: string, maxDepth = 12, maxEntries = 50_000): P
       return;
     }
     for (const entry of entries) {
-      seen++;
+      if (++seen > limits.maxEntries) {
+        truncated = `stopped after ${limits.maxEntries} entries`;
+        return;
+      }
       if (entry.name === 'node_modules' || entry.name === '.git') continue;
       const child = rel ? `${rel}/${entry.name}` : entry.name;
-      if (entry.isSymbolicLink()) out.push(child);
-      else if (entry.isDirectory()) await walk(child, depth + 1);
+      if (entry.isSymbolicLink()) links.push(child);
+      else if (entry.isDirectory()) {
+        if (depth + 1 > limits.maxDepth) {
+          truncated = `stopped at depth ${limits.maxDepth} (${child})`;
+          return;
+        }
+        await walk(child, depth + 1);
+        if (truncated) return;
+      }
     }
   };
   await walk('', 0);
-  return out;
+  return { links, truncated };
 }
 
 /** Directories (or symlinks to directories) matched by `pattern` that hold a package.json. */
@@ -130,10 +162,14 @@ async function matchMembers(
     const dir = link.endsWith('/package.json') ? link.slice(0, -'/package.json'.length) : link;
     if (!re.test(dir) || isNegated(dir)) continue;
     if (dir === link) {
+      // A symlinked directory is a member only if it holds a package.json —
+      // the same rule as for real directories (round 6: a linked asset
+      // directory is not a package).
       try {
         if (!(await fs.stat(path.join(root, link))).isDirectory()) continue;
+        if (!(await fs.stat(path.join(root, link, 'package.json'))).isFile()) continue;
       } catch {
-        continue; // dangling link
+        continue; // dangling link, or no package.json
       }
     }
     dirs.push(dir);
@@ -149,6 +185,7 @@ async function matchMembers(
  */
 export async function expandWorkspaces(
   root: string, patterns: string[], extraMembers: string[] = [],
+  limits: { maxDepth: number; maxEntries: number } = SYMLINK_WALK_LIMITS,
 ): Promise<WorkspaceExpansion> {
   if (patterns.length === 0 && extraMembers.length === 0) return { members: [], excluded: [], errors: [], warnings: [] };
   const errors: string[] = [];
@@ -168,8 +205,12 @@ export async function expandWorkspaces(
   }
   const ignore = [NODE_MODULES_IGNORE, ...negations, ...negations.map((n) => `${n}/package.json`)];
 
-  const negatedPath = (member: string): boolean => negations.some((n) => workspaceGlobToRegExp(n).test(member));
-  const symlinks = positives.length > 0 ? await listSymlinks(root) : [];
+  // `!dir/**` also excludes `dir` itself (a symlinked dir is matched as `dir`).
+  const negatedPath = (member: string): boolean => negations.some((n) => workspaceGlobToRegExp(n).test(member)
+    || (n.endsWith('/**') && workspaceGlobToRegExp(n.slice(0, -3)).test(member)));
+  const walk = positives.length > 0 ? await listSymlinks(root, limits) : { links: [], truncated: null };
+  const symlinks = walk.links;
+  if (walk.truncated) errors.push(`workspace symlink search ${walk.truncated}; symlinked workspace members may be missing`);
   const candidates = new Set<string>();
   for (const pattern of positives) {
     try {
@@ -196,7 +237,9 @@ export async function expandWorkspaces(
   } catch (error) {
     return { members: [], excluded, errors: [...errors, `workspace root could not be resolved (${(error as NodeJS.ErrnoException).code ?? 'error'})`], warnings };
   }
-  const members: string[] = [];
+  // One member per real directory: a link to a sibling member is not scanned twice.
+  // Prefer the path that is the directory itself over a link to it.
+  const byRealDir = new Map<string, string>();
   for (const member of [...candidates].sort()) {
     if (member === '' || member === '.' || member.split('/').includes('node_modules')) continue;
     let realDir: string;
@@ -210,6 +253,7 @@ export async function expandWorkspaces(
       continue;
     }
     if (realDir === realRoot) continue; // a link back to the root is the root, not a member
+    if (toPosix(path.relative(realRoot, realDir)).split('/').includes('node_modules')) continue; // a link into node_modules
     try {
       const realManifest = await fs.realpath(path.join(root, member, 'package.json'));
       if (!isInside(realRoot, realManifest)) {
@@ -217,7 +261,9 @@ export async function expandWorkspaces(
         continue;
       }
     } catch { /* no package.json: reported when the manifest is read */ }
-    members.push(member);
+    const existing = byRealDir.get(realDir);
+    const isDirect = toPosix(path.relative(realRoot, realDir)) === member;
+    if (existing === undefined || isDirect) byRealDir.set(realDir, member);
   }
-  return { members: [...new Set(members)], excluded, errors, warnings };
+  return { members: [...byRealDir.values()].sort(), excluded, errors, warnings };
 }

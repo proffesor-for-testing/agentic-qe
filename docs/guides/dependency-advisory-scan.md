@@ -62,10 +62,14 @@ member's `package.json`. Scanning a member directly checks only that member.
 
 - Globs support `*`, `**`, multi-segment patterns and braces; `!negations`
   exclude members; `node_modules` is skipped. `pnpm-workspace.yaml` is parsed
-  as YAML (any valid form of `packages:`); a file that cannot be parsed, or a
-  `packages` value that is not a list of strings, makes the scan incomplete.
-- A symlinked member directory is resolved: inside the project root it is a
-  member, outside it is excluded. The root itself is never a member. A pattern
+  as YAML (any valid form of `packages:`, including `<<` merge keys); a file
+  that cannot be parsed, is larger than 1 MB, has more than one `packages`
+  key, or whose `packages` is not a list of strings makes the scan incomplete.
+- A symlinked directory is a member only if it holds a `package.json`; its
+  real path decides: inside the project root it is a member (once, even if
+  several links point at it), outside it is excluded, inside `node_modules` it
+  is ignored. The root itself is never a member. If the bounded symlink search
+  stops early (very large or deep trees), the scan is incomplete. A pattern
   that matches no package directory is reported as a `workspaceWarnings` note.
 - A member whose real path is outside the project root (`../` patterns,
   symlinks) is listed in `excludedMembers` and is never scanned or sent to OSV.

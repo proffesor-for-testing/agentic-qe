@@ -167,8 +167,9 @@ function pnpmIndex(text: string): LockIndex {
       const line = lines[i];
       if (indentOf(line) !== 2 || !/:\s*$/.test(line)) continue;
       const key = unquote(line.trim().slice(0, -1));
-      let next = lines.findIndex((l, j) => j > i && l.trim() !== '' && indentOf(l) <= 2);
-      if (next < 0 || next > end) next = end;
+      // Scan forward from this importer (a findIndex from line 0 per importer was quadratic).
+      let next = i + 1;
+      while (next < end && (lines[next].trim() === '' || indentOf(lines[next]) > 2)) next++;
       importers.set(key === '.' ? '' : key, pnpmDeps(lines, i + 1, next, 4));
     }
   } else {
