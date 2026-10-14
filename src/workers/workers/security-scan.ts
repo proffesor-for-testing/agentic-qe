@@ -13,6 +13,11 @@
  * send the project's dependency list to an external advisory API unasked — and
  * never emits a vulnerability or CVE id a scan did not report. Nothing
  * recorded → nothing stored, an "unmeasured" info finding.
+ *
+ * #1049: a dependency scan counts only when its OSV lookup was complete
+ * (`measured: true`, `status: 'complete'`). The latest scan being incomplete,
+ * failed or pre-#1049 (no `status`) leaves the dependency side unmeasured —
+ * never "0 vulnerabilities" — with a finding naming the unchecked packages.
  */
 
 import { BaseWorker } from '../base-worker';
@@ -83,6 +88,25 @@ interface RecordedScan {
   total: number;
 }
 
+/** A package the OSV lookup could not check (#1049 record contract). */
+interface UncheckedPackage {
+  name: string;
+  version: string;
+  reason: string;
+}
+
+/**
+ * A dependency scan whose OSV lookup was not complete (#1049): `incomplete`,
+ * `failed`, or a pre-#1049 record without `status` — which cannot be told
+ * apart from a failed lookup recorded as clean. Never "0 vulnerabilities".
+ */
+interface IncompleteDependencyScan {
+  scan: RecordedScan;
+  status: 'incomplete' | 'failed' | 'unknown';
+  error?: string;
+  uncheckedPackages: UncheckedPackage[];
+}
+
 /** The `security:lastScan` record: only scans that actually ran (#1043). */
 interface MeasuredSecurityScan {
   measured: true;
@@ -140,8 +164,36 @@ function parseVulnerability(raw: unknown, kind: 'dependency' | 'sast'): Reported
   return vuln;
 }
 
+function parseUnchecked(raw: unknown): UncheckedPackage[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isRecord).map((p) => ({
+    name: typeof p.name === 'string' ? p.name : '?',
+    version: typeof p.version === 'string' ? p.version : '?',
+    reason: typeof p.reason === 'string' ? p.reason : 'unknown',
+  }));
+}
+
+/**
+ * #1049: a dependency scan is a measurement only when its OSV lookup checked
+ * every requested package (`measured: true` and `status: 'complete'`).
+ */
+function dependencyCompleteness(raw: Record<string, unknown>):
+  { complete: true } | { complete: false; status: IncompleteDependencyScan['status']; error?: string; uncheckedPackages: UncheckedPackage[] } {
+  if (raw.measured === true && raw.status === 'complete') return { complete: true };
+  return {
+    complete: false,
+    status: raw.status === 'incomplete' || raw.status === 'failed' ? raw.status : 'unknown',
+    ...(typeof raw.error === 'string' && raw.error ? { error: raw.error } : {}),
+    uncheckedPackages: parseUnchecked(raw.uncheckedPackages),
+  };
+}
+
+type ParsedScan =
+  | { kind: 'sast'; scan: RecordedScan }
+  | { kind: 'dependency'; scan: RecordedScan; completeness: ReturnType<typeof dependencyCompleteness> };
+
 /** A recorded dependency (OSV) or SAST scan, or `null` when the record is not one. */
-function parseRecordedScan(raw: unknown, now: number): { kind: 'dependency' | 'sast'; scan: RecordedScan } | null {
+function parseRecordedScan(raw: unknown, now: number): ParsedScan | null {
   if (!isRecord(raw)) return null;
   const kind = raw.scanType;
   if (kind !== 'dependency' && kind !== 'sast') return null;
@@ -154,10 +206,10 @@ function parseRecordedScan(raw: unknown, now: number): { kind: 'dependency' | 's
   if (vulnerabilities.some((v) => v === null)) return null;
   const counted = SEVERITIES.reduce((sum, s) => sum + summary[s], 0);
   const total = kind === 'sast' && isCount(raw.vulnerabilityCount) ? raw.vulnerabilityCount : counted;
-  return {
-    kind,
-    scan: { scanId: raw.scanId, scannedAt, summary, vulnerabilities: vulnerabilities as ReportedVulnerability[], total },
+  const scan: RecordedScan = {
+    scanId: raw.scanId, scannedAt, summary, vulnerabilities: vulnerabilities as ReportedVulnerability[], total,
   };
+  return kind === 'sast' ? { kind, scan } : { kind, scan, completeness: dependencyCompleteness(raw) };
 }
 
 export class SecurityScanWorker extends BaseWorker {
@@ -172,10 +224,14 @@ export class SecurityScanWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    const scan = await this.readRecordedScans(context);
+    const { scan, incompleteDependency } = await this.readRecordedScans(context);
+
+    if (incompleteDependency) {
+      this.reportIncompleteDependencyScan(incompleteDependency, findings, recommendations);
+    }
 
     if (!scan) {
-      findings.push({
+      if (!incompleteDependency) findings.push({
         type: 'security-unmeasured',
         severity: 'info',
         domain: 'security-compliance',
@@ -188,7 +244,7 @@ export class SecurityScanWorker extends BaseWorker {
         Date.now() - startTime,
         {
           itemsAnalyzed: 0,
-          issuesFound: 0,
+          issuesFound: findings.filter((f) => f.severity !== 'info').length,
           healthScore: 100,
           trend: 'stable',
           domainMetrics: {
@@ -237,34 +293,79 @@ export class SecurityScanWorker extends BaseWorker {
   }
 
   /** The most recent recorded dependency and SAST scans, or `null` when neither exists (#1043). */
-  private async readRecordedScans(context: WorkerContext): Promise<MeasuredSecurityScan | null> {
+  private async readRecordedScans(context: WorkerContext): Promise<{
+    scan: MeasuredSecurityScan | null;
+    incompleteDependency: IncompleteDependencyScan | null;
+  }> {
     const keys = await context.memory.search(SCAN_KEY_PATTERN, MAX_SCAN_RECORDS, { namespace: SECURITY_NAMESPACE });
     const now = Date.now();
-    let dependency: RecordedScan | null = null;
+    let latestDependency: Extract<ParsedScan, { kind: 'dependency' }> | null = null;
     let code: RecordedScan | null = null;
     const newer = (a: RecordedScan, b: RecordedScan | null) => !b || Date.parse(a.scannedAt) > Date.parse(b.scannedAt);
 
     for (const key of keys) {
       const parsed = parseRecordedScan(await context.memory.get<unknown>(key, { namespace: SECURITY_NAMESPACE }), now);
       if (!parsed) continue;
-      if (parsed.kind === 'dependency' && newer(parsed.scan, dependency)) dependency = parsed.scan;
+      if (parsed.kind === 'dependency' && newer(parsed.scan, latestDependency?.scan ?? null)) latestDependency = parsed;
       if (parsed.kind === 'sast' && newer(parsed.scan, code)) code = parsed.scan;
     }
 
-    if (!dependency && !code) return null;
-    return {
+    // #1049: only the latest dependency scan counts, and only when its lookup
+    // was complete — an older complete scan must not mask a newer failure.
+    const completeness = latestDependency?.completeness;
+    const dependency = latestDependency && completeness?.complete ? latestDependency.scan : null;
+    const incompleteDependency: IncompleteDependencyScan | null = latestDependency && completeness && !completeness.complete
+      ? {
+        scan: latestDependency.scan,
+        status: completeness.status,
+        ...(completeness.error ? { error: completeness.error } : {}),
+        uncheckedPackages: completeness.uncheckedPackages,
+      }
+      : null;
+
+    if (!dependency && !code) return { scan: null, incompleteDependency };
+    return { incompleteDependency, scan: {
       measured: true,
       schemaVersion: SCHEMA_VERSION,
       evaluatedAt: new Date().toISOString(),
       dependency: dependency ? { ...dependency, source: 'osv' } : null,
       code: code ? { ...code, source: 'sast' } : null,
-    };
+    } };
+  }
+
+  /**
+   * #1049: a dependency scan whose lookup was not complete is unmeasured —
+   * never "0 vulnerabilities". Advisories OSV did return for checked packages
+   * are real and still reported, marked as coming from a partial scan.
+   */
+  private reportIncompleteDependencyScan(
+    incomplete: IncompleteDependencyScan,
+    findings: WorkerFinding[],
+    recommendations: WorkerRecommendation[]
+  ): void {
+    const { scan, status, error, uncheckedPackages } = incomplete;
+    const unchecked = uncheckedPackages.map((p) => `${p.name}@${p.version} (${p.reason})`);
+    const why = status === 'unknown'
+      ? 'was recorded before scans stated whether every package was checked, so a failed lookup cannot be told apart from a clean one'
+      : `is ${status}${error ? ` (${error})` : ''}`;
+    findings.push({
+      type: 'dependency-scan-incomplete',
+      severity: 'info',
+      domain: 'security-compliance',
+      title: 'Dependency Scan Unmeasured',
+      description: `The latest dependency scan (${scan.scannedAt}) ${why}; its result is not a vulnerability count.` +
+        (unchecked.length > 0 ? ` Unchecked packages: ${unchecked.join(', ')}.` : '') +
+        ' Re-run the dependency scan.',
+      context: { scanId: scan.scanId, status, ...(error ? { error } : {}), uncheckedPackages },
+    });
+    this.analyzeDependencyVulnerabilities(scan, findings, recommendations, true);
   }
 
   private analyzeDependencyVulnerabilities(
     scan: RecordedScan,
     findings: WorkerFinding[],
-    recommendations: WorkerRecommendation[]
+    recommendations: WorkerRecommendation[],
+    partialScan = false
   ): void {
     const critical = scan.vulnerabilities.filter(v => v.severity === 'critical');
     const high = scan.vulnerabilities.filter(v => v.severity === 'high');
@@ -285,6 +386,7 @@ export class SecurityScanWorker extends BaseWorker {
           ...(vuln.cve ? { cve: vuln.cve } : {}),
           ...(vuln.fixedIn ? { fixedIn: vuln.fixedIn } : {}),
           references: vuln.references,
+          ...(partialScan ? { partialScan: true } : {}),
         },
       });
     }
