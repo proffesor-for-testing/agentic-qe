@@ -80,6 +80,7 @@ const storedRecord = (memory: { set: ReturnType<typeof vi.fn> }) => {
 };
 
 const DEPS = { lodash: '4.17.15', 'left-pad': '^1.3.0' };
+const LOCKED = { 'left-pad': '1.3.0' };
 
 describe('DependencyScanner records OSV failures as unmeasured (#1049)', () => {
   let memory: ReturnType<typeof createMemory>;
@@ -152,7 +153,8 @@ describe('DependencyScanner records OSV failures as unmeasured (#1049)', () => {
 
   it('fully successful clean scan: complete, measured, zero findings', async () => {
     handler = (_req, _body, res) => json(res, 200, { results: [{}, {}] });
-    const result = await scannerFor(memory).scanDependencies(DEPS);
+    // left-pad is declared as a range; the lockfile resolution makes it checkable (#1049 round 2).
+    const result = await scannerFor(memory).scanDependencies(DEPS, LOCKED);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.value).toMatchObject({ status: 'complete', measured: true, packagesChecked: 2, uncheckedPackages: [] });
@@ -165,7 +167,7 @@ describe('DependencyScanner records OSV failures as unmeasured (#1049)', () => {
     handler = (req, _body, res) => req.url === '/v1/querybatch'
       ? json(res, 200, { results: [{ vulns: [{ id: ADVISORY.id }] }, {}] })
       : json(res, 200, ADVISORY);
-    const result = await scannerFor(memory).scanDependencies(DEPS);
+    const result = await scannerFor(memory).scanDependencies(DEPS, LOCKED);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.value).toMatchObject({ status: 'complete', measured: true, vulnerablePackages: 1 });

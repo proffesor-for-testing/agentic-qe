@@ -42,6 +42,10 @@ describe('aqe security --dependencies (#1049)', () => {
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     root = mkdtempSync(path.join(tmpdir(), 'aqe-1049-cli-'));
     writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { lodash: '4.17.15', 'left-pad': '^1.3.0' } }));
+    // The lockfile resolves the left-pad range; without it the range is unchecked (#1049 round 2).
+    writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: {
+      '': { dependencies: { lodash: '4.17.15', 'left-pad': '^1.3.0' } },
+      'node_modules/lodash': { version: '4.17.15' }, 'node_modules/left-pad': { version: '1.3.0' } } }));
     ({ createSecurityCommand } = await import('../../../../src/cli/commands/security.js'));
   });
 
@@ -119,6 +123,30 @@ describe('aqe security --dependencies (#1049)', () => {
     expect(output.status).toBe('complete');
     expect(output.dependencyScan).toMatchObject({ status: 'complete', measured: true });
     expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it('a package.json with no dependencies is complete (nothing to check): exit 0, no OSV request', async () => {
+    const empty = mkdtempSync(path.join(tmpdir(), 'aqe-1049-cli-empty-'));
+    try {
+      writeFileSync(path.join(empty, 'package.json'), JSON.stringify({ name: 'no-deps' }));
+      let requests = 0;
+      handler = (_req, _body, res) => { requests++; json(res, 200, { results: [] }); };
+      const memory = { set: vi.fn(), get: vi.fn(), search: vi.fn().mockResolvedValue([]) } as unknown as MemoryBackend;
+      const scanner = new DependencyScanner({
+        defaultRuleSets: [], maxConcurrentScans: 1, timeout: 1000, enableFalsePositiveDetection: false, dastMaxDepth: 1,
+        dastActiveScanning: false, enableLLMAnalysis: false, llmModelTier: 1, enableSemgrep: false,
+      }, memory, undefined, new OSVClient({ baseUrl, retries: 0, enableCache: false }));
+      const api = { runDependencyScan: (p: string) => scanner.scanPackageJson(p), runSASTScan: vi.fn(), runComplianceCheck: vi.fn() };
+      const context = { kernel: { getDomainAPIAsync: vi.fn(async () => api) } } as unknown as CLIContext;
+      const command = createSecurityCommand(context, cleanupAndExit as unknown as (code: number) => Promise<never>, async () => true);
+      await command.parseAsync(['--target', empty, '--dependencies', '--format', 'json'], { from: 'user' });
+      const output = JSON.parse(stdout.join('\n'));
+      expect(output.dependencyScan).toMatchObject({ status: 'complete', measured: true, packagesRequested: 0 });
+      expect(requests).toBe(0);
+      expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
   });
 
   it('complete lookup with a high finding: exit 1', async () => {

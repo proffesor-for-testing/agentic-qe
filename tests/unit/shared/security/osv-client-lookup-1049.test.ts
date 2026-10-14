@@ -10,7 +10,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { OSVClient } from '../../../../src/shared/security/osv-client';
+import { OSVClient, resolveOSVBaseUrl } from '../../../../src/shared/security/osv-client';
+import { advisoryAffectsVersion } from '../../../../src/shared/security/osv-lookup';
 
 type Handler = (req: IncomingMessage, body: string, res: ServerResponse) => void;
 
@@ -143,10 +144,10 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     expect(lookup.unchecked).toEqual([
       expect.objectContaining({ name: 'left-pad', version: '1.3.0', reason: expect.stringMatching(/503/) }),
     ]);
-    const lodash = lookup.results.get('npm:lodash');
+    const lodash = lookup.results.get('npm:lodash@4.17.15');
     expect(lodash).toHaveLength(1);
     expect(lodash![0]).toMatchObject({ id: LODASH_ADVISORY.id, cveIds: ['CVE-2021-23337'], severity: 'high', affectedPackage: 'lodash' });
-    expect(lookup.results.has('npm:left-pad')).toBe(false);
+    expect(lookup.results.has('npm:left-pad@1.3.0')).toBe(false);
   });
 
   it('an advisory whose details cannot be fetched leaves its package unchecked', async () => {
@@ -161,7 +162,7 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     expect(lookup.unchecked).toEqual([
       expect.objectContaining({ name: 'lodash', reason: expect.stringContaining(LODASH_ADVISORY.id) }),
     ]);
-    expect(lookup.results.get('npm:left-pad')).toEqual([]);
+    expect(lookup.results.get('npm:left-pad@1.3.0')).toEqual([]);
   });
 
   it('a paginated (truncated) batch entry leaves its package unchecked', async () => {
@@ -169,7 +170,7 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     const lookup = await client().lookupBatch(PKGS);
     expect(lookup.status).toBe('incomplete');
     expect(lookup.unchecked).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/truncated/) })]);
-    expect(lookup.results.get('npm:left-pad')).toEqual([]);
+    expect(lookup.results.get('npm:left-pad@1.3.0')).toEqual([]);
   });
 
   it('a fully successful clean lookup is still complete and clean', async () => {
@@ -178,8 +179,8 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     expect(lookup.status).toBe('complete');
     expect(lookup.packagesChecked).toBe(2);
     expect(lookup.unchecked).toEqual([]);
-    expect(lookup.results.get('npm:lodash')).toEqual([]);
-    expect(lookup.results.get('npm:left-pad')).toEqual([]);
+    expect(lookup.results.get('npm:lodash@4.17.15')).toEqual([]);
+    expect(lookup.results.get('npm:left-pad@1.3.0')).toEqual([]);
   });
 
   it('a successful lookup with findings hydrates the advisory ids the batch endpoint returns', async () => {
@@ -192,7 +193,7 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     };
     const lookup = await client().lookupBatch(PKGS);
     expect(lookup.status).toBe('complete');
-    expect(lookup.results.get('npm:lodash')![0]).toMatchObject({
+    expect(lookup.results.get('npm:lodash@4.17.15')![0]).toMatchObject({
       id: LODASH_ADVISORY.id, cveIds: ['CVE-2021-23337'], fixedVersions: ['4.17.21'], severity: 'high',
     });
     expect(requests.filter((r) => r.url.startsWith('/v1/vulns/'))).toHaveLength(1);
@@ -219,7 +220,7 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     const lookup = await client().lookupBatch([PKGS[0]]);
     expect(lookup.status).toBe('complete');
     // In range: reported. Out of its SEMVER range: dropped. Not evaluable (ECOSYSTEM only): kept.
-    expect(lookup.results.get('npm:lodash')!.map((v) => v.id).sort()).toEqual(['GHSA-35jh-r3h4-6jhm', 'GHSA-ecos-only']);
+    expect(lookup.results.get('npm:lodash@4.17.15')!.map((v) => v.id).sort()).toEqual(['GHSA-35jh-r3h4-6jhm', 'GHSA-ecos-only']);
   });
 
   it('a version range that is not a concrete version is unchecked, not queried for every advisory ever', async () => {
@@ -236,6 +237,106 @@ describe('OSVClient.lookupBatch (#1049)', () => {
   it('legacy scanNpmDependencies throws instead of returning [] when the lookup failed', async () => {
     handler = (_req, _body, res) => json(res, 500, {});
     await expect(client().scanNpmDependencies({ lodash: '^4.17.15' })).rejects.toThrow(/could not be checked/);
+  });
+
+  describe('review round 2', () => {
+    const withEnv = async (value: string, fn: () => Promise<void>) => {
+      const prev = process.env.AQE_OSV_API_URL;
+      process.env.AQE_OSV_API_URL = value;
+      try { await fn(); } finally {
+        if (prev === undefined) delete process.env.AQE_OSV_API_URL; else process.env.AQE_OSV_API_URL = prev;
+      }
+    };
+
+    it.each(['ftp://evil', 'api.osv.dev', 'http://example.com', 'not a url'])(
+      'B1: an invalid AQE_OSV_API_URL (%s) never throws at construction; the lookup fails with the reason',
+      async (value) => {
+        await withEnv(value, async () => {
+          const osv = new OSVClient({ retries: 0, enableCache: false }); // must not throw
+          const lookup = await osv.lookupBatch(PKGS);
+          expect(lookup.status).toBe('failed');
+          expect(lookup.unchecked).toHaveLength(2);
+          expect(lookup.unchecked[0].reason).toMatch(/AQE_OSV_API_URL/);
+          expect(requests).toHaveLength(0);
+        });
+      },
+    );
+
+    it('B1: http is allowed only for loopback; https anywhere', () => {
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'https://osv.internal.example/' })).toBe('https://osv.internal.example');
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://localhost:8080' })).toBe('http://localhost:8080');
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://127.0.0.1:9' })).toBe('http://127.0.0.1:9');
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://[::1]:9' })).toBe('http://[::1]:9');
+      expect(() => resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://osv.example.com' })).toThrow(/https/);
+      expect(resolveOSVBaseUrl({})).toBe('https://api.osv.dev');
+    });
+
+    it.each([
+      ['<4.17.12'], ['>4.17.4'], ['<=4.17.12'], ['>=4.17.0'], ['^4.17.15'], ['~4.17.15'], ['4.x'], ['*'],
+      ['1.0.0 || 2.0.0'], ['1.0.0 - 2.0.0'], ['latest'], ['workspace:*'], ['file:../x'], ['link:../x'],
+      ['git+https://github.com/a/b.git'], ['github:a/b'], ['npm:other@1.0.0'],
+    ])('B2: spec %s without a lockfile is unchecked, never guessed', async (spec) => {
+      handler = (_req, _body, res) => json(res, 200, { results: [] });
+      const lookup = await client().lookupNpmDependencies({ lodash: spec });
+      expect(lookup.status).toBe('failed');
+      expect(lookup.unchecked).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/no lockfile resolution|not a registry dependency/) })]);
+      expect(requests).toHaveLength(0);
+    });
+
+    it.each([['4.17.15', '4.17.15'], ['=4.17.15', '4.17.15'], ['v4.17.15', '4.17.15']])(
+      'B2: an exact spec (%s) is checked as %s', async (spec, version) => {
+        handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+        const lookup = await client().lookupNpmDependencies({ lodash: spec });
+        expect(lookup.status).toBe('complete');
+        expect(JSON.parse(requests[0].body).queries[0].package.version).toBe(version);
+      });
+
+    it('B2: the lockfile version wins over the manifest range', async () => {
+      handler = (_req, _body, res) => json(res, 200, { results: [{}, {}] });
+      const lookup = await client().lookupNpmDependencies(
+        { lodash: '<4.17.12', 'left-pad': '^1.3.0' }, { lodash: '4.17.11', 'left-pad': '1.3.0' });
+      expect(lookup.status).toBe('complete');
+      expect(JSON.parse(requests[0].body).queries.map((q: { package: { version: string } }) => q.package.version)).toEqual(['4.17.11', '1.3.0']);
+    });
+
+    it('4: two versions of one package are kept apart (keyed name@version)', async () => {
+      handler = (req, body, res) => {
+        if (req.url === '/v1/querybatch') {
+          const qs = (JSON.parse(body) as { queries: Array<{ package: { version: string } }> }).queries;
+          return json(res, 200, { results: qs.map((q) => (q.package.version === '4.17.11' ? { vulns: [{ id: LODASH_ADVISORY.id }] } : {})) });
+        }
+        return json(res, 200, LODASH_ADVISORY);
+      };
+      const lookup = await client().lookupBatch([
+        { name: 'lodash', ecosystem: 'npm', version: '4.17.11' },
+        { name: 'lodash', ecosystem: 'npm', version: '4.17.21' },
+      ]);
+      expect(lookup).toMatchObject({ status: 'complete', packagesChecked: 2, unchecked: [] });
+      expect(lookup.results.get('npm:lodash@4.17.11')).toHaveLength(1);
+      expect(lookup.results.get('npm:lodash@4.17.21')).toEqual([]);
+    });
+
+    it('bounded: a reason naming missing advisory details lists at most 5 ids', async () => {
+      const ids = Array.from({ length: 12 }, (_, i) => `GHSA-${i}`);
+      handler = (req, _body, res) => req.url === '/v1/querybatch'
+        ? json(res, 200, { results: [{ vulns: ids.map((id) => ({ id })) }] })
+        : json(res, 500, {});
+      const lookup = await client().lookupBatch([PKGS[0]]);
+      expect(lookup.unchecked[0].reason).toMatch(/GHSA-0, GHSA-1, GHSA-2, GHSA-3, GHSA-4 and 7 more/);
+    });
+  });
+
+  describe('range evaluator edge cases', () => {
+    const adv = (events: Array<Record<string, string>>) => ({ affected: [{ package: { name: 'p', ecosystem: 'npm' }, ranges: [{ type: 'SEMVER', events }] }] });
+    it('introduced "0" covers a 0.0.0 prerelease', () => {
+      expect(advisoryAffectsVersion(adv([{ introduced: '0' }, { fixed: '1.0.0' }]), { name: 'p', ecosystem: 'npm', version: '0.0.0-alpha' })).toBe(true);
+    });
+    it('unsorted events with a tie (fixed X before introduced X) evaluate correctly', () => {
+      const events = [{ introduced: '2.0.0' }, { fixed: '3.0.0' }, { introduced: '1.0.0' }, { fixed: '2.0.0' }];
+      expect(advisoryAffectsVersion(adv(events), { name: 'p', ecosystem: 'npm', version: '2.5.0' })).toBe(true);
+      expect(advisoryAffectsVersion(adv(events), { name: 'p', ecosystem: 'npm', version: '3.0.0' })).toBe(false);
+      expect(advisoryAffectsVersion(adv(events), { name: 'p', ecosystem: 'npm', version: '1.5.0' })).toBe(true);
+    });
   });
 
   it('reads the endpoint from AQE_OSV_API_URL when no baseUrl is configured', async () => {

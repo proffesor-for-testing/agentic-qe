@@ -57,7 +57,7 @@ describe('SecurityAuditorService', () => {
     // ...nor on the OSV API: a complete lookup with no advisories (#1049 shape).
     vi.spyOn((service as any).osvClient, 'lookupBatch').mockImplementation(async (pkgs: any[]) => ({
       status: 'complete',
-      results: new Map(pkgs.map((p) => [`${p.ecosystem}:${p.name}`, []])),
+      results: new Map(pkgs.map((p) => [`${p.ecosystem}:${p.name}@${p.version ?? ''}`, []])),
       packagesRequested: pkgs.length,
       packagesChecked: pkgs.length,
       unchecked: [],

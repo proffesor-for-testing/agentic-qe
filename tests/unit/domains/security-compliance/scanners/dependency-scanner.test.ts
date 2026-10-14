@@ -205,8 +205,8 @@ describe('DependencyScanner', () => {
       }
     });
 
-    it('should_returnError_when_noDependenciesInPackageJson', async () => {
-      // Arrange
+    it('should_returnCompleteEmptyScan_when_noDependenciesInPackageJson', async () => {
+      // Arrange: #1049 — nothing to check is a measured zero, not an unmeasured scan
       const { readFile } = await import('fs/promises');
       (readFile as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify({ name: 'test-pkg' }));
 
@@ -214,9 +214,9 @@ describe('DependencyScanner', () => {
       const result = await scanner.scanPackageJson('/project/package.json');
 
       // Assert
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toContain('No dependencies found');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value).toMatchObject({ status: 'complete', measured: true, packagesScanned: 0, uncheckedPackages: [] });
       }
     });
 
