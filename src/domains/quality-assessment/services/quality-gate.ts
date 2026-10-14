@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err, Severity } from '../../../shared/types';
 import { MemoryBackend } from '../../../kernel/interfaces';
 import { toError } from '../../../shared/error-utils.js';
+import { isMeasuredMetricValue } from '../evidence-sufficiency.js';
 import {
   GateEvaluationRequest,
   GateResult,
@@ -119,6 +120,14 @@ export class QualityGateService implements IQualityGateService {
       checks.push(...this.evaluateMinThresholds(metrics, thresholds));
       checks.push(...this.evaluateMaxThresholds(metrics, thresholds));
 
+      if (checks.length === 0) {
+        return err(new Error('No thresholds configured for gate evaluation'));
+      }
+
+      const unmeasured = checks
+        .filter((check) => !isMeasuredMetricValue(check.value))
+        .map((check) => check.name);
+
       // Collect failed checks
       for (const check of checks) {
         if (!check.passed) {
@@ -130,7 +139,7 @@ export class QualityGateService implements IQualityGateService {
       const overallScore = this.calculateOverallScore(checks);
 
       // Determine pass/fail based on critical checks
-      const passed = this.determineGateStatus(checks);
+      const passed = unmeasured.length === 0 && this.determineGateStatus(checks);
 
       const result: GateResult = {
         gateName,
@@ -138,6 +147,8 @@ export class QualityGateService implements IQualityGateService {
         checks,
         overallScore,
         failedChecks,
+        evidenceStatus: unmeasured.length === 0 ? 'measured' : 'insufficient-evidence',
+        unmeasured,
       };
 
       // Store evaluation result in memory
@@ -317,9 +328,9 @@ export class QualityGateService implements IQualityGateService {
     type: 'min' | 'max',
     severity: Severity
   ): GateCheck {
-    const passed = type === 'min'
+    const passed = isMeasuredMetricValue(value) && (type === 'min'
       ? value >= threshold
-      : value <= threshold;
+      : value <= threshold);
 
     return {
       name,

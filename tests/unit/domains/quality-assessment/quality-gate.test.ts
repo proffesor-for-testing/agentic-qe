@@ -117,6 +117,53 @@ describe('QualityGateService', () => {
       }
     });
 
+    it('does not pass a maximum threshold with the unmeasured -1 sentinel', async () => {
+      const result = await service.evaluateGate({
+        gateName: 'release-gate',
+        metrics: createMetrics({ criticalBugs: -1, securityVulnerabilities: -1 }),
+        thresholds: createThresholds(),
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.passed).toBe(false);
+        expect(result.value.evidenceStatus).toBe('insufficient-evidence');
+        expect(result.value.unmeasured).toEqual(['criticalBugs', 'securityVulnerabilities']);
+        expect(result.value.failedChecks).toEqual(expect.arrayContaining(['criticalBugs', 'securityVulnerabilities']));
+      }
+    });
+
+    it('does not approve missing or non-finite low-severity evidence in non-strict mode', async () => {
+      for (const duplications of [-1, Number.NaN, Number.POSITIVE_INFINITY, undefined]) {
+        const result = await service.evaluateGate({
+          gateName: 'non-strict-gate',
+          metrics: createMetrics({ duplications } as Partial<QualityMetrics>),
+          thresholds: createThresholds(),
+        });
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.passed).toBe(false);
+          expect(result.value.evidenceStatus).toBe('insufficient-evidence');
+          expect(result.value.unmeasured).toEqual(['duplications']);
+          expect(result.value.failedChecks).toContain('duplications');
+        }
+      }
+    });
+
+    it('rejects a gate with no configured checks instead of approving it vacuously', async () => {
+      const result = await service.evaluateGate({
+        gateName: 'empty-gate',
+        metrics: createMetrics(),
+        thresholds: {},
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.message).toContain('No thresholds configured');
+      }
+    });
+
     it('should fail gate when coverage is below minimum threshold', async () => {
       const request: GateEvaluationRequest = {
         gateName: 'coverage-gate',
