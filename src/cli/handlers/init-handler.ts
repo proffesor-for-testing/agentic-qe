@@ -17,7 +17,7 @@ import type { RequirementsValidationExtendedAPI } from '../../domains/requiremen
 import type { QEKernel } from '../../kernel/interfaces.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
 import { resolveInitFlags } from './init-flags.js';
-import { initProjectRoot, sharedDirInitError } from './init-guard.js';
+import { initProjectRoot, sharedRootInitError } from './init-guard.js';
 
 // ============================================================================
 // Init Handler
@@ -108,7 +108,7 @@ export class InitHandler implements ICommandHandler {
       const projectRoot = initProjectRoot();
       // #1006 (review of #1026 N3): never initialize a store in a shared
       // temp/system dir; later commands would resolve elsewhere and ignore it.
-      const sharedDirError = sharedDirInitError(process.cwd());
+      const sharedDirError = sharedRootInitError(projectRoot, Boolean(process.env.AQE_PROJECT_ROOT));
       if (sharedDirError) {
         console.error(chalk.red(`\n  ${sharedDirError}\n`));
         await this.cleanupAndExit(1);

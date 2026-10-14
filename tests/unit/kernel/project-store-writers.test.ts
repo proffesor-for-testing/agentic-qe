@@ -15,7 +15,7 @@ import { NotificationService } from '../../../src/workers/quality-daemon/notific
 import { PluginCache } from '../../../src/plugins/cache';
 import { GitHubPluginSource } from '../../../src/plugins/sources/github';
 import { NpmPluginSource } from '../../../src/plugins/sources/npm';
-import { initProjectRoot, sharedDirInitError } from '../../../src/cli/handlers/init-guard';
+import { explicitRootError, initProjectRoot, sharedDirInitError, sharedRootInitError } from '../../../src/cli/handlers/init-guard';
 
 describe('store writers resolve the project store, not the cwd', () => {
   let base: string;
@@ -86,6 +86,42 @@ describe('aqe init in a shared directory (N3)', () => {
     const project = path.join(os.tmpdir(), 'aqe-explicit-project');
     expect(initProjectRoot(os.tmpdir(), { AQE_PROJECT_ROOT: project })).toBe(project);
     expect(sharedDirInitError(os.tmpdir(), { AQE_PROJECT_ROOT: project })).toBeNull();
+  });
+
+  it.skipIf(process.platform === 'win32')('allows an explicit sticky 1777 root that is a git repo, refuses one without .git', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-sticky-'));
+    try {
+      fs.chmodSync(repo, 0o1777);
+      // No .git: a shared scratch dir, still refused.
+      expect(sharedDirInitError('/elsewhere', { AQE_PROJECT_ROOT: repo })).toMatch(/shared temp\/system directory/);
+      fs.mkdirSync(path.join(repo, '.git'));
+      // Same dir as a repo root: findProjectRoot adopts it, so the escape hatch must work.
+      expect(sharedDirInitError('/elsewhere', { AQE_PROJECT_ROOT: repo })).toBeNull();
+      expect(sharedRootInitError(repo, true)).toBeNull();
+      // Without the explicit root the stricter rule still applies.
+      expect(sharedRootInitError(repo, false)).toMatch(/shared temp\/system directory/);
+      // Hard-stop dirs are refused even when explicit.
+      expect(sharedRootInitError(os.tmpdir(), true)).toMatch(/shared temp\/system directory/);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('reports a nonexistent or non-directory explicit root as an error instead of creating it', () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-explicit-missing-'));
+    try {
+      const missing = path.join(base, 'nope');
+      expect(explicitRootError(base, { AQE_PROJECT_ROOT: missing })).toMatch(/not an existing directory/);
+      expect(fs.existsSync(missing)).toBe(false);
+      const file = path.join(base, 'file');
+      fs.writeFileSync(file, '');
+      expect(explicitRootError(base, { AQE_PROJECT_ROOT: file })).toMatch(/not an existing directory/);
+      expect(explicitRootError(base, { AQE_PROJECT_ROOT: base })).toBeNull();
+      expect(explicitRootError(base, { AQE_PROJECT_ROOT: 'nope' })).toMatch(/not an existing directory/);
+      expect(explicitRootError(base, {})).toBeNull();
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it('refuses an explicit root that is itself a shared directory', () => {
