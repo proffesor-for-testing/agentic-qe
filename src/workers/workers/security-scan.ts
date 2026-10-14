@@ -327,7 +327,10 @@ export class SecurityScanWorker extends BaseWorker {
     let code: RecordedScan | null = null;
     const newer = (a: RecordedScan, b: RecordedScan | null) => !b || Date.parse(a.scannedAt) > Date.parse(b.scannedAt);
 
-    for (const key of keys) {
+    for (const found of keys) {
+      // The in-memory kernel backend returns namespaced searches as
+      // `<namespace>:<key>`; the hybrid backend returns the bare key (#1049).
+      const key = found.startsWith(`${SECURITY_NAMESPACE}:`) ? found.slice(SECURITY_NAMESPACE.length + 1) : found;
       const parsed = parseRecordedScan(await context.memory.get<unknown>(key, { namespace: SECURITY_NAMESPACE }), now);
       if (!parsed) continue;
       if (parsed.kind === 'dependency' && newer(parsed.scan, latestDependency?.scan ?? null)) latestDependency = parsed;
