@@ -72,6 +72,47 @@ interface MeasuredDefectPredictions {
   predictions: DomainFilePrediction[];
   /** Predicted files that no longer exist in the project, left out. */
   missingFilesSkipped: number;
+  /** Predicted paths outside the project root (after resolving symlinks), left out. */
+  outsideProjectSkipped: number;
+  /** Set when a newer prediction exists but names no usable file: this record is no longer current. */
+  stale?: true;
+  staleSince?: string;
+  supersededBy?: string;
+}
+
+type FileDisposition = 'inside' | 'outside' | 'missing';
+
+/**
+ * Where a predicted path lies, resolved against the project root with
+ * symlinks followed: only a regular file whose real path is inside the
+ * project's real root is a project file (#1043 round 2b).
+ */
+function classifyPredictedFile(file: string, realRoot: string): FileDisposition {
+  let real: string;
+  try {
+    real = fs.realpathSync(path.resolve(realRoot, file));
+  } catch {
+    // Unresolvable: missing when it would lie inside the root, else outside.
+    const lexical = path.resolve(realRoot, file);
+    const rel = path.relative(realRoot, lexical);
+    return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? 'missing' : 'outside';
+  }
+  const rel = path.relative(realRoot, real);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return 'outside';
+  try {
+    return fs.statSync(real).isFile() ? 'inside' : 'missing';
+  } catch {
+    return 'missing';
+  }
+}
+
+function realProjectRoot(): string {
+  const root = findProjectRoot();
+  try {
+    return fs.realpathSync(root);
+  } catch {
+    return path.resolve(root);
+  }
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -116,7 +157,7 @@ export class DefectPredictorWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    const latest = await this.readLatestPrediction(context);
+    const { measured: latest, unusable } = await this.readLatestPrediction(context);
 
     if (!latest) {
       findings.push({
@@ -124,9 +165,13 @@ export class DefectPredictorWorker extends BaseWorker {
         severity: 'info',
         domain: 'defect-intelligence',
         title: 'Defect Prediction Unmeasured',
-        description: 'No defect prediction for files in this project has been recorded in the last 7 days, so no ' +
-          'risk is reported and nothing was stored. Run defect_predict on the files to assess.',
+        description: (unusable
+          ? `The latest defect prediction (${unusable.id}) names no file inside this project ` +
+            `(${unusable.outside} outside the project root, ${unusable.missing} missing), so no risk is reported. `
+          : 'No defect prediction for files in this project has been recorded in the last 7 days, so no risk is reported. ') +
+          'Run defect_predict on the files to assess.',
       });
+      if (unusable) await this.markPreviousStale(context, unusable.id);
       context.logger.info('Defect prediction complete', { measured: false });
       return this.createResult(
         Date.now() - startTime,
@@ -173,6 +218,7 @@ export class DefectPredictorWorker extends BaseWorker {
           filesAnalyzed: predictions.length,
           highRiskFiles: highRisk,
           missingFilesSkipped: latest.missingFilesSkipped,
+          outsideProjectSkipped: latest.outsideProjectSkipped,
           hotspots: 'unmeasured',
           avgDefectProbability: (predictions.reduce((sum, p) => sum + p.probability, 0) / predictions.length).toFixed(2),
         },
@@ -183,11 +229,29 @@ export class DefectPredictorWorker extends BaseWorker {
   }
 
   /**
-   * #1043: the most recent prediction run the defect-intelligence predictor
-   * recorded, restricted to files that exist in the project. `null` when there
-   * is none or none of its files exist.
+   * #1043 round 2b: the newest prediction names no usable file, so a stored
+   * measured record from an older prediction is no longer current — stamp it
+   * stale (once) instead of leaving it looking like the latest analysis.
    */
-  private async readLatestPrediction(context: WorkerContext): Promise<MeasuredDefectPredictions | null> {
+  private async markPreviousStale(context: WorkerContext, supersededBy: string): Promise<void> {
+    const stored = await context.memory.get<Record<string, unknown>>(PREDICTIONS_KEY);
+    if (!stored || typeof stored !== 'object' || stored.measured !== true || stored.schemaVersion !== SCHEMA_VERSION) return;
+    if (stored.stale === true || stored.predictionId === supersededBy) return;
+    await context.memory.set(PREDICTIONS_KEY, {
+      ...stored, stale: true, staleSince: new Date().toISOString(), supersededBy,
+    });
+  }
+
+  /**
+   * #1043: the most recent prediction run the defect-intelligence predictor
+   * recorded, restricted to regular files whose real path is inside the
+   * project root. `measured` is `null` when there is no such prediction;
+   * `unusable` describes a newest prediction none of whose files qualify.
+   */
+  private async readLatestPrediction(context: WorkerContext): Promise<{
+    measured: MeasuredDefectPredictions | null;
+    unusable: { id: string; outside: number; missing: number } | null;
+  }> {
     const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
     let latest: ReturnType<typeof parsePredictionRecord> = null;
@@ -195,21 +259,21 @@ export class DefectPredictorWorker extends BaseWorker {
       const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
       if (parsed && (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp))) latest = parsed;
     }
-    if (!latest) return null;
+    if (!latest) return { measured: null, unusable: null };
 
-    const root = findProjectRoot();
-    const existing = latest.predictions.filter((p) => {
-      try {
-        return fs.statSync(path.resolve(root, p.file)).isFile();
-      } catch {
-        return false;
-      }
-    });
-    if (existing.length === 0) {
-      context.logger.info('Latest defect prediction names no file that exists in the project', { predictionId: latest.id });
-      return null;
+    const realRoot = realProjectRoot();
+    const disposition = latest.predictions.map((p) => classifyPredictedFile(p.file, realRoot));
+    const existing = latest.predictions.filter((_, i) => disposition[i] === 'inside');
+    const outside = disposition.filter((d) => d === 'outside').length;
+    const missing = disposition.filter((d) => d === 'missing').length;
+    if (outside > 0) {
+      context.logger.warn('Ignoring defect predictions for paths outside the project root', { predictionId: latest.id, outside });
     }
-    return {
+    if (existing.length === 0) {
+      context.logger.info('Latest defect prediction names no file inside the project', { predictionId: latest.id });
+      return { measured: null, unusable: { id: latest.id, outside, missing } };
+    }
+    return { unusable: null, measured: {
       measured: true,
       schemaVersion: SCHEMA_VERSION,
       source: 'defect-intelligence',
@@ -217,8 +281,9 @@ export class DefectPredictorWorker extends BaseWorker {
       predictedAt: latest.timestamp,
       evaluatedAt: new Date().toISOString(),
       predictions: existing,
-      missingFilesSkipped: latest.predictions.length - existing.length,
-    };
+      missingFilesSkipped: missing,
+      outsideProjectSkipped: outside,
+    } };
   }
 
   private analyzeHighRiskPredictions(

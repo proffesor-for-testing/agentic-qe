@@ -65,12 +65,19 @@ function createMockContext(records: Record<string, unknown> = {}): WorkerContext
 describe('DefectPredictorWorker', () => {
   let worker: DefectPredictorWorker;
 
+  // The seeded predictions name files of this repository; the worker keeps
+  // only files inside the project root (#1043 round 2b), so point it here.
+  const savedProjectRoot = process.env.AQE_PROJECT_ROOT;
+
   beforeEach(() => {
     worker = new DefectPredictorWorker();
+    process.env.AQE_PROJECT_ROOT = path.resolve(__dirname, '../../../..');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (savedProjectRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+    else process.env.AQE_PROJECT_ROOT = savedProjectRoot;
   });
 
   describe('instantiation', () => {
