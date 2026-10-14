@@ -37,6 +37,8 @@ interface ScanPlan {
   errors: string[];
   /** Members dropped because they resolve outside the project root. */
   excludedMembers: Array<{ path: string; reason: string }>;
+  /** Notes that do not affect completeness. */
+  warnings: string[];
 }
 
 // ============================================================================
@@ -89,7 +91,7 @@ export class DependencyScanner {
       return err(new Error('No dependencies provided for scanning'));
     }
     return this.runScan({
-      dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [], excludedMembers: [],
+      dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [], excludedMembers: [], warnings: [],
     });
   }
 
@@ -107,6 +109,7 @@ export class DependencyScanner {
         workspaceMembers: resolution.workspaceMembers,
         errors: [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors],
         excludedMembers: resolution.excludedMembers,
+        warnings: resolution.workspaceWarnings,
       });
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -197,6 +200,7 @@ export class DependencyScanner {
         workspaceMembers: plan.workspaceMembers,
         resolutionErrors: plan.errors,
         excludedMembers: plan.excludedMembers,
+        workspaceWarnings: plan.warnings,
         scope: 'direct',
         ...(error ? { error } : {}),
       };
@@ -313,6 +317,7 @@ export class DependencyScanner {
         workspaceMembers: result.workspaceMembers ?? [],
         resolutionErrors: result.resolutionErrors ?? [],
         excludedMembers: result.excludedMembers ?? [],
+        workspaceWarnings: result.workspaceWarnings ?? [],
         lockfile: result.lockfile ?? null,
         ...(result.error ? { error: result.error } : {}),
         vulnerabilities: result.vulnerabilities,

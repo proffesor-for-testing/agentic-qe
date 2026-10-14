@@ -112,6 +112,8 @@ export interface DependencyScanResult {
   readonly resolutionErrors?: string[];
   /** Workspace members dropped because they resolve outside the project root (never sent to OSV). */
   readonly excludedMembers?: Array<{ path: string; reason: string }>;
+  /** Workspace notes that do not affect completeness (e.g. a pattern matching no directory). */
+  readonly workspaceWarnings?: string[];
   /** Only direct dependencies (of the package and its workspace members) are checked. */
   readonly scope?: 'direct';
   /** Why the scan is incomplete/failed; absent when complete. */

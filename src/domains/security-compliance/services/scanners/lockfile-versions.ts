@@ -47,7 +47,8 @@ export interface LockIndex {
 const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
 /** Parse a lockfile's text; throws on malformed content. */
-export function parseLockfile(file: LockfileName, text: string): LockIndex {
+export function parseLockfile(file: LockfileName, raw: string): LockIndex {
+  const text = raw.replace(/^\uFEFF/, ''); // a leading BOM is not "malformed"
   // #1049 round 4: content that is not a lockfile of this format is an error,
   // never an empty lockfile (which would read as "nothing locked").
   if (file === 'pnpm-lock.yaml') {

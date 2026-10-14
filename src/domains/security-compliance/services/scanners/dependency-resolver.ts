@@ -59,6 +59,8 @@ export interface DependencyResolution {
   readonly memberErrors: string[];
   /** Workspace members dropped because they resolve outside the project root (never scanned). */
   readonly excludedMembers: Array<{ path: string; reason: string }>;
+  /** Workspace notes that do not affect completeness (e.g. a pattern matching no directory). */
+  readonly workspaceWarnings: string[];
 }
 
 const OUT_OF_SYNC = 'lockfile out of sync with package.json';
@@ -117,19 +119,31 @@ async function findLockfile(dir: string, env: NodeJS.ProcessEnv = process.env): 
 }
 
 /** Workspace globs declared by the root manifest and pnpm-workspace.yaml. */
-async function workspacePatterns(root: string, rootManifest: Manifest): Promise<string[]> {
+async function workspacePatterns(root: string, rootManifest: Manifest): Promise<{ patterns: string[]; errors: string[] }> {
   const ws = rootManifest.workspaces;
   const declared = Array.isArray(ws) ? ws : ws && typeof ws === 'object' && Array.isArray((ws as { packages?: unknown }).packages)
     ? (ws as { packages: unknown[] }).packages : [];
+  const errors: string[] = [];
   let pnpm: string[] = [];
+  let text: string | null = null;
   try {
-    pnpm = pnpmWorkspacePatterns(await fs.readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf-8'));
-  } catch { /* not a pnpm workspace */ }
-  return [...declared, ...pnpm].filter((p): p is string => typeof p === 'string');
+    text = await fs.readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf-8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') errors.push(`pnpm-workspace.yaml could not be read (${(e as NodeJS.ErrnoException).code ?? 'error'})`);
+  }
+  if (text !== null) {
+    // #1049 round 5: a real YAML parse; an unparsable file or a non-list `packages` is an error, never [].
+    const parsed = pnpmWorkspacePatterns(text);
+    if ('error' in parsed) errors.push(`${parsed.error}; workspace members may be missing`);
+    else pnpm = parsed.patterns;
+  }
+  return { patterns: [...declared, ...pnpm].filter((p): p is string => typeof p === 'string'), errors };
 }
 
 async function workspaceMembers(root: string, index: LockIndex | null, rootManifest: Manifest): Promise<WorkspaceExpansion> {
-  return expandWorkspaces(root, await workspacePatterns(root, rootManifest), index?.members() ?? []);
+  const { patterns, errors } = await workspacePatterns(root, rootManifest);
+  const expansion = await expandWorkspaces(root, patterns, index?.members() ?? []);
+  return { ...expansion, errors: [...errors, ...expansion.errors] };
 }
 
 /** Resolve one declared dependency of `member`. */
@@ -223,7 +237,7 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
 
   // At a workspace root, members' own dependencies are scanned too.
   const expansion: WorkspaceExpansion = scannedMember === ''
-    ? await workspaceMembers(lockDir, index, manifest) : { members: [], excluded: [], errors: [] };
+    ? await workspaceMembers(lockDir, index, manifest) : { members: [], excluded: [], errors: [], warnings: [] };
   const memberManifests = new Map<string, Record<string, string>>();
   const memberErrors: string[] = [...expansion.errors];
   const localNames = new Set<string>();
@@ -246,6 +260,6 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   }
   return {
     dependencies, lockfile, workspaceMembers: [...memberManifests.keys()], memberErrors,
-    excludedMembers: expansion.excluded, ...(error ? { error } : {}),
+    excludedMembers: expansion.excluded, workspaceWarnings: expansion.warnings, ...(error ? { error } : {}),
   };
 }

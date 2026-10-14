@@ -34,6 +34,8 @@ export interface DependencyScanReport {
   resolutionErrors: string[];
   /** Members dropped because they resolve outside the project root (never scanned). */
   excludedMembers: Array<{ path: string; reason: string }>;
+  /** Workspace notes that do not affect completeness. */
+  workspaceWarnings: string[];
   /** Only direct dependencies are checked; transitive dependencies are not. */
   scope: 'direct';
   vulnerabilities: number;
@@ -102,7 +104,7 @@ function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
 function notRun(reason: string, manifest?: string): DependencyAdvisoryOutcome {
   const base: Omit<DependencyScanReport, 'message'> = { status: 'not-run', measured: false, ...(manifest ? { manifest } : {}),
     packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [], workspaceMembers: [],
-    resolutionErrors: [], excludedMembers: [], scope: 'direct',
+    resolutionErrors: [], excludedMembers: [], workspaceWarnings: [], scope: 'direct',
     vulnerabilities: 0, error: reason };
   return {
     engine: { id: DEPENDENCY_ADVISORY_ENGINE_ID, requested: true, required: true, status: 'failed', scope: 'parent-directory',
@@ -135,7 +137,8 @@ export async function runDependencyAdvisoryScan(
     packagesRequested: value.packagesScanned, packagesChecked: value.packagesChecked,
     uncheckedPackages: value.uncheckedPackages, localPackages: value.localPackages ?? [],
     workspaceMembers: value.workspaceMembers ?? [], resolutionErrors: value.resolutionErrors ?? [],
-    excludedMembers: value.excludedMembers ?? [], scope: 'direct', vulnerabilities: value.vulnerabilities.length,
+    excludedMembers: value.excludedMembers ?? [], workspaceWarnings: value.workspaceWarnings ?? [], scope: 'direct',
+    vulnerabilities: value.vulnerabilities.length,
     scanId: value.scanId, ...(value.error ? { error: value.error } : {}),
   };
   return {
