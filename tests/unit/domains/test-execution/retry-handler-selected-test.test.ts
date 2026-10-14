@@ -10,6 +10,44 @@ afterEach(() => {
 });
 
 describe('retry selection evidence', () => {
+  it('does not clear a failed target when only a Vitest prefix-matched sibling passes', async () => {
+    const runner = resolve('node_modules/vitest/vitest.mjs');
+    const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-retry-file-prefix-')));
+    fixtures.push(fixture);
+    const target = join(fixture, 'route.test.mjs');
+    const sibling = `${target}x.test.mjs`;
+    writeFileSync(target, "it('other test', () => expect(true).toBe(true));\n");
+    writeFileSync(sibling, "it('previously failed', () => expect(true).toBe(true));\n");
+    const config = join(fixture, 'vitest.config.mjs');
+    writeFileSync(config, 'export default { test: { globals: true, include: ["*.test.mjs"] } };\n');
+    const memory = { get: vi.fn().mockResolvedValue(undefined), set: vi.fn() };
+    const handler = new RetryHandlerService(memory as never, {
+      testRunner: 'vitest', cwd: fixture, testTimeout: 10000,
+    });
+    const internals = handler as unknown as {
+      buildTestCommand(runner: string, file: string, name: string): { command: string; args: string[] };
+    };
+    const original = internals.buildTestCommand.bind(internals);
+    internals.buildTestCommand = (testRunner, testFile, name) => {
+      const command = original(testRunner, testFile, name);
+      return { ...command, command: process.execPath,
+        args: [runner, ...command.args.slice(1), '--config', config, '--root', fixture] };
+    };
+
+    const result = await handler.executeWithRetry({
+      runId: 'prefix-proof',
+      failedTests: [{ testId: 'target-test', testName: 'previously failed', file: target,
+        error: 'Earlier failure', duration: 1 }],
+      maxRetries: 1, backoff: 'constant', baseDelay: 0,
+    });
+    expect(result.success, result.success ? undefined : result.error.message).toBe(true);
+    if (result.success) {
+      expect(result.value.nowPassing).toBe(0);
+      expect(result.value.stillFailing).toBe(1);
+      expect(result.value.flakyDetected).toEqual([]);
+    }
+  });
+
   it.each(['the renamed test', 'actual current test', 'skipped current test'])('requires a passed assertion for "%s"', async selected => {
     const runner = resolve('node_modules/vitest/vitest.mjs');
     const fixture = realpathSync(mkdtempSync(join(tmpdir(), 'aqe-retry-selection-')));

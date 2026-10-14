@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, nameFilterArg, runnerFilePath } from '../../../shared/test-runner-args.js';
 import { existsSync, readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
 import { MemoryBackend } from '../../../kernel/interfaces';
@@ -462,7 +463,7 @@ export class RetryHandlerService implements IRetryHandler {
     const { command, args, report } = this.buildTestCommand(runner, testFile, testName, cwd);
 
     // Execute the test
-    return this.spawnTestProcess(command, args, cwd, report);
+    return this.spawnTestProcess(command, args, cwd, report, runner === 'vitest' ? testFile : undefined);
   }
 
   /**
@@ -580,7 +581,8 @@ export class RetryHandlerService implements IRetryHandler {
     command: string,
     args: string[],
     cwd: string,
-    report?: VitestJsonReport
+    report?: VitestJsonReport,
+    targetFile?: string
   ): Promise<{ passed: boolean; error?: string }> {
     return new Promise((resolve, reject) => {
       const timeout = this.config.testTimeout;
@@ -641,7 +643,7 @@ export class RetryHandlerService implements IRetryHandler {
           if (reportText === undefined) {
             throw new Error('The current Vitest JSON report is missing for the retry run.');
           }
-          settle(resolve, this.parseTestResult(code, reportText, stderr));
+          settle(resolve, this.parseTestResult(code, reportText, stderr, targetFile));
         } catch (error) {
           settle(reject, toError(error));
         }
@@ -666,7 +668,8 @@ export class RetryHandlerService implements IRetryHandler {
   private parseTestResult(
     exitCode: number | null,
     stdout: string,
-    stderr: string
+    stderr: string,
+    targetFile?: string
   ): { passed: boolean; error?: string } {
     // A retry can clear a prior failure only when the report proves a test
     // actually passed. Empty/fully skipped selections can also exit zero.
@@ -675,9 +678,18 @@ export class RetryHandlerService implements IRetryHandler {
       const vitestMatch = stdout.match(/\{[\s\S]*"testResults"[\s\S]*\}/);
       if (vitestMatch) {
         const result = safeJsonParse(vitestMatch[0]);
+        // Vitest's positional file filter uses prefix matching. A passing
+        // sibling must not clear a failure in the requested file (#972).
+        const targetPassed = !targetFile || result.testResults?.some((file: {
+          name?: string;
+          assertionResults?: Array<{ status: string }>;
+        }) => typeof file.name === 'string'
+          && resolvePath(file.name) === resolvePath(targetFile)
+          && file.assertionResults?.some(assertion => assertion.status === 'passed'));
         if (exitCode === 0 && result.success !== false
           && result.numFailedTests === 0 && result.numFailedTestSuites === 0
-          && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0) {
+          && Number.isFinite(result.numPassedTests) && result.numPassedTests > 0
+          && targetPassed) {
           return { passed: true };
         }
         const failedTest = result.testResults?.[0]?.assertionResults?.find(
@@ -686,7 +698,11 @@ export class RetryHandlerService implements IRetryHandler {
         return {
           passed: false,
           error: failedTest?.failureMessages?.join('\n') || stderr
-            || (exitCode === 0 ? 'Retry runner did not report any passing tests.' : `Test failed with exit code ${exitCode}`),
+            || (exitCode === 0
+              ? targetFile && !targetPassed
+                ? `Retry runner did not report a passing test in ${targetFile}.`
+                : 'Retry runner did not report any passing tests.'
+              : `Test failed with exit code ${exitCode}`),
         };
       }
 
