@@ -12,12 +12,21 @@ import type { SecurityScannerConfig } from '../../../../../src/domains/security-
 // Mocks
 // ---------------------------------------------------------------------------
 
+// A complete OSV lookup (#1049 shape) over the given dependencies and findings.
+const completeLookup = (deps: Record<string, string>, vulns: Array<{ affectedPackage: string }> = []) => {
+  const results = new Map<string, unknown[]>();
+  for (const name of Object.keys(deps)) {
+    results.set(`npm:${name}`, vulns.filter((v) => v.affectedPackage === name));
+  }
+  return { status: 'complete', results, packagesRequested: results.size, packagesChecked: results.size, unchecked: [], errors: [] };
+};
+
 // Shared mock function that tests can override
-const mockScanNpmDependencies = vi.fn().mockResolvedValue([]);
+const mockLookupNpmDependencies = vi.fn(async (deps: Record<string, string>) => completeLookup(deps));
 
 vi.mock('../../../../../src/shared/security/index.js', () => ({
   OSVClient: class MockOSVClient {
-    scanNpmDependencies = mockScanNpmDependencies;
+    lookupNpmDependencies = mockLookupNpmDependencies;
     constructor() {}
   },
 }));
@@ -105,7 +114,7 @@ describe('DependencyScanner', () => {
 
     it('should_reportVulnerablePackages_when_osvFindsVulnerabilities', async () => {
       // Arrange - override the shared mock to return vulnerabilities
-      mockScanNpmDependencies.mockResolvedValueOnce([
+      mockLookupNpmDependencies.mockImplementationOnce(async (deps) => completeLookup(deps, [
         {
           id: 'GHSA-xxxx',
           summary: 'Prototype Pollution in lodash',
@@ -117,7 +126,7 @@ describe('DependencyScanner', () => {
           cveIds: ['CVE-2021-23337'],
           references: ['https://github.com/advisories/GHSA-xxxx'],
         },
-      ]);
+      ]));
 
       // Act
       const result = await scanner.scanDependencies({ lodash: '4.17.20' });

@@ -19,6 +19,7 @@ import type {
   AuthCredentials,
   RuleSet,
   FalsePositiveCheck,
+  UncheckedDependency,
 } from '../../interfaces.js';
 
 // ADR-051: LLM Router for AI-enhanced security analysis
@@ -72,15 +73,32 @@ export const DEFAULT_CONFIG: SecurityScannerConfig = {
 // ============================================================================
 
 /**
+ * Completeness of a dependency advisory scan (#1049).
+ * - complete: every dependency was checked; the findings (or none) are a measurement.
+ * - incomplete: some dependencies were checked (their findings are real), others not.
+ * - failed: no dependency could be checked. Never read as "0 vulnerabilities".
+ */
+export type DependencyScanStatus = 'complete' | 'incomplete' | 'failed';
+
+/**
  * Dependency scan result
  */
 export interface DependencyScanResult {
   readonly scanId: string;
   readonly vulnerabilities: Vulnerability[];
+  /** Dependencies submitted to the scan (checked or not). */
   readonly packagesScanned: number;
   readonly vulnerablePackages: number;
   readonly summary: ScanSummary;
   readonly scanDurationMs: number;
+  readonly status: DependencyScanStatus;
+  /** True only when status is 'complete'. */
+  readonly measured: boolean;
+  /** Dependencies whose advisories were actually checked. */
+  readonly packagesChecked: number;
+  readonly uncheckedPackages: UncheckedDependency[];
+  /** Why the scan is incomplete/failed; absent when complete. */
+  readonly error?: string;
 }
 
 /**
@@ -176,6 +194,7 @@ export type {
   AuthCredentials,
   RuleSet,
   FalsePositiveCheck,
+  UncheckedDependency,
   MemoryBackend,
   HybridRouter,
   ChatResponse,

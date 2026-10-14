@@ -16,6 +16,7 @@ import { generateSecurityRecommendations } from './handler-utils';
 import { discoverSecurityFiles, isSecuritySourceFile } from '../../domains/security-compliance/scan-discovery.js';
 import type { SecurityScanEvidence, SecurityEngineEvidence, SecurityFileEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SASTResult, DASTResult } from '../../domains/security-compliance/interfaces.js';
+import { runDependencyAdvisoryScan, type DependencyAdvisoryOutcome } from '../../domains/security-compliance/dependency-advisory-engine.js';
 
 export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
   // Register security scan handler - REAL IMPLEMENTATION
@@ -26,6 +27,8 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       dast: boolean;
       compliance: string[];
       targetUrl?: string;
+      /** #1049: check package.json dependencies against OSV advisories (opt-in; sends names and versions to OSV). */
+      dependencies?: boolean;
     };
 
     try {
@@ -280,6 +283,14 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
           errors: payload.dast ? ['DAST was requested without targetUrl.'] : [], limitations: [] });
       }
 
+      // #1049: OSV dependency advisories. A failed or partial lookup is a
+      // failed/partial required engine, never a completed scan with no findings.
+      let dependencyScan: DependencyAdvisoryOutcome | null = null;
+      if (payload.dependencies === true) {
+        dependencyScan = await runDependencyAdvisoryScan(ctx.getSecurityScanner(), targetPath);
+        engines.push(dependencyScan.engine);
+      }
+
       if (payload.compliance?.length) {
         engines.push({ id: 'compliance', requested: true, required: true, status: 'not-run',
           scope: 'requested-files', ruleCoverage: 'unknown', errors: [],
@@ -290,7 +301,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       const analyzedPaths = new Set(fileEvidence.filter(file =>
         file.status === 'analyzed' && requestedPaths.has(file.path)).map(file => file.path));
       const requiredEngines = engines.filter(engine => engine.requested && engine.required);
-      const hasExecuted = analyzedPaths.size > 0;
+      const hasExecuted = analyzedPaths.size > 0 || (dependencyScan?.report.packagesChecked ?? 0) > 0;
       const complete = hasExecuted && requiredEngines.every(engine => engine.status === 'completed') &&
         (!discoveryResult || discoveryResult.discovery.status === 'complete');
       const evidence: SecurityScanEvidence = {
@@ -314,12 +325,14 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         informational: crossLangVulns.filter(v => v.severity === 'informational').length,
       };
 
+      const depVulns = dependencyScan?.vulnerabilities ?? [];
+      const depCount = (severity: string) => depVulns.filter(v => v.severity === severity).length;
       const summary = {
-        critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0) + crossLangSeverityCounts.critical,
-        high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0) + crossLangSeverityCounts.high,
-        medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0) + crossLangSeverityCounts.medium,
-        low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0) + crossLangSeverityCounts.low,
-        informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0) + crossLangSeverityCounts.informational,
+        critical: (sastResult?.summary?.critical || 0) + (dastResult?.summary?.critical || 0) + crossLangSeverityCounts.critical + depCount('critical'),
+        high: (sastResult?.summary?.high || 0) + (dastResult?.summary?.high || 0) + crossLangSeverityCounts.high + depCount('high'),
+        medium: (sastResult?.summary?.medium || 0) + (dastResult?.summary?.medium || 0) + crossLangSeverityCounts.medium + depCount('medium'),
+        low: (sastResult?.summary?.low || 0) + (dastResult?.summary?.low || 0) + crossLangSeverityCounts.low + depCount('low'),
+        informational: (sastResult?.summary?.informational || 0) + (dastResult?.summary?.informational || 0) + crossLangSeverityCounts.informational + depCount('informational'),
       };
 
       // Extract top vulnerabilities from all sources
@@ -327,6 +340,7 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         ...(sastResult?.vulnerabilities || []),
         ...(dastResult?.vulnerabilities || []),
         ...crossLangVulns,
+        ...depVulns,
       ];
 
       const topVulnerabilities = allVulns
@@ -347,6 +361,9 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
       const recommendations = allVulns.length === 0 && evidence.completeness !== 'complete'
         ? ['No findings reported; requested analysis is incomplete or unverified. Inspect execution receipts.']
         : generateSecurityRecommendations(allVulns);
+      if (dependencyScan && dependencyScan.report.status !== 'complete') {
+        recommendations.unshift(dependencyScan.report.message);
+      }
 
       return ok({
         vulnerabilities: allVulns.length,
@@ -361,7 +378,9 @@ export function registerSecurityHandlers(ctx: TaskHandlerContext): void {
         scanTypes: {
           sast: payload.sast !== false,
           dast: payload.dast || false,
+          dependencies: payload.dependencies === true,
         },
+        ...(dependencyScan ? { dependencyScan: dependencyScan.report } : {}),
         status: evidence.completeness === 'complete' ? 'completed' : evidence.completeness === 'partial' ? 'partial' : 'unavailable',
         evidence,
         limitations: evidence.limitations,

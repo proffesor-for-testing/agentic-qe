@@ -18,6 +18,7 @@ import type {
   MemoryBackend,
   MutableScanSummary,
   ScanStatus,
+  UncheckedDependency,
 } from './scanner-types.js';
 import { safeJsonParse } from '@shared/safe-json.js';
 
@@ -38,11 +39,12 @@ export class DependencyScanner {
   constructor(
     config: SecurityScannerConfig,
     memory: MemoryBackend,
-    activeScans?: Map<string, ScanStatus>
+    activeScans?: Map<string, ScanStatus>,
+    osvClient?: OSVClient
   ) {
     this.config = config;
     this.memory = memory;
-    this.osvClient = new OSVClient({ enableCache: true });
+    this.osvClient = osvClient ?? new OSVClient({ enableCache: true });
     this.activeScans = activeScans || new Map();
   }
 
@@ -51,7 +53,12 @@ export class DependencyScanner {
   // ==========================================================================
 
   /**
-   * Scan npm dependencies for known vulnerabilities using OSV API
+   * Scan npm dependencies for known vulnerabilities using the OSV API.
+   *
+   * #1049: a failed or partial advisory lookup is recorded and returned as
+   * `status: 'failed' | 'incomplete'`, `measured: false`, with the unchecked
+   * dependencies and the error, never as a clean scan. Findings for the
+   * dependencies that were checked are kept.
    */
   async scanDependencies(
     dependencies: Record<string, string>
@@ -66,38 +73,36 @@ export class DependencyScanner {
 
       this.activeScans.set(scanId, 'running');
 
-      // Query OSV for vulnerabilities
-      const osvVulns = await this.osvClient.scanNpmDependencies(dependencies);
-
-      // Convert OSV vulnerabilities to our format
-      const vulnerabilities = this.convertOSVVulnerabilities(osvVulns);
-
+      const lookup = await this.osvClient.lookupNpmDependencies(dependencies);
+      const osvVulns = [...lookup.results.values()].flat();
+      const vulnerabilities = this.convertOSVVulnerabilities(osvVulns, dependencies);
       const scanDurationMs = Date.now() - startTime;
+      const vulnerablePackageNames = new Set(osvVulns.map((v) => v.affectedPackage));
+      const summary = this.calculateSummary(vulnerabilities, Object.keys(dependencies).length, scanDurationMs);
+      const uncheckedPackages: UncheckedDependency[] = lookup.unchecked.map((pkg) => ({
+        name: pkg.name,
+        version: dependencies[pkg.name] ?? pkg.version ?? 'unknown',
+        reason: pkg.reason,
+      }));
+      const error = lookup.status === 'complete' ? undefined : describeLookupFailure(lookup.errors, uncheckedPackages);
 
-      // Calculate unique vulnerable packages
-      const vulnerablePackageNames = new Set(
-        osvVulns.map((v) => v.affectedPackage)
-      );
-
-      // Calculate summary
-      const summary = this.calculateSummary(
-        vulnerabilities,
-        Object.keys(dependencies).length,
-        scanDurationMs
-      );
-
-      // Store scan results
-      await this.storeScanResults(scanId, 'dependency', vulnerabilities, summary);
-      this.activeScans.set(scanId, 'completed');
-
-      return ok({
+      const result: DependencyScanResult = {
         scanId,
         vulnerabilities,
         packagesScanned: Object.keys(dependencies).length,
         vulnerablePackages: vulnerablePackageNames.size,
         summary,
         scanDurationMs,
-      });
+        status: lookup.status,
+        measured: lookup.status === 'complete',
+        packagesChecked: lookup.packagesChecked,
+        uncheckedPackages,
+        ...(error ? { error } : {}),
+      };
+
+      await this.storeScanResults(result);
+      this.activeScans.set(scanId, lookup.status === 'complete' ? 'completed' : 'failed');
+      return ok(result);
     } catch (error) {
       this.activeScans.set(scanId, 'failed');
       return err(toError(error));
@@ -149,14 +154,19 @@ export class DependencyScanner {
    * Convert OSV vulnerabilities to our internal format
    */
   private convertOSVVulnerabilities(
-    osvVulns: ParsedVulnerability[]
+    osvVulns: ParsedVulnerability[],
+    dependencies: Record<string, string>
   ): Vulnerability[] {
     return osvVulns.map((osv) => {
+      const declared = dependencies[osv.affectedPackage];
       const location: VulnerabilityLocation = {
         file: 'package.json',
         line: 1,
         column: 1,
-        snippet: `"${osv.affectedPackage}": "..."`,
+        snippet: `"${osv.affectedPackage}": "${declared ?? '...'}"`,
+        ...(declared !== undefined
+          ? { dependency: { name: osv.affectedPackage, version: declared, ecosystem: 'npm' as const } }
+          : {}),
       };
 
       const remediation: RemediationAdvice = {
@@ -226,24 +236,34 @@ export class DependencyScanner {
   }
 
   /**
-   * Store scan results
+   * Store the scan record read by the security-scan worker (#1043/#1049).
+   * Consumers must treat it as a measurement only when
+   * `measured === true && status === 'complete'`.
    */
-  private async storeScanResults(
-    scanId: string,
-    scanType: string,
-    vulnerabilities: Vulnerability[],
-    summary: ScanSummary
-  ): Promise<void> {
+  private async storeScanResults(result: DependencyScanResult): Promise<void> {
     await this.memory.set(
-      `security:scan:${scanId}`,
+      `security:scan:${result.scanId}`,
       {
-        scanId,
-        scanType,
-        vulnerabilities,
-        summary,
+        scanId: result.scanId,
+        scanType: 'dependency',
+        advisorySource: 'osv',
+        status: result.status,
+        measured: result.measured,
+        packagesRequested: result.packagesScanned,
+        packagesChecked: result.packagesChecked,
+        uncheckedPackages: result.uncheckedPackages,
+        ...(result.error ? { error: result.error } : {}),
+        vulnerabilities: result.vulnerabilities,
+        summary: result.summary,
         timestamp: new Date().toISOString(),
       },
       { namespace: 'security-compliance', ttl: 86400 * 7 }
     );
   }
+}
+
+/** One bounded sentence naming why the advisory lookup is incomplete. */
+function describeLookupFailure(errors: string[], unchecked: UncheckedDependency[]): string {
+  const reasons = errors.length > 0 ? errors : [...new Set(unchecked.map((p) => p.reason))];
+  return `Dependency advisories could not be checked for ${unchecked.length} package(s): ${reasons.slice(0, 3).join('; ')}`;
 }

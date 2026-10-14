@@ -12,6 +12,36 @@ import { FilePath } from '../../shared/value-objects/index.js';
 import type { SecurityComplianceAPI } from '../../domains/security-compliance/plugin.js';
 import type { ComplianceReport, Vulnerability } from '../../domains/security-compliance/interfaces.js';
 import { type OutputFormat, type SecurityScanResult, type SecurityVulnerability, type SecurityCheckResult, writeOutput, toJSON, toSARIF, securityToMarkdown } from '../utils/ci-output.js';
+import { runDependencyAdvisoryScan } from '../../domains/security-compliance/dependency-advisory-engine.js';
+import { resolve as resolvePath } from 'node:path';
+
+/** Name of the CLI check for the OSV dependency advisory scan (#1049). */
+export const DEPENDENCY_CHECK = 'Dependency advisories';
+/** #1049: dependency advisories could not be checked; the dependency result is UNMEASURED (same code as coverage/quality). */
+export const EXIT_DEPENDENCIES_UNMEASURED = 3;
+
+/**
+ * `aqe security` exit contract:
+ * 0 = every requested check completed, no medium+ findings
+ * 1 = high/critical findings, non-compliance, or a non-dependency check incomplete/failed
+ * 2 = medium findings only
+ * 3 = dependency advisories could not be checked (failed or partial OSV lookup) and
+ *     nothing above applies: UNMEASURED, never a clean exit (#1049)
+ */
+export function securityExitCode(result: SecurityScanResult): number {
+  const checks = result.checks ?? [];
+  const highOrCritical = result.vulnerabilities.some(v => v.severity === 'high' || v.severity === 'critical');
+  const nonCompliant = result.compliance?.compliant === false;
+  if (result.status !== 'complete' || nonCompliant) {
+    const dependencyUnmeasured = checks.some(check => check.name === DEPENDENCY_CHECK && check.status !== 'complete');
+    const otherIncomplete = checks.some(check => check.name !== DEPENDENCY_CHECK && check.status !== 'complete');
+    if (dependencyUnmeasured && !otherIncomplete && !nonCompliant && !highOrCritical) return EXIT_DEPENDENCIES_UNMEASURED;
+    return 1;
+  }
+  if (highOrCritical) return 1;
+  if (result.vulnerabilities.some(v => v.severity === 'medium')) return 2;
+  return 0;
+}
 
 export function createSecurityCommand(
   context: CLIContext,
@@ -22,12 +52,19 @@ export function createSecurityCommand(
     .description('Security scanning and URL validation')
     .option('--sast', 'Run SAST scan')
     .option('--dast', 'Run DAST scan')
+    .option('--dependencies', 'Check package.json dependencies against OSV advisories (sends package names and versions to the OSV API)')
     .option('--compliance <frameworks>', 'Check compliance (gdpr,hipaa,soc2)', '')
     .option('--url-validate <url>', 'Validate a URL for security threats and PII exposure')
     .option('--no-pii', 'Disable PII scanning when using --url-validate')
     .option('-t, --target <path>', 'Target directory to scan', '.')
     .option('-F, --format <format>', 'Output format (text|json|sarif|markdown)', 'text')
     .option('-o, --output <path>', 'Write output to file')
+    .addHelpText('after', `
+Exit codes:
+  0  every requested check completed; no medium or higher findings
+  1  high/critical findings, non-compliance, or a check failed / is incomplete
+  2  medium findings only
+  ${EXIT_DEPENDENCIES_UNMEASURED}  UNMEASURED: dependency advisories could not be checked (OSV unreachable, rate limited, or partial)`)
     .action(async (options) => {
       if (!await ensureInitialized()) return;
 
@@ -100,13 +137,13 @@ export function createSecurityCommand(
       }
 
       const format = options.format as OutputFormat;
-      const runSAST = options.sast || (!options.dast && !options.compliance);
+      const runSAST = options.sast || (!options.dast && !options.compliance && !options.dependencies);
       const frameworks: string[] = options.compliance
         ? options.compliance.split(',').map((value: string) => value.trim()).filter(Boolean)
         : [];
       const scanResult: SecurityScanResult = {
         vulnerabilities: [], target: options.target,
-        scanType: [runSAST && 'SAST', options.dast && 'DAST', frameworks.length > 0 && 'Compliance'].filter(Boolean).join('+'),
+        scanType: [runSAST && 'SAST', options.dast && 'DAST', options.dependencies && 'Dependencies', frameworks.length > 0 && 'Compliance'].filter(Boolean).join('+'),
         checks: [], status: 'not-run',
       };
       const checks = scanResult.checks!;
@@ -143,6 +180,22 @@ export function createSecurityCommand(
             if (discovery.status !== 'complete') {
               checks.push({ name: 'Source discovery', status: discovery.status, reason: 'Requested source discovery did not complete; inspect discovery issues.' });
             }
+          }
+
+          if (options.dependencies) {
+            // #1049: a failed or partial OSV lookup is reported, never a clean dependency scan.
+            const outcome = await runDependencyAdvisoryScan(
+              { scanPackageJson: (manifest) => securityAPI.runDependencyScan(manifest) },
+              resolvePath(options.target),
+            );
+            scanResult.dependencyScan = outcome.report;
+            scanResult.vulnerabilities.push(...outcome.vulnerabilities.map(formatVulnerability));
+            const status = outcome.report.status;
+            checks.push({
+              name: DEPENDENCY_CHECK,
+              status: status === 'complete' ? 'complete' : status === 'incomplete' ? 'partial' : status === 'failed' ? 'failed' : 'not-run',
+              ...(status !== 'complete' ? { reason: outcome.report.message } : {}),
+            });
           }
 
           if (frameworks.length > 0) {
@@ -194,10 +247,7 @@ export function createSecurityCommand(
       }
 
       // Incomplete execution never has a clean exit, even if it found no vulnerabilities.
-      if (scanResult.status !== 'complete' || scanResult.compliance?.compliant === false) return cleanupAndExit(1);
-      if (scanResult.vulnerabilities.some(v => v.severity === 'high' || v.severity === 'critical')) return cleanupAndExit(1);
-      if (scanResult.vulnerabilities.some(v => v.severity === 'medium')) return cleanupAndExit(2);
-      return cleanupAndExit(0);
+      return cleanupAndExit(securityExitCode(scanResult));
     });
 
   return securityCmd;
@@ -263,6 +313,14 @@ function printSecurityResult(result: SecurityScanResult): void {
     ...(result.evidence?.files.filter(file => file.status !== 'analyzed' && file.status !== 'excluded').map(file => `${file.path}: ${file.status}${file.reason ? ` (${file.reason})` : ''}`) ?? []),
     ...(result.discovery?.issues.map(issue => `${issue.path}: ${issue.reason}`) ?? []),
   ];
+  if (result.dependencyScan && result.dependencyScan.status !== 'complete') {
+    const unchecked = result.dependencyScan.uncheckedPackages;
+    console.log(chalk.yellow(`  ${result.dependencyScan.message}`));
+    for (const pkg of unchecked.slice(0, 10)) console.log(chalk.yellow(`    not checked: ${pkg.name}@${pkg.version} (${pkg.reason})`));
+    if (unchecked.length > 10) console.log(chalk.yellow(`    ... and ${unchecked.length - 10} more unchecked package(s)`));
+  } else if (result.dependencyScan) {
+    console.log(`  ${result.dependencyScan.message}`);
+  }
   for (const limitation of limitations.slice(0, 10)) console.log(chalk.yellow(`  ${limitation}`));
   if (limitations.length > 10) console.log(`  ... ${limitations.length - 10} additional limitations; use JSON, Markdown, or SARIF for full receipts.`);
   if (result.evidence) console.log('  Scope: completed checks of the declared required engines; this is not full SAST assurance.');

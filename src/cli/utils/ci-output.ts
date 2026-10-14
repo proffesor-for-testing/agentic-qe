@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { discoverSecurityFiles } from '../../domains/security-compliance/scan-discovery.js';
+import type { DependencyScanReport } from '../../domains/security-compliance/dependency-advisory-engine.js';
 
 /** Read version from package.json at build time — no hardcoded strings. */
 function getPackageVersion(): string {
@@ -64,6 +65,8 @@ export interface SecurityScanResult {
   coverage?: SecurityCoverage;
   evidence?: SecurityScanEvidence;
   discovery?: Awaited<ReturnType<typeof discoverSecurityFiles>>['discovery'];
+  /** #1049: OSV dependency advisory scan; any status but 'complete' is not a clean result. */
+  dependencyScan?: DependencyScanReport;
 }
 
 export type SecurityExecutionStatus = 'complete' | 'partial' | 'none' | 'failed' | 'not-run' | 'unverified';
@@ -442,6 +445,14 @@ export function securityToMarkdown(result: SecurityScanResult): string {
   }
   if (result.evidence || result.discovery) {
     md += `## Execution receipts\n\n\`\`\`json\n${toJSON({ evidence: result.evidence, discovery: result.discovery })}\n\`\`\`\n\n`;
+  }
+
+  if (result.dependencyScan) {
+    md += `## Dependency advisories (OSV)\n\n**Status:** ${result.dependencyScan.status}\n\n${result.dependencyScan.message}\n\n`;
+    for (const pkg of result.dependencyScan.uncheckedPackages) {
+      md += `- not checked: ${pkg.name}@${pkg.version} (${pkg.reason})\n`;
+    }
+    if (result.dependencyScan.uncheckedPackages.length > 0) md += '\n';
   }
 
   if (result.vulnerabilities.length > 0) {

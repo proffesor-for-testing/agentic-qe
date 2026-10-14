@@ -2,8 +2,11 @@
  * Agentic QE v3 - Security Utilities
  */
 
-export { OSVClient } from './osv-client';
+export { OSVClient, OSVLookupError, resolveOSVBaseUrl } from './osv-client';
 export type {
+  OSVBatchLookup,
+  OSVPackageQuery,
+  OSVUncheckedPackage,
   OSVClientConfig,
   OSVQueryRequest,
   OSVEcosystem,

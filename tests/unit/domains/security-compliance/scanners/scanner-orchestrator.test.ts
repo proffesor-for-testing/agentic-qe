@@ -45,7 +45,14 @@ vi.mock('../../../../../src/domains/security-compliance/services/scanners/dast-h
 
 vi.mock('../../../../../src/shared/security/index.js', () => ({
   OSVClient: class MockOSVClient {
-    scanNpmDependencies = vi.fn().mockResolvedValue([]);
+    lookupNpmDependencies = vi.fn(async (deps: Record<string, string>) => ({
+      status: 'complete',
+      results: new Map(Object.keys(deps).map((name) => [`npm:${name}`, []])),
+      packagesRequested: Object.keys(deps).length,
+      packagesChecked: Object.keys(deps).length,
+      unchecked: [],
+      errors: [],
+    }));
     constructor() {}
   },
 }));

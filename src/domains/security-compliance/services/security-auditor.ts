@@ -19,6 +19,7 @@ import type { MemoryBackend } from '../../../kernel/interfaces.js';
 import type { FilePath } from '../../../shared/value-objects/index.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
+import { OSVClient, type ParsedVulnerability } from '../../../shared/security/osv-client.js';
 
 import type {
   DependencyScanResult,
@@ -32,6 +33,7 @@ import type {
   OutdatedPackage,
   RemediationAdvice,
   ScanSummary,
+  UncheckedDependency,
   DetectedSecret,
   SecretScanResult,
   SecurityAuditOptions,
@@ -62,11 +64,9 @@ import type {
   TriagedVulnerabilities,
   SecurityAuditorConfig,
   PackageJson,
-  OSVQueryRequest,
-  OSVQueryResponse,
   OSVVulnerability,
 } from './security-auditor-types.js';
-import { DEFAULT_CONFIG, httpPost, httpGet } from './security-auditor-types.js';
+import { DEFAULT_CONFIG, httpGet } from './security-auditor-types.js';
 
 // Import extracted modules
 import { performSASTScan } from './security-auditor-sast.js';
@@ -89,14 +89,26 @@ import {
 
 const logger = LoggerFactory.create('security-compliance/security-auditor');
 
+/** Outcome of checking dependencies against OSV advisories (#1049). */
+interface DependencyAdvisoryOutcome {
+  vulnerabilities: Vulnerability[];
+  status: 'complete' | 'incomplete' | 'failed';
+  packagesChecked: number;
+  uncheckedPackages: UncheckedDependency[];
+  error?: string;
+}
+
 export class SecurityAuditorService implements ISecurityAuditorService {
   private readonly config: SecurityAuditorConfig;
+  private readonly osvClient: OSVClient;
 
   constructor(
     private readonly memory: MemoryBackend,
-    config: Partial<SecurityAuditorConfig> = {}
+    config: Partial<SecurityAuditorConfig> = {},
+    osvClient?: OSVClient
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.osvClient = osvClient ?? new OSVClient();
   }
 
   // ==========================================================================
@@ -112,29 +124,27 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         return err(new Error(`Unknown manifest format: ${manifest}`));
       }
 
-      const vulnerabilities: Vulnerability[] = [];
       const outdatedPackages: OutdatedPackage[] = [];
       const dependencies = await this.parseDependencies(manifest, ecosystem);
+      const advisories = await this.checkDependencyAdvisories(dependencies);
 
       for (const dep of dependencies) {
-        const vulns = await this.checkDependencyVulnerabilities(dep, ecosystem);
-        vulnerabilities.push(...vulns);
-
         const outdated = await this.checkOutdated(dep);
         if (outdated) {
           outdatedPackages.push(outdated);
         }
       }
 
-      const summary = this.createDependencySummary(vulnerabilities, dependencies.length);
+      const summary = this.createDependencySummary(advisories.vulnerabilities, dependencies.length);
+      const result = this.toDependencyScanResult(advisories, outdatedPackages, summary);
 
       await this.memory.set(
         `security:deps:${manifestPath.filename}`,
-        { vulnerabilities, outdatedPackages, summary },
+        result,
         { namespace: 'security-compliance', ttl: 86400 }
       );
 
-      return ok({ vulnerabilities, outdatedPackages, summary });
+      return ok(result);
     } catch (error) {
       return err(toError(error));
     }
@@ -244,6 +254,12 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       const recommendations = generateRecommendations(
         sastResults, dastResults, dependencyResults, secretScanResults
       );
+      // #1049: an incomplete advisory lookup leaves dependency risk unmeasured.
+      if (dependencyResults && dependencyResults.status !== 'complete') {
+        recommendations.unshift(
+          `${dependencyResults.error ?? 'Dependency advisories could not be checked'}. Dependency risk is unmeasured; re-run the scan when the OSV API is reachable.`
+        );
+      }
 
       const report: SecurityAuditReport = {
         auditId,
@@ -403,6 +419,8 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
     } catch (error) {
       logger.error(`Failed to parse dependencies from ${manifest}:`, error instanceof Error ? error : undefined);
+      // #1049: an unreadable manifest is a failed scan, not a project with no dependencies.
+      throw error;
     }
 
     return dependencies;
@@ -412,36 +430,49 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     return versionSpec.replace(/^[\^~>=<]+/, '').trim();
   }
 
-  private async checkDependencyVulnerabilities(
-    dep: DependencyInfo,
-    ecosystem: DependencyInfo['ecosystem']
-  ): Promise<Vulnerability[]> {
+  /**
+   * Check dependencies against OSV advisories. A failed or partial lookup is
+   * reported with the unchecked dependencies, never as "no vulnerabilities" (#1049).
+   */
+  private async checkDependencyAdvisories(dependencies: DependencyInfo[]): Promise<DependencyAdvisoryOutcome> {
+    const lookup = await this.osvClient.lookupBatch(dependencies.map((dep) => ({
+      name: dep.name, ecosystem: this.mapToOSVEcosystem(dep.ecosystem), version: dep.version,
+    })));
     const vulnerabilities: Vulnerability[] = [];
-
-    try {
-      const osvEcosystem = this.mapToOSVEcosystem(ecosystem);
-
-      const osvQuery: OSVQueryRequest = {
-        package: { name: dep.name, ecosystem: osvEcosystem },
-        version: dep.version,
-      };
-
-      const response = await httpPost<OSVQueryRequest, OSVQueryResponse>(
-        'https://api.osv.dev/v1/query',
-        osvQuery
-      );
-
-      if (response.ok && response.data.vulns && response.data.vulns.length > 0) {
-        for (const osvVuln of response.data.vulns) {
-          const vulnerability = this.mapOSVVulnerability(osvVuln, dep);
-          vulnerabilities.push(vulnerability);
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to check vulnerabilities for ${dep.name}@${dep.version}:`, error instanceof Error ? error : undefined);
+    for (const dep of dependencies) {
+      const found = lookup.results.get(`${this.mapToOSVEcosystem(dep.ecosystem)}:${dep.name}`) ?? [];
+      vulnerabilities.push(...found.map((parsed) => this.mapParsedVulnerability(parsed, dep)));
     }
+    const uncheckedPackages = lookup.unchecked.map((pkg) => ({
+      name: pkg.name, version: pkg.version ?? 'unknown', reason: pkg.reason,
+    }));
+    const reasons = lookup.errors.length > 0 ? lookup.errors : [...new Set(uncheckedPackages.map((p) => p.reason))];
+    return {
+      vulnerabilities,
+      status: lookup.status,
+      packagesChecked: lookup.packagesChecked,
+      uncheckedPackages,
+      ...(lookup.status === 'complete' ? {} : {
+        error: `Dependency advisories could not be checked for ${uncheckedPackages.length} package(s): ${reasons.slice(0, 3).join('; ')}`,
+      }),
+    };
+  }
 
-    return vulnerabilities;
+  private toDependencyScanResult(
+    advisories: DependencyAdvisoryOutcome,
+    outdatedPackages: OutdatedPackage[],
+    summary: ScanSummary
+  ): DependencyScanResult {
+    return {
+      vulnerabilities: advisories.vulnerabilities,
+      outdatedPackages,
+      summary,
+      status: advisories.status,
+      measured: advisories.status === 'complete',
+      packagesChecked: advisories.packagesChecked,
+      uncheckedPackages: advisories.uncheckedPackages,
+      ...(advisories.error ? { error: advisories.error } : {}),
+    };
   }
 
   private mapToOSVEcosystem(ecosystem: DependencyInfo['ecosystem']): string {
@@ -455,14 +486,10 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     return ecosystemMap[ecosystem];
   }
 
-  private mapOSVVulnerability(osvVuln: OSVVulnerability, dep: DependencyInfo): Vulnerability {
-    const cveId = osvVuln.aliases?.find((alias) => alias.startsWith('CVE-'));
-    const severity = this.mapOSVSeverity(osvVuln.severity);
-    const fixedVersion = this.extractFixedVersion(osvVuln);
-    const references = osvVuln.references?.map((ref) => ref.url) || [];
-
+  private mapParsedVulnerability(parsed: ParsedVulnerability, dep: DependencyInfo): Vulnerability {
+    const fixedVersion = parsed.fixedVersions[0];
     const location: VulnerabilityLocation = {
-      file: 'package.json',
+      file: dep.ecosystem === 'pip' ? 'requirements.txt' : 'package.json',
       dependency: dep,
     };
 
@@ -477,59 +504,19 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
     return {
       id: uuidv4(),
-      cveId,
-      title: osvVuln.summary || `Vulnerability in ${dep.name}`,
-      description: osvVuln.details || osvVuln.summary || 'No description available',
-      severity,
-      category: this.categorizeVulnerability(osvVuln),
+      cveId: parsed.cveIds[0],
+      title: parsed.summary || `Vulnerability in ${dep.name}`,
+      description: parsed.details || parsed.summary || 'No description available',
+      // An advisory without a severity rating stays reported, at medium (as before).
+      severity: parsed.severity === 'unknown' ? 'medium' : parsed.severity as VulnerabilitySeverity,
+      category: this.categorizeVulnerability({ summary: parsed.summary, details: parsed.details }),
       location,
       remediation,
-      references,
+      references: parsed.references,
     };
   }
 
-  private mapOSVSeverity(
-    severityScores?: OSVVulnerability['severity']
-  ): VulnerabilitySeverity {
-    if (!severityScores || severityScores.length === 0) {
-      return 'medium';
-    }
-
-    const cvssScore = severityScores.find(
-      (s) => s.type === 'CVSS_V3' || s.type === 'CVSS_V2'
-    );
-
-    if (cvssScore) {
-      const score = parseFloat(cvssScore.score);
-      if (score >= 9.0) return 'critical';
-      if (score >= 7.0) return 'high';
-      if (score >= 4.0) return 'medium';
-      if (score > 0) return 'low';
-    }
-
-    return 'medium';
-  }
-
-  private extractFixedVersion(osvVuln: OSVVulnerability): string | undefined {
-    if (!osvVuln.affected) return undefined;
-
-    for (const affected of osvVuln.affected) {
-      if (affected.ranges) {
-        for (const range of affected.ranges) {
-          if (range.events) {
-            const fixedEvent = range.events.find((event) => event.fixed);
-            if (fixedEvent?.fixed) {
-              return fixedEvent.fixed;
-            }
-          }
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  private categorizeVulnerability(osvVuln: OSVVulnerability): VulnerabilityCategory {
+  private categorizeVulnerability(osvVuln: Pick<OSVVulnerability, 'summary' | 'details'>): VulnerabilityCategory {
     const summary = (osvVuln.summary || '').toLowerCase();
     const details = (osvVuln.details || '').toLowerCase();
     const combined = `${summary} ${details}`;
@@ -549,7 +536,8 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   private async checkOutdated(dep: DependencyInfo): Promise<OutdatedPackage | null> {
     const latestVersion = await this.getLatestVersion(dep.name, dep.ecosystem);
 
-    if (latestVersion !== dep.version) {
+    // A failed registry lookup ('unknown') is not evidence the package is outdated.
+    if (latestVersion !== 'unknown' && latestVersion !== dep.version) {
       return {
         name: dep.name,
         currentVersion: dep.version,
@@ -566,8 +554,11 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     version: string,
     ecosystem: DependencyInfo['ecosystem']
   ): Promise<Vulnerability[]> {
-    const dep: DependencyInfo = { name, version, ecosystem };
-    return this.checkDependencyVulnerabilities(dep, ecosystem);
+    const outcome = await this.checkDependencyAdvisories([{ name, version, ecosystem }]);
+    if (outcome.status !== 'complete') {
+      throw new Error(outcome.error ?? `Dependency advisories could not be checked for ${name}@${version}`);
+    }
+    return outcome.vulnerabilities;
   }
 
   private async getLatestVersion(
@@ -669,29 +660,25 @@ export class SecurityAuditorService implements ISecurityAuditorService {
 
   private async performDependencyScan(): Promise<DependencyScanResult> {
     const startTime = Date.now();
-    const vulnerabilities: Vulnerability[] = [];
     const outdatedPackages: OutdatedPackage[] = [];
+    const manifestPath = path.join(process.cwd(), 'package.json');
 
     try {
-      const manifestPath = path.join(process.cwd(), 'package.json');
       const dependencies = await this.parseDependencies(manifestPath, 'npm');
+      const advisories = await this.checkDependencyAdvisories(dependencies);
 
       for (const dep of dependencies) {
-        const vulns = await this.checkDependencyVulnerabilities(dep, dep.ecosystem);
-        vulnerabilities.push(...vulns);
-
         const outdated = await this.checkOutdated(dep);
         if (outdated) {
           outdatedPackages.push(outdated);
         }
       }
 
-      const scanDurationMs = Date.now() - startTime;
-      const baseSummary = this.createDependencySummary(vulnerabilities, dependencies.length);
-
-      return { vulnerabilities, outdatedPackages, summary: { ...baseSummary, scanDurationMs } };
+      const baseSummary = this.createDependencySummary(advisories.vulnerabilities, dependencies.length);
+      return this.toDependencyScanResult(advisories, outdatedPackages, { ...baseSummary, scanDurationMs: Date.now() - startTime });
     } catch (error) {
       logger.error('Dependency scan failed:', error instanceof Error ? error : undefined);
+      // #1049: a scan that could not run is failed, never an empty clean result.
       return {
         vulnerabilities: [],
         outdatedPackages: [],
@@ -699,6 +686,11 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           critical: 0, high: 0, medium: 0, low: 0, informational: 0,
           totalFiles: 0, scanDurationMs: Date.now() - startTime,
         },
+        status: 'failed',
+        measured: false,
+        packagesChecked: 0,
+        uncheckedPackages: [],
+        error: `Dependency scan of ${manifestPath} failed: ${toError(error).message}`,
       };
     }
   }
@@ -748,7 +740,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           }
         }
       }
-    } catch (error) {
+    } catch {
       logger.debug('Directory read error:');
     }
 

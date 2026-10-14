@@ -1165,6 +1165,7 @@ export class MCPProtocolServer {
           { name: 'dast', type: 'boolean', description: 'Run DAST scan', default: false },
           { name: 'target', type: 'string', description: 'Source file or directory for SAST' },
           { name: 'targetUrl', type: 'string', description: 'URL for a requested DAST scan' },
+          { name: 'dependencies', type: 'boolean', description: 'Check package.json dependencies against OSV advisories (sends package names and versions to the OSV API). If the lookup fails or is partial, dependencyScan.status is incomplete/failed: advisories could not be checked, which is not zero vulnerabilities.', default: false },
           saveResultsParameter('security_scan_comprehensive'),
         ],
       },
