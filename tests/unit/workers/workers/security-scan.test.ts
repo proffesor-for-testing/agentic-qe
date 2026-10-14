@@ -21,6 +21,8 @@ function recordedScans(): Record<string, unknown> {
   return {
     'security:scan:dep-1': {
       scanId: 'dep-1', scanType: 'dependency', timestamp,
+      // #1049 provenance: a complete OSV lookup
+      status: 'complete', measured: true, advisorySource: 'osv', packagesRequested: 2, packagesChecked: 2, uncheckedPackages: [],
       summary: { ...summary, critical: 1, high: 1 },
       vulnerabilities: [
         {
