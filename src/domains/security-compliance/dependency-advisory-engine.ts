@@ -30,6 +30,10 @@ export interface DependencyScanReport {
   localPackages: LocalDependency[];
   /** Workspace members whose own dependencies were included. */
   workspaceMembers: string[];
+  /** Planning errors (malformed lockfile, unreadable member, unexpandable pattern): the scan is not complete. */
+  resolutionErrors: string[];
+  /** Members dropped because they resolve outside the project root (never scanned). */
+  excludedMembers: Array<{ path: string; reason: string }>;
   /** Only direct dependencies are checked; transitive dependencies are not. */
   scope: 'direct';
   vulnerabilities: number;
@@ -82,7 +86,10 @@ function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
         ? `No registry dependencies to check${report.localPackages.length ? ` (${report.localPackages.length} local package(s) excluded)` : ' in package.json'}; nothing to check (complete).`
         : `Dependency advisories checked for all ${report.packagesChecked} package(s): ${report.vulnerabilities} advisory finding(s).`;
     case 'incomplete':
-      return `Dependency advisories could not be checked for ${report.uncheckedPackages.length} of ${report.packagesRequested} package(s); ` +
+      return (report.uncheckedPackages.length > 0
+        ? `Dependency advisories could not be checked for ${report.uncheckedPackages.length} of ${report.packagesRequested} package(s); ` : '') +
+        (report.resolutionErrors.length > 0
+          ? `not all dependencies could be resolved (${report.resolutionErrors.slice(0, 3).join('; ')}); ` : '') +
         `${report.vulnerabilities} finding(s) from the ${report.packagesChecked} checked package(s). Dependency scan is INCOMPLETE, not clean.`;
     case 'failed':
       return `${report.error ?? `Dependency advisories could not be checked for ${report.uncheckedPackages.length} package(s)`}. ` +
@@ -94,7 +101,8 @@ function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
 
 function notRun(reason: string, manifest?: string): DependencyAdvisoryOutcome {
   const base: Omit<DependencyScanReport, 'message'> = { status: 'not-run', measured: false, ...(manifest ? { manifest } : {}),
-    packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [], workspaceMembers: [], scope: 'direct',
+    packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [], workspaceMembers: [],
+    resolutionErrors: [], excludedMembers: [], scope: 'direct',
     vulnerabilities: 0, error: reason };
   return {
     engine: { id: DEPENDENCY_ADVISORY_ENGINE_ID, requested: true, required: true, status: 'failed', scope: 'parent-directory',
@@ -126,7 +134,8 @@ export async function runDependencyAdvisoryScan(
     status: value.status, measured: value.measured, manifest, lockfile: value.lockfile ?? null,
     packagesRequested: value.packagesScanned, packagesChecked: value.packagesChecked,
     uncheckedPackages: value.uncheckedPackages, localPackages: value.localPackages ?? [],
-    workspaceMembers: value.workspaceMembers ?? [], scope: 'direct', vulnerabilities: value.vulnerabilities.length,
+    workspaceMembers: value.workspaceMembers ?? [], resolutionErrors: value.resolutionErrors ?? [],
+    excludedMembers: value.excludedMembers ?? [], scope: 'direct', vulnerabilities: value.vulnerabilities.length,
     scanId: value.scanId, ...(value.error ? { error: value.error } : {}),
   };
   return {
@@ -134,7 +143,7 @@ export async function runDependencyAdvisoryScan(
       id: DEPENDENCY_ADVISORY_ENGINE_ID, requested: true, required: true,
       status: value.status === 'complete' ? 'completed' : value.status === 'incomplete' ? 'partial' : 'failed',
       scope: 'parent-directory', target: manifest, ruleCoverage: 'unknown',
-      errors: [...(value.error ? [value.error] : []), ...unchecked.slice(0, 20),
+      errors: [...(value.error ? [value.error] : []), ...(value.resolutionErrors ?? []), ...unchecked.slice(0, 20),
         ...(unchecked.length > 20 ? [`... and ${unchecked.length - 20} more unchecked package(s)`] : [])],
       limitations: [
         value.lockfile

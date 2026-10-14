@@ -334,6 +334,12 @@ function printSecurityResult(result: SecurityScanResult): void {
   if (result.dependencyScan?.workspaceMembers.length) {
     console.log(`  Workspace members scanned: ${result.dependencyScan.workspaceMembers.join(', ')}`);
   }
+  for (const problem of result.dependencyScan?.resolutionErrors ?? []) {
+    console.log(chalk.yellow(`    not resolved: ${problem}`));
+  }
+  for (const member of result.dependencyScan?.excludedMembers ?? []) {
+    console.log(chalk.yellow(`    workspace member excluded: ${member.path} (${member.reason})`));
+  }
   for (const limitation of limitations.slice(0, 10)) console.log(chalk.yellow(`  ${limitation}`));
   if (limitations.length > 10) console.log(`  ... ${limitations.length - 10} additional limitations; use JSON, Markdown, or SARIF for full receipts.`);
   if (result.evidence) console.log('  Scope: completed checks of the declared required engines; this is not full SAST assurance.');

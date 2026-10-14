@@ -31,8 +31,10 @@ advisories that affect the versions the range allows).
 1. **Lockfile first, if it is in sync.** The version the lockfile resolved for
    each direct dependency is checked. Supported: `npm-shrinkwrap.json`,
    `package-lock.json` (v1–v3), `pnpm-lock.yaml`, `yarn.lock` (classic and
-   berry). The lockfile is looked up from the package directory upwards (to
-   the git root), so a workspace member uses the workspace root's lockfile.
+   berry). The lockfile is looked up from the package directory upwards —
+   never above `AQE_PROJECT_ROOT` or the git root — so a workspace member uses
+   the workspace root's lockfile. A lockfile that exists but cannot be read or
+   parsed makes the scan **not complete** (it is never treated as "no lockfile").
    A lockfile **out of sync** with package.json is never trusted: when the
    spec it records differs from package.json, or its version does not satisfy
    the declared spec, the package is unchecked ("lockfile out of sync with
@@ -55,8 +57,16 @@ subjects. They are listed in `localPackages` and do **not** make the scan
 incomplete. Their own dependencies are what can carry advisories, so when you
 scan a workspace root, every workspace member's package.json is scanned too
 (members from the lockfile and the `workspaces` / `pnpm-workspace.yaml`
-globs), resolved through the root lockfile; findings point at the member's
-`package.json`. Scanning a member directly checks only that member.
+`packages:` globs), resolved through the root lockfile; findings point at the
+member's `package.json`. Scanning a member directly checks only that member.
+
+- Globs support `*`, `**`, multi-segment patterns and braces; `!negations`
+  exclude members; `node_modules` is skipped and symlinks are not followed.
+- A member whose real path is outside the project root (`../` patterns,
+  symlinks) is listed in `excludedMembers` and is never scanned or sent to OSV.
+- A workspace pattern that cannot be expanded, or a member `package.json` that
+  cannot be read or parsed, is listed in `resolutionErrors` and makes the scan
+  **incomplete** (CLI exit 3) — a member is never silently skipped.
 
 ## Reading the result
 

@@ -24,6 +24,7 @@ import semver from 'semver';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { classifyNpmSpec, exactNpmVersion } from '@shared/security/osv-lookup.js';
 import { LOCKFILES, parseLockfile, type LockIndex, type LockfileName } from './lockfile-versions.js';
+import { expandWorkspaces, isInside, pnpmWorkspacePatterns, type WorkspaceExpansion } from './workspace-members.js';
 
 export interface ResolvedDependency {
   /** Dependency name as declared (the alias name for `npm:` aliases). */
@@ -50,8 +51,14 @@ export interface DependencyResolution {
   readonly workspaceMembers: string[];
   /** A lockfile that exists but could not be read or parsed. */
   readonly error?: string;
-  /** Workspace member manifests that could not be read. */
+  /**
+   * Workspace problems that leave members unscanned: unreadable/malformed member
+   * manifests and patterns that could not be expanded. A non-empty list means
+   * the scan is not complete (#1049 round 4).
+   */
   readonly memberErrors: string[];
+  /** Workspace members dropped because they resolve outside the project root (never scanned). */
+  readonly excludedMembers: Array<{ path: string; reason: string }>;
 }
 
 const OUT_OF_SYNC = 'lockfile out of sync with package.json';
@@ -82,54 +89,47 @@ async function exists(file: string): Promise<boolean> {
   }
 }
 
-/** Find the lockfile governing `dir`: walk up to the git root (inclusive). */
-async function findLockfile(dir: string): Promise<{ dir: string; file: LockfileName } | null> {
-  let current = path.resolve(dir);
+async function realOrResolved(p: string): Promise<string> {
+  try {
+    return await fs.realpath(p);
+  } catch {
+    return path.resolve(p);
+  }
+}
+
+/**
+ * Find the lockfile governing `dir`: walk up, but never above the project root
+ * (`AQE_PROJECT_ROOT` when `dir` is inside it) nor above the git root.
+ */
+async function findLockfile(dir: string, env: NodeJS.ProcessEnv = process.env): Promise<{ dir: string; file: LockfileName } | null> {
+  let current = await realOrResolved(dir);
+  const projectRoot = env.AQE_PROJECT_ROOT ? await realOrResolved(env.AQE_PROJECT_ROOT) : null;
+  const boundary = projectRoot && isInside(projectRoot, current) ? projectRoot : null;
   for (;;) {
     for (const file of LOCKFILES) {
       if (await exists(path.join(current, file))) return { dir: current, file };
     }
-    if (await exists(path.join(current, '.git'))) return null;
+    if (current === boundary || await exists(path.join(current, '.git'))) return null;
     const parent = path.dirname(current);
     if (parent === current) return null;
     current = parent;
   }
 }
 
-/** Expand simple workspace globs (`packages/*`, `apps/web`) relative to `root`. */
-async function expandWorkspaceGlobs(root: string, patterns: string[]): Promise<string[]> {
-  const out: string[] = [];
-  for (const raw of patterns) {
-    const pattern = raw.replace(/\/+$/, '');
-    if (pattern.startsWith('!')) continue;
-    if (!pattern.includes('*')) {
-      if (await exists(path.join(root, pattern, 'package.json'))) out.push(pattern);
-      continue;
-    }
-    const m = /^(.*?)\/?\*\*?$/.exec(pattern);
-    if (!m || m[1].includes('*')) continue;
-    try {
-      for (const entry of await fs.readdir(path.join(root, m[1]), { withFileTypes: true })) {
-        const rel = m[1] ? `${m[1]}/${entry.name}` : entry.name;
-        if (entry.isDirectory() && await exists(path.join(root, rel, 'package.json'))) out.push(rel);
-      }
-    } catch { /* missing workspace dir */ }
-  }
-  return [...new Set(out)];
+/** Workspace globs declared by the root manifest and pnpm-workspace.yaml. */
+async function workspacePatterns(root: string, rootManifest: Manifest): Promise<string[]> {
+  const ws = rootManifest.workspaces;
+  const declared = Array.isArray(ws) ? ws : ws && typeof ws === 'object' && Array.isArray((ws as { packages?: unknown }).packages)
+    ? (ws as { packages: unknown[] }).packages : [];
+  let pnpm: string[] = [];
+  try {
+    pnpm = pnpmWorkspacePatterns(await fs.readFile(path.join(root, 'pnpm-workspace.yaml'), 'utf-8'));
+  } catch { /* not a pnpm workspace */ }
+  return [...declared, ...pnpm].filter((p): p is string => typeof p === 'string');
 }
 
-async function workspaceMembers(lockDir: string, index: LockIndex | null, rootManifest: Manifest): Promise<string[]> {
-  const fromLock = index?.members() ?? [];
-  const ws = rootManifest.workspaces;
-  const patterns = Array.isArray(ws) ? ws : ws && typeof ws === 'object' && Array.isArray((ws as { packages?: unknown }).packages)
-    ? (ws as { packages: unknown[] }).packages : [];
-  let fromPnpmWorkspace: string[] = [];
-  try {
-    const yaml = await fs.readFile(path.join(lockDir, 'pnpm-workspace.yaml'), 'utf-8');
-    fromPnpmWorkspace = [...yaml.matchAll(/^\s*-\s*['"]?([^'"#\n]+?)['"]?\s*$/gm)].map((m) => m[1]);
-  } catch { /* not a pnpm workspace */ }
-  const fromGlobs = await expandWorkspaceGlobs(lockDir, [...patterns, ...fromPnpmWorkspace].filter((p): p is string => typeof p === 'string'));
-  return [...new Set([...fromLock, ...fromGlobs])].filter((m) => m && !m.startsWith('..')).sort();
+async function workspaceMembers(root: string, index: LockIndex | null, rootManifest: Manifest): Promise<WorkspaceExpansion> {
+  return expandWorkspaces(root, await workspacePatterns(root, rootManifest), index?.members() ?? []);
 }
 
 /** Resolve one declared dependency of `member`. */
@@ -196,40 +196,44 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   const manifest = await readManifest(manifestPath);
 
   let index: LockIndex | null = null;
-  let lockDir = manifestDir;
+  let lockDir = await realOrResolved(manifestDir);
+  const realManifestDir = lockDir;
   let lockfile: string | null = null;
   let error: string | undefined;
   const found = await findLockfile(manifestDir);
   if (found) {
-    const member = path.relative(found.dir, manifestDir).split(path.sep).join('/');
+    const member = path.relative(found.dir, realManifestDir).split(path.sep).join('/');
     try {
       const parsed = parseLockfile(found.file, await fs.readFile(path.join(found.dir, found.file), 'utf-8'));
       const rootManifest = member ? await readManifest(path.join(found.dir, 'package.json')).catch(() => ({} as Manifest)) : manifest;
       const covers = member === '' || parsed.hasImporter(member) && (parsed.file !== 'yarn.lock'
-        || (await workspaceMembers(found.dir, null, rootManifest)).includes(member));
+        || (await workspaceMembers(found.dir, null, rootManifest)).members.includes(member));
       if (covers) {
         index = parsed;
         lockDir = found.dir;
-        lockfile = path.relative(manifestDir, path.join(found.dir, found.file)).split(path.sep).join('/');
+        lockfile = path.relative(realManifestDir, path.join(found.dir, found.file)).split(path.sep).join('/');
       }
     } catch (e) {
-      error = `${found.file} could not be read (${e instanceof Error ? e.message.slice(0, 120) : 'error'})`;
+      // #1049 round 4: a malformed lockfile is an error (the scan is not complete), not "no lockfile".
+      error = `${path.relative(realManifestDir, path.join(found.dir, found.file)).split(path.sep).join('/')} could not be read or parsed `
+        + `(${e instanceof Error ? e.message.slice(0, 120) : 'error'}); versions were not resolved from it`;
     }
   }
-  const scannedMember = path.relative(lockDir, manifestDir).split(path.sep).join('/');
+  const scannedMember = path.relative(lockDir, realManifestDir).split(path.sep).join('/');
 
   // At a workspace root, members' own dependencies are scanned too.
-  const members = scannedMember === '' ? await workspaceMembers(lockDir, index, manifest) : [];
+  const expansion: WorkspaceExpansion = scannedMember === ''
+    ? await workspaceMembers(lockDir, index, manifest) : { members: [], excluded: [], errors: [] };
   const memberManifests = new Map<string, Record<string, string>>();
-  const memberErrors: string[] = [];
+  const memberErrors: string[] = [...expansion.errors];
   const localNames = new Set<string>();
-  for (const member of members) {
+  for (const member of expansion.members) {
     try {
       const m = await readManifest(path.join(lockDir, member, 'package.json'));
       memberManifests.set(member, declaredDependencies(m));
       if (typeof m.name === 'string') localNames.add(m.name);
-    } catch {
-      memberErrors.push(`${member}/package.json could not be read`);
+    } catch (e) {
+      memberErrors.push(`workspace member ${member}/package.json could not be read or parsed (${e instanceof Error ? e.message.slice(0, 80) : 'error'}); its dependencies were not checked`);
     }
   }
 
@@ -240,5 +244,8 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   for (const [member, deps] of memberManifests) {
     for (const [name, spec] of Object.entries(deps)) dependencies.push(resolveOne(name, spec, member, index, localNames));
   }
-  return { dependencies, lockfile, workspaceMembers: [...memberManifests.keys()], memberErrors, ...(error ? { error } : {}) };
+  return {
+    dependencies, lockfile, workspaceMembers: [...memberManifests.keys()], memberErrors,
+    excludedMembers: expansion.excluded, ...(error ? { error } : {}),
+  };
 }

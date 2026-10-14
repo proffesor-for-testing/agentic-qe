@@ -48,8 +48,16 @@ const DEP_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', '
 
 /** Parse a lockfile's text; throws on malformed content. */
 export function parseLockfile(file: LockfileName, text: string): LockIndex {
-  if (file === 'pnpm-lock.yaml') return pnpmIndex(text);
-  if (file === 'yarn.lock') return yarnIndex(text);
+  // #1049 round 4: content that is not a lockfile of this format is an error,
+  // never an empty lockfile (which would read as "nothing locked").
+  if (file === 'pnpm-lock.yaml') {
+    if (!/^lockfileVersion:/m.test(text)) throw new Error('not a pnpm lockfile (no lockfileVersion)');
+    return pnpmIndex(text);
+  }
+  if (file === 'yarn.lock') {
+    if (!/^# yarn lockfile v1\b|^__metadata:/m.test(text)) throw new Error('not a yarn lockfile (no "# yarn lockfile v1" or __metadata header)');
+    return yarnIndex(text);
+  }
   return npmIndex(file, text);
 }
 
@@ -61,7 +69,10 @@ type NpmPackage = { version?: unknown; link?: unknown; name?: unknown; resolved?
 
 function npmIndex(file: LockfileName, text: string): LockIndex {
   const lock = safeJsonParse<{ packages?: Record<string, NpmPackage>; dependencies?: Record<string, { version?: unknown }> }>(text);
-  if (!lock || typeof lock !== 'object') throw new Error('not a JSON object');
+  if (!lock || typeof lock !== 'object' || Array.isArray(lock)) throw new Error('not a JSON object');
+  if (typeof (lock as { lockfileVersion?: unknown }).lockfileVersion !== 'number') {
+    throw new Error('not an npm lockfile (no numeric lockfileVersion)');
+  }
   const packages = lock.packages;
   const prefix = (importer: string) => (importer ? `${importer}/` : '');
   return {

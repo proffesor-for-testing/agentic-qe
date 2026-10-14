@@ -29,8 +29,14 @@ interface ScanPlan {
   dependencies: ResolvedDependency[];
   lockfile: string | null;
   workspaceMembers: string[];
-  /** Planning problems (unreadable lockfile / member manifests). */
+  /**
+   * Planning problems: an unreadable/malformed lockfile, unreadable/malformed
+   * member manifests, workspace patterns that could not be expanded. Any of
+   * them makes the scan not complete (#1049 round 4).
+   */
   errors: string[];
+  /** Members dropped because they resolve outside the project root. */
+  excludedMembers: Array<{ path: string; reason: string }>;
 }
 
 // ============================================================================
@@ -82,7 +88,9 @@ export class DependencyScanner {
     if (Object.keys(dependencies).length === 0) {
       return err(new Error('No dependencies provided for scanning'));
     }
-    return this.runScan({ dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [] });
+    return this.runScan({
+      dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [], excludedMembers: [],
+    });
   }
 
   /**
@@ -98,6 +106,7 @@ export class DependencyScanner {
         lockfile: resolution.lockfile,
         workspaceMembers: resolution.workspaceMembers,
         errors: [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors],
+        excludedMembers: resolution.excludedMembers,
       });
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -163,11 +172,14 @@ export class DependencyScanner {
       }
 
       const requested = packagesChecked + uncheckedPackages.length;
-      const status: DependencyScanResult['status'] = packagesChecked === requested ? 'complete' : packagesChecked === 0 ? 'failed' : 'incomplete';
+      // #1049 round 4: a planning error (malformed lockfile, unreadable member,
+      // unexpandable workspace pattern) means something was not checked.
+      const allChecked = packagesChecked === requested && plan.errors.length === 0;
+      const status: DependencyScanResult['status'] = allChecked ? 'complete' : packagesChecked === 0 ? 'failed' : 'incomplete';
       const scanDurationMs = Date.now() - startTime;
       const summary = this.calculateSummary(vulnerabilities, requested, scanDurationMs);
       const error = status === 'complete' ? undefined
-        : describeLookupFailure([...lookup.errors, ...plan.errors], uncheckedPackages);
+        : describeLookupFailure([...plan.errors, ...lookup.errors], uncheckedPackages);
 
       const result: DependencyScanResult = {
         scanId,
@@ -183,6 +195,8 @@ export class DependencyScanner {
         lockfile: plan.lockfile,
         localPackages,
         workspaceMembers: plan.workspaceMembers,
+        resolutionErrors: plan.errors,
+        excludedMembers: plan.excludedMembers,
         scope: 'direct',
         ...(error ? { error } : {}),
       };
@@ -297,6 +311,8 @@ export class DependencyScanner {
         uncheckedPackages: result.uncheckedPackages,
         localPackages: result.localPackages ?? [],
         workspaceMembers: result.workspaceMembers ?? [],
+        resolutionErrors: result.resolutionErrors ?? [],
+        excludedMembers: result.excludedMembers ?? [],
         lockfile: result.lockfile ?? null,
         ...(result.error ? { error: result.error } : {}),
         vulnerabilities: result.vulnerabilities,
@@ -311,5 +327,6 @@ export class DependencyScanner {
 /** One bounded sentence naming why the advisory lookup is incomplete. */
 function describeLookupFailure(errors: string[], unchecked: UncheckedDependency[]): string {
   const reasons = errors.length > 0 ? errors : [...new Set(unchecked.map((p) => p.reason))];
-  return `Dependency advisories could not be checked for ${unchecked.length} package(s): ${reasons.slice(0, 3).join('; ')}`;
+  const what = unchecked.length > 0 ? `${unchecked.length} package(s)` : 'some dependencies';
+  return `Dependency advisories could not be checked for ${what}: ${reasons.slice(0, 3).join('; ')}`;
 }
