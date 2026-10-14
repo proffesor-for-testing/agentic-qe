@@ -295,8 +295,21 @@ export interface DependencyScanResult {
 /** A dependency whose advisories could not be checked, and why (#1049). */
 export interface UncheckedDependency {
   readonly name: string;
+  /** The spec as declared in the manifest. */
   readonly version: string;
   readonly reason: string;
+  /** Workspace member the dependency belongs to (absent for the scanned package itself). */
+  readonly member?: string;
+  /** The lockfile-resolved version, when the lockfile has one. */
+  readonly lockedVersion?: string;
+}
+
+/** A local (workspace / linked / file-directory) package: not an OSV subject (#1049). */
+export interface LocalDependency {
+  readonly name: string;
+  readonly spec: string;
+  readonly reason: string;
+  readonly member?: string;
 }
 
 export interface PackageSecurityInfo {

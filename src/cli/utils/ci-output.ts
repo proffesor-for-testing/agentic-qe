@@ -52,6 +52,8 @@ export interface SecurityVulnerability {
   message: string;
   ruleId?: string;
   cweId?: string;
+  /** CVE id of a dependency advisory, when the advisory has one (#1049). */
+  cveId?: string;
 }
 
 export interface SecurityScanResult {

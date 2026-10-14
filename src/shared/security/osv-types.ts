@@ -11,11 +11,13 @@ export interface OSVQueryRequest {
   package?: {
     name: string;
     ecosystem: OSVEcosystem;
-    version?: string;
   };
   /** Git commit hash */
   commit?: string;
-  /** Package lock file version (for version ranges) */
+  /**
+   * Package version to match. OSV reads it here, at the top level of the query;
+   * a `version` inside `package` is ignored (it returns every advisory ever).
+   */
   version?: string;
 }
 

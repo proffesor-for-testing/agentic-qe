@@ -279,6 +279,7 @@ function formatVulnerability(value: Vulnerability | SecurityVulnerability): Secu
       severity: value.severity, type: value.title || value.category,
       file: value.location.file, line: value.location.line ?? 1,
       message: value.description,
+      ...(value.cveId ? { cveId: value.cveId } : {}),
     };
   }
   return value;
@@ -318,10 +319,20 @@ function printSecurityResult(result: SecurityScanResult): void {
   if (result.dependencyScan && result.dependencyScan.status !== 'complete') {
     const unchecked = result.dependencyScan.uncheckedPackages;
     console.log(chalk.yellow(`  ${result.dependencyScan.message}`));
-    for (const pkg of unchecked.slice(0, 10)) console.log(chalk.yellow(`    not checked: ${pkg.name}@${pkg.version} (${pkg.reason})`));
+    for (const pkg of unchecked.slice(0, 10)) {
+      const where = `${pkg.member ? `${pkg.member}: ` : ''}${pkg.name}@${pkg.version}${pkg.lockedVersion ? ` (lockfile ${pkg.lockedVersion})` : ''}`;
+      console.log(chalk.yellow(`    not checked: ${where} (${pkg.reason})`));
+    }
     if (unchecked.length > 10) console.log(chalk.yellow(`    ... and ${unchecked.length - 10} more unchecked package(s)`));
   } else if (result.dependencyScan) {
     console.log(`  ${result.dependencyScan.message}`);
+  }
+  if (result.dependencyScan?.localPackages.length) {
+    const local = result.dependencyScan.localPackages;
+    console.log(`  Local packages (not OSV subjects, excluded): ${local.slice(0, 10).map(p => `${p.member ? `${p.member}: ` : ''}${p.name}`).join(', ')}${local.length > 10 ? ` ... and ${local.length - 10} more` : ''}`);
+  }
+  if (result.dependencyScan?.workspaceMembers.length) {
+    console.log(`  Workspace members scanned: ${result.dependencyScan.workspaceMembers.join(', ')}`);
   }
   for (const limitation of limitations.slice(0, 10)) console.log(chalk.yellow(`  ${limitation}`));
   if (limitations.length > 10) console.log(`  ... ${limitations.length - 10} additional limitations; use JSON, Markdown, or SARIF for full receipts.`);

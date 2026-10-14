@@ -6,13 +6,14 @@
  * API Documentation: https://google.github.io/osv.dev/api/
  */
 
+import { isIP } from 'node:net';
 import { HttpClient } from '../http';
 import {
   OSVLookupError,
   advisoryAffectsVersion,
   boundedList,
+  classifyNpmSpec,
   exactNpmVersion,
-  isNonRegistrySpec,
   isAdvisoryRecord,
   isConcreteVersion,
   lookupKey,
@@ -74,7 +75,17 @@ export interface OSVClientConfig {
 
 const DEFAULT_BASE_URL = 'https://api.osv.dev';
 
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+/**
+ * A loopback host: exactly `localhost`, an IPv4 literal in 127.0.0.0/8, or the
+ * IPv6 literal ::1. A DNS name that merely starts with "127." (e.g.
+ * 127.evil.com, 127.0.0.1.nip.io) is not loopback.
+ */
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost') return true;
+  if (isIP(host) === 4) return host.startsWith('127.');
+  return isIP(host) === 6 && (host === '::1' || host === '0:0:0:0:0:0:0:1');
+}
 
 /**
  * The OSV endpoint: `AQE_OSV_API_URL` or the public API. https is required,
@@ -90,7 +101,7 @@ export function resolveOSVBaseUrl(env: NodeJS.ProcessEnv = process.env): string 
   } catch {
     throw new Error(`AQE_OSV_API_URL is not a URL: "${configured.slice(0, 200)}" (expected https://host)`);
   }
-  const loopback = LOOPBACK_HOSTS.has(url.hostname.toLowerCase()) || /^127\./.test(url.hostname);
+  const loopback = isLoopbackHost(url.hostname);
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
     throw new Error(`AQE_OSV_API_URL must use https (http only for localhost/loopback): "${configured.slice(0, 200)}"`);
   }
@@ -242,14 +253,18 @@ export class OSVClient {
     const queries: OSVPackageQuery[] = [];
     const unresolved: OSVUncheckedPackage[] = [];
     for (const [name, spec] of Object.entries(dependencies)) {
-      if (isNonRegistrySpec(spec)) {
-        unresolved.push({ name, ecosystem: 'npm', version: spec,
-          reason: `not a registry dependency ("${spec}"); OSV advisories cannot be matched` });
+      const kind = classifyNpmSpec(spec);
+      if (kind.kind === 'local' || kind.kind === 'remote') {
+        unresolved.push({ name, ecosystem: 'npm', version: spec, reason: kind.kind === 'local'
+          ? `local package ("${spec}"); not an OSV subject`
+          : `not a registry dependency ("${spec}": git/URL/tarball source); OSV advisories cannot be matched` });
         continue;
       }
+      // An `npm:<real>@<range>` alias is the registry package <real>.
+      const packageName = kind.kind === 'alias' ? kind.name : name;
       const locked = lockedVersions[name] !== undefined ? exactNpmVersion(lockedVersions[name]) : null;
-      const version = locked ?? exactNpmVersion(spec);
-      if (version) queries.push({ name, ecosystem: 'npm', version });
+      const version = locked ?? exactNpmVersion(kind.spec);
+      if (version) queries.push({ name: packageName, ecosystem: 'npm', version });
       else unresolved.push({ name, ecosystem: 'npm', version: spec, reason: `version range "${spec}", no lockfile resolution` });
     }
     const lookup = await this.lookupBatch(queries);
@@ -269,7 +284,8 @@ export class OSVClient {
   async queryPackage(packageName: string, ecosystem: OSVEcosystem, version?: string): Promise<ParsedVulnerability[]> {
     const result = await this.http.post(
       `${this.base}/v1/query`,
-      { package: { name: packageName, ecosystem, ...(version && { version }) } },
+      // OSV reads `version` at the top level of a query; inside `package` it is ignored (#1049).
+      { package: { name: packageName, ecosystem }, ...(version && { version }) },
       this.requestOptions(),
     );
     const body = await this.readJson(result);
@@ -373,7 +389,9 @@ export class OSVClient {
 
   private async postBatch(chunk: OSVPackageQuery[]): Promise<{ entries: BatchEntry[] } | { reason: string }> {
     const queries: OSVQueryRequest[] = chunk.map((pkg) => ({
-      package: { name: pkg.name, ecosystem: pkg.ecosystem as OSVEcosystem, version: pkg.version },
+      // OSV reads `version` at the top level of a query; inside `package` it is ignored (#1049).
+      package: { name: pkg.name, ecosystem: pkg.ecosystem as OSVEcosystem },
+      ...(pkg.version ? { version: pkg.version } : {}),
     }));
     const result = await this.http.post(`${this.base}/v1/querybatch`, { queries }, this.requestOptions());
     const body = await this.readJson(result);

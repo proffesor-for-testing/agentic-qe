@@ -13,7 +13,7 @@ never shown as "0 vulnerabilities" (issue #1049).
 | MCP | `security_scan_comprehensive({ target: "<dir>", dependencies: true })` |
 
 The scan reads `<dir>/package.json` (or the one in `AQE_PROJECT_ROOT`) and the
-lockfile next to it.
+lockfile that governs it (next to it, or at the workspace root above it).
 
 ## Privacy
 
@@ -28,17 +28,35 @@ Advisories can only be matched against a concrete version, so AQE never
 guesses one from a range (checking `"<4.17.12"` as `4.17.12` would miss
 advisories that affect the versions the range allows).
 
-1. **Lockfile first.** The version the lockfile resolved for each direct
-   dependency is checked. Supported: `npm-shrinkwrap.json`,
+1. **Lockfile first, if it is in sync.** The version the lockfile resolved for
+   each direct dependency is checked. Supported: `npm-shrinkwrap.json`,
    `package-lock.json` (v1–v3), `pnpm-lock.yaml`, `yarn.lock` (classic and
-   berry). The first one found is used.
+   berry). The lockfile is looked up from the package directory upwards (to
+   the git root), so a workspace member uses the workspace root's lockfile.
+   A lockfile **out of sync** with package.json is never trusted: when the
+   spec it records differs from package.json, or its version does not satisfy
+   the declared spec, the package is unchecked ("lockfile out of sync with
+   package.json"). Re-run `npm install` / `pnpm install` and scan again.
 2. **Exact specs.** Without a lockfile entry, only an exact version
    (`1.2.3`, `=1.2.3`, `v1.2.3`) is checked.
-3. **Everything else is unchecked**, with a reason: ranges (`^`, `~`, `<`,
-   `>`, `>=`, `||`, hyphen ranges, `x`/`*`), tags (`latest`), and non-registry
-   specs (`workspace:`, `file:`, `link:`, git/GitHub URLs, `npm:` aliases).
+3. **Aliases** (`"x": "npm:lodash@4.17.11"`) are checked as the real package.
+4. **Everything else is unchecked**, with a reason: ranges (`^`, `~`, `<`,
+   `>`, `>=`, `||`, hyphen ranges, `x`/`*`), tags (`latest`), and remote
+   sources (git, GitHub shorthand, URL and `file:` tarballs).
 
-Transitive dependencies are not checked.
+**Scope: direct dependencies only.** Transitive dependencies are not checked;
+the CLI and MCP output say so (`dependencyScan.scope: 'direct'`).
+
+### Workspaces and local packages
+
+Local packages — `workspace:`, `link:`, `file:` directories, and workspace
+members linked by the lockfile (npm `link: true`, pnpm `link:`) — are not OSV
+subjects. They are listed in `localPackages` and do **not** make the scan
+incomplete. Their own dependencies are what can carry advisories, so when you
+scan a workspace root, every workspace member's package.json is scanned too
+(members from the lockfile and the `workspaces` / `pnpm-workspace.yaml`
+globs), resolved through the root lockfile; findings point at the member's
+`package.json`. Scanning a member directly checks only that member.
 
 ## Reading the result
 
@@ -67,7 +85,8 @@ Overrides the OSV endpoint (default `https://api.osv.dev`), e.g. for an
 internal mirror or a test stub.
 
 - Must be `https://…`. Plain `http://` is accepted **only** for loopback
-  hosts (`localhost`, `127.0.0.0/8`, `[::1]`), for local mirrors and tests.
+  hosts — exactly `localhost`, an IPv4 literal in `127.0.0.0/8`, or `[::1]` —
+  for local mirrors and tests. DNS names such as `127.evil.com` are not loopback.
 - It is checked when a dependency scan runs, not at startup. An invalid value
   never affects other tools: only a requested dependency scan fails, with
   `status: failed` and an error naming `AQE_OSV_API_URL`.

@@ -81,11 +81,37 @@ export function exactNpmVersion(spec: string): string | null {
   return m ? m[1] : null;
 }
 
-/** A dependency spec that does not come from the npm registry (OSV cannot match it). */
-export function isNonRegistrySpec(spec: string): boolean {
+/**
+ * What an npm dependency spec points at (#1049):
+ * - `local`: a workspace / linked / local-directory package. Not an OSV subject
+ *   (its own dependencies are what can carry advisories).
+ * - `remote`: git, GitHub shorthand, URL or tarball (incl. `file:*.tgz`): third-party
+ *   code with no registry version, so advisories cannot be matched.
+ * - `alias`: `npm:<real>@<range>` — the registry package `<real>`.
+ * - `registry`: an ordinary registry spec (exact version, range or tag).
+ */
+export type NpmSpecKind =
+  | { kind: 'local' }
+  | { kind: 'remote' }
+  | { kind: 'alias'; name: string; spec: string }
+  | { kind: 'registry'; spec: string };
+
+export function classifyNpmSpec(spec: string): NpmSpecKind {
   const s = spec.trim();
-  return /^(workspace:|file:|link:|portal:|patch:|exec:|npm:|git\+|git:|github:|gitlab:|bitbucket:|https?:|\.{0,2}\/|~\/)/.test(s)
-    || /^[^\s@/:]+\/[^\s@/:]+(#.*)?$/.test(s); // GitHub "user/repo" shorthand
+  const alias = /^npm:((?:@[^/@\s]+\/)?[^@\s]+)(?:@(.*))?$/.exec(s);
+  if (alias) return { kind: 'alias', name: alias[1], spec: alias[2] ?? '' };
+  if (/^(workspace:|link:|portal:)/.test(s)) return { kind: 'local' };
+  if (/^file:/.test(s)) return /\.(tgz|tar\.gz|tar)$/i.test(s) ? { kind: 'remote' } : { kind: 'local' };
+  if (/^(\.{0,2}\/|~\/)/.test(s)) return /\.(tgz|tar\.gz|tar)$/i.test(s) ? { kind: 'remote' } : { kind: 'local' };
+  if (/^(patch:|exec:|git\+|git:|github:|gitlab:|bitbucket:|https?:)/.test(s)) return { kind: 'remote' };
+  if (/^[^\s@/:]+\/[^\s@/:]+(#.*)?$/.test(s)) return { kind: 'remote' }; // GitHub "user/repo" shorthand
+  return { kind: 'registry', spec: s };
+}
+
+/** A spec whose source is not the npm registry (local or remote); aliases are registry packages. */
+export function isNonRegistrySpec(spec: string): boolean {
+  const k = classifyNpmSpec(spec).kind;
+  return k === 'local' || k === 'remote';
 }
 
 /**

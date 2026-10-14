@@ -10,7 +10,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type { SecurityEngineEvidence } from './scan-evidence.js';
-import type { Vulnerability, UncheckedDependency } from './interfaces.js';
+import type { Vulnerability, UncheckedDependency, LocalDependency } from './interfaces.js';
 import type { DependencyScanResult } from './services/scanners/scanner-types.js';
 import type { Result } from '../../shared/types/index.js';
 
@@ -26,6 +26,12 @@ export interface DependencyScanReport {
   packagesRequested: number;
   packagesChecked: number;
   uncheckedPackages: UncheckedDependency[];
+  /** Local workspace / linked packages: not OSV subjects, excluded from the counts. */
+  localPackages: LocalDependency[];
+  /** Workspace members whose own dependencies were included. */
+  workspaceMembers: string[];
+  /** Only direct dependencies are checked; transitive dependencies are not. */
+  scope: 'direct';
   vulnerabilities: number;
   scanId?: string;
   error?: string;
@@ -63,11 +69,17 @@ export async function findPackageJson(targetPath: string, env: NodeJS.ProcessEnv
 }
 
 /** Human message for a dependency scan outcome. */
+export const DEPENDENCY_SCOPE_NOTE = 'direct dependencies only (package.json and workspace members); transitive dependencies are not checked';
+
 export function dependencyScanMessage(report: Omit<DependencyScanReport, 'message'>): string {
+  return `${statusMessage(report)} Scope: ${DEPENDENCY_SCOPE_NOTE}.`;
+}
+
+function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
   switch (report.status) {
     case 'complete':
       return report.packagesRequested === 0
-        ? 'No dependencies declared in package.json; nothing to check (complete).'
+        ? `No registry dependencies to check${report.localPackages.length ? ` (${report.localPackages.length} local package(s) excluded)` : ' in package.json'}; nothing to check (complete).`
         : `Dependency advisories checked for all ${report.packagesChecked} package(s): ${report.vulnerabilities} advisory finding(s).`;
     case 'incomplete':
       return `Dependency advisories could not be checked for ${report.uncheckedPackages.length} of ${report.packagesRequested} package(s); ` +
@@ -81,8 +93,9 @@ export function dependencyScanMessage(report: Omit<DependencyScanReport, 'messag
 }
 
 function notRun(reason: string, manifest?: string): DependencyAdvisoryOutcome {
-  const base = { status: 'not-run' as const, measured: false, ...(manifest ? { manifest } : {}), packagesRequested: 0,
-    packagesChecked: 0, uncheckedPackages: [], vulnerabilities: 0, error: reason };
+  const base: Omit<DependencyScanReport, 'message'> = { status: 'not-run', measured: false, ...(manifest ? { manifest } : {}),
+    packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [], workspaceMembers: [], scope: 'direct',
+    vulnerabilities: 0, error: reason };
   return {
     engine: { id: DEPENDENCY_ADVISORY_ENGINE_ID, requested: true, required: true, status: 'failed', scope: 'parent-directory',
       ...(manifest ? { target: manifest } : {}), analyzedFiles: 0, ruleCoverage: 'unknown', errors: [reason], limitations: [] },
@@ -112,7 +125,8 @@ export async function runDependencyAdvisoryScan(
   const base: Omit<DependencyScanReport, 'message'> = {
     status: value.status, measured: value.measured, manifest, lockfile: value.lockfile ?? null,
     packagesRequested: value.packagesScanned, packagesChecked: value.packagesChecked,
-    uncheckedPackages: value.uncheckedPackages, vulnerabilities: value.vulnerabilities.length,
+    uncheckedPackages: value.uncheckedPackages, localPackages: value.localPackages ?? [],
+    workspaceMembers: value.workspaceMembers ?? [], scope: 'direct', vulnerabilities: value.vulnerabilities.length,
     scanId: value.scanId, ...(value.error ? { error: value.error } : {}),
   };
   return {
@@ -122,9 +136,13 @@ export async function runDependencyAdvisoryScan(
       scope: 'parent-directory', target: manifest, ruleCoverage: 'unknown',
       errors: [...(value.error ? [value.error] : []), ...unchecked.slice(0, 20),
         ...(unchecked.length > 20 ? [`... and ${unchecked.length - 20} more unchecked package(s)`] : [])],
-      limitations: [value.lockfile
-        ? `Direct dependencies are checked at the versions ${value.lockfile} resolves; transitive dependencies are not checked.`
-        : 'No lockfile: only exact versions in package.json are checked; ranges are reported unchecked. Transitive dependencies are not checked.'],
+      limitations: [
+        value.lockfile
+          ? `Direct dependencies are checked at the versions ${value.lockfile} resolves (when in sync with package.json); transitive dependencies are not checked.`
+          : 'No lockfile: only exact versions in package.json are checked; ranges are reported unchecked. Transitive dependencies are not checked.',
+        ...((value.localPackages ?? []).length > 0
+          ? [`${value.localPackages!.length} local workspace/linked package(s) are not OSV subjects and were excluded.`] : []),
+      ],
     },
     vulnerabilities: value.vulnerabilities,
     report: { ...base, message: dependencyScanMessage(base) },

@@ -20,8 +20,8 @@ import type { FilePath } from '../../../shared/value-objects/index.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { OSVClient, type ParsedVulnerability } from '../../../shared/security/osv-client.js';
-import { exactNpmVersion, isNonRegistrySpec, lookupKey } from '../../../shared/security/osv-lookup.js';
-import { readLockedVersions } from './scanners/lockfile-versions.js';
+import { lookupKey } from '../../../shared/security/osv-lookup.js';
+import { resolveDependencies } from './scanners/dependency-resolver.js';
 
 import type {
   DependencyScanResult,
@@ -127,8 +127,8 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
 
       const outdatedPackages: OutdatedPackage[] = [];
-      const dependencies = await this.parseDependencies(manifest, ecosystem);
-      const advisories = await this.checkDependencyAdvisories(dependencies);
+      const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifest, ecosystem);
+      const advisories = await this.checkDependencyAdvisories(dependencies, preUnchecked);
 
       for (const dep of dependencies) {
         const outdated = await this.checkOutdated(dep);
@@ -389,21 +389,15 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       if (ecosystem === 'npm') {
         const content = await fs.readFile(manifest, 'utf-8');
         const packageJson: PackageJson = safeJsonParse(content);
-
         const allDeps: Record<string, string> = {
           ...packageJson.dependencies,
           ...packageJson.devDependencies,
           ...packageJson.peerDependencies,
           ...packageJson.optionalDependencies,
         };
-
-        // #1049: check the lockfile-resolved version, else an exact spec; a range
-        // is kept as-is so the OSV lookup reports it unchecked instead of guessing.
-        const locked = await readLockedVersions(manifest, allDeps);
+        // Declared specs only; scans resolve versions via parseDependenciesForScan (#1049).
         for (const [name, versionSpec] of Object.entries(allDeps)) {
-          const lockedVersion = locked.versions[name] !== undefined ? exactNpmVersion(locked.versions[name]) : null;
-          const version = isNonRegistrySpec(versionSpec) ? versionSpec : lockedVersion ?? exactNpmVersion(versionSpec) ?? versionSpec;
-          dependencies.push({ name, version, ecosystem: 'npm' });
+          dependencies.push({ name, version: versionSpec, ecosystem: 'npm' });
         }
       } else if (ecosystem === 'pip') {
         const content = await fs.readFile(manifest, 'utf-8');
@@ -436,10 +430,44 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   }
 
   /**
+   * Dependencies to check for a scan. npm uses the shared resolver (#1049):
+   * lockfile-resolved versions when in sync with package.json, exact specs
+   * otherwise, workspace members included, local packages excluded; anything
+   * that cannot be matched without guessing is returned as pre-unchecked.
+   */
+  private async parseDependenciesForScan(
+    manifest: string,
+    ecosystem: DependencyInfo['ecosystem']
+  ): Promise<{ dependencies: DependencyInfo[]; preUnchecked: UncheckedDependency[] }> {
+    if (ecosystem !== 'npm') return { dependencies: await this.parseDependencies(manifest, ecosystem), preUnchecked: [] };
+    let resolution: Awaited<ReturnType<typeof resolveDependencies>>;
+    try {
+      resolution = await resolveDependencies(manifest);
+    } catch (error) {
+      logger.error(`Failed to parse dependencies from ${manifest}:`, error instanceof Error ? error : undefined);
+      // #1049: an unreadable manifest is a failed scan, not a project with no dependencies.
+      throw error;
+    }
+    const dependencies: DependencyInfo[] = [];
+    const preUnchecked: UncheckedDependency[] = [];
+    for (const dep of resolution.dependencies) {
+      if (dep.kind === 'check') dependencies.push({ name: dep.packageName!, version: dep.version!, ecosystem: 'npm' });
+      else if (dep.kind === 'unchecked') {
+        preUnchecked.push({ name: dep.name, version: dep.spec, reason: dep.reason ?? 'not checked',
+          ...(dep.member ? { member: dep.member } : {}), ...(dep.lockedVersion ? { lockedVersion: dep.lockedVersion } : {}) });
+      }
+    }
+    return { dependencies, preUnchecked };
+  }
+
+  /**
    * Check dependencies against OSV advisories. A failed or partial lookup is
    * reported with the unchecked dependencies, never as "no vulnerabilities" (#1049).
    */
-  private async checkDependencyAdvisories(dependencies: DependencyInfo[]): Promise<DependencyAdvisoryOutcome> {
+  private async checkDependencyAdvisories(
+    dependencies: DependencyInfo[],
+    preUnchecked: UncheckedDependency[] = []
+  ): Promise<DependencyAdvisoryOutcome> {
     const lookup = await this.osvClient.lookupBatch(dependencies.map((dep) => ({
       name: dep.name, ecosystem: this.mapToOSVEcosystem(dep.ecosystem), version: dep.version,
     })));
@@ -448,16 +476,18 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       const found = lookup.results.get(lookupKey({ ecosystem: this.mapToOSVEcosystem(dep.ecosystem), name: dep.name, version: dep.version })) ?? [];
       vulnerabilities.push(...found.map((parsed) => this.mapParsedVulnerability(parsed, dep)));
     }
-    const uncheckedPackages = lookup.unchecked.map((pkg) => ({
+    const uncheckedPackages: UncheckedDependency[] = [...preUnchecked, ...lookup.unchecked.map((pkg) => ({
       name: pkg.name, version: pkg.version ?? 'unknown', reason: pkg.reason,
-    }));
+    }))];
     const reasons = lookup.errors.length > 0 ? lookup.errors : [...new Set(uncheckedPackages.map((p) => p.reason))];
+    const requested = lookup.packagesChecked + uncheckedPackages.length;
+    const status = lookup.packagesChecked === requested ? 'complete' : lookup.packagesChecked === 0 ? 'failed' : 'incomplete';
     return {
       vulnerabilities,
-      status: lookup.status,
+      status,
       packagesChecked: lookup.packagesChecked,
       uncheckedPackages,
-      ...(lookup.status === 'complete' ? {} : {
+      ...(status === 'complete' ? {} : {
         error: `Dependency advisories could not be checked for ${uncheckedPackages.length} package(s): ${reasons.slice(0, 3).join('; ')}`,
       }),
     };
@@ -669,8 +699,8 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     const manifestPath = path.join(process.cwd(), 'package.json');
 
     try {
-      const dependencies = await this.parseDependencies(manifestPath, 'npm');
-      const advisories = await this.checkDependencyAdvisories(dependencies);
+      const { dependencies, preUnchecked } = await this.parseDependenciesForScan(manifestPath, 'npm');
+      const advisories = await this.checkDependencyAdvisories(dependencies, preUnchecked);
 
       for (const dep of dependencies) {
         const outdated = await this.checkOutdated(dep);

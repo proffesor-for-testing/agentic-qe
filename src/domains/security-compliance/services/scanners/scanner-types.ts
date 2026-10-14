@@ -20,6 +20,7 @@ import type {
   RuleSet,
   FalsePositiveCheck,
   UncheckedDependency,
+  LocalDependency,
 } from '../../interfaces.js';
 
 // ADR-051: LLM Router for AI-enhanced security analysis
@@ -97,8 +98,14 @@ export interface DependencyScanResult {
   /** Dependencies whose advisories were actually checked. */
   readonly packagesChecked: number;
   readonly uncheckedPackages: UncheckedDependency[];
-  /** Lockfile the checked versions were resolved from (basename), or null when none was used. */
+  /** Lockfile the checked versions were resolved from (path relative to package.json), or null when none was used. */
   readonly lockfile?: string | null;
+  /** Local workspace / linked packages: not OSV subjects, never make the scan incomplete. */
+  readonly localPackages?: LocalDependency[];
+  /** Workspace members whose own dependencies were included. */
+  readonly workspaceMembers?: string[];
+  /** Only direct dependencies (of the package and its workspace members) are checked. */
+  readonly scope?: 'direct';
   /** Why the scan is incomplete/failed; absent when complete. */
   readonly error?: string;
 }
@@ -197,6 +204,7 @@ export type {
   RuleSet,
   FalsePositiveCheck,
   UncheckedDependency,
+  LocalDependency,
   MemoryBackend,
   HybridRouter,
   ChatResponse,

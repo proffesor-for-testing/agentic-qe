@@ -6,6 +6,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '@shared/types/index.js';
 import { OSVClient, ParsedVulnerability } from '@shared/security/index.js';
+import { lookupKey } from '@shared/security/osv-lookup.js';
 import { toError } from '@shared/error-utils.js';
 import type {
   SecurityScannerConfig,
@@ -19,9 +20,18 @@ import type {
   MutableScanSummary,
   ScanStatus,
   UncheckedDependency,
+  LocalDependency,
 } from './scanner-types.js';
-import { safeJsonParse } from '@shared/safe-json.js';
-import { readLockedVersions } from './lockfile-versions.js';
+import { resolveDependencies, resolveFromRecord, type ResolvedDependency } from './dependency-resolver.js';
+
+/** What a scan will do with each declared dependency, plus provenance. */
+interface ScanPlan {
+  dependencies: ResolvedDependency[];
+  lockfile: string | null;
+  workspaceMembers: string[];
+  /** Planning problems (unreadable lockfile / member manifests). */
+  errors: string[];
+}
 
 // ============================================================================
 // Dependency Scanner Service
@@ -54,16 +64,16 @@ export class DependencyScanner {
   // ==========================================================================
 
   /**
-   * Scan npm dependencies for known vulnerabilities using the OSV API.
+   * Scan npm dependencies (`name -> spec`) for known vulnerabilities using OSV.
    *
    * #1049: a failed or partial advisory lookup is recorded and returned as
    * `status: 'failed' | 'incomplete'`, `measured: false`, with the unchecked
    * dependencies and the error, never as a clean scan. Findings for the
    * dependencies that were checked are kept.
    *
-   * Each dependency is checked at `lockedVersions[name]` when given (the
-   * lockfile's resolved version), else only when its spec is an exact version;
-   * a range with no lockfile resolution is reported unchecked, never guessed.
+   * Each dependency is checked at `lockedVersions[name]` when given and
+   * consistent with the spec, else only when its spec is an exact version; a
+   * range with no resolution is reported unchecked, never guessed.
    */
   async scanDependencies(
     dependencies: Record<string, string>,
@@ -72,82 +82,23 @@ export class DependencyScanner {
     if (Object.keys(dependencies).length === 0) {
       return err(new Error('No dependencies provided for scanning'));
     }
-    return this.runScan(dependencies, lockedVersions, null);
-  }
-
-  private async runScan(
-    dependencies: Record<string, string>,
-    lockedVersions: Record<string, string>,
-    lockfile: string | null,
-    lockfileError?: string
-  ): Promise<Result<DependencyScanResult>> {
-    const scanId = uuidv4();
-    const startTime = Date.now();
-
-    try {
-      this.activeScans.set(scanId, 'running');
-
-      const lookup = await this.osvClient.lookupNpmDependencies(dependencies, lockedVersions);
-      const osvVulns = [...lookup.results.values()].flat();
-      const vulnerabilities = this.convertOSVVulnerabilities(osvVulns, dependencies);
-      const scanDurationMs = Date.now() - startTime;
-      const vulnerablePackageNames = new Set(osvVulns.map((v) => v.affectedPackage));
-      const summary = this.calculateSummary(vulnerabilities, Object.keys(dependencies).length, scanDurationMs);
-      const uncheckedPackages: UncheckedDependency[] = lookup.unchecked.map((pkg) => ({
-        name: pkg.name,
-        version: dependencies[pkg.name] ?? pkg.version ?? 'unknown',
-        reason: pkg.reason,
-      }));
-      const error = lookup.status === 'complete' ? undefined
-        : describeLookupFailure(lookupErrors(lookup.errors, lockfileError), uncheckedPackages);
-
-      const result: DependencyScanResult = {
-        scanId,
-        vulnerabilities,
-        packagesScanned: Object.keys(dependencies).length,
-        vulnerablePackages: vulnerablePackageNames.size,
-        summary,
-        scanDurationMs,
-        status: lookup.status,
-        measured: lookup.status === 'complete',
-        packagesChecked: lookup.packagesChecked,
-        uncheckedPackages,
-        lockfile,
-        ...(error ? { error } : {}),
-      };
-
-      await this.storeScanResults(result);
-      this.activeScans.set(scanId, lookup.status === 'complete' ? 'completed' : 'failed');
-      return ok(result);
-    } catch (error) {
-      this.activeScans.set(scanId, 'failed');
-      return err(toError(error));
-    }
+    return this.runScan({ dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [] });
   }
 
   /**
-   * Scan a package.json file for dependency vulnerabilities
+   * Scan a package.json: its direct dependencies (and, at a workspace root,
+   * each workspace member's), at the versions the lockfile resolves.
+   * A manifest with no dependencies is a complete scan of nothing.
    */
   async scanPackageJson(packageJsonPath: string): Promise<Result<DependencyScanResult>> {
     try {
-      const fs = await import('fs/promises');
-      const content = await fs.readFile(packageJsonPath, 'utf-8');
-      const packageJson = safeJsonParse(content);
-
-      // Combine all dependency types
-      const allDependencies: Record<string, string> = {
-        ...(packageJson.dependencies || {}),
-        ...(packageJson.devDependencies || {}),
-        ...(packageJson.peerDependencies || {}),
-        ...(packageJson.optionalDependencies || {}),
-      };
-
-      // #1049: a manifest with no dependencies is a complete scan of nothing
-      // (measured zero), not an unmeasured one.
-      const locked = Object.keys(allDependencies).length > 0
-        ? await readLockedVersions(packageJsonPath, allDependencies)
-        : { versions: {}, lockfile: null };
-      return this.runScan(allDependencies, locked.versions, locked.lockfile, locked.error);
+      const resolution = await resolveDependencies(packageJsonPath);
+      return this.runScan({
+        dependencies: resolution.dependencies,
+        lockfile: resolution.lockfile,
+        workspaceMembers: resolution.workspaceMembers,
+        errors: [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors],
+      });
     } catch (error) {
       if (error instanceof SyntaxError) {
         return err(new Error(`Invalid JSON in package.json: ${error.message}`));
@@ -167,23 +118,97 @@ export class DependencyScanner {
   // Private Methods
   // ==========================================================================
 
+  private async runScan(plan: ScanPlan): Promise<Result<DependencyScanResult>> {
+    const scanId = uuidv4();
+    const startTime = Date.now();
+
+    try {
+      this.activeScans.set(scanId, 'running');
+
+      const toCheck = plan.dependencies.filter((d) => d.kind === 'check');
+      const queries = [...new Map(toCheck.map((d) => {
+        const q = { name: d.packageName!, ecosystem: 'npm', version: d.version! };
+        return [lookupKey(q), q] as const;
+      })).values()];
+      const lookup = await this.osvClient.lookupBatch(queries);
+      const failedQueries = new Map(lookup.unchecked.map((u) => [lookupKey(u), u.reason]));
+
+      const vulnerabilities: Vulnerability[] = [];
+      const uncheckedPackages: UncheckedDependency[] = [];
+      const localPackages: LocalDependency[] = [];
+      const vulnerablePackages = new Set<string>();
+      let packagesChecked = 0;
+      const memberField = (d: ResolvedDependency) => (d.member ? { member: d.member } : {});
+
+      for (const dep of plan.dependencies) {
+        if (dep.kind === 'local') {
+          localPackages.push({ name: dep.name, spec: dep.spec, reason: dep.reason ?? 'local package', ...memberField(dep) });
+          continue;
+        }
+        if (dep.kind === 'unchecked') {
+          uncheckedPackages.push({ name: dep.name, version: dep.spec, reason: dep.reason ?? 'not checked', ...memberField(dep),
+            ...(dep.lockedVersion ? { lockedVersion: dep.lockedVersion } : {}) });
+          continue;
+        }
+        const key = lookupKey({ name: dep.packageName!, ecosystem: 'npm', version: dep.version! });
+        const found = lookup.results.get(key);
+        if (!found) {
+          uncheckedPackages.push({ name: dep.name, version: dep.spec, reason: failedQueries.get(key) ?? 'advisory lookup did not return a result',
+            ...memberField(dep), ...(dep.lockedVersion ? { lockedVersion: dep.lockedVersion } : {}) });
+          continue;
+        }
+        packagesChecked++;
+        if (found.length > 0) vulnerablePackages.add(dep.packageName!);
+        vulnerabilities.push(...this.convertOSVVulnerabilities(found, dep));
+      }
+
+      const requested = packagesChecked + uncheckedPackages.length;
+      const status: DependencyScanResult['status'] = packagesChecked === requested ? 'complete' : packagesChecked === 0 ? 'failed' : 'incomplete';
+      const scanDurationMs = Date.now() - startTime;
+      const summary = this.calculateSummary(vulnerabilities, requested, scanDurationMs);
+      const error = status === 'complete' ? undefined
+        : describeLookupFailure([...lookup.errors, ...plan.errors], uncheckedPackages);
+
+      const result: DependencyScanResult = {
+        scanId,
+        vulnerabilities,
+        packagesScanned: requested,
+        vulnerablePackages: vulnerablePackages.size,
+        summary,
+        scanDurationMs,
+        status,
+        measured: status === 'complete',
+        packagesChecked,
+        uncheckedPackages,
+        lockfile: plan.lockfile,
+        localPackages,
+        workspaceMembers: plan.workspaceMembers,
+        scope: 'direct',
+        ...(error ? { error } : {}),
+      };
+
+      await this.storeScanResults(result);
+      this.activeScans.set(scanId, status === 'complete' ? 'completed' : 'failed');
+      return ok(result);
+    } catch (error) {
+      this.activeScans.set(scanId, 'failed');
+      return err(toError(error));
+    }
+  }
+
   /**
-   * Convert OSV vulnerabilities to our internal format
+   * Convert OSV vulnerabilities of one checked dependency to our internal format
    */
-  private convertOSVVulnerabilities(
-    osvVulns: ParsedVulnerability[],
-    dependencies: Record<string, string>
-  ): Vulnerability[] {
+  private convertOSVVulnerabilities(osvVulns: ParsedVulnerability[], dep: ResolvedDependency): Vulnerability[] {
+    const pkg = dep.packageName!;
+    const label = pkg === dep.name ? pkg : `${dep.name} (${pkg})`;
     return osvVulns.map((osv) => {
-      const declared = dependencies[osv.affectedPackage];
       const location: VulnerabilityLocation = {
-        file: 'package.json',
+        file: dep.member ? `${dep.member}/package.json` : 'package.json',
         line: 1,
         column: 1,
-        snippet: `"${osv.affectedPackage}": "${declared ?? '...'}"`,
-        ...(declared !== undefined
-          ? { dependency: { name: osv.affectedPackage, version: declared, ecosystem: 'npm' as const } }
-          : {}),
+        snippet: `"${dep.name}": "${dep.spec}"`,
+        dependency: { name: pkg, version: dep.version!, ecosystem: 'npm' },
       };
 
       const remediation: RemediationAdvice = {
@@ -191,7 +216,7 @@ export class DependencyScanner {
           ? `Update to version ${osv.fixedVersions[0]} or later`
           : 'No fixed version available; consider alternative packages',
         fixExample: osv.fixedVersions.length > 0
-          ? `npm install ${osv.affectedPackage}@${osv.fixedVersions[0]}`
+          ? `npm install ${pkg}@${osv.fixedVersions[0]}`
           : undefined,
         estimatedEffort: 'minor',
         automatable: true,
@@ -200,7 +225,7 @@ export class DependencyScanner {
       return {
         id: uuidv4(),
         cveId: osv.cveIds[0],
-        title: `${osv.affectedPackage}: ${osv.summary.substring(0, 80)}`,
+        title: `${label}: ${osv.summary.substring(0, 80)}`,
         description: osv.details || osv.summary,
         severity: this.mapOSVSeverity(osv.severity),
         category: 'vulnerable-components',
@@ -266,9 +291,12 @@ export class DependencyScanner {
         advisorySource: 'osv',
         status: result.status,
         measured: result.measured,
+        scope: result.scope ?? 'direct',
         packagesRequested: result.packagesScanned,
         packagesChecked: result.packagesChecked,
         uncheckedPackages: result.uncheckedPackages,
+        localPackages: result.localPackages ?? [],
+        workspaceMembers: result.workspaceMembers ?? [],
         lockfile: result.lockfile ?? null,
         ...(result.error ? { error: result.error } : {}),
         vulnerabilities: result.vulnerabilities,
@@ -278,11 +306,6 @@ export class DependencyScanner {
       { namespace: 'security-compliance', ttl: 86400 * 7 }
     );
   }
-}
-
-/** Lookup errors plus a lockfile that exists but could not be read. */
-function lookupErrors(errors: string[], lockfileError?: string): string[] {
-  return lockfileError ? [...errors, lockfileError] : errors;
 }
 
 /** One bounded sentence naming why the advisory lookup is incomplete. */
