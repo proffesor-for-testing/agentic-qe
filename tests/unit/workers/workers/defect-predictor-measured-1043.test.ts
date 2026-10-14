@@ -138,6 +138,67 @@ describe('#1043 — defect-predictor worker relays real domain predictions only'
     expect(result.findings).toContainEqual(expect.objectContaining({ type: 'defect-prediction-unmeasured' }));
   });
 
+  it('round 2b: drops predictions for paths outside the project root, including symlinks escaping it', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1043-outside-'));
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.ts'), 'export const s = 1;\n');
+      fs.symlinkSync(path.join(outside, 'secret.ts'), path.join(root, 'src', 'escape.ts'));
+      fs.symlinkSync(path.join(root, 'src', 'calm.ts'), path.join(root, 'src', 'inside-link.ts'));
+      const store = namespacedStore();
+      await recordPrediction(store, 'p-out', recent(1), [
+        { file: '/etc/hosts', probability: 0.97, riskLevel: 'critical' },
+        { file: path.join(outside, 'secret.ts'), probability: 0.9, riskLevel: 'critical' },
+        { file: '../' + path.basename(outside) + '/secret.ts', probability: 0.9, riskLevel: 'critical' },
+        { file: 'src/escape.ts', probability: 0.9, riskLevel: 'critical' },
+        { file: 'src/inside-link.ts', probability: 0.2, riskLevel: 'low' },
+        { file: 'src/risky.ts', probability: 0.8, riskLevel: 'high' },
+      ]);
+
+      const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+      expect(riskFindings(result.findings)).toEqual([
+        expect.objectContaining({ type: 'high-defect-risk', resource: 'src/risky.ts' }),
+      ]);
+      expect(JSON.stringify(result)).not.toMatch(/etc\/hosts|secret\.ts|escape\.ts/);
+      const stored = store.read('defect:predictions') as { predictions: Array<{ file: string }> };
+      expect(stored.predictions.map((p) => p.file)).toEqual(['src/inside-link.ts', 'src/risky.ts']);
+      expect(result.metrics.domainMetrics).toMatchObject({ filesAnalyzed: 2, outsideProjectSkipped: 4 });
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('round 2b: a prediction naming only /etc/hosts is unmeasured', async () => {
+    const store = namespacedStore();
+    await recordPrediction(store, 'p-etc', recent(1), [{ file: '/etc/hosts', probability: 0.97, riskLevel: 'critical' }]);
+
+    const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+    expect(store.memory.set).not.toHaveBeenCalledWith('defect:predictions', expect.anything());
+    expect(riskFindings(result.findings)).toEqual([]);
+    expect(result.findings).toContainEqual(expect.objectContaining({ type: 'defect-prediction-unmeasured' }));
+  });
+
+  it('round 2b: when the newest prediction is unusable, an older measured record is marked stale, not left current', async () => {
+    const store = namespacedStore();
+    await recordPrediction(store, 'p-good', recent(30), [{ file: 'src/risky.ts', probability: 0.8, riskLevel: 'high' }]);
+    await new DefectPredictorWorker().execute(contextFor(store.memory));
+    expect(store.read('defect:predictions')).toMatchObject({ measured: true, predictionId: 'p-good' });
+
+    await recordPrediction(store, 'p-bad', recent(1), [{ file: '/etc/hosts', probability: 0.97, riskLevel: 'critical' }]);
+    const result = await new DefectPredictorWorker().execute(contextFor(store.memory));
+
+    expect(riskFindings(result.findings)).toEqual([]);
+    expect(result.findings).toContainEqual(expect.objectContaining({ type: 'defect-prediction-unmeasured' }));
+    expect(store.read('defect:predictions')).toMatchObject({
+      measured: true, predictionId: 'p-good', stale: true, supersededBy: 'p-bad',
+    });
+    // Re-ticks do not rewrite an already-stale record.
+    store.memory.set.mockClear();
+    await new DefectPredictorWorker().execute(contextFor(store.memory));
+    expect(store.memory.set).not.toHaveBeenCalled();
+  });
+
   it('a legacy unstamped defect:predictions is ignored (left in place) and replaced', async () => {
     const store = namespacedStore();
     const legacy = [{ file: 'src/coordination/workflow-orchestrator.ts', probability: 0.78, riskLevel: 'high', factors: [] }];
