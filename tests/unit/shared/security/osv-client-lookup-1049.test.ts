@@ -164,6 +164,14 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     expect(lookup.results.get('npm:left-pad')).toEqual([]);
   });
 
+  it('a paginated (truncated) batch entry leaves its package unchecked', async () => {
+    handler = (_req, _body, res) => json(res, 200, { results: [{ vulns: [{ id: 'GHSA-a' }], next_page_token: 'more' }, {}] });
+    const lookup = await client().lookupBatch(PKGS);
+    expect(lookup.status).toBe('incomplete');
+    expect(lookup.unchecked).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/truncated/) })]);
+    expect(lookup.results.get('npm:left-pad')).toEqual([]);
+  });
+
   it('a fully successful clean lookup is still complete and clean', async () => {
     handler = (req, _body, res) => json(res, 200, { results: [{}, { vulns: [] }] });
     const lookup = await client().lookupBatch(PKGS);
