@@ -10,15 +10,58 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SecurityScanWorker } from '../../../../src/workers/workers/security-scan';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
-function createMockContext(): WorkerContext {
+/**
+ * #1043: the worker reports only scans the security-compliance domain
+ * recorded. These records are shaped like DependencyScanner (OSV) and
+ * SASTScanner output; ids and packages are test fixtures, not real advisories.
+ */
+function recordedScans(): Record<string, unknown> {
+  const timestamp = new Date().toISOString();
+  const summary = { critical: 0, high: 0, medium: 0, low: 0, informational: 0, totalFiles: 3, scanDurationMs: 120 };
+  return {
+    'security:scan:dep-1': {
+      scanId: 'dep-1', scanType: 'dependency', timestamp,
+      summary: { ...summary, critical: 1, high: 1 },
+      vulnerabilities: [
+        {
+          id: 'v1', cveId: 'CVE-2099-0001', title: 'fixture-pkg-a: advisory', description: 'details',
+          severity: 'critical', category: 'vulnerable-components',
+          location: { file: 'package.json', line: 1, snippet: '"fixture-pkg-a": "..."' },
+          remediation: { description: 'Update', fixExample: 'npm install fixture-pkg-a@1.2.3', estimatedEffort: 'minor', automatable: true },
+          references: [],
+        },
+        {
+          id: 'v2', title: 'fixture-pkg-b: advisory', description: 'details',
+          severity: 'high', category: 'vulnerable-components',
+          location: { file: 'package.json', line: 1, snippet: '"fixture-pkg-b": "..."' },
+          remediation: { description: 'No fixed version available', estimatedEffort: 'minor', automatable: true },
+          references: [],
+        },
+      ],
+    },
+    'security:scan:sast-1': {
+      scanId: 'sast-1', scanType: 'sast', timestamp,
+      summary: { ...summary, high: 1 }, vulnerabilityCount: 1,
+      criticalVulnerabilities: [{
+        id: 's1', title: 'Use of eval', description: 'eval of input', severity: 'high', category: 'injection',
+        location: { file: 'src/app.ts', line: 10 },
+        remediation: { description: 'Remove eval', estimatedEffort: 'minor', automatable: false },
+        references: [],
+      }],
+    },
+  };
+}
+
+function createMockContext(records: Record<string, unknown> = {}): WorkerContext {
   return {
     eventBus: {
       publish: vi.fn().mockResolvedValue(undefined),
     },
     memory: {
-      get: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(async (key: string) => records[key]),
       set: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([]),
+      search: vi.fn(async (pattern: string) =>
+        Object.keys(records).filter((k) => k.startsWith(pattern.replace(/\*$/, '')))),
     },
     logger: {
       debug: vi.fn(),
@@ -82,19 +125,18 @@ describe('SecurityScanWorker', () => {
     });
 
     it('should return security metrics', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
       expect(result.metrics.domainMetrics).toHaveProperty('dependencyVulnerabilities');
       expect(result.metrics.domainMetrics).toHaveProperty('codeSecurityIssues');
-      expect(result.metrics.domainMetrics).toHaveProperty('secretsDetected');
-      expect(result.metrics.domainMetrics).toHaveProperty('configurationIssues');
-      expect(result.metrics.domainMetrics).toHaveProperty('scanDuration');
+      expect(result.metrics.domainMetrics).toHaveProperty('dependencyScan');
+      expect(result.metrics.domainMetrics).toHaveProperty('codeScan');
     });
 
     it('should store scan results in memory', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       await worker.execute(context);
 
@@ -118,16 +160,16 @@ describe('SecurityScanWorker', () => {
 
   describe('execute - vulnerability detection', () => {
     it('should detect critical vulnerabilities', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
-      // The mock returns critical vulnerabilities
+      // The recorded dependency scan reported a critical vulnerability
       expect(result.findings.some(f => f.type === 'critical-vulnerability')).toBe(true);
     });
 
     it('should detect high severity vulnerabilities', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -135,7 +177,7 @@ describe('SecurityScanWorker', () => {
     });
 
     it('should include CVE information in vulnerability findings', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -143,14 +185,18 @@ describe('SecurityScanWorker', () => {
         f.type.includes('vulnerability')
       );
 
+      expect(vulnFindings).toHaveLength(2);
       for (const finding of vulnFindings) {
-        expect(finding.context).toHaveProperty('cve');
-        expect(finding.context).toHaveProperty('currentVersion');
+        expect(finding.context).toHaveProperty('scanId', 'dep-1');
+        expect(finding.context).toHaveProperty('advisorySource', 'osv');
       }
+      // A CVE id appears only where the recorded advisory carried one.
+      expect(vulnFindings.find(f => f.resource === 'fixture-pkg-a')?.context).toMatchObject({ cve: 'CVE-2099-0001', fixedIn: '1.2.3' });
+      expect(vulnFindings.find(f => f.resource === 'fixture-pkg-b')?.context).not.toHaveProperty('cve');
     });
 
     it('should generate recommendations for critical vulnerabilities', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -162,7 +208,7 @@ describe('SecurityScanWorker', () => {
 
   describe('execute - code security issues', () => {
     it('should detect code security issues', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -170,7 +216,7 @@ describe('SecurityScanWorker', () => {
     });
 
     it('should include file location in code security findings', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -185,7 +231,7 @@ describe('SecurityScanWorker', () => {
     });
 
     it('should generate recommendations for injection vulnerabilities', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
@@ -206,11 +252,11 @@ describe('SecurityScanWorker', () => {
     });
 
     it('should penalize health score for critical vulnerabilities', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedScans());
 
       const result = await worker.execute(context);
 
-      // With critical vulnerabilities, health score should be < 100
+      // With recorded critical vulnerabilities, health score should be < 100
       expect(result.metrics.healthScore).toBeLessThan(100);
     });
   });
