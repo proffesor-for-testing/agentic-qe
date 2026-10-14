@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
-import { pnpmWorkspacePatterns } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
+import { pnpmWorkspacePatterns, workspaceGlobToRegExp } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
 import { OSVClient } from '../../../../../src/shared/security/osv-client';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { SecurityScannerConfig, DependencyScanResult } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
@@ -128,10 +128,115 @@ describe('B1: workspace globs are really expanded', () => {
   });
 
   it('pnpm-workspace.yaml: only items under packages: are patterns', () => {
-    expect(pnpmWorkspacePatterns("packages:\n  - 'packages/*'\n  - apps/**  # comment\n\nonlyBuiltDependencies:\n  - esbuild\ncatalog:\n  - x\n"))
-      .toEqual(['packages/*', 'apps/**']);
-    expect(pnpmWorkspacePatterns('onlyBuiltDependencies:\n  - esbuild\n')).toEqual([]);
-    expect(pnpmWorkspacePatterns("packages: ['a/*', \"b\"]\n")).toEqual(['a/*', 'b']);
+    expect(pnpmWorkspacePatterns("packages:\n  - 'packages/*'\n  - apps/**  # comment\n\nonlyBuiltDependencies:\n  - esbuild\ncatalog:\n  x: 1\n"))
+      .toEqual({ patterns: ['packages/*', 'apps/**'] });
+    expect(pnpmWorkspacePatterns('onlyBuiltDependencies:\n  - esbuild\n')).toEqual({ patterns: [] });
+    expect(pnpmWorkspacePatterns("packages: ['a/*', \"b\"]\n")).toEqual({ patterns: ['a/*', 'b'] });
+  });
+
+  it('round 5: every valid YAML form of packages: is read (non-indented, inline + comment, multi-line flow, BOM)', () => {
+    expect(pnpmWorkspacePatterns("packages:\n- 'packages/*'\n- apps/**\nonlyBuiltDependencies:\n- esbuild\n")).toEqual({ patterns: ['packages/*', 'apps/**'] });
+    expect(pnpmWorkspacePatterns("packages: ['packages/*'] # members\n")).toEqual({ patterns: ['packages/*'] });
+    expect(pnpmWorkspacePatterns("packages: [\n  'packages/*',\n  \"apps/*\"  # c\n]\n")).toEqual({ patterns: ['packages/*', 'apps/*'] });
+    expect(pnpmWorkspacePatterns("﻿packages:\n  - 'packages/*'\n")).toEqual({ patterns: ['packages/*'] });
+    expect(pnpmWorkspacePatterns('')).toEqual({ patterns: [] });
+  });
+
+  it('round 5: workspace globs match symlink paths like the glob engine (*, **, ?, braces)', () => {
+    expect(workspaceGlobToRegExp('packages/*').test('packages/real')).toBe(true);
+    expect(workspaceGlobToRegExp('packages/*').test('packages/a/b')).toBe(false);
+    expect(workspaceGlobToRegExp('apps/**').test('apps/web/ui')).toBe(true);
+    expect(workspaceGlobToRegExp('**/ui').test('ui')).toBe(true);
+    expect(workspaceGlobToRegExp('**/ui').test('apps/web/ui')).toBe(true);
+    expect(workspaceGlobToRegExp('{apps,libs}/*').test('libs/x')).toBe(true);
+    expect(workspaceGlobToRegExp('pkg-?').test('pkg-a')).toBe(true);
+    expect(workspaceGlobToRegExp('a.b/*').test('aXb/c')).toBe(false);
+  });
+
+  it('round 5: an unparsable file or a non-list packages is an error, never []', () => {
+    expect(pnpmWorkspacePatterns("packages: ['a/*'\n")).toEqual({ error: expect.stringMatching(/could not be parsed/) });
+    expect(pnpmWorkspacePatterns('packages: packages/*\n')).toEqual({ error: expect.stringMatching(/not a list of strings/) });
+    expect(pnpmWorkspacePatterns('packages:\n  - 1\n')).toEqual({ error: expect.stringMatching(/not a list of strings/) });
+    expect(pnpmWorkspacePatterns('- a\n- b\n')).toEqual({ error: expect.stringMatching(/not a YAML mapping/) });
+  });
+});
+
+describe('round 5: pnpm-workspace.yaml forms end to end, symlinks, root, notes, BOM', () => {
+  const member = { 'packages/web/package.json': { name: '@m/web', dependencies: { minimist: '1.2.5' } } };
+
+  it.each([
+    ['non-indented sequence', "packages:\n- 'packages/*'\n"],
+    ['inline array + comment', "packages: ['packages/*'] # members\n"],
+    ['multi-line flow array', "packages: [\n  'packages/*',\n]\n"],
+  ])('no lockfile, %s: the member is scanned', async (_name, yaml) => {
+    const root = repo({ 'package.json': { name: 'mono', private: true }, 'pnpm-workspace.yaml': yaml, ...member });
+    const value = await scan(root);
+    expect(value.workspaceMembers).toEqual(['packages/web']);
+    expect(queried).toEqual(['minimist@1.2.5']);
+    expect(value.status).toBe('complete');
+  });
+
+  it('an unparsable pnpm-workspace.yaml makes the scan incomplete (fail-closed)', async () => {
+    const root = repo({ 'package.json': { name: 'mono', dependencies: { minimist: '1.2.5' } }, 'pnpm-workspace.yaml': "packages: ['packages/*'\n", ...member });
+    const value = await scan(root);
+    expect(value.status).toBe('incomplete');
+    expect(value.resolutionErrors).toEqual([expect.stringMatching(/pnpm-workspace\.yaml could not be parsed/)]);
+  });
+
+  it('a symlinked member directory inside the root is a member; "**" never makes the root a member', async () => {
+    const root = repo({
+      'package.json': { name: 'mono', workspaces: ['**'] },
+      'libs/real/package.json': { name: 'real', dependencies: { minimist: '1.2.5' } },
+    });
+    mkdirSync(path.join(root, 'packages'));
+    symlinkSync(path.join(root, 'libs', 'real'), path.join(root, 'packages', 'real'), 'dir');
+    const value = await scan(root);
+    expect(value.workspaceMembers).not.toContain('.');
+    expect(value.workspaceMembers).toContain('libs/real');
+
+    const linkOnly = repo({
+      'package.json': { name: 'mono', workspaces: ['packages/*'] },
+      'libs/real/package.json': { name: 'real', dependencies: { minimist: '1.2.5' } },
+    });
+    mkdirSync(path.join(linkOnly, 'packages'));
+    symlinkSync(path.join(linkOnly, 'libs', 'real'), path.join(linkOnly, 'packages', 'real'), 'dir');
+    const lv = await scan(linkOnly);
+    expect(lv.workspaceMembers).toEqual(['packages/real']);
+    expect(queried).toEqual(['minimist@1.2.5']);
+  });
+
+  it('a member package.json symlinked to a file outside the root is excluded and reported', async () => {
+    const outside = repo({ 'package.json': { name: 'outside', dependencies: { qs: '6.7.0' } } }, false);
+    const root = repo({ 'package.json': { name: 'mono', workspaces: ['packages/*'] } });
+    mkdirSync(path.join(root, 'packages', 'x'), { recursive: true });
+    symlinkSync(path.join(outside, 'package.json'), path.join(root, 'packages', 'x', 'package.json'));
+    const value = await scan(root);
+    expect(value.workspaceMembers).toEqual([]);
+    expect(value.excludedMembers).toEqual([expect.objectContaining({ path: 'packages/x', reason: expect.stringMatching(/package\.json resolves outside/) })]);
+    expect(queried).toEqual([]);
+  });
+
+  it('a pattern naming a file is a note (not an error); an unmatched plain glob is a note too', async () => {
+    const root = repo({
+      'package.json': { name: 'mono', workspaces: ['packages/a/package.json', 'nothing/*'] },
+      'packages/a/package.json': { name: 'a' },
+    });
+    const value = await scan(root);
+    expect(value.status).toBe('complete');
+    expect(value.workspaceWarnings).toEqual([
+      expect.stringMatching(/"packages\/a\/package\.json" matches file\(s\), not package directories/),
+      expect.stringMatching(/"nothing\/\*" matches no package directory/),
+    ]);
+  });
+
+  it('a pnpm-lock.yaml with a leading BOM is read, not flagged malformed', async () => {
+    const root = repo({
+      'package.json': { dependencies: { minimist: '^1.2.0' } },
+      'pnpm-lock.yaml': "﻿lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      minimist:\n        specifier: ^1.2.0\n        version: 1.2.5\n",
+    });
+    const value = await scan(root);
+    expect(value).toMatchObject({ status: 'complete', lockfile: 'pnpm-lock.yaml', resolutionErrors: [] });
+    expect(queried).toEqual(['minimist@1.2.5']);
   });
 });
 
