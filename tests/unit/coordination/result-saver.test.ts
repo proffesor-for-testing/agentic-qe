@@ -212,8 +212,92 @@ describe('ResultSaver', () => {
 
       const sourceFiles = result.files.filter(f => f.format === 'source');
       expect(sourceFiles).toHaveLength(1);
-      expect(sourceFiles[0].path).toMatch(/generated\.test\.ts$/);
+      expect(sourceFiles[0].path).toMatch(/generated-[0-9a-f]{8}\.test\.ts$/);
       expect(await fs.readFile(sourceFiles[0].path, 'utf8')).toBe(testCode);
+    });
+
+    it('caps a very long source file name so the report and manifest still save (#1032)', async () => {
+      const longName = `${'a'.repeat(250)}_tests`;
+      const result = await saver.save('long-name-test', 'generate-tests', {
+        ...TEST_GENERATION_RESULT,
+        testsGenerated: 1,
+        tests: [{ name: longName, file: `src/${'a'.repeat(250)}.ts`, type: 'unit', testCode: 'test("x", () => {});' }],
+      });
+
+      const sourceFiles = result.files.filter(f => f.format === 'source');
+      expect(sourceFiles).toHaveLength(1);
+      expect(path.basename(sourceFiles[0].path).length).toBeLessThan(140);
+      expect(result.files.some(f => f.format === 'json')).toBe(true);
+      expect(result.files.some(f => f.format === 'markdown')).toBe(true);
+      // savedFiles matches the disk exactly
+      for (const f of result.files) expect(existsSync(f.path)).toBe(true);
+      const onDisk = await fs.readdir(path.join(TEST_BASE_DIR, 'results', 'tests', 'generated'));
+      expect(onDisk).toHaveLength(1);
+    });
+
+    it('keeps names that truncate to the same stem apart (#1032)', async () => {
+      const base = 'b'.repeat(200);
+      const result = await saver.save('long-collide', 'generate-tests', {
+        ...TEST_GENERATION_RESULT,
+        testsGenerated: 2,
+        tests: [
+          { name: `${base}1_tests`, file: `src/${base}1.ts`, type: 'unit', testCode: 'test("1", () => {});' },
+          { name: `${base}2_tests`, file: `src/${base}2.ts`, type: 'unit', testCode: 'test("2", () => {});' },
+        ],
+      });
+      const sourceFiles = result.files.filter(f => f.format === 'source');
+      expect(new Set(sourceFiles.map(f => f.path)).size).toBe(2);
+    });
+
+    it('does not let same-basename sources in different directories overwrite each other (#1032)', async () => {
+      const result = await saver.save('same-base', 'generate-tests', {
+        ...TEST_GENERATION_RESULT,
+        testsGenerated: 2,
+        tests: [
+          { name: 'math_tests', file: 'src/one/math.ts', type: 'unit', testCode: 'test("one", () => {});' },
+          { name: 'math_tests', file: 'src/two/math.ts', type: 'unit', testCode: 'test("two", () => {});' },
+        ],
+      });
+      const sourceFiles = result.files.filter(f => f.format === 'source');
+      expect(new Set(sourceFiles.map(f => f.path)).size).toBe(2);
+      const contents = await Promise.all(sourceFiles.map(f => fs.readFile(f.path, 'utf8')));
+      expect(contents.sort()).toEqual(['test("one", () => {});', 'test("two", () => {});']);
+    });
+
+    it('still replaces the same test in place on a repeat save (#1007)', async () => {
+      const test = { name: 'math_tests', file: 'src/math.ts', type: 'unit', testCode: 'test("v", () => {});' };
+      for (const id of ['rep-1', 'rep-2']) {
+        await saver.save(id, 'generate-tests', { ...TEST_GENERATION_RESULT, testsGenerated: 1, tests: [test] });
+      }
+      const onDisk = await fs.readdir(path.join(TEST_BASE_DIR, 'results', 'tests', 'generated'));
+      expect(onDisk.filter(f => f.endsWith('.test.ts'))).toHaveLength(1);
+    });
+
+    it('a failing generated-file write keeps the manifest and report, and savedFiles matches the disk (#1032)', async () => {
+      // Occupy the target name with a directory so rename() into it fails.
+      const first = await saver.save('probe', 'generate-tests', {
+        ...TEST_GENERATION_RESULT,
+        testsGenerated: 1,
+        tests: [{ name: 'blocked', file: 'src/blocked.ts', type: 'unit', testCode: 'x' }],
+      });
+      const target = first.files.find(f => f.format === 'source')!.path;
+      await fs.rm(target);
+      await fs.mkdir(target);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const result = await saver.save('blocked-run', 'generate-tests', {
+          ...TEST_GENERATION_RESULT,
+          testsGenerated: 1,
+          tests: [{ name: 'blocked', file: 'src/blocked.ts', type: 'unit', testCode: 'x' }],
+        });
+        expect(result.files.some(f => f.format === 'source')).toBe(false);
+        expect(result.files.some(f => f.format === 'json')).toBe(true);
+        expect(result.files.some(f => f.format === 'markdown')).toBe(true);
+        for (const f of result.files) expect(existsSync(f.path)).toBe(true);
+        expect(warn).toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it('should use correct test extension for different languages/frameworks', async () => {

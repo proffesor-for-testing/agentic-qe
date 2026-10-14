@@ -1,7 +1,8 @@
 /**
  * #925: test_generate_enhanced over the real stdio protocol server.
  * saveResults:false must write nothing under .agentic-qe/results/; the default
- * must keep writing the manifest and report and return their paths.
+ * must keep writing the manifest, the report and the generated test sources
+ * (under results/tests/generated/) and return their paths.
  *
  * Uses the file-backed memory backend on purpose: AQE_MEMORY_BACKEND=memory
  * disables the result saver entirely (#534), which would hide the bug.
