@@ -9,16 +9,44 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { DefectPredictorWorker } from '../../../../src/workers/workers/defect-predictor';
 import { WorkerContext } from '../../../../src/workers/interfaces';
+import * as path from 'path';
 
-function createMockContext(): WorkerContext {
+/**
+ * #1043: the worker relays only predictions the defect-intelligence predictor
+ * recorded, for files that exist. Shaped like DefectPredictorService output,
+ * on real files of this repository (absolute paths).
+ */
+function recordedPrediction(): Record<string, unknown> {
+  const workersDir = path.resolve(__dirname, '../../../../src/workers/workers');
+  return {
+    'defect-intelligence:predictor:prediction:p-1': {
+      id: 'p-1',
+      timestamp: new Date().toISOString(),
+      predictions: [
+        {
+          file: path.join(workersDir, 'learning-consolidation.ts'), probability: 0.82, riskLevel: 'high',
+          factors: [{ name: 'codeComplexity', contribution: 0.25 }, { name: 'testCoverage', contribution: 0.15 }],
+          recommendations: ['Split the file'],
+        },
+        {
+          file: path.join(workersDir, 'index.ts'), probability: 0.1, riskLevel: 'info',
+          factors: [], recommendations: [],
+        },
+      ],
+    },
+  };
+}
+
+function createMockContext(records: Record<string, unknown> = {}): WorkerContext {
   return {
     eventBus: {
       publish: vi.fn().mockResolvedValue(undefined),
     },
     memory: {
-      get: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(async (key: string) => records[key]),
       set: vi.fn().mockResolvedValue(undefined),
-      search: vi.fn().mockResolvedValue([]),
+      search: vi.fn(async (pattern: string) =>
+        Object.keys(records).filter((k) => k.startsWith(pattern.replace(/\*$/, '')))),
     },
     logger: {
       debug: vi.fn(),
@@ -37,12 +65,19 @@ function createMockContext(): WorkerContext {
 describe('DefectPredictorWorker', () => {
   let worker: DefectPredictorWorker;
 
+  // The seeded predictions name files of this repository; the worker keeps
+  // only files inside the project root (#1043 round 2b), so point it here.
+  const savedProjectRoot = process.env.AQE_PROJECT_ROOT;
+
   beforeEach(() => {
     worker = new DefectPredictorWorker();
+    process.env.AQE_PROJECT_ROOT = path.resolve(__dirname, '../../../..');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (savedProjectRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+    else process.env.AQE_PROJECT_ROOT = savedProjectRoot;
   });
 
   describe('instantiation', () => {
@@ -78,7 +113,7 @@ describe('DefectPredictorWorker', () => {
     });
 
     it('should return defect prediction metrics', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
@@ -89,12 +124,14 @@ describe('DefectPredictorWorker', () => {
     });
 
     it('should store predictions in memory', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       await worker.execute(context);
 
-      expect(context.memory.set).toHaveBeenCalledWith('defect:predictions', expect.any(Array));
-      expect(context.memory.set).toHaveBeenCalledWith('defect:hotspots', expect.any(Array));
+      expect(context.memory.set).toHaveBeenCalledWith('defect:predictions', expect.objectContaining({
+        measured: true, predictionId: 'p-1', predictions: expect.any(Array),
+      }));
+      expect(context.memory.set).not.toHaveBeenCalledWith('defect:hotspots', expect.anything());
       expect(context.memory.set).toHaveBeenCalledWith('defect:lastAnalysis', expect.any(String));
     });
 
@@ -114,18 +151,18 @@ describe('DefectPredictorWorker', () => {
 
   describe('execute - high risk detection', () => {
     it('should generate findings for high risk files', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
-      // The mock returns files with high risk levels
+      // The recorded prediction rates one file high risk
       expect(result.findings.some(f =>
         f.type === 'high-defect-risk' || f.type === 'critical-defect-risk'
       )).toBe(true);
     });
 
     it('should generate recommendations for high risk files', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
@@ -135,7 +172,7 @@ describe('DefectPredictorWorker', () => {
     });
 
     it('should include file path in high risk findings', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
@@ -151,28 +188,29 @@ describe('DefectPredictorWorker', () => {
   });
 
   describe('execute - hotspot detection', () => {
-    it('should detect code hotspots', async () => {
-      const context = createMockContext();
+    it('should report hotspots as unmeasured (no measured source, #1043)', async () => {
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
-      expect(result.findings.some(f => f.type === 'code-hotspots')).toBe(true);
+      expect(result.findings.some(f => f.type === 'code-hotspots')).toBe(false);
+      expect(result.metrics.domainMetrics.hotspots).toBe('unmeasured');
     });
 
-    it('should generate recommendations for hotspots', async () => {
-      const context = createMockContext();
+    it('should not invent hotspot recommendations (#1043)', async () => {
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
       expect(result.recommendations.some(r =>
         r.action.includes('Hotspot')
-      )).toBe(true);
+      )).toBe(false);
     });
   });
 
   describe('execute - factor analysis', () => {
     it('should include defect factors in findings', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
@@ -182,16 +220,16 @@ describe('DefectPredictorWorker', () => {
 
       // At least one finding should have factor information
       expect(riskFindings.some(f =>
-        f.context && (f.context.factors || f.context.topFactors)
+        f.context && f.context.factors
       )).toBe(true);
     });
 
     it('should recommend complexity reduction when relevant', async () => {
-      const context = createMockContext();
+      const context = createMockContext(recordedPrediction());
 
       const result = await worker.execute(context);
 
-      // The mock data includes high complexity files
+      // The recorded prediction names complexity as a major factor
       expect(result.recommendations.some(r =>
         r.action.includes('Complexity')
       )).toBe(true);

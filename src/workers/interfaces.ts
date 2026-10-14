@@ -249,7 +249,12 @@ export interface WorkerMemory {
    */
   get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
-  search(pattern: string): Promise<string[]>;
+  /**
+   * Keys matching a glob pattern. Like `get`, `options.namespace` searches
+   * another domain's records (e.g. recorded security scans, #1043); a backend
+   * without namespaces returns nothing for one.
+   */
+  search(pattern: string, limit?: number, options?: WorkerMemoryReadOptions): Promise<string[]>;
 }
 
 export interface WorkerLogger {

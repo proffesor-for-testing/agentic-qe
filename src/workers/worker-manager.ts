@@ -81,10 +81,12 @@ class InMemoryWorkerMemory implements WorkerMemory {
     this.store.set(key, value);
   }
 
-  async search(pattern: string): Promise<string[]> {
+  async search(pattern: string, limit?: number, options?: WorkerMemoryReadOptions): Promise<string[]> {
+    if (options?.namespace) return [];
     const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escaped.replace(/\*/g, '.*'));
-    return Array.from(this.store.keys()).filter((key) => regex.test(key));
+    const keys = Array.from(this.store.keys()).filter((key) => regex.test(key));
+    return limit === undefined ? keys : keys.slice(0, limit);
   }
 
   /**

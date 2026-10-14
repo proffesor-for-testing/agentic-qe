@@ -257,7 +257,7 @@ export class InsufficientQualityEvidenceError extends Error {
  * absent, stale, future-dated or malformed record instead of stopping at the first.
  */
 export async function inspectQualityEvidence(
-  memory: MemoryBackend,
+  memory: Pick<MemoryBackend, 'get'>,
   options: { now?: number; maxAgeMs?: number } = {},
 ): Promise<{ values: Partial<QualityEvidenceValues>; problems: UnusableQualityEvidence[] }> {
   const now = options.now ?? Date.now();
