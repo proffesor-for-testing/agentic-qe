@@ -274,12 +274,12 @@ describe('OSVClient.lookupBatch (#1049)', () => {
     it.each([
       ['<4.17.12'], ['>4.17.4'], ['<=4.17.12'], ['>=4.17.0'], ['^4.17.15'], ['~4.17.15'], ['4.x'], ['*'],
       ['1.0.0 || 2.0.0'], ['1.0.0 - 2.0.0'], ['latest'], ['workspace:*'], ['file:../x'], ['link:../x'],
-      ['git+https://github.com/a/b.git'], ['github:a/b'], ['npm:other@1.0.0'],
+      ['git+https://github.com/a/b.git'], ['github:a/b'], ['npm:other@^1.0.0'],
     ])('B2: spec %s without a lockfile is unchecked, never guessed', async (spec) => {
       handler = (_req, _body, res) => json(res, 200, { results: [] });
       const lookup = await client().lookupNpmDependencies({ lodash: spec });
       expect(lookup.status).toBe('failed');
-      expect(lookup.unchecked).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/no lockfile resolution|not a registry dependency/) })]);
+      expect(lookup.unchecked).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/no lockfile resolution|not a registry dependency|local package/) })]);
       expect(requests).toHaveLength(0);
     });
 
@@ -288,7 +288,7 @@ describe('OSVClient.lookupBatch (#1049)', () => {
         handler = (_req, _body, res) => json(res, 200, { results: [{}] });
         const lookup = await client().lookupNpmDependencies({ lodash: spec });
         expect(lookup.status).toBe('complete');
-        expect(JSON.parse(requests[0].body).queries[0].package.version).toBe(version);
+        expect(JSON.parse(requests[0].body).queries[0].version).toBe(version);
       });
 
     it('B2: the lockfile version wins over the manifest range', async () => {
@@ -296,14 +296,14 @@ describe('OSVClient.lookupBatch (#1049)', () => {
       const lookup = await client().lookupNpmDependencies(
         { lodash: '<4.17.12', 'left-pad': '^1.3.0' }, { lodash: '4.17.11', 'left-pad': '1.3.0' });
       expect(lookup.status).toBe('complete');
-      expect(JSON.parse(requests[0].body).queries.map((q: { package: { version: string } }) => q.package.version)).toEqual(['4.17.11', '1.3.0']);
+      expect(JSON.parse(requests[0].body).queries.map((q: { version: string }) => q.version)).toEqual(['4.17.11', '1.3.0']);
     });
 
     it('4: two versions of one package are kept apart (keyed name@version)', async () => {
       handler = (req, body, res) => {
         if (req.url === '/v1/querybatch') {
-          const qs = (JSON.parse(body) as { queries: Array<{ package: { version: string } }> }).queries;
-          return json(res, 200, { results: qs.map((q) => (q.package.version === '4.17.11' ? { vulns: [{ id: LODASH_ADVISORY.id }] } : {})) });
+          const qs = (JSON.parse(body) as { queries: Array<{ version: string }> }).queries;
+          return json(res, 200, { results: qs.map((q) => (q.version === '4.17.11' ? { vulns: [{ id: LODASH_ADVISORY.id }] } : {})) });
         }
         return json(res, 200, LODASH_ADVISORY);
       };
@@ -323,6 +323,41 @@ describe('OSVClient.lookupBatch (#1049)', () => {
         : json(res, 500, {});
       const lookup = await client().lookupBatch([PKGS[0]]);
       expect(lookup.unchecked[0].reason).toMatch(/GHSA-0, GHSA-1, GHSA-2, GHSA-3, GHSA-4 and 7 more/);
+    });
+  });
+
+  describe('review round 3', () => {
+    it('5: loopback means localhost or a 127/8 or ::1 IP literal, not a DNS name starting with 127.', () => {
+      expect(() => resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://127.evil.com' })).toThrow(/https/);
+      expect(() => resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://127.0.0.1.nip.io' })).toThrow(/https/);
+      expect(() => resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://localhost.evil.com' })).toThrow(/https/);
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://127.0.0.2:9' })).toBe('http://127.0.0.2:9');
+      expect(resolveOSVBaseUrl({ AQE_OSV_API_URL: 'http://[::1]:9' })).toBe('http://[::1]:9');
+    });
+
+    it('2: querybatch sends version at the top level of each query (OSV ignores package.version)', async () => {
+      handler = (_req, _body, res) => json(res, 200, { results: [{}, {}] });
+      await client().lookupBatch(PKGS);
+      const queries = JSON.parse(requests[0].body).queries;
+      expect(queries).toEqual([
+        { package: { name: 'lodash', ecosystem: 'npm' }, version: '4.17.15' },
+        { package: { name: 'left-pad', ecosystem: 'npm' }, version: '1.3.0' },
+      ]);
+    });
+
+    it('2: queryPackage and a PyPI requirements scan send version at the top level too', async () => {
+      handler = (req, _body, res) => json(res, 200, req.url === '/v1/query' ? { vulns: [] } : { results: [{}] });
+      await client().queryPackage('django', 'PyPI', '3.2.0');
+      expect(JSON.parse(requests[0].body)).toEqual({ package: { name: 'django', ecosystem: 'PyPI' }, version: '3.2.0' });
+      await client().scanPythonRequirements('django==3.2.0\n');
+      expect(JSON.parse(requests[1].body).queries).toEqual([{ package: { name: 'django', ecosystem: 'PyPI' }, version: '3.2.0' }]);
+    });
+
+    it('4: an npm alias is looked up as the real package', async () => {
+      handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+      const lookup = await client().lookupNpmDependencies({ x: 'npm:lodash@4.17.11' });
+      expect(lookup.status).toBe('complete');
+      expect(JSON.parse(requests[0].body).queries).toEqual([{ package: { name: 'lodash', ecosystem: 'npm' }, version: '4.17.11' }]);
     });
   });
 

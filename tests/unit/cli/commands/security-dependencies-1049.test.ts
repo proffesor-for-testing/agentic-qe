@@ -121,7 +121,15 @@ describe('aqe security --dependencies (#1049)', () => {
     handler = (_req, _body, res) => json(res, 200, { results: [{}] });
     const output = JSON.parse(await execute(['--dependencies', '--format', 'json']));
     expect(output.status).toBe('complete');
-    expect(output.dependencyScan).toMatchObject({ status: 'complete', measured: true });
+    expect(output.dependencyScan).toMatchObject({ status: 'complete', measured: true, scope: 'direct' });
+    expect(output.dependencyScan.message).toMatch(/transitive dependencies are not checked/);
+    expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+
+  it('round 3: the text output states that only direct dependencies are checked', async () => {
+    handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+    const text = await execute(['--dependencies']);
+    expect(text).toMatch(/Scope: direct dependencies only .*transitive dependencies are not checked/);
     expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
   });
 

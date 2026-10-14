@@ -1,21 +1,22 @@
 /**
- * #1049 review round 2 (B2): a range spec is never checked as a guessed
- * version. DependencyScanner.scanPackageJson checks the lockfile-resolved
- * version when a lockfile exists; otherwise a range is an unchecked package
- * and the scan is incomplete. Local OSV stub; no real network.
+ * #1049: dependency versions come from an in-sync lockfile or an exact spec,
+ * never a guess (round 2, B2), and never from a stale lockfile (round 3).
+ * Workspace members' own dependencies are scanned; local workspace packages are
+ * listed as not applicable; aliases resolve to the real package. Local OSV
+ * stub; no real network.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
-import { fromNpmLock, fromPnpmLock, fromYarnLock } from '../../../../../src/domains/security-compliance/services/scanners/lockfile-versions';
+import { parseLockfile } from '../../../../../src/domains/security-compliance/services/scanners/lockfile-versions';
 import { OSVClient } from '../../../../../src/shared/security/osv-client';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
-import type { SecurityScannerConfig } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
+import type { SecurityScannerConfig, DependencyScanResult } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
 
 /** Seven lodash advisories that affect 4.17.11 (as /v1/query reports), incl. the critical CVE-2019-10744. */
 const advisory = (id: string, cve: string, fixed: string, severity: string) => ({
@@ -44,9 +45,11 @@ beforeAll(async () => {
     req.on('end', () => {
       const send = (status: number, value: unknown) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
       if (req.url === '/v1/querybatch') {
-        const queries = (JSON.parse(body) as { queries: Array<{ package: { name: string; version: string } }> }).queries;
-        queried.push(...queries.map((q) => `${q.package.name}@${q.package.version}`));
-        return send(200, { results: queries.map((q) => (q.package.name === 'lodash' && q.package.version === '4.17.11'
+        // The version is read at the top level of each query, as OSV does.
+        const queries = (JSON.parse(body) as { queries: Array<{ package: { name: string; version?: string }; version?: string }> }).queries;
+        queried.push(...queries.map((q) => `${q.package.name}@${q.version}`));
+        expect(queries.every((q) => q.package.version === undefined)).toBe(true);
+        return send(200, { results: queries.map((q) => (q.package.name === 'lodash' && q.version === '4.17.11'
           ? { vulns: LODASH_4_17_11.map((a) => ({ id: a.id })) } : {})) });
       }
       const id = decodeURIComponent((req.url ?? '').slice('/v1/vulns/'.length));
@@ -69,94 +72,230 @@ const config: SecurityScannerConfig = {
   dastMaxDepth: 1, dastActiveScanning: false, enableLLMAnalysis: false, llmModelTier: 1, enableSemgrep: false,
 };
 
-function project(files: Record<string, string>): string {
+/** A temp git repo with the given files; returns its root. */
+function repo(files: Record<string, string | object>): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'aqe-1049-lock-'));
   dirs.push(dir);
-  for (const [name, content] of Object.entries(files)) writeFileSync(path.join(dir, name), content);
-  return path.join(dir, 'package.json');
+  mkdirSync(path.join(dir, '.git'));
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+    writeFileSync(path.join(dir, name), typeof content === 'string' ? content : JSON.stringify(content));
+  }
+  return dir;
 }
 
-async function scan(manifest: string) {
+async function scan(manifest: string): Promise<DependencyScanResult> {
   queried = [];
   const memory = { set: vi.fn(), get: vi.fn(), search: vi.fn().mockResolvedValue([]) } as unknown as MemoryBackend;
   const scanner = new DependencyScanner(config, memory, undefined, new OSVClient({ baseUrl, retries: 0, enableCache: false }));
   const result = await scanner.scanPackageJson(manifest);
   expect(result.success).toBe(true);
-  return (result as { value: Awaited<ReturnType<DependencyScanner['scanDependencies']>> extends infer R ? R extends { value: infer V } ? V : never : never }).value;
+  return (result as { value: DependencyScanResult }).value;
 }
 
-const npmLock = (versions: Record<string, string>) => JSON.stringify({
+/** package-lock v3 recording the root's declared specs and the installed versions. */
+const npmLock = (specs: Record<string, string>, versions: Record<string, string>, extra: Record<string, object> = {}) => ({
   lockfileVersion: 3,
-  packages: Object.fromEntries([['', {}], ...Object.entries(versions).map(([n, v]) => [`node_modules/${n}`, { version: v }])]),
+  packages: {
+    '': { dependencies: specs },
+    ...Object.fromEntries(Object.entries(versions).map(([n, v]) => [`node_modules/${n}`, { version: v }])),
+    ...extra,
+  },
 });
 
-describe('B2: ranges are resolved from the lockfile or reported unchecked (#1049)', () => {
+describe('B2: ranges are resolved from an in-sync lockfile or reported unchecked', () => {
   it('"<4.17.12" with no lockfile: unchecked ("version range, no lockfile resolution"), never checked as 4.17.12', async () => {
-    const value = await scan(project({ 'package.json': JSON.stringify({ dependencies: { lodash: '<4.17.12' } }) }));
+    const value = await scan(path.join(repo({ 'package.json': { dependencies: { lodash: '<4.17.12' } } }), 'package.json'));
     expect(queried).toEqual([]);
-    expect(value).toMatchObject({ status: 'failed', measured: false, packagesChecked: 0, lockfile: null });
+    expect(value).toMatchObject({ status: 'failed', measured: false, packagesChecked: 0, lockfile: null, scope: 'direct' });
     expect(value.uncheckedPackages).toEqual([{ name: 'lodash', version: '<4.17.12', reason: 'version range "<4.17.12", no lockfile resolution' }]);
   });
 
   it('"<4.17.12" with a package-lock pinning 4.17.11: 7 findings including critical CVE-2019-10744', async () => {
-    const value = await scan(project({
-      'package.json': JSON.stringify({ dependencies: { lodash: '<4.17.12' } }),
-      'package-lock.json': npmLock({ lodash: '4.17.11' }),
-    }));
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '<4.17.12' } },
+      'package-lock.json': npmLock({ lodash: '<4.17.12' }, { lodash: '4.17.11' }),
+    }), 'package.json'));
     expect(queried).toEqual(['lodash@4.17.11']);
     expect(value).toMatchObject({ status: 'complete', measured: true, lockfile: 'package-lock.json' });
     expect(value.vulnerabilities).toHaveLength(7);
     expect(value.vulnerabilities).toContainEqual(expect.objectContaining({ cveId: 'CVE-2019-10744', severity: 'critical' }));
   });
 
-  it('"^4.17.15" with a lockfile: the lockfile version is the one checked', async () => {
-    const value = await scan(project({
-      'package.json': JSON.stringify({ dependencies: { lodash: '^4.17.15' } }),
-      'package-lock.json': npmLock({ lodash: '4.17.21' }),
-    }));
+  it('"^4.17.15" with an in-sync lockfile: the lockfile version is the one checked', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '^4.17.15' } },
+      'package-lock.json': npmLock({ lodash: '^4.17.15' }, { lodash: '4.17.21' }),
+    }), 'package.json'));
     expect(queried).toEqual(['lodash@4.17.21']);
     expect(value.status).toBe('complete');
   });
 
-  it('a range the lockfile does not resolve stays unchecked and makes the scan incomplete', async () => {
-    const value = await scan(project({
-      'package.json': JSON.stringify({ dependencies: { lodash: '4.17.11', other: '>4.17.4' } }),
-      'package-lock.json': npmLock({ lodash: '4.17.11' }),
-    }));
-    expect(value.status).toBe('incomplete');
-    expect(value.uncheckedPackages).toEqual([expect.objectContaining({ name: 'other', reason: expect.stringMatching(/no lockfile resolution/) })]);
-  });
-
-  it('item 5: a package.json with no dependencies is a complete scan of nothing (measured zero)', async () => {
-    const value = await scan(project({ 'package.json': JSON.stringify({ name: 'no-deps' }) }));
+  it('a package.json with no dependencies is a complete scan of nothing (measured zero)', async () => {
+    const value = await scan(path.join(repo({ 'package.json': { name: 'no-deps' } }), 'package.json'));
     expect(queried).toEqual([]);
     expect(value).toMatchObject({ status: 'complete', measured: true, packagesScanned: 0, packagesChecked: 0, uncheckedPackages: [] });
   });
 });
 
-describe('lockfile readers', () => {
-  it('package-lock v1 and v3', () => {
-    expect(fromNpmLock(JSON.stringify({ lockfileVersion: 1, dependencies: { lodash: { version: '4.17.11' } } }), ['lodash'])).toEqual({ lodash: '4.17.11' });
-    expect(fromNpmLock(npmLock({ lodash: '4.17.21', '@scope/x': '1.0.0' }), ['lodash', '@scope/x', 'missing'])).toEqual({ lodash: '4.17.21', '@scope/x': '1.0.0' });
+describe('round 3 (blocking): a stale lockfile never wins over package.json', () => {
+  it('npm: package.json pins 4.17.11, the lock still records "^4.17.21" -> 4.17.21: unchecked, out of sync', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '4.17.11' } },
+      'package-lock.json': npmLock({ lodash: '^4.17.21' }, { lodash: '4.17.21' }),
+    }), 'package.json'));
+    expect(queried).toEqual([]);
+    expect(value).toMatchObject({ status: 'failed', measured: false });
+    expect(value.uncheckedPackages).toEqual([expect.objectContaining({
+      name: 'lodash', version: '4.17.11', lockedVersion: '4.17.21', reason: expect.stringMatching(/^lockfile out of sync with package\.json/),
+    })]);
   });
 
-  it('pnpm-lock.yaml with importers (v6/v9) and the older top-level layout', () => {
-    const v9 = [
+  it('npm v1 (records no specs): a locked version outside the declared spec is out of sync', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '4.17.11' } },
+      'package-lock.json': { lockfileVersion: 1, dependencies: { lodash: { version: '4.17.21' } } },
+    }), 'package.json'));
+    expect(value.uncheckedPackages).toEqual([expect.objectContaining({ name: 'lodash', reason: expect.stringMatching(/out of sync/) })]);
+  });
+
+  it('pnpm: package.json pins 4.17.11, the importer still says specifier ^4.17.21 / version 4.18.1: unchecked', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '4.17.11' } },
+      'pnpm-lock.yaml': ["lockfileVersion: '9.0'", '', 'importers:', '', '  .:', '    dependencies:', '      lodash:',
+        '        specifier: ^4.17.21', '        version: 4.18.1', ''].join('\n'),
+    }), 'package.json'));
+    expect(queried).toEqual([]);
+    expect(value.status).toBe('failed');
+    expect(value.uncheckedPackages).toEqual([expect.objectContaining({ name: 'lodash', lockedVersion: '4.18.1', reason: expect.stringMatching(/out of sync/) })]);
+  });
+
+  it('pnpm in sync: the importer version is checked', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { dependencies: { lodash: '~4.17.10' } },
+      'pnpm-lock.yaml': ["lockfileVersion: '9.0'", '', 'importers:', '', '  .:', '    dependencies:', '      lodash:',
+        '        specifier: ~4.17.10', '        version: 4.17.11', ''].join('\n'),
+    }), 'package.json'));
+    expect(queried).toEqual(['lodash@4.17.11']);
+    expect(value.vulnerabilities).toHaveLength(7);
+  });
+});
+
+describe('round 3: workspaces, local packages and aliases', () => {
+  const npmWorkspace = () => repo({
+    'package.json': { name: 'root', workspaces: ['packages/*'], dependencies: { '@m/b': '*' } },
+    'packages/a/package.json': { name: '@m/a', dependencies: { lodash: '4.17.11', '@m/b': '^1.0.0' } },
+    'packages/b/package.json': { name: '@m/b', version: '1.0.0' },
+    'package-lock.json': {
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'root', workspaces: ['packages/*'], dependencies: { '@m/b': '*' } },
+        'packages/a': { name: '@m/a', dependencies: { lodash: '4.17.11', '@m/b': '^1.0.0' } },
+        'packages/b': { name: '@m/b', version: '1.0.0' },
+        'node_modules/@m/a': { resolved: 'packages/a', link: true },
+        'node_modules/@m/b': { resolved: 'packages/b', link: true },
+        'node_modules/lodash': { version: '4.17.11' },
+      },
+    },
+  });
+
+  it('npm workspaces root: members are scanned (packages/a lodash 4.17.11 reported); workspace packages are local, not unchecked', async () => {
+    const root = npmWorkspace();
+    const value = await scan(path.join(root, 'package.json'));
+    expect(value.workspaceMembers).toEqual(['packages/a', 'packages/b']);
+    expect(value).toMatchObject({ status: 'complete', measured: true, uncheckedPackages: [] });
+    expect(value.localPackages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: '@m/b', spec: '*' }),
+      expect.objectContaining({ name: '@m/b', spec: '^1.0.0', member: 'packages/a' }),
+    ]));
+    expect(value.vulnerabilities).toHaveLength(7);
+    expect(value.vulnerabilities[0].location.file).toBe('packages/a/package.json');
+    expect(value.vulnerabilities).toContainEqual(expect.objectContaining({ cveId: 'CVE-2019-10744' }));
+  });
+
+  it('npm workspace member scanned directly: walks up to the root lockfile', async () => {
+    const root = npmWorkspace();
+    const value = await scan(path.join(root, 'packages', 'a', 'package.json'));
+    expect(value).toMatchObject({ status: 'complete', lockfile: '../../package-lock.json', workspaceMembers: [] });
+    expect(queried).toEqual(['lodash@4.17.11']);
+    expect(value.localPackages).toEqual([expect.objectContaining({ name: '@m/b' })]);
+  });
+
+  it('pnpm workspace root: link: packages are local, member dependencies are checked', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { name: 'root', dependencies: { '@p/b': 'workspace:*' } },
+      'pnpm-workspace.yaml': "packages:\n  - 'packages/*'\n",
+      'packages/a/package.json': { name: '@p/a', dependencies: { lodash: '4.17.11' } },
+      'pnpm-lock.yaml': ["lockfileVersion: '9.0'", '', 'importers:', '', '  .:', '    dependencies:', "      '@p/b':",
+        '        specifier: workspace:*', '        version: link:packages/b', '', '  packages/a:', '    dependencies:',
+        '      lodash:', '        specifier: 4.17.11', '        version: 4.17.11', ''].join('\n'),
+    }), 'package.json'));
+    expect(value.workspaceMembers).toEqual(['packages/a']);
+    expect(value.localPackages).toEqual([expect.objectContaining({ name: '@p/b' })]);
+    expect(value).toMatchObject({ status: 'complete', uncheckedPackages: [] });
+    expect(queried).toEqual(['lodash@4.17.11']);
+  });
+
+  it('an npm alias resolves to the real package (with and without a lockfile)', async () => {
+    const noLock = await scan(path.join(repo({ 'package.json': { dependencies: { x: 'npm:lodash@4.17.11' } } }), 'package.json'));
+    expect(queried).toEqual(['lodash@4.17.11']);
+    expect(noLock.vulnerabilities[0].title).toMatch(/^x \(lodash\): /);
+    const withLock = await scan(path.join(repo({
+      'package.json': { dependencies: { x: 'npm:lodash@^4.17.0' } },
+      'package-lock.json': npmLock({ x: 'npm:lodash@^4.17.0' }, {}, { 'node_modules/x': { name: 'lodash', version: '4.17.11' } }),
+    }), 'package.json'));
+    expect(queried).toEqual(['lodash@4.17.11']);
+    expect(withLock.status).toBe('complete');
+  });
+
+  it('git, GitHub and tarball sources stay unchecked; a file: directory is local', async () => {
+    const value = await scan(path.join(repo({ 'package.json': { dependencies: {
+      a: 'github:me/a', b: 'git+https://example.com/b.git', c: 'file:vendor/c-1.0.0.tgz', d: 'https://example.com/d.tgz', e: 'file:../e',
+    } } }), 'package.json'));
+    expect(value.uncheckedPackages.map((p) => p.name).sort()).toEqual(['a', 'b', 'c', 'd']);
+    expect(value.uncheckedPackages[0].reason).toMatch(/not a registry dependency/);
+    expect(value.localPackages).toEqual([expect.objectContaining({ name: 'e' })]);
+  });
+});
+
+describe('lockfile index', () => {
+  it('package-lock v1 and v3, with recorded specs and links', () => {
+    const v1 = parseLockfile('package-lock.json', JSON.stringify({ lockfileVersion: 1, dependencies: { lodash: { version: '4.17.11' } } }));
+    expect(v1.resolve('', 'lodash', '^4')).toEqual({ version: '4.17.11' });
+    expect(v1.recordedSpec('', 'lodash')).toBeNull();
+    const v3 = parseLockfile('package-lock.json', JSON.stringify(npmLock({ lodash: '^4.17.0' }, { lodash: '4.17.21' }, { 'node_modules/@m/a': { link: true } })));
+    expect(v3.resolve('', 'lodash', '^4.17.0')).toEqual({ version: '4.17.21' });
+    expect(v3.recordedSpec('', 'lodash')).toBe('^4.17.0');
+    expect(v3.recordedSpec('', 'missing')).toBeUndefined();
+    expect(v3.resolve('', '@m/a', '*')).toEqual({ local: true });
+  });
+
+  it('pnpm-lock.yaml with importers (v9, peer suffix, alias) and the older top-level layout (v5)', () => {
+    const v9 = parseLockfile('pnpm-lock.yaml', [
       "lockfileVersion: '9.0'", '', 'importers:', '', '  .:', '    dependencies:', '      lodash:',
       '        specifier: ^4.17.15', '        version: 4.17.21', "      '@scope/x':", '        specifier: ^1.0.0',
-      '        version: 1.2.0(react@18.2.0)', '    devDependencies:', '      vitest:', '        specifier: ^1.0.0',
-      '        version: 1.6.0', '', '  packages/other:', '    dependencies:', '      lodash:', '        specifier: 3.0.0',
-      '        version: 3.0.0', '', 'packages:', '', '  lodash@4.17.21:', '    resolution: {integrity: sha512-x}',
-    ].join('\n');
-    expect(fromPnpmLock(v9, ['lodash', '@scope/x', 'vitest'])).toEqual({ lodash: '4.17.21', '@scope/x': '1.2.0', vitest: '1.6.0' });
-    const v5 = ['lockfileVersion: 5.4', '', 'specifiers:', '  lodash: ^4.17.15', '', 'dependencies:', '  lodash: 4.17.21_abc', ''].join('\n');
-    expect(fromPnpmLock(v5, ['lodash'])).toEqual({ lodash: '4.17.21' });
+      '        version: 1.2.0(react@18.2.0)', '      y:', '        specifier: npm:lodash@4.17.11', '        version: lodash@4.17.11',
+      '', '  packages/other:', '    dependencies:', '      lodash:', '        specifier: 3.0.0', '        version: 3.0.0',
+      '', 'packages:', '', '  lodash@4.17.21:', '    resolution: {integrity: sha512-x}',
+    ].join('\n'));
+    expect(v9.members()).toEqual(['packages/other']);
+    expect(v9.resolve('', 'lodash', '^4.17.15')).toEqual({ version: '4.17.21' });
+    expect(v9.recordedSpec('', 'lodash')).toBe('^4.17.15');
+    expect(v9.resolve('', '@scope/x', '^1.0.0')).toEqual({ version: '1.2.0' });
+    expect(v9.resolve('', 'y', 'npm:lodash@4.17.11')).toEqual({ version: '4.17.11', realName: 'lodash' });
+    expect(v9.resolve('packages/other', 'lodash', '3.0.0')).toEqual({ version: '3.0.0' });
+    const v5 = parseLockfile('pnpm-lock.yaml', ['lockfileVersion: 5.4', '', 'specifiers:', '  lodash: ^4.17.15', '', 'dependencies:', '  lodash: 4.17.21_abc', ''].join('\n'));
+    expect(v5.resolve('', 'lodash', '^4.17.15')).toEqual({ version: '4.17.21' });
+    expect(v5.recordedSpec('', 'lodash')).toBe('^4.17.15');
   });
 
-  it('yarn.lock classic and berry', () => {
-    const classic = ['# yarn lockfile v1', '', '"lodash@^4.17.15", lodash@^4.17.0:', '  version "4.17.21"', '  resolved "https://x"', ''].join('\n');
-    expect(fromYarnLock(classic, { lodash: '^4.17.15' })).toEqual({ lodash: '4.17.21' });
-    const berry = ['__metadata:', '  version: 6', '', '"lodash@npm:^4.17.15":', '  version: 4.17.21', '  resolution: "lodash@npm:4.17.21"', ''].join('\n');
-    expect(fromYarnLock(berry, { lodash: '^4.17.15' })).toEqual({ lodash: '4.17.21' });
+  it('yarn.lock classic and berry (matched by name@spec, so a changed spec finds nothing)', () => {
+    const classic = parseLockfile('yarn.lock', ['# yarn lockfile v1', '', '"lodash@^4.17.15", lodash@^4.17.0:', '  version "4.17.21"', '  resolved "https://x"', ''].join('\n'));
+    expect(classic.resolve('', 'lodash', '^4.17.15')).toEqual({ version: '4.17.21' });
+    expect(classic.resolve('', 'lodash', '4.17.11')).toBeUndefined();
+    const berry = parseLockfile('yarn.lock', ['__metadata:', '  version: 6', '', '"lodash@npm:^4.17.15":', '  version: 4.17.21',
+      '  resolution: "lodash@npm:4.17.21"', '', '"@m/a@workspace:packages/a":', '  version: 0.0.0-use.local', '  resolution: "@m/a@workspace:packages/a"', ''].join('\n'));
+    expect(berry.resolve('', 'lodash', '^4.17.15')).toEqual({ version: '4.17.21' });
+    expect(berry.resolve('', '@m/a', 'workspace:packages/a')).toEqual({ local: true });
   });
 });

@@ -12,21 +12,22 @@ import type { SecurityScannerConfig } from '../../../../../src/domains/security-
 // Mocks
 // ---------------------------------------------------------------------------
 
-// A complete OSV lookup (#1049 shape) over the given dependencies and findings.
-const completeLookup = (deps: Record<string, string>, vulns: Array<{ affectedPackage: string }> = []) => {
+// A complete OSV lookup (#1049 shape, keyed ecosystem:name@version) over the queried packages.
+type Query = { name: string; ecosystem: string; version: string };
+const completeLookup = (pkgs: Query[], vulns: Array<{ affectedPackage: string }> = []) => {
   const results = new Map<string, unknown[]>();
-  for (const name of Object.keys(deps)) {
-    results.set(`npm:${name}`, vulns.filter((v) => v.affectedPackage === name));
+  for (const p of pkgs) {
+    results.set(`${p.ecosystem}:${p.name}@${p.version}`, vulns.filter((v) => v.affectedPackage === p.name));
   }
-  return { status: 'complete', results, packagesRequested: results.size, packagesChecked: results.size, unchecked: [], errors: [] };
+  return { status: 'complete', results, packagesRequested: pkgs.length, packagesChecked: pkgs.length, unchecked: [], errors: [] };
 };
 
 // Shared mock function that tests can override
-const mockLookupNpmDependencies = vi.fn(async (deps: Record<string, string>) => completeLookup(deps));
+const mockLookupBatch = vi.fn(async (pkgs: Query[]) => completeLookup(pkgs));
 
 vi.mock('../../../../../src/shared/security/index.js', () => ({
   OSVClient: class MockOSVClient {
-    lookupNpmDependencies = mockLookupNpmDependencies;
+    lookupBatch = mockLookupBatch;
     constructor() {}
   },
 }));
@@ -114,7 +115,7 @@ describe('DependencyScanner', () => {
 
     it('should_reportVulnerablePackages_when_osvFindsVulnerabilities', async () => {
       // Arrange - override the shared mock to return vulnerabilities
-      mockLookupNpmDependencies.mockImplementationOnce(async (deps) => completeLookup(deps, [
+      mockLookupBatch.mockImplementationOnce(async (pkgs) => completeLookup(pkgs, [
         {
           id: 'GHSA-xxxx',
           summary: 'Prototype Pollution in lodash',
