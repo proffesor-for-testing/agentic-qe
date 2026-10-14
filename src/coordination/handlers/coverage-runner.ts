@@ -223,7 +223,11 @@ function usesPlugNPlay(projectRoot: string): boolean {
  * Pick the runner and its argv. No shell is involved: `command` is the Node
  * binary and `args[0]` the runner's JS entry, so paths are passed verbatim.
  */
-export function buildJsCoverageInvocation(projectRoot: string, reportDir: string): JsCoverageInvocation {
+export function buildJsCoverageInvocation(
+  projectRoot: string,
+  reportDir: string,
+  pathFilter?: string | null
+): JsCoverageInvocation {
   const resultsFile = path.join(reportDir, RESULTS_FILE);
   const deps = readRunnerDeps(projectRoot);
 
@@ -249,6 +253,11 @@ export function buildJsCoverageInvocation(projectRoot: string, reportDir: string
     runnerArgs = ['run', '--coverage', `--coverage.reportsDirectory=${reportDir}`,
       '--coverage.reporter=json', '--coverage.reportOnFailure=true', '--reporter=json', `--outputFile=${resultsFile}`];
   }
+
+  // A package target run from the workspace root: restrict the run to that
+  // package's tests (vitest/jest positional filter) so a slow sibling cannot
+  // time the run out. nyc/mocha take no such filter.
+  if (pathFilter && runner !== 'nyc') runnerArgs.push(pathFilter);
 
   const bin = findPackageBin(projectRoot, runner === 'jest' ? 'jest' : runner);
   return {
@@ -455,12 +464,12 @@ export async function runProcessTree(
  */
 export async function runJsCoverage(
   projectRoot: string,
-  options: { timeoutMs?: number } = {}
+  options: { timeoutMs?: number; pathFilter?: string | null } = {}
 ): Promise<JsCoverageRun> {
   const timeoutMs = options.timeoutMs ?? 120000;
   const reportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-js-cov-'));
   try {
-    const inv = buildJsCoverageInvocation(projectRoot, reportDir);
+    const inv = buildJsCoverageInvocation(projectRoot, reportDir, options.pathFilter);
     if (!inv.command) {
       return {
         runner: inv.runner, missing: true, exitCode: null, exitedCleanly: false, timedOut: false,

@@ -242,6 +242,12 @@ describe('#995 review — runner invocation', () => {
     expect(inv.resultsFile).toBe(path.join('/tmp/aqe-js-cov-x', 'test-results.json'));
   });
 
+  it('appends the package filter as a positional argument, after the options (#1036 review)', () => {
+    const inv = buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x', 'packages/a/');
+    expect(inv.args[inv.args.length - 1]).toBe('packages/a/');
+    expect(buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x').args).not.toContain('packages/a/');
+  });
+
   it('keeps a hostile path as ONE argument', () => {
     const inv = buildJsCoverageInvocation(project, '/tmp/$(touch pwned) & ^ %');
     expect(inv.args).toContain('--coverage.reportsDirectory=/tmp/$(touch pwned) & ^ %');

@@ -21,6 +21,7 @@ import {
   describeNoData,
   evaluateCoverageForTarget,
   isUnmeasured,
+  packageFilterForTarget,
   resolveExistingCoverage,
   scopeCoverageToTarget,
   reconcileRecommendations,
@@ -161,7 +162,10 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
   }
 
-  const run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
+  const run = await runJsCoverage(projectRoot, {
+    timeoutMs: coverageTimeoutMs(),
+    pathFilter: packageFilterForTarget(target, projectRoot),
+  });
   // An EMPTY report (`{}`) from a run that reported its tests means "the run
   // instrumented nothing under the target" → unmeasured, never an estimate
   // (#995 review BL2). An empty report from a run that crashed before

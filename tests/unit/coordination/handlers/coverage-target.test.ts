@@ -21,6 +21,7 @@ import * as path from 'path';
 
 import {
   findCoverageProjectRoot,
+  packageFilterForTarget,
   isCoverageReportFile,
   loadCoverageReportFile,
   scopeCoverageToTarget,
@@ -89,12 +90,18 @@ function lcovRecord(file: string, total: number, covered: number): string {
 describe('#995 — findCoverageProjectRoot', () => {
   let root: string;
 
+  const savedAqeRoot = process.env.AQE_PROJECT_ROOT;
+
   beforeEach(() => {
     root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-995-root-')));
     makeVitestProject(root);
+    // Workspace-root adoption is bounded by the AQE project root (#1036 review).
+    process.env.AQE_PROJECT_ROOT = root;
   });
 
   afterEach(() => {
+    if (savedAqeRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+    else process.env.AQE_PROJECT_ROOT = savedAqeRoot;
     fs.rmSync(root, { recursive: true, force: true });
   });
 
@@ -125,6 +132,106 @@ describe('#995 — findCoverageProjectRoot', () => {
     fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
 
     expect(findCoverageProjectRoot(path.join(pkg, 'src'))).toBe(root);
+  });
+
+  describe('workspace root adoption is bounded and membership-checked (#1036 review)', () => {
+    const makePkg = (dir: string, manifest = '{"name":"p"}') => {
+      fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'package.json'), manifest);
+    };
+    it('never adopts a workspace root above AQE_PROJECT_ROOT (no .git in the project)', () => {
+      // outer has a workspaces manifest + runner config; proj has neither .git nor a runner config.
+      const outer = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1036-outer-')));
+      try {
+        fs.writeFileSync(path.join(outer, 'package.json'), '{"workspaces":["whatever/*"]}');
+        fs.writeFileSync(path.join(outer, 'vitest.config.cjs'), 'module.exports = {}');
+        const proj = path.join(outer, 'proj');
+        makePkg(proj);
+        process.env.AQE_PROJECT_ROOT = proj;
+
+        expect(findCoverageProjectRoot(path.join(proj, 'src'))).toBe(proj);
+      } finally {
+        fs.rmSync(outer, { recursive: true, force: true });
+      }
+    });
+
+    it('does not climb from a workspace-root target to an enclosing workspace outside the project', () => {
+      const outer = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1036-outer2-')));
+      try {
+        fs.writeFileSync(path.join(outer, 'package.json'), '{"workspaces":["inner"]}');
+        fs.writeFileSync(path.join(outer, 'vitest.config.ts'), 'export default {}');
+        const inner = path.join(outer, 'inner');
+        makePkg(inner, '{"workspaces":["pkgs/*"]}');
+        process.env.AQE_PROJECT_ROOT = inner;
+
+        expect(findCoverageProjectRoot(path.join(inner, 'src'))).toBe(inner);
+      } finally {
+        fs.rmSync(outer, { recursive: true, force: true });
+      }
+    });
+
+    it('does not adopt a root whose workspaces do not list the package (non-member)', () => {
+      fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*"]}');
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const stray = path.join(root, 'tools', 'foo');
+      makePkg(stray);
+      expect(findCoverageProjectRoot(path.join(stray, 'src'))).toBe(stray);
+    });
+
+    it('ignores workspace patterns that escape the root (".." or absolute)', () => {
+      fs.writeFileSync(path.join(root, 'package.json'),
+        JSON.stringify({ workspaces: ['../*', path.join(root, 'tools', '*'), 'tools/../tools/*'] }));
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const stray = path.join(root, 'tools', 'foo');
+      makePkg(stray);
+      expect(findCoverageProjectRoot(path.join(stray, 'src'))).toBe(stray);
+    });
+
+    it('honours negated workspace patterns', () => {
+      fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*","!packages/skip"]}');
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const skip = path.join(root, 'packages', 'skip');
+      const keep = path.join(root, 'packages', 'keep');
+      makePkg(skip);
+      makePkg(keep);
+      expect(findCoverageProjectRoot(path.join(skip, 'src'))).toBe(skip);
+      expect(findCoverageProjectRoot(path.join(keep, 'src'))).toBe(root);
+    });
+
+    it('resolves pnpm-workspace.yaml packages and the { packages: [] } workspaces form', () => {
+      fs.writeFileSync(path.join(root, 'package.json'), '{"name":"ws"}');
+      fs.writeFileSync(path.join(root, 'pnpm-workspace.yaml'), "packages:\n  - 'libs/**'\n  - \"apps/*\" # comment\n");
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const deep = path.join(root, 'libs', 'a', 'b');
+      const app = path.join(root, 'apps', 'web');
+      const other = path.join(root, 'other', 'x');
+      makePkg(deep); makePkg(app); makePkg(other);
+      expect(findCoverageProjectRoot(path.join(deep, 'src'))).toBe(root);
+      expect(findCoverageProjectRoot(path.join(app, 'src'))).toBe(root);
+      expect(findCoverageProjectRoot(path.join(other, 'src'))).toBe(other);
+
+      fs.rmSync(path.join(root, 'pnpm-workspace.yaml'));
+      fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":{"packages":["apps/*"]}}');
+      expect(findCoverageProjectRoot(path.join(app, 'src'))).toBe(root);
+    });
+
+    it('treats an inline "jest" key in the package manifest as its own runner config', () => {
+      fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*"]}');
+      fs.writeFileSync(path.join(root, 'jest.config.js'), 'module.exports = {}');
+      const pkg = path.join(root, 'packages', 'p');
+      makePkg(pkg, '{"name":"p","jest":{"testEnvironment":"node"}}');
+      expect(findCoverageProjectRoot(path.join(pkg, 'src'))).toBe(pkg);
+    });
+
+    it('packageFilterForTarget names the nested package so only its tests run', () => {
+      const pkg = path.join(root, 'packages', 'a');
+      makePkg(pkg);
+      expect(packageFilterForTarget(path.join(pkg, 'src'), root)).toBe('packages/a/');
+      fs.writeFileSync(path.join(pkg, 'src', 'x.ts'), '');
+      expect(packageFilterForTarget(path.join(pkg, 'src', 'x.ts'), root)).toBe('packages/a/');
+      expect(packageFilterForTarget(root, root)).toBeNull();
+      expect(packageFilterForTarget(path.join(root, 'src'), root)).toBeNull();
+    });
   });
 
   it('keeps a nested package with its own runner config', () => {
@@ -455,6 +562,8 @@ if (results) {
     fs.writeFileSync(cannedReport, JSON.stringify(entries));
   }
 
+  let savedAqeRoot: string | undefined;
+
   beforeEach(() => {
     root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-995-e2e-')));
     makeVitestProject(root);
@@ -467,9 +576,13 @@ if (results) {
     writeCannedReport({ [mathPath]: istanbulEntry(mathPath, 6, 3) });
     installFakeVitest();
     delete process.env.AQE_COVERAGE_NO_EXEC;
+    savedAqeRoot = process.env.AQE_PROJECT_ROOT;
+    process.env.AQE_PROJECT_ROOT = root;
   });
 
   afterEach(() => {
+    if (savedAqeRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
+    else process.env.AQE_PROJECT_ROOT = savedAqeRoot;
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(binDir, { recursive: true, force: true });
   });
