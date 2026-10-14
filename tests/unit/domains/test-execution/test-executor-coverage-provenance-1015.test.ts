@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { TestExecutorService } from '../../../../src/domains/test-execution/services/test-executor.js';
+import { findProjectRoot } from '../../../../src/kernel/project-root.js';
 
 type Internals = {
   storeResults(runId: string, result: Record<string, unknown>): Promise<void>;
@@ -84,7 +85,7 @@ describe('#1015.2 — TestExecutorService.storeResults', () => {
   it('#1027 N7: per-file keys are absolute, whatever form the runner reported', async () => {
     const { store, internals } = service();
     await internals.storeResults('r1', run({ fileCoverages: [{ path: 'src/rel.ts', line: 50, branch: null, function: null, statement: 50 }] }));
-    expect(store.has(`coverage:file:${process.cwd()}/src/rel.ts`)).toBe(true);
+    expect(store.has(`coverage:file:${findProjectRoot()}/src/rel.ts`)).toBe(true);
     expect(store.has('coverage:file:src/rel.ts')).toBe(false);
   });
 
