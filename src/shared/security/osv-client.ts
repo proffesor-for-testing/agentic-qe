@@ -10,6 +10,9 @@ import { HttpClient } from '../http';
 import {
   OSVLookupError,
   advisoryAffectsVersion,
+  boundedList,
+  exactNpmVersion,
+  isNonRegistrySpec,
   isAdvisoryRecord,
   isConcreteVersion,
   lookupKey,
@@ -49,7 +52,11 @@ export type {
  * OSV API Client Configuration
  */
 export interface OSVClientConfig {
-  /** API base URL (default: $AQE_OSV_API_URL, else https://api.osv.dev) */
+  /**
+   * API base URL (default: $AQE_OSV_API_URL, else https://api.osv.dev). Must be
+   * https, or http on a loopback host. Validated lazily at the first lookup, so
+   * an invalid value fails dependency scans only, never construction (#1049).
+   */
   baseUrl?: string;
   /** Idle request timeout in ms (default: 30000) */
   timeout?: number;
@@ -67,7 +74,13 @@ export interface OSVClientConfig {
 
 const DEFAULT_BASE_URL = 'https://api.osv.dev';
 
-/** The OSV endpoint: `AQE_OSV_API_URL` (http/https only) or the public API. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/**
+ * The OSV endpoint: `AQE_OSV_API_URL` or the public API. https is required,
+ * except plain http on a loopback host (local mirrors and test stubs).
+ * @throws Error naming AQE_OSV_API_URL when the value is not acceptable.
+ */
 export function resolveOSVBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.AQE_OSV_API_URL?.trim();
   if (!configured) return DEFAULT_BASE_URL;
@@ -75,10 +88,11 @@ export function resolveOSVBaseUrl(env: NodeJS.ProcessEnv = process.env): string 
   try {
     url = new URL(configured);
   } catch {
-    throw new Error('AQE_OSV_API_URL must be an http(s) URL');
+    throw new Error(`AQE_OSV_API_URL is not a URL: "${configured.slice(0, 200)}" (expected https://host)`);
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('AQE_OSV_API_URL must be an http(s) URL');
+  const loopback = LOOPBACK_HOSTS.has(url.hostname.toLowerCase()) || /^127\./.test(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error(`AQE_OSV_API_URL must use https (http only for localhost/loopback): "${configured.slice(0, 200)}"`);
   }
   return configured.replace(/\/+$/, '');
 }
@@ -94,13 +108,15 @@ type DetailOutcome = { vuln: OSVVulnerability } | { reason: string };
  * methods throw `OSVLookupError` instead of returning `[]`.
  */
 export class OSVClient {
-  private readonly config: Required<OSVClientConfig>;
+  private readonly config: Required<Omit<OSVClientConfig, 'baseUrl'>>;
+  private readonly configuredBaseUrl: string | undefined;
+  private endpoint: { url: string } | { reason: string } | null = null;
   private readonly http: HttpClient;
   private readonly detailCache: Map<string, { data: OSVVulnerability; timestamp: number }> = new Map();
 
   constructor(config: OSVClientConfig = {}) {
+    this.configuredBaseUrl = config.baseUrl;
     this.config = {
-      baseUrl: config.baseUrl ?? resolveOSVBaseUrl(),
       timeout: config.timeout ?? 30000,
       retries: config.retries ?? 2,
       batchSize: Math.max(1, Math.min(1000, config.batchSize ?? 500)),
@@ -111,9 +127,30 @@ export class OSVClient {
     this.http = new HttpClient();
   }
 
-  /** The endpoint this client queries. */
-  get baseUrl(): string {
-    return this.config.baseUrl;
+  /** The endpoint this client queries, or null when the configured URL is invalid. */
+  get baseUrl(): string | null {
+    const endpoint = this.resolveEndpoint();
+    return 'url' in endpoint ? endpoint.url : null;
+  }
+
+  /** Resolve (once) the endpoint; an invalid value is a reason, never a throw. */
+  private resolveEndpoint(): { url: string } | { reason: string } {
+    if (!this.endpoint) {
+      try {
+        this.endpoint = { url: this.configuredBaseUrl !== undefined
+          ? resolveOSVBaseUrl({ AQE_OSV_API_URL: this.configuredBaseUrl })
+          : resolveOSVBaseUrl() };
+      } catch (error) {
+        this.endpoint = { reason: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    return this.endpoint;
+  }
+
+  private get base(): string {
+    const endpoint = this.resolveEndpoint();
+    if ('reason' in endpoint) throw new OSVLookupError(endpoint.reason);
+    return endpoint.url;
   }
 
   /**
@@ -125,13 +162,22 @@ export class OSVClient {
     const unchecked: OSVUncheckedPackage[] = [];
     const errors: string[] = [];
     const queryable: OSVPackageQuery[] = [];
+    let checked = 0;
+
+    const endpoint = this.resolveEndpoint();
+    if ('reason' in endpoint) {
+      return {
+        status: lookupStatus(packages.length, 0), results, packagesRequested: packages.length, packagesChecked: 0,
+        unchecked: packages.map((pkg) => ({ ...pkg, reason: endpoint.reason })), errors: [endpoint.reason],
+      };
+    }
 
     for (const pkg of packages) {
       if (pkg.version && isConcreteVersion(pkg.version)) {
         queryable.push(pkg);
       } else {
         unchecked.push({ ...pkg, reason: pkg.version
-          ? `version "${pkg.version}" is not a concrete version; advisories cannot be matched`
+          ? `version "${pkg.version}" is a range or tag, not a concrete version (no lockfile resolution)`
           : 'no version declared; advisories cannot be matched' });
       }
     }
@@ -156,13 +202,14 @@ export class OSVClient {
       const missing = ids.filter((id) => 'reason' in details.get(id)!);
       if (missing.length > 0) {
         const why = (details.get(missing[0]) as { reason: string }).reason;
-        unchecked.push({ ...pkg, reason: `advisory details unavailable for ${missing.join(', ')}: ${why}` });
+        unchecked.push({ ...pkg, reason: `advisory details unavailable for ${boundedList(missing)}: ${why}` });
         continue;
       }
       // querybatch can over-match; keep only advisories whose own ranges do not exclude the version.
       const vulns = ids.map((id) => (details.get(id) as { vuln: OSVVulnerability }).vuln)
         .filter((vuln) => advisoryAffectsVersion(vuln, { name: pkg.name, ecosystem: pkg.ecosystem, version: pkg.version! }));
       results.set(lookupKey(pkg), this.parseVulnerabilities(vulns).map((v) => ({ ...v, affectedPackage: pkg.name })));
+      checked++;
     }
     const detailFailures = [...details.values()].filter((d): d is { reason: string } => 'reason' in d);
     if (detailFailures.length > 0) {
@@ -170,20 +217,49 @@ export class OSVClient {
     }
 
     return {
-      status: lookupStatus(packages.length, results.size),
+      status: lookupStatus(packages.length, checked),
       results,
       packagesRequested: packages.length,
-      packagesChecked: results.size,
+      packagesChecked: checked,
       unchecked,
       errors,
     };
   }
 
-  /** Look up npm `package.json`-style dependencies (`name -> version spec`). */
-  async lookupNpmDependencies(dependencies: Record<string, string>): Promise<OSVBatchLookup> {
-    return this.lookupBatch(Object.entries(dependencies).map(([name, version]) => ({
-      name, ecosystem: 'npm', version: this.cleanVersion(version),
-    })));
+  /**
+   * Look up npm `package.json` dependencies (`name -> version spec`).
+   *
+   * A dependency is checked at its lockfile-resolved version when one is given,
+   * else only when the spec is an exact version ("1.2.3", "=1.2.3", "v1.2.3").
+   * Ranges, tags and non-registry specs are reported unchecked, never guessed:
+   * checking a range's bound (e.g. "<4.17.12" as 4.17.12) can miss advisories
+   * that affect the versions the range allows (#1049).
+   */
+  async lookupNpmDependencies(
+    dependencies: Record<string, string>,
+    lockedVersions: Record<string, string> = {},
+  ): Promise<OSVBatchLookup> {
+    const queries: OSVPackageQuery[] = [];
+    const unresolved: OSVUncheckedPackage[] = [];
+    for (const [name, spec] of Object.entries(dependencies)) {
+      if (isNonRegistrySpec(spec)) {
+        unresolved.push({ name, ecosystem: 'npm', version: spec,
+          reason: `not a registry dependency ("${spec}"); OSV advisories cannot be matched` });
+        continue;
+      }
+      const locked = lockedVersions[name] !== undefined ? exactNpmVersion(lockedVersions[name]) : null;
+      const version = locked ?? exactNpmVersion(spec);
+      if (version) queries.push({ name, ecosystem: 'npm', version });
+      else unresolved.push({ name, ecosystem: 'npm', version: spec, reason: `version range "${spec}", no lockfile resolution` });
+    }
+    const lookup = await this.lookupBatch(queries);
+    const requested = queries.length + unresolved.length;
+    return {
+      ...lookup,
+      status: lookupStatus(requested, lookup.packagesChecked),
+      packagesRequested: requested,
+      unchecked: [...unresolved, ...lookup.unchecked],
+    };
   }
 
   /**
@@ -192,7 +268,7 @@ export class OSVClient {
    */
   async queryPackage(packageName: string, ecosystem: OSVEcosystem, version?: string): Promise<ParsedVulnerability[]> {
     const result = await this.http.post(
-      `${this.config.baseUrl}/v1/query`,
+      `${this.base}/v1/query`,
       { package: { name: packageName, ecosystem, ...(version && { version }) } },
       this.requestOptions(),
     );
@@ -223,6 +299,7 @@ export class OSVClient {
    * @throws OSVLookupError on any other failure.
    */
   async queryByCVE(cveId: string): Promise<ParsedVulnerability[]> {
+    void this.base; // an invalid endpoint throws OSVLookupError
     const outcome = await this.fetchDetail(cveId);
     if ('vuln' in outcome) return this.parseVulnerabilities([outcome.vuln]);
     if (outcome.reason === 'HTTP 404') return [];
@@ -298,7 +375,7 @@ export class OSVClient {
     const queries: OSVQueryRequest[] = chunk.map((pkg) => ({
       package: { name: pkg.name, ecosystem: pkg.ecosystem as OSVEcosystem, version: pkg.version },
     }));
-    const result = await this.http.post(`${this.config.baseUrl}/v1/querybatch`, { queries }, this.requestOptions());
+    const result = await this.http.post(`${this.base}/v1/querybatch`, { queries }, this.requestOptions());
     const body = await this.readJson(result);
     if ('reason' in body) return body;
     const entries = parseBatchBody(body.value, chunk.length);
@@ -322,7 +399,7 @@ export class OSVClient {
   private async fetchDetail(id: string): Promise<DetailOutcome> {
     const cached = this.config.enableCache ? this.detailCache.get(id) : undefined;
     if (cached && Date.now() - cached.timestamp < this.config.cacheTtl) return { vuln: cached.data };
-    const result = await this.http.get(`${this.config.baseUrl}/v1/vulns/${encodeURIComponent(id)}`, this.requestOptions());
+    const result = await this.http.get(`${this.base}/v1/vulns/${encodeURIComponent(id)}`, this.requestOptions());
     const body = await this.readJson(result);
     if ('reason' in body) return body;
     if (!isAdvisoryRecord(body.value)) return { reason: 'malformed OSV advisory record' };
@@ -395,12 +472,5 @@ export class OSVClient {
       }
     }
     return [...new Set(fixed)];
-  }
-
-  /**
-   * Clean a version spec ("^4.17.15" -> "4.17.15", ">=1.2.3 <2" -> "1.2.3").
-   */
-  private cleanVersion(version: string): string {
-    return version.trim().replace(/^[\^~>=<v\s]+/, '').split(/\s+/)[0];
   }
 }

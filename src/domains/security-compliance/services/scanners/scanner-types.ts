@@ -97,6 +97,8 @@ export interface DependencyScanResult {
   /** Dependencies whose advisories were actually checked. */
   readonly packagesChecked: number;
   readonly uncheckedPackages: UncheckedDependency[];
+  /** Lockfile the checked versions were resolved from (basename), or null when none was used. */
+  readonly lockfile?: string | null;
   /** Why the scan is incomplete/failed; absent when complete. */
   readonly error?: string;
 }

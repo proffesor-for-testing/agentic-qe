@@ -21,6 +21,8 @@ export interface DependencyScanReport {
   status: 'complete' | 'incomplete' | 'failed' | 'not-run';
   measured: boolean;
   manifest?: string;
+  /** Lockfile the checked versions were resolved from, or null (exact specs only). */
+  lockfile?: string | null;
   packagesRequested: number;
   packagesChecked: number;
   uncheckedPackages: UncheckedDependency[];
@@ -64,7 +66,9 @@ export async function findPackageJson(targetPath: string, env: NodeJS.ProcessEnv
 export function dependencyScanMessage(report: Omit<DependencyScanReport, 'message'>): string {
   switch (report.status) {
     case 'complete':
-      return `Dependency advisories checked for all ${report.packagesChecked} package(s): ${report.vulnerabilities} advisory finding(s).`;
+      return report.packagesRequested === 0
+        ? 'No dependencies declared in package.json; nothing to check (complete).'
+        : `Dependency advisories checked for all ${report.packagesChecked} package(s): ${report.vulnerabilities} advisory finding(s).`;
     case 'incomplete':
       return `Dependency advisories could not be checked for ${report.uncheckedPackages.length} of ${report.packagesRequested} package(s); ` +
         `${report.vulnerabilities} finding(s) from the ${report.packagesChecked} checked package(s). Dependency scan is INCOMPLETE, not clean.`;
@@ -106,7 +110,7 @@ export async function runDependencyAdvisoryScan(
   const value = scan.value;
   const unchecked = value.uncheckedPackages.map((p) => `${p.name}@${p.version}: ${p.reason}`);
   const base: Omit<DependencyScanReport, 'message'> = {
-    status: value.status, measured: value.measured, manifest,
+    status: value.status, measured: value.measured, manifest, lockfile: value.lockfile ?? null,
     packagesRequested: value.packagesScanned, packagesChecked: value.packagesChecked,
     uncheckedPackages: value.uncheckedPackages, vulnerabilities: value.vulnerabilities.length,
     scanId: value.scanId, ...(value.error ? { error: value.error } : {}),
@@ -118,7 +122,9 @@ export async function runDependencyAdvisoryScan(
       scope: 'parent-directory', target: manifest, ruleCoverage: 'unknown',
       errors: [...(value.error ? [value.error] : []), ...unchecked.slice(0, 20),
         ...(unchecked.length > 20 ? [`... and ${unchecked.length - 20} more unchecked package(s)`] : [])],
-      limitations: ['Advisories are matched against declared versions in package.json, not the resolved lockfile tree.'],
+      limitations: [value.lockfile
+        ? `Direct dependencies are checked at the versions ${value.lockfile} resolves; transitive dependencies are not checked.`
+        : 'No lockfile: only exact versions in package.json are checked; ranges are reported unchecked. Transitive dependencies are not checked.'],
     },
     vulnerabilities: value.vulnerabilities,
     report: { ...base, message: dependencyScanMessage(base) },

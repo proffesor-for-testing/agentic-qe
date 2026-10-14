@@ -59,7 +59,34 @@ export class OSVLookupError extends Error {
   }
 }
 
-export const lookupKey = (pkg: { ecosystem: string; name: string }): string => `${pkg.ecosystem}:${pkg.name}`;
+/**
+ * Result key for one queried package: `${ecosystem}:${name}@${version}`.
+ * Keyed by version so two versions of one package never overwrite each other.
+ */
+export const lookupKey = (pkg: { ecosystem: string; name: string; version?: string }): string =>
+  `${pkg.ecosystem}:${pkg.name}@${pkg.version ?? ''}`;
+
+/** At most `max` ids, then "and N more" — keeps reasons bounded. */
+export function boundedList(items: readonly string[], max = 5): string {
+  return items.length <= max ? items.join(', ') : `${items.slice(0, max).join(', ')} and ${items.length - max} more`;
+}
+
+/**
+ * The exact npm version a spec pins ("4.17.15", "=4.17.15", "v4.17.15"), or
+ * null for anything else: ranges (^ ~ < > <= >= || hyphen), wildcards, tags,
+ * and non-registry specs. A range is never reduced to a guessed version (#1049).
+ */
+export function exactNpmVersion(spec: string): string | null {
+  const m = /^=?v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/.exec(spec.trim());
+  return m ? m[1] : null;
+}
+
+/** A dependency spec that does not come from the npm registry (OSV cannot match it). */
+export function isNonRegistrySpec(spec: string): boolean {
+  const s = spec.trim();
+  return /^(workspace:|file:|link:|portal:|patch:|exec:|npm:|git\+|git:|github:|gitlab:|bitbucket:|https?:|\.{0,2}\/|~\/)/.test(s)
+    || /^[^\s@/:]+\/[^\s@/:]+(#.*)?$/.test(s); // GitHub "user/repo" shorthand
+}
 
 /**
  * True for a concrete version OSV can match ("4.17.15", "1.0rc1", "2.0.0-beta.1").
@@ -136,18 +163,33 @@ type RangeEvent = { introduced?: string; fixed?: string; last_affected?: string;
 
 /** OSV SEMVER range evaluation; null when an event version cannot be parsed. */
 function semverRangeAffects(version: SemverParts, events: RangeEvent[]): boolean | null {
-  const keyed: Array<{ at: SemverParts; kind: 'introduced' | 'fixed' | 'last_affected' }> = [];
+  // `at: null` is `introduced: "0"`: before every version, prereleases included.
+  const keyed: Array<{ at: SemverParts | null; kind: 'introduced' | 'fixed' | 'last_affected' }> = [];
   for (const e of events) {
     const kind = e.introduced !== undefined ? 'introduced' : e.fixed !== undefined ? 'fixed' : e.last_affected !== undefined ? 'last_affected' : null;
     if (!kind) continue; // `limit` does not change membership for a single version
     const raw = (e as Record<string, string>)[kind];
-    const at = kind === 'introduced' && raw === '0' ? { nums: [0, 0, 0] as [number, number, number], pre: [] } : parseSemver(raw);
+    if (kind === 'introduced' && raw === '0') {
+      keyed.push({ at: null, kind });
+      continue;
+    }
+    const at = parseSemver(raw);
     if (!at) return null;
     keyed.push({ at, kind });
   }
-  keyed.sort((a, b) => compareSemver(a.at, b.at));
+  // Sort by version; on a tie a fixed/last_affected closes the earlier window
+  // before an introduced at the same version opens the next one.
+  const tieRank = (kind: string) => (kind === 'introduced' ? 1 : 0);
+  keyed.sort((a, b) => {
+    if (!a.at || !b.at) return a.at === b.at ? 0 : a.at ? 1 : -1;
+    return compareSemver(a.at, b.at) || tieRank(a.kind) - tieRank(b.kind);
+  });
   let affected = false;
   for (const { at, kind } of keyed) {
+    if (!at) {
+      affected = true;
+      continue;
+    }
     const cmp = compareSemver(version, at);
     if (kind === 'introduced' && cmp >= 0) affected = true;
     else if (kind === 'fixed' && cmp >= 0) affected = false;

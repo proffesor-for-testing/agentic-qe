@@ -24,9 +24,11 @@ export const EXIT_DEPENDENCIES_UNMEASURED = 3;
  * `aqe security` exit contract:
  * 0 = every requested check completed, no medium+ findings
  * 1 = high/critical findings, non-compliance, or a non-dependency check incomplete/failed
- * 2 = medium findings only
+ * 2 = medium findings only, every requested check complete
  * 3 = dependency advisories could not be checked (failed or partial OSV lookup) and
- *     nothing above applies: UNMEASURED, never a clean exit (#1049)
+ *     there are no high/critical findings, non-compliance or other incomplete checks:
+ *     UNMEASURED, never a clean exit (#1049). Medium findings plus an incomplete
+ *     dependency scan also exit 3: the result is unmeasured, not a medium-only verdict.
  */
 export function securityExitCode(result: SecurityScanResult): number {
   const checks = result.checks ?? [];

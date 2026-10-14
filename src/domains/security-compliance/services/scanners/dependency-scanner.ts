@@ -21,6 +21,7 @@ import type {
   UncheckedDependency,
 } from './scanner-types.js';
 import { safeJsonParse } from '@shared/safe-json.js';
+import { readLockedVersions } from './lockfile-versions.js';
 
 // ============================================================================
 // Dependency Scanner Service
@@ -59,21 +60,34 @@ export class DependencyScanner {
    * `status: 'failed' | 'incomplete'`, `measured: false`, with the unchecked
    * dependencies and the error, never as a clean scan. Findings for the
    * dependencies that were checked are kept.
+   *
+   * Each dependency is checked at `lockedVersions[name]` when given (the
+   * lockfile's resolved version), else only when its spec is an exact version;
+   * a range with no lockfile resolution is reported unchecked, never guessed.
    */
   async scanDependencies(
-    dependencies: Record<string, string>
+    dependencies: Record<string, string>,
+    lockedVersions: Record<string, string> = {}
+  ): Promise<Result<DependencyScanResult>> {
+    if (Object.keys(dependencies).length === 0) {
+      return err(new Error('No dependencies provided for scanning'));
+    }
+    return this.runScan(dependencies, lockedVersions, null);
+  }
+
+  private async runScan(
+    dependencies: Record<string, string>,
+    lockedVersions: Record<string, string>,
+    lockfile: string | null,
+    lockfileError?: string
   ): Promise<Result<DependencyScanResult>> {
     const scanId = uuidv4();
     const startTime = Date.now();
 
     try {
-      if (Object.keys(dependencies).length === 0) {
-        return err(new Error('No dependencies provided for scanning'));
-      }
-
       this.activeScans.set(scanId, 'running');
 
-      const lookup = await this.osvClient.lookupNpmDependencies(dependencies);
+      const lookup = await this.osvClient.lookupNpmDependencies(dependencies, lockedVersions);
       const osvVulns = [...lookup.results.values()].flat();
       const vulnerabilities = this.convertOSVVulnerabilities(osvVulns, dependencies);
       const scanDurationMs = Date.now() - startTime;
@@ -84,7 +98,8 @@ export class DependencyScanner {
         version: dependencies[pkg.name] ?? pkg.version ?? 'unknown',
         reason: pkg.reason,
       }));
-      const error = lookup.status === 'complete' ? undefined : describeLookupFailure(lookup.errors, uncheckedPackages);
+      const error = lookup.status === 'complete' ? undefined
+        : describeLookupFailure(lookupErrors(lookup.errors, lockfileError), uncheckedPackages);
 
       const result: DependencyScanResult = {
         scanId,
@@ -97,6 +112,7 @@ export class DependencyScanner {
         measured: lookup.status === 'complete',
         packagesChecked: lookup.packagesChecked,
         uncheckedPackages,
+        lockfile,
         ...(error ? { error } : {}),
       };
 
@@ -126,11 +142,12 @@ export class DependencyScanner {
         ...(packageJson.optionalDependencies || {}),
       };
 
-      if (Object.keys(allDependencies).length === 0) {
-        return err(new Error('No dependencies found in package.json'));
-      }
-
-      return this.scanDependencies(allDependencies);
+      // #1049: a manifest with no dependencies is a complete scan of nothing
+      // (measured zero), not an unmeasured one.
+      const locked = Object.keys(allDependencies).length > 0
+        ? await readLockedVersions(packageJsonPath, allDependencies)
+        : { versions: {}, lockfile: null };
+      return this.runScan(allDependencies, locked.versions, locked.lockfile, locked.error);
     } catch (error) {
       if (error instanceof SyntaxError) {
         return err(new Error(`Invalid JSON in package.json: ${error.message}`));
@@ -252,6 +269,7 @@ export class DependencyScanner {
         packagesRequested: result.packagesScanned,
         packagesChecked: result.packagesChecked,
         uncheckedPackages: result.uncheckedPackages,
+        lockfile: result.lockfile ?? null,
         ...(result.error ? { error: result.error } : {}),
         vulnerabilities: result.vulnerabilities,
         summary: result.summary,
@@ -260,6 +278,11 @@ export class DependencyScanner {
       { namespace: 'security-compliance', ttl: 86400 * 7 }
     );
   }
+}
+
+/** Lookup errors plus a lockfile that exists but could not be read. */
+function lookupErrors(errors: string[], lockfileError?: string): string[] {
+  return lockfileError ? [...errors, lockfileError] : errors;
 }
 
 /** One bounded sentence naming why the advisory lookup is incomplete. */

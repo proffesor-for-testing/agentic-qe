@@ -20,6 +20,8 @@ import type { FilePath } from '../../../shared/value-objects/index.js';
 import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { OSVClient, type ParsedVulnerability } from '../../../shared/security/osv-client.js';
+import { exactNpmVersion, isNonRegistrySpec, lookupKey } from '../../../shared/security/osv-lookup.js';
+import { readLockedVersions } from './scanners/lockfile-versions.js';
 
 import type {
   DependencyScanResult,
@@ -395,8 +397,12 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           ...packageJson.optionalDependencies,
         };
 
+        // #1049: check the lockfile-resolved version, else an exact spec; a range
+        // is kept as-is so the OSV lookup reports it unchecked instead of guessing.
+        const locked = await readLockedVersions(manifest, allDeps);
         for (const [name, versionSpec] of Object.entries(allDeps)) {
-          const version = this.cleanVersionSpec(versionSpec);
+          const lockedVersion = locked.versions[name] !== undefined ? exactNpmVersion(locked.versions[name]) : null;
+          const version = isNonRegistrySpec(versionSpec) ? versionSpec : lockedVersion ?? exactNpmVersion(versionSpec) ?? versionSpec;
           dependencies.push({ name, version, ecosystem: 'npm' });
         }
       } else if (ecosystem === 'pip') {
@@ -407,11 +413,14 @@ export class SecurityAuditorService implements ISecurityAuditorService {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith('#')) continue;
 
-          const match = trimmed.match(/^([a-zA-Z0-9_-]+)(?:[=<>~!]+(.+))?$/);
+          // Only an `==` pin is a concrete version; any other specifier is kept
+          // verbatim so the lookup reports it unchecked (#1049).
+          const match = trimmed.match(/^([a-zA-Z0-9_.-]+)\s*(===?|>=|<=|~=|!=|>|<)?\s*([^\s;#]+)?/);
           if (match) {
+            const [, name, op, value] = match;
             dependencies.push({
-              name: match[1],
-              version: match[2] || 'latest',
+              name,
+              version: value && (op === '==' || op === '===') ? value : op && value ? `${op}${value}` : '*',
               ecosystem: 'pip',
             });
           }
@@ -426,10 +435,6 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     return dependencies;
   }
 
-  private cleanVersionSpec(versionSpec: string): string {
-    return versionSpec.replace(/^[\^~>=<]+/, '').trim();
-  }
-
   /**
    * Check dependencies against OSV advisories. A failed or partial lookup is
    * reported with the unchecked dependencies, never as "no vulnerabilities" (#1049).
@@ -440,7 +445,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     })));
     const vulnerabilities: Vulnerability[] = [];
     for (const dep of dependencies) {
-      const found = lookup.results.get(`${this.mapToOSVEcosystem(dep.ecosystem)}:${dep.name}`) ?? [];
+      const found = lookup.results.get(lookupKey({ ecosystem: this.mapToOSVEcosystem(dep.ecosystem), name: dep.name, version: dep.version })) ?? [];
       vulnerabilities.push(...found.map((parsed) => this.mapParsedVulnerability(parsed, dep)));
     }
     const uncheckedPackages = lookup.unchecked.map((pkg) => ({

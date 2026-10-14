@@ -105,6 +105,8 @@ interface IncompleteDependencyScan {
   status: 'incomplete' | 'failed' | 'unknown';
   error?: string;
   uncheckedPackages: UncheckedPackage[];
+  /** Packages the lookup did check, when the record states it. */
+  packagesChecked?: number;
 }
 
 /** The `security:lastScan` record: only scans that actually ran (#1043). */
@@ -178,14 +180,34 @@ function parseUnchecked(raw: unknown): UncheckedPackage[] {
  * every requested package (`measured: true` and `status: 'complete'`).
  */
 function dependencyCompleteness(raw: Record<string, unknown>):
-  { complete: true } | { complete: false; status: IncompleteDependencyScan['status']; error?: string; uncheckedPackages: UncheckedPackage[] } {
+  { complete: true } | {
+    complete: false; status: IncompleteDependencyScan['status']; error?: string;
+    uncheckedPackages: UncheckedPackage[]; packagesChecked?: number;
+  } {
   if (raw.measured === true && raw.status === 'complete') return { complete: true };
   return {
     complete: false,
     status: raw.status === 'incomplete' || raw.status === 'failed' ? raw.status : 'unknown',
     ...(typeof raw.error === 'string' && raw.error ? { error: raw.error } : {}),
     uncheckedPackages: parseUnchecked(raw.uncheckedPackages),
+    ...(isCount(raw.packagesChecked) ? { packagesChecked: raw.packagesChecked } : {}),
   };
+}
+
+const SEVERITY_LABEL: Record<Severity, string> = {
+  critical: 'Critical', high: 'High Severity', medium: 'Medium Severity', low: 'Low Severity', informational: 'Informational',
+};
+
+/** Health penalty for the real critical/high advisories of a partial dependency scan (#1049). */
+function partialDependencyPenalty(incomplete: IncompleteDependencyScan | null): number {
+  return incomplete ? incomplete.scan.summary.critical * 20 + incomplete.scan.summary.high * 10 : 0;
+}
+
+/** What a partial dependency scan did check; the dependency totals stay 'unmeasured' (#1049). */
+function partialDependencyMetrics(incomplete: IncompleteDependencyScan | null): Record<string, number> {
+  return incomplete
+    ? { dependencyVulnerabilitiesInCheckedPackages: incomplete.scan.total, dependencyPackagesUnchecked: incomplete.uncheckedPackages.length }
+    : {};
 }
 
 type ParsedScan =
@@ -243,15 +265,16 @@ export class SecurityScanWorker extends BaseWorker {
       return this.createResult(
         Date.now() - startTime,
         {
-          itemsAnalyzed: 0,
+          itemsAnalyzed: incompleteDependency?.scan.total ?? 0,
           issuesFound: findings.filter((f) => f.severity !== 'info').length,
-          healthScore: 100,
+          healthScore: Math.max(0, 100 - partialDependencyPenalty(incompleteDependency)),
           trend: 'stable',
           domainMetrics: {
             dependencyScan: 'unmeasured',
             codeScan: 'unmeasured',
             dependencyVulnerabilities: 'unmeasured',
             codeSecurityIssues: 'unmeasured',
+            ...partialDependencyMetrics(incompleteDependency),
           },
         },
         findings,
@@ -265,7 +288,7 @@ export class SecurityScanWorker extends BaseWorker {
     await context.memory.set(LAST_SCAN_KEY, scan);
     await context.memory.set('security:lastScanTime', scan.evaluatedAt);
 
-    const healthScore = this.calculateHealthScore(scan);
+    const healthScore = Math.max(0, this.calculateHealthScore(scan) - partialDependencyPenalty(incompleteDependency));
     context.logger.info('Security scan complete', {
       measured: true,
       healthScore,
@@ -285,6 +308,7 @@ export class SecurityScanWorker extends BaseWorker {
           codeScan: scan.code ? scan.code.scannedAt : 'unmeasured',
           dependencyVulnerabilities: scan.dependency ? scan.dependency.total : 'unmeasured',
           codeSecurityIssues: scan.code ? scan.code.total : 'unmeasured',
+          ...partialDependencyMetrics(incompleteDependency),
         },
       },
       findings,
@@ -320,6 +344,7 @@ export class SecurityScanWorker extends BaseWorker {
         status: completeness.status,
         ...(completeness.error ? { error: completeness.error } : {}),
         uncheckedPackages: completeness.uncheckedPackages,
+        ...(completeness.packagesChecked !== undefined ? { packagesChecked: completeness.packagesChecked } : {}),
       }
       : null;
 
@@ -343,8 +368,13 @@ export class SecurityScanWorker extends BaseWorker {
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
-    const { scan, status, error, uncheckedPackages } = incomplete;
+    const { scan, status, error, uncheckedPackages, packagesChecked } = incomplete;
     const unchecked = uncheckedPackages.map((p) => `${p.name}@${p.version} (${p.reason})`);
+    const counts = scan.summary;
+    const inChecked = scan.total > 0
+      ? ` OSV reported ${scan.total} advisory finding(s) in the ${packagesChecked ?? ''}${packagesChecked === undefined ? '' : ' '}checked package(s)` +
+        ` (${counts.critical} critical, ${counts.high} high, ${counts.medium} medium, ${counts.low} low); they are listed as separate findings.`
+      : '';
     const why = status === 'unknown'
       ? 'was recorded before scans stated whether every package was checked, so a failed lookup cannot be told apart from a clean one'
       : `is ${status}${error ? ` (${error})` : ''}`;
@@ -354,9 +384,13 @@ export class SecurityScanWorker extends BaseWorker {
       domain: 'security-compliance',
       title: 'Dependency Scan Unmeasured',
       description: `The latest dependency scan (${scan.scannedAt}) ${why}; its result is not a vulnerability count.` +
-        (unchecked.length > 0 ? ` Unchecked packages: ${unchecked.join(', ')}.` : '') +
+        (unchecked.length > 0 ? ` Unchecked packages: ${unchecked.join(', ')}.` : '') + inChecked +
         ' Re-run the dependency scan.',
-      context: { scanId: scan.scanId, status, ...(error ? { error } : {}), uncheckedPackages },
+      context: {
+        scanId: scan.scanId, status, ...(error ? { error } : {}), uncheckedPackages,
+        ...(packagesChecked !== undefined ? { packagesChecked } : {}),
+        advisoriesInCheckedPackages: scan.total,
+      },
     });
     this.analyzeDependencyVulnerabilities(scan, findings, recommendations, true);
   }
@@ -369,14 +403,19 @@ export class SecurityScanWorker extends BaseWorker {
   ): void {
     const critical = scan.vulnerabilities.filter(v => v.severity === 'critical');
     const high = scan.vulnerabilities.filter(v => v.severity === 'high');
+    // #1049: a complete scan carries medium/low in its counts; a partial scan has
+    // no measured count, so every advisory OSV returned for a checked package is relayed.
+    const relayed = partialScan
+      ? SEVERITIES.flatMap((s) => scan.vulnerabilities.filter(v => v.severity === s))
+      : [...critical, ...high];
 
-    for (const vuln of [...critical, ...high]) {
+    for (const vuln of relayed) {
       const pkg = vuln.package ?? vuln.title;
       findings.push({
         type: `${vuln.severity}-vulnerability`,
-        severity: vuln.severity as 'critical' | 'high',
+        severity: vuln.severity === 'informational' ? 'info' : vuln.severity,
         domain: 'security-compliance',
-        title: `${vuln.severity === 'critical' ? 'Critical' : 'High Severity'} Vulnerability in ${pkg}`,
+        title: `${SEVERITY_LABEL[vuln.severity]} Vulnerability in ${pkg}`,
         description: vuln.description ? `${vuln.title}: ${vuln.description}` : vuln.title,
         resource: pkg,
         context: {
