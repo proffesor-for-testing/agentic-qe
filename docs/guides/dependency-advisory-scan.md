@@ -68,8 +68,11 @@ member's `package.json`. Scanning a member directly checks only that member.
 - A symlinked directory is a member only if it holds a `package.json`; its
   real path decides: inside the project root it is a member (once, even if
   several links point at it), outside it is excluded, inside `node_modules` it
-  is ignored. The root itself is never a member. If the bounded symlink search
-  stops early (very large or deep trees), the scan is incomplete. A pattern
+  is ignored. The root itself is never a member. Symlinks are searched only
+  under each pattern's literal prefix (`packages/` for `packages/*`, to the
+  pattern's depth); only a `**` pattern can hit the search limits, and then
+  the scan is incomplete. Unrelated deep trees (`build/`, `target/`) are never
+  searched. A pattern
   that matches no package directory is reported as a `workspaceWarnings` note.
 - A member whose real path is outside the project root (`../` patterns,
   symlinks) is listed in `excludedMembers` and is never scanned or sent to OSV.

@@ -129,15 +129,21 @@ async function workspacePatterns(root: string, rootManifest: Manifest): Promise<
   try {
     const file = path.join(root, 'pnpm-workspace.yaml');
     // #1049 round 6: refuse an oversized file before reading or parsing it.
-    const { size } = await fs.stat(file);
-    if (size > MAX_PNPM_WORKSPACE_BYTES) {
-      errors.push(`pnpm-workspace.yaml is ${size} bytes (limit ${MAX_PNPM_WORKSPACE_BYTES}); not parsed, workspace members may be missing`);
+    const st = await fs.stat(file);
+    if (!st.isFile()) {
+      // Round 7: a device or FIFO (e.g. a link to /dev/zero) is not read at all.
+      errors.push('pnpm-workspace.yaml is not a regular file; not read, workspace members may be missing');
+    } else if (st.size > MAX_PNPM_WORKSPACE_BYTES) {
+      errors.push(`pnpm-workspace.yaml is ${st.size} bytes (limit ${MAX_PNPM_WORKSPACE_BYTES}); not parsed, workspace members may be missing`);
     } else {
       text = await fs.readFile(file, 'utf-8');
     }
   } catch (e) {
+    // Any read error except "no such file" — including one without a code — is reported.
     const code = (e as NodeJS.ErrnoException).code;
-    if (code && code !== 'ENOENT') errors.push(`pnpm-workspace.yaml could not be read (${(e as NodeJS.ErrnoException).code ?? 'error'})`);
+    if (code !== 'ENOENT') {
+      errors.push(`pnpm-workspace.yaml could not be read (${code ?? (e instanceof Error ? e.message.slice(0, 80) : 'error')}); workspace members may be missing`);
+    }
   }
   if (text !== null) {
     // #1049 round 5: a real YAML parse; an unparsable file or a non-list `packages` is an error, never [].

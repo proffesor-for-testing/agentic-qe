@@ -106,17 +106,35 @@ export function workspaceGlobToRegExp(pattern: string): RegExp {
 export const SYMLINK_WALK_LIMITS = { maxDepth: 12, maxEntries: 50_000 } as const;
 
 /**
- * Symlinks under `root` (relative paths), found by walking real directories
- * only — a link is reported, never descended into. node_modules and .git are
- * skipped. The walk is bounded; `truncated` says it stopped early, in which
- * case symlinked members may be missing (the caller makes that an error).
+ * Where a pattern's symlinks can be: under its literal prefix (`packages` for
+ * `packages/*`), at most `depth` levels down (`null` = unbounded, for `**`).
+ * Round 7: the walk never leaves pattern scope, so unrelated deep trees
+ * (Android build/, Rust target/) cannot hit a limit.
+ */
+export function patternScope(pattern: string): { base: string; depth: number | null } {
+  const segments = pattern.split('/');
+  const firstGlob = segments.findIndex((seg) => /[*?{}[\]()!]/.test(seg));
+  if (firstGlob < 0) return { base: pattern, depth: 0 };
+  const base = segments.slice(0, firstGlob).join('/');
+  return { base, depth: segments.slice(firstGlob).some((seg) => seg.includes('**')) ? null : segments.length - firstGlob };
+}
+
+/**
+ * Symlinks within a pattern's scope (relative to `root`), found by walking real
+ * directories only — a link is reported, never descended into. node_modules
+ * and dot-directories are skipped, as the glob does. A bounded-depth pattern
+ * stops at its own depth (+1, to see a symlinked package.json) without that
+ * counting as truncation; only a `**` pattern can hit the walk limits, and
+ * `truncated` then says the scope was not fully searched.
  */
 async function listSymlinks(
-  root: string, limits: { maxDepth: number; maxEntries: number } = SYMLINK_WALK_LIMITS,
+  root: string, scope: { base: string; depth: number | null },
+  limits: { maxDepth: number; maxEntries: number } = SYMLINK_WALK_LIMITS,
 ): Promise<{ links: string[]; truncated: string | null }> {
   const links: string[] = [];
   let seen = 0;
   let truncated: string | null = null;
+  const maxDepth = scope.depth === null ? limits.maxDepth : scope.depth + 1;
   const walk = async (rel: string, depth: number): Promise<void> => {
     if (truncated) return;
     let entries: import('fs').Dirent[];
@@ -127,23 +145,37 @@ async function listSymlinks(
     }
     for (const entry of entries) {
       if (++seen > limits.maxEntries) {
-        truncated = `stopped after ${limits.maxEntries} entries`;
+        truncated = `under "${scope.base || '.'}" stopped after ${limits.maxEntries} entries`;
         return;
       }
-      if (entry.name === 'node_modules' || entry.name === '.git') continue;
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
       const child = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isSymbolicLink()) links.push(child);
       else if (entry.isDirectory()) {
-        if (depth + 1 > limits.maxDepth) {
-          truncated = `stopped at depth ${limits.maxDepth} (${child})`;
-          return;
+        if (depth + 1 > maxDepth) {
+          if (scope.depth === null) {
+            truncated = `under "${scope.base || '.'}" stopped at depth ${limits.maxDepth} (${child})`;
+            return;
+          }
+          continue; // beyond this pattern's own depth: out of scope
         }
         await walk(child, depth + 1);
         if (truncated) return;
       }
     }
   };
-  await walk('', 0);
+  const start = scope.base;
+  if (start) {
+    // The literal prefix itself may be a link (or missing).
+    try {
+      const st = await fs.lstat(path.join(root, start));
+      if (st.isSymbolicLink()) return { links: [start], truncated: null };
+      if (!st.isDirectory()) return { links, truncated: null };
+    } catch {
+      return { links, truncated: null };
+    }
+  }
+  await walk(start, 0);
   return { links, truncated };
 }
 
@@ -208,9 +240,13 @@ export async function expandWorkspaces(
   // `!dir/**` also excludes `dir` itself (a symlinked dir is matched as `dir`).
   const negatedPath = (member: string): boolean => negations.some((n) => workspaceGlobToRegExp(n).test(member)
     || (n.endsWith('/**') && workspaceGlobToRegExp(n.slice(0, -3)).test(member)));
-  const walk = positives.length > 0 ? await listSymlinks(root, limits) : { links: [], truncated: null };
-  const symlinks = walk.links;
-  if (walk.truncated) errors.push(`workspace symlink search ${walk.truncated}; symlinked workspace members may be missing`);
+  const symlinkSet = new Set<string>();
+  for (const pattern of positives) {
+    const scoped = await listSymlinks(root, patternScope(pattern), limits);
+    for (const link of scoped.links) symlinkSet.add(link);
+    if (scoped.truncated) errors.push(`workspace symlink search ${scoped.truncated}; symlinked workspace members may be missing`);
+  }
+  const symlinks = [...symlinkSet];
   const candidates = new Set<string>();
   for (const pattern of positives) {
     try {
