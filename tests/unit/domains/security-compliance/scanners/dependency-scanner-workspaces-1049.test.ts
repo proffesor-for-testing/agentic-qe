@@ -12,7 +12,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
-import { expandWorkspaces, pnpmWorkspacePatterns, workspaceGlobToRegExp } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
+import { expandWorkspaces, patternScope, pnpmWorkspacePatterns, workspaceGlobToRegExp } from '../../../../../src/domains/security-compliance/services/scanners/workspace-members';
 import { readFileSync } from 'node:fs';
 import { parseLockfile } from '../../../../../src/domains/security-compliance/services/scanners/lockfile-versions';
 import { OSVClient } from '../../../../../src/shared/security/osv-client';
@@ -338,9 +338,9 @@ describe('round 6: bounded YAML, package-only symlinks, merge keys, dedup, limit
   it('the symlink walk reports its limit as an error instead of dropping members silently', async () => {
     const root = repo({ 'package.json': { name: 'mono' }, 'a/b/c/package.json': { name: 'x' }, 'd/package.json': { name: 'd' } });
     const byEntries = await expandWorkspaces(root, ['**'], [], { maxDepth: 12, maxEntries: 2 });
-    expect(byEntries.errors).toEqual([expect.stringMatching(/symlink search stopped after 2 entries/)]);
+    expect(byEntries.errors).toEqual([expect.stringMatching(/symlink search under "\." stopped after 2 entries/)]);
     const byDepth = await expandWorkspaces(root, ['**'], [], { maxDepth: 1, maxEntries: 50_000 });
-    expect(byDepth.errors).toEqual([expect.stringMatching(/symlink search stopped at depth 1/)]);
+    expect(byDepth.errors).toEqual([expect.stringMatching(/symlink search under "\." stopped at depth 1/)]);
   });
 
   it('a "dir/**" negation also excludes a symlinked dir', async () => {
@@ -367,6 +367,56 @@ describe('round 6: bounded YAML, package-only symlinks, merge keys, dedup, limit
     const t0 = Date.now();
     expect(parseLockfile('pnpm-lock.yaml', lock).members()).toHaveLength(8000);
     expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it('round 7 (B1): deep build/ and big target/ trees outside pattern scope never make the scan incomplete', async () => {
+    const deep = Array.from({ length: 16 }, (_, i) => `d${i}`).join('/');
+    const files: Record<string, string | object> = {
+      'package.json': { name: 'mono', workspaces: ['apps/*', 'packages/*'] },
+      'apps/mobile/package.json': { name: 'mobile', dependencies: { minimist: '1.2.5' } },
+      [`apps/mobile/android/build/${deep}/R.txt`]: 'x',
+      'libs/real/package.json': { name: 'real', dependencies: { qs: '6.7.0' } },
+    };
+    for (let i = 0; i < 300; i++) files[`apps/desktop/src-tauri/target/debug/deps/f${i}.rlib`] = 'x';
+    const root = repo(files);
+    mkdirSync(path.join(root, 'packages'));
+    symlinkSync(path.join(root, 'libs', 'real'), path.join(root, 'packages', 'real'), 'dir');
+    // Tight limits: an unscoped walk (round 6) hits them; the scoped walk must not.
+    const expansion = await expandWorkspaces(root, ['apps/*', 'packages/*'], [], { maxDepth: 12, maxEntries: 100 });
+    expect(expansion.errors).toEqual([]);
+    expect(expansion.members).toEqual(['apps/mobile', 'packages/real']);
+    const value = await scan(root);
+    expect(value).toMatchObject({ status: 'complete', resolutionErrors: [], workspaceMembers: ['apps/mobile', 'packages/real'] });
+    expect(queried.sort()).toEqual(['minimist@1.2.5', 'qs@6.7.0']);
+  });
+
+  it('round 7: pattern scope is the literal prefix, bounded by the pattern depth unless it has **', () => {
+    expect(patternScope('packages/*')).toEqual({ base: 'packages', depth: 1 });
+    expect(patternScope('apps/*/*')).toEqual({ base: 'apps', depth: 2 });
+    expect(patternScope('apps/**')).toEqual({ base: 'apps', depth: null });
+    expect(patternScope('linked')).toEqual({ base: 'linked', depth: 0 });
+    expect(patternScope('{a,b}/*')).toEqual({ base: '', depth: 2 });
+  });
+
+  it('round 7 (B2): a 720-byte merge-key bomb returns quickly as an error (incomplete), never hangs', async () => {
+    let bomb = "packages:\n  - 'packages/*'\nl0: &l0 {k0: 1}\n";
+    for (let n = 1; n <= 11; n++) bomb += `l${n}: &l${n}\n  <<: [${Array(9).fill(`*l${n - 1}`).join(', ')}]\n  k${n}: ${n}\n`;
+    const t0 = Date.now();
+    const parsed = pnpmWorkspacePatterns(bomb);
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(parsed).toEqual({ error: expect.stringMatching(/could not be parsed \(.*alias/i) });
+    const root = repo({ 'package.json': { name: 'mono' }, 'pnpm-workspace.yaml': bomb, ...web });
+    const value = await scan(root);
+    expect(value.status).not.toBe('complete');
+    expect(value.resolutionErrors).toEqual([expect.stringMatching(/pnpm-workspace\.yaml could not be parsed/)]);
+  });
+
+  it('round 7: a pnpm-workspace.yaml that is not a regular file (link to /dev/zero) is reported, not silently ignored', async () => {
+    const root = repo({ 'package.json': { name: 'mono', dependencies: { minimist: '1.2.5' } } });
+    symlinkSync('/dev/zero', path.join(root, 'pnpm-workspace.yaml'));
+    const value = await scan(root);
+    expect(value.status).not.toBe('complete');
+    expect(value.resolutionErrors).toEqual([expect.stringMatching(/pnpm-workspace\.yaml is not a regular file/)]);
   });
 
   it('the source holds no literal BOM character (the regex uses the \\uFEFF escape)', () => {
