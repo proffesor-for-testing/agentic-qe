@@ -88,7 +88,7 @@ describe('#933 saveResults is advertised by every result-saving domain tool', ()
       'Save a manifest and report under .agentic-qe/results/tests/ (default true). Set false to generate without writing any files under .agentic-qe/results/. The server state store (.agentic-qe/memory.db) is updated either way.',
     );
     expect(tool.description).toBe(
-      'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
+      'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/, plus each generated test source under .agentic-qe/results/tests/generated/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
     );
   });
 

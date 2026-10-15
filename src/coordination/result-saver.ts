@@ -12,6 +12,9 @@ import { getProjectStorePath } from '../kernel/project-root.js';
 import type { SecurityScanEvidence } from '../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../domains/security-compliance/interfaces.js';
 
+/** Cap on the sanitized stem of a generated test file name (see generatedTestFilename). */
+const MAX_GENERATED_STEM_LENGTH = 100;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -279,7 +282,7 @@ export class ResultSaver {
     const files: SavedFile[] = [];
     const data = result as {
       testsGenerated: number;
-      tests: Array<{ name: string; file: string; type: string; code?: string }>;
+      tests: Array<{ name: string; file: string; type: string; testCode?: string; code?: string }>;
       coverageEstimate: number | null;
       patternsUsed: string[];
     };
@@ -303,14 +306,27 @@ export class ResultSaver {
     // Save individual test files if code is provided
     if (data.tests) {
       for (const test of data.tests) {
-        if (test.code) {
+        // The test-generation domain returns `testCode`; retain `code` for
+        // older callers of ResultSaver that already use that field.
+        const code = test.testCode ?? test.code;
+        if (code) {
           const ext = this.getTestExtension(options.language || 'typescript', options.framework || 'vitest');
-          const testFilename = this.sanitizeFilename(test.name) + ext;
+          const testFilename = this.generatedTestFilename(test, ext);
           const testPath = path.join(testDir, testFilename);
           // Review of #1026 N7: a generated test keeps one file per test name
           // (replaced atomically), unlike reports, so numbered copies never
           // pile up for a test runner to collect.
-          files.push(await this.replaceFile(testPath, test.code, 'source'));
+          //
+          // One unwritable source file (e.g. a name the filesystem rejects)
+          // must not discard the manifest and report, so a per-file failure is
+          // skipped; `files` then lists only what is actually on disk.
+          try {
+            files.push(await this.replaceFile(testPath, code, 'source'));
+          } catch (error) {
+            console.warn(
+              `ResultSaver: could not write generated test ${testFilename}: ${(error as Error).message}`
+            );
+          }
         }
       }
     }
@@ -756,7 +772,7 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
   // Utilities
   // ==========================================================================
 
-  private async ensureDirectories(taskType: TaskType): Promise<void> {
+  private async ensureDirectories(_taskType: TaskType): Promise<void> {
     const dirs = [
       this.resultsDir,
       path.join(this.resultsDir, 'security'),
@@ -816,6 +832,23 @@ ${data.recommendations.length === 0 ? noRecommendations : data.recommendations.m
       }
     }
     throw new Error(`ResultSaver: no free file name for ${filePath}`);
+  }
+
+  /**
+   * File name for a generated test source: the sanitized name capped at
+   * MAX_GENERATED_STEM_LENGTH characters (a long source file name would
+   * otherwise exceed the filesystem's 255-byte limit once the temp-file suffix
+   * is added) plus a short hash of the source path and full name. The hash keeps
+   * `src/one/math.ts` and `src/two/math.ts` (or a truncated long name) from
+   * overwriting each other, while the same test still maps to the same file.
+   */
+  private generatedTestFilename(test: { name: string; file?: string }, ext: string): string {
+    const stem = this.sanitizeFilename(test.name).slice(0, MAX_GENERATED_STEM_LENGTH) || 'test';
+    const hash = createHash('sha256')
+      .update(`${test.file ?? ''}\0${test.name}`)
+      .digest('hex')
+      .slice(0, 8);
+    return `${stem}-${hash}${ext}`;
   }
 
   private sanitizeFilename(name: string): string {

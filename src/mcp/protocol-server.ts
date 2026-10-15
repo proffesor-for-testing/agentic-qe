@@ -1079,7 +1079,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_generate_enhanced',
-        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
+        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/, plus each generated test source under .agentic-qe/results/tests/generated/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
         category: 'domain',
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
