@@ -12,17 +12,31 @@ import type { SecurityScannerConfig } from '../../../../../src/domains/security-
 // Mocks
 // ---------------------------------------------------------------------------
 
+// A complete OSV lookup (#1049 shape, keyed ecosystem:name@version) over the queried packages.
+type Query = { name: string; ecosystem: string; version: string };
+const completeLookup = (pkgs: Query[], vulns: Array<{ affectedPackage: string }> = []) => {
+  const results = new Map<string, unknown[]>();
+  for (const p of pkgs) {
+    results.set(`${p.ecosystem}:${p.name}@${p.version}`, vulns.filter((v) => v.affectedPackage === p.name));
+  }
+  return { status: 'complete', results, packagesRequested: pkgs.length, packagesChecked: pkgs.length, unchecked: [], errors: [] };
+};
+
 // Shared mock function that tests can override
-const mockScanNpmDependencies = vi.fn().mockResolvedValue([]);
+const mockLookupBatch = vi.fn(async (pkgs: Query[]) => completeLookup(pkgs));
 
 vi.mock('../../../../../src/shared/security/index.js', () => ({
   OSVClient: class MockOSVClient {
-    scanNpmDependencies = mockScanNpmDependencies;
+    lookupBatch = mockLookupBatch;
     constructor() {}
   },
 }));
 
 vi.mock('fs/promises', () => ({
+  // No pnpm-workspace.yaml / lockfile in this mocked filesystem.
+  stat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
+  // pnpm-workspace.yaml is probed with lstat; any error other than ENOENT counts as a workspace root.
+  lstat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
   readFile: vi.fn(),
 }));
 
@@ -105,7 +119,7 @@ describe('DependencyScanner', () => {
 
     it('should_reportVulnerablePackages_when_osvFindsVulnerabilities', async () => {
       // Arrange - override the shared mock to return vulnerabilities
-      mockScanNpmDependencies.mockResolvedValueOnce([
+      mockLookupBatch.mockImplementationOnce(async (pkgs) => completeLookup(pkgs, [
         {
           id: 'GHSA-xxxx',
           summary: 'Prototype Pollution in lodash',
@@ -117,7 +131,7 @@ describe('DependencyScanner', () => {
           cveIds: ['CVE-2021-23337'],
           references: ['https://github.com/advisories/GHSA-xxxx'],
         },
-      ]);
+      ]));
 
       // Act
       const result = await scanner.scanDependencies({ lodash: '4.17.20' });
@@ -196,8 +210,8 @@ describe('DependencyScanner', () => {
       }
     });
 
-    it('should_returnError_when_noDependenciesInPackageJson', async () => {
-      // Arrange
+    it('should_returnCompleteEmptyScan_when_noDependenciesInPackageJson', async () => {
+      // Arrange: #1049 — nothing to check is a measured zero, not an unmeasured scan
       const { readFile } = await import('fs/promises');
       (readFile as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify({ name: 'test-pkg' }));
 
@@ -205,9 +219,9 @@ describe('DependencyScanner', () => {
       const result = await scanner.scanPackageJson('/project/package.json');
 
       // Assert
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error.message).toContain('No dependencies found');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value).toMatchObject({ status: 'complete', measured: true, packagesScanned: 0, uncheckedPackages: [] });
       }
     });
 

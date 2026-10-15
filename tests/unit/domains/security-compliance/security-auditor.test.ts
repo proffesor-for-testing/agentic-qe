@@ -3,7 +3,10 @@
  * Tests for audit functionality and dependency scanning
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi, type Mock } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import nodePath from 'node:path';
 import { SecurityAuditorService } from '../../../../src/domains/security-compliance/services/security-auditor';
 import type { MemoryBackend } from '../../../../src/kernel/interfaces';
 import type { FilePath } from '../../../../src/shared/value-objects';
@@ -37,12 +40,29 @@ const createMockFilePath = (path: string): FilePath => ({
 describe('SecurityAuditorService', () => {
   let service: SecurityAuditorService;
   let mockMemory: MemoryBackend;
+  // #1049: real manifests; an unreadable one is a failed scan, not "no dependencies".
+  let project: string;
+  beforeAll(() => {
+    project = mkdtempSync(nodePath.join(tmpdir(), 'aqe-auditor-'));
+    writeFileSync(nodePath.join(project, 'package.json'), JSON.stringify({ dependencies: { lodash: '4.17.15' } }));
+    writeFileSync(nodePath.join(project, 'requirements.txt'), 'requests==2.31.0\n');
+  });
+  afterAll(() => rmSync(project, { recursive: true, force: true }));
 
   beforeEach(() => {
     mockMemory = createMockMemoryBackend();
     service = new SecurityAuditorService(mockMemory);
     // Unit tests must not depend on registry latency or network availability.
     vi.spyOn(service as any, 'getLatestVersion').mockResolvedValue('9.9.9');
+    // ...nor on the OSV API: a complete lookup with no advisories (#1049 shape).
+    vi.spyOn((service as any).osvClient, 'lookupBatch').mockImplementation(async (pkgs: any[]) => ({
+      status: 'complete',
+      results: new Map(pkgs.map((p) => [`${p.ecosystem}:${p.name}@${p.version ?? ''}`, []])),
+      packagesRequested: pkgs.length,
+      packagesChecked: pkgs.length,
+      unchecked: [],
+      errors: [],
+    }));
   });
 
   afterEach(() => {
@@ -52,7 +72,7 @@ describe('SecurityAuditorService', () => {
   describe('Dependency Scanning', () => {
     describe('scanDependencies', () => {
       it('should scan npm manifest for vulnerabilities', async () => {
-        const manifestPath = createMockFilePath('/project/package.json');
+        const manifestPath = createMockFilePath(nodePath.join(project, 'package.json'));
 
         const result = await service.scanDependencies(manifestPath);
 
@@ -65,11 +85,17 @@ describe('SecurityAuditorService', () => {
       });
 
       it('should detect pip ecosystem from requirements.txt', async () => {
-        const manifestPath = createMockFilePath('/project/requirements.txt');
+        const manifestPath = createMockFilePath(nodePath.join(project, 'requirements.txt'));
 
         const result = await service.scanDependencies(manifestPath);
 
         expect(result.success).toBe(true);
+      });
+
+      it('should return error, not a clean scan, when the manifest cannot be read (#1049)', async () => {
+        const result = await service.scanDependencies(createMockFilePath(nodePath.join(project, 'missing', 'package.json')));
+
+        expect(result.success).toBe(false);
       });
 
       it('should return error for unknown manifest format', async () => {
@@ -84,7 +110,7 @@ describe('SecurityAuditorService', () => {
       });
 
       it('should detect known vulnerabilities in lodash', async () => {
-        const manifestPath = createMockFilePath('/project/package.json');
+        const manifestPath = createMockFilePath(nodePath.join(project, 'package.json'));
 
         const result = await service.scanDependencies(manifestPath);
 
@@ -102,7 +128,7 @@ describe('SecurityAuditorService', () => {
       });
 
       it('should store dependency scan results in memory', async () => {
-        const manifestPath = createMockFilePath('/project/package.json');
+        const manifestPath = createMockFilePath(nodePath.join(project, 'package.json'));
 
         await service.scanDependencies(manifestPath);
 

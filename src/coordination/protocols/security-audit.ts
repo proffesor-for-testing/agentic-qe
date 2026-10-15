@@ -336,6 +336,12 @@ export class SecurityAuditProtocol {
       if (depResult.success) {
         this.currentAudit = { ...this.currentAudit, dependencyResult: depResult.value };
         await this.publishDependencyVulnerabilities(depResult.value.vulnerabilities);
+        // #1049: a failed or partial advisory lookup (or a result without a
+        // status, which cannot show it was complete) is not a clean dependency scan.
+        if (depResult.value.status !== 'complete') {
+          this.recordIncompleteCheck(depResult.value.error
+            ?? `Dependency advisories could not be checked for ${depResult.value.uncheckedPackages?.length ?? 'unknown number of'} package(s)`);
+        }
       } else {
         this.recordIncompleteCheck('Dependency scan did not complete');
       }
@@ -498,6 +504,11 @@ export class SecurityAuditProtocol {
               vulnerabilities: scanResult.value.vulnerabilities,
               outdatedPackages: [],
               summary: scanResult.value.summary,
+              status: scanResult.value.status,
+              measured: scanResult.value.measured,
+              packagesChecked: scanResult.value.packagesChecked,
+              uncheckedPackages: scanResult.value.uncheckedPackages,
+              ...(scanResult.value.error ? { error: scanResult.value.error } : {}),
             });
           }
         }

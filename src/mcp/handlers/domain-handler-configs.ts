@@ -32,6 +32,7 @@ import {
 import { MetricsCollector } from '../metrics';
 import type { SecurityScanEvidence } from '../../domains/security-compliance/scan-evidence.js';
 import type { SecurityCoverage } from '../../domains/security-compliance/interfaces.js';
+import type { DependencyScanReport } from '../../domains/security-compliance/dependency-advisory-engine.js';
 import type { ExcludedQualityFile, PartialQualityMetric } from '../../domains/quality-assessment/interfaces.js';
 import { CallerInputError } from '../../shared/error-utils.js';
 
@@ -187,7 +188,9 @@ export interface SecurityScanResult {
   otherFilesScanned?: number;
   deepAnalysisPerformed?: boolean;
   analysisDepth?: string;
-  scanTypes?: { sast: boolean; dast: boolean };
+  scanTypes?: { sast: boolean; dast: boolean; dependencies?: boolean };
+  /** #1049: OSV dependency advisory scan; status other than 'complete' is not a clean result. */
+  dependencyScan?: DependencyScanReport;
   note?: string;
 }
 
@@ -867,11 +870,12 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     const scanTypes: string[] = [];
     if (params.sast !== false) scanTypes.push('SAST');
     if (params.dast) scanTypes.push('DAST');
+    if (params.dependencies) scanTypes.push('dependency advisories');
     return `Security scan (${scanTypes.join(', ')}) for ${params.target || 'project'}`;
   },
 
   mapToPayload: (params, routingResult) => {
-    for (const name of ['sast', 'dast'] as const) {
+    for (const name of ['sast', 'dast', 'dependencies'] as const) {
       if (params[name] !== undefined && typeof params[name] !== 'boolean') {
         throw new Error(`${name} must be a boolean`);
       }
@@ -879,6 +883,7 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     return {
       sast: params.sast !== false,
       dast: params.dast || false,
+      dependencies: params.dependencies === true,
       compliance: params.compliance || [],
       target: params.target || '.',
       targetUrl: params.targetUrl,
@@ -913,7 +918,8 @@ export const securityScanConfig: DomainHandlerConfig<SecurityScanParams, Securit
     } : {}),
     deepAnalysisPerformed: Boolean(data.evidence && data.deepAnalysisPerformed === true),
     analysisDepth: data.analysisDepth as string | undefined,
-    scanTypes: data.scanTypes as { sast: boolean; dast: boolean } | undefined,
+    scanTypes: data.scanTypes as SecurityScanResult['scanTypes'],
+    ...(data.dependencyScan ? { dependencyScan: data.dependencyScan as DependencyScanReport } : {}),
     note: data.note as string | undefined,
     duration,
     savedFiles,

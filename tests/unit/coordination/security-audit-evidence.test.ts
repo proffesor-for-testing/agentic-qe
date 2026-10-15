@@ -25,12 +25,31 @@ function setup(enableSecretScan = true, config: Partial<SecurityAuditConfig> = {
       engines: [{ id: 'patterns', requested: true, required: true, status: 'completed', scope: 'requested-files', analyzedFiles: 1, ruleIds: ['fixture-rule'], ruleCoverage: 'known', errors: [], limitations: [] }], limitations: [],
     },
   }));
-  vi.spyOn(protocol, 'scanDependencies').mockResolvedValue(ok({ vulnerabilities: [], outdatedPackages: [], summary }));
+  vi.spyOn(protocol, 'scanDependencies').mockResolvedValue(ok({
+    vulnerabilities: [], outdatedPackages: [], summary,
+    status: 'complete', measured: true, packagesChecked: 1, uncheckedPackages: [],
+  }));
   vi.spyOn(protocol, 'validateCompliance').mockResolvedValue(ok([]));
   return { protocol, memory, events };
 }
 
 describe('security audit execution evidence', () => {
+  it('#1049: a dependency scan whose advisories could not be checked is an incomplete check, not approval', async () => {
+    const { protocol } = setup(false);
+    vi.spyOn(protocol, 'scanDependencies').mockResolvedValue(ok({
+      vulnerabilities: [], outdatedPackages: [], summary,
+      status: 'failed', measured: false, packagesChecked: 0,
+      uncheckedPackages: [{ name: 'lodash', version: '4.17.15', reason: 'HTTP 503' }],
+      error: 'Dependency advisories could not be checked for 1 package(s): HTTP 503',
+    }));
+    const result = await protocol.execute('manual');
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.value.deploymentDecision.allowed).toBe(false);
+    expect(result.value.deploymentDecision.blockingIssues.join(' ')).toContain('Dependency advisories could not be checked for 1 package(s)');
+  });
+
+
   it('does not approve when no audit has run', async () => {
     const { protocol } = setup(false);
     expect((await protocol.generateReport()).deploymentDecision.allowed).toBe(false);

@@ -18,6 +18,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { bareSearchKey } from '../namespaced-keys';
 import { BaseWorker } from '../base-worker';
 import {
   WorkerConfig,
@@ -255,7 +256,9 @@ export class DefectPredictorWorker extends BaseWorker {
     const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
     let latest: ReturnType<typeof parsePredictionRecord> = null;
-    for (const key of keys) {
+    for (const found of keys) {
+      // #1049: the in-memory backend returns `<namespace>:<key>` from a namespaced search.
+      const key = bareSearchKey(found, DEFECT_NAMESPACE, PREDICTION_KEY_PATTERN);
       const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
       if (parsed && (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp))) latest = parsed;
     }

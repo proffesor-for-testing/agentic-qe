@@ -278,6 +278,38 @@ export interface DependencyScanResult {
   readonly vulnerabilities: Vulnerability[];
   readonly outdatedPackages: OutdatedPackage[];
   readonly summary: ScanSummary;
+  /**
+   * #1049: whether the advisory lookup covered every dependency. Only
+   * 'complete' is a measurement; 'incomplete' findings are real but partial,
+   * and 'failed' means no dependency was checked (never "0 vulnerabilities").
+   */
+  readonly status: 'complete' | 'incomplete' | 'failed';
+  /** True only when status is 'complete'. */
+  readonly measured: boolean;
+  readonly packagesChecked: number;
+  readonly uncheckedPackages: UncheckedDependency[];
+  /** Why the scan is incomplete/failed; absent when complete. */
+  readonly error?: string;
+}
+
+/** A dependency whose advisories could not be checked, and why (#1049). */
+export interface UncheckedDependency {
+  readonly name: string;
+  /** The spec as declared in the manifest. */
+  readonly version: string;
+  readonly reason: string;
+  /** Workspace member the dependency belongs to (absent for the scanned package itself). */
+  readonly member?: string;
+  /** The lockfile-resolved version, when the lockfile has one. */
+  readonly lockedVersion?: string;
+}
+
+/** A local (workspace / linked / file-directory) package: not an OSV subject (#1049). */
+export interface LocalDependency {
+  readonly name: string;
+  readonly spec: string;
+  readonly reason: string;
+  readonly member?: string;
 }
 
 export interface PackageSecurityInfo {
