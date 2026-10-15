@@ -119,6 +119,25 @@ describe('SecurityAuditorService OSV failures (#1049)', () => {
     }
   });
 
+  it('#1057: an empty workspace root audit is incomplete (as in the scanner), not failed; a settings-only pnpm-workspace.yaml is complete', async () => {
+    handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+    const ws = mkdtempSync(path.join(tmpdir(), 'aqe-1049-auditor-empty-ws-'));
+    try {
+      const file = path.join(ws, 'package.json');
+      writeFileSync(file, JSON.stringify({ workspaces: ['packages/*'] }));
+      const { service } = auditor();
+      const empty = await service.scanDependencies({ value: file, filename: 'package.json' } as FilePath);
+      expect(empty.success && empty.value).toMatchObject({ status: 'incomplete', measured: false, packagesChecked: 0 });
+
+      writeFileSync(file, JSON.stringify({ dependencies: { 'left-pad': '1.3.0' } }));
+      writeFileSync(path.join(ws, 'pnpm-workspace.yaml'), 'nodeLinker: hoisted\n');
+      const settings = await service.scanDependencies({ value: file, filename: 'package.json' } as FilePath);
+      expect(settings.success && settings.value).toMatchObject({ status: 'complete', measured: true, uncheckedPackages: [] });
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
   it('checkPackage returns an error, not an empty vulnerability list, when OSV fails', async () => {
     handler = (_req, _body, res) => { res.writeHead(200); res.end('<html>oops'); };
     const { service } = auditor();

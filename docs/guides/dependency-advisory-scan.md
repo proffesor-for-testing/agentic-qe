@@ -58,8 +58,13 @@ incomplete.
 
 **Workspace member dependencies are not scanned yet**
 ([#1057](https://github.com/proffesor-for-testing/agentic-qe/issues/1057)).
-A workspace root is a package.json with a `workspaces` field (array or
-object), or a directory with a `pnpm-workspace.yaml`. Scanning one checks only
+A workspace root is a package.json whose `workspaces` is a non-empty array
+(or an object with a non-empty `packages`), or a directory whose
+`pnpm-workspace.yaml` declares `packages`. A `pnpm-workspace.yaml` that only
+holds settings (pnpm 10+ writes `nodeLinker`, `onlyBuiltDependencies`, ... there
+even for a single package), or has `packages: []`, does not make a workspace.
+One that cannot be read or parsed, or is larger than 1 MB, counts as a
+workspace root, so the scan is never wrongly complete. Scanning one checks only
 the root's own dependencies and reports the scan as **incomplete**:
 `resolutionErrors` says "workspace member dependencies are not scanned yet
 (#1057); scan each member directory separately". The CLI exits 3, or 1 if the

@@ -25,6 +25,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import semver from 'semver';
+import { parse as parseYaml } from 'yaml';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { classifyNpmSpec, exactNpmVersion } from '@shared/security/osv-lookup.js';
 import { LOCKFILES, parseLockfile, type LockIndex, type LockfileName } from './lockfile-versions.js';
@@ -124,19 +125,49 @@ function isInside(root: string, child: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
+/** Largest pnpm-workspace.yaml that is read; a larger one counts as a workspace root. */
+const MAX_PNPM_WORKSPACE_BYTES = 1024 * 1024;
+
+const nonEmptyArray = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
+
 /**
- * A workspace root, detected without reading any glob: package.json has a
- * `workspaces` field (array or object), or a pnpm-workspace.yaml exists.
+ * A workspace root, detected without expanding any glob: package.json
+ * `workspaces` is a non-empty array or an object with a non-empty `packages`,
+ * or a pnpm-workspace.yaml declares workspace packages.
  */
 async function isWorkspaceRoot(dir: string, manifest: Manifest): Promise<boolean> {
   const ws = manifest.workspaces;
-  if (Array.isArray(ws) || (ws !== null && typeof ws === 'object')) return true;
+  if (nonEmptyArray(ws)) return true;
+  if (ws !== null && typeof ws === 'object' && nonEmptyArray((ws as { packages?: unknown }).packages)) return true;
+  return pnpmDeclaresPackages(path.join(dir, 'pnpm-workspace.yaml'));
+}
+
+/**
+ * pnpm 10+ keeps project settings (nodeLinker, onlyBuiltDependencies, ...) in
+ * pnpm-workspace.yaml even for a single package, so only a file that declares
+ * `packages` is a workspace root. Fail closed: an unreadable, oversized,
+ * non-regular, dangling or unparsable file, or a `packages` that is not a list,
+ * counts as a root. No file, a map without `packages`, or `packages: []` does not.
+ */
+async function pnpmDeclaresPackages(file: string): Promise<boolean> {
   try {
-    await fs.lstat(path.join(dir, 'pnpm-workspace.yaml'));
-    return true;
-  } catch {
-    return false;
+    await fs.lstat(file);
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code !== 'ENOENT';
   }
+  let doc: unknown;
+  try {
+    const st = await fs.stat(file); // follows a link; a dangling one throws
+    if (!st.isFile() || st.size > MAX_PNPM_WORKSPACE_BYTES) return true;
+    const text = await fs.readFile(file, 'utf-8');
+    doc = parseYaml(text, { uniqueKeys: false, merge: true, maxAliasCount: 100 });
+  } catch {
+    return true;
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return true;
+  if (!Object.prototype.hasOwnProperty.call(doc, 'packages')) return false;
+  const packages = (doc as { packages: unknown }).packages;
+  return !Array.isArray(packages) || packages.length > 0;
 }
 
 /** Resolve one declared dependency of `member`. */

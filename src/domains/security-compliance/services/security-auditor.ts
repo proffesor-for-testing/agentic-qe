@@ -91,6 +91,9 @@ import {
 
 const logger = LoggerFactory.create('security-compliance/security-auditor');
 
+/** Name of an unchecked entry that stands for a planning error (malformed lockfile, workspace root #1057). */
+const PLANNING_ENTRY = '(dependency plan)';
+
 /** Outcome of checking dependencies against OSV advisories (#1049). */
 interface DependencyAdvisoryOutcome {
   vulnerabilities: Vulnerability[];
@@ -460,7 +463,7 @@ export class SecurityAuditorService implements ISecurityAuditorService {
       }
     }
     for (const reason of [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors]) {
-      preUnchecked.push({ name: '(dependency plan)', version: '*', reason });
+      preUnchecked.push({ name: PLANNING_ENTRY, version: '*', reason });
     }
     return { dependencies, preUnchecked };
   }
@@ -486,7 +489,11 @@ export class SecurityAuditorService implements ISecurityAuditorService {
     }))];
     const reasons = lookup.errors.length > 0 ? lookup.errors : [...new Set(uncheckedPackages.map((p) => p.reason))];
     const requested = lookup.packagesChecked + uncheckedPackages.length;
-    const status = lookup.packagesChecked === requested ? 'complete' : lookup.packagesChecked === 0 ? 'failed' : 'incomplete';
+    // `failed` only when a real package was to be checked and none was; a planning
+    // error alone (e.g. an empty workspace root) is incomplete, as in the scanner.
+    const realRequested = requested - uncheckedPackages.filter((p) => p.name === PLANNING_ENTRY).length;
+    const status = lookup.packagesChecked === requested ? 'complete'
+      : lookup.packagesChecked === 0 && realRequested > 0 ? 'failed' : 'incomplete';
     return {
       vulnerabilities,
       status,

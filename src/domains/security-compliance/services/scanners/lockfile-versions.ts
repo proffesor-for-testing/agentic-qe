@@ -176,6 +176,9 @@ function cutAt(s: string, ch: string): string {
   return i < 0 ? s : s.slice(0, i);
 }
 
+/** A pnpm alias target: a valid npm package name (optionally scoped), then "@" or "/" and a version. */
+const PNPM_ALIAS = /^(?:npm:|\/)?((?:@[a-zA-Z0-9~-][a-zA-Z0-9._~-]*\/)?[a-zA-Z0-9~-][a-zA-Z0-9._~-]*)[@/](\d\S*)$/;
+
 function pnpmIndex(text: string): LockIndex {
   const lines = text.split(/\r?\n/);
   const importers = new Map<string, Map<string, PnpmDep>>();
@@ -198,7 +201,11 @@ function pnpmIndex(text: string): LockIndex {
   const parseVersion = (raw: string): LockedEntry => {
     const v = cutAt(raw, '(').trim();
     if (v.startsWith('link:') || v.startsWith('file:') || v.startsWith('workspace:')) return { local: true };
-    const alias = /^\/?((?:@[^/@]+\/)?[^/@]+)[@/](\d[^\s]*)$/.exec(v);
+    // A plain version, with a peer suffix: v5 "16.0.0_react@16.0.0" / "18.2.0_@types+react@18.0.0",
+    // v6+ "16.0.0(react@16.0.0)" (already cut at "("). Never an alias (#1049 scope-cut re-check).
+    if (/^\d/.test(v)) return { version: cutAt(v, '_') };
+    // An alias: v5 "/name/1.2.3", v6 "/name@1.2.3", v9 "name@1.2.3", or "npm:name@1.2.3".
+    const alias = PNPM_ALIAS.exec(v);
     if (alias) return { version: cutAt(alias[2], '_'), realName: alias[1] };
     return { version: cutAt(v, '_') };
   };

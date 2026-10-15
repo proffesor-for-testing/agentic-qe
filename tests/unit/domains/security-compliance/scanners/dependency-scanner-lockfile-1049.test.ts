@@ -321,3 +321,93 @@ describe('lockfile index', () => {
     expect(berry.resolve('', '@m/a', 'workspace:packages/a')).toEqual({ local: true });
   });
 });
+
+describe('scope-cut re-check B1: pnpm peer suffixes are versions, never aliases', () => {
+  // Real importer lines from `npx pnpm@7 install --lockfile-only` (v5.4), pnpm 8 (v6.0) and pnpm 11 (v9.0).
+  const DECLARED = { react: '16.0.0', 'react-dom': '16.0.0', '@types/react': '18.0.0', 'react-redux': '8.0.5',
+    'x-lodash': 'npm:lodash@4.17.11', '@my/types-node': 'npm:@types/node@18.0.0' };
+  const v54 = ['lockfileVersion: 5.4', '', 'specifiers:', "  '@my/types-node': npm:@types/node@18.0.0", "  '@types/react': 18.0.0",
+    '  react: 16.0.0', '  react-dom: 16.0.0', '  react-redux: 8.0.5', '  x-lodash: npm:lodash@4.17.11', '', 'dependencies:',
+    "  '@my/types-node': /@types/node/18.0.0", "  '@types/react': 18.0.0", '  react: 16.0.0', '  react-dom: 16.0.0_react@16.0.0',
+    '  react-redux: 8.0.5_4ygthk45pujmhpktasijm4ully', '  x-lodash: /lodash/4.17.11', '', 'packages:', ''].join('\n');
+  const importer = (indent: string, versions: Record<string, string>) => Object.entries(DECLARED).flatMap(([n, s]) => [
+    `${indent}'${n}':`, `${indent}  specifier: ${s}`, `${indent}  version: ${versions[n]}`]);
+  const v60 = ["lockfileVersion: '6.0'", '', 'dependencies:', ...importer('  ', {
+    '@my/types-node': '/@types/node@18.0.0', '@types/react': '18.0.0', react: '16.0.0', 'react-dom': '16.0.0(react@16.0.0)',
+    'react-redux': '8.0.5(@types/react@18.0.0)(react-dom@16.0.0)(react@16.0.0)', 'x-lodash': '/lodash@4.17.11' }), ''].join('\n');
+  const v90 = ["lockfileVersion: '9.0'", '', 'importers:', '', '  .:', '    dependencies:', ...importer('      ', {
+    '@my/types-node': "'@types/node@18.0.0'", '@types/react': '18.0.0', react: '16.0.0', 'react-dom': '16.0.0(react@16.0.0)',
+    'react-redux': '8.0.5(@types/react@18.0.0)(react-dom@16.0.0(react@16.0.0))(react@16.0.0)', 'x-lodash': 'lodash@4.17.11' }), ''].join('\n');
+  const expected = {
+    react: { version: '16.0.0' }, 'react-dom': { version: '16.0.0' }, '@types/react': { version: '18.0.0' },
+    'react-redux': { version: '8.0.5' }, 'x-lodash': { version: '4.17.11', realName: 'lodash' },
+    '@my/types-node': { version: '18.0.0', realName: '@types/node' },
+  };
+
+  it.each([['v5.4 (pnpm 7)', v54], ['v6.0 (pnpm 8)', v60], ['v9.0 (pnpm 11)', v90]])('%s: versions and aliases', (_label, text) => {
+    const index = parseLockfile('pnpm-lock.yaml', text);
+    for (const [name, want] of Object.entries(expected)) {
+      expect(index.resolve('', name, DECLARED[name as keyof typeof DECLARED]), name).toEqual(want);
+    }
+  });
+
+  it('v5.4 scoped and hashed peer suffixes stay plain versions; "_" inside an alias name is kept', () => {
+    const index = parseLockfile('pnpm-lock.yaml', ['lockfileVersion: 5.4', '', 'specifiers:', '  a: 3.3.7', '  b: 1.0.0',
+      '  c: 2.0.0', '  d: npm:snake_case_pkg@1.2.0', '', 'dependencies:', '  a: 3.3.7_@types+react@18.0.0',
+      '  b: 1.0.0_@scope+peer@2.0.0_react@16.0.0', '  c: 2.0.0_4ygthk45pujmhpktasijm4ully', '  d: /snake_case_pkg/1.2.0_react@16.0.0', ''].join('\n'));
+    expect(index.resolve('', 'a', '3.3.7')).toEqual({ version: '3.3.7' });
+    expect(index.resolve('', 'b', '1.0.0')).toEqual({ version: '1.0.0' });
+    expect(index.resolve('', 'c', '2.0.0')).toEqual({ version: '2.0.0' });
+    expect(index.resolve('', 'd', 'npm:snake_case_pkg@1.2.0')).toEqual({ version: '1.2.0', realName: 'snake_case_pkg' });
+  });
+
+  it('pnpm 7 lock: react-dom is queried as react-dom@16.0.0 (was "16.0.0_react"), the lodash alias finds CVE-2019-10744', async () => {
+    const value = await scan(path.join(repo({ 'package.json': { name: 'p7', dependencies: DECLARED }, 'pnpm-lock.yaml': v54 }), 'package.json'));
+    expect(value).toMatchObject({ status: 'complete', lockfile: 'pnpm-lock.yaml' });
+    expect(queried.sort()).toEqual(['@types/node@18.0.0', '@types/react@18.0.0', 'lodash@4.17.11', 'react-dom@16.0.0', 'react-redux@8.0.5', 'react@16.0.0']);
+    expect(value.vulnerabilities).toContainEqual(expect.objectContaining({ cveId: 'CVE-2019-10744' }));
+  });
+});
+
+describe('scope-cut re-check B2: only a pnpm-workspace.yaml / workspaces that declares packages is a workspace root', () => {
+  const single = (files: Record<string, string | object>) => scan(path.join(repo({
+    'package.json': { name: 'one', dependencies: { lodash: '4.17.11' } }, ...files }), 'package.json'));
+  const bomb = ['a: &a [x, x]', ...Array.from({ length: 12 }, (_, i) =>
+    `${String.fromCharCode(98 + i)}: &${String.fromCharCode(98 + i)} [*${String.fromCharCode(97 + i)}, *${String.fromCharCode(97 + i)}]`), ''].join('\n');
+
+  it.each([
+    ['settings only (pnpm 10/11: nodeLinker)', 'nodeLinker: hoisted\n'],
+    ['settings only (onlyBuiltDependencies)', 'onlyBuiltDependencies:\n  - esbuild\n'],
+    ['packages: []', 'packages: []\n'],
+  ])('%s: complete', async (_label, yaml) => {
+    const value = await single({ 'pnpm-workspace.yaml': yaml });
+    expect(value).toMatchObject({ status: 'complete', measured: true, resolutionErrors: [] });
+  });
+
+  it.each([
+    ['a real packages list', "packages:\n  - 'packages/*'\n"],
+    ['packages via a merge key', "base: &b\n  packages: ['apps/*']\n<<: *b\n"],
+    ['packages that is not a list', 'packages: packages/*\n'],
+    ['an unparsable file', 'packages: [unclosed\n'],
+    ['an empty file', ''],
+    ['a merge-key bomb', bomb],
+  ])('%s: incomplete (workspace root)', async (_label, yaml) => {
+    const value = await single({ 'pnpm-workspace.yaml': yaml });
+    expect(value).toMatchObject({ status: 'incomplete', measured: false, resolutionErrors: [WORKSPACE_NOT_SCANNED] });
+  });
+
+  it('a directory or an oversized pnpm-workspace.yaml is a workspace root (fail closed)', async () => {
+    const dir = await single({ 'pnpm-workspace.yaml/keep': 'x' });
+    expect(dir.resolutionErrors).toEqual([WORKSPACE_NOT_SCANNED]);
+    const big = await single({ 'pnpm-workspace.yaml': `nodeLinker: hoisted\n#${'x'.repeat(1024 * 1024)}\n` });
+    expect(big.resolutionErrors).toEqual([WORKSPACE_NOT_SCANNED]);
+  });
+
+  it.each([
+    [[], 'complete'], [{ nohoist: ['**/x'] }, 'complete'], [{ packages: [] }, 'complete'],
+    [['packages/*'], 'incomplete'], [{ packages: ['packages/*'], nohoist: [] }, 'incomplete'],
+  ])('package.json workspaces %j: %s', async (workspaces, status) => {
+    const value = await scan(path.join(repo({ 'package.json': { name: 'r', workspaces, dependencies: { lodash: '4.17.11' } } }), 'package.json'));
+    expect(value.status).toBe(status);
+  });
+});

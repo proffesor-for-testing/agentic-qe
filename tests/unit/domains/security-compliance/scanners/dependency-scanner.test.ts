@@ -35,6 +35,8 @@ vi.mock('../../../../../src/shared/security/index.js', () => ({
 vi.mock('fs/promises', () => ({
   // No pnpm-workspace.yaml / lockfile in this mocked filesystem.
   stat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
+  // pnpm-workspace.yaml is probed with lstat; any error other than ENOENT counts as a workspace root.
+  lstat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
   readFile: vi.fn(),
 }));
 
