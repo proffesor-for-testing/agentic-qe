@@ -7,7 +7,7 @@ import { LoggerFactory } from '../../../logging/index.js';
 import { spawn } from 'node:child_process';
 import { createVitestJsonReport, type VitestJsonReport } from '../../../shared/vitest-json-report.js';
 import { jestExactPathPattern, nameFilterArg, runnerFilePath } from '../../../shared/test-runner-args.js';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 import { Result, ok, err } from '../../../shared/types';
 import { RetryResult, FailedTest } from '../interfaces';
@@ -17,6 +17,23 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { secureRandom } from '../../../shared/utils/crypto-random.js';
 import { terminateTestRunner, trackTestRunnerExit } from '../../../shared/test-runner-process.js';
+
+/**
+ * Whether a runner-reported test file and the requested target are the same
+ * file. Runners report real paths, so a target given through a symlink must be
+ * compared by realpath, falling back to the runner path when a file is missing.
+ */
+function sameTestFile(reported: string, target: string, cwd: string): boolean {
+  const canonical = (file: string): string => {
+    try {
+      return realpathSync(resolvePath(cwd, file));
+    } catch {
+      return runnerFilePath(file, cwd);
+    }
+  };
+  return canonical(reported) === canonical(target);
+}
+
 
 // ============================================================================
 // Configuration
@@ -684,7 +701,7 @@ export class RetryHandlerService implements IRetryHandler {
           name?: string;
           assertionResults?: Array<{ status: string }>;
         }) => typeof file.name === 'string'
-          && resolvePath(file.name) === resolvePath(targetFile)
+          && sameTestFile(file.name, targetFile, this.config.cwd ?? process.cwd())
           && file.assertionResults?.some(assertion => assertion.status === 'passed'));
         if (exitCode === 0 && result.success !== false
           && result.numFailedTests === 0 && result.numFailedTestSuites === 0
