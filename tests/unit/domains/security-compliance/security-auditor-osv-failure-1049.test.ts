@@ -102,6 +102,23 @@ describe('SecurityAuditorService OSV failures (#1049)', () => {
     expect(result.value.uncheckedPackages).toEqual([expect.objectContaining({ name: 'left-pad' })]);
   });
 
+  it('#1057: a workspace root audit is incomplete with the "members not scanned" reason, never complete', async () => {
+    handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+    const ws = mkdtempSync(path.join(tmpdir(), 'aqe-1049-auditor-ws-'));
+    try {
+      const file = path.join(ws, 'package.json');
+      writeFileSync(file, JSON.stringify({ workspaces: ['packages/*'], dependencies: { 'left-pad': '1.3.0' } }));
+      const { service } = auditor();
+      const result = await service.scanDependencies({ value: file, filename: 'package.json' } as FilePath);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value).toMatchObject({ status: 'incomplete', measured: false, packagesChecked: 1 });
+      expect(result.value.uncheckedPackages).toEqual([expect.objectContaining({ reason: expect.stringContaining('#1057') })]);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
+  });
+
   it('checkPackage returns an error, not an empty vulnerability list, when OSV fails', async () => {
     handler = (_req, _body, res) => { res.writeHead(200); res.end('<html>oops'); };
     const { service } = auditor();

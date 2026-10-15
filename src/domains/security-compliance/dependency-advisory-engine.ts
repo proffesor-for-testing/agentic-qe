@@ -28,14 +28,8 @@ export interface DependencyScanReport {
   uncheckedPackages: UncheckedDependency[];
   /** Local workspace / linked packages: not OSV subjects, excluded from the counts. */
   localPackages: LocalDependency[];
-  /** Workspace members whose own dependencies were included. */
-  workspaceMembers: string[];
-  /** Planning errors (malformed lockfile, unreadable member, unexpandable pattern): the scan is not complete. */
+  /** Why the scan is not complete beyond individual packages (malformed lockfile, workspace root #1057). */
   resolutionErrors: string[];
-  /** Members dropped because they resolve outside the project root (never scanned). */
-  excludedMembers: Array<{ path: string; reason: string }>;
-  /** Workspace notes that do not affect completeness. */
-  workspaceWarnings: string[];
   /** Only direct dependencies are checked; transitive dependencies are not. */
   scope: 'direct';
   vulnerabilities: number;
@@ -75,7 +69,7 @@ export async function findPackageJson(targetPath: string, env: NodeJS.ProcessEnv
 }
 
 /** Human message for a dependency scan outcome. */
-export const DEPENDENCY_SCOPE_NOTE = 'direct dependencies only (package.json and workspace members); transitive dependencies are not checked';
+export const DEPENDENCY_SCOPE_NOTE = 'direct dependencies of this package.json only; workspace members and transitive dependencies are not checked';
 
 export function dependencyScanMessage(report: Omit<DependencyScanReport, 'message'>): string {
   return `${statusMessage(report)} Scope: ${DEPENDENCY_SCOPE_NOTE}.`;
@@ -90,8 +84,7 @@ function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
     case 'incomplete':
       return (report.uncheckedPackages.length > 0
         ? `Dependency advisories could not be checked for ${report.uncheckedPackages.length} of ${report.packagesRequested} package(s); ` : '') +
-        (report.resolutionErrors.length > 0
-          ? `not all dependencies could be resolved (${report.resolutionErrors.slice(0, 3).join('; ')}); ` : '') +
+        (report.resolutionErrors.length > 0 ? `${report.resolutionErrors.slice(0, 3).join('; ')}; ` : '') +
         `${report.vulnerabilities} finding(s) from the ${report.packagesChecked} checked package(s). Dependency scan is INCOMPLETE, not clean.`;
     case 'failed':
       return `${report.error ?? `Dependency advisories could not be checked for ${report.uncheckedPackages.length} package(s)`}. ` +
@@ -103,8 +96,8 @@ function statusMessage(report: Omit<DependencyScanReport, 'message'>): string {
 
 function notRun(reason: string, manifest?: string): DependencyAdvisoryOutcome {
   const base: Omit<DependencyScanReport, 'message'> = { status: 'not-run', measured: false, ...(manifest ? { manifest } : {}),
-    packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [], workspaceMembers: [],
-    resolutionErrors: [], excludedMembers: [], workspaceWarnings: [], scope: 'direct',
+    packagesRequested: 0, packagesChecked: 0, uncheckedPackages: [], localPackages: [],
+    resolutionErrors: [], scope: 'direct',
     vulnerabilities: 0, error: reason };
   return {
     engine: { id: DEPENDENCY_ADVISORY_ENGINE_ID, requested: true, required: true, status: 'failed', scope: 'parent-directory',
@@ -136,8 +129,7 @@ export async function runDependencyAdvisoryScan(
     status: value.status, measured: value.measured, manifest, lockfile: value.lockfile ?? null,
     packagesRequested: value.packagesScanned, packagesChecked: value.packagesChecked,
     uncheckedPackages: value.uncheckedPackages, localPackages: value.localPackages ?? [],
-    workspaceMembers: value.workspaceMembers ?? [], resolutionErrors: value.resolutionErrors ?? [],
-    excludedMembers: value.excludedMembers ?? [], workspaceWarnings: value.workspaceWarnings ?? [], scope: 'direct',
+    resolutionErrors: value.resolutionErrors ?? [], scope: 'direct',
     vulnerabilities: value.vulnerabilities.length,
     scanId: value.scanId, ...(value.error ? { error: value.error } : {}),
   };

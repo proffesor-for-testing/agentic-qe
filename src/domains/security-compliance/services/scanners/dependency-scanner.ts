@@ -28,17 +28,11 @@ import { resolveDependencies, resolveFromRecord, type ResolvedDependency } from 
 interface ScanPlan {
   dependencies: ResolvedDependency[];
   lockfile: string | null;
-  workspaceMembers: string[];
   /**
-   * Planning problems: an unreadable/malformed lockfile, unreadable/malformed
-   * member manifests, workspace patterns that could not be expanded. Any of
-   * them makes the scan not complete (#1049 round 4).
+   * Planning problems: an unreadable/malformed lockfile, or a workspace root
+   * whose members are not scanned (#1057). Any of them makes the scan not complete.
    */
   errors: string[];
-  /** Members dropped because they resolve outside the project root. */
-  excludedMembers: Array<{ path: string; reason: string }>;
-  /** Notes that do not affect completeness. */
-  warnings: string[];
 }
 
 // ============================================================================
@@ -91,14 +85,14 @@ export class DependencyScanner {
       return err(new Error('No dependencies provided for scanning'));
     }
     return this.runScan({
-      dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, workspaceMembers: [], errors: [], excludedMembers: [], warnings: [],
+      dependencies: resolveFromRecord(dependencies, lockedVersions), lockfile: null, errors: [],
     });
   }
 
   /**
-   * Scan a package.json: its direct dependencies (and, at a workspace root,
-   * each workspace member's), at the versions the lockfile resolves.
-   * A manifest with no dependencies is a complete scan of nothing.
+   * Scan a package.json: its direct dependencies, at the versions the lockfile
+   * resolves. A manifest with no dependencies is a complete scan of nothing; a
+   * workspace root is never complete, since its members are not scanned (#1057).
    */
   async scanPackageJson(packageJsonPath: string): Promise<Result<DependencyScanResult>> {
     try {
@@ -106,10 +100,7 @@ export class DependencyScanner {
       return this.runScan({
         dependencies: resolution.dependencies,
         lockfile: resolution.lockfile,
-        workspaceMembers: resolution.workspaceMembers,
         errors: [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors],
-        excludedMembers: resolution.excludedMembers,
-        warnings: resolution.workspaceWarnings,
       });
     } catch (error) {
       if (error instanceof SyntaxError) {
@@ -175,10 +166,13 @@ export class DependencyScanner {
       }
 
       const requested = packagesChecked + uncheckedPackages.length;
-      // #1049 round 4: a planning error (malformed lockfile, unreadable member,
-      // unexpandable workspace pattern) means something was not checked.
+      // #1049 round 4: a planning error (malformed lockfile, a workspace root whose
+      // members are not scanned #1057) means something was not checked.
       const allChecked = packagesChecked === requested && plan.errors.length === 0;
-      const status: DependencyScanResult['status'] = allChecked ? 'complete' : packagesChecked === 0 ? 'failed' : 'incomplete';
+      // `failed` = something was to be checked and nothing could be; nothing to check
+      // with a planning error (e.g. a workspace root with no own dependencies) is incomplete.
+      const status: DependencyScanResult['status'] = allChecked ? 'complete'
+        : packagesChecked === 0 && requested > 0 ? 'failed' : 'incomplete';
       const scanDurationMs = Date.now() - startTime;
       const summary = this.calculateSummary(vulnerabilities, requested, scanDurationMs);
       const error = status === 'complete' ? undefined
@@ -197,10 +191,7 @@ export class DependencyScanner {
         uncheckedPackages,
         lockfile: plan.lockfile,
         localPackages,
-        workspaceMembers: plan.workspaceMembers,
         resolutionErrors: plan.errors,
-        excludedMembers: plan.excludedMembers,
-        workspaceWarnings: plan.warnings,
         scope: 'direct',
         ...(error ? { error } : {}),
       };
@@ -314,10 +305,7 @@ export class DependencyScanner {
         packagesChecked: result.packagesChecked,
         uncheckedPackages: result.uncheckedPackages,
         localPackages: result.localPackages ?? [],
-        workspaceMembers: result.workspaceMembers ?? [],
         resolutionErrors: result.resolutionErrors ?? [],
-        excludedMembers: result.excludedMembers ?? [],
-        workspaceWarnings: result.workspaceWarnings ?? [],
         lockfile: result.lockfile ?? null,
         ...(result.error ? { error: result.error } : {}),
         vulnerabilities: result.vulnerabilities,

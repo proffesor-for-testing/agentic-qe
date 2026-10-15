@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { DependencyScanner } from '../../../../../src/domains/security-compliance/services/scanners/dependency-scanner';
 import { parseLockfile } from '../../../../../src/domains/security-compliance/services/scanners/lockfile-versions';
+import { WORKSPACE_NOT_SCANNED } from '../../../../../src/domains/security-compliance/services/scanners/dependency-resolver';
 import { OSVClient } from '../../../../../src/shared/security/osv-client';
 import type { MemoryBackend } from '../../../../../src/kernel/interfaces';
 import type { SecurityScannerConfig, DependencyScanResult } from '../../../../../src/domains/security-compliance/services/scanners/scanner-types';
@@ -199,29 +200,37 @@ describe('round 3: workspaces, local packages and aliases', () => {
     },
   });
 
-  it('npm workspaces root: members are scanned (packages/a lodash 4.17.11 reported); workspace packages are local, not unchecked', async () => {
+  it('#1057: an npm workspaces root is incomplete (members not scanned), with the reason; its own local package stays local', async () => {
     const root = npmWorkspace();
     const value = await scan(path.join(root, 'package.json'));
-    expect(value.workspaceMembers).toEqual(['packages/a', 'packages/b']);
-    expect(value).toMatchObject({ status: 'complete', measured: true, uncheckedPackages: [] });
-    expect(value.localPackages).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: '@m/b', spec: '*' }),
-      expect.objectContaining({ name: '@m/b', spec: '^1.0.0', member: 'packages/a' }),
-    ]));
-    expect(value.vulnerabilities).toHaveLength(7);
-    expect(value.vulnerabilities[0].location.file).toBe('packages/a/package.json');
+    expect(value).toMatchObject({ status: 'incomplete', measured: false, uncheckedPackages: [], packagesChecked: 0 });
+    expect(value.resolutionErrors).toEqual([WORKSPACE_NOT_SCANNED]);
+    expect(value.error).toContain('#1057');
+    expect(value.localPackages).toEqual([expect.objectContaining({ name: '@m/b', spec: '*' })]);
+    expect(queried).toEqual([]);
+    expect(value).not.toHaveProperty('workspaceMembers');
+  });
+
+  it('#1057: a workspace root with its own vulnerable dependency reports the findings and is still incomplete', async () => {
+    const value = await scan(path.join(repo({
+      'package.json': { name: 'root', workspaces: { packages: ['packages/*'] }, dependencies: { lodash: '4.17.11' } },
+      'packages/a/package.json': { name: 'a', dependencies: { minimist: '1.2.5' } },
+    }), 'package.json'));
+    expect(value).toMatchObject({ status: 'incomplete', measured: false, packagesChecked: 1 });
+    expect(value.resolutionErrors).toEqual([WORKSPACE_NOT_SCANNED]);
+    expect(queried).toEqual(['lodash@4.17.11']);
     expect(value.vulnerabilities).toContainEqual(expect.objectContaining({ cveId: 'CVE-2019-10744' }));
   });
 
   it('npm workspace member scanned directly: walks up to the root lockfile', async () => {
     const root = npmWorkspace();
     const value = await scan(path.join(root, 'packages', 'a', 'package.json'));
-    expect(value).toMatchObject({ status: 'complete', lockfile: '../../package-lock.json', workspaceMembers: [] });
+    expect(value).toMatchObject({ status: 'complete', measured: true, lockfile: '../../package-lock.json', resolutionErrors: [] });
     expect(queried).toEqual(['lodash@4.17.11']);
     expect(value.localPackages).toEqual([expect.objectContaining({ name: '@m/b' })]);
   });
 
-  it('pnpm workspace root: link: packages are local, member dependencies are checked', async () => {
+  it('#1057: a pnpm workspace root (pnpm-workspace.yaml) is incomplete; link: packages are local; members are not queried', async () => {
     const value = await scan(path.join(repo({
       'package.json': { name: 'root', dependencies: { '@p/b': 'workspace:*' } },
       'pnpm-workspace.yaml': "packages:\n  - 'packages/*'\n",
@@ -230,10 +239,23 @@ describe('round 3: workspaces, local packages and aliases', () => {
         '        specifier: workspace:*', '        version: link:packages/b', '', '  packages/a:', '    dependencies:',
         '      lodash:', '        specifier: 4.17.11', '        version: 4.17.11', ''].join('\n'),
     }), 'package.json'));
-    expect(value.workspaceMembers).toEqual(['packages/a']);
     expect(value.localPackages).toEqual([expect.objectContaining({ name: '@p/b' })]);
-    expect(value).toMatchObject({ status: 'complete', uncheckedPackages: [] });
+    expect(value).toMatchObject({ status: 'incomplete', measured: false, uncheckedPackages: [], resolutionErrors: [WORKSPACE_NOT_SCANNED] });
+    expect(queried).toEqual([]);
+  });
+
+  it('a pnpm workspace member scanned directly uses the root pnpm-lock importer and is complete', async () => {
+    const root = repo({
+      'package.json': { name: 'root' },
+      'pnpm-workspace.yaml': "packages:\n  - 'packages/*'\n",
+      'packages/a/package.json': { name: '@p/a', dependencies: { lodash: '4.17.11' } },
+      'pnpm-lock.yaml': ["lockfileVersion: '9.0'", '', 'importers:', '', '  .: {}', '', '  packages/a:', '    dependencies:',
+        '      lodash:', '        specifier: 4.17.11', '        version: 4.17.11', ''].join('\n'),
+    });
+    const value = await scan(path.join(root, 'packages', 'a', 'package.json'));
+    expect(value).toMatchObject({ status: 'complete', measured: true, lockfile: '../../pnpm-lock.yaml', resolutionErrors: [] });
     expect(queried).toEqual(['lodash@4.17.11']);
+    expect(value.vulnerabilities).toContainEqual(expect.objectContaining({ cveId: 'CVE-2019-10744' }));
   });
 
   it('an npm alias resolves to the real package (with and without a lockfile)', async () => {

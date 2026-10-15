@@ -54,31 +54,23 @@ the CLI and MCP output say so (`dependencyScan.scope: 'direct'`).
 Local packages — `workspace:`, `link:`, `file:` directories, and workspace
 members linked by the lockfile (npm `link: true`, pnpm `link:`) — are not OSV
 subjects. They are listed in `localPackages` and do **not** make the scan
-incomplete. Their own dependencies are what can carry advisories, so when you
-scan a workspace root, every workspace member's package.json is scanned too
-(members from the lockfile and the `workspaces` / `pnpm-workspace.yaml`
-`packages:` globs), resolved through the root lockfile; findings point at the
-member's `package.json`. Scanning a member directly checks only that member.
+incomplete.
 
-- Globs support `*`, `**`, multi-segment patterns and braces; `!negations`
-  exclude members; `node_modules` is skipped. `pnpm-workspace.yaml` is parsed
-  as YAML (any valid form of `packages:`, including `<<` merge keys); a file
-  that cannot be parsed, is larger than 1 MB, has more than one `packages`
-  key, or whose `packages` is not a list of strings makes the scan incomplete.
-- A symlinked directory is a member only if it holds a `package.json`; its
-  real path decides: inside the project root it is a member (once, even if
-  several links point at it), outside it is excluded, inside `node_modules` it
-  is ignored. The root itself is never a member. Symlinks are searched only
-  under each pattern's literal prefix (`packages/` for `packages/*`, to the
-  pattern's depth); only a `**` pattern can hit the search limits, and then
-  the scan is incomplete. Unrelated deep trees (`build/`, `target/`) are never
-  searched. A pattern
-  that matches no package directory is reported as a `workspaceWarnings` note.
-- A member whose real path is outside the project root (`../` patterns,
-  symlinks) is listed in `excludedMembers` and is never scanned or sent to OSV.
-- A workspace pattern that cannot be expanded, or a member `package.json` that
-  cannot be read or parsed, is listed in `resolutionErrors` and makes the scan
-  **incomplete** (CLI exit 3) — a member is never silently skipped.
+**Workspace member dependencies are not scanned yet**
+([#1057](https://github.com/proffesor-for-testing/agentic-qe/issues/1057)).
+A workspace root is a package.json with a `workspaces` field (array or
+object), or a directory with a `pnpm-workspace.yaml`. Scanning one checks only
+the root's own dependencies and reports the scan as **incomplete**:
+`resolutionErrors` says "workspace member dependencies are not scanned yet
+(#1057); scan each member directory separately". The CLI exits 3, or 1 if the
+root's own dependencies have high/critical findings. It is never reported as
+clean.
+
+To cover a monorepo, scan each member directory, for example
+`aqe security --target packages/app --dependencies`. A member scanned directly
+walks up to the workspace root's lockfile (never above `AQE_PROJECT_ROOT` or
+the git root), and is complete when every dependency resolves; its findings
+point at that member's `package.json`.
 
 ## Reading the result
 

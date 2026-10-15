@@ -62,7 +62,7 @@ const memory = {
   clear: vi.fn(), keys: vi.fn(), getStats: vi.fn(),
 } as unknown as MemoryBackend;
 
-async function runScanSecurity(payload: Record<string, unknown>) {
+async function runScanSecurity(payload: Record<string, unknown>, target?: string) {
   let scanSecurity: ((task: { payload: unknown }) => Promise<unknown>) | undefined;
   const scanner = new DependencyScanner({
     defaultRuleSets: [], maxConcurrentScans: 1, timeout: 1000, enableFalsePositiveDetection: false, dastMaxDepth: 1,
@@ -73,7 +73,7 @@ async function runScanSecurity(payload: Record<string, unknown>) {
     getSecurityScanner: () => scanner,
   } as unknown as TaskHandlerContext;
   registerSecurityHandlers(ctx);
-  const result = await scanSecurity!({ payload: { target: root, sast: false, dast: false, compliance: [], ...payload } }) as
+  const result = await scanSecurity!({ payload: { target: root, sast: false, dast: false, compliance: [], ...payload, ...(target ? { target } : {}) } }) as
     { success: true; value: Record<string, unknown> } | { success: false; error: Error };
   expect(result.success).toBe(true);
   const data = (result as { value: Record<string, unknown> }).value;
@@ -116,6 +116,24 @@ describe('scan-security dependency advisories (#1049)', () => {
     expect(mcp.status).toBe('completed');
     expect(mcp.vulnerabilities).toBe(0);
     expect(mcp.dependencyScan).toMatchObject({ status: 'complete', measured: true, packagesChecked: 2, uncheckedPackages: [] });
+  });
+
+  it('#1057: a workspace root is partial, with the "members not scanned" reason in the report and the engine errors', async () => {
+    const ws = mkdtempSync(path.join(tmpdir(), 'aqe-1049-mcp-ws-'));
+    try {
+      writeFileSync(path.join(ws, 'package.json'), JSON.stringify({ name: 'mono', dependencies: { 'left-pad': '1.3.0' } }));
+      writeFileSync(path.join(ws, 'pnpm-workspace.yaml'), "packages:\n  - 'packages/*'\n");
+      handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+      const { mcp } = await runScanSecurity({ dependencies: true }, ws);
+      expect(mcp.status).toBe('partial');
+      expect(mcp.dependencyScan).toMatchObject({ status: 'incomplete', measured: false, packagesChecked: 1, vulnerabilities: 0 });
+      expect(mcp.dependencyScan!.resolutionErrors).toEqual([expect.stringContaining('not scanned yet (#1057); scan each member directory separately')]);
+      expect(mcp.dependencyScan!.message).toMatch(/#1057.*INCOMPLETE, not clean/);
+      const engine = mcp.evidence!.engines.find((e) => e.id === 'osv-dependency-advisories');
+      expect(engine).toMatchObject({ status: 'partial', errors: expect.arrayContaining([expect.stringContaining('#1057')]) });
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+    }
   });
 
   it('dependencies not requested: no OSV request is made', async () => {

@@ -129,7 +129,7 @@ describe('aqe security --dependencies (#1049)', () => {
   it('round 3: the text output states that only direct dependencies are checked', async () => {
     handler = (_req, _body, res) => json(res, 200, { results: [{}] });
     const text = await execute(['--dependencies']);
-    expect(text).toMatch(/Scope: direct dependencies only .*transitive dependencies are not checked/);
+    expect(text).toMatch(/Scope: direct dependencies of this package.json only; workspace members and transitive dependencies are not checked/);
     expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
   });
 
@@ -154,6 +154,37 @@ describe('aqe security --dependencies (#1049)', () => {
       expect(cleanupAndExit).toHaveBeenCalledExactlyOnceWith(0);
     } finally {
       rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  it('#1057: a workspace root is incomplete with the reason, in JSON and text: exit 3 (no findings)', async () => {
+    const ws = mkdtempSync(path.join(tmpdir(), 'aqe-1049-cli-ws-'));
+    try {
+      writeFileSync(path.join(ws, 'package.json'), JSON.stringify({ name: 'mono', workspaces: ['packages/*'], devDependencies: { 'left-pad': '1.3.0' } }));
+      handler = (_req, _body, res) => json(res, 200, { results: [{}] });
+      const memory = { set: vi.fn(), get: vi.fn(), search: vi.fn().mockResolvedValue([]) } as unknown as MemoryBackend;
+      const scanner = new DependencyScanner({
+        defaultRuleSets: [], maxConcurrentScans: 1, timeout: 1000, enableFalsePositiveDetection: false, dastMaxDepth: 1,
+        dastActiveScanning: false, enableLLMAnalysis: false, llmModelTier: 1, enableSemgrep: false,
+      }, memory, undefined, new OSVClient({ baseUrl, retries: 0, enableCache: false }));
+      const api = { runDependencyScan: (p: string) => scanner.scanPackageJson(p), runSASTScan: vi.fn(), runComplianceCheck: vi.fn() };
+      const context = { kernel: { getDomainAPIAsync: vi.fn(async () => api) } } as unknown as CLIContext;
+      const run = async (extra: string[]) => {
+        stdout = [];
+        const command = createSecurityCommand(context, cleanupAndExit as unknown as (code: number) => Promise<never>, async () => true);
+        await command.parseAsync(['--target', ws, '--dependencies', ...extra], { from: 'user' });
+        return stdout.join('\n');
+      };
+      const output = JSON.parse(await run(['--format', 'json']));
+      expect(output.dependencyScan).toMatchObject({ status: 'incomplete', measured: false, packagesChecked: 1, vulnerabilities: 0 });
+      expect(output.dependencyScan.resolutionErrors).toEqual([expect.stringContaining('workspace member dependencies are not scanned yet (#1057)')]);
+      expect(cleanupAndExit).toHaveBeenLastCalledWith(3);
+      const text = await run([]);
+      expect(text).toContain('workspace member dependencies are not scanned yet (#1057); scan each member directory separately');
+      expect(text).toContain('INCOMPLETE');
+      expect(cleanupAndExit).toHaveBeenLastCalledWith(3);
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
     }
   });
 

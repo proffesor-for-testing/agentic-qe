@@ -1,21 +1,25 @@
 /**
  * Agentic QE v3 - Dependency resolution for the OSV advisory scan (#1049)
  *
- * Decides, for every direct dependency of a package.json (and, at a workspace
- * root, of every workspace member), what can be checked against OSV:
+ * Decides, for every direct dependency of a package.json, what can be checked
+ * against OSV:
  *
  * - check:     a registry package at a concrete version — the lockfile's
  *              resolved version when the lockfile is in sync with package.json,
  *              else an exact spec. `npm:` aliases resolve to the real package.
  * - local:     a workspace / linked / local-directory package. Not an OSV
  *              subject; listed separately and never makes a scan incomplete.
- *              Its own dependencies are scanned as a workspace member.
  * - unchecked: anything that cannot be matched without guessing — a range
  *              with no (in-sync) lockfile resolution, a lockfile out of sync
  *              with package.json, git/URL/tarball sources.
  *
- * The lockfile is looked up from the package directory upwards (stopping at
- * the git root), so scanning a workspace member uses the root lockfile.
+ * The lockfile is looked up from the package directory upwards (never above
+ * AQE_PROJECT_ROOT or the git root), so scanning a workspace member directly
+ * uses the workspace root's lockfile.
+ *
+ * Workspace member scanning is not part of 3.15.7 (#1057): at a workspace root
+ * only the root's own dependencies are checked and the scan is reported as not
+ * complete, with a reason; each member can be scanned directly.
  */
 
 import * as fs from 'fs/promises';
@@ -24,14 +28,13 @@ import semver from 'semver';
 import { safeJsonParse } from '@shared/safe-json.js';
 import { classifyNpmSpec, exactNpmVersion } from '@shared/security/osv-lookup.js';
 import { LOCKFILES, parseLockfile, type LockIndex, type LockfileName } from './lockfile-versions.js';
-import { MAX_PNPM_WORKSPACE_BYTES, expandWorkspaces, isInside, pnpmWorkspacePatterns, type WorkspaceExpansion } from './workspace-members.js';
 
 export interface ResolvedDependency {
   /** Dependency name as declared (the alias name for `npm:` aliases). */
   readonly name: string;
   /** Spec as declared in package.json. */
   readonly spec: string;
-  /** Workspace member the dependency belongs to ('' = the scanned package itself / root). */
+  /** Lockfile importer the dependency belongs to ('' = the lockfile root). */
   readonly member: string;
   readonly kind: 'check' | 'local' | 'unchecked';
   /** Registry package to check (differs from `name` for aliases). */
@@ -47,21 +50,18 @@ export interface DependencyResolution {
   readonly dependencies: ResolvedDependency[];
   /** Lockfile used (relative to the scanned package.json directory), or null. */
   readonly lockfile: string | null;
-  /** Workspace members whose dependencies were included (relative to the lockfile root). */
-  readonly workspaceMembers: string[];
   /** A lockfile that exists but could not be read or parsed. */
   readonly error?: string;
   /**
-   * Workspace problems that leave members unscanned: unreadable/malformed member
-   * manifests and patterns that could not be expanded. A non-empty list means
-   * the scan is not complete (#1049 round 4).
+   * Reasons the scan cannot be complete beyond individual packages — today: a
+   * workspace root, whose members' dependencies are not scanned (#1057).
    */
   readonly memberErrors: string[];
-  /** Workspace members dropped because they resolve outside the project root (never scanned). */
-  readonly excludedMembers: Array<{ path: string; reason: string }>;
-  /** Workspace notes that do not affect completeness (e.g. a pattern matching no directory). */
-  readonly workspaceWarnings: string[];
 }
+
+/** The reason a workspace root's scan is not complete (#1057). */
+export const WORKSPACE_NOT_SCANNED =
+  'workspace member dependencies are not scanned yet (#1057); scan each member directory separately';
 
 const OUT_OF_SYNC = 'lockfile out of sync with package.json';
 
@@ -118,46 +118,25 @@ async function findLockfile(dir: string, env: NodeJS.ProcessEnv = process.env): 
   }
 }
 
-/** Workspace globs declared by the root manifest and pnpm-workspace.yaml. */
-async function workspacePatterns(root: string, rootManifest: Manifest): Promise<{ patterns: string[]; errors: string[] }> {
-  const ws = rootManifest.workspaces;
-  const declared = Array.isArray(ws) ? ws : ws && typeof ws === 'object' && Array.isArray((ws as { packages?: unknown }).packages)
-    ? (ws as { packages: unknown[] }).packages : [];
-  const errors: string[] = [];
-  let pnpm: string[] = [];
-  let text: string | null = null;
-  try {
-    const file = path.join(root, 'pnpm-workspace.yaml');
-    // #1049 round 6: refuse an oversized file before reading or parsing it.
-    const st = await fs.stat(file);
-    if (!st.isFile()) {
-      // Round 7: a device or FIFO (e.g. a link to /dev/zero) is not read at all.
-      errors.push('pnpm-workspace.yaml is not a regular file; not read, workspace members may be missing');
-    } else if (st.size > MAX_PNPM_WORKSPACE_BYTES) {
-      errors.push(`pnpm-workspace.yaml is ${st.size} bytes (limit ${MAX_PNPM_WORKSPACE_BYTES}); not parsed, workspace members may be missing`);
-    } else {
-      text = await fs.readFile(file, 'utf-8');
-    }
-  } catch (e) {
-    // Any read error except "no such file" — including one without a code — is reported.
-    const code = (e as NodeJS.ErrnoException).code;
-    if (code !== 'ENOENT') {
-      errors.push(`pnpm-workspace.yaml could not be read (${code ?? (e instanceof Error ? e.message.slice(0, 80) : 'error')}); workspace members may be missing`);
-    }
-  }
-  if (text !== null) {
-    // #1049 round 5: a real YAML parse; an unparsable file or a non-list `packages` is an error, never [].
-    const parsed = pnpmWorkspacePatterns(text);
-    if ('error' in parsed) errors.push(`${parsed.error}; workspace members may be missing`);
-    else pnpm = parsed.patterns;
-  }
-  return { patterns: [...declared, ...pnpm].filter((p): p is string => typeof p === 'string'), errors };
+/** Whether `child` is `root` or inside it (both absolute, real paths). */
+function isInside(root: string, child: string): boolean {
+  const rel = path.relative(root, child);
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
-async function workspaceMembers(root: string, index: LockIndex | null, rootManifest: Manifest): Promise<WorkspaceExpansion> {
-  const { patterns, errors } = await workspacePatterns(root, rootManifest);
-  const expansion = await expandWorkspaces(root, patterns, index?.members() ?? []);
-  return { ...expansion, errors: [...errors, ...expansion.errors] };
+/**
+ * A workspace root, detected without reading any glob: package.json has a
+ * `workspaces` field (array or object), or a pnpm-workspace.yaml exists.
+ */
+async function isWorkspaceRoot(dir: string, manifest: Manifest): Promise<boolean> {
+  const ws = manifest.workspaces;
+  if (Array.isArray(ws) || (ws !== null && typeof ws === 'object')) return true;
+  try {
+    await fs.lstat(path.join(dir, 'pnpm-workspace.yaml'));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Resolve one declared dependency of `member`. */
@@ -234,8 +213,10 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
     try {
       const parsed = parseLockfile(found.file, await fs.readFile(path.join(found.dir, found.file), 'utf-8'));
       const rootManifest = member ? await readManifest(path.join(found.dir, 'package.json')).catch(() => ({} as Manifest)) : manifest;
+      // A member scanned directly: the root lockfile covers it if it lists the
+      // importer (npm/pnpm) or, for yarn, if the root declares workspaces.
       const covers = member === '' || parsed.hasImporter(member) && (parsed.file !== 'yarn.lock'
-        || (await workspaceMembers(found.dir, null, rootManifest)).members.includes(member));
+        || await isWorkspaceRoot(found.dir, rootManifest));
       if (covers) {
         index = parsed;
         lockDir = found.dir;
@@ -249,31 +230,12 @@ export async function resolveDependencies(manifestPath: string): Promise<Depende
   }
   const scannedMember = path.relative(lockDir, realManifestDir).split(path.sep).join('/');
 
-  // At a workspace root, members' own dependencies are scanned too.
-  const expansion: WorkspaceExpansion = scannedMember === ''
-    ? await workspaceMembers(lockDir, index, manifest) : { members: [], excluded: [], errors: [], warnings: [] };
-  const memberManifests = new Map<string, Record<string, string>>();
-  const memberErrors: string[] = [...expansion.errors];
-  const localNames = new Set<string>();
-  for (const member of expansion.members) {
-    try {
-      const m = await readManifest(path.join(lockDir, member, 'package.json'));
-      memberManifests.set(member, declaredDependencies(m));
-      if (typeof m.name === 'string') localNames.add(m.name);
-    } catch (e) {
-      memberErrors.push(`workspace member ${member}/package.json could not be read or parsed (${e instanceof Error ? e.message.slice(0, 80) : 'error'}); its dependencies were not checked`);
-    }
-  }
+  // #1057: workspace members are not scanned in 3.15.7 — a workspace root is never complete.
+  const memberErrors: string[] = await isWorkspaceRoot(realManifestDir, manifest) ? [WORKSPACE_NOT_SCANNED] : [];
 
   const dependencies: ResolvedDependency[] = [];
   for (const [name, spec] of Object.entries(declaredDependencies(manifest))) {
-    dependencies.push(resolveOne(name, spec, scannedMember, index, localNames));
+    dependencies.push(resolveOne(name, spec, scannedMember, index, new Set()));
   }
-  for (const [member, deps] of memberManifests) {
-    for (const [name, spec] of Object.entries(deps)) dependencies.push(resolveOne(name, spec, member, index, localNames));
-  }
-  return {
-    dependencies, lockfile, workspaceMembers: [...memberManifests.keys()], memberErrors,
-    excludedMembers: expansion.excluded, workspaceWarnings: expansion.warnings, ...(error ? { error } : {}),
-  };
+  return { dependencies, lockfile, memberErrors, ...(error ? { error } : {}) };
 }

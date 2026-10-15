@@ -432,8 +432,10 @@ export class SecurityAuditorService implements ISecurityAuditorService {
   /**
    * Dependencies to check for a scan. npm uses the shared resolver (#1049):
    * lockfile-resolved versions when in sync with package.json, exact specs
-   * otherwise, workspace members included, local packages excluded; anything
-   * that cannot be matched without guessing is returned as pre-unchecked.
+   * otherwise, local packages excluded; anything that cannot be matched without
+   * guessing is returned as pre-unchecked. Planning errors (a malformed lockfile,
+   * a workspace root whose members are not scanned, #1057) are pre-unchecked too,
+   * so the audit is never complete when they occur.
    */
   private async parseDependenciesForScan(
     manifest: string,
@@ -456,6 +458,9 @@ export class SecurityAuditorService implements ISecurityAuditorService {
         preUnchecked.push({ name: dep.name, version: dep.spec, reason: dep.reason ?? 'not checked',
           ...(dep.member ? { member: dep.member } : {}), ...(dep.lockedVersion ? { lockedVersion: dep.lockedVersion } : {}) });
       }
+    }
+    for (const reason of [...(resolution.error ? [resolution.error] : []), ...resolution.memberErrors]) {
+      preUnchecked.push({ name: '(dependency plan)', version: '*', reason });
     }
     return { dependencies, preUnchecked };
   }

@@ -331,17 +331,8 @@ function printSecurityResult(result: SecurityScanResult): void {
     const local = result.dependencyScan.localPackages;
     console.log(`  Local packages (not OSV subjects, excluded): ${local.slice(0, 10).map(p => `${p.member ? `${p.member}: ` : ''}${p.name}`).join(', ')}${local.length > 10 ? ` ... and ${local.length - 10} more` : ''}`);
   }
-  if (result.dependencyScan?.workspaceMembers.length) {
-    console.log(`  Workspace members scanned: ${result.dependencyScan.workspaceMembers.join(', ')}`);
-  }
   for (const problem of result.dependencyScan?.resolutionErrors ?? []) {
-    console.log(chalk.yellow(`    not resolved: ${problem}`));
-  }
-  for (const member of result.dependencyScan?.excludedMembers ?? []) {
-    console.log(chalk.yellow(`    workspace member excluded: ${member.path} (${member.reason})`));
-  }
-  for (const note of result.dependencyScan?.workspaceWarnings ?? []) {
-    console.log(`    note: ${note}`);
+    console.log(chalk.yellow(`    incomplete: ${problem}`));
   }
   for (const limitation of limitations.slice(0, 10)) console.log(chalk.yellow(`  ${limitation}`));
   if (limitations.length > 10) console.log(`  ... ${limitations.length - 10} additional limitations; use JSON, Markdown, or SARIF for full receipts.`);

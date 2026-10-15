@@ -102,19 +102,13 @@ export interface DependencyScanResult {
   readonly lockfile?: string | null;
   /** Local workspace / linked packages: not OSV subjects, never make the scan incomplete. */
   readonly localPackages?: LocalDependency[];
-  /** Workspace members whose own dependencies were included. */
-  readonly workspaceMembers?: string[];
   /**
-   * Why some dependencies could not even be planned (malformed lockfile,
-   * unreadable member manifest, unexpandable workspace pattern). Non-empty
-   * means the scan is not complete.
+   * Why the scan cannot be complete beyond individual packages: a malformed
+   * lockfile, or a workspace root whose members are not scanned (#1057).
+   * Non-empty means the scan is not complete.
    */
   readonly resolutionErrors?: string[];
-  /** Workspace members dropped because they resolve outside the project root (never sent to OSV). */
-  readonly excludedMembers?: Array<{ path: string; reason: string }>;
-  /** Workspace notes that do not affect completeness (e.g. a pattern matching no directory). */
-  readonly workspaceWarnings?: string[];
-  /** Only direct dependencies (of the package and its workspace members) are checked. */
+  /** Only the direct dependencies of the scanned package.json are checked. */
   readonly scope?: 'direct';
   /** Why the scan is incomplete/failed; absent when complete. */
   readonly error?: string;
