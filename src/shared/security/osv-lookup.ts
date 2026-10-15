@@ -120,9 +120,42 @@ export function isNonRegistrySpec(spec: string): boolean {
  * concrete version returns every advisory the package ever had.
  */
 export function isConcreteVersion(version: string): boolean {
-  if (!/^\d+(\.\d+)*([-+._]?[0-9A-Za-z][0-9A-Za-z.+-]*)?$/.test(version)) return false;
+  if (version.length === 0 || version.length > MAX_VERSION_LENGTH) return false;
+  if (!matchesVersionShape(version)) return false;
   return !/(^|\.)[xX*](\.|$)/.test(version);
 }
+
+/** Longest version string considered; versions come from repo-controlled files. */
+export const MAX_VERSION_LENGTH = 256;
+
+const VERSION_CORE = /^\d+(?:\.\d+)*$/;
+const VERSION_TAIL = /^[0-9A-Za-z][0-9A-Za-z.+-]*$/;
+
+/**
+ * Linear equivalent of `^\d+(\.\d+)*([-+._]?[0-9A-Za-z][0-9A-Za-z.+-]*)?$`
+ * (whose overlapping quantifiers backtrack polynomially, CodeQL js/polynomial-redos).
+ * `_` is not in the tail class, so it can only be the separator right after the
+ * numeric core. Without `_`, any accepted split can be re-split after the first
+ * digit run (the remaining `.digits` segments fit the tail class).
+ */
+function matchesVersionShape(version: string): boolean {
+  const underscore = version.indexOf('_');
+  if (underscore >= 0) {
+    return VERSION_CORE.test(version.slice(0, underscore)) && VERSION_TAIL.test(version.slice(underscore + 1));
+  }
+  let i = 0;
+  while (i < version.length && version.charCodeAt(i) >= 48 && version.charCodeAt(i) <= 57) i++;
+  if (i === 0) return false;
+  const rest = version.slice(i);
+  if (rest === '') return true;
+  // Splitting inside a 2+ digit run makes the tail start with a digit: the rest
+  // then only has to fit the tail class ("11." = core "1" + tail "1.").
+  if (i >= 2 && VERSION_TAIL_REST.test(rest)) return true;
+  const sep = rest[0] === '-' || rest[0] === '+' || rest[0] === '.';
+  return VERSION_TAIL.test(sep ? rest.slice(1) : rest);
+}
+
+const VERSION_TAIL_REST = /^[0-9A-Za-z.+-]*$/;
 
 /** One querybatch entry: the advisory ids reported for a package, or why it is unusable. */
 export type BatchEntry = { ids: string[] } | { reason: string };

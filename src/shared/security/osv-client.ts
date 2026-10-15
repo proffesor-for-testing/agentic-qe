@@ -95,6 +95,9 @@ function isLoopbackHost(hostname: string): boolean {
 export function resolveOSVBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.AQE_OSV_API_URL?.trim();
   if (!configured) return DEFAULT_BASE_URL;
+  if (configured.length > MAX_OSV_URL_LENGTH) {
+    throw new Error(`AQE_OSV_API_URL is longer than ${MAX_OSV_URL_LENGTH} characters (expected https://host)`);
+  }
   let url: URL;
   try {
     url = new URL(configured);
@@ -105,8 +108,14 @@ export function resolveOSVBaseUrl(env: NodeJS.ProcessEnv = process.env): string 
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
     throw new Error(`AQE_OSV_API_URL must use https (http only for localhost/loopback): "${configured.slice(0, 200)}"`);
   }
-  return configured.replace(/\/+$/, '');
+  // A plain loop, not /\/+$/ (CodeQL js/polynomial-redos).
+  let base = configured;
+  while (base.endsWith('/')) base = base.slice(0, -1);
+  return base;
 }
+
+/** Longest accepted AQE_OSV_API_URL; a longer value is invalid. */
+export const MAX_OSV_URL_LENGTH = 2048;
 
 type DetailOutcome = { vuln: OSVVulnerability } | { reason: string };
 

@@ -131,7 +131,7 @@ function pnpmDeps(lines: string[], start: number, end: number, base: number): Ma
       continue;
     }
     if (!section || ind !== base + 2) continue;
-    const m = /^(.+?):\s*(.*)$/.exec(line.trim());
+    const m = splitKeyValue(line.trim());
     if (!m) continue;
     const name = unquote(m[1]);
     if (section === 'specifiers') {
@@ -143,8 +143,8 @@ function pnpmDeps(lines: string[], start: number, end: number, base: number): Ma
       dep.version = unquote(m[2]);
     } else {
       for (let j = i + 1; j < end && (lines[j].trim() === '' || indentOf(lines[j]) > ind); j++) {
-        const kv = /^(specifier|version):\s*(.+)$/.exec(lines[j].trim());
-        if (kv) dep[kv[1] as 'specifier' | 'version'] = unquote(kv[2]);
+        const kv = splitKeyValue(lines[j].trim());
+        if (kv && (kv[1] === 'specifier' || kv[1] === 'version') && kv[2]) dep[kv[1]] = unquote(kv[2]);
       }
     }
     deps.set(name, dep);
@@ -156,6 +156,26 @@ function pnpmDeps(lines: string[], start: number, end: number, base: number): Ma
   return deps;
 }
 
+/**
+ * `key: value` split at the first colon (non-empty key), the value without its
+ * leading whitespace. Linear string code instead of /^(.+?):\s*(.*)$/, whose
+ * adjacent quantifiers backtrack polynomially (CodeQL js/polynomial-redos).
+ * Index 0 is the whole line, as in a RegExp match.
+ */
+function splitKeyValue(line: string): [string, string, string] | null {
+  const colon = line.indexOf(':');
+  if (colon <= 0) return null;
+  let start = colon + 1;
+  while (start < line.length && /\s/.test(line[start])) start++;
+  return [line, line.slice(0, colon), line.slice(start)];
+}
+
+/** `s` up to (not including) the first `ch`; linear, unlike /ch.*$/. */
+function cutAt(s: string, ch: string): string {
+  const i = s.indexOf(ch);
+  return i < 0 ? s : s.slice(0, i);
+}
+
 function pnpmIndex(text: string): LockIndex {
   const lines = text.split(/\r?\n/);
   const importers = new Map<string, Map<string, PnpmDep>>();
@@ -165,7 +185,7 @@ function pnpmIndex(text: string): LockIndex {
     if (end < 0) end = lines.length;
     for (let i = importersAt + 1; i < end; i++) {
       const line = lines[i];
-      if (indentOf(line) !== 2 || !/:\s*$/.test(line)) continue;
+      if (indentOf(line) !== 2 || !line.trimEnd().endsWith(':')) continue;
       const key = unquote(line.trim().slice(0, -1));
       // Scan forward from this importer (a findIndex from line 0 per importer was quadratic).
       let next = i + 1;
@@ -176,11 +196,11 @@ function pnpmIndex(text: string): LockIndex {
     importers.set('', pnpmDeps(lines, 0, lines.length, 0));
   }
   const parseVersion = (raw: string): LockedEntry => {
-    const v = raw.replace(/\(.*$/, '').trim();
+    const v = cutAt(raw, '(').trim();
     if (v.startsWith('link:') || v.startsWith('file:') || v.startsWith('workspace:')) return { local: true };
     const alias = /^\/?((?:@[^/@]+\/)?[^/@]+)[@/](\d[^\s]*)$/.exec(v);
-    if (alias) return { version: alias[2].replace(/_.*$/, ''), realName: alias[1] };
-    return { version: v.replace(/_.*$/, '') };
+    if (alias) return { version: cutAt(alias[2], '_'), realName: alias[1] };
+    return { version: cutAt(v, '_') };
   };
   return {
     file: 'pnpm-lock.yaml',
