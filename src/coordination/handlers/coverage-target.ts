@@ -66,6 +66,48 @@ function hasJsRunnerConfig(dir: string): boolean {
   return readPackageJson(dir)?.jest !== undefined;
 }
 
+type RunnerFamily = 'jest' | 'nyc' | 'vitest';
+
+/**
+ * The runner a package.json declares through its dependencies, mirroring the
+ * precedence of the coverage runner (jest, then mocha/nyc, then vitest).
+ * `null` when it declares none. Jest and vitest run with no config file at all,
+ * so a dependency is as good a declaration as a config.
+ */
+function declaredRunner(dir: string): RunnerFamily | null {
+  const pkg = readPackageJson(dir);
+  if (!pkg) return null;
+  const deps: Record<string, unknown> = {
+    ...(pkg.devDependencies as Record<string, unknown> | undefined),
+    ...(pkg.dependencies as Record<string, unknown> | undefined),
+  };
+  if (deps['jest'] || deps['@jest/core']) return 'jest';
+  if (deps['mocha'] || deps['nyc']) return 'nyc';
+  if (deps['vitest']) return 'vitest';
+  return null;
+}
+
+/** mocha/nyc are configured by dotfiles rather than a runner config module. */
+function hasMochaOrNycConfig(dir: string): boolean {
+  try {
+    return fs.readdirSync(dir).some(name => /^\.(mocharc|nycrc)(\.|$)/.test(name));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * May a package inherit the runner config of workspace `rootDir`? Only when it
+ * does not bring its own runner: a package that declares a different runner
+ * (e.g. jest under a vitest root) must keep running that one, from its own
+ * directory. With no runner declared at the root the runner defaults to vitest.
+ */
+function packageCanUseRootRunner(pkgDir: string, rootDir: string): boolean {
+  if (hasMochaOrNycConfig(pkgDir)) return (declaredRunner(rootDir) ?? 'vitest') === 'nyc';
+  const own = declaredRunner(pkgDir);
+  return own === null || own === (declaredRunner(rootDir) ?? 'vitest');
+}
+
 function readPackageJson(dir: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf-8'));
@@ -94,6 +136,8 @@ function readWorkspacePatterns(dir: string): string[] | null {
   if (ws !== undefined && ws !== null && typeof ws === 'object') isRoot = true;
   if (fromPkg) patterns.push(...fromPkg.filter((p): p is string => typeof p === 'string'));
 
+  // Only the block-list `packages:` form is read; the flow form gives no
+  // patterns, so the root is not adopted (fails safe).
   try {
     const yaml = fs.readFileSync(path.join(dir, 'pnpm-workspace.yaml'), 'utf-8');
     isRoot = true;
@@ -214,7 +258,8 @@ export function findCoverageProjectRoot(target: string, maxDepth = 12): string |
       // the AQE project and actually lists the nearest package as a member.
       ceiling ??= aqeProjectCeiling(start) ?? '';
       if (ceiling && within(dir, ceiling) && within(nearestRoot, ceiling)
-        && isWorkspaceMember(dir, nearestRoot) && hasJsRunnerConfig(dir)) {
+        && isWorkspaceMember(dir, nearestRoot) && hasJsRunnerConfig(dir)
+        && packageCanUseRootRunner(nearestRoot, dir)) {
         return dir;
       }
       return nearestRoot;

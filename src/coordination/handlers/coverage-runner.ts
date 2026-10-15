@@ -257,7 +257,10 @@ export function buildJsCoverageInvocation(
   // A package target run from the workspace root: restrict the run to that
   // package's tests (vitest/jest positional filter) so a slow sibling cannot
   // time the run out. nyc/mocha take no such filter.
-  if (pathFilter && runner !== 'nyc') runnerArgs.push(pathFilter);
+  // jest reads the positional as a regex, so escape the directory's metacharacters.
+  if (pathFilter && runner !== 'nyc') {
+    runnerArgs.push(runner === 'jest' ? pathFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : pathFilter);
+  }
 
   const bin = findPackageBin(projectRoot, runner === 'jest' ? 'jest' : runner);
   return {

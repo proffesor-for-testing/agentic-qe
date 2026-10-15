@@ -187,6 +187,34 @@ describe('#995 — findCoverageProjectRoot', () => {
       expect(findCoverageProjectRoot(path.join(stray, 'src'))).toBe(stray);
     });
 
+    it('keeps a package that declares a different runner (jest under a vitest root) at the package', () => {
+      fs.writeFileSync(path.join(root, 'package.json'),
+        JSON.stringify({ workspaces: ['packages/*'], devDependencies: { vitest: '*' } }));
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const jestPkg = path.join(root, 'packages', 'j');
+      makePkg(jestPkg, JSON.stringify({ name: 'j', devDependencies: { jest: '^29.7.0' } }));
+      expect(findCoverageProjectRoot(path.join(jestPkg, 'src'))).toBe(jestPkg);
+    });
+
+    it('keeps a mocha package (.mocharc) at the package under a vitest root', () => {
+      fs.writeFileSync(path.join(root, 'package.json'),
+        JSON.stringify({ workspaces: ['packages/*'], devDependencies: { vitest: '*' } }));
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const mochaPkg = path.join(root, 'packages', 'm');
+      makePkg(mochaPkg);
+      fs.writeFileSync(path.join(mochaPkg, '.mocharc.json'), '{}');
+      expect(findCoverageProjectRoot(path.join(mochaPkg, 'src'))).toBe(mochaPkg);
+    });
+
+    it('still adopts the root for a package declaring the same runner as the root', () => {
+      fs.writeFileSync(path.join(root, 'package.json'),
+        JSON.stringify({ workspaces: ['packages/*'], devDependencies: { vitest: '*' } }));
+      fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
+      const same = path.join(root, 'packages', 's');
+      makePkg(same, JSON.stringify({ name: 's', devDependencies: { vitest: '*' } }));
+      expect(findCoverageProjectRoot(path.join(same, 'src'))).toBe(root);
+    });
+
     it('honours negated workspace patterns', () => {
       fs.writeFileSync(path.join(root, 'package.json'), '{"workspaces":["packages/*","!packages/skip"]}');
       fs.writeFileSync(path.join(root, 'vitest.config.ts'), 'export default {}');
