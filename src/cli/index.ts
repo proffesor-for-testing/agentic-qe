@@ -511,6 +511,17 @@ async function main(): Promise<void> {
   const commandArgs = process.argv.slice(2).filter(arg => arg !== '--');
   const learningSnapshot = commandArgs[0] === 'learning'
     && (commandArgs[1] === 'backup' || commandArgs[1] === 'restore');
+  // `aqe init` must not create a mistyped AQE_PROJECT_ROOT: the token bootstrap
+  // below does `mkdir -p <root>/.agentic-qe`, so the check has to run first.
+  if (commandArgs[0] === 'init') {
+    const { explicitRootError } = await import('./handlers/init-guard.js');
+    const rootError = explicitRootError();
+    if (rootError) {
+      console.error(chalk.red(`\n  ${rootError}\n`));
+      await cleanupAndExit(1);
+      return;
+    }
+  }
   if (!learningSnapshot) {
     const { bootstrapTokenTracking } = await import('../init/token-bootstrap.js');
     await bootstrapTokenTracking({
