@@ -134,7 +134,16 @@ async function listSymlinks(
   const links: string[] = [];
   let seen = 0;
   let truncated: string | null = null;
-  const maxDepth = scope.depth === null ? limits.maxDepth : scope.depth + 1;
+  // Round 7 re-check: bounded scopes walk exactly to the pattern's depth (no entries cap: the
+  // scope is the pattern itself); only `**` scopes use the walk limits.
+  const maxDepth = scope.depth === null ? limits.maxDepth : scope.depth;
+  const bounded = scope.depth !== null;
+  /** A candidate member directory at the pattern's depth: only its package.json is looked at. */
+  const checkManifest = async (dir: string): Promise<void> => {
+    try {
+      if ((await fs.lstat(path.join(root, dir, 'package.json'))).isSymbolicLink()) links.push(`${dir}/package.json`);
+    } catch { /* no package.json */ }
+  };
   const walk = async (rel: string, depth: number): Promise<void> => {
     if (truncated) return;
     let entries: import('fs').Dirent[];
@@ -144,7 +153,7 @@ async function listSymlinks(
       return;
     }
     for (const entry of entries) {
-      if (++seen > limits.maxEntries) {
+      if (!bounded && ++seen > limits.maxEntries) {
         truncated = `under "${scope.base || '.'}" stopped after ${limits.maxEntries} entries`;
         return;
       }
@@ -152,6 +161,10 @@ async function listSymlinks(
       const child = rel ? `${rel}/${entry.name}` : entry.name;
       if (entry.isSymbolicLink()) links.push(child);
       else if (entry.isDirectory()) {
+        if (bounded && depth + 1 === maxDepth) {
+          await checkManifest(child); // a member directory: never read beyond its package.json
+          continue;
+        }
         if (depth + 1 > maxDepth) {
           if (scope.depth === null) {
             truncated = `under "${scope.base || '.'}" stopped at depth ${limits.maxDepth} (${child})`;
@@ -174,6 +187,10 @@ async function listSymlinks(
     } catch {
       return { links, truncated: null };
     }
+  }
+  if (bounded && maxDepth === 0) {
+    await checkManifest(start);
+    return { links, truncated: null };
   }
   await walk(start, 0);
   return { links, truncated };

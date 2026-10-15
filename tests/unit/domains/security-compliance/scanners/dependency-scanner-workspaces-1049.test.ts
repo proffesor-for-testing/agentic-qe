@@ -390,6 +390,21 @@ describe('round 6: bounded YAML, package-only symlinks, merge keys, dedup, limit
     expect(queried.sort()).toEqual(['minimist@1.2.5', 'qs@6.7.0']);
   });
 
+  it('round 7 re-check: a big, deep build/ INSIDE a packages/* member never makes the scan incomplete', async () => {
+    const deep = Array.from({ length: 16 }, (_, i) => `d${i}`).join('/');
+    const files: Record<string, string | object> = {
+      'package.json': { name: 'mono', workspaces: ['packages/*'] },
+      'packages/mui/package.json': { name: 'mui', dependencies: { minimist: '1.2.5' } },
+      [`packages/mui/build/${deep}/index.js`]: 'x',
+    };
+    for (let i = 0; i < 300; i++) files[`packages/mui/build/esm/f${i}.js`] = 'x';
+    const root = repo(files);
+    const expansion = await expandWorkspaces(root, ['packages/*'], [], { maxDepth: 12, maxEntries: 100 });
+    expect(expansion).toMatchObject({ errors: [], members: ['packages/mui'] });
+    const value = await scan(root);
+    expect(value).toMatchObject({ status: 'complete', resolutionErrors: [], workspaceMembers: ['packages/mui'] });
+  });
+
   it('round 7: pattern scope is the literal prefix, bounded by the pattern depth unless it has **', () => {
     expect(patternScope('packages/*')).toEqual({ base: 'packages', depth: 1 });
     expect(patternScope('apps/*/*')).toEqual({ base: 'apps', depth: 2 });
