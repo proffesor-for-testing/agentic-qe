@@ -437,10 +437,22 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     return ok(undefined);
   }
 
-  /** Compute embedding, preferring transformer pipeline with hash fallback. */
+  /**
+   * Compute embedding, preferring transformer pipeline with hash fallback.
+   * The transformer returns a zero vector for text it treats as non-semantic
+   * (JSON with a "metrics" key, raw arrays, mostly numeric strings). A zero
+   * vector has no direction, so the cosine check read it as total drift and
+   * silently dropped the event, e.g. every quality_assess TaskCompleted (#1070).
+   * Such text gets a hash embedding of the same length instead, which still
+   * detects a mutated payload.
+   */
   private async embed(text: string): Promise<number[]> {
     const hasTransformer = await probeTransformer();
-    if (hasTransformer && _computeRealEmbedding) return _computeRealEmbedding(text);
+    if (hasTransformer && _computeRealEmbedding) {
+      const embedding = await _computeRealEmbedding(text);
+      if (embedding.some(v => v !== 0)) return embedding;
+      return hashBasedEmbedding(text, embedding.length || this.config.fallbackDimension);
+    }
     return hashBasedEmbedding(text, this.config.fallbackDimension);
   }
 
