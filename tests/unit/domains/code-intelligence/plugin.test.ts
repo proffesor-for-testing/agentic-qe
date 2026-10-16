@@ -155,6 +155,10 @@ describe('CodeIntelligencePlugin', () => {
       expect(plugin.canHandleTask('index')).toBe(true);
     });
 
+    it('handles the public index-code Queen task type', () => {
+      expect(plugin.canHandleTask('index-code')).toBe(true);
+    });
+
     it('should handle search task type', () => {
       expect(plugin.canHandleTask('search')).toBe(true);
     });
@@ -200,8 +204,8 @@ describe('CodeIntelligencePlugin', () => {
       expect(result.error.message).toContain('no handler');
     });
 
-    it('should return error for index with missing paths', async () => {
-      const request = createMockTaskRequest('index', {
+    it.each(['index', 'index-code'])('returns a terminal error for %s with missing paths', async type => {
+      const request = createMockTaskRequest(type, {
         language: 'typescript',
       });
       const { callback, waitForResult } = createMockCallback();
