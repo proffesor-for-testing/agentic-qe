@@ -185,6 +185,43 @@ AQE_V3_SECURITY_SCAN_ON_COMMIT=true
 AQE_V3_BLOCK_ON_CRITICAL=true
 ```
 
+### Background workers (MCP server)
+
+The MCP server (`aqe-mcp`) starts a background worker daemon and the
+QualityDaemon after it is ready. These variables control them. They are read
+from the MCP server's environment, for example the `env` block that
+`aqe init` writes into `.mcp.json`.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `AQE_WORKERS_ENABLED` | `true` (unset) | `false`, `0`, `off` or `no` starts neither the worker daemon nor the QualityDaemon. Any other value, or unset, starts both. `aqe init --no-database` writes `false`. |
+| `AQE_DISABLED_WORKERS` | empty | Comma-separated worker ids to skip, for example `learning-consolidation,security-scan`. Unknown ids are reported on stderr and ignored. |
+| `AQE_DREAM_INSIGHTS_RETENTION_DAYS` | `30` | The `learning-consolidation` worker deletes unapplied `dream_insights` rows older than this many days. `0` or `off` disables the sweep. Any value that is not a whole number from 1 to 36500 is rejected with a warning on stderr, and the default applies. |
+
+Worker ids: `test-health`, `coverage-tracker`, `flaky-detector`,
+`security-scan`, `quality-gate`, `learning-consolidation`,
+`defect-predictor`, `regression-monitor`, `performance-baseline`,
+`compliance-checker`, `heartbeat-scheduler`.
+
+The `dream_insights` sweep never runs on the first tick after the server
+starts, so a short MCP session never deletes insights. It runs from the next
+scheduled tick, 30 minutes later. Each deletion is logged on stderr with the
+row count and the retention window, for example
+`[AQE] dream_insights retention: deleted 3 unapplied insight(s) older than 30 days`.
+Deleted rows are not archived, so set `AQE_DREAM_INSIGHTS_RETENTION_DAYS=off`
+if you need to keep the full insight history.
+
+```bash
+# Keep workers but never delete dream insights
+AQE_DREAM_INSIGHTS_RETENTION_DAYS=off
+
+# Keep workers but skip the learning-consolidation worker
+AQE_DISABLED_WORKERS=learning-consolidation
+
+# No background workers at all
+AQE_WORKERS_ENABLED=false
+```
+
 ## Per-Domain Configuration
 
 Configure individual domains:

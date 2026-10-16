@@ -39,6 +39,7 @@ import { toErrorMessage } from '../../shared/error-utils.js';
 import { ExperienceConsolidator } from '../../learning/experience-consolidation.js';
 import { recordLoopHealth } from '../../learning/loop-health.js';
 import { pruneStaleDreamInsights } from '../../learning/dream/dream-insights-pruner.js';
+import { resolveDreamInsightsRetention } from '../worker-env.js';
 import { createLearningMetricsTracker } from '../../learning/metrics-tracker.js';
 
 const CONFIG: WorkerConfig = {
@@ -111,14 +112,22 @@ const CONSOLIDATION_CURSOR_PREFIX = 'learning:consolidation-cursor:';
 const DEFAULT_LOOKBACK_DAYS = 1;
 
 /**
- * #488 C.2: retention window for `applied = 0` dream insights. Matches the
- * `staleDaysThreshold` used by `pattern-lifecycle.ts` for consistency.
+ * #488 C.2: retention window for `applied = 0` dream insights comes from
+ * `AQE_DREAM_INSIGHTS_RETENTION_DAYS` (default 30, `0`/`off` disables the
+ * sweep). See `resolveDreamInsightsRetention` in `../worker-env.ts`.
+ *
+ * #1061: the sweep never runs on the first tick after the worker is created.
+ * The worker manager runs every worker immediately on startup, so without this
+ * guard every short MCP session deleted rows within seconds of starting.
+ * Retries of the first tick (30 s apart) fall inside the same window.
  */
-const DREAM_INSIGHTS_RETENTION_DAYS = 30;
-
 export class LearningConsolidationWorker extends BaseWorker {
   private lifecycleManager: PatternLifecycleManager | null = null;
   private lastRunTimestamp: number = 0;
+  /** #1061: the dream_insights sweep waits one full interval after creation. */
+  private readonly dreamInsightsPruneNotBefore: number = Date.now() + CONFIG.intervalMs;
+  /** #1061: an invalid retention value is reported once per process. */
+  private retentionWarningLogged = false;
 
   constructor() {
     super(CONFIG);
@@ -319,6 +328,45 @@ export class LearningConsolidationWorker extends BaseWorker {
   }
 
   /**
+   * #488 C.2 / #1061: run the dream_insights retention sweep when it is
+   * enabled and the first tick after startup has passed. Returns the number
+   * of rows deleted.
+   */
+  private pruneDreamInsights(findings: WorkerFinding[]): number {
+    const retention = resolveDreamInsightsRetention();
+    if (retention.warning && !this.retentionWarningLogged) {
+      this.retentionWarningLogged = true;
+      process.stderr.write(`[AQE] WARN ${retention.warning}\n`);
+    }
+    const retentionDays = retention.retentionDays;
+    if (retentionDays === null) return 0;
+    if (Date.now() < this.dreamInsightsPruneNotBefore) return 0;
+
+    const db = getUnifiedMemory().getDatabase();
+    const { pruned } = pruneStaleDreamInsights(db, { retentionDays });
+    if (pruned > 0) {
+      // Default log level, stderr only: MCP stdout carries JSON-RPC.
+      process.stderr.write(
+        `[AQE] dream_insights retention: deleted ${pruned} unapplied insight(s) ` +
+          `older than ${retentionDays} days ` +
+          `(set AQE_DREAM_INSIGHTS_RETENTION_DAYS=off to keep them)\n`,
+      );
+      findings.push({
+        type: 'dream-insights-pruned',
+        severity: 'info',
+        domain: 'learning-optimization',
+        title: 'Stale Dream Insights Pruned',
+        description: `${pruned} unapplied dream insights older than ${retentionDays} days deleted`,
+        context: {
+          pruned,
+          retentionDays,
+        },
+      });
+    }
+    return pruned;
+  }
+
+  /**
    * Phase 7: Run the continuous learning loop
    *
    * Architecture:
@@ -492,26 +540,10 @@ export class LearningConsolidationWorker extends BaseWorker {
       // Step 8 (#488 C.2): prune stale unapplied dream_insights so the
       // table doesn't grow unbounded. Applied insights are part of the
       // pattern-change audit trail and stay forever.
+      // #1061: configurable, skipped on the first tick, logged to stderr.
+      // Follow-up: archive rows instead of hard-deleting them.
       try {
-        const unifiedMemory = getUnifiedMemory();
-        const db = unifiedMemory.getDatabase();
-        const pruneResult = pruneStaleDreamInsights(db, {
-          retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
-        });
-        dreamInsightsPruned = pruneResult.pruned;
-        if (dreamInsightsPruned > 0) {
-          findings.push({
-            type: 'dream-insights-pruned',
-            severity: 'info',
-            domain: 'learning-optimization',
-            title: 'Stale Dream Insights Pruned',
-            description: `${dreamInsightsPruned} unapplied dream insights older than ${DREAM_INSIGHTS_RETENTION_DAYS} days deleted`,
-            context: {
-              pruned: dreamInsightsPruned,
-              retentionDays: DREAM_INSIGHTS_RETENTION_DAYS,
-            },
-          });
-        }
+        dreamInsightsPruned = this.pruneDreamInsights(findings);
       } catch (pruneError) {
         context.logger.warn('Dream insights pruning failed', {
           error: toErrorMessage(pruneError),
