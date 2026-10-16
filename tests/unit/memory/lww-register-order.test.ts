@@ -109,5 +109,26 @@ describe('LWW register total write ordering', () => {
       register.set('later local');
       expect(register.get()).toBe('remote');
     });
+
+    it('keeps exact LWW for an explicit timestamp, so a stale write is still dropped', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('current', 500);
+      register.set('stale', 400);
+      expect(register.get()).toBe('current');
+      expect(register.getState().timestamp).toBe(500);
+    });
+
+    it('advances the timestamp by one tick per same-millisecond write', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('one');
+      register.set('two');
+      register.set('three');
+      expect(register.get()).toBe('three');
+      expect(register.getState().timestamp).toBe(1002);
+    });
   });
 });
