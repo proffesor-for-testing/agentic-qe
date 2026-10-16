@@ -1048,6 +1048,7 @@ export class LearningOptimizationCoordinator
       // every target domain; the previous per-domain loop exported each
       // pattern once per target domain.
       const activePatterns = await readActivePatterns(this.memory, {
+        retrieve: { namespace: 'learning-optimization' },
         onTruncated: (scanned) =>
           logger.warn('Pattern export key scan hit its cap; export may be incomplete', { scanned }),
       });
@@ -1136,7 +1137,8 @@ export class LearningOptimizationCoordinator
       // Import patterns
       for (const pattern of modelExport.patterns) {
         const existing = await this.memory.get<LearnedPattern>(
-          `learning:pattern:${pattern.id}`
+          `learning:pattern:${pattern.id}`,
+          { namespace: 'learning-optimization' }
         );
 
         if (existing) {
