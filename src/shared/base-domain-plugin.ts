@@ -311,6 +311,13 @@ export abstract class BaseDomainPlugin implements DomainPlugin {
   }
 
   /**
+   * Task types this domain executes, from its registered task handlers (#1075)
+   */
+  getSupportedTaskTypes(): string[] {
+    return Array.from(this.getTaskHandlers().keys());
+  }
+
+  /**
    * Execute a task assigned by Queen Coordinator
    * Routes to the appropriate handler based on task type
    *

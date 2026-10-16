@@ -76,6 +76,13 @@ export async function handleTaskSubmit(
 
   const { queen } = getFleetState();
 
+  // #1075: reject a type that no domain plugin executes. Accepting it would
+  // leave the task running forever and hold one of the Queen's slots.
+  const executable = queen!.validateTaskExecutable(params.type as TaskType, targetDomains);
+  if (!executable.success) {
+    return { success: false, error: executable.error.message };
+  }
+
   try {
     const result = await queen!.submitTask({
       type: params.type as TaskType,

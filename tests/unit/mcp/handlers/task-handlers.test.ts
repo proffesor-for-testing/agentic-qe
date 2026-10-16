@@ -69,6 +69,7 @@ function injectMockQueen() {
       return { success: true as const, value: taskId };
     }),
     getTaskStatus: vi.fn((taskId: string) => makeExecution(taskId)),
+    validateTaskExecutable: vi.fn(() => ({ success: true as const, value: undefined as void })),
     cancelTask: vi.fn(async (taskId: string) => {
       if (!knownTasks.has(taskId)) {
         return { success: false as const, error: new Error(`Task not found: ${taskId}`) };
@@ -204,12 +205,13 @@ describe('Task Handlers', () => {
     });
 
     it('should submit various task types', async () => {
+      // Types a domain plugin executes. #1075: types without a handler
+      // (e.g. assess-quality, scan-security) are rejected, see below.
       const taskTypes = [
         'generate-tests',
         'execute-tests',
         'analyze-coverage',
-        'assess-quality',
-        'scan-security',
+        'predict-defects',
       ] as const;
 
       const results = await Promise.all(
@@ -220,6 +222,24 @@ describe('Task Handlers', () => {
         expect(result.success).toBe(true);
         expect(result.data!.type).toBe(taskTypes[i]);
       });
+    });
+
+    // #1075: a type no domain plugin executes must be rejected before it takes
+    // a Queen slot, with the reason visible to the caller.
+    it('rejects a task type no domain executes without submitting it', async () => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+      vi.spyOn(queen, 'validateTaskExecutable').mockReturnValue({
+        success: false,
+        error: new Error("No handler for task type 'scan-security' in domain security-compliance"),
+      });
+
+      const result = await handleTaskSubmit({ type: 'scan-security', targetDomains: ['security-compliance'] });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("No handler for task type 'scan-security' in domain security-compliance");
+      expect(queen.validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
+      expect(submit).not.toHaveBeenCalled();
     });
   });
 

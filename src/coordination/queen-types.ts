@@ -174,6 +174,8 @@ export interface IQueenCoordinator {
   dispose(): Promise<void>;
 
   // Task Management
+  /** #1075: reject a task type that no candidate domain plugin executes. */
+  validateTaskExecutable(type: TaskType, targetDomains?: readonly DomainName[]): Result<void, Error>;
   submitTask(task: Omit<QueenTask, 'id' | 'createdAt'>): Promise<Result<string, Error>>;
   cancelTask(taskId: string): Promise<Result<void, Error>>;
   getTaskStatus(taskId: string): TaskExecution | undefined;
