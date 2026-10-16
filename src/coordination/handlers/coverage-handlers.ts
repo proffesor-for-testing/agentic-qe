@@ -174,7 +174,10 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
   // same fallback permits isolated package installs with no runner at the root.
   // Do not retry timeouts, crashes or nonempty failing suites: their failures
   // must remain visible. Only the fallback run's actual report can be measured.
-  if (pathFilter && (run.numTotalTests === 0 || run.missing)) {
+  const rootRunnerMissing = run.missing && run.numTotalTests === null;
+  const rootHadNoTests = !run.missing && run.numTotalTests === 0
+    && testRunStatus(run) === 'passed' && (run.exitCode === 0 || run.exitCode === 1);
+  if (pathFilter && !run.timedOut && (rootRunnerMissing || rootHadNoTests)) {
     projectRoot = path.resolve(projectRoot, pathFilter);
     run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
   }
