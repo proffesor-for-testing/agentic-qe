@@ -2,11 +2,15 @@
  * Agentic QE v3 - Performance Baseline Worker
  * ADR-014: Background Workers for QE Monitoring
  *
- * Tracks performance trends including:
- * - Test execution time baselines
- * - Build performance tracking
- * - Resource utilization trends
- * - Performance anomaly detection
+ * Tracks test execution time against a baseline built from measured runs.
+ *
+ * #1043: every figure comes from a recorded test run — the run behind the
+ * latest usable testsPassing evidence (`test-run:<runId>` in `test-execution`),
+ * read the same way the regression monitor reads it (#1028). Build and
+ * resource figures have no measured source and are reported unmeasured.
+ * Nothing measured → nothing stored or compared. A baseline without the
+ * measured stamp (the invented one written by <= 3.15.6) is ignored and
+ * replaced by the next measured run.
  */
 
 import { BaseWorker } from '../base-worker';
@@ -17,6 +21,7 @@ import {
   WorkerFinding,
   WorkerRecommendation,
 } from '../interfaces';
+import { readQualityEvidenceRecord } from '../../domains/quality-assessment/quality-evidence.js';
 
 const CONFIG: WorkerConfig = {
   id: 'performance-baseline',
@@ -31,55 +36,92 @@ const CONFIG: WorkerConfig = {
   retryDelayMs: 30000,
 };
 
-interface PerformanceMetrics {
-  timestamp: Date;
+const BASELINE_KEY = 'performance:baseline';
+const HISTORY_KEY = 'performance:history';
+const SCHEMA_VERSION = 1;
+/** Allowed slowdown before a measured run is an anomaly (30%). */
+const DURATION_THRESHOLD = 1.3;
+/** Weight of a new measured run in the baseline average. */
+const EMA_ALPHA = 0.1;
+/** Keep the last 168 measured runs. */
+const MAX_HISTORY = 168;
+
+type TestSet = { total: number; files: string[] } | null;
+
+/** One measured test run (#1043). */
+interface MeasuredRunTiming {
+  measured: true;
+  runId: string;
+  measuredAt: string;
+  totalDurationMs: number;
+  testCount: number;
+  avgTestDurationMs: number;
+  testSet: TestSet;
+}
+
+/** The `performance:baseline` record: measured runs only, with the stamp. */
+interface MeasuredBaseline {
+  measured: true;
+  schemaVersion: typeof SCHEMA_VERSION;
+  updatedAt: string;
   testExecution: {
-    totalDurationMs: number;
     avgTestDurationMs: number;
-    slowestTestMs: number;
-    slowestTestName: string;
-    p50DurationMs: number;
-    p95DurationMs: number;
-    p99DurationMs: number;
-  };
-  build: {
-    compileDurationMs: number;
-    bundleSizeKb: number;
-    dependencyCount: number;
-  };
-  resources: {
-    peakMemoryMb: number;
-    avgCpuPercent: number;
-    diskReadMb: number;
-    diskWriteMb: number;
+    totalDurationMs: number;
+    /** Measured runs blended into this baseline. */
+    samples: number;
+    lastRunId: string;
+    testSet: TestSet;
   };
 }
 
-interface PerformanceBaseline {
-  testExecution: {
-    avgDurationMs: number;
-    p95DurationMs: number;
-    threshold: number;
-  };
-  build: {
-    avgCompileMs: number;
-    avgBundleSizeKb: number;
-    threshold: number;
-  };
-  resources: {
-    avgMemoryMb: number;
-    avgCpuPercent: number;
-    threshold: number;
-  };
-}
+type BaselineStatus = 'measured' | 'none' | 'legacy-ignored' | 'invalid-ignored';
 
 interface PerformanceAnomaly {
-  metric: string;
-  category: 'test' | 'build' | 'resource';
+  metric: 'avgTestDuration' | 'totalTestDuration';
   currentValue: number;
   baselineValue: number;
   deviationPercent: number;
-  severity: 'critical' | 'high' | 'medium' | 'low';
+  severity: 'high' | 'medium';
+}
+
+const isNonNegative = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+const round = (v: number): number => Math.round(v * 100) / 100;
+
+/** A recorded test set `{ total, files }`, or `null`. */
+function parseTestSet(raw: unknown): TestSet {
+  if (!raw || typeof raw !== 'object') return null;
+  const { total, files } = raw as Record<string, unknown>;
+  if (typeof total !== 'number' || !Number.isInteger(total) || total <= 0) return null;
+  if (!Array.isArray(files) || files.length === 0 || !files.every((f) => typeof f === 'string')) return null;
+  return { total, files: [...new Set(files as string[])].sort() };
+}
+
+const sameTestSet = (a: TestSet, b: TestSet): boolean =>
+  a !== null && b !== null && a.total === b.total
+  && a.files.length === b.files.length && a.files.every((f, i) => f === b.files[i]);
+
+/** The stored baseline when it carries the measured stamp and is well-formed, else `null`. */
+function measuredBaseline(raw: unknown): MeasuredBaseline | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (r.measured !== true || r.schemaVersion !== SCHEMA_VERSION) return null;
+  const t = r.testExecution as Record<string, unknown> | undefined;
+  if (!t || typeof t !== 'object') return null;
+  if (!isNonNegative(t.avgTestDurationMs) || !isNonNegative(t.totalDurationMs)
+    || typeof t.samples !== 'number' || !Number.isInteger(t.samples) || t.samples < 1
+    || typeof t.lastRunId !== 'string') return null;
+  return {
+    measured: true,
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: typeof r.updatedAt === 'string' ? r.updatedAt : '',
+    testExecution: {
+      avgTestDurationMs: t.avgTestDurationMs,
+      totalDurationMs: t.totalDurationMs,
+      samples: t.samples,
+      lastRunId: t.lastRunId,
+      testSet: parseTestSet(t.testSet),
+    },
+  };
 }
 
 export class PerformanceBaselineWorker extends BaseWorker {
@@ -94,44 +136,63 @@ export class PerformanceBaselineWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Collect current metrics
-    const currentMetrics = await this.collectPerformanceMetrics(context);
+    const current = await this.collectMeasuredRun(context);
+    const stored = await context.memory.get<unknown>(BASELINE_KEY);
+    const baseline = measuredBaseline(stored);
+    const baselineStatus = this.baselineStatus(stored, baseline);
+    if (baselineStatus === 'legacy-ignored') {
+      context.logger.info('Ignoring a performance:baseline without the measured stamp (written by <= 3.15.6)');
+    } else if (baselineStatus === 'invalid-ignored') {
+      context.logger.warn('Ignoring a malformed measured performance:baseline');
+    }
 
-    // Get or calculate baseline
-    const baseline = await this.getOrCalculateBaseline(context);
-
-    // Detect anomalies
-    const anomalies = this.detectAnomalies(currentMetrics, baseline);
-
-    // Analyze anomalies
-    this.analyzeAnomalies(anomalies, findings, recommendations);
-
-    // Update baseline with new data point
-    await this.updateBaseline(context, currentMetrics, baseline);
-
-    // Store metrics history
-    await this.storeMetricsHistory(context, currentMetrics);
+    let anomalies: PerformanceAnomaly[] = [];
+    let compared = false;
+    if (!current) {
+      findings.push({
+        type: 'performance-unmeasured',
+        severity: 'info',
+        domain: 'test-execution',
+        title: 'Performance Baseline Unmeasured',
+        description: 'No recorded test run backs the current testsPassing evidence, so no timing was stored or ' +
+          'compared. Run the test suite (test_execute_parallel, or `aqe test execute`) to start tracking. ' +
+          'Build and resource figures are not measured by AQE.',
+      });
+    } else if (baseline?.testExecution.lastRunId === current.runId) {
+      // The same run was already blended in on an earlier tick.
+      context.logger.debug('Latest measured run already in the performance baseline', { runId: current.runId });
+    } else {
+      if (baseline && sameTestSet(baseline.testExecution.testSet, current.testSet)) {
+        compared = true;
+        anomalies = this.detectAnomalies(current, baseline);
+        this.analyzeAnomalies(anomalies, findings, recommendations);
+      }
+      await context.memory.set(BASELINE_KEY, this.nextBaseline(current, compared ? baseline : null));
+      await this.appendHistory(context, current);
+    }
 
     const healthScore = this.calculateHealthScore(anomalies);
-
     context.logger.info('Performance baseline tracking complete', {
       healthScore,
+      measured: current !== null,
+      baselineStatus,
       anomaliesDetected: anomalies.length,
     });
 
     return this.createResult(
       Date.now() - startTime,
       {
-        itemsAnalyzed: 10, // Number of metrics tracked
+        itemsAnalyzed: compared ? 2 : 0,
         issuesFound: anomalies.length,
         healthScore,
-        trend: anomalies.length > 2 ? 'degrading' : 'stable',
+        trend: anomalies.length > 0 ? 'degrading' : 'stable',
         domainMetrics: {
-          avgTestDuration: `${currentMetrics.testExecution.avgTestDurationMs}ms`,
-          p95TestDuration: `${currentMetrics.testExecution.p95DurationMs}ms`,
-          compileDuration: `${currentMetrics.build.compileDurationMs}ms`,
-          bundleSize: `${currentMetrics.build.bundleSizeKb}KB`,
-          peakMemory: `${currentMetrics.resources.peakMemoryMb}MB`,
+          baselineStatus,
+          avgTestDuration: current ? `${round(current.avgTestDurationMs)}ms` : 'unmeasured',
+          totalTestDuration: current ? `${round(current.totalDurationMs)}ms` : 'unmeasured',
+          compileDuration: 'unmeasured',
+          bundleSize: 'unmeasured',
+          peakMemory: 'unmeasured',
           anomalies: anomalies.length,
         },
       },
@@ -140,141 +201,60 @@ export class PerformanceBaselineWorker extends BaseWorker {
     );
   }
 
-  private async collectPerformanceMetrics(_context: WorkerContext): Promise<PerformanceMetrics> {
-    // In a real implementation, this would collect actual metrics
+  private baselineStatus(stored: unknown, baseline: MeasuredBaseline | null): BaselineStatus {
+    if (baseline) return 'measured';
+    if (stored === undefined || stored === null) return 'none';
+    const stamped = typeof stored === 'object' && (stored as Record<string, unknown>).measured === true;
+    return stamped ? 'invalid-ignored' : 'legacy-ignored';
+  }
+
+  /**
+   * #1043: the run behind the latest usable testsPassing evidence, with its
+   * recorded wall time and test count. `null` when there is no such evidence
+   * or the run's result was not recorded.
+   */
+  private async collectMeasuredRun(context: WorkerContext): Promise<MeasuredRunTiming | null> {
+    const evidence = await readQualityEvidenceRecord(context.memory, 'testsPassing');
+    if (!evidence?.runId) return null;
+    const run = await context.memory.get<Record<string, unknown>>(`test-run:${evidence.runId}`, {
+      namespace: 'test-execution',
+    });
+    if (!run || typeof run !== 'object') return null;
+    const { total, duration } = run;
+    if (typeof total !== 'number' || !Number.isInteger(total) || total <= 0 || !isNonNegative(duration)) return null;
     return {
-      timestamp: new Date(),
-      testExecution: {
-        totalDurationMs: 45000,
-        avgTestDurationMs: 245,
-        slowestTestMs: 3500,
-        slowestTestName: 'workflow-orchestrator.test.ts::complex scenario',
-        p50DurationMs: 120,
-        p95DurationMs: 800,
-        p99DurationMs: 2500,
-      },
-      build: {
-        compileDurationMs: 12000,
-        bundleSizeKb: 2500,
-        dependencyCount: 45,
-      },
-      resources: {
-        peakMemoryMb: 512,
-        avgCpuPercent: 65,
-        diskReadMb: 150,
-        diskWriteMb: 50,
-      },
+      measured: true,
+      runId: evidence.runId,
+      measuredAt: evidence.measuredAt,
+      totalDurationMs: duration,
+      testCount: total,
+      avgTestDurationMs: duration / total,
+      testSet: parseTestSet({ total, files: run.testFiles }),
     };
   }
 
-  private async getOrCalculateBaseline(context: WorkerContext): Promise<PerformanceBaseline> {
-    const existing = await context.memory.get<PerformanceBaseline>('performance:baseline');
-
-    if (existing) {
-      return existing;
-    }
-
-    // Default baseline if none exists
-    return {
-      testExecution: {
-        avgDurationMs: 200,
-        p95DurationMs: 700,
-        threshold: 1.3, // 30% deviation allowed
-      },
-      build: {
-        avgCompileMs: 10000,
-        avgBundleSizeKb: 2400,
-        threshold: 1.2, // 20% deviation allowed
-      },
-      resources: {
-        avgMemoryMb: 450,
-        avgCpuPercent: 60,
-        threshold: 1.25, // 25% deviation allowed
-      },
-    };
-  }
-
-  private detectAnomalies(
-    metrics: PerformanceMetrics,
-    baseline: PerformanceBaseline
-  ): PerformanceAnomaly[] {
+  /**
+   * Compare a measured run with the measured baseline of the same test set.
+   * The recorded duration is the run's wall time; per-test time across
+   * different test sets would mostly measure runner overhead (#1028 N1).
+   */
+  private detectAnomalies(current: MeasuredRunTiming, baseline: MeasuredBaseline): PerformanceAnomaly[] {
     const anomalies: PerformanceAnomaly[] = [];
-
-    // Test execution anomalies
-    const avgTestDeviation = metrics.testExecution.avgTestDurationMs / baseline.testExecution.avgDurationMs;
-    if (avgTestDeviation > baseline.testExecution.threshold) {
-      anomalies.push({
-        metric: 'avgTestDuration',
-        category: 'test',
-        currentValue: metrics.testExecution.avgTestDurationMs,
-        baselineValue: baseline.testExecution.avgDurationMs,
-        deviationPercent: (avgTestDeviation - 1) * 100,
-        severity: avgTestDeviation > 1.5 ? 'high' : 'medium',
-      });
-    }
-
-    const p95Deviation = metrics.testExecution.p95DurationMs / baseline.testExecution.p95DurationMs;
-    if (p95Deviation > baseline.testExecution.threshold) {
-      anomalies.push({
-        metric: 'p95TestDuration',
-        category: 'test',
-        currentValue: metrics.testExecution.p95DurationMs,
-        baselineValue: baseline.testExecution.p95DurationMs,
-        deviationPercent: (p95Deviation - 1) * 100,
-        severity: p95Deviation > 1.5 ? 'high' : 'medium',
-      });
-    }
-
-    // Build anomalies
-    const compileDeviation = metrics.build.compileDurationMs / baseline.build.avgCompileMs;
-    if (compileDeviation > baseline.build.threshold) {
-      anomalies.push({
-        metric: 'compileDuration',
-        category: 'build',
-        currentValue: metrics.build.compileDurationMs,
-        baselineValue: baseline.build.avgCompileMs,
-        deviationPercent: (compileDeviation - 1) * 100,
-        severity: compileDeviation > 1.5 ? 'high' : 'medium',
-      });
-    }
-
-    const bundleDeviation = metrics.build.bundleSizeKb / baseline.build.avgBundleSizeKb;
-    if (bundleDeviation > baseline.build.threshold) {
-      anomalies.push({
-        metric: 'bundleSize',
-        category: 'build',
-        currentValue: metrics.build.bundleSizeKb,
-        baselineValue: baseline.build.avgBundleSizeKb,
-        deviationPercent: (bundleDeviation - 1) * 100,
-        severity: bundleDeviation > 1.3 ? 'high' : 'medium',
-      });
-    }
-
-    // Resource anomalies
-    const memoryDeviation = metrics.resources.peakMemoryMb / baseline.resources.avgMemoryMb;
-    if (memoryDeviation > baseline.resources.threshold) {
-      anomalies.push({
-        metric: 'peakMemory',
-        category: 'resource',
-        currentValue: metrics.resources.peakMemoryMb,
-        baselineValue: baseline.resources.avgMemoryMb,
-        deviationPercent: (memoryDeviation - 1) * 100,
-        severity: memoryDeviation > 1.5 ? 'critical' : memoryDeviation > 1.3 ? 'high' : 'medium',
-      });
-    }
-
-    const cpuDeviation = metrics.resources.avgCpuPercent / baseline.resources.avgCpuPercent;
-    if (cpuDeviation > baseline.resources.threshold) {
-      anomalies.push({
-        metric: 'avgCpu',
-        category: 'resource',
-        currentValue: metrics.resources.avgCpuPercent,
-        baselineValue: baseline.resources.avgCpuPercent,
-        deviationPercent: (cpuDeviation - 1) * 100,
-        severity: cpuDeviation > 1.4 ? 'high' : 'medium',
-      });
-    }
-
+    const check = (metric: PerformanceAnomaly['metric'], value: number, base: number) => {
+      if (base <= 0) return;
+      const ratio = value / base;
+      if (ratio > DURATION_THRESHOLD) {
+        anomalies.push({
+          metric,
+          currentValue: round(value),
+          baselineValue: round(base),
+          deviationPercent: (ratio - 1) * 100,
+          severity: ratio > 1.5 ? 'high' : 'medium',
+        });
+      }
+    };
+    check('avgTestDuration', current.avgTestDurationMs, baseline.testExecution.avgTestDurationMs);
+    check('totalTestDuration', current.totalDurationMs, baseline.testExecution.totalDurationMs);
     return anomalies;
   }
 
@@ -284,14 +264,12 @@ export class PerformanceBaselineWorker extends BaseWorker {
     recommendations: WorkerRecommendation[]
   ): void {
     for (const anomaly of anomalies) {
-      const domain = anomaly.category === 'test' ? 'test-execution' : 'chaos-resilience';
-
       findings.push({
-        type: `performance-anomaly-${anomaly.category}`,
+        type: 'performance-anomaly-test',
         severity: anomaly.severity,
-        domain,
+        domain: 'test-execution',
         title: `Performance Anomaly: ${this.formatMetricName(anomaly.metric)}`,
-        description: `${this.formatMetricName(anomaly.metric)} is ${anomaly.deviationPercent.toFixed(1)}% above baseline`,
+        description: `${this.formatMetricName(anomaly.metric)} is ${anomaly.deviationPercent.toFixed(1)}% above the measured baseline`,
         context: {
           currentValue: anomaly.currentValue,
           baselineValue: anomaly.baselineValue,
@@ -300,11 +278,9 @@ export class PerformanceBaselineWorker extends BaseWorker {
       });
     }
 
-    // Category-specific recommendations
-    const testAnomalies = anomalies.filter(a => a.category === 'test');
-    if (testAnomalies.length > 0) {
+    if (anomalies.length > 0) {
       recommendations.push({
-        priority: testAnomalies.some(a => a.severity === 'high') ? 'p1' : 'p2',
+        priority: anomalies.some(a => a.severity === 'high') ? 'p1' : 'p2',
         domain: 'test-execution',
         action: 'Investigate Test Performance Degradation',
         description: 'Test execution times have increased. Review for slow tests or infrastructure issues.',
@@ -313,122 +289,44 @@ export class PerformanceBaselineWorker extends BaseWorker {
         autoFixable: false,
       });
     }
-
-    const buildAnomalies = anomalies.filter(a => a.category === 'build');
-    if (buildAnomalies.length > 0) {
-      const bundleAnomaly = buildAnomalies.find(a => a.metric === 'bundleSize');
-      if (bundleAnomaly) {
-        recommendations.push({
-          priority: 'p2',
-          domain: 'chaos-resilience',
-          action: 'Analyze Bundle Size Increase',
-          description: 'Bundle size has grown. Review for unnecessary dependencies or unoptimized imports.',
-          estimatedImpact: 'medium',
-          effort: 'low',
-          autoFixable: true,
-        });
-      }
-    }
-
-    const resourceAnomalies = anomalies.filter(a => a.category === 'resource');
-    if (resourceAnomalies.length > 0) {
-      const memoryAnomaly = resourceAnomalies.find(a => a.metric === 'peakMemory');
-      if (memoryAnomaly && memoryAnomaly.severity === 'critical') {
-        recommendations.push({
-          priority: 'p0',
-          domain: 'chaos-resilience',
-          action: 'Investigate Memory Usage Spike',
-          description: 'Memory usage is significantly above baseline. Check for memory leaks.',
-          estimatedImpact: 'high',
-          effort: 'high',
-          autoFixable: false,
-        });
-      }
-    }
   }
 
-  private formatMetricName(metric: string): string {
-    const names: Record<string, string> = {
-      avgTestDuration: 'Average Test Duration',
-      p95TestDuration: 'P95 Test Duration',
-      compileDuration: 'Compile Duration',
-      bundleSize: 'Bundle Size',
-      peakMemory: 'Peak Memory Usage',
-      avgCpu: 'Average CPU Usage',
-    };
-    return names[metric] || metric;
+  private formatMetricName(metric: PerformanceAnomaly['metric']): string {
+    return metric === 'avgTestDuration' ? 'Average Test Duration' : 'Total Test Duration';
   }
 
-  private async updateBaseline(
-    context: WorkerContext,
-    metrics: PerformanceMetrics,
-    baseline: PerformanceBaseline
-  ): Promise<void> {
-    // Use exponential moving average to update baseline
-    const alpha = 0.1; // Weight for new values
-
-    const updatedBaseline: PerformanceBaseline = {
+  /** Blend a measured run into a comparable baseline, or start a new one from it. */
+  private nextBaseline(current: MeasuredRunTiming, comparable: MeasuredBaseline | null): MeasuredBaseline {
+    const prev = comparable?.testExecution;
+    const blend = (base: number, value: number) => base * (1 - EMA_ALPHA) + value * EMA_ALPHA;
+    return {
+      measured: true,
+      schemaVersion: SCHEMA_VERSION,
+      updatedAt: new Date().toISOString(),
       testExecution: {
-        avgDurationMs: baseline.testExecution.avgDurationMs * (1 - alpha) +
-          metrics.testExecution.avgTestDurationMs * alpha,
-        p95DurationMs: baseline.testExecution.p95DurationMs * (1 - alpha) +
-          metrics.testExecution.p95DurationMs * alpha,
-        threshold: baseline.testExecution.threshold,
-      },
-      build: {
-        avgCompileMs: baseline.build.avgCompileMs * (1 - alpha) +
-          metrics.build.compileDurationMs * alpha,
-        avgBundleSizeKb: baseline.build.avgBundleSizeKb * (1 - alpha) +
-          metrics.build.bundleSizeKb * alpha,
-        threshold: baseline.build.threshold,
-      },
-      resources: {
-        avgMemoryMb: baseline.resources.avgMemoryMb * (1 - alpha) +
-          metrics.resources.peakMemoryMb * alpha,
-        avgCpuPercent: baseline.resources.avgCpuPercent * (1 - alpha) +
-          metrics.resources.avgCpuPercent * alpha,
-        threshold: baseline.resources.threshold,
+        avgTestDurationMs: prev ? round(blend(prev.avgTestDurationMs, current.avgTestDurationMs)) : current.avgTestDurationMs,
+        totalDurationMs: prev ? round(blend(prev.totalDurationMs, current.totalDurationMs)) : current.totalDurationMs,
+        samples: prev ? prev.samples + 1 : 1,
+        lastRunId: current.runId,
+        testSet: current.testSet,
       },
     };
-
-    await context.memory.set('performance:baseline', updatedBaseline);
   }
 
-  private async storeMetricsHistory(
-    context: WorkerContext,
-    metrics: PerformanceMetrics
-  ): Promise<void> {
-    const history = await context.memory.get<PerformanceMetrics[]>('performance:history') || [];
-    history.push(metrics);
-
-    // Keep last 168 data points (1 week of hourly data)
-    while (history.length > 168) {
-      history.shift();
-    }
-
-    await context.memory.set('performance:history', history);
+  private async appendHistory(context: WorkerContext, run: MeasuredRunTiming): Promise<void> {
+    const stored = await context.memory.get<unknown[]>(HISTORY_KEY);
+    const history: unknown[] = Array.isArray(stored) ? stored : [];
+    history.push(run);
+    while (history.length > MAX_HISTORY) history.shift();
+    await context.memory.set(HISTORY_KEY, history);
   }
 
   private calculateHealthScore(anomalies: PerformanceAnomaly[]): number {
-    if (anomalies.length === 0) return 100;
-
     let score = 100;
-
     for (const anomaly of anomalies) {
-      // Penalty based on severity and deviation
-      const basePenalty = {
-        critical: 25,
-        high: 15,
-        medium: 8,
-        low: 3,
-      }[anomaly.severity];
-
-      // Additional penalty for large deviations
-      const deviationPenalty = Math.min(10, anomaly.deviationPercent / 10);
-
-      score -= basePenalty + deviationPenalty;
+      const basePenalty = anomaly.severity === 'high' ? 15 : 8;
+      score -= basePenalty + Math.min(10, anomaly.deviationPercent / 10);
     }
-
     return Math.max(0, Math.round(score));
   }
 }

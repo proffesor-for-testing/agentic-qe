@@ -5,6 +5,8 @@
 **Quality engineering tools for your coding agent.** Generate tests, investigate coverage gaps, analyze flaky behavior and coordinate quality checks across the software lifecycle. Keep the findings close to the code and use them to make a better quality decision.
 
 [![npm version](https://img.shields.io/npm/v/agentic-qe?color=168c91)](https://www.npmjs.com/package/agentic-qe)
+[![Monthly Downloads](https://img.shields.io/npm/dm/agentic-qe?color=168c91)](https://www.npmjs.com/package/agentic-qe)
+[![Total Downloads](https://img.shields.io/npm/d18m/agentic-qe?label=total%20downloads&color=168c91)](https://www.npmjs.com/package/agentic-qe)
 [![License: MIT](https://img.shields.io/badge/license-MIT-168c91)](LICENSE)
 
 [Start with one task](#start-with-one-task) · [Choose your client](#choose-your-client) · [Inspect the evidence](#inspect-the-evidence) · [Contribute](#contribute) · [Release notes](docs/releases/README.md)

@@ -1079,7 +1079,7 @@ export class MCPProtocolServer {
     this.registerTool({
       definition: {
         name: 'test_generate_enhanced',
-        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
+        description: 'Generate unit/integration/e2e tests with AI pattern recognition and anti-pattern detection. By default saves a manifest and report under .agentic-qe/results/tests/, plus each generated test source under .agentic-qe/results/tests/generated/ (paths returned in savedFiles); pass saveResults: false to generate without writing any result files. Example: test_generate_enhanced({ sourceCode: "function add(a,b){return a+b}", testType: "unit", framework: "jest" })',
         category: 'domain',
         parameters: [
           { name: 'sourceCode', type: 'string', description: 'Source code to generate tests for' },
@@ -1165,6 +1165,7 @@ export class MCPProtocolServer {
           { name: 'dast', type: 'boolean', description: 'Run DAST scan', default: false },
           { name: 'target', type: 'string', description: 'Source file or directory for SAST' },
           { name: 'targetUrl', type: 'string', description: 'URL for a requested DAST scan' },
+          { name: 'dependencies', type: 'boolean', description: 'Check package.json dependencies against OSV advisories (sends package names and versions to the OSV API). If the lookup fails or is partial, dependencyScan.status is incomplete/failed: advisories could not be checked, which is not zero vulnerabilities.', default: false },
           saveResultsParameter('security_scan_comprehensive'),
         ],
       },

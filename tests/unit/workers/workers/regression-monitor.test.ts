@@ -112,12 +112,12 @@ describe('RegressionMonitorWorker', () => {
       expect(result.metrics.domainMetrics).toHaveProperty('regressionsDetected');
     });
 
-    it('should store baseline in memory', async () => {
+    it('should not store a baseline when nothing is measured (#1028)', async () => {
       const context = createMockContext();
 
       await worker.execute(context);
 
-      expect(context.memory.set).toHaveBeenCalledWith('regression:baseline', expect.any(Object));
+      expect(context.memory.set).not.toHaveBeenCalledWith('regression:baseline', expect.anything());
     });
 
     it('should publish worker.executed event', async () => {

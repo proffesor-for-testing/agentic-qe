@@ -14,6 +14,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { findProjectRoot } from '../../kernel/unified-memory.js';
 import { existsSync, writeFileSync, readFileSync, copyFileSync, renameSync } from 'node:fs';
 import { safeJsonParse } from '../../shared/safe-json.js';
@@ -792,8 +793,8 @@ function registerBackupCommand(learning: Command): void {
         const dbPath = getDbPath();
         if (!existsSync(dbPath)) throw new Error(`No learning database found at: ${dbPath}`);
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const defaultOutput = path.join(process.cwd(), 'backups', `learning-${timestamp}.db`);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
+        const defaultOutput = path.join(process.cwd(), 'backups', `learning-${timestamp}-${randomUUID()}.db`);
         const outputPath = options.output ? path.resolve(options.output) : defaultOutput;
 
         const snapshot = await backupLearningDatabase(dbPath, outputPath, options);

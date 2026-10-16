@@ -27,6 +27,7 @@ import { toError } from '../../shared/error-utils.js';
 import { LoggerFactory } from '../../logging/index.js';
 import { addToCount } from '../../shared/utils/safe-record.js';
 import { measuredFileCoverage } from '../../domains/quality-assessment/coverage-report-event.js';
+import { fileCoverageLookupKeys } from '../../domains/coverage-analysis/collected-metrics.js';
 
 const logger = LoggerFactory.create('defect-investigation');
 
@@ -990,7 +991,11 @@ export class DefectInvestigationProtocol {
     try {
       // Try per-file coverage (written by coverage-analyzer and test-executor)
       // #1014: only measured records; legacy unstamped estimates are ignored.
-      const coverage = measuredFileCoverage(await this.memory.get<unknown>(`coverage:file:${file}`));
+      let coverage = null;
+      for (const key of fileCoverageLookupKeys(file)) {
+        coverage = measuredFileCoverage(await this.memory.get<unknown>(key));
+        if (coverage) break;
+      }
 
       if (!coverage) {
         return null;

@@ -10,6 +10,7 @@
  *    <= 3.15.4 never expire; quality_assess read "coverage 10" from them.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { resolve } from 'node:path';
 import Database from 'better-sqlite3';
 import { FEEDBACK_SCHEMA } from '../../../src/kernel/unified-memory-schemas';
 import {
@@ -90,6 +91,21 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
     expect(await read('src/a.ts')).toBe(64);
   });
 
+  it('#1030: quality-analyzer finds an absolute-key record for a relative source path', async () => {
+    const analyzer = new QualityAnalyzerService(kv({ [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true } }) as never);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
+    expect(await read('src/a.ts')).toBe(72);
+  });
+
+  it('#1030: canonical coverage wins over an older measured relative key', async () => {
+    const analyzer = new QualityAnalyzerService(kv({
+      [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true },
+      'coverage:file:src/a.ts': { line: 34, measured: true },
+    }) as never);
+    const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
+    expect(await read('src/a.ts')).toBe(72);
+  });
+
   it('#1027 NB4: defect-investigation reports an uncollected branch metric as null, not the line figure', async () => {
     const protocol = new DefectInvestigationProtocol({ publish: vi.fn(), subscribe: vi.fn() } as never,
       kv({ 'coverage:file:src/a.ts': { line: 64, branch: null, function: null, statement: null, measured: true } }) as never);
@@ -98,9 +114,26 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
     expect(ctx).toMatchObject({ lineCoverage: 64, branchCoverage: null });
   });
 
+  it('#1030: defect-investigation finds an absolute-key record for a relative test file', async () => {
+    const protocol = new DefectInvestigationProtocol({ publish: vi.fn(), subscribe: vi.fn() } as never,
+      kv({ [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 82, branch: null, measured: true } }) as never);
+    const ctx = await (protocol as unknown as { getCoverageContext(f: string): Promise<Record<string, unknown> | null> })
+      .getCoverageContext('src/a.ts');
+    expect(ctx).toMatchObject({ lineCoverage: 82, branchCoverage: null });
+  });
+
   it('defect-predictor falls back to its neutral prior instead of the legacy record', async () => {
     const predictor = new DefectPredictorService(kv(legacy) as never);
     const read = (predictor as unknown as { getTestCoverage(f: string): Promise<number> }).getTestCoverage.bind(predictor);
     expect(await read('src/a.ts')).toBe(0.4);
+  });
+
+  it('#1030: defect-predictor uses absolute-key per-file coverage instead of the project summary', async () => {
+    const predictor = new DefectPredictorService(kv({
+      [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 80, measured: true },
+      'coverage:latest': { line: 20, branch: null, function: null, statement: null, files: 1, measured: true },
+    }) as never);
+    const read = (predictor as unknown as { getTestCoverage(f: string): Promise<number> }).getTestCoverage.bind(predictor);
+    expect(await read('src/a.ts')).toBeCloseTo(0.2);
   });
 });

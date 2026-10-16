@@ -295,6 +295,12 @@ export interface SecurityScanParams {
   target?: string;
   /** URL for explicitly requested dynamic scanning. */
   targetUrl?: string;
+  /**
+   * #1049: check package.json dependencies against OSV advisories (opt-in; sends
+   * package names and versions to the OSV API). A failed or partial lookup is
+   * reported as incomplete, never as zero vulnerabilities.
+   */
+  dependencies?: boolean;
   /** #933: write result files under .agentic-qe/results/ (default true). false skips them. */
   saveResults?: boolean;
 }

@@ -10,17 +10,31 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { QualityGateWorker } from '../../../../src/workers/workers/quality-gate';
 import { WorkerContext } from '../../../../src/workers/interfaces';
 
+/** Measured values for every gate metric (#1043: the gate reads only measured evidence). */
+const PASSING_EVIDENCE: Record<string, number> = {
+  coverage: 85, testsPassing: 100, criticalBugs: 0, codeSmells: 3,
+  securityVulnerabilities: 0, technicalDebt: 1, duplications: 1,
+};
+
 function createMockContext(overrides: Partial<{
   gateHistory: unknown[];
+  evidence: Record<string, number>;
 }> = {}): WorkerContext {
-  const { gateHistory = [] } = overrides;
+  const { gateHistory = [], evidence } = overrides;
 
   return {
     eventBus: {
       publish: vi.fn().mockResolvedValue(undefined),
     },
     memory: {
-      get: vi.fn().mockImplementation((key: string) => {
+      get: vi.fn().mockImplementation((key: string, options?: { namespace?: string }) => {
+        const metric = /^quality-evidence:(\w+):latest$/.exec(key)?.[1];
+        if (metric && evidence && options?.namespace === 'quality-assessment' && metric in evidence) {
+          return Promise.resolve({
+            schemaVersion: 1, metric, value: evidence[metric],
+            measuredAt: new Date().toISOString(), source: 'unit-test',
+          });
+        }
         if (key === 'quality-gate:history') {
           return Promise.resolve(gateHistory);
         }
@@ -91,18 +105,18 @@ describe('QualityGateWorker', () => {
     });
 
     it('should return quality gate metrics', async () => {
-      const context = createMockContext();
+      const context = createMockContext({ evidence: PASSING_EVIDENCE });
 
       const result = await worker.execute(context);
 
-      expect(result.metrics.domainMetrics).toHaveProperty('passedRules');
-      expect(result.metrics.domainMetrics).toHaveProperty('failedRules');
-      expect(result.metrics.domainMetrics).toHaveProperty('blockers');
+      expect(result.metrics.domainMetrics).toHaveProperty('passedChecks', 7);
+      expect(result.metrics.domainMetrics).toHaveProperty('failedChecks', 0);
+      expect(result.metrics.domainMetrics).toHaveProperty('gatePassed', 'YES');
       expect(result.metrics.domainMetrics).toHaveProperty('releaseReady');
     });
 
     it('should store gate status in memory', async () => {
-      const context = createMockContext();
+      const context = createMockContext({ evidence: PASSING_EVIDENCE });
 
       await worker.execute(context);
 
@@ -135,12 +149,13 @@ describe('QualityGateWorker', () => {
     });
 
     it('should detect blocking issues', async () => {
-      const context = createMockContext();
+      const context = createMockContext({ evidence: { ...PASSING_EVIDENCE, securityVulnerabilities: 1 } });
 
       const result = await worker.execute(context);
 
-      // Blockers count should be a number
-      expect(typeof result.metrics.domainMetrics.blockers).toBe('number');
+      // A measured critical check failing blocks the release
+      expect(result.metrics.domainMetrics.failedChecks).toBe(1);
+      expect(result.findings.some(f => f.type === 'release-blocked' && f.severity === 'critical')).toBe(true);
     });
   });
 

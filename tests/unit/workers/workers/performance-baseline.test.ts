@@ -96,12 +96,35 @@ describe('PerformanceBaselineWorker', () => {
       expect(Object.keys(result.metrics.domainMetrics).length).toBeGreaterThan(0);
     });
 
-    it('should store baseline in memory', async () => {
+    it('should store nothing when no test run was measured (#1043)', async () => {
       const context = createMockContext();
 
       await worker.execute(context);
 
-      expect(context.memory.set).toHaveBeenCalled();
+      expect(context.memory.set).not.toHaveBeenCalled();
+    });
+
+    it('should store a measured baseline once a test run is recorded (#1043)', async () => {
+      const context = createMockContext();
+      vi.mocked(context.memory.get).mockImplementation(async (key: string, options?: { namespace?: string }) => {
+        if (key === 'quality-evidence:testsPassing:latest' && options?.namespace === 'quality-assessment') {
+          return {
+            schemaVersion: 1, metric: 'testsPassing', value: 100,
+            measuredAt: new Date().toISOString(), source: 'test-execution', runId: 'run-1',
+          } as never;
+        }
+        if (key === 'test-run:run-1' && options?.namespace === 'test-execution') {
+          return { total: 10, duration: 1500 } as never;
+        }
+        return undefined;
+      });
+
+      await worker.execute(context);
+
+      expect(context.memory.set).toHaveBeenCalledWith('performance:baseline', expect.objectContaining({
+        measured: true,
+        testExecution: expect.objectContaining({ avgTestDurationMs: 150, totalDurationMs: 1500, lastRunId: 'run-1' }),
+      }));
     });
 
     it('should publish worker.executed event', async () => {

@@ -2,6 +2,15 @@
 
 Newest first. One `## <version> — <date>` heading per version, then `feat:`, `fix:`, `breaking:` and `chore:` bullets. Since 3.15.0 the plugin version tracks the `agentic-qe` npm package version (see [ADR-0001](docs/adrs/0001-agentic-qe-fleet-contract.md)). Built from git history.
 
+## 3.15.8 — 2026-10-16
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.8` (acknowledged memory writes kept during dreams, `AQE_WORKERS_ENABLED=false` honoured, no startup dream-insight sweep, learning pattern reads, retry and coverage path fixes; see the root CHANGELOG). No other plugin changes.
+
+## 3.15.7 — 2026-10-15
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.7` (failed advisory lookups never read as clean, measured-only background workers, quality-gate, coverage, retry, init and backup fixes; see the root CHANGELOG). No other plugin changes.
+
+## 3.15.6 — 2026-10-13
+- chore: MCP server pin and mod version move to `agentic-qe@3.15.6` (measured-only coverage, quality and learning; store isolation; init and CLI fixes; see the root CHANGELOG). No other plugin changes.
+
 ## 3.15.5 — 2026-10-12
 - chore: MCP server pin and mod version move to `agentic-qe@3.15.5` (honest coverage and quality results, code-index project root; see the root CHANGELOG). No other plugin changes.
 

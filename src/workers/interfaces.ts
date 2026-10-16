@@ -237,10 +237,24 @@ export interface WorkerEvent {
   readonly payload: unknown;
 }
 
+/** Read options; `namespace` reads another domain's records (e.g. quality evidence). */
+export interface WorkerMemoryReadOptions {
+  namespace?: string;
+}
+
 export interface WorkerMemory {
-  get<T>(key: string): Promise<T | undefined>;
+  /**
+   * Read a key. Without `namespace` the worker's own namespace is used; a
+   * backend without namespaces ignores it.
+   */
+  get<T>(key: string, options?: WorkerMemoryReadOptions): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
-  search(pattern: string): Promise<string[]>;
+  /**
+   * Keys matching a glob pattern. Like `get`, `options.namespace` searches
+   * another domain's records (e.g. recorded security scans, #1043); a backend
+   * without namespaces returns nothing for one.
+   */
+  search(pattern: string, limit?: number, options?: WorkerMemoryReadOptions): Promise<string[]>;
 }
 
 export interface WorkerLogger {

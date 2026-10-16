@@ -2,14 +2,39 @@
  * Agentic QE v3 - Security Scan Worker
  * ADR-014: Background Workers for QE Monitoring
  *
- * Performs security vulnerability scanning including:
- * - Dependency vulnerability checks
- * - Code pattern analysis for security issues
- * - Secret detection
- * - Security configuration validation
+ * Reports the security state from scans the security-compliance domain
+ * actually ran:
+ * - Dependency vulnerabilities from the OSV dependency scan
+ * - Code security issues from the SAST scan
+ *
+ * #1043: every finding comes from a recorded scan (`security:scan:<id>` in the
+ * `security-compliance` namespace, written by DependencyScanner and
+ * SASTScanner). The worker runs no scan itself — a background tick must not
+ * send the project's dependency list to an external advisory API unasked — and
+ * never emits a vulnerability or CVE id a scan did not report. Nothing
+ * recorded → nothing stored, an "unmeasured" info finding.
+ *
+ * #1049: a dependency scan counts only when its OSV lookup was complete
+ * (`measured: true`, `status: 'complete'`). The latest scan being incomplete,
+ * failed or pre-#1049 (no `status`) leaves the dependency side unmeasured —
+ * never "0 vulnerabilities" — with a finding naming the unchecked packages.
  */
 
+import { bareSearchKey } from '../namespaced-keys';
 import { BaseWorker } from '../base-worker';
+import {
+  SCHEMA_VERSION,
+  SEVERITIES,
+  SEVERITY_LABEL,
+  parseRecordedScan,
+  partialDependencyMetrics,
+  partialDependencyPenalty,
+  type IncompleteDependencyScan,
+  type MeasuredSecurityScan,
+  type ParsedScan,
+  type RecordedScan,
+  type Severity,
+} from './security-scan-records';
 import {
   WorkerConfig,
   WorkerContext,
@@ -31,33 +56,10 @@ const CONFIG: WorkerConfig = {
   retryDelayMs: 30000,
 };
 
-interface DependencyVulnerability {
-  package: string;
-  version: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  cve: string;
-  title: string;
-  description: string;
-  fixedIn?: string;
-}
-
-interface CodeSecurityIssue {
-  file: string;
-  line: number;
-  rule: string;
-  severity: 'critical' | 'high' | 'medium' | 'low';
-  message: string;
-  category: 'injection' | 'secrets' | 'auth' | 'crypto' | 'config' | 'other';
-}
-
-interface SecurityScanResult {
-  dependencyVulnerabilities: DependencyVulnerability[];
-  codeSecurityIssues: CodeSecurityIssue[];
-  secretsDetected: number;
-  configurationIssues: number;
-  scanDurationMs: number;
-}
-
+const SECURITY_NAMESPACE = 'security-compliance';
+const SCAN_KEY_PATTERN = 'security:scan:*';
+const LAST_SCAN_KEY = 'security:lastScan';
+const MAX_SCAN_RECORDS = 1000;
 export class SecurityScanWorker extends BaseWorker {
   constructor() {
     super(CONFIG);
@@ -70,50 +72,69 @@ export class SecurityScanWorker extends BaseWorker {
     const findings: WorkerFinding[] = [];
     const recommendations: WorkerRecommendation[] = [];
 
-    // Run security scans
-    const scanResult = await this.runSecurityScans(context);
+    const { scan, incompleteDependency } = await this.readRecordedScans(context);
 
-    // Analyze dependency vulnerabilities
-    this.analyzeDependencyVulnerabilities(scanResult.dependencyVulnerabilities, findings, recommendations);
-
-    // Analyze code security issues
-    this.analyzeCodeSecurityIssues(scanResult.codeSecurityIssues, findings, recommendations);
-
-    // Check for secrets
-    if (scanResult.secretsDetected > 0) {
-      this.reportSecretsDetected(scanResult.secretsDetected, findings, recommendations);
+    if (incompleteDependency) {
+      this.reportIncompleteDependencyScan(incompleteDependency, findings, recommendations);
     }
 
-    // Store results
-    await context.memory.set('security:lastScan', scanResult);
-    await context.memory.set('security:lastScanTime', new Date().toISOString());
+    if (!scan) {
+      if (!incompleteDependency) findings.push({
+        type: 'security-unmeasured',
+        severity: 'info',
+        domain: 'security-compliance',
+        title: 'Security Scan Unmeasured',
+        description: 'No dependency or SAST scan has been recorded in the last 7 days, so no vulnerabilities are ' +
+          'reported and nothing was stored. Run security_scan_comprehensive (or `aqe security`) to scan the project.',
+      });
+      context.logger.info('Security scan complete', { measured: false });
+      return this.createResult(
+        Date.now() - startTime,
+        {
+          itemsAnalyzed: incompleteDependency?.scan.total ?? 0,
+          issuesFound: findings.filter((f) => f.severity !== 'info').length,
+          healthScore: Math.max(0, 100 - partialDependencyPenalty(incompleteDependency)),
+          trend: 'stable',
+          domainMetrics: {
+            dependencyScan: 'unmeasured',
+            codeScan: 'unmeasured',
+            dependencyVulnerabilities: 'unmeasured',
+            codeSecurityIssues: 'unmeasured',
+            ...partialDependencyMetrics(incompleteDependency),
+          },
+        },
+        findings,
+        recommendations
+      );
+    }
 
-    const healthScore = this.calculateHealthScore(scanResult);
-    const totalIssues = scanResult.dependencyVulnerabilities.length +
-      scanResult.codeSecurityIssues.length +
-      scanResult.secretsDetected +
-      scanResult.configurationIssues;
+    if (scan.dependency) this.analyzeDependencyVulnerabilities(scan.dependency, findings, recommendations);
+    if (scan.code) this.analyzeCodeSecurityIssues(scan.code, findings, recommendations);
 
+    await context.memory.set(LAST_SCAN_KEY, scan);
+    await context.memory.set('security:lastScanTime', scan.evaluatedAt);
+
+    const healthScore = Math.max(0, this.calculateHealthScore(scan) - partialDependencyPenalty(incompleteDependency));
     context.logger.info('Security scan complete', {
+      measured: true,
       healthScore,
-      totalIssues,
-      criticalIssues: scanResult.dependencyVulnerabilities.filter(v => v.severity === 'critical').length +
-        scanResult.codeSecurityIssues.filter(i => i.severity === 'critical').length,
+      dependencyScanId: scan.dependency?.scanId ?? null,
+      codeScanId: scan.code?.scanId ?? null,
     });
 
     return this.createResult(
       Date.now() - startTime,
       {
-        itemsAnalyzed: totalIssues,
+        itemsAnalyzed: (scan.dependency?.total ?? 0) + (scan.code?.total ?? 0),
         issuesFound: findings.length,
         healthScore,
         trend: 'stable',
         domainMetrics: {
-          dependencyVulnerabilities: scanResult.dependencyVulnerabilities.length,
-          codeSecurityIssues: scanResult.codeSecurityIssues.length,
-          secretsDetected: scanResult.secretsDetected,
-          configurationIssues: scanResult.configurationIssues,
-          scanDuration: `${scanResult.scanDurationMs}ms`,
+          dependencyScan: scan.dependency ? scan.dependency.scannedAt : 'unmeasured',
+          codeScan: scan.code ? scan.code.scannedAt : 'unmeasured',
+          dependencyVulnerabilities: scan.dependency ? scan.dependency.total : 'unmeasured',
+          codeSecurityIssues: scan.code ? scan.code.total : 'unmeasured',
+          ...partialDependencyMetrics(incompleteDependency),
         },
       },
       findings,
@@ -121,94 +142,119 @@ export class SecurityScanWorker extends BaseWorker {
     );
   }
 
-  private async runSecurityScans(_context: WorkerContext): Promise<SecurityScanResult> {
-    // In a real implementation, this would:
-    // 1. Run npm audit or similar for dependencies
-    // 2. Run static analysis for code issues
-    // 3. Scan for secrets with tools like gitleaks
-    // 4. Check security configurations
+  /** The most recent recorded dependency and SAST scans, or `null` when neither exists (#1043). */
+  private async readRecordedScans(context: WorkerContext): Promise<{
+    scan: MeasuredSecurityScan | null;
+    incompleteDependency: IncompleteDependencyScan | null;
+  }> {
+    const keys = await context.memory.search(SCAN_KEY_PATTERN, MAX_SCAN_RECORDS, { namespace: SECURITY_NAMESPACE });
+    const now = Date.now();
+    let latestDependency: Extract<ParsedScan, { kind: 'dependency' }> | null = null;
+    let code: RecordedScan | null = null;
+    const newer = (a: RecordedScan, b: RecordedScan | null) => !b || Date.parse(a.scannedAt) > Date.parse(b.scannedAt);
 
-    return {
-      dependencyVulnerabilities: [
-        {
-          package: 'lodash',
-          version: '4.17.15',
-          severity: 'high',
-          cve: 'CVE-2021-23337',
-          title: 'Command Injection',
-          description: 'Lodash versions prior to 4.17.21 are vulnerable to Command Injection via the template function.',
-          fixedIn: '4.17.21',
-        },
-        {
-          package: 'minimist',
-          version: '1.2.5',
-          severity: 'critical',
-          cve: 'CVE-2021-44906',
-          title: 'Prototype Pollution',
-          description: 'Prototype pollution vulnerability allows attackers to manipulate JavaScript object prototypes.',
-          fixedIn: '1.2.6',
-        },
-      ],
-      codeSecurityIssues: [
-        {
-          file: 'src/shared/http/http-client.ts',
-          line: 45,
-          rule: 'no-eval',
-          severity: 'high',
-          message: 'Avoid using eval() as it can execute arbitrary code',
-          category: 'injection',
-        },
-        {
-          file: 'src/kernel/memory-backend.ts',
-          line: 122,
-          rule: 'sql-injection',
-          severity: 'medium',
-          message: 'Potential SQL injection - use parameterized queries',
-          category: 'injection',
-        },
-      ],
-      secretsDetected: 0,
-      configurationIssues: 1,
-      scanDurationMs: 2500,
-    };
+    for (const found of keys) {
+      // The in-memory kernel backend returns namespaced searches as
+      // `<namespace>:<key>`; the hybrid backend returns the bare key (#1049).
+      const key = bareSearchKey(found, SECURITY_NAMESPACE, SCAN_KEY_PATTERN);
+      const parsed = parseRecordedScan(await context.memory.get<unknown>(key, { namespace: SECURITY_NAMESPACE }), now);
+      if (!parsed) continue;
+      if (parsed.kind === 'dependency' && newer(parsed.scan, latestDependency?.scan ?? null)) latestDependency = parsed;
+      if (parsed.kind === 'sast' && newer(parsed.scan, code)) code = parsed.scan;
+    }
+
+    // #1049: only the latest dependency scan counts, and only when its lookup
+    // was complete — an older complete scan must not mask a newer failure.
+    const completeness = latestDependency?.completeness;
+    const dependency = latestDependency && completeness?.complete ? latestDependency.scan : null;
+    const incompleteDependency: IncompleteDependencyScan | null = latestDependency && completeness && !completeness.complete
+      ? {
+        scan: latestDependency.scan,
+        status: completeness.status,
+        ...(completeness.error ? { error: completeness.error } : {}),
+        uncheckedPackages: completeness.uncheckedPackages,
+        ...(completeness.packagesChecked !== undefined ? { packagesChecked: completeness.packagesChecked } : {}),
+      }
+      : null;
+
+    if (!dependency && !code) return { scan: null, incompleteDependency };
+    return { incompleteDependency, scan: {
+      measured: true,
+      schemaVersion: SCHEMA_VERSION,
+      evaluatedAt: new Date().toISOString(),
+      dependency: dependency ? { ...dependency, source: 'osv' } : null,
+      code: code ? { ...code, source: 'sast' } : null,
+    } };
   }
 
-  private analyzeDependencyVulnerabilities(
-    vulnerabilities: DependencyVulnerability[],
+  /**
+   * #1049: a dependency scan whose lookup was not complete is unmeasured —
+   * never "0 vulnerabilities". Advisories OSV did return for checked packages
+   * are real and still reported, marked as coming from a partial scan.
+   */
+  private reportIncompleteDependencyScan(
+    incomplete: IncompleteDependencyScan,
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
-    const critical = vulnerabilities.filter(v => v.severity === 'critical');
-    const high = vulnerabilities.filter(v => v.severity === 'high');
+    const { scan, status, error, uncheckedPackages, packagesChecked } = incomplete;
+    const unchecked = uncheckedPackages.map((p) => `${p.name}@${p.version} (${p.reason})`);
+    const counts = scan.summary;
+    const inChecked = scan.total > 0
+      ? ` OSV reported ${scan.total} advisory finding(s) in the ${packagesChecked ?? ''}${packagesChecked === undefined ? '' : ' '}checked package(s)` +
+        ` (${counts.critical} critical, ${counts.high} high, ${counts.medium} medium, ${counts.low} low); they are listed as separate findings.`
+      : '';
+    const why = status === 'unknown'
+      ? 'was recorded before scans stated whether every package was checked, so a failed lookup cannot be told apart from a clean one'
+      : `is ${status}${error ? ` (${error})` : ''}`;
+    findings.push({
+      type: 'dependency-scan-incomplete',
+      severity: 'info',
+      domain: 'security-compliance',
+      title: 'Dependency Scan Unmeasured',
+      description: `The latest dependency scan (${scan.scannedAt}) ${why}; its result is not a vulnerability count.` +
+        (unchecked.length > 0 ? ` Unchecked packages: ${unchecked.join(', ')}.` : '') + inChecked +
+        ' Re-run the dependency scan.',
+      context: {
+        scanId: scan.scanId, status, ...(error ? { error } : {}), uncheckedPackages,
+        ...(packagesChecked !== undefined ? { packagesChecked } : {}),
+        advisoriesInCheckedPackages: scan.total,
+      },
+    });
+    this.analyzeDependencyVulnerabilities(scan, findings, recommendations, true);
+  }
 
-    for (const vuln of critical) {
-      findings.push({
-        type: 'critical-vulnerability',
-        severity: 'critical',
-        domain: 'security-compliance',
-        title: `Critical Vulnerability in ${vuln.package}`,
-        description: `${vuln.title}: ${vuln.description}`,
-        resource: vuln.package,
-        context: {
-          cve: vuln.cve,
-          currentVersion: vuln.version,
-          fixedIn: vuln.fixedIn,
-        },
-      });
-    }
+  private analyzeDependencyVulnerabilities(
+    scan: RecordedScan,
+    findings: WorkerFinding[],
+    recommendations: WorkerRecommendation[],
+    partialScan = false
+  ): void {
+    const critical = scan.vulnerabilities.filter(v => v.severity === 'critical');
+    const high = scan.vulnerabilities.filter(v => v.severity === 'high');
+    // #1049: a complete scan carries medium/low in its counts; a partial scan has
+    // no measured count, so every advisory OSV returned for a checked package is relayed.
+    const relayed = partialScan
+      ? SEVERITIES.flatMap((s) => scan.vulnerabilities.filter(v => v.severity === s))
+      : [...critical, ...high];
 
-    for (const vuln of high) {
+    for (const vuln of relayed) {
+      const pkg = vuln.package ?? vuln.title;
       findings.push({
-        type: 'high-vulnerability',
-        severity: 'high',
+        type: `${vuln.severity}-vulnerability`,
+        severity: vuln.severity === 'informational' ? 'info' : vuln.severity,
         domain: 'security-compliance',
-        title: `High Severity Vulnerability in ${vuln.package}`,
-        description: `${vuln.title}: ${vuln.description}`,
-        resource: vuln.package,
+        title: `${SEVERITY_LABEL[vuln.severity]} Vulnerability in ${pkg}`,
+        description: vuln.description ? `${vuln.title}: ${vuln.description}` : vuln.title,
+        resource: pkg,
         context: {
-          cve: vuln.cve,
-          currentVersion: vuln.version,
-          fixedIn: vuln.fixedIn,
+          advisorySource: 'osv',
+          scanId: scan.scanId,
+          scannedAt: scan.scannedAt,
+          ...(vuln.cve ? { cve: vuln.cve } : {}),
+          ...(vuln.fixedIn ? { fixedIn: vuln.fixedIn } : {}),
+          references: vuln.references,
+          ...(partialScan ? { partialScan: true } : {}),
         },
       });
     }
@@ -218,7 +264,7 @@ export class SecurityScanWorker extends BaseWorker {
         priority: 'p0',
         domain: 'security-compliance',
         action: 'Update Critical Vulnerabilities Immediately',
-        description: `${critical.length} packages have critical vulnerabilities. Update immediately to patched versions.`,
+        description: `The dependency scan of ${scan.scannedAt} reported ${critical.length} critical vulnerabilities. Update to patched versions.`,
         estimatedImpact: 'high',
         effort: 'low',
         autoFixable: true,
@@ -230,7 +276,7 @@ export class SecurityScanWorker extends BaseWorker {
         priority: 'p1',
         domain: 'security-compliance',
         action: 'Address High Severity Vulnerabilities',
-        description: `${high.length} packages have high severity vulnerabilities. Plan updates within current sprint.`,
+        description: `The dependency scan of ${scan.scannedAt} reported ${high.length} high severity vulnerabilities. Plan updates within current sprint.`,
         estimatedImpact: 'high',
         effort: 'low',
         autoFixable: true,
@@ -239,54 +285,47 @@ export class SecurityScanWorker extends BaseWorker {
   }
 
   private analyzeCodeSecurityIssues(
-    issues: CodeSecurityIssue[],
+    scan: RecordedScan,
     findings: WorkerFinding[],
     recommendations: WorkerRecommendation[]
   ): void {
-    const byCategory = new Map<string, CodeSecurityIssue[]>();
-
-    for (const issue of issues) {
-      const existing = byCategory.get(issue.category) || [];
-      existing.push(issue);
-      byCategory.set(issue.category, existing);
-    }
-
-    for (const issue of issues) {
+    for (const issue of scan.vulnerabilities) {
       findings.push({
         type: `code-security-${issue.category}`,
-        severity: issue.severity,
+        severity: issue.severity === 'informational' ? 'info' : issue.severity,
         domain: 'security-compliance',
-        title: `Security Issue: ${issue.rule}`,
-        description: issue.message,
-        resource: `${issue.file}:${issue.line}`,
+        title: `Security Issue: ${issue.title}`,
+        description: issue.description || issue.title,
+        ...(issue.location ? { resource: issue.location } : {}),
         context: {
-          rule: issue.rule,
           category: issue.category,
+          scanId: scan.scanId,
+          scannedAt: scan.scannedAt,
+          ...(issue.cve ? { cve: issue.cve } : {}),
         },
       });
     }
 
-    // Category-specific recommendations
-    const injectionIssues = byCategory.get('injection') || [];
+    const injectionIssues = scan.vulnerabilities.filter(v => v.category === 'injection');
     if (injectionIssues.length > 0) {
       recommendations.push({
         priority: 'p0',
         domain: 'security-compliance',
         action: 'Fix Injection Vulnerabilities',
-        description: `${injectionIssues.length} potential injection vulnerabilities found. Use parameterized queries and avoid eval().`,
+        description: `The SAST scan of ${scan.scannedAt} reported ${injectionIssues.length} potential injection vulnerabilities. Use parameterized queries and avoid eval().`,
         estimatedImpact: 'high',
         effort: 'medium',
         autoFixable: false,
       });
     }
 
-    const cryptoIssues = byCategory.get('crypto') || [];
+    const cryptoIssues = scan.vulnerabilities.filter(v => v.category === 'sensitive-data');
     if (cryptoIssues.length > 0) {
       recommendations.push({
         priority: 'p1',
         domain: 'security-compliance',
-        action: 'Review Cryptographic Implementations',
-        description: `${cryptoIssues.length} cryptographic issues found. Ensure using secure algorithms and proper key management.`,
+        action: 'Review Sensitive Data Handling',
+        description: `The SAST scan of ${scan.scannedAt} reported ${cryptoIssues.length} sensitive-data issues. Ensure secure algorithms and key management.`,
         estimatedImpact: 'high',
         effort: 'high',
         autoFixable: false,
@@ -294,56 +333,17 @@ export class SecurityScanWorker extends BaseWorker {
     }
   }
 
-  private reportSecretsDetected(
-    count: number,
-    findings: WorkerFinding[],
-    recommendations: WorkerRecommendation[]
-  ): void {
-    findings.push({
-      type: 'secrets-detected',
-      severity: 'critical',
-      domain: 'security-compliance',
-      title: 'Secrets Detected in Codebase',
-      description: `${count} potential secrets/credentials found in source code`,
-      context: { count },
-    });
-
-    recommendations.push({
-      priority: 'p0',
-      domain: 'security-compliance',
-      action: 'Remove Secrets from Codebase',
-      description: 'Immediately rotate any exposed credentials and move them to secure secret management.',
-      estimatedImpact: 'high',
-      effort: 'medium',
-      autoFixable: false,
-    });
-  }
-
-  private calculateHealthScore(result: SecurityScanResult): number {
+  /** Score from the recorded scans' own severity counts. */
+  private calculateHealthScore(scan: MeasuredSecurityScan): number {
     let score = 100;
-
-    // Critical vulnerabilities: -20 each
-    const criticalVulns = result.dependencyVulnerabilities.filter(v => v.severity === 'critical').length;
-    score -= criticalVulns * 20;
-
-    // High vulnerabilities: -10 each
-    const highVulns = result.dependencyVulnerabilities.filter(v => v.severity === 'high').length;
-    score -= highVulns * 10;
-
-    // Critical code issues: -15 each
-    const criticalCode = result.codeSecurityIssues.filter(i => i.severity === 'critical').length;
-    score -= criticalCode * 15;
-
-    // High code issues: -8 each
-    const highCode = result.codeSecurityIssues.filter(i => i.severity === 'high').length;
-    score -= highCode * 8;
-
-    // Secrets: -30 each
-    score -= result.secretsDetected * 30;
-
-    // Config issues: -5 each
-    score -= result.configurationIssues * 5;
-
+    if (scan.dependency) {
+      score -= scan.dependency.summary.critical * 20;
+      score -= scan.dependency.summary.high * 10;
+    }
+    if (scan.code) {
+      score -= scan.code.summary.critical * 15;
+      score -= scan.code.summary.high * 8;
+    }
     return Math.max(0, Math.round(score));
   }
 }

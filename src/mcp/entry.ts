@@ -26,6 +26,7 @@ import { initFeatureFlagsFromEnv } from '../integrations/ruvector/feature-flags.
 import { resetSharedRvfAdapter } from '../integrations/ruvector/shared-rvf-adapter.js';
 import { resetSharedRvfDualWriter } from '../integrations/ruvector/shared-rvf-dual-writer.js';
 import { claimProcessLifecycle, closeRegisteredStores } from '../kernel/process-lifecycle.js';
+import { startBackgroundWorkers } from './background-workers.js';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -328,53 +329,9 @@ async function main(): Promise<void> {
       }
     })();
 
-    // IMP-10: Start background workers (heartbeat scheduler, etc.). In
-    // database-free mode they run against the in-memory unified store, so they
-    // persist nothing to disk while keeping QualityDaemon/health functional.
-    try {
-      const { getDaemon } = await import('../workers/daemon.js');
-      // ADR-001 Bug A fix: use the canonical getDaemon() default. Passing
-      // `{ autoStart: false }` here would neuter workerManager.startAll() —
-      // the only call path that schedules per-worker setInterval timers, so
-      // workers would register but never tick. DEFAULT_CONFIG.autoStart=true
-      // (workers/daemon.ts) is the contracted default; matches the
-      // shutdownDaemon() call site above.
-      const daemon = getDaemon();
-      await daemon.start();
-      const status = daemon.getStatus();
-      originalStderrWrite(`[MCP] Background workers started (${status.workerManager.totalWorkers} workers)\n`);
-
-      // IMP-10: Start QualityDaemon with persistent memory (Finding 1 & 2 resolution)
-      try {
-        const { UnifiedMemoryManager } = await import('../kernel/unified-memory.js');
-        const { PersistentWorkerMemory } = await import('../workers/quality-daemon/persistent-memory.js');
-        const { isPrivateIp } = await import('../hooks/security/ssrf-guard.js');
-        const unifiedMemory = await UnifiedMemoryManager.getInstanceAsync();
-        const persistentMemory = new PersistentWorkerMemory(unifiedMemory);
-        const qualityDaemon = daemon.getQualityDaemon({
-          notifications: {
-            // IMP-07 SSRF guard: block private IPs in webhook URLs (Finding 5)
-            urlValidator: (url: string) => {
-              try {
-                const parsed = new URL(url);
-                const hostname = parsed.hostname.replace(/^\[|\]$/g, '');
-                return !isPrivateIp(hostname);
-              } catch {
-                return false;
-              }
-            },
-          },
-        });
-        await qualityDaemon.start(persistentMemory);
-        originalStderrWrite(`[MCP] Quality daemon started\n`);
-      } catch (qdError) {
-        originalStderrWrite(`[MCP] WARNING: Quality daemon failed to start: ${qdError}\n`);
-        // Non-fatal — MCP continues without quality daemon
-      }
-    } catch (daemonError) {
-      originalStderrWrite(`[MCP] WARNING: Background workers failed to start: ${daemonError}\n`);
-      // Non-fatal — MCP server continues without background workers
-    }
+    // IMP-10: Start background workers (heartbeat scheduler, etc.) and the
+    // QualityDaemon. #1061: AQE_WORKERS_ENABLED=false skips both.
+    await startBackgroundWorkers(originalStderrWrite);
 
     // Start HTTP server for AG-UI/A2A/A2UI if port is specified
     const httpPort = parseInt(process.env.AQE_HTTP_PORT || '0', 10);

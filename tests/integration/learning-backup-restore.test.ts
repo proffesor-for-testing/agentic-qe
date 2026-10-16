@@ -10,14 +10,14 @@ import Database from 'better-sqlite3';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const fixtures: string[] = [];
 const connections: Database.Database[] = [];
-function cli(project: string, args: string[], temp: string, rootArgs: string[] = []) {
+function cli(project: string, args: string[], temp: string, rootArgs: string[] = [], extraEnv: NodeJS.ProcessEnv = {}) {
   mkdirSync(project, { recursive: true });
   return spawnSync(process.execPath, [
     '--import', pathToFileURL(join(repo, 'node_modules/tsx/dist/loader.mjs')).href,
     join(repo, 'src/cli/index.ts'), ...rootArgs, 'learning', ...args,
   ], {
     cwd: project, encoding: 'utf8', timeout: 20_000,
-    env: { PATH: process.env.PATH, TMPDIR: temp, AQE_PROJECT_ROOT: project, AQE_MEMORY_BACKEND: 'sqlite', AQE_SESSION_CACHE: 'off' },
+    env: { PATH: process.env.PATH, TMPDIR: temp, AQE_PROJECT_ROOT: project, AQE_MEMORY_BACKEND: 'sqlite', AQE_SESSION_CACHE: 'off', ...extraEnv },
   });
 }
 function assertSuccess(run: ReturnType<typeof cli>) {
@@ -39,6 +39,36 @@ afterEach(() => {
 });
 
 describe('learning backup and restore public CLI', () => {
+  it('preserves both default backups when commands run at the same instant', () => {
+    const fixture = mkdtempSync(join(tmpdir(), 'aqe-cli-backup-collision-'));
+    fixtures.push(fixture);
+    const project = join(fixture, 'project');
+    mkdirSync(join(project, '.agentic-qe'), { recursive: true });
+    const writer = new Database(join(project, '.agentic-qe', 'memory.db'));
+    connections.push(writer);
+    writer.exec("CREATE TABLE evidence(value TEXT); INSERT INTO evidence VALUES ('first');");
+
+    // Freeze both child processes to the same millisecond; a timestamp alone
+    // cannot distinguish concurrent or very rapid backup requests.
+    const clock = join(fixture, 'fixed-date.cjs');
+    writeFileSync(clock, `const RealDate = Date;
+globalThis.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : ['2026-10-13T12:00:00.123Z'])); }
+  static now() { return RealDate.parse('2026-10-13T12:00:00.123Z'); }
+};\n`);
+    const env = { NODE_OPTIONS: `--require=${clock}` };
+
+    const first = assertSuccess(cli(project, ['backup', '--json'], fixture, [], env));
+    writer.prepare('INSERT INTO evidence VALUES (?)').run('second');
+    const second = assertSuccess(cli(project, ['backup', '--json'], fixture, [], env));
+
+    expect(second.backupPath).not.toBe(first.backupPath);
+    const rows = (file: string) => (open(file).prepare('SELECT value FROM evidence ORDER BY rowid').all() as { value: string }[])
+      .map(row => row.value);
+    expect(rows(first.backupPath)).toEqual(['first']);
+    expect(rows(second.backupPath)).toEqual(['first', 'second']);
+  });
+
   it.each([false, true])('preserves all committed rows with a live WAL writer (compress=%s)', (compress) => {
     const fixture = mkdtempSync(join(tmpdir(), 'aqe-cli-backup-'));
     fixtures.push(fixture);

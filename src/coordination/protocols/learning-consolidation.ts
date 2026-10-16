@@ -18,6 +18,7 @@ import {
 import { TimeRange } from '../../shared/value-objects/index.js';
 import { EventBus, MemoryBackend } from '../../kernel/interfaces.js';
 import { toError } from '../../shared/error-utils.js';
+import { readActivePatterns } from '../../domains/learning-optimization/active-patterns.js';
 import type {
   LearnedPattern,
   PatternType,
@@ -335,22 +336,14 @@ export class LearningConsolidationProtocol {
     domain: DomainName,
     timeRange: TimeRange
   ): Promise<LearnedPattern[]> {
-    const keys = await this.memory.search(`learning:pattern:*`, 500);
-    const patterns: LearnedPattern[] = [];
-
-    for (const key of keys) {
-      const pattern = await this.memory.get<LearnedPattern>(key);
-      if (
-        pattern &&
+    // #1055: active patterns only — excludes `:creation:` provenance as well
+    // as `:archived:` records, before get() and before the scan cap applies.
+    const patterns = await readActivePatterns(this.memory);
+    return patterns.filter(
+      (pattern) =>
         pattern.domain === domain &&
-        !key.includes(':archived:') &&
         (timeRange.contains(pattern.createdAt) || timeRange.contains(pattern.lastUsedAt))
-      ) {
-        patterns.push(pattern);
-      }
-    }
-
-    return patterns;
+    );
   }
 
   /**

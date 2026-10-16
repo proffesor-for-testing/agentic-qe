@@ -31,6 +31,7 @@ import { toError } from '../../../shared/error-utils.js';
 import { safeJsonParse } from '../../../shared/safe-json.js';
 import { getClaudeModelForTier } from '../../../shared/llm/model-registry.js';
 import { measuredCoverageSummary, measuredFileCoverage } from '../coverage-report-event.js';
+import { fileCoverageLookupKeys } from '../../coverage-analysis/collected-metrics.js';
 
 /**
  * Interface for the quality analyzer service
@@ -247,7 +248,7 @@ Focus on:
       }
 
       return null;
-    } catch (error) {
+    } catch {
       logger.warn('LLM insights generation failed:');
       return null;
     }
@@ -338,7 +339,7 @@ Focus on:
         }
       }
       return null;
-    } catch (error) {
+    } catch {
       logger.warn('Failed to parse LLM insights response:');
       return null;
     }
@@ -663,11 +664,9 @@ Focus on:
       // 1. Try per-file coverage stored by test executor
       // #1014: only measured records count. Legacy unstamped estimate
       // records (written by <= 3.15.4, never expiring) are ignored.
-      const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(
-        `coverage:file:${file}`
-      ));
-      if (fileCoverage) {
-        return fileCoverage.line;
+      for (const key of fileCoverageLookupKeys(file)) {
+        const fileCoverage = measuredFileCoverage(await this.memory.get<unknown>(key));
+        if (fileCoverage) return fileCoverage.line;
       }
 
       // 2. Fall back to project-wide summary from coverage-analyzer

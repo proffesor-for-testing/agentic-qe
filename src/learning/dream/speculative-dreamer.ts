@@ -136,6 +136,14 @@ export const BUILT_IN_STRATEGIES: DreamStrategy[] = [
  * are executed one at a time but each in its own savepoint. The branch manager
  * ensures that failed strategies leave no trace in the database.
  *
+ * WARNING (#1060): a SAVEPOINT covers every write on its connection, not just
+ * the dream's. Use an isolated connection, or keep the branch open only
+ * across synchronous work. If it stays open across `await`s on the
+ * process-wide shared connection, foreground writes made in the meantime
+ * (memory_store and other acknowledged writes) join the savepoint and are
+ * rolled back by a discard, or lost if the connection closes before
+ * RELEASE. DreamEngine therefore defaults `enableBranching` to false.
+ *
  * @example
  * ```typescript
  * const dreamer = new SpeculativeDreamer(db);

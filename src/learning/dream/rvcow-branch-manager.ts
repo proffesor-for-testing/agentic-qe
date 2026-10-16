@@ -13,6 +13,14 @@
  *   - mergeBranch   -> RELEASE SAVEPOINT
  *   - discardBranch -> ROLLBACK TO SAVEPOINT
  *
+ * WARNING (#1060): a SAVEPOINT covers every write on its connection, not just
+ * the dream's. Use an isolated connection, or keep the branch open only
+ * across synchronous work. If it stays open across `await`s on the
+ * process-wide shared connection, foreground writes made in the meantime
+ * (memory_store and other acknowledged writes) join the savepoint and are
+ * rolled back by a discard, or lost if the connection closes before
+ * RELEASE. DreamEngine therefore defaults `enableBranching` to false.
+ *
  * @module learning/dream/rvcow-branch-manager
  */
 

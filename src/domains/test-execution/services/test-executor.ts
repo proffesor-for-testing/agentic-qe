@@ -8,6 +8,7 @@ import { spawn, ChildProcess } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, ok, err } from '../../../shared/types';
 import {
@@ -165,7 +166,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       // Store results
       this.runResults.set(runId, runResult);
-      await this.storeResults(runId, runResult);
+      await this.storeResults(runId, runResult, request.testFiles);
 
       // Create and store stats
       const stats: ExecutionStats = {
@@ -234,7 +235,7 @@ export class TestExecutorService implements ITestExecutionService {
 
       // Store results
       this.runResults.set(runId, runResult);
-      await this.storeResults(runId, runResult);
+      await this.storeResults(runId, runResult, request.testFiles);
 
       // Create and store stats
       const stats: ExecutionStats = {
@@ -426,12 +427,14 @@ Provide:
     const failedTests: FailedTest[] = [];
     const coverages: CoverageFigures[] = [];
     const allFileCoverages: FileCoverageFigures[] = [];
+    const executionResults: TestExecutionResult[] = [];
     let passed = 0;
     let failed = 0;
     let skipped = 0;
 
     for (const file of testFiles) {
       const result = await this.executeTestFile(file, framework, timeout);
+      executionResults.push(result);
       passed += result.passed;
       failed += result.failed;
       skipped += result.skipped;
@@ -444,15 +447,58 @@ Provide:
       }
     }
 
+    // Separate runner invocations each have their own coverage map. Averaging
+    // percentages double-counts source files and misses disjoint hits (#1030).
+    // If any run lacks raw counters, there is no honest combined measurement.
+    const merged = testFiles.length > 1 && !this.config.simulateForTesting
+      ? this.mergeSequentialCoverage(executionResults)
+      : undefined;
+    const separateRuns = testFiles.length > 1 && !this.config.simulateForTesting;
     return {
       total: passed + failed + skipped,
       passed,
       failed,
       skipped,
       failedTests,
-      coverage: this.aggregateCoverage(coverages),
-      fileCoverages: allFileCoverages.length > 0 ? allFileCoverages : undefined,
+      coverage: separateRuns ? merged?.summary : this.aggregateCoverage(coverages),
+      fileCoverages: separateRuns ? merged?.perFile
+        : allFileCoverages.length > 0 ? allFileCoverages : undefined,
     };
+  }
+
+  private mergeSequentialCoverage(results: TestExecutionResult[]): {
+    summary: CoverageFigures;
+    perFile: FileCoverageFigures[];
+  } | undefined {
+    if (results.some(result => !result.rawCoverageMap)) return undefined;
+    const merged: Record<string, Record<string, unknown>> = {};
+    for (const result of results) {
+      for (const [rawPath, entry] of Object.entries(result.rawCoverageMap!)) {
+        if (!isRecord(entry) || !isRecord(entry.statementMap) || !isRecord(entry.fnMap)
+          || !isRecord(entry.branchMap) || !isRecord(entry.s) || !isRecord(entry.f)
+          || !isRecord(entry.b)) return undefined;
+        const file = fileCoverageKey(rawPath);
+        const prior = merged[file];
+        if (prior) {
+          if (!isDeepStrictEqual(prior.statementMap, entry.statementMap)
+            || !isDeepStrictEqual(prior.fnMap, entry.fnMap)
+            || !isDeepStrictEqual(prior.branchMap, entry.branchMap)) return undefined;
+          for (const counter of ['s', 'f', 'b'] as const) {
+            const hits = mergeHitCounts(prior[counter], entry[counter]);
+            if (!hits) return undefined;
+            prior[counter] = hits;
+          }
+        } else {
+          const s = mergeHitCounts(entry.s, entry.s);
+          const f = mergeHitCounts(entry.f, entry.f);
+          const b = mergeHitCounts(entry.b, entry.b);
+          if (!s || !f || !b) return undefined;
+          merged[file] = { ...entry, path: file, s, f, b };
+        }
+      }
+    }
+    const coverage = this.extractCoverageFromJson({ coverageMap: merged });
+    return coverage.summary ? { summary: coverage.summary, perFile: coverage.perFile } : undefined;
   }
 
   private async executeTestFile(
@@ -602,13 +648,14 @@ Provide:
 
         // Read only this invocation's coverage artifacts. A previous or
         // concurrent run's project coverage directory is not evidence.
-        if (parseResult.success && !parseResult.value.coverage && coverageDirectory) {
+        if (parseResult.success && coverageDirectory) {
           const diskCoverage = this.readCoverageFromDisk(coverageDirectory);
           if (diskCoverage) {
-            parseResult.value.coverage = diskCoverage.summary;
-            if (diskCoverage.perFile.length > 0) {
+            parseResult.value.coverage ??= diskCoverage.summary;
+            if (!parseResult.value.fileCoverages && diskCoverage.perFile.length > 0) {
               parseResult.value.fileCoverages = diskCoverage.perFile;
             }
+            parseResult.value.rawCoverageMap ??= diskCoverage.rawMap;
           }
         }
 
@@ -829,6 +876,7 @@ Provide:
           failedTests,
           coverage: covData.summary,
           fileCoverages: covData.perFile.length > 0 ? covData.perFile : undefined,
+          rawCoverageMap: isRecord(json.coverageMap) && !json.coverageMap.total ? json.coverageMap : undefined,
         });
       } catch {
         // JSON parse failed, fall through to line parsing
@@ -891,6 +939,7 @@ Provide:
         failedTests,
         coverage: covData.summary,
         fileCoverages: covData.perFile.length > 0 ? covData.perFile : undefined,
+        rawCoverageMap: isRecord(json.coverageMap) && !json.coverageMap.total ? json.coverageMap : undefined,
       });
     } catch {
       return this.parseTestSummaryLine(stdout, stderr, file, exitCode);
@@ -1307,12 +1356,13 @@ Provide:
   private readCoverageFromDisk(coverageDirectory: string): {
     summary: CoverageFigures;
     perFile: FileCoverageFigures[];
+    rawMap?: Record<string, unknown>;
   } | undefined {
     try {
       // Check common coverage output paths
       const candidates = [
-        join(coverageDirectory, 'coverage-summary.json'),
         join(coverageDirectory, 'coverage-final.json'),
+        join(coverageDirectory, 'coverage-summary.json'),
       ];
 
       for (const filePath of candidates) {
@@ -1361,7 +1411,7 @@ Provide:
         if (typeof json === 'object' && !json.total) {
           const result = this.extractCoverageFromJson({ coverageMap: json });
           if (result.summary) {
-            return { summary: result.summary, perFile: result.perFile };
+            return { summary: result.summary, perFile: result.perFile, rawMap: json };
           }
         }
       }
@@ -1371,8 +1421,11 @@ Provide:
     return undefined;
   }
 
-  private async storeResults(runId: string, result: TestRunResult): Promise<void> {
-    await this.memory.set(`test-run:${runId}`, result, {
+  private async storeResults(runId: string, result: TestRunResult, testFiles?: readonly string[]): Promise<void> {
+    // #1028 N1: the record names the test files it ran, so per-test duration
+    // is compared only between runs of the same test set.
+    const files = testFiles && testFiles.length > 0 ? [...new Set(testFiles)].sort() : undefined;
+    await this.memory.set(`test-run:${runId}`, files ? { ...result, testFiles: files } : result, {
       namespace: 'test-execution',
       persist: true,
     });
@@ -1480,6 +1533,33 @@ function summaryPct(metric: SummaryMetric | undefined): number | null {
   return metric.pct;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A test covers a counter if any invocation hit it. Reject incompatible maps. */
+function mergeHitCounts(left: unknown, right: unknown): Record<string, number | number[]> | undefined {
+  if (!isRecord(left) || !isRecord(right)) return undefined;
+  const keys = Object.keys(left);
+  if (!isDeepStrictEqual(keys.sort(), Object.keys(right).sort())) return undefined;
+  const merged: Record<string, number | number[]> = {};
+  for (const key of keys) {
+    const a = left[key];
+    const b = right[key];
+    if (typeof a === 'number' && Number.isFinite(a) && a >= 0
+      && typeof b === 'number' && Number.isFinite(b) && b >= 0) {
+      merged[key] = Math.max(a, b);
+    } else if (Array.isArray(a) && Array.isArray(b) && a.length === b.length
+      && a.every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0)
+      && b.every(v => typeof v === 'number' && Number.isFinite(v) && v >= 0)) {
+      merged[key] = a.map((v: number, i: number) => Math.max(v, b[i]));
+    } else {
+      return undefined;
+    }
+  }
+  return merged;
+}
+
 interface TestExecutionResult {
   total: number;
   passed: number;
@@ -1489,4 +1569,6 @@ interface TestExecutionResult {
   coverage?: CoverageFigures;
   /** Per-file coverage entries for granular storage */
   fileCoverages?: FileCoverageFigures[];
+  /** Istanbul hit counters from this invocation; never persisted as a run result. */
+  rawCoverageMap?: Record<string, unknown>;
 }

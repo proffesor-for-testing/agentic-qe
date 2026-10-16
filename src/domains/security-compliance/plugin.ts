@@ -31,6 +31,7 @@ import {
   SecurityScannerService,
   type ISecurityScannerService,
   type SecurityScannerConfig,
+  type DependencyScanResult as OSVDependencyScanResult,
 } from './services/security-scanner.js';
 import {
   SecurityAuditorService,
@@ -71,6 +72,11 @@ export interface SecurityComplianceAPI {
   // Security Scanning
   runSASTScan(files: FilePath[]): Promise<Result<SASTResult>>;
   runDASTScan(targetUrl: string): Promise<Result<DASTResult>>;
+  /**
+   * #1049: OSV advisory scan of a package.json. Check `status`: only 'complete'
+   * is a measurement; 'incomplete'/'failed' list the unchecked dependencies.
+   */
+  runDependencyScan(packageJsonPath: string): Promise<Result<OSVDependencyScanResult>>;
   triageVulnerabilities(
     vulnerabilities: Vulnerability[]
   ): Promise<Result<{ immediate: Vulnerability[]; shortTerm: Vulnerability[] }>>;
@@ -143,6 +149,7 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
       getSecurityPosture: this.getSecurityPosture.bind(this),
       runSASTScan: this.runSASTScan.bind(this),
       runDASTScan: this.runDASTScan.bind(this),
+      runDependencyScan: this.runDependencyScan.bind(this),
       triageVulnerabilities: this.triageVulnerabilities.bind(this),
       runComplianceCheck: this.runComplianceCheck.bind(this),
       getAvailableStandards: this.getAvailableStandards.bind(this),
@@ -351,6 +358,26 @@ export class SecurityCompliancePlugin extends BaseDomainPlugin {
 
     try {
       return await this.coordinator!.getSecurityPosture();
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  private async runDependencyScan(packageJsonPath: string): Promise<Result<OSVDependencyScanResult>> {
+    this.ensureInitialized();
+
+    try {
+      const result = await this.securityScanner!.scanPackageJson(packageJsonPath);
+
+      if (result.success && result.value.status === 'complete') {
+        this.trackSuccessfulOperation('dependency-scan');
+      } else {
+        this.trackFailedOperation('dependency-scan', result.success
+          ? new Error(result.value.error ?? 'Dependency advisory scan incomplete')
+          : result.error);
+      }
+
+      return result;
     } catch (error) {
       return this.handleError(error);
     }

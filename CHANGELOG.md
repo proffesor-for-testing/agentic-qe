@@ -5,6 +5,390 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.8] - 2026-10-16
+
+Your acknowledged memory writes are no longer lost when a dream is running,
+and starting the MCP server no longer deletes old dream insights.
+`AQE_WORKERS_ENABLED=false` now really turns the background workers off.
+Learning pattern lookups and stats, test retries through symlinks and
+per-file coverage from a subfolder also got fixes. Every change was
+reviewed adversarially before merge.
+
+### Fixed
+
+- **Acknowledged memory writes are no longer lost during a dream**
+  ([#1060], [#1068]): while a dream was running, a `memory_store` that
+  returned `persisted: true`, or any other foreground write, could be
+  silently rolled back if the dream was cancelled, failed or was still
+  running when the MCP client closed. Dreams no longer hold a database
+  savepoint, so those writes stay. Dream results are the same as before. A
+  dream that is still running at shutdown is now recorded as `interrupted`
+  instead of being left at `running`. Thanks to @pacphi for the report and
+  the repro. This is a mitigation: the full rework stays tracked in
+  [#1060].
+- **Starting the MCP server no longer deletes old dream insights**
+  ([#1061], [#1067]): every `aqe-mcp` start used to delete unapplied
+  `dream_insights` older than 30 days within about 30 seconds, with no log
+  line, even with `AQE_WORKERS_ENABLED=false`. Now:
+  - `AQE_WORKERS_ENABLED=false` (also `0`, `off`, `no`) starts neither the
+    background workers nor the QualityDaemon.
+  - The retention sweep never runs at startup. The first one runs after one
+    full worker interval (30 minutes).
+  - Every deletion is logged on stderr with the count and the age window.
+  - Thanks to @pacphi for the report and the numbers from real stores.
+- **Learning pattern lookups and stats** ([#1055], [#1072]): looking up
+  patterns by tag no longer throws a `TypeError`, and `qe/learning/optimize`
+  pattern totals and averages count only active patterns. Provenance and
+  archive records used to be counted (averages came out as `null`) and
+  could push real patterns out of the search. Pattern export writes each
+  pattern once, and pattern dates are real dates again. Thanks to @pacphi
+  for the diagnosis.
+- **Test retries through a symlinked folder** ([#1047], [#1053]): a Vitest
+  retry of a test file reached through a symlink now clears when the real
+  file passes. Thanks to @rudycelekli.
+- **Per-file coverage from a subfolder** ([#1030], [#1047], [#1054]):
+  relative per-file coverage paths now resolve against the project root
+  (`AQE_PROJECT_ROOT`, then the repository root), so quality assessment and
+  defect prediction find the file's measurement when the MCP server starts
+  in a subfolder. Thanks to @rudycelekli.
+
+### Added
+
+- **`AQE_DISABLED_WORKERS`**: a comma-separated list of background worker
+  ids to skip, for example `learning-consolidation`. Unknown ids are
+  reported on stderr.
+- **`AQE_DREAM_INSIGHTS_RETENTION_DAYS`**: how old an unapplied dream
+  insight must be before the sweep deletes it. The default is 30. `0` or
+  `off` turns the sweep off. Any other value that is not a whole number from
+  1 to 36500 prints a warning and the default applies.
+
+Both are documented in `docs/v3/reference/configuration.md`.
+
+### Changed
+
+- **Installs made with `aqe init --no-database` no longer start background
+  workers.** Those installs already write `AQE_WORKERS_ENABLED=false`, and
+  the MCP server now honours it. Remove that line from your MCP config if
+  you want the workers.
+- **Dream branching is off by default.** Dreams no longer run inside a
+  savepoint, so they no longer emit branch events or `DREAM_MERGE` /
+  `DREAM_DISCARD` witness entries. Library users can still set
+  `DreamConfig.enableBranching: true`, but that keeps the original risk: a
+  discarded dream rolls back foreground writes made during it ([#1060]).
+  If a dream fails part-way, what it already wrote (activations and
+  insights for a cycle marked `failed` or `interrupted`) is kept.
+- **Relative coverage paths are project-root relative.** For library users:
+  a relative path passed to the per-file coverage readers now resolves
+  against the project root instead of the current folder. Absolute paths
+  and explicit roots behave as before.
+- **`qe/learning/optimize` totals change.** `patterns` and `dashboard` now
+  report active patterns only, so totals can drop and averages become real
+  numbers. Readers receive `Date` objects for `createdAt` and `lastUsedAt`.
+- **For library users:** the exported `LearningConsolidationProtocol` can
+  now archive low-value patterns in the namespace it reads. Before, it never
+  matched anything. Nothing in AQE runs it by default ([#1071]).
+
+### Known issues
+
+- Dreams still need the full rework: compute first, then commit in one
+  short transaction, and cancel on shutdown. A dream killed abruptly
+  (`SIGKILL`, crash) can still be left at `running` ([#1060]).
+- The retention sweep still hard-deletes rows instead of archiving them,
+  `AQE_DREAM_INSIGHTS_RETENTION_DAYS=false` is treated as invalid (so the
+  30-day default applies), worker ids in `AQE_DISABLED_WORKERS` are
+  case-sensitive, and the explicit `aqe daemon start` command is not gated by
+  `AQE_WORKERS_ENABLED` ([#1066]).
+- `quality_assess` leaves its Queen task slot in use ([#1070]).
+- Learning export, import and the consolidation protocol read a different
+  namespace than the one patterns are learned in, and the pattern scan stops
+  at about 5,000 patterns with only a log warning ([#1071]).
+- Workspace member dependencies are not scanned from a monorepo root yet
+  ([#1057]).
+- MCP `test_execute_parallel` runs the test suite twice ([#1059], fix in
+  review in [#1065]).
+- Windows paths are unit-tested only, not run on Windows ([#971], [#982]).
+
+[#971]: https://github.com/proffesor-for-testing/agentic-qe/issues/971
+[#982]: https://github.com/proffesor-for-testing/agentic-qe/issues/982
+[#1030]: https://github.com/proffesor-for-testing/agentic-qe/issues/1030
+[#1047]: https://github.com/proffesor-for-testing/agentic-qe/issues/1047
+[#1053]: https://github.com/proffesor-for-testing/agentic-qe/pull/1053
+[#1054]: https://github.com/proffesor-for-testing/agentic-qe/pull/1054
+[#1055]: https://github.com/proffesor-for-testing/agentic-qe/issues/1055
+[#1057]: https://github.com/proffesor-for-testing/agentic-qe/issues/1057
+[#1059]: https://github.com/proffesor-for-testing/agentic-qe/issues/1059
+[#1060]: https://github.com/proffesor-for-testing/agentic-qe/issues/1060
+[#1061]: https://github.com/proffesor-for-testing/agentic-qe/issues/1061
+[#1065]: https://github.com/proffesor-for-testing/agentic-qe/pull/1065
+[#1066]: https://github.com/proffesor-for-testing/agentic-qe/issues/1066
+[#1067]: https://github.com/proffesor-for-testing/agentic-qe/pull/1067
+[#1068]: https://github.com/proffesor-for-testing/agentic-qe/pull/1068
+[#1070]: https://github.com/proffesor-for-testing/agentic-qe/issues/1070
+[#1071]: https://github.com/proffesor-for-testing/agentic-qe/issues/1071
+[#1072]: https://github.com/proffesor-for-testing/agentic-qe/pull/1072
+
+## [3.15.7] - 2026-10-15
+
+AQE no longer reports a dependency scan as clean when the advisory lookup
+failed, and its background workers no longer store invented CVEs, timings,
+gate values or predictions. The quality gate, coverage, test retries, `aqe
+init`, learning backups and test generation also got fixes. Every change was
+reviewed adversarially before merge.
+
+### Added
+
+- **Dependency advisory scan** ([#1049], [#1051]): `aqe security
+  --dependencies` and MCP `security_scan_comprehensive` with
+  `dependencies: true` check your direct dependencies against OSV. The
+  dependency list is sent to OSV only when you ask for this scan; default
+  scans and background workers never contact it.
+- **`AQE_OSV_API_URL`** points the scan at another OSV endpoint. It must be
+  https (http only for `localhost`, `127.x.x.x` or `[::1]`). An invalid value
+  fails only a requested dependency scan and names the setting. See
+  `docs/guides/dependency-advisory-scan.md`.
+
+### Fixed
+
+- **A failed advisory lookup is never a clean scan** ([#1049], [#1051]):
+  - A network error, timeout, rate limit, server error or malformed reply now
+    makes the scan `failed` or `incomplete`, with the error and the packages
+    that could not be checked. It used to be recorded as "0 vulnerabilities",
+    even when OSV was reachable.
+  - The version that is checked is the one your lockfile resolved
+    (`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`,
+    `yarn.lock`), but only when the lockfile is in sync with `package.json`.
+    A stale lockfile entry is reported as unchecked, never trusted.
+  - Without a lockfile entry, only exact versions are checked. Ranges, tags
+    and git, URL or tarball sources are reported as unchecked, never guessed.
+  - OSV queries now send the version where OSV reads it. Before, OSV returned
+    every advisory the package ever had, so counts were inflated (for
+    example, PyPI django 3.2.0 showed 324 advisories instead of 66).
+  - The output states the scope: only the direct dependencies of the scanned
+    `package.json`, not transitive ones.
+- **Background workers report only measured data** ([#1043], [#1048]): the
+  security-scan, performance-baseline, quality-gate and defect-predictor
+  workers no longer store invented findings (including made-up lodash and
+  minimist CVEs), hardcoded timings, hardcoded gate values or invented
+  defect predictions. With nothing measured they write nothing and say the
+  data is unmeasured. Older invented records are ignored and replaced by the
+  next measured run.
+- **The quality gate rejects unmeasured evidence** ([#1040]): an unmeasured
+  count (`-1`, missing, `NaN`) no longer satisfies a `max: 0` check, and a
+  gate with no configured checks is an error instead of a 100-point pass.
+- **Coverage** ([#1039], [#1041]):
+  - Per-file coverage is found whatever path form you pass (`src/a.ts` or an
+    absolute path), so defect prediction, defect investigation and quality
+    assessment use the file's own measurement instead of the project-wide
+    figure.
+  - Coverage from sequential runs (`parallel: false`) is merged from the
+    real hit data and matches vitest's own report. It used to average
+    percentages and list the same source file twice.
+- **Test retries** ([#1035]): a Vitest retry passes only when the exact file
+  you asked for passed. A sibling file whose name starts the same way can no
+  longer clear a failure.
+- **Blocked scratch folder** ([#1038]): when neither the private cache folder
+  nor its fallback can be used, AQE explains why and suggests
+  `AQE_PROJECT_ROOT`, instead of failing with a bare `EEXIST`/`ENOTDIR`.
+- **Learning backups** ([#1034]): two `aqe learning backup` runs in the same
+  second no longer write the same file, so neither backup is silently lost.
+- **Test generation** ([#1029], [#1032]): `test_generate_enhanced` with
+  `saveResults: true` now writes the generated test files, not just the
+  manifest and report.
+- **`aqe init`** ([#1037]): honours `AQE_PROJECT_ROOT` and writes all its
+  files into that project, including a repository that sits in a shared
+  folder such as `/tmp` (sticky-bit `1777`). It refuses a root that doesn't
+  exist.
+- **Dependencies:** `yaml` is updated to 2.9.1, which fixes a parser hang on
+  crafted input.
+- **README:** monthly and total download badges restored.
+
+### Changed
+
+- `aqe security --dependencies` exits **3** when the scan is incomplete (some
+  advisories could not be checked), **1** for high or critical findings,
+  **2** for medium findings and **0** when it is complete and clean.
+- A workspace (monorepo) root is reported **incomplete**: its own
+  dependencies are scanned, but member dependencies are not scanned yet
+  ([#1057]). Scan each member directory instead; a member walks up to the
+  root lockfile and can be complete.
+- For library users of `agentic-qe/shared`: the `OSVClient` list methods
+  throw `OSVLookupError` instead of returning `[]` on failure (use
+  `lookupBatch` / `lookupNpmDependencies` for partial results), and
+  `DependencyScanResult` gains `status`, `measured`, `packagesChecked` and
+  `uncheckedPackages`.
+- Quality gate results gain optional evidence fields.
+- Default `aqe learning backup` file names now include milliseconds and a
+  unique id.
+
+### Known issues
+
+- Workspace member dependencies are not scanned from a monorepo root yet
+  ([#1057]).
+- Coverage for package targets in a workspace doesn't use the configured
+  workspace root yet ([#1036], fix in review).
+- Five of the seven quality-gate metrics still have no command that records
+  them ([#1009]).
+- Duration comparisons are noisy under machine load ([#1044]).
+- The MCP `defect_predict` tool doesn't record a prediction, so the
+  defect-predictor worker stays unmeasured after it ([#1050]).
+- Some other lookups still turn a failure into "no findings": an
+  unreachable DAST target, deprecation and upgrade checks ([#1052]).
+- Path follow-ups: retry evidence ignores symlinked paths, and per-file
+  coverage lookups resolve against the current folder ([#1047]).
+- Windows paths are unit-tested only, not run on Windows ([#971], [#982]).
+- Partly fixed and still open: [#972], [#1020], [#1030], [#1031]; other
+  follow-ups: [#1022], [#1024].
+
+[#971]: https://github.com/proffesor-for-testing/agentic-qe/issues/971
+[#972]: https://github.com/proffesor-for-testing/agentic-qe/issues/972
+[#982]: https://github.com/proffesor-for-testing/agentic-qe/issues/982
+[#1009]: https://github.com/proffesor-for-testing/agentic-qe/issues/1009
+[#1020]: https://github.com/proffesor-for-testing/agentic-qe/issues/1020
+[#1022]: https://github.com/proffesor-for-testing/agentic-qe/issues/1022
+[#1024]: https://github.com/proffesor-for-testing/agentic-qe/issues/1024
+[#1029]: https://github.com/proffesor-for-testing/agentic-qe/issues/1029
+[#1030]: https://github.com/proffesor-for-testing/agentic-qe/issues/1030
+[#1031]: https://github.com/proffesor-for-testing/agentic-qe/issues/1031
+[#1032]: https://github.com/proffesor-for-testing/agentic-qe/pull/1032
+[#1034]: https://github.com/proffesor-for-testing/agentic-qe/pull/1034
+[#1035]: https://github.com/proffesor-for-testing/agentic-qe/pull/1035
+[#1036]: https://github.com/proffesor-for-testing/agentic-qe/pull/1036
+[#1037]: https://github.com/proffesor-for-testing/agentic-qe/pull/1037
+[#1038]: https://github.com/proffesor-for-testing/agentic-qe/pull/1038
+[#1039]: https://github.com/proffesor-for-testing/agentic-qe/pull/1039
+[#1040]: https://github.com/proffesor-for-testing/agentic-qe/pull/1040
+[#1041]: https://github.com/proffesor-for-testing/agentic-qe/pull/1041
+[#1043]: https://github.com/proffesor-for-testing/agentic-qe/issues/1043
+[#1044]: https://github.com/proffesor-for-testing/agentic-qe/issues/1044
+[#1047]: https://github.com/proffesor-for-testing/agentic-qe/issues/1047
+[#1048]: https://github.com/proffesor-for-testing/agentic-qe/pull/1048
+[#1049]: https://github.com/proffesor-for-testing/agentic-qe/issues/1049
+[#1050]: https://github.com/proffesor-for-testing/agentic-qe/issues/1050
+[#1051]: https://github.com/proffesor-for-testing/agentic-qe/pull/1051
+[#1052]: https://github.com/proffesor-for-testing/agentic-qe/issues/1052
+[#1057]: https://github.com/proffesor-for-testing/agentic-qe/issues/1057
+
+## [3.15.6] - 2026-10-13
+
+AQE's coverage, quality and learning data now come only from real
+measurements, and its stores stay inside your project. `aqe init`, `hooks
+learn`, `code index` and the DAST scanner also got fixes. Every change was
+reviewed adversarially in two or three rounds before merge.
+
+### Fixed
+
+- **Honest coverage** ([#1010], [#1012], [#1014], [#1015], [#1018], [#1027]):
+  - `aqe ci` uses the same verdict as `aqe coverage`. A target missing from
+    the report is UNMEASURED, never `0%`. `lcov.info` is read. Metrics a
+    report never collected (for example branch data) show as n/a and are left
+    out of the threshold. Estimates are labelled and never gated.
+  - "Line" % is real line coverage, not istanbul statements. It matches the
+    test tool's own summary for vitest (v8 and istanbul), jest and nyc.
+  - Uncollected metrics are stored as `null` everywhere (`coverage:latest`,
+    history, per-file), so there are no more fake "low branch coverage"
+    findings or fake deltas. Trend deltas only compare against measured
+    baselines.
+  - Each test run records its pass rate and coverage together, under one run
+    id. Coverage from a failing run can't pass the quality gate next to an
+    older pass rate.
+  - Estimates and unmeasured runs no longer reach learning: coverage
+    sessions, pattern usage, experience capture or gap vectors.
+  - The coverage tracker no longer writes all-zero records.
+- **Honest quality metrics** ([#1002], [#1011], [#1021]):
+  - Files that can't be read or parsed no longer get invented values
+    (complexity 10, maintainability 70, 0% duplication). Generated, binary and
+    `.d.ts` files are excluded with a reason, and real parse failures make a
+    metric *partial*.
+  - Valid files such as Next.js `[...slug].tsx` routes, deep SvelteKit paths
+    and in-root dot-folders are no longer rejected. Reads inside the project
+    are checked by real path and are free of check-then-read races.
+  - MCP `quality_assess` honours `target` and `sourceFiles`.
+  - Unmeasured scores stay out of learning, saved reports and the results
+    index.
+- **Store isolation and data integrity** ([#1006], [#998], [#1007], [#991],
+  [#913], [#1026]):
+  - AQE never adopts or creates a store in `/tmp` or other shared system
+    folders. A folder with no project marker uses a stable private store under
+    your user cache folder (`~/.cache/agentic-qe/scratch/…`).
+    `aqe init` refuses to run in a shared temp folder.
+  - The MCP result cache is keyed per project. Tools that run tests or
+    measure the source tree (coverage, quality, defects, code index) are no
+    longer cached.
+  - Saved reports no longer overwrite each other, and regenerated test files
+    are updated in place.
+  - A malformed schedule entry no longer deletes `schedules.json`. Bad
+    entries are disabled with a reason or quarantined.
+- **Init and CLI** ([#1017], [#981], [#999], [#980], [#1023]):
+  - `aqe init` no longer adds eval fixtures that your own test runner
+    collects. Existing installs are cleaned up, but only for files that still
+    match what AQE shipped; edited files are kept.
+  - `aqe hooks learn` works without an embedder: patterns are stored
+    text-only and get indexed later by `learning backfill-embeddings`.
+  - `code index` skips `.agentic-qe/`, `.claude/` and lockfiles, and MCP
+    `code_index` returns the same project metrics as the CLI.
+  - The DAST scanner and the shared HTTP client time out on stalled or
+    trickling responses instead of hanging.
+- **Regression baseline** ([#1028]): the regression monitor builds its
+  baseline only from measured evidence. It no longer stores hardcoded
+  figures.
+
+### Changed
+
+- `aqe coverage` exits **3** when the target is unmeasured, including when no
+  report exists and only a static estimate is available. JSON output gains
+  `measured`, `estimated` and `coverageMethod`.
+- `aqe ci`: an UNMEASURED coverage phase is a warning. It does not fail the
+  pipeline by itself; an enforced quality gate does.
+- Coverage persistence is fail-closed. Programmatic callers of the coverage
+  analysis API must pass `measured: true` for results to be stored.
+- Coverage history written by 3.15.5 without a measured stamp drops out of
+  trend views.
+- Saved report file names have a new, unique format.
+
+### Known issues
+
+- Five of the seven quality-gate metrics still have no command that records
+  them ([#1009]).
+- Windows paths are unit-tested only, not run on Windows ([#971], [#982]).
+- Background workers still store invented figures ([#1043]); duration
+  comparisons are noisy under machine load ([#1044]).
+- Remaining follow-ups: [#1020], [#1022], [#1024], [#1025], [#1029],
+  [#1030], [#1031].
+
+[#913]: https://github.com/proffesor-for-testing/agentic-qe/issues/913
+[#971]: https://github.com/proffesor-for-testing/agentic-qe/issues/971
+[#980]: https://github.com/proffesor-for-testing/agentic-qe/issues/980
+[#981]: https://github.com/proffesor-for-testing/agentic-qe/issues/981
+[#982]: https://github.com/proffesor-for-testing/agentic-qe/issues/982
+[#991]: https://github.com/proffesor-for-testing/agentic-qe/issues/991
+[#998]: https://github.com/proffesor-for-testing/agentic-qe/issues/998
+[#999]: https://github.com/proffesor-for-testing/agentic-qe/issues/999
+[#1002]: https://github.com/proffesor-for-testing/agentic-qe/issues/1002
+[#1006]: https://github.com/proffesor-for-testing/agentic-qe/issues/1006
+[#1007]: https://github.com/proffesor-for-testing/agentic-qe/issues/1007
+[#1009]: https://github.com/proffesor-for-testing/agentic-qe/issues/1009
+[#1010]: https://github.com/proffesor-for-testing/agentic-qe/issues/1010
+[#1011]: https://github.com/proffesor-for-testing/agentic-qe/issues/1011
+[#1012]: https://github.com/proffesor-for-testing/agentic-qe/issues/1012
+[#1014]: https://github.com/proffesor-for-testing/agentic-qe/issues/1014
+[#1015]: https://github.com/proffesor-for-testing/agentic-qe/issues/1015
+[#1017]: https://github.com/proffesor-for-testing/agentic-qe/issues/1017
+[#1018]: https://github.com/proffesor-for-testing/agentic-qe/issues/1018
+[#1020]: https://github.com/proffesor-for-testing/agentic-qe/issues/1020
+[#1021]: https://github.com/proffesor-for-testing/agentic-qe/pull/1021
+[#1022]: https://github.com/proffesor-for-testing/agentic-qe/issues/1022
+[#1023]: https://github.com/proffesor-for-testing/agentic-qe/pull/1023
+[#1024]: https://github.com/proffesor-for-testing/agentic-qe/issues/1024
+[#1025]: https://github.com/proffesor-for-testing/agentic-qe/issues/1025
+[#1026]: https://github.com/proffesor-for-testing/agentic-qe/pull/1026
+[#1027]: https://github.com/proffesor-for-testing/agentic-qe/pull/1027
+[#1028]: https://github.com/proffesor-for-testing/agentic-qe/issues/1028
+[#1029]: https://github.com/proffesor-for-testing/agentic-qe/issues/1029
+[#1030]: https://github.com/proffesor-for-testing/agentic-qe/issues/1030
+[#1031]: https://github.com/proffesor-for-testing/agentic-qe/issues/1031
+[#1043]: https://github.com/proffesor-for-testing/agentic-qe/issues/1043
+[#1044]: https://github.com/proffesor-for-testing/agentic-qe/issues/1044
+
 ## [3.15.5] - 2026-10-12
 
 Honest coverage and quality results: AQE no longer reports a fake 0%, approves
