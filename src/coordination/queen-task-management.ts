@@ -400,6 +400,10 @@ export async function assignTaskToDomain(
     agentIds,
   });
 
+  // The MCP factory executes caller-owned tasks itself and publishes their result.
+  // Dispatching the plugin here as well would run the same workload twice.
+  if (task.executionOwner === 'caller') return ok(task.id);
+
   // INTEGRATION FIX: Invoke domain plugin directly for task execution
   if (ctx.domainPlugins) {
     const plugin = ctx.domainPlugins.get(domain);
