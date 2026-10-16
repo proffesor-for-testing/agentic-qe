@@ -28,6 +28,7 @@ import {
   HeartbeatSchedulerWorker,
 } from './workers';
 import { QualityDaemon, type QualityDaemonConfig } from './quality-daemon';
+import { parseDisabledWorkers } from './worker-env';
 
 /**
  * Daemon configuration
@@ -38,6 +39,12 @@ export interface DaemonConfig {
 
   /** Workers to enable (defaults to all) */
   enabledWorkers?: string[];
+
+  /**
+   * Workers to skip even when enabled (#1061). Defaults to the comma list in
+   * `AQE_DISABLED_WORKERS`.
+   */
+  disabledWorkers?: string[];
 
   /** Log level */
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
@@ -52,6 +59,7 @@ export interface DaemonConfig {
 const DEFAULT_CONFIG: Required<DaemonConfig> = {
   autoStart: true,
   enabledWorkers: [],
+  disabledWorkers: [],
   logLevel: 'info',
   healthCheckIntervalMs: 60000,
 };
@@ -68,7 +76,11 @@ export class QEDaemon implements IDaemon {
   private _qualityDaemon?: QualityDaemon;
 
   constructor(config?: DaemonConfig) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = {
+      ...DEFAULT_CONFIG,
+      ...config,
+      disabledWorkers: config?.disabledWorkers ?? parseDisabledWorkers(),
+    };
     this.workerManager = new WorkerManagerImpl();
     this.registerWorkers();
   }
@@ -218,13 +230,24 @@ export class QEDaemon implements IDaemon {
     ];
 
     for (const worker of allWorkers) {
-      // Check if worker is enabled
+      // Check if worker is enabled and not explicitly disabled (#1061)
+      if (this.config.disabledWorkers.includes(worker.config.id)) {
+        continue;
+      }
       if (
         this.config.enabledWorkers.length === 0 ||
         this.config.enabledWorkers.includes(worker.config.id)
       ) {
         this.workerManager.register(worker);
       }
+    }
+
+    const knownIds = new Set(allWorkers.map((worker) => worker.config.id));
+    const unknownIds = this.config.disabledWorkers.filter((id) => !knownIds.has(id));
+    if (unknownIds.length > 0) {
+      console.warn(
+        `[AQE] WARN AQE_DISABLED_WORKERS: unknown worker id(s) ignored: ${unknownIds.join(', ')}`
+      );
     }
   }
 
