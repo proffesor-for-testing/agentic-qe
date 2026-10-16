@@ -183,7 +183,7 @@ export async function processQueue(ctx: QueenTaskContext): Promise<void> {
     const queue = ctx.taskQueue.get(priority);
     if (!queue || queue.length === 0) continue;
 
-    const task = queue.shift();
+    const task = shiftDispatchableTask(ctx, queue);
     if (task) {
       removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
 
@@ -202,6 +202,23 @@ export async function processQueue(ctx: QueenTaskContext): Promise<void> {
       }
     }
   }
+}
+
+/**
+ * Take the next task that is still waiting to run. A queued task can reach a
+ * terminal state without being dequeued, e.g. when its caller executes it
+ * directly (#1070). Dispatching it again would flip it back to running and
+ * leak a capacity slot, so such entries are dropped from the queues instead.
+ */
+function shiftDispatchableTask(ctx: QueenTaskContext, queue: QueenTask[]): QueenTask | undefined {
+  let task = queue.shift();
+  while (task) {
+    const status = ctx.tasks.get(task.id)?.status;
+    if (status === undefined || status === 'queued') return task;
+    removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
+    task = queue.shift();
+  }
+  return undefined;
 }
 
 // ============================================================================
