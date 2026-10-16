@@ -54,4 +54,13 @@ describe('LWW register total write ordering', () => {
     register.set('stale', -1);
     expect(register.get()).toBeUndefined();
   });
+
+  it('treats an unwritten register as the merge identity', () => {
+    const writer = createLWWRegister<string>('a');
+    writer.set('neg', -1);
+    const before = writer.getState();
+    writer.applyState(createLWWRegister<string>('r').getState());
+    expect(writer.get()).toBe('neg');
+    expect(writer.getState().version).toBe(before.version);
+  });
 });
