@@ -116,6 +116,19 @@ describe('ClaimVerifier per-agent stats (#978)', () => {
     expect(stats[agentId].claimsSubmitted).toBe(2);
     expect(stats[agentId].claimsVerified).toBe(2);
   });
+
+  it('returns a null-prototype record that still serialises and enumerates', () => {
+    const service = new ClaimVerifierService({ rootDir: '/tmp' });
+    const result = { verified: true, confidence: 0.9 };
+    const history = (service as unknown as { history: unknown[] }).history;
+    history.push({ claimId: 'constructor-1', claimType: 'coverage-claim', method: 'code-trace', result, timestamp: new Date() });
+    const stats = service.getStats().bySourceAgent;
+    expect(Object.getPrototypeOf(stats)).toBeNull();
+    expect((stats as Record<string, unknown>).hasOwnProperty).toBeUndefined();
+    expect(Object.keys(stats)).toEqual(['constructor']);
+    expect(Object.entries(stats)).toHaveLength(1);
+    expect(JSON.parse(JSON.stringify(stats)).constructor.claimsSubmitted).toBe(1);
+  });
 });
 
 describe('InfraActionExecutor per-service stats (#978)', () => {
