@@ -496,7 +496,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     testSuites: params.testSuites || [],
     parallel: params.parallel !== false,
     parallelism: params.parallelism || 4,
-    retryCount: params.retryCount || 3,
+    retryCount: params.retryCount ?? 3,
     timeout: params.timeout || 60000,
     collectCoverage: params.collectCoverage || false,
     reportFormat: params.reportFormat || 'json',

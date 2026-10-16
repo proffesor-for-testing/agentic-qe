@@ -394,6 +394,12 @@ export class DomainTaskExecutor implements TaskHandlerContext {
     return this.qualityAnalyzer;
   }
 
+  async getTestExecutionAPI(): Promise<import('../domains/test-execution/interfaces').ITestExecutionAPI | undefined> {
+    return this.kernel.getDomainAPIAsync
+      ? this.kernel.getDomainAPIAsync<import('../domains/test-execution/interfaces').ITestExecutionAPI>('test-execution')
+      : this.kernel.getDomainAPI<import('../domains/test-execution/interfaces').ITestExecutionAPI>('test-execution');
+  }
+
   // ============================================================================
   // Handler Registration (delegates to extracted handler modules)
   // ============================================================================

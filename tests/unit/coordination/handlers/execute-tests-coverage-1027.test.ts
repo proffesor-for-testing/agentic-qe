@@ -39,4 +39,29 @@ describe('#1027 N5 — test execution reports unmeasured coverage as null', () =
     expect(map({}).coverage).toBeNull();
     expect(map({ coverage: 71.5 }).coverage).toBe(71.5);
   });
+
+  it('preserves an explicit zero retry count before dispatch to the domain', () => {
+    expect(testExecuteConfig.mapToPayload({ testFiles: ['tests/a.test.ts'], retryCount: 0 } as never, undefined).retryCount).toBe(0);
+    expect(testExecuteConfig.mapToPayload({ testFiles: ['tests/a.test.ts'] } as never, undefined).retryCount).toBe(3);
+  });
+
+  it('caller-owned execution delegates once to the evidence-recording domain API', async () => {
+    const runTests = vi.fn(async () => ({ success: true, value: { runId: 'measured-run', total: 2, passed: 1, failed: 1, coverage: { line: 71.5 } } }));
+    const handlers = new Map<string, (task: unknown) => Promise<any>>();
+    registerTestExecutionHandlers({
+      registerHandler: (type: string, handler: never) => { handlers.set(type, handler); },
+      getTestExecutionAPI: async () => ({ runTests }),
+    } as never);
+    const result = await handlers.get('execute-tests')!({ executionOwner: 'caller', payload: { testFiles: ['tests/a.test.ts'], parallel: true, timeout: 5000, parallelism: 2, retryCount: 2 } });
+    expect(runTests).toHaveBeenCalledExactlyOnceWith({ testFiles: ['tests/a.test.ts'], parallel: true, timeout: 5000, workers: 2, retryCount: 2 });
+    expect(result).toMatchObject({ success: true, value: { runId: 'measured-run', failed: 1, coverage: 71.5 } });
+  });
+
+  it('does not fall back to an unrecorded run when the domain is unavailable', async () => {
+    const handlers = new Map<string, (task: unknown) => Promise<any>>();
+    registerTestExecutionHandlers({ registerHandler: (type: string, handler: never) => { handlers.set(type, handler); } } as never);
+    const result = await handlers.get('execute-tests')!({ executionOwner: 'caller', payload: { testFiles: ['tests/a.test.ts'] } });
+    expect(result.success).toBe(false);
+    expect(result.error.message).toContain('Test-execution domain is unavailable');
+  });
 });

@@ -77,15 +77,29 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     if (root) rmSync(root, { recursive: true, force: true });
   });
 
-  it('runs one actual test-runner invocation for one MCP call', async () => {
+  it.each([false, true])('one MCP call preserves evidence and domain records (assertion fails: %s)', async (fails) => {
+    if (fails) writeFileSync(join(root, 'fail.flag'), 'fail');
     const result = await call('test_execute_parallel', { testFiles: ['tests/counter.test.mjs'], parallel: true, retryCount: 0, saveResults: false });
     expect(result.success, JSON.stringify(result)).toBe(true);
     // The independently dispatched plugin can finish after the MCP result.
     await new Promise(resolvePromise => setTimeout(resolvePromise, 1500));
     const invocations = readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line));
-    expect(invocations, JSON.stringify(invocations)).toHaveLength(1);
+    expect(invocations, JSON.stringify(invocations)).toHaveLength(fails ? 2 : 1);
     const status = await call('task_status', { taskId: result.data.taskId });
     expect(status.data.status, JSON.stringify(status)).toBe('completed');
+    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:testsPassing:latest' });
+    expect(evidence.data, JSON.stringify(evidence)).toMatchObject({ found: true, value: { value: fails ? 0 : 100, source: 'test-execution', runStatus: fails ? 'failed' : 'passed' } });
+    const runId = evidence.data.value.runId;
+    const run = await call('memory_retrieve', { namespace: 'test-execution', key: `test-run:${runId}` });
+    expect(run.data, JSON.stringify(run)).toMatchObject({ found: true, value: { passed: fails ? 0 : 1, failed: fails ? 1 : 0, testFiles: ['tests/counter.test.mjs'] } });
+    for (const [namespace, prefix] of [['chaos-resilience', 'test-baseline'], ['code-intelligence', 'test-correlation'], ['quality-assessment', 'test-results']]) {
+      const record = await call('memory_retrieve', { namespace, key: `${namespace}:${prefix}:${runId}` });
+      expect(record.data.found, `${namespace}: ${JSON.stringify(record)}`).toBe(true);
+    }
+    const gate = await call('quality_assess', { runGate: true, saveResults: false });
+    expect(gate.data?.unmeasured, JSON.stringify(gate)).toBeInstanceOf(Array);
+    expect(gate.data.unmeasured).not.toContain('testsPassing');
+    rmSync(join(root, 'fail.flag'), { force: true });
   }, 60000);
   it('ordinary Queen submission still executes the plugin once, ignoring a payload owner claim', async () => {
     const result = await call('task_submit', { type: 'execute-tests', targetDomains: ['test-execution'], payload: { testFiles: ['tests/counter.test.mjs'], parallel: true, retryCount: 0, executionOwner: 'caller' } });
@@ -98,7 +112,7 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     }
     expect(status.data.status, JSON.stringify(status)).toBe('completed');
     await new Promise(resolvePromise => setTimeout(resolvePromise, 500));
-    expect(readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n')).toHaveLength(2);
+    expect(readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n')).toHaveLength(3);
   }, 30000);
 
   it('a caller-owned runner failure is terminal, with no duplicate or Queen retry', async () => {
@@ -106,9 +120,13 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     const result = await call('test_execute_parallel', { testFiles: ['tests/counter.test.mjs'], parallel: true, retryCount: 0, saveResults: false });
     expect(result.success, JSON.stringify(result)).toBe(false);
     await new Promise(resolvePromise => setTimeout(resolvePromise, 1500));
-    expect(readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n')).toHaveLength(3);
+    expect(readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n')).toHaveLength(4);
     const list = await call('task_list', {});
-    expect(list.data.filter((task: {status:string}) => task.status === 'failed')).toHaveLength(1);
+    expect(list.data.filter((task: {type:string;status:string}) => task.type === 'execute-tests' && task.status === 'failed')).toHaveLength(1);
     expect(list.data.filter((task: {status:string}) => ['queued','assigned','running'].includes(task.status))).toEqual([]);
+    const evidence = await call('memory_retrieve', { namespace: 'quality-assessment', key: 'quality-evidence:testsPassing:latest' });
+    // The preceding ordinary submission passed; a runner error cannot replace it
+    // with a fabricated failed-assertion measurement.
+    expect(evidence.data.value).toMatchObject({ value: 100, runStatus: 'passed' });
   }, 30000);
 });
