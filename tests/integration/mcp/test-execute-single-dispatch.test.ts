@@ -1,7 +1,7 @@
 /** Native protocol regression: one request must launch one runner, not two. */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -113,6 +113,30 @@ describe('MCP test_execute_parallel single execution over stdio (#1059)', () => 
     expect(status.data.status, JSON.stringify(status)).toBe('completed');
     await new Promise(resolvePromise => setTimeout(resolvePromise, 500));
     expect(readFileSync(join(root, 'invocations.jsonl'), 'utf8').trim().split('\n')).toHaveLength(3);
+  }, 30000);
+
+  it('serves fleet status while the actual runner is held open (#1074)', async () => {
+    writeFileSync(join(root, 'tests/slow.test.mjs'), `import {test} from 'vitest'; import {writeFileSync,existsSync} from 'node:fs'; test('held runner',async()=>{writeFileSync('runner-started','yes');while(!existsSync('release-runner'))await new Promise(r=>setTimeout(r,20));},20000);`);
+    const running = call('test_execute_parallel', { testFiles: ['tests/slow.test.mjs'], retryCount: 0, saveResults: false });
+    for (let i = 0; i < 100 && !existsSync(join(root, 'runner-started')); i++) {
+      await new Promise(resolvePromise => setTimeout(resolvePromise, 100));
+    }
+    expect(existsSync(join(root, 'runner-started'))).toBe(true);
+    let timer: ReturnType<typeof setTimeout>;
+    const statusPromise = call('fleet_status');
+    let responsive: boolean;
+    try {
+      responsive = await Promise.race([
+        statusPromise.then(() => true),
+        new Promise<boolean>(resolvePromise => { timer = setTimeout(() => resolvePromise(false), 2000); }),
+      ]);
+    } finally {
+      clearTimeout(timer!);
+      writeFileSync(join(root, 'release-runner'), 'release');
+    }
+    expect((await running).success).toBe(true);
+    expect((await statusPromise).success).toBe(true);
+    expect(responsive!, 'status must respond before the client releases the runner').toBe(true);
   }, 30000);
 
   it('a caller-owned runner failure is terminal, with no duplicate or Queen retry', async () => {
