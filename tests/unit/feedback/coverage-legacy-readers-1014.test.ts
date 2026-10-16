@@ -92,14 +92,14 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
   });
 
   it('#1030: quality-analyzer finds an absolute-key record for a relative source path', async () => {
-    const analyzer = new QualityAnalyzerService(kv({ [`coverage:file:${resolve('src/a.ts')}`]: { line: 72, measured: true } }) as never);
+    const analyzer = new QualityAnalyzerService(kv({ [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true } }) as never);
     const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
     expect(await read('src/a.ts')).toBe(72);
   });
 
   it('#1030: canonical coverage wins over an older measured relative key', async () => {
     const analyzer = new QualityAnalyzerService(kv({
-      [`coverage:file:${resolve('src/a.ts')}`]: { line: 72, measured: true },
+      [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 72, measured: true },
       'coverage:file:src/a.ts': { line: 34, measured: true },
     }) as never);
     const read = (analyzer as unknown as { getStoredCoverage(f: string): Promise<number | null> }).getStoredCoverage.bind(analyzer);
@@ -116,7 +116,7 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
 
   it('#1030: defect-investigation finds an absolute-key record for a relative test file', async () => {
     const protocol = new DefectInvestigationProtocol({ publish: vi.fn(), subscribe: vi.fn() } as never,
-      kv({ [`coverage:file:${resolve('src/a.ts')}`]: { line: 82, branch: null, measured: true } }) as never);
+      kv({ [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 82, branch: null, measured: true } }) as never);
     const ctx = await (protocol as unknown as { getCoverageContext(f: string): Promise<Record<string, unknown> | null> })
       .getCoverageContext('src/a.ts');
     expect(ctx).toMatchObject({ lineCoverage: 82, branchCoverage: null });
@@ -130,7 +130,7 @@ describe('#1014.3 — per-file / latest coverage readers ignore unstamped record
 
   it('#1030: defect-predictor uses absolute-key per-file coverage instead of the project summary', async () => {
     const predictor = new DefectPredictorService(kv({
-      [`coverage:file:${resolve('src/a.ts')}`]: { line: 80, measured: true },
+      [`coverage:file:${resolve(process.env.AQE_PROJECT_ROOT ?? process.cwd(), 'src/a.ts')}`]: { line: 80, measured: true },
       'coverage:latest': { line: 20, branch: null, function: null, statement: null, files: 1, measured: true },
     }) as never);
     const read = (predictor as unknown as { getTestCoverage(f: string): Promise<number> }).getTestCoverage.bind(predictor);
