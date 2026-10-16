@@ -4,6 +4,7 @@
  */
 
 import { LoggerFactory } from '../../logging/index.js';
+import { readActivePatterns } from './active-patterns.js';
 import { v4 as uuidv4 } from 'uuid';
 import { toError } from '../../shared/error-utils.js';
 import { rehydrateDates } from '../../shared/utils/kv-date-rehydrate.js';
@@ -1042,25 +1043,20 @@ export class LearningOptimizationCoordinator
       const knowledge: Knowledge[] = [];
       const strategies: OptimizedStrategy[] = [];
 
-      // Export patterns
-      for (const _domain of targetDomains) {
-        const patternKeys = await this.memory.search(
-          `learning:pattern:*`,
-          500
-        );
-
-        for (const key of patternKeys) {
-          const pattern = await this.memory.get<LearnedPattern>(key);
-          if (pattern && targetDomains.includes(pattern.domain)) {
-            patterns.push(pattern);
-          }
+      // Export patterns (#1055: active patterns only — creation provenance
+      // and archives share the `learning:pattern:` prefix). One read covers
+      // every target domain; the previous per-domain loop exported each
+      // pattern once per target domain.
+      const activePatterns = await readActivePatterns(this.memory, {
+        onTruncated: (scanned) =>
+          logger.warn('Pattern export key scan hit its cap; export may be incomplete', { scanned }),
+      });
+      for (const pattern of activePatterns) {
+        if (targetDomains.includes(pattern.domain)) {
+          patterns.push(pattern);
         }
-
-        this.updateWorkflowProgress(
-          workflowId,
-          Math.round((patterns.length / 100) * 30)
-        );
       }
+      this.updateWorkflowProgress(workflowId, 30);
 
       // Export knowledge
       const knowledgeResult = await this.transferService.queryKnowledge({

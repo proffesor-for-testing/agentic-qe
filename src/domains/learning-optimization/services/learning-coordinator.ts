@@ -28,6 +28,7 @@ import {
   OptimizationObjective,
 } from '../interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
+import { readActivePatterns } from '../active-patterns.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -87,6 +88,18 @@ const logger = LoggerFactory.create('learning-optimization/learning-coordinator'
  * domain even on installs with hundreds of indexed experiences.
  */
 const LEARNING_NS = { namespace: 'learning-optimization' } as const;
+
+/**
+ * #1055: active patterns only. `learning:pattern:*` also holds creation
+ * provenance and archived patterns written by this service.
+ */
+function readActiveLearnedPatterns(memory: MemoryBackend): Promise<LearnedPattern[]> {
+  return readActivePatterns(memory, {
+    retrieve: LEARNING_NS,
+    onTruncated: (scanned) =>
+      logger.warn('Active pattern key scan hit its cap; results may be incomplete', { scanned }),
+  });
+}
 
 export class LearningCoordinatorService
   implements IPatternLearningService, IExperienceMiningService
@@ -370,15 +383,9 @@ Provide:
     limit = 10
   ): Promise<Result<LearnedPattern[]>> {
     try {
-      const patterns: LearnedPattern[] = [];
-      const keys = await this.memory.search('learning:pattern:*', 100, LEARNING_NS);
-
-      for (const key of keys) {
-        const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
-        if (pattern && this.matchesContext(pattern, context)) {
-          patterns.push(pattern);
-        }
-      }
+      const patterns = (await readActiveLearnedPatterns(this.memory)).filter((pattern) =>
+        this.matchesContext(pattern, context)
+      );
 
       // Sort by confidence and usage
       patterns.sort((a, b) => {
@@ -538,15 +545,9 @@ Provide:
    */
   async getPatternStats(domain?: DomainName): Promise<Result<PatternStats>> {
     try {
-      const keys = await this.memory.search('learning:pattern:*', 500, LEARNING_NS);
-      const patterns: LearnedPattern[] = [];
-
-      for (const key of keys) {
-        const pattern = await this.memory.get<LearnedPattern>(key, LEARNING_NS);
-        if (pattern && (!domain || pattern.domain === domain)) {
-          patterns.push(pattern);
-        }
-      }
+      const patterns = (await readActiveLearnedPatterns(this.memory)).filter(
+        (pattern) => !domain || pattern.domain === domain
+      );
 
       const byType: Record<PatternType, number> = {
         'test-pattern': 0,
@@ -1017,9 +1018,8 @@ Provide:
       return false;
     }
     if (context.tags.length > 0) {
-      const hasMatchingTag = context.tags.some((tag) =>
-        pattern.context.tags.includes(tag)
-      );
+      const patternTags = Array.isArray(pattern.context.tags) ? pattern.context.tags : [];
+      const hasMatchingTag = context.tags.some((tag) => patternTags.includes(tag));
       if (!hasMatchingTag) {
         return false;
       }
