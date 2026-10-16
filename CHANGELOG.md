@@ -5,6 +5,128 @@ All notable changes to the Agentic QE project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.15.8] - 2026-10-16
+
+Your acknowledged memory writes are no longer lost when a dream is running,
+and starting the MCP server no longer deletes old dream insights.
+`AQE_WORKERS_ENABLED=false` now really turns the background workers off.
+Learning pattern lookups and stats, test retries through symlinks and
+per-file coverage from a subfolder also got fixes. Every change was
+reviewed adversarially before merge.
+
+### Fixed
+
+- **Acknowledged memory writes are no longer lost during a dream**
+  ([#1060], [#1068]): while a dream was running, a `memory_store` that
+  returned `persisted: true`, or any other foreground write, could be
+  silently rolled back if the dream was cancelled, failed or was still
+  running when the MCP client closed. Dreams no longer hold a database
+  savepoint, so those writes stay. Dream results are the same as before. A
+  dream that is still running at shutdown is now recorded as `interrupted`
+  instead of being left at `running`. Thanks to @pacphi for the report and
+  the repro. This is a mitigation: the full rework stays tracked in
+  [#1060].
+- **Starting the MCP server no longer deletes old dream insights**
+  ([#1061], [#1067]): every `aqe-mcp` start used to delete unapplied
+  `dream_insights` older than 30 days within about 30 seconds, with no log
+  line, even with `AQE_WORKERS_ENABLED=false`. Now:
+  - `AQE_WORKERS_ENABLED=false` (also `0`, `off`, `no`) starts neither the
+    background workers nor the QualityDaemon.
+  - The retention sweep never runs at startup. The first one runs after one
+    full worker interval (30 minutes).
+  - Every deletion is logged on stderr with the count and the age window.
+  - Thanks to @pacphi for the report and the numbers from real stores.
+- **Learning pattern lookups and stats** ([#1055], [#1072]): looking up
+  patterns by tag no longer throws a `TypeError`, and `qe/learning/optimize`
+  pattern totals and averages count only active patterns. Provenance and
+  archive records used to be counted (averages came out as `null`) and
+  could push real patterns out of the search. Pattern export writes each
+  pattern once, and pattern dates are real dates again. Thanks to @pacphi
+  for the diagnosis.
+- **Test retries through a symlinked folder** ([#1047], [#1053]): a Vitest
+  retry of a test file reached through a symlink now clears when the real
+  file passes. Thanks to @rudycelekli.
+- **Per-file coverage from a subfolder** ([#1030], [#1047], [#1054]):
+  relative per-file coverage paths now resolve against the project root
+  (`AQE_PROJECT_ROOT`, then the repository root), so quality assessment and
+  defect prediction find the file's measurement when the MCP server starts
+  in a subfolder. Thanks to @rudycelekli.
+
+### Added
+
+- **`AQE_DISABLED_WORKERS`**: a comma-separated list of background worker
+  ids to skip, for example `learning-consolidation`. Unknown ids are
+  reported on stderr.
+- **`AQE_DREAM_INSIGHTS_RETENTION_DAYS`**: how old an unapplied dream
+  insight must be before the sweep deletes it. The default is 30. `0` or
+  `off` turns the sweep off. Any other value that is not a whole number from
+  1 to 36500 prints a warning and the default applies.
+
+Both are documented in `docs/v3/reference/configuration.md`.
+
+### Changed
+
+- **Installs made with `aqe init --no-database` no longer start background
+  workers.** Those installs already write `AQE_WORKERS_ENABLED=false`, and
+  the MCP server now honours it. Remove that line from your MCP config if
+  you want the workers.
+- **Dream branching is off by default.** Dreams no longer run inside a
+  savepoint, so they no longer emit branch events or `DREAM_MERGE` /
+  `DREAM_DISCARD` witness entries. Library users can still set
+  `DreamConfig.enableBranching: true`, but that keeps the original risk: a
+  discarded dream rolls back foreground writes made during it ([#1060]).
+  If a dream fails part-way, what it already wrote (activations and
+  insights for a cycle marked `failed` or `interrupted`) is kept.
+- **Relative coverage paths are project-root relative.** For library users:
+  a relative path passed to the per-file coverage readers now resolves
+  against the project root instead of the current folder. Absolute paths
+  and explicit roots behave as before.
+- **`qe/learning/optimize` totals change.** `patterns` and `dashboard` now
+  report active patterns only, so totals can drop and averages become real
+  numbers. Readers receive `Date` objects for `createdAt` and `lastUsedAt`.
+- **For library users:** the exported `LearningConsolidationProtocol` can
+  now archive low-value patterns in the namespace it reads. Before, it never
+  matched anything. Nothing in AQE runs it by default ([#1071]).
+
+### Known issues
+
+- Dreams still need the full rework: compute first, then commit in one
+  short transaction, and cancel on shutdown. A dream killed abruptly
+  (`SIGKILL`, crash) can still be left at `running` ([#1060]).
+- The retention sweep still hard-deletes rows instead of archiving them,
+  `AQE_DREAM_INSIGHTS_RETENTION_DAYS=false` is treated as invalid (so the
+  30-day default applies), worker ids in `AQE_DISABLED_WORKERS` are
+  case-sensitive, and the explicit `aqe daemon start` command is not gated by
+  `AQE_WORKERS_ENABLED` ([#1066]).
+- `quality_assess` leaves its Queen task slot in use ([#1070]).
+- Learning export, import and the consolidation protocol read a different
+  namespace than the one patterns are learned in, and the pattern scan stops
+  at about 5,000 patterns with only a log warning ([#1071]).
+- Workspace member dependencies are not scanned from a monorepo root yet
+  ([#1057]).
+- MCP `test_execute_parallel` runs the test suite twice ([#1059], fix in
+  review in [#1065]).
+- Windows paths are unit-tested only, not run on Windows ([#971], [#982]).
+
+[#971]: https://github.com/proffesor-for-testing/agentic-qe/issues/971
+[#982]: https://github.com/proffesor-for-testing/agentic-qe/issues/982
+[#1030]: https://github.com/proffesor-for-testing/agentic-qe/issues/1030
+[#1047]: https://github.com/proffesor-for-testing/agentic-qe/issues/1047
+[#1053]: https://github.com/proffesor-for-testing/agentic-qe/pull/1053
+[#1054]: https://github.com/proffesor-for-testing/agentic-qe/pull/1054
+[#1055]: https://github.com/proffesor-for-testing/agentic-qe/issues/1055
+[#1057]: https://github.com/proffesor-for-testing/agentic-qe/issues/1057
+[#1059]: https://github.com/proffesor-for-testing/agentic-qe/issues/1059
+[#1060]: https://github.com/proffesor-for-testing/agentic-qe/issues/1060
+[#1061]: https://github.com/proffesor-for-testing/agentic-qe/issues/1061
+[#1065]: https://github.com/proffesor-for-testing/agentic-qe/pull/1065
+[#1066]: https://github.com/proffesor-for-testing/agentic-qe/issues/1066
+[#1067]: https://github.com/proffesor-for-testing/agentic-qe/pull/1067
+[#1068]: https://github.com/proffesor-for-testing/agentic-qe/pull/1068
+[#1070]: https://github.com/proffesor-for-testing/agentic-qe/issues/1070
+[#1071]: https://github.com/proffesor-for-testing/agentic-qe/issues/1071
+[#1072]: https://github.com/proffesor-for-testing/agentic-qe/pull/1072
+
 ## [3.15.7] - 2026-10-15
 
 AQE no longer reports a dependency scan as clean when the advisory lookup
