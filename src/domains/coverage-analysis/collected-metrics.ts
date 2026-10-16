@@ -9,6 +9,7 @@
 
 import * as path from 'path';
 import type { CoverageSummary, FileCoverage } from './interfaces';
+import { findProjectRoot } from '../../kernel/project-root.js';
 
 /**
  * The ONE key form for per-file coverage records (#1027 N7): the absolute
@@ -17,7 +18,7 @@ import type { CoverageSummary, FileCoverage } from './interfaces';
  * (or the cwd when none is known), so one file never has two records.
  */
 export function fileCoverageKey(filePath: string, projectRoot?: string): string {
-  return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(projectRoot ?? process.cwd(), filePath);
+  return path.isAbsolute(filePath) ? path.normalize(filePath) : path.resolve(projectRoot ?? findProjectRoot(), filePath);
 }
 
 /** Read the canonical key first, then a measured legacy relative key if present. */
