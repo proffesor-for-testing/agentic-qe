@@ -4,6 +4,7 @@ All Agentic QE release notes organized by version.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| [v3.15.8](v3.15.8.md) | 2026-10-16 | Dream-safe memory writes; workers off switch; no startup insight sweep. |
 | [v3.15.7](v3.15.7.md) | 2026-10-15 | Failed OSV lookups never read as clean; workers stop inventing data. |
 | [v3.15.6](v3.15.6.md) | 2026-10-13 | Measured-only coverage/quality/learning; stores stay in your project. |
 | [v3.15.5](v3.15.5.md) | 2026-10-12 | Honest coverage/quality: no fake 0%, no evidence-free approval, code index root. |
