@@ -38,6 +38,7 @@ describe('#1050 public defect prediction records its analysis for the worker', (
     await fs.writeFile(path.join(root, 'src', 'calm.ts'), 'export const calm = 1;\n');
   });
   afterEach(async () => {
+    vi.useRealTimers();
     failures.all = false;
     failures.suffix = "";
     if (priorRoot === undefined) delete process.env.AQE_PROJECT_ROOT;
@@ -81,8 +82,10 @@ describe('#1050 public defect prediction records its analysis for the worker', (
 
   it('records a clean reanalysis even when no file crosses the display threshold', async () => {
     const { store, run } = setup();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T21:41:00Z'));
     await run();
-    await new Promise(resolve => setTimeout(resolve, 2));
+    vi.setSystemTime(new Date('2026-10-16T21:41:00.001Z'));
     await fs.writeFile(path.join(root, 'src', 'risky.ts'), 'export const calm = 1;\n');
     const result = await run();
     expect(result.success && (result.value as any).predictedDefects).toEqual([]);
@@ -97,6 +100,33 @@ describe('#1050 public defect prediction records its analysis for the worker', (
     await fs.mkdir(path.join(root, 'empty'));
     expect((await run(path.join(root, 'empty'))).success).toBe(true);
     expect(await store.memory.search(PATTERN, 100, { namespace: NS })).toEqual([]);
+  });
+
+  it.each([false, true])('treats same-timestamp conflicting runs as ambiguous regardless of search order (reverse=%s)', async (reverse) => {
+    const { store, run } = setup();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-16T21:41:00Z'));
+    await run();
+    await new DefectPredictorWorker().execute(contextFor(store.memory));
+    expect((store.read('defect:predictions') as any).stale).not.toBe(true);
+    await fs.writeFile(path.join(root, 'src', 'risky.ts'), 'export const calm = 1;\n');
+    await run();
+    if (reverse) {
+      const search = store.memory.search.getMockImplementation()!;
+      store.memory.search.mockImplementation(async (...args) => (await search(...args)).reverse());
+    }
+    const ambiguous = await new DefectPredictorWorker().execute(contextFor(store.memory));
+    expect(ambiguous.metrics.itemsAnalyzed).toBe(0);
+    expect(ambiguous.findings).toContainEqual(expect.objectContaining({
+      type: 'defect-prediction-unmeasured', description: expect.stringContaining('same timestamp'),
+    }));
+    expect((store.read('defect:predictions') as any).stale).toBe(true);
+    vi.setSystemTime(new Date('2026-10-16T21:41:00.001Z'));
+    await run();
+    const recovered = await new DefectPredictorWorker().execute(contextFor(store.memory));
+    expect(recovered.metrics.itemsAnalyzed).toBe(2);
+    expect(recovered.findings.some(f => /-defect-risk$/.test(f.type))).toBe(false);
+    expect((store.read('defect:predictions') as any).stale).not.toBe(true);
   });
 
   it.each(['calm.ts', 'risky.ts'])('reports partial scans when %s cannot be read', async (unreadable) => {

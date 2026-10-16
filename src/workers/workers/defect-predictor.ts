@@ -183,7 +183,9 @@ export class DefectPredictorWorker extends BaseWorker {
         severity: 'info',
         domain: 'defect-intelligence',
         title: 'Defect Prediction Unmeasured',
-        description: (unusable
+        description: (unusable?.ambiguous
+          ? 'Multiple defect predictions have the same timestamp, so no unique latest analysis can be identified. No risk is reported. '
+          : unusable
           ? `The latest defect prediction (${unusable.id}) names no file inside this project ` +
             `(${unusable.outside} outside the project root, ${unusable.missing} missing), so no risk is reported. `
           : 'No defect prediction for files in this project has been recorded in the last 7 days, so no risk is reported. ') +
@@ -273,22 +275,36 @@ export class DefectPredictorWorker extends BaseWorker {
    * #1043: the most recent prediction run the defect-intelligence predictor
    * recorded, restricted to regular files whose real path is inside the
    * project root. `measured` is `null` when there is no such prediction;
-   * `unusable` describes a newest prediction none of whose files qualify.
+   * `unusable` describes an ambiguous newest timestamp or a newest prediction
+   * none of whose files qualify.
    */
   private async readLatestPrediction(context: WorkerContext): Promise<{
     measured: MeasuredDefectPredictions | null;
-    unusable: { id: string; outside: number; missing: number } | null;
+    unusable: { id: string; outside: number; missing: number; ambiguous?: true } | null;
   }> {
     const keys = await context.memory.search(PREDICTION_KEY_PATTERN, MAX_PREDICTION_RECORDS, { namespace: DEFECT_NAMESPACE });
     const now = Date.now();
     let latest: ReturnType<typeof parsePredictionRecord> = null;
+    let ambiguous = false;
     for (const found of keys) {
       // #1049: the in-memory backend returns `<namespace>:<key>` from a namespaced search.
       const key = bareSearchKey(found, DEFECT_NAMESPACE, PREDICTION_KEY_PATTERN);
       const parsed = parsePredictionRecord(await context.memory.get<unknown>(key, { namespace: DEFECT_NAMESPACE }), now);
-      if (parsed && (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp))) latest = parsed;
+      if (!parsed) continue;
+      if (!latest || Date.parse(parsed.timestamp) > Date.parse(latest.timestamp)) {
+        latest = parsed;
+        ambiguous = false;
+      } else if (Date.parse(parsed.timestamp) === Date.parse(latest.timestamp) && parsed.id !== latest.id) {
+        ambiguous = true;
+      }
     }
     if (!latest) return { measured: null, unusable: null };
+    // Timestamp precision cannot establish ordering between concurrent runs.
+    // Never let backend key ordering decide whether the current scan is clean.
+    if (ambiguous) return {
+      measured: null,
+      unusable: { id: `ambiguous:${latest.timestamp}`, outside: 0, missing: 0, ambiguous: true },
+    };
 
     const realRoot = realProjectRoot();
     const disposition = latest.predictions.map((p) => classifyPredictedFile(p.file, realRoot));
