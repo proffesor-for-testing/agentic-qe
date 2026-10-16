@@ -26,6 +26,7 @@ import type { Database as DatabaseType } from 'better-sqlite3';
 import { v4 as uuidv4 } from 'uuid';
 
 import { getUnifiedPersistence, type UnifiedPersistenceManager } from '../../kernel/unified-persistence.js';
+import { registerStoreCloser } from '../../kernel/process-lifecycle.js';
 import { ConceptGraph } from './concept-graph.js';
 import {
   SpreadingActivation,
@@ -78,7 +79,21 @@ export interface DreamConfig {
   /** Insight generation configuration */
   insightConfig: InsightConfig;
 
-  /** Enable RVCOW branching for reversible dream cycles (ADR-069). Default: true */
+  /**
+   * Enable RVCOW branching for reversible dream cycles (ADR-069).
+   * Default: false (#1060).
+   *
+   * RISK — opt in only for an isolated database connection. The branch is a
+   * SQLite SAVEPOINT on the process-wide shared connection, and it stays open
+   * for the whole asynchronous dream (up to `maxDurationMs`). Every other
+   * write made on that connection in the meantime (memory_store, pattern
+   * updates, experience capture) joins the savepoint. A discard (failed
+   * validation, error, cancel) rolls those foreground writes back even though
+   * they were already acknowledged. Branch validation only inspects
+   * `qe_patterns`, which `dream()` does not write, so branching adds little
+   * protection to a dream cycle. A compute-then-commit rework is tracked in
+   * #1060.
+   */
   enableBranching: boolean;
 
   /** Validation thresholds for dream branch quality checks */
@@ -103,7 +118,8 @@ export const DEFAULT_DREAM_CONFIG: DreamConfig = {
     minConfidence: 0.5,
     maxInsightsPerCycle: 10,
   },
-  enableBranching: true,
+  // #1060: off by default; see the RISK note on DreamConfig.enableBranching.
+  enableBranching: false,
   branchValidationThresholds: { ...DEFAULT_VALIDATION_THRESHOLDS },
 };
 
@@ -324,6 +340,8 @@ export class DreamEngine {
   private graph: ConceptGraph | null = null;
   private db: DatabaseType | null = null;
   private branchManager: RVCOWBranchManager | null = null;
+  /** #1060: marks the in-flight dream cycle interrupted (set while dreaming). */
+  private interruptActiveDream: (() => void) | null = null;
   private currentCycle: DreamCycle | null = null;
   private initialized = false;
   private cancelled = false;
@@ -478,13 +496,19 @@ export class DreamEngine {
     };
     await this.saveCycle(this.currentCycle);
 
-    // ADR-069: Create RVCOW branch before dream consolidation
+    // ADR-069: Create RVCOW branch before dream consolidation (opt-in, #1060)
     let branch: Branch | null = null;
     if (this.branchManager) {
       const branchName = `dream-${this.currentCycle.id}-${Date.now()}`;
       branch = this.branchManager.createBranch(branchName);
       this.emitBranchEvent('dream:branch_created', branch);
     }
+
+    // #1060: if the engine closes or the process shuts down mid-dream, record
+    // the cycle as interrupted instead of leaving it 'running' forever.
+    const interrupt = this.createCycleInterrupter(this.currentCycle, startTime, () => branch);
+    this.interruptActiveDream = interrupt;
+    const unregisterShutdownGuard = registerStoreCloser(interrupt);
 
     try {
       // 1. Check we have enough concepts
@@ -605,7 +629,45 @@ export class DreamEngine {
       }
       this.currentCycle = null;
       throw error;
+    } finally {
+      unregisterShutdownGuard();
+      if (this.interruptActiveDream === interrupt) this.interruptActiveDream = null;
     }
+  }
+
+  /**
+   * #1060: build a synchronous handler that records a still-running cycle as
+   * 'interrupted'. It runs from close() and from a process store closer,
+   * which runs before the shared database closes (closers run newest first).
+   * When opt-in branching left a savepoint open, the savepoint is released
+   * first so foreground writes made on the shared connection during the
+   * dream are committed rather than lost with the connection.
+   */
+  private createCycleInterrupter(
+    cycle: DreamCycle,
+    startTime: number,
+    getBranch: () => Branch | null,
+  ): () => void {
+    return () => {
+      if (cycle.status !== 'running' || !this.db) return;
+      const branch = getBranch();
+      if (branch && this.branchManager) {
+        try {
+          this.branchManager.mergeBranch(branch);
+        } catch {
+          // Branch already resolved; nothing to release
+        }
+      }
+      cycle.status = 'interrupted';
+      cycle.error = 'Interrupted: engine closed or process shut down during the dream cycle';
+      cycle.endTime = new Date();
+      cycle.durationMs = Date.now() - startTime;
+      try {
+        this.updateCycleSync(cycle);
+      } catch {
+        // Best effort during shutdown
+      }
+    };
   }
 
   // ==========================================================================
@@ -952,6 +1014,10 @@ export class DreamEngine {
   }
 
   private async updateCycle(cycle: DreamCycle): Promise<void> {
+    this.updateCycleSync(cycle);
+  }
+
+  private updateCycleSync(cycle: DreamCycle): void {
     if (!this.db) return;
 
     const stmt = this.db.prepare(`
@@ -1043,6 +1109,11 @@ export class DreamEngine {
    * Release resources (does NOT close the shared database)
    */
   async close(): Promise<void> {
+    // #1060: a dream still in flight is recorded as interrupted before the
+    // engine lets go of the database.
+    this.interruptActiveDream?.();
+    this.interruptActiveDream = null;
+
     if (this.graph) {
       await this.graph.close();
       this.graph = null;
