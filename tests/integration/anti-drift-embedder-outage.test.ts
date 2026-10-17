@@ -26,9 +26,10 @@ describe('anti-drift with a real failing HTTP embedder', () => {
       expect(receipt.receiveDelivered).toBe(true);
       expect(receipt.requests.failed).toBe(2); // actual 503 responses, not mocked methods
       expect(receipt.requests.succeeded).toBeGreaterThan(2);
-      expect(receipt.healthyStats).toMatchObject({ totalChecked: 1, driftCount: 0 });
-      expect(receipt.outageStats).toEqual(receipt.healthyStats);
-      expect(receipt.recoveryStats).toMatchObject({ totalChecked: 2, driftCount: 0 });
+      expect(receipt.healthyStats).toMatchObject({ totalChecked: 1, driftCount: 0, unverifiedCount: 0 });
+      // The outage adds no checks; each failed request counts once as unverified.
+      expect(receipt.outageStats).toEqual({ ...receipt.healthyStats, unverifiedCount: receipt.requests.failed });
+      expect(receipt.recoveryStats).toMatchObject({ totalChecked: 2, driftCount: 0, unverifiedCount: 2 });
       expect(result.stderr).toContain('event delivered without verification');
       expect(result.stderr).not.toContain('SECRET-PROVIDER-ERROR');
       expect(result.stderr).not.toContain('A unique meaningful test completion');
