@@ -764,6 +764,52 @@ describe('#569 — AQE_COVERAGE_NO_EXEC opt-out', () => {
 // work, confirmed by reproduction.
 // ---------------------------------------------------------------------------
 
+// #1074: collectRustCoverage ran `cargo llvm-cov` (the crate's whole test
+// suite) with execSync, so an MCP coverage request froze the server for the
+// whole run. A fake `cargo` on PATH that takes 1.5s stands in for it.
+describe.skipIf(process.platform === 'win32')('#1074 — Rust coverage run does not block the event loop', () => {
+  it('keeps timers running during the cargo run and still returns its coverage', async () => {
+    const crate = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1074-crate-'));
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-1074-bin-'));
+    const originalPath = process.env.PATH;
+    try {
+      makeRustCrate(crate);
+      const lcov = `SF:${path.join(crate, 'src', 'jwks.rs')}\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n`;
+      fs.writeFileSync(path.join(binDir, 'cargo'), [
+        '#!/bin/sh',
+        'if [ "$2" = "--version" ]; then echo "cargo-llvm-cov 0.6.0"; exit 0; fi',
+        'sleep 1.5',
+        `printf '%b' ${JSON.stringify(lcov)} > "$4"`,
+      ].join('\n') + '\n');
+      fs.chmodSync(path.join(binDir, 'cargo'), 0o755);
+      process.env.PATH = `${binDir}:${originalPath}`;
+      delete process.env.AQE_COVERAGE_NO_EXEC;
+
+      let maxGap = 0;
+      let last = Date.now();
+      const ticker = setInterval(() => { const now = Date.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 25);
+      let result: Awaited<ReturnType<typeof collectRustCoverage>>;
+      try {
+        result = await collectRustCoverage(crate);
+      } finally {
+        // The final gap counts too: a blocked loop resumes with the result
+        // already settled, before the interval could fire again.
+        maxGap = Math.max(maxGap, Date.now() - last);
+        clearInterval(ticker);
+      }
+
+      expect(result?.provenance.method).toBe('cargo-llvm-cov');
+      expect(result?.data.files.map(f => path.basename(f.path))).toEqual(['jwks.rs']);
+      // The fake run takes 1.5s; a synchronous call would show a gap that long.
+      expect(maxGap).toBeLessThan(500);
+    } finally {
+      process.env.PATH = originalPath;
+      fs.rmSync(crate, { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  }, 20000);
+});
+
 describe('#569 — an instrumented report must not launder test coverage', () => {
   let dir: string;
 

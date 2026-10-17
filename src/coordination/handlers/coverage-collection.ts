@@ -24,6 +24,7 @@ import * as os from 'os';
 import * as path from 'path';
 import type { CoverageData, FileCoverage } from '../../domains/coverage-analysis/interfaces';
 import { parseLcovInfo } from './handler-utils';
+import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 
 // ============================================================================
 // Provenance
@@ -429,7 +430,6 @@ export async function collectRustCoverage(
   // Honor the opt-out before doing any of that.
   if (isCoverageExecDisabled()) return null;
 
-  const { execSync } = await import('child_process');
   const timeout = options.timeoutMs ?? 300000;
 
   // cargo must run from the crate root, not from whatever subdirectory the
@@ -437,11 +437,11 @@ export async function collectRustCoverage(
   const crateRoot = findCargoRoot(targetPath);
   if (!crateRoot) return null;
 
-  try {
-    execSync('cargo llvm-cov --version', {
-      cwd: crateRoot, timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch {
+  // #1074: run cargo asynchronously. The coverage run executes the crate's
+  // whole test suite, and a synchronous call would stop the MCP server
+  // answering any other request for up to `timeout`.
+  const version = await runTestRunnerProcess('cargo', ['llvm-cov', '--version'], { cwd: crateRoot, timeout: 30000 });
+  if (version.error || version.status !== 0) {
     return null; // cargo-llvm-cov not installed — not an error, just unavailable.
   }
 
@@ -451,9 +451,8 @@ export async function collectRustCoverage(
   );
 
   try {
-    execSync(`cargo llvm-cov --lcov --output-path ${JSON.stringify(outPath)}`, {
-      cwd: crateRoot, timeout, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const run = await runTestRunnerProcess('cargo', ['llvm-cov', '--lcov', '--output-path', outPath], { cwd: crateRoot, timeout });
+    if (run.error || run.status !== 0) return null;
 
     if (!fs.existsSync(outPath)) return null;
     const parsed = parseLcovInfo(fs.readFileSync(outPath, 'utf-8'));

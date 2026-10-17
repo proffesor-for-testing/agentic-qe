@@ -9,9 +9,14 @@ import type { InstanceTaskHandler, TaskHandlerContext } from '../../../../src/co
 import type { QueenTask } from '../../../../src/coordination/queen-coordinator.js';
 import type { Result } from '../../../../src/shared/types/index.js';
 
-const { spawn, spawnSync } = vi.hoisted(() => ({ spawn: vi.fn(), spawnSync: vi.fn() }));
-vi.mock('node:child_process', () => ({ spawn, spawnSync }));
-vi.mock('child_process', () => ({ spawn, spawnSync }));
+// The service spawns its runner directly; the execute-tests handler runs its
+// runner through runTestRunnerProcess (#1074), which resolves like spawnSync.
+const { spawn, runTestRunnerProcess } = vi.hoisted(() => ({ spawn: vi.fn(), runTestRunnerProcess: vi.fn() }));
+vi.mock('node:child_process', () => ({ spawn }));
+vi.mock('child_process', () => ({ spawn }));
+vi.mock('../../../../src/shared/test-runner-process.js', async importOriginal => ({
+  ...await importOriginal<object>(), runTestRunnerProcess,
+}));
 
 const validReport = JSON.stringify({ success: true, numTotalTests: 1, numPassedTests: 1,
   numFailedTests: 0, testResults: [{ status: 'passed', assertionResults: [{ status: 'passed' }] }] });
@@ -74,7 +79,7 @@ describe('Vitest report process boundaries', () => {
       });
       return proc;
     });
-    spawnSync.mockImplementation((_command, args) => {
+    runTestRunnerProcess.mockImplementation((_command, args) => {
       const path = reportPath(args);
       if (body !== undefined) writeFileSync(path, body);
       return { status: code, signal: code === null ? 'SIGTERM' : null, stdout: validReport, stderr: '' };
@@ -84,7 +89,7 @@ describe('Vitest report process boundaries', () => {
     const taskResult = await handler({ payload: { testFiles: [file] } } as QueenTask);
     expect(taskResult.success).toBe(false);
     if (!taskResult.success && code === null) expect(taskResult.error.message).toContain('SIGTERM');
-    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(runTestRunnerProcess).toHaveBeenCalledTimes(1);
     expect(new Set(reportPaths).size).toBe(2);
     expect(reportPaths.every(path => !existsSync(dirname(path)))).toBe(true);
   });
@@ -117,20 +122,20 @@ describe('Vitest report process boundaries', () => {
     expect(existsSync(dirname(reportPaths[0]))).toBe(false);
   });
 
-  it('preserves synchronous timeout diagnostics without retrying Jest', async () => {
-    spawnSync.mockImplementation((_command, args) => {
+  it('preserves runner timeout diagnostics without retrying Jest', async () => {
+    runTestRunnerProcess.mockImplementation((_command, args) => {
       writeFileSync(reportPath(args), '{');
       return { status: null, signal: 'SIGTERM', error: new Error('ETIMEDOUT fixture'), stdout: '', stderr: '' };
     });
     const result = await handler({ payload: { testFiles: [file] } } as QueenTask);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.message).toContain('ETIMEDOUT fixture');
-    expect(spawnSync).toHaveBeenCalledTimes(1);
+    expect(runTestRunnerProcess).toHaveBeenCalledTimes(1);
     expect(existsSync(dirname(reportPaths[0]))).toBe(false);
   });
 
   it('retains Jest fallback only for an unsuccessful Vitest run without a report', async () => {
-    spawnSync.mockImplementation((_command, args) => {
+    runTestRunnerProcess.mockImplementation((_command, args) => {
       if (args[0] === 'vitest') {
         reportPath(args);
         return { status: 1, signal: null, stdout: '', stderr: 'Vitest unavailable' };
@@ -142,13 +147,13 @@ describe('Vitest report process boundaries', () => {
       return { status: 0, signal: null, stdout: validReport, stderr: '' };
     });
     expect((await handler({ payload: { testFiles: [file] } } as QueenTask)).success).toBe(true);
-    expect(spawnSync).toHaveBeenCalledTimes(2);
+    expect(runTestRunnerProcess).toHaveBeenCalledTimes(2);
     expect(existsSync(dirname(reportPaths[0]))).toBe(false);
   });
 
   it('never passes an allowed "-" entry to Vitest as a flag (#909)', async () => {
     const seen: string[][] = [];
-    spawnSync.mockImplementation((_command, args) => {
+    runTestRunnerProcess.mockImplementation((_command, args) => {
       seen.push(args);
       if (args[0] === 'vitest') reportPath(args);
       return { status: 1, signal: null, stdout: '', stderr: 'no tests' };

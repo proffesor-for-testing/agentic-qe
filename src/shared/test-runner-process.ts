@@ -162,3 +162,97 @@ export function terminateTestRunner(proc: ChildProcess): Promise<void> {
     } catch (error) { fail(error); }
   });
 }
+
+/** The `spawnSync` result fields a test-runner caller reads. */
+export interface TestRunnerProcessResult {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: string;
+  stderr: string;
+  error?: NodeJS.ErrnoException;
+}
+
+export interface TestRunnerProcessOptions {
+  cwd: string;
+  /** Kill the runner and report ETIMEDOUT after this many milliseconds. */
+  timeout: number;
+  env?: NodeJS.ProcessEnv;
+  /** Per-stream output limit; exceeding it kills the runner (ENOBUFS). */
+  maxBuffer?: number;
+}
+
+/** `spawnSync`'s default per-stream output limit. */
+const DEFAULT_MAX_BUFFER = 1024 * 1024;
+
+/**
+ * #1074: run a test runner without blocking the event loop. Resolves with the
+ * same fields and failure semantics `spawnSync` reports: exit status or
+ * terminating signal, captured UTF-8 stdout/stderr, an ETIMEDOUT error after
+ * `timeout`, an ENOBUFS error once a stream exceeds `maxBuffer`, and the
+ * spawn error itself when the command cannot start. The runner gets its own
+ * process group, so a timeout or overflow stops the whole `npx` tree before
+ * the promise settles and before any report file is removed.
+ */
+export function runTestRunnerProcess(
+  command: string,
+  args: readonly string[],
+  options: TestRunnerProcessOptions,
+): Promise<TestRunnerProcessResult> {
+  const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
+  return new Promise(resolve => {
+    let stdout = '';
+    let stderr = '';
+    let error: NodeJS.ErrnoException | undefined;
+    let stopping: Promise<void> | undefined;
+    let settled = false;
+
+    let proc: ChildProcess;
+    try {
+      proc = spawn(command, [...args], {
+        cwd: options.cwd,
+        env: options.env ?? process.env,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (spawnError) {
+      resolve({ status: null, signal: null, stdout, stderr, error: spawnError as NodeJS.ErrnoException });
+      return;
+    }
+    const untrackExit = trackTestRunnerExit(proc);
+
+    const settle = (status: number | null, signal: NodeJS.Signals | null): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      // Report the signal the runner was stopped with, as spawnSync does.
+      const stoppedWith = stopping && !signal ? 'SIGTERM' : signal;
+      const result = { status: stopping ? null : status, signal: stoppedWith, stdout, stderr, error };
+      const done = (): void => { untrackExit(); resolve(result); };
+      if (stopping) stopping.then(done, done);
+      else done();
+    };
+    const stop = (code: 'ETIMEDOUT' | 'ENOBUFS', message: string): void => {
+      if (stopping) return;
+      error = Object.assign(new Error(message), { code, syscall: `spawnSync ${command}` });
+      stopping = terminateTestRunner(proc);
+    };
+
+    const timer = setTimeout(() => stop('ETIMEDOUT', `spawnSync ${command} ETIMEDOUT`), options.timeout);
+    const collect = (stream: 'stdout' | 'stderr') => (chunk: string): void => {
+      if (stopping) return;
+      const next = (stream === 'stdout' ? stdout : stderr) + chunk;
+      const kept = next.length > maxBuffer ? next.slice(0, maxBuffer) : next;
+      if (stream === 'stdout') stdout = kept; else stderr = kept;
+      if (next.length > maxBuffer) stop('ENOBUFS', `spawnSync ${command} ENOBUFS`);
+    };
+    proc.stdout?.setEncoding('utf8').on('data', collect('stdout'));
+    proc.stderr?.setEncoding('utf8').on('data', collect('stderr'));
+
+    proc.once('error', (spawnError: NodeJS.ErrnoException) => {
+      error ??= spawnError;
+      // A runner that never started emits no 'close' with a status to wait for.
+      if (proc.pid === undefined) settle(null, null);
+    });
+    proc.once('close', (status: number | null, signal: NodeJS.Signals | null) => settle(status, signal));
+  });
+}
