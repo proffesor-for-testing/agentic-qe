@@ -85,7 +85,7 @@ describe.each(['sqlite', 'memory'] as const)('recorded optimization input (%s)',
     expect(optimize).not.toHaveBeenCalled();
     expect(result.data?.optimizeResult).toMatchObject({
       experiencesUsed: 19, strategiesEvaluated: 0, confidence: 0,
-      evidenceStatus: 'insufficient-evidence', unmeasured: ['improvement', 'confidence'],
+      evidenceStatus: 'insufficient-evidence', unmeasured: ['improvement', 'confidence', 'expectedOutcome'],
     });
     expect(result.data?.evidenceStatus).toBe('insufficient-evidence');
     expect(isLearnableResult('learning-optimization', result.data)).toBe(false);

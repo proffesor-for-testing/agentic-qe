@@ -86,9 +86,8 @@ export async function getCurrentStrategy(
       retryCount: 3,
       concurrency: 4,
     },
-    expectedOutcome: {
-      success_rate: 0.8,
-    },
+    // #1099: the default strategy has never run, so no outcome is expected.
+    expectedOutcome: {},
   };
 }
 
