@@ -109,24 +109,27 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
     try {
       const results: Knowledge[] = [];
 
-      // Search by domain if specified
-      let keys: string[];
-      if (query.domain) {
-        keys = await this.memory.search(
-          `learning:knowledge:*:${query.domain}:*`,
-          query.limit || 100
-        );
-      } else {
-        keys = await this.memory.search('learning:knowledge:shared:*', query.limit || 100);
-      }
+      // Secondary domain/type indexes store IDs, not Knowledge objects, and
+      // shareKnowledge() need not create them. Read canonical shared records
+      // from the same namespace as both writers, then filter and rank before
+      // applying the caller's result limit. Keep the scan bounded by config.
+      const keys = await this.memory.search(
+        'learning:knowledge:shared:*',
+        this.config.maxKnowledgeItems,
+        { namespace: 'learning-optimization' },
+      );
 
-      for (const key of keys) {
+      for (const found of keys) {
+        // In-memory search returns namespace-prefixed keys; SQLite returns
+        // bare keys. get() already receives the namespace separately.
+        const prefix = 'learning-optimization:';
+        const key = found.startsWith(prefix) ? found.slice(prefix.length) : found;
         // #493: rehydrate Date fields at the kv-read seam. `createdAt` is
         // consumed by validateRelevance().getTime() and `expiresAt` is
         // compared via `new Date() > knowledge.expiresAt` — both broken
         // when the field is a string after JSON round-trip.
         const knowledge = rehydrateDates(
-          await this.memory.get<Knowledge>(key),
+          await this.memory.get<Knowledge>(key, { namespace: 'learning-optimization' }),
           ['createdAt', 'expiresAt'],
         );
         if (knowledge && this.matchesQuery(knowledge, query)) {
@@ -147,7 +150,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
         for (const vr of vectorResults) {
           // #493: rehydrate Date fields at the kv-read seam.
           const knowledge = rehydrateDates(
-            await this.memory.get<Knowledge>(vr.key),
+            await this.memory.get<Knowledge>(vr.key, { namespace: 'learning-optimization' }),
             ['createdAt', 'expiresAt'],
           );
           if (
@@ -384,7 +387,7 @@ export class TransferSpecialistService implements IKnowledgeSynthesisService {
   async getKnowledgeById(id: string): Promise<Knowledge | null> {
     // #493: rehydrate Date fields at the kv-read seam.
     const knowledge = rehydrateDates(
-      await this.memory.get<Knowledge>(`learning:knowledge:shared:${id}`),
+      await this.memory.get<Knowledge>(`learning:knowledge:shared:${id}`, { namespace: 'learning-optimization' }),
       ['createdAt', 'expiresAt'],
     );
     return knowledge || null;
