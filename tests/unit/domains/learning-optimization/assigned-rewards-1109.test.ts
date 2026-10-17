@@ -240,6 +240,23 @@ describe('#1109 assigned rewards are recorded but never reported as measured', (
     });
   });
 
+  it('optimize action reports insufficient evidence instead of failing on assigned rewards', async () => {
+    await publishAssigned(25);
+
+    const result = await tool().invoke({
+      action: 'optimize', domain: 'defect-intelligence',
+      objective: { metric: 'probability', direction: 'maximize' },
+    }, { memory });
+
+    expect(result.success, JSON.stringify(result)).toBe(true);
+    expect(result.data?.optimizeResult).toMatchObject({
+      experiencesUsed: 0,
+      assignedRewardsExcluded: 25,
+      strategiesEvaluated: 0,
+      evidenceStatus: 'insufficient-evidence',
+    });
+  });
+
   describe('rows written before the tag existed', () => {
     const legacy = (agent: string, action: string): Pick<Experience, 'agentId' | 'action'> => ({
       agentId: { value: agent, domain: agent as Experience['domain'], type: 'analyzer' }, action,

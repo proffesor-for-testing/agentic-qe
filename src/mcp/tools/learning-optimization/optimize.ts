@@ -25,6 +25,7 @@ import {
   Constraint,
 } from '../../../domains/learning-optimization/interfaces.js';
 import type { LearningOptimizationAPI } from '../../../domains/learning-optimization/plugin.js';
+import { partitionByRewardSource } from '../../../domains/learning-optimization/reward-source.js';
 import type { PersistedSONAStats } from '../../../integrations/ruvector/sona-persistence.js';
 
 // ============================================================================
@@ -83,6 +84,8 @@ export interface LearnedPattern {
 export interface OptimizeResult {
   inputSource: 'recorded-experiences';
   experiencesUsed: number;
+  /** #1109: recorded experiences left out because their reward was assigned. */
+  assignedRewardsExcluded?: number;
   evidenceStatus?: 'insufficient-evidence';
   unmeasured?: string[];
   /** Figures that were modelled, not observed (#1099). */
@@ -400,9 +403,12 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     const timeRange = TimeRange.lastNDays(30);
     const recorded = await learningCoordinator.getExperiences(targetDomain, timeRange);
     if (!recorded.success) throw recorded.error;
+    // #1109: an assigned reward is not an observation; leave it out before the
+    // sample-count gate so it can neither pad the count nor fail the optimizer.
+    const { measured, assignedExcluded } = partitionByRewardSource(recorded.value);
     // Missing objective values are absence of evidence, not zero or a random
     // synthetic observation. Preserve eligible records (including failures).
-    const experiences = recorded.value.filter(experience => {
+    const experiences = measured.filter(experience => {
       const value = experience.result.outcome[objective.metric];
       return typeof value === 'number' && Number.isFinite(value);
     });
@@ -487,6 +493,7 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     return {
       inputSource: 'recorded-experiences',
       experiencesUsed: experiences.length,
+      ...(assignedExcluded > 0 ? { assignedRewardsExcluded: assignedExcluded } : {}),
       strategiesEvaluated: experiences.length >= 20 ? 1 : 0,
       ...(experiences.length < 20 ? { evidenceStatus: 'insufficient-evidence' as const } : {}),
       ...(unmeasured.length > 0 ? { unmeasured } : {}),
