@@ -20,6 +20,7 @@ import type {
   ServiceRecoveryResult,
 } from './types.js';
 import { DEFAULT_INFRA_HEALING_CONFIG, createEmptyStats } from './types.js';
+import { getOwn, setOwn } from '../../shared/utils/safe-record.js';
 import { TestOutputObserver, createTestOutputObserver } from './test-output-observer.js';
 import { RecoveryPlaybook, createRecoveryPlaybook } from './recovery-playbook.js';
 import { CoordinationLock, createCoordinationLock } from './coordination-lock.js';
@@ -101,10 +102,10 @@ export class InfraHealingOrchestrator {
     // Update per-service failure counts
     for (const failure of observation.infraFailures) {
       if (failure.serviceName) {
-        if (!this.stats.byService[failure.serviceName]) {
-          this.stats.byService[failure.serviceName] = { failures: 0, recoveries: 0, successes: 0 };
-        }
-        this.stats.byService[failure.serviceName].failures++;
+        const bucket = getOwn(this.stats.byService, failure.serviceName)
+          ?? { failures: 0, recoveries: 0, successes: 0 };
+        bucket.failures++;
+        setOwn(this.stats.byService, failure.serviceName, bucket);
       }
     }
   }
@@ -233,11 +234,11 @@ export class InfraHealingOrchestrator {
 
     // Merge per-service recovery stats from executor
     for (const [service, execServiceStats] of Object.entries(execStats.byService)) {
-      if (!this.stats.byService[service]) {
-        this.stats.byService[service] = { failures: 0, recoveries: 0, successes: 0 };
-      }
-      this.stats.byService[service].recoveries = execServiceStats.recoveries;
-      this.stats.byService[service].successes = execServiceStats.successes;
+      const bucket = getOwn(this.stats.byService, service)
+        ?? { failures: 0, recoveries: 0, successes: 0 };
+      bucket.recoveries = execServiceStats.recoveries;
+      bucket.successes = execServiceStats.successes;
+      setOwn(this.stats.byService, service, bucket);
     }
   }
 }
