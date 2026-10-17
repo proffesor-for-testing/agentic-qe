@@ -19,6 +19,7 @@ import type { MemoryBackend } from '../../../src/kernel/interfaces';
 import { resetUnifiedMemory } from '../../../src/kernel/unified-memory';
 import { LearningCoordinatorService } from '../../../src/domains/learning-optimization/services/learning-coordinator';
 import { LearningOptimizationCoordinator } from '../../../src/domains/learning-optimization/coordinator';
+import { calculateChecksum } from '../../../src/domains/learning-optimization/coordinator-helpers';
 import { LearningConsolidationProtocol } from '../../../src/coordination/protocols/learning-consolidation';
 import { LearningOptimizeTool } from '../../../src/mcp/tools/learning-optimization/optimize';
 import { TimeRange } from '../../../src/shared/value-objects/index.js';
@@ -204,9 +205,9 @@ describe('#1055 active pattern reads (real SQLite)', () => {
   });
 
   describe('other readers of the same prefix', () => {
-    // LearningOptimizationCoordinator export and the consolidation protocol
-    // read the backend's default namespace. Copy the service-produced records
-    // there so these readers see the same key families.
+    // The consolidation protocol still reads the backend's default namespace
+    // (#1071). Mirror only for its classification fixture; coordinator export
+    // must read the real service namespace without this workaround.
     async function mirrorToDefaultNamespace(): Promise<void> {
       const keys = await memory.search('learning:pattern:*', 1000, NS);
       for (const key of keys) {
@@ -216,7 +217,6 @@ describe('#1055 active pattern reads (real SQLite)', () => {
 
     it('coordinator export includes only the active pattern, once', async () => {
       const { active } = await learnTwoAndConsolidate();
-      await mirrorToDefaultNamespace();
       const coordinator = new LearningOptimizationCoordinator(
         { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() } as never,
         memory,
@@ -224,6 +224,34 @@ describe('#1055 active pattern reads (real SQLite)', () => {
       );
       const exported = await coordinator.exportModels(['code-intelligence', 'test-generation']);
       expect(exported.success && exported.value.patterns.map((p: LearnedPattern) => p.id)).toEqual([active]);
+    });
+
+    it.each([0.2, 0.9])('import compares confidence in the write namespace (existing=%s)', async (confidence) => {
+      const [id] = await learnTwo();
+      const learned = await memory.get<LearnedPattern>(`learning:pattern:${id}`, NS);
+      const existing = { ...learned!, confidence };
+      await memory.set(`learning:pattern:${id}`, existing, { ...NS, persist: true });
+      // A different namespace may contain the same key. It must not decide
+      // whether a learned pattern in the domain's namespace is overwritten.
+      const decoy = { ...existing, confidence: confidence < 0.5 ? 1 : 0 };
+      await memory.set(`learning:pattern:${id}`, decoy, { persist: true });
+      const incoming = { ...existing, confidence: 0.5 };
+      const coordinator = new LearningOptimizationCoordinator(
+        { publish: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() } as never,
+        memory,
+        { spawn: vi.fn(), canSpawn: () => false } as never,
+      );
+      const imported = await coordinator.importModels({
+        version: '1.0.0', exportedAt: new Date(), patterns: [incoming], knowledge: [], strategies: [],
+        checksum: calculateChecksum([incoming], [], []),
+      });
+      expect(imported.success).toBe(true);
+      if (!imported.success) throw imported.error;
+      expect(imported.value.patternsImported).toBe(confidence < 0.5 ? 1 : 0);
+      expect(imported.value.conflicts[0].resolution).toBe(confidence < 0.5 ? 'overwrite' : 'skip');
+      const stored = await memory.get<LearnedPattern>(`learning:pattern:${id}`, NS);
+      expect(stored!.confidence).toBe(Math.max(confidence, 0.5));
+      expect(await memory.get(`learning:pattern:${id}`)).toEqual(JSON.parse(JSON.stringify(decoy)));
     });
 
     it('consolidation protocol excludes provenance as well as archives', async () => {
