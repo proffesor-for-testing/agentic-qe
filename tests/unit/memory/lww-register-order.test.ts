@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLWWRegister } from '../../../src/memory/crdt/lww-register.js';
 
 describe('LWW register total write ordering', () => {
@@ -62,5 +62,73 @@ describe('LWW register total write ordering', () => {
     writer.applyState(createLWWRegister<string>('r').getState());
     expect(writer.get()).toBe('neg');
     expect(writer.getState().version).toBe(before.version);
+  });
+
+  describe('consecutive local writes without an explicit timestamp', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('keeps the later write when the clock has not advanced', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('first');
+      register.set('second');
+      expect(register.get()).toBe('second');
+    });
+
+    it('keeps the later write after the clock steps backwards', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('first');
+      vi.setSystemTime(900);
+      register.set('second');
+      expect(register.get()).toBe('second');
+    });
+
+    it('lets a replica that saw the first write converge on the second', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const a = createLWWRegister<string>('a');
+      const b = createLWWRegister<string>('b');
+      a.set('first');
+      b.applyState(a.getState());
+      a.set('second');
+      b.applyState(a.getState());
+      expect(b.get()).toBe('second');
+    });
+
+    it('still lets a newer remote write win over a local one', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('a');
+      register.set('local');
+      register.applyState({ value: 'remote', timestamp: 5000, nodeId: 'b', version: 1, lastUpdated: 5000 });
+      register.set('later local');
+      expect(register.get()).toBe('remote');
+    });
+
+    it('keeps exact LWW for an explicit timestamp, so a stale write is still dropped', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('current', 500);
+      register.set('stale', 400);
+      expect(register.get()).toBe('current');
+      expect(register.getState().timestamp).toBe(500);
+    });
+
+    it('advances the timestamp by one tick per same-millisecond write', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(1000);
+      const register = createLWWRegister<string>('owner');
+      register.set('one');
+      register.set('two');
+      register.set('three');
+      expect(register.get()).toBe('three');
+      expect(register.getState().timestamp).toBe(1002);
+    });
   });
 });
