@@ -241,6 +241,19 @@ describe('Task Handlers', () => {
       expect(queen.validateTaskExecutable).toHaveBeenCalledWith('scan-security', ['security-compliance']);
       expect(submit).not.toHaveBeenCalled();
     });
+
+    // #1108: a priority outside p0-p3 must be rejected at the boundary, not
+    // silently accepted.
+    it.each(['bogus', '__proto__', 'P1', 'critical', ''])('rejects invalid priority %j without submitting it', async (priority) => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+
+      const result = await handleTaskSubmit({ type: 'generate-tests', priority: priority as never });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(`Invalid priority: ${priority}. Valid priorities: p0, p1, p2, p3`);
+      expect(submit).not.toHaveBeenCalled();
+    });
   });
 
   // --------------------------------------------------------------------------

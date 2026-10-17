@@ -33,7 +33,7 @@ import type { QEDomain } from '../../learning/qe-patterns.js';
 import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
 import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { ALL_DOMAINS, isDomainName } from '../../shared/types/index.js';
+import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
 
 // ============================================================================
 // Task Type to Workflow Mapping (Issue #206)
@@ -72,6 +72,12 @@ export async function handleTaskSubmit(
       success: false,
       error: `Unknown domain: ${unknown.join(', ')}. Valid domains: ${ALL_DOMAINS.join(', ')}`,
     };
+  }
+
+  // #1108: reject a priority outside the allowed set. Parity with
+  // `aqe task submit --priority`.
+  if (params.priority !== undefined && !isPriority(params.priority)) {
+    return { success: false, error: invalidPriorityMessage(params.priority) };
   }
 
   const { queen } = getFleetState();
