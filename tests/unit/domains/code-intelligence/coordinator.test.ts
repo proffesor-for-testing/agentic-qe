@@ -245,6 +245,9 @@ describe('CodeIntelligenceCoordinator', () => {
 
     beforeEach(async () => {
       tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'aqe-994-coord-')));
+      // #1096: indexing is confined to the project root, so the fixture
+      // directory is the project these tests index.
+      vi.stubEnv('AQE_PROJECT_ROOT', tmp);
       metricsCoordinator = new CodeIntelligenceCoordinator(
         ctx.eventBus,
         ctx.memory,
@@ -256,6 +259,7 @@ describe('CodeIntelligenceCoordinator', () => {
 
     afterEach(async () => {
       await metricsCoordinator.dispose();
+      vi.unstubAllEnvs();
       fs.rmSync(tmp, { recursive: true, force: true });
     });
 

@@ -8,6 +8,8 @@
  */
 
 import { resolveProjectRootFromPaths } from './project-root-resolver.js';
+import { nothingIndexedError, validateIndexPaths } from './index-path-guard';
+import { findProjectRoot } from '../../kernel/project-root.js';
 import { LoggerFactory } from '../../logging/index.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Result, err, DomainEvent } from '../../shared/types';
@@ -312,7 +314,9 @@ export class CodeIntelligenceCoordinator
     this.knowledgeGraph = new KnowledgeGraphService({ memory, llmRouter });
     this.semanticAnalyzer = new SemanticAnalyzerService(memory);
     this.impactAnalyzer = new ImpactAnalyzerService(memory, this.knowledgeGraph);
-    this.fileReader = new FileReader();
+    // #1096: confine reads (semantic index, GNN) to the project root by
+    // realpath, as the knowledge graph does.
+    this.fileReader = new FileReader({ projectRoot: findProjectRoot() });
 
     // Initialize Product Factors Bridge.
     // ADR-112 C2: inject a KG-backed relationship resolver so C4 component
@@ -518,6 +522,12 @@ export class CodeIntelligenceCoordinator
    * Index codebase into Knowledge Graph
    */
   async index(request: IndexRequest): Promise<Result<IndexResult, Error>> {
+    // #1096: reject a malformed path list before any work starts.
+    const validPaths = validateIndexPaths(request.paths);
+    if (!validPaths.success) {
+      return validPaths;
+    }
+
     const workflowId = uuidv4();
 
     try {
@@ -552,20 +562,37 @@ export class CodeIntelligenceCoordinator
       // Perform indexing
       const result = await this.knowledgeGraph.index(request);
 
+      // #1096: paths were requested but none was indexed - fail rather than
+      // report success, naming what was skipped and why.
+      if (result.success && result.value.filesIndexed === 0 && request.paths.length > 0) {
+        const failure = nothingIndexedError(request.paths.length, result.value.skipped ?? [], result.value.errors);
+        this.failWorkflow(workflowId, failure.message);
+        await this.agentCoordinator.stop(agentResult.value);
+        return err(failure);
+      }
+
       if (result.success) {
         this.updateWorkflowProgress(workflowId, 40);
 
+        // #1096: the follow-up steps read file content too, so they only see
+        // the files the knowledge graph actually indexed.
+        const notIndexed = new Set([
+          ...(result.value.skipped ?? []).map((s) => s.path),
+          ...result.value.errors.map((e) => e.file),
+        ]);
+        const indexedPaths = request.paths.filter((p) => !notIndexed.has(p));
+
         // V3: Index code embeddings in GNN
-        if (this.config.enableGNN && this.gnnIndex && request.paths.length > 0) {
-          await this.indexCodeEmbeddings(request.paths);
+        if (this.config.enableGNN && this.gnnIndex && indexedPaths.length > 0) {
+          await this.indexCodeEmbeddings(indexedPaths);
         }
 
         this.updateWorkflowProgress(workflowId, 60);
 
         // V3: Collect real project metrics using actual tooling (Phase 5)
-        if (this.config.enableMetricCollector && this.metricCollector && request.paths.length > 0) {
+        if (this.config.enableMetricCollector && this.metricCollector && indexedPaths.length > 0) {
           // Determine project root from the caller's target (or the indexed paths)
-          const projectPath = this.getProjectRootFromPaths(request.paths, request.target);
+          const projectPath = this.getProjectRootFromPaths(indexedPaths, request.target);
           if (projectPath) {
             await this.collectProjectMetrics(projectPath);
           } else {
@@ -576,16 +603,16 @@ export class CodeIntelligenceCoordinator
         this.updateWorkflowProgress(workflowId, 70);
 
         // Index content for semantic search
-        if (request.paths.length > 0) {
-          await this.indexForSemanticSearch(request.paths);
+        if (indexedPaths.length > 0) {
+          await this.indexForSemanticSearch(indexedPaths);
         }
 
         this.updateWorkflowProgress(workflowId, 85);
 
         // V3: Rebuild hypergraph from indexed files (keeps hypergraph in sync with KG)
-        if (this.config.enableHypergraph && this.hypergraph && request.paths.length > 0) {
+        if (this.config.enableHypergraph && this.hypergraph && indexedPaths.length > 0) {
           try {
-            const codeIndexResult = await this.buildCodeIndexResultFromPaths(request.paths);
+            const codeIndexResult = await this.buildCodeIndexResultFromPaths(indexedPaths);
             if (codeIndexResult.files.length > 0) {
               await this.hypergraph.buildFromIndexResult(codeIndexResult);
               logger.info(`Hypergraph rebuilt from ${codeIndexResult.files.length} indexed files`);
