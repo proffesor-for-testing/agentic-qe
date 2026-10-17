@@ -37,6 +37,23 @@ describe('#1110 runner-reported test cases', () => {
     if (argument) writeFileSync(argument.slice('--outputFile='.length), body);
   }
 
+  // Both paths spawn the runner asynchronously (#1074).
+  function runnerExits(body: string, code: number): void {
+    spawn.mockImplementation((_command: string, args: string[]) => {
+      const stream = () => Object.assign(new EventEmitter(), { setEncoding() { return this; } });
+      const proc = Object.assign(new EventEmitter(), {
+        stdout: stream(), stderr: stream(), kill: vi.fn(() => true),
+      });
+      queueMicrotask(() => {
+        writeReport(args, body);
+        proc.stdout.emit('data', body);
+        proc.emit('exit', code, null);
+        proc.emit('close', code, null);
+      });
+      return proc;
+    });
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     fixture = mkdtempSync(join(tmpdir(), 'aqe-1110-'));
@@ -48,17 +65,7 @@ describe('#1110 runner-reported test cases', () => {
 
   it('the executor returns each reported test case and does not persist them with the run record', async () => {
     const body = reportFor(assertions());
-    spawn.mockImplementation((_command: string, args: string[]) => {
-      const proc = Object.assign(new EventEmitter(), {
-        stdout: new EventEmitter(), stderr: new EventEmitter(), kill: vi.fn(() => true),
-      });
-      queueMicrotask(() => {
-        writeReport(args, body);
-        proc.stdout.emit('data', Buffer.from(body));
-        proc.emit('close', 1);
-      });
-      return proc;
-    });
+    runnerExits(body, 1);
     const set = vi.fn(async () => undefined);
     const executor = new TestExecutorService({ memory: { set, get: vi.fn(async () => undefined) } as never });
 
@@ -79,10 +86,7 @@ describe('#1110 runner-reported test cases', () => {
 
   it('the Queen execute-tests handler returns the reported test cases', async () => {
     const body = reportFor(assertions());
-    spawnSync.mockImplementation((_command: string, args: string[]) => {
-      writeReport(args, body);
-      return { status: 1, signal: null, stdout: body, stderr: '' };
-    });
+    runnerExits(body, 1);
     let handler!: InstanceTaskHandler;
     registerTestExecutionHandlers({ registerHandler(name, value) {
       if (name === 'execute-tests') handler = value;
@@ -98,10 +102,7 @@ describe('#1110 runner-reported test cases', () => {
   it('leaves test cases out when the report does not list every counted test', async () => {
     const body = JSON.stringify({ success: true, numTotalTests: 2, numPassedTests: 2, numFailedTests: 0,
       testResults: [{ name: file, status: 'passed', assertionResults: [{ status: 'passed', fullName: 'only one' }] }] });
-    spawnSync.mockImplementation((_command: string, args: string[]) => {
-      writeReport(args, body);
-      return { status: 0, signal: null, stdout: body, stderr: '' };
-    });
+    runnerExits(body, 0);
     let handler!: InstanceTaskHandler;
     registerTestExecutionHandlers({ registerHandler(name, value) {
       if (name === 'execute-tests') handler = value;
