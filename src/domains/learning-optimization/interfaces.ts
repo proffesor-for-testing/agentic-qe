@@ -386,6 +386,8 @@ export interface ABTestResult {
   readonly strategyBMetrics: Record<string, number>;
   /** Absent when there was not enough recorded evidence to test. */
   readonly pValue?: number;
+  /** Why pValue is absent although both arms had enough samples. */
+  readonly pValueUnavailableReason?: 'zero-variance';
   readonly sampleSizeA: number;
   readonly sampleSizeB: number;
 }

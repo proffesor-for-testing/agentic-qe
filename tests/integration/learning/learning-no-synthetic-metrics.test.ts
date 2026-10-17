@@ -97,6 +97,37 @@ describe.each(['sqlite', 'memory'] as const)('#1099 learning metrics are measure
       expect(result.value.sampleSizeB).toBe(5);
     });
 
+    it('treats zero recorded samples as insufficient evidence even when minSamples is 0', async () => {
+      const result = await optimizer.runABTest(
+        strategy('ab-zero-A'), strategy('ab-zero-B'), { ...AB_CONFIG, minSamples: 0 },
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value).toMatchObject({
+        winner: 'inconclusive', evidenceStatus: 'insufficient-evidence', sampleSizeA: 0, sampleSizeB: 0,
+      });
+      expect(result.value.pValue).toBeUndefined();
+      expect(result.value.strategyAMetrics).toEqual({ samples: 0 });
+    });
+
+    it('leaves pValue out with a reason when neither arm has any variance', async () => {
+      await track('ab-flat-A', [0.9, 0.9, 0.9, 0.9, 0.9]);
+      await track('ab-flat-B', [0.5, 0.5, 0.5, 0.5, 0.5]);
+
+      const result = await optimizer.runABTest(strategy('ab-flat-A'), strategy('ab-flat-B'), AB_CONFIG);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value.pValue).toBeUndefined();
+      expect(result.value.pValueUnavailableReason).toBe('zero-variance');
+      expect(result.value.unmeasured).toEqual(['pValue']);
+      expect(result.value.winner).toBe('inconclusive');
+      // The recorded means and spreads are still measured.
+      expect(result.value.strategyAMetrics).toEqual({ success_rate: 0.9, stdDev: 0, samples: 5 });
+      expect(result.value.strategyBMetrics).toEqual({ success_rate: 0.5, stdDev: 0, samples: 5 });
+    });
+
     it('compares only the recorded metrics of each strategy', async () => {
       await track('ab-real-A', [0.9, 0.92, 0.88, 0.91, 0.89]);
       await track('ab-real-B', [0.5, 0.52, 0.48, 0.51, 0.49]);

@@ -198,10 +198,9 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
       const metricsA = await this.collectStrategyMetrics(strategyA, testConfig.metric);
       const metricsB = await this.collectStrategyMetrics(strategyB, testConfig.metric);
 
-      if (
-        metricsA.length < testConfig.minSamples ||
-        metricsB.length < testConfig.minSamples
-      ) {
+      // An arm with no recorded sample is never evidence, whatever minSamples says.
+      const minSamples = Math.max(1, testConfig.minSamples);
+      if (metricsA.length < minSamples || metricsB.length < minSamples) {
         const insufficient: ABTestResult = {
           winner: 'inconclusive',
           evidenceStatus: 'insufficient-evidence',
@@ -226,7 +225,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
 
       // Determine winner
       let winner: 'A' | 'B' | 'inconclusive';
-      if (pValue < 1 - testConfig.confidenceLevel) {
+      if (pValue !== undefined && pValue < 1 - testConfig.confidenceLevel) {
         winner = meanA > meanB ? 'A' : 'B';
       } else {
         winner = 'inconclusive';
@@ -244,7 +243,10 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
           stdDev: stdB,
           samples: metricsB.length,
         },
-        pValue,
+        // Neither arm varied, so the t statistic is undefined (#1099).
+        ...(pValue === undefined
+          ? { unmeasured: ['pValue'], pValueUnavailableReason: 'zero-variance' as const }
+          : { pValue }),
         sampleSizeA: metricsA.length,
         sampleSizeB: metricsB.length,
       };
@@ -706,7 +708,8 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     return Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / values.length);
   }
 
-  private calculatePValue(groupA: number[], groupB: number[]): number {
+  /** Undefined when neither group varies: the test statistic is undefined. */
+  private calculatePValue(groupA: number[], groupB: number[]): number | undefined {
     // Simplified p-value calculation using Welch's t-test approximation
     const meanA = this.calculateMean(groupA);
     const meanB = this.calculateMean(groupB);
@@ -716,7 +719,7 @@ export class MetricsOptimizerService implements IStrategyOptimizerService {
     const nB = groupB.length;
 
     const se = Math.sqrt(varA / nA + varB / nB);
-    if (se === 0) return 0.5;
+    if (se === 0) return undefined;
 
     const t = Math.abs(meanA - meanB) / se;
 
