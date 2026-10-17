@@ -209,6 +209,35 @@ describe.each(['sqlite', 'memory'] as const)('#1099 learning metrics are measure
       expect(result.value.evaluation?.estimated).toEqual(['improvement']);
       expect(result.value.confidence).toBe(1);
     });
+
+    it('lists improvement as unmeasured when there is no baseline score', async () => {
+      const experiences = Array.from({ length: 20 }, (_, i) => experience(i, 0, 4));
+
+      const result = await optimizer.optimizeStrategy(strategy('no-baseline'), objective, experiences);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value.improvement).toBe(0);
+      expect(result.value.evaluation?.estimated).toEqual([]);
+      expect(result.value.evaluation?.unmeasured).toEqual(['improvement']);
+    });
+
+    it('lists confidence as unmeasured when no outcome could be fitted', async () => {
+      // Only successful experiences inform the expected outcome; none succeeded.
+      const experiences = Array.from({ length: 20 }, (_, i) => ({
+        ...experience(i, 60, 4),
+        result: { success: false, outcome: { coverage: 60 }, duration: 10 },
+      }));
+
+      const result = await optimizer.optimizeStrategy(strategy('no-fit'), objective, experiences);
+
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.value.optimizedStrategy.expectedOutcome).toEqual({});
+      expect(result.value.validationResults).toEqual([]);
+      expect(result.value.confidence).toBe(0);
+      expect(result.value.evaluation?.unmeasured).toEqual(['confidence']);
+    });
   });
 
   it('MCP optimize lists the missing default outcome in unmeasured', async () => {
