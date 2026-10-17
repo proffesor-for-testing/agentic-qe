@@ -314,6 +314,15 @@ export const DEFAULT_QUEEN_CONFIG: QueenConfig = {
 };
 
 /**
+ * Domains configured for a task type, or [] when the type is unknown.
+ * Task types arrive from MCP/CLI callers, so the lookup uses own properties
+ * only: `constructor` or `__proto__` must not resolve through Object.prototype.
+ */
+export function getTaskDomains(type: string): readonly DomainName[] {
+  return Object.hasOwn(TASK_DOMAIN_MAP, type) ? TASK_DOMAIN_MAP[type as TaskType] : [];
+}
+
+/**
  * Initialize the TASK_DOMAIN_MAP entries that need ALL_DOMAINS at runtime.
  * Must be called once ALL_DOMAINS is available.
  */

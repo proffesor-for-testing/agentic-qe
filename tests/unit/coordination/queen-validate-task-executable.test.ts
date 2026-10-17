@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { QueenCoordinator } from '../../../src/coordination/queen-coordinator.js';
+import { assignTaskToDomain, canDomainHandleTask } from '../../../src/coordination/queen-task-management.js';
 import type {
   AgentCoordinator,
   DomainPlugin,
@@ -90,5 +91,55 @@ describe('QueenCoordinator.validateTaskExecutable (#1075)', () => {
 
   it('accepts any configured type when the Queen has no domain plugins to check', () => {
     expect(queenWith().validateTaskExecutable('index-code').success).toBe(true);
+  });
+});
+
+describe('task type lookups ignore Object.prototype keys', () => {
+  const queen = queenWith([['code-intelligence', plugin(['index', 'search'])]]);
+  const prototypeKeys = ['constructor', '__proto__', 'toString', 'hasOwnProperty'];
+
+  it.each(prototypeKeys)('rejects task type %s as unknown instead of throwing', (type) => {
+    const result = queen.validateTaskExecutable(type as never);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toBe(
+      `Unknown task type '${type}': no domain is configured for it. Pass a target domain.`,
+    );
+  });
+
+  it('reports no handler for a prototype-key type on an explicit target domain', () => {
+    const result = queen.validateTaskExecutable('__proto__' as never, ['code-intelligence']);
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error.message).toBe(
+      "No handler for task type '__proto__' in domain code-intelligence (supported: index, search)",
+    );
+  });
+
+  it.each(prototypeKeys)('canDomainHandleTask treats %s as unmapped', (type) => {
+    expect(canDomainHandleTask('code-intelligence', { type } as never)).toBe(false);
+  });
+
+  it('still matches configured task types', () => {
+    expect(canDomainHandleTask('code-intelligence', { type: 'index-code' } as never)).toBe(true);
+  });
+});
+
+describe('TinyDancer priority lookup ignores Object.prototype keys', () => {
+  async function routedPriority(priority: string): Promise<unknown> {
+    let seen: unknown;
+    const ctx = {
+      config: { enableMetrics: false },
+      tinyDancerRouter: { route: async (task: { priority: unknown }) => { seen = task.priority; throw new Error('stop'); } },
+    } as never;
+    await assignTaskToDomain(ctx, { type: 'index-code', priority, payload: {} } as never, 'code-intelligence')
+      .catch(() => undefined);
+    return seen;
+  }
+
+  it('maps known priorities and falls back to normal for prototype keys', async () => {
+    expect(await routedPriority('p0')).toBe('critical');
+    expect(await routedPriority('__proto__')).toBe('normal');
+    expect(await routedPriority('constructor')).toBe('normal');
   });
 });

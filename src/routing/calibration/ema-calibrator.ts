@@ -167,7 +167,9 @@ export class EMACalibrator {
    * Serialize all records for persistence.
    */
   serialize(): Record<string, CalibrationRecord> {
-    const result: Record<string, CalibrationRecord> = {};
+    // Null prototype: an agentId of `__proto__` must stay an own key (a plain
+    // object would turn the assignment into a prototype change and drop it).
+    const result: Record<string, CalibrationRecord> = Object.create(null);
     for (const [key, record] of this.records) {
       result[key] = { ...record };
     }

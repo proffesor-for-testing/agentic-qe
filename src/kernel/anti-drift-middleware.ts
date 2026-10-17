@@ -246,6 +246,8 @@ export interface AntiDriftStats {
   readonly totalChecked: number;
   readonly driftCount: number;
   readonly averageSimilarity: number;
+  /** Events delivered without verification because the embedder failed. */
+  readonly unverifiedCount: number;
 }
 
 /** Default cosine-distance thresholds per event category. */
@@ -359,6 +361,9 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
   private totalChecked = 0;
   private driftCount = 0;
   private similaritySum = 0;
+  private unverifiedCount = 0;
+  /** Suppressed drift warnings of keys evicted from the rate limiter, reported on the next warning. */
+  private evictedSuppressedWarnings = 0;
   /** Rate limit for drift warnings, keyed by event type and source. */
   private readonly driftWarnings = new Map<string, { lastAt: number; suppressed: number }>();
   /** Payload text each fingerprint was computed from (same-process events only). */
@@ -416,7 +421,11 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     // fingerprinted at emit time has similarity 1 by construction; skip the
     // second model inference (#1077).
     let similarity = 1;
-    if (this.emittedPayloadText.get(fp) !== payloadText) {
+    const emittedText = this.emittedPayloadText.get(fp);
+    // Release the cached text now: bus history keeps the emitted fingerprint
+    // alive for up to 10k events.
+    this.emittedPayloadText.delete(fp);
+    if (emittedText !== payloadText) {
       const currentEmbedding = await this.embedForEvent(payloadText, event, 'receive');
       if (currentEmbedding === null) return event;
       similarity = cosineSimilarity(currentEmbedding, fp.embedding as number[]);
@@ -461,6 +470,7 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       totalChecked: this.totalChecked,
       driftCount: this.driftCount,
       averageSimilarity: this.totalChecked > 0 ? this.similaritySum / this.totalChecked : 0,
+      unverifiedCount: this.unverifiedCount,
     };
   }
 
@@ -511,8 +521,11 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
     try {
       return await this.embed(text);
     } catch {
+      // Counted even when the warning below is rate limited, so an outage
+      // stays visible in getStats().
+      this.unverifiedCount++;
       const now = Date.now();
-      if (now - this.embeddingWarningAt < 60_000) {
+      if (now - this.embeddingWarningAt < DRIFT_WARN_WINDOW_MS) {
         this.suppressedEmbeddingWarnings++;
       } else {
         logger.warn('Anti-drift embedding unavailable; event delivered without verification', {
@@ -550,8 +563,12 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
       entry.suppressed++;
       return;
     }
-    if (!entry && this.driftWarnings.size >= DRIFT_WARN_MAX_KEYS) this.driftWarnings.clear();
+    if (!entry && this.driftWarnings.size >= DRIFT_WARN_MAX_KEYS) this.evictOldestDriftWarning();
     const suppressed = entry?.suppressed ?? 0;
+    const evictedSuppressed = this.evictedSuppressedWarnings;
+    this.evictedSuppressedWarnings = 0;
+    // Re-insert so Map order tracks lastAt and the first key is the oldest.
+    this.driftWarnings.delete(key);
     this.driftWarnings.set(key, { lastAt: now, suppressed: 0 });
     logger.warn(
       delivered
@@ -565,8 +582,17 @@ export class SemanticAntiDriftMiddleware implements EventMiddleware {
         threshold: check.threshold,
         hopCount: check.hopCount,
         ...(suppressed > 0 ? { suppressedSinceLastWarning: suppressed } : {}),
+        ...(evictedSuppressed > 0 ? { suppressedForEvictedKeys: evictedSuppressed } : {}),
       },
     );
+  }
+
+  /** Drop the least recently warned key, carrying its suppressed count forward. */
+  private evictOldestDriftWarning(): void {
+    const oldest = this.driftWarnings.keys().next();
+    if (oldest.done) return;
+    this.evictedSuppressedWarnings += this.driftWarnings.get(oldest.value)?.suppressed ?? 0;
+    this.driftWarnings.delete(oldest.value);
   }
 
   /** Fire a SemanticDriftDetectedEvent via the configured callback. */
