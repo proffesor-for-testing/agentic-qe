@@ -28,6 +28,7 @@ import type { RealQEReasoningBank } from './real-qe-reasoning-bank.js';
 import type { QualityFeedbackLoop, RoutingOutcomeInput } from '../feedback/feedback-loop.js';
 import type { QEPattern, QEPatternType } from './qe-patterns.js';
 import { safeJsonParse } from '../shared/safe-json.js';
+import { createSafeRecord, getOwn, setOwn } from '../shared/utils/safe-record.js';
 import { LoggerFactory } from '../logging/index.js';
 
 const logger = LoggerFactory.create('skill-validation-learner');
@@ -405,13 +406,8 @@ export class SkillValidationLearner {
         const pattern = existingPatterns.value[0].pattern;
         const templateContent = pattern.template?.content;
         if (templateContent) {
-          const parsed = safeJsonParse(templateContent);
-          // Validate that it has the expected structure
-          if (parsed && typeof parsed === 'object' && typeof parsed.models === 'object') {
-            crossModel = parsed;
-          } else {
-            crossModel = this.createEmptyCrossModelAnalysis();
-          }
+          crossModel = this.parseCrossModelAnalysis(templateContent)
+            ?? this.createEmptyCrossModelAnalysis();
         } else {
           crossModel = this.createEmptyCrossModelAnalysis();
         }
@@ -425,20 +421,17 @@ export class SkillValidationLearner {
 
     // Ensure models object exists (defensive)
     if (!crossModel.models) {
-      crossModel.models = {};
+      crossModel.models = createSafeRecord();
     }
 
     // Initialize model data if needed
-    if (!crossModel.models[outcome.model]) {
-      crossModel.models[outcome.model] = {
-        scores: [],
-        passRate: 0,
-        avgReasoningQuality: 0,
-        sampleCount: 0,
-      };
-    }
-
-    const modelData = crossModel.models[outcome.model];
+    const modelData = getOwn(crossModel.models, outcome.model) ?? {
+      scores: [],
+      passRate: 0,
+      avgReasoningQuality: 0,
+      sampleCount: 0,
+    };
+    setOwn(crossModel.models, outcome.model, modelData);
     modelData.scores.push(outcome.score);
     modelData.sampleCount++;
 
@@ -546,7 +539,7 @@ export class SkillValidationLearner {
       try {
         const templateContent = patterns.value[0].pattern.template?.content;
         if (templateContent) {
-          return safeJsonParse(templateContent);
+          return this.parseCrossModelAnalysis(templateContent);
         }
       } catch (e) {
         // Pattern exists but content is invalid
@@ -589,7 +582,7 @@ export class SkillValidationLearner {
     if (!confidence) return null;
 
     // Calculate by-model trends
-    const byModel: Record<string, 'improving' | 'stable' | 'declining'> = {};
+    const byModel = createSafeRecord<'improving' | 'stable' | 'declining'>();
     if (crossModel) {
       for (const model of Object.keys(crossModel.models)) {
         const modelOutcomes = confidence.outcomes
@@ -698,9 +691,25 @@ export class SkillValidationLearner {
     };
   }
 
+  /** Preserve data keys such as __proto__ without giving parsed records a prototype. */
+  private parseCrossModelAnalysis(content: string): CrossModelAnalysis | null {
+    // The generic safe parser strips __proto__, which would discard a legitimate
+    // model's history. This reviver copies every record into a null-prototype
+    // dictionary instead, including nested records; it never invokes setters.
+    const parsed = JSON.parse(content, (_key: string, value: unknown) => {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        return Object.assign(createSafeRecord<unknown>(), value);
+      }
+      return value;
+    }) as CrossModelAnalysis | null;
+    return parsed && typeof parsed === 'object' && parsed.models
+      && typeof parsed.models === 'object' && !Array.isArray(parsed.models)
+      ? parsed : null;
+  }
+
   private createEmptyCrossModelAnalysis(): CrossModelAnalysis {
     return {
-      models: {},
+      models: createSafeRecord(),
       variance: 0,
       hasAnomalies: false,
       lastUpdated: new Date(),

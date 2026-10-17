@@ -66,7 +66,13 @@ export function createLWWRegister<T>(
     },
 
     set(value: T, timestamp?: number): void {
-      const ts = timestamp ?? Date.now();
+      let ts = timestamp ?? Date.now();
+      // Without an explicit timestamp the write means "now": a second write by
+      // this node within one clock tick (or after a backwards clock step) must
+      // still supersede its own earlier write, not tie with it and be dropped.
+      if (timestamp === undefined && state.version > 0 && state.nodeId === nodeId && ts <= state.timestamp) {
+        ts = state.timestamp + 1;
+      }
 
       // Only update if new timestamp wins
       if (
@@ -100,6 +106,10 @@ export function createLWWRegister<T>(
     },
 
     applyState(incoming: LWWRegisterState<T>): void {
+      // An unwritten register is the merge identity: its placeholder timestamp
+      // (0) would otherwise beat a real write at a negative timestamp.
+      if (incoming.version === 0) return;
+
       // Only update if incoming timestamp wins
       if (
         state.version === 0 ||

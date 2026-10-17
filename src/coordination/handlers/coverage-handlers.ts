@@ -21,6 +21,7 @@ import {
   describeNoData,
   evaluateCoverageForTarget,
   isUnmeasured,
+  packageFilterForTarget,
   resolveExistingCoverage,
   scopeCoverageToTarget,
   reconcileRecommendations,
@@ -29,6 +30,7 @@ import {
   type NoDataReason,
 } from './coverage-target';
 import { randomUUID } from 'crypto';
+import * as path from 'path';
 import { describeRunFailure, runJsCoverage, testRunStatus } from './coverage-runner';
 import { collectedMetrics } from '../../domains/coverage-analysis/collected-metrics.js';
 
@@ -128,7 +130,8 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     return fromEvaluation(existing.evaluation, false, existing.projectRoot);
   }
 
-  const { target, projectRoot } = existing;
+  const { target } = existing;
+  let projectRoot = existing.projectRoot;
 
   // #569 work item 1: delegate to real instrumentation where available.
   if (isRustProject(target)) {
@@ -161,7 +164,23 @@ async function collectCoverage(targetPath: string): Promise<CollectResult> {
     return { collected: buildEstimatedCoverage(target), ranTests: false, projectRoot };
   }
 
-  const run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
+  const pathFilter = packageFilterForTarget(target, projectRoot);
+  let run = await runJsCoverage(projectRoot, {
+    timeoutMs: coverageTimeoutMs(),
+    pathFilter,
+  });
+  // A workspace config may deliberately include only root-level tests. If it
+  // found no tests for this package, restore the nearest-package behavior. The
+  // same fallback permits isolated package installs with no runner at the root.
+  // Do not retry timeouts, crashes or nonempty failing suites: their failures
+  // must remain visible. Only the fallback run's actual report can be measured.
+  const rootRunnerMissing = run.missing && run.numTotalTests === null;
+  const rootHadNoTests = !run.missing && run.numTotalTests === 0
+    && testRunStatus(run) === 'passed' && (run.exitCode === 0 || run.exitCode === 1);
+  if (pathFilter && !run.timedOut && (rootRunnerMissing || rootHadNoTests)) {
+    projectRoot = path.resolve(projectRoot, pathFilter);
+    run = await runJsCoverage(projectRoot, { timeoutMs: coverageTimeoutMs() });
+  }
   // An EMPTY report (`{}`) from a run that reported its tests means "the run
   // instrumented nothing under the target" → unmeasured, never an estimate
   // (#995 review BL2). An empty report from a run that crashed before

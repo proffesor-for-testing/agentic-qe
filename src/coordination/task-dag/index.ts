@@ -28,7 +28,12 @@
  * const unblocked = scheduler.onTaskComplete('build'); // test may now be ready
  *
  * // Check progress
- * const progress = scheduler.getProgress(); // { completed: 1, total: 4, percentage: 25 }
+ * const progress = scheduler.getProgress(); // { completed: 1, total: 4, percentage: 25, ... }
+ *
+ * // Prerequisites are never resolved by deletion (issue #1069): removing
+ * // unfinished work leaves dependents blocked with a REMOVED receipt.
+ * // An explicit, attributed waiver is the only bypass.
+ * dag.waivePrerequisite({ taskId: 'deploy', prerequisiteId: 'lint', actor: 'release-lead', reason: 'lint gate retired' });
  * ```
  */
 
@@ -45,7 +50,22 @@ export type {
   DAGEvent,
   DAGSchedulerConfig,
   DAGEventHandler,
+  PrerequisiteDisposition,
+  PrerequisiteWaiver,
+  PrerequisiteReceiptV1,
+  PrerequisiteEdgeState,
+  WaivePrerequisiteInput,
+  WaiverRequest,
+  WaiverPolicy,
+  TaskDAGOptions,
+  CompleteTaskOptions,
+  RemoveTaskOptions,
+  RemovedTaskRecord,
+  ObligationSummary,
+  DAGProgress,
 } from './types.js';
+
+export { PREREQUISITE_RECEIPT_SCHEMA } from './types.js';
 
 // ============================================================================
 // Class Exports
@@ -53,6 +73,11 @@ export type {
 
 export { TaskDAG } from './dag.js';
 export { DAGScheduler } from './scheduler.js';
+export {
+  GraphRevisionConflictError,
+  PrerequisiteWaiverError,
+  validateWaiverInput,
+} from './prerequisite-ledger.js';
 
 // ============================================================================
 // Factory Functions
@@ -60,15 +85,16 @@ export { DAGScheduler } from './scheduler.js';
 
 import { TaskDAG } from './dag.js';
 import { DAGScheduler } from './scheduler.js';
-import type { DAGSchedulerConfig } from './types.js';
+import type { DAGSchedulerConfig, TaskDAGOptions } from './types.js';
 
 /**
  * Create a new empty TaskDAG instance.
  *
+ * @param options - Optional graph identity and waiver policy
  * @returns A fresh TaskDAG with no tasks
  */
-export function createTaskDAG(): TaskDAG {
-  return new TaskDAG();
+export function createTaskDAG(options?: TaskDAGOptions): TaskDAG {
+  return new TaskDAG(options);
 }
 
 /**

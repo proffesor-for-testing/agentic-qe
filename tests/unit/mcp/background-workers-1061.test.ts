@@ -60,4 +60,30 @@ describe('#1061 startBackgroundWorkers honours AQE_WORKERS_ENABLED', () => {
     expect(daemonStart).toHaveBeenCalledTimes(1);
     expect(qualityStart).toHaveBeenCalledTimes(1);
   });
+
+  it('#1066: starts the quality daemon without waiting for the workers\' first runs', async () => {
+    // A first run that never finishes must not hold up the quality daemon.
+    daemonStart.mockImplementationOnce(() => new Promise<undefined>(() => undefined));
+    const log = vi.fn();
+
+    const outcome = await startBackgroundWorkers(log, {});
+
+    expect(outcome).toBe('started');
+    expect(qualityStart).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls.map((c) => c[0]).join('')).toContain('[MCP] Quality daemon started');
+  });
+
+  it('#1066: logs a worker start failure that happens in the background', async () => {
+    daemonStart.mockImplementationOnce(async () => {
+      throw new Error('boom');
+    });
+    const log = vi.fn();
+
+    await startBackgroundWorkers(log, {});
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(log.mock.calls.map((c) => c[0]).join('')).toContain(
+      '[MCP] WARNING: Background workers failed to start: Error: boom',
+    );
+  });
 });

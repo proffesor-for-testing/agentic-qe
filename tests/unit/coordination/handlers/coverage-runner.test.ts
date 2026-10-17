@@ -242,6 +242,22 @@ describe('#995 review — runner invocation', () => {
     expect(inv.resultsFile).toBe(path.join('/tmp/aqe-js-cov-x', 'test-results.json'));
   });
 
+  it('appends the package filter as a positional argument, after the options (#1036 review)', () => {
+    const inv = buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x', 'packages/a/');
+    expect(inv.args[inv.args.length - 1]).toBe('packages/a/');
+    expect(buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x').args).not.toContain('packages/a/');
+  });
+
+  it('escapes regex metacharacters in the package filter for jest only', () => {
+    fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify({ devDependencies: { jest: '^29' } }));
+    const inv = buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x', 'packages/a+b(c)/');
+    expect(inv.runner).toBe('jest');
+    expect(inv.args[inv.args.length - 1]).toBe('packages/a\\+b\\(c\\)/');
+    fs.writeFileSync(path.join(project, 'package.json'), '{}');
+    const vi = buildJsCoverageInvocation(project, '/tmp/aqe-js-cov-x', 'packages/a+b(c)/');
+    expect(vi.args[vi.args.length - 1]).toBe('packages/a+b(c)/');
+  });
+
   it('keeps a hostile path as ONE argument', () => {
     const inv = buildJsCoverageInvocation(project, '/tmp/$(touch pwned) & ^ %');
     expect(inv.args).toContain('--coverage.reportsDirectory=/tmp/$(touch pwned) & ^ %');

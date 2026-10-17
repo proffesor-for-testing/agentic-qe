@@ -9,6 +9,10 @@ import fs from 'fs/promises';
 import { KnowledgeGraphService } from '../../../src/domains/code-intelligence/services/knowledge-graph';
 import type { MemoryBackend, VectorSearchResult } from '../../../src/kernel/interfaces';
 
+// The vitest env points AQE_PROJECT_ROOT at a temp dir; these tests index the
+// repository's own files, so the knowledge graph is rooted at the repo.
+const REPO_ROOT = path.join(__dirname, '../../..');
+
 // ============================================================================
 // Mock Memory Backend with Persistence Simulation
 // ============================================================================
@@ -166,6 +170,8 @@ describe('Knowledge Graph Real I/O', () => {
   beforeEach(() => {
     memory = createMockMemoryBackend();
     service = new KnowledgeGraphService(memory, {
+      // #1096: indexing is confined to the project root; these are repo files.
+      projectRoot: REPO_ROOT,
       maxNodes: 10000,
       enableVectorEmbeddings: false, // Disable for faster tests
     });
@@ -577,6 +583,7 @@ describe('Knowledge Graph Real I/O', () => {
       const appPath = path.join(tmpDir, 'app.ts');
       const mathPath = path.join(tmpDir, 'math.ts');
       const indexer = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -585,6 +592,7 @@ describe('Knowledge Graph Real I/O', () => {
 
       // Act: map dependencies with a SEPARATE instance sharing only the backend
       const reader = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -615,12 +623,14 @@ describe('Knowledge Graph Real I/O', () => {
       const appPath = path.join(tmpDir, 'app.ts');
       const mathPath = path.join(tmpDir, 'math.ts');
       const indexer = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
       await indexer.index({ paths: [appPath, mathPath] });
 
       const reader = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -640,6 +650,7 @@ describe('Knowledge Graph Real I/O', () => {
       const pyPath = path.join(tmpDir, 'util.py');
       await fs.writeFile(pyPath, 'def hello():\n    return 1\n');
       const indexer = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -659,6 +670,7 @@ describe('Knowledge Graph Real I/O', () => {
       const appPath = path.join(tmpDir, 'app.ts');
       const mathPath = path.join(tmpDir, 'math.ts');
       const indexer = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -673,6 +685,7 @@ describe('Knowledge Graph Real I/O', () => {
 
       // The stale app → math import edge must be gone
       const reader = new KnowledgeGraphService(sharedMemory, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });
@@ -721,6 +734,7 @@ describe('Knowledge Graph Real I/O', () => {
 
       const appPath = path.join(tmpDir, 'app.ts');
       const indexer = new KnowledgeGraphService(honoring, {
+        projectRoot: REPO_ROOT,
         enableVectorEmbeddings: false,
         enableLLMExtraction: false,
       });

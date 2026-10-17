@@ -100,9 +100,14 @@ export interface TestExecuteResult {
   coverage?: number | null;
   workerStats?: Record<string, unknown>;
   retryStats?: Record<string, unknown>;
+  /** #1110: per-test entries from the runner report; absent when it listed none. */
   results?: unknown[];
   summary?: Record<string, unknown>;
   learning?: Record<string, unknown>;
+  /** #1110: output fields left out because nothing measured them. */
+  unmeasured?: string[];
+  /** #1110: why each unmeasured field has no value. */
+  unmeasuredReasons?: Record<string, string>;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
   resultsSaved?: boolean;
@@ -316,6 +321,12 @@ export interface CodeIndexResult {
     tests: number;
     toolsUsed: string[];
   };
+  /**
+   * #1096: discovered paths that were not indexed (missing, not a regular
+   * file, outside the project root, filtered out), with the reason. Absent
+   * when every discovered file was indexed.
+   */
+  skipped?: Array<{ path: string; reason: string }>;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
   resultsSaved?: boolean;
@@ -496,7 +507,7 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
     testSuites: params.testSuites || [],
     parallel: params.parallel !== false,
     parallelism: params.parallelism || 4,
-    retryCount: params.retryCount || 3,
+    retryCount: params.retryCount ?? 3,
     timeout: params.timeout || 60000,
     collectCoverage: params.collectCoverage || false,
     reportFormat: params.reportFormat || 'json',
@@ -507,53 +518,83 @@ export const testExecuteConfig: DomainHandlerConfig<TestExecuteParams, TestExecu
 
   calculateTimeout: (params) => params.timeout || 300000,
 
-  mapToResult: (taskId, data, duration, savedFiles, params) => {
+  mapToResult: (taskId, data, duration, savedFiles) => {
     const total = (data.total as number) || 0;
     const passed = (data.passed as number) || 0;
     const failed = (data.failed as number) || 0;
     // #1027 N5: no measured coverage → null, never a hardcoded 0.
     const coverage = typeof data.coverage === 'number' && Number.isFinite(data.coverage) ? data.coverage : null;
 
-    const parallelism = params?.parallelism || 4;
-    const realRetryStats = MetricsCollector.getRetryStats();
+    // #1110: report only what was measured. A figure with no measurement is
+    // left out and named in `unmeasured`, never filled with a baseline.
+    const unmeasured: string[] = [];
+    const unmeasuredReasons: Record<string, string> = {};
+    const markUnmeasured = (field: string, reason: string): void => {
+      unmeasured.push(field);
+      unmeasuredReasons[field] = reason;
+    };
+
+    // Per-test results come from the runner's own report, or are left out.
+    const testCases = Array.isArray(data.testCases)
+      ? data.testCases as Array<{ name: string; file: string; status: string; duration?: number }>
+      : undefined;
+    const results = testCases?.map(testCase => ({ id: generateTestId(), ...testCase }));
+    if (!results) {
+      markUnmeasured('results', 'The test runner report did not list every test case, so per-test results are omitted.');
+    }
+
+    // The average test time is the mean of the runner-reported per-test
+    // durations. The task's wall time (`duration`) includes runner start-up and
+    // skipped tests, so dividing it by `total` would contradict `results`.
+    const testDurations = (testCases ?? [])
+      .map(testCase => testCase.duration)
+      .filter((d): d is number => typeof d === 'number' && Number.isFinite(d));
+    const avgTestDuration = testDurations.length > 0
+      ? testDurations.reduce((sum, d) => sum + d, 0) / testDurations.length
+      : undefined;
+    if (avgTestDuration === undefined) {
+      const reason = 'The runner reported no per-test durations; the task wall time is in `duration`.';
+      markUnmeasured('workerStats.avgExecutionTime', reason);
+      markUnmeasured('summary.avgDuration', reason);
+    }
+
+    const workerStats: Record<string, unknown> = avgTestDuration !== undefined
+      ? { avgExecutionTime: avgTestDuration }
+      : {};
+    const noWorkerData = 'No worker tasks were recorded by the metrics collector for this process.';
     const workersUsed = MetricsCollector.getWorkersUsed();
+    if (workersUsed > 0) workerStats.workersUsed = workersUsed;
+    else markUnmeasured('workerStats.workersUsed', noWorkerData);
+    const efficiency = MetricsCollector.getWorkerEfficiency();
+    if (efficiency !== null) workerStats.efficiency = efficiency;
+    else markUnmeasured('workerStats.efficiency', noWorkerData);
+    const loadBalance = MetricsCollector.getLoadBalanceScore();
+    if (loadBalance !== null) workerStats.loadBalance = loadBalance;
+    else markUnmeasured('workerStats.loadBalance', noWorkerData);
 
-    const workerStats = {
-      workersUsed: workersUsed > 0 ? workersUsed : Math.min(parallelism, total || 1),
-      efficiency: MetricsCollector.getWorkerEfficiency(),
-      loadBalance: MetricsCollector.getLoadBalanceScore(),
-      avgExecutionTime: duration / Math.max(total, 1),
-    };
+    let retryStats: Record<string, unknown> | undefined;
+    if (MetricsCollector.getRecordedTaskCount() > 0) {
+      retryStats = { ...MetricsCollector.getRetryStats() };
+    } else {
+      markUnmeasured('retryStats', noWorkerData);
+    }
 
-    const retryStats = {
-      totalRetries: realRetryStats.totalRetries,
-      successfulRetries: realRetryStats.successfulRetries,
-      maxRetriesReached: realRetryStats.maxRetriesReached,
-    };
-
-    const learning = generateV2LearningFeedback('test-executor');
+    // No `learning` block: the run's experience is recorded asynchronously by
+    // the learning-optimization plugin from TestRunCompleted, so this response
+    // cannot name its id or confirm that it was written (#1110).
 
     return {
       // V2-compatible fields
       workerStats,
-      retryStats,
-      results: (() => {
-        const testDurations = MetricsCollector.getTestDurations(total);
-        return Array.from({ length: total }, (_, i) => ({
-          id: generateTestId(),
-          name: `test_case_${i}`,
-          status: i < passed ? 'passed' : 'failed',
-          duration: testDurations[i] || 200,
-          retries: 0,
-        }));
-      })(),
+      ...(retryStats ? { retryStats } : {}),
+      ...(results ? { results } : {}),
       summary: {
         totalTests: total,
         passRate: total > 0 ? (passed / total) * 100 : 0,
-        avgDuration: duration / Math.max(total, 1),
-        parallelEfficiency: workerStats.efficiency,
+        ...(avgTestDuration !== undefined ? { avgDuration: avgTestDuration } : {}),
+        ...(efficiency !== null ? { parallelEfficiency: efficiency } : {}),
       },
-      learning,
+      ...(unmeasured.length > 0 ? { unmeasured, unmeasuredReasons } : {}),
       // V3 fields
       taskId,
       status: 'completed',
@@ -1130,6 +1171,9 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     symbolsExtracted: (data.symbolsExtracted as number) || 0,
     relationsFound: (data.relationsFound as number) || 0,
     ...(data.projectMetrics ? { projectMetrics: data.projectMetrics as CodeIndexResult['projectMetrics'] } : {}),
+    ...(Array.isArray(data.skipped) && data.skipped.length > 0
+      ? { skipped: data.skipped as CodeIndexResult['skipped'] }
+      : {}),
     duration,
     savedFiles,
   }),

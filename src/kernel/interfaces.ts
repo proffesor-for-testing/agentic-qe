@@ -59,6 +59,12 @@ export interface DomainPlugin extends Initializable, Disposable {
    * @returns true if domain can handle the task type
    */
   canHandleTask?(taskType: string): boolean;
+
+  /**
+   * Task types this domain executes through `executeTask` (#1075).
+   * Optional - used to tell callers which types a domain accepts.
+   */
+  getSupportedTaskTypes?(): string[];
 }
 
 export interface DomainHealth {

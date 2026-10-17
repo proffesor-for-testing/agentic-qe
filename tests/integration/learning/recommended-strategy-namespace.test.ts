@@ -72,6 +72,38 @@ describe.each(['sqlite', 'memory'] as const)('stored strategy recommendations (%
     expect(result.success && result.value.name).toBe('default-strategy');
   });
 
+  describe.each([
+    ['security-compliance', 'coverage'],
+    ['chaos-resilience', 'latency'],
+  ])('foreign request (%s, %s)', (domain, metric) => {
+    it('returns the default through the service', async () => {
+      await optimize();
+      const result = await optimizer.recommendStrategy({ tags: [domain, metric] });
+      expect(result.success && result.value.name).toBe('default-strategy');
+    });
+
+    it('returns the default through the MCP fallback', async () => {
+      await optimize();
+      const result = await new LearningOptimizeTool().invoke({
+        action: 'optimize', domain,
+        objective: { metric, direction: 'minimize' },
+      }, { memory });
+      expect(result.success).toBe(true);
+      expect(result.data?.optimizeResult?.bestStrategy.name).toBe('default-strategy');
+    });
+  });
+
+  it('rejects a higher-scoring other-domain candidate without hiding the eligible strategy', async () => {
+    const record = await optimize();
+    await memory.set('learning:strategy:optimized:foreign-domain', {
+      ...record, id: 'foreign-domain', domain: 'security-compliance',
+      confidence: 1, improvement: 10000,
+      optimizedStrategy: { ...record.optimizedStrategy, name: 'foreign-high-score' },
+    }, NS);
+    const result = await optimizer.recommendStrategy(context);
+    expect(result.success && result.value.name).toBe(record.optimizedStrategy.name);
+  });
+
   it('uses the stored recommendation through the public MCP optimize fallback', async () => {
     const record = await optimize();
     const result = await new LearningOptimizeTool().invoke({

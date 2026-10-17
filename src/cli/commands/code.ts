@@ -121,7 +121,7 @@ Examples:
           });
 
           if (result.success && result.value) {
-            const idx = result.value as { filesIndexed: number; nodesCreated: number; edgesCreated: number; duration: number; errors: Array<{ file: string; error: string }>; warnings?: string[] };
+            const idx = result.value as { filesIndexed: number; nodesCreated: number; edgesCreated: number; duration: number; errors: Array<{ file: string; error: string }>; warnings?: string[]; skipped?: Array<{ path: string; reason: string }> };
             if (format === 'json') {
               writeOutput(toJSON(idx), options.output);
             } else {
@@ -143,9 +143,17 @@ Examples:
                   console.log(chalk.red(`    ${err.file}: ${err.error}`));
                 }
               }
+              if (idx.skipped && idx.skipped.length > 0) {
+                console.log(chalk.yellow(`\n  Skipped (${idx.skipped.length}):`));
+                for (const s of idx.skipped.slice(0, 5)) {
+                  console.log(chalk.yellow(`    ${s.path}: ${s.reason}`));
+                }
+              }
             }
           } else {
+            // #1096: nothing indexed (or indexing failed) is a failed command.
             console.log(chalk.red(`Failed: ${result.error?.message || 'Unknown error'}`));
+            return await cleanupAndExit(1);
           }
 
         } else if (action === 'search') {

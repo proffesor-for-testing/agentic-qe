@@ -1767,7 +1767,11 @@ export class MCPProtocolServer {
         ],
       },
       handler: async (params) => {
-        const { execFileSync } = await import('child_process');
+        // #1074: run the advisor CLI asynchronously; a synchronous call would
+        // stop the server answering every other request for up to 60s.
+        const { execFile } = await import('child_process');
+        const { promisify } = await import('util');
+        const execFileAsync = promisify(execFile);
         const { writeFileSync, unlinkSync, mkdirSync } = await import('fs');
         const { join } = await import('path');
         const { tmpdir } = await import('os');
@@ -1811,15 +1815,16 @@ export class MCPProtocolServer {
           // Resolve aqe binary with fallback to npx (MCP server may not have aqe on PATH)
           let aqeBin = 'aqe';
           try {
-            execFileSync('which', ['aqe'], { encoding: 'utf-8' });
+            await execFileAsync('which', ['aqe'], { encoding: 'utf-8' });
           } catch {
             aqeBin = 'npx';
             cliArgs.unshift('aqe');
           }
 
-          const result = execFileSync(aqeBin, cliArgs, {
+          const { stdout: result } = await execFileAsync(aqeBin, cliArgs, {
             encoding: 'utf-8',
             timeout: 60000,
+            maxBuffer: 1024 * 1024,
             env: process.env,
           });
 

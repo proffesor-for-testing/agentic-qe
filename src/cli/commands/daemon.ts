@@ -16,6 +16,7 @@ import { PersistentWorkerMemory } from '../../workers/quality-daemon/persistent-
 import { isPrivateIp } from '../../hooks/security/ssrf-guard';
 import type { WorkerMemory, WorkerMemoryReadOptions } from '../../workers/interfaces';
 import { activateForegroundCommand } from '../foreground-command';
+import { isWorkersEnabled } from '../../workers/worker-env';
 
 // In-process daemon instance (non-detached mode)
 let activeDaemon: QualityDaemon | undefined;
@@ -39,6 +40,18 @@ Examples:
     .option('--tick-interval <ms>', 'Tick interval in milliseconds', '30000')
     .option('--ci-interval <ms>', 'CI poll interval in milliseconds', '300000')
     .action(async (options: { tickInterval: string; ciInterval: string }) => {
+      // #1066: same switch as the MCP server (#1061). `aqe init --no-database`
+      // writes AQE_WORKERS_ENABLED=false.
+      if (!isWorkersEnabled()) {
+        console.log(
+          chalk.yellow(
+            `Background workers are disabled (AQE_WORKERS_ENABLED=${process.env.AQE_WORKERS_ENABLED}); ` +
+              'QE Quality Daemon not started',
+          ),
+        );
+        return;
+      }
+
       if (activeDaemon?.running) {
         console.log(chalk.yellow('Daemon is already running'));
         const status = activeDaemon.getStatus();

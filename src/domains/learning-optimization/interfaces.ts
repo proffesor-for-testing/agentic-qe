@@ -29,6 +29,11 @@ export interface LearnedPattern {
   readonly template: PatternTemplate;
   readonly createdAt: Date;
   readonly lastUsedAt: Date;
+  /**
+   * #1109: 'assigned' when the pattern's rates were learned from assigned
+   * rewards. Untagged patterns are read by `patternRewardSourceOf`.
+   */
+  readonly rewardSource?: 'measured' | 'assigned';
 }
 
 export type PatternType =
@@ -80,6 +85,13 @@ export interface Experience {
    * when real matched-pattern data exists, never a placeholder.
    */
   readonly appliedPatternIds?: readonly string[];
+  /**
+   * #1109: whether `result.success` and `reward` come from an observed
+   * outcome ('measured') or were assigned by the recorder before any outcome
+   * existed ('assigned'). Assigned experiences are kept but excluded from
+   * every reported rate. Untagged rows are read by `rewardSourceOf`.
+   */
+  readonly rewardSource?: 'measured' | 'assigned';
 }
 
 export interface StateSnapshot {
@@ -140,9 +152,26 @@ export interface OptimizedStrategy {
   readonly objective: OptimizationObjective;
   readonly currentStrategy: Strategy;
   readonly optimizedStrategy: Strategy;
+  /** Relative improvement; an estimate, see `evaluation.estimated` (#1099). */
   readonly improvement: number;
+  /** Share of held-out experiences matching the fitted expectation. */
   readonly confidence: number;
   readonly validationResults: ValidationResult[];
+  readonly evaluation?: OptimizationEvaluation;
+}
+
+/**
+ * How an optimization's figures were derived (#1099). The optimizer fits on
+ * the older experiences and validates on the most recent ones it never saw.
+ */
+export interface OptimizationEvaluation {
+  readonly method: 'held-out';
+  readonly trainingSamples: number;
+  readonly heldOutSamples: number;
+  /** Figures that were modelled, not observed: the optimized strategy never ran. */
+  readonly estimated: string[];
+  /** Figures that could not be computed from the experiences given. */
+  readonly unmeasured?: string[];
 }
 
 export interface OptimizationObjective {
@@ -259,6 +288,8 @@ export interface PatternStats {
   readonly avgConfidence: number;
   readonly avgSuccessRate: number;
   readonly topPatterns: LearnedPattern[];
+  /** #1109: patterns left out of every figure because they were learned from assigned rewards. */
+  readonly assignedPatternsExcluded?: number;
 }
 
 /**
@@ -296,9 +327,16 @@ export interface IExperienceMiningService {
 }
 
 export interface MinedInsights {
+  /** Every experience recorded in the range, measured or assigned. */
   readonly experienceCount: number;
-  readonly successRate: number;
-  readonly avgReward: number;
+  /** #1109: experiences with a measured outcome; the rates below use only these. */
+  readonly measuredExperienceCount?: number;
+  /** #1109: experiences left out of the rates because their reward was assigned. */
+  readonly assignedRewardsExcluded?: number;
+  /** Set when no measured experience exists; the rates are then null. */
+  readonly evidenceStatus?: 'insufficient-evidence';
+  readonly successRate: number | null;
+  readonly avgReward: number | null;
   readonly patterns: LearnedPattern[];
   readonly anomalies: ExperienceAnomaly[];
   readonly recommendations: string[];
@@ -309,7 +347,8 @@ export interface ExperienceCluster {
   readonly centroid: StateSnapshot;
   readonly experiences: Experience[];
   readonly commonActions: string[];
-  readonly avgReward: number;
+  /** Over members with a measured outcome; null when every member's reward was assigned. */
+  readonly avgReward: number | null;
 }
 
 export interface ExperienceAnomaly {
@@ -362,9 +401,15 @@ export interface ABTestConfig {
 
 export interface ABTestResult {
   readonly winner: 'A' | 'B' | 'inconclusive';
+  /** Set when either strategy has fewer recorded samples than `minSamples`. */
+  readonly evidenceStatus?: 'insufficient-evidence';
+  readonly unmeasured?: string[];
   readonly strategyAMetrics: Record<string, number>;
   readonly strategyBMetrics: Record<string, number>;
-  readonly pValue: number;
+  /** Absent when there was not enough recorded evidence to test. */
+  readonly pValue?: number;
+  /** Why pValue is absent although both arms had enough samples. */
+  readonly pValueUnavailableReason?: 'zero-variance';
   readonly sampleSizeA: number;
   readonly sampleSizeB: number;
 }
@@ -375,6 +420,9 @@ export interface StrategyEvaluation {
   readonly strengths: string[];
   readonly weaknesses: string[];
   readonly improvementAreas: string[];
+  /** #1109: no measured experience was available, so no metric is reported. */
+  readonly evidenceStatus?: 'insufficient-evidence';
+  readonly assignedRewardsExcluded?: number;
 }
 
 /**
@@ -540,17 +588,22 @@ export interface Improvement {
   readonly before: number;
   readonly after: number;
   readonly percentChange: number;
+  /** True when `after` and `percentChange` were modelled, not observed (#1099). */
+  readonly estimated?: boolean;
 }
 
 export interface OptimizationReport {
   readonly domainsOptimized: number;
   readonly totalStrategies: number;
+  /** Mean of the optimizers' estimated improvements (#1099). */
   readonly avgImprovement: number;
+  readonly improvementEstimated?: boolean;
   readonly byDomain: Record<DomainName, DomainOptimizationResult>;
 }
 
 export interface DomainOptimizationResult {
   readonly strategiesOptimized: number;
+  /** Estimated, see OptimizedStrategy.evaluation (#1099). */
   readonly avgImprovement: number;
   readonly bestStrategy: Strategy;
 }
