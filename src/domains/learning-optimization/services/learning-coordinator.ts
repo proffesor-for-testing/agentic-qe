@@ -691,9 +691,19 @@ Provide:
     }
   }
 
-  /**
-   * Mine experiences for insights
-   */
+  /** Read recorded input without the pattern-mining side effects. */
+  async getExperiences(
+    domain: DomainName,
+    timeRange: TimeRange
+  ): Promise<Result<Experience[]>> {
+    try {
+      return ok(await this.getExperiencesByDomainAndTime(domain, timeRange));
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  /** Mine experiences for insights. */
   async mineExperiences(
     domain: DomainName,
     timeRange: TimeRange
@@ -950,7 +960,10 @@ Provide:
     );
     const experiences: Experience[] = [];
 
-    for (const key of keys) {
+    for (const found of keys) {
+      // In-memory search includes its namespace; SQLite returns a bare key.
+      const prefix = 'learning-optimization:';
+      const key = found.startsWith(prefix) ? found.slice(prefix.length) : found;
       const experienceId = await this.memory.get<string>(key, LEARNING_NS);
       if (experienceId) {
         const experience = await this.memory.get<Experience>(
