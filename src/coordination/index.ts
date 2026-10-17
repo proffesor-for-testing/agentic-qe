@@ -393,6 +393,9 @@ export {
   DAGScheduler,
   createTaskDAG,
   createDAGScheduler,
+  PREREQUISITE_RECEIPT_SCHEMA,
+  GraphRevisionConflictError,
+  PrerequisiteWaiverError,
 } from './task-dag';
 
 export type {
@@ -404,6 +407,14 @@ export type {
   DAGEvent,
   DAGSchedulerConfig,
   DAGEventHandler,
+  PrerequisiteDisposition,
+  PrerequisiteReceiptV1,
+  PrerequisiteEdgeState,
+  WaivePrerequisiteInput,
+  WaiverPolicy,
+  TaskDAGOptions,
+  ObligationSummary,
+  DAGProgress,
 } from './task-dag';
 
 // ============================================================================

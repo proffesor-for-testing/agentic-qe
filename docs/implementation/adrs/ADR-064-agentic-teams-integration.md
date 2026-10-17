@@ -248,6 +248,15 @@ class TaskDAG {
 }
 ```
 
+**Amendment (issue #1069): prerequisite dispositions.** Graph editing, obligation resolution and progress scoring are separate concerns:
+
+- Every prerequisite edge carries a typed disposition (`UNRESOLVED`, `SATISFIED`, `FAILED`, `CANCELLED`, `WAIVED`, `MISSING`, `REMOVED`) backed by an append-only `PrerequisiteReceiptV1` record (schema `aqe.task-prerequisite@1`) stamped with the graph ID and a monotonically increasing graph revision.
+- A dependent is ready only when every edge is `SATISFIED` (from `complete()`, optionally bound to an evidence reference) or `WAIVED` (from `waivePrerequisite()`, which requires an actor and reason and can be gated by a `waiverPolicy`).
+- `removeTask()` never resolves an obligation. Removing unfinished work records `REMOVED`, keeps the edge, and leaves dependents blocked. This intentionally replaces the earlier behaviour where removal unblocked dependents; callers that relied on it must waive the edge explicitly.
+- `fail()` and the new `cancel()` record `FAILED`/`CANCELLED` and cascade cancellation; dependents never become ready on a failed prerequisite.
+- `DAGScheduler.getProgress()` divides by the original obligation count, so removing work cannot raise the percentage. `isComplete()` stays an operational terminal-state check; `isSatisfied()` reports whether every original obligation completed.
+- `removeTask()`, `complete()` and `waivePrerequisite()` accept an `expectedRevision` compare-and-swap guard.
+
 ### Phase 2: Hybrid Architecture
 
 - **Domain-scoped Agent Teams**: Queen creates small teams per domain (2-4 agents)
