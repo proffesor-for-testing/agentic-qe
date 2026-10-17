@@ -64,9 +64,12 @@ describe('runTestRunnerProcess (#1074)', () => {
   it('kills the runner and its children on timeout, as ETIMEDOUT with SIGTERM', async () => {
     const marker = join(dir, 'grandchild-survived');
     // The runner starts a grandchild that would write the marker after 1.5s.
-    const script = `require("child_process").spawn(process.execPath, ["-e", ${JSON.stringify(`setTimeout(() => require("fs").writeFileSync(${JSON.stringify(marker)}, "x"), 1500)`)}], { stdio: "inherit" }); process.stdout.write("started"); setInterval(() => {}, 1000);`;
+    // Paths reach the child scripts as arguments (argv[1] under `node -e`),
+    // never as script text.
+    const grandchild = 'setTimeout(() => require("fs").writeFileSync(process.argv[1], "x"), 1500)';
+    const script = 'require("child_process").spawn(process.execPath, ["-e", process.argv[1], process.argv[2]], { stdio: "inherit" }); process.stdout.write("started"); setInterval(() => {}, 1000);';
     const started = Date.now();
-    const result = await runTestRunnerProcess(node, ['-e', script], { cwd: dir, timeout: 300 });
+    const result = await runTestRunnerProcess(node, ['-e', script, grandchild, marker], { cwd: dir, timeout: 300 });
     expect(Date.now() - started).toBeLessThan(3000);
     expect(result).toMatchObject({ status: null, signal: 'SIGTERM', stdout: 'started' });
     expect(result.error?.code).toBe('ETIMEDOUT');
@@ -79,10 +82,10 @@ describe('runTestRunnerProcess (#1074)', () => {
   // because it closes the runner's pipes; the async runner must too.
   it.skipIf(process.platform === 'win32')('settles on timeout although a detached descendant still holds the runner\'s stdout', async () => {
     const pidFile = join(dir, 'detached-pid');
-    const script = `const c = require("child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "inherit" }); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(c.pid)); c.unref(); setInterval(() => {}, 1000);`;
+    const script = 'const c = require("child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "inherit" }); require("fs").writeFileSync(process.argv[1], String(c.pid)); c.unref(); setInterval(() => {}, 1000);';
     const started = Date.now();
     try {
-      const result = await runTestRunnerProcess(node, ['-e', script], { cwd: dir, timeout: 300 });
+      const result = await runTestRunnerProcess(node, ['-e', script, pidFile], { cwd: dir, timeout: 300 });
       expect(Date.now() - started).toBeLessThan(5000);
       expect(result).toMatchObject({ status: null, signal: 'SIGTERM' });
       expect(result.error?.code).toBe('ETIMEDOUT');
@@ -108,7 +111,7 @@ describe('runTestRunnerProcess (#1074)', () => {
 
   it('applies spawnSync\'s 1 MiB limit when none is given', async () => {
     const out = join(dir, 'size');
-    const result = await runTestRunnerProcess(node, ['-e', `process.stdout.write("y".repeat(1024 * 1024)); require("fs").writeFileSync(${JSON.stringify(out)}, "done")`], { cwd: dir, timeout: 10000 });
+    const result = await runTestRunnerProcess(node, ['-e', 'process.stdout.write("y".repeat(1024 * 1024)); require("fs").writeFileSync(process.argv[1], "done")', out], { cwd: dir, timeout: 10000 });
     expect(result.error).toBeUndefined();
     expect(result.stdout).toHaveLength(1024 * 1024);
     expect(readFileSync(out, 'utf8')).toBe('done');

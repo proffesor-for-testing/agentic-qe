@@ -774,12 +774,16 @@ describe.skipIf(process.platform === 'win32')('#1074 — Rust coverage run does 
     const originalPath = process.env.PATH;
     try {
       makeRustCrate(crate);
-      const lcov = `SF:${path.join(crate, 'src', 'jwks.rs')}\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n`;
+      // The report reaches the fake cargo through a file named in the env, so
+      // the script text holds no paths.
+      const lcovFile = path.join(binDir, 'lcov.fixture');
+      fs.writeFileSync(lcovFile, `SF:${path.join(crate, 'src', 'jwks.rs')}\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n`);
+      process.env.AQE_1074_LCOV = lcovFile;
       fs.writeFileSync(path.join(binDir, 'cargo'), [
         '#!/bin/sh',
         'if [ "$2" = "--version" ]; then echo "cargo-llvm-cov 0.6.0"; exit 0; fi',
         'sleep 1.5',
-        `printf '%b' ${JSON.stringify(lcov)} > "$4"`,
+        'cp "$AQE_1074_LCOV" "$4"',
       ].join('\n') + '\n');
       fs.chmodSync(path.join(binDir, 'cargo'), 0o755);
       process.env.PATH = `${binDir}:${originalPath}`;
@@ -804,6 +808,7 @@ describe.skipIf(process.platform === 'win32')('#1074 — Rust coverage run does 
       expect(maxGap).toBeLessThan(500);
     } finally {
       process.env.PATH = originalPath;
+      delete process.env.AQE_1074_LCOV;
       fs.rmSync(crate, { recursive: true, force: true });
       fs.rmSync(binDir, { recursive: true, force: true });
     }
