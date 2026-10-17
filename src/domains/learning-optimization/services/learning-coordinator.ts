@@ -29,6 +29,7 @@ import {
 } from '../interfaces.js';
 import { toError } from '../../../shared/error-utils.js';
 import { readActivePatterns } from '../active-patterns.js';
+import { isMeasuredPattern, partitionByRewardSource } from '../reward-source.js';
 import {
   QEFlashAttention,
   createQEFlashAttention,
@@ -314,12 +315,17 @@ Provide:
   /**
    * Learn a pattern from a set of experiences
    */
-  async learnPattern(experiences: Experience[]): Promise<Result<LearnedPattern>> {
+  async learnPattern(input: Experience[]): Promise<Result<LearnedPattern>> {
     try {
+      // #1109: an assigned reward is not evidence that the action succeeded.
+      const { measured: experiences, assignedExcluded } = partitionByRewardSource(input);
       if (experiences.length < this.config.minExperiencesForPattern) {
+        const excluded = assignedExcluded > 0
+          ? ` (${assignedExcluded} with an assigned reward excluded)`
+          : '';
         return err(
           new Error(
-            `Need at least ${this.config.minExperiencesForPattern} experiences to learn a pattern`
+            `Need at least ${this.config.minExperiencesForPattern} measured experiences to learn a pattern${excluded}`
           )
         );
       }
@@ -357,6 +363,7 @@ Provide:
         template,
         createdAt: new Date(),
         lastUsedAt: new Date(),
+        rewardSource: 'measured',
       };
 
       // Store pattern in memory
@@ -379,8 +386,9 @@ Provide:
     limit = 10
   ): Promise<Result<LearnedPattern[]>> {
     try {
+      // #1109: a pattern learned from assigned rewards has no observed rate to rank by.
       const patterns = (await readActiveLearnedPatterns(this.memory)).filter((pattern) =>
-        this.matchesContext(pattern, context)
+        isMeasuredPattern(pattern) && this.matchesContext(pattern, context)
       );
 
       // Sort by confidence and usage
@@ -520,6 +528,7 @@ Provide:
         template: bestPattern.template,
         createdAt: new Date(),
         lastUsedAt: new Date(),
+        rewardSource: patterns.every(isMeasuredPattern) ? 'measured' : 'assigned',
       };
 
       // Store consolidated pattern
@@ -541,9 +550,12 @@ Provide:
    */
   async getPatternStats(domain?: DomainName): Promise<Result<PatternStats>> {
     try {
-      const patterns = (await readActiveLearnedPatterns(this.memory)).filter(
+      const inDomain = (await readActiveLearnedPatterns(this.memory)).filter(
         (pattern) => !domain || pattern.domain === domain
       );
+      // #1109: every figure below describes patterns with measured rates only.
+      const patterns = inDomain.filter(isMeasuredPattern);
+      const assignedPatternsExcluded = inDomain.length - patterns.length;
 
       const byType: Record<PatternType, number> = {
         'test-pattern': 0,
@@ -593,6 +605,7 @@ Provide:
         avgSuccessRate:
           patterns.length > 0 ? totalSuccessRate / patterns.length : 0,
         topPatterns,
+        ...(assignedPatternsExcluded > 0 ? { assignedPatternsExcluded } : {}),
       });
     } catch (error) {
       return err(toError(error));
@@ -705,19 +718,31 @@ Provide:
     timeRange: TimeRange
   ): Promise<Result<MinedInsights>> {
     try {
-      const experiences = await this.getExperiencesByDomainAndTime(
+      const recorded = await this.getExperiencesByDomainAndTime(
         domain,
         timeRange
       );
+      // #1109: rates, rewards, patterns and anomalies use measured outcomes only.
+      const { measured: experiences, assignedExcluded } = partitionByRewardSource(recorded);
+      const counts = {
+        experienceCount: recorded.length,
+        measuredExperienceCount: experiences.length,
+        assignedRewardsExcluded: assignedExcluded,
+      };
 
       if (experiences.length === 0) {
         return ok({
-          experienceCount: 0,
-          successRate: 0,
-          avgReward: 0,
+          ...counts,
+          evidenceStatus: 'insufficient-evidence',
+          successRate: null,
+          avgReward: null,
           patterns: [],
           anomalies: [],
-          recommendations: ['No experiences found in the given time range'],
+          recommendations: [
+            recorded.length === 0
+              ? 'No experiences found in the given time range'
+              : `No measured outcomes in the given time range; ${assignedExcluded} experience(s) with an assigned reward were not scored`,
+          ],
         });
       }
 
@@ -732,7 +757,7 @@ Provide:
       );
 
       return ok({
-        experienceCount: experiences.length,
+        ...counts,
         successRate,
         avgReward,
         patterns,
@@ -860,7 +885,8 @@ Provide:
         if (clusterExperiences.length >= 2) {
           const centroid = this.calculateCentroid(clusterExperiences);
           const commonActions = this.extractCommonActions(clusterExperiences);
-          const avgReward = this.calculateAverageReward(clusterExperiences);
+          const { measured } = partitionByRewardSource(clusterExperiences);
+          const avgReward = measured.length > 0 ? this.calculateAverageReward(measured) : null;
 
           result.push({
             id: `cluster-${clusterId++}`,
@@ -993,11 +1019,11 @@ Provide:
   private async extractPatternsFromExperiences(
     experiences: Experience[]
   ): Promise<LearnedPattern[]> {
-    // Group successful experiences by action type
-    const successfulExperiences = experiences.filter((e) => e.result.success);
+    // Group by action type. Failures stay in their group so a pattern's
+    // success rate is the observed rate, not 100% by selection (#1109).
     const actionGroups: Map<string, Experience[]> = new Map();
 
-    for (const exp of successfulExperiences) {
+    for (const exp of experiences) {
       const existing = actionGroups.get(exp.action) || [];
       existing.push(exp);
       actionGroups.set(exp.action, existing);

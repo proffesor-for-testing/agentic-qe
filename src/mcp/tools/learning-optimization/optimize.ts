@@ -58,9 +58,16 @@ export interface LearningOptimizeResult {
 
 export interface LearnResult {
   experiencesProcessed: number;
+  /** #1109: experiences with a measured outcome; patterns are learned from these only. */
+  measuredExperiences?: number;
+  /** #1109: experiences recorded with an assigned reward, excluded from every rate. */
+  assignedRewardsExcluded?: number;
+  evidenceStatus?: 'insufficient-evidence';
   patternsLearned: number;
   newPatterns: LearnedPattern[];
-  improvement: number;
+  /** No baseline is recorded to compare against, so improvement is not measured (#1109). */
+  improvement: number | null;
+  unmeasured?: string[];
 }
 
 export interface LearnedPattern {
@@ -121,11 +128,19 @@ export interface PatternResult {
 }
 
 export interface DashboardResult {
-  overallLearningRate: number;
+  /** Average success rate of patterns with measured rates; null when there are none. */
+  overallLearningRate: number | null;
   totalPatterns: number;
   totalKnowledge: number;
   experiencesLast24h: number;
+  /** #1109: last-24h experiences excluded from rankings because their reward was assigned. */
+  assignedRewardsExcluded?: number;
+  /** #1109: stored patterns excluded because they were learned from assigned rewards. */
+  assignedPatternsExcluded?: number;
+  /** Ranked by measured success rate; empty when no domain has a measured outcome. */
   topPerformingDomains: DomainName[];
+  evidenceStatus?: 'insufficient-evidence';
+  unmeasured?: string[];
   learningTrend: TrendPoint[];
   recentMilestones: Milestone[];
   /** Read-only persisted SONA visibility when an initialized fleet is available. */
@@ -145,7 +160,8 @@ export interface TrendPoint {
 
 export interface Milestone {
   name: string;
-  achievedAt: string;
+  /** When the milestone was first reached; null because that moment is not recorded (#1109). */
+  achievedAt: string | null;
   domain: DomainName;
 }
 
@@ -208,6 +224,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       switch (action) {
         case 'learn':
           result.learnResult = await this.executeLearn(domain, experienceIds, context);
+          if (result.learnResult.evidenceStatus === 'insufficient-evidence') {
+            result.evidenceStatus = 'insufficient-evidence';
+          }
           break;
         case 'optimize':
           if (!objective) {
@@ -229,6 +248,9 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
           break;
         case 'dashboard':
           result.dashboardResult = await this.executeDashboard(context);
+          if (result.dashboardResult.evidenceStatus === 'insufficient-evidence') {
+            result.evidenceStatus = 'insufficient-evidence';
+          }
           break;
         default:
           return { success: false, error: `Unknown action: ${action}` };
@@ -275,10 +297,16 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
 
     const newPatterns: LearnedPattern[] = [];
     let experiencesProcessed = 0;
-    let improvement = 0;
+    let evidence: Pick<LearnResult, 'measuredExperiences' | 'assignedRewardsExcluded' | 'evidenceStatus'> = {};
 
     if (mineResult.success) {
       experiencesProcessed = mineResult.value.experienceCount;
+      // #1109: patterns come from measured outcomes only; say how many were left out.
+      evidence = {
+        measuredExperiences: mineResult.value.measuredExperienceCount ?? experiencesProcessed,
+        assignedRewardsExcluded: mineResult.value.assignedRewardsExcluded ?? 0,
+        ...(mineResult.value.evidenceStatus ? { evidenceStatus: mineResult.value.evidenceStatus } : {}),
+      };
 
       // Convert mined patterns to result format
       for (const pattern of mineResult.value.patterns) {
@@ -292,11 +320,6 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
           successRate: pattern.successRate,
         });
       }
-
-      // Calculate improvement based on success rate vs baseline
-      improvement = mineResult.value.successRate > 0.5
-        ? (mineResult.value.successRate - 0.5) * 20 // Scale to percentage
-        : 0;
     }
 
     // If specific experience IDs provided, record them
@@ -306,24 +329,16 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
 
     // If no patterns were learned, return empty result (not fake data)
     // This is a valid state - no patterns discovered yet
-    if (newPatterns.length === 0) {
-      this.markAsRealData(); // Still real data, just empty
-      return {
-        experiencesProcessed,
-        patternsLearned: 0,
-        newPatterns: [],
-        improvement: 0,
-      };
-    }
-
-    // Mark as real data - we have actual learning results
+    // #1109: there is no recorded baseline, so improvement is never computed
+    // here. The former (successRate - 0.5) * 20 was an invented scale.
     this.markAsRealData();
-
     return {
       experiencesProcessed,
+      ...evidence,
       patternsLearned: newPatterns.length,
       newPatterns,
-      improvement,
+      improvement: null,
+      unmeasured: ['improvement'],
     };
   }
 
@@ -621,17 +636,18 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
     ];
 
     let experiencesLast24h = 0;
+    let assignedRewardsExcluded = 0;
     const domainPerformance: { domain: DomainName; successRate: number }[] = [];
 
     for (const domain of domains) {
       const mineResult = await learningCoordinator.mineExperiences(domain, recentTimeRange);
       if (mineResult.success) {
         experiencesLast24h += mineResult.value.experienceCount;
-        if (mineResult.value.experienceCount > 0) {
-          domainPerformance.push({
-            domain,
-            successRate: mineResult.value.successRate,
-          });
+        assignedRewardsExcluded += mineResult.value.assignedRewardsExcluded ?? 0;
+        // #1109: only a measured success rate can rank a domain.
+        const { successRate } = mineResult.value;
+        if (successRate !== null) {
+          domainPerformance.push({ domain, successRate });
         }
       }
     }
@@ -643,8 +659,14 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       .map(d => d.domain);
 
     // Calculate overall learning rate from pattern stats
+    // getPatternStats already leaves out patterns learned from assigned rewards.
     const totalPatterns = statsResult.success ? statsResult.value.totalPatterns : 0;
-    const avgSuccessRate = statsResult.success ? statsResult.value.avgSuccessRate : 0;
+    const assignedPatternsExcluded = statsResult.success
+      ? statsResult.value.assignedPatternsExcluded ?? 0
+      : 0;
+    const avgSuccessRate = totalPatterns > 0 && statsResult.success
+      ? statsResult.value.avgSuccessRate
+      : null;
     const overallLearningRate = avgSuccessRate;
 
     // Generate learning trend from weekly pattern mining
@@ -670,29 +692,39 @@ export class LearningOptimizeTool extends MCPToolBase<LearningOptimizeParams, Le
       });
     }
 
-    // Generate milestones based on actual achievements
+    // Milestones from measured figures. When each was first reached is not
+    // recorded, so achievedAt is null rather than an invented date (#1109).
     const recentMilestones: Milestone[] = [];
     if (totalPatterns >= 100) {
       recentMilestones.push({
         name: `Reached ${Math.floor(totalPatterns / 50) * 50} patterns`,
-        achievedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        achievedAt: null,
         domain: 'learning-optimization',
       });
     }
-    if (avgSuccessRate >= 0.8) {
+    if (avgSuccessRate !== null && avgSuccessRate >= 0.8) {
       recentMilestones.push({
         name: `${Math.round(avgSuccessRate * 100)}% pattern success rate`,
-        achievedAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        achievedAt: null,
         domain: topPerformingDomains[0] || 'learning-optimization',
       });
     }
+
+    const unmeasured: string[] = [];
+    if (overallLearningRate === null) unmeasured.push('overallLearningRate');
+    if (topPerformingDomains.length === 0) unmeasured.push('topPerformingDomains');
 
     return {
       overallLearningRate,
       totalPatterns,
       totalKnowledge: knowledgeResult.success ? knowledgeResult.value.length : 0,
       experiencesLast24h,
-      topPerformingDomains: topPerformingDomains.length > 0 ? topPerformingDomains : ['test-generation'],
+      ...(assignedRewardsExcluded > 0 ? { assignedRewardsExcluded } : {}),
+      ...(assignedPatternsExcluded > 0 ? { assignedPatternsExcluded } : {}),
+      topPerformingDomains,
+      ...(unmeasured.length > 0
+        ? { evidenceStatus: 'insufficient-evidence' as const, unmeasured }
+        : {}),
       learningTrend,
       recentMilestones,
       sona,
