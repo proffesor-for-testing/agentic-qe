@@ -184,6 +184,9 @@ export interface TestRunnerProcessOptions {
 /** `spawnSync`'s default per-stream output limit. */
 const DEFAULT_MAX_BUFFER = 1024 * 1024;
 
+/** Longest wait for the runner's pipes to close after it has been stopped. */
+const PIPE_RELEASE_GRACE_MS = 3000;
+
 /**
  * #1074: run a test runner without blocking the event loop. Resolves with the
  * same fields and failure semantics `spawnSync` reports: exit status or
@@ -204,6 +207,7 @@ export function runTestRunnerProcess(
     let stderr = '';
     let error: NodeJS.ErrnoException | undefined;
     let stopping: Promise<void> | undefined;
+    let releaseTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
 
     let proc: ChildProcess;
@@ -224,6 +228,7 @@ export function runTestRunnerProcess(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(releaseTimer);
       // Report the signal the runner was stopped with, as spawnSync does.
       const stoppedWith = stopping && !signal ? 'SIGTERM' : signal;
       const result = { status: stopping ? null : status, signal: stoppedWith, stdout, stderr, error };
@@ -235,6 +240,16 @@ export function runTestRunnerProcess(
       if (stopping) return;
       error = Object.assign(new Error(message), { code, syscall: `spawnSync ${command}` });
       stopping = terminateTestRunner(proc);
+      // spawnSync closes the runner's pipes when it kills it. Do the same once
+      // the runner is stopped, or after a grace period, so a descendant that
+      // left the process group (e.g. a detached server holding the inherited
+      // stdout) cannot keep 'close', and so the result, pending forever.
+      const release = (): void => {
+        proc.stdout?.destroy();
+        proc.stderr?.destroy();
+      };
+      stopping.then(release, release);
+      releaseTimer = setTimeout(release, PIPE_RELEASE_GRACE_MS);
     };
 
     const timer = setTimeout(() => stop('ETIMEDOUT', `spawnSync ${command} ETIMEDOUT`), options.timeout);

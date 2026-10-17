@@ -74,6 +74,23 @@ describe('runTestRunnerProcess (#1074)', () => {
     expect(existsSync(marker)).toBe(false);
   }, 10000);
 
+  // A descendant in its own session is outside the runner's process group, so
+  // the group kill cannot stop it. spawnSync still returns at the timeout
+  // because it closes the runner's pipes; the async runner must too.
+  it.skipIf(process.platform === 'win32')('settles on timeout although a detached descendant still holds the runner\'s stdout', async () => {
+    const pidFile = join(dir, 'detached-pid');
+    const script = `const c = require("child_process").spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { detached: true, stdio: "inherit" }); require("fs").writeFileSync(${JSON.stringify(pidFile)}, String(c.pid)); c.unref(); setInterval(() => {}, 1000);`;
+    const started = Date.now();
+    try {
+      const result = await runTestRunnerProcess(node, ['-e', script], { cwd: dir, timeout: 300 });
+      expect(Date.now() - started).toBeLessThan(5000);
+      expect(result).toMatchObject({ status: null, signal: 'SIGTERM' });
+      expect(result.error?.code).toBe('ETIMEDOUT');
+    } finally {
+      try { process.kill(Number(readFileSync(pidFile, 'utf8')), 'SIGKILL'); } catch { /* Not started or already gone. */ }
+    }
+  }, 15000);
+
   it('stops a runner whose output exceeds the buffer limit, as ENOBUFS with output truncated', async () => {
     const result = await runTestRunnerProcess(node, ['-e', 'process.stdout.write("x".repeat(4096)); setInterval(() => {}, 1000)'], {
       cwd: dir, timeout: 10000, maxBuffer: 1024,
