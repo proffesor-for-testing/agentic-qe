@@ -117,6 +117,14 @@ describe('MCP code indexing confinement (#1096)', () => {
     expect(task.error).toContain('Nothing was indexed: 0 of 1 requested path(s) indexed - src/leak.ts (outside-project-root)');
   }, 30000);
 
+  it('task_submit rejects a paths list over the 10k cap up front', async () => {
+    const paths = Array.from({ length: 10_001 }, (_, i) => `src/f${i}.ts`);
+
+    const result = await call('task_submit', { type: 'index', targetDomains: ['code-intelligence'], payload: { paths } });
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('at most 10000 paths are accepted per request') });
+  });
+
   it('task_submit rejects a non-array paths value up front', async () => {
     const result = await call('task_submit', {
       type: 'index',

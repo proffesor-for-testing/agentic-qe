@@ -33,6 +33,13 @@ function describe(value: unknown): string {
 }
 
 /**
+ * Most paths a caller may hand an index request at a boundary (MCP
+ * task_submit / task_orchestrate, `aqe task submit`). Lists the tools discover
+ * themselves (`aqe code index`, init) are not capped here.
+ */
+export const MAX_INDEX_PATHS = 10_000;
+
+/**
  * Validate the shape of a caller-supplied path list at a boundary, so a
  * non-array value fails with a clear message rather than deep inside indexing.
  */
@@ -40,9 +47,15 @@ export function validateIndexPaths(
   value: unknown,
   field = 'paths',
   context = 'Invalid index payload',
+  maxPaths: number = MAX_INDEX_PATHS,
 ): Result<string[], Error> {
   if (!Array.isArray(value)) {
     return err(new Error(`${context}: '${field}' must be an array of file paths, got ${describe(value)}`));
+  }
+  if (value.length > maxPaths) {
+    return err(new Error(
+      `${context}: '${field}' has ${value.length} entries; at most ${maxPaths} paths are accepted per request - index a directory target or split the list`,
+    ));
   }
   for (let i = 0; i < value.length; i++) {
     const entry: unknown = value[i];

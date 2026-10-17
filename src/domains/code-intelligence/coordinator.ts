@@ -522,8 +522,10 @@ export class CodeIntelligenceCoordinator
    * Index codebase into Knowledge Graph
    */
   async index(request: IndexRequest): Promise<Result<IndexResult, Error>> {
-    // #1096: reject a malformed path list before any work starts.
-    const validPaths = validateIndexPaths(request.paths);
+    // #1096: reject a malformed path list before any work starts. The size
+    // cap is enforced where callers hand in lists (task_submit, task_orchestrate,
+    // `aqe task submit`); `aqe code index` passes the files it discovered.
+    const validPaths = validateIndexPaths(request.paths, 'paths', 'Invalid index payload', Number.POSITIVE_INFINITY);
     if (!validPaths.success) {
       return validPaths;
     }

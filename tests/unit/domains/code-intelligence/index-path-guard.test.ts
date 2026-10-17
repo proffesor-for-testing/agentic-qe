@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
+  MAX_INDEX_PATHS,
   confineIndexPaths,
   validateIndexPaths,
   validateIndexTaskPayload,
@@ -89,6 +90,23 @@ describe('index path guard (#1096)', () => {
   });
 
   describe('validation at the boundary', () => {
+    it('rejects a path list longer than the cap, and accepts one at the cap', () => {
+      const atCap = Array.from({ length: MAX_INDEX_PATHS }, (_, i) => `src/f${i}.ts`);
+
+      const accepted = validateIndexPaths(atCap);
+      const rejected = validateIndexPaths([...atCap, 'src/one-more.ts']);
+
+      expect(MAX_INDEX_PATHS).toBe(10_000);
+      expect(accepted.success).toBe(true);
+      expect(rejected.success).toBe(false);
+      if (!rejected.success) {
+        expect(rejected.error.message).toBe(
+          "Invalid index payload: 'paths' has 10001 entries; at most 10000 paths are accepted per request - index a directory target or split the list",
+        );
+      }
+      expect(validateIndexTaskPayload('index', { paths: [...atCap, 'x.ts'] })?.message).toContain('at most 10000 paths');
+    });
+
     it('rejects a non-array path list with a clear message', () => {
       const result = validateIndexPaths('src/ok.ts');
 
