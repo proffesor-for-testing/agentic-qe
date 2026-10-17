@@ -16,6 +16,7 @@ import type { TaskType } from '../../coordination/queen-coordinator.js';
 import { ALL_DOMAINS, DomainName, Priority, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
 import { createTimedSpinner } from '../utils/progress.js';
 import { parseJsonOption } from '../helpers/safe-json.js';
+import { validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
 import { type OutputFormat, writeOutput, toJSON } from '../utils/ci-output.js';
 
 // ============================================================================
@@ -129,6 +130,13 @@ export class TaskHandler implements ICommandHandler {
       const executable = context.queen!.validateTaskExecutable(taskType, targetDomains);
       if (!executable.success) {
         console.error(chalk.red(`\n  ${executable.error.message}\n`));
+        return this.cleanupAndExit(1);
+      }
+
+      // #1096: same boundary check as MCP task_submit.
+      const payloadError = validateIndexTaskPayload(taskType, payload);
+      if (payloadError) {
+        console.error(chalk.red(`\n  ${payloadError.message}\n`));
         return this.cleanupAndExit(1);
       }
 

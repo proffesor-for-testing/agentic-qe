@@ -937,8 +937,11 @@ describe('TaskExecutor integration', () => {
 
     for (const task of testTasks) {
       // #1021: an assess-quality target must lie inside the AQE project
-      // root; make TEST_DIR the root for that task.
-      if (task.type === 'assess-quality') vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
+      // root; #1096: so must every path index-code reads. Make TEST_DIR the
+      // root for those tasks.
+      if (task.type === 'assess-quality' || task.type === 'index-code') {
+        vi.stubEnv('AQE_PROJECT_ROOT', TEST_DIR);
+      }
       try {
         const result = await executor.execute(task);
         expect(result.success).toBe(true);

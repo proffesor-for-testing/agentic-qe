@@ -321,6 +321,12 @@ export interface CodeIndexResult {
     tests: number;
     toolsUsed: string[];
   };
+  /**
+   * #1096: discovered paths that were not indexed (missing, not a regular
+   * file, outside the project root, filtered out), with the reason. Absent
+   * when every discovered file was indexed.
+   */
+  skipped?: Array<{ path: string; reason: string }>;
   savedFiles?: string[];
   /** #933: true when result files were written; see savedFiles for their paths. */
   resultsSaved?: boolean;
@@ -1165,6 +1171,9 @@ export const codeIndexConfig: DomainHandlerConfig<CodeIndexParams, CodeIndexResu
     symbolsExtracted: (data.symbolsExtracted as number) || 0,
     relationsFound: (data.relationsFound as number) || 0,
     ...(data.projectMetrics ? { projectMetrics: data.projectMetrics as CodeIndexResult['projectMetrics'] } : {}),
+    ...(Array.isArray(data.skipped) && data.skipped.length > 0
+      ? { skipped: data.skipped as CodeIndexResult['skipped'] }
+      : {}),
     duration,
     savedFiles,
   }),
