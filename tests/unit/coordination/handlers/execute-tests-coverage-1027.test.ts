@@ -6,9 +6,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 const report = JSON.stringify({ numTotalTests: 2, numPassedTests: 2, numFailedTests: 0, testResults: [{ assertionResults: [] }] });
 
-vi.mock('child_process', async (importOriginal) => ({
-  ...await importOriginal<object>(),
-  spawnSync: vi.fn(() => ({ status: 0, stdout: report, stderr: '', error: undefined, signal: null })),
+vi.mock('../../../../src/shared/test-runner-process.js', () => ({
+  runTestRunnerProcess: vi.fn(async () => ({ status: 0, stdout: report, stderr: '', error: undefined, signal: null })),
 }));
 vi.mock('../../../../src/shared/vitest-json-report.js', () => ({
   createVitestJsonReport: () => ({ args: [], read: (stdout: string) => stdout, cleanup: () => {} }),

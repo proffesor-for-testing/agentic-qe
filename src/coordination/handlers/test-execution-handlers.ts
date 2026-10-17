@@ -14,6 +14,7 @@ import { getTestRunnerExecutionError, TestRunnerExecutionError } from '../../sha
 import { createVitestJsonReport } from '../../shared/vitest-json-report.js';
 import { jestExactPathPattern, runnerFilePath } from '../../shared/test-runner-args.js';
 import { testCasesFromRunnerReport } from '../../domains/test-execution/services/runner-test-cases.js';
+import { runTestRunnerProcess } from '../../shared/test-runner-process.js';
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -241,8 +242,9 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
         return ok({ ...result.value, coverage: result.value.coverage?.line ?? null });
       }
 
-      const { spawnSync } = await import('child_process');
-      const options = { cwd: process.cwd(), timeout: 120000, encoding: 'utf-8' as const };
+      // #1074: run the runner asynchronously so the MCP server keeps serving
+      // other requests (task_status, task_cancel, ...) during the test run.
+      const options = { cwd: process.cwd(), timeout: 120000 };
       let runner = 'vitest';
       // Vitest 5 writes the JSON report to a file rather than stdout; an explicit
       // --outputFile gives Vitest 4 and 5 the same contract.
@@ -251,7 +253,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       let output: string;
       try {
         // #909: absolute paths cannot be read as flags (e.g. a "--watch" entry).
-        execution = spawnSync('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
+        execution = await runTestRunnerProcess('npx', ['vitest', 'run', ...testFiles.map(file => runnerFilePath(file, options.cwd)), '--reporter=json', ...report.args], options);
         output = execution.error || execution.signal
           ? ''
           : report.read(execution.stdout || '') ?? '';
@@ -261,7 +263,7 @@ export function registerTestExecutionHandlers(ctx: TaskHandlerContext): void {
       // Preserve the existing Jest fallback when Vitest cannot produce a report.
       if (!output.includes('{') && execution.status !== 0 && !execution.error && !execution.signal) {
         runner = 'jest';
-        execution = spawnSync('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
+        execution = await runTestRunnerProcess('npx', ['jest', ...testFiles.map(file => jestExactPathPattern(file, options.cwd)), '--json'], options);
         output = execution.stdout || '';
       }
       const diagnostics = [execution.error?.message, execution.signal && `Terminated by ${execution.signal}`, execution.stderr, output].filter(Boolean).join('\n');
