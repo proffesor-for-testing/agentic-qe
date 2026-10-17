@@ -100,6 +100,10 @@ export function createLWWRegister<T>(
     },
 
     applyState(incoming: LWWRegisterState<T>): void {
+      // An unwritten register is the merge identity: its placeholder timestamp
+      // (0) would otherwise beat a real write at a negative timestamp.
+      if (incoming.version === 0) return;
+
       // Only update if incoming timestamp wins
       if (
         state.version === 0 ||
