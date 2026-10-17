@@ -136,9 +136,8 @@ describe('MetricsCollector', () => {
   });
 
   describe('worker efficiency', () => {
-    it('should return baseline efficiency with no tasks', () => {
-      const efficiency = MetricsCollector.getWorkerEfficiency();
-      expect(efficiency).toBe(0.85); // Default baseline
+    it('reports no efficiency when no task was recorded (#1110)', () => {
+      expect(MetricsCollector.getWorkerEfficiency()).toBeNull();
     });
 
     it('should calculate efficiency based on success rate', () => {
@@ -169,9 +168,8 @@ describe('MetricsCollector', () => {
   });
 
   describe('load balance score', () => {
-    it('should return baseline score with no workers', () => {
-      const score = MetricsCollector.getLoadBalanceScore();
-      expect(score).toBe(0.9); // Default baseline
+    it('reports no load balance when no worker was recorded (#1110)', () => {
+      expect(MetricsCollector.getLoadBalanceScore()).toBeNull();
     });
 
     it('should return perfect score with one worker', () => {
@@ -240,26 +238,16 @@ describe('MetricsCollector', () => {
     });
   });
 
-  describe('test durations', () => {
-    it('should return deterministic durations when no real data', () => {
-      const durations = MetricsCollector.getTestDurations(5);
-
-      expect(durations).toHaveLength(5);
-      expect(durations[0]).toBe(100);
-      expect(durations[1]).toBe(110);
-      expect(durations[2]).toBe(120);
+  describe('recorded task count', () => {
+    it('counts completed tasks so callers can tell measured figures from none (#1110)', () => {
+      expect(MetricsCollector.getRecordedTaskCount()).toBe(0);
+      MetricsCollector.startTask('task-1', 'agent-1');
+      MetricsCollector.completeTask('task-1', true);
+      expect(MetricsCollector.getRecordedTaskCount()).toBe(1);
     });
 
-    it('should return real durations when available', async () => {
-      // Create some real task data
-      MetricsCollector.startTask('task-1', 'agent-1');
-      await vi.advanceTimersByTimeAsync(30);
-      MetricsCollector.completeTask('task-1', true);
-
-      const durations = MetricsCollector.getTestDurations(3);
-
-      expect(durations).toHaveLength(3);
-      expect(durations[0]).toBeGreaterThanOrEqual(25);
+    it('no longer fabricates per-test durations (#1110)', () => {
+      expect((MetricsCollector as unknown as Record<string, unknown>).getTestDurations).toBeUndefined();
     });
   });
 

@@ -328,7 +328,10 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.workerStats).toBeDefined();
-      expect(result.data!.workerStats!.workersUsed).toBeGreaterThan(0);
+      // #1110: workersUsed is reported when measured, otherwise named as unmeasured.
+      const workersUsed = result.data!.workerStats!.workersUsed;
+      if (workersUsed === undefined) expect(result.data!.unmeasured).toContain('workerStats.workersUsed');
+      else expect(workersUsed).toBeGreaterThan(0);
     }, 30000);
 
     it('should include worker stats (V2-compatible)', async () => {
@@ -338,8 +341,12 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
 
       expect(result.success).toBe(true);
       expect(result.data!.workerStats).toBeDefined();
-      expect(result.data!.workerStats!.efficiency).toBeGreaterThanOrEqual(0);
-      expect(result.data!.workerStats!.loadBalance).toBeGreaterThanOrEqual(0);
+      // #1110: no baseline ratios — each figure is measured or listed as unmeasured.
+      for (const field of ['efficiency', 'loadBalance'] as const) {
+        const value = result.data!.workerStats![field];
+        if (value === undefined) expect(result.data!.unmeasured).toContain(`workerStats.${field}`);
+        else expect(value).toBeGreaterThanOrEqual(0);
+      }
     }, 30000);
 
     it('should include retry stats (V2-compatible)', async () => {
@@ -349,8 +356,9 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.data!.retryStats).toBeDefined();
-      expect(result.data!.retryStats!.totalRetries).toBeGreaterThanOrEqual(0);
+      // #1110: retry counters are reported only when the collector recorded tasks.
+      if (result.data!.retryStats === undefined) expect(result.data!.unmeasured).toContain('retryStats');
+      else expect(result.data!.retryStats!.totalRetries).toBeGreaterThanOrEqual(0);
     }, 30000);
 
     it('should include individual test results', async () => {
@@ -359,8 +367,10 @@ describe('Domain Handlers', { timeout: 30000 }, () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.data!.results).toBeDefined();
-      expect(Array.isArray(result.data!.results)).toBe(true);
+      // #1110: per-test results come from the runner report, never from counts.
+      if (result.data!.results === undefined) expect(result.data!.unmeasured).toContain('results');
+      else expect(Array.isArray(result.data!.results)).toBe(true);
+      expect(JSON.stringify(result.data)).not.toMatch(/test_case_\d/);
     }, 30000);
 
     it('should include summary', async () => {

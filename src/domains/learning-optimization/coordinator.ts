@@ -89,7 +89,6 @@ import {
 // CQ-004: Extracted modules
 import * as LearningHelpers from './coordinator-helpers.js';
 import * as ConsensusHelpers from './coordinator-consensus.js';
-import { isMeasuredGapPayload } from '../../shared/events/domain-events.js';
 
 /**
  * Workflow status tracking
@@ -1293,112 +1292,16 @@ export class LearningOptimizationCoordinator
   // ============================================================================
 
   protected subscribeToEvents(): void {
-    // Subscribe to test execution events for learning
-    this.eventBus.subscribe(
-      'test-execution.TestRunCompleted',
-      this.handleTestRunCompleted.bind(this)
-    );
-
-    // Subscribe to coverage gap events
-    this.eventBus.subscribe(
-      'coverage-analysis.CoverageGapDetected',
-      this.handleCoverageGap.bind(this)
-    );
-
-    // Subscribe to quality assessment events
-    this.eventBus.subscribe(
-      'quality-assessment.QualityGateEvaluated',
-      this.handleQualityGate.bind(this)
-    );
+    // #1110: TestRunCompleted, CoverageGapDetected and QualityGateEvaluated are
+    // recorded by LearningOptimizationPlugin, which owns this coordinator and
+    // also records the test-run production metric. Subscribing here as well
+    // stored every such event twice.
 
     // Subscribe to experience capture events (Phase 4 integration)
     this.eventBus.subscribe(
       'learning.ExperienceCaptured',
       this.handleExperienceCaptured.bind(this)
     );
-  }
-
-  private async handleTestRunCompleted(event: {
-    payload: { runId: string; passed: number; failed: number; duration: number };
-  }): Promise<void> {
-    // Record experience from test run
-    const { runId, passed, failed, duration } = event.payload;
-    const successRate = (passed + failed) > 0 ? passed / (passed + failed) : 0;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'test-execution',
-        domain: 'test-execution',
-        type: 'tester',
-      },
-      domain: 'test-execution',
-      action: 'test-run',
-      state: {
-        context: { runId },
-        metrics: { passed, failed, duration },
-      },
-      result: {
-        success: successRate > 0.8,
-        outcome: { success_rate: successRate, passed, failed },
-        duration,
-      },
-      reward: successRate,
-    });
-  }
-
-  private async handleCoverageGap(event: {
-    payload: { gapId: string; file: string; riskScore: number; measured?: boolean };
-  }): Promise<void> {
-    // #1014: only a gap found in MEASURED coverage is acted on / learned from.
-    if (!isMeasuredGapPayload(event.payload)) return;
-    // Record as experience for learning
-    const { gapId, file, riskScore } = event.payload;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'coverage-analysis',
-        domain: 'coverage-analysis',
-        type: 'analyzer',
-      },
-      domain: 'coverage-analysis',
-      action: 'gap-detection',
-      state: {
-        context: { gapId, file },
-        metrics: { riskScore },
-      },
-      result: {
-        success: true,
-        outcome: { risk_score: riskScore },
-        duration: 0,
-      },
-      reward: 1 - riskScore, // Lower risk = higher reward
-    });
-  }
-
-  private async handleQualityGate(event: {
-    payload: { gateId: string; passed: boolean };
-  }): Promise<void> {
-    const { gateId, passed } = event.payload;
-
-    await this.learningService.recordExperience({
-      agentId: {
-        value: 'quality-assessment',
-        domain: 'quality-assessment',
-        type: 'validator',
-      },
-      domain: 'quality-assessment',
-      action: 'gate-evaluation',
-      state: {
-        context: { gateId },
-        metrics: { passed: passed ? 1 : 0 },
-      },
-      result: {
-        success: passed,
-        outcome: { gate_passed: passed ? 1 : 0 },
-        duration: 0,
-      },
-      reward: passed ? 1 : 0,
-    });
   }
 
   /**

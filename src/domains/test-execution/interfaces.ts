@@ -187,9 +187,24 @@ export interface ITestRunResult {
   skipped: number;
   duration: number;
   failedTests: IFailedTest[];
+  /**
+   * #1110: every test case as listed in the runner's own JSON report. Absent
+   * when the runner gave no per-test entries for the whole run (e.g. a
+   * summary-line fallback); never synthesized from counts.
+   */
+  testCases?: ITestCaseResult[];
   coverage?: ICoverageData;
   /** Per-file coverage data for granular quality assessment */
   fileCoverages?: IFileCoverageData[];
+}
+
+/** One test case taken verbatim from a runner report (#1110). */
+export interface ITestCaseResult {
+  name: string;
+  file: string;
+  status: 'passed' | 'failed' | 'skipped';
+  /** Runner-reported duration in ms; omitted when the runner reported none. */
+  duration?: number;
 }
 
 export interface IFileCoverageData {
