@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import '../../../../src/mcp/handlers/domain-handlers';
 import { testExecuteConfig } from '../../../../src/mcp/handlers/domain-handler-configs';
 import { MetricsCollector } from '../../../../src/mcp/metrics';
-import { testCasesFromRunnerReport } from '../../../../src/domains/test-execution/services/runner-test-cases';
+import { mergeTestCases, testCasesFromRunnerReport } from '../../../../src/domains/test-execution/services/runner-test-cases';
 
 const map = (data: Record<string, unknown>) =>
   testExecuteConfig.mapToResult('t', { total: 4, passed: 2, failed: 1, skipped: 1, ...data }, 40, [], {} as never);
@@ -89,5 +89,18 @@ describe('#1110 testCasesFromRunnerReport', () => {
   it('returns undefined when the report lists no tests', () => {
     expect(testCasesFromRunnerReport({}, 'x')).toBeUndefined();
     expect(testCasesFromRunnerReport({ testResults: [{ assertionResults: [] }] }, 'x')).toBeUndefined();
+  });
+});
+
+describe('#1110 mergeTestCases', () => {
+  const passed = { name: 'a', file: 'a.ts', status: 'passed' as const };
+
+  it('drops the list when any run with tests lacks per-test entries (e.g. mocha or a summary-line fallback)', () => {
+    expect(mergeTestCases([{ total: 1, testCases: [passed] }, { total: 2 }])).toBeUndefined();
+  });
+
+  it('concatenates complete runs and ignores empty ones', () => {
+    expect(mergeTestCases([{ total: 1, testCases: [passed] }, { total: 0 }, { total: 1, testCases: [passed] }]))
+      .toEqual([passed, passed]);
   });
 });
