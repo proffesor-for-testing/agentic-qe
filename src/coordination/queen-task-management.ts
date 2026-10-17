@@ -39,7 +39,7 @@ import type {
   QueenConfig,
   TaskFilter,
 } from './queen-types.js';
-import { TASK_DOMAIN_MAP } from './queen-types.js';
+import { getTaskDomains } from './queen-types.js';
 import { settleCancelledTask } from './cancelled-task-settlement.js';
 
 // ============================================================================
@@ -271,7 +271,7 @@ export async function assignTask(
 ): Promise<Result<string, Error>> {
   const targetDomains = task.targetDomains.length > 0
     ? task.targetDomains
-    : TASK_DOMAIN_MAP[task.type] || [];
+    : getTaskDomains(task.type);
 
   if (targetDomains.length === 0) {
     return err(new Error(`No domains configured for task type: ${task.type}`));
@@ -319,7 +319,7 @@ export async function assignTaskToDomain(
       description: `${task.type}: ${JSON.stringify(task.payload).slice(0, 200)}`,
       type: task.type,
       domain: domain as unknown as import('../learning/qe-patterns.js').QEDomain | undefined,
-      priority: priorityMap[task.priority],
+      priority: Object.hasOwn(priorityMap, task.priority) ? priorityMap[task.priority] : 'normal',
     };
     routeDecision = await ctx.tinyDancerRouter.route(classifiableTask);
 
@@ -553,6 +553,6 @@ async function handleTaskCompletionCallback(
  * Check if a domain can handle a given task type.
  */
 export function canDomainHandleTask(domain: DomainName, task: QueenTask): boolean {
-  const compatibleDomains = TASK_DOMAIN_MAP[task.type] || [];
+  const compatibleDomains = getTaskDomains(task.type);
   return compatibleDomains.includes(domain);
 }

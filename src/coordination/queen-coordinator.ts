@@ -91,7 +91,7 @@ import { DynamicScaler, createDynamicScaler } from './dynamic-scaling/index.js';
 // Types, interfaces, constants, and config
 import {
   DEFAULT_QUEEN_CONFIG,
-  TASK_DOMAIN_MAP,
+  getTaskDomains,
   initializeTaskDomainMap,
 } from './queen-types.js';
 
@@ -390,7 +390,7 @@ export class QueenCoordinator implements IQueenCoordinator {
    * accept the type unchanged.
    */
   validateTaskExecutable(type: TaskType, targetDomains: readonly DomainName[] = []): Result<void, Error> {
-    const candidates = targetDomains.length > 0 ? targetDomains : TASK_DOMAIN_MAP[type] ?? [];
+    const candidates = targetDomains.length > 0 ? targetDomains : getTaskDomains(type);
     if (candidates.length === 0) {
       return err(new Error(`Unknown task type '${type}': no domain is configured for it. Pass a target domain.`));
     }
