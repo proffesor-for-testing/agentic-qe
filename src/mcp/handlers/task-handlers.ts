@@ -33,7 +33,7 @@ import type { QEDomain } from '../../learning/qe-patterns.js';
 import type { RealQEPatternSearchResult } from '../../learning/real-qe-reasoning-bank.js';
 import { scoreUnjudgedTrajectories } from './trajectory-judge.js';
 import { toErrorMessage } from '../../shared/error-utils.js';
-import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority } from '../../shared/types/index.js';
+import { ALL_DOMAINS, invalidPriorityMessage, isDomainName, isPriority, type Priority } from '../../shared/types/index.js';
 import { validateIndexPaths, validateIndexTaskPayload } from '../../domains/code-intelligence/index-path-guard.js';
 
 // ============================================================================
@@ -300,7 +300,8 @@ export async function handleTaskCancel(
 export interface TaskOrchestrateParams {
   task: string;
   strategy?: 'parallel' | 'sequential' | 'adaptive';
-  priority?: 'low' | 'medium' | 'high' | 'critical';
+  /** Named levels, or a canonical p0-p3 priority (p0 stays p0). */
+  priority?: 'low' | 'medium' | 'high' | 'critical' | Priority;
   maxAgents?: number;
   /** Manual tier override (0-4) */
   manualTier?: ModelTier;
@@ -356,6 +357,12 @@ export async function handleTaskOrchestrate(
     }
   }
 
+  // #1117: an unrecognised priority used to fall through to p1 (and a
+  // requested p0 was downgraded). Reject it up front, as task_submit does.
+  if (params.priority !== undefined && mapPriority(params.priority) === undefined) {
+    return { success: false, error: invalidOrchestratePriorityMessage(params.priority) };
+  }
+
   const { queen, workflowOrchestrator } = getFleetState();
 
   try {
@@ -401,7 +408,7 @@ export async function handleTaskOrchestrate(
 
     // Parse task description to determine task type
     const taskType = inferTaskType(params.task);
-    const priority = mapPriority(params.priority || 'medium');
+    const priority = mapPriority(params.priority ?? 'medium') ?? 'p2';
 
     // Issue #206: Check if this task type has an associated workflow
     const workflowId = TASK_WORKFLOW_MAP[taskType];
@@ -980,9 +987,11 @@ function inferTaskType(description: string): TaskType {
 }
 
 /**
- * Map priority string to Priority type
+ * Map a task_orchestrate priority to the canonical Priority type.
+ * Accepts the named levels and the canonical p0-p3 values; returns
+ * undefined for anything else so the caller can reject it (#1117).
  */
-function mapPriority(priority: string): 'p0' | 'p1' | 'p2' | 'p3' {
+function mapPriority(priority: unknown): Priority | undefined {
   switch (priority) {
     case 'critical':
       return 'p0';
@@ -993,8 +1002,12 @@ function mapPriority(priority: string): 'p0' | 'p1' | 'p2' | 'p3' {
     case 'low':
       return 'p3';
     default:
-      return 'p1';
+      return isPriority(priority) ? priority : undefined;
   }
+}
+
+function invalidOrchestratePriorityMessage(value: unknown): string {
+  return `${invalidPriorityMessage(value)} (or critical, high, medium, low)`;
 }
 
 // ============================================================================

@@ -251,7 +251,7 @@ describe('Task Handlers', () => {
       const result = await handleTaskSubmit({ type: 'generate-tests', priority: priority as never });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(`Invalid priority: ${priority}. Valid priorities: p0, p1, p2, p3`);
+      expect(result.error).toBe(`Invalid priority: ${priority || '(empty)'}. Valid priorities: p0, p1, p2, p3`);
       expect(submit).not.toHaveBeenCalled();
     });
   });
@@ -494,6 +494,42 @@ describe('Task Handlers', () => {
       expect(result.data!.type).toBe('generate-tests');
       expect(result.data!.status).toBe('submitted');
     }, 30000);
+
+    // #1117: an unknown priority used to become p1, and a requested p0 was
+    // downgraded to p1.
+    it.each([
+      ['critical', 'p0'],
+      ['high', 'p1'],
+      ['medium', 'p2'],
+      ['low', 'p3'],
+      ['p0', 'p0'],
+      ['p1', 'p1'],
+      ['p2', 'p2'],
+      ['p3', 'p3'],
+    ])('maps orchestrate priority %s to %s', async (priority, expected) => {
+      const result = await handleTaskOrchestrate({
+        task: 'Generate unit tests for the authentication module',
+        priority: priority as never,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.priority).toBe(expected);
+    }, 30000);
+
+    it.each(['bogus', '__proto__', 'P0', ''])('rejects invalid orchestrate priority %j', async (priority) => {
+      const queen = getFleetState().queen!;
+      const submit = vi.spyOn(queen, 'submitTask');
+
+      const result = await handleTaskOrchestrate({
+        task: 'Generate unit tests for the authentication module',
+        priority: priority as never,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(`Invalid priority: ${priority || '(empty)'}.`);
+      expect(result.error).toContain('p0, p1, p2, p3');
+      expect(submit).not.toHaveBeenCalled();
+    });
 
     it('should infer test execution type', async () => {
       const result = await handleTaskOrchestrate({
