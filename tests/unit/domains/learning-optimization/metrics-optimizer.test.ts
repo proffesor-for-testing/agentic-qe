@@ -164,7 +164,22 @@ describe('MetricsOptimizerService', () => {
   });
 
   describe('runABTest', () => {
+    // #1099: A/B tests compare recorded metrics only, so record some first.
+    async function recordSamples(strategyName: string, values: number[]): Promise<void> {
+      for (let i = 0; i < values.length; i++) {
+        const snapshot: MetricsSnapshot = {
+          strategyId: strategyName,
+          metrics: { success_rate: values[i] },
+          timestamp: new Date(),
+          samples: 1,
+        };
+        await mockMemory.set(`learning:metrics:history:${strategyName}:${i}`, snapshot);
+      }
+    }
+
     it('should run A/B test between two strategies', async () => {
+      await recordSamples('strategy-A', Array.from({ length: 10 }, (_, i) => 0.8 + (i % 3) * 0.01));
+      await recordSamples('strategy-B', Array.from({ length: 10 }, (_, i) => 0.8 + (i % 2) * 0.01));
       const strategyA = createTestStrategy({ name: 'strategy-A' });
       const strategyB = createTestStrategy({ name: 'strategy-B' });
 
@@ -187,6 +202,8 @@ describe('MetricsOptimizerService', () => {
     });
 
     it('should calculate p-value correctly', async () => {
+      await recordSamples('strategy-A', Array.from({ length: 20 }, (_, i) => 0.9 + (i % 2) * 0.02));
+      await recordSamples('strategy-B', Array.from({ length: 20 }, (_, i) => 0.5 + (i % 2) * 0.02));
       const strategyA = createTestStrategy({
         name: 'strategy-A',
         expectedOutcome: { success_rate: 0.9 },
@@ -208,7 +225,8 @@ describe('MetricsOptimizerService', () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.value.pValue).toBeGreaterThanOrEqual(0);
-        expect(result.value.pValue).toBeLessThanOrEqual(1);
+        expect(result.value.pValue).toBeLessThan(0.05);
+        expect(result.value.winner).toBe('A');
       }
     });
 
@@ -518,14 +536,15 @@ describe('MetricsOptimizerService', () => {
   });
 
   describe('edge cases', () => {
-    it('should handle empty experiences array in evaluateStrategy', async () => {
+    it('reports insufficient evidence, not a 0% success rate, for no experiences (#1109)', async () => {
       const strategy = createTestStrategy();
 
       const result = await service.evaluateStrategy(strategy, []);
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.value.metrics['success_rate']).toBe(0);
+        expect(result.value.evidenceStatus).toBe('insufficient-evidence');
+        expect(result.value.metrics).toEqual({});
       }
     });
 

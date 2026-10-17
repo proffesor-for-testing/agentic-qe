@@ -20,6 +20,7 @@ import type {
 import { createEmptyStats } from './types.js';
 import type { RecoveryPlaybook } from './recovery-playbook.js';
 import type { CoordinationLock } from './coordination-lock.js';
+import { getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 // ============================================================================
 // NoOp Command Runner (for testing)
@@ -307,10 +308,13 @@ export class InfraActionExecutor {
   }
 
   private updateServiceStats(serviceName: string, field: 'failures' | 'recoveries' | 'successes'): void {
-    if (!this.stats.byService[serviceName]) {
-      this.stats.byService[serviceName] = { failures: 0, recoveries: 0, successes: 0 };
+    // Service names come from the playbook: `constructor` must be just a name (#978).
+    let serviceStats = getOwn(this.stats.byService, serviceName);
+    if (!serviceStats) {
+      serviceStats = { failures: 0, recoveries: 0, successes: 0 };
+      setOwn(this.stats.byService, serviceName, serviceStats);
     }
-    this.stats.byService[serviceName][field]++;
+    serviceStats[field]++;
   }
 
   private sleep(ms: number): Promise<void> {

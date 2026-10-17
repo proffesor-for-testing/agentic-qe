@@ -53,6 +53,26 @@ export interface IndexResult {
    * no dependency extractor, so `deps`/`impact` will show 0 edges for them (#511).
    */
   warnings?: string[];
+  /**
+   * Requested paths that were not indexed, with the reason (#1096): missing,
+   * not a regular file, resolving outside the project root (e.g. through a
+   * symlink), or excluded by the language/test filters. None of them counts
+   * toward `filesIndexed`.
+   */
+  skipped?: SkippedIndexPath[];
+}
+
+export type IndexSkipReason =
+  | 'not-found'
+  | 'not-a-file'
+  | 'outside-project-root'
+  | 'unreadable'
+  | 'excluded-by-language'
+  | 'excluded-test-file';
+
+export interface SkippedIndexPath {
+  path: string;
+  reason: IndexSkipReason;
 }
 
 export interface IndexError {

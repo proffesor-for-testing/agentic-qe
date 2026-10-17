@@ -37,7 +37,6 @@ import {
   isWorkersEnabled,
   parseDisabledWorkers,
   resolveDreamInsightsRetention,
-  DEFAULT_DREAM_INSIGHTS_RETENTION_DAYS,
 } from '../../../src/workers/worker-env';
 import { createDaemon, resetDaemon } from '../../../src/workers/daemon';
 import { LearningConsolidationWorker } from '../../../src/workers/workers/learning-consolidation';
@@ -88,10 +87,10 @@ describe('#1061 worker env parsing', () => {
   });
 
   it.each(['-5', '1.5', 'abc', '30d', '99999999', 'true'])(
-    'rejects %j with a warning and falls back to the default',
+    'rejects %j with a warning and turns the sweep off (#1066 fail safe)',
     (value) => {
       const result = resolveDreamInsightsRetention({ AQE_DREAM_INSIGHTS_RETENTION_DAYS: value });
-      expect(result.retentionDays).toBe(DEFAULT_DREAM_INSIGHTS_RETENTION_DAYS);
+      expect(result.retentionDays).toBeNull();
       expect(result.warning).toContain('Invalid AQE_DREAM_INSIGHTS_RETENTION_DAYS');
     },
   );
@@ -218,7 +217,7 @@ describe('#1061 LearningConsolidationWorker dream_insights sweep (real SQLite)',
     expect(remainingIds()).toEqual(['old-applied', 'old-unapplied', 'recent-unapplied']);
   });
 
-  it('deletes stale unapplied insights once a full interval has passed and logs the count to stderr', () => {
+  it('archives stale unapplied insights once a full interval has passed and logs the count to stderr', () => {
     const worker = new LearningConsolidationWorker();
     vi.setSystemTime(Date.now() + THIRTY_MINUTES_MS);
     const findings: WorkerFinding[] = [];
@@ -226,7 +225,7 @@ describe('#1061 LearningConsolidationWorker dream_insights sweep (real SQLite)',
     expect(prune(worker, findings)).toBe(1);
     expect(remainingIds()).toEqual(['old-applied', 'recent-unapplied']);
     expect(stderrText()).toContain(
-      '[AQE] dream_insights retention: deleted 1 unapplied insight(s) older than 30 days',
+      '[AQE] dream_insights retention: moved 1 unapplied insight(s) older than 30 days to dream_insights_archive',
     );
     expect(findings.map((f) => f.type)).toEqual(['dream-insights-pruned']);
   });
@@ -255,13 +254,14 @@ describe('#1061 LearningConsolidationWorker dream_insights sweep (real SQLite)',
     expect(remainingIds()).toEqual(['old-applied', 'old-unapplied', 'recent-unapplied']);
   });
 
-  it('warns once on an invalid retention value and uses the 30-day default', () => {
+  it('warns once on an invalid retention value and deletes nothing (#1066)', () => {
     process.env.AQE_DREAM_INSIGHTS_RETENTION_DAYS = 'forever';
     const worker = new LearningConsolidationWorker();
     vi.setSystemTime(Date.now() + THIRTY_MINUTES_MS);
 
-    expect(prune(worker)).toBe(1);
+    expect(prune(worker)).toBe(0);
     prune(worker);
+    expect(remainingIds()).toEqual(['old-applied', 'old-unapplied', 'recent-unapplied']);
     const warnings = stderrText().split('\n').filter((l) => l.includes('Invalid AQE_DREAM_INSIGHTS_RETENTION_DAYS'));
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('[AQE] WARN');

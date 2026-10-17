@@ -302,7 +302,8 @@ export async function handleTaskFailed(
 
     // Check if we should retry. Caller-input errors are deterministic, so a
     // retry would fail the same way.
-    if (!callerError && execution.retryCount < ctx.config.taskRetryLimit) {
+    const callerOwned = execution.task.executionOwner === 'caller';
+    if (!callerError && !callerOwned && execution.retryCount < ctx.config.taskRetryLimit) {
       ctx.auditLogger.logFail(taskId, execution.assignedAgents[0], error);
 
       const retried: TaskExecution = {

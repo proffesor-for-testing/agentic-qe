@@ -22,6 +22,7 @@ import {
 } from '../interfaces';
 import { GitAnalyzer } from '../../../shared/git';
 import { FileReader } from '../../../shared/io';
+import { findProjectRoot } from '../../../kernel/project-root.js';
 import { TypeScriptParser } from '../../../shared/parsers';
 
 // ADR-051: LLM Router for AI-enhanced defect prediction
@@ -171,14 +172,15 @@ export class DefectPredictorService implements IDefectPredictorService {
       // New signature: DefectPredictorDependencies
       this.memory = memoryOrDeps.memory;
       this.gitAnalyzer = memoryOrDeps.gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
-      this.fileReader = memoryOrDeps.fileReader ?? new FileReader();
+      // #1096: a symlink inside the project must not expose an outside file.
+      this.fileReader = memoryOrDeps.fileReader ?? new FileReader({ projectRoot: findProjectRoot() });
       this.tsParser = memoryOrDeps.tsParser ?? new TypeScriptParser();
       this.llmRouter = memoryOrDeps.llmRouter;
     } else {
       // Old signature: memory, config, gitAnalyzer, fileReader, tsParser
       this.memory = memoryOrDeps;
       this.gitAnalyzer = gitAnalyzer ?? new GitAnalyzer({ enableCache: true });
-      this.fileReader = fileReader ?? new FileReader();
+      this.fileReader = fileReader ?? new FileReader({ projectRoot: findProjectRoot() });
       this.tsParser = tsParser ?? new TypeScriptParser();
       this.llmRouter = undefined;
     }

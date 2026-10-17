@@ -175,6 +175,8 @@ export class FleetInitEnhancer {
       const kgService = new KnowledgeGraphService(memory, {
         namespace: 'code-intelligence:kg',
         enableVectorEmbeddings: true,
+        // #1096: indexing is confined to the project being initialized.
+        projectRoot: this.projectRoot,
       });
 
       // Find all source files

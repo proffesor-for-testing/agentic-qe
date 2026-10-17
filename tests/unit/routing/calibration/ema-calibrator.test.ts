@@ -283,4 +283,30 @@ describe('EMACalibrator', () => {
       expect(record.emaAccuracy).toBe(0);
     });
   });
+
+  describe('prototype-named agent ids', () => {
+    it('round-trips an agentId of __proto__ through serialize and JSON', () => {
+      calibrator.recordOutcome('__proto__', true, 0.9);
+      calibrator.recordOutcome('constructor', false, 0.2);
+      const serialized = calibrator.serialize();
+      expect(Object.keys(serialized).sort()).toEqual(['__proto__', 'constructor']);
+
+      const restored = new EMACalibrator();
+      restored.deserialize(JSON.parse(JSON.stringify(serialized)));
+      expect(restored.getCalibration('__proto__')).toMatchObject({ agentId: '__proto__', emaAccuracy: 1 });
+      expect(restored.getCalibration('constructor')).toMatchObject({ agentId: 'constructor', emaAccuracy: 0 });
+      expect(restored.getAllCalibrations()).toHaveLength(2);
+    });
+
+    it('never pollutes Object.prototype', () => {
+      calibrator.recordOutcome('__proto__', true, 0.9);
+      const restored = new EMACalibrator();
+      restored.deserialize(JSON.parse(JSON.stringify(calibrator.serialize())));
+      restored.serialize();
+      const probe: Record<string, unknown> = {};
+      expect(probe.agentId).toBeUndefined();
+      expect(probe.emaAccuracy).toBeUndefined();
+      expect(Object.getPrototypeOf(probe)).toBe(Object.prototype);
+    });
+  });
 });

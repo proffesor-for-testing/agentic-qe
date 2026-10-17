@@ -74,12 +74,15 @@ export class QEDaemon implements IDaemon {
   private workerManager: WorkerManagerImpl;
   private config: Required<DaemonConfig>;
   private _qualityDaemon?: QualityDaemon;
+  /** #1066: `AQE_DISABLED_WORKERS` ids that match no worker. */
+  private unknownDisabledIds: string[] = [];
 
   constructor(config?: DaemonConfig) {
     this.config = {
       ...DEFAULT_CONFIG,
       ...config,
-      disabledWorkers: config?.disabledWorkers ?? parseDisabledWorkers(),
+      // #1066: ids are matched without regard to case.
+      disabledWorkers: (config?.disabledWorkers ?? parseDisabledWorkers()).map((id) => id.toLowerCase()),
     };
     this.workerManager = new WorkerManagerImpl();
     this.registerWorkers();
@@ -104,6 +107,13 @@ export class QEDaemon implements IDaemon {
     }
 
     console.info('[Daemon] Starting QE Background Workers...');
+    // #1066: reported on start, not construction. fleet_init and shutdown
+    // construct the daemon even when AQE_WORKERS_ENABLED=false.
+    if (this.unknownDisabledIds.length > 0) {
+      console.warn(
+        `[AQE] WARN AQE_DISABLED_WORKERS: unknown worker id(s) ignored: ${this.unknownDisabledIds.join(', ')}`
+      );
+    }
     this._running = true;
     this._startedAt = new Date();
 
@@ -243,12 +253,7 @@ export class QEDaemon implements IDaemon {
     }
 
     const knownIds = new Set(allWorkers.map((worker) => worker.config.id));
-    const unknownIds = this.config.disabledWorkers.filter((id) => !knownIds.has(id));
-    if (unknownIds.length > 0) {
-      console.warn(
-        `[AQE] WARN AQE_DISABLED_WORKERS: unknown worker id(s) ignored: ${unknownIds.join(', ')}`
-      );
-    }
+    this.unknownDisabledIds = this.config.disabledWorkers.filter((id) => !knownIds.has(id));
   }
 
   private performHealthCheck(): void {

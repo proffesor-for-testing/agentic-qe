@@ -9,6 +9,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import type { PriorityQueue, CIFailurePayload, QueueItem, DaemonTaskPayload } from './priority-queue';
+import { createSafeRecord, getOwn, setOwn } from '../../shared/utils/safe-record.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -163,16 +164,19 @@ export class CIMonitor {
   }
 
   private groupByWorkflow(runs: WorkflowRun[]): Record<string, WorkflowRun[]> {
-    const grouped: Record<string, WorkflowRun[]> = {};
+    // Workflow names come from GitHub: no prototype, so `constructor` is just a name (#978).
+    const grouped = createSafeRecord<WorkflowRun[]>();
     for (const run of runs) {
-      if (!grouped[run.name]) {
-        grouped[run.name] = [];
+      let bucket = getOwn(grouped, run.name);
+      if (!bucket) {
+        bucket = [];
+        setOwn(grouped, run.name, bucket);
       }
-      grouped[run.name].push(run);
+      bucket.push(run);
     }
     // Limit per workflow
     for (const name of Object.keys(grouped)) {
-      grouped[name] = grouped[name].slice(0, this.options.runsPerWorkflow);
+      setOwn(grouped, name, getOwn(grouped, name)!.slice(0, this.options.runsPerWorkflow));
     }
     return grouped;
   }

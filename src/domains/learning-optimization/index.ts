@@ -105,6 +105,7 @@ export type {
   // Strategy types
   Strategy,
   OptimizedStrategy,
+  OptimizationEvaluation,
   OptimizationObjective,
   Constraint,
   ValidationResult,

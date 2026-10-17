@@ -8,7 +8,7 @@
  * downstream dependents (most blocking tasks first).
  */
 
-import type { DAGTask, DAGSchedulerConfig } from './types.js';
+import type { CompleteTaskOptions, DAGProgress, DAGTask, DAGSchedulerConfig } from './types.js';
 import type { TaskDAG } from './dag.js';
 
 // ============================================================================
@@ -129,10 +129,11 @@ export class DAGScheduler {
    *
    * @param taskId - ID of the completed task
    * @param result - Optional result data from the task
+   * @param options - Optional completion evidence and revision guard
    * @returns Array of newly schedulable tasks
    */
-  onTaskComplete(taskId: string, result?: unknown): DAGTask[] {
-    const unblockedIds = this.dag.complete(taskId, result);
+  onTaskComplete(taskId: string, result?: unknown, options?: CompleteTaskOptions): DAGTask[] {
+    const unblockedIds = this.dag.complete(taskId, result, options);
     const tasks: DAGTask[] = [];
 
     for (const id of unblockedIds) {
@@ -190,27 +191,37 @@ export class DAGScheduler {
   /**
    * Get progress information for the DAG execution.
    *
-   * @returns Object with completed count, total count, and percentage
+   * The denominator is the original obligation count: removing a task
+   * does not shrink it, so deleting unfinished work cannot raise the
+   * percentage. Completed tasks that were later removed still count.
+   *
+   * @returns Completed count, original total, percentage and disposition counts
    */
-  getProgress(): { completed: number; total: number; percentage: number } {
-    const stats = this.dag.getStats();
-    const total = stats.totalTasks;
+  getProgress(): DAGProgress {
+    const s = this.dag.getObligationSummary();
+    const total = s.originalTotal;
+    const percentage = total === 0 ? 100 : Math.round((s.completed / total) * 100);
 
-    if (total === 0) {
-      return { completed: 0, total: 0, percentage: 100 };
-    }
-
-    const completed = stats.completed;
-    const percentage = Math.round((completed / total) * 100);
-
-    return { completed, total, percentage };
+    return {
+      completed: s.completed,
+      total,
+      percentage,
+      currentTotal: s.currentTotal,
+      failed: s.failed,
+      cancelled: s.cancelled,
+      removed: s.removed,
+      notRun: s.notRun,
+      waivedEdges: s.waivedEdges,
+      graphRevision: s.graphRevision,
+    };
   }
 
   /**
    * Check whether all tasks have reached a terminal state.
    *
    * A DAG execution is complete when every task is either
-   * 'completed', 'failed', or 'cancelled'.
+   * 'completed', 'failed', or 'cancelled'. This is an operational
+   * signal only; use isSatisfied() to ask whether the objective was met.
    *
    * @returns true if all tasks are in a terminal state
    */
@@ -223,6 +234,18 @@ export class DAGScheduler {
 
     const terminal = stats.completed + stats.failed + stats.cancelled;
     return terminal === stats.totalTasks;
+  }
+
+  /**
+   * Check whether every original obligation completed. Failed, cancelled
+   * and removed-before-completion tasks make this false even when
+   * isComplete() is true.
+   *
+   * @returns true if every task ever added has completed
+   */
+  isSatisfied(): boolean {
+    const s = this.dag.getObligationSummary();
+    return s.completed === s.originalTotal;
   }
 
   // --------------------------------------------------------------------------
