@@ -121,6 +121,27 @@ describe('Queen dispatch of a task type no plugin executes (#1081)', () => {
     expect(ctx.runningTaskCounter).toBe(1);
   });
 
+  // Review of #1107: failing a queued task re-entered processQueue once per
+  // task, so a long queue overflowed the stack (about 1000 frames) and every
+  // unwound frame decremented the running counter, leaving it near -1000.
+  it('drains a long queue of unhandled tasks without recursion and keeps the counter at zero', async () => {
+    const { ctx, coverage } = createContext(1);
+    const queued = Array.from({ length: 3000 }, (_, i) => task(`scan-${i}`, 'scan-security', 'security-compliance'));
+    const handled = task('coverage', 'analyze-coverage', 'coverage-analysis');
+    for (const t of [...queued, handled]) {
+      ctx.tasks.set(t.id, { taskId: t.id, task: t, status: 'queued', assignedAgents: [], retryCount: 0 });
+      enqueueTask(ctx.taskQueue, ctx.domainQueues, t);
+    }
+
+    await processQueue(asCtx(ctx));
+
+    expect(queued.every(t => ctx.tasks.get(t.id)?.status === 'failed')).toBe(true);
+    expect(ctx.tasksFailed).toBe(3000);
+    expect(ctx.tasks.get('coverage')?.status).toBe('running');
+    expect(coverage.executeTask).toHaveBeenCalledTimes(1);
+    expect(ctx.runningTaskCounter).toBe(1);
+  }, 30000);
+
   it('fails a queued task that cannot be assigned at all instead of leaving it queued on a held slot', async () => {
     const { ctx } = createContext(1);
     ctx.domainBreakerRegistry = { canExecuteInDomain: () => false };

@@ -179,37 +179,55 @@ export async function processQueue(ctx: QueenTaskContext): Promise<void> {
     return;
   }
 
-  for (const priority of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
-    const queue = ctx.taskQueue.get(priority);
-    if (!queue || queue.length === 0) continue;
+  // #1081: while this drain runs, a task failed at dispatch frees its slot
+  // here instead of starting a nested drain (one stack frame per failed task).
+  drainDepth.set(ctx.tasks, (drainDepth.get(ctx.tasks) ?? 0) + 1);
+  try {
+    for (const priority of ['p0', 'p1', 'p2', 'p3'] as Priority[]) {
+      const queue = ctx.taskQueue.get(priority);
+      if (!queue || queue.length === 0) continue;
 
-    const task = shiftDispatchableTask(ctx, queue);
-    if (task) {
-      removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
+      let task = shiftDispatchableTask(ctx, queue);
+      while (task) {
+        removeFromQueues(ctx.taskQueue, ctx.domainQueues, task);
 
-      // CC-002 FIX: Increment counter before assigning queued task
-      ctx.runningTaskCounter++;
+        // CC-002 FIX: Increment counter before assigning queued task
+        ctx.runningTaskCounter++;
 
-      let assigned: Result<string, Error>;
-      try {
-        assigned = await assignTask(ctx, task);
-      } catch (error) {
-        ctx.runningTaskCounter--;
-        throw error;
-      }
-      // #1081: a queued task that cannot be assigned (no healthy domain, open
-      // breaker) has no caller waiting on the result. Fail it with the reason
-      // rather than leave it queued forever on a held slot.
-      if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
-        settleFailedBeforeRun(ctx, task, undefined, assigned.error.message);
-      }
+        let assigned: Result<string, Error>;
+        try {
+          assigned = await assignTask(ctx, task);
+        } catch (error) {
+          ctx.runningTaskCounter = Math.max(0, ctx.runningTaskCounter - 1);
+          throw error;
+        }
+        // #1081: a queued task that cannot be assigned (no healthy domain, open
+        // breaker) has no caller waiting on the result. Fail it with the reason
+        // rather than leave it queued forever on a held slot.
+        if (!assigned.success && (ctx.tasks.get(task.id)?.status ?? 'queued') === 'queued') {
+          settleFailedBeforeRun(ctx, task, undefined, assigned.error.message);
+        }
 
-      if (ctx.runningTaskCounter >= ctx.config.maxConcurrentTasks) {
-        return;
+        if (ctx.runningTaskCounter >= ctx.config.maxConcurrentTasks) {
+          return;
+        }
+        // A task that failed without starting gave its slot back; let the
+        // next task of this priority have it.
+        task = ctx.tasks.get(task.id)?.status === 'failed' ? shiftDispatchableTask(ctx, queue) : undefined;
       }
     }
+  } finally {
+    const depth = (drainDepth.get(ctx.tasks) ?? 1) - 1;
+    if (depth > 0) drainDepth.set(ctx.tasks, depth);
+    else drainDepth.delete(ctx.tasks);
   }
 }
+
+/**
+ * Drains in progress per Queen, keyed by its task map (the task context
+ * object is rebuilt for every call).
+ */
+const drainDepth = new WeakMap<Map<string, TaskExecution>, number>();
 
 /**
  * Take the next task that is still waiting to run. A queued task can reach a
@@ -489,7 +507,8 @@ async function failUnexecutableTask(
     ctx.taskTraceContexts.delete(task.id);
   }
 
-  await processQueue(ctx);
+  // Inside a drain, the drain itself hands the freed slot on.
+  if (!drainDepth.has(ctx.tasks)) await processQueue(ctx);
   return ok(task.id);
 }
 
